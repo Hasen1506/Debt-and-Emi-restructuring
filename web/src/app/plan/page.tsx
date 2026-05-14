@@ -123,6 +123,14 @@ export default async function PlanPage() {
           )}
           .
         </p>
+        {plan.profileIsLive && plan.live && (
+          <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+            Got a bonus, raise, or unexpected cash? Use{' '}
+            <a href="/tools/windfall">Tools › Windfall</a> to model where it
+            should go, then{' '}
+            <a href="/tools/recompute">Recompute</a> to refresh this plan.
+          </p>
+        )}
       </section>
 
       {plan.opportunities.length > 0 && (

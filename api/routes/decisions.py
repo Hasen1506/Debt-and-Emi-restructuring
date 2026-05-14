@@ -169,17 +169,32 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
         holding_cost_rate=req.holding_cost_rate,
         expected_hold_years_post_sale=req.expected_hold_years_post_sale,
         high_rate_threshold=req.high_rate_threshold,
+        net_proceeds=net_proceeds,
+        debt_balance=req.debt_balance,
+        surplus_reinvestment_yield=req.surplus_reinvestment_yield,
     )
 
     failed = []
+    if gates.get("gate_0_wealth_edge") is False:
+        failed.append(
+            f"selling leaves you {abs(gates['wealth_edge']):,.0f} worse off over "
+            f"{int(req.expected_hold_years_post_sale)}y (surplus parked at low yield)"
+        )
     if not gates["gate_1_net_benefit"]: failed.append("net benefit < 10% of asset")
     if not gates["gate_2_high_rate"]:   failed.append(f"debt below {req.high_rate_threshold * 100:.0f}% threshold")
     if not gates["gate_3_spread"]:      failed.append("asset return-net beats debt rate")
-    rationale = (
-        "All three gates pass — selling clears expensive debt and the asset is underperforming."
-        if gates["recommend_liquidation"]
-        else "Hold the asset. Failed gates: " + "; ".join(failed) + "."
-    )
+
+    if gates["recommend_liquidation"]:
+        if gates.get("gate_0_wealth_edge") is True:
+            rationale = (
+                f"All gates pass. Selling clears the debt and the surplus "
+                f"({gates['surplus']:,.0f}) earns more over "
+                f"{int(req.expected_hold_years_post_sale)}y than the asset would."
+            )
+        else:
+            rationale = "All three gates pass — selling clears expensive debt and the asset is underperforming."
+    else:
+        rationale = "Hold the asset. Failed gates: " + "; ".join(failed) + "."
 
     return AssetLiquidationResponse(
         net_proceeds=net_proceeds,
@@ -189,6 +204,12 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
         gate_1_net_benefit=gates["gate_1_net_benefit"],
         gate_2_high_rate=gates["gate_2_high_rate"],
         gate_3_spread=gates["gate_3_spread"],
+        gate_0_wealth_edge=gates.get("gate_0_wealth_edge"),
+        surplus=gates.get("surplus"),
+        wealth_hold=gates.get("wealth_hold"),
+        wealth_sell=gates.get("wealth_sell"),
+        wealth_edge=gates.get("wealth_edge"),
+        horizon_years=req.expected_hold_years_post_sale if gates.get("gate_0_wealth_edge") is not None else None,
         recommend_liquidation=gates["recommend_liquidation"],
         rationale=rationale,
     )

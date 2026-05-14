@@ -155,6 +155,12 @@ export interface AssetLiquidationResponse {
   gate_1_net_benefit: boolean;
   gate_2_high_rate: boolean;
   gate_3_spread: boolean;
+  gate_0_wealth_edge: boolean | null;
+  surplus: string | null;
+  wealth_hold: string | null;
+  wealth_sell: string | null;
+  wealth_edge: string | null;
+  horizon_years: string | null;
   recommend_liquidation: boolean;
   rationale: string;
 }
@@ -386,6 +392,7 @@ export const api = {
     purchase_fy?: string;
     current_fy?: string;
     brokerage_rate?: string;
+    surplus_reinvestment_yield?: string;
   }) => post<AssetLiquidationResponse>('/api/asset-liquidation', req),
 };
 

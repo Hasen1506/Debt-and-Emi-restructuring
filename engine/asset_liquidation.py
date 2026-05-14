@@ -21,6 +21,8 @@ LTCG_INDEXED_RATE_PRE_2024 = D("0.20")
 LTCG_SURCHARGE_CAP = D("0.25")
 GATE_3_SPREAD = D("0.03")              # 3pp hurdle
 GATE_1_BENEFIT_RATIO = D("0.10")       # net benefit ≥ 10% of asset value
+GATE_0_WEALTH_EDGE_RATIO = D("0.10")   # sell-wealth must beat hold-wealth by ≥ 10% of asset
+DEFAULT_HOLD_VS_SELL_HORIZON_Y = D("5")
 
 
 def india_ltcg_tax(
@@ -69,6 +71,60 @@ def true_net_benefit(
     return net_proceeds - debt_balance - interest_during_sale
 
 
+def hold_vs_sell_wealth(
+    asset_value: Decimal,
+    asset_nominal_return: Decimal,
+    holding_cost_rate: Decimal,
+    net_proceeds: Decimal,
+    debt_balance: Decimal,
+    debt_effective_rate: Decimal,
+    surplus_reinvestment_yield: Decimal,
+    horizon_years: Decimal = DEFAULT_HOLD_VS_SELL_HORIZON_Y,
+) -> dict:
+    """§4.18 Gate 0 — does selling actually leave you wealthier in `horizon_years`?
+
+    Two scenarios over the same horizon:
+
+    HOLD: keep asset (compounds at nominal_return − holding_cost) and keep paying
+          the debt (compounds at debt_effective_rate against a fixed balance —
+          worst-case: user only services interest, doesn't pay down).
+        wealth_hold = asset_value × (1 + r_a − c)^N − debt_balance × (1 + r_d)^N
+
+    SELL: clear the debt with net_proceeds. Whatever is left (or owed) sits in
+          the user's best liquid investment for the horizon.
+        surplus = net_proceeds − debt_balance
+        wealth_sell = surplus × (1 + r_inv)^N        (if surplus ≥ 0)
+                    = −|surplus| × (1 + r_d_assumed)^N if surplus < 0 (residual debt)
+
+    Returns wealth_hold, wealth_sell, edge (sell − hold), edge_ratio (edge / asset_value).
+    Edge_ratio is what Gate 0 thresholds against.
+    """
+    r_a_net = asset_nominal_return - holding_cost_rate
+    growth_a = (D("1") + r_a_net) ** int(horizon_years)
+    growth_d = (D("1") + debt_effective_rate) ** int(horizon_years)
+    growth_inv = (D("1") + surplus_reinvestment_yield) ** int(horizon_years)
+
+    wealth_hold = asset_value * growth_a - debt_balance * growth_d
+
+    surplus = net_proceeds - debt_balance
+    if surplus >= 0:
+        wealth_sell = surplus * growth_inv
+    else:
+        # Residual debt compounds at debt rate.
+        wealth_sell = surplus * growth_d            # surplus is negative
+
+    edge = wealth_sell - wealth_hold
+    edge_ratio = edge / asset_value if asset_value > 0 else D("0")
+    return {
+        "wealth_hold": wealth_hold,
+        "wealth_sell": wealth_sell,
+        "surplus": surplus,
+        "edge": edge,
+        "edge_ratio": edge_ratio,
+        "horizon_years": horizon_years,
+    }
+
+
 def gate_check(
     asset_value: Decimal,
     net_benefit: Decimal,
@@ -80,10 +136,21 @@ def gate_check(
     holding_cost_rate: Decimal,
     expected_hold_years_post_sale: Decimal,
     high_rate_threshold: Decimal = D("0.20"),
+    net_proceeds: Decimal | None = None,
+    debt_balance: Decimal | None = None,
+    surplus_reinvestment_yield: Decimal | None = None,
 ) -> dict:
-    """§4.18 — runs Gates 1–3; Gate 4 is UI-side.
+    """§4.18 — Gates 0–3; Gate 4 (emotional/strategic) is UI-side.
 
-    Returns dict with each gate's boolean and the computed `recommend_liquidation`.
+    Gate 0 (NEW): hold-vs-sell wealth comparison over `expected_hold_years_post_sale`
+        years. Sell-scenario wealth must beat hold-scenario wealth by at least
+        10% of asset value. Closes the loophole where the prior 3 gates passed
+        but most of the proceeds ended up sitting as low-yield cash.
+
+    Gate 0 is only evaluated when the caller supplies surplus context
+    (net_proceeds, debt_balance, surplus_reinvestment_yield); without it we
+    skip Gate 0 and fall back to the legacy 3-gate behaviour for backward
+    compatibility.
     """
     one_time_drag = (selling_cost_pct + ltcg_effective_rate) / expected_hold_years_post_sale
     asset_real_return_net = asset_nominal_return - inflation - holding_cost_rate - one_time_drag
@@ -92,10 +159,38 @@ def gate_check(
     gate_2 = debt_effective_rate >= high_rate_threshold
     gate_3 = (debt_effective_rate - asset_real_return_net) >= GATE_3_SPREAD
 
-    return {
+    out = {
         "gate_1_net_benefit": gate_1,
         "gate_2_high_rate": gate_2,
         "gate_3_spread": gate_3,
         "asset_real_return_net": asset_real_return_net,
-        "recommend_liquidation": gate_1 and gate_2 and gate_3,
     }
+
+    if (
+        net_proceeds is not None
+        and debt_balance is not None
+        and surplus_reinvestment_yield is not None
+    ):
+        wealth = hold_vs_sell_wealth(
+            asset_value=asset_value,
+            asset_nominal_return=asset_nominal_return,
+            holding_cost_rate=holding_cost_rate,
+            net_proceeds=net_proceeds,
+            debt_balance=debt_balance,
+            debt_effective_rate=debt_effective_rate,
+            surplus_reinvestment_yield=surplus_reinvestment_yield,
+            horizon_years=expected_hold_years_post_sale,
+        )
+        gate_0 = wealth["edge_ratio"] >= GATE_0_WEALTH_EDGE_RATIO
+        out["gate_0_wealth_edge"] = gate_0
+        out["wealth_hold"] = wealth["wealth_hold"]
+        out["wealth_sell"] = wealth["wealth_sell"]
+        out["surplus"] = wealth["surplus"]
+        out["wealth_edge"] = wealth["edge"]
+        out["wealth_edge_ratio"] = wealth["edge_ratio"]
+        out["recommend_liquidation"] = gate_0 and gate_1 and gate_2 and gate_3
+    else:
+        out["gate_0_wealth_edge"] = None
+        out["recommend_liquidation"] = gate_1 and gate_2 and gate_3
+
+    return out

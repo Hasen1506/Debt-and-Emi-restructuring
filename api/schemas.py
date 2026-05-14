@@ -328,6 +328,7 @@ class AssetLiquidationRequest(_Base):
     purchase_fy: Optional[str] = None        # required if purchase pre-23-Jul-2024
     current_fy: Optional[str] = None
     brokerage_rate: Decimal = D("0.015")
+    surplus_reinvestment_yield: Optional[Decimal] = None   # if absent, Gate 0 is skipped
 
 
 class AssetLiquidationResponse(_Base):
@@ -338,6 +339,12 @@ class AssetLiquidationResponse(_Base):
     gate_1_net_benefit: bool
     gate_2_high_rate: bool
     gate_3_spread: bool
+    gate_0_wealth_edge: Optional[bool] = None
+    surplus: Optional[Decimal] = None              # net_proceeds − debt_balance
+    wealth_hold: Optional[Decimal] = None
+    wealth_sell: Optional[Decimal] = None
+    wealth_edge: Optional[Decimal] = None
+    horizon_years: Optional[Decimal] = None
     recommend_liquidation: bool
     rationale: str
 

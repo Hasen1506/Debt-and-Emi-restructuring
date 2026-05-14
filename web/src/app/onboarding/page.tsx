@@ -182,7 +182,11 @@ export default function OnboardingPage() {
               label={`Monthly income (${country === 'IN' ? '₹' : '$'})`}
               value={monthlyIncome}
               onChange={setMonthlyIncome}
-              hint="Take-home, post-tax"
+              hint={
+                country === 'IN'
+                  ? 'Take-home credited each month, AFTER EPF + TDS. Skip bonuses — add via Tools › Windfall when they arrive.'
+                  : 'Take-home, post-tax, post-401(k). Add bonuses via Tools › Windfall.'
+              }
             />
             <Field
               label="Monthly fixed expenses"
@@ -199,7 +203,7 @@ export default function OnboardingPage() {
               label="Expected annual income hike (decimal)"
               value={annualHikeRate}
               onChange={setAnnualHikeRate}
-              hint="e.g. 0.08 for 8%"
+              hint="Applied once every 12 months in the simulation. e.g. 0.08 for 8%. Leave 0 if uncertain."
             />
             <Field
               label="Your marginal tax rate (decimal)"

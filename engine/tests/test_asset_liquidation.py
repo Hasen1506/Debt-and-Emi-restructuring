@@ -105,3 +105,46 @@ def test_gate_check_fails_when_asset_returns_high():
     )
     assert result["gate_3_spread"] is False
     assert result["recommend_liquidation"] is False
+
+
+def test_gate_0_blocks_sale_when_surplus_left_idle():
+    """User's concern: 3 gates pass but most proceeds sit at low yield.
+    Sale would lose money over 5 years vs holding."""
+    result = gate_check(
+        asset_value=D("9000000"),
+        net_benefit=D("3800000"),
+        debt_effective_rate=D("0.085"),    # home loan — passes 1 + 2 (loose)
+        asset_nominal_return=D("0.09"),    # decent property
+        inflation=D("0.046"),
+        selling_cost_pct=D("0.06"),
+        ltcg_effective_rate=D("0.04"),
+        holding_cost_rate=D("0.01"),
+        expected_hold_years_post_sale=D("5"),
+        high_rate_threshold=D("0.08"),     # loosen so gate 2 passes
+        net_proceeds=D("7800000"),
+        debt_balance=D("4000000"),
+        surplus_reinvestment_yield=D("0.068"),   # liquid fund
+    )
+    assert result["gate_0_wealth_edge"] is False
+    assert result["recommend_liquidation"] is False
+    assert result["surplus"] == D("3800000")
+
+
+def test_gate_0_allows_sale_when_debt_is_expensive_enough():
+    """Card-rate debt vs underperforming asset — Gate 0 still says sell."""
+    result = gate_check(
+        asset_value=D("9000000"),
+        net_benefit=D("3800000"),
+        debt_effective_rate=D("0.36"),
+        asset_nominal_return=D("0.04"),
+        inflation=D("0.046"),
+        selling_cost_pct=D("0.06"),
+        ltcg_effective_rate=D("0.04"),
+        holding_cost_rate=D("0.01"),
+        expected_hold_years_post_sale=D("5"),
+        net_proceeds=D("7800000"),
+        debt_balance=D("4000000"),
+        surplus_reinvestment_yield=D("0.068"),
+    )
+    assert result["gate_0_wealth_edge"] is True
+    assert result["recommend_liquidation"] is True

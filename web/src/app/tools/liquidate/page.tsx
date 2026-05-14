@@ -37,6 +37,7 @@ export default function LiquidatePage() {
   const [taxableIncome, setTaxableIncome] = useState('1800000');
   const [assetReturn, setAssetReturn] = useState('0.06');
   const [holdYears, setHoldYears] = useState('5');
+  const [reinvestYield, setReinvestYield] = useState('0.068');
   const [v, setV] = useState<AssetLiquidationResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -61,6 +62,7 @@ export default function LiquidatePage() {
         taxable_income: taxableIncome,
         asset_nominal_return: assetReturn,
         expected_hold_years_post_sale: holdYears,
+        surplus_reinvestment_yield: reinvestYield,
         ...(isPre
           ? { purchase_fy: fyFromISO(purchaseDate), current_fy: '2024-25' }
           : {}),
@@ -137,7 +139,12 @@ export default function LiquidatePage() {
             value={holdYears}
             onChange={setHoldYears}
           />
-          <div />
+          <Field
+            label="Surplus reinvestment yield (decimal)"
+            value={reinvestYield}
+            onChange={setReinvestYield}
+            hint="Where leftover proceeds land. Default 0.068 = liquid fund (IN)"
+          />
           <SubmitBar busy={busy} error={err} label="Should I sell?" />
         </form>
       </Card>
@@ -169,13 +176,77 @@ export default function LiquidatePage() {
               value={formatPct(v.asset_real_return_net, 2)}
             />
           </div>
+          {v.gate_0_wealth_edge !== null && (
+            <div
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 12,
+                background: 'var(--canvas)',
+              }}
+            >
+              <div
+                className="muted"
+                style={{ fontSize: 12, marginBottom: 8 }}
+              >
+                {`Hold vs sell over ${v.horizon_years ?? '5'}y `}
+                {`(surplus parked at ${formatPct(reinvestYield, 1)})`}
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 12,
+                }}
+              >
+                <Stat
+                  label="Keep asset, keep debt"
+                  value={formatINR(v.wealth_hold ?? '0')}
+                />
+                <Stat
+                  label="Sell, clear debt, invest surplus"
+                  value={formatINR(v.wealth_sell ?? '0')}
+                  color={
+                    Number(v.wealth_edge) > 0
+                      ? 'var(--positive)'
+                      : 'var(--negative)'
+                  }
+                />
+                <Stat
+                  label="Edge of selling"
+                  value={`${Number(v.wealth_edge) >= 0 ? '+' : ''}${formatINR(v.wealth_edge ?? '0')}`}
+                  color={
+                    Number(v.wealth_edge) > 0
+                      ? 'var(--positive)'
+                      : 'var(--negative)'
+                  }
+                />
+              </div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                Surplus after clearing debt:{' '}
+                <span className="num" style={{ color: 'var(--ink)' }}>
+                  {formatINR(v.surplus ?? '0')}
+                </span>
+              </div>
+            </div>
+          )}
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateColumns: v.gate_0_wealth_edge !== null
+                ? 'repeat(4, 1fr)'
+                : 'repeat(3, 1fr)',
               gap: 12,
             }}
           >
+            {v.gate_0_wealth_edge !== null && (
+              <Stat
+                label="Gate 0 · sell beats hold"
+                value={v.gate_0_wealth_edge ? 'Pass' : 'Fail'}
+                color={v.gate_0_wealth_edge ? 'var(--positive)' : 'var(--negative)'}
+              />
+            )}
             <Stat
               label="Gate 1 · benefit ≥ 10%"
               value={v.gate_1_net_benefit ? 'Pass' : 'Fail'}
