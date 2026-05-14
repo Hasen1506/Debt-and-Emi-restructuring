@@ -3,6 +3,7 @@ import '@/styles/globals.css';
 import { loadThemeServer, type ThemeName } from '@/lib/theme';
 import { StandardTopBar } from '@/components/chrome/StandardTopBar';
 import { EditorialMasthead } from '@/components/chrome/EditorialMasthead';
+import { LedgerHeader } from '@/components/chrome/LedgerHeader';
 
 export const metadata: Metadata = {
   title: 'FinOptima — Debt & EMI Optimiser',
@@ -34,5 +35,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
 function Chrome({ theme }: { theme: ThemeName }) {
   if (theme === 'editorial') return <EditorialMasthead theme={theme} />;
+  if (theme === 'ledger') return <LedgerHeader theme={theme} />;
   return <StandardTopBar theme={theme} />;
 }
