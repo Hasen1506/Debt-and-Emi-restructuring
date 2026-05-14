@@ -5,7 +5,7 @@ export default function ToolsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <h1 className="h1">Tools</h1>
       <p className="muted">
-        Six single-decision modules — each answers one question with one number
+        Single-decision modules — each answers one question with one number
         and one chart.
       </p>
       <div
@@ -44,6 +44,11 @@ export default function ToolsPage() {
           label="Right time to borrow"
           sub="§8f · Wait or borrow now?"
           href="/tools/right-time"
+        />
+        <ActionTile
+          label="NRI prepay vs invest"
+          sub="§FX · Loan abroad, savings here?"
+          href="/tools/nri-prepay"
         />
       </div>
     </div>

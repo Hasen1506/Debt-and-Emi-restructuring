@@ -159,6 +159,26 @@ export interface AssetLiquidationResponse {
   rationale: string;
 }
 
+export interface FxRateResponse {
+  base: string;
+  quote: string;
+  rate: string;
+  source: 'frankfurter' | 'manual' | 'fallback';
+  as_of: string | null;
+}
+
+export interface CrossBorderResponse {
+  fx_rate_used: string;
+  fx_drift_used: string;
+  effective_loan_cost_in_user_currency: string;
+  user_post_tax_yield: string;
+  spread: string;
+  verdict: 'prepay' | 'invest' | 'marginal';
+  rationale: string;
+  loan_emi_user_currency: string;
+  loan_emi_user_currency_y5: string;
+}
+
 // ─── thin fetch helper ──────────────────────────────────────────────────────
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -260,6 +280,22 @@ export const api = {
     tenure_months: number;
   }) => post<BorrowTimingResponse>('/api/right-time-to-borrow', req),
 
+  fxRate: (base: string, quote: string) =>
+    get<FxRateResponse>(`/api/fx-rate?base=${base}&quote=${quote}`),
+
+  crossBorder: (req: {
+    loan_balance: string;
+    loan_nominal_rate: string;
+    loan_tenure_months: number;
+    loan_currency: string;
+    user_currency: string;
+    user_savings_yield: string;
+    user_marginal_tax?: string;
+    manual_fx_rate?: string;
+    manual_fx_drift_annual?: string;
+    inflation_user_country?: string;
+  }) => post<CrossBorderResponse>('/api/cross-border-decision', req),
+
   assetLiquidation: (req: {
     asset: AssetPayload;
     sale_price: string;
@@ -287,6 +323,18 @@ export function formatINR(value: string | number | Decimal): string {
   if (abs.gte(100_000)) return `₹${d.div(100_000).toFixed(2)}L`;
   if (abs.gte(1_000)) return `₹${d.div(1_000).toFixed(1)}k`;
   return `₹${d.toFixed(0)}`;
+}
+
+export function formatUSD(value: string | number | Decimal): string {
+  const d = new Decimal(value);
+  const abs = d.abs();
+  if (abs.gte(1_000_000)) return `$${d.div(1_000_000).toFixed(2)}M`;
+  if (abs.gte(1_000)) return `$${d.div(1_000).toFixed(1)}k`;
+  return `$${d.toFixed(2)}`;
+}
+
+export function formatCurrency(value: string | number | Decimal, currency: string): string {
+  return currency.toUpperCase() === 'USD' ? formatUSD(value) : formatINR(value);
 }
 
 export function formatPct(value: string | number | Decimal, digits = 2): string {
