@@ -5,6 +5,7 @@ import { mergeTrajectories } from '@/lib/trajectory';
 import { mockTrajectory } from '@/lib/mock-data';
 import { ExistingPlan } from '@/components/plan/ExistingPlan';
 import { EditorialPlan } from '@/components/plan/EditorialPlan';
+import { LedgerPlan } from '@/components/plan/LedgerPlan';
 import type { PlanData } from '@/components/plan/PlanData';
 
 export const dynamic = 'force-dynamic';
@@ -65,5 +66,6 @@ async function loadPlan(): Promise<PlanData> {
 export default async function PlanPage() {
   const [plan, theme] = await Promise.all([loadPlan(), loadThemeServer()]);
   if (theme === 'editorial') return <EditorialPlan plan={plan} />;
+  if (theme === 'ledger') return <LedgerPlan plan={plan} />;
   return <ExistingPlan plan={plan} />;
 }
