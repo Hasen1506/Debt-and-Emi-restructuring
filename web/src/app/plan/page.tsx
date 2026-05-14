@@ -1,11 +1,13 @@
 import { Card } from '@/components/Card';
 import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
+import { WhatIfPanel } from '@/components/WhatIfPanel';
 import {
   api,
   formatINR,
   formatPct,
   monthIndexToLabel,
   type RestructuringOpportunity,
+  type UserPayload,
 } from '@/lib/api';
 import { loadProfileServer } from '@/lib/user-store';
 import { mergeTrajectories } from '@/lib/trajectory';
@@ -24,6 +26,8 @@ async function loadPlan(): Promise<{
   surplus: number;
   opportunities: RestructuringOpportunity[];
   totalAnnualSaving: string;
+  user: UserPayload;
+  marginalRate: string;
 }> {
   const profile = await loadProfileServer();
   const surplus = Number(profile.user.monthly_income) - Number(profile.user.fixed_expenses);
@@ -56,6 +60,8 @@ async function loadPlan(): Promise<{
       surplus,
       opportunities: restructuring.opportunities,
       totalAnnualSaving: restructuring.total_annual_saving,
+      user: profile.user,
+      marginalRate: profile.marginalRate,
     };
   } catch {
     return {
@@ -69,6 +75,8 @@ async function loadPlan(): Promise<{
       surplus,
       opportunities: [],
       totalAnnualSaving: '0',
+      user: profile.user,
+      marginalRate: profile.marginalRate,
     };
   }
 }
@@ -266,6 +274,17 @@ export default async function PlanPage() {
           </div>
         </Card>
       </div>
+
+      <Card>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 16, fontWeight: 600 }}>What if…</div>
+          <div className="muted" style={{ fontSize: 13 }}>
+            Move a slider — engine recomputes against your current schedule.
+            Months and interest are versus today&apos;s avalanche plan.
+          </div>
+        </div>
+        <WhatIfPanel user={plan.user} marginalRate={plan.marginalRate} />
+      </Card>
     </div>
   );
 }
