@@ -3,8 +3,10 @@
 
 > **Companion to:** `module-02-debt-emi-brainstorm.md`
 > **Purpose:** translate the locked brainstorm into an implementation-ready spec covering UI modes, screens, math, architecture, data sources, and accuracy framework.
-> **Status:** v1.0. Designs (HTML/Figma) not yet produced.
+> **Status:** v2.0 — formulas complete and corrected; wireframes pending.
 > **Last updated:** May 2026
+>
+> ⚠ **DATA CURRENCY:** All tax slabs, instrument returns, and regulatory caps are current through **India FY2025-26 / USA Tax Year 2025** (author knowledge cutoff: August 2025). Before launch the build team must verify FY2026-27 values from: Union Budget 2026 (Feb 1, 2026) for India slabs/caps; current EPFO circular for EPF rate; MoF quarterly notification for PPF rate; IRS Revenue Procedure for US brackets and standard deduction. Every time-sensitive datum is tagged `[VERIFY FY2026-27]`.
 
 ---
 
@@ -176,13 +178,29 @@ All formulas the system needs, in one place. Every formula is testable in isolat
 
 ### 4.1 Effective post-tax rate per loan
 
+**Step 0 — Derive `marginal_tax_rate` from declared income (see §4.14 for full formula).**
+For India: the effective marginal rate includes surcharge + 4% cess — it is NOT the raw slab rate. At ₹1.2Cr income (old regime) the correct marginal rate is 35.88%, not 30%. Always use the §4.14 output.
+Current rates: India FY2025-26 slabs (brainstorm §25.2) `[VERIFY FY2026-27 → Budget 2026, Feb 1 2026]`; USA Tax Year 2025 brackets (§4.14) `[VERIFY Tax Year 2026 → IRS Rev Proc Oct 2025]`.
+
+**Step 1 — India new-regime gate for home loan (runs BEFORE applying cap):**
 ```
+# FY2025-26 default: new regime. Sec 24(b) shield on self-occupied = ₹0 under new regime.
+# Old regime (user must explicitly opt in): Sec 24(b) cap = ₹2,00,000/yr.
+if country == "IN" AND loan_type == "home_loan" AND property_use == "self_occupied":
+    country_cap_i = 0 if user.tax_regime == "new" else 200_000
+# Let-out property: deductible without cap in both regimes (deducted against rental income).
+```
+⚠ Defaulting to old-regime shield for a new-regime user is a systematic error — see brainstorm §25.1.
+
+**Step 2 — Effective rate formula:**
+```
+annual_interest_i   = outstanding_balance_i × nominal_rate_i
 deductible_amount   = min(annual_interest_i, country_cap_i)
 tax_saved_i         = deductible_amount × marginal_tax_rate
 effective_rate_i    = nominal_rate_i × [1 − (deductible_amount / annual_interest_i) × marginal_tax_rate]
                     + amortised_fees_rate_i
                     + bundled_insurance_rate_i
-                    + GST_on_interest_rate_i           // country-specific (18% in India)
+                    + GST_on_interest_rate_i   // credit cards + personal loan processing fees only (18%); NOT on home/auto EMI interest — see §4.16
 ```
 
 `annual_interest_i = outstanding_balance_i × nominal_rate_i`
@@ -230,12 +248,30 @@ else:
 ```
 
 ### 4.6 Layer 3 — Invest-vs-prepay test (per loan, evaluated monthly)
+
+**PF liquidity gate (runs before comparison):** EPF, VPF, PPF, and NPS Tier 1 are locked — never in the monthly comparison pool. See §4.17 for full gate. NPS Tier 2 is freely liquid and appears in the pool.
+
 ```
-user_best_real_return = max(user_investment_options) − inflation_rate
+# Step 1 — filter to liquid options only
+liquid_options        = [opt for opt in user_investment_options if opt.liquidity_class != "locked"]
+
+# Step 2 — compare real rates
+user_best_real_return = max(liquid_options, key=lambda o: o.expected_return) − inflation_rate
 loan_real_rate        = effective_rate_i − inflation_rate
 prepay_recommended    = loan_real_rate > user_best_real_return + 0.5  // 0.5pp risk premium
 ```
-If `prepay_recommended == False`, route surplus to investment instead of prepayment.
+If `prepay_recommended == False`, route surplus to best liquid investment instead of prepayment.
+
+**India reference returns FY2025-26 (display only — not auto-populated in pool for locked instruments):**
+- EPF: 8.25% tax-free → ~11.79% pre-tax equiv at 30% bracket (locked) `[VERIFY FY2025-26 rate from EPFO circular]`
+- PPF: 7.1% tax-free → ~10.14% pre-tax equiv at 30% bracket (15-yr lock; partial from yr 7) `[VERIFY current quarter from MoF notification]`
+- Nifty 50 TRI long-run: ~12% nominal (liquid; in pool)
+- Best FD rate (India): ~7.5% (fully liquid; in pool) `[VERIFY current market rate]`
+
+**USA reference returns 2025 (liquid):**
+- S&P 500 long-run: ~10% nominal (in pool)
+- HYSA top rate: ~4.5% (in pool) `[VERIFY current Fed-funds-linked rate]`
+- 401k/IRA: flag as age-gated (not liquid before 59½ without penalty — exclude for users <55)
 
 ### 4.7 Restructuring scans (Layer 1)
 
@@ -264,16 +300,15 @@ high_rate_interest_saved     = surplus_freed × months × (high_rate − home_ra
 recommend if: high_rate_interest_saved > extra_lifetime_interest_home × 1.2
 ```
 
-### 4.8 Asset liquidation gate (Section 8c — all four must pass)
-```
-gate_1 = debt_amount / asset_value ≥ 0.10
-gate_2 = asset_divisibility flag == "yes" OR debt_amount / asset_value ≥ 0.50
-asset_real_return = nominal_return − inflation − holding_cost_rate
-debt_effective    = effective_rate  // already cash-cost
-gate_3 = debt_effective − asset_real_return ≥ 3
-gate_4 = post_sale_tax_bracket == pre_sale_tax_bracket
-recommend_sale = all(gate_1..4)
-```
+### 4.8 Asset liquidation gate (Section 8c)
+
+**⚠ This original formula is superseded by §4.18.** It understates the debt hurdle by omitting:
+- Transaction costs (stamp duty + registration + brokerage = 7–11% in India; 7–9% in USA)
+- LTCG tax (indexed cost method for India; bracket-dependent for USA) `[VERIFY India CII table FY2026-27 from CBDT]`
+- Time-to-sell delay interest (3 months of high-rate debt accruing while sale completes)
+- CAGR-derived `nominal_return` (not a direct user input — computed from purchase price + year)
+
+The four-gate structure is preserved in §4.18. Gate 1 uses `true_net_benefit` (not raw debt amount); Gate 3 requires spread ≥ 3pp **and** `true_net_benefit > 0`. Use §4.18 for all production computations.
 
 ### 4.9 No-cost EMI true cost (Section 8b)
 ```
@@ -283,11 +318,34 @@ total_real_cost    = foregone_discount + processing_fee
 effective_apr      = solve_apr_such_that(NPV(payments) = list_price − total_real_cost)
 ```
 
-### 4.10 Inflation usage
+### 4.10 Inflation usage and salary growth model
+
+**Inflation usage:**
 - **Long-tenure loans (>5 yrs):** Layer 3 uses real return for comparison
-- **Salary growth projection:** `projected_surplus_month_t = current_surplus × (1 + min(1.5 × inflation, 0.08))^t/12`
 - **Real value of fixed EMI:** `real_emi_t = nominal_emi / (1 + inflation)^t/12`
-- Inflation source: central bank forecast, refreshed quarterly
+- Inflation source: RBI forward forecast (India); Fed SEP median (USA). Refreshed quarterly. `[VERIFY current forecast from RBI MPC / Fed SEP]`
+
+**Salary growth projection — salaried user:**
+```
+# User declares annual_hike_rate in onboarding
+# Simple Mode default pre-fill: min(1.5 × inflation, 0.08)
+# Detailed Mode: per-year hike table allowed (e.g. 12% promotion year, 7% other years)
+projected_surplus_t = base_surplus × ∏(y=1..floor(t/12)) (1 + annual_hike_rate_y)
+```
+
+**Income projection — business owner / freelancer:**
+```
+# Plan runs at P25 of last 12 months net personal income — not the mean
+p25_income          = percentile_25(last_12_months_net_income)
+# 3-year income CAGR as forward projection rate (user provides 3 prior years)
+business_cagr       = (income_year3 / income_year1)^(1/2) − 1
+projected_surplus_t = max(0, p25_income − fixed_expenses) × (1 + business_cagr)^(t/12)
+
+# Advance tax months (India business owners) auto-marked in cash flow calendar:
+# 15 Jun (15%), 15 Sep (45% cumulative), 15 Dec (75%), 15 Mar (100%)  [VERIFY dates annually]
+```
+
+**Plan screen visual (plans > 5 years):** shows two surplus lines — "today's surplus (flat)" and "projected at your declared hike rate." Most compelling for home loan planning — users see their 20-year debt become progressively lighter. See brainstorm §27 for full UX spec.
 
 ### 4.11 Central bank rate change handling
 ```
@@ -311,6 +369,266 @@ savings                      = total_interest_minimums_only − total_interest_o
 ```
 
 This is the headline killer-output number.
+
+### 4.13 Standard EMI formula (amortising loans)
+
+```
+monthly_rate = effective_rate_i / 12
+EMI_i        = balance_i × monthly_rate × (1 + monthly_rate)^n / ((1 + monthly_rate)^n − 1)
+```
+
+Remaining balance after t scheduled payments:
+```
+balance_after_t = balance_i × ((1 + monthly_rate)^n − (1 + monthly_rate)^t) / ((1 + monthly_rate)^n − 1)
+```
+
+Total interest over full tenure (no extra payments):
+```
+total_interest_i = EMI_i × n − principal_i
+```
+
+Uses `effective_rate_i` (not nominal) — fees, bundled insurance, and applicable taxes are absorbed into the rate before this formula runs.
+
+**Currency arithmetic rule:** always use `Decimal` type (never float) for all monetary calculations. Floating point errors compound over multi-year plans and produce incorrect output.
+
+### 4.14 India tax computation — effective marginal rate
+
+```
+# Inputs: gross_income (₹/yr), regime ("old" | "new"), deductions_dict
+taxable_income   = compute_taxable_income(gross_income, regime, deductions_dict)
+
+# Marginal slab rate at the top rupee of taxable_income
+base_rate        = marginal_slab_rate(taxable_income, regime)   # see brainstorm §25.2
+
+# Surcharge on income tax
+if taxable_income <= 5_000_000:      surcharge = 0.00
+elif taxable_income <= 10_000_000:   surcharge = 0.10
+elif taxable_income <= 20_000_000:   surcharge = 0.15
+elif taxable_income <= 50_000_000:   surcharge = 0.25
+else:                                surcharge = 0.37   # capped at 0.25 for LTCG/special rate income
+
+# Education cess (4% on tax + surcharge)
+marginal_rate    = base_rate × (1 + surcharge) × 1.04
+```
+
+**US federal marginal rate computation (Tax Year 2025):** `[VERIFY Tax Year 2026 → IRS Rev Proc Oct 2025]`
+```
+# 2025 tax brackets — updated annually for inflation by IRS in October
+# Single filer: 10%→12%→22%→24%→32%→35%→37%
+#   thresholds: $11,925 / $48,475 / $103,350 / $197,300 / $250,525 / $626,350
+# MFJ:         10%→12%→22%→24%→32%→35%→37%
+#   thresholds: $23,850 / $96,950 / $206,700 / $394,600 / $501,050 / $751,600
+federal_marginal_rate   = bracket_lookup(taxable_income, filing_status, year=2025)
+# State income tax: add state_rate[state] to effective marginal rate
+# Key state rates 2025: CA 13.3% | NY 10.9% | TX/FL/WA 0% | IL 4.95% | NJ 10.75%
+effective_marginal_rate = federal_marginal_rate + state_marginal_rate
+```
+
+### 4.15 USA mortgage interest deduction — itemisation gate
+
+```
+# TCJA 2017: standard deduction largely eliminated itemisation benefit for most filers
+standard_deduction = {2025: {single: 15_000, mfj: 30_000}}   # [VERIFY Tax Year 2026 from IRS Rev Proc]
+
+total_itemisable = mortgage_interest_paid + min(salt_taxes_paid, 10_000) + charitable_giving + ...
+
+if total_itemisable > standard_deduction[year][filing_status]:
+    # User itemises; mortgage interest deduction is incremental vs standard deduction
+    incremental_benefit = total_itemisable − standard_deduction[year][filing_status]
+    deductible_interest  = min(mortgage_interest_paid,
+                               incremental_benefit,
+                               interest_on_750k_principal_limit)
+    tax_saved            = deductible_interest × marginal_rate
+else:
+    # Standard deduction taken — mortgage interest gives zero additional tax benefit
+    tax_saved            = 0
+    effective_rate_mortgage = nominal_rate_mortgage   # no shield applied
+```
+
+**Implication for invest-vs-prepay (Layer 3):** US homeowners at standard deduction see no tax shield — their home loan effective rate equals the nominal rate, raising the hurdle for "invest instead of prepaying" advice.
+
+### 4.16 GST on financial products — India (correction to §4.1)
+
+```
+# What actually attracts 18% GST in India:
+#   Credit cards: GST on interest charges, late fees, cash advance fees, annual fees
+#   Personal loans: GST on processing fee (NOT on the monthly interest itself)
+#   Home loans: GST on processing fee only. Interest payments: no GST.
+#   Auto loans: GST on processing fee only. Interest payments: no GST.
+
+if loan_type == "credit_card":
+    # Interest effectively becomes nominal × 1.18
+    gst_component = nominal_rate × 0.18
+
+elif loan_type in ("personal_loan", "home_loan", "auto_loan"):
+    # GST only on processing fee, amortised over tenure
+    gst_component = (processing_fee × 0.18) / (principal × tenure_years)
+
+GST_on_interest_rate_i = gst_component   # plug into §4.1 formula
+```
+
+### 4.17 India EPF/PPF pre-tax equivalent and liquidity gate
+
+```
+# Pre-tax equivalent of EPF return (used as reference floor, NOT as free allocation)
+epf_rate_taxfree    = 0.0825          # FY2024-25: 8.25% (announced Feb 2025 by EPFO)
+                                      # [VERIFY FY2025-26 rate → EPFO circular ~March 2026]
+                                      # [VERIFY FY2026-27 rate → EPFO circular ~March 2027]
+epf_pretax_equiv    = epf_rate_taxfree / (1 − marginal_rate)
+# e.g. at 30% bracket: 8.25% / 0.70 = 11.79% pre-tax equivalent
+
+# PPF pre-tax equivalent
+ppf_rate_taxfree    = 0.071           # 7.1% through Q1 FY2025-26 (Apr-Jun 2025); quarterly-set
+                                      # [VERIFY current quarter → MoF quarterly notification]
+ppf_pretax_equiv    = ppf_rate_taxfree / (1 − marginal_rate)
+# e.g. at 30% bracket: 7.1% / 0.70 = 10.14% pre-tax equivalent
+
+# Liquidity gate — can this instrument be mobilised for debt payoff?
+def pf_withdrawal_eligible(instrument, user_data):
+    if instrument == "EPF":
+        return (user_data.years_in_service >= 5
+                and user_data.withdrawal_reason in EPF_ALLOWED_REASONS)
+    elif instrument == "PPF":
+        return user_data.years_since_ppf_open >= 7      # partial only
+    elif instrument == "NPS_Tier1":
+        return (user_data.years_since_nps_open >= 3
+                and user_data.withdrawal_reason in NPS_ALLOWED_REASONS)
+    elif instrument == "NPS_Tier2":
+        return True     # fully liquid
+    return False
+
+# EPF/PPF/NPS Tier1 are NEVER included in the Layer 3 monthly invest-vs-prepay pool
+# They appear only in the Asset Liquidation Check (§8c) when eligibility confirmed
+```
+
+### 4.18 Asset liquidation — corrected formula (supersedes §4.8)
+
+```
+# ── India LTCG on immovable property ──
+cii_table       = {FY: CII_value}   # CBDT publishes annually; e.g. FY2024: 363
+indexed_cost    = purchase_price × cii_table[current_fy] / cii_table[purchase_fy]
+gross_proceeds  = sale_price × (1 − selling_cost_pct)   # stamp duty + reg + brokerage
+ltcg            = max(0, gross_proceeds − indexed_cost)
+ltcg_tax        = ltcg × 0.20 × (1 + surcharge_rate) × 1.04   # 20% LTCG + surcharge + cess
+net_proceeds    = gross_proceeds − ltcg_tax
+
+# ── Time-to-liquidate drag ──
+selling_period_months = 3      # conservative India; 2 months for US
+interest_during_sale  = debt_balance × (effective_rate_debt / 12) × selling_period_months
+true_net_benefit      = net_proceeds − debt_balance − interest_during_sale
+
+# ── Updated Gate 3 ──
+# Amortise the one-time selling drag over expected years the proceeds free up
+one_time_drag         = (selling_cost_pct + ltcg_effective_rate)
+asset_real_return_net = (nominal_return_asset − inflation
+                        − holding_cost_rate
+                        − one_time_drag / expected_hold_years_post_sale)
+gate_3                = (effective_rate_debt − asset_real_return_net) >= 3.0
+
+# ── Updated Gate 1 ──
+gate_1                = true_net_benefit / asset_value >= 0.10
+                        # Uses true_net_benefit (after costs), not raw debt amount
+```
+
+### 4.19 Prepayment penalty net savings
+
+```
+# India: RBI mandates zero prepayment penalty on floating-rate home and personal loans
+# Fixed-rate loans: bank-specific, typically 1–3% of prepaid amount
+penalty_rate          = prepayment_penalty_table[bank][loan_type][rate_type]
+prepayment_penalty    = prepaid_amount × penalty_rate
+
+# Interest saved by reducing balance now vs not prepaying
+interest_saved        = compute_interest_total(balance, rate, remaining_tenure)
+                      − compute_interest_total(balance − prepaid_amount, rate, remaining_tenure)
+net_prepayment_saving = interest_saved − prepayment_penalty
+recommend_prepayment  = net_prepayment_saving > 0
+```
+
+### 4.20 Balance transfer effective APR
+
+```
+# True cost of a balance transfer offer (all-in)
+bt_fee               = transferred_amount × bt_offer.fee_pct
+net_amount_received  = transferred_amount − bt_fee
+required_monthly     = transferred_amount / bt_offer.promo_months  # to clear in promo period
+
+# Effective APR (assuming full clearance within promo period, using IRR method)
+cashflows            = [−net_amount_received] + [required_monthly] * bt_offer.promo_months
+effective_bt_apr     = irr(cashflows) × 12
+
+# Recommend only if meaningfully cheaper than current rate
+recommend_bt         = effective_bt_apr < current_card_effective_rate − 2.0   # 2pp minimum hurdle
+
+# If user cannot clear within promo period, post-promo revert rate kicks in — show that scenario too
+```
+
+### 4.21 Avalanche cascade — freed EMI routing
+
+When any debt reaches zero balance, its minimum payment (and any extra allocated to it) auto-routes to the next-priority debt:
+
+```
+on debt_i_reaches_zero(month_t):
+    freed_payment            = minimum_payment_i + extra_allocated_to_i[month_t]
+    next_priority_debt       = priority_queue.peek()    # sorted by effective_rate, descending
+    extra_allocated[next_priority_debt] += freed_payment
+    # Plan re-computes from month_t with updated allocations
+    recompute_plan_from(month_t)
+
+# UI notification generated:
+# "Your HDFC Personal Loan is paid off. ₹8,500/mo now routed to SBI Auto Loan.
+#  Debt-free date: May 2027 (was Aug 2027)."
+```
+
+### 4.22 Minimum payment computation
+
+```
+def compute_minimum_payment(loan, bank, country):
+    if loan.type == "credit_card":
+        formula = bank_data[bank]["min_payment_formula"]
+        # formula is one of:
+        #   {"type": "greater_of", "pct": 0.05, "floor": 200}     # standard India
+        #   {"type": "greater_of_two_methods",                     # ICICI-style
+        #    "a": {"interest_plus_pct_principal": 0.01},
+        #    "b": {"pct": 0.05, "floor": 100}}
+        return evaluate_formula(formula, loan.outstanding, loan.interest_accrued)
+    else:
+        # Personal / home / auto loan: EMI is the minimum; no ambiguity
+        return loan.scheduled_emi
+
+# Simple Mode: always use default formula (5%/₹200 India; 2%/$35 US)
+# Detailed Mode: use bank-specific formula from data store
+```
+
+### 4.23 Available monthly surplus — complete formula
+
+The surplus available for extra debt payments has several mandatory deductions before any allocation:
+
+```
+# Hard floors — computed first, always
+total_minimums        = Σ compute_minimum_payment(loan_i)        # §4.22; never violated
+efund_monthly         = max(0, (efund_target − efund_balance) / 12)  # until target reached
+matched_contribution  = compute_mandatory_contributions(user)     # §4.3; Layer 0, routes first
+
+# India-specific: MAB is a cash floor on savings_balance, not a monthly deduction
+mab_reserve           = lookup_mab(user.primary_bank, user.location_tier)  # §4; brainstorm §29
+available_buffer      = max(0, user.savings_balance − mab_reserve − efund_target)
+# available_buffer is the one-time deployable cash pool; reduces as used
+
+# Business owner DSR: one-time reserve held in savings, not a monthly deduction
+debt_servicing_reserve = 3 × total_monthly_emis if user.income_type == "business_owner" else 0
+available_buffer       = max(0, available_buffer − debt_servicing_reserve)
+
+# Monthly surplus available for extra debt payments
+available_surplus     = (monthly_income
+                        − fixed_expenses
+                        − total_minimums
+                        − efund_monthly
+                        − matched_contribution)
+available_surplus     = max(0, available_surplus)   # floor at zero; never negative
+```
+
+Note: `available_buffer` (one-time cash) and `available_surplus` (monthly recurring) are separate pools. The plan uses both: one-time buffer can be deployed as a lump-sum prepayment immediately; monthly surplus feeds the ongoing schedule.
 
 ---
 
@@ -431,15 +749,89 @@ Performance target: < 250ms for a user with up to 20 debts, on standard mobile.
 
 ## 7. Data sources — comprehensive
 
-### 7.1 Country-specific bank rate data (the moat)
+### 7.1 Phase 1 institution data — India (30) + USA (15)
 
-| Source type | What it gives us | Update mechanism |
+Full institution lists with scrape tiers are in brainstorm §31. Summary:
+
+**India — scrape tiers:**
+
+| Tier | Institutions (30 total) | Cadence |
 |---|---|---|
-| **Bank's own "Rates" page** | Headline retail loan / mortgage / credit card rates per bank, per product | Daily scrape (Tier A: top 5 banks per country); weekly manual (Tier B); quarterly audit (Tier C). Full model in brainstorm §3. |
-| **Bank product brochures (PDF)** | Processing fees, prepayment penalties, bundled-insurance charges, tier-rate structures (cash advance vs retail vs EMI) | Manual ingestion at MVP. PDF text-extract pipeline as automation. Updated when products change. |
-| **Aggregator sites (BankBazaar, NerdWallet, Money.co.uk, Canstar)** | Cross-bank comparison snapshots; useful for cold-start before our own data is rich | Weekly snapshot; used as sanity check, not primary source |
-| **Credit card schemes (Visa / Mastercard / RuPay merchant rates)** | Foreign transaction markup standards | Annual |
-| **Crowd-sourced user submissions** | Real-world rates as actually offered to users (often differs from headline) | Continuous. Triggered when a user's input differs from our stored value by >0.5%. Verified at 3-submissions-in-7-days threshold. |
+| **A** — daily auto-scrape | SBI, HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra, PNB | Daily automated diff + human review |
+| **B** — weekly manual | Bank of Baroda, Canara Bank, Bank of India, Union Bank, Indian Bank, Central Bank, IDBI, Yes Bank, IDFC First, IndusInd | Weekly update |
+| **C** — quarterly audit | Federal Bank, South Indian Bank, RBL Bank, Bandhan Bank, AU SFB, UCO Bank, Bank of Maharashtra, Punjab & Sind, Karnataka Bank, Karur Vysya, City Union, J&K Bank, Ujjivan SFB, Suryoday SFB | Quarterly spot-check |
+
+**USA — scrape tiers:**
+
+| Tier | Institutions (15 total) | Cadence |
+|---|---|---|
+| **A** — daily auto-scrape | JPMorgan Chase, Bank of America, Wells Fargo, Citibank, U.S. Bank, Capital One | Daily automated |
+| **B** — weekly manual | American Express, Discover, Goldman Sachs (Marcus), Ally Financial, Truist, PNC Financial | Weekly update |
+| **C** — quarterly audit | TD Bank, Navy Federal Credit Union, SoFi | Quarterly |
+
+**Data fields maintained per institution per product:**
+
+| Field | India | USA |
+|---|---|---|
+| Loan rate range (min–max) | EBLR/RLLR-linked for floating `[VERIFY current EBLR]` | Prime/SOFR-linked `[VERIFY current prime rate]` |
+| Credit card APR (retail / cash advance) | ~36–42% / ~42–48% `[VERIFY per bank]` | ~20–30% / ~25–30% `[VERIFY per issuer]` |
+| Min payment formula | Structured object (brainstorm §24.1) | Structured object (brainstorm §24.2) |
+| BT offer | Promo rate + months + fee % | 0% intro + months + fee % |
+| Processing / origination fee | % or flat ₹ | 0–10% of loan amount |
+| Prepayment penalty | Floating = ₹0 (RBI mandated); fixed = 1–3% | Most = $0; confirm per product |
+| MAB | Urban/semi-urban/rural ₹ (brainstorm §29.1) | N/A |
+| HYSA yield | Savings/liquid fund rate `[VERIFY weekly]` | Best HYSA rate `[VERIFY weekly]` |
+| Last-verified date | Per field | Per field |
+
+**Institution JSON schema (abbreviated):**
+```json
+{
+  "institution_id": "IN_HDFC",
+  "country": "IN",
+  "name": "HDFC Bank",
+  "scrape_tier": "A",
+  "products": {
+    "home_loan": {
+      "rate_min": 0.0875, "rate_max": 0.0965, "rate_type": "floating",
+      "benchmark": "RLLR", "processing_fee_pct": 0.005,
+      "prepayment_penalty_floating": 0,
+      "bundled_insurance": true, "insurance_premium_pct": 0.004,
+      "last_verified": "2026-05-14"
+    },
+    "credit_card": {
+      "retail_rate": 0.36, "cash_advance_rate": 0.42,
+      "min_payment_formula": {
+        "type": "greater_of", "pct": 0.05, "floor": 200,
+        "plus": ["current_emi", "over_limit", "past_due"]
+      },
+      "bt_offer": {"promo_rate": 0.00, "promo_months": 6, "bt_fee_pct": 0.015},
+      "last_verified": "2026-05-14"
+    }
+  },
+  "savings_account": {"mab_urban": 10000, "mab_semi_urban": 5000, "mab_rural": 2500}
+}
+```
+
+**Indicative India rates (FY2025-26, illustrative — verify before launch):** `[VERIFY current rates]`
+
+| Product | SBI | HDFC | ICICI | Axis | Kotak |
+|---|---|---|---|---|---|
+| Home loan (floating) | 8.50–9.65% | 8.75–9.40% | 8.75–9.80% | 8.75–9.15% | 8.75–9.35% |
+| Personal loan | 11.00–14.00% | 10.75–24.00% | 10.85–19.00% | 10.99–22.00% | 10.99–24.00% |
+| Auto loan | 8.75–9.90% | 8.95–9.50% | 9.00–9.90% | 8.85–9.65% | 8.95–9.50% |
+| Credit card (retail) | ~42% | ~42% | ~42% | ~42% | ~42% |
+
+**Indicative USA rates (Tax Year 2025, illustrative — verify before launch):** `[VERIFY current rates]`
+
+| Product | Chase | BofA | Wells Fargo | Citi | Capital One |
+|---|---|---|---|---|---|
+| 30yr fixed mortgage | 6.75–7.25% | 6.80–7.30% | 6.70–7.20% | 6.85–7.35% | N/A |
+| Personal loan | 6.99–24.99% | 7.49–24.99% | 7.49–23.99% | 11.49–20.49% | N/A |
+| Auto loan | 5.99–13.99% | 5.74–10.99% | 5.99–11.99% | N/A | 4.99–9.99% |
+| Credit card APR | 20.49–29.49% | 18.24–29.24% | 20.24–29.24% | 19.99–29.99% | 19.99–29.99% |
+| Best HYSA yield | ~4.50% | ~4.25% | ~4.35% | ~4.45% | ~4.50% |
+
+**Crowd-sourcing:** when a user's input differs from stored value by >0.5%, prompt confirmation. 3 confirmations in 7 days flips the stored value. UI always shows last-verified date with staleness badge.
 
 ### 7.2 Tax rules per country
 
@@ -507,7 +899,36 @@ For planning we use central bank's *forward forecast*, not the latest print, ref
 
 User can override; defaults reviewed annually.
 
-### 7.6 Bonus data (future / aspirational)
+### 7.6 India-specific additional data sources
+
+| Data | Source | Update frequency |
+|---|---|---|
+| **EPF interest rate** | EPFO annual circular (epfindia.gov.in) | Annually (typically March/April) |
+| **PPF interest rate** | Ministry of Finance quarterly notification | Quarterly |
+| **NPS historical returns** | PFRDA (pfrda.org.in) — NPS scheme returns table | Monthly |
+| **CII for LTCG indexation** | CBDT notification (incometaxindia.gov.in) | Annually (June) |
+| **India income tax slabs + regime rules** | IT Department budget notifications | At Union Budget (Feb 1 each year) |
+| **Advance tax schedule** | IT Department (fixed dates: Jun 15 / Sep 15 / Dec 15 / Mar 15) | Static; confirm if dates shift |
+| **Stamp duty rates by state** | State government registration portals (30 states × rates) | When state amends the Stamp Act |
+| **Bank MAB requirements** | Individual bank websites (savings account product page) | When bank changes policy |
+| **India HYSA / liquid fund yields** | AMFI (amfiindia.com) for liquid fund category average; individual bank HYSA pages | Monthly for liquid funds; real-time for savings rates |
+| **Gold spot price (for gold loan principal)** | MCX / IBJA daily spot | Daily (used for gold loan value refresh) |
+
+### 7.7 USA-specific additional data sources
+
+| Data | Source | Update frequency |
+|---|---|---|
+| **Federal income tax brackets** | IRS annual revenue procedure (irs.gov) | Annually (October inflation adjustment) |
+| **State income tax rates** | Individual state revenue dept websites | When state legislature changes |
+| **Standard deduction** | IRS Rev Proc (updated annually for inflation) | Annually |
+| **Student loan thresholds (federal IDR)** | studentaid.gov — IDR plan parameters | Annually (July 1 each year) |
+| **401k contribution limits + IRS match rules** | IRS Notice (issued October each year) | Annually |
+| **HYSA / savings rates** | FDIC weekly national rate cap (fdic.gov) + individual bank pages (Marcus, Ally, SoFi) | Weekly for FDIC; bank pages as needed |
+| **Federal student loan interest rates** | studentaid.gov (set annually July 1) | Annually |
+| **Realtor commission / closing cost averages** | NAR survey + Zillow data | Annually |
+| **LTCG tax brackets (US)** | IRS (updated annually) | Annually |
+
+### 7.8 Bonus data (future / aspirational)
 - Open banking / account aggregator (Plaid US, AISP EU, Sahamati India) for auto-import
 - Credit bureau APIs (Experian, CIBIL, Equifax) for real-time credit-score-aware mode
 - Real-estate price indices (Knight Frank, NHB Residex India, Case-Shiller US) for property as an asset
@@ -559,8 +980,8 @@ Simple Mode hides this. Calm-Overwhelmed mode hides this. Detailed Mode shows it
 
 ## 9. Build phases / roadmap
 
-### Phase 1 — MVP (months 0–4)
-- Country selector for top 10
+### Phase 1 — MVP (months 0–4) — India + USA only
+- Country selector: India + USA (Phase 1 scope per brainstorm §30; 8 remaining countries activate in Phase 2)
 - Simple Mode only (Calm tone)
 - Layer 0 + Layer 1 (BT only, Shallow execution) + Layer 2 (pure avalanche only) + Layer 3 (with manual user override of return assumption)
 - Manual debt entry only
@@ -597,17 +1018,85 @@ Simple Mode hides this. Calm-Overwhelmed mode hides this. Detailed Mode shows it
 
 ---
 
-## 10. Open design decisions (for the actual UI work)
+## 10. Design decisions — locked and open
 
-These are the things that come up when we start drawing pixels — capture them now so we don't drift during design:
+### Locked decisions (resolved May 2026)
 
-1. **Visual language.** The original FinOptima brief uses a dark navy + gold palette with Syne / DM Mono / Lora type. Keep, or design fresh per this product's brand?
-2. **Mobile-first or web-first?** Plan/schedule views are easier on web; daily nudges + Quick Recompute are mobile-native.
-3. **The Tools surface — six tiles, or progressive disclosure?** Six tiles risks looking like a feature dump. A "what brings you here today?" entry could route to one tile at a time.
-4. **Charts library.** Need real-time interactive charts (sensitivity sliders, scenario compare). Recharts, Visx, D3? Affects design vocabulary.
-5. **Numbers formatting per locale.** ₹1,23,45,678 (Indian) vs $1,234,567.89 (US) — pick a single i18n library and lock.
-6. **Accessibility.** Detailed Mode is data-dense; ensure AA contrast, keyboard nav, screen-reader paths for every formula expansion.
+**7. Web-first, desktop-primary for v1. LOCKED.**
+- Primary design target: 1280px+ desktop/laptop
+- Specifically desktop-first: Onboarding (multi-field), Plan screen (table + sliders + comparison), My Debts detail (chart + edit fields side-by-side)
+- Mobile browser: fully responsive; Home, Quick Recompute, Windfall Handler, New Debt Check optimised for one-hand mobile use
+- Native app: Phase 2 (React Native with shared engine code)
+
+**8. Tools surface. LOCKED.**
+- Primary: contextual surfacing — app shows the most relevant tool card below "This Month's Action" based on current user state (salary received → Windfall; rate changed → Right-Time-to-Borrow; first of month + idle cash → Cash Yield Check)
+- Secondary: "More tools →" link expands to the 6-tile grid (below the fold)
+- Windfall Handler also gets a persistent floating action button (FAB) on the Home screen, labelled *"Got a bonus?"* — highest-frequency ad-hoc action
+
+**9. Navigation. LOCKED.**
+- Desktop: left sidebar with 5 destinations (Home / My Debts / Plan / Tools / Insights) + country selector + settings in sidebar header
+- Mobile: bottom tab bar (5 items; collapse Tools into a modal sheet to avoid crowding)
+- Mode toggle (Simple ⇆ Detailed): persisted in top-right of every screen
+- Country selector: top of sidebar (desktop) / top of Home screen (mobile)
+
+### Still open (must resolve before frontend build starts)
+
+1. **Visual language.** Dark navy + gold (FinOptima brief direction), or new identity for this product specifically? Decision gates the component library.
+2. **Charts library.** Must support interactive sensitivity sliders + multi-series comparison in Detailed Mode. Candidates: Recharts (easiest React integration), Visx (D3-backed, more control), ECharts (better mobile performance). Lock before Plan screen wireframes.
+3. **Locale number formatting.** ₹1,23,45,678 (Indian lakh/crore system) vs $1,234,567.89 (US). Use `Intl.NumberFormat` with `maximumFractionDigits` per country; lock the locale string mapping per country code before any number renders.
+4. **Accessibility.** Detailed Mode is data-dense. Requirement: WCAG AA contrast ratios, keyboard navigation for all formula expansions and sensitivity sliders, screen-reader labels on every computed number. Must be designed in, not retrofitted.
 
 ---
 
-End of spec. Next step: produce wireframes (low-fi) for the 5 top-level screens × 3 mode combinations, plus the six Tools sub-modules. That's ~21 screens at sketch fidelity — doable in one design pass once we agree the spec.
+## 11. Build readiness assessment (May 2026)
+
+### Engine and data layer — READY TO BUILD
+
+All mathematical formulas are specified and corrected in §4 (4.1–4.22). The optimiser is a pure function: `(user_state, country_data) → Plan`. It can be built, tested, and validated independently of any frontend work.
+
+**Test harness requirements (before any frontend):**
+- Unit tests for every formula in §4 with hand-computed known answers
+- Calibration tests: India EMI against HDFC calculator; US mortgage payoff against Bankrate; UK Plan 2 against SLC's own calculator — all must match within 0.5%
+- Tax-shield regression: India old regime vs new regime; US itemiser vs standard-deduction filer — both must produce correct effective rates
+- Central bank event tests: simulate a 25bps RBI cut, confirm all floating-rate EMIs recompute correctly
+
+**Data ops to start immediately:**
+- India top 30 bank data sheet (fields per §7): headline rates, processing fees, prepayment penalties, BT offers, minimum payment formulas, MAB
+- USA top 15 lender data sheet (fields per §7): APR ranges, BT offers, origination fees, HYSA rates
+- India tax table: old + new regime slabs, surcharge table, Sec 24/80C caps (§25 in brainstorm)
+- USA tax table: 2024 federal brackets (MFJ + single), standard deduction, itemisation threshold
+- Central bank calendars: RBI MPC 2024–25 schedule + Fed FOMC 2024–25 schedule
+- CII table (India LTCG indexation): CBDT values through current FY
+- EPF/PPF rates: current FY values
+
+### Frontend — BLOCKED on 3 things
+
+1. Visual language decision (open question 1 above)
+2. Charts library selection (open question 2 above)
+3. Wireframes for the 18 missing screens:
+   - Onboarding: 6 steps (India/USA branching — tax regime for India, itemisation flag for USA, PF entry for India, 401k match for USA)
+   - My Debts: list view + per-loan detail view
+   - Plan screen: desktop layout (the most complex; month-by-month table + sensitivity sliders + strategy comparison + cash flow calendar strip)
+   - 6 Tools sub-module screens
+   - Insights screen
+   - Settings screen
+
+The 3 currently-built wireframes (Home × 3 mode combinations) are complete and correct.
+
+### Suggested build sequence once unblocked
+
+**Week 1–2:** Optimisation engine in Python. Core data structures, Layers 0–3, all formulas, unit test suite. No database, no API — pure function + tests.
+
+**Week 3–4:** Country data store schema + seed data for India top 5 banks + US top 5 lenders. Validate engine against real-world loan scenarios from each institution.
+
+**Week 5–6:** API gateway + user data model + plan storage. FastAPI endpoints: create-user, add-debt, generate-plan, update-plan, add-windfall.
+
+**Week 7–8:** Frontend — Home screen (already wireframed) + Onboarding (requires wireframes first). Data input → plan generation → Home screen display.
+
+**Week 9–12:** Remaining screens; Tools sub-modules; central bank event pipeline; notification system.
+
+**Month 4:** Private beta with India users; India data ops running. US data ops running in parallel.
+
+---
+
+End of spec v2.0 (May 2026). All formulas complete and corrected. All open questions resolved or explicitly flagged. India + USA scope locked. Web-first locked. Ready to begin engine build.

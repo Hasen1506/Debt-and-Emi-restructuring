@@ -294,6 +294,19 @@ Or the opposite:
 | 28 | Plain-language principle | No jargon; info-icons + glossary; translation guide maintained | May 2026 |
 | 29 | Credit-score guardrails when overpaying | Flag closing-oldest-card + only-installment-loan cases as one-time warnings | May 2026 |
 | 30 | 0% EMI true cost | Always show effective rate including foregone discount; not a special case |  May 2026 |
+| 31 | PF/EPF/PPF/NPS handling | Restricted-liquidity category, excluded from invest-vs-prepay monthly allocation. One-time decision tool only when withdrawal eligibility confirmed. See §23. | May 2026 |
+| 32 | India tax regime | User declares old vs new regime in onboarding. App never auto-assumes old regime. Sec 24 tax shield only applied if user is on old regime (self-occupied home loan). See §25. | May 2026 |
+| 33 | India surcharge + cess | Full surcharge + 4% cess formula applied. Effective marginal rate ≠ slab rate for incomes > ₹50L. See §25. | May 2026 |
+| 34 | Minimum payment — bank-specific | Country data store stores per-bank minimum payment formula. Simple Mode default = 5%/₹200 India; 2%/$35 US. Detailed Mode auto-populates formula from bank selection. See §24. | May 2026 |
+| 35 | Asset liquidation — transaction costs | Gate 3 spread must include stamp duty + registration + brokerage + LTCG on the asset side, plus interest accrued during selling period on the debt side. See §26. | May 2026 |
+| 36 | Salary hike model | User-declared annual %, defaulting to inflation × 1.5 capped at 8%. Business owners use 3-year income CAGR. Detailed Mode allows year-by-year schedule. See §27. | May 2026 |
+| 37 | Business owner income | P25 of last 12 months (not 6). Advance tax months auto-marked as cash outflows. Business loans flagged separately. See §28. | May 2026 |
+| 38 | India MAB | Subtracted from available cash before emergency fund calculation. Auto-populated from primary bank selection in onboarding. See §29. | May 2026 |
+| 39 | Geographic scope Phase 1 | India + USA only. Remaining 8 countries move to Phase 2. See §30. | May 2026 |
+| 40 | Bank data scope | India: top 30 banks (tiered A/B/C). USA: top 15 lenders/issuers (tiered A/B/C). See §31. | May 2026 |
+| 41 | Web-first v1 | Desktop/web primary (1280px+). Mobile browser fully functional. Native app Phase 2. See §32. | May 2026 |
+| 42 | GST on interest — India scope | GST @ 18% applies to credit card interest and personal loan processing fees only. Does NOT apply to home loan EMI interest or auto loan EMI interest. | May 2026 |
+| 43 | US mortgage interest deduction — itemisation gate | Apply IRC §163 deduction only if user confirms they itemise. Since TCJA 2017, most US filers use standard deduction and get zero mortgage interest benefit. Add itemisation flag in US onboarding. | May 2026 |
 
 ---
 
@@ -340,7 +353,7 @@ A home loan at *real* 7.30% is harder to beat with investments than one at 5.95%
 
 | Country | Loan type | Cap / Rule | Authority |
 |---|---|---|---|
-| 🇮🇳 India | Home loan interest | ₹2L/yr (self-occupied), unlimited (let-out) | Sec 24 |
+| 🇮🇳 India | Home loan interest | ₹2L/yr (self-occupied, **old regime only** — new regime does not allow this deduction for self-occupied property), unlimited (let-out, both regimes) | Sec 24 |
 | 🇮🇳 India | Home loan principal | ₹1.5L/yr (within Sec 80C aggregate) | Sec 80C |
 | 🇮🇳 India | Education loan interest | 100% deductible for 8 yrs from repayment start | Sec 80E |
 | 🇺🇸 US | Mortgage interest | Interest on up to $750k principal, itemisers only | IRC §163 |
@@ -548,10 +561,510 @@ All open questions from prior rounds are now decided:
 ---
 
 ## 21. What we are NOT doing yet (NOTE: design spec now exists as separate file)
-Brainstorm is complete. Design spec is in `module-02-design-spec.md`.
+Brainstorm extended through §34. Design spec is in `module-02-design-spec.md`. All open questions resolved as of May 2026. See §35 for resume instructions.
 
 ---
 
 ## 22. How to resume this brainstorm in a new session
-Paste this whole file in, plus the original brief (`uploads/money-optimisers-brief (1).html`), and say:
-> "Here's the running brainstorm doc for Module 2. Read it, then continue from Section 20 (Open questions). I'm ready with my next round of questions."
+All open questions are resolved through §34. See §35 for current resume instructions.
+
+---
+
+## 23. India PF ecosystem — restricted-liquidity instruments (LOCKED)
+
+EPF, PPF, NPS, and VPF are not freely available savings. They are restricted-liquidity instruments requiring special handling in the invest-vs-prepay decision and asset liquidation check.
+
+### 23.1 Instrument profiles
+
+| Instrument | Rate (FY2024-25 confirmed; FY2025-26+ `[VERIFY]`) | Tax treatment | Liquidity | Voluntary? |
+|---|---|---|---|---|
+| **EPF** | 8.25% (FY2024-25; announced Feb 2025). `[VERIFY FY2025-26 → EPFO circular ~Mar 2026]` `[VERIFY FY2026-27 → EPFO circular ~Mar 2027]` | Fully tax-free (EEE) | Partial withdrawal for: home purchase, marriage, medical, education (Form 31). Full settlement only on retirement (58+) or 2+ months after leaving employment (Form 19). | Mandatory for salaried (12% employee + 12% employer on basic+DA) |
+| **VPF** | Same as EPF | Same as EPF (EEE) | Same rules as EPF | Voluntary top-up to EPF — employee chooses %; employer not required to match |
+| **PPF** | 7.1% (quarterly-set by Govt) | Fully tax-free (EEE) | 15-year lock. Partial withdrawal from year 7 (up to 50% of balance at end of year 4 or immediately preceding year, whichever is lower). Loan against PPF: years 3–6, up to 25% of balance at end of 2nd preceding year. | Fully voluntary |
+| **NPS Tier 1** | Market-linked (~8–12% historically) | 60% lump sum tax-free at 60; 40% must buy annuity (taxable) | Partial withdrawal after 3 years for: home purchase, medical treatment, education, disability. Max 25% of own contributions, up to 3 times. | Voluntary (80CCD deduction in old regime) |
+| **NPS Tier 2** | Market-linked | No tax benefit | Fully liquid (no lock-in) | Voluntary |
+
+### 23.2 How the optimiser handles PF instruments
+
+**In invest-vs-prepay (Layer 3):**
+- EPF/VPF/PPF are listed as a separate **locked savings** category in onboarding — not as freely available investment options in the Layer 3 comparison pool
+- The effective pre-tax equivalent return of EPF at 8.25% tax-free (FY2024-25) = **11.79%** at 30% bracket, **10.31%** at 20% bracket `[VERIFY current FY rate from EPFO circular]`
+- This reference rate IS used when evaluating whether a *new voluntary VPF contribution* beats paying off debt — but the engine never routes regular monthly surplus *into* EPF/PPF as a debt-payoff strategy
+- NPS Tier 2 (fully liquid, no lock-in) can appear in the regular investment options pool
+
+**In asset liquidation check (§8c):**
+- EPF/PPF cannot be "liquidated on demand." The app only surfaces them as a debt-payoff option if:
+  1. User explicitly qualifies under one of the allowed withdrawal conditions
+  2. Debt rate > 20% AND quantum is large relative to the withdrawal available
+- Even then: presented as a one-time windfall (§8a handler), not a recurring plan
+
+**Data to collect in onboarding (Detailed Mode):**
+```
+epf_balance               → accumulated EPF + VPF balance
+ppf_balance               → PPF balance + year account was opened
+nps_tier1_balance         → NPS Tier 1 balance + years since account opening
+voluntary_pf_contribution → employee's monthly VPF amount (0 if not contributing)
+ppf_monthly               → user's PPF deposit per month
+years_in_current_service  → to evaluate EPF partial withdrawal eligibility
+```
+
+**Withdrawal eligibility gates:**
+```
+epf_partial_eligible = (years_in_current_service >= 5) AND reason in EPF_ALLOWED_REASONS
+ppf_loan_eligible    = 3 <= years_since_ppf_opened <= 6
+ppf_partial_eligible = years_since_ppf_opened >= 7
+nps_partial_eligible = years_since_nps_opened >= 3 AND reason in NPS_ALLOWED_REASONS
+```
+
+---
+
+## 24. Minimum payment formulas — bank-specific (LOCKED)
+
+### 24.1 India — credit card minimum payment formulas
+
+| Bank | Formula | Source |
+|---|---|---|
+| **SBI Card** | `max(5% of total outstanding, ₹200) + interest + fees + GST` | SBI Card MITC |
+| **HDFC Bank** | `max(5% of total outstanding, ₹200) + any current-month EMI + over-limit amount + past-due` | HDFC MITC |
+| **ICICI Bank** | `max(interest + fees + 1% of principal, 5% of outstanding, ₹100)` | ICICI Card MITC |
+| **Axis Bank** | `5% of total outstanding, min ₹200` | Axis MITC |
+| **Kotak Mahindra** | `5% of total outstanding + all interest + fees, min ₹200` | Kotak MITC |
+| **Yes Bank** | `5% of outstanding, min ₹200` | Yes Bank MITC |
+| **RBL Bank** | `5% of outstanding, min ₹100` | RBL MITC |
+| **AmEx India** | `2% of statement balance, min ₹100` | AmEx India |
+| **IndusInd Bank** | `5% of outstanding, min ₹200` | IndusInd MITC |
+
+### 24.2 USA — credit card minimum payment formulas
+
+| Bank / Issuer | Formula | Source |
+|---|---|---|
+| **Chase** | `max(2% of balance, $35)` or if greater: `interest + fees + 1% of principal` | Chase cardmember agreement |
+| **Bank of America** | `max(1% of balance + interest + fees, $35)` | BofA agreement |
+| **Citibank** | `max(2% of balance, $25)` or `interest + fees + 1% of principal` if higher | Citi agreement |
+| **Capital One** | `max($25, 2% of balance if > $1,000)` or full balance if ≤ $25 | Capital One agreement |
+| **Discover** | `max($35, 2% of balance)` | Discover agreement |
+| **American Express** | `max(1% of balance + interest + fees, $35)` | AmEx agreement |
+| **Goldman Sachs (Marcus card)** | `max(1% of balance + interest + fees, $35)` | Goldman agreement |
+| **Synchrony** | `max(2% of balance, $25 or $29 depending on product)` | Synchrony agreement |
+
+### 24.3 Engine implementation
+- **Simple Mode:** universal default = `max(5% of outstanding, ₹200)` India; `max(2% of balance, $35)` US. Labelled *"estimated — verify against your statement."*
+- **Detailed Mode:** bank-name selection in debt entry auto-populates the correct formula from the country data store. User can override with their actual statement minimum.
+- **Engine rule:** minimum_payment_i is always a hard floor. Allocation never drops below it regardless of strategy mode (even "Aggressive" mode in §6 requires careful justification).
+
+---
+
+## 25. India tax computation — old vs new regime + surcharge (CORRECTION/EXTENSION to §12)
+
+### 25.1 Regime selection is mandatory
+
+From AY2024-25 the **new regime is the default**. Critical implications for this app:
+- **Old regime only:** Sec 80C, 80CCD, HRA, LTA, Sec 24(b) on self-occupied home loan
+- **Both regimes:** Sec 24(b) on let-out property (deductible against rental income), standard deduction (₹50K old / ₹75K new)
+- **New regime:** Sec 24(b) for self-occupied home loan = ₹0. The mortgage tax shield computation only applies to old-regime users.
+
+**Auto-defaulting to old regime for India users and claiming a tax shield on a home loan would be systematically wrong for most salaried employees in 2024–25.** Regime selection is a required field in India onboarding.
+
+### 25.2 Tax slabs
+
+**New regime — FY2025-26 (Budget 2025, Feb 1 2025):** `[VERIFY FY2026-27 → Budget 2026, Feb 1 2026]`
+
+| Taxable income | Rate |
+|---|---|
+| Up to ₹4L | 0% |
+| ₹4L – ₹8L | 5% |
+| ₹8L – ₹12L | 10% |
+| ₹12L – ₹16L | 15% |
+| ₹16L – ₹20L | 20% |
+| ₹20L – ₹24L | 25% |
+| Above ₹24L | 30% |
+| Rebate Sec 87A | Tax = ₹0 if net taxable income ≤ ₹12L (rebate ₹60,000) |
+| Standard deduction (salaried) | ₹75,000 under new regime (so effective no-tax limit = ₹12.75L for salaried) |
+
+**Note vs FY2024-25:** base exemption raised ₹3L→₹4L; top-rate threshold raised ₹15L→₹24L; 87A rebate threshold raised ₹7L→₹12L. The new regime is significantly more beneficial for most taxpayers from FY2025-26. Ensure the app's regime-comparison tool (onboarding Step 4) uses the correct FY slab set.
+
+**Old regime:**
+
+| Taxable income | Rate |
+|---|---|
+| Up to ₹2.5L (₹3L for 60+, ₹5L for 80+) | 0% |
+| ₹2.5L – ₹5L | 5% |
+| ₹5L – ₹10L | 20% |
+| Above ₹10L | 30% |
+| Rebate Sec 87A | No tax if net taxable income ≤ ₹5L |
+
+### 25.3 Surcharge on tax (both regimes)
+
+| Income | Surcharge on income tax |
+|---|---|
+| Up to ₹50L | Nil |
+| ₹50L – ₹1Cr | 10% |
+| ₹1Cr – ₹2Cr | 15% |
+| ₹2Cr – ₹5Cr | 25% |
+| Above ₹5Cr | 37% (25% applies if LTCG / special rate income) |
+
+### 25.4 Education cess
+
+4% on (tax + surcharge) for all taxpayers.
+
+### 25.5 Effective marginal rate formula
+```
+base_rate      = marginal_slab_rate(taxable_income, regime)
+surcharge_rate = surcharge_slab_lookup(taxable_income)
+marginal_rate  = base_rate × (1 + surcharge_rate) × 1.04
+```
+
+**Example — ₹1.2Cr income, old regime (FY2025-26):**
+Base rate = 30%, surcharge = 15% (₹1Cr–₹2Cr slab), cess = 4%
+→ Effective marginal rate = 30% × 1.15 × 1.04 = **35.88%** — not 30%.
+
+**Example — ₹14L income, new regime (FY2025-26):**
+Slabs: 5% on ₹4–8L (₹20k) + 10% on ₹8–12L (₹40k) + 15% on ₹12–14L (₹30k) = ₹90k tax. Surcharge = nil (<₹50L). Cess = 4%. Total tax = ₹93,600. **Income > ₹12L → 87A rebate does not apply.** Marginal rate = 15% × 1.04 = 15.6%. With ₹75k standard deduction, taxable income = ₹13.25L; same bracket. `[VERIFY FY2026-27]`
+
+**Example — ₹12L income, new regime (FY2025-26):**
+Tax before rebate = 5% on ₹4–8L + 10% on ₹8–12L = ₹20k + ₹40k = ₹60k. 87A rebate = ₹60k. **Net tax = ₹0.** Effective tax rate = 0%. With ₹75k standard deduction (salaried): gross CTC up to ₹12.75L = zero tax.
+
+### 25.6 Taxable income inputs required from user
+
+| Income component | Required in Simple Mode | Detailed Mode |
+|---|---|---|
+| Gross salary / CTC | Yes (or take-home with gross estimate) | Yes, gross CTC |
+| Rental income | Optional | Yes |
+| Interest income (FD/savings) | Optional | Yes |
+| Business / freelance income | Optional (if declared as business owner) | Yes |
+| 80C utilised (old regime only) | No (app estimates from EPF + assumed) | Yes, all components |
+| HRA exemption (old regime only) | No | Yes |
+
+---
+
+## 26. Asset liquidation — transaction costs + time delay (CORRECTION/EXTENSION to §8c)
+
+Gate 3 in §8c needs the following corrections: the real return must be net of selling costs (not just inflation-adjusted nominal return), and the interest accrual during the sale period must be counted.
+
+### 26.1 India real estate selling costs
+
+| Cost | Rate | Notes |
+|---|---|---|
+| Stamp duty | 4–8% of sale value | Varies by state: Maharashtra ~6%, Karnataka ~5.65%, Delhi ~4–6%, Tamil Nadu ~7% |
+| Registration fee | 1% of sale value | Capped at ₹30,000 in some states |
+| Brokerage | 1–2% of sale value | Market standard |
+| LTCG tax (held > 2 years) | 20% on indexed gains + surcharge + cess | Indexed cost = purchase price × CII_current ÷ CII_purchase_year (CBDT publishes CII annually) |
+| STCG (held ≤ 2 years) | Added to taxable income; taxed at marginal slab rate | |
+
+**Net proceeds formula (India, LTCG):**
+```
+selling_cost_pct = stamp_duty_rate[state] + 0.01 + brokerage_rate
+gross_proceeds   = sale_price × (1 − selling_cost_pct)
+indexed_cost     = purchase_price × (CII[current_fy] / CII[purchase_fy])
+ltcg             = max(0, gross_proceeds − indexed_cost)
+ltcg_tax         = ltcg × ltcg_rate  // 20% × (1 + surcharge) × 1.04
+net_proceeds     = gross_proceeds − ltcg_tax
+```
+
+### 26.2 USA real estate selling costs
+
+| Cost | Rate |
+|---|---|
+| Realtor commission | 5–6% of sale price |
+| Closing costs (seller side) | 1–3% |
+| Short-term gains (held < 1 yr) | Ordinary income rate |
+| Long-term gains (held ≥ 1 yr) | 0% / 15% / 20% depending on income |
+| Depreciation recapture (rental property) | 25% on accumulated depreciation |
+
+### 26.3 Time-to-liquidate adjustment
+
+Real estate is illiquid. Selling takes time; the high-rate debt keeps compounding during that period:
+```
+selling_period_months = 3   // conservative India estimate; 2 months for US
+interest_during_sale  = debt_balance × (effective_rate / 12) × selling_period_months
+true_net_benefit      = net_proceeds − debt_balance − interest_during_sale
+```
+
+### 26.4 Updated Gate 3 formula
+```
+one_time_selling_drag = (selling_cost_pct + ltcg_effective_rate) / expected_hold_years_post_sale
+asset_real_return_net = nominal_return − inflation − holding_cost_rate − one_time_selling_drag
+gate_3                = (debt_effective_rate − asset_real_return_net) >= 3.0
+```
+
+### 26.5 Real estate return input model
+
+The app needs the following inputs to compute `nominal_return` for real estate:
+
+```
+purchase_price           → user enters
+purchase_year            → user enters
+current_market_value     → user's estimate (or recent comparable sale price)
+rental_income_annual     → user enters (₹0 if vacant)
+holding_costs_annual     → property tax + maintenance + HOA/society fees
+
+historical_cagr = (current_value / purchase_price)^(1 / years_held) − 1
+cap_rate        = rental_income_annual / current_value
+nominal_return  = historical_cagr + cap_rate
+
+// Detailed Mode also exposes:
+user_forecast_growth     → user's own expectation for next few years
+// App shows both and asks which to use for the gate test
+```
+
+**Output example:** *"Your land has appreciated 3.2%/yr historically and earns no rental income. After stamp duty (6%), registration (1%), brokerage (1.5%), and capital gains tax, net proceeds would be ₹X. Your 38% credit card accrues ₹Y over the estimated 90-day sale period. True net benefit from selling: ₹Z. **Recommend selling.**"*
+
+---
+
+## 27. Salary hike and income projection model (LOCKED)
+
+The formula in §15 (`projected_surplus × (1 + min(1.5 × inflation, 0.08))^t/12`) is a reasonable default for long-horizon projections but is under-specified for user control.
+
+### 27.1 User-facing model
+
+**Simple Mode:** single field — *"Expected annual income growth: ____%"*. Pre-filled with `inflation × 1.5` (e.g., 7.5% if inflation is 5%, rounded to nearest 0.5%). User can change.
+
+**Detailed Mode:** the cash flow calendar (§13) gains three additional rows:
+- **Annual hike month:** enter expected % or absolute ₹ increase per year
+- **Known future event:** specific date + amount (e.g., promotion confirmed from April)
+- **Income ceiling flag:** *"I expect my income to plateau at ₹X"* — prevents unrealistic perpetual compounding for late-career users
+
+**Business owner / freelancer:**
+- User provides net personal income for last 3 years
+- App computes 3-year income CAGR and uses that as the forward projection rate
+- Labelled explicitly: *"Based on your 3-year income CAGR of X%, projected forward. You can override."*
+- Plan runs at P25 of last 12 months, not the mean
+
+### 27.2 Updated projection formula
+```
+# Salaried
+projected_surplus_t = base_surplus × ∏(y=1 to floor(t/12)) (1 + annual_hike_rate_y)
+
+# Business owner / freelancer
+p25_income          = percentile_25(last_12_months_net_income)
+business_cagr       = (income_year3 / income_year1)^(1/2) − 1
+projected_surplus_t = max(0, p25_income − fixed_expenses) × (1 + business_cagr)^(t/12)
+```
+
+### 27.3 Long-horizon visual
+For plans with tenure > 5 years, the Plan screen shows two surplus lines on the cash flow chart:
+- "Today's surplus" (flat line)
+- "Projected surplus at your declared hike rate"
+
+This is one of the most compelling visuals for home loan planning — showing that the effective burden of a ₹45,000 EMI gets progressively lighter as income grows.
+
+---
+
+## 28. Business owner income declaration model (LOCKED)
+
+The income-volatility lens (§6) says "use last 6 months, plan against P25 month." This is extended for Indian self-employed users.
+
+### 28.1 Inputs required
+
+| Field | Simple Mode | Detailed Mode |
+|---|---|---|
+| Income type | Salaried / Business owner / Freelancer / Mixed | Same |
+| Last 12 months personal income (monthly) | Single monthly average | Month-by-month for P25 |
+| 3 prior years' net income | Optional | Yes (for CAGR) |
+| Advance tax liabilities | Auto-estimated | User-entered per quarter |
+| GST filing month cash impact | N/A | Flag + estimated outflow |
+| Business debt (separate from personal) | Flag: "this loan is a business loan" | Full business loan detail |
+
+### 28.2 Advance tax payment schedule (India) — auto-marked in cash flow calendar
+For business owners and freelancers, these months automatically show as cash outflow events:
+- **15 June:** 15% of estimated annual tax liability
+- **15 September:** 45% cumulative
+- **15 December:** 75% cumulative
+- **15 March:** 100% cumulative
+
+The plan should front-load extra debt payments in surplus months before each advance tax quarter.
+
+### 28.3 Business loan flag
+When a user marks a loan as "business loan":
+- Excluded from personal EMI-to-income ratio calculations
+- Interest treated as a business expense, not a personal tax shield via Sec 24/80C
+- Personal surplus is not allocated to it (serviced from business cash flow)
+- It still appears in the debt list for informational completeness
+
+---
+
+## 29. India minimum balance as a surplus constraint (LOCKED)
+
+Banks charge penalties for falling below Monthly Average Balance (MAB). This is a hard floor on available cash, not available for debt payoff.
+
+### 29.1 MAB requirements — India top banks (urban / semi-urban / rural)
+
+| Bank | Urban | Semi-urban | Rural |
+|---|---|---|---|
+| SBI | ₹3,000 | ₹2,000 | ₹1,000 |
+| HDFC Bank | ₹10,000 | ₹5,000 | ₹2,500 |
+| ICICI Bank | ₹10,000 | ₹5,000 | ₹2,000 |
+| Axis Bank | ₹10,000 | ₹5,000 | ₹2,000 |
+| Kotak Mahindra | ₹10,000 | ₹5,000 | — |
+| PNB | ₹2,000 | ₹1,000 | ₹500 |
+| Bank of Baroda | ₹2,000 | ₹1,000 | ₹500 |
+| Canara Bank | ₹1,000 | ₹500 | ₹500 |
+| Yes Bank | ₹10,000 | ₹5,000 | — |
+| IndusInd Bank | ₹10,000 | ₹5,000 | — |
+| IDFC First Bank | ₹25,000 (₹0 for salary accounts) | — | — |
+| AU Small Finance Bank | ₹2,500 | ₹2,500 | — |
+| Federal Bank | ₹5,000 | ₹2,500 | — |
+| Bandhan Bank | ₹1,000 | ₹500 | — |
+
+*Salary accounts at most banks carry ₹0 MAB. Confirm account type during onboarding.*
+
+### 29.2 Engine formula
+```
+mab_reserve      = lookup_mab(user.primary_bank, user.location_tier)
+liquid_cash      = user.savings_balance − mab_reserve
+available_buffer = max(0, liquid_cash − emergency_fund_target)
+```
+
+**UX:** When the user selects their salary bank in onboarding Step 2, the MAB is auto-populated as a hidden constraint. Shown in Detailed Mode as a footnote: *"₹10,000 reserved for your HDFC MAB requirement."*
+
+---
+
+## 30. Geographic scope — India + USA Phase 1 (LOCKED)
+
+The original brief targeted 10 countries for launch. Phase 1 launches with **India and USA only**. The remaining 8 countries move to Phase 2.
+
+**Rationale:**
+- **India** — largest addressable user base; highest debt-stress; most complex rules (PF ecosystem, tax regimes, MAB, BNPL, gold loans, GST on financial services, RBI compliance). Solving India thoroughly creates a data and compliance moat.
+- **USA** — largest English-speaking market; well-documented federal tax rules; high credit-card-debt population; strong SaaS willingness-to-pay; Fed FOMC monitoring straightforward via FRED API.
+
+**Phase 2 countries (priority order unchanged):**
+🇬🇧 UK → 🇨🇦 Canada → 🇦🇺 Australia → 🇩🇪 Germany → 🇸🇬 Singapore → 🇦🇪 UAE → 🇸🇦 Saudi Arabia → 🇯🇵 Japan
+
+All country-specific logic already specified in §12 (tax caps), §14 (central bank monitoring), and the data source tables in the design spec remains valid — those sections are forward-compatible. Phase 2 countries activate their rows when their data ops are ready.
+
+---
+
+## 31. Bank data scope — India top 30 + USA top 15 (LOCKED)
+
+### 31.1 India — top 30 banks
+
+| # | Bank | Type | Scrape tier |
+|---|---|---|---|
+| 1 | State Bank of India | PSU | Tier A |
+| 2 | HDFC Bank | Private | Tier A |
+| 3 | ICICI Bank | Private | Tier A |
+| 4 | Axis Bank | Private | Tier A |
+| 5 | Kotak Mahindra Bank | Private | Tier A |
+| 6 | Punjab National Bank | PSU | Tier A |
+| 7 | Bank of Baroda | PSU | Tier B |
+| 8 | Canara Bank | PSU | Tier B |
+| 9 | Bank of India | PSU | Tier B |
+| 10 | Union Bank of India | PSU | Tier B |
+| 11 | Indian Bank | PSU | Tier B |
+| 12 | Central Bank of India | PSU | Tier B |
+| 13 | IDBI Bank | PSU/Private | Tier B |
+| 14 | Yes Bank | Private | Tier B |
+| 15 | IDFC First Bank | Private | Tier B |
+| 16 | IndusInd Bank | Private | Tier B |
+| 17 | Federal Bank | Private | Tier C |
+| 18 | South Indian Bank | Private | Tier C |
+| 19 | RBL Bank | Private | Tier C |
+| 20 | Bandhan Bank | Private | Tier C |
+| 21 | AU Small Finance Bank | SFB | Tier C |
+| 22 | UCO Bank | PSU | Tier C |
+| 23 | Bank of Maharashtra | PSU | Tier C |
+| 24 | Punjab & Sind Bank | PSU | Tier C |
+| 25 | Karnataka Bank | Private | Tier C |
+| 26 | Karur Vysya Bank | Private | Tier C |
+| 27 | City Union Bank | Private | Tier C |
+| 28 | Jammu & Kashmir Bank | Private | Tier C |
+| 29 | Ujjivan Small Finance Bank | SFB | Tier C |
+| 30 | Suryoday Small Finance Bank | SFB | Tier C |
+
+**Data fields to maintain per bank per product (home / personal / auto / credit card):**
+- Headline interest rate: floating or fixed, with range (min–max offered)
+- Processing fee: flat ₹ amount or % of loan
+- Prepayment penalty: floating personal/home = ₹0 (RBI mandated); fixed rate = bank-specific (typically 1–3%)
+- Bundled insurance: yes/no; if yes, annual premium rate
+- Balance transfer promotional offer: promo rate + duration + BT fee
+- Credit card minimum payment formula (from §24.1)
+- MAB requirement for savings account (from §29.1)
+- Last-verified date per field
+
+### 31.2 USA — top 15 lenders / card issuers
+
+| # | Institution | Type | Products | Scrape tier |
+|---|---|---|---|---|
+| 1 | JPMorgan Chase | Universal bank | CC, mortgage, auto, personal | Tier A |
+| 2 | Bank of America | Universal bank | CC, mortgage, auto, personal | Tier A |
+| 3 | Wells Fargo | Universal bank | CC, mortgage, auto, personal | Tier A |
+| 4 | Citibank | Universal bank | CC, mortgage, personal | Tier A |
+| 5 | U.S. Bank | Universal bank | CC, mortgage, auto, personal | Tier A |
+| 6 | Capital One | CC + auto | CC, auto loan | Tier A |
+| 7 | American Express | CC + personal | CC, personal loans | Tier B |
+| 8 | Discover | CC + personal | CC, personal, student refi | Tier B |
+| 9 | Goldman Sachs (Marcus) | Digital | Personal loans, HYSA | Tier B |
+| 10 | Ally Financial | Digital | Auto, HYSA, personal | Tier B |
+| 11 | Truist Financial | Regional bank | CC, mortgage, auto | Tier B |
+| 12 | PNC Financial | Regional bank | CC, mortgage, auto | Tier B |
+| 13 | TD Bank | Regional bank | CC, mortgage, personal | Tier C |
+| 14 | Navy Federal Credit Union | Credit union | CC, mortgage, auto, personal | Tier C |
+| 15 | SoFi | Digital | Student refi, personal, mortgage | Tier C |
+
+**Data fields to maintain per institution (USA):**
+- APR range: credit cards (purchase / cash advance / BT promotional); loans (advertised range, subject to creditworthiness)
+- Balance transfer: 0% intro APR duration + BT fee % + regular APR after promo
+- Origination fee (personal loans): 0–10% depending on institution
+- Prepayment penalty: most US personal and auto loans have none; some mortgages do — confirm per product
+- Current HYSA yield (for Cash Yield Check — §8e; changes with Fed rate)
+- Last-verified date per field
+
+---
+
+## 32. Web-first v1 architecture decision (LOCKED)
+
+v1 is **web-first, desktop-primary**.
+
+- **Primary design target:** 1280px+ desktop/laptop, for: Onboarding (multi-field forms), Plan screen (month-by-month table, sensitivity sliders, strategy comparison), My Debts detail (amortisation chart + edit fields side-by-side)
+- **Mobile browser:** fully functional responsive layout. Home screen, Quick Recompute, Windfall Handler, and New Debt Check are specifically optimised for mobile since these are the "in the moment" interactions
+- **Native app (iOS/Android):** Phase 2 — React Native with engine code shared from web
+- **Tech stack (locked):** Next.js + React + TypeScript frontend; Python (FastAPI) backend; Postgres + RLS for user data; Redis for plan-snapshot caching; Decimal (never float) for all currency arithmetic
+
+---
+
+## 33. Build readiness assessment (as of May 2026)
+
+### Ready to build immediately
+- Optimisation engine: all formulas specified and corrected in design spec §4 (updated)
+- Data model: user profile, debts, assets, PF instruments, cash flow calendar, plan snapshots
+- Country data store schema: bank rate matrix + tax rules + central bank calendar (India + USA)
+- Layer 0 (employer match), Layer 1 (restructuring), Layer 2 (avalanche/hybrid/snowball), Layer 3 (invest-vs-prepay)
+- All 6 decision sub-modules (§8a–8f)
+- India/USA bank data entry (30 + 15 institutions; data ops starts immediately)
+
+### Needs wireframes before frontend build starts
+- Onboarding (6 steps — tax regime selector, PF entry, MAB, income type branch)
+- My Debts (list + detail screen with amortisation chart)
+- Plan screen (desktop + mobile — the most complex screen)
+- All 6 Tools sub-module screens
+- Insights screen
+- Settings screen
+
+### Remaining design decisions (unblocking frontend)
+1. **Visual language / brand:** dark navy + gold from FinOptima brief, or fresh identity? Must decide before building any visual component.
+2. **Charts library:** Recharts vs Visx vs D3. Affects design vocabulary and developer tooling.
+3. **Tools surface:** recommendation below — contextual surfacing primary; tile grid secondary; Windfall gets a FAB. Needs final sign-off.
+
+---
+
+## 34. Tools surface decision — recommendation (OPEN → decide before frontend)
+
+The current wireframe shows 6 tiles. The risk: it looks like a feature dump, and users don't know which tool applies to their situation.
+
+**Recommended approach (needs sign-off):**
+- **Primary:** contextual surfacing. Based on current user state, the app proactively shows the most relevant tool card on Home screen below "This Month's Action." Logic:
+  - If user just had salary credited (detected from calendar input) → nudge towards Windfall Handler
+  - If a central bank rate change happened → nudge towards Right-Time-to-Borrow
+  - First of each month → Cash Yield Check if idle cash detected
+  - User enters Detailed Mode → show Plan diagnostics strip (already in wireframe)
+- **Secondary:** "More tools →" link that expands to the full 6-tile grid (below the fold)
+- **Windfall Handler:** also gets a persistent floating action button (FAB) in the bottom-right of Home screen, labelled *"Got a bonus?"* — this is the highest-frequency ad-hoc action and should be one tap away at all times
+
+---
+
+## 35. How to resume from a new session (updated)
+
+Paste this whole file + `module-02-design-spec.md` and say:
+> "Here are the complete brainstorm and design spec for Module 2. Both are fully current as of May 2026. All open questions are resolved through §34. We are ready to start building. Begin with [engine / data schema / onboarding wireframes / specific screen]."
+
+The original resume instruction (earlier in this file) pointed to §20. All questions through that round plus the second round are now resolved in §23–34 and the decisions log through entry #43.
