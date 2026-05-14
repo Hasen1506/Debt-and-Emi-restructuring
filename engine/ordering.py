@@ -9,9 +9,16 @@ to it cascades to the next-priority debt.
 """
 from decimal import Decimal
 from enum import Enum
-from engine.models import Loan
+from engine.models import Country, Loan
 
 D = Decimal
+
+# §4.5 hybrid strategy — small-balance bucket threshold. Picked to surface
+# typical "easy wins" in each market: BNPL/store cards in IN, low-balance
+# cards in US. Keeps psychology→math switch at roughly equivalent purchasing
+# power (₹50k ≈ $600 mid-2026 spot; we round US up to $1,000 for cleaner UX).
+HYBRID_SMALL_BALANCE_IN = D("50000")
+HYBRID_SMALL_BALANCE_US = D("1000")
 
 
 class Strategy(str, Enum):
@@ -20,27 +27,34 @@ class Strategy(str, Enum):
     SNOWBALL = "snowball"
 
 
+def hybrid_small_balance_threshold(country: Country) -> Decimal:
+    """§4.5 — balance below which a loan jumps to the front of the hybrid queue."""
+    if country == Country.US:
+        return HYBRID_SMALL_BALANCE_US
+    return HYBRID_SMALL_BALANCE_IN
+
+
 def rank_loans(
     loans: list[Loan],
     effective_rates: dict[int, Decimal],
     strategy: Strategy,
+    country: Country = Country.IN,
 ) -> list[Loan]:
     """Returns loans sorted by priority for extra-allocation routing.
 
     `effective_rates` is {id(loan): effective_rate} from formulas.effective_rate().
-    Higher priority = first to receive extra.
+    Higher priority = first to receive extra. `country` selects the hybrid
+    small-balance threshold (§4.5).
     """
     if strategy == Strategy.AVALANCHE:
         return sorted(loans, key=lambda l: effective_rates[id(l)], reverse=True)
     if strategy == Strategy.SNOWBALL:
         return sorted(loans, key=lambda l: l.outstanding)
     if strategy == Strategy.HYBRID:
-        # Small balances < ₹50k go first (or $1,000 US — caller scales).
-        # Then avalanche the rest.
-        small_threshold = D("50000")
-        small = sorted([l for l in loans if l.outstanding < small_threshold],
+        threshold = hybrid_small_balance_threshold(country)
+        small = sorted([l for l in loans if l.outstanding < threshold],
                        key=lambda l: l.outstanding)
-        rest = sorted([l for l in loans if l.outstanding >= small_threshold],
+        rest = sorted([l for l in loans if l.outstanding >= threshold],
                       key=lambda l: effective_rates[id(l)], reverse=True)
         return small + rest
     raise ValueError(f"Unknown strategy: {strategy}")

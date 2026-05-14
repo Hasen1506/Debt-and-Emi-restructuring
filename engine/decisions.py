@@ -35,6 +35,7 @@ def allocate_windfall(
     investment_options: list[InvestmentOption],
     inflation: Decimal,
     strategy: Strategy = Strategy.AVALANCHE,
+    country: Country = Country.IN,
 ) -> WindfallAllocation:
     """§8a — single decision, not a plan. Runs Layer 1 logic (already done at scan
     time), then Layer 2 ranking, then Layer 3 invest-vs-prepay gate on the top
@@ -47,7 +48,7 @@ def allocate_windfall(
             rationale="No outstanding debt", interest_avoided=D("0"),
         )
 
-    ranked = rank_loans(active, effective_rates, strategy)
+    ranked = rank_loans(active, effective_rates, strategy, country=country)
     top = ranked[0]
     top_rate = effective_rates[id(top)]
 

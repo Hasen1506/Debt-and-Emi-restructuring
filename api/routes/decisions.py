@@ -38,6 +38,7 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
     allocation = allocate_windfall(
         req.amount, user.loans, rates,
         user.investment_options, user.inflation_rate, strategy=req.strategy,
+        country=user.country,
     )
     return WindfallResponse(
         loan_label=allocation.loan_label,

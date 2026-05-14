@@ -119,7 +119,7 @@ def simulate_plan(
 
         # Layer 3 — invest-vs-prepay gate per loan
         # If the top-priority loan fails the gate, redirect its extra to investment.
-        ranked = rank_loans(active, rates, strategy)
+        ranked = rank_loans(active, rates, strategy, country=user.country)
         invested_this_month = D("0")
         extra_for_debt = surplus
 
