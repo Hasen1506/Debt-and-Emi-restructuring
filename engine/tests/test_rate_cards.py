@@ -55,9 +55,32 @@ def test_lookup_unknown_bank_returns_none():
     assert lookup_rate("Nonexistent Bank", LoanType.HOME) is None
 
 
-def test_lookup_tier_b_unpopulated_returns_none():
-    """Tier-B banks are scaffolded with no rate ranges yet."""
-    assert lookup_rate("Yes Bank", LoanType.HOME) is None
+def test_lookup_tier_b_indicative_returns_range():
+    """Tier-B banks are populated with extrapolated indicative ranges."""
+    r = lookup_rate("Yes Bank", LoanType.HOME)
+    assert r is not None
+    assert r.low > D("0.07") and r.high < D("0.12")
+
+
+def test_tier_b_and_c_all_flagged_indicative():
+    """Every Tier-B/C card must carry is_indicative=True so data ops can target them."""
+    for card in INDIA_TIER_B + INDIA_TIER_C + USA_TIER_B + USA_TIER_C:
+        assert card.is_indicative is True, f"{card.name} missing is_indicative flag"
+    for card in INDIA_TIER_A + USA_TIER_A:
+        assert card.is_indicative is False, f"{card.name} should not be indicative"
+
+
+def test_tier_b_india_covers_main_psu_and_private_mid():
+    names = {c.name for c in INDIA_TIER_B}
+    assert {"Bank of Baroda", "Canara Bank", "Yes Bank", "IDFC First"} <= names
+
+
+def test_navy_federal_auto_loan_competitive():
+    """Member-only credit unions undercut large-bank auto rates."""
+    nfcu = lookup_rate("Navy Federal Credit Union", LoanType.AUTO)
+    chase = lookup_rate("JPMorgan Chase", LoanType.AUTO)
+    assert nfcu is not None and chase is not None
+    assert nfcu.low < chase.low
 
 
 def test_market_median_india_home_loan():

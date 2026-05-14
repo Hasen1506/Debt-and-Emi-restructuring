@@ -45,6 +45,9 @@ class RestructuringOpportunity:
 
 
 def _country_pool(country: Country) -> list[InstitutionRateCard]:
+    """Recommendations only pull from Tier-A (authoritative). Tier-B/C carry
+    `is_indicative=True` and are used for context (e.g. coverage in lookups,
+    not as steered targets) until data ops verifies them."""
     return INDIA_TIER_A if country == Country.IN else USA_TIER_A
 
 
