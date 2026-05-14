@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import '@/styles/globals.css';
-import { loadThemeServer } from '@/lib/theme';
-import { ThemeSwitcher } from '@/components/ThemeSwitcher';
+import { loadThemeServer, type ThemeName } from '@/lib/theme';
+import { StandardTopBar } from '@/components/chrome/StandardTopBar';
+import { EditorialMasthead } from '@/components/chrome/EditorialMasthead';
 
 export const metadata: Metadata = {
   title: 'FinOptima — Debt & EMI Optimiser',
@@ -22,62 +23,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body>
-        <AppShell theme={theme}>{children}</AppShell>
+        <Chrome theme={theme} />
+        <main className="app-shell" style={{ paddingTop: 24, paddingBottom: 80 }}>
+          {children}
+        </main>
       </body>
     </html>
   );
 }
 
-function AppShell({ theme, children }: { theme: 'existing' | 'editorial' | 'ledger'; children: React.ReactNode }) {
-  return (
-    <>
-      <TopBar theme={theme} />
-      <main className="app-shell" style={{ paddingTop: 24, paddingBottom: 80 }}>
-        {children}
-      </main>
-    </>
-  );
-}
-
-function TopBar({ theme }: { theme: 'existing' | 'editorial' | 'ledger' }) {
-  return (
-    <header
-      style={{
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--card)',
-      }}
-    >
-      <div
-        className="app-shell"
-        style={{
-          height: 56,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 16,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <strong style={{ fontWeight: 700, letterSpacing: '-0.01em' }}>
-            FinOptima
-          </strong>
-          <span className="muted" style={{ fontSize: 13 }}>
-            Debt &amp; EMI
-          </span>
-        </div>
-        <nav style={{ display: 'flex', gap: 18, fontSize: 14 }}>
-          <a href="/">Home</a>
-          <a href="/onboarding">Setup</a>
-          <a href="/debts">Debts</a>
-          <a href="/plan">Plan</a>
-          <a href="/tools">Tools</a>
-          <a href="/insights">Insights</a>
-        </nav>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <ThemeSwitcher initial={theme} />
-          <span className="chip">IN · ₹</span>
-        </div>
-      </div>
-    </header>
-  );
+function Chrome({ theme }: { theme: ThemeName }) {
+  if (theme === 'editorial') return <EditorialMasthead theme={theme} />;
+  return <StandardTopBar theme={theme} />;
 }
