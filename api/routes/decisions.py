@@ -1,0 +1,194 @@
+"""POST /api/windfall · /api/new-debt · /api/quick-recompute · /api/cash-yield · /api/right-time-to-borrow · /api/asset-liquidation"""
+from copy import deepcopy
+from decimal import Decimal
+from fastapi import APIRouter, HTTPException
+
+from engine.asset_liquidation import (
+    india_ltcg_tax, true_net_benefit, gate_check,
+)
+from engine.country_data import india_selling_cost_pct
+from engine.decisions import (
+    allocate_windfall, evaluate_new_debt, quick_recompute,
+    cash_yield_check, right_time_to_borrow,
+)
+from engine.formulas import effective_rate
+from engine.simulation import simulate_plan
+
+from api.schemas import (
+    WindfallRequest, WindfallResponse,
+    NewDebtRequest, NewDebtResponse,
+    QuickRecomputeRequest, QuickRecomputeResponse,
+    CashYieldRequest, CashYieldResponse,
+    BorrowTimingRequest, BorrowTimingResponse,
+    AssetLiquidationRequest, AssetLiquidationResponse,
+)
+
+D = Decimal
+router = APIRouter(tags=["decisions"])
+
+
+@router.post("/windfall", response_model=WindfallResponse)
+def windfall(req: WindfallRequest) -> WindfallResponse:
+    user = req.user.to_engine()
+    marg = req.marginal_rate if req.marginal_rate is not None else D("0")
+    rates = {
+        id(l): effective_rate(l, marg, user.country, user.tax_regime)
+        for l in user.loans
+    }
+    allocation = allocate_windfall(
+        req.amount, user.loans, rates,
+        user.investment_options, user.inflation_rate, strategy=req.strategy,
+    )
+    return WindfallResponse(
+        loan_label=allocation.loan_label,
+        amount=allocation.amount,
+        rationale=allocation.rationale,
+        interest_avoided=allocation.interest_avoided,
+        invest_instead=allocation.invest_instead,
+        investment_name=allocation.investment_name,
+    )
+
+
+@router.post("/new-debt", response_model=NewDebtResponse)
+def new_debt(req: NewDebtRequest) -> NewDebtResponse:
+    verdict = evaluate_new_debt(
+        list_price=req.list_price,
+        cash_price_elsewhere=req.cash_price_elsewhere,
+        emi_offer_months=req.emi_offer_months,
+        emi_offer_monthly_payment=req.emi_offer_monthly_payment,
+        processing_fee=req.processing_fee,
+        user_savings_after_efund=req.user_savings_after_efund,
+    )
+    return NewDebtResponse(**verdict.__dict__)
+
+
+@router.post("/quick-recompute", response_model=QuickRecomputeResponse)
+def recompute(req: QuickRecomputeRequest) -> QuickRecomputeResponse:
+    user = req.user.to_engine()
+    old = simulate_plan(
+        user, strategy=req.strategy, horizon_months=req.horizon_months,
+        marginal_rate=req.marginal_rate,
+    )
+    # Apply the lump-sum payment to the chosen loan, then resimulate.
+    scratch = deepcopy(user)
+    if 0 <= req.target_loan_index < len(scratch.loans):
+        l = scratch.loans[req.target_loan_index]
+        l.outstanding = max(D("0"), l.outstanding - req.extra_payment)
+    new = simulate_plan(
+        scratch, strategy=req.strategy, horizon_months=req.horizon_months,
+        marginal_rate=req.marginal_rate,
+    )
+    diff = quick_recompute(
+        old.total_interest_paid, new.total_interest_paid,
+        old.debt_free_month, new.debt_free_month,
+    )
+    return QuickRecomputeResponse(
+        old_debt_free_month=diff.old_debt_free_month,
+        new_debt_free_month=diff.new_debt_free_month,
+        months_pulled_forward=diff.months_pulled_forward,
+        interest_saved=diff.interest_saved,
+    )
+
+
+@router.post("/cash-yield", response_model=CashYieldResponse)
+def cash_yield(req: CashYieldRequest) -> CashYieldResponse:
+    alert = cash_yield_check(
+        idle_balance=req.idle_balance,
+        current_yield=req.current_yield,
+        country=req.country,
+        top_loan_effective_rate=req.top_loan_effective_rate,
+        best_alt_yield=req.best_alt_yield,
+        alt_name=req.alt_name,
+        minimum_idle_threshold=req.minimum_idle_threshold,
+    )
+    if alert is None:
+        return CashYieldResponse(alert=False)
+    return CashYieldResponse(
+        alert=True,
+        idle_balance=alert.idle_balance, current_yield=alert.current_yield,
+        best_alt_yield=alert.best_alt_yield, alt_name=alert.alt_name,
+        annual_uplift=alert.annual_uplift, beats_top_loan=alert.beats_top_loan,
+        rationale=alert.rationale,
+    )
+
+
+@router.post("/right-time-to-borrow", response_model=BorrowTimingResponse)
+def borrow_timing(req: BorrowTimingRequest) -> BorrowTimingResponse:
+    verdict = right_time_to_borrow(
+        current_rate=req.current_rate, six_month_avg=req.six_month_avg,
+        consensus_change_bps=req.consensus_change_bps,
+        months_to_decision=req.months_to_decision,
+        urgency=req.urgency, principal=req.principal,
+        tenure_months=req.tenure_months,
+    )
+    return BorrowTimingResponse(**verdict.__dict__)
+
+
+@router.post("/asset-liquidation", response_model=AssetLiquidationResponse)
+def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
+    """§8c / §4.18 — should this asset be sold to clear high-rate debt?
+
+    Runs Gates 1–3 (Gate 4 is the user's emotional/strategic call, surfaced in UI).
+    """
+    asset = req.asset.to_engine()
+    state = asset.state or "Maharashtra"        # default for selling-cost lookup
+    try:
+        net_proceeds, ltcg_tax = india_ltcg_tax(
+            asset=asset,
+            sale_price=req.sale_price,
+            state=state,
+            taxable_income=req.taxable_income,
+            purchase_fy=req.purchase_fy,
+            current_fy=req.current_fy,
+            brokerage_rate=req.brokerage_rate,
+        )
+    except (KeyError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    benefit = true_net_benefit(
+        net_proceeds=net_proceeds,
+        debt_balance=req.debt_balance,
+        debt_effective_rate=req.debt_effective_rate,
+        selling_period_months=req.selling_period_months,
+    )
+
+    selling_cost_pct = india_selling_cost_pct(state, req.brokerage_rate)
+    gross_sale = req.sale_price * (D("1") - selling_cost_pct) if req.sale_price else D("1")
+    ltcg_effective_rate = (
+        ltcg_tax / req.sale_price if req.sale_price > 0 else D("0")
+    )
+
+    gates = gate_check(
+        asset_value=req.sale_price,
+        net_benefit=benefit,
+        debt_effective_rate=req.debt_effective_rate,
+        asset_nominal_return=req.asset_nominal_return,
+        inflation=req.inflation,
+        selling_cost_pct=selling_cost_pct,
+        ltcg_effective_rate=ltcg_effective_rate,
+        holding_cost_rate=req.holding_cost_rate,
+        expected_hold_years_post_sale=req.expected_hold_years_post_sale,
+        high_rate_threshold=req.high_rate_threshold,
+    )
+
+    failed = []
+    if not gates["gate_1_net_benefit"]: failed.append("net benefit < 10% of asset")
+    if not gates["gate_2_high_rate"]:   failed.append(f"debt below {req.high_rate_threshold * 100:.0f}% threshold")
+    if not gates["gate_3_spread"]:      failed.append("asset return-net beats debt rate")
+    rationale = (
+        "All three gates pass — selling clears expensive debt and the asset is underperforming."
+        if gates["recommend_liquidation"]
+        else "Hold the asset. Failed gates: " + "; ".join(failed) + "."
+    )
+
+    return AssetLiquidationResponse(
+        net_proceeds=net_proceeds,
+        ltcg_tax=ltcg_tax,
+        net_benefit=benefit,
+        asset_real_return_net=gates["asset_real_return_net"],
+        gate_1_net_benefit=gates["gate_1_net_benefit"],
+        gate_2_high_rate=gates["gate_2_high_rate"],
+        gate_3_spread=gates["gate_3_spread"],
+        recommend_liquidation=gates["recommend_liquidation"],
+        rationale=rationale,
+    )

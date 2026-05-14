@@ -1,6 +1,10 @@
 /**
- * Mock trajectory: 36 months of total debt under (a) avalanche, (b) minimums-only.
- * Will be replaced by /api/plan response from the FastAPI gateway later.
+ * Trajectory point consumed by DebtTrajectoryChart. Two series:
+ *   `avalanche`  — the surplus-driven schedule from /api/simulate
+ *   `minimums`   — the baseline from /api/baseline
+ *
+ * The `mockTrajectory` fallback is used when the API gateway isn't reachable
+ * (offline preview, `npm run build` without a backend, etc.).
  */
 export type TrajectoryPoint = {
   month: number;
