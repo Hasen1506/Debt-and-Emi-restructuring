@@ -1,14 +1,22 @@
 'use client';
 
 import { useState } from 'react';
+import Decimal from 'decimal.js';
 import { Card } from '@/components/Card';
-import { Field, Stat, SubmitBar, VerdictHeader } from '@/components/ToolPrimitives';
-import { api, formatINR, type WindfallResponse } from '@/lib/api';
+import { Field, ScoreChip, Stat, SubmitBar, VerdictHeader } from '@/components/ToolPrimitives';
+import {
+  api,
+  formatINR,
+  type ScoreImpactResponse,
+  type WindfallResponse,
+} from '@/lib/api';
 import { DEMO_USER, DEMO_MARGINAL_RATE } from '@/lib/demo-user';
 
 export default function WindfallPage() {
   const [amount, setAmount] = useState('100000');
+  const [score, setScore] = useState('720');
   const [v, setV] = useState<WindfallResponse | null>(null);
+  const [impact, setImpact] = useState<ScoreImpactResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -16,15 +24,37 @@ export default function WindfallPage() {
     e.preventDefault();
     setBusy(true);
     setErr(null);
+    setImpact(null);
     try {
-      setV(
-        await api.windfall({
-          amount,
-          user: DEMO_USER,
-          marginal_rate: DEMO_MARGINAL_RATE,
-          strategy: 'avalanche',
-        }),
-      );
+      const result = await api.windfall({
+        amount,
+        user: DEMO_USER,
+        marginal_rate: DEMO_MARGINAL_RATE,
+        strategy: 'avalanche',
+      });
+      setV(result);
+
+      // If the windfall lands on the card, model the utilisation drop.
+      if (!result.invest_instead && result.loan_label.toLowerCase().includes('credit_card')) {
+        const card = DEMO_USER.loans.find((l) => l.loan_type === 'credit_card');
+        if (card) {
+          const limit = new Decimal(card.outstanding).div('0.7'); // assume 70% utilised
+          const utilFrom = new Decimal(card.outstanding).div(limit);
+          const utilTo = Decimal.max(
+            new Decimal(card.outstanding).minus(amount),
+            new Decimal('0'),
+          ).div(limit);
+          const scoreInt = Number(score) || 720;
+          const impactResult = await api.scoreImpact({
+            action: 'utilisation_drop',
+            current_score: scoreInt,
+            country: 'IN',
+            utilisation_from: utilFrom.toFixed(4),
+            utilisation_to: utilTo.toFixed(4),
+          });
+          setImpact(impactResult);
+        }
+      }
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -53,7 +83,12 @@ export default function WindfallPage() {
             onChange={setAmount}
             hint="Bonus, tax refund, gift, asset sale, etc."
           />
-          <div />
+          <Field
+            label="Your current credit score"
+            value={score}
+            onChange={setScore}
+            hint="CIBIL/Experian; leave blank to skip score impact"
+          />
           <SubmitBar busy={busy} error={err} label="Where should it go?" />
         </form>
       </Card>
@@ -74,6 +109,7 @@ export default function WindfallPage() {
               display: 'grid',
               gridTemplateColumns: 'repeat(2, 1fr)',
               gap: 12,
+              marginBottom: impact ? 12 : 0,
             }}
           >
             <Stat label="Amount" value={formatINR(v.amount)} />
@@ -85,6 +121,17 @@ export default function WindfallPage() {
               color={v.invest_instead ? 'var(--negative)' : 'var(--positive)'}
             />
           </div>
+          {impact && (
+            <ScoreChip
+              deltaLow={impact.delta_low}
+              deltaHigh={impact.delta_high}
+              daysToRealise={impact.days_to_realise}
+              currentBand={impact.current_band}
+              projectedBandHigh={impact.projected_band_high}
+              source={impact.source}
+              rationale={impact.rationale}
+            />
+          )}
         </Card>
       )}
     </div>

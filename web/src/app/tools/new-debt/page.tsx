@@ -4,11 +4,18 @@ import { useState } from 'react';
 import { Card } from '@/components/Card';
 import {
   Field,
+  ScoreChip,
   Stat,
   SubmitBar,
   VerdictHeader,
 } from '@/components/ToolPrimitives';
-import { api, formatINR, formatPct, type NewDebtResponse } from '@/lib/api';
+import {
+  api,
+  formatINR,
+  formatPct,
+  type NewDebtResponse,
+  type ScoreImpactResponse,
+} from '@/lib/api';
 
 const VERDICT_LABEL: Record<NewDebtResponse['verdict'], string> = {
   take: 'Take the EMI',
@@ -28,7 +35,9 @@ export default function NewDebtPage() {
   const [emi, setEmi] = useState('3333.33');
   const [fee, setFee] = useState('0');
   const [savings, setSavings] = useState('50000');
+  const [score, setScore] = useState('720');
   const [v, setV] = useState<NewDebtResponse | null>(null);
+  const [impact, setImpact] = useState<ScoreImpactResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -36,17 +45,27 @@ export default function NewDebtPage() {
     e.preventDefault();
     setBusy(true);
     setErr(null);
+    setImpact(null);
     try {
-      setV(
-        await api.newDebt({
-          list_price: listPrice,
-          cash_price_elsewhere: cashPrice,
-          emi_offer_months: Number(months),
-          emi_offer_monthly_payment: emi,
-          processing_fee: fee,
-          user_savings_after_efund: savings,
-        }),
-      );
+      const result = await api.newDebt({
+        list_price: listPrice,
+        cash_price_elsewhere: cashPrice,
+        emi_offer_months: Number(months),
+        emi_offer_monthly_payment: emi,
+        processing_fee: fee,
+        user_savings_after_efund: savings,
+      });
+      setV(result);
+
+      // If the verdict is "take", the user opens a new account → score impact.
+      if (result.verdict === 'take' && Number(score) >= 300) {
+        const impactResult = await api.scoreImpact({
+          action: 'new_account',
+          current_score: Number(score),
+          country: 'IN',
+        });
+        setImpact(impactResult);
+      }
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -84,6 +103,12 @@ export default function NewDebtPage() {
             value={savings}
             onChange={setSavings}
           />
+          <Field
+            label="Your credit score"
+            value={score}
+            onChange={setScore}
+            hint="CIBIL/Experian — drives score impact estimate"
+          />
           <SubmitBar busy={busy} error={err} label="Check" />
         </form>
       </Card>
@@ -100,6 +125,7 @@ export default function NewDebtPage() {
               display: 'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
               gap: 12,
+              marginBottom: impact ? 12 : 0,
             }}
           >
             <Stat label="Effective APR" value={formatPct(v.effective_apr, 1)} />
@@ -109,6 +135,17 @@ export default function NewDebtPage() {
             />
             <Stat label="Total real cost" value={formatINR(v.total_real_cost)} />
           </div>
+          {impact && (
+            <ScoreChip
+              deltaLow={impact.delta_low}
+              deltaHigh={impact.delta_high}
+              daysToRealise={impact.days_to_realise}
+              currentBand={impact.current_band}
+              projectedBandHigh={impact.projected_band_high}
+              source={impact.source}
+              rationale={impact.rationale}
+            />
+          )}
         </Card>
       )}
     </div>

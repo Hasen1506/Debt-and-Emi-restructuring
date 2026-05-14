@@ -167,6 +167,40 @@ export interface FxRateResponse {
   as_of: string | null;
 }
 
+export type ScoreAction =
+  | 'hard_inquiry'
+  | 'utilisation_drop'
+  | 'balance_transfer'
+  | 'new_account'
+  | 'close_oldest_card'
+  | 'on_time_streak_quarter'
+  | 'loan_paid_off'
+  | 'card_paid_off';
+
+export type ScoreBand = 'poor' | 'fair' | 'good' | 'very_good' | 'excellent';
+
+export interface ScoreImpactResponse {
+  action: ScoreAction;
+  current_score: number;
+  current_band: ScoreBand;
+  delta_low: number;
+  delta_high: number;
+  projected_score_low: number;
+  projected_score_high: number;
+  projected_band_low: ScoreBand;
+  projected_band_high: ScoreBand;
+  days_to_realise: number;
+  source: string;
+  rationale: string;
+}
+
+export interface RateOfferedResponse {
+  advertised_rate: string;
+  offered_rate: string;
+  spread: string;
+  band: ScoreBand;
+}
+
 export interface CrossBorderResponse {
   fx_rate_used: string;
   fx_drift_used: string;
@@ -279,6 +313,23 @@ export const api = {
     principal: string;
     tenure_months: number;
   }) => post<BorrowTimingResponse>('/api/right-time-to-borrow', req),
+
+  scoreImpact: (req: {
+    action: ScoreAction;
+    current_score: number;
+    country?: string;
+    utilisation_from?: string;
+    utilisation_to?: string;
+    is_only_instalment_loan?: boolean;
+    has_thin_file?: boolean;
+  }) => post<ScoreImpactResponse>('/api/score-impact', req),
+
+  rateOffered: (req: {
+    advertised_rate: string;
+    score: number;
+    loan_type: string;
+    country?: string;
+  }) => post<RateOfferedResponse>('/api/rate-offered', req),
 
   fxRate: (base: string, quote: string) =>
     get<FxRateResponse>(`/api/fx-rate?base=${base}&quote=${quote}`),
