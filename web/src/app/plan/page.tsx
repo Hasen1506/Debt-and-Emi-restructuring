@@ -1,7 +1,7 @@
 import { Card } from '@/components/Card';
 import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
 import { api, formatINR, monthIndexToLabel } from '@/lib/api';
-import { DEMO_USER, DEMO_MARGINAL_RATE } from '@/lib/demo-user';
+import { loadProfileServer } from '@/lib/user-store';
 import { mergeTrajectories } from '@/lib/trajectory';
 import { mockTrajectory, type TrajectoryPoint } from '@/lib/mock-data';
 
@@ -14,16 +14,20 @@ async function loadPlan(): Promise<{
   baselineInterest: string;
   monthsSaved: number;
   live: boolean;
+  profileIsLive: boolean;
+  surplus: number;
 }> {
+  const profile = await loadProfileServer();
+  const surplus = Number(profile.user.monthly_income) - Number(profile.user.fixed_expenses);
   try {
     const [avalanche, baseline] = await Promise.all([
       api.simulate({
-        user: DEMO_USER,
+        user: profile.user,
         strategy: 'avalanche',
         horizon_months: 240,
-        marginal_rate: DEMO_MARGINAL_RATE,
+        marginal_rate: profile.marginalRate,
       }),
-      api.baseline({ user: DEMO_USER, horizon_months: 240 }),
+      api.baseline({ user: profile.user, horizon_months: 240 }),
     ]);
     const monthsSaved =
       avalanche.debt_free_month && baseline.debt_free_month
@@ -36,6 +40,8 @@ async function loadPlan(): Promise<{
       baselineInterest: baseline.total_interest_paid,
       monthsSaved,
       live: true,
+      profileIsLive: profile.isLive,
+      surplus,
     };
   } catch {
     return {
@@ -45,14 +51,14 @@ async function loadPlan(): Promise<{
       baselineInterest: '410000',
       monthsSaved: 14,
       live: false,
+      profileIsLive: profile.isLive,
+      surplus,
     };
   }
 }
 
 export default async function PlanPage() {
   const plan = await loadPlan();
-  const surplus =
-    Number(DEMO_USER.monthly_income) - Number(DEMO_USER.fixed_expenses);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -61,8 +67,16 @@ export default async function PlanPage() {
         <p className="muted">
           Avalanche strategy, current surplus{' '}
           <span className="num" style={{ color: 'var(--ink)' }}>
-            {formatINR(surplus)}/mo
+            {formatINR(plan.surplus)}/mo
           </span>
+          {!plan.profileIsLive && (
+            <span
+              className="chip"
+              style={{ marginLeft: 8, color: 'var(--muted)' }}
+            >
+              demo profile · <a href="/onboarding">set up yours</a>
+            </span>
+          )}
           {!plan.live && (
             <span
               className="chip"

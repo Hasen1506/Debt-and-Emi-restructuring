@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import { Card } from '@/components/Card';
 import { Field, ScoreChip, Stat, SubmitBar, VerdictHeader } from '@/components/ToolPrimitives';
@@ -10,11 +10,14 @@ import {
   type ScoreImpactResponse,
   type WindfallResponse,
 } from '@/lib/api';
-import { DEMO_USER, DEMO_MARGINAL_RATE } from '@/lib/demo-user';
+import { loadProfileClient } from '@/lib/user-store';
 
 export default function WindfallPage() {
+  const profile = useMemo(() => loadProfileClient(), []);
   const [amount, setAmount] = useState('100000');
-  const [score, setScore] = useState('720');
+  const [score, setScore] = useState(
+    profile.creditScore != null ? String(profile.creditScore) : '720',
+  );
   const [v, setV] = useState<WindfallResponse | null>(null);
   const [impact, setImpact] = useState<ScoreImpactResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -28,15 +31,15 @@ export default function WindfallPage() {
     try {
       const result = await api.windfall({
         amount,
-        user: DEMO_USER,
-        marginal_rate: DEMO_MARGINAL_RATE,
+        user: profile.user,
+        marginal_rate: profile.marginalRate,
         strategy: 'avalanche',
       });
       setV(result);
 
       // If the windfall lands on the card, model the utilisation drop.
       if (!result.invest_instead && result.loan_label.toLowerCase().includes('credit_card')) {
-        const card = DEMO_USER.loans.find((l) => l.loan_type === 'credit_card');
+        const card = profile.user.loans.find((l) => l.loan_type === 'credit_card');
         if (card) {
           const limit = new Decimal(card.outstanding).div('0.7'); // assume 70% utilised
           const utilFrom = new Decimal(card.outstanding).div(limit);
@@ -69,6 +72,11 @@ export default function WindfallPage() {
         <p className="muted">
           Runs Layer 1 → 2 → 3 on your current debts and tells you the single
           best home for the cash. §8a.
+          {!profile.isLive && (
+            <span className="chip" style={{ marginLeft: 8, color: 'var(--muted)' }}>
+              demo profile · <a href="/onboarding">set up yours</a>
+            </span>
+          )}
         </p>
       </section>
 

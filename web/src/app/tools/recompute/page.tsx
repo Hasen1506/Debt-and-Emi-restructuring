@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card } from '@/components/Card';
 import {
   Field,
@@ -15,11 +15,12 @@ import {
   monthIndexToLabel,
   type QuickRecomputeResponse,
 } from '@/lib/api';
-import { DEMO_USER, DEMO_MARGINAL_RATE } from '@/lib/demo-user';
+import { loadProfileClient } from '@/lib/user-store';
 
 export default function RecomputePage() {
+  const profile = useMemo(() => loadProfileClient(), []);
   const [extra, setExtra] = useState('50000');
-  const [targetIdx, setTargetIdx] = useState<string>('1');
+  const [targetIdx, setTargetIdx] = useState<string>('0');
   const [v, setV] = useState<QuickRecomputeResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -31,12 +32,12 @@ export default function RecomputePage() {
     try {
       setV(
         await api.quickRecompute({
-          user: DEMO_USER,
+          user: profile.user,
           extra_payment: extra,
           target_loan_index: Number(targetIdx),
           strategy: 'avalanche',
           horizon_months: 360,
-          marginal_rate: DEMO_MARGINAL_RATE,
+          marginal_rate: profile.marginalRate,
         }),
       );
     } catch (e) {
@@ -46,7 +47,7 @@ export default function RecomputePage() {
     }
   }
 
-  const loanOptions = DEMO_USER.loans.map((l, i) => ({
+  const loanOptions = profile.user.loans.map((l, i) => ({
     value: String(i),
     label: `${l.bank} · ${l.loan_type.replace('_', ' ')} (${formatINR(l.outstanding)})`,
   }));
@@ -58,6 +59,11 @@ export default function RecomputePage() {
         <p className="muted">
           Reruns the full schedule with the lump-sum applied and tells you how
           much closer to debt-free you are now. §8d.
+          {!profile.isLive && (
+            <span className="chip" style={{ marginLeft: 8, color: 'var(--muted)' }}>
+              demo profile · <a href="/onboarding">set up yours</a>
+            </span>
+          )}
         </p>
       </section>
 

@@ -63,6 +63,7 @@ function TopBar() {
         </div>
         <nav style={{ display: 'flex', gap: 18, fontSize: 14 }}>
           <a href="/">Home</a>
+          <a href="/onboarding">Setup</a>
           <a href="/debts">Debts</a>
           <a href="/plan">Plan</a>
           <a href="/tools">Tools</a>
