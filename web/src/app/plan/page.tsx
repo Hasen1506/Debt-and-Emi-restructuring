@@ -1,6 +1,12 @@
 import { Card } from '@/components/Card';
 import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
-import { api, formatINR, monthIndexToLabel } from '@/lib/api';
+import {
+  api,
+  formatINR,
+  formatPct,
+  monthIndexToLabel,
+  type RestructuringOpportunity,
+} from '@/lib/api';
 import { loadProfileServer } from '@/lib/user-store';
 import { mergeTrajectories } from '@/lib/trajectory';
 import { mockTrajectory, type TrajectoryPoint } from '@/lib/mock-data';
@@ -16,11 +22,13 @@ async function loadPlan(): Promise<{
   live: boolean;
   profileIsLive: boolean;
   surplus: number;
+  opportunities: RestructuringOpportunity[];
+  totalAnnualSaving: string;
 }> {
   const profile = await loadProfileServer();
   const surplus = Number(profile.user.monthly_income) - Number(profile.user.fixed_expenses);
   try {
-    const [avalanche, baseline] = await Promise.all([
+    const [avalanche, baseline, restructuring] = await Promise.all([
       api.simulate({
         user: profile.user,
         strategy: 'avalanche',
@@ -28,6 +36,10 @@ async function loadPlan(): Promise<{
         marginal_rate: profile.marginalRate,
       }),
       api.baseline({ user: profile.user, horizon_months: 240 }),
+      api.restructuring({
+        user: profile.user,
+        marginal_rate: profile.marginalRate,
+      }),
     ]);
     const monthsSaved =
       avalanche.debt_free_month && baseline.debt_free_month
@@ -42,6 +54,8 @@ async function loadPlan(): Promise<{
       live: true,
       profileIsLive: profile.isLive,
       surplus,
+      opportunities: restructuring.opportunities,
+      totalAnnualSaving: restructuring.total_annual_saving,
     };
   } catch {
     return {
@@ -53,9 +67,23 @@ async function loadPlan(): Promise<{
       live: false,
       profileIsLive: profile.isLive,
       surplus,
+      opportunities: [],
+      totalAnnualSaving: '0',
     };
   }
 }
+
+const KIND_LABEL: Record<RestructuringOpportunity['kind'], string> = {
+  balance_transfer: 'Balance transfer',
+  consolidation: 'Consolidate',
+  refinance: 'Refinance',
+};
+
+const KIND_COLOR: Record<RestructuringOpportunity['kind'], string> = {
+  balance_transfer: 'var(--accent)',
+  consolidation: 'var(--positive)',
+  refinance: 'var(--positive)',
+};
 
 export default async function PlanPage() {
   const plan = await loadPlan();
@@ -88,6 +116,97 @@ export default async function PlanPage() {
           .
         </p>
       </section>
+
+      {plan.opportunities.length > 0 && (
+        <Card style={{ borderLeft: '3px solid var(--positive)' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'space-between',
+              gap: 12,
+              marginBottom: 12,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 600 }}>
+                Restructure before you accelerate
+              </div>
+              <div className="muted" style={{ fontSize: 13 }}>
+                Layer 1 (§4.7) — re-pricing existing debt beats paying it down faster.
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Estimated annual saving
+              </div>
+              <div
+                className="num"
+                style={{ fontSize: 22, fontWeight: 600, color: 'var(--positive)' }}
+              >
+                {formatINR(plan.totalAnnualSaving)}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {plan.opportunities.map((opp, i) => (
+              <div
+                key={i}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  padding: 12,
+                  display: 'grid',
+                  gridTemplateColumns: '1fr auto',
+                  gap: 12,
+                  alignItems: 'start',
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginBottom: 4,
+                    }}
+                  >
+                    <span
+                      className="chip"
+                      style={{
+                        background: 'transparent',
+                        color: KIND_COLOR[opp.kind],
+                        borderColor: KIND_COLOR[opp.kind],
+                        fontSize: 11,
+                      }}
+                    >
+                      {KIND_LABEL[opp.kind]}
+                    </span>
+                    <span style={{ fontWeight: 500 }}>{opp.headline}</span>
+                  </div>
+                  <div className="muted" style={{ fontSize: 13 }}>
+                    {opp.rationale}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', minWidth: 120 }}>
+                  <div className="muted" style={{ fontSize: 11 }}>
+                    Saves / yr
+                  </div>
+                  <div
+                    className="num"
+                    style={{ fontWeight: 600, color: 'var(--positive)' }}
+                  >
+                    {formatINR(opp.estimated_annual_saving)}
+                  </div>
+                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                    {formatPct(opp.current_rate)} → {formatPct(opp.target_rate)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card>
         <div className="muted" style={{ fontSize: 12 }}>

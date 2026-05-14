@@ -201,6 +201,25 @@ export interface RateOfferedResponse {
   band: ScoreBand;
 }
 
+export type RestructuringKind = 'balance_transfer' | 'consolidation' | 'refinance';
+
+export interface RestructuringOpportunity {
+  kind: RestructuringKind;
+  headline: string;
+  rationale: string;
+  estimated_annual_saving: string;
+  affected_loan_banks: string[];
+  target_bank: string | null;
+  target_rate: string;
+  current_rate: string;
+  detail: Record<string, string>;
+}
+
+export interface RestructuringResponse {
+  opportunities: RestructuringOpportunity[];
+  total_annual_saving: string;
+}
+
 export interface CrossBorderResponse {
   fx_rate_used: string;
   fx_drift_used: string;
@@ -346,6 +365,11 @@ export const api = {
     manual_fx_drift_annual?: string;
     inflation_user_country?: string;
   }) => post<CrossBorderResponse>('/api/cross-border-decision', req),
+
+  restructuring: (req: {
+    user: UserPayload;
+    marginal_rate?: string;
+  }) => post<RestructuringResponse>('/api/restructuring', req),
 
   assetLiquidation: (req: {
     asset: AssetPayload;

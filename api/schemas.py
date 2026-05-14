@@ -394,3 +394,29 @@ class MarketMedianResponse(_Base):
     country: Country
     loan_type: LoanType
     median: Optional[Decimal]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Restructuring (§4.7) — Layer 1 scanner
+# ─────────────────────────────────────────────────────────────────────────────
+
+class RestructuringRequest(_Base):
+    user: UserIn
+    marginal_rate: Optional[Decimal] = None
+
+
+class RestructuringOpportunityOut(_Base):
+    kind: str                                # "balance_transfer" | "consolidation" | "refinance"
+    headline: str
+    rationale: str
+    estimated_annual_saving: Decimal
+    affected_loan_banks: list[str]
+    target_bank: Optional[str] = None
+    target_rate: Decimal
+    current_rate: Decimal
+    detail: dict[str, str]
+
+
+class RestructuringResponse(_Base):
+    opportunities: list[RestructuringOpportunityOut]
+    total_annual_saving: Decimal
