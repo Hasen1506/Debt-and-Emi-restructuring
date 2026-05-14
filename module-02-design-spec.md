@@ -6,7 +6,7 @@
 > **Status:** v2.0 — formulas complete and corrected; wireframes pending.
 > **Last updated:** May 2026
 >
-> ⚠ **DATA CURRENCY:** All tax slabs, instrument returns, and regulatory caps are current through **India FY2025-26 / USA Tax Year 2025** (author knowledge cutoff: August 2025). Before launch the build team must verify FY2026-27 values from: Union Budget 2026 (Feb 1, 2026) for India slabs/caps; current EPFO circular for EPF rate; MoF quarterly notification for PPF rate; IRS Revenue Procedure for US brackets and standard deduction. Every time-sensitive datum is tagged `[VERIFY FY2026-27]`.
+> ⚠ **DATA CURRENCY (verified May 2026):** All tax slabs, instrument returns, and regulatory caps reflect **India FY2026-27 / USA Tax Year 2026**. Verified sources: Union Budget 2026-27 (Feb 1, 2026 — slabs unchanged from FY2025-26, 87A rebate ₹60k retained, standard deduction ₹75k retained; **Income Tax Act, 2025 effective April 1, 2026**); EPFO 239th CBT meeting (Mar 2, 2026 — **8.25% retained for FY2025-26**, third consecutive year); MoF small-savings notification (Mar 30, 2026 — **PPF 7.1% retained Q1 FY2026-27**, unchanged since Apr 2020); IRS Rev Proc 2025-32 (Oct 2025 — Tax Year 2026 brackets + standard deduction). RBI repo rate **5.25%** (April 2026 MPC, neutral stance); Fed funds target **3.50–3.75%** (April 2026 FOMC, held). Floating-rate bank cards refreshed per scrape tier (§7.1).
 
 ---
 
@@ -180,11 +180,12 @@ All formulas the system needs, in one place. Every formula is testable in isolat
 
 **Step 0 — Derive `marginal_tax_rate` from declared income (see §4.14 for full formula).**
 For India: the effective marginal rate includes surcharge + 4% cess — it is NOT the raw slab rate. At ₹1.2Cr income (old regime) the correct marginal rate is 35.88%, not 30%. Always use the §4.14 output.
-Current rates: India FY2025-26 slabs (brainstorm §25.2) `[VERIFY FY2026-27 → Budget 2026, Feb 1 2026]`; USA Tax Year 2025 brackets (§4.14) `[VERIFY Tax Year 2026 → IRS Rev Proc Oct 2025]`.
+Current rates: **India FY2026-27** slabs (Budget 2026-27 retained the FY2025-26 structure — see brainstorm §25.2 and Income Tax Act, 2025 effective Apr 1, 2026); **USA Tax Year 2026** brackets (§4.14, IRS Rev Proc 2025-32).
 
 **Step 1 — India new-regime gate for home loan (runs BEFORE applying cap):**
 ```
-# FY2025-26 default: new regime. Sec 24(b) shield on self-occupied = ₹0 under new regime.
+# FY2026-27 default: new regime (slabs unchanged from FY2025-26 per Budget 2026-27).
+# Sec 24(b) shield on self-occupied = ₹0 under new regime.
 # Old regime (user must explicitly opt in): Sec 24(b) cap = ₹2,00,000/yr.
 if country == "IN" AND loan_type == "home_loan" AND property_use == "self_occupied":
     country_cap_i = 0 if user.tax_regime == "new" else 200_000
@@ -258,38 +259,38 @@ liquid_options        = [opt for opt in user_investment_options if opt.liquidity
 # Step 2 — compare real rates
 user_best_real_return = max(liquid_options, key=lambda o: o.expected_return) − inflation_rate
 loan_real_rate        = effective_rate_i − inflation_rate
-prepay_recommended    = loan_real_rate > user_best_real_return + 0.5  // 0.5pp risk premium
+prepay_recommended    = loan_real_rate > user_best_real_return + 0.005  // +0.5pp risk premium (rates stored as decimals)
 ```
 If `prepay_recommended == False`, route surplus to best liquid investment instead of prepayment.
 
-**India reference returns FY2025-26 (display only — not auto-populated in pool for locked instruments):**
-- EPF: 8.25% tax-free → ~11.79% pre-tax equiv at 30% bracket (locked) `[VERIFY FY2025-26 rate from EPFO circular]`
-- PPF: 7.1% tax-free → ~10.14% pre-tax equiv at 30% bracket (15-yr lock; partial from yr 7) `[VERIFY current quarter from MoF notification]`
+**India reference returns (verified May 2026; display only — not auto-populated in pool for locked instruments):**
+- EPF: **8.25% tax-free** (FY2025-26, retained Mar 2 2026 by EPFO CBT — third consecutive year) → ~11.79% pre-tax equiv at 30% bracket (locked). `[VERIFY FY2026-27 rate → EPFO CBT meeting ~Feb-Mar 2027]`
+- PPF: **7.1% tax-free** (Q1 FY2026-27, Apr-Jun 2026, notified Mar 30 2026; unchanged since Apr 2020) → ~10.14% pre-tax equiv at 30% bracket (15-yr lock; partial from yr 7). `[VERIFY next quarter → MoF notification ~end-Jun 2026]`
 - Nifty 50 TRI long-run: ~12% nominal (liquid; in pool)
-- Best FD rate (India): ~7.5% (fully liquid; in pool) `[VERIFY current market rate]`
+- Best FD rate (India): ~6.75–7.25% (post repo-rate cut to 5.25% in Dec 2025; fully liquid; in pool) `[VERIFY weekly per bank]`
 
-**USA reference returns 2025 (liquid):**
+**USA reference returns (Tax Year 2026, verified May 2026; liquid):**
 - S&P 500 long-run: ~10% nominal (in pool)
-- HYSA top rate: ~4.5% (in pool) `[VERIFY current Fed-funds-linked rate]`
+- HYSA top rate: ~3.75–4.25% (post Fed cuts to 3.50–3.75% target; in pool) `[VERIFY weekly per institution]`
 - 401k/IRA: flag as age-gated (not liquid before 59½ without penalty — exclude for users <55)
 
 ### 4.7 Restructuring scans (Layer 1)
 
-**Balance transfer candidate:**
+**Balance transfer candidate:** (all rate values are decimals — e.g. 24% = 0.24)
 ```
-candidate if: effective_rate_card > 24% AND
-              BT_offer_rate + amortised_BT_fee < effective_rate_card − 5
+candidate if: effective_rate_card > 0.24 AND
+              BT_offer_rate + amortised_BT_fee < effective_rate_card − 0.05
 ```
 
 **Consolidation candidate:**
 ```
-candidate if: count(unsecured_debts where effective_rate > 15%) ≥ 2 AND
-              market_personal_loan_rate × (1 + fee_amortised) < blended_avg_rate − 3
+candidate if: count(unsecured_debts where effective_rate > 0.15) ≥ 2 AND
+              market_personal_loan_rate × (1 + fee_amortised) < blended_avg_rate − 0.03
 ```
 
 **Refinance candidate (home/auto):**
 ```
-candidate if: current_rate > market_median_rate + 1.5 AND
+candidate if: current_rate > market_median_rate + 0.015 AND
               (interest_saved − refi_costs) / refi_costs > 1.0
 ```
 
@@ -304,7 +305,7 @@ recommend if: high_rate_interest_saved > extra_lifetime_interest_home × 1.2
 
 **⚠ This original formula is superseded by §4.18.** It understates the debt hurdle by omitting:
 - Transaction costs (stamp duty + registration + brokerage = 7–11% in India; 7–9% in USA)
-- LTCG tax (indexed cost method for India; bracket-dependent for USA) `[VERIFY India CII table FY2026-27 from CBDT]`
+- LTCG tax (indexed cost method for India; bracket-dependent for USA). Note: Finance Act 2024 removed indexation for property bought after 23 Jul 2024 — flat 12.5% LTCG applies. Property held since before 23 Jul 2024 retains CII-based indexation option. `[VERIFY current CII table → CBDT annual notification]`
 - Time-to-sell delay interest (3 months of high-rate debt accruing while sale completes)
 - CAGR-derived `nominal_return` (not a direct user input — computed from purchase price + year)
 
@@ -322,8 +323,8 @@ effective_apr      = solve_apr_such_that(NPV(payments) = list_price − total_re
 
 **Inflation usage:**
 - **Long-tenure loans (>5 yrs):** Layer 3 uses real return for comparison
-- **Real value of fixed EMI:** `real_emi_t = nominal_emi / (1 + inflation)^t/12`
-- Inflation source: RBI forward forecast (India); Fed SEP median (USA). Refreshed quarterly. `[VERIFY current forecast from RBI MPC / Fed SEP]`
+- **Real value of fixed EMI:** `real_emi_t = nominal_emi / (1 + inflation)^(t/12)`
+- Inflation source: RBI forward forecast (India — **CPI 4.6% for FY2026-27 per April 2026 MPC**); Fed SEP median (USA). Refreshed quarterly. `[VERIFY next forecast → RBI MPC / Fed SEP next release]`
 
 **Salary growth projection — salaried user:**
 ```
@@ -411,24 +412,29 @@ else:                                surcharge = 0.37   # capped at 0.25 for LTC
 marginal_rate    = base_rate × (1 + surcharge) × 1.04
 ```
 
-**US federal marginal rate computation (Tax Year 2025):** `[VERIFY Tax Year 2026 → IRS Rev Proc Oct 2025]`
+**US federal marginal rate computation (Tax Year 2026, IRS Rev Proc 2025-32, verified May 2026):**
 ```
-# 2025 tax brackets — updated annually for inflation by IRS in October
+# 2026 tax brackets — published by IRS Rev Proc 2025-32 (Oct 2025); inflation +~2.7% vs 2025
+# Includes amendments from the One Big Beautiful Bill Act (OBBBA)
 # Single filer: 10%→12%→22%→24%→32%→35%→37%
-#   thresholds: $11,925 / $48,475 / $103,350 / $197,300 / $250,525 / $626,350
+#   thresholds: $12,400 / $50,400 / $105,700 / $201,775 / $256,225 / $640,600
 # MFJ:         10%→12%→22%→24%→32%→35%→37%
-#   thresholds: $23,850 / $96,950 / $206,700 / $394,600 / $501,050 / $751,600
-federal_marginal_rate   = bracket_lookup(taxable_income, filing_status, year=2025)
+#   thresholds: $24,800 / $100,800 / $211,400 / $403,550 / $512,450 / $768,700
+federal_marginal_rate   = bracket_lookup(taxable_income, filing_status, year=2026)
 # State income tax: add state_rate[state] to effective marginal rate
-# Key state rates 2025: CA 13.3% | NY 10.9% | TX/FL/WA 0% | IL 4.95% | NJ 10.75%
+# Key state rates 2026: CA 13.3% | NY 10.9% | TX/FL/WA 0% | IL 4.95% | NJ 10.75%  [VERIFY state-by-state annually]
 effective_marginal_rate = federal_marginal_rate + state_marginal_rate
 ```
 
 ### 4.15 USA mortgage interest deduction — itemisation gate
 
 ```
-# TCJA 2017: standard deduction largely eliminated itemisation benefit for most filers
-standard_deduction = {2025: {single: 15_000, mfj: 30_000}}   # [VERIFY Tax Year 2026 from IRS Rev Proc]
+# TCJA 2017 + OBBBA: standard deduction largely eliminated itemisation benefit for most filers
+# IRS Rev Proc 2025-32 (Oct 2025) — Tax Year 2026 figures verified May 2026
+standard_deduction = {
+    2025: {single: 15_000, mfj: 30_000, hoh: 22_500},
+    2026: {single: 16_100, mfj: 32_200, hoh: 24_150},
+}   # [VERIFY Tax Year 2027 → IRS Rev Proc ~Oct 2026]
 
 total_itemisable = mortgage_interest_paid + min(salt_taxes_paid, 10_000) + charitable_giving + ...
 
@@ -471,15 +477,17 @@ GST_on_interest_rate_i = gst_component   # plug into §4.1 formula
 
 ```
 # Pre-tax equivalent of EPF return (used as reference floor, NOT as free allocation)
-epf_rate_taxfree    = 0.0825          # FY2024-25: 8.25% (announced Feb 2025 by EPFO)
-                                      # [VERIFY FY2025-26 rate → EPFO circular ~March 2026]
-                                      # [VERIFY FY2026-27 rate → EPFO circular ~March 2027]
+epf_rate_taxfree    = 0.0825          # FY2025-26: 8.25% (retained Mar 2 2026 by EPFO 239th CBT)
+                                      # Third consecutive year at 8.25%; credited to subscriber
+                                      # accounts ~Jun-Aug 2026 after MoF notification.
+                                      # [VERIFY FY2026-27 rate → EPFO CBT meeting ~Feb-Mar 2027]
 epf_pretax_equiv    = epf_rate_taxfree / (1 − marginal_rate)
 # e.g. at 30% bracket: 8.25% / 0.70 = 11.79% pre-tax equivalent
 
 # PPF pre-tax equivalent
-ppf_rate_taxfree    = 0.071           # 7.1% through Q1 FY2025-26 (Apr-Jun 2025); quarterly-set
-                                      # [VERIFY current quarter → MoF quarterly notification]
+ppf_rate_taxfree    = 0.071           # 7.1% for Q1 FY2026-27 (Apr-Jun 2026, notified Mar 30 2026)
+                                      # Unchanged since Apr 2020; quarterly-set by MoF.
+                                      # [VERIFY next quarter → MoF small-savings notification ~Jun 2026]
 ppf_pretax_equiv    = ppf_rate_taxfree / (1 − marginal_rate)
 # e.g. at 30% bracket: 7.1% / 0.70 = 10.14% pre-tax equivalent
 
@@ -504,30 +512,44 @@ def pf_withdrawal_eligible(instrument, user_data):
 ### 4.18 Asset liquidation — corrected formula (supersedes §4.8)
 
 ```
-# ── India LTCG on immovable property ──
-cii_table       = {FY: CII_value}   # CBDT publishes annually; e.g. FY2024: 363
-indexed_cost    = purchase_price × cii_table[current_fy] / cii_table[purchase_fy]
-gross_proceeds  = sale_price × (1 − selling_cost_pct)   # stamp duty + reg + brokerage
-ltcg            = max(0, gross_proceeds − indexed_cost)
-ltcg_tax        = ltcg × 0.20 × (1 + surcharge_rate) × 1.04   # 20% LTCG + surcharge + cess
-net_proceeds    = gross_proceeds − ltcg_tax
+# ── India LTCG on immovable property (Finance Act 2024 split) ──
+# Post-23-Jul-2024 purchases: flat 12.5% on gain, NO indexation.
+# Pre-23-Jul-2024 purchases: taxpayer picks min of (12.5% without indexation) vs (20% with CII indexation).
+# LTCG surcharge is capped at 25% (cf. §4.14 — capped for LTCG/special-rate income).
+cii_table       = {FY: CII_value}   # CBDT publishes annually
+gross_proceeds  = sale_price × (1 − selling_cost_pct)   # stamp duty + 1% reg + brokerage
+ltcg_surcharge_capped = min(surcharge_rate, 0.25)       # LTCG surcharge cap
+
+if purchase_date >= date(2024, 7, 23):
+    # New regime — no indexation
+    ltcg          = max(0, gross_proceeds − purchase_price)
+    ltcg_tax_base = ltcg × 0.125
+else:
+    # Old regime — taxpayer picks lower-tax option
+    indexed_cost  = purchase_price × cii_table[current_fy] / cii_table[purchase_fy]
+    option_a      = max(0, gross_proceeds − purchase_price) × 0.125
+    option_b      = max(0, gross_proceeds − indexed_cost)  × 0.20
+    ltcg_tax_base = min(option_a, option_b)
+
+ltcg_tax     = ltcg_tax_base × (1 + ltcg_surcharge_capped) × 1.04   # + capped surcharge + 4% cess
+net_proceeds = gross_proceeds − ltcg_tax
 
 # ── Time-to-liquidate drag ──
 selling_period_months = 3      # conservative India; 2 months for US
 interest_during_sale  = debt_balance × (effective_rate_debt / 12) × selling_period_months
 true_net_benefit      = net_proceeds − debt_balance − interest_during_sale
 
-# ── Updated Gate 3 ──
-# Amortise the one-time selling drag over expected years the proceeds free up
+# ── Updated Gate 1 — net-benefit hurdle (replaces brainstorm §8c "debt ≥ 10% asset value") ──
+gate_1                = true_net_benefit > 0 AND (true_net_benefit / asset_value) >= 0.10
+                        # Uses true_net_benefit (after costs), not raw debt amount
+
+# ── Updated Gate 3 — spread hurdle (all rates as decimals; 3pp = 0.03) ──
 one_time_drag         = (selling_cost_pct + ltcg_effective_rate)
 asset_real_return_net = (nominal_return_asset − inflation
                         − holding_cost_rate
                         − one_time_drag / expected_hold_years_post_sale)
-gate_3                = (effective_rate_debt − asset_real_return_net) >= 3.0
-
-# ── Updated Gate 1 ──
-gate_1                = true_net_benefit / asset_value >= 0.10
-                        # Uses true_net_benefit (after costs), not raw debt amount
+gate_3                = (effective_rate_debt − asset_real_return_net) >= 0.03
+                        # Note: benefit-positivity is enforced by gate_1; gate_3 is the spread test.
 ```
 
 ### 4.19 Prepayment penalty net savings
@@ -558,7 +580,7 @@ cashflows            = [−net_amount_received] + [required_monthly] * bt_offer.
 effective_bt_apr     = irr(cashflows) × 12
 
 # Recommend only if meaningfully cheaper than current rate
-recommend_bt         = effective_bt_apr < current_card_effective_rate − 2.0   # 2pp minimum hurdle
+recommend_bt         = effective_bt_apr < current_card_effective_rate − 0.02   # 2pp minimum hurdle (decimal)
 
 # If user cannot clear within promo period, post-promo revert rate kicks in — show that scenario too
 ```
@@ -587,11 +609,15 @@ def compute_minimum_payment(loan, bank, country):
     if loan.type == "credit_card":
         formula = bank_data[bank]["min_payment_formula"]
         # formula is one of:
-        #   {"type": "greater_of", "pct": 0.05, "floor": 200}     # standard India
-        #   {"type": "greater_of_two_methods",                     # ICICI-style
-        #    "a": {"interest_plus_pct_principal": 0.01},
-        #    "b": {"pct": 0.05, "floor": 100}}
-        return evaluate_formula(formula, loan.outstanding, loan.interest_accrued)
+        #   {"type": "greater_of", "pct": 0.05, "floor": 200}      # standard India (e.g. SBI, Axis, Yes, IndusInd)
+        #   {"type": "greater_of_three_methods",                    # ICICI-style (brainstorm §24.1)
+        #    "a": {"interest_plus_fees_plus_pct_principal": 0.01},
+        #    "b": {"pct": 0.05},
+        #    "floor": 100}
+        #   {"type": "pct_plus_emi_plus_overlimit_plus_pastdue",    # HDFC-style
+        #    "pct": 0.05, "floor": 200}
+        #   {"type": "pct_plus_interest_plus_fees", "pct": 0.05, "floor": 200}   # Kotak-style
+        return evaluate_formula(formula, loan.outstanding, loan.interest_accrued, loan.fees, loan.current_emi, loan.over_limit, loan.past_due)
     else:
         # Personal / home / auto loan: EMI is the minimum; no ambiguity
         return loan.scheduled_emi
@@ -773,8 +799,8 @@ Full institution lists with scrape tiers are in brainstorm §31. Summary:
 
 | Field | India | USA |
 |---|---|---|
-| Loan rate range (min–max) | EBLR/RLLR-linked for floating `[VERIFY current EBLR]` | Prime/SOFR-linked `[VERIFY current prime rate]` |
-| Credit card APR (retail / cash advance) | ~36–42% / ~42–48% `[VERIFY per bank]` | ~20–30% / ~25–30% `[VERIFY per issuer]` |
+| Loan rate range (min–max) | EBLR/RLLR-linked for floating; EBLR ~8.25–8.50% post 5.25% repo (May 2026) `[VERIFY current EBLR per bank]` | Prime ~7.50% / SOFR-linked `[VERIFY current prime rate]` |
+| Credit card APR (retail / cash advance) | ~24–45% / ~36–48% `[VERIFY per bank]` | ~18–30% / ~24–30% `[VERIFY per issuer]` |
 | Min payment formula | Structured object (brainstorm §24.1) | Structured object (brainstorm §24.2) |
 | BT offer | Promo rate + months + fee % | 0% intro + months + fee % |
 | Processing / origination fee | % or flat ₹ | 0–10% of loan amount |
@@ -792,14 +818,14 @@ Full institution lists with scrape tiers are in brainstorm §31. Summary:
   "scrape_tier": "A",
   "products": {
     "home_loan": {
-      "rate_min": 0.0875, "rate_max": 0.0965, "rate_type": "floating",
+      "rate_min": 0.0775, "rate_max": 0.0815, "rate_type": "floating",
       "benchmark": "RLLR", "processing_fee_pct": 0.005,
       "prepayment_penalty_floating": 0,
       "bundled_insurance": true, "insurance_premium_pct": 0.004,
       "last_verified": "2026-05-14"
     },
     "credit_card": {
-      "retail_rate": 0.36, "cash_advance_rate": 0.42,
+      "retail_rate": 0.432, "cash_advance_rate": 0.456,
       "min_payment_formula": {
         "type": "greater_of", "pct": 0.05, "floor": 200,
         "plus": ["current_emi", "over_limit", "past_due"]
@@ -812,24 +838,24 @@ Full institution lists with scrape tiers are in brainstorm §31. Summary:
 }
 ```
 
-**Indicative India rates (FY2025-26, illustrative — verify before launch):** `[VERIFY current rates]`
+**Indicative India rates (May 2026, post-RBI cut to 5.25%; refresh before launch):** `[VERIFY weekly per bank]`
 
 | Product | SBI | HDFC | ICICI | Axis | Kotak |
 |---|---|---|---|---|---|
-| Home loan (floating) | 8.50–9.65% | 8.75–9.40% | 8.75–9.80% | 8.75–9.15% | 8.75–9.35% |
-| Personal loan | 11.00–14.00% | 10.75–24.00% | 10.85–19.00% | 10.99–22.00% | 10.99–24.00% |
-| Auto loan | 8.75–9.90% | 8.95–9.50% | 9.00–9.90% | 8.85–9.65% | 8.95–9.50% |
-| Credit card (retail) | ~42% | ~42% | ~42% | ~42% | ~42% |
+| Home loan (floating) | 7.50–8.70% | 7.75–8.15% | 7.50–8.85% | 7.65–9.80% | 7.99–9.35% |
+| Personal loan | 10.30–14.85% | 10.50–24.00% | 10.65–19.00% | 10.49–22.00% | 10.99–24.00% |
+| Auto loan | 8.10–9.05% | 8.50–9.20% | 8.80–9.80% | 8.65–9.50% | 8.49–9.50% |
+| Credit card APR (mo/p.a.) | 1.99–3.50%/23.88–42% | 2.50–3.60%/30–43.2% | 2.49–3.75%/29.88–45% | 2.40–3.40%/28.8–40.8% | 3.10–3.50%/37.2–42% |
 
-**Indicative USA rates (Tax Year 2025, illustrative — verify before launch):** `[VERIFY current rates]`
+**Indicative USA rates (May 2026, Fed funds 3.50–3.75% target; refresh before launch):** `[VERIFY weekly per institution]`
 
 | Product | Chase | BofA | Wells Fargo | Citi | Capital One |
 |---|---|---|---|---|---|
-| 30yr fixed mortgage | 6.75–7.25% | 6.80–7.30% | 6.70–7.20% | 6.85–7.35% | N/A |
+| 30yr fixed mortgage | 6.50–7.00% | 6.55–7.05% | 6.45–6.95% | 6.60–7.10% | N/A |
 | Personal loan | 6.99–24.99% | 7.49–24.99% | 7.49–23.99% | 11.49–20.49% | N/A |
-| Auto loan | 5.99–13.99% | 5.74–10.99% | 5.99–11.99% | N/A | 4.99–9.99% |
-| Credit card APR | 20.49–29.49% | 18.24–29.24% | 20.24–29.24% | 19.99–29.99% | 19.99–29.99% |
-| Best HYSA yield | ~4.50% | ~4.25% | ~4.35% | ~4.45% | ~4.50% |
+| Auto loan | 5.69–13.69% | 5.49–10.74% | 5.74–11.74% | N/A | 4.79–9.79% |
+| Credit card APR | 20.24–29.24% | 17.99–28.99% | 19.99–28.99% | 19.74–29.74% | 19.74–29.74% |
+| Best HYSA yield | ~3.75% | ~3.50% | ~3.60% | ~3.70% | ~3.80% |
 
 **Crowd-sourcing:** when a user's input differs from stored value by >0.5%, prompt confirmation. 3 confirmations in 7 days flips the stored value. UI always shows last-verified date with staleness badge.
 
@@ -933,6 +959,33 @@ User can override; defaults reviewed annually.
 - Credit bureau APIs (Experian, CIBIL, Equifax) for real-time credit-score-aware mode
 - Real-estate price indices (Knight Frank, NHB Residex India, Case-Shiller US) for property as an asset
 - Gold spot price API for gold-loan principal valuation
+
+### 7.9 Sources verified in current data refresh (May 2026)
+
+Authoritative sources used for the current rate cards, tax slabs, and instrument returns embedded in this spec. Refresh these on the cadences listed in §7.6–§7.7 before launch.
+
+**India — tax & policy (FY2026-27):**
+- Union Budget 2026-27 — slabs retained unchanged: [KPMG Budget 2026-27 analysis](https://kpmg.com/in/en/services/tax/india-union-budget-2026-27.html), [PRS Legislative Research Budget Analysis](https://prsindia.org/files/budget/budget_parliament/2026/Union_Budget_Analysis-2026-27.pdf), [HDFC Bank Budget 2026-27 explainer](https://www.hdfc.bank.in/blogs/union-budget/budget-2026-27-income-tax-act-2026-tax-slabs-stt)
+- Income Tax Act, 2025 (effective Apr 1 2026): Income Tax Department portal — incometax.gov.in
+- LTCG (Finance Act 2024 split): CBDT notifications — incometaxindia.gov.in
+
+**India — small savings & EPF:**
+- EPF 8.25% retained (FY2025-26, EPFO 239th CBT, Mar 2 2026): [DD News official release](https://ddnews.gov.in/en/epfo-retains-8-25-interest-rate-on-pf-deposits-for-2025-26/), [Upstox coverage](https://upstox.com/news/personal-finance/investing/epf-interest-rate-for-fy-2025-26-declared-when-will-it-be-credited-to-employees-provident-fund-accounts/article-190151/)
+- PPF 7.1% retained (Q1 FY2026-27, MoF notification Mar 30 2026): [Upstox PPF Q1 notification](https://upstox.com/news/personal-finance/investing/public-provident-fund-ppf-interest-rate-april-june-2026-tax-free-7-1-compounding-continues/article-191464/), [Relakhs small savings rates Q1 FY27](https://www.relakhs.com/latest-post-office-small-savings-schemes-interest-rates-apr-jun-2026/)
+
+**India — central bank & banking:**
+- RBI repo rate 5.25% (Apr 2026 MPC, neutral stance, held; cut from 5.50% Dec 2025): [DD News RBI MPC Apr 2026](https://ddnews.gov.in/en/rbi-keeps-repo-rate-unchanged-at-5-25-in-first-policy-of-fy27-after-ceasefire-in-west-asia-conflict/), [News on Air MPC release](https://www.newsonair.gov.in/rbi-to-announce-its-first-bi-monthly-monetary-policy-statement-for-financial-year-2026-27-today/)
+- India home loan rates May 2026 (SBI 7.50–8.70%, HDFC 7.75–8.15%, ICICI 7.50%+, Axis 7.65–9.80%): [UrbanMoney May 2026 rate table](https://www.urbanmoney.com/home-loan/interest-rate), [HDFC Bank rate page](https://homeloans.hdfc.bank.in/checklist/home-loan-interest-rates), [ICICI Bank rate page](https://www.icici.bank.in/personal-banking/loans/home-loan/interest-rates)
+- India credit card APRs (ICICI 2.49–3.75%/mo, SBI 1.99–2.25%/mo, HDFC ~2.5%/mo): [Paisabazaar credit card rates 2026](https://www.paisabazaar.com/credit-card/interest-rates/), [Bajaj Markets ICICI card rates](https://www.bajajfinservmarkets.in/credit-card/icici-bank-credit-card-interest-rate)
+
+**USA — tax & policy (Tax Year 2026):**
+- IRS Rev Proc 2025-32 (Oct 2025) — 2026 brackets + standard deduction: [IRS official release](https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill), [Rev Proc 2025-32 PDF](https://www.irs.gov/pub/irs-drop/rp-25-32.pdf), [Tax Foundation 2026 brackets](https://taxfoundation.org/data/all/federal/2026-tax-brackets/)
+- OBBBA (One Big Beautiful Bill Act) amendments folded into 2026 inflation adjustments
+
+**USA — central bank:**
+- Fed funds target 3.50–3.75% (held through April 2026 FOMC): [Federal Reserve H.15 daily release](https://www.federalreserve.gov/releases/h15/), [FRED DFEDTARU series](https://fred.stlouisfed.org/series/DFEDTARU), [FOMC Mar 17-18 2026 minutes](https://www.federalreserve.gov/monetarypolicy/fomcminutes20260318.htm)
+
+**Refresh cadence:** rerun the verification queries each quarter (Mar, Jun, Sep, Dec) and on every event that may shift base rates: Union Budget (Feb), EPFO CBT (Feb-Mar), MoF small-savings notification (last week of each quarter), RBI MPC (bimonthly), FOMC meeting (8/yr), IRS Rev Proc (Oct).
 
 ---
 

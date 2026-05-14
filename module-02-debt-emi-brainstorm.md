@@ -561,12 +561,12 @@ All open questions from prior rounds are now decided:
 ---
 
 ## 21. What we are NOT doing yet (NOTE: design spec now exists as separate file)
-Brainstorm extended through §34. Design spec is in `module-02-design-spec.md`. All open questions resolved as of May 2026. See §35 for resume instructions.
+Brainstorm extended through §36. Design spec is in `module-02-design-spec.md`. All open questions resolved as of May 2026. Verified data sources in §35; resume instructions in §36.
 
 ---
 
 ## 22. How to resume this brainstorm in a new session
-All open questions are resolved through §34. See §35 for current resume instructions.
+All open questions are resolved through §34. Verified data sources in §35; resume instructions in §36.
 
 ---
 
@@ -576,11 +576,11 @@ EPF, PPF, NPS, and VPF are not freely available savings. They are restricted-liq
 
 ### 23.1 Instrument profiles
 
-| Instrument | Rate (FY2024-25 confirmed; FY2025-26+ `[VERIFY]`) | Tax treatment | Liquidity | Voluntary? |
+| Instrument | Rate (verified May 2026) | Tax treatment | Liquidity | Voluntary? |
 |---|---|---|---|---|
-| **EPF** | 8.25% (FY2024-25; announced Feb 2025). `[VERIFY FY2025-26 → EPFO circular ~Mar 2026]` `[VERIFY FY2026-27 → EPFO circular ~Mar 2027]` | Fully tax-free (EEE) | Partial withdrawal for: home purchase, marriage, medical, education (Form 31). Full settlement only on retirement (58+) or 2+ months after leaving employment (Form 19). | Mandatory for salaried (12% employee + 12% employer on basic+DA) |
+| **EPF** | **8.25%** (FY2025-26; retained Mar 2 2026 by EPFO 239th CBT — third consecutive year). Credited to subscribers' accounts ~Jun-Aug 2026 after MoF notification. `[VERIFY FY2026-27 rate → EPFO CBT meeting ~Feb-Mar 2027]` | Fully tax-free (EEE) | Partial withdrawal for: home purchase, marriage, medical, education (Form 31). Full settlement only on retirement (58+) or 2+ months after leaving employment (Form 19). | Mandatory for salaried (12% employee + 12% employer on basic+DA) |
 | **VPF** | Same as EPF | Same as EPF (EEE) | Same rules as EPF | Voluntary top-up to EPF — employee chooses %; employer not required to match |
-| **PPF** | 7.1% (quarterly-set by Govt) | Fully tax-free (EEE) | 15-year lock. Partial withdrawal from year 7 (up to 50% of balance at end of year 4 or immediately preceding year, whichever is lower). Loan against PPF: years 3–6, up to 25% of balance at end of 2nd preceding year. | Fully voluntary |
+| **PPF** | **7.1%** (Q1 FY2026-27, Apr-Jun 2026, notified Mar 30 2026; unchanged since Apr 2020 — quarterly-set by MoF). `[VERIFY next quarter → MoF small-savings notification ~Jun 2026]` | Fully tax-free (EEE) | 15-year lock. Partial withdrawal from year 7 (up to 50% of balance at end of year 4 or immediately preceding year, whichever is lower). Loan against PPF: years 3–6, up to 25% of balance at end of 2nd preceding year. | Fully voluntary |
 | **NPS Tier 1** | Market-linked (~8–12% historically) | 60% lump sum tax-free at 60; 40% must buy annuity (taxable) | Partial withdrawal after 3 years for: home purchase, medical treatment, education, disability. Max 25% of own contributions, up to 3 times. | Voluntary (80CCD deduction in old regime) |
 | **NPS Tier 2** | Market-linked | No tax benefit | Fully liquid (no lock-in) | Voluntary |
 
@@ -588,7 +588,7 @@ EPF, PPF, NPS, and VPF are not freely available savings. They are restricted-liq
 
 **In invest-vs-prepay (Layer 3):**
 - EPF/VPF/PPF are listed as a separate **locked savings** category in onboarding — not as freely available investment options in the Layer 3 comparison pool
-- The effective pre-tax equivalent return of EPF at 8.25% tax-free (FY2024-25) = **11.79%** at 30% bracket, **10.31%** at 20% bracket `[VERIFY current FY rate from EPFO circular]`
+- The effective pre-tax equivalent return of EPF at 8.25% tax-free (FY2025-26, retained May 2026) = **11.79%** at 30% bracket, **10.31%** at 20% bracket. `[VERIFY FY2026-27 rate → EPFO CBT meeting ~Feb-Mar 2027]`
 - This reference rate IS used when evaluating whether a *new voluntary VPF contribution* beats paying off debt — but the engine never routes regular monthly surplus *into* EPF/PPF as a debt-payoff strategy
 - NPS Tier 2 (fully liquid, no lock-in) can appear in the regular investment options pool
 
@@ -658,16 +658,16 @@ nps_partial_eligible = years_since_nps_opened >= 3 AND reason in NPS_ALLOWED_REA
 
 ### 25.1 Regime selection is mandatory
 
-From AY2024-25 the **new regime is the default**. Critical implications for this app:
+From AY2024-25 onward (continued through AY2027-28 / FY2026-27) the **new regime is the default**. Critical implications for this app:
 - **Old regime only:** Sec 80C, 80CCD, HRA, LTA, Sec 24(b) on self-occupied home loan
 - **Both regimes:** Sec 24(b) on let-out property (deductible against rental income), standard deduction (₹50K old / ₹75K new)
 - **New regime:** Sec 24(b) for self-occupied home loan = ₹0. The mortgage tax shield computation only applies to old-regime users.
 
-**Auto-defaulting to old regime for India users and claiming a tax shield on a home loan would be systematically wrong for most salaried employees in 2024–25.** Regime selection is a required field in India onboarding.
+**Auto-defaulting to old regime for India users and claiming a tax shield on a home loan would be systematically wrong for most salaried employees from FY2025-26 onward.** Regime selection is a required field in India onboarding.
 
 ### 25.2 Tax slabs
 
-**New regime — FY2025-26 (Budget 2025, Feb 1 2025):** `[VERIFY FY2026-27 → Budget 2026, Feb 1 2026]`
+**New regime — FY2025-26 / FY2026-27 (Budget 2025 introduced these slabs; Budget 2026-27 retained them unchanged. Income Tax Act, 2025 effective April 1, 2026):**
 
 | Taxable income | Rate |
 |---|---|
@@ -681,7 +681,7 @@ From AY2024-25 the **new regime is the default**. Critical implications for this
 | Rebate Sec 87A | Tax = ₹0 if net taxable income ≤ ₹12L (rebate ₹60,000) |
 | Standard deduction (salaried) | ₹75,000 under new regime (so effective no-tax limit = ₹12.75L for salaried) |
 
-**Note vs FY2024-25:** base exemption raised ₹3L→₹4L; top-rate threshold raised ₹15L→₹24L; 87A rebate threshold raised ₹7L→₹12L. The new regime is significantly more beneficial for most taxpayers from FY2025-26. Ensure the app's regime-comparison tool (onboarding Step 4) uses the correct FY slab set.
+**History — slab evolution:** FY2024-25 had base exemption ₹3L and top-rate threshold ₹15L; Budget 2025 (Feb 2025) raised base exemption to ₹4L, top-rate threshold to ₹24L, and 87A rebate threshold from ₹7L to ₹12L (rebate amount ₹25k→₹60k). **Budget 2026-27 (Feb 1 2026) retained this structure unchanged.** Ensure the app's regime-comparison tool (onboarding Step 4) uses the correct FY slab set. `[VERIFY next change → Budget 2027 ~Feb 2027]`
 
 **Old regime:**
 
@@ -714,14 +714,14 @@ surcharge_rate = surcharge_slab_lookup(taxable_income)
 marginal_rate  = base_rate × (1 + surcharge_rate) × 1.04
 ```
 
-**Example — ₹1.2Cr income, old regime (FY2025-26):**
+**Example — ₹1.2Cr income, old regime (FY2026-27):**
 Base rate = 30%, surcharge = 15% (₹1Cr–₹2Cr slab), cess = 4%
 → Effective marginal rate = 30% × 1.15 × 1.04 = **35.88%** — not 30%.
 
-**Example — ₹14L income, new regime (FY2025-26):**
-Slabs: 5% on ₹4–8L (₹20k) + 10% on ₹8–12L (₹40k) + 15% on ₹12–14L (₹30k) = ₹90k tax. Surcharge = nil (<₹50L). Cess = 4%. Total tax = ₹93,600. **Income > ₹12L → 87A rebate does not apply.** Marginal rate = 15% × 1.04 = 15.6%. With ₹75k standard deduction, taxable income = ₹13.25L; same bracket. `[VERIFY FY2026-27]`
+**Example — ₹14L income, new regime (FY2026-27, slabs unchanged from FY2025-26):**
+Slabs: 5% on ₹4–8L (₹20k) + 10% on ₹8–12L (₹40k) + 15% on ₹12–14L (₹30k) = ₹90k tax. Surcharge = nil (<₹50L). Cess = 4%. Total tax = ₹93,600. **Income > ₹12L → 87A rebate does not apply.** Marginal rate = 15% × 1.04 = 15.6%. With ₹75k standard deduction, taxable income = ₹13.25L; same bracket.
 
-**Example — ₹12L income, new regime (FY2025-26):**
+**Example — ₹12L income, new regime (FY2026-27):**
 Tax before rebate = 5% on ₹4–8L + 10% on ₹8–12L = ₹20k + ₹40k = ₹60k. 87A rebate = ₹60k. **Net tax = ₹0.** Effective tax rate = 0%. With ₹75k standard deduction (salaried): gross CTC up to ₹12.75L = zero tax.
 
 ### 25.6 Taxable income inputs required from user
@@ -748,16 +748,26 @@ Gate 3 in §8c needs the following corrections: the real return must be net of s
 | Stamp duty | 4–8% of sale value | Varies by state: Maharashtra ~6%, Karnataka ~5.65%, Delhi ~4–6%, Tamil Nadu ~7% |
 | Registration fee | 1% of sale value | Capped at ₹30,000 in some states |
 | Brokerage | 1–2% of sale value | Market standard |
-| LTCG tax (held > 2 years) | 20% on indexed gains + surcharge + cess | Indexed cost = purchase price × CII_current ÷ CII_purchase_year (CBDT publishes CII annually) |
+| LTCG tax (held > 2 years) | **Finance Act 2024 split:** property bought **on or after 23 Jul 2024** → flat **12.5% without indexation**. Property bought **before 23 Jul 2024** → taxpayer may choose lower of (12.5% without indexation) vs (20% with indexation). Surcharge + 4% cess apply on top. | CBDT publishes CII annually; current CII applies to pre-23-Jul-2024 properties only |
 | STCG (held ≤ 2 years) | Added to taxable income; taxed at marginal slab rate | |
 
-**Net proceeds formula (India, LTCG):**
+**Net proceeds formula (India, LTCG — verified May 2026):**
 ```
 selling_cost_pct = stamp_duty_rate[state] + 0.01 + brokerage_rate
 gross_proceeds   = sale_price × (1 − selling_cost_pct)
-indexed_cost     = purchase_price × (CII[current_fy] / CII[purchase_fy])
-ltcg             = max(0, gross_proceeds − indexed_cost)
-ltcg_tax         = ltcg × ltcg_rate  // 20% × (1 + surcharge) × 1.04
+
+if purchase_date >= 2024-07-23:
+    # Post-Finance-Act-2024 regime — no indexation
+    ltcg             = max(0, gross_proceeds − purchase_price)
+    ltcg_tax_base    = ltcg × 0.125
+else:
+    # Pre-Finance-Act-2024 — taxpayer picks lower-tax option
+    indexed_cost     = purchase_price × (CII[current_fy] / CII[purchase_fy])
+    option_a         = max(0, gross_proceeds − purchase_price) × 0.125
+    option_b         = max(0, gross_proceeds − indexed_cost) × 0.20
+    ltcg_tax_base    = min(option_a, option_b)
+
+ltcg_tax         = ltcg_tax_base × (1 + surcharge_rate) × 1.04
 net_proceeds     = gross_proceeds − ltcg_tax
 ```
 
@@ -781,10 +791,11 @@ true_net_benefit      = net_proceeds − debt_balance − interest_during_sale
 ```
 
 ### 26.4 Updated Gate 3 formula
+All rates stored as decimals (e.g. 3pp = 0.03). Gate 3 is the *spread* hurdle; benefit-positivity (`true_net_benefit > 0`) is enforced by Gate 1 in design spec §4.18.
 ```
 one_time_selling_drag = (selling_cost_pct + ltcg_effective_rate) / expected_hold_years_post_sale
 asset_real_return_net = nominal_return − inflation − holding_cost_rate − one_time_selling_drag
-gate_3                = (debt_effective_rate − asset_real_return_net) >= 3.0
+gate_3                = (debt_effective_rate − asset_real_return_net) >= 0.03   # 3pp spread
 ```
 
 ### 26.5 Real estate return input model
@@ -813,7 +824,7 @@ user_forecast_growth     → user's own expectation for next few years
 
 ## 27. Salary hike and income projection model (LOCKED)
 
-The formula in §15 (`projected_surplus × (1 + min(1.5 × inflation, 0.08))^t/12`) is a reasonable default for long-horizon projections but is under-specified for user control.
+The conceptual formula in §15 (`projected_surplus × (1 + min(1.5 × inflation, 0.08))^(t/12)`) is a reasonable default for long-horizon projections but is under-specified for user control. (See design spec §4.10 for the canonical formula.)
 
 ### 27.1 User-facing model
 
@@ -1062,9 +1073,59 @@ The current wireframe shows 6 tiles. The risk: it looks like a feature dump, and
 
 ---
 
-## 35. How to resume from a new session (updated)
+## 35. Verified data sources (May 2026)
+
+Sources used to verify the rates, slabs, and instrument returns embedded in §23–§29 and across the brainstorm. Mirrors §7.9 in the design spec.
+
+**India — taxation (FY2026-27, slabs unchanged from FY2025-26):**
+- [KPMG India — Union Budget 2026-27 analysis](https://kpmg.com/in/en/services/tax/india-union-budget-2026-27.html)
+- [PRS Legislative Research — Union Budget 2026-27 PDF](https://prsindia.org/files/budget/budget_parliament/2026/Union_Budget_Analysis-2026-27.pdf)
+- [HDFC Bank — Income Tax Act 2026, slabs, STT](https://www.hdfc.bank.in/blogs/union-budget/budget-2026-27-income-tax-act-2026-tax-slabs-stt)
+- [Bankopedia — Budget 2026-27 highlights](https://bankopedia.co.in/2026/02/26/union-budget-2026-27-analysis-highlights/)
+- [Income Tax Department — AY 2026-27 individuals](https://www.incometax.gov.in/iec/foportal/help/individual/return-applicable-1)
+
+**India — EPF (FY2025-26 rate retained at 8.25%):**
+- [DD News — EPFO retains 8.25% (Mar 2 2026 CBT)](https://ddnews.gov.in/en/epfo-retains-8-25-interest-rate-on-pf-deposits-for-2025-26/)
+- [Upstox — EPF interest rate FY2025-26 declared](https://upstox.com/news/personal-finance/investing/epf-interest-rate-for-fy-2025-26-declared-when-will-it-be-credited-to-employees-provident-fund-accounts/article-190151/)
+- [Business Today — Finance Ministry to notify PF rate for FY26](https://www.businesstoday.in/personal-finance/story/epfo-subscribers-alert-finance-ministry-set-to-notify-pf-interest-rate-for-fy26-528074-2026-04-29)
+- [CAalley — EPFO retains 8.25%](https://www.caalley.com/news-updates/indian-news/epfo-retains-employees-provident-fund-interest-rate-at-8-25-for-2025-26)
+- [Angel One — EPF rate 2025-26 stays at 8.25%](https://www.angelone.in/news/personal-finance/epf-interest-rate-2025-26-stays-at-8-25-here-is-when-the-money-will-be-credited-to-your-epfo-account)
+
+**India — PPF (Q1 FY2026-27 retained at 7.1%):**
+- [Upstox — PPF Q1 FY2026-27 notification (Apr-Jun 2026)](https://upstox.com/news/personal-finance/investing/public-provident-fund-ppf-interest-rate-april-june-2026-tax-free-7-1-compounding-continues/article-191464/)
+- [Relakhs — Q1 FY2026-27 small savings rates](https://www.relakhs.com/latest-post-office-small-savings-schemes-interest-rates-apr-jun-2026/)
+- [Stable Investor — PPF interest rate chart 2003 to 2026](https://stableinvestor.com/2026/03/ppf-interest-rate-chart-2003-to-2026-heat-map.html)
+
+**India — central bank & banking (May 2026):**
+- [DD News — RBI repo 5.25% in first FY27 policy](https://ddnews.gov.in/en/rbi-keeps-repo-rate-unchanged-at-5-25-in-first-policy-of-fy27-after-ceasefire-in-west-asia-conflict/)
+- [Trading Economics — India interest rate series](https://tradingeconomics.com/india/interest-rate)
+- [UrbanMoney — India home loan rates May 2026 (all banks)](https://www.urbanmoney.com/home-loan/interest-rate)
+- [HDFC Bank — home loan interest rates May 2026](https://homeloans.hdfc.bank.in/checklist/home-loan-interest-rates)
+- [ICICI Bank — home loan interest rates 2026](https://www.icici.bank.in/personal-banking/loans/home-loan/interest-rates)
+- [Bankbazaar — home loan interest rates 2026](https://www.bankbazaar.com/home-loan-interest-rate.html)
+- [Paisabazaar — credit card interest rates 2026](https://www.paisabazaar.com/credit-card/interest-rates/)
+- [Bajaj Markets — ICICI credit card rates](https://www.bajajfinservmarkets.in/credit-card/icici-bank-credit-card-interest-rate)
+
+**USA — taxation (Tax Year 2026):**
+- [IRS — Rev Proc 2025-32 tax year 2026 inflation adjustments](https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill)
+- [IRS Rev Proc 2025-32 PDF](https://www.irs.gov/pub/irs-drop/rp-25-32.pdf)
+- [Tax Foundation — 2026 federal tax brackets](https://taxfoundation.org/data/all/federal/2026-tax-brackets/)
+- [Current Federal Tax Developments — Rev Proc 2025-32 analysis](https://www.currentfederaltaxdevelopments.com/blog/2025/10/9/2026-inflation-adjustments-for-tax-professionals-revenue-procedure-2025-32-analysis)
+- [MOAA — 2026 inflation-adjusted brackets](https://www.moaa.org/content/publications-and-media/news-articles/2025-news-articles/finance/irs-releases-inflation-adjusted-2026-tax-brackets/)
+
+**USA — Federal Reserve (May 2026, target 3.50–3.75%):**
+- [Federal Reserve — H.15 selected interest rates (daily)](https://www.federalreserve.gov/releases/h15/)
+- [FRED — federal funds target upper limit DFEDTARU](https://fred.stlouisfed.org/series/DFEDTARU)
+- [FOMC — March 17-18 2026 minutes](https://www.federalreserve.gov/monetarypolicy/fomcminutes20260318.htm)
+- [Federal Reserve — January 28 2026 FOMC statement](https://www.federalreserve.gov/newsevents/pressreleases/monetary20260128a.htm)
+
+**Verification protocol:** rerun this set of searches quarterly and on each scheduled trigger (Union Budget, EPFO CBT, MoF small-savings notification, RBI MPC, FOMC meeting, IRS Rev Proc). Update `[VERIFY …]` tags inline as data is refreshed.
+
+---
+
+## 36. How to resume from a new session (updated)
 
 Paste this whole file + `module-02-design-spec.md` and say:
-> "Here are the complete brainstorm and design spec for Module 2. Both are fully current as of May 2026. All open questions are resolved through §34. We are ready to start building. Begin with [engine / data schema / onboarding wireframes / specific screen]."
+> "Here are the complete brainstorm and design spec for Module 2. Both are fully current as of May 2026 with verified data sources in §35 (brainstorm) and §7.9 (design spec). All open questions are resolved through §34. We are ready to start building. Begin with [engine / data schema / onboarding wireframes / specific screen]."
 
 The original resume instruction (earlier in this file) pointed to §20. All questions through that round plus the second round are now resolved in §23–34 and the decisions log through entry #43.
