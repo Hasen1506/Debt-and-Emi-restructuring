@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import '@/styles/globals.css';
+import { loadThemeServer } from '@/lib/theme';
+import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 
 export const metadata: Metadata = {
   title: 'FinOptima — Debt & EMI Optimiser',
@@ -7,28 +9,29 @@ export const metadata: Metadata = {
     'Personal debt restructuring & payoff optimiser for India and USA. Layer 1 restructure, Layer 2 avalanche/hybrid/snowball, Layer 3 invest-vs-prepay.',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const theme = await loadThemeServer();
   return (
-    <html lang="en">
+    <html lang="en" data-theme={theme}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Spectral:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
         />
       </head>
       <body>
-        <AppShell>{children}</AppShell>
+        <AppShell theme={theme}>{children}</AppShell>
       </body>
     </html>
   );
 }
 
-function AppShell({ children }: { children: React.ReactNode }) {
+function AppShell({ theme, children }: { theme: 'existing' | 'editorial' | 'ledger'; children: React.ReactNode }) {
   return (
     <>
-      <TopBar />
+      <TopBar theme={theme} />
       <main className="app-shell" style={{ paddingTop: 24, paddingBottom: 80 }}>
         {children}
       </main>
@@ -36,7 +39,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function TopBar() {
+function TopBar({ theme }: { theme: 'existing' | 'editorial' | 'ledger' }) {
   return (
     <header
       style={{
@@ -51,6 +54,7 @@ function TopBar() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 16,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -69,7 +73,10 @@ function TopBar() {
           <a href="/tools">Tools</a>
           <a href="/insights">Insights</a>
         </nav>
-        <span className="chip">IN · ₹</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <ThemeSwitcher initial={theme} />
+          <span className="chip">IN · ₹</span>
+        </div>
       </div>
     </header>
   );

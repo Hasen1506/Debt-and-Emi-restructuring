@@ -25,6 +25,76 @@
 
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.05);
   --shadow-elev: 0 4px 12px rgba(0, 0, 0, 0.06);
+
+  /* --font-display is used by editorial layouts for headlines + lead text.
+     In the existing theme it just falls back to the sans stack so any
+     stray references render fine. */
+  --font-display: var(--font-sans);
+}
+
+/* ───────────────────────────────────────────────────────────────────────
+   Theme overrides — applied via `<html data-theme="...">` set in layout.
+   Each block is additive: only the tokens that need to change get listed,
+   everything else inherits from :root above.
+   ─────────────────────────────────────────────────────────────────────── */
+
+[data-theme='editorial'] {
+  --canvas: #f4ede2;            /* cream paper */
+  --card: #fbf7ed;              /* lighter paper for surfaces that need lift */
+  --ink: #1a1612;
+  --muted: #7a6b58;
+  --soft: #a5947c;              /* marginalia colour */
+  --border: #d4c8b3;            /* warm rule */
+  --accent: #8b3a1f;            /* deeper terracotta for serif emphasis */
+  --soft-bg: #ede4d3;
+
+  --font-display: 'Spectral', Georgia, 'Times New Roman', serif;
+
+  --shadow-card: none;          /* paper has no shadow */
+  --shadow-elev: 0 2px 8px rgba(60, 40, 20, 0.06);
+}
+
+[data-theme='ledger'] {
+  --canvas: #fbfaf3;
+  --card: #ffffff;
+  --ink: #0a0a0a;
+  --muted: #5e5e58;
+  --soft: #a8a8a3;
+  --border: #0a0a0a;            /* hard rule */
+  --dash: #a8a8a3;
+  --accent: #b91c1c;
+  --negative: #b91c1c;
+  --positive: #15803d;
+  --soft-bg: #f3f1e3;
+
+  --font-sans: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --font-display: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-pill: 0;
+
+  --shadow-card: none;
+  --shadow-elev: none;
+}
+
+[data-theme='ledger'] .card {
+  border: 1px solid var(--border);
+}
+
+[data-theme='ledger'] .chip {
+  background: transparent;
+  border-radius: 0;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+[data-theme='ledger'] .btn,
+[data-theme='ledger'] .btn-primary {
+  border-radius: 0;
+  letter-spacing: 0.06em;
 }
 
 * {
