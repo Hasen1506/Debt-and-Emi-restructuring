@@ -2,9 +2,9 @@
  * Theme system — global aesthetic switcher.
  *
  * Three themes coexist:
+ *  - 'ledger' — Direction D (IBM Plex Mono everywhere, no rounded corners) — DEFAULT
  *  - 'existing' — the original FinOptima look (warm beige, terracotta, Inter)
  *  - 'editorial' — Direction A (cream paper, Spectral serif, marginalia)
- *  - 'ledger' — Direction D (IBM Plex Mono everywhere, no rounded corners)
  *
  * The active theme is stored in a cookie so the server-rendered HTML can
  * paint with the correct `<html data-theme>` attribute on first byte — no
@@ -18,8 +18,9 @@
 
 export type ThemeName = 'existing' | 'editorial' | 'ledger';
 
-export const THEMES: ThemeName[] = ['existing', 'editorial', 'ledger'];
-export const DEFAULT_THEME: ThemeName = 'existing';
+// Ledger is the canonical FinOptima look; the other two stay as toggle options.
+export const THEMES: ThemeName[] = ['ledger', 'existing', 'editorial'];
+export const DEFAULT_THEME: ThemeName = 'ledger';
 const COOKIE_NAME = 'finoptima_theme';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 

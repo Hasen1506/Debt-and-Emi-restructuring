@@ -6,6 +6,7 @@ import {
   monthIndexToLabel,
 } from '@/lib/api';
 import type { PlanData } from './PlanData';
+import { LedgerScheduleTable } from './LedgerScheduleTable';
 
 /**
  * Ledger Plan — amortisation print-out.
@@ -129,6 +130,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           <DebtTrajectoryChart data={plan.trajectory} />
         </div>
       </section>
+
+      <LedgerScheduleTable data={plan.trajectory} />
 
       {opportunities.length > 0 && (
         <section>
