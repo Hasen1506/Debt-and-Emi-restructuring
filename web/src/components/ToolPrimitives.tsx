@@ -4,36 +4,58 @@
  * Shared form / result primitives for /tools/* screens. Each tool is a
  * narrow decision: a few inputs → one verdict + a couple of numbers.
  */
-import { ReactNode } from 'react';
+import { ReactNode, useId } from 'react';
+import { BANKS_IN, BANKS_US } from '@/lib/banks';
 
+export type FieldKind = 'decimal' | 'integer' | 'text' | 'date';
+
+/**
+ * Numeric inputs render in mono with a decimal/numeric inputMode so mobile
+ * keyboards open as number pads. Text inputs render in sans with a text
+ * inputMode so they don't. Date inputs use the native picker. Default kind
+ * stays 'decimal' to preserve every existing call site.
+ */
 export function Field({
   label,
   value,
   onChange,
   hint,
+  kind = 'decimal',
+  placeholder,
+  list,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   hint?: string;
+  kind?: FieldKind;
+  placeholder?: string;
+  list?: string;
 }) {
+  const isNumeric = kind === 'decimal' || kind === 'integer';
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <span className="muted" style={{ fontSize: 12 }}>
         {label}
       </span>
       <input
-        className="num"
+        className={isNumeric ? 'num' : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        inputMode="decimal"
+        type={kind === 'date' ? 'date' : 'text'}
+        inputMode={
+          kind === 'decimal' ? 'decimal' : kind === 'integer' ? 'numeric' : 'text'
+        }
+        autoComplete={kind === 'text' ? 'off' : undefined}
+        placeholder={placeholder}
+        list={list}
         style={{
           padding: '8px 10px',
           border: '1px solid var(--border)',
           borderRadius: 6,
           background: 'var(--canvas)',
           color: 'var(--ink)',
-          fontFamily: 'var(--font-mono)',
+          fontFamily: isNumeric ? 'var(--font-mono)' : 'var(--font-sans)',
         }}
       />
       {hint && (
@@ -42,6 +64,47 @@ export function Field({
         </span>
       )}
     </label>
+  );
+}
+
+/**
+ * Bank-name input backed by a native <datalist>. User types freely; the
+ * dropdown surfaces known banks for the chosen country (45 today, per
+ * engine/rate_cards.py). Unmatched values are accepted as-is so users
+ * whose lender isn't on the list aren't blocked.
+ */
+export function BankCombobox({
+  label,
+  value,
+  onChange,
+  country,
+  hint,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  country: string;
+  hint?: string;
+}) {
+  const id = `bank-${useId()}`;
+  const banks = country === 'US' ? BANKS_US : BANKS_IN;
+  return (
+    <>
+      <Field
+        label={label}
+        value={value}
+        onChange={onChange}
+        kind="text"
+        list={id}
+        placeholder={country === 'US' ? 'e.g. JPMorgan Chase' : 'e.g. HDFC Bank'}
+        hint={hint}
+      />
+      <datalist id={id}>
+        {banks.map((b) => (
+          <option key={b} value={b} />
+        ))}
+      </datalist>
+    </>
   );
 }
 

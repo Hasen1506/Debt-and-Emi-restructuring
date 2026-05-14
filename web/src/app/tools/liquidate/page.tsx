@@ -97,9 +97,10 @@ export default function LiquidatePage() {
             onChange={setPurchasePrice}
           />
           <Field
-            label="Purchase date (YYYY-MM-DD)"
+            label="Purchase date"
             value={purchaseDate}
             onChange={setPurchaseDate}
+            kind="date"
             hint="Determines Finance Act 2024 indexation eligibility"
           />
           <Field
@@ -111,6 +112,7 @@ export default function LiquidatePage() {
             label="State (for selling-cost lookup)"
             value={state}
             onChange={setState}
+            kind="text"
           />
           <Field
             label="Debt balance to clear"

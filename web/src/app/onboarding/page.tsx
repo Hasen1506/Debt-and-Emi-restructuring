@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/Card';
-import { Field, Select, SubmitBar } from '@/components/ToolPrimitives';
+import { BankCombobox, Field, Select, SubmitBar } from '@/components/ToolPrimitives';
 import type {
   Country,
   IncomeType,
@@ -194,10 +194,11 @@ export default function OnboardingPage() {
               onChange={setFixedExpenses}
               hint="Rent, groceries, utilities — non-debt"
             />
-            <Field
+            <BankCombobox
               label="Primary bank"
               value={primaryBank}
               onChange={setPrimaryBank}
+              country={country}
             />
             <Field
               label="Expected annual income hike (decimal)"
@@ -246,10 +247,11 @@ export default function OnboardingPage() {
                   onChange={(v) => updateLoan(i, { loan_type: v })}
                   options={LOAN_TYPES}
                 />
-                <Field
+                <BankCombobox
                   label="Bank / lender"
                   value={l.bank}
                   onChange={(v) => updateLoan(i, { bank: v })}
+                  country={country}
                 />
                 <Field
                   label="Outstanding balance"
@@ -275,6 +277,7 @@ export default function OnboardingPage() {
                   label="Tenure remaining (months)"
                   value={String(l.tenure_months_remaining)}
                   onChange={(v) => updateLoan(i, { tenure_months_remaining: Number(v) || 0 })}
+                  kind="integer"
                   hint="0 for revolving credit cards"
                 />
                 <Field
@@ -309,7 +312,7 @@ export default function OnboardingPage() {
               style={{
                 padding: '8px 14px',
                 fontSize: 13,
-                background: 'var(--accent-soft)',
+                background: 'transparent',
                 color: 'var(--accent)',
                 border: '1px solid var(--accent)',
                 borderRadius: 6,
