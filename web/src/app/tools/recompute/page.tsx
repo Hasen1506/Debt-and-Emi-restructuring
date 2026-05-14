@@ -1,9 +1,11 @@
 'use client';
 
+import Decimal from 'decimal.js';
 import { useMemo, useState } from 'react';
 import { Card } from '@/components/Card';
 import {
   Field,
+  ScoreChip,
   Select,
   Stat,
   SubmitBar,
@@ -14,6 +16,7 @@ import {
   formatINR,
   monthIndexToLabel,
   type QuickRecomputeResponse,
+  type ScoreImpactResponse,
 } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
 
@@ -22,6 +25,7 @@ export default function RecomputePage() {
   const [extra, setExtra] = useState('50000');
   const [targetIdx, setTargetIdx] = useState<string>('0');
   const [v, setV] = useState<QuickRecomputeResponse | null>(null);
+  const [impact, setImpact] = useState<ScoreImpactResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -29,17 +33,58 @@ export default function RecomputePage() {
     e.preventDefault();
     setBusy(true);
     setErr(null);
+    setImpact(null);
     try {
-      setV(
-        await api.quickRecompute({
-          user: profile.user,
-          extra_payment: extra,
-          target_loan_index: Number(targetIdx),
-          strategy: 'avalanche',
-          horizon_months: 360,
-          marginal_rate: profile.marginalRate,
-        }),
-      );
+      const result = await api.quickRecompute({
+        user: profile.user,
+        extra_payment: extra,
+        target_loan_index: Number(targetIdx),
+        strategy: 'avalanche',
+        horizon_months: 360,
+        marginal_rate: profile.marginalRate,
+      });
+      setV(result);
+
+      // Surface score impact when this lump clears a card/loan in full.
+      const targetLoan = profile.user.loans[Number(targetIdx)];
+      if (targetLoan && profile.creditScore != null) {
+        const extraD = new Decimal(extra);
+        const outstandingD = new Decimal(targetLoan.outstanding);
+        const fullyClears = extraD.gte(outstandingD);
+        if (fullyClears) {
+          const action =
+            targetLoan.loan_type === 'credit_card' ? 'card_paid_off' : 'loan_paid_off';
+          const onlyInstalment =
+            action === 'loan_paid_off' &&
+            profile.user.loans.filter(
+              (l) => l.loan_type !== 'credit_card',
+            ).length === 1;
+          setImpact(
+            await api.scoreImpact({
+              action,
+              current_score: profile.creditScore,
+              country: profile.user.country,
+              is_only_instalment_loan: onlyInstalment,
+            }),
+          );
+        } else if (targetLoan.loan_type === 'credit_card') {
+          // Partial card paydown — model the utilisation drop.
+          const limit = outstandingD.div('0.7'); // assume 70% utilised
+          const utilTo = Decimal.max(
+            outstandingD.minus(extraD),
+            new Decimal('0'),
+          ).div(limit);
+          setImpact(
+            await api.scoreImpact({
+              action: 'utilisation_drop',
+              current_score: profile.creditScore,
+              country: profile.user.country,
+              utilisation_from: outstandingD.div(limit).toFixed(4),
+              utilisation_to: utilTo.toFixed(4),
+            }),
+          );
+        }
+      }
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -125,6 +170,19 @@ export default function RecomputePage() {
               color="var(--positive)"
             />
           </div>
+          {impact && (
+            <div style={{ marginTop: 12 }}>
+              <ScoreChip
+                deltaLow={impact.delta_low}
+                deltaHigh={impact.delta_high}
+                daysToRealise={impact.days_to_realise}
+                currentBand={impact.current_band}
+                projectedBandHigh={impact.projected_band_high}
+                source={impact.source}
+                rationale={impact.rationale}
+              />
+            </div>
+          )}
         </Card>
       )}
     </div>
