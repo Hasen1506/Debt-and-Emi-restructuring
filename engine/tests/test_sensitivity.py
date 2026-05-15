@@ -112,3 +112,20 @@ def test_compare_returns_diff_dict():
     diff = compare(a, b)
     assert "interest_saved" in diff
     assert "months_pulled_forward" in diff
+
+
+def test_month_row_payments_track_each_loan():
+    """Per-loan payments populated for every active loan that month, and
+    the sum equals total_payment_nominal so we can drive a per-bank
+    schedule UI without re-deriving the math. Keyed by 0-based position
+    in the original user.loans list."""
+    user = _user()
+    result = simulate_plan(user, Strategy.AVALANCHE, horizon_months=3)
+    expected_indices = set(range(len(user.loans)))
+    for row in result.months:
+        assert row.payments_by_loan_index, "expected a non-empty payments dict"
+        # All keys must be valid 0-based positions into user.loans.
+        assert set(row.payments_by_loan_index).issubset(expected_indices)
+        total = sum(row.payments_by_loan_index.values(), D("0"))
+        # Equal to total_payment_nominal (all Decimal so exact).
+        assert total == row.total_payment_nominal

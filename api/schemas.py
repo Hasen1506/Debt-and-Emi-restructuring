@@ -170,6 +170,10 @@ class TrajectoryPoint(_Base):
     balance: Decimal
     interest_paid: Decimal
     invested: Decimal
+    # Per-loan total payment this month, keyed by the loan's 0-based index in
+    # the request's `user.loans`. Drives the period-aware "pay ₹X to {bank}"
+    # rows in the Plan schedule. Empty after all loans clear.
+    payments_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
 
 
 class SimulateResponse(_Base):

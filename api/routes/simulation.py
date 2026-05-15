@@ -20,7 +20,11 @@ router = APIRouter(tags=["simulation"])
 
 def _to_trajectory(result, loans) -> list[TrajectoryPoint]:
     """Flatten SimulationResult.months → trajectory points. Balance is the sum
-    across all loans at each month — that's what the chart wants."""
+    across all loans at each month — that's what the chart wants.
+
+    Per-loan payment dict is already position-keyed by the engine, so we
+    pass it through unchanged.
+    """
     points: list[TrajectoryPoint] = []
     for row in result.months:
         total_balance = sum(row.balances.values(), D("0"))
@@ -29,6 +33,7 @@ def _to_trajectory(result, loans) -> list[TrajectoryPoint]:
             balance=total_balance,
             interest_paid=row.interest_paid_month,
             invested=row.invested_this_month,
+            payments_by_loan_index=row.payments_by_loan_index,
         ))
     return points
 

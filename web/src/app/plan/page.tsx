@@ -1,4 +1,4 @@
-import { api, type UserPayload } from '@/lib/api';
+import { api, type SimulateResponse, type UserPayload } from '@/lib/api';
 import { loadProfileServer } from '@/lib/user-store';
 import { loadThemeServer } from '@/lib/theme';
 import { loadStrategyServer, type StrategyName } from '@/lib/strategy';
@@ -8,7 +8,21 @@ import { deriveMetrics } from '@/lib/derived';
 import { ExistingPlan } from '@/components/plan/ExistingPlan';
 import { EditorialPlan } from '@/components/plan/EditorialPlan';
 import { LedgerPlan } from '@/components/plan/LedgerPlan';
-import type { PlanData } from '@/components/plan/PlanData';
+import type { PlanData, MonthlyPaymentBreakdown } from '@/components/plan/PlanData';
+
+function extractMonthlyPayments(
+  scenario: SimulateResponse,
+): MonthlyPaymentBreakdown[] {
+  return scenario.trajectory
+    .filter((p) => p.payments_by_loan_index && Object.keys(p.payments_by_loan_index).length > 0)
+    .map((p) => {
+      const perLoan: Record<number, string> = {};
+      for (const [idx, amount] of Object.entries(p.payments_by_loan_index ?? {})) {
+        perLoan[Number(idx)] = amount;
+      }
+      return { month: p.month, perLoan };
+    });
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +64,7 @@ async function loadPlan(strategy: StrategyName): Promise<PlanData> {
       user: profile.user,
       marginalRate: profile.marginalRate,
       strategy,
+      monthlyPayments: extractMonthlyPayments(scenario),
     };
   } catch {
     return {
@@ -66,6 +81,7 @@ async function loadPlan(strategy: StrategyName): Promise<PlanData> {
       user: profile.user as UserPayload,
       marginalRate: profile.marginalRate,
       strategy,
+      monthlyPayments: [],
     };
   }
 }

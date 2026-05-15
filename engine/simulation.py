@@ -36,6 +36,11 @@ class MonthRow:
     invested_this_month: Decimal
     balances: dict[int, Decimal]              # {id(loan): balance after this month}
     cleared_this_month: list[int]             # ids of loans that hit zero
+    # Per-loan total payment for THIS month, including any cascade. Keyed by
+    # 0-based POSITION in the original user.loans list (NOT id(loan)) so
+    # consumers can join against the user's loan list without Python pointers.
+    # Stays empty for months where every loan has cleared.
+    payments_by_loan_index: dict[int, Decimal] = field(default_factory=dict)
 
 
 @dataclass
@@ -85,6 +90,10 @@ def simulate_plan(
     onwards" without mutating the user upfront.
     """
     loans = [deepcopy(l) for l in user.loans]
+    # Map deep-copied loan identity → its original position in user.loans.
+    # Used to translate per-loan payments into a position-keyed dict that
+    # the API can pass to the frontend without leaking Python ids.
+    loan_position = {id(l): i for i, l in enumerate(loans)}
     income = user.monthly_income
     if income_delta != D("0") and income_delta_from_month <= 1:
         # Apply immediately — preserves the old with_surplus_delta semantics
@@ -169,6 +178,9 @@ def simulate_plan(
                 cascade_surplus += refund
                 l.outstanding = D("0")
                 cleared.append(id(l))
+                # Refund came off this loan's payment — it never actually
+                # left the user's account toward this bank.
+                payments[id(l)] = pay - refund
             else:
                 l.outstanding -= principal_this
             interest_paid += interest_this
@@ -187,12 +199,20 @@ def simulate_plan(
                     cleared.append(id(top))
                 top.outstanding -= add_principal
                 principal_paid += add_principal
+                # Reflect the cascade in the per-loan payment dict so the UI
+                # can show the real amount the user sends to that bank.
+                payments[id(top)] = payments.get(id(top), D("0")) + add_principal
 
         total_payment_nominal = interest_paid + principal_paid
         total_payment_real = real_emi(total_payment_nominal, inflation, m)
 
         balances_snapshot = {id(l): l.outstanding for l in loans}
 
+        payments_by_idx = {
+            loan_position[lid]: amt
+            for lid, amt in payments.items()
+            if amt > D("0")
+        }
         months.append(MonthRow(
             month_index=m,
             available_surplus=surplus,
@@ -203,6 +223,7 @@ def simulate_plan(
             invested_this_month=invested_this_month,
             balances=balances_snapshot,
             cleared_this_month=cleared,
+            payments_by_loan_index=payments_by_idx,
         ))
 
         total_interest += interest_paid

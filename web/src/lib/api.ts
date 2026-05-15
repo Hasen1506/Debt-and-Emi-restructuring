@@ -69,6 +69,9 @@ export interface TrajectoryPointRaw {
   balance: string;
   interest_paid: string;
   invested: string;
+  /** Per-loan total payment this month, keyed by 0-based index into
+   *  `user.loans`. Empty after every loan clears. */
+  payments_by_loan_index?: Record<string, string>;
 }
 
 export interface SimulateResponse {

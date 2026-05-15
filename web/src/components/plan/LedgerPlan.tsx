@@ -166,7 +166,11 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         </div>
       </section>
 
-      <LedgerScheduleTable data={plan.trajectory} />
+      <LedgerScheduleTable
+        data={plan.trajectory}
+        monthlyPayments={plan.monthlyPayments}
+        loans={plan.user.loans}
+      />
 
       {opportunities.length > 0 && (
         <section>

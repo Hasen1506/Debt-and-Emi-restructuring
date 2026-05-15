@@ -10,11 +10,16 @@
  *   2. Expanded — full schedule inside a fixed-height scroll region with
  *      a sticky table header. Page scroll stays put.
  *   3. CSV export — always available, dumps the whole schedule.
+ *
+ * Each row can also be expanded inline to show the per-bank cash flow that
+ * the engine recommends for that month — "this is exactly what to pay
+ * which lender", sourced from MonthRow.payments_by_loan_index.
  */
 
 import { useMemo, useState } from 'react';
-import { formatINR } from '@/lib/api';
+import { formatINR, type LoanPayload } from '@/lib/api';
 import type { TrajectoryPoint } from '@/lib/mock-data';
+import type { MonthlyPaymentBreakdown } from './PlanData';
 
 const VISIBLE_DEFAULT = 12;
 const SCROLL_HEIGHT = 360;
@@ -53,8 +58,21 @@ function downloadCSV(rows: TrajectoryPoint[]) {
   URL.revokeObjectURL(url);
 }
 
-export function LedgerScheduleTable({ data }: { data: TrajectoryPoint[] }) {
+export function LedgerScheduleTable({
+  data,
+  monthlyPayments = [],
+  loans = [],
+}: {
+  data: TrajectoryPoint[];
+  /** Per-month per-loan payment dict from the engine. Empty in offline mode. */
+  monthlyPayments?: MonthlyPaymentBreakdown[];
+  /** User's loans in the order the engine sees them, for bank labels. */
+  loans?: LoanPayload[];
+}) {
   const [expanded, setExpanded] = useState(false);
+  // Which month row has its per-bank breakdown unfolded. Single-open so the
+  // table never grows beyond what's visible (no nested-row scroll mess).
+  const [openMonth, setOpenMonth] = useState<number | null>(null);
   const start = useMemo(() => new Date(), []);
 
   // Trim trailing rows where both series have cleared — no signal past that.
@@ -66,10 +84,18 @@ export function LedgerScheduleTable({ data }: { data: TrajectoryPoint[] }) {
     return data.slice(0, lastSignal + 1);
   }, [data]);
 
+  // Index payments by month for O(1) row lookups.
+  const paymentsByMonth = useMemo(() => {
+    const m = new Map<number, Record<number, string>>();
+    for (const p of monthlyPayments) m.set(p.month, p.perLoan);
+    return m;
+  }, [monthlyPayments]);
+
   const total = rows.length;
   const visible = expanded ? rows : rows.slice(0, VISIBLE_DEFAULT);
   const remaining = Math.max(0, total - VISIBLE_DEFAULT);
   const canExpand = remaining > 0;
+  const hasPerBankData = monthlyPayments.length > 0 && loans.length > 0;
 
   return (
     <section>
@@ -138,11 +164,18 @@ export function LedgerScheduleTable({ data }: { data: TrajectoryPoint[] }) {
       >
         Outstanding balance month-by-month under your plan vs paying only the
         minimums. <strong style={{ color: 'var(--ink)' }}>BALANCE (PLAN)</strong>{' '}
-        = what you&apos;ll owe at month-end on the avalanche schedule.{' '}
+        = what you&apos;ll owe at month-end.{' '}
         <strong style={{ color: 'var(--ink)' }}>IF MINIMUMS ONLY</strong> = same
         month if you paid bank-required minimums and nothing more.{' '}
         <strong style={{ color: 'var(--ink)' }}>AHEAD BY</strong> = how much
         sooner your principal falls.
+        {hasPerBankData && (
+          <>
+            {' '}
+            <strong style={{ color: 'var(--ink)' }}>Click any month</strong> to
+            see exactly how much to send each bank.
+          </>
+        )}
       </div>
       <div
         style={{
@@ -191,43 +224,24 @@ export function LedgerScheduleTable({ data }: { data: TrajectoryPoint[] }) {
             {visible.map((r) => {
               const delta = r.minimums - r.avalanche;
               const cleared = r.avalanche <= 1;
+              const perLoan = paymentsByMonth.get(r.month);
+              const isOpen = openMonth === r.month;
+              const canOpen = hasPerBankData && perLoan != null && !cleared;
               return (
-                <tr
+                <RowGroup
                   key={r.month}
-                  style={{
-                    borderBottom: '1px dashed var(--dash)',
-                    opacity: cleared ? 0.65 : 1,
-                  }}
-                >
-                  <td style={{ padding: '8px 12px', color: 'var(--muted)' }}>
-                    {String(r.month).padStart(3, '0')}
-                  </td>
-                  <td style={{ padding: '8px 12px', color: 'var(--muted)' }}>
-                    {monthLabel(r.month, start)}
-                  </td>
-                  <td
-                    style={{
-                      padding: '8px 12px',
-                      textAlign: 'right',
-                      fontWeight: cleared ? 400 : 600,
-                    }}
-                  >
-                    {cleared ? 'CLEARED' : formatINR(r.avalanche)}
-                  </td>
-                  <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--muted)' }}>
-                    {r.minimums <= 1 ? 'CLEARED' : formatINR(r.minimums)}
-                  </td>
-                  <td
-                    style={{
-                      padding: '8px 12px',
-                      textAlign: 'right',
-                      color: delta > 0 ? 'var(--positive)' : 'var(--muted)',
-                      fontWeight: delta > 0 ? 600 : 400,
-                    }}
-                  >
-                    {delta > 0 ? formatINR(delta) : '—'}
-                  </td>
-                </tr>
+                  monthLabel={monthLabel(r.month, start)}
+                  month={r.month}
+                  avalanche={r.avalanche}
+                  minimums={r.minimums}
+                  delta={delta}
+                  cleared={cleared}
+                  canOpen={canOpen}
+                  isOpen={isOpen}
+                  onToggle={() => setOpenMonth(isOpen ? null : r.month)}
+                  perLoan={perLoan}
+                  loans={loans}
+                />
               );
             })}
           </tbody>
@@ -235,5 +249,177 @@ export function LedgerScheduleTable({ data }: { data: TrajectoryPoint[] }) {
       </div>
 
     </section>
+  );
+}
+
+const LOAN_TYPE_SHORT: Record<string, string> = {
+  home_loan: 'HOME',
+  auto_loan: 'AUTO',
+  personal_loan: 'PERSONAL',
+  credit_card: 'CARD',
+  education_loan: 'EDUCATION',
+  gold_loan: 'GOLD',
+  bnpl: 'BNPL',
+};
+
+function RowGroup({
+  monthLabel,
+  month,
+  avalanche,
+  minimums,
+  delta,
+  cleared,
+  canOpen,
+  isOpen,
+  onToggle,
+  perLoan,
+  loans,
+}: {
+  monthLabel: string;
+  month: number;
+  avalanche: number;
+  minimums: number;
+  delta: number;
+  cleared: boolean;
+  canOpen: boolean;
+  isOpen: boolean;
+  onToggle: () => void;
+  perLoan: Record<number, string> | undefined;
+  loans: LoanPayload[];
+}) {
+  const tdStyle = { padding: '8px 12px' } as const;
+  return (
+    <>
+      <tr
+        onClick={canOpen ? onToggle : undefined}
+        style={{
+          borderBottom: isOpen ? 'none' : '1px dashed var(--dash)',
+          opacity: cleared ? 0.65 : 1,
+          cursor: canOpen ? 'pointer' : 'default',
+          background: isOpen ? 'var(--soft-bg)' : 'transparent',
+        }}
+      >
+        <td style={{ ...tdStyle, color: 'var(--muted)' }}>
+          {canOpen && (
+            <span
+              aria-hidden
+              style={{
+                display: 'inline-block',
+                width: 12,
+                color: 'var(--muted)',
+                fontWeight: 700,
+              }}
+            >
+              {isOpen ? '▾' : '▸'}
+            </span>
+          )}
+          {String(month).padStart(3, '0')}
+        </td>
+        <td style={{ ...tdStyle, color: 'var(--muted)' }}>{monthLabel}</td>
+        <td
+          style={{
+            ...tdStyle,
+            textAlign: 'right',
+            fontWeight: cleared ? 400 : 600,
+          }}
+        >
+          {cleared ? 'CLEARED' : formatINR(avalanche)}
+        </td>
+        <td style={{ ...tdStyle, textAlign: 'right', color: 'var(--muted)' }}>
+          {minimums <= 1 ? 'CLEARED' : formatINR(minimums)}
+        </td>
+        <td
+          style={{
+            ...tdStyle,
+            textAlign: 'right',
+            color: delta > 0 ? 'var(--positive)' : 'var(--muted)',
+            fontWeight: delta > 0 ? 600 : 400,
+          }}
+        >
+          {delta > 0 ? formatINR(delta) : '—'}
+        </td>
+      </tr>
+      {isOpen && perLoan && (
+        <tr
+          style={{
+            borderBottom: '1px solid var(--ink)',
+            background: 'var(--soft-bg)',
+          }}
+        >
+          <td colSpan={5} style={{ padding: '6px 12px 12px 36px' }}>
+            <div
+              style={{
+                fontSize: 10,
+                color: 'var(--muted)',
+                letterSpacing: '0.12em',
+                marginBottom: 6,
+              }}
+            >
+              PAY THIS MONTH ({monthLabel})
+            </div>
+            <table
+              style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                fontSize: 12,
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
+              <tbody>
+                {Object.entries(perLoan)
+                  .map(([idx, amount]) => ({
+                    idx: Number(idx),
+                    amount: Number(amount),
+                  }))
+                  .sort((a, b) => b.amount - a.amount)
+                  .map(({ idx, amount }) => {
+                    const loan = loans[idx];
+                    if (!loan) return null;
+                    const tag =
+                      LOAN_TYPE_SHORT[loan.loan_type] ?? loan.loan_type;
+                    return (
+                      <tr key={idx}>
+                        <td
+                          style={{
+                            padding: '4px 0',
+                            color: 'var(--ink)',
+                            width: '60%',
+                          }}
+                        >
+                          → {loan.bank || 'Unnamed lender'}{' '}
+                          <span style={{ color: 'var(--muted)' }}>· {tag}</span>
+                        </td>
+                        <td
+                          style={{
+                            padding: '4px 0',
+                            textAlign: 'right',
+                            color: 'var(--ink)',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {formatINR(amount)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+            <div
+              style={{
+                fontSize: 10,
+                color: 'var(--muted)',
+                marginTop: 6,
+                letterSpacing: '0.04em',
+                lineHeight: 1.5,
+              }}
+            >
+              Total includes minimums + any surplus routed to the highest-priority
+              loan. Cascade amounts (freed when a loan clears mid-month) are
+              folded into the next loan&apos;s row.
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
