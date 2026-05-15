@@ -1,0 +1,1281 @@
+{
+  "as_of": "2026-05-14",
+  "source": "engine/rate_cards.py \u00b7 seeded May 2026 \u00b7 indicative until scrapers land",
+  "institutions": {
+    "SBI": {
+      "institution_id": "IN_SBI",
+      "country": "IN",
+      "name": "SBI",
+      "scrape_tier": "A",
+      "home_loan": {
+        "low": "0.0750",
+        "high": "0.0870"
+      },
+      "personal_loan": {
+        "low": "0.1030",
+        "high": "0.1485"
+      },
+      "auto_loan": {
+        "low": "0.0810",
+        "high": "0.0905"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.2388",
+        "apr_high": "0.42",
+        "cash_advance_low": "0.36",
+        "cash_advance_high": "0.48",
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": false
+    },
+    "HDFC Bank": {
+      "institution_id": "IN_HDFC",
+      "country": "IN",
+      "name": "HDFC Bank",
+      "scrape_tier": "A",
+      "home_loan": {
+        "low": "0.0775",
+        "high": "0.0815"
+      },
+      "personal_loan": {
+        "low": "0.1050",
+        "high": "0.2400"
+      },
+      "auto_loan": {
+        "low": "0.0850",
+        "high": "0.0920"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.30",
+        "apr_high": "0.432",
+        "cash_advance_low": "0.36",
+        "cash_advance_high": "0.48",
+        "bt_promo_rate": "0",
+        "bt_promo_months": 6,
+        "bt_fee_pct": "0.015"
+      },
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": false
+    },
+    "ICICI Bank": {
+      "institution_id": "IN_ICICI",
+      "country": "IN",
+      "name": "ICICI Bank",
+      "scrape_tier": "A",
+      "home_loan": {
+        "low": "0.0750",
+        "high": "0.0885"
+      },
+      "personal_loan": {
+        "low": "0.1065",
+        "high": "0.1900"
+      },
+      "auto_loan": {
+        "low": "0.0880",
+        "high": "0.0980"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.2988",
+        "apr_high": "0.45",
+        "cash_advance_low": "0.36",
+        "cash_advance_high": "0.48",
+        "bt_promo_rate": "0",
+        "bt_promo_months": 6,
+        "bt_fee_pct": "0.015"
+      },
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": false
+    },
+    "Axis Bank": {
+      "institution_id": "IN_AXIS",
+      "country": "IN",
+      "name": "Axis Bank",
+      "scrape_tier": "A",
+      "home_loan": {
+        "low": "0.0765",
+        "high": "0.0980"
+      },
+      "personal_loan": {
+        "low": "0.1049",
+        "high": "0.2200"
+      },
+      "auto_loan": {
+        "low": "0.0865",
+        "high": "0.0950"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.288",
+        "apr_high": "0.408",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": false
+    },
+    "Kotak Mahindra": {
+      "institution_id": "IN_KOTAK",
+      "country": "IN",
+      "name": "Kotak Mahindra",
+      "scrape_tier": "A",
+      "home_loan": {
+        "low": "0.0799",
+        "high": "0.0935"
+      },
+      "personal_loan": {
+        "low": "0.1099",
+        "high": "0.2400"
+      },
+      "auto_loan": {
+        "low": "0.0849",
+        "high": "0.0950"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.372",
+        "apr_high": "0.42",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": false
+    },
+    "PNB": {
+      "institution_id": "IN_PNB",
+      "country": "IN",
+      "name": "PNB",
+      "scrape_tier": "A",
+      "home_loan": {
+        "low": "0.0770",
+        "high": "0.0915"
+      },
+      "personal_loan": {
+        "low": "0.1100",
+        "high": "0.1700"
+      },
+      "auto_loan": {
+        "low": "0.0825",
+        "high": "0.0975"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": false
+    },
+    "Bank of Baroda": {
+      "institution_id": "IN_BOB",
+      "country": "IN",
+      "name": "Bank of Baroda",
+      "scrape_tier": "B",
+      "home_loan": {
+        "low": "0.0745",
+        "high": "0.0895"
+      },
+      "personal_loan": {
+        "low": "0.1105",
+        "high": "0.1875"
+      },
+      "auto_loan": {
+        "low": "0.0815",
+        "high": "0.1050"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.33",
+        "apr_high": "0.44",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Canara Bank": {
+      "institution_id": "IN_CANARA",
+      "country": "IN",
+      "name": "Canara Bank",
+      "scrape_tier": "B",
+      "home_loan": {
+        "low": "0.0755",
+        "high": "0.0985"
+      },
+      "personal_loan": {
+        "low": "0.1105",
+        "high": "0.1555"
+      },
+      "auto_loan": {
+        "low": "0.0805",
+        "high": "0.1085"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.33",
+        "apr_high": "0.44",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Bank of India": {
+      "institution_id": "IN_BOI",
+      "country": "IN",
+      "name": "Bank of India",
+      "scrape_tier": "B",
+      "home_loan": {
+        "low": "0.0755",
+        "high": "0.0950"
+      },
+      "personal_loan": {
+        "low": "0.1120",
+        "high": "0.1650"
+      },
+      "auto_loan": {
+        "low": "0.0840",
+        "high": "0.1085"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.30",
+        "apr_high": "0.42",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Union Bank": {
+      "institution_id": "IN_UNION_BANK",
+      "country": "IN",
+      "name": "Union Bank",
+      "scrape_tier": "B",
+      "home_loan": {
+        "low": "0.0755",
+        "high": "0.0920"
+      },
+      "personal_loan": {
+        "low": "0.1140",
+        "high": "0.1520"
+      },
+      "auto_loan": {
+        "low": "0.0840",
+        "high": "0.1100"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Indian Bank": {
+      "institution_id": "IN_INDIAN_BANK",
+      "country": "IN",
+      "name": "Indian Bank",
+      "scrape_tier": "B",
+      "home_loan": {
+        "low": "0.0760",
+        "high": "0.0885"
+      },
+      "personal_loan": {
+        "low": "0.1150",
+        "high": "0.1695"
+      },
+      "auto_loan": {
+        "low": "0.0840",
+        "high": "0.1090"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Central Bank": {
+      "institution_id": "IN_CENTRAL_BANK",
+      "country": "IN",
+      "name": "Central Bank",
+      "scrape_tier": "B",
+      "home_loan": {
+        "low": "0.0795",
+        "high": "0.0940"
+      },
+      "personal_loan": {
+        "low": "0.1155",
+        "high": "0.1550"
+      },
+      "auto_loan": {
+        "low": "0.0855",
+        "high": "0.1120"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "IDBI": {
+      "institution_id": "IN_IDBI",
+      "country": "IN",
+      "name": "IDBI",
+      "scrape_tier": "B",
+      "home_loan": {
+        "low": "0.0785",
+        "high": "0.1010"
+      },
+      "personal_loan": {
+        "low": "0.1100",
+        "high": "0.1750"
+      },
+      "auto_loan": {
+        "low": "0.0880",
+        "high": "0.1125"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.28",
+        "apr_high": "0.42",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Yes Bank": {
+      "institution_id": "IN_YES_BANK",
+      "country": "IN",
+      "name": "Yes Bank",
+      "scrape_tier": "B",
+      "home_loan": {
+        "low": "0.0845",
+        "high": "0.1050"
+      },
+      "personal_loan": {
+        "low": "0.1099",
+        "high": "0.2200"
+      },
+      "auto_loan": {
+        "low": "0.0900",
+        "high": "0.1140"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.30",
+        "apr_high": "0.48",
+        "cash_advance_low": "0.36",
+        "cash_advance_high": "0.48",
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.0099",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "IDFC First": {
+      "institution_id": "IN_IDFC_FIRST",
+      "country": "IN",
+      "name": "IDFC First",
+      "scrape_tier": "B",
+      "home_loan": {
+        "low": "0.0845",
+        "high": "0.1050"
+      },
+      "personal_loan": {
+        "low": "0.0999",
+        "high": "0.2399"
+      },
+      "auto_loan": {
+        "low": "0.0940",
+        "high": "0.1190"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.275",
+        "apr_high": "0.462",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": "0",
+        "bt_promo_months": 3,
+        "bt_fee_pct": "0.0149"
+      },
+      "processing_fee_pct": "0.0099",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "IndusInd Bank": {
+      "institution_id": "IN_INDUSIND",
+      "country": "IN",
+      "name": "IndusInd Bank",
+      "scrape_tier": "B",
+      "home_loan": {
+        "low": "0.0850",
+        "high": "0.1085"
+      },
+      "personal_loan": {
+        "low": "0.1049",
+        "high": "0.2300"
+      },
+      "auto_loan": {
+        "low": "0.0910",
+        "high": "0.1200"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.264",
+        "apr_high": "0.432",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": "0",
+        "bt_promo_months": 3,
+        "bt_fee_pct": "0.0149"
+      },
+      "processing_fee_pct": "0.0099",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Federal Bank": {
+      "institution_id": "IN_FEDERAL",
+      "country": "IN",
+      "name": "Federal Bank",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0800",
+        "high": "0.1060"
+      },
+      "personal_loan": {
+        "low": "0.1149",
+        "high": "0.1950"
+      },
+      "auto_loan": {
+        "low": "0.0920",
+        "high": "0.1150"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.30",
+        "apr_high": "0.42",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "South Indian Bank": {
+      "institution_id": "IN_SOUTH_INDIAN",
+      "country": "IN",
+      "name": "South Indian Bank",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0795",
+        "high": "0.1020"
+      },
+      "personal_loan": {
+        "low": "0.1145",
+        "high": "0.2065"
+      },
+      "auto_loan": {
+        "low": "0.0910",
+        "high": "0.1120"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0075",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "RBL Bank": {
+      "institution_id": "IN_RBL",
+      "country": "IN",
+      "name": "RBL Bank",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0910",
+        "high": "0.1175"
+      },
+      "personal_loan": {
+        "low": "0.1400",
+        "high": "0.2300"
+      },
+      "auto_loan": null,
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.30",
+        "apr_high": "0.45",
+        "cash_advance_low": "0.36",
+        "cash_advance_high": "0.48",
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.0199",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Bandhan Bank": {
+      "institution_id": "IN_BANDHAN",
+      "country": "IN",
+      "name": "Bandhan Bank",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0865",
+        "high": "0.1300"
+      },
+      "personal_loan": {
+        "low": "0.1155",
+        "high": "0.2000"
+      },
+      "auto_loan": {
+        "low": "0.0950",
+        "high": "0.1200"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0100",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "AU SFB": {
+      "institution_id": "IN_AU_SFB",
+      "country": "IN",
+      "name": "AU SFB",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0850",
+        "high": "0.1150"
+      },
+      "personal_loan": {
+        "low": "0.1199",
+        "high": "0.2400"
+      },
+      "auto_loan": {
+        "low": "0.0945",
+        "high": "0.1300"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.30",
+        "apr_high": "0.46",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.0150",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "UCO Bank": {
+      "institution_id": "IN_UCO",
+      "country": "IN",
+      "name": "UCO Bank",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0765",
+        "high": "0.0880"
+      },
+      "personal_loan": {
+        "low": "0.1130",
+        "high": "0.1465"
+      },
+      "auto_loan": {
+        "low": "0.0835",
+        "high": "0.1040"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Bank of Maharashtra": {
+      "institution_id": "IN_BANK_OF_MAHARASHTRA",
+      "country": "IN",
+      "name": "Bank of Maharashtra",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0765",
+        "high": "0.0910"
+      },
+      "personal_loan": {
+        "low": "0.1105",
+        "high": "0.1485"
+      },
+      "auto_loan": {
+        "low": "0.0835",
+        "high": "0.1070"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Punjab & Sind": {
+      "institution_id": "IN_PUNJAB_AND_SIND",
+      "country": "IN",
+      "name": "Punjab & Sind",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0785",
+        "high": "0.0890"
+      },
+      "personal_loan": {
+        "low": "0.1145",
+        "high": "0.1540"
+      },
+      "auto_loan": {
+        "low": "0.0865",
+        "high": "0.1085"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Karnataka Bank": {
+      "institution_id": "IN_KARNATAKA",
+      "country": "IN",
+      "name": "Karnataka Bank",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0840",
+        "high": "0.1065"
+      },
+      "personal_loan": {
+        "low": "0.1159",
+        "high": "0.2095"
+      },
+      "auto_loan": {
+        "low": "0.0920",
+        "high": "0.1185"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0075",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Karur Vysya": {
+      "institution_id": "IN_KARUR_VYSYA",
+      "country": "IN",
+      "name": "Karur Vysya",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0915",
+        "high": "0.1095"
+      },
+      "personal_loan": {
+        "low": "0.1250",
+        "high": "0.1950"
+      },
+      "auto_loan": {
+        "low": "0.0940",
+        "high": "0.1200"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0075",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "City Union": {
+      "institution_id": "IN_CITY_UNION",
+      "country": "IN",
+      "name": "City Union",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0905",
+        "high": "0.1105"
+      },
+      "personal_loan": {
+        "low": "0.1200",
+        "high": "0.2050"
+      },
+      "auto_loan": {
+        "low": "0.0950",
+        "high": "0.1225"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0075",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "J&K Bank": {
+      "institution_id": "IN_JANDK",
+      "country": "IN",
+      "name": "J&K Bank",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0850",
+        "high": "0.0985"
+      },
+      "personal_loan": {
+        "low": "0.1150",
+        "high": "0.1595"
+      },
+      "auto_loan": {
+        "low": "0.0920",
+        "high": "0.1150"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0050",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Ujjivan SFB": {
+      "institution_id": "IN_UJJIVAN_SFB",
+      "country": "IN",
+      "name": "Ujjivan SFB",
+      "scrape_tier": "C",
+      "home_loan": null,
+      "personal_loan": {
+        "low": "0.1450",
+        "high": "0.2400"
+      },
+      "auto_loan": null,
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.30",
+        "apr_high": "0.48",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.0200",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Suryoday SFB": {
+      "institution_id": "IN_SURYODAY_SFB",
+      "country": "IN",
+      "name": "Suryoday SFB",
+      "scrape_tier": "C",
+      "home_loan": null,
+      "personal_loan": {
+        "low": "0.1500",
+        "high": "0.2700"
+      },
+      "auto_loan": null,
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0250",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "JPMorgan Chase": {
+      "institution_id": "US_CHASE",
+      "country": "US",
+      "name": "JPMorgan Chase",
+      "scrape_tier": "A",
+      "home_loan": {
+        "low": "0.0650",
+        "high": "0.0700"
+      },
+      "personal_loan": {
+        "low": "0.0699",
+        "high": "0.2499"
+      },
+      "auto_loan": {
+        "low": "0.0569",
+        "high": "0.1369"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.2024",
+        "apr_high": "0.2924",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.01",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": false
+    },
+    "Bank of America": {
+      "institution_id": "US_BOFA",
+      "country": "US",
+      "name": "Bank of America",
+      "scrape_tier": "A",
+      "home_loan": {
+        "low": "0.0655",
+        "high": "0.0705"
+      },
+      "personal_loan": {
+        "low": "0.0749",
+        "high": "0.2499"
+      },
+      "auto_loan": {
+        "low": "0.0549",
+        "high": "0.1074"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.1799",
+        "apr_high": "0.2899",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": null,
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": false
+    },
+    "Wells Fargo": {
+      "institution_id": "US_WFC",
+      "country": "US",
+      "name": "Wells Fargo",
+      "scrape_tier": "A",
+      "home_loan": {
+        "low": "0.0645",
+        "high": "0.0695"
+      },
+      "personal_loan": {
+        "low": "0.0749",
+        "high": "0.2399"
+      },
+      "auto_loan": {
+        "low": "0.0574",
+        "high": "0.1174"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.1999",
+        "apr_high": "0.2899",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": null,
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": false
+    },
+    "Citibank": {
+      "institution_id": "US_CITI",
+      "country": "US",
+      "name": "Citibank",
+      "scrape_tier": "A",
+      "home_loan": {
+        "low": "0.0660",
+        "high": "0.0710"
+      },
+      "personal_loan": {
+        "low": "0.1149",
+        "high": "0.2049"
+      },
+      "auto_loan": null,
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.1974",
+        "apr_high": "0.2974",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": null,
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": false
+    },
+    "U.S. Bank": {
+      "institution_id": "US_USBANK",
+      "country": "US",
+      "name": "U.S. Bank",
+      "scrape_tier": "A",
+      "home_loan": {
+        "low": "0.0660",
+        "high": "0.0710"
+      },
+      "personal_loan": {
+        "low": "0.0849",
+        "high": "0.2199"
+      },
+      "auto_loan": {
+        "low": "0.0599",
+        "high": "0.1199"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.1949",
+        "apr_high": "0.2899",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": null,
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": false
+    },
+    "Capital One": {
+      "institution_id": "US_COF",
+      "country": "US",
+      "name": "Capital One",
+      "scrape_tier": "A",
+      "home_loan": null,
+      "personal_loan": null,
+      "auto_loan": {
+        "low": "0.0479",
+        "high": "0.0979"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.1974",
+        "apr_high": "0.2974",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": null,
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": false
+    },
+    "American Express": {
+      "institution_id": "US_AMEX",
+      "country": "US",
+      "name": "American Express",
+      "scrape_tier": "B",
+      "home_loan": null,
+      "personal_loan": {
+        "low": "0.0691",
+        "high": "0.1997"
+      },
+      "auto_loan": null,
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.1999",
+        "apr_high": "0.2999",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": "0",
+        "bt_promo_months": 15,
+        "bt_fee_pct": "0.03"
+      },
+      "processing_fee_pct": null,
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Discover": {
+      "institution_id": "US_DISCOVER",
+      "country": "US",
+      "name": "Discover",
+      "scrape_tier": "B",
+      "home_loan": null,
+      "personal_loan": {
+        "low": "0.0799",
+        "high": "0.2499"
+      },
+      "auto_loan": null,
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.1824",
+        "apr_high": "0.2824",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": "0",
+        "bt_promo_months": 18,
+        "bt_fee_pct": "0.03"
+      },
+      "processing_fee_pct": null,
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Goldman Sachs": {
+      "institution_id": "US_GS",
+      "country": "US",
+      "name": "Goldman Sachs",
+      "scrape_tier": "B",
+      "home_loan": null,
+      "personal_loan": {
+        "low": "0.0999",
+        "high": "0.2999"
+      },
+      "auto_loan": null,
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.1924",
+        "apr_high": "0.2924",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": null,
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Ally Financial": {
+      "institution_id": "US_ALLY",
+      "country": "US",
+      "name": "Ally Financial",
+      "scrape_tier": "B",
+      "home_loan": {
+        "low": "0.0645",
+        "high": "0.0695"
+      },
+      "personal_loan": {
+        "low": "0.0999",
+        "high": "0.2599"
+      },
+      "auto_loan": {
+        "low": "0.0539",
+        "high": "0.1349"
+      },
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": null,
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Truist": {
+      "institution_id": "US_TRUIST",
+      "country": "US",
+      "name": "Truist",
+      "scrape_tier": "B",
+      "home_loan": {
+        "low": "0.0655",
+        "high": "0.0705"
+      },
+      "personal_loan": {
+        "low": "0.0839",
+        "high": "0.1849"
+      },
+      "auto_loan": {
+        "low": "0.0579",
+        "high": "0.1299"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.1849",
+        "apr_high": "0.2849",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.01",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "PNC Financial": {
+      "institution_id": "US_PNC",
+      "country": "US",
+      "name": "PNC Financial",
+      "scrape_tier": "B",
+      "home_loan": {
+        "low": "0.0655",
+        "high": "0.0705"
+      },
+      "personal_loan": {
+        "low": "0.0899",
+        "high": "0.2299"
+      },
+      "auto_loan": {
+        "low": "0.0584",
+        "high": "0.1324"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.1924",
+        "apr_high": "0.2824",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.01",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "TD Bank": {
+      "institution_id": "US_TD",
+      "country": "US",
+      "name": "TD Bank",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0665",
+        "high": "0.0715"
+      },
+      "personal_loan": {
+        "low": "0.0949",
+        "high": "0.2349"
+      },
+      "auto_loan": {
+        "low": "0.0604",
+        "high": "0.1354"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.1999",
+        "apr_high": "0.2999",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": "0.01",
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Navy Federal Credit Union": {
+      "institution_id": "US_NAVY_FEDERAL",
+      "country": "US",
+      "name": "Navy Federal Credit Union",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0620",
+        "high": "0.0675"
+      },
+      "personal_loan": {
+        "low": "0.0849",
+        "high": "0.1800"
+      },
+      "auto_loan": {
+        "low": "0.0459",
+        "high": "0.0999"
+      },
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.1174",
+        "apr_high": "0.18",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": "0"
+      },
+      "processing_fee_pct": null,
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "SoFi": {
+      "institution_id": "US_SOFI",
+      "country": "US",
+      "name": "SoFi",
+      "scrape_tier": "C",
+      "home_loan": {
+        "low": "0.0640",
+        "high": "0.0690"
+      },
+      "personal_loan": {
+        "low": "0.0899",
+        "high": "0.2999"
+      },
+      "auto_loan": null,
+      "education_loan": null,
+      "credit_card": {
+        "apr_low": "0.1499",
+        "apr_high": "0.2999",
+        "cash_advance_low": null,
+        "cash_advance_high": null,
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
+      },
+      "processing_fee_pct": null,
+      "prepayment_penalty_floating": "0",
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    }
+  }
+}

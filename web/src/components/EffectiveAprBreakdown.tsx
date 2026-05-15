@@ -18,6 +18,7 @@
 import type { LoanPayload, Country, TaxRegimeIN } from '@/lib/api';
 import { computeBreakdown, fmt } from '@/lib/effective-apr';
 import { RATE_CARD_AS_OF } from '@/lib/banks';
+import { RateRangeHint } from '@/components/RateRangeHint';
 
 export function EffectiveAprBreakdown({
   loan,
@@ -139,6 +140,12 @@ export function EffectiveAprBreakdown({
       <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
         {summary}
       </div>
+      <RateRangeHint
+        bank={loan.bank}
+        loanType={loan.loan_type}
+        userRate={loan.nominal_rate}
+        variant="card"
+      />
       <div
         style={{
           fontSize: 10,

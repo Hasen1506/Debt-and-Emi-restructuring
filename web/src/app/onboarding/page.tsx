@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/components/Card';
 import { BankCombobox, Field, Select, SubmitBar } from '@/components/ToolPrimitives';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
+import { RateRangeHint } from '@/components/RateRangeHint';
 import type {
   Country,
   IncomeType,
@@ -396,28 +397,36 @@ export default function OnboardingPage() {
                     </>
                   }
                 />
-                <Field
-                  label="Nominal rate (decimal)"
-                  value={l.nominal_rate}
-                  onChange={(v) => updateLoan(i, { nominal_rate: v })}
-                  hint="e.g. 0.085 for 8.5%"
-                  info={
-                    <>
-                      The <strong>headline interest rate</strong> your bank
-                      advertises. <strong>Doesn't include</strong> GST,
-                      processing fees, or other charges.
-                      <br />
-                      <br />
-                      Enter as a decimal: <strong>0.085</strong> for 8.5%,{' '}
-                      <strong>0.36</strong> for 36%.
-                      <br />
-                      <br />
-                      The Debts view will show your true <strong>effective
-                      APR</strong> (nominal + 18% GST on interest + annualized
-                      fees) so you see the real cost.
-                    </>
-                  }
-                />
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <Field
+                    label="Nominal rate (decimal)"
+                    value={l.nominal_rate}
+                    onChange={(v) => updateLoan(i, { nominal_rate: v })}
+                    hint="e.g. 0.085 for 8.5%"
+                    info={
+                      <>
+                        The <strong>headline interest rate</strong> your bank
+                        advertises. <strong>Doesn't include</strong> GST,
+                        processing fees, or other charges.
+                        <br />
+                        <br />
+                        Enter as a decimal: <strong>0.085</strong> for 8.5%,{' '}
+                        <strong>0.36</strong> for 36%.
+                        <br />
+                        <br />
+                        The Debts view will show your true <strong>effective
+                        APR</strong> (nominal + 18% GST on interest + annualized
+                        fees) so you see the real cost.
+                      </>
+                    }
+                  />
+                  <RateRangeHint
+                    bank={l.bank}
+                    loanType={l.loan_type}
+                    userRate={l.nominal_rate}
+                    variant="inline"
+                  />
+                </div>
                 <Select
                   label="Rate type"
                   value={l.rate_type}
