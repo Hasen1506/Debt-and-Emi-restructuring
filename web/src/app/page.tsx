@@ -9,7 +9,7 @@ export default async function HomePage() {
     loadThemeServer(),
     loadProfileServer(),
   ]);
-  if (theme === 'editorial') return <EditorialHome />;
+  if (theme === 'editorial') return <EditorialHome profile={profile} />;
   if (theme === 'ledger') return <LedgerHome profile={profile} />;
-  return <ExistingHome />;
+  return <ExistingHome profile={profile} />;
 }

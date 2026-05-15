@@ -3,19 +3,38 @@
 /**
  * Editorial Home — "The Letter".
  *
- * Frames the home screen as a weekly letter from the advisor. Big serif
- * headline, prose paragraphs explaining the move and why, three numbers
- * pulled out, three underlined actions, marginalia on the right with
- * "also worth knowing" notes. Mirrors direction-a.jsx from the handoff.
+ * Weekly-letter framing built dynamically from the user's saved profile.
+ * Headline + opening paragraph adapt to the loan profile:
+ *   • Loud card (eff > 30%)  →  "Pay the card, then breathe."
+ *   • Other loud line        →  "Knock out the [bank] line."
+ *   • Only mortgage          →  "Let the mortgage run."
+ *   • No loans               →  "Nothing to chase right now."
+ *
+ * Three-stat block uses honest numbers (surplus, loudest effective APR,
+ * spread vs nominal) — no fabricated "saved over 12 months" or
+ * "debt-free by..." which would need simulation we don't run here.
+ *
+ * Marginalia mixes a derived insight (tax-shield / cheapest-line note) with
+ * two evergreen principles.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import Decimal from 'decimal.js';
+import type { StoredProfile } from '@/lib/user-store';
+import type { LoanType } from '@/lib/api';
+import { formatINR } from '@/lib/api';
+import { fmt } from '@/lib/effective-apr';
+import { deriveMetrics, type LoanWithEffective } from '@/lib/derived';
 
-const MARGINALIA = [
-  { date: 'Apr 7', txt: 'RBI held repo at 5.25%. Your floating home loan is unaffected at its next reset.' },
-  { date: 'Apr 2', txt: 'Your HDFC home loan crossed the halfway mark — principal paid since 2018 now exceeds remaining.' },
-  { date: 'Mar 28', txt: '"No-cost EMI" rarely is. The real APR is usually 14–18%.' },
-] as const;
+const LOAN_TYPE_LABEL: Record<LoanType, string> = {
+  credit_card: 'credit card',
+  personal_loan: 'personal loan',
+  home_loan: 'home loan',
+  auto_loan: 'auto loan',
+  education_loan: 'education loan',
+  gold_loan: 'gold loan',
+  bnpl: 'BNPL line',
+};
 
 const MAIN_ACTIONS = [
   { label: 'Show me the math', href: '/plan' },
@@ -33,8 +52,97 @@ const MORE_ACTIONS = [
   { label: 'NRI prepay vs invest', href: '/tools/nri-prepay' },
 ] as const;
 
-export function EditorialHome() {
+const D24 = new Decimal('0.24');
+const D30 = new Decimal('0.30');
+
+interface Headline {
+  prefix: string;
+  /** Italic accent phrase shown on the second line. */
+  italic: string;
+}
+
+function buildHeadline(loudest: LoanWithEffective | null): Headline {
+  if (!loudest) {
+    return { prefix: 'Nothing to chase', italic: 'right now.' };
+  }
+  if (loudest.loan.loan_type === 'credit_card' && loudest.effective.gt(D30)) {
+    return { prefix: 'Pay the card,', italic: 'then breathe.' };
+  }
+  if (loudest.effective.gt(D24)) {
+    return {
+      prefix: `Knock out the ${loudest.loan.bank || 'loudest'} line,`,
+      italic: 'then breathe.',
+    };
+  }
+  if (loudest.loan.loan_type === 'home_loan' && loudest.effective.lt(new Decimal('0.10'))) {
+    return { prefix: 'Let the mortgage run —', italic: "it's earning its keep." };
+  }
+  return {
+    prefix: `Chip away at the ${loudest.loan.bank || loudest.loan.loan_type} line,`,
+    italic: 'one month at a time.',
+  };
+}
+
+interface MarginNote {
+  date: string;
+  txt: string;
+}
+
+function buildMarginalia(
+  loans: LoanWithEffective[],
+  blended: Decimal,
+  user: StoredProfile['user'],
+): MarginNote[] {
+  const notes: MarginNote[] = [];
+  // 1. Derived insight: cheapest line, or tax-shield status, or GST hit.
+  const card = loans.find((l) => l.loan.loan_type === 'credit_card' && l.outstanding.gt(0));
+  const home = loans.find((l) => l.loan.loan_type === 'home_loan' && l.outstanding.gt(0));
+  if (card) {
+    const spread = card.effective.sub(card.nominal);
+    notes.push({
+      date: 'Note',
+      txt: `Your ${card.loan.bank || 'card'} carries +${fmt(spread)} from GST alone. Banks quote nominal; the statement reflects effective.`,
+    });
+  } else if (home && user.country === 'IN') {
+    const regime = user.tax_regime ?? 'new';
+    if (regime === 'new') {
+      notes.push({
+        date: 'Note',
+        txt: `Under the new regime, section 24b caps the home-loan deduction at ₹0 — so no tax shield on your ${home.loan.bank || 'mortgage'} interest.`,
+      });
+    } else {
+      notes.push({
+        date: 'Note',
+        txt: `Under the old regime, you can deduct up to ₹2L of home-loan interest under 24b — already reflected in the effective rate.`,
+      });
+    }
+  } else if (loans.length > 0) {
+    notes.push({
+      date: 'Note',
+      txt: `Blended effective rate across your debts is ${fmt(blended)}. That's the number that compounds — not whatever a single statement shows.`,
+    });
+  }
+
+  // 2. + 3. Evergreen principles.
+  notes.push({
+    date: 'Always',
+    txt: '"No-cost EMI" rarely is. The real APR is usually 14–18% once GST and convenience fees are folded in.',
+  });
+  notes.push({
+    date: 'Principle',
+    txt: 'A 6-month emergency fund saves more interest than any clever prepayment — by stopping the next high-rate borrow before it starts.',
+  });
+  return notes;
+}
+
+export function EditorialHome({ profile }: { profile: StoredProfile }) {
+  const m = useMemo(() => deriveMetrics(profile), [profile]);
   const [showMore, setShowMore] = useState(false);
+  const headline = buildHeadline(m.loudest);
+  const marginalia = useMemo(
+    () => buildMarginalia(m.loans, m.blendedEffective, profile.user),
+    [m.loans, m.blendedEffective, profile.user],
+  );
 
   return (
     <div
@@ -68,113 +176,18 @@ export function EditorialHome() {
             margin: 0,
           }}
         >
-          Hasen — pay the card,
+          {headline.prefix}
           <br />
           <em style={{ fontStyle: 'italic', color: 'var(--accent)' }}>
-            then breathe.
+            {headline.italic}
           </em>
         </h1>
 
-        <p
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 18,
-            lineHeight: 1.65,
-            marginTop: 28,
-          }}
-        >
-          Your ICICI card is the loudest debt you own. Nominal 36% becomes
-          <strong> 42.48% </strong> once GST is folded in, and at a balance of
-          ₹1 lakh it adds about <strong>₹3,540 every month</strong> in pure
-          friction. Until it's clear, every other move loses to this one.
-        </p>
-        <p
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 18,
-            lineHeight: 1.65,
-            marginTop: 12,
-          }}
-        >
-          So the move this month is simple: send <strong>₹18,500</strong> to
-          the card on the next salary credit. You'll save roughly
-          <strong style={{ color: 'var(--positive)' }}> ₹31,400 </strong>
-          in interest over the next year if you stay the course.
-        </p>
-
-        <div
-          style={{
-            marginTop: 36,
-            padding: '20px 0',
-            borderTop: '1px solid var(--border)',
-            borderBottom: '1px solid var(--border)',
-          }}
-        >
-          <div
-            style={{
-              fontFamily: 'var(--font-sans)',
-              fontSize: 10,
-              letterSpacing: '0.15em',
-              textTransform: 'uppercase',
-              color: 'var(--soft)',
-              marginBottom: 14,
-            }}
-          >
-            The decision, in numbers
-          </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 24,
-            }}
-          >
-            {[
-              { v: '₹18,500', l: 'pay this month', c: 'var(--ink)' },
-              { v: '₹31,400', l: 'saved over 12 months', c: 'var(--positive)' },
-              { v: 'Aug 2027', l: 'debt-free, at this pace', c: 'var(--ink)' },
-            ].map((s) => (
-              <div key={s.l}>
-                <div
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 28,
-                    fontWeight: 500,
-                    color: s.c,
-                    lineHeight: 1,
-                  }}
-                >
-                  {s.v}
-                </div>
-                <div
-                  className="muted"
-                  style={{
-                    fontFamily: 'var(--font-sans)',
-                    fontSize: 11,
-                    marginTop: 8,
-                    letterSpacing: '0.04em',
-                  }}
-                >
-                  {s.l}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 16,
-            lineHeight: 1.6,
-            marginTop: 28,
-            color: 'var(--muted)',
-            fontStyle: 'italic',
-          }}
-        >
-          If a bonus, refund, or windfall arrives this month, write back —
-          we'll decide together where it should go.
-        </p>
+        {m.loans.length === 0 ? (
+          <EmptyLetter />
+        ) : (
+          <BodyLetter metrics={m} />
+        )}
 
         <div
           style={{
@@ -272,9 +285,9 @@ export function EditorialHome() {
         >
           Also worth knowing
         </div>
-        {MARGINALIA.map((n) => (
+        {marginalia.map((n, i) => (
           <div
-            key={n.date}
+            key={`${n.date}-${i}`}
             style={{
               marginBottom: 18,
               borderLeft: '2px solid var(--border)',
@@ -299,5 +312,193 @@ export function EditorialHome() {
         ))}
       </aside>
     </div>
+  );
+}
+
+function EmptyLetter() {
+  return (
+    <p
+      style={{
+        fontFamily: 'var(--font-display)',
+        fontSize: 18,
+        lineHeight: 1.65,
+        marginTop: 28,
+      }}
+    >
+      You haven't added any debts yet. Once you{' '}
+      <a
+        href="/onboarding"
+        style={{ color: 'var(--accent)', borderBottom: '1px solid var(--accent)' }}
+      >
+        walk through setup
+      </a>
+      , the letter starts writing itself — with your actual rates, your actual
+      balances, and the move that gets you to debt-free fastest.
+    </p>
+  );
+}
+
+function BodyLetter({ metrics }: { metrics: ReturnType<typeof deriveMetrics> }) {
+  const loudest = metrics.loudest!;
+  const spread = loudest.effective.sub(loudest.nominal);
+  const bigSpread = spread.gt(new Decimal('0.03'));
+  const surplusPositive = metrics.surplus.gt(0);
+  const loudestIsCard = loudest.loan.loan_type === 'credit_card';
+  const loudestKind = LOAN_TYPE_LABEL[loudest.loan.loan_type];
+  const lender = loudest.loan.bank || 'your highest-rate lender';
+
+  return (
+    <>
+      <p
+        style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 18,
+          lineHeight: 1.65,
+          marginTop: 28,
+        }}
+      >
+        {bigSpread ? (
+          <>
+            Your <strong>{lender}</strong> {loudestKind} is the loudest debt you
+            own. Nominal {fmt(loudest.nominal)} becomes{' '}
+            <strong>{fmt(loudest.effective)}</strong>{' '}
+            {loudestIsCard ? 'once GST is folded in' : 'once fees + GST are folded in'}
+            , and at a balance of <strong>{formatINR(loudest.outstanding)}</strong>{' '}
+            that's the line generating the most friction. Until it's closer to
+            clear, every other move loses to this one.
+          </>
+        ) : (
+          <>
+            Your <strong>{lender}</strong> {loudestKind} is currently your
+            highest-effective line at <strong>{fmt(loudest.effective)}</strong>.
+            With a balance of <strong>{formatINR(loudest.outstanding)}</strong>,
+            it's the one to chase first — but the spread vs nominal is modest,
+            so there's no fire.
+          </>
+        )}
+      </p>
+
+      {surplusPositive ? (
+        <p
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 18,
+            lineHeight: 1.65,
+            marginTop: 12,
+          }}
+        >
+          So the move this month: route the{' '}
+          <strong>{formatINR(metrics.surplus)}</strong> surplus toward this line
+          on the next salary credit. The{' '}
+          <a
+            href="/plan"
+            style={{ color: 'var(--accent)', borderBottom: '1px solid var(--accent)' }}
+          >
+            full schedule
+          </a>{' '}
+          shows how much interest that saves over the run.
+        </p>
+      ) : (
+        <p
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 18,
+            lineHeight: 1.65,
+            marginTop: 12,
+          }}
+        >
+          But the surplus is currently <strong>{formatINR(metrics.surplus)}</strong>
+          /month — there's nothing to allocate until you trim fixed expenses or
+          re-negotiate an EMI. Until then, prepayment isn't the right move; not
+          falling behind is.
+        </p>
+      )}
+
+      <div
+        style={{
+          marginTop: 36,
+          padding: '20px 0',
+          borderTop: '1px solid var(--border)',
+          borderBottom: '1px solid var(--border)',
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'var(--font-sans)',
+            fontSize: 10,
+            letterSpacing: '0.15em',
+            textTransform: 'uppercase',
+            color: 'var(--soft)',
+            marginBottom: 14,
+          }}
+        >
+          The decision, in numbers
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 24,
+          }}
+        >
+          {[
+            {
+              v: surplusPositive ? formatINR(metrics.surplus) : '—',
+              l: surplusPositive ? 'surplus this month' : 'no surplus to allocate',
+              c: surplusPositive ? 'var(--ink)' : 'var(--muted)',
+            },
+            {
+              v: fmt(loudest.effective),
+              l: `${loudestKind} effective APR`,
+              c: loudest.effective.gt(D24) ? 'var(--negative)' : 'var(--ink)',
+            },
+            {
+              v: spread.gt(0) ? `+${fmt(spread)}` : '—',
+              l: 'spread vs nominal',
+              c: spread.gt(new Decimal('0.05')) ? 'var(--negative)' : 'var(--ink)',
+            },
+          ].map((s) => (
+            <div key={s.l}>
+              <div
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 28,
+                  fontWeight: 500,
+                  color: s.c,
+                  lineHeight: 1,
+                }}
+              >
+                {s.v}
+              </div>
+              <div
+                className="muted"
+                style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 11,
+                  marginTop: 8,
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {s.l}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p
+        style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 16,
+          lineHeight: 1.6,
+          marginTop: 28,
+          color: 'var(--muted)',
+          fontStyle: 'italic',
+        }}
+      >
+        If a bonus, refund, or windfall arrives this month, write back — we'll
+        decide together where it should go.
+      </p>
+    </>
   );
 }
