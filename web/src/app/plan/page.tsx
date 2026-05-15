@@ -1,6 +1,7 @@
 import { api, type UserPayload } from '@/lib/api';
 import { loadProfileServer } from '@/lib/user-store';
 import { loadThemeServer } from '@/lib/theme';
+import { loadStrategyServer, type StrategyName } from '@/lib/strategy';
 import { mergeTrajectories } from '@/lib/trajectory';
 import { mockTrajectory } from '@/lib/mock-data';
 import { deriveMetrics } from '@/lib/derived';
@@ -11,17 +12,17 @@ import type { PlanData } from '@/components/plan/PlanData';
 
 export const dynamic = 'force-dynamic';
 
-async function loadPlan(): Promise<PlanData> {
+async function loadPlan(strategy: StrategyName): Promise<PlanData> {
   const profile = await loadProfileServer();
   // Surplus = income − fixed expenses − scheduled EMIs. Same definition the
   // Home + Debts pages show; previously /plan computed it without subtracting
   // EMIs which made the KPI disagree across pages.
   const surplus = Number(deriveMetrics(profile).surplus);
   try {
-    const [avalanche, baseline, restructuring] = await Promise.all([
+    const [scenario, baseline, restructuring] = await Promise.all([
       api.simulate({
         user: profile.user,
-        strategy: 'avalanche',
+        strategy,
         horizon_months: 240,
         marginal_rate: profile.marginalRate,
       }),
@@ -32,13 +33,13 @@ async function loadPlan(): Promise<PlanData> {
       }),
     ]);
     const monthsSaved =
-      avalanche.debt_free_month && baseline.debt_free_month
-        ? baseline.debt_free_month - avalanche.debt_free_month
+      scenario.debt_free_month && baseline.debt_free_month
+        ? baseline.debt_free_month - scenario.debt_free_month
         : 0;
     return {
-      trajectory: mergeTrajectories(avalanche, baseline),
-      debtFreeMonth: avalanche.debt_free_month,
-      totalInterest: avalanche.total_interest_paid,
+      trajectory: mergeTrajectories(scenario, baseline),
+      debtFreeMonth: scenario.debt_free_month,
+      totalInterest: scenario.total_interest_paid,
       baselineInterest: baseline.total_interest_paid,
       monthsSaved,
       live: true,
@@ -48,6 +49,7 @@ async function loadPlan(): Promise<PlanData> {
       totalAnnualSaving: restructuring.total_annual_saving,
       user: profile.user,
       marginalRate: profile.marginalRate,
+      strategy,
     };
   } catch {
     return {
@@ -63,12 +65,17 @@ async function loadPlan(): Promise<PlanData> {
       totalAnnualSaving: '0',
       user: profile.user as UserPayload,
       marginalRate: profile.marginalRate,
+      strategy,
     };
   }
 }
 
 export default async function PlanPage() {
-  const [plan, theme] = await Promise.all([loadPlan(), loadThemeServer()]);
+  const [theme, strategy] = await Promise.all([
+    loadThemeServer(),
+    loadStrategyServer(),
+  ]);
+  const plan = await loadPlan(strategy);
   if (theme === 'editorial') return <EditorialPlan plan={plan} />;
   if (theme === 'ledger') return <LedgerPlan plan={plan} />;
   return <ExistingPlan plan={plan} />;

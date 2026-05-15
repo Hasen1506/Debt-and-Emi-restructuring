@@ -7,6 +7,7 @@ import type {
   UserPayload,
 } from '@/lib/api';
 import type { TrajectoryPoint } from '@/lib/mock-data';
+import type { StrategyName } from '@/lib/strategy';
 
 export interface PlanData {
   trajectory: TrajectoryPoint[];
@@ -21,4 +22,6 @@ export interface PlanData {
   totalAnnualSaving: string;
   user: UserPayload;
   marginalRate: string;
+  /** Active payoff strategy used to compute trajectory + debtFreeMonth. */
+  strategy: StrategyName;
 }

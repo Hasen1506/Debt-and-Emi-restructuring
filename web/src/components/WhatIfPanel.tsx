@@ -16,6 +16,7 @@ import {
   api,
   formatINR,
   type CompareResponse,
+  type Strategy,
   type UserPayload,
 } from '@/lib/api';
 import { computeBreakdown } from '@/lib/effective-apr';
@@ -33,9 +34,13 @@ const INITIAL: ScenarioState = { loading: false, result: null, error: null };
 export function WhatIfPanel({
   user,
   marginalRate,
+  strategy = 'avalanche',
 }: {
   user: UserPayload;
   marginalRate: string;
+  /** Active payoff strategy — what-if scenarios run against the same one
+   *  the user has selected on the Plan page so deltas are apples-to-apples. */
+  strategy?: Strategy;
 }) {
   // Derive realistic slider ceilings + the default "Applied to" loan from
   // the live profile. The user complained about a hardcoded 50k cap and a
@@ -99,7 +104,7 @@ export function WhatIfPanel({
         : api.sensitivity({
             user,
             marginal_rate: marginalRate,
-            strategy: 'avalanche',
+            strategy,
             horizon_months: 240,
             surplus_delta: String(surplusDelta),
             surplus_delta_start_month: surplusStartMonth,
@@ -115,7 +120,7 @@ export function WhatIfPanel({
         : api.sensitivity({
             user,
             marginal_rate: marginalRate,
-            strategy: 'avalanche',
+            strategy,
             horizon_months: 240,
             rate_shock_delta: (rateShockBps / 10_000).toFixed(4),
             rate_shock_floating_only: true,
@@ -131,7 +136,7 @@ export function WhatIfPanel({
         : api.sensitivity({
             user,
             marginal_rate: marginalRate,
-            strategy: 'avalanche',
+            strategy,
             horizon_months: 240,
             lump_sum_amount: String(lumpAmount),
             lump_sum_target_loan_index: lumpTarget,

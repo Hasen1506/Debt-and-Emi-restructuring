@@ -54,6 +54,10 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
   let loudest: LoanWithEffective | null = null;
   for (const l of loans) {
     totalOutstanding = totalOutstanding.add(l.outstanding);
+    // Blended-APR numerator is Σ(balance × EFFECTIVE rate), not nominal.
+    // Effective bakes in GST + processing fee + tax shield, so the blended
+    // number reflects true cost of carrying the portfolio, not the headline
+    // rates banks advertise. Verified against the engine's effective_rate.
     weightedEffSum = weightedEffSum.add(l.outstanding.mul(l.effective));
     emi = emi.add(new Decimal(l.loan.scheduled_emi || 0));
     if (l.outstanding.gt(0) && (loudest == null || l.effective.gt(loudest.effective))) {
@@ -61,6 +65,10 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
     }
   }
 
+  // Balance-weighted average: a ₹40L home loan at 8% effective swamps a ₹1L
+  // card at 40% effective in the blended number — that's intentional, since
+  // the blended figure answers "what rate is my overall debt costing me?",
+  // not "where's my highest pain point?" (the `loudest` field is for that).
   const blendedEffective = totalOutstanding.gt(0)
     ? weightedEffSum.div(totalOutstanding)
     : new Decimal(0);

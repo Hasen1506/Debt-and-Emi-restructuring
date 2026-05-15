@@ -1,6 +1,8 @@
 import { Card } from '@/components/Card';
 import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
+import { StrategySwitcher } from '@/components/StrategySwitcher';
+import { STRATEGY_LABEL } from '@/lib/strategy';
 import {
   formatINR,
   formatPct,
@@ -27,9 +29,8 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
       <section>
         <h1 className="h1">Your debt-free trajectory</h1>
         <p className="muted">
-          Built on the <strong>avalanche</strong> strategy — pay every loan&apos;s
-          minimum, throw all surplus at the loan with the highest effective APR.
-          Mathematically the fastest payoff. Your current{' '}
+          Built on the <strong>{STRATEGY_LABEL[plan.strategy].toLowerCase()}</strong>{' '}
+          strategy. Your current{' '}
           <abbr title="Surplus = income − fixed expenses − scheduled EMIs. The cash you have left to deploy against debt above the minimums.">
             surplus
           </abbr>{' '}
@@ -68,6 +69,9 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
             <a href="/tools/recompute">Recompute</a> to refresh this plan.
           </p>
         )}
+        <div style={{ marginTop: 14 }}>
+          <StrategySwitcher active={plan.strategy} variant="inline" />
+        </div>
       </section>
 
       {plan.opportunities.length > 0 && (
@@ -242,7 +246,11 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
             would it help?&quot;.
           </div>
         </div>
-        <WhatIfPanel user={plan.user} marginalRate={plan.marginalRate} />
+        <WhatIfPanel
+          user={plan.user}
+          marginalRate={plan.marginalRate}
+          strategy={plan.strategy}
+        />
       </Card>
     </div>
   );

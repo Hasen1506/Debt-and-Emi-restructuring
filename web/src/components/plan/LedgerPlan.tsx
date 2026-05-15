@@ -1,5 +1,7 @@
 import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
+import { StrategySwitcher } from '@/components/StrategySwitcher';
+import { STRATEGY_LABEL, STRATEGY_DESCRIPTION } from '@/lib/strategy';
 import {
   formatINR,
   formatPct,
@@ -38,6 +40,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   const marginalPct = (Number(plan.marginalRate) * 100).toFixed(0);
   const opportunities = plan.opportunities;
   const interestSaved = Number(plan.baselineInterest) - Number(plan.totalInterest);
+  const strategyLabel = STRATEGY_LABEL[plan.strategy].toUpperCase();
 
   const kpis = [
     {
@@ -83,7 +86,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
     >
       <section>
         <SectionLabel>
-          $ PLAN · STRATEGY = AVALANCHE · HORIZON = {horizonMo}MO · MARGINAL = {marginalPct}%
+          $ PLAN · STRATEGY = {strategyLabel} · HORIZON = {horizonMo}MO · MARGINAL = {marginalPct}%
           {!plan.profileIsLive && ' · DEMO'}
           {!plan.live && ' · OFFLINE'}
         </SectionLabel>
@@ -96,21 +99,23 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             marginBottom: 10,
             background: 'var(--card)',
             border: '1px dashed var(--border)',
-            padding: '8px 12px',
+            padding: '10px 12px',
             fontFamily: 'var(--font-mono)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
           }}
         >
-          <strong style={{ color: 'var(--ink)' }}>AVALANCHE</strong> = pay
-          minimums on every loan, throw all surplus at the loan with the highest
-          effective APR. Fastest payoff, lowest total interest.{' '}
-          <strong style={{ color: 'var(--ink)' }}>HORIZON 240MO</strong> = how
-          far ahead the simulator runs (20 yrs). If you don&apos;t clear inside
-          240 months we surface that as &quot;&gt;{horizonMo}mo&quot; rather
-          than invent a date.
-          <br />
-          <span style={{ color: 'var(--muted)' }}>
-            Strategy switcher (snowball / hybrid) lands next.
-          </span>
+          <StrategySwitcher active={plan.strategy} variant="ledger" />
+          <div style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
+            {STRATEGY_DESCRIPTION[plan.strategy]}
+          </div>
+          <div style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
+            <strong style={{ color: 'var(--ink)' }}>HORIZON {horizonMo}MO</strong>
+            {' '}= how far ahead the simulator runs (20 yrs). If you don&apos;t
+            clear inside {horizonMo} months we surface that as &quot;&gt;
+            {horizonMo}mo&quot; rather than invent a date.
+          </div>
         </div>
         <div
           style={{
@@ -279,7 +284,11 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             padding: '14px 16px',
           }}
         >
-          <WhatIfPanel user={plan.user} marginalRate={plan.marginalRate} />
+          <WhatIfPanel
+            user={plan.user}
+            marginalRate={plan.marginalRate}
+            strategy={plan.strategy}
+          />
         </div>
       </section>
     </div>

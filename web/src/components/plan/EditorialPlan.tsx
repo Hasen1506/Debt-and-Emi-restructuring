@@ -1,5 +1,11 @@
 import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
+import { StrategySwitcher } from '@/components/StrategySwitcher';
+import {
+  STRATEGY_LABEL,
+  STRATEGY_DESCRIPTION,
+  STRATEGY_SHORT,
+} from '@/lib/strategy';
 import { formatINR, formatPct, monthIndexToLabel } from '@/lib/api';
 import type { PlanData } from './PlanData';
 
@@ -77,9 +83,9 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             surplus
           </abbr>{' '}
           stays at <strong>{formatINR(plan.surplus)}/mo</strong>, rates
-          don&apos;t shock either way, and you continue the{' '}
-          <strong>avalanche</strong> order — minimums on every loan, surplus
-          to whichever loan has the highest effective APR.
+          don&apos;t shock either way, and you stick with the{' '}
+          <strong>{STRATEGY_LABEL[plan.strategy].toLowerCase()}</strong>{' '}
+          strategy ({STRATEGY_SHORT[plan.strategy].replace(/\.$/, '')}).
           {opportunities.length > 0 && (
             <>
               {' '}
@@ -260,7 +266,11 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             saves to your plan; it&apos;s a sandbox for testing &quot;if I did
             X, would it help?&quot;.
           </p>
-          <WhatIfPanel user={plan.user} marginalRate={plan.marginalRate} />
+          <WhatIfPanel
+            user={plan.user}
+            marginalRate={plan.marginalRate}
+            strategy={plan.strategy}
+          />
         </div>
       </article>
 
@@ -301,10 +311,20 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
           >
             Strategy
           </div>
-          <div style={{ color: 'var(--ink)', fontSize: 12, lineHeight: 1.55 }}>
-            <strong>Avalanche</strong> — pay every minimum, throw the surplus
-            at the loan with the highest effective APR. Mathematically the
-            fastest payoff. A switch to snowball / hybrid is coming next.
+          <div
+            style={{
+              color: 'var(--ink)',
+              fontSize: 12,
+              lineHeight: 1.55,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}
+          >
+            <StrategySwitcher active={plan.strategy} variant="inline" />
+            <div style={{ color: 'var(--soft)', fontSize: 12 }}>
+              {STRATEGY_DESCRIPTION[plan.strategy]}
+            </div>
           </div>
         </div>
 
