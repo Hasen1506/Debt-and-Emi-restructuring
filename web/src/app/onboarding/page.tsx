@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/Card';
 import { BankCombobox, Field, Select, SubmitBar } from '@/components/ToolPrimitives';
+import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import type {
   Country,
   IncomeType,
@@ -42,6 +43,8 @@ function blankLoan(): LoanPayload {
     rate_type: 'fixed',
     tenure_months_remaining: 0,
     scheduled_emi: '',
+    processing_fee_amortised: '',
+    insurance_premium_pct: '',
   };
 }
 
@@ -103,6 +106,8 @@ export default function OnboardingPage() {
           outstanding: num(l.outstanding),
           nominal_rate: num(l.nominal_rate, '0'),
           scheduled_emi: num(l.scheduled_emi),
+          processing_fee_amortised: num(l.processing_fee_amortised ?? '', '0'),
+          insurance_premium_pct: num(l.insurance_premium_pct ?? '', '0'),
         })),
       investment_options: [
         {
@@ -465,6 +470,49 @@ export default function OnboardingPage() {
                     </>
                   }
                 />
+                <Field
+                  label="Processing fee / yr (decimal, optional)"
+                  value={l.processing_fee_amortised ?? ''}
+                  onChange={(v) => updateLoan(i, { processing_fee_amortised: v })}
+                  hint="Annualised. Leave blank for cards. e.g. 0.005 = 0.5%/yr"
+                  info={
+                    <>
+                      One-time processing fee, amortised across the loan's
+                      tenure. Personal loans typically <strong>1-2%</strong>{' '}
+                      upfront; home loans <strong>0.25-0.50%</strong>; auto
+                      loans <strong>0.5-1%</strong>.
+                      <br />
+                      <br />
+                      Enter the <strong>annualised</strong> value. If your
+                      personal loan charges 1.5% upfront on a 3-year tenure,
+                      that's 0.5%/yr → enter <strong>0.005</strong>.
+                      <br />
+                      <br />
+                      Leave blank for credit cards (annual fee separately).
+                    </>
+                  }
+                />
+                <Field
+                  label="Insurance premium / yr (decimal, optional)"
+                  value={l.insurance_premium_pct ?? ''}
+                  onChange={(v) => updateLoan(i, { insurance_premium_pct: v })}
+                  hint="e.g. 0.001 = 0.1%/yr; leave blank if none"
+                  info={
+                    <>
+                      Some lenders bundle loan-protection insurance (technically
+                      optional but often pushed). Enter as a decimal pct/yr.
+                      Leave blank if you declined or weren't offered insurance.
+                    </>
+                  }
+                />
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <EffectiveAprBreakdown
+                    loan={l}
+                    marginalTaxRate={marginalRate || '0.30'}
+                    country={country}
+                    taxRegime={country === 'IN' ? taxRegime : undefined}
+                  />
+                </div>
                 {loans.length > 1 && (
                   <button
                     type="button"
