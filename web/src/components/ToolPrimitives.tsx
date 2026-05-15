@@ -10,6 +10,112 @@ import { BANKS_IN, BANKS_US } from '@/lib/banks';
 export type FieldKind = 'decimal' | 'integer' | 'text' | 'date';
 
 /**
+ * Tap-to-toggle info tooltip. Renders an ⓘ button inline with a label and
+ * opens a small popover with plain-English explanation of the technical
+ * term. Click outside or Esc closes. Mobile-friendly — uses click-toggle
+ * rather than hover, which doesn't exist on touch devices.
+ */
+export function InfoTip({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <span ref={rootRef} style={{ position: 'relative', display: 'inline-flex' }}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((v) => !v);
+        }}
+        aria-label="What does this mean?"
+        aria-expanded={open}
+        style={{
+          width: 16,
+          height: 16,
+          borderRadius: '50%',
+          border: '1px solid var(--border)',
+          background: 'var(--card)',
+          color: 'var(--muted)',
+          fontSize: 10,
+          fontFamily: 'var(--font-sans)',
+          fontWeight: 600,
+          lineHeight: 1,
+          cursor: 'pointer',
+          padding: 0,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        i
+      </button>
+      {open && (
+        <div
+          role="tooltip"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            left: 0,
+            minWidth: 240,
+            maxWidth: 320,
+            zIndex: 60,
+            padding: '10px 12px',
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            color: 'var(--ink)',
+            fontSize: 12,
+            lineHeight: 1.55,
+            fontFamily: 'var(--font-sans)',
+            fontWeight: 400,
+            textTransform: 'none',
+            letterSpacing: 0,
+            whiteSpace: 'normal',
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Label row reused by every form primitive. Renders the text label and,
+ * when present, an InfoTip on the right.
+ */
+function LabelRow({ label, info }: { label: string; info?: ReactNode }) {
+  return (
+    <span
+      className="muted"
+      style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+    >
+      {label}
+      {info && <InfoTip>{info}</InfoTip>}
+    </span>
+  );
+}
+
+/**
  * Numeric inputs render in mono with a decimal/numeric inputMode so mobile
  * keyboards open as number pads. Text inputs render in sans with a text
  * inputMode so they don't. Date inputs use the native picker. Default kind
@@ -20,6 +126,7 @@ export function Field({
   value,
   onChange,
   hint,
+  info,
   kind = 'decimal',
   placeholder,
   list,
@@ -28,6 +135,7 @@ export function Field({
   value: string;
   onChange: (v: string) => void;
   hint?: string;
+  info?: ReactNode;
   kind?: FieldKind;
   placeholder?: string;
   list?: string;
@@ -35,9 +143,7 @@ export function Field({
   const isNumeric = kind === 'decimal' || kind === 'integer';
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span className="muted" style={{ fontSize: 12 }}>
-        {label}
-      </span>
+      <LabelRow label={label} info={info} />
       <input
         className={isNumeric ? 'num' : undefined}
         value={value}
@@ -82,12 +188,14 @@ export function BankCombobox({
   onChange,
   country,
   hint,
+  info,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   country: string;
   hint?: string;
+  info?: ReactNode;
 }) {
   const allBanks = country === 'US' ? BANKS_US : BANKS_IN;
   const placeholder = country === 'US' ? 'Select bank' : 'Select bank';
@@ -135,9 +243,7 @@ export function BankCombobox({
       ref={rootRef}
       style={{ display: 'flex', flexDirection: 'column', gap: 4, position: 'relative' }}
     >
-      <span className="muted" style={{ fontSize: 12 }}>
-        {label}
-      </span>
+      <LabelRow label={label} info={info} />
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -270,17 +376,17 @@ export function Select<T extends string>({
   value,
   onChange,
   options,
+  info,
 }: {
   label: string;
   value: T;
   onChange: (v: T) => void;
   options: { value: T; label: string }[];
+  info?: ReactNode;
 }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span className="muted" style={{ fontSize: 12 }}>
-        {label}
-      </span>
+      <LabelRow label={label} info={info} />
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
