@@ -31,7 +31,7 @@ interface CreditCardCard {
   bt_fee_pct: string | null;
 }
 
-interface InstitutionRateCard {
+export interface InstitutionRateCard {
   institution_id: string;
   country: 'IN' | 'US';
   name: string;
@@ -43,6 +43,11 @@ interface InstitutionRateCard {
   credit_card: CreditCardCard | null;
   processing_fee_pct: string | null;
   prepayment_penalty_floating: string;
+  /** Bank-specific late-payment flat fee, currency-native. null → fall back
+   *  to the country/loan-type defaults in `estimate-penalty.ts`. */
+  late_payment_flat_fee: string | null;
+  /** Bank-specific penal rate (annualised). null → use defaults. */
+  late_payment_penal_rate: string | null;
   last_verified: string;
   is_indicative: boolean;
 }

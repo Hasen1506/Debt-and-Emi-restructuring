@@ -50,6 +50,8 @@ def _card_to_dict(card: InstitutionRateCard) -> dict:
         },
         'processing_fee_pct': _decimal(card.processing_fee_pct),
         'prepayment_penalty_floating': _decimal(card.prepayment_penalty_floating),
+        'late_payment_flat_fee': _decimal(card.late_payment_flat_fee),
+        'late_payment_penal_rate': _decimal(card.late_payment_penal_rate),
         'last_verified': card.last_verified,
         'is_indicative': card.is_indicative,
     }

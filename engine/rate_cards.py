@@ -51,6 +51,13 @@ class InstitutionRateCard:
     credit_card: Optional[CreditCardCard] = None
     processing_fee_pct: Optional[Decimal] = None         # personal/home/auto
     prepayment_penalty_floating: Decimal = D("0")        # RBI: 0 for floating
+    # Late-payment fields, all optional. When None we fall back to the
+    # country/loan-type defaults in `engine.penalties`. Each is sourced from
+    # the bank's published Schedule of Charges (links archived alongside
+    # `last_verified`); for Tier-B/C indicative entries these stay None and
+    # the defaults apply.
+    late_payment_flat_fee: Optional[Decimal] = None      # ₹ / $ — flat hit per missed EMI
+    late_payment_penal_rate: Optional[Decimal] = None    # annualised; added to nominal on overdue principal
     last_verified: str = "2026-05-14"
     is_indicative: bool = False     # True for Tier-B/C extrapolations
 

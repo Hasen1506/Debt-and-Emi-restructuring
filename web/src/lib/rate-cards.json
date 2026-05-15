@@ -31,6 +31,8 @@
       },
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": false
     },
@@ -63,6 +65,8 @@
       },
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": false
     },
@@ -95,6 +99,8 @@
       },
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": false
     },
@@ -127,6 +133,8 @@
       },
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": false
     },
@@ -159,6 +167,8 @@
       },
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": false
     },
@@ -183,6 +193,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": false
     },
@@ -215,6 +227,8 @@
       },
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -247,6 +261,8 @@
       },
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -279,6 +295,8 @@
       },
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -303,6 +321,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -327,6 +347,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -351,6 +373,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -383,6 +407,8 @@
       },
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -415,6 +441,8 @@
       },
       "processing_fee_pct": "0.0099",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -447,6 +475,8 @@
       },
       "processing_fee_pct": "0.0099",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -479,6 +509,8 @@
       },
       "processing_fee_pct": "0.0099",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -511,6 +543,8 @@
       },
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -535,6 +569,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0075",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -564,6 +600,8 @@
       },
       "processing_fee_pct": "0.0199",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -588,6 +626,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0100",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -620,6 +660,8 @@
       },
       "processing_fee_pct": "0.0150",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -644,6 +686,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -668,6 +712,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -692,6 +738,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -716,6 +764,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0075",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -740,6 +790,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0075",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -764,6 +816,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0075",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -788,6 +842,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -814,6 +870,8 @@
       },
       "processing_fee_pct": "0.0200",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -832,6 +890,8 @@
       "credit_card": null,
       "processing_fee_pct": "0.0250",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -864,6 +924,8 @@
       },
       "processing_fee_pct": "0.01",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": false
     },
@@ -896,6 +958,8 @@
       },
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": false
     },
@@ -928,6 +992,8 @@
       },
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": false
     },
@@ -957,6 +1023,8 @@
       },
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": false
     },
@@ -989,6 +1057,8 @@
       },
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": false
     },
@@ -1015,6 +1085,8 @@
       },
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": false
     },
@@ -1041,6 +1113,8 @@
       },
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -1067,6 +1141,8 @@
       },
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -1093,6 +1169,8 @@
       },
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -1117,6 +1195,8 @@
       "credit_card": null,
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -1149,6 +1229,8 @@
       },
       "processing_fee_pct": "0.01",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -1181,6 +1263,8 @@
       },
       "processing_fee_pct": "0.01",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -1213,6 +1297,8 @@
       },
       "processing_fee_pct": "0.01",
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -1245,6 +1331,8 @@
       },
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
@@ -1274,6 +1362,8 @@
       },
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
       "last_verified": "2026-05-14",
       "is_indicative": true
     }
