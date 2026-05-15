@@ -128,6 +128,24 @@ export function LedgerScheduleTable({ data }: { data: TrajectoryPoint[] }) {
 
       <div
         style={{
+          fontSize: 11,
+          color: 'var(--muted)',
+          letterSpacing: '0.04em',
+          lineHeight: 1.6,
+          marginBottom: 8,
+          fontFamily: 'var(--font-mono)',
+        }}
+      >
+        Outstanding balance month-by-month under your plan vs paying only the
+        minimums. <strong style={{ color: 'var(--ink)' }}>BALANCE (PLAN)</strong>{' '}
+        = what you&apos;ll owe at month-end on the avalanche schedule.{' '}
+        <strong style={{ color: 'var(--ink)' }}>IF MINIMUMS ONLY</strong> = same
+        month if you paid bank-required minimums and nothing more.{' '}
+        <strong style={{ color: 'var(--ink)' }}>AHEAD BY</strong> = how much
+        sooner your principal falls.
+      </div>
+      <div
+        style={{
           border: '1px solid var(--ink)',
           background: 'var(--card)',
           maxHeight: expanded ? SCROLL_HEIGHT : undefined,
@@ -152,7 +170,7 @@ export function LedgerScheduleTable({ data }: { data: TrajectoryPoint[] }) {
                 zIndex: 1,
               }}
             >
-              {['MO', 'DATE', 'AVALANCHE', 'MIN-ONLY', 'Δ AHEAD'].map((h, i) => (
+              {['MO', 'DATE', 'BALANCE (PLAN)', 'IF MINIMUMS ONLY', 'AHEAD BY'].map((h, i) => (
                 <th
                   key={h}
                   style={{
@@ -216,19 +234,6 @@ export function LedgerScheduleTable({ data }: { data: TrajectoryPoint[] }) {
         </table>
       </div>
 
-      {!expanded && canExpand && (
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: '0.12em',
-            marginTop: 6,
-            fontFamily: 'var(--font-mono)',
-          }}
-        >
-          + {remaining} MORE MONTHS · [EXPAND] FOR FULL SCHEDULE
-        </div>
-      )}
     </section>
   );
 }

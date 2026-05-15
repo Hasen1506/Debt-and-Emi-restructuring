@@ -3,6 +3,7 @@ import { loadProfileServer } from '@/lib/user-store';
 import { loadThemeServer } from '@/lib/theme';
 import { mergeTrajectories } from '@/lib/trajectory';
 import { mockTrajectory } from '@/lib/mock-data';
+import { deriveMetrics } from '@/lib/derived';
 import { ExistingPlan } from '@/components/plan/ExistingPlan';
 import { EditorialPlan } from '@/components/plan/EditorialPlan';
 import { LedgerPlan } from '@/components/plan/LedgerPlan';
@@ -12,7 +13,10 @@ export const dynamic = 'force-dynamic';
 
 async function loadPlan(): Promise<PlanData> {
   const profile = await loadProfileServer();
-  const surplus = Number(profile.user.monthly_income) - Number(profile.user.fixed_expenses);
+  // Surplus = income − fixed expenses − scheduled EMIs. Same definition the
+  // Home + Debts pages show; previously /plan computed it without subtracting
+  // EMIs which made the KPI disagree across pages.
+  const surplus = Number(deriveMetrics(profile).surplus);
   try {
     const [avalanche, baseline, restructuring] = await Promise.all([
       api.simulate({

@@ -37,31 +37,36 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   const horizonMo = 240;
   const marginalPct = (Number(plan.marginalRate) * 100).toFixed(0);
   const opportunities = plan.opportunities;
+  const interestSaved = Number(plan.baselineInterest) - Number(plan.totalInterest);
 
   const kpis = [
     {
-      l: 'CLEAR DATE',
-      v: monthIndexToLabel(plan.debtFreeMonth).toUpperCase(),
+      l: 'DEBT-FREE BY',
+      v: plan.debtFreeMonth
+        ? monthIndexToLabel(plan.debtFreeMonth).toUpperCase()
+        : `>${horizonMo}MO`,
       c: 'var(--ink)',
-      sub: plan.debtFreeMonth ? `MONTH ${plan.debtFreeMonth} OF ${horizonMo}` : 'BEYOND HORIZON',
+      sub: plan.debtFreeMonth
+        ? `MONTH ${plan.debtFreeMonth} ON AVALANCHE`
+        : 'RAISE SURPLUS OR CUT SPEND TO CLEAR',
     },
     {
       l: 'TOTAL INTEREST',
       v: formatINR(plan.totalInterest),
       c: 'var(--positive)',
-      sub: `VS ${formatINR(plan.baselineInterest)} BASE`,
+      sub: `VS ${formatINR(plan.baselineInterest)} IF MINIMUMS ONLY`,
     },
     {
-      l: 'MONTHS SAVED',
-      v: String(plan.monthsSaved),
+      l: 'YOU SAVE',
+      v: `${formatINR(interestSaved)} · ${plan.monthsSaved}MO`,
       c: 'var(--accent)',
-      sub: 'AGAINST MINIMUMS',
+      sub: 'INTEREST + TIME VS MINIMUMS',
     },
     {
       l: 'SURPLUS',
       v: `${formatINR(plan.surplus)}/MO`,
-      c: 'var(--ink)',
-      sub: 'NET ALLOC',
+      c: plan.surplus >= 0 ? 'var(--ink)' : 'var(--negative)',
+      sub: 'INCOME − FIXED EXPENSES − EMIS',
     },
   ];
 
@@ -82,6 +87,31 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           {!plan.profileIsLive && ' · DEMO'}
           {!plan.live && ' · OFFLINE'}
         </SectionLabel>
+        <div
+          style={{
+            fontSize: 11,
+            color: 'var(--muted)',
+            letterSpacing: '0.04em',
+            lineHeight: 1.65,
+            marginBottom: 10,
+            background: 'var(--card)',
+            border: '1px dashed var(--border)',
+            padding: '8px 12px',
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
+          <strong style={{ color: 'var(--ink)' }}>AVALANCHE</strong> = pay
+          minimums on every loan, throw all surplus at the loan with the highest
+          effective APR. Fastest payoff, lowest total interest.{' '}
+          <strong style={{ color: 'var(--ink)' }}>HORIZON 240MO</strong> = how
+          far ahead the simulator runs (20 yrs). If you don&apos;t clear inside
+          240 months we surface that as &quot;&gt;{horizonMo}mo&quot; rather
+          than invent a date.
+          <br />
+          <span style={{ color: 'var(--muted)' }}>
+            Strategy switcher (snowball / hybrid) lands next.
+          </span>
+        </div>
         <div
           style={{
             display: 'grid',
@@ -228,7 +258,20 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
       )}
 
       <section>
-        <SectionLabel>$ SENSITIVITY · ADJUST + RECOMPUTE</SectionLabel>
+        <SectionLabel>$ WHAT IF · TRY A SCENARIO</SectionLabel>
+        <div
+          style={{
+            fontSize: 11,
+            color: 'var(--muted)',
+            letterSpacing: '0.04em',
+            lineHeight: 1.6,
+            marginBottom: 10,
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
+          Move a slider, see the impact in plain numbers. Nothing here saves
+          to your plan — it&apos;s for &quot;if I did X, would it help?&quot;.
+        </div>
         <div
           style={{
             border: '1px solid var(--ink)',

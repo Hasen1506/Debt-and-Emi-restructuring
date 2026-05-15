@@ -96,9 +96,9 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
         $ DEBTS · 0 OPEN
         <br />
         <br />
-        No loans on file. Re-run onboarding to add your debts:{' '}
-        <a href="/onboarding" style={{ color: 'var(--accent)' }}>
-          [SETUP →]
+        No loans on file. Add your first debt:{' '}
+        <a href="/onboarding?step=loans" style={{ color: 'var(--accent)' }}>
+          [+ ADD DEBT →]
         </a>
       </div>
     );
@@ -182,10 +182,10 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
         >
           <span>$ POSITIONS · DETAIL</span>
           <a
-            href="/onboarding"
+            href="/onboarding?step=loans"
             style={{ color: 'var(--ink)', textDecoration: 'none' }}
           >
-            [↻ EDIT]
+            [+ ADD / EDIT DEBT]
           </a>
         </div>
         <table

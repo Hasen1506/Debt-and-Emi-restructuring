@@ -27,8 +27,19 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
       <section>
         <h1 className="h1">Your debt-free trajectory</h1>
         <p className="muted">
-          Avalanche strategy, current surplus{' '}
-          <span className="num" style={{ color: 'var(--ink)' }}>
+          Built on the <strong>avalanche</strong> strategy — pay every loan&apos;s
+          minimum, throw all surplus at the loan with the highest effective APR.
+          Mathematically the fastest payoff. Your current{' '}
+          <abbr title="Surplus = income − fixed expenses − scheduled EMIs. The cash you have left to deploy against debt above the minimums.">
+            surplus
+          </abbr>{' '}
+          is{' '}
+          <span
+            className="num"
+            style={{
+              color: plan.surplus >= 0 ? 'var(--ink)' : 'var(--negative)',
+            }}
+          >
             {formatINR(plan.surplus)}/mo
           </span>
           {!plan.profileIsLive && (
@@ -168,15 +179,22 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
       >
         <Card>
           <div className="muted" style={{ fontSize: 12 }}>
-            Debt-free date
+            Debt-free by
           </div>
           <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>
-            {monthIndexToLabel(plan.debtFreeMonth)}
+            {plan.debtFreeMonth
+              ? monthIndexToLabel(plan.debtFreeMonth)
+              : 'Beyond 20 yrs'}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            {plan.debtFreeMonth
+              ? `month ${plan.debtFreeMonth} on the avalanche schedule`
+              : 'raise surplus or cut spending to clear inside the 240-month horizon'}
           </div>
         </Card>
         <Card>
           <div className="muted" style={{ fontSize: 12 }}>
-            Total interest
+            Interest you&apos;ll pay
           </div>
           <div
             className="num"
@@ -189,12 +207,13 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
             {formatINR(plan.totalInterest)}
           </div>
           <div className="muted" style={{ fontSize: 12 }}>
-            vs {formatINR(plan.baselineInterest)} paying minimums
+            vs <span className="num">{formatINR(plan.baselineInterest)}</span>{' '}
+            if you only ever paid the bank-required minimums
           </div>
         </Card>
         <Card>
           <div className="muted" style={{ fontSize: 12 }}>
-            Months saved
+            You save
           </div>
           <div
             className="num"
@@ -204,7 +223,12 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
               color: 'var(--accent)',
             }}
           >
-            {plan.monthsSaved}
+            {plan.monthsSaved} months
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            {plan.monthsSaved > 0
+              ? `cleared sooner than the minimums-only path`
+              : `you'd clear at the same time as paying minimums — your surplus is going to other places`}
           </div>
         </Card>
       </div>
@@ -213,8 +237,9 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 16, fontWeight: 600 }}>What if…</div>
           <div className="muted" style={{ fontSize: 13 }}>
-            Move a slider — engine recomputes against your current schedule.
-            Months and interest are versus today&apos;s avalanche plan.
+            Move a slider — see the impact in plain numbers. Nothing here
+            updates your saved plan; it&apos;s a sandbox for &quot;if I did X,
+            would it help?&quot;.
           </div>
         </div>
         <WhatIfPanel user={plan.user} marginalRate={plan.marginalRate} />

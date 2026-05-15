@@ -15,7 +15,7 @@ import type { PlanData } from './PlanData';
  */
 
 function monthsUntilDebtFree(plan: PlanData): string {
-  if (plan.debtFreeMonth == null) return 'over the next few years';
+  if (plan.debtFreeMonth == null) return 'sometime beyond the 20-year horizon';
   if (plan.debtFreeMonth === 1) return 'in one month';
   return `in ${plan.debtFreeMonth} months`;
 }
@@ -72,14 +72,18 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             maxWidth: 620,
           }}
         >
-          That assumes your surplus stays at{' '}
-          <strong>{formatINR(plan.surplus)}/mo</strong>, rates don't shock
-          either way, and you continue the avalanche order (card first, then
-          personal loan, then the home loan tail).
+          That assumes your{' '}
+          <abbr title="Income minus fixed expenses minus scheduled EMIs — the cash you have left each month to deploy above the minimums.">
+            surplus
+          </abbr>{' '}
+          stays at <strong>{formatINR(plan.surplus)}/mo</strong>, rates
+          don&apos;t shock either way, and you continue the{' '}
+          <strong>avalanche</strong> order — minimums on every loan, surplus
+          to whichever loan has the highest effective APR.
           {opportunities.length > 0 && (
             <>
               {' '}
-              Two restructures below could arrive sooner — they're worth
+              The restructures below could arrive sooner — they&apos;re worth
               about{' '}
               <strong style={{ color: 'var(--positive)' }}>
                 {formatINR(plan.totalAnnualSaving)}
@@ -180,9 +184,22 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
           }}
         >
           {[
-            { v: monthIndexToLabel(plan.debtFreeMonth), l: 'debt-free, at this pace' },
-            { v: formatINR(plan.totalInterest), l: `interest paid · vs ${formatINR(plan.baselineInterest)} on minimums` },
-            { v: `${plan.monthsSaved} mo`, l: 'pulled forward vs minimums' },
+            {
+              v: plan.debtFreeMonth
+                ? monthIndexToLabel(plan.debtFreeMonth)
+                : 'Beyond 20 yrs',
+              l: plan.debtFreeMonth
+                ? 'debt-free, at this pace'
+                : 'lift surplus to clear inside the 20-year horizon',
+            },
+            {
+              v: formatINR(plan.totalInterest),
+              l: `interest you'll pay · vs ${formatINR(plan.baselineInterest)} if minimums only`,
+            },
+            {
+              v: `${plan.monthsSaved} mo`,
+              l: 'sooner than the minimums-only path',
+            },
           ].map((s) => (
             <div key={s.l}>
               <div
@@ -239,7 +256,9 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
               marginBottom: 14,
             }}
           >
-            Adjust any of these — the letter rewrites itself.
+            Move a slider — see the impact in plain numbers. Nothing here
+            saves to your plan; it&apos;s a sandbox for testing &quot;if I did
+            X, would it help?&quot;.
           </p>
           <WhatIfPanel user={plan.user} marginalRate={plan.marginalRate} />
         </div>
@@ -283,8 +302,9 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             Strategy
           </div>
           <div style={{ color: 'var(--ink)', fontSize: 12, lineHeight: 1.55 }}>
-            Avalanche — pay the highest-rate debt first. The engine reorders
-            automatically when balances clear.
+            <strong>Avalanche</strong> — pay every minimum, throw the surplus
+            at the loan with the highest effective APR. Mathematically the
+            fastest payoff. A switch to snowball / hybrid is coming next.
           </div>
         </div>
 
@@ -307,8 +327,22 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             Current surplus
           </div>
           <div style={{ color: 'var(--ink)', fontSize: 12, lineHeight: 1.55 }}>
-            {formatINR(plan.surplus)}/mo. Adjusts in /onboarding when income
-            or fixed expenses change.
+            <span
+              className="num"
+              style={{
+                color: plan.surplus >= 0 ? 'var(--ink)' : 'var(--negative)',
+              }}
+            >
+              {formatINR(plan.surplus)}/mo
+            </span>{' '}
+            — income minus fixed expenses minus scheduled EMIs. Adjusts in{' '}
+            <a
+              href="/onboarding"
+              style={{ color: 'var(--accent)', textDecoration: 'underline' }}
+            >
+              setup
+            </a>{' '}
+            when income or fixed expenses change.
           </div>
         </div>
 

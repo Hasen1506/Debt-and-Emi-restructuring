@@ -100,10 +100,10 @@ export function EditorialDebts({ profile }: { profile: StoredProfile }) {
         >
           Once you've{' '}
           <a
-            href="/onboarding"
+            href="/onboarding?step=loans"
             style={{ color: 'var(--accent)', borderBottom: '1px solid var(--accent)' }}
           >
-            walked through setup
+            added your first debt
           </a>
           , your debts will appear here, each with its own line.
         </p>
@@ -196,7 +196,7 @@ export function EditorialDebts({ profile }: { profile: StoredProfile }) {
 
         <div style={{ marginTop: 24 }}>
           <a
-            href="/onboarding"
+            href="/onboarding?step=loans"
             style={{
               fontFamily: 'var(--font-sans)',
               fontSize: 13,
@@ -206,7 +206,7 @@ export function EditorialDebts({ profile }: { profile: StoredProfile }) {
               textDecoration: 'none',
             }}
           >
-            Edit the register →
+            + Add or edit a line →
           </a>
         </div>
       </article>

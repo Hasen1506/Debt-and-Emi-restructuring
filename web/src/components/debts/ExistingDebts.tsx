@@ -42,8 +42,8 @@ export function ExistingDebts({ profile }: { profile: StoredProfile }) {
         <Card>
           <div className="muted" style={{ fontSize: 13 }}>
             You haven't added any debts yet.{' '}
-            <a href="/onboarding" style={{ color: 'var(--accent)' }}>
-              Run setup
+            <a href="/onboarding?step=loans" style={{ color: 'var(--accent)' }}>
+              Add your first debt
             </a>{' '}
             to get started.
           </div>
@@ -154,11 +154,11 @@ export function ExistingDebts({ profile }: { profile: StoredProfile }) {
       })}
 
       <a
-        href="/onboarding"
+        href="/onboarding?step=loans"
         className="btn btn-primary"
         style={{ alignSelf: 'flex-start', textDecoration: 'none' }}
       >
-        Edit in setup
+        + Add or edit debts
       </a>
     </div>
   );

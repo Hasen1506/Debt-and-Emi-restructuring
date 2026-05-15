@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/Card';
 import { BankCombobox, Field, Select, SubmitBar } from '@/components/ToolPrimitives';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
@@ -24,6 +24,27 @@ const STEPS = [
   'Credit score',
   'Review',
 ] as const;
+
+// `?step=loans` (or `?step=income`, etc.) deep-links to a specific step so
+// CTAs like "+ Add debt" on the Debts page can drop the user directly on the
+// Loans card instead of the country picker.
+const STEP_ALIASES: Record<string, number> = {
+  country: 0,
+  income: 1,
+  loans: 2,
+  savings: 3,
+  credit: 4,
+  review: 5,
+};
+
+function parseStepParam(raw: string | null): number {
+  if (!raw) return 0;
+  const lower = raw.toLowerCase();
+  if (lower in STEP_ALIASES) return STEP_ALIASES[lower];
+  const n = Number(lower);
+  if (Number.isInteger(n) && n >= 0 && n < STEPS.length) return n;
+  return 0;
+}
 
 const LOAN_TYPES: { value: LoanType; label: string }[] = [
   { value: 'home_loan', label: 'Home loan' },
@@ -51,7 +72,8 @@ function blankLoan(): LoanPayload {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const searchParams = useSearchParams();
+  const [step, setStep] = useState(() => parseStepParam(searchParams.get('step')));
 
   // ─── form state ─────────────────────────────────────────────────────────
   const [country, setCountry] = useState<Country>('IN');
