@@ -4,7 +4,7 @@
  * Shared form / result primitives for /tools/* screens. Each tool is a
  * narrow decision: a few inputs → one verdict + a couple of numbers.
  */
-import { ReactNode, useId } from 'react';
+import { ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { BANKS_IN, BANKS_US } from '@/lib/banks';
 
 export type FieldKind = 'decimal' | 'integer' | 'text' | 'date';
@@ -68,10 +68,13 @@ export function Field({
 }
 
 /**
- * Bank-name input backed by a native <datalist>. User types freely; the
- * dropdown surfaces known banks for the chosen country (45 today, per
- * engine/rate_cards.py). Unmatched values are accepted as-is so users
- * whose lender isn't on the list aren't blocked.
+ * Tap-to-open bank picker. Replaces the previous <datalist> approach
+ * which was unreliable on mobile (Android Chrome silently dropped
+ * suggestions; iOS Safari rendered a broken popover). This version is
+ * a custom combobox: button reveals current value, click opens a
+ * popover with a search field and a scrollable list, typing filters,
+ * Esc / outside-click closes. Free text is accepted so users whose
+ * lender isn't on the list aren't blocked.
  */
 export function BankCombobox({
   label,
@@ -86,25 +89,179 @@ export function BankCombobox({
   country: string;
   hint?: string;
 }) {
-  const id = `bank-${useId()}`;
-  const banks = country === 'US' ? BANKS_US : BANKS_IN;
+  const allBanks = country === 'US' ? BANKS_US : BANKS_IN;
+  const placeholder = country === 'US' ? 'Select bank' : 'Select bank';
+
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const rootRef = useRef<HTMLLabelElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    // Focus search input shortly after opening so mobile keyboard appears.
+    const t = setTimeout(() => searchRef.current?.focus(), 30);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+      clearTimeout(t);
+    };
+  }, [open]);
+
+  const q = query.trim().toLowerCase();
+  const matches = q
+    ? allBanks.filter((b) => b.toLowerCase().includes(q))
+    : allBanks;
+  const exact = matches.find((b) => b.toLowerCase() === q);
+
+  function pick(v: string) {
+    onChange(v);
+    setQuery('');
+    setOpen(false);
+  }
+
   return (
-    <>
-      <Field
-        label={label}
-        value={value}
-        onChange={onChange}
-        kind="text"
-        list={id}
-        placeholder={country === 'US' ? 'e.g. JPMorgan Chase' : 'e.g. HDFC Bank'}
-        hint={hint}
-      />
-      <datalist id={id}>
-        {banks.map((b) => (
-          <option key={b} value={b} />
-        ))}
-      </datalist>
-    </>
+    <label
+      ref={rootRef}
+      style={{ display: 'flex', flexDirection: 'column', gap: 4, position: 'relative' }}
+    >
+      <span className="muted" style={{ fontSize: 12 }}>
+        {label}
+      </span>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 10px',
+          border: '1px solid var(--border)',
+          borderRadius: 6,
+          background: 'var(--canvas)',
+          color: value ? 'var(--ink)' : 'var(--muted)',
+          fontFamily: 'var(--font-sans)',
+          fontSize: 14,
+          textAlign: 'left',
+          cursor: 'pointer',
+          width: '100%',
+        }}
+      >
+        <span>{value || placeholder}</span>
+        <span aria-hidden style={{ color: 'var(--muted)', fontSize: 11 }}>▾</span>
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            zIndex: 50,
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            maxHeight: 320,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          <input
+            ref={searchRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search bank or type your own…"
+            autoComplete="off"
+            style={{
+              padding: '10px 12px',
+              border: 'none',
+              borderBottom: '1px solid var(--border)',
+              background: 'var(--card)',
+              color: 'var(--ink)',
+              fontFamily: 'var(--font-sans)',
+              fontSize: 14,
+              outline: 'none',
+            }}
+          />
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {matches.length === 0 && !q && (
+              <div className="muted" style={{ padding: 12, fontSize: 13 }}>
+                No banks in list — type your lender's name.
+              </div>
+            )}
+            {matches.map((b) => {
+              const active = b === value;
+              return (
+                <button
+                  key={b}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => pick(b)}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: 'none',
+                    background: active ? 'var(--soft-bg)' : 'transparent',
+                    color: 'var(--ink)',
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 14,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {b}
+                </button>
+              );
+            })}
+            {q && !exact && (
+              <button
+                type="button"
+                onClick={() => pick(query.trim())}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: 'none',
+                  borderTop: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--accent)',
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 13,
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                }}
+              >
+                Use “{query.trim()}”
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {hint && (
+        <span className="muted" style={{ fontSize: 11 }}>
+          {hint}
+        </span>
+      )}
+    </label>
   );
 }
 

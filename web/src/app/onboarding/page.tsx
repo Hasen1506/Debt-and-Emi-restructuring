@@ -37,11 +37,11 @@ function blankLoan(): LoanPayload {
   return {
     loan_type: 'credit_card',
     bank: '',
-    outstanding: '0',
-    nominal_rate: '0.18',
+    outstanding: '',
+    nominal_rate: '',
     rate_type: 'fixed',
     tenure_months_remaining: 0,
-    scheduled_emi: '0',
+    scheduled_emi: '',
   };
 }
 
@@ -52,20 +52,20 @@ export default function OnboardingPage() {
   // ─── form state ─────────────────────────────────────────────────────────
   const [country, setCountry] = useState<Country>('IN');
   const [incomeType, setIncomeType] = useState<IncomeType>('salaried');
-  const [monthlyIncome, setMonthlyIncome] = useState('150000');
-  const [fixedExpenses, setFixedExpenses] = useState('45000');
-  const [primaryBank, setPrimaryBank] = useState('HDFC Bank');
+  const [monthlyIncome, setMonthlyIncome] = useState('');
+  const [fixedExpenses, setFixedExpenses] = useState('');
+  const [primaryBank, setPrimaryBank] = useState('');
   const [taxRegime, setTaxRegime] = useState<TaxRegimeIN>('new');
-  const [annualHikeRate, setAnnualHikeRate] = useState('0.08');
-  const [marginalRate, setMarginalRate] = useState('0.30');
+  const [annualHikeRate, setAnnualHikeRate] = useState('');
+  const [marginalRate, setMarginalRate] = useState('');
 
   const [loans, setLoans] = useState<LoanPayload[]>([blankLoan()]);
 
-  const [savingsBalance, setSavingsBalance] = useState('300000');
-  const [efundBalance, setEfundBalance] = useState('150000');
-  const [efundTarget, setEfundTarget] = useState('300000');
+  const [savingsBalance, setSavingsBalance] = useState('');
+  const [efundBalance, setEfundBalance] = useState('');
+  const [efundTarget, setEfundTarget] = useState('');
 
-  const [creditScore, setCreditScore] = useState('720');
+  const [creditScore, setCreditScore] = useState('');
 
   function updateLoan(idx: number, patch: Partial<LoanPayload>) {
     setLoans((cur) => cur.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
@@ -79,20 +79,31 @@ export default function OnboardingPage() {
     setLoans((cur) => cur.filter((_, i) => i !== idx));
   }
 
+  // Coalesce empty strings to sensible numeric defaults so the engine accepts
+  // the payload even if the user skipped optional fields.
+  const num = (v: string, fallback = '0') => (v.trim() === '' ? fallback : v);
+
   function buildUser(): UserPayload {
     return {
       country,
       income_type: incomeType,
-      annual_income: String(Number(monthlyIncome) * 12),
-      monthly_income: monthlyIncome,
-      fixed_expenses: fixedExpenses,
-      savings_balance: savingsBalance,
+      annual_income: String(Number(num(monthlyIncome)) * 12),
+      monthly_income: num(monthlyIncome),
+      fixed_expenses: num(fixedExpenses),
+      savings_balance: num(savingsBalance),
       primary_bank: primaryBank,
       location_tier: 'urban',
       tax_regime: country === 'IN' ? taxRegime : undefined,
-      efund_balance: efundBalance,
-      efund_target: efundTarget,
-      loans: loans.filter((l) => Number(l.outstanding) > 0),
+      efund_balance: num(efundBalance),
+      efund_target: num(efundTarget),
+      loans: loans
+        .filter((l) => Number(l.outstanding) > 0)
+        .map((l) => ({
+          ...l,
+          outstanding: num(l.outstanding),
+          nominal_rate: num(l.nominal_rate, '0'),
+          scheduled_emi: num(l.scheduled_emi),
+        })),
       investment_options: [
         {
           name: country === 'IN' ? 'Liquid fund' : 'HYSA',
@@ -101,7 +112,7 @@ export default function OnboardingPage() {
           is_in_pool: true,
         },
       ],
-      annual_hike_rate: annualHikeRate,
+      annual_hike_rate: num(annualHikeRate),
       inflation_rate: country === 'IN' ? '0.046' : '0.025',
     };
   }
@@ -110,10 +121,10 @@ export default function OnboardingPage() {
     const score = Number(creditScore);
     saveProfileClient({
       user: buildUser(),
-      marginalRate,
+      marginalRate: num(marginalRate, '0.30'),
       creditScore: Number.isFinite(score) && score >= 300 ? score : null,
     });
-    router.push('/plan');
+    router.push('/debts');
   }
 
   const canAdvance =
