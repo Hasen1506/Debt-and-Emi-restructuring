@@ -194,6 +194,7 @@ class CompareRequest(_Base):
     strategy: Strategy = Strategy.AVALANCHE
     # what-if knobs
     surplus_delta: Optional[Decimal] = None
+    surplus_delta_start_month: int = 1
     income_shock_months: Optional[int] = None
     rate_shock_delta: Optional[Decimal] = None
     rate_shock_floating_only: bool = True

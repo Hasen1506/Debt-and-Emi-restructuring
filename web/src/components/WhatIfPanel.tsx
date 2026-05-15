@@ -77,6 +77,9 @@ export function WhatIfPanel({
 
   // Surplus delta: ₹/month extra (positive = more cash to debts).
   const [surplusDelta, setSurplusDelta] = useState(0);
+  // Month from which the surplus delta kicks in (1-based). 1 = "starting now",
+  // anything higher defers the cut. Drives surplus_delta_start_month.
+  const [surplusStartMonth, setSurplusStartMonth] = useState(1);
   // Rate shock: basis points applied to floating rates.
   const [rateShockBps, setRateShockBps] = useState(0);
   // Lump sum + target loan.
@@ -88,7 +91,7 @@ export function WhatIfPanel({
   const [lump, setLump] = useState<ScenarioState>(INITIAL);
 
   useDebouncedScenario(
-    surplusDelta,
+    `${surplusDelta}|${surplusStartMonth}`,
     setSurplus,
     async () =>
       surplusDelta === 0
@@ -99,6 +102,7 @@ export function WhatIfPanel({
             strategy: 'avalanche',
             horizon_months: 240,
             surplus_delta: String(surplusDelta),
+            surplus_delta_start_month: surplusStartMonth,
           }),
   );
 
@@ -176,6 +180,13 @@ export function WhatIfPanel({
         positive
         summary={summary(surplus.result, true)}
         disabled={fixedExpensesCap <= 0}
+        extraControls={
+          <StartMonthPicker
+            value={surplusStartMonth}
+            onChange={setSurplusStartMonth}
+            disabled={fixedExpensesCap <= 0 || surplusDelta === 0}
+          />
+        }
       />
 
       <SliderRow
@@ -195,6 +206,8 @@ export function WhatIfPanel({
         state={rate}
         positive={false}
         summary={summary(rate.result, false)}
+        inputMode="bps"
+        showMaxButton={false}
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: 12 }}>
@@ -274,6 +287,9 @@ function SliderRow({
   positive,
   summary,
   disabled,
+  inputMode = 'integer',
+  showMaxButton = true,
+  extraControls,
 }: {
   title: string;
   hint: string;
@@ -289,6 +305,12 @@ function SliderRow({
   /** Plain-language one-liner shown below the numeric result. */
   summary?: string | null;
   disabled?: boolean;
+  /** 'integer' for ₹ amounts (no decimals), 'bps' for signed basis points. */
+  inputMode?: 'integer' | 'bps';
+  /** Hide the MAX button (e.g. for bps where +max is rare). */
+  showMaxButton?: boolean;
+  /** Extra controls slot — e.g. start-date picker on the surplus row. */
+  extraControls?: React.ReactNode;
 }) {
   const months = state.result
     ? Math.round(Number(state.result.months_pulled_forward))
@@ -315,12 +337,64 @@ function SliderRow({
       }}
     >
       <div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
           <strong style={{ fontSize: 14 }}>{title}</strong>
-          <span className="num muted" style={{ fontSize: 12 }}>
-            {formatValue(value)}
-            {unit}
-          </span>
+          <TypableAmountInput
+            value={value}
+            onChange={onChange}
+            min={min}
+            max={max}
+            step={step}
+            disabled={disabled}
+            unit={unit}
+            mode={inputMode}
+            placeholder={formatValue(0)}
+          />
+          {showMaxButton && !disabled && (
+            <button
+              type="button"
+              onClick={() => onChange(max)}
+              style={{
+                fontSize: 11,
+                padding: '2px 8px',
+                border: '1px solid var(--border)',
+                borderRadius: 4,
+                background: 'transparent',
+                color: 'var(--muted)',
+                cursor: 'pointer',
+                letterSpacing: '0.04em',
+              }}
+              title={`Set to maximum (${formatValue(max)}${unit})`}
+            >
+              MAX
+            </button>
+          )}
+          {value !== 0 && (
+            <button
+              type="button"
+              onClick={() => onChange(0)}
+              style={{
+                fontSize: 11,
+                padding: '2px 8px',
+                border: '1px solid var(--border)',
+                borderRadius: 4,
+                background: 'transparent',
+                color: 'var(--muted)',
+                cursor: 'pointer',
+                letterSpacing: '0.04em',
+              }}
+              title="Reset to no change"
+            >
+              CLEAR
+            </button>
+          )}
         </div>
         <input
           type="range"
@@ -330,11 +404,12 @@ function SliderRow({
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
           disabled={disabled}
-          style={{ width: '100%', marginTop: 6 }}
+          style={{ width: '100%', marginTop: 8 }}
         />
         <div className="muted" style={{ fontSize: 11, marginTop: 4, lineHeight: 1.5 }}>
           {hint}
         </div>
+        {extraControls}
       </div>
       <div style={{ textAlign: 'right', minWidth: 200 }}>
         {state.loading ? (
@@ -392,6 +467,180 @@ function SliderRow({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * "Starting in X months" picker — drives surplus_delta_start_month so the
+ * user can model a cut they'll only commit to from a future date. The
+ * options are coarse-grained on purpose: precise month-picking is a false
+ * sense of accuracy for what's a budget intention.
+ */
+function StartMonthPicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+}) {
+  const today = useMemo(() => new Date(), []);
+
+  function labelForOffset(offset: number): string {
+    if (offset <= 0) return 'now';
+    const d = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+    return d
+      .toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
+      .replace(' ', " '");
+  }
+
+  const options = [
+    { v: 1, label: `Starting now (${labelForOffset(0)})` },
+    { v: 4, label: `Starting in 3 months (${labelForOffset(3)})` },
+    { v: 7, label: `Starting in 6 months (${labelForOffset(6)})` },
+    { v: 13, label: `Starting in 12 months (${labelForOffset(12)})` },
+  ];
+
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        fontSize: 12,
+        opacity: disabled ? 0.55 : 1,
+      }}
+    >
+      <span className="muted">Apply this cut</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        disabled={disabled}
+        style={{
+          padding: '3px 8px',
+          fontSize: 12,
+          fontFamily: 'var(--font-sans)',
+          border: '1px solid var(--border)',
+          borderRadius: 4,
+          background: 'var(--canvas)',
+          color: 'var(--ink)',
+        }}
+      >
+        {options.map((o) => (
+          <option key={o.v} value={o.v}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/**
+ * Number input that keeps the slider and a typed value in sync. The user
+ * can type freely (even out-of-range) while focused, and we clamp on blur
+ * or Enter — so they're never fighting the slider mid-keystroke.
+ *
+ * `mode = 'integer'` formats with commas (₹ amounts).
+ * `mode = 'bps'` keeps the bare number (signed basis points).
+ */
+function TypableAmountInput({
+  value,
+  onChange,
+  min,
+  max,
+  step,
+  unit,
+  disabled,
+  mode,
+  placeholder,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  disabled?: boolean;
+  mode: 'integer' | 'bps';
+  placeholder?: string;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  const display = useMemo(() => {
+    if (draft != null) return draft;
+    if (value === 0) return '';
+    if (mode === 'bps') return String(value);
+    return value.toLocaleString('en-IN');
+  }, [draft, value, mode]);
+
+  function commit(raw: string) {
+    setDraft(null);
+    if (raw.trim() === '') {
+      onChange(0);
+      return;
+    }
+    // Strip commas / ₹ / spaces; keep optional leading '-'
+    const cleaned = raw.replace(/[^\d-]/g, '');
+    const n = Number(cleaned);
+    if (!Number.isFinite(n)) {
+      onChange(0);
+      return;
+    }
+    const stepped = step > 0 ? Math.round(n / step) * step : n;
+    const clamped = Math.min(max, Math.max(min, stepped));
+    onChange(clamped);
+  }
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'baseline',
+        gap: 2,
+        fontFamily: 'var(--font-mono)',
+      }}
+    >
+      {mode === 'integer' && (
+        <span className="muted" style={{ fontSize: 12 }}>
+          ₹
+        </span>
+      )}
+      <input
+        type="text"
+        inputMode="numeric"
+        value={display}
+        placeholder={placeholder}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          if (e.key === 'Escape') {
+            setDraft(null);
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        disabled={disabled}
+        style={{
+          width: mode === 'bps' ? 60 : 90,
+          padding: '2px 4px',
+          fontSize: 13,
+          fontFamily: 'var(--font-mono)',
+          border: '1px solid var(--border)',
+          borderRadius: 4,
+          background: 'var(--canvas)',
+          color: 'var(--ink)',
+          textAlign: 'right',
+        }}
+      />
+      {unit && (
+        <span className="muted" style={{ fontSize: 12 }}>
+          {unit}
+        </span>
+      )}
+    </span>
   );
 }
 

@@ -24,11 +24,22 @@ def with_surplus_delta(
     strategy: Strategy = Strategy.AVALANCHE,
     horizon_months: int = 360,
     marginal_rate: Decimal | None = None,
+    start_month: int = 1,
 ) -> SimulationResult:
-    """`delta` adds to monthly_income (positive or negative)."""
-    u = deepcopy(user)
-    u.monthly_income += delta
-    return simulate_plan(u, strategy, horizon_months, marginal_rate=marginal_rate)
+    """`delta` adds to monthly_income (positive or negative).
+
+    If `start_month > 1`, the delta is deferred — useful for "I'll cut my
+    fixed expenses by ₹5k from month 6 onwards" what-if scenarios. Defaults
+    to month 1 (apply from start) so existing callers behave unchanged.
+    """
+    return simulate_plan(
+        user,
+        strategy,
+        horizon_months,
+        marginal_rate=marginal_rate,
+        income_delta=delta,
+        income_delta_from_month=max(1, start_month),
+    )
 
 
 def with_income_shock(

@@ -46,6 +46,30 @@ def test_surplus_delta_pulls_payoff_forward():
     assert diff["interest_saved"] > D("0")
 
 
+def test_surplus_delta_start_month_defers_benefit():
+    """Surplus that kicks in later saves less interest than the same delta
+    applied from month 1 — proves the start_month parameter actually defers."""
+    user = _user()
+    horizon = 24
+    immediate = with_surplus_delta(user, D("10000"),
+                                    horizon_months=horizon, start_month=1)
+    deferred = with_surplus_delta(user, D("10000"),
+                                    horizon_months=horizon, start_month=12)
+    # Both pull payoff forward vs baseline, but immediate saves more interest
+    assert immediate.total_interest_paid < deferred.total_interest_paid
+
+
+def test_surplus_delta_start_month_beyond_horizon_matches_baseline():
+    """If the surplus delta only kicks in after the horizon ends, the
+    scenario equals the baseline — nothing has changed during the window."""
+    user = _user()
+    horizon = 6
+    baseline = simulate_plan(user, Strategy.AVALANCHE, horizon_months=horizon)
+    later = with_surplus_delta(user, D("50000"),
+                                horizon_months=horizon, start_month=99)
+    assert later.total_interest_paid == baseline.total_interest_paid
+
+
 def test_rate_shock_reduces_interest():
     """RBI cut 50bps on the floating home loan → less interest over horizon."""
     user = _user()

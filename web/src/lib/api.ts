@@ -286,6 +286,8 @@ export const api = {
     marginal_rate?: string;
     strategy?: Strategy;
     surplus_delta?: string;
+    /** 1-based month from which `surplus_delta` applies (default 1 = now). */
+    surplus_delta_start_month?: number;
     income_shock_months?: number;
     rate_shock_delta?: string;
     rate_shock_floating_only?: boolean;

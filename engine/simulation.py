@@ -71,14 +71,25 @@ def simulate_plan(
     matched_contribution: Decimal = D("0"),
     marginal_rate: Decimal | None = None,
     simple_mode: bool = False,
+    income_delta: Decimal = D("0"),
+    income_delta_from_month: int = 1,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`. Returns one MonthRow per month
     until either all loans clear or horizon is reached.
 
     Loans in `user.loans` are deep-copied — the caller's data is not mutated.
+
+    `income_delta` (default 0) is added to `monthly_income` starting at
+    `income_delta_from_month` (1-based, default 1 = from the start). This
+    lets the sensitivity engine model "I'll trim ₹5k/mo from month 7
+    onwards" without mutating the user upfront.
     """
     loans = [deepcopy(l) for l in user.loans]
     income = user.monthly_income
+    if income_delta != D("0") and income_delta_from_month <= 1:
+        # Apply immediately — preserves the old with_surplus_delta semantics
+        # where the delta was baked into user.monthly_income before the call.
+        income = income + income_delta
     marg = _marginal_rate(user, marginal_rate)
     months: list[MonthRow] = []
     total_interest = D("0")
@@ -91,6 +102,12 @@ def simulate_plan(
         # Salary growth — once every 12 months
         if m > 1 and (m - 1) % 12 == 0 and user.annual_hike_rate > 0:
             income = income * (D("1") + user.annual_hike_rate)
+
+        # Deferred surplus delta — kicks in at the user's chosen month.
+        # `+=` only on the exact firing month so it stacks with subsequent
+        # salary growth without doubling up.
+        if income_delta != D("0") and m == income_delta_from_month and m > 1:
+            income = income + income_delta
 
         # Filter out paid-off loans
         active = [l for l in loans if l.outstanding > 0]
