@@ -10,6 +10,7 @@ import {
   type RestructuringOpportunity,
 } from '@/lib/api';
 import type { PlanData } from './PlanData';
+import { ActivityImpactBanner } from './ActivityImpactBanner';
 
 const KIND_LABEL: Record<RestructuringOpportunity['kind'], string> = {
   balance_transfer: 'Balance transfer',
@@ -73,6 +74,15 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
           <StrategySwitcher active={plan.strategy} variant="inline" />
         </div>
       </section>
+
+      {plan.activityImpact && (
+        <ActivityImpactBanner
+          impact={plan.activityImpact}
+          loans={plan.user.loans}
+          country={plan.user.country}
+          variant="inline"
+        />
+      )}
 
       {plan.opportunities.length > 0 && (
         <Card style={{ borderLeft: '3px solid var(--positive)' }}>

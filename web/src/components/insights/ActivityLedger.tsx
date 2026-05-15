@@ -30,6 +30,7 @@ import {
   type ActivityKind,
 } from '@/lib/activity';
 import { estimateLateFee } from '@/lib/estimate-penalty';
+import { syncActivityCookieClient } from '@/lib/activity-cookie';
 import {
   formatINR,
   formatUSD,
@@ -88,22 +89,35 @@ export function ActivityLedger({
   // markup than the first client render. The skeleton state below shows
   // a "loading" line briefly; in practice it's one tick.
   useEffect(() => {
-    setEntries(readActivityClient());
+    const initial = readActivityClient();
+    setEntries(initial);
     setHydrated(true);
+    // Also re-sync the cookie at mount so the cookie reflects whatever
+    // localStorage carries — covers the "new browser, restored from
+    // backup" case where localStorage exists but the cookie doesn't.
+    syncActivityCookieClient(initial, user.loans, user.country);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sync across tabs — if another tab adds an entry, refresh ours.
   useEffect(() => {
     function onStorage(e: StorageEvent) {
-      if (e.key === 'finoptima_activity') setEntries(readActivityClient());
+      if (e.key === 'finoptima_activity') {
+        const next = readActivityClient();
+        setEntries(next);
+        syncActivityCookieClient(next, user.loans, user.country);
+      }
     }
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  }, [user.loans, user.country]);
 
   function commit(next: ActivityEntry[]) {
     setEntries(next);
     writeActivityClient(next);
+    // Mirror the projection-relevant subset to a cookie so /plan can apply
+    // the deltas server-side on next render.
+    syncActivityCookieClient(next, user.loans, user.country);
   }
 
   function add(draft: Omit<ActivityEntry, 'id' | 'loggedAt'>) {

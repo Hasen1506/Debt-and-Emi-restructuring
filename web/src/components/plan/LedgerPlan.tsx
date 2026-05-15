@@ -9,6 +9,7 @@ import {
 } from '@/lib/api';
 import type { PlanData } from './PlanData';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
+import { ActivityImpactBanner } from './ActivityImpactBanner';
 
 /**
  * Ledger Plan — amortisation print-out.
@@ -165,6 +166,15 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           <DebtTrajectoryChart data={plan.trajectory} />
         </div>
       </section>
+
+      {plan.activityImpact && (
+        <ActivityImpactBanner
+          impact={plan.activityImpact}
+          loans={plan.user.loans}
+          country={plan.user.country}
+          variant="ledger"
+        />
+      )}
 
       <LedgerScheduleTable
         data={plan.trajectory}

@@ -2,6 +2,10 @@ import { api, type SimulateResponse, type UserPayload } from '@/lib/api';
 import { loadProfileServer } from '@/lib/user-store';
 import { loadThemeServer } from '@/lib/theme';
 import { loadStrategyServer, type StrategyName } from '@/lib/strategy';
+import {
+  applyActivityDeltas,
+  loadActivityDeltasServer,
+} from '@/lib/activity-cookie';
 import { mergeTrajectories } from '@/lib/trajectory';
 import { mockTrajectory } from '@/lib/mock-data';
 import { deriveMetrics } from '@/lib/derived';
@@ -32,17 +36,28 @@ async function loadPlan(strategy: StrategyName): Promise<PlanData> {
   // Home + Debts pages show; previously /plan computed it without subtracting
   // EMIs which made the KPI disagree across pages.
   const surplus = Number(deriveMetrics(profile).surplus);
+
+  // Apply activity-ledger deltas (missed/partial payments + their penalties)
+  // to the user's loans BEFORE simulating. Baseline uses the same adjusted
+  // loans so the avalanche-vs-minimums diff stays apples-to-apples.
+  const deltas = await loadActivityDeltasServer();
+  const application = applyActivityDeltas(profile.user.loans, deltas);
+  const adjustedUser: UserPayload = {
+    ...profile.user,
+    loans: application.loans,
+  };
+
   try {
     const [scenario, baseline, restructuring] = await Promise.all([
       api.simulate({
-        user: profile.user,
+        user: adjustedUser,
         strategy,
         horizon_months: 240,
         marginal_rate: profile.marginalRate,
       }),
-      api.baseline({ user: profile.user, horizon_months: 240 }),
+      api.baseline({ user: adjustedUser, horizon_months: 240 }),
       api.restructuring({
-        user: profile.user,
+        user: adjustedUser,
         marginal_rate: profile.marginalRate,
       }),
     ]);
@@ -65,6 +80,14 @@ async function loadPlan(strategy: StrategyName): Promise<PlanData> {
       marginalRate: profile.marginalRate,
       strategy,
       monthlyPayments: extractMonthlyPayments(scenario),
+      activityImpact:
+        application.entryCount > 0
+          ? {
+              perLoanBumps: application.perLoanBumps,
+              totalBump: application.totalBump,
+              entryCount: application.entryCount,
+            }
+          : null,
     };
   } catch {
     return {
@@ -82,6 +105,7 @@ async function loadPlan(strategy: StrategyName): Promise<PlanData> {
       marginalRate: profile.marginalRate,
       strategy,
       monthlyPayments: [],
+      activityImpact: null,
     };
   }
 }

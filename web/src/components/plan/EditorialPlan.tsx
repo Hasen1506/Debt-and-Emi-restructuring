@@ -8,6 +8,7 @@ import {
 } from '@/lib/strategy';
 import { formatINR, formatPct, monthIndexToLabel } from '@/lib/api';
 import type { PlanData } from './PlanData';
+import { ActivityImpactBanner } from './ActivityImpactBanner';
 
 /**
  * Editorial Plan — "Chapter II · the path".
@@ -98,6 +99,15 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             </>
           )}
         </p>
+
+        {plan.activityImpact && (
+          <ActivityImpactBanner
+            impact={plan.activityImpact}
+            loans={plan.user.loans}
+            country={plan.user.country}
+            variant="aside"
+          />
+        )}
 
         <figure
           style={{
