@@ -6,6 +6,13 @@
  * Keep this in sync with engine/rate_cards.py when bank lists change.
  */
 
+/**
+ * When the rate cards in engine/rate_cards.py were last verified. Surfaced
+ * in the EffectiveAprBreakdown disclaimer so users know the assumptions
+ * aren't infinitely fresh. Bump this when rate_cards.py is refreshed.
+ */
+export const RATE_CARD_AS_OF = 'May 2026';
+
 export const BANKS_IN: readonly string[] = [
   // Tier A — authoritative May 2026
   'SBI',

@@ -1,25 +1,33 @@
+'use client';
+
 /**
  * Ledger Home — bank-statement dashboard.
  *
- * Five-column KPI grid with hard black grout (1px gutters revealing the
- * ink colour underneath), then a tabular debts list with monospace
- * columns, dashed row separators, and a TOTAL footer. Mirrors DHome from
- * direction-d.jsx.
+ * Reads the user's saved profile (passed in by the server page) and
+ * derives every visible number — outstanding totals, blended effective
+ * APR, surplus, and the loudest debt — using lib/derived.ts. No
+ * hardcoded loans. The DEBT-FREE KPI defers to /plan because computing
+ * it accurately needs the simulation engine.
  */
 
-const KPIS = [
-  { l: 'OUTSTANDING', v: '₹41,80,000', s: '−₹2,40,000 MTD', tone: 'var(--ink)' },
-  { l: 'DEBT-FREE', v: 'AUG 2027', s: '17 MO · −14 VS MIN', tone: 'var(--positive)' },
-  { l: 'EFFECTIVE APR', v: '11.94%', s: 'WEIGHTED', tone: 'var(--ink)' },
-  { l: 'SURPLUS', v: '₹1,05,000/MO', s: 'NET ALLOC', tone: 'var(--positive)' },
-  { l: 'NEXT ACTION', v: 'PAY ₹18,500', s: '→ ICICI · DUE 1 JUN', tone: 'var(--accent)' },
-] as const;
+import { useMemo, useState } from 'react';
+import Decimal from 'decimal.js';
+import type { StoredProfile } from '@/lib/user-store';
+import type { LoanType } from '@/lib/api';
+import { formatINR } from '@/lib/api';
+import { fmt } from '@/lib/effective-apr';
+import { deriveMetrics, type LoanWithEffective } from '@/lib/derived';
+import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 
-const POSITIONS = [
-  { p: '01', l: 'ICICI', t: 'CARD', r: '36.00%', e: '42.48%', o: '₹1,00,000', emi: '—', tn: '—', nx: 'PAY ₹18,500', tone: 'var(--negative)', hl: true },
-  { p: '02', l: 'SBI', t: 'PERS LOAN', r: '13.00%', e: '13.00%', o: '₹80,000', emi: '₹2,400', tn: '36 mo', nx: 'AUTO', tone: 'var(--ink)', hl: false },
-  { p: '03', l: 'HDFC', t: 'HOME · FLT', r: '8.50%', e: '8.50%', o: '₹40,00,000', emi: '₹35,200', tn: '240 mo', nx: 'AUTO · RESET 47d', tone: 'var(--ink)', hl: false },
-] as const;
+const LOAN_TYPE_LABEL: Record<LoanType, string> = {
+  credit_card: 'CARD',
+  personal_loan: 'PERS LOAN',
+  home_loan: 'HOME',
+  auto_loan: 'AUTO',
+  education_loan: 'EDU',
+  gold_loan: 'GOLD',
+  bnpl: 'BNPL',
+};
 
 const TOOLS = [
   { token: 'WINDFALL', sub: 'BONUS / REFUND / GIFT', href: '/tools/windfall' },
@@ -47,7 +55,71 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function LedgerHome() {
+export function LedgerHome({ profile }: { profile: StoredProfile }) {
+  const m = useMemo(() => deriveMetrics(profile), [profile]);
+  const { user, marginalRate } = profile;
+  const country = user.country;
+  const taxRegime = country === 'IN' ? user.tax_regime : undefined;
+  const [expanded, setExpanded] = useState<number | null>(null);
+
+  if (m.loans.length === 0) {
+    return (
+      <div
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 12,
+          padding: 24,
+          border: '1px dashed var(--border)',
+        }}
+      >
+        $ STATUS · NO DEBTS ON FILE
+        <br />
+        <br />
+        Run setup to add your debts:{' '}
+        <a href="/onboarding" style={{ color: 'var(--accent)' }}>
+          [SETUP →]
+        </a>
+      </div>
+    );
+  }
+
+  const ccy = (d: Decimal) => formatINR(d);
+  const surplusTone =
+    m.surplus.gt(0) ? 'var(--positive)' : m.surplus.lt(0) ? 'var(--negative)' : 'var(--ink)';
+
+  const kpis = [
+    {
+      l: 'OUTSTANDING',
+      v: ccy(m.totalOutstanding),
+      s: `${m.loans.length} OPEN ${m.loans.length === 1 ? 'LINE' : 'LINES'}`,
+      tone: 'var(--ink)',
+    },
+    {
+      l: 'DEBT-FREE',
+      v: '→ SEE /PLAN',
+      s: 'NEEDS SIMULATION',
+      tone: 'var(--muted)',
+    },
+    {
+      l: 'EFFECTIVE APR',
+      v: fmt(m.blendedEffective),
+      s: 'WEIGHTED BY BALANCE',
+      tone: 'var(--ink)',
+    },
+    {
+      l: 'SURPLUS',
+      v: `${ccy(m.surplus)}/MO`,
+      s: m.surplus.gt(0) ? 'NET ALLOC' : 'OVER BUDGET',
+      tone: surplusTone,
+    },
+    {
+      l: 'LOUDEST',
+      v: m.loudest ? `${m.loudest.loan.bank.toUpperCase() || '—'}` : '—',
+      s: m.loudest ? `${fmt(m.loudest.effective)} EFFECTIVE` : '—',
+      tone: m.loudest && m.loudest.effective.gt(0.24) ? 'var(--negative)' : 'var(--ink)',
+    },
+  ];
+
   return (
     <div
       style={{
@@ -70,9 +142,9 @@ export function LedgerHome() {
             padding: 1,
           }}
         >
-          {KPIS.map((m) => (
+          {kpis.map((k) => (
             <div
-              key={m.l}
+              key={k.l}
               style={{ background: 'var(--canvas)', padding: '10px 12px' }}
             >
               <div
@@ -83,20 +155,20 @@ export function LedgerHome() {
                   marginBottom: 4,
                 }}
               >
-                {m.l}
+                {k.l}
               </div>
               <div
                 style={{
                   fontSize: 17,
                   fontWeight: 700,
-                  color: m.tone,
+                  color: k.tone,
                   letterSpacing: '-0.01em',
                 }}
               >
-                {m.v}
+                {k.v}
               </div>
               <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
-                {m.s}
+                {k.s}
               </div>
             </div>
           ))}
@@ -114,12 +186,9 @@ export function LedgerHome() {
             marginBottom: 6,
           }}
         >
-          <span>$ OPEN POSITIONS · {POSITIONS.length}</span>
-          <a
-            href="/debts"
-            style={{ color: 'var(--ink)', textDecoration: 'none' }}
-          >
-            [+] ADD DEBT
+          <span>$ OPEN POSITIONS · {m.loans.length}</span>
+          <a href="/onboarding" style={{ color: 'var(--ink)', textDecoration: 'none' }}>
+            [↻ EDIT]
           </a>
         </div>
         <table
@@ -136,10 +205,10 @@ export function LedgerHome() {
                 borderBottom: '1px solid var(--ink)',
               }}
             >
-              {['#', 'LENDER', 'TYPE', 'RATE', 'EFFECTIVE', 'OUTSTANDING', 'EMI', 'TENURE', 'NEXT'].map(
+              {['#', 'LENDER', 'TYPE', 'NOMINAL', 'EFFECTIVE', 'OUTSTANDING', 'EMI', 'TENURE', ''].map(
                 (h, i) => (
                   <th
-                    key={h}
+                    key={h || `c${i}`}
                     style={{
                       padding: '8px 12px',
                       textAlign: i > 2 ? 'right' : 'left',
@@ -156,56 +225,27 @@ export function LedgerHome() {
             </tr>
           </thead>
           <tbody>
-            {POSITIONS.map((r) => (
-              <tr
-                key={r.p}
-                style={{
-                  borderBottom: '1px dashed var(--dash)',
-                  background: r.hl ? '#fff3a3' : 'transparent',
-                }}
-              >
-                <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>{r.p}</td>
-                <td style={{ padding: '10px 12px', fontWeight: 700 }}>{r.l}</td>
-                <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>{r.t}</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right' }}>{r.r}</td>
-                <td
-                  style={{
-                    padding: '10px 12px',
-                    textAlign: 'right',
-                    color: r.tone,
-                    fontWeight: r.hl ? 700 : 400,
-                  }}
-                >
-                  {r.e}
-                </td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                  {r.o}
-                </td>
-                <td style={{ padding: '10px 12px', textAlign: 'right' }}>{r.emi}</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--muted)' }}>
-                  {r.tn}
-                </td>
-                <td
-                  style={{
-                    padding: '10px 12px',
-                    textAlign: 'right',
-                    color: r.tone,
-                    fontWeight: r.hl ? 700 : 400,
-                  }}
-                >
-                  {r.nx}
-                </td>
-              </tr>
+            {m.loans.map((row) => (
+              <PositionRow
+                key={row.index}
+                row={row}
+                expanded={expanded === row.index}
+                onToggle={() => setExpanded(expanded === row.index ? null : row.index)}
+                marginalRate={marginalRate}
+                country={country}
+                taxRegime={taxRegime}
+                loudestIdx={m.loudest?.index ?? -1}
+              />
             ))}
             <tr style={{ borderTop: '2px solid var(--ink)' }}>
               <td colSpan={5} style={{ padding: '10px 12px', fontWeight: 700 }}>
                 TOTAL
               </td>
               <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                ₹41,80,000
+                {ccy(m.totalOutstanding)}
               </td>
               <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                ₹37,600/mo
+                {ccy(m.emiBurden)}/mo
               </td>
               <td colSpan={2}></td>
             </tr>
@@ -213,35 +253,44 @@ export function LedgerHome() {
         </table>
       </section>
 
-      <section>
-        <SectionLabel>$ DECISION · MAY 2026</SectionLabel>
-        <div
-          style={{
-            border: '1px solid var(--ink)',
-            padding: '14px 16px',
-            background: 'var(--card)',
-          }}
-        >
+      {m.loudest && (
+        <section>
+          <SectionLabel>$ DECISION · ALLOCATE SURPLUS</SectionLabel>
           <div
             style={{
-              fontSize: 11,
-              color: 'var(--muted)',
-              letterSpacing: '0.12em',
-              marginBottom: 6,
+              border: '1px solid var(--ink)',
+              padding: '14px 16px',
+              background: 'var(--card)',
             }}
           >
-            ALLOCATE SURPLUS →
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--muted)',
+                letterSpacing: '0.12em',
+                marginBottom: 6,
+              }}
+            >
+              HIGHEST EFFECTIVE APR →
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>
+              {m.surplus.gt(0)
+                ? `PAY ${ccy(m.surplus)} EXTRA TO ${m.loudest.loan.bank.toUpperCase()}`
+                : `CLEAR ${m.loudest.loan.bank.toUpperCase()} FIRST`}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
+              {m.loudest.loan.bank} · {LOAN_TYPE_LABEL[m.loudest.loan.loan_type]} ·{' '}
+              {fmt(m.loudest.effective)} effective ·{' '}
+              {ccy(m.loudest.outstanding)} outstanding.{' '}
+              {m.surplus.gt(0) ? (
+                <>See /plan for the full schedule.</>
+              ) : (
+                <>Surplus is negative — review fixed expenses or scheduled EMIs.</>
+              )}
+            </div>
           </div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>
-            PAY ₹18,500 TO ICICI / CARD-1138
-          </div>
-          <div
-            style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}
-          >
-            CLEARS BALANCE BY 02 JUN · SAVES ₹31,400 · UNLOCKS AVALANCHE STEP 02
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section>
         <SectionLabel>$ TOOLS</SectionLabel>
@@ -282,5 +331,105 @@ export function LedgerHome() {
         </div>
       </section>
     </div>
+  );
+}
+
+function PositionRow({
+  row,
+  expanded,
+  onToggle,
+  marginalRate,
+  country,
+  taxRegime,
+  loudestIdx,
+}: {
+  row: LoanWithEffective;
+  expanded: boolean;
+  onToggle: () => void;
+  marginalRate: string;
+  country: 'IN' | 'US';
+  taxRegime: 'new' | 'old' | undefined;
+  loudestIdx: number;
+}) {
+  const hl = row.index === loudestIdx && row.effective.gt(0.24);
+  const tenure =
+    row.loan.tenure_months_remaining > 0 ? `${row.loan.tenure_months_remaining} mo` : '—';
+  const emi =
+    Number(row.loan.scheduled_emi) > 0 ? formatINR(row.loan.scheduled_emi) : '—';
+
+  return (
+    <>
+      <tr
+        style={{
+          borderBottom: expanded ? 'none' : '1px dashed var(--dash)',
+          background: hl ? '#fff3a3' : 'transparent',
+        }}
+      >
+        <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>
+          {String(row.index + 1).padStart(2, '0')}
+        </td>
+        <td style={{ padding: '10px 12px', fontWeight: 700 }}>
+          {row.loan.bank || '—'}
+        </td>
+        <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>
+          {LOAN_TYPE_LABEL[row.loan.loan_type]}
+        </td>
+        <td style={{ padding: '10px 12px', textAlign: 'right' }}>{fmt(row.nominal)}</td>
+        <td
+          style={{
+            padding: '10px 12px',
+            textAlign: 'right',
+            color: hl ? 'var(--negative)' : 'var(--ink)',
+            fontWeight: hl ? 700 : 400,
+          }}
+        >
+          {fmt(row.effective)}
+        </td>
+        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
+          {formatINR(row.loan.outstanding || '0')}
+        </td>
+        <td style={{ padding: '10px 12px', textAlign: 'right' }}>{emi}</td>
+        <td
+          style={{
+            padding: '10px 12px',
+            textAlign: 'right',
+            color: 'var(--muted)',
+          }}
+        >
+          {tenure}
+        </td>
+        <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+          <button
+            type="button"
+            onClick={onToggle}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--ink)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              letterSpacing: '0.08em',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            {expanded ? '[CLOSE]' : '[BREAKDOWN]'}
+          </button>
+        </td>
+      </tr>
+      {expanded && (
+        <tr style={{ borderBottom: '1px dashed var(--dash)' }}>
+          <td colSpan={9} style={{ padding: '0 12px 14px' }}>
+            <EffectiveAprBreakdown
+              loan={row.loan}
+              marginalTaxRate={marginalRate}
+              country={country}
+              taxRegime={taxRegime}
+              variant="card"
+            />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

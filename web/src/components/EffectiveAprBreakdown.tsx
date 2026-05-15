@@ -17,6 +17,7 @@
  */
 import type { LoanPayload, Country, TaxRegimeIN } from '@/lib/api';
 import { computeBreakdown, fmt } from '@/lib/effective-apr';
+import { RATE_CARD_AS_OF } from '@/lib/banks';
 
 export function EffectiveAprBreakdown({
   loan,
@@ -137,6 +138,19 @@ export function EffectiveAprBreakdown({
       </div>
       <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
         {summary}
+      </div>
+      <div
+        style={{
+          fontSize: 10,
+          color: 'var(--muted)',
+          letterSpacing: '0.04em',
+          marginTop: 2,
+          fontStyle: 'italic',
+          lineHeight: 1.5,
+        }}
+      >
+        GST + fee assumptions reflect rate cards verified {RATE_CARD_AS_OF}.
+        Verify against your latest bank statement.
       </div>
     </div>
   );

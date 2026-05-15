@@ -9,7 +9,7 @@ export default async function DebtsPage() {
     loadThemeServer(),
     loadProfileServer(),
   ]);
-  if (theme === 'editorial') return <EditorialDebts />;
+  if (theme === 'editorial') return <EditorialDebts profile={profile} />;
   if (theme === 'ledger') return <LedgerDebts profile={profile} />;
-  return <ExistingDebts />;
+  return <ExistingDebts profile={profile} />;
 }
