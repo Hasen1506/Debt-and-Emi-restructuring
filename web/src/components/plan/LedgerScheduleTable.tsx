@@ -17,24 +17,25 @@
  */
 
 import { useMemo, useState } from 'react';
-import { formatINR, type LoanPayload } from '@/lib/api';
+import { formatINR, type Country, type LoanPayload } from '@/lib/api';
+import { getCountryToday } from '@/lib/today';
 import type { TrajectoryPoint } from '@/lib/mock-data';
 import type { MonthlyPaymentBreakdown } from './PlanData';
 
 const VISIBLE_DEFAULT = 12;
 const SCROLL_HEIGHT = 360;
 
-function monthLabel(monthIndex: number, start: Date): string {
+function monthLabel(monthIndex: number, start: Date, country: Country): string {
   const d = new Date(start.getFullYear(), start.getMonth() + monthIndex, 1);
+  const locale = country === 'IN' ? 'en-IN' : 'en-US';
   return d
-    .toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
+    .toLocaleDateString(locale, { month: 'short', year: '2-digit' })
     .toUpperCase()
     .replace(' ', " '");
 }
 
-function toCSV(rows: TrajectoryPoint[]): string {
+function toCSV(rows: TrajectoryPoint[], start: Date): string {
   const header = 'month,date,avalanche_balance,minimums_balance,delta\n';
-  const start = new Date();
   const body = rows
     .map((r) => {
       const d = new Date(start.getFullYear(), start.getMonth() + r.month, 1);
@@ -46,12 +47,12 @@ function toCSV(rows: TrajectoryPoint[]): string {
   return header + body + '\n';
 }
 
-function downloadCSV(rows: TrajectoryPoint[]) {
-  const blob = new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' });
+function downloadCSV(rows: TrajectoryPoint[], start: Date) {
+  const blob = new Blob([toCSV(rows, start)], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `finoptima-schedule-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `finoptima-schedule-${start.toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -62,18 +63,21 @@ export function LedgerScheduleTable({
   data,
   monthlyPayments = [],
   loans = [],
+  country = 'IN',
 }: {
   data: TrajectoryPoint[];
   /** Per-month per-loan payment dict from the engine. Empty in offline mode. */
   monthlyPayments?: MonthlyPaymentBreakdown[];
   /** User's loans in the order the engine sees them, for bank labels. */
   loans?: LoanPayload[];
+  /** Country drives the date locale + the calendar "today" for month 1. */
+  country?: Country;
 }) {
   const [expanded, setExpanded] = useState(false);
   // Which month row has its per-bank breakdown unfolded. Single-open so the
   // table never grows beyond what's visible (no nested-row scroll mess).
   const [openMonth, setOpenMonth] = useState<number | null>(null);
-  const start = useMemo(() => new Date(), []);
+  const start = useMemo(() => getCountryToday(country), [country]);
 
   // Trim trailing rows where both series have cleared — no signal past that.
   const rows = useMemo(() => {
@@ -135,7 +139,7 @@ export function LedgerScheduleTable({
           )}
           <button
             type="button"
-            onClick={() => downloadCSV(rows)}
+            onClick={() => downloadCSV(rows, start)}
             style={{
               background: 'transparent',
               border: 'none',
@@ -230,7 +234,7 @@ export function LedgerScheduleTable({
               return (
                 <RowGroup
                   key={r.month}
-                  monthLabel={monthLabel(r.month, start)}
+                  monthLabel={monthLabel(r.month, start, country)}
                   month={r.month}
                   avalanche={r.avalanche}
                   minimums={r.minimums}

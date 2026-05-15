@@ -69,6 +69,19 @@ def _best_liquid_return(options: list[InvestmentOption]) -> Decimal:
     return max(o.expected_return for o in pool)
 
 
+def _first_hike_month_index(
+    simulation_start_month: int, hike_effective_month: int
+) -> int:
+    """First sim-month index (1-based) at which the annual hike fires.
+
+    If `simulation_start_month == hike_effective_month`, the caller's
+    current income is assumed to already include this year's hike — so we
+    defer to next year (m=13).
+    """
+    m = ((hike_effective_month - simulation_start_month) % 12) + 1
+    return m if m > 1 else 13
+
+
 def simulate_plan(
     user: User,
     strategy: Strategy = Strategy.AVALANCHE,
@@ -78,6 +91,7 @@ def simulate_plan(
     simple_mode: bool = False,
     income_delta: Decimal = D("0"),
     income_delta_from_month: int = 1,
+    simulation_start_month: int = 1,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`. Returns one MonthRow per month
     until either all loans clear or horizon is reached.
@@ -88,6 +102,12 @@ def simulate_plan(
     `income_delta_from_month` (1-based, default 1 = from the start). This
     lets the sensitivity engine model "I'll trim ₹5k/mo from month 7
     onwards" without mutating the user upfront.
+
+    `simulation_start_month` (1-12, default 1=Jan) is the calendar month
+    corresponding to sim month m=1. Combined with `user.hike_effective_month`,
+    it anchors annual income hikes to the user's actual FY/anniversary month
+    instead of firing at m=13 regardless of calendar. Default `1` preserves
+    the legacy "hike at m=13" behavior so existing callers/tests are unaffected.
     """
     loans = [deepcopy(l) for l in user.loans]
     # Map deep-copied loan identity → its original position in user.loans.
@@ -106,10 +126,17 @@ def simulate_plan(
     best_liquid_return = _best_liquid_return(user.investment_options)
     inflation = user.inflation_rate
     debt_free_month: int | None = None
+    first_hike = _first_hike_month_index(simulation_start_month, user.hike_effective_month)
 
     for m in range(1, horizon_months + 1):
-        # Salary growth — once every 12 months
-        if m > 1 and (m - 1) % 12 == 0 and user.annual_hike_rate > 0:
+        # Salary growth — fires at the user's hike-effective month, then every 12.
+        # With default simulation_start_month=1 and hike_effective_month=1 this
+        # resolves to m=13, 25, 37 …, matching the pre-FY-anchoring behavior.
+        if (
+            user.annual_hike_rate > 0
+            and m >= first_hike
+            and (m - first_hike) % 12 == 0
+        ):
             income = income * (D("1") + user.annual_hike_rate)
 
         # Deferred surplus delta — kicks in at the user's chosen month.

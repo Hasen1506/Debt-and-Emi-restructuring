@@ -1,9 +1,12 @@
 import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 import type { ThemeName } from '@/lib/theme';
+import { NAV_ITEMS } from '@/lib/nav';
 
 /**
  * Default chrome — the warm-card TopBar used by theme=existing. Extracted
- * from layout.tsx so the layout can dispatch to per-theme chrome.
+ * from layout.tsx so the layout can dispatch to per-theme chrome. Nav
+ * structure comes from lib/nav so all themes stay in the same order with the
+ * same item count.
  */
 export function StandardTopBar({ theme }: { theme: ThemeName }) {
   return (
@@ -32,12 +35,11 @@ export function StandardTopBar({ theme }: { theme: ThemeName }) {
           </span>
         </div>
         <nav style={{ display: 'flex', gap: 18, fontSize: 14 }}>
-          <a href="/">Home</a>
-          <a href="/onboarding">Setup</a>
-          <a href="/debts">Debts</a>
-          <a href="/plan">Plan</a>
-          <a href="/tools">Tools</a>
-          <a href="/insights">Insights</a>
+          {NAV_ITEMS.map((n) => (
+            <a key={n.route} href={n.route}>
+              {n.labels.existing}
+            </a>
+          ))}
         </nav>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <ThemeSwitcher initial={theme} />

@@ -25,6 +25,7 @@ def with_surplus_delta(
     horizon_months: int = 360,
     marginal_rate: Decimal | None = None,
     start_month: int = 1,
+    simulation_start_month: int = 1,
 ) -> SimulationResult:
     """`delta` adds to monthly_income (positive or negative).
 
@@ -39,6 +40,7 @@ def with_surplus_delta(
         marginal_rate=marginal_rate,
         income_delta=delta,
         income_delta_from_month=max(1, start_month),
+        simulation_start_month=simulation_start_month,
     )
 
 
@@ -48,6 +50,7 @@ def with_income_shock(
     strategy: Strategy = Strategy.AVALANCHE,
     horizon_months: int = 360,
     marginal_rate: Decimal | None = None,
+    simulation_start_month: int = 1,
 ) -> SimulationResult:
     """Pre-amortise `shock_months` of minimums against savings, then resume.
 
@@ -61,7 +64,11 @@ def with_income_shock(
     if u.savings_balance < 0:
         u.savings_balance = D("0")
     # Push horizon out by the shock window
-    return simulate_plan(u, strategy, horizon_months + shock_months, marginal_rate=marginal_rate)
+    return simulate_plan(
+        u, strategy, horizon_months + shock_months,
+        marginal_rate=marginal_rate,
+        simulation_start_month=simulation_start_month,
+    )
 
 
 def with_rate_shock(
@@ -71,6 +78,7 @@ def with_rate_shock(
     horizon_months: int = 360,
     marginal_rate: Decimal | None = None,
     floating_only: bool = True,
+    simulation_start_month: int = 1,
 ) -> SimulationResult:
     """`delta_decimal` is signed (e.g. D('-0.005') for a 50bps cut).
     By default applies only to floating-rate loans.
@@ -80,7 +88,11 @@ def with_rate_shock(
         if floating_only and l.rate_type != "floating":
             continue
         l.nominal_rate = max(D("0"), l.nominal_rate + delta_decimal)
-    return simulate_plan(u, strategy, horizon_months, marginal_rate=marginal_rate)
+    return simulate_plan(
+        u, strategy, horizon_months,
+        marginal_rate=marginal_rate,
+        simulation_start_month=simulation_start_month,
+    )
 
 
 def with_strategy(
@@ -88,9 +100,14 @@ def with_strategy(
     strategy: Strategy,
     horizon_months: int = 360,
     marginal_rate: Decimal | None = None,
+    simulation_start_month: int = 1,
 ) -> SimulationResult:
     """Re-run with a different Layer 2 strategy."""
-    return simulate_plan(user, strategy, horizon_months, marginal_rate=marginal_rate)
+    return simulate_plan(
+        user, strategy, horizon_months,
+        marginal_rate=marginal_rate,
+        simulation_start_month=simulation_start_month,
+    )
 
 
 def with_lump_sum(
@@ -100,13 +117,18 @@ def with_lump_sum(
     strategy: Strategy = Strategy.AVALANCHE,
     horizon_months: int = 360,
     marginal_rate: Decimal | None = None,
+    simulation_start_month: int = 1,
 ) -> SimulationResult:
     """Apply `amount` upfront to `user.loans[target_loan_index]` before simulating."""
     u = deepcopy(user)
     if 0 <= target_loan_index < len(u.loans):
         l = u.loans[target_loan_index]
         l.outstanding = max(D("0"), l.outstanding - amount)
-    return simulate_plan(u, strategy, horizon_months, marginal_rate=marginal_rate)
+    return simulate_plan(
+        u, strategy, horizon_months,
+        marginal_rate=marginal_rate,
+        simulation_start_month=simulation_start_month,
+    )
 
 
 def compare(

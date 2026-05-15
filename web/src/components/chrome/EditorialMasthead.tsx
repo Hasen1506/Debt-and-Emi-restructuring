@@ -1,23 +1,19 @@
 import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 import type { ThemeName } from '@/lib/theme';
+import type { Country } from '@/lib/api';
+import { getCountryToday } from '@/lib/today';
+import { NAV_ITEMS } from '@/lib/nav';
 
 /**
  * Editorial masthead — replaces the standard TopBar when theme=editorial.
  * Mirrors the "FinOptima · Vol. III · Thursday, 14 May 2026" header from
  * direction-a.jsx — serif wordmark on the left, small uppercase nav on the
- * right, single hairline rule below.
+ * right, single hairline rule below. Nav structure comes from lib/nav so all
+ * themes stay in the same order with the same item count.
  */
 
-const NAV = [
-  { label: 'The letter', href: '/' },
-  { label: 'The path', href: '/plan' },
-  { label: 'Your debts', href: '/debts' },
-  { label: 'Decisions', href: '/tools' },
-  { label: 'Archive', href: '/insights' },
-] as const;
-
-function todayLine(): string {
-  const d = new Date();
+function todayLine(country: Country): string {
+  const d = getCountryToday(country);
   const day = d.toLocaleDateString('en-GB', { weekday: 'long' });
   const date = d.toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -27,7 +23,13 @@ function todayLine(): string {
   return `Vol. III · ${day}, ${date}`;
 }
 
-export function EditorialMasthead({ theme }: { theme: ThemeName }) {
+export function EditorialMasthead({
+  theme,
+  country,
+}: {
+  theme: ThemeName;
+  country: Country;
+}) {
   return (
     <header
       style={{
@@ -69,7 +71,7 @@ export function EditorialMasthead({ theme }: { theme: ThemeName }) {
               letterSpacing: '0.15em',
             }}
           >
-            {todayLine()}
+            {todayLine(country)}
           </span>
         </div>
         <nav
@@ -83,13 +85,13 @@ export function EditorialMasthead({ theme }: { theme: ThemeName }) {
             letterSpacing: '0.1em',
           }}
         >
-          {NAV.map((n) => (
+          {NAV_ITEMS.map((n) => (
             <a
-              key={n.href}
-              href={n.href}
+              key={n.route}
+              href={n.route}
               style={{ color: 'var(--muted)', textDecoration: 'none' }}
             >
-              {n.label}
+              {n.labels.editorial}
             </a>
           ))}
         </nav>

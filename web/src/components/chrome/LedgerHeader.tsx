@@ -1,32 +1,32 @@
 import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 import type { ThemeName } from '@/lib/theme';
+import type { Country } from '@/lib/api';
+import { getCountryToday } from '@/lib/today';
+import { NAV_ITEMS } from '@/lib/nav';
 
 /**
  * Ledger header — replaces the standard TopBar when theme=ledger.
  * Mono wordmark + section nav rendered as [BRACKETED] tokens, ASCII rules
- * above and below. Mirrors DHeader in direction-d.jsx.
+ * above and below. Mirrors DHeader in direction-d.jsx. Nav structure comes
+ * from lib/nav so all themes stay in the same order with the same item count.
  */
 
-const NAV = [
-  { token: 'LEDGER', href: '/' },
-  { token: 'PLAN', href: '/plan' },
-  { token: 'DEBTS', href: '/debts' },
-  { token: 'TOOLS', href: '/tools' },
-  { token: 'INSIGHTS', href: '/insights' },
-  { token: 'SETUP', href: '/onboarding' },
-] as const;
-
-function statementLine(): string {
-  const d = new Date();
+function statementLine(country: Country): string {
+  const d = getCountryToday(country);
   const day = d
     .toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
     .toUpperCase();
-  const time = d.toLocaleTimeString('en-IN', {
+  // Render local wall-clock time in the user's tz so it lines up with the
+  // date above (which is already shifted to country-local).
+  const tz = country === 'IN' ? 'Asia/Kolkata' : 'America/New_York';
+  const time = new Date().toLocaleTimeString('en-GB', {
+    timeZone: tz,
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
   });
-  return `${day} · ${time} IST · STMT #1138`;
+  const tzLabel = country === 'IN' ? 'IST' : 'ET';
+  return `${day} · ${time} ${tzLabel} · STMT #1138`;
 }
 
 function Rule() {
@@ -47,7 +47,7 @@ function Rule() {
   );
 }
 
-export function LedgerHeader({ theme }: { theme: ThemeName }) {
+export function LedgerHeader({ theme, country }: { theme: ThemeName; country: Country }) {
   return (
     <header style={{ background: 'var(--canvas)', padding: '14px 0 0' }}>
       <div
@@ -79,7 +79,7 @@ export function LedgerHeader({ theme }: { theme: ThemeName }) {
             fontFamily: 'var(--font-mono)',
           }}
         >
-          {statementLine()}
+          {statementLine(country)}
         </div>
       </div>
       <div className="app-shell" style={{ margin: '8px 0 0' }}>
@@ -105,13 +105,13 @@ export function LedgerHeader({ theme }: { theme: ThemeName }) {
             fontFamily: 'var(--font-mono)',
           }}
         >
-          {NAV.map((n) => (
+          {NAV_ITEMS.map((n) => (
             <a
-              key={n.token}
-              href={n.href}
+              key={n.route}
+              href={n.route}
               style={{ color: 'var(--ink)', textDecoration: 'none' }}
             >
-              [{n.token}]
+              [{n.labels.ledger}]
             </a>
           ))}
         </nav>

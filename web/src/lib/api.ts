@@ -59,6 +59,9 @@ export interface UserPayload {
   loans: LoanPayload[];
   investment_options?: InvestmentOptionPayload[];
   annual_hike_rate?: string;
+  /** Calendar month (1-12) when the annual hike fires. Defaults to 1 (Jan)
+   *  if omitted; IN onboarding defaults to 4 (FY-1, April). */
+  hike_effective_month?: number;
   inflation_rate?: string;
 }
 
@@ -275,6 +278,9 @@ export const api = {
     matched_contribution?: string;
     marginal_rate?: string;
     simple_mode?: boolean;
+    /** Calendar month (1-12) corresponding to sim month 1. Anchors hike
+     *  firing to the user's actual today. Defaults to 1 (Jan) server-side. */
+    simulation_start_month?: number;
   }) => post<SimulateResponse>('/api/simulate', req),
 
   baseline: (req: {
@@ -297,6 +303,8 @@ export const api = {
     alt_strategy?: Strategy;
     lump_sum_amount?: string;
     lump_sum_target_loan_index?: number;
+    /** Calendar month (1-12) corresponding to sim month 1. */
+    simulation_start_month?: number;
   }) => post<CompareResponse>('/api/sensitivity/compare', req),
 
   newDebt: (req: {

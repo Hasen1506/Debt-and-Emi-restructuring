@@ -45,6 +45,7 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         user, strategy=req.strategy, horizon_months=req.horizon_months,
         matched_contribution=req.matched_contribution,
         marginal_rate=req.marginal_rate, simple_mode=req.simple_mode,
+        simulation_start_month=req.simulation_start_month,
     )
     return SimulateResponse(
         debt_free_month=result.debt_free_month,
@@ -75,9 +76,11 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
     """Runs baseline vs scenario and diffs them. Exactly one what-if knob
     should be set per request — if multiple are set, they stack."""
     user = req.user.to_engine()
+    sm = req.simulation_start_month
     base = simulate_plan(
         user, strategy=req.strategy, horizon_months=req.horizon_months,
         marginal_rate=req.marginal_rate,
+        simulation_start_month=sm,
     )
 
     scenario_user = deepcopy(user)
@@ -87,28 +90,33 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
             scenario_user, req.surplus_delta, strategy=req.strategy,
             horizon_months=req.horizon_months, marginal_rate=req.marginal_rate,
             start_month=req.surplus_delta_start_month,
+            simulation_start_month=sm,
         )
     elif req.income_shock_months is not None:
         scenario_result = with_income_shock(
             scenario_user, req.income_shock_months, strategy=req.strategy,
             horizon_months=req.horizon_months, marginal_rate=req.marginal_rate,
+            simulation_start_month=sm,
         )
     elif req.rate_shock_delta is not None:
         scenario_result = with_rate_shock(
             scenario_user, req.rate_shock_delta, strategy=req.strategy,
             horizon_months=req.horizon_months, marginal_rate=req.marginal_rate,
             floating_only=req.rate_shock_floating_only,
+            simulation_start_month=sm,
         )
     elif req.alt_strategy is not None:
         scenario_result = with_strategy(
             scenario_user, req.alt_strategy, horizon_months=req.horizon_months,
             marginal_rate=req.marginal_rate,
+            simulation_start_month=sm,
         )
     elif req.lump_sum_amount is not None and req.lump_sum_target_loan_index is not None:
         scenario_result = with_lump_sum(
             scenario_user, req.lump_sum_amount, req.lump_sum_target_loan_index,
             strategy=req.strategy, horizon_months=req.horizon_months,
             marginal_rate=req.marginal_rate,
+            simulation_start_month=sm,
         )
 
     diff = compare(base, scenario_result)

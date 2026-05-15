@@ -127,6 +127,7 @@ class UserIn(_Base):
     assets: list[AssetIn] = Field(default_factory=list)
     investment_options: list[InvestmentOptionIn] = Field(default_factory=list)
     annual_hike_rate: Decimal = D("0")
+    hike_effective_month: int = Field(default=1, ge=1, le=12)
     business_cagr: Decimal = D("0")
     inflation_rate: Decimal = D("0.046")
 
@@ -147,6 +148,7 @@ class UserIn(_Base):
             assets=[a.to_engine() for a in self.assets],
             investment_options=[o.to_engine() for o in self.investment_options],
             annual_hike_rate=self.annual_hike_rate,
+            hike_effective_month=self.hike_effective_month,
             business_cagr=self.business_cagr,
             inflation_rate=self.inflation_rate,
         )
@@ -163,6 +165,10 @@ class SimulateRequest(_Base):
     matched_contribution: Decimal = D("0")
     marginal_rate: Optional[Decimal] = None
     simple_mode: bool = False
+    # 1=Jan, 12=Dec. Calendar month corresponding to sim month 1. Anchors
+    # hike firing to the user's actual today. Defaults to 1 → preserves
+    # legacy "hike at m=13" behaviour for callers that omit it.
+    simulation_start_month: int = Field(default=1, ge=1, le=12)
 
 
 class TrajectoryPoint(_Base):
@@ -196,6 +202,7 @@ class CompareRequest(_Base):
     horizon_months: int = 360
     marginal_rate: Optional[Decimal] = None
     strategy: Strategy = Strategy.AVALANCHE
+    simulation_start_month: int = Field(default=1, ge=1, le=12)
     # what-if knobs
     surplus_delta: Optional[Decimal] = None
     surplus_delta_start_month: int = 1

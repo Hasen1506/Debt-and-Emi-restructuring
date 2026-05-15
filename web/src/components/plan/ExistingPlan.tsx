@@ -2,11 +2,12 @@ import { Card } from '@/components/Card';
 import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { StrategySwitcher } from '@/components/StrategySwitcher';
+import { HikeToggle } from '@/components/HikeToggle';
 import { STRATEGY_LABEL } from '@/lib/strategy';
+import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
 import {
   formatINR,
   formatPct,
-  monthIndexToLabel,
   type RestructuringOpportunity,
 } from '@/lib/api';
 import type { PlanData } from './PlanData';
@@ -25,6 +26,10 @@ const KIND_COLOR: Record<RestructuringOpportunity['kind'], string> = {
 };
 
 export function ExistingPlan({ plan }: { plan: PlanData }) {
+  const hikeRate = Number(plan.user.annual_hike_rate ?? '0');
+  const hikeRatePct = hikeRate > 0 ? `${(hikeRate * 100).toFixed(0)}%` : '0%';
+  const hikeMonthIdx = plan.user.hike_effective_month ?? FY_ANCHOR_MONTH[plan.user.country];
+  const hikeMonthLabel = MONTH_NAMES[Math.max(0, Math.min(11, hikeMonthIdx - 1))];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <section>
@@ -70,8 +75,14 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
             <a href="/tools/recompute">Recompute</a> to refresh this plan.
           </p>
         )}
-        <div style={{ marginTop: 14 }}>
+        <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 24 }}>
           <StrategySwitcher active={plan.strategy} variant="inline" />
+          <HikeToggle
+            active={plan.hikeModeling}
+            hikeRatePct={hikeRatePct}
+            hikeMonthLabel={hikeMonthLabel}
+            variant="inline"
+          />
         </div>
       </section>
 
@@ -197,7 +208,7 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
           </div>
           <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>
             {plan.debtFreeMonth
-              ? monthIndexToLabel(plan.debtFreeMonth)
+              ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)
               : 'Beyond 20 yrs'}
           </div>
           <div className="muted" style={{ fontSize: 12 }}>

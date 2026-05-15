@@ -114,5 +114,11 @@ class User:
     assets: list[Asset] = field(default_factory=list)
     investment_options: list[InvestmentOption] = field(default_factory=list)
     annual_hike_rate: Decimal = Decimal("0")
+    # Calendar month (1-12) when the user's annual hike kicks in. Defaults
+    # to January (1). India FY starts April → IN users typically set this
+    # to 4. US users typically stay on January. Engine uses this together
+    # with `simulation_start_month` to anchor hike firing to the right
+    # calendar month instead of "month-13 from sim start".
+    hike_effective_month: int = 1
     business_cagr: Decimal = Decimal("0")
     inflation_rate: Decimal = Decimal("0.046")    # RBI MPC Apr 2026: CPI 4.6% FY26-27

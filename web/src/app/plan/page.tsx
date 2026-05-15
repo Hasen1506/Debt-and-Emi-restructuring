@@ -3,6 +3,11 @@ import { loadProfileServer } from '@/lib/user-store';
 import { loadThemeServer } from '@/lib/theme';
 import { loadStrategyServer, type StrategyName } from '@/lib/strategy';
 import {
+  loadHikeModelingServer,
+  type HikeModeling,
+} from '@/lib/hike-modeling';
+import { getCountryMonth } from '@/lib/today';
+import {
   applyActivityDeltas,
   loadActivityDeltasServer,
 } from '@/lib/activity-cookie';
@@ -30,7 +35,10 @@ function extractMonthlyPayments(
 
 export const dynamic = 'force-dynamic';
 
-async function loadPlan(strategy: StrategyName): Promise<PlanData> {
+async function loadPlan(
+  strategy: StrategyName,
+  hikeModeling: HikeModeling,
+): Promise<PlanData> {
   const profile = await loadProfileServer();
   // Surplus = income − fixed expenses − scheduled EMIs. Same definition the
   // Home + Debts pages show; previously /plan computed it without subtracting
@@ -42,10 +50,20 @@ async function loadPlan(strategy: StrategyName): Promise<PlanData> {
   // loans so the avalanche-vs-minimums diff stays apples-to-apples.
   const deltas = await loadActivityDeltasServer();
   const application = applyActivityDeltas(profile.user.loans, deltas);
+  // If the hike toggle is OFF, zero out `annual_hike_rate` so the engine
+  // simulates flat income. The stored profile is untouched — toggling back
+  // ON next render restores the user's configured rate.
   const adjustedUser: UserPayload = {
     ...profile.user,
     loans: application.loans,
+    annual_hike_rate:
+      hikeModeling === 'off' ? '0' : profile.user.annual_hike_rate ?? '0',
   };
+
+  // Anchor the simulation's "month 1" to the user's country today, so the
+  // hike-effective-month fires on the right calendar month instead of
+  // month-13-from-now.
+  const simulation_start_month = getCountryMonth(profile.user.country);
 
   try {
     const [scenario, baseline, restructuring] = await Promise.all([
@@ -54,6 +72,7 @@ async function loadPlan(strategy: StrategyName): Promise<PlanData> {
         strategy,
         horizon_months: 240,
         marginal_rate: profile.marginalRate,
+        simulation_start_month,
       }),
       api.baseline({ user: adjustedUser, horizon_months: 240 }),
       api.restructuring({
@@ -79,6 +98,7 @@ async function loadPlan(strategy: StrategyName): Promise<PlanData> {
       user: profile.user,
       marginalRate: profile.marginalRate,
       strategy,
+      hikeModeling,
       monthlyPayments: extractMonthlyPayments(scenario),
       activityImpact:
         application.entryCount > 0
@@ -104,6 +124,7 @@ async function loadPlan(strategy: StrategyName): Promise<PlanData> {
       user: profile.user as UserPayload,
       marginalRate: profile.marginalRate,
       strategy,
+      hikeModeling,
       monthlyPayments: [],
       activityImpact: null,
     };
@@ -111,11 +132,12 @@ async function loadPlan(strategy: StrategyName): Promise<PlanData> {
 }
 
 export default async function PlanPage() {
-  const [theme, strategy] = await Promise.all([
+  const [theme, strategy, hikeModeling] = await Promise.all([
     loadThemeServer(),
     loadStrategyServer(),
+    loadHikeModelingServer(),
   ]);
-  const plan = await loadPlan(strategy);
+  const plan = await loadPlan(strategy, hikeModeling);
   if (theme === 'editorial') return <EditorialPlan plan={plan} />;
   if (theme === 'ledger') return <LedgerPlan plan={plan} />;
   return <ExistingPlan plan={plan} />;

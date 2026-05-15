@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import '@/styles/globals.css';
 import { loadThemeServer, type ThemeName } from '@/lib/theme';
+import { loadProfileServer } from '@/lib/user-store';
 import { StandardTopBar } from '@/components/chrome/StandardTopBar';
 import { EditorialMasthead } from '@/components/chrome/EditorialMasthead';
 import { LedgerHeader } from '@/components/chrome/LedgerHeader';
+import type { Country } from '@/lib/api';
 
 export const metadata: Metadata = {
   title: 'FinOptima — Debt & EMI Optimiser',
@@ -12,7 +14,10 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const theme = await loadThemeServer();
+  const [theme, profile] = await Promise.all([
+    loadThemeServer(),
+    loadProfileServer(),
+  ]);
   return (
     <html lang="en" data-theme={theme}>
       <head>
@@ -24,7 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body>
-        <Chrome theme={theme} />
+        <Chrome theme={theme} country={profile.user.country} />
         <main className="app-shell" style={{ paddingTop: 24, paddingBottom: 80 }}>
           {children}
         </main>
@@ -33,8 +38,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   );
 }
 
-function Chrome({ theme }: { theme: ThemeName }) {
-  if (theme === 'editorial') return <EditorialMasthead theme={theme} />;
-  if (theme === 'ledger') return <LedgerHeader theme={theme} />;
+function Chrome({ theme, country }: { theme: ThemeName; country: Country }) {
+  if (theme === 'editorial') return <EditorialMasthead theme={theme} country={country} />;
+  if (theme === 'ledger') return <LedgerHeader theme={theme} country={country} />;
   return <StandardTopBar theme={theme} />;
 }

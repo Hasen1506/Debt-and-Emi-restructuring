@@ -1,11 +1,12 @@
 import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { StrategySwitcher } from '@/components/StrategySwitcher';
+import { HikeToggle } from '@/components/HikeToggle';
 import { STRATEGY_LABEL, STRATEGY_DESCRIPTION } from '@/lib/strategy';
+import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
 import {
   formatINR,
   formatPct,
-  monthIndexToLabel,
 } from '@/lib/api';
 import type { PlanData } from './PlanData';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
@@ -42,12 +43,16 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   const opportunities = plan.opportunities;
   const interestSaved = Number(plan.baselineInterest) - Number(plan.totalInterest);
   const strategyLabel = STRATEGY_LABEL[plan.strategy].toUpperCase();
+  const hikeRate = Number(plan.user.annual_hike_rate ?? '0');
+  const hikeRatePct = hikeRate > 0 ? `${(hikeRate * 100).toFixed(0)}%` : '0%';
+  const hikeMonthIdx = plan.user.hike_effective_month ?? FY_ANCHOR_MONTH[plan.user.country];
+  const hikeMonthLabel = MONTH_NAMES[Math.max(0, Math.min(11, hikeMonthIdx - 1))];
 
   const kpis = [
     {
       l: 'DEBT-FREE BY',
       v: plan.debtFreeMonth
-        ? monthIndexToLabel(plan.debtFreeMonth).toUpperCase()
+        ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()
         : `>${horizonMo}MO`,
       c: 'var(--ink)',
       sub: plan.debtFreeMonth
@@ -108,6 +113,12 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           }}
         >
           <StrategySwitcher active={plan.strategy} variant="ledger" />
+          <HikeToggle
+            active={plan.hikeModeling}
+            hikeRatePct={hikeRatePct}
+            hikeMonthLabel={hikeMonthLabel}
+            variant="ledger"
+          />
           <div style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
             {STRATEGY_DESCRIPTION[plan.strategy]}
           </div>
@@ -165,6 +176,22 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         >
           <DebtTrajectoryChart data={plan.trajectory} />
         </div>
+        <div
+          style={{
+            fontSize: 11,
+            color: 'var(--muted)',
+            letterSpacing: '0.04em',
+            lineHeight: 1.6,
+            marginTop: 8,
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
+          <strong style={{ color: 'var(--ink)' }}>SOLID</strong> = balance under
+          your plan (avalanche).{' '}
+          <strong style={{ color: 'var(--ink)' }}>DASHED</strong> = balance if
+          you only ever paid bank-required minimums. X-axis is months from
+          today, Y-axis is total outstanding (₹L = lakhs, ₹k = thousands).
+        </div>
       </section>
 
       {plan.activityImpact && (
@@ -180,6 +207,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         data={plan.trajectory}
         monthlyPayments={plan.monthlyPayments}
         loans={plan.user.loans}
+        country={plan.user.country}
       />
 
       {opportunities.length > 0 && (

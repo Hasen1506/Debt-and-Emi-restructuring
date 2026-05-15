@@ -24,7 +24,8 @@ import type { StoredProfile } from '@/lib/user-store';
 import type { LoanType } from '@/lib/api';
 import { formatINR } from '@/lib/api';
 import { fmt } from '@/lib/effective-apr';
-import { deriveMetrics, type LoanWithEffective } from '@/lib/derived';
+import { deriveMetrics } from '@/lib/derived';
+import { buildHeadline, buildMarginalia } from '@/lib/letter';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'credit card',
@@ -53,87 +54,6 @@ const MORE_ACTIONS = [
 ] as const;
 
 const D24 = new Decimal('0.24');
-const D30 = new Decimal('0.30');
-
-interface Headline {
-  prefix: string;
-  /** Italic accent phrase shown on the second line. */
-  italic: string;
-}
-
-function buildHeadline(loudest: LoanWithEffective | null): Headline {
-  if (!loudest) {
-    return { prefix: 'Nothing to chase', italic: 'right now.' };
-  }
-  if (loudest.loan.loan_type === 'credit_card' && loudest.effective.gt(D30)) {
-    return { prefix: 'Pay the card,', italic: 'then breathe.' };
-  }
-  if (loudest.effective.gt(D24)) {
-    return {
-      prefix: `Knock out the ${loudest.loan.bank || 'loudest'} line,`,
-      italic: 'then breathe.',
-    };
-  }
-  if (loudest.loan.loan_type === 'home_loan' && loudest.effective.lt(new Decimal('0.10'))) {
-    return { prefix: 'Let the mortgage run —', italic: "it's earning its keep." };
-  }
-  return {
-    prefix: `Chip away at the ${loudest.loan.bank || loudest.loan.loan_type} line,`,
-    italic: 'one month at a time.',
-  };
-}
-
-interface MarginNote {
-  date: string;
-  txt: string;
-}
-
-function buildMarginalia(
-  loans: LoanWithEffective[],
-  blended: Decimal,
-  user: StoredProfile['user'],
-): MarginNote[] {
-  const notes: MarginNote[] = [];
-  // 1. Derived insight: cheapest line, or tax-shield status, or GST hit.
-  const card = loans.find((l) => l.loan.loan_type === 'credit_card' && l.outstanding.gt(0));
-  const home = loans.find((l) => l.loan.loan_type === 'home_loan' && l.outstanding.gt(0));
-  if (card) {
-    const spread = card.effective.sub(card.nominal);
-    notes.push({
-      date: 'Note',
-      txt: `Your ${card.loan.bank || 'card'} carries +${fmt(spread)} from GST alone. Banks quote nominal; the statement reflects effective.`,
-    });
-  } else if (home && user.country === 'IN') {
-    const regime = user.tax_regime ?? 'new';
-    if (regime === 'new') {
-      notes.push({
-        date: 'Note',
-        txt: `Under the new regime, section 24b caps the home-loan deduction at ₹0 — so no tax shield on your ${home.loan.bank || 'mortgage'} interest.`,
-      });
-    } else {
-      notes.push({
-        date: 'Note',
-        txt: `Under the old regime, you can deduct up to ₹2L of home-loan interest under 24b — already reflected in the effective rate.`,
-      });
-    }
-  } else if (loans.length > 0) {
-    notes.push({
-      date: 'Note',
-      txt: `Blended effective rate across your debts is ${fmt(blended)}. That's the number that compounds — not whatever a single statement shows.`,
-    });
-  }
-
-  // 2. + 3. Evergreen principles.
-  notes.push({
-    date: 'Always',
-    txt: '"No-cost EMI" rarely is. The real APR is usually 14–18% once GST and convenience fees are folded in.',
-  });
-  notes.push({
-    date: 'Principle',
-    txt: 'A 6-month emergency fund saves more interest than any clever prepayment — by stopping the next high-rate borrow before it starts.',
-  });
-  return notes;
-}
 
 export function EditorialHome({ profile }: { profile: StoredProfile }) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
@@ -179,7 +99,7 @@ export function EditorialHome({ profile }: { profile: StoredProfile }) {
           {headline.prefix}
           <br />
           <em style={{ fontStyle: 'italic', color: 'var(--accent)' }}>
-            {headline.italic}
+            {headline.accent}
           </em>
         </h1>
 

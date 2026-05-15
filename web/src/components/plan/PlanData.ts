@@ -8,6 +8,7 @@ import type {
 } from '@/lib/api';
 import type { TrajectoryPoint } from '@/lib/mock-data';
 import type { StrategyName } from '@/lib/strategy';
+import type { HikeModeling } from '@/lib/hike-modeling';
 
 /**
  * Per-month per-loan payment breakdown sourced from the engine.
@@ -54,6 +55,9 @@ export interface PlanData {
   marginalRate: string;
   /** Active payoff strategy used to compute trajectory + debtFreeMonth. */
   strategy: StrategyName;
+  /** Whether the projection modelled the user's expected annual hike or
+   *  treated income as flat. Set by the per-plan toggle. */
+  hikeModeling: HikeModeling;
   /** Month-by-month per-loan payments for the active strategy. Empty when
    *  the engine call falls back to mock data (offline mode). */
   monthlyPayments: MonthlyPaymentBreakdown[];

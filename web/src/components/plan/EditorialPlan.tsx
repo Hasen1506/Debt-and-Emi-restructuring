@@ -1,14 +1,17 @@
 import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { StrategySwitcher } from '@/components/StrategySwitcher';
+import { HikeToggle } from '@/components/HikeToggle';
 import {
   STRATEGY_LABEL,
   STRATEGY_DESCRIPTION,
   STRATEGY_SHORT,
 } from '@/lib/strategy';
-import { formatINR, formatPct, monthIndexToLabel } from '@/lib/api';
+import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
+import { formatINR, formatPct } from '@/lib/api';
 import type { PlanData } from './PlanData';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
+import { LedgerScheduleTable } from './LedgerScheduleTable';
 
 /**
  * Editorial Plan — "Chapter II · the path".
@@ -30,6 +33,11 @@ function monthsUntilDebtFree(plan: PlanData): string {
 export function EditorialPlan({ plan }: { plan: PlanData }) {
   const monthsLeft = monthsUntilDebtFree(plan);
   const opportunities = plan.opportunities.slice(0, 3);
+  const hikeRate = Number(plan.user.annual_hike_rate ?? '0');
+  const hikeRatePct = hikeRate > 0 ? `${(hikeRate * 100).toFixed(0)}%` : '0%';
+  const hikeMonthIdx =
+    plan.user.hike_effective_month ?? FY_ANCHOR_MONTH[plan.user.country];
+  const hikeMonthLabel = MONTH_NAMES[Math.max(0, Math.min(11, hikeMonthIdx - 1))];
 
   return (
     <div
@@ -202,7 +210,7 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
           {[
             {
               v: plan.debtFreeMonth
-                ? monthIndexToLabel(plan.debtFreeMonth)
+                ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)
                 : 'Beyond 20 yrs',
               l: plan.debtFreeMonth
                 ? 'debt-free, at this pace'
@@ -243,6 +251,47 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             </div>
           ))}
         </div>
+
+        <section
+          style={{
+            marginTop: 40,
+            paddingTop: 24,
+            borderTop: '1px solid var(--border)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: 10,
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              color: 'var(--soft)',
+              marginBottom: 6,
+            }}
+          >
+            The schedule
+          </div>
+          <p
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontStyle: 'italic',
+              fontSize: 13,
+              color: 'var(--muted)',
+              marginBottom: 14,
+              lineHeight: 1.6,
+            }}
+          >
+            Month-by-month: what you&apos;ll owe under the plan, what you&apos;d
+            owe paying only minimums, and how far ahead you are. Click any
+            month to see exactly which lender gets paid what.
+          </p>
+          <LedgerScheduleTable
+            data={plan.trajectory}
+            monthlyPayments={plan.monthlyPayments}
+            loans={plan.user.loans}
+            country={plan.user.country}
+          />
+        </section>
 
         <div
           style={{
@@ -332,6 +381,12 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             }}
           >
             <StrategySwitcher active={plan.strategy} variant="inline" />
+            <HikeToggle
+              active={plan.hikeModeling}
+              hikeRatePct={hikeRatePct}
+              hikeMonthLabel={hikeMonthLabel}
+              variant="inline"
+            />
             <div style={{ color: 'var(--soft)', fontSize: 12 }}>
               {STRATEGY_DESCRIPTION[plan.strategy]}
             </div>

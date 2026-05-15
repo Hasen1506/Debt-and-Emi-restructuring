@@ -115,17 +115,17 @@ def _scan_card_balance_transfer(
     saving = (card_effective - cand.effective_bt_apr) * card.outstanding
     # Bound to one year; longer promos still save more but UI keeps annualised number.
     saving_annualised = saving * D(min(promo_months, 12)) / D("12")
+    ccy = "₹" if country == Country.IN else "$"
     headline = (
-        f"Move ₹{card.outstanding:,.0f} from {card.bank} card "
-        f"to {target_card.name} {promo_months}-month 0% BT"
-        if country == Country.IN
-        else f"Move ${card.outstanding:,.0f} from {card.bank} card "
-             f"to {target_card.name} {promo_months}-month BT"
+        f"{promo_months}-month promo: move {ccy}{card.outstanding:,.0f} from "
+        f"{card.bank} card to {target_card.name} at ~{_fmt_pct(cand.effective_bt_apr)}"
     )
     rationale = (
-        f"Card effective rate {_fmt_pct(card_effective)} drops to "
-        f"{_fmt_pct(cand.effective_bt_apr)} for {promo_months} months "
-        f"(promo {_fmt_pct(promo_rate)} + amortised fee {_fmt_pct(fee_pct)})."
+        f"Promotional rate only — clear the balance before month {promo_months} "
+        f"or the rate snaps back to ~{_fmt_pct(card_effective)}. "
+        f"Effective during promo: {_fmt_pct(promo_rate)} + amortised fee "
+        f"{_fmt_pct(fee_pct)} = {_fmt_pct(cand.effective_bt_apr)} vs the "
+        f"{_fmt_pct(card_effective)} you pay today."
     )
     return RestructuringOpportunity(
         kind="balance_transfer",

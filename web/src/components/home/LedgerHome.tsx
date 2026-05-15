@@ -17,6 +17,7 @@ import type { LoanType } from '@/lib/api';
 import { formatINR } from '@/lib/api';
 import { fmt } from '@/lib/effective-apr';
 import { deriveMetrics, type LoanWithEffective } from '@/lib/derived';
+import { buildHeadline, buildMarginalia } from '@/lib/letter';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
@@ -29,15 +30,25 @@ const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   bnpl: 'BNPL',
 };
 
-const TOOLS = [
+// Top 3 quick-actions only — the full tool catalog with descriptions lives
+// at /tools. Keeping the home surface tight avoids duplicating the index.
+const QUICK_TOOLS = [
   { token: 'WINDFALL', sub: 'BONUS / REFUND / GIFT', href: '/tools/windfall' },
   { token: 'RECOMPUTE', sub: 'PAID EXTRA → REPRICE', href: '/tools/recompute' },
   { token: 'NEW-DEBT', sub: 'PRE-BORROW CHECK', href: '/tools/new-debt' },
-  { token: 'LIQUIDATE', sub: 'SELL ASSET → CLEAR DEBT', href: '/tools/liquidate' },
-  { token: 'CASH-YIELD', sub: 'IDLE CASH AUDIT', href: '/tools/cash-yield' },
-  { token: 'RIGHT-TIME', sub: 'BORROW NOW Y/N', href: '/tools/right-time' },
-  { token: 'NRI-PREPAY', sub: 'FX-ADJUSTED DECISION', href: '/tools/nri-prepay' },
 ] as const;
+
+const LOAN_TYPE_PROSE: Record<LoanType, string> = {
+  credit_card: 'credit card',
+  personal_loan: 'personal loan',
+  home_loan: 'home loan',
+  auto_loan: 'auto loan',
+  education_loan: 'education loan',
+  gold_loan: 'gold loan',
+  bnpl: 'BNPL line',
+};
+
+const D24 = new Decimal('0.24');
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -254,46 +265,35 @@ export function LedgerHome({ profile }: { profile: StoredProfile }) {
       </section>
 
       {m.loudest && (
-        <section>
-          <SectionLabel>$ DECISION · ALLOCATE SURPLUS</SectionLabel>
-          <div
-            style={{
-              border: '1px solid var(--ink)',
-              padding: '14px 16px',
-              background: 'var(--card)',
-            }}
-          >
-            <div
-              style={{
-                fontSize: 11,
-                color: 'var(--muted)',
-                letterSpacing: '0.12em',
-                marginBottom: 6,
-              }}
-            >
-              HIGHEST EFFECTIVE APR →
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>
-              {m.surplus.gt(0)
-                ? `PAY ${ccy(m.surplus)} EXTRA TO ${m.loudest.loan.bank.toUpperCase()}`
-                : `CLEAR ${m.loudest.loan.bank.toUpperCase()} FIRST`}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-              {m.loudest.loan.bank} · {LOAN_TYPE_LABEL[m.loudest.loan.loan_type]} ·{' '}
-              {fmt(m.loudest.effective)} effective ·{' '}
-              {ccy(m.loudest.outstanding)} outstanding.{' '}
-              {m.surplus.gt(0) ? (
-                <>See /plan for the full schedule.</>
-              ) : (
-                <>Surplus is negative — review fixed expenses or scheduled EMIs.</>
-              )}
-            </div>
-          </div>
-        </section>
+        <LedgerLetter
+          loudest={m.loudest}
+          loans={m.loans}
+          surplus={m.surplus}
+          blended={m.blendedEffective}
+          user={user}
+        />
       )}
 
       <section>
-        <SectionLabel>$ TOOLS</SectionLabel>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: 11,
+            color: 'var(--muted)',
+            letterSpacing: '0.18em',
+            marginBottom: 6,
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
+          <span>$ QUICK ACTIONS</span>
+          <a
+            href="/tools"
+            style={{ color: 'var(--ink)', textDecoration: 'none' }}
+          >
+            [ALL TOOLS →]
+          </a>
+        </div>
         <div
           style={{
             display: 'grid',
@@ -303,7 +303,7 @@ export function LedgerHome({ profile }: { profile: StoredProfile }) {
             padding: 1,
           }}
         >
-          {TOOLS.map((t) => (
+          {QUICK_TOOLS.map((t) => (
             <a
               key={t.token}
               href={t.href}
@@ -331,6 +331,226 @@ export function LedgerHome({ profile }: { profile: StoredProfile }) {
         </div>
       </section>
     </div>
+  );
+}
+
+function LedgerLetter({
+  loudest,
+  loans,
+  surplus,
+  blended,
+  user,
+}: {
+  loudest: LoanWithEffective;
+  loans: LoanWithEffective[];
+  surplus: Decimal;
+  blended: Decimal;
+  user: StoredProfile['user'];
+}) {
+  const headline = buildHeadline(loudest);
+  const marginalia = buildMarginalia(loans, blended, user);
+  const spread = loudest.effective.sub(loudest.nominal);
+  const bigSpread = spread.gt(new Decimal('0.03'));
+  const surplusPositive = surplus.gt(0);
+  const loudestIsCard = loudest.loan.loan_type === 'credit_card';
+  const loudestKind = LOAN_TYPE_PROSE[loudest.loan.loan_type];
+  const lender = loudest.loan.bank || 'your highest-rate lender';
+
+  return (
+    <section>
+      <SectionLabel>$ LETTER · THIS WEEK</SectionLabel>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) 260px',
+          gap: 0,
+          border: '1px solid var(--ink)',
+          background: 'var(--card)',
+        }}
+      >
+        <article
+          style={{
+            padding: '18px 20px',
+            borderRight: '1px solid var(--ink)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              lineHeight: 1.2,
+              letterSpacing: '-0.01em',
+              textTransform: 'uppercase',
+            }}
+          >
+            {headline.prefix}
+            <br />
+            <span style={{ color: 'var(--accent)' }}>{headline.accent}</span>
+          </div>
+
+          <p
+            style={{
+              fontSize: 13,
+              lineHeight: 1.65,
+              marginTop: 18,
+              color: 'var(--ink)',
+            }}
+          >
+            {bigSpread ? (
+              <>
+                Your <strong>{lender}</strong> {loudestKind} is the loudest debt
+                you own. Nominal {fmt(loudest.nominal)} becomes{' '}
+                <strong>{fmt(loudest.effective)}</strong>{' '}
+                {loudestIsCard
+                  ? 'once GST is folded in'
+                  : 'once fees + GST are folded in'}
+                , and at a balance of{' '}
+                <strong>{formatINR(loudest.outstanding)}</strong> that&apos;s the
+                line generating the most friction. Until it&apos;s closer to
+                clear, every other move loses to this one.
+              </>
+            ) : (
+              <>
+                Your <strong>{lender}</strong> {loudestKind} is currently your
+                highest-effective line at{' '}
+                <strong>{fmt(loudest.effective)}</strong>. With a balance of{' '}
+                <strong>{formatINR(loudest.outstanding)}</strong>, it&apos;s the
+                one to chase first — but the spread vs nominal is modest, so
+                there&apos;s no fire.
+              </>
+            )}
+          </p>
+
+          <p
+            style={{
+              fontSize: 13,
+              lineHeight: 1.65,
+              marginTop: 10,
+              color: 'var(--ink)',
+            }}
+          >
+            {surplusPositive ? (
+              <>
+                Move this month: route the{' '}
+                <strong>{formatINR(surplus)}</strong> surplus toward this line
+                on the next salary credit.{' '}
+                <a href="/plan" style={{ color: 'var(--accent)' }}>
+                  [/plan →]
+                </a>{' '}
+                shows the full schedule and how much interest that saves over
+                the run.
+              </>
+            ) : (
+              <>
+                Surplus is{' '}
+                <strong style={{ color: 'var(--negative)' }}>
+                  {formatINR(surplus)}
+                </strong>
+                /month — there&apos;s nothing to allocate until you trim fixed
+                expenses or re-negotiate an EMI. Until then, prepayment
+                isn&apos;t the right move; not falling behind is.
+              </>
+            )}
+          </p>
+
+          <div
+            style={{
+              marginTop: 18,
+              paddingTop: 14,
+              borderTop: '1px dashed var(--dash)',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 16,
+            }}
+          >
+            {[
+              {
+                v: surplusPositive ? formatINR(surplus) : '—',
+                l: surplusPositive ? 'SURPLUS / MO' : 'NO SURPLUS',
+                c: surplusPositive ? 'var(--ink)' : 'var(--muted)',
+              },
+              {
+                v: fmt(loudest.effective),
+                l: 'EFFECTIVE APR',
+                c: loudest.effective.gt(D24) ? 'var(--negative)' : 'var(--ink)',
+              },
+              {
+                v: spread.gt(0) ? `+${fmt(spread)}` : '—',
+                l: 'SPREAD VS NOMINAL',
+                c: spread.gt(new Decimal('0.05')) ? 'var(--negative)' : 'var(--ink)',
+              },
+            ].map((s) => (
+              <div key={s.l}>
+                <div
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: s.c,
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  {s.v}
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: 'var(--muted)',
+                    marginTop: 4,
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  {s.l}
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <aside style={{ padding: '18px 20px' }}>
+          <div
+            style={{
+              fontSize: 10,
+              color: 'var(--muted)',
+              letterSpacing: '0.18em',
+              marginBottom: 12,
+            }}
+          >
+            ALSO WORTH KNOWING
+          </div>
+          {marginalia.map((n, i) => (
+            <div
+              key={`${n.date}-${i}`}
+              style={{
+                marginBottom: 14,
+                borderLeft: '2px solid var(--ink)',
+                paddingLeft: 10,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  marginBottom: 4,
+                  textTransform: 'uppercase',
+                }}
+              >
+                {n.date}
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  lineHeight: 1.5,
+                  color: 'var(--ink)',
+                }}
+              >
+                {n.txt}
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
   );
 }
 

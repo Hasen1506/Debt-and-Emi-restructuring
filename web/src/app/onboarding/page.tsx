@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/Card';
 import { BankCombobox, Field, Select, SubmitBar } from '@/components/ToolPrimitives';
@@ -14,7 +14,12 @@ import type {
   TaxRegimeIN,
   UserPayload,
 } from '@/lib/api';
-import { saveProfileClient } from '@/lib/user-store';
+import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
+import {
+  FY_ANCHOR_MONTH,
+  MONTH_NAMES,
+  formatCountryDateLong,
+} from '@/lib/today';
 
 const STEPS = [
   'Country',
@@ -84,6 +89,14 @@ export default function OnboardingPage() {
   const [taxRegime, setTaxRegime] = useState<TaxRegimeIN>('new');
   const [annualHikeRate, setAnnualHikeRate] = useState('');
   const [marginalRate, setMarginalRate] = useState('');
+  // 1-12. Defaults to country FY-1 (April for IN, January for US). When the
+  // user changes country and HASN'T manually picked a month, we follow the
+  // country default. `hikeMonthTouched` tracks the manual override.
+  const [hikeEffectiveMonth, setHikeEffectiveMonth] = useState<number>(FY_ANCHOR_MONTH.IN);
+  const [hikeMonthTouched, setHikeMonthTouched] = useState(false);
+  useEffect(() => {
+    if (!hikeMonthTouched) setHikeEffectiveMonth(FY_ANCHOR_MONTH[country]);
+  }, [country, hikeMonthTouched]);
 
   const [loans, setLoans] = useState<LoanPayload[]>([blankLoan()]);
 
@@ -92,6 +105,32 @@ export default function OnboardingPage() {
   const [efundTarget, setEfundTarget] = useState('');
 
   const [creditScore, setCreditScore] = useState('');
+
+  // Rehydrate from the saved profile cookie on mount so re-visiting Setup
+  // shows the data the user already entered (not blank defaults).
+  // isLive=false means there's no cookie — leave empty defaults in place.
+  useEffect(() => {
+    const stored = loadProfileClient();
+    if (!stored.isLive) return;
+    const u = stored.user;
+    setCountry(u.country);
+    setIncomeType(u.income_type);
+    setMonthlyIncome(u.monthly_income ?? '');
+    setFixedExpenses(u.fixed_expenses ?? '');
+    setPrimaryBank(u.primary_bank ?? '');
+    if (u.country === 'IN' && u.tax_regime) setTaxRegime(u.tax_regime);
+    setAnnualHikeRate(u.annual_hike_rate ?? '');
+    if (u.hike_effective_month) {
+      setHikeEffectiveMonth(u.hike_effective_month);
+      setHikeMonthTouched(true);
+    }
+    if (u.loans && u.loans.length > 0) setLoans(u.loans);
+    setSavingsBalance(u.savings_balance ?? '');
+    setEfundBalance(u.efund_balance ?? '');
+    setEfundTarget(u.efund_target ?? '');
+    setMarginalRate(stored.marginalRate ?? '');
+    if (stored.creditScore != null) setCreditScore(String(stored.creditScore));
+  }, []);
 
   function updateLoan(idx: number, patch: Partial<LoanPayload>) {
     setLoans((cur) => cur.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
@@ -141,6 +180,7 @@ export default function OnboardingPage() {
         },
       ],
       annual_hike_rate: num(annualHikeRate),
+      hike_effective_month: hikeEffectiveMonth,
       inflation_rate: country === 'IN' ? '0.046' : '0.025',
     };
   }
@@ -170,6 +210,10 @@ export default function OnboardingPage() {
         <p className="muted">
           Six short steps — about two minutes. Saved locally to your browser,
           never uploaded. You can re-edit anytime.
+        </p>
+        <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+          Today, for projections: <strong>{formatCountryDateLong(country)}</strong>
+          . The schedule uses this as month 1.
         </p>
       </section>
 
@@ -281,14 +325,47 @@ export default function OnboardingPage() {
               label="Expected annual income hike (decimal)"
               value={annualHikeRate}
               onChange={setAnnualHikeRate}
-              hint="Applied once every 12 months in the simulation. e.g. 0.08 for 8%. Leave 0 if uncertain."
+              hint="e.g. 0.08 for 8%. Leave 0 if uncertain."
               info={
                 <>
                   Yearly raise you expect, as a decimal.{' '}
                   <strong>0.08 = 8%</strong>. The simulation applies it once
-                  every 12 months going forward. Use 0 if uncertain — better to
-                  be conservative.
+                  every 12 months, on the month you pick below. Use 0 if
+                  uncertain — better to be conservative. You can also toggle
+                  the hike off entirely on the Plan page to compare flat-income
+                  vs growing-income scenarios.
                 </>
+              }
+            />
+            <Select
+              label="Hike applies in"
+              value={String(hikeEffectiveMonth)}
+              onChange={(v) => {
+                setHikeEffectiveMonth(Number(v));
+                setHikeMonthTouched(true);
+              }}
+              options={MONTH_NAMES.map((name, i) => ({
+                value: String(i + 1),
+                label: name,
+              }))}
+              info={
+                country === 'IN' ? (
+                  <>
+                    The calendar month your hike usually kicks in.{' '}
+                    <strong>Default: April</strong> (FY-1) — most Indian
+                    salaried employees get appraised in March and the new salary
+                    lands in April. Government / PSU staff often follow the
+                    same cycle. Pick a different month if your employer's cycle
+                    differs (Jan / July / your work-anniversary month, etc.).
+                  </>
+                ) : (
+                  <>
+                    The calendar month your hike usually kicks in.{' '}
+                    <strong>Default: January</strong> (calendar-year start).
+                    Pick your work-anniversary month, or whatever your employer
+                    uses for annual raises.
+                  </>
+                )
               }
             />
             <Field

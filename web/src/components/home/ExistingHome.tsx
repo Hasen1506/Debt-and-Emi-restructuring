@@ -9,7 +9,6 @@
  * instead.
  */
 
-import { useState } from 'react';
 import { Card } from '@/components/Card';
 import { ActionTile } from '@/components/ActionTile';
 import type { StoredProfile } from '@/lib/user-store';
@@ -28,22 +27,16 @@ const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   bnpl: 'BNPL line',
 };
 
-const MAIN_TOOLS = [
+// Quick-actions only — the full tool catalog with descriptions lives at
+// /tools. Keeping this home surface tight avoids duplicating the index.
+const QUICK_TOOLS = [
   { label: 'Got a bonus?', sub: 'Windfall handler', href: '/tools/windfall' },
   { label: 'Paid extra?', sub: 'Quick recompute', href: '/tools/recompute' },
   { label: 'New EMI?', sub: 'Check before you take', href: '/tools/new-debt' },
 ] as const;
 
-const MORE_TOOLS = [
-  { label: 'Sell an asset?', sub: 'Liquidation gate', href: '/tools/liquidate' },
-  { label: 'Idle cash?', sub: 'Cash yield check', href: '/tools/cash-yield' },
-  { label: 'Borrow now?', sub: 'Right-time advisor', href: '/tools/right-time' },
-  { label: 'NRI prepay vs invest?', sub: 'FX-adjusted decision', href: '/tools/nri-prepay' },
-] as const;
-
 export function ExistingHome({ profile }: { profile: StoredProfile }) {
   const m = deriveMetrics(profile);
-  const [showMore, setShowMore] = useState(false);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -126,21 +119,13 @@ export function ExistingHome({ profile }: { profile: StoredProfile }) {
             marginBottom: 12,
           }}
         >
-          <h2 className="h2">Tools</h2>
-          <button
-            type="button"
-            onClick={() => setShowMore((v) => !v)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--accent)',
-              fontSize: 13,
-              cursor: 'pointer',
-              padding: 4,
-            }}
+          <h2 className="h2">Quick actions</h2>
+          <a
+            href="/tools"
+            style={{ color: 'var(--accent)', fontSize: 13 }}
           >
-            {showMore ? 'Show less' : `More tools (${MORE_TOOLS.length})…`}
-          </button>
+            All tools →
+          </a>
         </div>
 
         <div
@@ -150,38 +135,10 @@ export function ExistingHome({ profile }: { profile: StoredProfile }) {
             gap: 12,
           }}
         >
-          {MAIN_TOOLS.map((t) => (
+          {QUICK_TOOLS.map((t) => (
             <ActionTile key={t.href} label={t.label} sub={t.sub} href={t.href} />
           ))}
         </div>
-
-        {showMore && (
-          <>
-            <div
-              className="muted"
-              style={{
-                marginTop: 18,
-                marginBottom: 8,
-                fontSize: 11,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-              }}
-            >
-              Less common — surface when the situation comes up
-            </div>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: 12,
-              }}
-            >
-              {MORE_TOOLS.map((t) => (
-                <ActionTile key={t.href} label={t.label} sub={t.sub} href={t.href} />
-              ))}
-            </div>
-          </>
-        )}
       </section>
     </div>
   );
