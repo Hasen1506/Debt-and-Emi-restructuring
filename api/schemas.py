@@ -64,6 +64,16 @@ class AssetIn(_Base):
     rental_income_annual: Decimal = D("0")
     holding_costs_annual: Decimal = D("0")
     state: Optional[str] = None
+    # Liquidation-advisor fields (all optional)
+    label: Optional[str] = None
+    expected_return_pct: Optional[Decimal] = None
+    user_marks_liquid: bool = True
+    fd_rate_pct: Optional[Decimal] = None
+    fd_maturity_date: Optional[date] = None
+    fd_premature_penalty_pct: Decimal = D("0.01")
+    ppf_opened_date: Optional[date] = None
+    sgb_at_maturity: bool = False
+    us_section_121_eligible: bool = False
 
     def to_engine(self) -> Asset:
         return Asset(
@@ -73,6 +83,15 @@ class AssetIn(_Base):
             rental_income_annual=self.rental_income_annual,
             holding_costs_annual=self.holding_costs_annual,
             state=self.state,
+            label=self.label,
+            expected_return_pct=self.expected_return_pct,
+            user_marks_liquid=self.user_marks_liquid,
+            fd_rate_pct=self.fd_rate_pct,
+            fd_maturity_date=self.fd_maturity_date,
+            fd_premature_penalty_pct=self.fd_premature_penalty_pct,
+            ppf_opened_date=self.ppf_opened_date,
+            sgb_at_maturity=self.sgb_at_maturity,
+            us_section_121_eligible=self.us_section_121_eligible,
         )
 
 
@@ -447,3 +466,58 @@ class RestructuringOpportunityOut(_Base):
 class RestructuringResponse(_Base):
     opportunities: list[RestructuringOpportunityOut]
     total_annual_saving: Decimal
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Portfolio liquidation advisor (§4.18 — ranker over (asset, debt) pairs)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ProceedsResultOut(_Base):
+    asset_label: str
+    asset_type: str
+    gross_proceeds: Decimal
+    tax_owed: Decimal
+    penalty: Decimal
+    transaction_costs: Decimal
+    net_proceeds: Decimal
+    explanation: str
+    is_blocked: bool = False
+    block_reason: str = ""
+    caveats: list[str] = Field(default_factory=list)
+
+
+class LiquidationRecommendationOut(_Base):
+    asset_index: int
+    asset_label: str
+    asset_type: str
+    target_loan_index: int
+    target_loan_label: str
+    proceeds: ProceedsResultOut
+    debt_balance: Decimal
+    debt_effective_rate: Decimal
+    debt_cleared_amount: Decimal
+    interest_saved_yr1_nominal: Decimal
+    asset_return_pct: Decimal
+    holding_cost_given_up_yr1: Decimal
+    net_annual_benefit_nominal: Decimal
+    net_annual_benefit_real: Decimal
+    verdict: str                              # clear_win | conditional | marginal | dont_sell
+    skip_reason: Optional[str] = None
+
+
+class LiquidationRankingsRequest(_Base):
+    user: UserIn
+    # Map of loan index → effective APR for that loan. Caller computes these
+    # using the same effective-APR helper the UI already uses, so the ranker
+    # uses consistent rates with what the user sees elsewhere.
+    debt_effective_rates: dict[int, Decimal]
+    marginal_rate: Decimal = D("0.30")
+    high_rate_threshold: Decimal = D("0.20")
+    horizon_years: Decimal = D("5")
+    surplus_reinvestment_yield: Decimal = D("0.07")
+    pre_filter_margin: Decimal = D("0.01")
+
+
+class LiquidationRankingsResponse(_Base):
+    recommendations: list[LiquidationRecommendationOut]
+    considered_but_skipped: list[LiquidationRecommendationOut]

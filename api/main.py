@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import simulation, decisions, layer0, institutions, fx, credit_score, restructuring
+from api.routes import simulation, decisions, layer0, institutions, fx, credit_score, restructuring, portfolio
 
 app = FastAPI(
     title="FinOptima Debt & EMI API",
@@ -30,6 +30,7 @@ app.include_router(institutions.router, prefix="/api")
 app.include_router(fx.router, prefix="/api")
 app.include_router(credit_score.router, prefix="/api")
 app.include_router(restructuring.router, prefix="/api")
+app.include_router(portfolio.router, prefix="/api")
 
 
 @app.get("/api/health")

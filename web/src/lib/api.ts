@@ -64,6 +64,10 @@ export interface UserPayload {
   efund_balance?: string;
   efund_target?: string;
   loans: LoanPayload[];
+  /** Optional list of assets for the portfolio-liquidation advisor. Each entry
+   *  is partially-optional; minimum needed is asset_type + current_market_value
+   *  + purchase_date (year-only OK). */
+  assets?: AssetPayload[];
   investment_options?: InvestmentOptionPayload[];
   annual_hike_rate?: string;
   /** Calendar month (1-12) when the annual hike fires. Defaults to 1 (Jan)
@@ -150,14 +154,37 @@ export interface BorrowTimingResponse {
   detail: string;
 }
 
+export type AssetType =
+  | 'savings_balance' | 'fixed_deposit'
+  | 'equity_stocks' | 'equity_mf' | 'debt_mf'
+  | 'gold_physical' | 'sgb'
+  | 'real_estate' | 'ppf' | 'epf' | 'nps'
+  | 'other';
+
 export interface AssetPayload {
-  asset_type: string;
+  asset_type: AssetType | string;
   purchase_price: string;
-  purchase_date: string;                // YYYY-MM-DD
+  purchase_date: string;                // YYYY, YYYY-MM, or YYYY-MM-DD
   current_market_value: string;
   rental_income_annual?: string;
   holding_costs_annual?: string;
   state?: string;
+  /** User-facing label, e.g. "HDFC FD #2", "Bangalore flat". */
+  label?: string;
+  /** Optional override for the asset class's default expected return. */
+  expected_return_pct?: string;
+  /** User's self-assessment — "could I sell this within 30 days?". */
+  user_marks_liquid?: boolean;
+  // FD-specific
+  fd_rate_pct?: string;
+  fd_maturity_date?: string;
+  fd_premature_penalty_pct?: string;
+  // PPF-specific
+  ppf_opened_date?: string;
+  // SGB-specific
+  sgb_at_maturity?: boolean;
+  // US-specific — IRC §121 primary-residence exclusion eligibility
+  us_section_121_eligible?: boolean;
 }
 
 export interface AssetLiquidationResponse {
@@ -176,6 +203,50 @@ export interface AssetLiquidationResponse {
   horizon_years: string | null;
   recommend_liquidation: boolean;
   rationale: string;
+}
+
+// ─── Portfolio liquidation advisor ──────────────────────────────────────────
+
+export interface ProceedsResult {
+  asset_label: string;
+  asset_type: string;
+  gross_proceeds: string;
+  tax_owed: string;
+  penalty: string;
+  transaction_costs: string;
+  net_proceeds: string;
+  explanation: string;
+  is_blocked: boolean;
+  block_reason: string;
+  caveats: string[];
+}
+
+export type LiquidationVerdict =
+  | 'clear_win' | 'conditional' | 'marginal' | 'dont_sell';
+
+export interface LiquidationRecommendation {
+  asset_index: number;
+  asset_label: string;
+  asset_type: string;
+  target_loan_index: number;
+  target_loan_label: string;
+  proceeds: ProceedsResult;
+  debt_balance: string;
+  debt_effective_rate: string;
+  debt_cleared_amount: string;
+  interest_saved_yr1_nominal: string;
+  asset_return_pct: string;
+  holding_cost_given_up_yr1: string;
+  net_annual_benefit_nominal: string;
+  net_annual_benefit_real: string;
+  verdict: LiquidationVerdict;
+  /** Only populated for entries in the considered_but_skipped bucket. */
+  skip_reason: string | null;
+}
+
+export interface LiquidationRankingsResponse {
+  recommendations: LiquidationRecommendation[];
+  considered_but_skipped: LiquidationRecommendation[];
 }
 
 export interface FxRateResponse {
@@ -424,6 +495,21 @@ export const api = {
     brokerage_rate?: string;
     surplus_reinvestment_yield?: string;
   }) => post<AssetLiquidationResponse>('/api/asset-liquidation', req),
+
+  liquidationRankings: (req: {
+    user: UserPayload;
+    /** Map of loan index → effective APR (decimal string, e.g. "0.42"). Use
+     *  the same effectiveAPR helper the rest of the app uses so the ranker
+     *  scores debts at the rate the user already sees. */
+    debt_effective_rates: Record<number, string>;
+    marginal_rate?: string;
+    high_rate_threshold?: string;
+    horizon_years?: string;
+    surplus_reinvestment_yield?: string;
+    pre_filter_margin?: string;
+  }) => post<LiquidationRankingsResponse>(
+    '/api/portfolio/liquidation-rankings', req,
+  ),
 
   institutions: (country?: Country) =>
     get<InstitutionPayload[]>(

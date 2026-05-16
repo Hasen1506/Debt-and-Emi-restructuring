@@ -102,8 +102,12 @@ def test_asset_liquidation_recommends_sell_for_high_rate_debt(client):
         "purchase_fy": "2018-19",
         "current_fy": "2024-25",
     })
-    assert r.status_code == 400, r.text
-    # 2018-19 isn't in our CII table — engine fails loudly. Retry with a year that is.
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["recommend_liquidation"] is True
+    assert body["gate_1_net_benefit"] is True
+    assert body["gate_2_high_rate"] is True
+    assert body["gate_3_spread"] is True
 
 
 def test_asset_liquidation_pre_2024_indexed(client):
