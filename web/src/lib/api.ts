@@ -540,7 +540,39 @@ export interface InstitutionPayload {
 
 // ─── formatting helpers ─────────────────────────────────────────────────────
 
+/** Indian lakh grouping: last 3 digits, then groups of 2. "1234567" → "12,34,567". */
+function indianGroup(intStr: string): string {
+  const neg = intStr.startsWith('-');
+  const body = neg ? intStr.slice(1) : intStr;
+  if (body.length <= 3) return (neg ? '-' : '') + body;
+  const last3 = body.slice(-3);
+  const rest = body.slice(0, -3);
+  const grouped = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',');
+  return (neg ? '-' : '') + grouped + ',' + last3;
+}
+
+/** Western grouping: groups of 3. "1234567" → "1,234,567". */
+function westernGroup(intStr: string): string {
+  const neg = intStr.startsWith('-');
+  const body = neg ? intStr.slice(1) : intStr;
+  return (neg ? '-' : '') + body.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/** Rupees with lakh comma format. ₹1,23,45,678 — exact, no abbreviation. */
 export function formatINR(value: string | number | Decimal): string {
+  const d = new Decimal(value);
+  return `₹${indianGroup(d.toFixed(0))}`;
+}
+
+/** Dollars with Western comma format. $1,234,567.89 — exact, no abbreviation. */
+export function formatUSD(value: string | number | Decimal): string {
+  const d = new Decimal(value);
+  const [intPart, decPart] = d.toFixed(2).split('.');
+  return `$${westernGroup(intPart)}.${decPart}`;
+}
+
+/** Compact INR for chart axes / tight stat tiles. Uses Cr/L/k abbreviation. */
+export function formatINRCompact(value: string | number | Decimal): string {
   const d = new Decimal(value);
   const abs = d.abs();
   if (abs.gte(10_000_000)) return `₹${d.div(10_000_000).toFixed(2)}Cr`;
@@ -549,7 +581,8 @@ export function formatINR(value: string | number | Decimal): string {
   return `₹${d.toFixed(0)}`;
 }
 
-export function formatUSD(value: string | number | Decimal): string {
+/** Compact USD for chart axes / tight stat tiles. Uses M/k abbreviation. */
+export function formatUSDCompact(value: string | number | Decimal): string {
   const d = new Decimal(value);
   const abs = d.abs();
   if (abs.gte(1_000_000)) return `$${d.div(1_000_000).toFixed(2)}M`;
@@ -559,6 +592,10 @@ export function formatUSD(value: string | number | Decimal): string {
 
 export function formatCurrency(value: string | number | Decimal, currency: string): string {
   return currency.toUpperCase() === 'USD' ? formatUSD(value) : formatINR(value);
+}
+
+export function formatCurrencyCompact(value: string | number | Decimal, currency: string): string {
+  return currency.toUpperCase() === 'USD' ? formatUSDCompact(value) : formatINRCompact(value);
 }
 
 export function formatPct(value: string | number | Decimal, digits = 2): string {

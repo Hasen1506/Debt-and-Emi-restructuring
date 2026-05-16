@@ -786,9 +786,10 @@ export default function OnboardingPage() {
               <br />
               <strong>{loans.filter((l) => Number(l.outstanding) > 0).length}</strong> loan(s)
               totalling{' '}
-              {loans
-                .reduce((acc, l) => acc + Number(l.outstanding), 0)
-                .toLocaleString()}
+              {formatCurrency(
+                loans.reduce((acc, l) => acc + Number(l.outstanding), 0),
+                country === 'IN' ? 'INR' : 'USD',
+              )}
               <br />
               Savings {savingsBalance} · emergency fund {efundBalance} of {efundTarget}
               <br />
