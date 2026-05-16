@@ -17,10 +17,12 @@ import {
   formatINR,
   formatPct,
   type AssetLiquidationResponse,
+  type LiquidationRecommendation,
 } from '@/lib/api';
 import { DEMO_ASSET } from '@/lib/demo-user';
 import { loadProfileClient } from '@/lib/user-store';
 import { applyToolResult } from '@/lib/apply-tool-result';
+import { PortfolioRanker } from './PortfolioRanker';
 
 const FINANCE_ACT_2024_CUTOFF = '2024-07-23';
 const DEFAULT_INFLATION = '0.046';
@@ -189,8 +191,66 @@ export function LiquidateTool() {
     return { fractionNeeded, surplus: v.surplus };
   }, [v, saleMode, effectiveSalePrice, debtBalance]);
 
+  const hasAssets = (profile.user.assets?.length ?? 0) > 0;
+
+  // Drill-in handler: pre-fill the sandbox form from a ranker recommendation.
+  // Only supports real-estate fully (sandbox is RE-focused). For other types
+  // we still pre-fill what we can and let the user see the existing UI.
+  function drillIn(rec: LiquidationRecommendation) {
+    if (!profile.user.assets) return;
+    const asset = profile.user.assets[rec.asset_index];
+    if (!asset) return;
+    if (asset.purchase_price) setPurchasePrice(asset.purchase_price);
+    if (asset.purchase_date) {
+      // Normalise to YYYY-only acceptance the form already supports.
+      setPurchaseDate(asset.purchase_date.slice(0, 10) || asset.purchase_date);
+    }
+    if (asset.current_market_value) setSalePrice(asset.current_market_value);
+    if (asset.state) setState(asset.state);
+    setTargetIdx(String(rec.target_loan_index));
+    setDebtBalance(rec.debt_balance);
+    setDebtRate(rec.debt_effective_rate);
+    // Scroll the sandbox section into view.
+    if (typeof document !== 'undefined') {
+      document.getElementById('sandbox-section')?.scrollIntoView({
+        behavior: 'smooth', block: 'start',
+      });
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {hasAssets ? (
+        <PortfolioRanker
+          user={profile.user}
+          marginalRate={profile.marginalRate}
+          isLive={profile.isLive}
+          onDrillIn={drillIn}
+        />
+      ) : (
+        <Card>
+          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
+            <strong>Add your assets</strong> at{' '}
+            <a href="/onboarding/assets" style={{ color: 'var(--accent)' }}>
+              /onboarding/assets
+            </a>{' '}
+            to see every asset ranked against every debt — net of tax, lockups,
+            and selling costs. Skip if you'd rather just compute a single
+            scenario below.
+          </p>
+        </Card>
+      )}
+
+      <section id="sandbox-section">
+        <h2 className="h2" style={{ marginBottom: 4 }}>
+          {hasAssets ? 'Sandbox — model a specific scenario' : 'Run a single scenario'}
+        </h2>
+        <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+          Real-estate flavoured; fine-grained controls for one (asset, debt)
+          pairing.
+        </p>
+      </section>
+
       <Card>
         <form
           onSubmit={check}
