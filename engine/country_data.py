@@ -114,6 +114,48 @@ def lookup_cii(fy_string: str) -> int:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Asset advisor — default nominal expected returns by asset class
+# (used by the portfolio liquidation ranker; overridable per-asset by user)
+# ─────────────────────────────────────────────────────────────────────────────
+
+ASSET_DEFAULT_RETURNS_IN = {
+    "savings_balance": D("0.035"),
+    "fixed_deposit":   D("0.07"),     # bank-FD blended; overridden by fd_rate_pct
+    "equity_stocks":   D("0.12"),     # 10-yr Nifty CAGR ballpark
+    "equity_mf":       D("0.11"),
+    "debt_mf":         D("0.07"),
+    "gold_physical":   D("0.08"),
+    "sgb":             D("0.08"),     # excludes 2.5% semi-annual coupon (added separately if needed)
+    "real_estate":     D("0.07"),
+    "ppf":             D("0.071"),    # April 2026 notified rate; tax-free
+    "epf":             D("0.0825"),   # EPFO declared; tax-free post 5y service
+    "nps":             D("0.09"),     # equity-heavy blended
+    "other":           D("0.06"),
+}
+
+ASSET_DEFAULT_RETURNS_US = {
+    "savings_balance": D("0.04"),     # HYSA ballpark
+    "fixed_deposit":   D("0.045"),    # CD rate
+    "equity_stocks":   D("0.10"),
+    "equity_mf":       D("0.09"),
+    "debt_mf":         D("0.05"),
+    "gold_physical":   D("0.07"),
+    "real_estate":     D("0.06"),
+    "ppf":             D("0"),         # n/a
+    "epf":             D("0"),         # n/a
+    "nps":             D("0"),         # n/a
+    "sgb":             D("0"),         # n/a
+    "other":           D("0.05"),
+}
+
+
+def lookup_asset_return(asset_type: str, country: Country = Country.IN) -> Decimal:
+    """Default nominal annual return for an asset class. Unknown → 6% conservative."""
+    table = ASSET_DEFAULT_RETURNS_IN if country == Country.IN else ASSET_DEFAULT_RETURNS_US
+    return table.get(asset_type, D("0.06"))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Institution tier (brainstorm §31) — for scrape cadence in data ops
 # ─────────────────────────────────────────────────────────────────────────────
 

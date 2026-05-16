@@ -43,6 +43,22 @@ class LiquidityClass(str, Enum):
     AGE_GATED = "age_gated"
 
 
+class AssetType(str, Enum):
+    """Canonical asset types for the liquidation advisor (§4.18 ranker)."""
+    SAVINGS = "savings_balance"
+    FIXED_DEPOSIT = "fixed_deposit"
+    EQUITY_STOCKS = "equity_stocks"
+    EQUITY_MF = "equity_mf"
+    DEBT_MF = "debt_mf"
+    GOLD_PHYSICAL = "gold_physical"
+    SGB = "sgb"
+    REAL_ESTATE = "real_estate"
+    PPF = "ppf"
+    EPF = "epf"
+    NPS = "nps"
+    OTHER = "other"
+
+
 @dataclass
 class Loan:
     loan_type: LoanType
@@ -71,13 +87,25 @@ class InvestmentOption:
 
 @dataclass
 class Asset:
-    asset_type: str                 # "real_estate" | "equity" | "gold" | etc.
+    asset_type: str                 # canonical values in AssetType enum
     purchase_price: Decimal
     purchase_date: date
     current_market_value: Decimal
     rental_income_annual: Decimal = Decimal("0")
     holding_costs_annual: Decimal = Decimal("0")
     state: Optional[str] = None     # for India stamp duty lookup
+    # ── Liquidation-advisor fields (all optional) ────────────────────────────
+    label: Optional[str] = None                       # user-facing name
+    expected_return_pct: Optional[Decimal] = None     # nominal; override default
+    user_marks_liquid: bool = True                    # "can I sell this in 30d?"
+    # FD-specific
+    fd_rate_pct: Optional[Decimal] = None
+    fd_maturity_date: Optional[date] = None
+    fd_premature_penalty_pct: Decimal = Decimal("0.01")
+    # PPF-specific
+    ppf_opened_date: Optional[date] = None
+    # SGB-specific — if user is at the 8-year maturity, redemption is tax-free
+    sgb_at_maturity: bool = False
 
 
 @dataclass
