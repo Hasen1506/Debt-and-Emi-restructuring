@@ -55,6 +55,10 @@ class Loan:
     processing_fee_amortised: Decimal = Decimal("0")
     insurance_premium_pct: Decimal = Decimal("0")
     property_use: Optional[str] = None    # "self_occupied" | "let_out" for home loans
+    # Optional user override for the credit-card minimum payment. When set,
+    # the bank-specific formula in `minimum_payments.py` is bypassed. Ignored
+    # for non-card loans (their minimum is `scheduled_emi` unambiguously).
+    min_payment_override: Optional[Decimal] = None
 
 
 @dataclass
@@ -99,6 +103,12 @@ class User:
     savings_balance: Decimal
     primary_bank: str
     location_tier: str = "urban"    # "urban" | "semi_urban" | "rural"
+    # Banks the user holds accounts at (savings / current / DD) without an
+    # active loan. Combined with the per-loan `bank` fields this gives the
+    # full banking-relationship picture, so the new-debt and refinance
+    # tools can suggest "borrow from a bank you already deal with" — no
+    # new KYC, no extra account-opening cost.
+    other_banks: list[str] = field(default_factory=list)
     # India
     tax_regime: Optional[TaxRegimeIN] = None
     pf: Optional[PFBalance] = None

@@ -31,6 +31,10 @@ def restructuring(req: RestructuringRequest) -> RestructuringResponse:
                 target_rate=o.target_rate,
                 current_rate=o.current_rate,
                 detail=o.detail,
+                alternative_target_bank=o.alternative_target_bank,
+                alternative_target_rate=o.alternative_target_rate,
+                alternative_annual_saving=o.alternative_annual_saving,
+                target_is_existing_relationship=o.target_is_existing_relationship,
             )
             for o in opps
         ],

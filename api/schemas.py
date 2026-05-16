@@ -40,6 +40,7 @@ class LoanIn(_Base):
     processing_fee_amortised: Decimal = D("0")
     insurance_premium_pct: Decimal = D("0")
     property_use: Optional[str] = None
+    min_payment_override: Optional[Decimal] = None
 
     def to_engine(self) -> Loan:
         return Loan(
@@ -51,6 +52,7 @@ class LoanIn(_Base):
             processing_fee_amortised=self.processing_fee_amortised,
             insurance_premium_pct=self.insurance_premium_pct,
             property_use=self.property_use,
+            min_payment_override=self.min_payment_override,
         )
 
 
@@ -115,6 +117,7 @@ class UserIn(_Base):
     savings_balance: Decimal
     primary_bank: str
     location_tier: str = "urban"
+    other_banks: list[str] = Field(default_factory=list)
     tax_regime: Optional[TaxRegimeIN] = None
     pf: Optional[PFBalanceIn] = None
     filing_status: Optional[FilingStatusUS] = None
@@ -138,6 +141,7 @@ class UserIn(_Base):
             fixed_expenses=self.fixed_expenses,
             savings_balance=self.savings_balance,
             primary_bank=self.primary_bank, location_tier=self.location_tier,
+            other_banks=list(self.other_banks),
             tax_regime=self.tax_regime,
             pf=self.pf.to_engine() if self.pf else None,
             filing_status=self.filing_status, state=self.state,
@@ -434,6 +438,10 @@ class RestructuringOpportunityOut(_Base):
     target_rate: Decimal
     current_rate: Decimal
     detail: dict[str, str]
+    alternative_target_bank: Optional[str] = None
+    alternative_target_rate: Optional[Decimal] = None
+    alternative_annual_saving: Optional[Decimal] = None
+    target_is_existing_relationship: bool = False
 
 
 class RestructuringResponse(_Base):

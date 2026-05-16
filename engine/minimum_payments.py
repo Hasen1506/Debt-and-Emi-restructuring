@@ -97,6 +97,11 @@ def compute_minimum_payment(
     if loan.loan_type != LoanType.CREDIT_CARD:
         return loan.scheduled_emi
 
+    # User override wins over the bank-specific formula. Honoured even in
+    # Simple Mode — the override is an explicit user choice, not a heuristic.
+    if loan.min_payment_override is not None and loan.min_payment_override > D("0"):
+        return loan.min_payment_override
+
     if simple_mode:
         formula = DEFAULT_FORMULA[country]
     else:

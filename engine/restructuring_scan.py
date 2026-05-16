@@ -42,6 +42,18 @@ class RestructuringOpportunity:
     current_rate: Decimal         # blended/effective rate today
     # raw details for the UI's "show math" section
     detail: dict[str, str]
+    # Set when the all-banks rate-card winner is *different* from the
+    # relationship-preferred target — i.e. the user could save a bit more by
+    # opening an account at a bank they don't currently use. UI shows this as
+    # a dismissable "also worth knowing" hint, not the primary recommendation,
+    # because opening a new account has its own friction (KYC, time, fees).
+    alternative_target_bank: Optional[str] = None
+    alternative_target_rate: Optional[Decimal] = None
+    alternative_annual_saving: Optional[Decimal] = None
+    # True iff target_bank was chosen because it's in user.primary_bank ∪
+    # user.other_banks ∪ {loan.bank}. Lets the UI add a "you already use this
+    # bank" badge without recomputing the set.
+    target_is_existing_relationship: bool = False
 
 
 def _country_pool(country: Country) -> list[InstitutionRateCard]:
@@ -51,15 +63,40 @@ def _country_pool(country: Country) -> list[InstitutionRateCard]:
     return INDIA_TIER_A if country == Country.IN else USA_TIER_A
 
 
-def _best_bt_offer(country: Country) -> Optional[tuple[InstitutionRateCard, Decimal, int, Decimal]]:
+def _known_banks(user: User) -> set[str]:
+    """Banks the user already has a relationship with — primary_bank,
+    other_banks, and any loan.bank. Normalised lowercase so case differences
+    (\"HDFC Bank\" vs \"hdfc bank\") don't cause false misses."""
+    s: set[str] = set()
+    if user.primary_bank:
+        s.add(user.primary_bank.strip().lower())
+    for b in user.other_banks:
+        if b:
+            s.add(b.strip().lower())
+    for l in user.loans:
+        if l.bank:
+            s.add(l.bank.strip().lower())
+    return s
+
+
+def _best_bt_offer(
+    country: Country,
+    known: Optional[set[str]] = None,
+) -> Optional[tuple[InstitutionRateCard, Decimal, int, Decimal]]:
     """Pick the bank with the lowest effective BT-APR (promo rate + amortised fee).
     Returns (card, promo_rate, promo_months, fee_pct) or None if no offers exist.
+
+    When `known` is provided, restricts candidates to banks in that set. Callers
+    that want the overall-cheapest pass known=None; callers that want the
+    relationship-preferred winner pass the user's known-bank set.
     """
     best = None
     best_eff = None
     for card in _country_pool(country):
         cc = card.credit_card
         if cc is None or cc.bt_promo_rate is None or not cc.bt_promo_months:
+            continue
+        if known is not None and card.name.strip().lower() not in known:
             continue
         fee = cc.bt_fee_pct or D("0")
         eff = cc.bt_promo_rate + fee / D(cc.bt_promo_months) * D("12")
@@ -69,12 +106,22 @@ def _best_bt_offer(country: Country) -> Optional[tuple[InstitutionRateCard, Deci
     return best
 
 
-def _best_market_rate(country: Country, loan_type: LoanType) -> Optional[tuple[str, Decimal]]:
+def _best_market_rate(
+    country: Country,
+    loan_type: LoanType,
+    known: Optional[set[str]] = None,
+) -> Optional[tuple[str, Decimal]]:
     """Return (bank_name, low_end_rate) for the cheapest populated Tier-A
-    offer of `loan_type`. Used to surface the refi/consolidation target."""
+    offer of `loan_type`. Used to surface the refi/consolidation target.
+
+    When `known` is provided, restricts candidates to banks in that set so
+    callers can pick the relationship-preferred winner.
+    """
     best_bank = None
     best_low = None
     for card in _country_pool(country):
+        if known is not None and card.name.strip().lower() not in known:
+            continue
         if loan_type == LoanType.HOME:
             r = card.home_loan
         elif loan_type == LoanType.AUTO:
@@ -99,22 +146,35 @@ def _fmt_pct(d: Decimal) -> str:
     return f"{(d * D('100')):.2f}%"
 
 
+def _bt_saving_annualised(
+    card: Loan, card_effective: Decimal, effective_bt_apr: Decimal, promo_months: int,
+) -> Decimal:
+    """(current_effective − bt_effective) × outstanding, bounded to one year."""
+    saving = (card_effective - effective_bt_apr) * card.outstanding
+    return saving * D(min(promo_months, 12)) / D("12")
+
+
 def _scan_card_balance_transfer(
     card: Loan,
     card_effective: Decimal,
     country: Country,
+    known: set[str],
 ) -> Optional[RestructuringOpportunity]:
-    offer = _best_bt_offer(country)
-    if offer is None:
+    # Pick the relationship-preferred BT target first; fall back to the
+    # overall winner if the user doesn't already have a card with any of
+    # the BT-offering banks.
+    rel_offer = _best_bt_offer(country, known) if known else None
+    overall = _best_bt_offer(country, known=None)
+    if rel_offer is None and overall is None:
         return None
-    target_card, promo_rate, promo_months, fee_pct = offer
+    chosen = rel_offer or overall  # type: ignore[assignment]
+    target_card, promo_rate, promo_months, fee_pct = chosen
     cand = scan_balance_transfer(card, card_effective, promo_rate, fee_pct, promo_months)
     if cand is None:
         return None
-    # Annual saving = (current effective − BT effective) × outstanding, for the promo window
-    saving = (card_effective - cand.effective_bt_apr) * card.outstanding
-    # Bound to one year; longer promos still save more but UI keeps annualised number.
-    saving_annualised = saving * D(min(promo_months, 12)) / D("12")
+    saving_annualised = _bt_saving_annualised(
+        card, card_effective, cand.effective_bt_apr, promo_months,
+    )
     ccy = "₹" if country == Country.IN else "$"
     headline = (
         f"{promo_months}-month promo: move {ccy}{card.outstanding:,.0f} from "
@@ -127,6 +187,18 @@ def _scan_card_balance_transfer(
         f"{_fmt_pct(fee_pct)} = {_fmt_pct(cand.effective_bt_apr)} vs the "
         f"{_fmt_pct(card_effective)} you pay today."
     )
+    # If the relationship pick differs from the overall winner, surface the
+    # alternative so the UI can show a dismissable "even cheaper elsewhere".
+    alt_bank = alt_rate = alt_saving = None
+    if rel_offer is not None and overall is not None and overall[0].name != target_card.name:
+        alt_card, alt_promo, alt_months, alt_fee = overall
+        alt_eff = alt_promo + alt_fee / D(alt_months) * D("12") if alt_months else alt_promo
+        # Only surface the alternative if it actually beats the chosen target
+        # — otherwise the relationship pick is the right answer everywhere.
+        if alt_eff < cand.effective_bt_apr:
+            alt_bank = alt_card.name
+            alt_rate = alt_eff
+            alt_saving = _bt_saving_annualised(card, card_effective, alt_eff, alt_months)
     return RestructuringOpportunity(
         kind="balance_transfer",
         headline=headline,
@@ -143,12 +215,17 @@ def _scan_card_balance_transfer(
             "fee_pct": str(fee_pct),
             "effective_bt_apr": str(cand.effective_bt_apr),
         },
+        alternative_target_bank=alt_bank,
+        alternative_target_rate=alt_rate,
+        alternative_annual_saving=alt_saving,
+        target_is_existing_relationship=rel_offer is not None,
     )
 
 
 def _scan_consolidation_opportunity(
     user: User,
     effective_rates: dict[int, Decimal],
+    known: set[str],
 ) -> Optional[RestructuringOpportunity]:
     """Look at unsecured high-rate loans (personal + credit card) and see if
     a single consolidated personal loan at market rate would beat the blended
@@ -159,10 +236,12 @@ def _scan_consolidation_opportunity(
     ]
     if len(unsecured) < 2:
         return None
-    market = _best_market_rate(user.country, LoanType.PERSONAL)
-    if market is None:
+    rel_market = _best_market_rate(user.country, LoanType.PERSONAL, known) if known else None
+    overall_market = _best_market_rate(user.country, LoanType.PERSONAL, known=None)
+    chosen = rel_market or overall_market
+    if chosen is None:
         return None
-    target_bank, market_low = market
+    target_bank, market_low = chosen
     # Assume a 1% processing fee amortised over 3y → 0.0033 added to rate.
     fee_amortised = D("0.0033")
     cand = scan_consolidation(unsecured, effective_rates, market_low, fee_amortised)
@@ -179,6 +258,19 @@ def _scan_consolidation_opportunity(
         f"one personal loan at {_fmt_pct(cand.consolidated_rate)} saves "
         f"{_fmt_pct(cand.blended_avg_rate - cand.consolidated_rate)} per year."
     )
+    alt_bank = alt_rate = alt_saving = None
+    if (
+        rel_market is not None
+        and overall_market is not None
+        and overall_market[0] != target_bank
+        and overall_market[1] < market_low
+    ):
+        alt_bank_raw, alt_low = overall_market
+        alt_rate_consolidated = alt_low * (D("1") + fee_amortised)
+        if alt_rate_consolidated < cand.consolidated_rate:
+            alt_bank = alt_bank_raw
+            alt_rate = alt_rate_consolidated
+            alt_saving = (cand.blended_avg_rate - alt_rate_consolidated) * total
     return RestructuringOpportunity(
         kind="consolidation",
         headline=headline,
@@ -194,6 +286,10 @@ def _scan_consolidation_opportunity(
             "consolidated_rate": str(cand.consolidated_rate),
             "loan_count": str(len(cand.loans)),
         },
+        alternative_target_bank=alt_bank,
+        alternative_target_rate=alt_rate,
+        alternative_annual_saving=alt_saving,
+        target_is_existing_relationship=rel_market is not None,
     )
 
 
@@ -209,15 +305,21 @@ def _refi_interest_saved(loan: Loan, new_rate: Decimal) -> Decimal:
     return (old_emi - new_emi) * D(n)
 
 
-def _scan_refi_opportunity(loan: Loan, country: Country) -> Optional[RestructuringOpportunity]:
+def _scan_refi_opportunity(
+    loan: Loan,
+    country: Country,
+    known: set[str],
+) -> Optional[RestructuringOpportunity]:
     median = market_median(country, loan.loan_type)
     if median is None:
         return None
     # Assume refi costs = 1% of outstanding (processing fee + legal).
     refi_costs = loan.outstanding * D("0.01")
-    market = _best_market_rate(country, loan.loan_type)
-    target_bank = market[0] if market else None
-    new_rate = market[1] if market else median
+    rel_market = _best_market_rate(country, loan.loan_type, known) if known else None
+    overall_market = _best_market_rate(country, loan.loan_type, known=None)
+    chosen = rel_market or overall_market
+    target_bank = chosen[0] if chosen else None
+    new_rate = chosen[1] if chosen else median
     interest_saved = _refi_interest_saved(loan, new_rate)
     cand = scan_refinance(loan, median, interest_saved, refi_costs)
     if cand is None:
@@ -233,6 +335,15 @@ def _scan_refi_opportunity(loan: Loan, country: Country) -> Optional[Restructuri
         f"{_fmt_pct(median)}; lifetime interest saved "
         f"{interest_saved:,.0f} vs ~{refi_costs:,.0f} in costs."
     )
+    alt_bank = alt_rate = alt_saving = None
+    if (
+        rel_market is not None
+        and overall_market is not None
+        and overall_market[0] != target_bank
+        and overall_market[1] < new_rate
+    ):
+        alt_bank, alt_rate = overall_market
+        alt_saving = (loan.nominal_rate - alt_rate) * loan.outstanding
     return RestructuringOpportunity(
         kind="refinance",
         headline=headline,
@@ -250,6 +361,10 @@ def _scan_refi_opportunity(loan: Loan, country: Country) -> Optional[Restructuri
             "interest_saved_total": str(interest_saved),
             "refi_costs": str(refi_costs),
         },
+        alternative_target_bank=alt_bank,
+        alternative_target_rate=alt_rate,
+        alternative_annual_saving=alt_saving,
+        target_is_existing_relationship=rel_market is not None,
     )
 
 
@@ -260,21 +375,22 @@ def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringO
         id(l): effective_rate(l, marginal_rate, user.country, user.tax_regime)
         for l in user.loans
     }
+    known = _known_banks(user)
     out: list[RestructuringOpportunity] = []
 
     for l in user.loans:
         if l.loan_type == LoanType.CREDIT_CARD:
-            opp = _scan_card_balance_transfer(l, rates[id(l)], user.country)
+            opp = _scan_card_balance_transfer(l, rates[id(l)], user.country, known)
             if opp is not None:
                 out.append(opp)
 
-    consol = _scan_consolidation_opportunity(user, rates)
+    consol = _scan_consolidation_opportunity(user, rates, known)
     if consol is not None:
         out.append(consol)
 
     for l in user.loans:
         if l.loan_type in (LoanType.HOME, LoanType.AUTO):
-            opp = _scan_refi_opportunity(l, user.country)
+            opp = _scan_refi_opportunity(l, user.country, known)
             if opp is not None:
                 out.append(opp)
 
