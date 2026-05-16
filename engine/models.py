@@ -106,6 +106,9 @@ class Asset:
     ppf_opened_date: Optional[date] = None
     # SGB-specific — if user is at the 8-year maturity, redemption is tax-free
     sgb_at_maturity: bool = False
+    # US-specific — IRC §121 primary-residence capital-gains exclusion
+    # ($250k single / $500k MFJ if lived in 2 of last 5 years). User confirms.
+    us_section_121_eligible: bool = False
 
 
 @dataclass

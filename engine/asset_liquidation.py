@@ -15,13 +15,21 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Optional
-from engine.models import Asset, Country, Loan, User
+from engine.models import Asset, Country, FilingStatusUS, Loan, User
 from engine.country_data import (
     india_selling_cost_pct,
     lookup_cii,
     lookup_asset_return,
+    us_real_estate_selling_cost_pct,
+    US_CD_EARLY_WITHDRAWAL_PENALTY_PCT,
 )
 from engine.tax.india import surcharge_rate, CESS_RATE
+from engine.tax.usa import (
+    us_capital_gains_tax,
+    federal_marginal_rate as us_federal_marginal_rate,
+    SECTION_121_EXCLUSION_SINGLE,
+    SECTION_121_EXCLUSION_MFJ,
+)
 
 D = Decimal
 
@@ -687,19 +695,330 @@ def _proceeds_nps(asset: Asset) -> ProceedsResult:
     )
 
 
-def _proceeds_us_stub(asset: Asset) -> ProceedsResult:
-    """US-residency path — not implemented in v1."""
+# ─── US per-asset helpers ────────────────────────────────────────────────────
+
+
+def _proceeds_us_savings(asset: Asset) -> ProceedsResult:
+    """HYSA / checking — no tax to liquidate (interest taxed as you earn it)."""
+    val = asset.current_market_value
     return ProceedsResult(
-        asset_label=asset.label or asset.asset_type,
+        asset_label=asset.label or "Savings (HYSA)",
+        asset_type=asset.asset_type,
+        gross_proceeds=val,
+        tax_owed=D("0"),
+        penalty=D("0"),
+        transaction_costs=D("0"),
+        net_proceeds=val,
+        explanation=(
+            f"Move ${val:,.0f} from your HYSA — no tax or penalty. You'll lose "
+            f"the ~4% interest this was earning."
+        ),
+    )
+
+
+def _proceeds_us_cd(asset: Asset, today: date) -> ProceedsResult:
+    """CD broken before maturity — typically 3-6 months of interest as penalty."""
+    val = asset.current_market_value
+    penalty_pct = (
+        asset.fd_premature_penalty_pct
+        if asset.fd_premature_penalty_pct
+        and asset.fd_premature_penalty_pct != FD_DEFAULT_PENALTY_PCT
+        else US_CD_EARLY_WITHDRAWAL_PENALTY_PCT
+    )
+    penalty = val * penalty_pct
+    matures = asset.fd_maturity_date
+    months_to_maturity = (
+        (matures - today).days // 30 if matures and matures > today else 0
+    )
+    caveats = []
+    if months_to_maturity > 0:
+        caveats.append(
+            f"CD matures in ~{months_to_maturity} months — breaking now forfeits "
+            f"the contracted rate and pays the early-withdrawal penalty."
+        )
+    return ProceedsResult(
+        asset_label=asset.label or "Certificate of Deposit",
+        asset_type=asset.asset_type,
+        gross_proceeds=val,
+        tax_owed=D("0"),       # interest taxed on 1099-INT as you earn it
+        penalty=penalty,
+        transaction_costs=D("0"),
+        net_proceeds=val - penalty,
+        explanation=(
+            f"Break the ${val:,.0f} CD. Early-withdrawal penalty is ~${penalty:,.0f} "
+            f"({penalty_pct*100:.1f}% — roughly 3-6 months of interest)."
+        ),
+        caveats=caveats,
+    )
+
+
+def _us_cap_gains_helpers(
+    val: Decimal, cost_basis: Decimal, asset: Asset, today: date,
+    taxable_income: Decimal, filing_status: FilingStatusUS,
+    state_marginal_rate: Decimal,
+    transaction_costs: Decimal, is_collectible: bool = False,
+) -> tuple[Decimal, Decimal, int, bool]:
+    """Returns (gross_proceeds, tax, days_held, is_lt) for a US capital-gains sale."""
+    gross = val - transaction_costs
+    gain = max(D("0"), gross - cost_basis)
+    days_held = (today - asset.purchase_date).days
+    tax = us_capital_gains_tax(
+        gain=gain,
+        holding_days=days_held,
+        taxable_income=taxable_income,
+        filing_status=filing_status,
+        state_marginal_rate=state_marginal_rate,
+        is_collectible=is_collectible,
+    )
+    return gross, tax, days_held, days_held > 365
+
+
+def _proceeds_us_equity(
+    asset: Asset, today: date, taxable_income: Decimal,
+    filing_status: FilingStatusUS, state_marginal_rate: Decimal,
+) -> ProceedsResult:
+    """US stocks / mutual funds / index funds — STCG ordinary / LTCG 0/15/20%."""
+    val = asset.current_market_value
+    transaction_costs = val * D("0.001")     # most brokers: $0 commission, slippage
+    gross, tax, days_held, is_lt = _us_cap_gains_helpers(
+        val, asset.purchase_price, asset, today, taxable_income,
+        filing_status, state_marginal_rate, transaction_costs,
+    )
+    period = "long-term" if is_lt else "short-term"
+    rate_note = (
+        "0/15/20% bracket + 3.8% NIIT if applicable + state"
+        if is_lt
+        else "ordinary income rates + state"
+    )
+    return ProceedsResult(
+        asset_label=asset.label or "US equity",
+        asset_type=asset.asset_type,
+        gross_proceeds=gross,
+        tax_owed=tax,
+        penalty=D("0"),
+        transaction_costs=transaction_costs,
+        net_proceeds=gross - tax,
+        explanation=(
+            f"Sell ${val:,.0f} of equity. Held {days_held // 30} months ({period}). "
+            f"Tax: {rate_note} → ~${tax:,.0f}. Net ${gross - tax:,.0f}."
+        ),
+        caveats=(
+            ["Wash sale rule: don't re-buy substantially identical security "
+             "within 30 days or the loss/gain treatment changes."]
+            if not is_lt else []
+        ),
+    )
+
+
+def _proceeds_us_debt_fund(
+    asset: Asset, today: date, taxable_income: Decimal,
+    filing_status: FilingStatusUS, state_marginal_rate: Decimal,
+) -> ProceedsResult:
+    """US bond funds / debt MFs — STCG ordinary / LTCG 0/15/20%. Same shape as equity
+    but the helper exists separately for future muni-bond / treasury specialisation."""
+    val = asset.current_market_value
+    transaction_costs = val * D("0.001")
+    gross, tax, days_held, is_lt = _us_cap_gains_helpers(
+        val, asset.purchase_price, asset, today, taxable_income,
+        filing_status, state_marginal_rate, transaction_costs,
+    )
+    return ProceedsResult(
+        asset_label=asset.label or "US bond fund",
+        asset_type=asset.asset_type,
+        gross_proceeds=gross,
+        tax_owed=tax,
+        penalty=D("0"),
+        transaction_costs=transaction_costs,
+        net_proceeds=gross - tax,
+        explanation=(
+            f"Redeem ${val:,.0f} of bond fund. "
+            f"{'Long-term' if is_lt else 'Short-term'} gains; tax ~${tax:,.0f}."
+        ),
+        caveats=[
+            "Muni-bond tax-exemption not modelled — if these are tax-exempt "
+            "municipals, override the marginal rate."
+        ],
+    )
+
+
+def _proceeds_us_gold(
+    asset: Asset, today: date, taxable_income: Decimal,
+    filing_status: FilingStatusUS, state_marginal_rate: Decimal,
+) -> ProceedsResult:
+    """US gold (physical or ETF like GLD) — collectible, LTCG capped at 28%."""
+    val = asset.current_market_value
+    transaction_costs = val * GOLD_TRANSACTION_COST
+    gross, tax, days_held, is_lt = _us_cap_gains_helpers(
+        val, asset.purchase_price, asset, today, taxable_income,
+        filing_status, state_marginal_rate, transaction_costs,
+        is_collectible=True,
+    )
+    return ProceedsResult(
+        asset_label=asset.label or "Physical gold",
+        asset_type=asset.asset_type,
+        gross_proceeds=gross,
+        tax_owed=tax,
+        penalty=D("0"),
+        transaction_costs=transaction_costs,
+        net_proceeds=gross - tax,
+        explanation=(
+            f"Sell ${val:,.0f} of gold (held {days_held // 30} months). "
+            f"Gold is a 'collectible' under §1(h)(4) — LTCG rate is capped at "
+            f"28%, not the usual 15/20%. After ~3% transaction friction and "
+            f"~${tax:,.0f} tax, you net ${gross - tax:,.0f}."
+        ),
+        caveats=[
+            "GLD and similar grantor-trust ETFs are also treated as collectibles. "
+            "Gold-mining stocks are NOT — those follow normal equity LTCG rates."
+        ],
+    )
+
+
+def _proceeds_us_real_estate(
+    asset: Asset, today: date, taxable_income: Decimal,
+    filing_status: FilingStatusUS, state_marginal_rate: Decimal,
+) -> ProceedsResult:
+    """US real estate — §121 primary-residence exclusion if eligible; else LTCG."""
+    val = asset.current_market_value
+    selling_pct = us_real_estate_selling_cost_pct(asset.state or "")
+    transaction_costs = val * selling_pct
+    gross = val - transaction_costs
+    gain = max(D("0"), gross - asset.purchase_price)
+    days_held = (today - asset.purchase_date).days
+
+    exclusion_applied = D("0")
+    if asset.us_section_121_eligible:
+        exclusion = (
+            SECTION_121_EXCLUSION_MFJ
+            if filing_status == FilingStatusUS.MFJ
+            else SECTION_121_EXCLUSION_SINGLE
+        )
+        exclusion_applied = min(gain, exclusion)
+        gain_after_121 = gain - exclusion_applied
+    else:
+        gain_after_121 = gain
+
+    tax = us_capital_gains_tax(
+        gain=gain_after_121,
+        holding_days=days_held,
+        taxable_income=taxable_income,
+        filing_status=filing_status,
+        state_marginal_rate=state_marginal_rate,
+        is_collectible=False,
+    )
+
+    s121_note = (
+        f" §121 exclusion of ${exclusion_applied:,.0f} applied (primary residence)."
+        if exclusion_applied > 0 else ""
+    )
+    return ProceedsResult(
+        asset_label=asset.label or "US real estate",
+        asset_type=asset.asset_type,
+        gross_proceeds=gross,
+        tax_owed=tax,
+        penalty=D("0"),
+        transaction_costs=transaction_costs,
+        net_proceeds=gross - tax,
+        explanation=(
+            f"Sell property at ${val:,.0f}. Agent commission + closing costs "
+            f"~{selling_pct*100:.1f}% (${transaction_costs:,.0f}).{s121_note} "
+            f"After ~${tax:,.0f} capital-gains tax, you net ${gross - tax:,.0f}."
+        ),
+        caveats=[
+            "Property sales typically take 60-90 days to close.",
+            "§1031 like-kind exchange could defer the gain entirely if reinvesting "
+            "in another investment property — consult a CPA before paying.",
+        ] + (
+            ["§121 exclusion needs 2-of-last-5 years primary residence — verify "
+             "you actually qualify before relying on this number."]
+            if asset.us_section_121_eligible else []
+        ),
+    )
+
+
+def _proceeds_us_retirement_blocked(asset: Asset, label: str) -> ProceedsResult:
+    """401(k) / IRA / Roth — withdrawals before 59½ trigger 10% penalty + ordinary
+    income tax. Treat as blocked in v1 (detailed rules for traditional vs Roth,
+    rule-of-55, SEPP/72(t), hardship withdrawal all deferred)."""
+    return ProceedsResult(
+        asset_label=asset.label or label,
         asset_type=asset.asset_type,
         gross_proceeds=asset.current_market_value,
         tax_owed=D("0"),
         penalty=D("0"),
         transaction_costs=D("0"),
         net_proceeds=asset.current_market_value,
-        explanation="US asset liquidation math not yet implemented.",
+        explanation=(
+            "US retirement-account withdrawals before age 59½ usually trigger "
+            "a 10% additional tax plus ordinary income tax. Exceptions exist "
+            "(Rule of 55 for 401(k), SEPP/72(t), Roth contributions, hardship) "
+            "but they're case-specific."
+        ),
         is_blocked=True,
-        block_reason="US cap-gains/state-tax math deferred to v2.",
+        block_reason="US retirement-account math (Traditional vs Roth × 401k vs "
+                     "IRA × age × hardship) deferred — almost never worth the "
+                     "10% penalty + tax acceleration.",
+    )
+
+
+def _proceeds_us_unsupported(asset: Asset, label: str) -> ProceedsResult:
+    """Asset types that don't exist in the US (e.g. SGB)."""
+    return ProceedsResult(
+        asset_label=asset.label or label,
+        asset_type=asset.asset_type,
+        gross_proceeds=asset.current_market_value,
+        tax_owed=D("0"),
+        penalty=D("0"),
+        transaction_costs=D("0"),
+        net_proceeds=asset.current_market_value,
+        explanation=f"{label} doesn't exist as an asset class in the US.",
+        is_blocked=True,
+        block_reason=f"{label} is India-specific.",
+    )
+
+
+def _compute_liquidation_proceeds_us(
+    asset: Asset, today: date, taxable_income: Decimal,
+    filing_status: FilingStatusUS, state_marginal_rate: Decimal,
+) -> ProceedsResult:
+    at = asset.asset_type
+    if at == "savings_balance":
+        return _proceeds_us_savings(asset)
+    if at == "fixed_deposit":           # CD analog
+        return _proceeds_us_cd(asset, today)
+    if at in ("equity_stocks", "equity_mf"):
+        return _proceeds_us_equity(
+            asset, today, taxable_income, filing_status, state_marginal_rate,
+        )
+    if at == "debt_mf":
+        return _proceeds_us_debt_fund(
+            asset, today, taxable_income, filing_status, state_marginal_rate,
+        )
+    if at == "gold_physical":
+        return _proceeds_us_gold(
+            asset, today, taxable_income, filing_status, state_marginal_rate,
+        )
+    if at == "real_estate":
+        return _proceeds_us_real_estate(
+            asset, today, taxable_income, filing_status, state_marginal_rate,
+        )
+    if at == "sgb":
+        return _proceeds_us_unsupported(asset, "Sovereign Gold Bond")
+    if at == "ppf":
+        return _proceeds_us_unsupported(asset, "PPF")
+    if at in ("epf", "nps"):
+        return _proceeds_us_retirement_blocked(asset, at.upper())
+    # Generic "other"
+    return ProceedsResult(
+        asset_label=asset.label or "Unknown asset",
+        asset_type=asset.asset_type,
+        gross_proceeds=asset.current_market_value,
+        tax_owed=D("0"),
+        penalty=D("0"),
+        transaction_costs=D("0"),
+        net_proceeds=asset.current_market_value,
+        explanation="Unknown asset type — assuming no tax or penalty.",
+        caveats=["Tax treatment for this asset type isn't modelled."],
     )
 
 
@@ -718,14 +1037,22 @@ def compute_liquidation_proceeds(
     taxable_income: Decimal = D("1200000"),
     marginal_rate: Decimal = D("0.30"),
     state: Optional[str] = None,
+    filing_status: FilingStatusUS = FilingStatusUS.SINGLE,
+    state_marginal_rate: Decimal = D("0"),
 ) -> ProceedsResult:
     """Dispatch to per-asset-type proceeds math. Always returns ProceedsResult.
 
-    Blocked assets (PPF, EPF, NPS, US-stub) return is_blocked=True; the ranker
-    surfaces them under "considered but didn't recommend" rather than as moves.
+    Blocked assets (PPF, EPF, NPS, US retirement, US unsupported) return
+    is_blocked=True; the ranker surfaces them under "considered but didn't
+    recommend" rather than as moves.
+
+    `filing_status` and `state_marginal_rate` are only consulted for US
+    residents; ignored for India.
     """
     if country == Country.US:
-        return _proceeds_us_stub(asset)
+        return _compute_liquidation_proceeds_us(
+            asset, today, taxable_income, filing_status, state_marginal_rate,
+        )
 
     at = asset.asset_type
     if at == "savings_balance":
@@ -835,6 +1162,8 @@ def rank_liquidations(
     taxable_income = user.annual_income
     country = user.country
     state = state or user.state
+    filing_status = user.filing_status or FilingStatusUS.SINGLE
+    state_marginal_rate = user.state_marginal_rate
 
     recommendations: list[LiquidationRecommendation] = []
     skipped: list[LiquidationRecommendation] = []
@@ -850,6 +1179,8 @@ def rank_liquidations(
             taxable_income=taxable_income,
             marginal_rate=marginal_rate,
             state=state,
+            filing_status=filing_status,
+            state_marginal_rate=state_marginal_rate,
         )
 
         for li, loan in enumerate(user.loans):

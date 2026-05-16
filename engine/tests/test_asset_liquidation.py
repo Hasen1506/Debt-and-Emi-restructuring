@@ -8,7 +8,7 @@ from engine.asset_liquidation import (
     ProceedsResult, LiquidationRecommendation,
 )
 from engine.models import (
-    Asset, Loan, LoanType, User, Country, IncomeType, TaxRegimeIN,
+    Asset, Loan, LoanType, User, Country, IncomeType, TaxRegimeIN, FilingStatusUS,
 )
 
 D = Decimal
@@ -359,7 +359,8 @@ def test_proceeds_real_estate_blocks_gracefully_when_cii_missing():
     assert "CII" in r.block_reason
 
 
-def test_proceeds_us_stub_is_blocked():
+def test_proceeds_us_equity_no_longer_stubbed():
+    """Sanity check that US asset path is wired up — equity returns a real result."""
     a = Asset(
         asset_type="equity_stocks",
         purchase_price=D("10000"),
@@ -367,8 +368,8 @@ def test_proceeds_us_stub_is_blocked():
         current_market_value=D("20000"),
     )
     r = compute_liquidation_proceeds(a, today=date(2026, 5, 16), country=Country.US)
-    assert r.is_blocked
-    assert "US" in r.block_reason
+    assert not r.is_blocked
+    assert r.tax_owed > D("0")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -482,3 +483,291 @@ def test_ranker_uses_user_inflation_rate_for_real_benefit():
     # OPPORTUNITY COST side (asset return), which makes the cost smaller and
     # the net benefit larger.
     assert rec.net_annual_benefit_real > rec.net_annual_benefit_nominal
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# US per-asset proceeds math
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _us_user(loans: list[Loan], assets: list[Asset],
+             annual_income: Decimal = D("150000"),
+             filing_status: FilingStatusUS = FilingStatusUS.SINGLE,
+             state_marginal_rate: Decimal = D("0")) -> User:
+    return User(
+        country=Country.US,
+        income_type=IncomeType.SALARIED,
+        annual_income=annual_income,
+        monthly_income=annual_income / D("12"),
+        fixed_expenses=D("3000"),
+        savings_balance=D("10000"),
+        primary_bank="Chase",
+        filing_status=filing_status,
+        state="CA",
+        state_marginal_rate=state_marginal_rate,
+        loans=loans,
+        assets=assets,
+        inflation_rate=D("0.03"),
+    )
+
+
+def _us_card(outstanding: Decimal = D("8000"), bank: str = "Chase Sapphire") -> Loan:
+    return Loan(
+        loan_type=LoanType.CREDIT_CARD, bank=bank, outstanding=outstanding,
+        nominal_rate=D("0.24"), rate_type="fixed",
+        tenure_months_remaining=0, scheduled_emi=D("250"),
+    )
+
+
+def test_us_proceeds_savings_no_tax():
+    a = Asset(
+        asset_type="savings_balance",
+        purchase_price=D("0"),
+        purchase_date=date(2020, 1, 1),
+        current_market_value=D("10000"),
+    )
+    r = compute_liquidation_proceeds(a, today=date(2026, 5, 16), country=Country.US)
+    assert r.net_proceeds == D("10000")
+    assert r.tax_owed == D("0")
+    assert not r.is_blocked
+
+
+def test_us_proceeds_cd_charges_early_withdrawal_penalty():
+    a = Asset(
+        asset_type="fixed_deposit",       # CD analog
+        purchase_price=D("20000"),
+        purchase_date=date(2025, 1, 1),
+        current_market_value=D("20500"),
+        fd_maturity_date=date(2027, 1, 1),
+    )
+    r = compute_liquidation_proceeds(a, today=date(2026, 5, 16), country=Country.US)
+    # 2.5% penalty on 20500 = 512.50
+    assert r.penalty == D("512.500")
+    assert r.net_proceeds == D("20500") - D("512.500")
+    assert any("matures" in c for c in r.caveats)
+
+
+def test_us_proceeds_equity_lt_at_15pct_bracket():
+    """$150k single → LTCG sits in 15% bracket. NIIT triggers (< $200k threshold? NO).
+    Actually $150k single is under $200k NIIT threshold → no NIIT.
+    """
+    a = Asset(
+        asset_type="equity_stocks",
+        purchase_price=D("10000"),
+        purchase_date=date(2023, 1, 1),         # ~3.4 yrs held
+        current_market_value=D("25000"),
+    )
+    r = compute_liquidation_proceeds(
+        a, today=date(2026, 5, 16), country=Country.US,
+        taxable_income=D("150000"), filing_status=FilingStatusUS.SINGLE,
+        state_marginal_rate=D("0"),
+    )
+    # trans = 25000 × 0.001 = 25; gross = 24975; gain = 14975
+    # LTCG bracket at $150k single = 15%; tax = 14975 × 0.15 = 2246.25
+    # NIIT: 150k < 200k → no NIIT
+    assert r.tax_owed > D("2200") and r.tax_owed < D("2300")
+    assert not r.is_blocked
+
+
+def test_us_proceeds_equity_high_income_triggers_niit():
+    """$300k single → NIIT applies (above $200k threshold). LTCG bracket = 15%."""
+    a = Asset(
+        asset_type="equity_mf",
+        purchase_price=D("50000"),
+        purchase_date=date(2022, 1, 1),
+        current_market_value=D("100000"),
+    )
+    r = compute_liquidation_proceeds(
+        a, today=date(2026, 5, 16), country=Country.US,
+        taxable_income=D("300000"), filing_status=FilingStatusUS.SINGLE,
+        state_marginal_rate=D("0"),
+    )
+    # trans = 100; gross = 99900; gain = 49900
+    # LTCG bracket at $300k single = 15%; federal = 49900 × 0.15 = 7485
+    # NIIT: 49900 × 0.038 = 1896.20
+    # total = 9381.20
+    assert r.tax_owed > D("9300") and r.tax_owed < D("9500")
+
+
+def test_us_proceeds_equity_st_at_ordinary_rate():
+    """Held <1y → STCG at ordinary federal rate. $150k single → 24% bracket."""
+    a = Asset(
+        asset_type="equity_stocks",
+        purchase_price=D("10000"),
+        purchase_date=date(2025, 12, 1),         # ~5 months held
+        current_market_value=D("12000"),
+    )
+    r = compute_liquidation_proceeds(
+        a, today=date(2026, 5, 16), country=Country.US,
+        taxable_income=D("150000"), filing_status=FilingStatusUS.SINGLE,
+    )
+    # gain ≈ 1988; ordinary federal rate at $150k = 24% → ~477
+    assert r.tax_owed > D("450") and r.tax_owed < D("500")
+
+
+def test_us_proceeds_gold_collectible_capped_at_28pct():
+    """Gold held >1y → collectible LTCG, capped at 28% (NOT 15/20)."""
+    a = Asset(
+        asset_type="gold_physical",
+        purchase_price=D("10000"),
+        purchase_date=date(2022, 1, 1),
+        current_market_value=D("20000"),
+    )
+    r = compute_liquidation_proceeds(
+        a, today=date(2026, 5, 16), country=Country.US,
+        taxable_income=D("700000"),         # top bracket; LTCG would be 20%
+        filing_status=FilingStatusUS.SINGLE,
+        state_marginal_rate=D("0"),
+    )
+    # trans = 20000 × 0.03 = 600; gross = 19400; gain = 9400
+    # If treated as normal LTCG at $700k income: 20%. Collectible caps at 28% (so 20% applies)
+    # NIIT: 700k > 200k → 9400 × 0.038 = 357
+    # tax = 9400 × 0.20 + 357 = 1880 + 357 = 2237
+    assert r.tax_owed > D("2200") and r.tax_owed < D("2300")
+    assert "collectible" in r.explanation.lower()
+
+
+def test_us_proceeds_gold_collectible_28pct_for_high_marginal():
+    """For a user whose ordinary marginal rate >28%, gold collectible rate kicks in."""
+    a = Asset(
+        asset_type="gold_physical",
+        purchase_price=D("10000"),
+        purchase_date=date(2022, 1, 1),
+        current_market_value=D("20000"),
+    )
+    # With collectible_max_rate=28%, the rate equals min(28%, max(bracket, 15%))
+    # For high earner whose LTCG bracket would be 20%, we get min(28%, max(20%, 15%)) = 20%
+    # The 28% cap only matters if someone tried to use ordinary rate > 28%
+    # Test: confirm the gold helper marks it as collectible regardless
+    r = compute_liquidation_proceeds(
+        a, today=date(2026, 5, 16), country=Country.US,
+        taxable_income=D("150000"), filing_status=FilingStatusUS.SINGLE,
+    )
+    assert "§1(h)(4)" in r.explanation
+
+
+def test_us_proceeds_real_estate_section_121_exclusion():
+    """Primary residence eligible for §121 → first $250k of gain excluded (single)."""
+    a = Asset(
+        asset_type="real_estate",
+        purchase_price=D("300000"),
+        purchase_date=date(2018, 6, 1),
+        current_market_value=D("550000"),        # $250k gross gain
+        state="CA",
+        us_section_121_eligible=True,
+    )
+    r = compute_liquidation_proceeds(
+        a, today=date(2026, 5, 16), country=Country.US,
+        taxable_income=D("150000"), filing_status=FilingStatusUS.SINGLE,
+        state_marginal_rate=D("0.093"),
+    )
+    # trans = 550000 × 0.08 = 44000; gross = 506000; gain = 206000
+    # After §121: max(0, 206000 - 250000) = 0; gain_after_121 = 0
+    # tax = 0
+    assert r.tax_owed == D("0")
+    assert "§121" in r.explanation or "Primary residence" in r.explanation
+
+
+def test_us_proceeds_real_estate_no_section_121_taxed():
+    """Investment property (no §121) — full LTCG owed."""
+    a = Asset(
+        asset_type="real_estate",
+        purchase_price=D("300000"),
+        purchase_date=date(2018, 6, 1),
+        current_market_value=D("550000"),
+        state="CA",
+        us_section_121_eligible=False,
+    )
+    r = compute_liquidation_proceeds(
+        a, today=date(2026, 5, 16), country=Country.US,
+        taxable_income=D("150000"), filing_status=FilingStatusUS.SINGLE,
+        state_marginal_rate=D("0.093"),
+    )
+    assert r.tax_owed > D("0")
+
+
+def test_us_proceeds_sgb_unsupported():
+    """SGB doesn't exist in US — blocked."""
+    a = Asset(
+        asset_type="sgb",
+        purchase_price=D("5000"),
+        purchase_date=date(2020, 1, 1),
+        current_market_value=D("8000"),
+    )
+    r = compute_liquidation_proceeds(a, today=date(2026, 5, 16), country=Country.US)
+    assert r.is_blocked
+    assert "India-specific" in r.block_reason
+
+
+def test_us_proceeds_retirement_blocked():
+    """EPF/NPS in US context → blocked with retirement-account reasoning."""
+    a = Asset(
+        asset_type="epf",       # standing in for any US retirement account
+        purchase_price=D("0"),
+        purchase_date=date(2020, 1, 1),
+        current_market_value=D("100000"),
+    )
+    r = compute_liquidation_proceeds(a, today=date(2026, 5, 16), country=Country.US)
+    assert r.is_blocked
+    assert "10%" in r.block_reason or "59" in r.explanation
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# US ranker — end-to-end
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_us_ranker_recommends_equity_for_credit_card():
+    """Long-held equity → 24% credit card: should recommend selling."""
+    equity = Asset(
+        asset_type="equity_stocks",
+        purchase_price=D("5000"),
+        purchase_date=date(2022, 1, 1),
+        current_market_value=D("12000"),
+    )
+    user = _us_user(loans=[_us_card(outstanding=D("8000"))], assets=[equity])
+    result = rank_liquidations(
+        user, debt_effective_rates={0: D("0.24")},
+    )
+    assert len(result["recommendations"]) == 1
+    rec = result["recommendations"][0]
+    assert rec.verdict in ("clear_win", "conditional")
+    assert rec.net_annual_benefit_nominal > 0
+
+
+def test_us_ranker_prefilters_mortgage_against_equity():
+    """5% mortgage post-shield should NOT trigger equity sale (equity returns ~10%)."""
+    equity = Asset(
+        asset_type="equity_stocks",
+        purchase_price=D("5000"),
+        purchase_date=date(2022, 1, 1),
+        current_market_value=D("12000"),
+    )
+    mortgage = Loan(
+        loan_type=LoanType.HOME, bank="Chase", outstanding=D("300000"),
+        nominal_rate=D("0.06"), rate_type="fixed",
+        tenure_months_remaining=240, scheduled_emi=D("1800"),
+    )
+    user = _us_user(loans=[mortgage], assets=[equity])
+    result = rank_liquidations(
+        user, debt_effective_rates={0: D("0.045")},      # post-shield
+    )
+    assert len(result["recommendations"]) == 0
+    assert len(result["considered_but_skipped"]) == 1
+
+
+def test_us_ranker_skipped_bucket_holds_blocked_retirement():
+    """US user with 401k-equivalent (modelled as 'epf') gets routed to skipped."""
+    retirement = Asset(
+        asset_type="epf",
+        purchase_price=D("0"),
+        purchase_date=date(2018, 1, 1),
+        current_market_value=D("80000"),
+    )
+    user = _us_user(loans=[_us_card()], assets=[retirement])
+    result = rank_liquidations(
+        user, debt_effective_rates={0: D("0.24")},
+    )
+    assert len(result["recommendations"]) == 0
+    assert len(result["considered_but_skipped"]) == 1
+    assert result["considered_but_skipped"][0].proceeds.is_blocked

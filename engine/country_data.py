@@ -155,6 +155,24 @@ def lookup_asset_return(asset_type: str, country: Country = Country.IN) -> Decim
     return table.get(asset_type, D("0.06"))
 
 
+# ─── US real-estate selling costs (closing costs + agent commission) ─────────
+# Agent commission: 5-6% (recent NAR settlement may push this down to 4-5%, but
+# 6% remains the default many sellers still pay). Closing costs (title insurance,
+# transfer tax, recording fee, prorated property tax): 1-3% varies by state.
+US_REAL_ESTATE_AGENT_COMMISSION = D("0.06")
+US_REAL_ESTATE_CLOSING_COSTS = D("0.02")     # blended national average
+
+def us_real_estate_selling_cost_pct(state: str = "") -> Decimal:
+    """Total selling cost as fraction of sale price for US real-estate.
+    Currently state-agnostic; can specialise later (TX, CA, NY have higher fees)."""
+    return US_REAL_ESTATE_AGENT_COMMISSION + US_REAL_ESTATE_CLOSING_COSTS
+
+
+# CD early-withdrawal penalty: typically 3-6 months of interest. Modelled as
+# ~half the contracted annual rate × principal.
+US_CD_EARLY_WITHDRAWAL_PENALTY_PCT = D("0.025")   # ≈ 6mo of interest at 5% rate
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Institution tier (brainstorm §31) — for scrape cadence in data ops
 # ─────────────────────────────────────────────────────────────────────────────
