@@ -10,8 +10,9 @@
  * physical limits (you can't "cut" more than you actually spend, and a
  * one-time payment can't exceed total outstanding).
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Decimal from 'decimal.js';
+import { useRouter } from 'next/navigation';
 import {
   api,
   formatINR,
@@ -20,6 +21,16 @@ import {
   type UserPayload,
 } from '@/lib/api';
 import { computeBreakdown } from '@/lib/effective-apr';
+import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
+import { applyToolResult } from '@/lib/apply-tool-result';
+import {
+  addCommitment,
+  readCommitmentsClient,
+  removeCommitment,
+  todayISO,
+  writeCommitmentsClient,
+  type CommitmentEntry,
+} from '@/lib/commitments';
 
 type ScenarioKey = 'surplus' | 'rate' | 'lump';
 
@@ -94,6 +105,93 @@ export function WhatIfPanel({
   const [surplus, setSurplus] = useState<ScenarioState>(INITIAL);
   const [rate, setRate] = useState<ScenarioState>(INITIAL);
   const [lump, setLump] = useState<ScenarioState>(INITIAL);
+
+  // Commitments + the toast that fires when one lands.
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [commitments, setCommitments] = useState<CommitmentEntry[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
+  const [showLog, setShowLog] = useState(false);
+  useEffect(() => {
+    setCommitments(readCommitmentsClient());
+  }, []);
+
+  function commitSurplusCut() {
+    if (surplusDelta <= 0) return;
+    const stored = loadProfileClient();
+    if (!stored.isLive) {
+      setToast('Finish setup first so we can mutate your profile.');
+      return;
+    }
+    const newFixed = Math.max(
+      0, Number(stored.user.fixed_expenses || 0) - surplusDelta,
+    );
+    saveProfileClient({
+      user: { ...stored.user, fixed_expenses: String(newFixed) },
+    });
+    const entry: Omit<CommitmentEntry, 'id'> = {
+      date: todayISO(),
+      kind: 'surplus_cut',
+      amount: String(surplusDelta),
+      note: `Cut fixed_expenses ₹${formatINR(stored.user.fixed_expenses || '0')} → ₹${formatINR(newFixed)}`,
+    };
+    const next = addCommitment(readCommitmentsClient(), entry);
+    writeCommitmentsClient(next);
+    setCommitments(next);
+    setSurplusDelta(0);
+    setSurplusStartMonth(1);
+    setToast(`Locked in — cutting ₹${formatINR(surplusDelta)}/mo from this month.`);
+    startTransition(() => router.refresh());
+  }
+
+  function commitLumpSum() {
+    if (lumpAmount <= 0) return;
+    const stored = loadProfileClient();
+    if (!stored.isLive || !stored.user.loans[lumpTarget]) {
+      setToast('Finish setup first so we can write to your activity ledger.');
+      return;
+    }
+    const target = stored.user.loans[lumpTarget];
+    const sched = target.scheduled_emi || '0';
+    const outstandingD = new Decimal(target.outstanding || '0');
+    const paymentD = new Decimal(String(lumpAmount));
+    const fullyClears = paymentD.gte(outstandingD);
+    applyToolResult({
+      loanIndex: lumpTarget,
+      kind: fullyClears ? 'closed' : 'paid_extra',
+      amount: fullyClears
+        ? outstandingD.toFixed(2)
+        : String(Number(sched) + lumpAmount),
+      scheduledEmi: sched,
+      note: `What-if lock-in — ₹${formatINR(lumpAmount)} → ${target.bank}`,
+      loans: stored.user.loans,
+      country: stored.user.country,
+    });
+    const entry: Omit<CommitmentEntry, 'id'> = {
+      date: todayISO(),
+      kind: 'lump_sum',
+      amount: String(lumpAmount),
+      loanIndex: lumpTarget,
+      loanBank: target.bank,
+      note: fullyClears ? `Closed ${target.bank}` : undefined,
+    };
+    const next = addCommitment(readCommitmentsClient(), entry);
+    writeCommitmentsClient(next);
+    setCommitments(next);
+    setLumpAmount(0);
+    setToast(`Locked in — ₹${formatINR(lumpAmount)} sent to ${target.bank}.`);
+    startTransition(() => router.refresh());
+  }
+
+  function undoCommitment(id: string) {
+    // Note: this only removes the log entry. The underlying profile edit /
+    // activity entry has already shaped /plan and isn't reverted from here.
+    // The user can edit profile / delete the activity entry directly if they
+    // want a true undo.
+    const next = removeCommitment(commitments, id);
+    writeCommitmentsClient(next);
+    setCommitments(next);
+  }
 
   useDebouncedScenario(
     `${surplusDelta}|${surplusStartMonth}`,
@@ -186,11 +284,19 @@ export function WhatIfPanel({
         summary={summary(surplus.result, true)}
         disabled={fixedExpensesCap <= 0}
         extraControls={
-          <StartMonthPicker
-            value={surplusStartMonth}
-            onChange={setSurplusStartMonth}
-            disabled={fixedExpensesCap <= 0 || surplusDelta === 0}
-          />
+          <>
+            <StartMonthPicker
+              value={surplusStartMonth}
+              onChange={setSurplusStartMonth}
+              disabled={fixedExpensesCap <= 0 || surplusDelta === 0}
+            />
+            <LockItInButton
+              disabled={surplusDelta <= 0}
+              label={`Lock in — cut ₹${formatINR(surplusDelta || 0)}/mo from fixed expenses`}
+              shortLabel="Lock it in"
+              onClick={commitSurplusCut}
+            />
+          </>
         }
       />
 
@@ -234,6 +340,14 @@ export function WhatIfPanel({
           positive
           summary={summary(lump.result, true)}
           disabled={totalOutstandingCap <= 0}
+          extraControls={
+            <LockItInButton
+              disabled={lumpAmount <= 0}
+              label={`Lock in — pay ₹${formatINR(lumpAmount || 0)} today to ${loanOptions[lumpTarget]?.label.split(' · ')[0] ?? 'loan'}`}
+              shortLabel="Lock it in"
+              onClick={commitLumpSum}
+            />
+          }
         />
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span className="muted" style={{ fontSize: 12 }}>
@@ -267,7 +381,124 @@ export function WhatIfPanel({
           </span>
         </label>
       </div>
+
+      {toast && (
+        <div
+          style={{
+            padding: '8px 12px',
+            borderRadius: 6,
+            background: 'var(--soft-bg, rgba(34, 197, 94, 0.1))',
+            border: '1px solid var(--positive)',
+            color: 'var(--ink)',
+            fontSize: 13,
+            display: 'flex', justifyContent: 'space-between', gap: 12,
+          }}
+        >
+          <span>{toast}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            style={{
+              background: 'transparent', border: 0,
+              color: 'var(--muted-ink, #666)', cursor: 'pointer', fontSize: 12,
+            }}
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {commitments.length > 0 && (
+        <div style={{ marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={() => setShowLog((s) => !s)}
+            style={{
+              background: 'transparent', border: 0,
+              color: 'var(--accent)', cursor: 'pointer',
+              fontSize: 12, textDecoration: 'underline', padding: 0,
+            }}
+          >
+            {showLog ? 'Hide' : 'Show'} schedule changes log ({commitments.length})
+          </button>
+          {showLog && (
+            <ul style={{
+              listStyle: 'none', padding: 0, margin: '8px 0 0',
+              display: 'flex', flexDirection: 'column', gap: 6,
+            }}>
+              {commitments.map((c) => (
+                <li
+                  key={c.id}
+                  style={{
+                    display: 'flex', justifyContent: 'space-between', gap: 12,
+                    fontSize: 12, padding: '6px 10px',
+                    border: '1px solid var(--border)', borderRadius: 6,
+                  }}
+                >
+                  <span>
+                    <span className="muted">{c.date}</span>{' · '}
+                    {c.kind === 'surplus_cut'
+                      ? <>Cut ₹{formatINR(c.amount)}/mo from fixed expenses</>
+                      : <>Lump-sum ₹{formatINR(c.amount)} → {c.loanBank ?? 'loan'}</>}
+                    {c.note && <span className="muted"> · {c.note}</span>}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => undoCommitment(c.id)}
+                    style={{
+                      background: 'transparent', border: 0,
+                      color: 'var(--muted-ink, #666)', cursor: 'pointer', fontSize: 11,
+                    }}
+                    title="Remove from log (doesn't undo the underlying change)"
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+/**
+ * "Lock it in" button rendered next to the slider — turns a sandbox value
+ * into a real profile/ledger mutation. Disabled when value is zero.
+ */
+function LockItInButton({
+  disabled, label, shortLabel, onClick,
+}: {
+  disabled: boolean;
+  label: string;
+  shortLabel: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={disabled ? "Slide above 0 to enable" : label}
+      style={{
+        marginTop: 8,
+        padding: '4px 10px',
+        fontSize: 12,
+        border: '1px solid var(--accent)',
+        borderRadius: 4,
+        background: disabled ? 'transparent' : 'var(--accent)',
+        color: disabled ? 'var(--muted)' : 'white',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.55 : 1,
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+        fontWeight: 600,
+      }}
+    >
+      {shortLabel}
+    </button>
   );
 }
 
