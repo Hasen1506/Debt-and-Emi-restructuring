@@ -79,7 +79,9 @@ export function ExistingHome({ profile }: { profile: StoredProfile }) {
                 </span>
               </div>
               <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
-                Effective APR{' '}
+                <abbr title="Effective APR = nominal rate minus tax shield (Sec 80EEA / 24b / IRC §163), plus amortised fees. The real cost of the debt to you.">
+                  Effective APR
+                </abbr>{' '}
                 <span className="num" style={{ color: 'var(--ink)' }}>
                   {fmt(m.loudest.effective)}
                 </span>{' '}
@@ -93,7 +95,10 @@ export function ExistingHome({ profile }: { profile: StoredProfile }) {
           ) : (
             <>
               <div style={{ fontSize: 18, fontWeight: 600 }}>
-                Surplus is{' '}
+                <abbr title="Surplus = income − fixed expenses − scheduled EMIs. The cash left over each month to deploy against debt above the minimums.">
+                  Surplus
+                </abbr>{' '}
+                is{' '}
                 <span style={{ color: 'var(--negative)' }}>
                   {formatINR(m.surplus)}/month
                 </span>{' '}

@@ -21,6 +21,7 @@ import Decimal from 'decimal.js';
 import {
   addActivityEntry,
   daysLate,
+  extraPrincipal,
   overdueAmount,
   readActivityClient,
   removeActivityEntry,
@@ -45,12 +46,16 @@ const KIND_LABEL: Record<ActivityKind, string> = {
   paid_full: 'Paid in full',
   paid_partial: 'Paid partial',
   missed: 'Missed entirely',
+  paid_extra: 'Paid extra',
+  closed: 'Closed (paid off)',
 };
 
 const KIND_TONE: Record<ActivityKind, string> = {
   paid_full: 'var(--positive)',
   paid_partial: 'var(--accent)',
   missed: 'var(--negative)',
+  paid_extra: 'var(--positive)',
+  closed: 'var(--positive)',
 };
 
 const LOAN_TYPE_SHORT: Record<string, string> = {
@@ -167,6 +172,7 @@ function LogForm({
   const [kind, setKind] = useState<ActivityKind>('paid_full');
   const [date, setDate] = useState(today());
   const [amount, setAmount] = useState('');
+  const [penaltyOverride, setPenaltyOverride] = useState('');
   const [note, setNote] = useState('');
 
   const selectedLoan: LoanPayload | undefined = loans[loanIndex];
@@ -176,8 +182,37 @@ function LogForm({
   useEffect(() => {
     if (kind === 'paid_full') setAmount(scheduledEmi);
     else if (kind === 'missed') setAmount('0');
-    else setAmount(''); // partial — user types
-  }, [kind, scheduledEmi]);
+    else if (kind === 'closed') setAmount(selectedLoan?.outstanding ?? '0');
+    else setAmount(''); // partial / paid_extra — user types
+    if (kind !== 'paid_partial' && kind !== 'missed') setPenaltyOverride('');
+  }, [kind, scheduledEmi, selectedLoan?.outstanding]);
+
+  // Live penalty estimate for missed/partial entries — uses the same engine
+  // helper that the cookie writer + entries list use, so what the user sees
+  // here is exactly what /plan will apply.
+  const estimatedPenalty = useMemo(() => {
+    if (!selectedLoan || (kind !== 'paid_partial' && kind !== 'missed')) return null;
+    const overdue =
+      kind === 'missed'
+        ? scheduledEmi
+        : String(Math.max(0, Number(scheduledEmi) - Number(amount || 0)));
+    if (Number(overdue) <= 0) return null;
+    const eventDate = new Date(date);
+    const todayDate = new Date();
+    const diffMs = todayDate.getTime() - eventDate.getTime();
+    const days = Number.isNaN(diffMs)
+      ? 0
+      : Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    return estimateLateFee({
+      loanType: selectedLoan.loan_type,
+      country,
+      bank: selectedLoan.bank,
+      overdueAmount: overdue,
+      daysLate: days,
+    });
+  }, [selectedLoan, kind, scheduledEmi, amount, date, country]);
+
+  const fmtPreview = country === 'IN' ? formatINR : formatUSD;
 
   if (loans.length === 0) {
     return (
@@ -185,7 +220,7 @@ function LogForm({
         <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>
           Add a loan in setup to start logging payment activity. Once you
           have at least one loan, this panel becomes a form for recording
-          paid / partial / missed events.
+          paid, partial, missed, extra, or paid-off events.
         </div>
       </Panel>
     );
@@ -200,9 +235,15 @@ function LogForm({
       date,
       amount: amount.trim() === '' ? '0' : amount,
       scheduledEmi,
+      penaltyOverride:
+        (kind === 'paid_partial' || kind === 'missed') &&
+        penaltyOverride.trim() !== ''
+          ? penaltyOverride
+          : undefined,
       note: note.trim() || undefined,
     });
     setNote('');
+    setPenaltyOverride('');
     setKind('paid_full');
     setAmount(scheduledEmi);
   }
@@ -259,6 +300,8 @@ function LogForm({
             <option value="paid_full">Paid in full</option>
             <option value="paid_partial">Paid partial</option>
             <option value="missed">Missed entirely</option>
+            <option value="paid_extra">Paid extra (lump sum)</option>
+            <option value="closed">Closed (paid off entirely)</option>
           </select>
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -284,7 +327,13 @@ function LogForm({
             onChange={(e) => setAmount(e.target.value)}
             disabled={kind === 'missed'}
             placeholder={
-              kind === 'paid_partial' ? `Less than ${scheduledEmi}` : scheduledEmi
+              kind === 'paid_partial'
+                ? `Less than ${scheduledEmi}`
+                : kind === 'paid_extra'
+                  ? `More than ${scheduledEmi}`
+                  : kind === 'closed'
+                    ? selectedLoan?.outstanding ?? '0'
+                    : scheduledEmi
             }
             style={{
               ...inputStyle,
@@ -294,6 +343,54 @@ function LogForm({
             }}
           />
         </label>
+        {(kind === 'paid_partial' || kind === 'missed') && estimatedPenalty && (
+          <div
+            style={{
+              gridColumn: '1 / -1',
+              padding: 10,
+              border: '1px dashed var(--border)',
+              borderRadius: variant === 'ledger' ? 0 : 6,
+              background: 'var(--soft-bg)',
+              fontSize: 12,
+              lineHeight: 1.55,
+              color: 'var(--ink)',
+            }}
+          >
+            <div style={{ marginBottom: 8 }}>
+              We estimate this would attract a penalty of{' '}
+              <strong style={{ color: 'var(--negative)' }}>
+                ~{fmtPreview(estimatedPenalty.total.toFixed(0))}
+              </strong>{' '}
+              (
+              {[
+                `late fee ${fmtPreview(estimatedPenalty.flatFee.toFixed(0))}`,
+                `penal interest ${fmtPreview(estimatedPenalty.penalInterest.toFixed(0))}`,
+                estimatedPenalty.gst.gt(0)
+                  ? `GST ${fmtPreview(estimatedPenalty.gst.toFixed(0))}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+              ), {estimatedPenalty.source === 'bank_specific'
+                ? `from ${selectedLoan?.bank || 'this bank'}'s published Schedule of Charges`
+                : `from country/loan-type defaults`}
+              . Override below if your statement shows a different number.
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={penaltyOverride}
+              onChange={(e) => setPenaltyOverride(e.target.value)}
+              placeholder={`Override (${fmtPreview(estimatedPenalty.total.toFixed(0))})`}
+              style={{
+                ...inputStyle,
+                fontFamily: 'var(--font-mono)',
+                textAlign: 'right',
+                maxWidth: 220,
+              }}
+            />
+          </div>
+        )}
         <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span className="muted" style={{ fontSize: 11 }}>
             Note (optional)
@@ -474,16 +571,19 @@ function LedgerEntries({
           {entries.map((e) => {
             const loan = loans[e.loanIndex];
             const overdue = overdueAmount(e);
-            const isClean = e.kind === 'paid_full';
-            const est = isClean
+            const needsPenalty = e.kind === 'paid_partial' || e.kind === 'missed';
+            const est = !needsPenalty
               ? null
-              : estimateLateFee({
-                  loanType: loan.loan_type,
-                  country,
-                  bank: loan.bank,
-                  overdueAmount: overdue,
-                  daysLate: daysLate(e),
-                });
+              : e.penaltyOverride && e.penaltyOverride.trim() !== ''
+                ? buildOverrideEstimate(e.penaltyOverride)
+                : estimateLateFee({
+                    loanType: loan.loan_type,
+                    country,
+                    bank: loan.bank,
+                    overdueAmount: overdue,
+                    daysLate: daysLate(e),
+                  });
+            const extra = extraPrincipal(e);
             return (
               <tr
                 key={e.id}
@@ -518,13 +618,27 @@ function LedgerEntries({
                   style={{
                     padding: '10px 12px',
                     textAlign: 'right',
-                    color: est && est.total.gt(0) ? 'var(--negative)' : 'var(--muted)',
-                    fontWeight: est && est.total.gt(0) ? 600 : 400,
+                    color:
+                      e.kind === 'closed' || (e.kind === 'paid_extra' && Number(extra) > 0)
+                        ? 'var(--positive)'
+                        : est && est.total.gt(0)
+                          ? 'var(--negative)'
+                          : 'var(--muted)',
+                    fontWeight:
+                      e.kind === 'closed' ||
+                      (e.kind === 'paid_extra' && Number(extra) > 0) ||
+                      (est && est.total.gt(0))
+                        ? 600
+                        : 400,
                   }}
                 >
-                  {est && est.total.gt(0)
-                    ? `~${fmt(est.total.toFixed(0))}`
-                    : '—'}
+                  {e.kind === 'closed'
+                    ? '[CLOSED]'
+                    : e.kind === 'paid_extra' && Number(extra) > 0
+                      ? `−${fmt(extra)}`
+                      : est && est.total.gt(0)
+                        ? `~${fmt(est.total.toFixed(0))}`
+                        : '—'}
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                   <button
@@ -578,9 +692,11 @@ function ExistingEntries({
       {entries.map((e) => {
         const loan = loans[e.loanIndex];
         const overdue = overdueAmount(e);
-        const est =
-          e.kind === 'paid_full'
-            ? null
+        const needsPenalty = e.kind === 'paid_partial' || e.kind === 'missed';
+        const est = !needsPenalty
+          ? null
+          : e.penaltyOverride && e.penaltyOverride.trim() !== ''
+            ? buildOverrideEstimate(e.penaltyOverride)
             : estimateLateFee({
                 loanType: loan.loan_type,
                 country,
@@ -588,6 +704,7 @@ function ExistingEntries({
                 overdueAmount: overdue,
                 daysLate: daysLate(e),
               });
+        const extra = extraPrincipal(e);
         return (
           <div
             key={e.id}
@@ -634,18 +751,48 @@ function ExistingEntries({
                 </span>
               </div>
               <div className="muted" style={{ fontSize: 13 }}>
-                Paid <span className="num">{fmt(e.amount)}</span> of{' '}
-                <span className="num">{fmt(e.scheduledEmi)}</span> scheduled
-                {est && est.total.gt(0) && (
+                {e.kind === 'closed' ? (
                   <>
-                    {' '}· Likely penalty{' '}
+                    Cleared the line with <span className="num">{fmt(e.amount)}</span>. The
+                    plan now treats this loan as paid off.
+                  </>
+                ) : e.kind === 'paid_extra' ? (
+                  <>
+                    Paid <span className="num">{fmt(e.amount)}</span> against a scheduled{' '}
+                    <span className="num">{fmt(e.scheduledEmi)}</span> — the extra{' '}
                     <span
                       className="num"
-                      style={{ color: 'var(--negative)', fontWeight: 600 }}
+                      style={{ color: 'var(--positive)', fontWeight: 600 }}
                     >
-                      ~{fmt(est.total.toFixed(0))}
+                      {fmt(extra)}
                     </span>{' '}
-                    <PenaltyBreakdownTooltip est={est} fmt={fmt} />
+                    comes off principal in the next /plan run.
+                  </>
+                ) : (
+                  <>
+                    Paid <span className="num">{fmt(e.amount)}</span> of{' '}
+                    <span className="num">{fmt(e.scheduledEmi)}</span> scheduled
+                    {est && est.total.gt(0) && (
+                      <>
+                        {' '}· Likely penalty{' '}
+                        <span
+                          className="num"
+                          style={{ color: 'var(--negative)', fontWeight: 600 }}
+                        >
+                          ~{fmt(est.total.toFixed(0))}
+                        </span>
+                        {e.penaltyOverride && e.penaltyOverride.trim() !== '' ? (
+                          <span className="muted" style={{ marginLeft: 4 }}>
+                            (your override)
+                          </span>
+                        ) : (
+                          <>
+                            {' '}
+                            <PenaltyBreakdownTooltip est={est} fmt={fmt} />
+                          </>
+                        )}
+                      </>
+                    )}
                   </>
                 )}
                 {e.note && (
@@ -716,9 +863,11 @@ function EditorialEntries({
       {entries.map((e, i) => {
         const loan = loans[e.loanIndex];
         const overdue = overdueAmount(e);
-        const est =
-          e.kind === 'paid_full'
-            ? null
+        const needsPenalty = e.kind === 'paid_partial' || e.kind === 'missed';
+        const est = !needsPenalty
+          ? null
+          : e.penaltyOverride && e.penaltyOverride.trim() !== ''
+            ? buildOverrideEstimate(e.penaltyOverride)
             : estimateLateFee({
                 loanType: loan.loan_type,
                 country,
@@ -726,6 +875,7 @@ function EditorialEntries({
                 overdueAmount: overdue,
                 daysLate: daysLate(e),
               });
+        const extra = extraPrincipal(e);
         return (
           <div
             key={e.id}
@@ -763,19 +913,49 @@ function EditorialEntries({
                 margin: 0,
               }}
             >
-              You sent <strong>{fmt(e.amount)}</strong> against your{' '}
-              {LOAN_TYPE_SHORT[loan.loan_type] ?? loan.loan_type} with{' '}
-              {loan.bank || 'this lender'} on {e.date}. The scheduled EMI was{' '}
-              <strong>{fmt(e.scheduledEmi)}</strong>.
-              {est && est.total.gt(0) && (
+              {e.kind === 'closed' ? (
                 <>
-                  {' '}On the bank&apos;s published Schedule of Charges this
-                  would attract{' '}
-                  <strong style={{ color: 'var(--negative)' }}>
-                    roughly {fmt(est.total.toFixed(0))}
+                  You cleared your{' '}
+                  {LOAN_TYPE_SHORT[loan.loan_type] ?? loan.loan_type} with{' '}
+                  {loan.bank || 'this lender'} on {e.date} with a final{' '}
+                  <strong>{fmt(e.amount)}</strong>. The next plan run drops
+                  this line from the schedule.
+                </>
+              ) : e.kind === 'paid_extra' ? (
+                <>
+                  You sent <strong>{fmt(e.amount)}</strong> against your{' '}
+                  {LOAN_TYPE_SHORT[loan.loan_type] ?? loan.loan_type} with{' '}
+                  {loan.bank || 'this lender'} on {e.date} — the scheduled EMI
+                  was <strong>{fmt(e.scheduledEmi)}</strong>, so the extra{' '}
+                  <strong style={{ color: 'var(--positive)' }}>
+                    {fmt(extra)}
                   </strong>{' '}
-                  in late fees and penal interest
-                  {country === 'IN' && est.gst.gt(0) && ' (including GST)'}.
+                  comes off principal in the next plan run.
+                </>
+              ) : (
+                <>
+                  You sent <strong>{fmt(e.amount)}</strong> against your{' '}
+                  {LOAN_TYPE_SHORT[loan.loan_type] ?? loan.loan_type} with{' '}
+                  {loan.bank || 'this lender'} on {e.date}. The scheduled EMI was{' '}
+                  <strong>{fmt(e.scheduledEmi)}</strong>.
+                  {est && est.total.gt(0) && (
+                    <>
+                      {' '}
+                      {e.penaltyOverride && e.penaltyOverride.trim() !== ''
+                        ? 'You recorded a penalty of'
+                        : "On the bank's published Schedule of Charges this would attract"}{' '}
+                      <strong style={{ color: 'var(--negative)' }}>
+                        {e.penaltyOverride && e.penaltyOverride.trim() !== ''
+                          ? fmt(est.total.toFixed(0))
+                          : `roughly ${fmt(est.total.toFixed(0))}`}
+                      </strong>
+                      {e.penaltyOverride && e.penaltyOverride.trim() !== ''
+                        ? ' for this missed cycle.'
+                        : ` in late fees and penal interest${
+                            country === 'IN' && est.gst.gt(0) ? ' (including GST)' : ''
+                          }.`}
+                    </>
+                  )}
                 </>
               )}
               {e.note && (
@@ -820,24 +1000,21 @@ function NoteSummary({
   entries: ActivityEntry[];
   variant: LedgerVariant;
 }) {
-  const totalPenalties = useMemo(() => {
-    let sum = new Decimal(0);
+  const counts = useMemo(() => {
+    let projection = 0;
     for (const e of entries) {
       if (e.kind === 'paid_full') continue;
-      // We can't recompute the penalty here cheaply without re-pulling the
-      // loan + country; instead, show entry count and let the per-row
-      // estimates speak for themselves.
-      sum = sum.add(1);
+      projection += 1;
     }
-    return Number(sum);
+    return projection;
   }, [entries]);
 
-  if (totalPenalties === 0) return null;
+  if (counts === 0) return null;
 
   const text =
-    totalPenalties === 1
-      ? `1 entry has a penalty estimate above. Penalties accrue per cycle; the longer the delay, the more they grow.`
-      : `${totalPenalties} entries have a penalty estimate above. The longer each goes unpaid, the more interest stacks on top.`;
+    counts === 1
+      ? `1 entry feeds into your /plan projection — missed/partial bumps your outstanding up, extra payments and closures bring it down.`
+      : `${counts} entries feed into your /plan projection — missed/partial bumps your outstanding up, extra payments and closures bring it down.`;
 
   if (variant === 'ledger') {
     return (
@@ -853,9 +1030,7 @@ function NoteSummary({
           lineHeight: 1.6,
         }}
       >
-        <strong style={{ color: 'var(--ink)' }}>NOTE</strong> · {text} A future
-        update will feed missed events back into /plan so the projection
-        reflects the actual past, not the optimistic baseline.
+        <strong style={{ color: 'var(--ink)' }}>NOTE</strong> · {text}
       </div>
     );
   }
@@ -872,8 +1047,7 @@ function NoteSummary({
         lineHeight: 1.55,
       }}
     >
-      {text} A future update will feed missed events back into your plan so the
-      projection reflects the actual past, not the optimistic baseline.
+      {text}
     </div>
   );
 }
@@ -914,6 +1088,22 @@ function Panel({
       {children}
     </section>
   );
+}
+
+/** Shape the user's penalty override into the same record `estimateLateFee`
+ *  returns, so downstream UI renders identically — total comes from the
+ *  override, breakdown components zero out, and source is tagged. */
+function buildOverrideEstimate(
+  override: string,
+): ReturnType<typeof estimateLateFee> {
+  const total = new Decimal(override || '0');
+  return {
+    flatFee: total,
+    penalInterest: new Decimal(0),
+    gst: new Decimal(0),
+    total,
+    source: 'bank_specific',
+  };
 }
 
 function PenaltyBreakdownTooltip({

@@ -20,6 +20,8 @@ import {
   MONTH_NAMES,
   formatCountryDateLong,
 } from '@/lib/today';
+import { explainMinPayment } from '@/lib/min-payment';
+import { formatCurrency } from '@/lib/api';
 
 const STEPS = [
   'Country',
@@ -86,6 +88,8 @@ export default function OnboardingPage() {
   const [monthlyIncome, setMonthlyIncome] = useState('');
   const [fixedExpenses, setFixedExpenses] = useState('');
   const [primaryBank, setPrimaryBank] = useState('');
+  const [otherBanks, setOtherBanks] = useState<string[]>([]);
+  const [newOtherBank, setNewOtherBank] = useState('');
   const [taxRegime, setTaxRegime] = useState<TaxRegimeIN>('new');
   const [annualHikeRate, setAnnualHikeRate] = useState('');
   const [marginalRate, setMarginalRate] = useState('');
@@ -118,6 +122,7 @@ export default function OnboardingPage() {
     setMonthlyIncome(u.monthly_income ?? '');
     setFixedExpenses(u.fixed_expenses ?? '');
     setPrimaryBank(u.primary_bank ?? '');
+    setOtherBanks(u.other_banks ?? []);
     if (u.country === 'IN' && u.tax_regime) setTaxRegime(u.tax_regime);
     setAnnualHikeRate(u.annual_hike_rate ?? '');
     if (u.hike_effective_month) {
@@ -157,6 +162,7 @@ export default function OnboardingPage() {
       fixed_expenses: num(fixedExpenses),
       savings_balance: num(savingsBalance),
       primary_bank: primaryBank,
+      other_banks: otherBanks,
       location_tier: 'urban',
       tax_regime: country === 'IN' ? taxRegime : undefined,
       efund_balance: num(efundBalance),
@@ -170,6 +176,9 @@ export default function OnboardingPage() {
           scheduled_emi: num(l.scheduled_emi),
           processing_fee_amortised: num(l.processing_fee_amortised ?? '', '0'),
           insurance_premium_pct: num(l.insurance_premium_pct ?? '', '0'),
+          ...(l.min_payment_override && l.min_payment_override.trim() !== ''
+            ? { min_payment_override: num(l.min_payment_override) }
+            : {}),
         })),
       investment_options: [
         {
@@ -321,6 +330,26 @@ export default function OnboardingPage() {
                 </>
               }
             />
+            <div style={{ gridColumn: '1 / -1' }}>
+              <OtherBanksField
+                country={country}
+                primaryBank={primaryBank}
+                value={otherBanks}
+                onAdd={(name) => {
+                  const trimmed = name.trim();
+                  if (!trimmed) return;
+                  if (trimmed === primaryBank) return;
+                  if (otherBanks.includes(trimmed)) return;
+                  setOtherBanks([...otherBanks, trimmed]);
+                  setNewOtherBank('');
+                }}
+                onRemove={(name) =>
+                  setOtherBanks(otherBanks.filter((b) => b !== name))
+                }
+                draft={newOtherBank}
+                onDraftChange={setNewOtherBank}
+              />
+            </div>
             <Field
               label="Expected annual income hike (decimal)"
               value={annualHikeRate}
@@ -578,6 +607,17 @@ export default function OnboardingPage() {
                     </>
                   }
                 />
+                {l.loan_type === 'credit_card' && (
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <MinPaymentExplainer
+                      loan={l}
+                      country={country}
+                      onOverrideChange={(v) =>
+                        updateLoan(i, { min_payment_override: v })
+                      }
+                    />
+                  </div>
+                )}
                 <Field
                   label="Processing fee / yr (decimal, optional)"
                   value={l.processing_fee_amortised ?? ''}
@@ -807,6 +847,206 @@ export default function OnboardingPage() {
           )}
         </div>
       </Card>
+    </div>
+  );
+}
+
+function OtherBanksField({
+  country,
+  primaryBank,
+  value,
+  draft,
+  onDraftChange,
+  onAdd,
+  onRemove,
+}: {
+  country: Country;
+  primaryBank: string;
+  value: string[];
+  draft: string;
+  onDraftChange: (v: string) => void;
+  onAdd: (name: string) => void;
+  onRemove: (name: string) => void;
+}) {
+  return (
+    <div
+      style={{
+        padding: 12,
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: 11,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: 'var(--muted)',
+            marginBottom: 4,
+          }}
+        >
+          Other banks &amp; cards you already use
+        </div>
+        <div className="muted" style={{ fontSize: 12, lineHeight: 1.55 }}>
+          Add any bank where you hold a savings, current, NRE/NRO account,
+          credit card, or debit card — anything beyond your primary bank,
+          loan or no loan. Tools &rsaquo; New-debt and refinance suggestions
+          prefer lenders you already have a relationship with: no fresh KYC,
+          and often no opening fee or minimum balance.
+        </div>
+      </div>
+      {value.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 6,
+          }}
+        >
+          {value.map((b) => (
+            <span
+              key={b}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 10px',
+                background: 'var(--soft-bg)',
+                border: '1px solid var(--border)',
+                borderRadius: 999,
+                fontSize: 12,
+              }}
+            >
+              {b}
+              <button
+                type="button"
+                onClick={() => onRemove(b)}
+                aria-label={`Remove ${b}`}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--muted)',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  lineHeight: 1,
+                  padding: 0,
+                }}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+        <div style={{ flex: 1 }}>
+          <BankCombobox
+            label=""
+            value={draft}
+            onChange={onDraftChange}
+            country={country}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => onAdd(draft)}
+          disabled={
+            !draft.trim() || draft.trim() === primaryBank || value.includes(draft.trim())
+          }
+          style={{
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 6,
+            cursor: draft.trim() ? 'pointer' : 'not-allowed',
+            fontSize: 13,
+            opacity:
+              !draft.trim() || draft.trim() === primaryBank || value.includes(draft.trim())
+                ? 0.4
+                : 1,
+          }}
+        >
+          Add
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MinPaymentExplainer({
+  loan,
+  country,
+  onOverrideChange,
+}: {
+  loan: LoanPayload;
+  country: Country;
+  onOverrideChange: (value: string) => void;
+}) {
+  const explanation = explainMinPayment(loan, country);
+  if (!explanation) return null;
+  const currency = country === 'IN' ? 'INR' : 'USD';
+  const estimatedLabel = formatCurrency(explanation.estimated, currency);
+  return (
+    <div
+      style={{
+        padding: 12,
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+        fontSize: 13,
+        lineHeight: 1.55,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: 11,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: 'var(--muted)',
+            marginBottom: 4,
+          }}
+        >
+          Minimum payment
+        </div>
+        <div>
+          {explanation.source === 'bank' ? (
+            <>
+              <strong>{explanation.bank}</strong> uses{' '}
+              <em>{explanation.formula}</em>. At your current outstanding that
+              works out to roughly <strong>{estimatedLabel}</strong>/month — and
+              that&apos;s what we treat as the floor when projecting your plan.
+            </>
+          ) : (
+            <>
+              We don&apos;t have a formula specific to{' '}
+              <strong>{explanation.bank}</strong>, so we fall back to the
+              country default: <em>{explanation.formula}</em>. That&apos;s about{' '}
+              <strong>{estimatedLabel}</strong>/month at your current
+              outstanding — used as the floor unless you override it below.
+            </>
+          )}
+        </div>
+      </div>
+      <Field
+        label="Override minimum payment (optional)"
+        value={loan.min_payment_override ?? ''}
+        onChange={onOverrideChange}
+        hint={
+          loan.min_payment_override
+            ? `Replaces the ${estimatedLabel} estimate above.`
+            : 'Leave blank to use the formula above. Fill in only if your statement shows a different number.'
+        }
+      />
     </div>
   );
 }

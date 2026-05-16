@@ -11,6 +11,7 @@ import {
 import type { PlanData } from './PlanData';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
+import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternative';
 
 /**
  * Ledger Plan — amortisation print-out.
@@ -262,42 +263,54 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             </thead>
             <tbody>
               {opportunities.map((opp, i) => (
-                <tr
-                  key={i}
-                  style={{ borderBottom: '1px dashed var(--dash)' }}
-                >
-                  <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>
-                    {String(i + 1).padStart(2, '0')}
-                  </td>
-                  <td
-                    style={{
-                      padding: '10px 12px',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
-                    }}
+                <>
+                  <tr
+                    key={i}
+                    style={{ borderBottom: '1px dashed var(--dash)' }}
                   >
-                    {opp.kind.replace('_', ' ')}
-                  </td>
-                  <td style={{ padding: '10px 12px', fontWeight: 600 }}>
-                    {opp.headline}
-                  </td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                    {formatPct(opp.current_rate)}
-                  </td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                    {formatPct(opp.target_rate)}
-                  </td>
-                  <td
-                    style={{
-                      padding: '10px 12px',
-                      textAlign: 'right',
-                      fontWeight: 700,
-                      color: 'var(--positive)',
-                    }}
-                  >
-                    {formatINR(opp.estimated_annual_saving)}
-                  </td>
-                </tr>
+                    <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>
+                      {String(i + 1).padStart(2, '0')}
+                    </td>
+                    <td
+                      style={{
+                        padding: '10px 12px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                      }}
+                    >
+                      {opp.kind.replace('_', ' ')}
+                    </td>
+                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>
+                      {opp.headline}
+                      {opp.target_is_existing_relationship && (
+                        <RelationshipBadge variant="ledger" />
+                      )}
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      {formatPct(opp.current_rate)}
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      {formatPct(opp.target_rate)}
+                    </td>
+                    <td
+                      style={{
+                        padding: '10px 12px',
+                        textAlign: 'right',
+                        fontWeight: 700,
+                        color: 'var(--positive)',
+                      }}
+                    >
+                      {formatINR(opp.estimated_annual_saving)}
+                    </td>
+                  </tr>
+                  {opp.alternative_target_bank && (
+                    <tr key={`${i}-alt`}>
+                      <td colSpan={6} style={{ padding: '0 12px 6px' }}>
+                        <OpportunityAlternative opportunity={opp} variant="ledger" />
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
             </tbody>
           </table>

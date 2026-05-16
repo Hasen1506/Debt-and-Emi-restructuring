@@ -12,6 +12,7 @@ import {
 } from '@/lib/api';
 import type { PlanData } from './PlanData';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
+import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternative';
 
 const KIND_LABEL: Record<RestructuringOpportunity['kind'], string> = {
   balance_transfer: 'Balance transfer',
@@ -111,7 +112,7 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
                 Restructure before you accelerate
               </div>
               <div className="muted" style={{ fontSize: 13 }}>
-                Layer 1 (§4.7) — re-pricing existing debt beats paying it down faster.
+                Re-pricing existing debt usually beats paying it down faster — do these first.
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
@@ -128,58 +129,64 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {plan.opportunities.map((opp, i) => (
-              <div
-                key={i}
-                style={{
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  padding: 12,
-                  display: 'grid',
-                  gridTemplateColumns: '1fr auto',
-                  gap: 12,
-                  alignItems: 'start',
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      marginBottom: 4,
-                    }}
-                  >
-                    <span
-                      className="chip"
+              <div key={i}>
+                <div
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    padding: 12,
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto',
+                    gap: 12,
+                    alignItems: 'start',
+                  }}
+                >
+                  <div>
+                    <div
                       style={{
-                        background: 'transparent',
-                        color: KIND_COLOR[opp.kind],
-                        borderColor: KIND_COLOR[opp.kind],
-                        fontSize: 11,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginBottom: 4,
+                        flexWrap: 'wrap',
                       }}
                     >
-                      {KIND_LABEL[opp.kind]}
-                    </span>
-                    <span style={{ fontWeight: 500 }}>{opp.headline}</span>
+                      <span
+                        className="chip"
+                        style={{
+                          background: 'transparent',
+                          color: KIND_COLOR[opp.kind],
+                          borderColor: KIND_COLOR[opp.kind],
+                          fontSize: 11,
+                        }}
+                      >
+                        {KIND_LABEL[opp.kind]}
+                      </span>
+                      <span style={{ fontWeight: 500 }}>{opp.headline}</span>
+                      {opp.target_is_existing_relationship && (
+                        <RelationshipBadge variant="existing" />
+                      )}
+                    </div>
+                    <div className="muted" style={{ fontSize: 13 }}>
+                      {opp.rationale}
+                    </div>
                   </div>
-                  <div className="muted" style={{ fontSize: 13 }}>
-                    {opp.rationale}
+                  <div style={{ textAlign: 'right', minWidth: 120 }}>
+                    <div className="muted" style={{ fontSize: 11 }}>
+                      Saves / yr
+                    </div>
+                    <div
+                      className="num"
+                      style={{ fontWeight: 600, color: 'var(--positive)' }}
+                    >
+                      {formatINR(opp.estimated_annual_saving)}
+                    </div>
+                    <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                      {formatPct(opp.current_rate)} → {formatPct(opp.target_rate)}
+                    </div>
                   </div>
                 </div>
-                <div style={{ textAlign: 'right', minWidth: 120 }}>
-                  <div className="muted" style={{ fontSize: 11 }}>
-                    Saves / yr
-                  </div>
-                  <div
-                    className="num"
-                    style={{ fontWeight: 600, color: 'var(--positive)' }}
-                  >
-                    {formatINR(opp.estimated_annual_saving)}
-                  </div>
-                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                    {formatPct(opp.current_rate)} → {formatPct(opp.target_rate)}
-                  </div>
-                </div>
+                <OpportunityAlternative opportunity={opp} variant="existing" />
               </div>
             ))}
           </div>

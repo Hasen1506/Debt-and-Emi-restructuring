@@ -21,12 +21,12 @@ import { buildHeadline, buildMarginalia } from '@/lib/letter';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
-  credit_card: 'CARD',
-  personal_loan: 'PERS LOAN',
-  home_loan: 'HOME',
-  auto_loan: 'AUTO',
-  education_loan: 'EDU',
-  gold_loan: 'GOLD',
+  credit_card: 'CREDIT CARD',
+  personal_loan: 'PERSONAL LOAN',
+  home_loan: 'HOME LOAN',
+  auto_loan: 'AUTO LOAN',
+  education_loan: 'EDUCATION LOAN',
+  gold_loan: 'GOLD LOAN',
   bnpl: 'BNPL',
 };
 
@@ -432,8 +432,11 @@ function LedgerLetter({
             {surplusPositive ? (
               <>
                 Move this month: route the{' '}
-                <strong>{formatINR(surplus)}</strong> surplus toward this line
-                on the next salary credit.{' '}
+                <strong>{formatINR(surplus)}</strong>{' '}
+                <abbr title="Surplus = income − fixed expenses − scheduled EMIs. The cash left over each month to deploy against debt above the minimums.">
+                  surplus
+                </abbr>{' '}
+                toward this line on the next salary credit.{' '}
                 <a href="/plan" style={{ color: 'var(--accent)' }}>
                   [/plan →]
                 </a>{' '}
@@ -442,7 +445,10 @@ function LedgerLetter({
               </>
             ) : (
               <>
-                Surplus is{' '}
+                <abbr title="Surplus = income − fixed expenses − scheduled EMIs. The cash left over each month to deploy against debt above the minimums.">
+                  Surplus
+                </abbr>{' '}
+                is{' '}
                 <strong style={{ color: 'var(--negative)' }}>
                   {formatINR(surplus)}
                 </strong>

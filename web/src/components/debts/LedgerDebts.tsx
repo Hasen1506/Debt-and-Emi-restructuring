@@ -20,12 +20,12 @@ import { computeBreakdown, fmt } from '@/lib/effective-apr';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
-  credit_card: 'CARD',
-  personal_loan: 'PERS LOAN',
-  home_loan: 'HOME',
-  auto_loan: 'AUTO',
-  education_loan: 'EDU',
-  gold_loan: 'GOLD',
+  credit_card: 'CREDIT CARD',
+  personal_loan: 'PERSONAL LOAN',
+  home_loan: 'HOME LOAN',
+  auto_loan: 'AUTO LOAN',
+  education_loan: 'EDUCATION LOAN',
+  gold_loan: 'GOLD LOAN',
   bnpl: 'BNPL',
 };
 

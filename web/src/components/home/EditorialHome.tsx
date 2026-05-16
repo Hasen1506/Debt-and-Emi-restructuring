@@ -308,8 +308,11 @@ function BodyLetter({ metrics }: { metrics: ReturnType<typeof deriveMetrics> }) 
           }}
         >
           So the move this month: route the{' '}
-          <strong>{formatINR(metrics.surplus)}</strong> surplus toward this line
-          on the next salary credit. The{' '}
+          <strong>{formatINR(metrics.surplus)}</strong>{' '}
+          <abbr title="Surplus = income − fixed expenses − scheduled EMIs. The cash left over each month to deploy against debt above the minimums.">
+            surplus
+          </abbr>{' '}
+          toward this line on the next salary credit. The{' '}
           <a
             href="/plan"
             style={{ color: 'var(--accent)', borderBottom: '1px solid var(--accent)' }}
@@ -327,9 +330,13 @@ function BodyLetter({ metrics }: { metrics: ReturnType<typeof deriveMetrics> }) 
             marginTop: 12,
           }}
         >
-          But the surplus is currently <strong>{formatINR(metrics.surplus)}</strong>
-          /month — there's nothing to allocate until you trim fixed expenses or
-          re-negotiate an EMI. Until then, prepayment isn't the right move; not
+          But the{' '}
+          <abbr title="Surplus = income − fixed expenses − scheduled EMIs. The cash left over each month to deploy against debt above the minimums.">
+            surplus
+          </abbr>{' '}
+          is currently <strong>{formatINR(metrics.surplus)}</strong>
+          /month — there&apos;s nothing to allocate until you trim fixed expenses or
+          re-negotiate an EMI. Until then, prepayment isn&apos;t the right move; not
           falling behind is.
         </p>
       )}

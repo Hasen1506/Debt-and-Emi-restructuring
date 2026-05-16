@@ -414,7 +414,7 @@ export function Stat({
   value,
   color = 'var(--ink)',
 }: {
-  label: string;
+  label: ReactNode;
   value: ReactNode;
   color?: string;
 }) {
@@ -551,5 +551,149 @@ export function SubmitBar({
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * Lightweight CTA used by tools whose recommendation is "take on a new
+ * loan" — i.e. new-debt and right-time. Unlike `ApplyAction` (which writes
+ * a payment event to Activity), this just deep-links to the setup form so
+ * the user can add the loan to their profile properly.
+ */
+export function AddToSetupAction({ label }: { label: string }) {
+  return (
+    <a
+      href="/onboarding?step=loans"
+      style={{
+        display: 'inline-block',
+        marginTop: 14,
+        padding: '8px 14px',
+        background: 'var(--accent)',
+        color: 'white',
+        border: 'none',
+        borderRadius: 6,
+        cursor: 'pointer',
+        fontSize: 13,
+        fontWeight: 600,
+        textDecoration: 'none',
+      }}
+    >
+      {label}
+    </a>
+  );
+}
+
+/**
+ * One-click "add this loan to my profile" affordance. Used by new-debt and
+ * right-time when the verdict is "take the loan" — writes the loan into
+ * the local profile cookie and confirms inline so the user doesn't have
+ * to navigate to Setup.
+ */
+export function AddLoanAction({
+  added,
+  onAdd,
+  label,
+}: {
+  added: boolean;
+  onAdd: () => void;
+  label: string;
+}) {
+  if (added) {
+    return (
+      <div
+        style={{
+          marginTop: 14,
+          padding: '10px 12px',
+          background: 'var(--soft-bg)',
+          border: '1px solid var(--positive)',
+          borderRadius: 6,
+          fontSize: 13,
+          lineHeight: 1.55,
+          color: 'var(--ink)',
+        }}
+      >
+        Added to your profile.{' '}
+        <a href="/plan" style={{ color: 'var(--accent)' }}>See the new /plan</a>
+        {' '}or{' '}
+        <a href="/onboarding?step=loans" style={{ color: 'var(--accent)' }}>
+          tweak the details in Setup
+        </a>
+        .
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      style={{
+        marginTop: 14,
+        padding: '8px 14px',
+        background: 'var(--accent)',
+        color: 'white',
+        border: 'none',
+        borderRadius: 6,
+        cursor: 'pointer',
+        fontSize: 13,
+        fontWeight: 600,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+/**
+ * The "Apply this" affordance on tool results. Bridges between the tool's
+ * recommendation and the Activity ledger — clicking writes a paid_extra (or
+ * other) event so /plan reprices on next render. Switches to a confirmation
+ * line once applied; pointing the user at /insights to inspect the entry.
+ */
+export function ApplyAction({
+  applied,
+  onApply,
+  label,
+}: {
+  applied: boolean;
+  onApply: () => void;
+  label: string;
+}) {
+  if (applied) {
+    return (
+      <div
+        style={{
+          marginTop: 14,
+          padding: '10px 12px',
+          background: 'var(--soft-bg)',
+          border: '1px solid var(--positive)',
+          borderRadius: 6,
+          fontSize: 13,
+          lineHeight: 1.55,
+          color: 'var(--ink)',
+        }}
+      >
+        Logged. <a href="/insights" style={{ color: 'var(--accent)' }}>Open Activity</a> to
+        edit, or <a href="/plan" style={{ color: 'var(--accent)' }}>see the new /plan</a>.
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onApply}
+      style={{
+        marginTop: 14,
+        padding: '8px 14px',
+        background: 'var(--accent)',
+        color: 'white',
+        border: 'none',
+        borderRadius: 6,
+        cursor: 'pointer',
+        fontSize: 13,
+        fontWeight: 600,
+      }}
+    >
+      {label}
+    </button>
   );
 }

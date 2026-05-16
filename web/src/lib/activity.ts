@@ -8,6 +8,11 @@
  *                    surface a penalty estimate
  *   • missed       — user paid nothing this cycle; penalty estimate uses
  *                    the full EMI as `overdue`
+ *   • paid_extra   — user paid MORE than the scheduled EMI (lump sum,
+ *                    overpayment, prepayment). The excess reduces
+ *                    outstanding when /plan re-simulates.
+ *   • closed       — user cleared the loan entirely. Outstanding goes to 0
+ *                    and the loan drops out of the projection.
  *
  * Stored in localStorage rather than a cookie — entries are unbounded and
  * cookies cap at 4KB. localStorage is also better for cross-tab consistency
@@ -18,7 +23,12 @@
  * floats. Convert with `new Decimal(...)` at render time.
  */
 
-export type ActivityKind = 'paid_full' | 'paid_partial' | 'missed';
+export type ActivityKind =
+  | 'paid_full'
+  | 'paid_partial'
+  | 'missed'
+  | 'paid_extra'
+  | 'closed';
 
 export interface ActivityEntry {
   /** Stable ID — `crypto.randomUUID()` in the browser, kept as string. */
@@ -29,20 +39,37 @@ export interface ActivityEntry {
   kind: ActivityKind;
   /** ISO date 'YYYY-MM-DD' of the payment event. */
   date: string;
-  /** Amount paid, decimal string. Always non-negative. For `missed` this
-   *  must be '0'; for `paid_full` it's the actual amount sent (usually
-   *  >= scheduledEmi); for `paid_partial` it's the amount sent. */
+  /** Amount paid, decimal string. Always non-negative.
+   *  • missed: '0' (must be zero)
+   *  • paid_full: actual amount sent (usually >= scheduledEmi)
+   *  • paid_partial: amount sent (< scheduledEmi)
+   *  • paid_extra: full amount paid (engine credits amount - scheduledEmi as
+   *                additional principal reduction beyond the regular EMI)
+   *  • closed: amount sent to clear the loan (informational only — the
+   *            outstanding is forced to zero regardless) */
   amount: string;
   /** What the user's scheduled EMI was for that cycle. Stored explicitly so
    *  the penalty estimate doesn't drift if the loan's scheduled_emi later
    *  changes. */
   scheduledEmi: string;
+  /** Optional user-provided penalty override (₹/$) — replaces the engine
+   *  estimate for missed/partial events when the user's statement carries
+   *  a different figure. Ignored for other kinds. */
+  penaltyOverride?: string;
   /** Optional free-text note. */
   note?: string;
   /** When the user logged this (not when it happened). Used for sort
    *  tiebreaks when multiple entries share a date. */
   loggedAt: string;
 }
+
+export const ACTIVITY_KINDS: ActivityKind[] = [
+  'paid_full',
+  'paid_partial',
+  'missed',
+  'paid_extra',
+  'closed',
+];
 
 const STORAGE_KEY = 'finoptima_activity';
 
@@ -63,7 +90,8 @@ function isActivityEntry(v: unknown): v is ActivityEntry {
   return (
     typeof e.id === 'string' &&
     typeof e.loanIndex === 'number' &&
-    (e.kind === 'paid_full' || e.kind === 'paid_partial' || e.kind === 'missed') &&
+    typeof e.kind === 'string' &&
+    ACTIVITY_KINDS.includes(e.kind as ActivityKind) &&
     typeof e.date === 'string' &&
     typeof e.amount === 'string' &&
     typeof e.scheduledEmi === 'string' &&
@@ -116,12 +144,14 @@ export function sortActivityNewestFirst(entries: ActivityEntry[]): ActivityEntry
 }
 
 /**
- * How much principal+interest went unpaid for this event. 0 for paid_full;
- * `scheduledEmi - amount` for paid_partial; `scheduledEmi` for missed.
- * Always non-negative.
+ * How much principal+interest went unpaid for this event. 0 for paid_full /
+ * paid_extra / closed; `scheduledEmi - amount` for paid_partial;
+ * `scheduledEmi` for missed. Always non-negative.
  */
 export function overdueAmount(entry: ActivityEntry): string {
-  if (entry.kind === 'paid_full') return '0';
+  if (entry.kind === 'paid_full' || entry.kind === 'paid_extra' || entry.kind === 'closed') {
+    return '0';
+  }
   if (entry.kind === 'missed') return entry.scheduledEmi;
   // paid_partial
   const owed = Number(entry.scheduledEmi) - Number(entry.amount);
@@ -133,9 +163,19 @@ export function overdueAmount(entry: ActivityEntry): string {
  * reference for testing). Clamps to 0 minimum.
  */
 export function daysLate(entry: ActivityEntry, now: Date = new Date()): number {
-  if (entry.kind === 'paid_full') return 0;
+  if (entry.kind !== 'paid_partial' && entry.kind !== 'missed') return 0;
   const eventDate = new Date(entry.date);
   if (Number.isNaN(eventDate.getTime())) return 0;
   const diffMs = now.getTime() - eventDate.getTime();
   return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+}
+
+/**
+ * For `paid_extra` events, how much principal beyond the scheduled EMI was
+ * applied. Used to reduce outstanding in the projection. Always non-negative.
+ */
+export function extraPrincipal(entry: ActivityEntry): string {
+  if (entry.kind !== 'paid_extra') return '0';
+  const extra = Number(entry.amount) - Number(entry.scheduledEmi);
+  return String(Math.max(0, extra));
 }

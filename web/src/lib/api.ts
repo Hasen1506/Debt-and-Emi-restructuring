@@ -35,6 +35,9 @@ export interface LoanPayload {
   processing_fee_amortised?: string;
   insurance_premium_pct?: string;
   property_use?: string;
+  /** Optional user override for credit-card minimum payment. When set, the
+   *  bank-specific formula is bypassed. Ignored for non-card loans. */
+  min_payment_override?: string;
 }
 
 export interface InvestmentOptionPayload {
@@ -53,6 +56,10 @@ export interface UserPayload {
   savings_balance: string;
   primary_bank: string;
   location_tier?: string;
+  /** Banks the user holds savings/current accounts at without an active
+   *  loan. Used by new-debt / refinance suggestions to prefer existing
+   *  banking relationships over new account opens. */
+  other_banks?: string[];
   tax_regime?: TaxRegimeIN;
   efund_balance?: string;
   efund_target?: string;
@@ -225,6 +232,16 @@ export interface RestructuringOpportunity {
   target_rate: string;
   current_rate: string;
   detail: Record<string, string>;
+  /** Overall-cheapest alternative when the recommended target is biased
+   *  toward an existing-relationship bank. UI surfaces this as a dismissable
+   *  "also worth knowing" hint, not the headline. */
+  alternative_target_bank?: string | null;
+  alternative_target_rate?: string | null;
+  alternative_annual_saving?: string | null;
+  /** True iff target_bank was chosen because the user already deals with it
+   *  (primary_bank, other_banks, or an existing loan). UI uses this to add a
+   *  "you already use this bank" badge. */
+  target_is_existing_relationship?: boolean;
 }
 
 export interface RestructuringResponse {
@@ -407,7 +424,33 @@ export const api = {
     brokerage_rate?: string;
     surplus_reinvestment_yield?: string;
   }) => post<AssetLiquidationResponse>('/api/asset-liquidation', req),
+
+  institutions: (country?: Country) =>
+    get<InstitutionPayload[]>(
+      `/api/institutions${country ? `?country=${country}` : ''}`,
+    ),
 };
+
+export interface RateRangePayload {
+  low: string;
+  high: string;
+  median: string;
+}
+
+export interface InstitutionPayload {
+  institution_id: string;
+  country: Country;
+  name: string;
+  scrape_tier: string;
+  home_loan: RateRangePayload | null;
+  personal_loan: RateRangePayload | null;
+  auto_loan: RateRangePayload | null;
+  education_loan: RateRangePayload | null;
+  credit_card_apr_low: string | null;
+  credit_card_apr_high: string | null;
+  processing_fee_pct: string | null;
+  last_verified: string;
+}
 
 // ─── formatting helpers ─────────────────────────────────────────────────────
 

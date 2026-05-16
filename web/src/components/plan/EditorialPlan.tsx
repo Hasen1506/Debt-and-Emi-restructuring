@@ -12,6 +12,7 @@ import { formatINR, formatPct } from '@/lib/api';
 import type { PlanData } from './PlanData';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
+import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternative';
 
 /**
  * Editorial Plan — "Chapter II · the path".
@@ -185,12 +186,17 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             >
               {opportunities.map((opp, i) => (
                 <li key={i} style={{ marginTop: i === 0 ? 0 : 10 }}>
-                  <strong>{opp.headline}.</strong> {opp.rationale} Saves{' '}
+                  <strong>{opp.headline}.</strong>
+                  {opp.target_is_existing_relationship && (
+                    <RelationshipBadge variant="editorial" />
+                  )}{' '}
+                  {opp.rationale} Saves{' '}
                   <strong style={{ color: 'var(--positive)' }}>
                     {formatINR(opp.estimated_annual_saving)}
                   </strong>
                   /yr — rate {formatPct(opp.current_rate)} →{' '}
                   {formatPct(opp.target_rate)}.
+                  <OpportunityAlternative opportunity={opp} variant="editorial" />
                 </li>
               ))}
             </ol>

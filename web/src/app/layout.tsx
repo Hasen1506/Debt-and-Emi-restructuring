@@ -10,7 +10,7 @@ import type { Country } from '@/lib/api';
 export const metadata: Metadata = {
   title: 'FinOptima — Debt & EMI Optimiser',
   description:
-    'Personal debt restructuring & payoff optimiser for India and USA. Layer 1 restructure, Layer 2 avalanche/hybrid/snowball, Layer 3 invest-vs-prepay.',
+    'Personal debt restructuring & payoff optimiser for India and USA. Refinance opportunities, an avalanche/snowball schedule that beats minimums, and invest-vs-prepay calls — in one plan.',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

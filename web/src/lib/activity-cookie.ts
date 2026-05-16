@@ -24,21 +24,31 @@ import Decimal from 'decimal.js';
 import type { ActivityEntry } from './activity';
 import { estimateLateFee } from './estimate-penalty';
 import type { Country, LoanPayload } from './api';
-import { overdueAmount, daysLate } from './activity';
+import { overdueAmount, daysLate, extraPrincipal } from './activity';
 
 const COOKIE_NAME = 'finoptima_activity_deltas';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 const MAX_DELTAS = 20;
-const CURRENT_VERSION = 1;
+// Version 2 added `principalReduction` and `closed` so server-side parsers
+// know to ignore v1-only payloads if the shape changes. Old v1 payloads
+// (missed/partial only) are still accepted as a subset of v2.
+const CURRENT_VERSION = 2;
 
 export interface ActivityDelta {
   /** 0-based index into the user's `loans`. */
   loanIndex: number;
-  /** Unpaid principal+interest for this event, decimal string. */
+  /** Unpaid principal+interest for this event, decimal string.
+   *  Bumps outstanding UP. */
   overdue: string;
   /** Estimated penalty (flat + penal + GST), decimal string. Frozen at write
-   *  time so server-side math is deterministic. */
+   *  time so server-side math is deterministic. Bumps outstanding UP. */
   penalty: string;
+  /** Extra principal paid above the scheduled EMI for `paid_extra` events.
+   *  Reduces outstanding. Decimal string, non-negative. */
+  principalReduction?: string;
+  /** Set when this delta represents a `closed` event — outstanding goes to
+   *  zero regardless of the other fields. */
+  closed?: boolean;
 }
 
 interface CookiePayload {
@@ -65,19 +75,47 @@ export function syncActivityCookieClient(
     if (e.kind === 'paid_full') continue;
     const loan = loans[e.loanIndex];
     if (!loan) continue;
+
+    if (e.kind === 'closed') {
+      deltas.push({
+        loanIndex: e.loanIndex,
+        overdue: '0',
+        penalty: '0',
+        closed: true,
+      });
+      if (deltas.length >= MAX_DELTAS) break;
+      continue;
+    }
+
+    if (e.kind === 'paid_extra') {
+      const extra = extraPrincipal(e);
+      if (Number(extra) <= 0) continue;
+      deltas.push({
+        loanIndex: e.loanIndex,
+        overdue: '0',
+        penalty: '0',
+        principalReduction: extra,
+      });
+      if (deltas.length >= MAX_DELTAS) break;
+      continue;
+    }
+
+    // missed / paid_partial — outstanding bumps UP by overdue + penalty.
     const overdue = overdueAmount(e);
-    const est = estimateLateFee({
-      loanType: loan.loan_type,
-      country,
-      bank: loan.bank,
-      overdueAmount: overdue,
-      daysLate: daysLate(e),
-    });
-    deltas.push({
-      loanIndex: e.loanIndex,
-      overdue,
-      penalty: est.total.toFixed(2),
-    });
+    let penalty: string;
+    if (e.penaltyOverride && e.penaltyOverride.trim() !== '') {
+      penalty = new Decimal(e.penaltyOverride).toFixed(2);
+    } else {
+      const est = estimateLateFee({
+        loanType: loan.loan_type,
+        country,
+        bank: loan.bank,
+        overdueAmount: overdue,
+        daysLate: daysLate(e),
+      });
+      penalty = est.total.toFixed(2);
+    }
+    deltas.push({ loanIndex: e.loanIndex, overdue, penalty });
     if (deltas.length >= MAX_DELTAS) break;
   }
 
@@ -99,7 +137,10 @@ export async function loadActivityDeltasServer(): Promise<ActivityDelta[]> {
   if (!raw) return [];
   try {
     const parsed: CookiePayload = JSON.parse(decodeURIComponent(raw));
-    if (parsed?.v !== CURRENT_VERSION || !Array.isArray(parsed.deltas)) return [];
+    // Accept v1 (missed/partial only) and v2 (adds paid_extra/closed) — older
+    // browsers may still be carrying a v1 cookie until the next mutation.
+    if (parsed?.v !== 1 && parsed?.v !== CURRENT_VERSION) return [];
+    if (!Array.isArray(parsed.deltas)) return [];
     return parsed.deltas.filter(
       (d) =>
         typeof d?.loanIndex === 'number' &&
@@ -125,36 +166,53 @@ export interface DeltaApplication {
 }
 
 /**
- * Returns a copy of `loans` with `outstanding` bumped by Σ(overdue + penalty)
- * per loan. The original array is left unchanged so the caller can still
- * surface the user's reported numbers separately.
+ * Returns a copy of `loans` with `outstanding` adjusted by the net delta per
+ * loan:
+ *   • missed / partial bump UP by overdue + penalty
+ *   • paid_extra bumps DOWN by principalReduction
+ *   • closed forces outstanding to 0
+ *
+ * Outstanding is floored at 0 — extras beyond what's owed are clamped (rather
+ * than going negative, which would crash the engine). The original array is
+ * left unchanged so the caller can still surface the user's reported numbers.
  */
 export function applyActivityDeltas(
   loans: LoanPayload[],
   deltas: ActivityDelta[],
 ): DeltaApplication {
-  const perLoan = new Map<number, { bump: Decimal; count: number }>();
+  const perLoan = new Map<number, { bump: Decimal; count: number; closed: boolean }>();
   for (const d of deltas) {
     if (d.loanIndex < 0 || d.loanIndex >= loans.length) continue;
     const overdue = new Decimal(d.overdue || 0);
     const penalty = new Decimal(d.penalty || 0);
-    const cur = perLoan.get(d.loanIndex) ?? { bump: new Decimal(0), count: 0 };
-    cur.bump = cur.bump.add(overdue).add(penalty);
+    const reduction = new Decimal(d.principalReduction || 0);
+    const cur = perLoan.get(d.loanIndex) ?? {
+      bump: new Decimal(0),
+      count: 0,
+      closed: false,
+    };
+    cur.bump = cur.bump.add(overdue).add(penalty).sub(reduction);
     cur.count += 1;
+    if (d.closed) cur.closed = true;
     perLoan.set(d.loanIndex, cur);
   }
 
   const adjusted = loans.map((loan, i) => {
     const entry = perLoan.get(i);
-    if (!entry || entry.bump.lte(0)) return loan;
-    const newOutstanding = new Decimal(loan.outstanding || 0).add(entry.bump);
-    return { ...loan, outstanding: newOutstanding.toFixed(2) };
+    if (!entry) return loan;
+    if (entry.closed) {
+      return { ...loan, outstanding: '0' };
+    }
+    if (entry.bump.eq(0)) return loan;
+    const next = new Decimal(loan.outstanding || 0).add(entry.bump);
+    const clamped = next.lt(0) ? new Decimal(0) : next;
+    return { ...loan, outstanding: clamped.toFixed(2) };
   });
 
   let totalBump = new Decimal(0);
   const perLoanBumps: DeltaApplication['perLoanBumps'] = [];
-  for (const [idx, { bump, count }] of perLoan.entries()) {
-    if (bump.lte(0)) continue;
+  for (const [idx, { bump, count, closed }] of perLoan.entries()) {
+    if (!closed && bump.eq(0)) continue;
     totalBump = totalBump.add(bump);
     perLoanBumps.push({
       loanIndex: idx,
@@ -162,7 +220,7 @@ export function applyActivityDeltas(
       entryCount: count,
     });
   }
-  perLoanBumps.sort((a, b) => Number(b.totalBump) - Number(a.totalBump));
+  perLoanBumps.sort((a, b) => Math.abs(Number(b.totalBump)) - Math.abs(Number(a.totalBump)));
 
   return {
     loans: adjusted,
