@@ -38,6 +38,9 @@ export function readFxDriftClient(): FxDriftSetting {
 export function writeFxDriftClient(value: FxDriftSetting) {
   if (typeof document === 'undefined') return;
   document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  void import('./server-sync').then(({ syncSliceToServer }) =>
+    syncSliceToServer('fx_drift', value),
+  );
 }
 
 // ─── Server-side ────────────────────────────────────────────────────────────

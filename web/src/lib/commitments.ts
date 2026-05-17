@@ -63,6 +63,9 @@ export function readCommitmentsClient(): CommitmentEntry[] {
 export function writeCommitmentsClient(entries: CommitmentEntry[]) {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  void import('./server-sync').then(({ syncSliceToServer }) =>
+    syncSliceToServer('commitments', entries),
+  );
 }
 
 export function addCommitment(

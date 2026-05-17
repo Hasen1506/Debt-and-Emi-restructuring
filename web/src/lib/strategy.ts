@@ -33,6 +33,9 @@ export function readStrategyClient(): StrategyName {
 export function writeStrategyClient(strategy: StrategyName) {
   if (typeof document === 'undefined') return;
   document.cookie = `${COOKIE_NAME}=${strategy}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  void import('./server-sync').then(({ syncSliceToServer }) =>
+    syncSliceToServer('strategy', strategy),
+  );
 }
 
 // ─── Server-side ────────────────────────────────────────────────────────────

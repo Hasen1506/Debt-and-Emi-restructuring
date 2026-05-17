@@ -30,9 +30,15 @@ interface SliceTarget {
   name: string;
 }
 const SLICE_TARGETS: Record<string, SliceTarget> = {
-  lifecycle:   { kind: 'cookie',       name: 'finoptima_lifecycle' },
-  advance_tax: { kind: 'cookie',       name: 'finoptima_advance_tax' },
-  activity:    { kind: 'localStorage', name: 'finoptima_activity' },
+  lifecycle:          { kind: 'cookie',       name: 'finoptima_lifecycle' },
+  advance_tax:        { kind: 'cookie',       name: 'finoptima_advance_tax' },
+  activity:           { kind: 'localStorage', name: 'finoptima_activity' },
+  strategy:           { kind: 'cookie',       name: 'finoptima_strategy' },
+  inflation_modeling: { kind: 'cookie',       name: 'finoptima_inflation_modeling' },
+  hike_modeling:      { kind: 'cookie',       name: 'finoptima_hike_modeling' },
+  tax_reinvest:       { kind: 'cookie',       name: 'finoptima_tax_reinvest' },
+  fx_drift:           { kind: 'cookie',       name: 'finoptima_fx_drift' },
+  commitments:        { kind: 'localStorage', name: 'finoptima_commitments' },
   // Profile slice is handled separately by user-store.ts (it spans 3
   // cookies and predates this file).
 };

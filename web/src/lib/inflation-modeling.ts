@@ -34,6 +34,9 @@ export function readInflationModelingClient(): InflationModeling {
 export function writeInflationModelingClient(value: InflationModeling) {
   if (typeof document === 'undefined') return;
   document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  void import('./server-sync').then(({ syncSliceToServer }) =>
+    syncSliceToServer('inflation_modeling', value),
+  );
 }
 
 // ─── Server-side ────────────────────────────────────────────────────────────
