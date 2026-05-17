@@ -1,0 +1,76 @@
+/**
+ * Per-plan toggle: model long-run FX drift for non-residence-currency
+ * loans, or treat FX as flat at today's spot for the whole horizon?
+ *
+ * Only meaningful for hybrid users (NRI-US with INR loans, etc.). For
+ * single-currency users the toggle is hidden by the parent component.
+ *
+ * Default: inflation differential between the loan-currency country and
+ * the residence country. For NRI-US (USD residence, INR loans):
+ *   India CPI 5.5% − US CPI 3.0% ≈ 2.5%/yr → USD/INR drift +2.5%/yr,
+ *   i.e. 1 INR is worth ~2.5% fewer USD each year. Theoretical PPP
+ *   anchor; matches market 1Y forward implied drift to within ~0.2pp.
+ *
+ * Users can override the default by editing the rate on the toggle's
+ * detail row. We don't allow per-currency overrides — for the only
+ * supported hybrid pair (NRI-US with INR loans) a single drift is enough.
+ */
+
+export type FxDriftSetting = 'on' | 'off';
+
+export const DEFAULT_FX_DRIFT: FxDriftSetting = 'off';
+const COOKIE_NAME = 'finoptima_fx_drift';
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+function isFxDrift(v: string | null | undefined): v is FxDriftSetting {
+  return v === 'on' || v === 'off';
+}
+
+// ─── Client-side ────────────────────────────────────────────────────────────
+
+export function readFxDriftClient(): FxDriftSetting {
+  if (typeof document === 'undefined') return DEFAULT_FX_DRIFT;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_NAME}=([^;]*)`));
+  const v = match ? decodeURIComponent(match[1]) : null;
+  return isFxDrift(v) ? v : DEFAULT_FX_DRIFT;
+}
+
+export function writeFxDriftClient(value: FxDriftSetting) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+}
+
+// ─── Server-side ────────────────────────────────────────────────────────────
+
+export async function loadFxDriftServer(): Promise<FxDriftSetting> {
+  const { cookies } = await import('next/headers');
+  const v = cookies().get(COOKIE_NAME)?.value;
+  return isFxDrift(v) ? v : DEFAULT_FX_DRIFT;
+}
+
+/**
+ * Default drift rate per (residence, loan-currency) pair. Keyed by
+ * loan-currency since the engine indexes drift by the same key as
+ * fx_to_user_currency. Only the single supported hybrid pair is
+ * configured today; other pairs fall through to 0.
+ *
+ * Source: India CPI (RBI MPC Apr 2026) − US PCE (FOMC SEP Mar 2026)
+ *   = 5.5% − 3.0% = 2.5%. Refresh at the same cadence as
+ *   `INFLATION_DEFAULTS_AS_OF`.
+ */
+export const FX_DRIFT_DEFAULTS_AS_OF = '2026-05';
+
+export function defaultDriftForLoanCurrency(
+  loanCurrency: string,
+  residenceCountry: 'IN' | 'US',
+): string {
+  // Engine convention: drift applies to `fx_to_user_currency[loan_ccy]`,
+  // which is "residence-ccy per 1 unit of loan-ccy". For NRI-US with INR
+  // loans the rate is USD-per-INR (~0.012). If the rupee depreciates,
+  // each INR buys fewer USD → rate goes DOWN → drift is NEGATIVE.
+  //
+  // The user-facing label says "USD/INR +2.5%/yr" (more INR per USD =
+  // depreciation) but on the wire we store -0.025 on INR.
+  if (residenceCountry === 'US' && loanCurrency === 'INR') return '-0.025';
+  return '0';
+}

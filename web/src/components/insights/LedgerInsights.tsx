@@ -9,6 +9,8 @@
  */
 
 import { ActivityLedger } from './ActivityLedger';
+import { AdvanceTaxLedger } from './AdvanceTaxLedger';
+import { InsightsSummaryStrip } from './InsightsSummaryStrip';
 import type { StoredProfile } from '@/lib/user-store';
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -40,7 +42,7 @@ export function LedgerInsights({ profile }: { profile: StoredProfile }) {
       }}
     >
       <section>
-        <SectionLabel>$ ACTIVITY · YOUR PAYMENT LEDGER</SectionLabel>
+        <SectionLabel>$ HISTORY · AUDIT TRAIL · BACKWARD-LOOKING</SectionLabel>
         <div
           style={{
             fontSize: 11,
@@ -53,15 +55,19 @@ export function LedgerInsights({ profile }: { profile: StoredProfile }) {
             padding: '10px 12px',
           }}
         >
-          Record what actually happened — paid in full, partial, or missed —
-          and FinOptima will estimate the bank&apos;s penalty for any
-          shortfall. Sources: each bank&apos;s published Schedule of Charges,
+          Where <a href="/plan" style={{ color: 'var(--accent)' }}>$ PLAN</a> is
+          forward-looking, this page is the record of what actually happened —
+          paid in full, partial, missed, or extra, plus advance-tax instalments.
+          Penalty estimates use each bank&apos;s published Schedule of Charges,
           falling back to country/loan-type medians (₹500 + 2-3%/month on
           consumer credit; 18% GST in IN).
         </div>
       </section>
 
+      <InsightsSummaryStrip user={profile.user} variant="ledger" />
+
       <ActivityLedger user={profile.user} variant="ledger" />
+      <AdvanceTaxLedger user={profile.user} variant="ledger" />
     </div>
   );
 }

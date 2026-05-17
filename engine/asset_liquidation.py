@@ -17,6 +17,7 @@ from decimal import Decimal
 from typing import Optional
 from engine.models import Asset, Country, FilingStatusUS, Loan, User
 from engine.country_data import (
+    cii_is_provisional,
     india_selling_cost_pct,
     lookup_cii,
     lookup_asset_return,
@@ -574,6 +575,24 @@ def _proceeds_real_estate(
     selling_pct = india_selling_cost_pct(state)
     transaction_costs = asset.current_market_value * selling_pct
 
+    caveats = [
+        "Property sales take 3-6 months on average — proceeds aren't immediate.",
+        "You may qualify for §54/54EC exemptions if reinvesting in property "
+        "or NHAI/REC bonds — consult a CA before paying the LTCG.",
+    ]
+    # Pre-23-Jul-2024 acquisitions index via CII. If the relevant FY is
+    # provisional (CBDT notification not yet released), make that visible —
+    # the LTCG estimate moves up to ~5% either way once CBDT lands.
+    if (
+        purchase_fy
+        and current_fy
+        and (cii_is_provisional(purchase_fy) or cii_is_provisional(current_fy))
+    ):
+        caveats.append(
+            "LTCG uses an extrapolated CII for one or both FYs (CBDT annual "
+            "notification still pending). Final tax may move ±5% once published."
+        )
+
     return ProceedsResult(
         asset_label=asset.label or f"Real estate ({state})",
         asset_type=asset.asset_type,
@@ -587,11 +606,7 @@ def _proceeds_real_estate(
             f"registration + brokerage ≈ {selling_pct*100:.1f}% (₹{transaction_costs:,.0f}). "
             f"After LTCG of ₹{tax:,.0f}, you net ₹{net:,.0f}."
         ),
-        caveats=[
-            "Property sales take 3-6 months on average — proceeds aren't immediate.",
-            "You may qualify for §54/54EC exemptions if reinvesting in property "
-            "or NHAI/REC bonds — consult a CA before paying the LTCG.",
-        ],
+        caveats=caveats,
     )
 
 
@@ -814,14 +829,31 @@ def _proceeds_us_debt_fund(
     asset: Asset, today: date, taxable_income: Decimal,
     filing_status: FilingStatusUS, state_marginal_rate: Decimal,
 ) -> ProceedsResult:
-    """US bond funds / debt MFs — STCG ordinary / LTCG 0/15/20%. Same shape as equity
-    but the helper exists separately for future muni-bond / treasury specialisation."""
+    """US bond funds / debt MFs — STCG ordinary / LTCG 0/15/20%. When the
+    asset is flagged `us_is_tax_exempt_muni`, the capital-gains-on-disposal
+    math is the same (gains are still federally taxable), but the ranker
+    upstream uses the taxable-equivalent yield to weight the hold-vs-sell
+    decision."""
     val = asset.current_market_value
     transaction_costs = val * D("0.001")
     gross, tax, days_held, is_lt = _us_cap_gains_helpers(
         val, asset.purchase_price, asset, today, taxable_income,
         filing_status, state_marginal_rate, transaction_costs,
     )
+    caveats: list[str] = []
+    if asset.us_is_tax_exempt_muni:
+        caveats.extend([
+            "Federal coupon income on this muni fund is §103 tax-exempt — "
+            "factored into hold-vs-sell math as taxable-equivalent yield.",
+            "Capital gains on disposal are still federally taxable. Sales of "
+            "muni bonds bought at a discount may trigger the market-discount "
+            "rule (ordinary income treatment) — confirm with your tax pro.",
+        ])
+    else:
+        caveats.append(
+            "If this is a tax-exempt muni-bond fund, set us_is_tax_exempt_muni "
+            "on the asset so the hold-vs-sell math uses taxable-equivalent yield."
+        )
     return ProceedsResult(
         asset_label=asset.label or "US bond fund",
         asset_type=asset.asset_type,
@@ -834,10 +866,7 @@ def _proceeds_us_debt_fund(
             f"Redeem ${val:,.0f} of bond fund. "
             f"{'Long-term' if is_lt else 'Short-term'} gains; tax ~${tax:,.0f}."
         ),
-        caveats=[
-            "Muni-bond tax-exemption not modelled — if these are tax-exempt "
-            "municipals, override the marginal rate."
-        ],
+        caveats=caveats,
     )
 
 
@@ -1172,6 +1201,19 @@ def rank_liquidations(
         asset_return = asset.expected_return_pct or lookup_asset_return(
             asset.asset_type, country
         )
+        # Tax-exempt muni-bond funds: recast their nominal yield to
+        # taxable-equivalent terms before comparing against debt cost. The
+        # debt-effective rate the user pays is in taxable terms, so the
+        # comparison only makes sense apples-to-apples. e.g. 3.5% muni at
+        # 33% marginal → 5.22% TEY beats a 5% mortgage even though the
+        # nominal looks worse.
+        if (
+            country == Country.US
+            and asset.asset_type == "debt_mf"
+            and asset.us_is_tax_exempt_muni
+            and marginal_rate < D("1")
+        ):
+            asset_return = asset_return / (D("1") - marginal_rate)
         proceeds = compute_liquidation_proceeds(
             asset,
             today=today,

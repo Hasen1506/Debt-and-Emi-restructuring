@@ -17,6 +17,74 @@ def test_simulate_returns_trajectory(client, india_user_payload):
     assert D(body["trajectory"][0]["balance"]) > 0
 
 
+def test_simulate_emits_per_currency_balance_bucket_single_currency(
+    client, india_user_payload
+):
+    """Single-currency users get a 1-element balances_by_currency dict that
+    matches the scalar `balance` field exactly. Used by the FE to drive the
+    per-ccy trajectory chart for hybrid users without a special-case for
+    the single-currency path."""
+    r = client.post("/api/simulate", json={
+        "user": india_user_payload, "strategy": "avalanche",
+        "horizon_months": 24, "marginal_rate": "0.30",
+    })
+    body = r.json()
+    first = body["trajectory"][0]
+    assert "balances_by_currency" in first
+    bucket = first["balances_by_currency"]
+    assert set(bucket.keys()) == {"INR"}
+    assert D(bucket["INR"]) == D(first["balance"])
+
+
+def test_simulate_emits_per_currency_balance_bucket_hybrid(client):
+    """NRI-US user with one INR loan + one USD loan gets two buckets, each
+    summing to the per-currency outstanding (no cross-currency conversion at
+    the API layer — the chart layer needs each ccy separately)."""
+    payload = {
+        "country": "US",
+        "income_type": "salaried",
+        "annual_income": "120000",
+        "monthly_income": "10000",
+        "fixed_expenses": "4000",
+        "savings_balance": "50000",
+        "primary_bank": "JPMorgan Chase",
+        "efund_balance": "20000",
+        "efund_target": "40000",
+        "is_nri_us": True,
+        "fx_to_user_currency": {"INR": "0.012"},
+        "loans": [
+            {
+                "loan_type": "home_loan", "bank": "HDFC Bank",
+                "outstanding": "4000000", "nominal_rate": "0.085",
+                "rate_type": "floating", "tenure_months_remaining": 240,
+                "scheduled_emi": "34713", "currency": "INR",
+            },
+            {
+                "loan_type": "credit_card", "bank": "Chase",
+                "outstanding": "25000", "nominal_rate": "0.249",
+                "rate_type": "fixed", "tenure_months_remaining": 0,
+                "scheduled_emi": "800", "currency": "USD",
+            },
+        ],
+        "investment_options": [
+            {"name": "HYSA", "expected_return": "0.045",
+             "liquidity_class": "liquid", "is_in_pool": True},
+        ],
+    }
+    r = client.post("/api/simulate", json={
+        "user": payload, "strategy": "avalanche",
+        "horizon_months": 12, "marginal_rate": "0.24",
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    first = body["trajectory"][0]
+    bucket = first["balances_by_currency"]
+    assert set(bucket.keys()) == {"INR", "USD"}
+    # Each bucket is in its own currency, no FX conversion at the API edge.
+    assert D(bucket["INR"]) > D("3_900_000")  # home loan slightly amortised
+    assert D(bucket["USD"]) > D("0")          # card not cleared in month 1
+
+
 def test_baseline_minimums_only(client, india_user_payload):
     r = client.post("/api/baseline", json={
         "user": india_user_payload, "horizon_months": 60,

@@ -9,12 +9,8 @@
  *   • aside    → italic prose with hairline rule (Editorial)
  */
 
-import {
-  formatINR,
-  formatUSD,
-  type Country,
-  type LoanPayload,
-} from '@/lib/api';
+import { formatCurrency, type Country, type LoanPayload } from '@/lib/api';
+import { loanCurrency } from '@/lib/currency';
 import type { ActivityImpact } from './PlanData';
 
 const LOAN_TYPE_SHORT: Record<string, string> = {
@@ -38,7 +34,6 @@ export function ActivityImpactBanner({
   country: Country;
   variant: 'ledger' | 'inline' | 'aside';
 }) {
-  const fmt = country === 'IN' ? formatINR : formatUSD;
   const headline =
     impact.entryCount === 1
       ? '1 missed/partial payment is reflected in your plan'
@@ -50,12 +45,37 @@ export function ActivityImpactBanner({
     const bank = loan.bank || 'Unnamed lender';
     const tag = LOAN_TYPE_SHORT[loan.loan_type] ?? loan.loan_type;
     const events = b.entryCount === 1 ? 'event' : 'events';
+    const ccy = loanCurrency(loan, country);
     return {
       key: b.loanIndex,
       label: `${bank} · ${tag}`,
-      detail: `+${fmt(b.totalBump)} · ${b.entryCount} ${events}`,
+      detail: `+${formatCurrency(b.totalBump, ccy)} · ${b.entryCount} ${events}`,
     };
   }).filter((l): l is { key: number; label: string; detail: string } => l !== null);
+
+  // Aggregate the headline bump per-currency so hybrid users don't see
+  // a meaningless ₹+$ sum. perLoanBumps already has the per-loan bump;
+  // bucket it by each loan's resolved currency.
+  const bumpsByCcy = impact.perLoanBumps.reduce<Record<string, number>>(
+    (acc, b) => {
+      const loan = loans[b.loanIndex];
+      if (!loan) return acc;
+      const ccy = loanCurrency(loan, country);
+      acc[ccy] = (acc[ccy] ?? 0) + Number(b.totalBump);
+      return acc;
+    },
+    {},
+  );
+  // Ordered for stable rendering — user-default first, then alphabetic.
+  const ccyOrder = Object.keys(bumpsByCcy).sort((a, b) => {
+    const def = country === 'US' ? 'USD' : 'INR';
+    if (a === def) return -1;
+    if (b === def) return 1;
+    return a.localeCompare(b);
+  });
+  const totalBumpDisplay = ccyOrder
+    .map((c) => formatCurrency(bumpsByCcy[c], c))
+    .join(' + ');
 
   if (variant === 'ledger') {
     return (
@@ -70,7 +90,7 @@ export function ActivityImpactBanner({
           }}
         >
           $ ACTIVITY · {impact.entryCount} ENTR
-          {impact.entryCount === 1 ? 'Y' : 'IES'} · BUMP {fmt(impact.totalBump)}
+          {impact.entryCount === 1 ? 'Y' : 'IES'} · BUMP {totalBumpDisplay}
         </div>
         <div
           style={{
@@ -149,7 +169,7 @@ export function ActivityImpactBanner({
       >
         <div style={{ fontWeight: 600, marginBottom: 6 }}>{headline}</div>
         <div className="muted" style={{ marginBottom: 8 }}>
-          Your loan balances were bumped by <strong>+{fmt(impact.totalBump)}</strong>{' '}
+          Your loan balances were bumped by <strong>+{totalBumpDisplay}</strong>{' '}
           (unpaid principal + penalties) before this projection was computed.
           Edit your <a href="/insights">activity ledger</a> to refresh.
         </div>
@@ -220,7 +240,7 @@ export function ActivityImpactBanner({
       >
         Before drawing the trajectory above, we honoured your record:{' '}
         <strong>{headline.toLowerCase()}</strong>. Your loan balances were
-        lifted by <strong>{fmt(impact.totalBump)}</strong> — unpaid principal
+        lifted by <strong>{totalBumpDisplay}</strong> — unpaid principal
         and accrued penalty — so what you see below reflects the path forward
         from a real present, not the optimistic one.{' '}
         <a href="/insights" style={{ color: 'var(--accent)' }}>

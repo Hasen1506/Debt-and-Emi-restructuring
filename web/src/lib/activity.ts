@@ -58,6 +58,15 @@ export interface ActivityEntry {
   penaltyOverride?: string;
   /** Optional free-text note. */
   note?: string;
+  /** Optional source tag for prepayments — e.g. 'sold-asset', 'bonus',
+   *  'gift', 'refund'. Pure metadata: the engine doesn't branch on it,
+   *  but the UI uses it to surface "covered by X" badges and the
+   *  changelog reads better. */
+  source?: string;
+  /** Number of forward months this prepayment covers. Set when the user
+   *  used the "Prepay forward N months" flow — purely informational; the
+   *  principal reduction is captured by the paid_extra amount itself. */
+  coversForwardMonths?: number;
   /** When the user logged this (not when it happened). Used for sort
    *  tiebreaks when multiple entries share a date. */
   loggedAt: string;
@@ -107,6 +116,9 @@ export function readActivityClient(): ActivityEntry[] {
 export function writeActivityClient(entries: ActivityEntry[]): void {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  void import('./server-sync').then(({ syncSliceToServer }) =>
+    syncSliceToServer('activity', entries),
+  );
 }
 
 export function addActivityEntry(

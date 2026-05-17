@@ -14,7 +14,7 @@ import {
 } from '@/components/ToolPrimitives';
 import {
   api,
-  formatINR,
+  formatCurrency,
   formatPct,
   type InstitutionPayload,
   type LoanType,
@@ -23,6 +23,7 @@ import {
 } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
+import { userDefaultCurrency } from '@/lib/currency';
 
 const VERDICT_LABEL: Record<NewDebtResponse['verdict'], string> = {
   take: 'Take the EMI',
@@ -70,6 +71,10 @@ function computeEMI(principal: number, annualRate: number, months: number): numb
 export function NewDebtTool() {
   const profile = useMemo(() => loadProfileClient(), []);
   const country = profile.user.country as 'IN' | 'US';
+  // A hypothetical new loan is denominated in the user's residence currency —
+  // no per-loan override available since the loan doesn't exist yet.
+  const ccy = userDefaultCurrency(country);
+  const fmt = (v: string | number) => formatCurrency(v, ccy);
   const [loanType, setLoanType] = useState<LoanType>('personal_loan');
   const [institutions, setInstitutions] = useState<InstitutionPayload[] | null>(null);
   const [instErr, setInstErr] = useState<string | null>(null);
@@ -280,6 +285,7 @@ export function NewDebtTool() {
             hasProfile={profile.isLive}
             selectedBank={selectedBank}
             onPickBank={setSelectedBank}
+            fmt={fmt}
           />
         )}
       </Card>
@@ -345,7 +351,7 @@ export function NewDebtTool() {
             }}
           >
             <Stat label="Effective APR" value={formatPct(v.effective_apr, 1)} />
-            <Stat label="Monthly EMI" value={formatINR(v.monthly_emi)} />
+            <Stat label="Monthly EMI" value={fmt(v.monthly_emi)} />
             <Stat
               label={
                 <>
@@ -357,7 +363,7 @@ export function NewDebtTool() {
                   </InfoTip>
                 </>
               }
-              value={formatINR(v.foregone_discount)}
+              value={fmt(v.foregone_discount)}
             />
             <Stat
               label={
@@ -496,12 +502,14 @@ function BankComparisonPanel({
   hasProfile,
   selectedBank,
   onPickBank,
+  fmt,
 }: {
   comparison: BankComparison;
   loanType: LoanType;
   hasProfile: boolean;
   selectedBank: string;
   onPickBank: (b: string) => void;
+  fmt: (v: string | number) => string;
 }) {
   if (comparison.existing.length === 0 && comparison.others.length === 0) {
     return (
@@ -544,6 +552,7 @@ function BankComparisonPanel({
         loanType={loanType}
         selectedBank={selectedBank}
         onPick={onPickBank}
+        fmt={fmt}
       />
     </div>
   );
@@ -554,11 +563,13 @@ function BankRateTable({
   loanType,
   selectedBank,
   onPick,
+  fmt,
 }: {
   comparison: BankComparison;
   loanType: LoanType;
   selectedBank: string;
   onPick: (b: string) => void;
+  fmt: (v: string | number) => string;
 }) {
   const top = [...comparison.existing, ...comparison.others].slice(0, 8);
   if (top.length === 0) return null;
@@ -633,7 +644,7 @@ function BankRateTable({
                       fontFamily: 'var(--font-mono)',
                     }}
                   >
-                    {formatINR(row.estimatedEmi.toFixed(0))}
+                    {fmt(row.estimatedEmi.toFixed(0))}
                   </td>
                   <td
                     style={{
@@ -643,7 +654,7 @@ function BankRateTable({
                       color: 'var(--muted)',
                     }}
                   >
-                    {formatINR(row.totalInterest.toFixed(0))}
+                    {fmt(row.totalInterest.toFixed(0))}
                   </td>
                 </>
               )}

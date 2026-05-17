@@ -10,12 +10,12 @@
  */
 
 import { Card } from '@/components/Card';
-import { ActionTile } from '@/components/ActionTile';
 import type { StoredProfile } from '@/lib/user-store';
 import type { LoanType } from '@/lib/api';
-import { formatINR } from '@/lib/api';
+import { formatCurrency } from '@/lib/api';
 import { fmt } from '@/lib/effective-apr';
 import { deriveMetrics } from '@/lib/derived';
+import { userDefaultCurrency } from '@/lib/currency';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'credit card',
@@ -27,27 +27,25 @@ const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   bnpl: 'BNPL line',
 };
 
-// Quick-actions only — the full tool catalog with descriptions lives at
-// /tools. Keeping this home surface tight avoids duplicating the index.
-const QUICK_TOOLS = [
-  { label: 'Got a bonus?', sub: 'Windfall handler', href: '/tools/windfall' },
-  { label: 'Paid extra?', sub: 'Quick recompute', href: '/tools/recompute' },
-  { label: 'New EMI?', sub: 'Check before you take', href: '/tools/new-debt' },
-] as const;
-
 export function ExistingHome({ profile }: { profile: StoredProfile }) {
   const m = deriveMetrics(profile);
+  // Portfolio totals are already FX-converted into the user's residence
+  // currency inside `deriveMetrics`, so the user-default formatter is
+  // the right one here.
+  const ccy = userDefaultCurrency(profile.user.country);
+  const moneyFmt = (v: string | number | { toString(): string }) =>
+    formatCurrency(typeof v === 'object' ? v.toString() : v, ccy);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <section>
-        <h1 className="h1">Welcome back.</h1>
+        <h1 className="h1">Snapshot</h1>
         {m.loans.length > 0 ? (
           <p className="muted" style={{ marginTop: 4 }}>
             {m.loans.length} debt{m.loans.length > 1 ? 's' : ''} on file ·
             total outstanding{' '}
             <strong style={{ color: 'var(--ink)' }}>
-              {formatINR(m.totalOutstanding)}
+              {moneyFmt(m.totalOutstanding)}
             </strong>{' '}
             · blended {fmt(m.blendedEffective)} effective.
           </p>
@@ -71,7 +69,7 @@ export function ExistingHome({ profile }: { profile: StoredProfile }) {
             <>
               <div style={{ fontSize: 18, fontWeight: 600 }}>
                 Pay{' '}
-                <span className="num">{formatINR(m.surplus)}</span> extra toward
+                <span className="num">{moneyFmt(m.surplus)}</span> extra toward
                 your{' '}
                 <span style={{ color: 'var(--negative)' }}>
                   {m.loudest.loan.bank || 'highest-rate'}{' '}
@@ -100,7 +98,7 @@ export function ExistingHome({ profile }: { profile: StoredProfile }) {
                 </abbr>{' '}
                 is{' '}
                 <span style={{ color: 'var(--negative)' }}>
-                  {formatINR(m.surplus)}/month
+                  {moneyFmt(m.surplus)}/month
                 </span>{' '}
                 — review fixed expenses or scheduled EMIs.
               </div>
@@ -115,36 +113,36 @@ export function ExistingHome({ profile }: { profile: StoredProfile }) {
         </Card>
       )}
 
-      <section>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'baseline',
-            justifyContent: 'space-between',
-            marginBottom: 12,
-          }}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+        <a
+          href="/plan"
+          className="btn btn-primary"
+          style={{ textDecoration: 'none' }}
         >
-          <h2 className="h2">Quick actions</h2>
-          <a
-            href="/tools"
-            style={{ color: 'var(--accent)', fontSize: 13 }}
-          >
-            All tools →
-          </a>
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 12,
-          }}
+          See your full plan →
+        </a>
+        <a
+          href="/portfolio"
+          className="btn"
+          style={{ textDecoration: 'none' }}
         >
-          {QUICK_TOOLS.map((t) => (
-            <ActionTile key={t.href} label={t.label} sub={t.sub} href={t.href} />
-          ))}
-        </div>
-      </section>
+          Holdings
+        </a>
+        <a
+          href="/tools"
+          className="btn"
+          style={{ textDecoration: 'none' }}
+        >
+          Tools
+        </a>
+        <a
+          href="/onboarding"
+          className="btn"
+          style={{ textDecoration: 'none' }}
+        >
+          Edit profile
+        </a>
+      </div>
     </div>
   );
 }

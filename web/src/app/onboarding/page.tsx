@@ -7,23 +7,38 @@ import { BankCombobox, Field, Select, SubmitBar } from '@/components/ToolPrimiti
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { RateRangeHint } from '@/components/RateRangeHint';
 import type {
+  AgeBracket,
   Country,
+  FilingStatusUS,
   IncomeType,
   LoanPayload,
   LoanType,
   TaxRegimeIN,
   UserPayload,
 } from '@/lib/api';
-import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
+import {
+  loadProfileClient,
+  saveProfileClient,
+  saveFxCacheClient,
+} from '@/lib/user-store';
+import { ensureFxRates } from '@/lib/currency';
 import {
   FY_ANCHOR_MONTH,
   MONTH_NAMES,
   formatCountryDateLong,
 } from '@/lib/today';
 import { explainMinPayment } from '@/lib/min-payment';
-import { formatCurrency } from '@/lib/api';
+import { api, formatCurrency } from '@/lib/api';
+import { deriveTenureMonths } from '@/lib/derived';
+import {
+  classifyBracket,
+  computeAnnualTax,
+  describeBracket,
+  isAdvanceTaxApplicable,
+} from '@/lib/tax-brackets';
 
 const STEPS = [
+  'You',
   'Country',
   'Income',
   'Loans',
@@ -36,13 +51,21 @@ const STEPS = [
 // CTAs like "+ Add debt" on the Debts page can drop the user directly on the
 // Loans card instead of the country picker.
 const STEP_ALIASES: Record<string, number> = {
-  country: 0,
-  income: 1,
-  loans: 2,
-  savings: 3,
-  credit: 4,
-  review: 5,
+  you: 0,
+  country: 1,
+  income: 2,
+  loans: 3,
+  savings: 4,
+  credit: 5,
+  review: 6,
 };
+
+const AGE_BRACKETS: { value: AgeBracket; label: string }[] = [
+  { value: 'under_25', label: 'Under 25' },
+  { value: '25_35', label: '25 to 35' },
+  { value: '35_50', label: '35 to 50' },
+  { value: '50_plus', label: '50+' },
+];
 
 function parseStepParam(raw: string | null): number {
   if (!raw) return 0;
@@ -83,15 +106,47 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(() => parseStepParam(searchParams.get('step')));
 
   // ─── form state ─────────────────────────────────────────────────────────
+  // Both optional. We never gate the flow on them — the "You" step is a soft
+  // landing, not a required gate.
+  const [displayName, setDisplayName] = useState('');
+  const [ageBracket, setAgeBracket] = useState<AgeBracket | ''>('');
   const [country, setCountry] = useState<Country>('IN');
+  const [isNriUs, setIsNriUs] = useState(false);
   const [incomeType, setIncomeType] = useState<IncomeType>('salaried');
   const [monthlyIncome, setMonthlyIncome] = useState('');
   const [fixedExpenses, setFixedExpenses] = useState('');
+  const [variableExpenses, setVariableExpenses] = useState('');
+  // Pre-tax annual income. One of these is filled depending on income_type;
+  // the other stays blank. Empty = user provided only take-home, and the
+  // bracket / marginal-rate auto-derivation is skipped (engine falls back
+  // to the manual marginalRate field below).
+  const [annualGrossSalary, setAnnualGrossSalary] = useState('');
+  const [annualBusinessIncome, setAnnualBusinessIncome] = useState('');
+  // By default we show a single "Monthly expenses" field — users don't
+  // need to think about fixed vs. variable. Power users (and anyone with
+  // existing variable_expenses from a previous session) get the detailed
+  // breakdown. The split matters for the WhatIf "trim spending" slider:
+  // combined mode → slider operates on fixed_expenses; detailed mode →
+  // slider operates on variable_expenses (more honest).
+  const [showDetailedExpenses, setShowDetailedExpenses] = useState(false);
   const [primaryBank, setPrimaryBank] = useState('');
   const [otherBanks, setOtherBanks] = useState<string[]>([]);
   const [newOtherBank, setNewOtherBank] = useState('');
   const [taxRegime, setTaxRegime] = useState<TaxRegimeIN>('new');
+  // US filing status drives the federal slab table. Defaults to 'single'
+  // for back-compat with profiles that pre-date the picker.
+  const [filingStatus, setFilingStatus] = useState<FilingStatusUS>('single');
+  // Optional US state marginal rate (decimal). Added on top of federal
+  // marginal_rate when present so combined math reflects state burden.
+  const [stateMarginalRate, setStateMarginalRate] = useState('');
   const [annualHikeRate, setAnnualHikeRate] = useState('');
+  // Optional hike phases for users who want varied rates over time (e.g.
+  // "first 2yrs 7%, next 4yrs 10%, job switch at year 6"). Empty list →
+  // engine uses annualHikeRate uniformly. Each row is { from, to, rate }
+  // with `from` 1-based inclusive and `to` 1-based exclusive.
+  const [hikeSchedule, setHikeSchedule] = useState<
+    { from: string; to: string; rate: string }[]
+  >([]);
   const [marginalRate, setMarginalRate] = useState('');
   // 1-12. Defaults to country FY-1 (April for IN, January for US). When the
   // user changes country and HASN'T manually picked a month, we follow the
@@ -103,6 +158,13 @@ export default function OnboardingPage() {
   }, [country, hikeMonthTouched]);
 
   const [loans, setLoans] = useState<LoanPayload[]>([blankLoan()]);
+  // Most users don't know their exact remaining tenure — they know
+  // outstanding, EMI, rate. We default to deriving tenure from those three
+  // and only let the user override when they explicitly ask. This set tracks
+  // which loan indices the user has chosen to enter manually.
+  const [manualTenureIdxs, setManualTenureIdxs] = useState<Set<number>>(
+    () => new Set(),
+  );
 
   const [savingsBalance, setSavingsBalance] = useState('');
   const [efundBalance, setEfundBalance] = useState('');
@@ -117,19 +179,66 @@ export default function OnboardingPage() {
     const stored = loadProfileClient();
     if (!stored.isLive) return;
     const u = stored.user;
+    if (u.display_name) setDisplayName(u.display_name);
+    if (u.age_bracket) setAgeBracket(u.age_bracket);
     setCountry(u.country);
+    setIsNriUs(!!u.is_nri_us);
     setIncomeType(u.income_type);
     setMonthlyIncome(u.monthly_income ?? '');
     setFixedExpenses(u.fixed_expenses ?? '');
+    setVariableExpenses(u.variable_expenses ?? '');
+    setAnnualGrossSalary(u.annual_gross_salary ?? '');
+    setAnnualBusinessIncome(u.annual_business_income ?? '');
+    // Preserve the user's chosen view: if they previously filled out a
+    // variable_expenses split, default the form to detailed mode.
+    if (Number(u.variable_expenses || 0) > 0) {
+      setShowDetailedExpenses(true);
+    }
+    // creditScore state lives below and is hydrated from stored.creditScore
+    // (a top-level field on the cookie). The fallback below allows reading
+    // it from u.credit_score for backend round-trips too.
+    if (u.credit_score) setCreditScore(u.credit_score);
     setPrimaryBank(u.primary_bank ?? '');
     setOtherBanks(u.other_banks ?? []);
     if (u.country === 'IN' && u.tax_regime) setTaxRegime(u.tax_regime);
+    if (u.country === 'US' && u.filing_status) setFilingStatus(u.filing_status);
+    if (u.state_marginal_rate) setStateMarginalRate(u.state_marginal_rate);
     setAnnualHikeRate(u.annual_hike_rate ?? '');
+    if (u.hike_schedule && u.hike_schedule.length > 0) {
+      setHikeSchedule(
+        u.hike_schedule.map(([from, to, rate]) => ({
+          from: String(from),
+          to: String(to),
+          rate,
+        })),
+      );
+    }
     if (u.hike_effective_month) {
       setHikeEffectiveMonth(u.hike_effective_month);
       setHikeMonthTouched(true);
     }
-    if (u.loans && u.loans.length > 0) setLoans(u.loans);
+    if (u.loans && u.loans.length > 0) {
+      setLoans(u.loans);
+      // Decide auto vs manual per loan on rehydrate: if the saved tenure
+      // matches what we'd derive from the current outstanding+EMI+rate,
+      // the user is in auto mode — re-deriving on next submit gives the
+      // same number, no surprise. If the saved tenure differs (manual
+      // entry, or numbers have drifted), preserve it as manual.
+      const manualOnLoad = new Set<number>();
+      u.loans.forEach((loan, idx) => {
+        if (loan.loan_type === 'credit_card') return;
+        if (loan.tenure_months_remaining <= 0) return;
+        const derived = deriveTenureMonths(
+          loan.outstanding,
+          loan.nominal_rate,
+          loan.scheduled_emi,
+        );
+        if (derived == null || derived !== loan.tenure_months_remaining) {
+          manualOnLoad.add(idx);
+        }
+      });
+      setManualTenureIdxs(manualOnLoad);
+    }
     setSavingsBalance(u.savings_balance ?? '');
     setEfundBalance(u.efund_balance ?? '');
     setEfundTarget(u.efund_target ?? '');
@@ -147,6 +256,29 @@ export default function OnboardingPage() {
 
   function removeLoan(idx: number) {
     setLoans((cur) => cur.filter((_, i) => i !== idx));
+    // Indices shift down when a loan is removed — rebuild the manual set
+    // accordingly so the right loans stay flagged as manually-tenured.
+    setManualTenureIdxs((cur) => {
+      const next = new Set<number>();
+      cur.forEach((i) => {
+        if (i < idx) next.add(i);
+        else if (i > idx) next.add(i - 1);
+      });
+      return next;
+    });
+  }
+
+  function setTenureMode(idx: number, manual: boolean) {
+    setManualTenureIdxs((cur) => {
+      const next = new Set(cur);
+      if (manual) next.add(idx);
+      else next.delete(idx);
+      return next;
+    });
+    // When switching back to derived mode, blank the stored tenure so the
+    // engine sees the derived value (computed in buildUser) instead of a
+    // stale manual entry.
+    if (!manual) updateLoan(idx, { tenure_months_remaining: 0 });
   }
 
   // Coalesce empty strings to sensible numeric defaults so the engine accepts
@@ -157,29 +289,68 @@ export default function OnboardingPage() {
     return {
       country,
       income_type: incomeType,
+      display_name: displayName.trim() || undefined,
+      age_bracket: ageBracket || undefined,
       annual_income: String(Number(num(monthlyIncome)) * 12),
       monthly_income: num(monthlyIncome),
       fixed_expenses: num(fixedExpenses),
+      variable_expenses: num(variableExpenses),
+      annual_gross_salary:
+        incomeType === 'salaried' && annualGrossSalary.trim()
+          ? num(annualGrossSalary)
+          : undefined,
+      annual_business_income:
+        incomeType === 'business_owner' && annualBusinessIncome.trim()
+          ? num(annualBusinessIncome)
+          : undefined,
+      credit_score: creditScore.trim() || undefined,
       savings_balance: num(savingsBalance),
       primary_bank: primaryBank,
       other_banks: otherBanks,
       location_tier: 'urban',
       tax_regime: country === 'IN' ? taxRegime : undefined,
+      filing_status: country === 'US' ? filingStatus : undefined,
+      state_marginal_rate:
+        country === 'US' && stateMarginalRate.trim()
+          ? num(stateMarginalRate)
+          : undefined,
       efund_balance: num(efundBalance),
       efund_target: num(efundTarget),
       loans: loans
-        .filter((l) => Number(l.outstanding) > 0)
-        .map((l) => ({
-          ...l,
-          outstanding: num(l.outstanding),
-          nominal_rate: num(l.nominal_rate, '0'),
-          scheduled_emi: num(l.scheduled_emi),
-          processing_fee_amortised: num(l.processing_fee_amortised ?? '', '0'),
-          insurance_premium_pct: num(l.insurance_premium_pct ?? '', '0'),
-          ...(l.min_payment_override && l.min_payment_override.trim() !== ''
-            ? { min_payment_override: num(l.min_payment_override) }
-            : {}),
-        })),
+        .map((l, originalIdx) => ({ l, originalIdx }))
+        .filter(({ l }) => Number(l.outstanding) > 0)
+        .map(({ l, originalIdx }) => {
+          // Tenure: cards never have one; for everyone else, derive from
+          // outstanding + EMI + rate unless the user has explicitly chosen
+          // to enter it manually.
+          let tenure = l.tenure_months_remaining;
+          if (l.loan_type === 'credit_card') {
+            tenure = 0;
+          } else if (!manualTenureIdxs.has(originalIdx)) {
+            const derived = deriveTenureMonths(
+              l.outstanding,
+              l.nominal_rate,
+              l.scheduled_emi,
+            );
+            if (derived != null) tenure = derived;
+          }
+          return {
+            ...l,
+            tenure_months_remaining: tenure,
+            outstanding: num(l.outstanding),
+            nominal_rate: num(l.nominal_rate, '0'),
+            scheduled_emi: num(l.scheduled_emi),
+            processing_fee_amortised: num(l.processing_fee_amortised ?? '', '0'),
+            insurance_premium_pct: num(l.insurance_premium_pct ?? '', '0'),
+            expected_monthly_spend:
+              l.loan_type === 'credit_card'
+                ? num(l.expected_monthly_spend ?? '', '0')
+                : '0',
+            ...(l.min_payment_override && l.min_payment_override.trim() !== ''
+              ? { min_payment_override: num(l.min_payment_override) }
+              : {}),
+          };
+        }),
       investment_options: [
         {
           name: country === 'IN' ? 'Liquid fund' : 'HYSA',
@@ -190,26 +361,73 @@ export default function OnboardingPage() {
       ],
       annual_hike_rate: num(annualHikeRate),
       hike_effective_month: hikeEffectiveMonth,
+      // Drop phases that are blank or have non-positive ranges. Engine
+      // tolerates any list shape but we shouldn't ship garbage.
+      hike_schedule: hikeSchedule
+        .map(({ from, to, rate }) => [
+          Number(from) || 0,
+          Number(to) || 0,
+          num(rate, '0'),
+        ] as [number, number, string])
+        .filter(([f, t, r]) => f > 0 && t > f && Number(r) >= 0),
       inflation_rate: country === 'IN' ? '0.046' : '0.025',
+      is_nri_us: isNriUs,
     };
   }
 
-  function save() {
+  async function save() {
     const score = Number(creditScore);
+    // For hybrid (NRI-US) users with any foreign-currency loan, pre-populate
+    // FX rates before persisting so /plan and /debts don't fetch on first
+    // render. ensureFxRates is a no-op for single-currency users (the
+    // common case), so we don't block onboarding for them.
+    const builtUser = buildUser();
+    const userWithFx = await ensureFxRates(builtUser, api.fxRate, {
+      onFetched: (rates) => saveFxCacheClient(rates),
+    });
+    // When the user provided gross income, derive marginal_rate from the
+    // bracket they fall into — that's a sharper signal than the manual
+    // marginal_rate field on Step 4. Fall back to the manual value only
+    // when no gross is provided.
+    const grossForBracket =
+      incomeType === 'salaried'
+        ? Number(annualGrossSalary)
+        : Number(annualBusinessIncome);
+    const derivedBracket =
+      grossForBracket > 0
+        ? classifyBracket(
+            country, taxRegime, incomeType, grossForBracket,
+            country === 'US' ? filingStatus : undefined,
+          )
+        : null;
+    // Combined marginal rate = federal (derived from bracket) + state.
+    // State only applies to US users; India users have a single national
+    // slab. The combined rate flows into tax-aware effective APR + tax
+    // savings calculations downstream.
+    const federalMarginal = derivedBracket
+      ? derivedBracket.marginalRate
+      : Number(num(marginalRate, '0.30'));
+    const stateRate =
+      country === 'US' && stateMarginalRate.trim()
+        ? Number(num(stateMarginalRate, '0'))
+        : 0;
+    const combined = federalMarginal + stateRate;
+    const resolvedMarginalRate = combined.toFixed(4);
     saveProfileClient({
-      user: buildUser(),
-      marginalRate: num(marginalRate, '0.30'),
+      user: userWithFx,
+      marginalRate: resolvedMarginalRate,
       creditScore: Number.isFinite(score) && score >= 300 ? score : null,
     });
     router.push('/debts');
   }
 
   const canAdvance =
-    step === 0 ? !!country
-      : step === 1 ? Number(monthlyIncome) > 0 && Number(fixedExpenses) >= 0
-      : step === 2 ? loans.some((l) => Number(l.outstanding) > 0)
-      : step === 3 ? Number(savingsBalance) >= 0
-      : step === 4 ? true
+    step === 0 ? true                                                       // 'You' is fully optional — never gate the flow
+      : step === 1 ? !!country
+      : step === 2 ? Number(monthlyIncome) > 0 && Number(fixedExpenses) >= 0
+      : step === 3 ? loans.some((l) => Number(l.outstanding) > 0)
+      : step === 4 ? Number(savingsBalance) >= 0
+      : step === 5 ? true
       : true;
 
   return (
@@ -245,21 +463,123 @@ export default function OnboardingPage() {
 
       <Card>
         {step === 0 && (
-          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
-            <Select
-              label="Country"
-              value={country}
-              onChange={setCountry}
-              options={[
-                { value: 'IN' as Country, label: 'India' },
-                { value: 'US' as Country, label: 'USA' },
-              ]}
+          <div style={{ display: 'grid', gap: 14 }}>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
+                {displayName ? `Hi, ${displayName.trim()}` : 'Welcome'}
+              </div>
+              <div className="muted" style={{ fontSize: 13, lineHeight: 1.55 }}>
+                A couple of optional details so the app feels less like a form.
+                Both are skip-able — leave blank to stay anonymous, and we&apos;ll
+                still build your plan.
+              </div>
+            </div>
+            <Field
+              label="Your name (optional)"
+              value={displayName}
+              onChange={setDisplayName}
+              hint="Used only as a greeting. Stays in your browser."
             />
-            <div />
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'var(--muted)',
+                  marginBottom: 6,
+                }}
+              >
+                Age bracket (optional)
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {AGE_BRACKETS.map((b) => {
+                  const selected = ageBracket === b.value;
+                  return (
+                    <button
+                      key={b.value}
+                      type="button"
+                      onClick={() =>
+                        setAgeBracket(selected ? '' : b.value)
+                      }
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: 999,
+                        border: `1px solid ${
+                          selected ? 'var(--accent)' : 'var(--border)'
+                        }`,
+                        background: selected ? 'var(--accent)' : 'var(--card)',
+                        color: selected ? '#fff' : 'var(--ink)',
+                        fontSize: 13,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {b.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div
+                className="muted"
+                style={{ fontSize: 11, marginTop: 6, lineHeight: 1.5 }}
+              >
+                Helps us tune nudges later — e.g. emergency-fund-first under 25,
+                retirement check at 50+. Never used for math.
+              </div>
+            </div>
           </div>
         )}
 
         {step === 1 && (
+          <div style={{ display: 'grid', gap: 12 }}>
+            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+              <Select
+                label="Country"
+                value={country}
+                onChange={(v: Country) => {
+                  setCountry(v);
+                  if (v !== 'US') setIsNriUs(false);
+                }}
+                options={[
+                  { value: 'IN' as Country, label: 'India' },
+                  { value: 'US' as Country, label: 'USA' },
+                ]}
+              />
+              <div />
+            </div>
+            {country === 'US' && (
+              <label
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'flex-start',
+                  padding: '10px 12px',
+                  border: '1px dashed var(--dash)',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  lineHeight: 1.55,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isNriUs}
+                  onChange={(e) => setIsNriUs(e.target.checked)}
+                  style={{ marginTop: 2 }}
+                />
+                <span>
+                  <strong>I&apos;m an NRI on a US work visa</strong> with debts back
+                  in India (home loan, family obligations).
+                  <br />
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    Turns on per-loan currency tagging (INR / USD) and auto-fills
+                    the NRI prepay tool. You stay US-resident for tax purposes.
+                  </span>
+                </span>
+              </label>
+            )}
+          </div>
+        )}
+
+        {step === 2 && (
           <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
             <Select
               label="Income type"
@@ -304,19 +624,163 @@ export default function OnboardingPage() {
                 )
               }
             />
-            <Field
-              label="Monthly fixed expenses"
-              value={fixedExpenses}
-              onChange={setFixedExpenses}
-              hint="Rent, groceries, utilities — non-debt"
-              info={
-                <>
-                  Recurring <strong>non-debt</strong> outflows: rent (not loan
-                  EMI), groceries, utilities, fuel, school fees. Whatever you
-                  spend every month even if you take no extra action.
-                </>
-              }
-            />
+            {country === 'US' && (
+              <div style={{ gridColumn: '1 / -1', display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+                <Select
+                  label="Filing status"
+                  value={filingStatus}
+                  onChange={setFilingStatus}
+                  options={[
+                    { value: 'single' as FilingStatusUS, label: 'Single' },
+                    { value: 'mfj' as FilingStatusUS, label: 'Married, filing jointly' },
+                    { value: 'hoh' as FilingStatusUS, label: 'Head of household' },
+                  ]}
+                  info={
+                    <>
+                      Drives which IRS slab table applies to your federal
+                      income. <strong>MFJ</strong> doubles the single-filer
+                      slabs; <strong>HoH</strong> sits between single and MFJ
+                      in the lower brackets, merges with single at the top.
+                    </>
+                  }
+                />
+                <Field
+                  label="State marginal rate (optional)"
+                  value={stateMarginalRate}
+                  onChange={setStateMarginalRate}
+                  hint="e.g. 0.0682 for CA top, 0 for TX/FL/WA"
+                  info={
+                    <>
+                      Your <strong>state income tax</strong> marginal rate as
+                      a decimal. Added on top of federal marginal_rate when
+                      computing tax savings on deductible interest. Leave
+                      blank if your state has no income tax (TX, FL, WA, NV,
+                      TN, AK, SD, WY, NH).
+                    </>
+                  }
+                />
+              </div>
+            )}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <GrossIncomeField
+                incomeType={incomeType}
+                country={country}
+                taxRegime={taxRegime}
+                filingStatus={country === 'US' ? filingStatus : undefined}
+                stateMarginalRate={country === 'US' ? stateMarginalRate : undefined}
+                value={
+                  incomeType === 'salaried' ? annualGrossSalary : annualBusinessIncome
+                }
+                onChange={
+                  incomeType === 'salaried'
+                    ? setAnnualGrossSalary
+                    : setAnnualBusinessIncome
+                }
+              />
+            </div>
+            {!showDetailedExpenses ? (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Field
+                  label="Monthly expenses"
+                  value={fixedExpenses}
+                  onChange={setFixedExpenses}
+                  hint="Rent, food, utilities, subscriptions — all non-debt outflows"
+                  info={
+                    <>
+                      Everything non-debt: rent, groceries, fuel, utilities,
+                      eating out, subscriptions, school fees. One rough
+                      number is fine — best estimate works.
+                      <br />
+                      <br />
+                      <strong>Don't include income tax</strong> — your monthly
+                      income is post-tax (take-home), so tax is already
+                      accounted for.
+                      <br />
+                      <br />
+                      If you want the What-if "trim spending" slider on
+                      /plan to operate on just the squeezable bucket (eating
+                      out, shopping) instead of your rent, use the detailed
+                      breakdown below.
+                    </>
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowDetailedExpenses(true)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--accent)',
+                    padding: 0,
+                    marginTop: 6,
+                    fontSize: 11,
+                    letterSpacing: '0.04em',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Add detailed breakdown ▸
+                </button>
+              </div>
+            ) : (
+              <>
+                <Field
+                  label="Monthly fixed expenses"
+                  value={fixedExpenses}
+                  onChange={setFixedExpenses}
+                  hint="Rent, utilities, school fees — locked"
+                  info={
+                    <>
+                      Recurring <strong>locked-in</strong> non-debt outflows:
+                      rent (not loan EMI), utilities, school fees, insurance
+                      premiums. You'd need to make a real change (move,
+                      switch plan) to cut these.
+                    </>
+                  }
+                />
+                <div>
+                  <Field
+                    label="Monthly variable / discretionary spending"
+                    value={variableExpenses}
+                    onChange={setVariableExpenses}
+                    hint="Eating out, travel, shopping — squeezable"
+                    info={
+                      <>
+                        Discretionary outflows: eating out, entertainment,
+                        travel, shopping, subscriptions. The number you'd
+                        cut into if you needed to free up cash.
+                        <br />
+                        <br />
+                        Splitting this out makes the{' '}
+                        <strong>What-if "trim spending"</strong> slider on
+                        /plan honest — it operates on this bucket, not on
+                        your rent.
+                      </>
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVariableExpenses('');
+                      setShowDetailedExpenses(false);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--muted)',
+                      padding: 0,
+                      marginTop: 6,
+                      fontSize: 11,
+                      letterSpacing: '0.04em',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ← Use combined expenses
+                  </button>
+                </div>
+              </>
+            )}
             <BankCombobox
               label="Primary bank"
               value={primaryBank}
@@ -397,6 +861,13 @@ export default function OnboardingPage() {
                 )
               }
             />
+            <div style={{ gridColumn: '1 / -1' }}>
+              <HikeScheduleEditor
+                phases={hikeSchedule}
+                onChange={setHikeSchedule}
+                fallbackRate={annualHikeRate}
+              />
+            </div>
             <Field
               label="Your marginal tax rate (decimal)"
               value={marginalRate}
@@ -463,7 +934,7 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {step === 2 && (
+        {step === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {loans.map((l, i) => (
               <div
@@ -553,6 +1024,13 @@ export default function OnboardingPage() {
                     loanType={l.loan_type}
                     userRate={l.nominal_rate}
                     variant="inline"
+                    incomeType={incomeType}
+                    country={country}
+                    monthlyIncome={Number(monthlyIncome) || undefined}
+                    creditScore={Number(creditScore) || null}
+                    onUsePrediction={(rate) =>
+                      updateLoan(i, { nominal_rate: rate })
+                    }
                   />
                 </div>
                 <Select
@@ -575,31 +1053,50 @@ export default function OnboardingPage() {
                     </>
                   }
                 />
-                <Field
-                  label="Tenure remaining (months)"
-                  value={String(l.tenure_months_remaining)}
-                  onChange={(v) => updateLoan(i, { tenure_months_remaining: Number(v) || 0 })}
-                  kind="integer"
-                  hint="0 for revolving credit cards"
-                  info={
-                    <>
-                      How many monthly EMIs are left until this loan is fully
-                      paid.
-                      <br />
-                      <br />
-                      For a credit card or any revolving line with no fixed
-                      tenure, enter <strong>0</strong>.
-                    </>
+                {isNriUs && (
+                  <Select
+                    label="Currency"
+                    value={l.currency ?? 'USD'}
+                    onChange={(v: 'INR' | 'USD') =>
+                      updateLoan(i, { currency: v })
+                    }
+                    options={[
+                      { value: 'USD' as const, label: 'USD ($) — US loan' },
+                      { value: 'INR' as const, label: 'INR (₹) — Indian loan' },
+                    ]}
+                    info={
+                      <>
+                        Which currency is this loan denominated in? An NRI on a
+                        US work visa typically has both: a USD car loan or US
+                        credit card, and an INR home loan or family obligation
+                        back in India. Tag each so the NRI prepay tool can
+                        autofill currencies + FX correctly.
+                      </>
+                    }
+                  />
+                )}
+                <TenureField
+                  loan={l}
+                  manualMode={manualTenureIdxs.has(i)}
+                  onChangeTenure={(v) =>
+                    updateLoan(i, { tenure_months_remaining: Number(v) || 0 })
                   }
+                  onSetManual={(manual) => setTenureMode(i, manual)}
                 />
                 <Field
-                  label="Scheduled EMI / monthly payment"
+                  label="Bank-required EMI"
                   value={l.scheduled_emi}
                   onChange={(v) => updateLoan(i, { scheduled_emi: v })}
                   info={
                     <>
-                      Your <strong>locked monthly payment</strong> to this
-                      lender — the amount that gets auto-debited every month.
+                      The <strong>contractual monthly amount</strong> the bank
+                      auto-debits — not what you actually pay if you overpay.
+                      <br />
+                      <br />
+                      Anything you pay above this number is captured as a{' '}
+                      <strong>paid_extra</strong> entry in the Activity
+                      ledger, or routed by the avalanche/snowball strategy as
+                      surplus.
                       <br />
                       <br />
                       For credit cards: your usual payment amount, or{' '}
@@ -617,6 +1114,34 @@ export default function OnboardingPage() {
                       }
                     />
                   </div>
+                )}
+                {l.loan_type === 'credit_card' && (
+                  <Field
+                    label="Expected monthly spend on this card"
+                    value={l.expected_monthly_spend ?? ''}
+                    onChange={(v) =>
+                      updateLoan(i, { expected_monthly_spend: v })
+                    }
+                    placeholder="0"
+                    hint="0 if you've frozen the card; bake in real spend otherwise"
+                    info={
+                      <>
+                        Roughly how much you usually <strong>charge</strong> to
+                        this card each month — groceries, fuel, subscriptions.
+                        <br />
+                        <br />
+                        /plan adds this to your outstanding before computing
+                        each month&apos;s minimum, so the trajectory shows
+                        what will <em>actually</em> happen at your current
+                        usage rate, not the optimistic &quot;freeze the
+                        card&quot; assumption.
+                        <br />
+                        <br />
+                        Leave at <strong>0</strong> if you&apos;ve already
+                        stopped using the card and are paying it down.
+                      </>
+                    }
+                  />
                 )}
                 <Field
                   label="Processing fee / yr (decimal, optional)"
@@ -659,6 +1184,7 @@ export default function OnboardingPage() {
                     marginalTaxRate={marginalRate || '0.30'}
                     country={country}
                     taxRegime={country === 'IN' ? taxRegime : undefined}
+                    incomeType={incomeType}
                   />
                 </div>
                 {loans.length > 1 && (
@@ -701,7 +1227,7 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
             <Field
               label="Total savings balance"
@@ -745,7 +1271,7 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
             <Field
               label="Current credit score (optional)"
@@ -778,28 +1304,32 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {step === 5 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 14, lineHeight: 1.6 }}>
-              <strong>{country}</strong> · {incomeType} · monthly income {monthlyIncome} ·
-              fixed expenses {fixedExpenses}
-              <br />
-              <strong>{loans.filter((l) => Number(l.outstanding) > 0).length}</strong> loan(s)
-              totalling{' '}
-              {formatCurrency(
-                loans.reduce((acc, l) => acc + Number(l.outstanding), 0),
-                country === 'IN' ? 'INR' : 'USD',
-              )}
-              <br />
-              Savings {savingsBalance} · emergency fund {efundBalance} of {efundTarget}
-              <br />
-              Credit score: {creditScore || '—'}
-            </div>
-            <div className="muted" style={{ fontSize: 12 }}>
-              Saving writes a cookie to this browser only — no upload, no account.
-              You can clear it from your browser settings or re-run onboarding.
-            </div>
-          </div>
+        {step === 6 && (
+          <ReviewSummary
+            displayName={displayName}
+            ageBracket={ageBracket || undefined}
+            country={country}
+            incomeType={incomeType}
+            monthlyIncome={monthlyIncome}
+            annualGrossSalary={annualGrossSalary}
+            annualBusinessIncome={annualBusinessIncome}
+            fixedExpenses={fixedExpenses}
+            variableExpenses={variableExpenses}
+            showDetailedExpenses={showDetailedExpenses}
+            annualHikeRate={annualHikeRate}
+            hikeSchedule={hikeSchedule}
+            taxRegime={taxRegime}
+            filingStatus={filingStatus}
+            stateMarginalRate={stateMarginalRate}
+            loans={loans}
+            primaryBank={primaryBank}
+            otherBanks={otherBanks}
+            savingsBalance={savingsBalance}
+            efundBalance={efundBalance}
+            efundTarget={efundTarget}
+            creditScore={creditScore}
+            onJumpToStep={(s) => setStep(s)}
+          />
         )}
 
         <div
@@ -848,6 +1378,580 @@ export default function OnboardingPage() {
           )}
         </div>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * Optional hike-schedule editor for users who want varied hike rates over
+ * the simulation horizon.
+ *
+ * Default state is empty (uses the scalar `annual_hike_rate` uniformly).
+ * Click "Add hike phase" → expands with a row of {Years X-Y, Rate}. Engine
+ * picks the first phase that covers a given firing year; if no phase matches
+ * for a year, it falls back to `annual_hike_rate`.
+ *
+ * The editor performs minimal validation: warns visually if year ranges
+ * overlap or are inverted (year_to ≤ year_from). The buildUser save path
+ * filters out invalid rows so a slightly-misconfigured editor doesn't
+ * break the engine call.
+ *
+ * Year semantics: 1-based, "from" inclusive, "to" exclusive. So {1, 3, 0.07}
+ * means rate 7% applies to the hike events firing in years 1 and 2 — i.e.
+ * the first two annual hikes get this rate.
+ */
+function HikeScheduleEditor({
+  phases,
+  onChange,
+  fallbackRate,
+}: {
+  phases: { from: string; to: string; rate: string }[];
+  onChange: (next: { from: string; to: string; rate: string }[]) => void;
+  /** The scalar annual_hike_rate that applies outside any phase. Shown
+   *  in the helper text so users know what gets used in the gaps. */
+  fallbackRate: string;
+}) {
+  function add() {
+    // Auto-suggest year ranges that extend the last phase, so a quick
+    // "add another" flow doesn't need the user to think about indices.
+    const lastTo = phases.length > 0 ? Number(phases[phases.length - 1].to) : 1;
+    onChange([
+      ...phases,
+      { from: String(lastTo), to: String(lastTo + 2), rate: '' },
+    ]);
+  }
+  function update(idx: number, patch: Partial<{ from: string; to: string; rate: string }>) {
+    onChange(phases.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+  }
+  function remove(idx: number) {
+    onChange(phases.filter((_, i) => i !== idx));
+  }
+
+  // Flag overlaps / inversions to surface problems in red.
+  const issues = phases.map((p, i) => {
+    const from = Number(p.from);
+    const to = Number(p.to);
+    if (!Number.isFinite(from) || from < 1) return 'year-from must be ≥ 1';
+    if (!Number.isFinite(to) || to <= from) return 'year-to must be > year-from';
+    for (let j = 0; j < phases.length; j++) {
+      if (i === j) continue;
+      const other = phases[j];
+      const oFrom = Number(other.from);
+      const oTo = Number(other.to);
+      if (Number.isFinite(oFrom) && Number.isFinite(oTo)
+          && oFrom < to && from < oTo) {
+        return `overlaps row ${j + 1}`;
+      }
+    }
+    return null;
+  });
+
+  // Detect gaps between adjacent phases. A "gap" is a year that's not
+  // covered by any phase, sitting BETWEEN configured phases (we don't
+  // warn about years after the last phase — those are explicitly handled
+  // by the fallback rate). Reports as a flat list of year ranges so the
+  // user can decide whether to fill the gap or accept the fallback.
+  const gapsWarning: string | null = (() => {
+    if (phases.length === 0) return null;
+    const valid = phases
+      .map((p) => ({ from: Number(p.from), to: Number(p.to) }))
+      .filter((p) => Number.isFinite(p.from) && Number.isFinite(p.to)
+                  && p.from >= 1 && p.to > p.from)
+      .sort((a, b) => a.from - b.from);
+    if (valid.length < 2) return null;
+    const gapRanges: string[] = [];
+    for (let i = 1; i < valid.length; i++) {
+      const prev = valid[i - 1];
+      const cur = valid[i];
+      if (prev.to < cur.from) {
+        // Years [prev.to, cur.from-1] are uncovered. Inclusive labels.
+        const lo = prev.to;
+        const hi = cur.from - 1;
+        gapRanges.push(lo === hi ? `Y${lo}` : `Y${lo}-${hi}`);
+      }
+    }
+    if (gapRanges.length === 0) return null;
+    const rate = fallbackRate || '0';
+    return `Gaps: ${gapRanges.join(', ')} fall back to ${rate || '0'}.`;
+  })();
+
+  return (
+    <div
+      style={{
+        marginTop: 4,
+        padding: '10px 12px',
+        background: 'var(--canvas)',
+        border: '1px dashed var(--border)',
+        borderRadius: 6,
+        fontSize: 12,
+        lineHeight: 1.5,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginBottom: 6,
+        }}
+      >
+        <strong style={{ color: 'var(--ink)' }}>
+          Hike phases (optional)
+        </strong>
+        <button
+          type="button"
+          onClick={add}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--accent)',
+            padding: 0,
+            fontSize: 11,
+            letterSpacing: '0.04em',
+            textDecoration: 'underline',
+            cursor: 'pointer',
+          }}
+        >
+          + Add hike phase
+        </button>
+      </div>
+      <div style={{ color: 'var(--muted)', marginBottom: 8 }}>
+        Use this if you expect different hike rates across the plan — e.g.
+        "7% for the first 2 years, then 10% after a likely job switch."
+        Years outside any phase fall back to your scalar hike above
+        ({fallbackRate || '0'}).
+      </div>
+      {phases.length === 0 && (
+        <div style={{ color: 'var(--muted)', fontStyle: 'italic', fontSize: 11 }}>
+          No phases configured. The simulation uses your scalar hike rate uniformly.
+        </div>
+      )}
+      {phases.map((p, i) => (
+        <div
+          key={i}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '60px 60px 100px 1fr auto',
+            gap: 8,
+            alignItems: 'center',
+            marginBottom: 6,
+          }}
+        >
+          <input
+            type="number"
+            min={1}
+            value={p.from}
+            onChange={(e) => update(i, { from: e.target.value })}
+            placeholder="from"
+            style={{
+              padding: '4px 6px',
+              border: '1px solid var(--border)',
+              borderRadius: 4,
+              fontSize: 12,
+              fontFamily: 'inherit',
+            }}
+          />
+          <input
+            type="number"
+            min={1}
+            value={p.to}
+            onChange={(e) => update(i, { to: e.target.value })}
+            placeholder="to"
+            style={{
+              padding: '4px 6px',
+              border: '1px solid var(--border)',
+              borderRadius: 4,
+              fontSize: 12,
+              fontFamily: 'inherit',
+            }}
+          />
+          <input
+            type="text"
+            value={p.rate}
+            onChange={(e) => update(i, { rate: e.target.value })}
+            placeholder="0.10"
+            style={{
+              padding: '4px 6px',
+              border: '1px solid var(--border)',
+              borderRadius: 4,
+              fontSize: 12,
+              fontFamily: 'inherit',
+            }}
+          />
+          <span
+            style={{
+              color: issues[i] ? 'var(--negative)' : 'var(--muted)',
+              fontSize: 11,
+            }}
+          >
+            {issues[i]
+              ? issues[i]
+              : `years ${p.from || '?'}–${
+                  Number(p.to) > 0 ? Number(p.to) - 1 : '?'
+                } @ ${p.rate ? `${(Number(p.rate) * 100).toFixed(1)}%` : '?'}`}
+          </span>
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            aria-label={`Remove phase ${i + 1}`}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--muted)',
+              cursor: 'pointer',
+              padding: '0 4px',
+              fontSize: 14,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      {gapsWarning && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: '6px 8px',
+            background: 'var(--soft-bg, rgba(255,180,0,0.08))',
+            borderLeft: '2px solid var(--warning, #c97800)',
+            fontSize: 11,
+            color: 'var(--ink)',
+          }}
+        >
+          {gapsWarning} Add a phase to cover them, or leave as-is to use
+          the fallback rate.
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/**
+ * Optional annual gross-income input + live tax bracket display.
+ *
+ * For salaried users we ask for Form-16 line-1 gross (pre-tax, after CTC
+ * stripping of employer PF / gratuity / insurance). For SE we ask for
+ * ITR-3/4 Total Income. The label and tooltip adapt to income_type.
+ *
+ * When the user types a value, we live-classify the bracket and surface
+ * three things: marginal rate, distance to the next bracket, and projected
+ * annual tax (with India regime + cess + 87A rebate applied). For SE
+ * users with a high enough tax liability, also nudge them about Sec 208
+ * advance tax / Form 1040-ES so they know it's coming.
+ *
+ * Everything here is advisory — leaving the field blank does not block
+ * setup; downstream calls fall back to the manual marginal_rate field.
+ */
+function GrossIncomeField({
+  incomeType,
+  country,
+  taxRegime,
+  filingStatus,
+  stateMarginalRate,
+  value,
+  onChange,
+}: {
+  incomeType: IncomeType;
+  country: Country;
+  taxRegime: TaxRegimeIN;
+  filingStatus?: FilingStatusUS;
+  /** US-only — added to federal bracket rate for the combined-marginal
+   *  display. Pure display here; the actual combination happens at save(). */
+  stateMarginalRate?: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const gross = Number(value || 0);
+  const bracket =
+    gross > 0 ? classifyBracket(country, taxRegime, incomeType, gross, filingStatus) : null;
+  const annualTax =
+    gross > 0 ? computeAnnualTax(country, taxRegime, incomeType, gross, filingStatus) : null;
+  const advanceTaxApplies =
+    annualTax != null
+      ? isAdvanceTaxApplicable(country, incomeType, annualTax)
+      : false;
+  const ccy: 'INR' | 'USD' = country === 'IN' ? 'INR' : 'USD';
+
+  const label =
+    incomeType === 'salaried'
+      ? `Annual gross salary (${country === 'IN' ? '₹' : '$'}, optional)`
+      : `Annual business income (${country === 'IN' ? '₹' : '$'}, optional)`;
+
+  const hint =
+    incomeType === 'salaried'
+      ? country === 'IN'
+        ? 'Form 16 line 1 — gross before TDS, after CTC minus employer PF / gratuity / insurance'
+        : 'W-2 box 1 — gross wages before federal / state tax + 401(k)'
+      : country === 'IN'
+        ? 'ITR Total Income — revenue − business expenses − depreciation'
+        : 'Net business income — gross receipts − Schedule C deductions';
+
+  return (
+    <div>
+      <Field
+        label={label}
+        value={value}
+        onChange={onChange}
+        hint={hint}
+        info={
+          <>
+            {incomeType === 'salaried' ? (
+              <>
+                Your <strong>pre-tax annual salary</strong>. This is the gross
+                figure from Form 16 line 1 ({country === 'IN' ? 'India' : 'or W-2 box 1 in the US'}),
+                not your CTC. CTC includes employer PF, gratuity, and
+                insurance — none of those reach you, so we strip them.
+              </>
+            ) : (
+              <>
+                Your <strong>Total Income</strong> from last filed{' '}
+                {country === 'IN' ? 'ITR-3 / ITR-4' : 'Schedule C'} — revenue
+                minus business expenses (and depreciation in India). This is
+                the number that goes through tax slabs.
+              </>
+            )}
+            <br />
+            <br />
+            <strong>Optional.</strong> Leave blank if you only know take-home;
+            we'll use the marginal-rate field on Step 4 instead. When filled,
+            we'll auto-show your tax bracket and (for SE users) advance-tax
+            reminders.
+          </>
+        }
+      />
+      {bracket && annualTax && (
+        <div
+          style={{
+            marginTop: 6,
+            padding: '8px 10px',
+            background: 'var(--canvas)',
+            border: '1px dashed var(--border)',
+            borderRadius: 6,
+            fontSize: 12,
+            lineHeight: 1.5,
+            color: 'var(--ink)',
+          }}
+        >
+          <div>
+            You're in the{' '}
+            <strong>{describeBracket(bracket, country)}</strong>
+            {country === 'US' && stateMarginalRate && Number(stateMarginalRate) > 0 && (
+              <>
+                {' '}· combined with state{' '}
+                <strong>
+                  {(
+                    (bracket.marginalRate + Number(stateMarginalRate)) * 100
+                  ).toFixed(1)}
+                  %
+                </strong>{' '}
+                combined marginal
+              </>
+            )}
+            .
+          </div>
+          <div style={{ color: 'var(--muted)', marginTop: 2 }}>
+            Projected annual tax:{' '}
+            <strong style={{ color: 'var(--ink)' }}>
+              {formatCurrency(annualTax.toFixed(0), ccy)}
+            </strong>
+            {bracket.headroom !== Infinity && (
+              <>
+                {' '}· next bracket at{' '}
+                {formatCurrency(bracket.upperBound, ccy)}{' '}
+                <span style={{ opacity: 0.7 }}>
+                  (headroom {formatCurrency(bracket.headroom, ccy)})
+                </span>
+              </>
+            )}
+          </div>
+          {country === 'IN' && (
+            <div style={{ color: 'var(--muted)', marginTop: 2, fontSize: 11 }}>
+              Computed under{' '}
+              <strong>{taxRegime === 'old' ? 'old' : 'new'} regime</strong>
+              {taxRegime !== 'old' && (
+                <> · rebate u/s 87A keeps taxable income ≤ ₹12L tax-free</>
+              )}
+            </div>
+          )}
+          {advanceTaxApplies && (
+            <div
+              style={{
+                marginTop: 6,
+                padding: '6px 8px',
+                background: 'var(--soft-bg, rgba(255,180,0,0.08))',
+                borderLeft: '2px solid var(--warning, #c97800)',
+                fontSize: 11,
+                color: 'var(--ink)',
+              }}
+            >
+              <strong>Heads up:</strong>{' '}
+              {country === 'IN'
+                ? 'tax > ₹10k means Section 208 quarterly advance tax applies (due 15 Jun / 15 Sep / 15 Dec / 15 Mar). Missing instalments costs ~1%/month in Sec 234C interest.'
+                : 'owing > $1k means Form 1040-ES quarterly estimated tax applies (Apr 15 / Jun 15 / Sep 15 / Jan 15). Underpayment costs ~8% APR.'}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TenureField({
+  loan,
+  manualMode,
+  onChangeTenure,
+  onSetManual,
+}: {
+  loan: LoanPayload;
+  manualMode: boolean;
+  onChangeTenure: (v: string) => void;
+  onSetManual: (manual: boolean) => void;
+}) {
+  // Credit cards revolve — no fixed tenure to ask for or derive.
+  if (loan.loan_type === 'credit_card') {
+    return (
+      <div>
+        <label
+          style={{
+            display: 'block',
+            fontSize: 11,
+            color: 'var(--muted)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            marginBottom: 6,
+          }}
+        >
+          Tenure
+        </label>
+        <div
+          style={{
+            fontSize: 13,
+            color: 'var(--muted)',
+            lineHeight: 1.5,
+            padding: '8px 10px',
+            border: '1px dashed var(--border)',
+            background: 'var(--soft-bg)',
+          }}
+        >
+          Credit cards don&apos;t have a fixed tenure — they revolve until
+          cleared. The bank&apos;s min-payment formula drives the trajectory;
+          /plan will show how many months you&apos;d need to clear.
+        </div>
+      </div>
+    );
+  }
+
+  const derived = deriveTenureMonths(
+    loan.outstanding,
+    loan.nominal_rate,
+    loan.scheduled_emi,
+  );
+
+  if (manualMode) {
+    return (
+      <div>
+        <Field
+          label="Tenure remaining (months)"
+          value={String(loan.tenure_months_remaining)}
+          onChange={onChangeTenure}
+          kind="integer"
+          hint={
+            derived != null
+              ? `Auto-derive would say ≈ ${derived} mo`
+              : 'Fill rate + EMI + outstanding above to auto-derive'
+          }
+          info={
+            <>
+              How many monthly EMIs are left until this loan is fully paid.
+              <br />
+              <br />
+              You&apos;re in manual mode because you opened the form already
+              knowing the exact tenure. If you don&apos;t know it, switch
+              back to auto-derive — we&apos;ll compute it from your
+              outstanding, EMI, and rate.
+            </>
+          }
+        />
+        <button
+          type="button"
+          onClick={() => onSetManual(false)}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--accent)',
+            padding: 0,
+            marginTop: 4,
+            fontSize: 11,
+            letterSpacing: '0.04em',
+            textDecoration: 'underline',
+            cursor: 'pointer',
+          }}
+        >
+          Use auto-derived instead
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <label
+        style={{
+          display: 'block',
+          fontSize: 11,
+          color: 'var(--muted)',
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          marginBottom: 6,
+        }}
+      >
+        Tenure remaining
+      </label>
+      <div
+        style={{
+          fontSize: 13,
+          color: derived == null ? 'var(--muted)' : 'var(--ink)',
+          lineHeight: 1.5,
+          padding: '8px 10px',
+          border: '1px dashed var(--border)',
+          background: 'var(--soft-bg)',
+          minHeight: 38,
+        }}
+      >
+        {derived != null ? (
+          <>
+            ≈ <strong>{derived}</strong> months at this EMI
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+              Computed from outstanding + rate + EMI. Most people don&apos;t
+              know their tenure off the top of their head — only banks do —
+              so we work it out from the three numbers above.
+            </div>
+          </>
+        ) : (
+          <>
+            <em>Fill outstanding, rate, and EMI above</em> — we&apos;ll
+            compute remaining months for you. No need to know it.
+          </>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => onSetManual(true)}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          color: 'var(--accent)',
+          padding: 0,
+          marginTop: 4,
+          fontSize: 11,
+          letterSpacing: '0.04em',
+          textDecoration: 'underline',
+          cursor: 'pointer',
+        }}
+      >
+        Set manually instead
+      </button>
     </div>
   );
 }
@@ -1048,6 +2152,261 @@ function MinPaymentExplainer({
             : 'Leave blank to use the formula above. Fill in only if your statement shows a different number.'
         }
       />
+    </div>
+  );
+}
+
+/**
+ * Final-step review screen. Replaces the old "everything in one paragraph"
+ * summary with one card per domain (You / Country / Income / Expenses /
+ * Debts / Savings / Credit + banking). Each card has an Edit button that
+ * jumps back to the relevant step via onJumpToStep, so a user who realises
+ * they mistyped doesn't have to scroll the whole form.
+ *
+ * Pure render — receives every value as a prop. No business logic.
+ */
+function ReviewSummary(props: {
+  displayName: string;
+  ageBracket: AgeBracket | undefined;
+  country: Country;
+  incomeType: IncomeType;
+  monthlyIncome: string;
+  annualGrossSalary: string;
+  annualBusinessIncome: string;
+  fixedExpenses: string;
+  variableExpenses: string;
+  showDetailedExpenses: boolean;
+  annualHikeRate: string;
+  hikeSchedule: { from: string; to: string; rate: string }[];
+  taxRegime: TaxRegimeIN;
+  filingStatus: FilingStatusUS;
+  stateMarginalRate: string;
+  loans: LoanPayload[];
+  primaryBank: string;
+  otherBanks: string[];
+  savingsBalance: string;
+  efundBalance: string;
+  efundTarget: string;
+  creditScore: string;
+  onJumpToStep: (step: number) => void;
+}) {
+  const {
+    displayName, ageBracket, country, incomeType, monthlyIncome,
+    annualGrossSalary, annualBusinessIncome, fixedExpenses, variableExpenses,
+    showDetailedExpenses, annualHikeRate, hikeSchedule, taxRegime,
+    filingStatus, stateMarginalRate, loans, primaryBank, otherBanks,
+    savingsBalance, efundBalance, efundTarget, creditScore, onJumpToStep,
+  } = props;
+  const currency = country === 'IN' ? 'INR' : 'USD';
+  const ageLabel = ageBracket
+    ? AGE_BRACKETS.find((b) => b.value === ageBracket)?.label ?? ''
+    : '';
+  const realLoans = loans.filter((l) => Number(l.outstanding) > 0);
+  const totalOutstanding = realLoans.reduce(
+    (acc, l) => acc + Number(l.outstanding),
+    0,
+  );
+  const hikeRatePct = Number(annualHikeRate) > 0
+    ? `${(Number(annualHikeRate) * 100).toFixed(0)}%`
+    : '—';
+  const hikePhaseSummary = hikeSchedule
+    .filter((p) => Number(p.from) > 0 && Number(p.to) > Number(p.from))
+    .map((p) => `Y${p.from}-${Number(p.to) - 1} @ ${(Number(p.rate) * 100).toFixed(0)}%`)
+    .join(', ');
+  const grossLabel =
+    incomeType === 'salaried' && Number(annualGrossSalary) > 0
+      ? `${formatCurrency(annualGrossSalary, currency)} gross/yr`
+      : incomeType === 'business_owner' && Number(annualBusinessIncome) > 0
+        ? `${formatCurrency(annualBusinessIncome, currency)} business income/yr`
+        : '';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="muted" style={{ fontSize: 12, lineHeight: 1.55, marginBottom: 2 }}>
+        Quick once-over before we save. Click <strong>Edit</strong> on any card
+        to jump back. Saving writes a cookie to this browser only — no upload,
+        no account.
+      </div>
+
+      <ReviewCard title="You" onEdit={() => onJumpToStep(0)}>
+        {displayName.trim() || ageLabel ? (
+          <>
+            {displayName.trim() && <strong>{displayName.trim()}</strong>}
+            {displayName.trim() && ageLabel && <span className="muted"> · </span>}
+            {ageLabel && <span>{ageLabel}</span>}
+          </>
+        ) : (
+          <span className="muted">Anonymous — no name or age provided.</span>
+        )}
+      </ReviewCard>
+
+      <ReviewCard title={'Country & residency'} onEdit={() => onJumpToStep(1)}>
+        <strong>{country === 'IN' ? 'India' : 'USA'}</strong>
+        {country === 'US' && (
+          <span className="muted"> · filing as {filingStatus.replace('_', ' ')}</span>
+        )}
+        {country === 'IN' && (
+          <span className="muted"> · {taxRegime === 'new' ? 'New regime' : 'Old regime'}</span>
+        )}
+        {country === 'US' && Number(stateMarginalRate) > 0 && (
+          <span className="muted">
+            {' '}· state marginal {(Number(stateMarginalRate) * 100).toFixed(1)}%
+          </span>
+        )}
+      </ReviewCard>
+
+      <ReviewCard title="Income" onEdit={() => onJumpToStep(2)}>
+        <strong>{formatCurrency(monthlyIncome || '0', currency)}/mo</strong>{' '}
+        take-home
+        {grossLabel && <span className="muted"> · {grossLabel}</span>}
+        <br />
+        <span className="muted" style={{ fontSize: 12 }}>
+          Hike {hikePhaseSummary || hikeRatePct}
+          {hikePhaseSummary && Number(annualHikeRate) > 0
+            ? ` · fallback ${hikeRatePct}`
+            : ''}
+        </span>
+      </ReviewCard>
+
+      <ReviewCard title="Expenses" onEdit={() => onJumpToStep(2)}>
+        {showDetailedExpenses ? (
+          <>
+            <strong>{formatCurrency(fixedExpenses || '0', currency)}/mo</strong> fixed
+            <span className="muted"> · </span>
+            <strong>{formatCurrency(variableExpenses || '0', currency)}/mo</strong>{' '}
+            <span className="muted">variable</span>
+          </>
+        ) : (
+          <>
+            <strong>{formatCurrency(fixedExpenses || '0', currency)}/mo</strong>{' '}
+            <span className="muted">combined monthly outflows</span>
+          </>
+        )}
+      </ReviewCard>
+
+      <ReviewCard
+        title={`Debts (${realLoans.length})`}
+        onEdit={() => onJumpToStep(3)}
+      >
+        {realLoans.length === 0 ? (
+          <span className="muted">No active debts entered.</span>
+        ) : (
+          <>
+            <strong>{formatCurrency(String(totalOutstanding), currency)}</strong>{' '}
+            <span className="muted">total outstanding</span>
+            <div
+              style={{
+                marginTop: 6,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+              }}
+            >
+              {realLoans.slice(0, 5).map((l, i) => (
+                <div key={i} style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  {l.bank || '—'} {l.loan_type.replace('_', ' ')} ·{' '}
+                  {formatCurrency(l.outstanding, currency)} @{' '}
+                  {(Number(l.nominal_rate) * 100).toFixed(2)}%
+                </div>
+              ))}
+              {realLoans.length > 5 && (
+                <div className="muted" style={{ fontSize: 11 }}>
+                  + {realLoans.length - 5} more
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </ReviewCard>
+
+      <ReviewCard
+        title={'Savings & emergency fund'}
+        onEdit={() => onJumpToStep(4)}
+      >
+        <strong>{formatCurrency(savingsBalance || '0', currency)}</strong>{' '}
+        <span className="muted">savings</span>
+        {Number(efundTarget) > 0 && (
+          <span className="muted">
+            {' '}· emergency fund {formatCurrency(efundBalance || '0', currency)} of{' '}
+            {formatCurrency(efundTarget, currency)}
+          </span>
+        )}
+      </ReviewCard>
+
+      <ReviewCard title={'Banking & credit'} onEdit={() => onJumpToStep(5)}>
+        {primaryBank ? (
+          <>
+            <strong>{primaryBank}</strong>{' '}
+            <span className="muted">primary</span>
+            {otherBanks.length > 0 && (
+              <span className="muted"> · {otherBanks.length} other</span>
+            )}
+          </>
+        ) : (
+          <span className="muted">No primary bank set.</span>
+        )}
+        <span className="muted"> · CIBIL/FICO {creditScore || '—'}</span>
+      </ReviewCard>
+    </div>
+  );
+}
+
+function ReviewCard({
+  title,
+  onEdit,
+  children,
+}: {
+  title: string;
+  onEdit: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+        padding: '12px 14px',
+        background: 'var(--card)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--muted)',
+          }}
+        >
+          {title}
+        </div>
+        <button
+          type="button"
+          onClick={onEdit}
+          style={{
+            padding: '3px 10px',
+            fontSize: 11,
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            borderRadius: 999,
+            color: 'var(--accent)',
+            cursor: 'pointer',
+          }}
+        >
+          Edit
+        </button>
+      </div>
+      <div style={{ fontSize: 14, lineHeight: 1.55 }}>{children}</div>
     </div>
   );
 }

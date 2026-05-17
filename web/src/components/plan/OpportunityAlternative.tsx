@@ -16,17 +16,20 @@
  * have shifted.
  */
 import { useState } from 'react';
-import { formatINR } from '@/lib/api';
+import { formatCurrency } from '@/lib/api';
 import type { RestructuringOpportunity } from '@/lib/api';
+import type { CurrencyCode } from '@/lib/currency';
 
 interface Props {
   opportunity: RestructuringOpportunity;
   /** Theme tag — light style tweaks so the hint feels at home in each home
    *  variant. The data and dismiss behavior are identical across themes. */
   variant?: 'existing' | 'ledger' | 'editorial';
+  /** Currency to format saving amounts in; falls back to INR. */
+  currency?: CurrencyCode;
 }
 
-export function OpportunityAlternative({ opportunity, variant = 'existing' }: Props) {
+export function OpportunityAlternative({ opportunity, variant = 'existing', currency = 'INR' }: Props) {
   const [dismissed, setDismissed] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -70,7 +73,7 @@ export function OpportunityAlternative({ opportunity, variant = 'existing' }: Pr
           <>
             {' '}(save another{' '}
             <strong style={{ color: 'var(--positive)' }}>
-              {formatINR(extraSaving)}/yr
+              {formatCurrency(extraSaving, currency)}/yr
             </strong>
             )
           </>

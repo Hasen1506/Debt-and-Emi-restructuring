@@ -33,18 +33,31 @@ export function HikeToggle({
   active,
   hikeRatePct,
   hikeMonthLabel,
+  hikePhases,
   variant = 'inline',
 }: {
   active: HikeModeling;
-  /** "8%" or similar — for display only. */
+  /** "8%" or similar — for display only. Used as the fallback rate
+   *  shown when no phases cover the firing year. */
   hikeRatePct: string;
   /** "April" — month the hike fires. */
   hikeMonthLabel: string;
+  /** Optional phase configuration from the user's hike_schedule.
+   *  When present and toggle is on, we surface a one-liner summary
+   *  alongside the toggle so users see "Y1-2 @ 7%, Y3-6 @ 10%, ..."
+   *  without leaving /plan. Empty / undefined → scalar-only rate. */
+  hikePhases?: [number, number, string][];
   variant?: 'inline' | 'ledger';
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const noHike = hikeRatePct === '0%' || hikeRatePct === '';
+  // Render phases as a comma-separated list: "Y1-2 @ 7%, Y3-6 @ 10%".
+  // year_to is exclusive in the schedule → display as inclusive (to-1).
+  const phasesSummary = (hikePhases ?? [])
+    .filter(([f, t, r]) => f > 0 && t > f && Number(r) > 0)
+    .map(([f, t, r]) => `Y${f}-${t - 1} @ ${(Number(r) * 100).toFixed(0)}%`)
+    .join(', ');
 
   function pick(s: HikeModeling) {
     if (s === active || pending || noHike) return;
@@ -115,7 +128,9 @@ export function HikeToggle({
             : noHike
               ? 'no hike set — add one in setup to enable'
               : active === 'on'
-                ? `${hikeRatePct} every ${hikeMonthLabel}`
+                ? phasesSummary
+                  ? `${phasesSummary} · then ${hikeRatePct} fallback`
+                  : `${hikeRatePct} every ${hikeMonthLabel}`
                 : 'flat income across horizon'}
         </span>
       </div>
@@ -178,7 +193,9 @@ export function HikeToggle({
           : noHike
             ? 'You haven’t set a hike rate in setup, so there’s nothing to model. Add one to enable.'
             : active === 'on'
-              ? `${SHORT.on} (${hikeRatePct} every ${hikeMonthLabel}.)`
+              ? phasesSummary
+                ? `${SHORT.on} Phases: ${phasesSummary}. Years outside any phase use ${hikeRatePct}.`
+                : `${SHORT.on} (${hikeRatePct} every ${hikeMonthLabel}.)`
               : SHORT.off}
       </span>
     </div>

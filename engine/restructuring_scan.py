@@ -13,11 +13,27 @@ from decimal import Decimal
 from typing import Literal, Optional
 
 from engine.formulas import effective_rate, emi
-from engine.models import Country, Loan, LoanType, User
+from engine.models import Country, IncomeType, Loan, LoanType, User
 from engine.rate_cards import (
     ALL_INSTITUTIONS, INDIA_TIER_A, USA_TIER_A,
     InstitutionRateCard, RateRange, market_median,
 )
+
+
+# Loan types where collateral drives pricing — banks don't widen the band much
+# for self-employed because the asset itself anchors underwriting. Personal
+# loan / credit-card / BT promo rates, by contrast, key off income-proof and
+# CIBIL/FICO, so the realistic SE offer sits near the middle of the band.
+_COLLATERAL_BACKED = {LoanType.HOME, LoanType.AUTO}
+
+
+def _displayed_rate_for(r: RateRange, loan_type: LoanType, income_type: Optional[IncomeType]) -> Decimal:
+    """Pick the realistic indicative rate for `income_type` on `loan_type`:
+    salaried → best end; business_owner → mid-of-band on unsecured products,
+    best end on collateral-backed products."""
+    if income_type == IncomeType.BUSINESS_OWNER and loan_type not in _COLLATERAL_BACKED:
+        return r.median
+    return r.low
 from engine.restructuring import (
     BT_NET_SAVING_HURDLE, BT_RATE_THRESHOLD,
     CONSOLIDATION_RATE_THRESHOLD, REFI_RATE_GAP,
@@ -82,6 +98,7 @@ def _known_banks(user: User) -> set[str]:
 def _best_bt_offer(
     country: Country,
     known: Optional[set[str]] = None,
+    income_type: Optional[IncomeType] = None,
 ) -> Optional[tuple[InstitutionRateCard, Decimal, int, Decimal]]:
     """Pick the bank with the lowest effective BT-APR (promo rate + amortised fee).
     Returns (card, promo_rate, promo_months, fee_pct) or None if no offers exist.
@@ -89,6 +106,11 @@ def _best_bt_offer(
     When `known` is provided, restricts candidates to banks in that set. Callers
     that want the overall-cheapest pass known=None; callers that want the
     relationship-preferred winner pass the user's known-bank set.
+
+    `income_type` doesn't change which bank wins (BT promo rates are headline
+    offers all banks publish identically) but business-owners are routinely
+    declined or repriced at full APR — callers should surface the eligibility
+    caveat in their rationale.
     """
     best = None
     best_eff = None
@@ -110,15 +132,20 @@ def _best_market_rate(
     country: Country,
     loan_type: LoanType,
     known: Optional[set[str]] = None,
+    income_type: Optional[IncomeType] = None,
 ) -> Optional[tuple[str, Decimal]]:
-    """Return (bank_name, low_end_rate) for the cheapest populated Tier-A
+    """Return (bank_name, displayed_rate) for the cheapest populated Tier-A
     offer of `loan_type`. Used to surface the refi/consolidation target.
 
     When `known` is provided, restricts candidates to banks in that set so
     callers can pick the relationship-preferred winner.
+
+    `income_type` shifts which rate within each bank's band gets compared:
+    salaried users see the best end; self-employed users see the mid-of-band
+    on unsecured products (their realistic offer post-ITR-review).
     """
     best_bank = None
-    best_low = None
+    best_rate = None
     for card in _country_pool(country):
         if known is not None and card.name.strip().lower() not in known:
             continue
@@ -134,12 +161,13 @@ def _best_market_rate(
             r = None
         if r is None:
             continue
-        if best_low is None or r.low < best_low:
-            best_low = r.low
+        displayed = _displayed_rate_for(r, loan_type, income_type)
+        if best_rate is None or displayed < best_rate:
+            best_rate = displayed
             best_bank = card.name
-    if best_low is None:
+    if best_rate is None:
         return None
-    return best_bank, best_low
+    return best_bank, best_rate
 
 
 def _fmt_pct(d: Decimal) -> str:
@@ -159,12 +187,13 @@ def _scan_card_balance_transfer(
     card_effective: Decimal,
     country: Country,
     known: set[str],
+    income_type: Optional[IncomeType] = None,
 ) -> Optional[RestructuringOpportunity]:
     # Pick the relationship-preferred BT target first; fall back to the
     # overall winner if the user doesn't already have a card with any of
     # the BT-offering banks.
-    rel_offer = _best_bt_offer(country, known) if known else None
-    overall = _best_bt_offer(country, known=None)
+    rel_offer = _best_bt_offer(country, known, income_type) if known else None
+    overall = _best_bt_offer(country, known=None, income_type=income_type)
     if rel_offer is None and overall is None:
         return None
     chosen = rel_offer or overall  # type: ignore[assignment]
@@ -187,6 +216,12 @@ def _scan_card_balance_transfer(
         f"{_fmt_pct(fee_pct)} = {_fmt_pct(cand.effective_bt_apr)} vs the "
         f"{_fmt_pct(card_effective)} you pay today."
     )
+    if income_type == IncomeType.BUSINESS_OWNER:
+        rationale += (
+            " Self-employed underwriting: most issuers ask for 2-3yr ITR + "
+            "business proof before approving BT promo; expect a manual review "
+            "and a higher chance of decline or partial-limit approval."
+        )
     # If the relationship pick differs from the overall winner, surface the
     # alternative so the UI can show a dismissable "even cheaper elsewhere".
     alt_bank = alt_rate = alt_saving = None
@@ -236,8 +271,13 @@ def _scan_consolidation_opportunity(
     ]
     if len(unsecured) < 2:
         return None
-    rel_market = _best_market_rate(user.country, LoanType.PERSONAL, known) if known else None
-    overall_market = _best_market_rate(user.country, LoanType.PERSONAL, known=None)
+    rel_market = (
+        _best_market_rate(user.country, LoanType.PERSONAL, known, user.income_type)
+        if known else None
+    )
+    overall_market = _best_market_rate(
+        user.country, LoanType.PERSONAL, known=None, income_type=user.income_type,
+    )
     chosen = rel_market or overall_market
     if chosen is None:
         return None
@@ -258,6 +298,12 @@ def _scan_consolidation_opportunity(
         f"one personal loan at {_fmt_pct(cand.consolidated_rate)} saves "
         f"{_fmt_pct(cand.blended_avg_rate - cand.consolidated_rate)} per year."
     )
+    if user.income_type == IncomeType.BUSINESS_OWNER:
+        rationale += (
+            " As a business-owner the quoted rate is the mid-of-band — your "
+            "actual offer depends on 3yr ITR + GST returns + bank-statement "
+            "review. Bring documentation up front to avoid re-pricing."
+        )
     alt_bank = alt_rate = alt_saving = None
     if (
         rel_market is not None
@@ -265,8 +311,8 @@ def _scan_consolidation_opportunity(
         and overall_market[0] != target_bank
         and overall_market[1] < market_low
     ):
-        alt_bank_raw, alt_low = overall_market
-        alt_rate_consolidated = alt_low * (D("1") + fee_amortised)
+        alt_bank_raw, alt_displayed = overall_market
+        alt_rate_consolidated = alt_displayed * (D("1") + fee_amortised)
         if alt_rate_consolidated < cand.consolidated_rate:
             alt_bank = alt_bank_raw
             alt_rate = alt_rate_consolidated
@@ -309,14 +355,18 @@ def _scan_refi_opportunity(
     loan: Loan,
     country: Country,
     known: set[str],
+    income_type: Optional[IncomeType] = None,
 ) -> Optional[RestructuringOpportunity]:
     median = market_median(country, loan.loan_type)
     if median is None:
         return None
     # Assume refi costs = 1% of outstanding (processing fee + legal).
     refi_costs = loan.outstanding * D("0.01")
-    rel_market = _best_market_rate(country, loan.loan_type, known) if known else None
-    overall_market = _best_market_rate(country, loan.loan_type, known=None)
+    rel_market = (
+        _best_market_rate(country, loan.loan_type, known, income_type)
+        if known else None
+    )
+    overall_market = _best_market_rate(country, loan.loan_type, known=None, income_type=income_type)
     chosen = rel_market or overall_market
     target_bank = chosen[0] if chosen else None
     new_rate = chosen[1] if chosen else median
@@ -335,6 +385,11 @@ def _scan_refi_opportunity(
         f"{_fmt_pct(median)}; lifetime interest saved "
         f"{interest_saved:,.0f} vs ~{refi_costs:,.0f} in costs."
     )
+    if income_type == IncomeType.BUSINESS_OWNER and loan.loan_type not in _COLLATERAL_BACKED:
+        rationale += (
+            " Self-employed underwriting widens the band — bring 3yr ITR + "
+            "business proof to argue for the lower end."
+        )
     alt_bank = alt_rate = alt_saving = None
     if (
         rel_market is not None
@@ -380,7 +435,9 @@ def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringO
 
     for l in user.loans:
         if l.loan_type == LoanType.CREDIT_CARD:
-            opp = _scan_card_balance_transfer(l, rates[id(l)], user.country, known)
+            opp = _scan_card_balance_transfer(
+                l, rates[id(l)], user.country, known, user.income_type,
+            )
             if opp is not None:
                 out.append(opp)
 
@@ -390,7 +447,7 @@ def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringO
 
     for l in user.loans:
         if l.loan_type in (LoanType.HOME, LoanType.AUTO):
-            opp = _scan_refi_opportunity(l, user.country, known)
+            opp = _scan_refi_opportunity(l, user.country, known, user.income_type)
             if opp is not None:
                 out.append(opp)
 

@@ -15,11 +15,12 @@ import Decimal from 'decimal.js';
 import { useRouter } from 'next/navigation';
 import {
   api,
-  formatINR,
+  formatCurrency,
   type CompareResponse,
   type Strategy,
   type UserPayload,
 } from '@/lib/api';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { computeBreakdown } from '@/lib/effective-apr';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { applyToolResult } from '@/lib/apply-tool-result';
@@ -53,12 +54,28 @@ export function WhatIfPanel({
    *  the user has selected on the Plan page so deltas are apples-to-apples. */
   strategy?: Strategy;
 }) {
+  // The user's residence currency drives surplus + aggregate displays
+  // (interest saved is summed across loans in the engine; for hybrid
+  // NRI-US users that mixes ccy, but user-default is the least-wrong
+  // choice without restructuring the engine return shape).
+  const userCcy = useMemo(() => userDefaultCurrency(user.country), [user.country]);
+  const fmtUser = useMemo(
+    () => (v: string | number) => formatCurrency(v, userCcy),
+    [userCcy],
+  );
+
   // Derive realistic slider ceilings + the default "Applied to" loan from
   // the live profile. The user complained about a hardcoded 50k cap and a
   // random lump-sum default; both come from these.
   const { fixedExpensesCap, totalOutstandingCap, loanOptions, defaultLoanIdx } =
     useMemo(() => {
-      const fixed = Math.max(0, Math.round(Number(user.fixed_expenses || 0)));
+      // Slider ceiling = variable (discretionary) expenses when present,
+      // fall back to fixed_expenses for legacy profiles that pre-date the
+      // split. We never let the slider eat into fixed costs — the user's
+      // rent isn't a what-if knob.
+      const variable = Math.max(0, Math.round(Number(user.variable_expenses || 0)));
+      const fallbackFixed = Math.max(0, Math.round(Number(user.fixed_expenses || 0)));
+      const fixed = variable > 0 ? variable : fallbackFixed;
       const total = Math.max(
         0,
         Math.round(
@@ -80,7 +97,7 @@ export function WhatIfPanel({
       const top = ranked[0]?.i ?? 0;
       const opts = user.loans.map((l, i) => ({
         value: i,
-        label: `${l.bank || 'Unnamed'} · ${l.loan_type.replace('_', ' ')} (${formatINR(l.outstanding)})`,
+        label: `${l.bank || 'Unnamed'} · ${l.loan_type.replace('_', ' ')} (${formatCurrency(l.outstanding, loanCurrency(l, user.country))})`,
         isTop: i === top,
       }));
       return {
@@ -106,6 +123,18 @@ export function WhatIfPanel({
   const [rate, setRate] = useState<ScenarioState>(INITIAL);
   const [lump, setLump] = useState<ScenarioState>(INITIAL);
 
+  // Currency of the loan the lump-sum is being applied to. A USD card
+  // lump-sum should show "$" everywhere; an INR home-loan lump-sum
+  // should show "₹". Recomputes when the user changes the dropdown.
+  const lumpTargetCcy = useMemo(() => {
+    const target = user.loans[lumpTarget];
+    return target ? loanCurrency(target, user.country) : userCcy;
+  }, [user.loans, user.country, lumpTarget, userCcy]);
+  const fmtLump = useMemo(
+    () => (v: string | number) => formatCurrency(v, lumpTargetCcy),
+    [lumpTargetCcy],
+  );
+
   // Commitments + the toast that fires when one lands.
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -123,24 +152,31 @@ export function WhatIfPanel({
       setToast('Finish setup first so we can mutate your profile.');
       return;
     }
-    const newFixed = Math.max(
-      0, Number(stored.user.fixed_expenses || 0) - surplusDelta,
-    );
+    // Prefer cutting from variable spending; fall back to fixed for legacy
+    // profiles that don't have variable_expenses split out yet.
+    const currentVariable = Number(stored.user.variable_expenses || 0);
+    const currentFixed = Number(stored.user.fixed_expenses || 0);
+    const useVariable = currentVariable > 0;
+    const cutFrom = useVariable ? currentVariable : currentFixed;
+    const newAmount = Math.max(0, cutFrom - surplusDelta);
     saveProfileClient({
-      user: { ...stored.user, fixed_expenses: String(newFixed) },
+      user: useVariable
+        ? { ...stored.user, variable_expenses: String(newAmount) }
+        : { ...stored.user, fixed_expenses: String(newAmount) },
     });
+    const bucketLabel = useVariable ? 'variable spending' : 'fixed expenses';
     const entry: Omit<CommitmentEntry, 'id'> = {
       date: todayISO(),
       kind: 'surplus_cut',
       amount: String(surplusDelta),
-      note: `Cut fixed_expenses ₹${formatINR(stored.user.fixed_expenses || '0')} → ₹${formatINR(newFixed)}`,
+      note: `Cut ${bucketLabel} ${fmtUser(cutFrom)} → ${fmtUser(newAmount)}`,
     };
     const next = addCommitment(readCommitmentsClient(), entry);
     writeCommitmentsClient(next);
     setCommitments(next);
     setSurplusDelta(0);
     setSurplusStartMonth(1);
-    setToast(`Locked in — cutting ₹${formatINR(surplusDelta)}/mo from this month.`);
+    setToast(`Locked in — trimming ${fmtUser(surplusDelta)}/mo from ${bucketLabel}.`);
     startTransition(() => router.refresh());
   }
 
@@ -163,7 +199,7 @@ export function WhatIfPanel({
         ? outstandingD.toFixed(2)
         : String(Number(sched) + lumpAmount),
       scheduledEmi: sched,
-      note: `What-if lock-in — ₹${formatINR(lumpAmount)} → ${target.bank}`,
+      note: `What-if lock-in — ${fmtLump(lumpAmount)} → ${target.bank}`,
       loans: stored.user.loans,
       country: stored.user.country,
     });
@@ -179,7 +215,7 @@ export function WhatIfPanel({
     writeCommitmentsClient(next);
     setCommitments(next);
     setLumpAmount(0);
-    setToast(`Locked in — ₹${formatINR(lumpAmount)} sent to ${target.bank}.`);
+    setToast(`Locked in — ${fmtLump(lumpAmount)} sent to ${target.bank}.`);
     startTransition(() => router.refresh());
   }
 
@@ -258,7 +294,7 @@ export function WhatIfPanel({
         : '';
     const interestTxt =
       interest !== 0
-        ? `${interest > 0 ? 'saves' : 'adds'} ${formatINR(Math.abs(interest))} in interest`
+        ? `${interest > 0 ? 'saves' : 'adds'} ${fmtUser(Math.abs(interest))} in interest`
         : '';
     return [monthsTxt, interestTxt].filter(Boolean).join(' · ');
   };
@@ -266,19 +302,29 @@ export function WhatIfPanel({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <SliderRow
-        title="Cut fixed expenses"
+        title={
+          Number(user.variable_expenses || 0) > 0
+            ? 'Trim discretionary spending'
+            : 'Cut fixed expenses'
+        }
         hint={
           fixedExpensesCap > 0
-            ? `Imagine trimming up to ₹${fixedExpensesCap.toLocaleString('en-IN')} from your monthly fixed expenses and redirecting that cash to debt. The most you can cut is what you actually spend.`
-            : 'Add your fixed expenses in setup to use this slider.'
+            ? `Imagine trimming up to ${fmtUser(fixedExpensesCap)} from your monthly ${
+                Number(user.variable_expenses || 0) > 0
+                  ? 'discretionary spending (eating out, travel, shopping)'
+                  : 'fixed expenses'
+              } and redirecting that cash to debt. The most you can cut is what you actually spend.`
+            : 'Add your discretionary spending in setup to use this slider.'
         }
         unit="/mo"
+        currency={userCcy}
         min={0}
         max={Math.max(fixedExpensesCap, 1_000)}
         step={surplusStep}
         value={surplusDelta}
         onChange={setSurplusDelta}
-        formatValue={(v) => (v === 0 ? 'no change' : `+${formatINR(v)}`)}
+        formatValue={(v) => (v === 0 ? 'no change' : `+${fmtUser(v)}`)}
+        formatInterest={fmtUser}
         state={surplus}
         positive
         summary={summary(surplus.result, true)}
@@ -292,7 +338,11 @@ export function WhatIfPanel({
             />
             <LockItInButton
               disabled={surplusDelta <= 0}
-              label={`Lock in — cut ₹${formatINR(surplusDelta || 0)}/mo from fixed expenses`}
+              label={`Lock in — trim ${fmtUser(surplusDelta || 0)}/mo from ${
+                Number(user.variable_expenses || 0) > 0
+                  ? 'discretionary spending'
+                  : 'fixed expenses'
+              }`}
               shortLabel="Lock it in"
               onClick={commitSurplusCut}
             />
@@ -304,6 +354,7 @@ export function WhatIfPanel({
         title="If interest rates change"
         hint="Models what happens if floating-rate loans (most home loans) reprice up or down. 100 bps = 1 percentage point. Fixed-rate loans like personal loans and cards are unaffected."
         unit="bps"
+        currency={userCcy}
         min={-200}
         max={300}
         step={25}
@@ -314,6 +365,7 @@ export function WhatIfPanel({
             ? 'no change'
             : `${v > 0 ? '+' : ''}${v} bps (${(v / 100).toFixed(2)}pp)`
         }
+        formatInterest={fmtUser}
         state={rate}
         positive={false}
         summary={summary(rate.result, false)}
@@ -326,16 +378,18 @@ export function WhatIfPanel({
           title="One-time lump-sum payment"
           hint={
             totalOutstandingCap > 0
-              ? `A windfall — bonus, tax refund, gift — applied today against the loan chosen on the right. Capped at your total outstanding (${formatINR(totalOutstandingCap)}).`
+              ? `A windfall — bonus, tax refund, gift — applied today against the loan chosen on the right. Capped at your total outstanding (${fmtLump(totalOutstandingCap)}).`
               : 'Add your loans in setup to use this slider.'
           }
           unit=""
+          currency={lumpTargetCcy}
           min={0}
           max={Math.max(totalOutstandingCap, 10_000)}
           step={Math.max(lumpStep, 1_000)}
           value={lumpAmount}
           onChange={setLumpAmount}
-          formatValue={(v) => (v === 0 ? 'no payment' : formatINR(v))}
+          formatValue={(v) => (v === 0 ? 'no payment' : fmtLump(v))}
+          formatInterest={fmtUser}
           state={lump}
           positive
           summary={summary(lump.result, true)}
@@ -343,7 +397,7 @@ export function WhatIfPanel({
           extraControls={
             <LockItInButton
               disabled={lumpAmount <= 0}
-              label={`Lock in — pay ₹${formatINR(lumpAmount || 0)} today to ${loanOptions[lumpTarget]?.label.split(' · ')[0] ?? 'loan'}`}
+              label={`Lock in — pay ${fmtLump(lumpAmount || 0)} today to ${loanOptions[lumpTarget]?.label.split(' · ')[0] ?? 'loan'}`}
               shortLabel="Lock it in"
               onClick={commitLumpSum}
             />
@@ -427,7 +481,17 @@ export function WhatIfPanel({
               listStyle: 'none', padding: 0, margin: '8px 0 0',
               display: 'flex', flexDirection: 'column', gap: 6,
             }}>
-              {commitments.map((c) => (
+              {commitments.map((c) => {
+                // Find the loan referenced by a lump-sum entry so we can
+                // show the right symbol. surplus_cut is always in user-default.
+                const entryCcy =
+                  c.kind === 'lump_sum' && c.loanIndex != null
+                    ? loanCurrency(
+                        user.loans[c.loanIndex] ?? user.loans[0],
+                        user.country,
+                      )
+                    : userCcy;
+                return (
                 <li
                   key={c.id}
                   style={{
@@ -439,8 +503,8 @@ export function WhatIfPanel({
                   <span>
                     <span className="muted">{c.date}</span>{' · '}
                     {c.kind === 'surplus_cut'
-                      ? <>Cut ₹{formatINR(c.amount)}/mo from fixed expenses</>
-                      : <>Lump-sum ₹{formatINR(c.amount)} → {c.loanBank ?? 'loan'}</>}
+                      ? <>Trimmed {formatCurrency(c.amount, entryCcy)}/mo from spending</>
+                      : <>Lump-sum {formatCurrency(c.amount, entryCcy)} → {c.loanBank ?? 'loan'}</>}
                     {c.note && <span className="muted"> · {c.note}</span>}
                   </span>
                   <button
@@ -455,7 +519,8 @@ export function WhatIfPanel({
                     ✕
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>
@@ -513,12 +578,14 @@ function SliderRow({
   title,
   hint,
   unit,
+  currency,
   min,
   max,
   step,
   value,
   onChange,
   formatValue,
+  formatInterest,
   state,
   positive,
   summary,
@@ -530,18 +597,24 @@ function SliderRow({
   title: string;
   hint: string;
   unit: string;
+  /** Currency for the inline typable input prefix (₹ or $).
+   *  Required for 'integer' mode; ignored for 'bps'. */
+  currency: 'INR' | 'USD';
   min: number;
   max: number;
   step: number;
   value: number;
   onChange: (v: number) => void;
   formatValue: (v: number) => string;
+  /** Formatter for the "interest saved" sub-line — uses user-default
+   *  currency since interest_saved is engine-summed across loans. */
+  formatInterest: (v: number) => string;
   state: ScenarioState;
   positive: boolean;
   /** Plain-language one-liner shown below the numeric result. */
   summary?: string | null;
   disabled?: boolean;
-  /** 'integer' for ₹ amounts (no decimals), 'bps' for signed basis points. */
+  /** 'integer' for ₹/$ amounts (no decimals), 'bps' for signed basis points. */
   inputMode?: 'integer' | 'bps';
   /** Hide the MAX button (e.g. for bps where +max is rare). */
   showMaxButton?: boolean;
@@ -591,6 +664,7 @@ function SliderRow({
             disabled={disabled}
             unit={unit}
             mode={inputMode}
+            currency={currency}
             placeholder={formatValue(0)}
           />
           {showMaxButton && !disabled && (
@@ -679,7 +753,7 @@ function SliderRow({
                 }}
               >
                 {Number(interest) >= 0 ? '−' : '+'}
-                {formatINR(Math.abs(Number(interest)))}
+                {formatInterest(Math.abs(Number(interest)))}
               </span>
             </div>
             {summary && (
@@ -791,6 +865,7 @@ function TypableAmountInput({
   unit,
   disabled,
   mode,
+  currency,
   placeholder,
 }: {
   value: number;
@@ -801,6 +876,8 @@ function TypableAmountInput({
   unit: string;
   disabled?: boolean;
   mode: 'integer' | 'bps';
+  /** Drives the prefix symbol (₹/$) and the locale for the comma display. */
+  currency: 'INR' | 'USD';
   placeholder?: string;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -809,8 +886,9 @@ function TypableAmountInput({
     if (draft != null) return draft;
     if (value === 0) return '';
     if (mode === 'bps') return String(value);
-    return value.toLocaleString('en-IN');
-  }, [draft, value, mode]);
+    // USD uses Western grouping (1,234,567); INR uses lakh-comma (12,34,567).
+    return value.toLocaleString(currency === 'INR' ? 'en-IN' : 'en-US');
+  }, [draft, value, mode, currency]);
 
   function commit(raw: string) {
     setDraft(null);
@@ -841,7 +919,7 @@ function TypableAmountInput({
     >
       {mode === 'integer' && (
         <span className="muted" style={{ fontSize: 12 }}>
-          ₹
+          {currency === 'USD' ? '$' : '₹'}
         </span>
       )}
       <input

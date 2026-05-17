@@ -7,7 +7,7 @@ stay thin — they parse → convert → call engine → wrap in response model.
 from __future__ import annotations
 from datetime import date
 from decimal import Decimal
-from typing import Optional
+from typing import Dict, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,6 +41,8 @@ class LoanIn(_Base):
     insurance_premium_pct: Decimal = D("0")
     property_use: Optional[str] = None
     min_payment_override: Optional[Decimal] = None
+    currency: Optional[str] = None
+    expected_monthly_spend: Decimal = D("0")
 
     def to_engine(self) -> Loan:
         return Loan(
@@ -53,6 +55,8 @@ class LoanIn(_Base):
             insurance_premium_pct=self.insurance_premium_pct,
             property_use=self.property_use,
             min_payment_override=self.min_payment_override,
+            currency=self.currency,
+            expected_monthly_spend=self.expected_monthly_spend,
         )
 
 
@@ -74,6 +78,7 @@ class AssetIn(_Base):
     ppf_opened_date: Optional[date] = None
     sgb_at_maturity: bool = False
     us_section_121_eligible: bool = False
+    us_is_tax_exempt_muni: bool = False
 
     def to_engine(self) -> Asset:
         return Asset(
@@ -92,6 +97,7 @@ class AssetIn(_Base):
             ppf_opened_date=self.ppf_opened_date,
             sgb_at_maturity=self.sgb_at_maturity,
             us_section_121_eligible=self.us_section_121_eligible,
+            us_is_tax_exempt_muni=self.us_is_tax_exempt_muni,
         )
 
 
@@ -130,9 +136,29 @@ class PFBalanceIn(_Base):
 class UserIn(_Base):
     country: Country
     income_type: IncomeType
+    # Optional display name + coarse age bracket — pure UI metadata, not
+    # consumed by the engine. Kept on the payload so the cookie round-trip
+    # carries them and to_engine() simply drops them.
+    display_name: Optional[str] = None
+    age_bracket: Optional[str] = None
     annual_income: Decimal
     monthly_income: Decimal
     fixed_expenses: Decimal
+    # Discretionary monthly outflows (eating out, travel, shopping) — what
+    # the user would cut if they had to. Optional, defaults to 0 so legacy
+    # payloads still validate; the WhatIf "trim spending" slider operates
+    # on this bucket so it isn't asking the user to halve their rent.
+    variable_expenses: Decimal = D("0")
+    # Pre-tax annual income — salaried users fill annual_gross_salary
+    # (Form 16 line 1), SE users fill annual_business_income (ITR Total
+    # Income). Either one unlocks bracket display + tax-aware features;
+    # leaving both blank falls back to the manual marginal_rate field.
+    annual_gross_salary: Optional[Decimal] = None
+    annual_business_income: Optional[Decimal] = None
+    # Self-reported credit score — CIBIL (300-900) for India, FICO (300-850)
+    # for US. Optional; engine doesn't consume it directly but it round-trips
+    # so frontend rate-prediction chip can use the entered value across sessions.
+    credit_score: Optional[int] = None
     savings_balance: Decimal
     primary_bank: str
     location_tier: str = "urban"
@@ -150,14 +176,30 @@ class UserIn(_Base):
     investment_options: list[InvestmentOptionIn] = Field(default_factory=list)
     annual_hike_rate: Decimal = D("0")
     hike_effective_month: int = Field(default=1, ge=1, le=12)
+    # Optional list of hike phases. Each entry: [year_from, year_to, rate].
+    # year_from is 1-based inclusive, year_to is 1-based exclusive, rate
+    # is annual decimal (0.08 = 8%). Empty list → engine uses annual_hike_rate
+    # uniformly. Validated for non-overlap on the frontend; engine picks
+    # the first matching phase regardless.
+    hike_schedule: list[tuple[int, int, Decimal]] = Field(default_factory=list)
     business_cagr: Decimal = D("0")
     inflation_rate: Decimal = D("0.046")
+    is_nri_us: bool = False
+    fx_to_user_currency: Dict[str, Decimal] = Field(default_factory=dict)
+    # Annualized FX drift per non-residence currency. Engine compounds
+    # monthly: rate_at_m = spot × (1 + drift)^((m-1)/12). Empty / omitted
+    # → no drift, FX stays flat at spot. Used by the NRI-US FX-drift toggle.
+    fx_drift_annualized: Dict[str, Decimal] = Field(default_factory=dict)
 
     def to_engine(self) -> User:
         return User(
             country=self.country, income_type=self.income_type,
             annual_income=self.annual_income, monthly_income=self.monthly_income,
             fixed_expenses=self.fixed_expenses,
+            variable_expenses=self.variable_expenses,
+            annual_gross_salary=self.annual_gross_salary,
+            annual_business_income=self.annual_business_income,
+            credit_score=self.credit_score,
             savings_balance=self.savings_balance,
             primary_bank=self.primary_bank, location_tier=self.location_tier,
             other_banks=list(self.other_banks),
@@ -172,14 +214,29 @@ class UserIn(_Base):
             investment_options=[o.to_engine() for o in self.investment_options],
             annual_hike_rate=self.annual_hike_rate,
             hike_effective_month=self.hike_effective_month,
+            hike_schedule=list(self.hike_schedule),
             business_cagr=self.business_cagr,
             inflation_rate=self.inflation_rate,
+            is_nri_us=self.is_nri_us,
+            fx_to_user_currency=dict(self.fx_to_user_currency),
+            fx_drift_annualized=dict(self.fx_drift_annualized),
         )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Simulation
 # ─────────────────────────────────────────────────────────────────────────────
+
+class ReinvestEvent(_Base):
+    """One auto-reinvest event for simulate_plan.
+
+    Used by the "auto-reinvest tax savings" toggle on /plan — frontend
+    pre-computes annual deductible-interest × marginal_rate and posts
+    one event per fiscal year, timed to post-ITR-filing months.
+    """
+    month: int = Field(..., ge=1)
+    amount: Decimal
+
 
 class SimulateRequest(_Base):
     user: UserIn
@@ -192,6 +249,11 @@ class SimulateRequest(_Base):
     # hike firing to the user's actual today. Defaults to 1 → preserves
     # legacy "hike at m=13" behaviour for callers that omit it.
     simulation_start_month: int = Field(default=1, ge=1, le=12)
+    # Auto-reinvest events — empty / omitted preserves baseline behaviour.
+    reinvest_events: list[ReinvestEvent] = Field(default_factory=list)
+    # Inflate fixed + variable expenses month-over-month using user.inflation_rate.
+    # Off by default so existing callers see no behavioural change.
+    inflate_expenses: bool = False
 
 
 class TrajectoryPoint(_Base):
@@ -203,6 +265,12 @@ class TrajectoryPoint(_Base):
     # the request's `user.loans`. Drives the period-aware "pay ₹X to {bank}"
     # rows in the Plan schedule. Empty after all loans clear.
     payments_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
+    # Per-currency balance bucket. Keys are loan-currency codes ("INR", "USD").
+    # For single-currency users this is a 1-element dict that matches
+    # `balance` exactly. NRI-US hybrid users get one entry per loan currency
+    # so the trajectory chart can render separate lines instead of summing
+    # ₹ + $ into a misleading single number.
+    balances_by_currency: dict[str, Decimal] = Field(default_factory=dict)
 
 
 class SimulateResponse(_Base):

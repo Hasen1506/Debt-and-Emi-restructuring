@@ -13,7 +13,7 @@ import {
 } from '@/components/ToolPrimitives';
 import {
   api,
-  formatINR,
+  formatCurrency,
   formatPct,
   type BorrowTimingResponse,
   type InstitutionPayload,
@@ -21,6 +21,7 @@ import {
 } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
+import { userDefaultCurrency } from '@/lib/currency';
 
 type Urgency = 'now' | '3m_ok' | '6m_ok';
 
@@ -308,7 +309,7 @@ export function RightTimeTool() {
                   </InfoTip>
                 </>
               }
-              value={formatINR(v.estimated_savings)}
+              value={formatCurrency(v.estimated_savings, userDefaultCurrency(country))}
               color={v.verdict === 'wait' ? 'var(--positive)' : 'var(--muted)'}
             />
           </div>

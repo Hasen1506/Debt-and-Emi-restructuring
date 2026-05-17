@@ -15,9 +15,11 @@ import { useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
 import type { LoanPayload, LoanType } from '@/lib/api';
-import { formatINR } from '@/lib/api';
+import { formatCurrency } from '@/lib/api';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { computeBreakdown, fmt } from '@/lib/effective-apr';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
+import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'CREDIT CARD',
@@ -61,22 +63,32 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
         emiBurden: new Decimal(0),
       };
     }
+    // Convert per-loan amounts into user-residence currency before summing.
+    // Hybrid users previously had ₹ + $ summed as if they shared units.
+    const userCcy = userDefaultCurrency(country);
+    const fxMap = user.fx_to_user_currency ?? {};
+    const toUser = (amount: Decimal, loan: LoanPayload): Decimal => {
+      const lc = loanCurrency(loan, country);
+      if (lc === userCcy) return amount;
+      return amount.mul(new Decimal(fxMap[lc] ?? '1'));
+    };
     let total = new Decimal(0);
     let weightedEffSum = new Decimal(0);
     let emi = new Decimal(0);
     for (const l of loans) {
-      const bal = new Decimal(l.outstanding || 0);
+      const balUser = toUser(new Decimal(l.outstanding || 0), l);
+      const emiUser = toUser(new Decimal(l.scheduled_emi || 0), l);
       const { effective } = computeBreakdown(l, marginalRate, country, taxRegime);
-      total = total.add(bal);
-      weightedEffSum = weightedEffSum.add(bal.mul(effective));
-      emi = emi.add(new Decimal(l.scheduled_emi || 0));
+      total = total.add(balUser);
+      weightedEffSum = weightedEffSum.add(balUser.mul(effective));
+      emi = emi.add(emiUser);
     }
     return {
       total,
       blendedEffective: total.gt(0) ? weightedEffSum.div(total) : new Decimal(0),
       emiBurden: emi,
     };
-  }, [loans, marginalRate, country, taxRegime]);
+  }, [loans, marginalRate, country, taxRegime, user.fx_to_user_currency]);
 
   const monthlyIncome = new Decimal(user.monthly_income || 0);
   const burdenPct = monthlyIncome.gt(0)
@@ -129,7 +141,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
           {[
             {
               l: 'TOTAL OUTSTANDING',
-              v: formatINR(metrics.total),
+              v: formatCurrency(metrics.total.toString(), userDefaultCurrency(country)),
               s: 'SUM OF PRINCIPALS',
             },
             {
@@ -139,7 +151,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
             },
             {
               l: 'EMI BURDEN',
-              v: `${formatINR(metrics.emiBurden)}/MO`,
+              v: `${formatCurrency(metrics.emiBurden.toString(), userDefaultCurrency(country))}/MO`,
               s:
                 burdenPct === '—'
                   ? 'NO INCOME ON FILE'
@@ -240,6 +252,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
                   marginalRate={marginalRate}
                   country={country}
                   taxRegime={taxRegime}
+                  incomeType={user.income_type}
                 />
               );
             })}
@@ -248,10 +261,10 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
                 TOTAL
               </td>
               <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                {formatINR(metrics.total)}
+                {formatCurrency(metrics.total.toString(), userDefaultCurrency(country))}
               </td>
               <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                {formatINR(metrics.emiBurden)}/mo
+                {formatCurrency(metrics.emiBurden.toString(), userDefaultCurrency(country))}/mo
               </td>
               <td></td>
               <td></td>
@@ -279,6 +292,8 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
           changes there, the breakdown updates here.
         </div>
       </section>
+
+      <LifecycleEventsPanel user={profile.user} variant="ledger" />
     </div>
   );
 }
@@ -296,6 +311,7 @@ function RowGroup({
   marginalRate,
   country,
   taxRegime,
+  incomeType,
 }: {
   index: number;
   loan: LoanPayload;
@@ -307,11 +323,16 @@ function RowGroup({
   marginalRate: string;
   country: 'IN' | 'US';
   taxRegime: 'new' | 'old' | undefined;
+  incomeType: 'salaried' | 'business_owner';
 }) {
   const kind = LOAN_TYPE_LABEL[loan.loan_type] ?? loan.loan_type;
   const tenure =
     loan.tenure_months_remaining > 0 ? `${loan.tenure_months_remaining} mo` : '—';
-  const emi = Number(loan.scheduled_emi) > 0 ? formatINR(loan.scheduled_emi) : '—';
+  const loanCcy = loanCurrency(loan, country);
+  const emi =
+    Number(loan.scheduled_emi) > 0
+      ? formatCurrency(loan.scheduled_emi, loanCcy)
+      : '—';
   return (
     <>
       <tr
@@ -325,6 +346,22 @@ function RowGroup({
         </td>
         <td style={{ padding: '10px 12px', fontWeight: 700 }}>
           {loan.bank || '—'}
+          {loan.currency && (
+            <span
+              className="muted"
+              style={{
+                marginLeft: 6,
+                fontSize: 10,
+                fontWeight: 600,
+                padding: '1px 5px',
+                border: '1px solid var(--dash)',
+                borderRadius: 3,
+                letterSpacing: '0.05em',
+              }}
+            >
+              {loan.currency}
+            </span>
+          )}
         </td>
         <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>{kind}</td>
         <td style={{ padding: '10px 12px', textAlign: 'right' }}>
@@ -341,7 +378,7 @@ function RowGroup({
           {fmt(effective)}
         </td>
         <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-          {formatINR(loan.outstanding || '0')}
+          {formatCurrency(loan.outstanding || '0', loanCcy)}
         </td>
         <td style={{ padding: '10px 12px', textAlign: 'right' }}>{emi}</td>
         <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--muted)' }}>
@@ -375,6 +412,7 @@ function RowGroup({
               country={country}
               taxRegime={taxRegime}
               variant="card"
+              incomeType={incomeType}
             />
           </td>
         </tr>

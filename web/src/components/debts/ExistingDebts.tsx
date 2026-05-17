@@ -14,9 +14,11 @@ import { Card } from '@/components/Card';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import type { StoredProfile } from '@/lib/user-store';
 import type { LoanType } from '@/lib/api';
-import { formatINR } from '@/lib/api';
+import { formatCurrency } from '@/lib/api';
 import { fmt } from '@/lib/effective-apr';
 import { deriveMetrics } from '@/lib/derived';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
+import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'Credit card',
@@ -59,7 +61,7 @@ export function ExistingDebts({ profile }: { profile: StoredProfile }) {
         <p className="muted">
           {m.loans.length} active. Total outstanding{' '}
           <strong style={{ color: 'var(--ink)' }}>
-            {formatINR(m.totalOutstanding)}
+            {formatCurrency(m.totalOutstanding.toString(), userDefaultCurrency(country))}
           </strong>{' '}
           · blended effective {fmt(m.blendedEffective)}.
         </p>
@@ -120,7 +122,7 @@ export function ExistingDebts({ profile }: { profile: StoredProfile }) {
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div className="num" style={{ fontSize: 16, fontWeight: 600 }}>
-                  {formatINR(row.outstanding)}
+                  {formatCurrency(row.outstanding.toString(), loanCurrency(row.loan, country))}
                 </div>
                 <button
                   type="button"
@@ -146,6 +148,7 @@ export function ExistingDebts({ profile }: { profile: StoredProfile }) {
                   country={country}
                   taxRegime={taxRegime}
                   variant="card"
+                  incomeType={user.income_type}
                 />
               </div>
             )}
@@ -160,6 +163,8 @@ export function ExistingDebts({ profile }: { profile: StoredProfile }) {
       >
         + Add or edit debts
       </a>
+
+      <LifecycleEventsPanel user={profile.user} variant="existing" />
     </div>
   );
 }

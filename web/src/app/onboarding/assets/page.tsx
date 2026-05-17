@@ -115,6 +115,9 @@ export default function OnboardingAssetsPage() {
         if (a.us_section_121_eligible !== undefined) {
           out.us_section_121_eligible = a.us_section_121_eligible;
         }
+        if (a.us_is_tax_exempt_muni !== undefined) {
+          out.us_is_tax_exempt_muni = a.us_is_tax_exempt_muni;
+        }
         return out;
       });
     saveProfileClient({
@@ -297,6 +300,20 @@ export default function OnboardingAssetsPage() {
                     onChange={(e) => update(i, { us_section_121_eligible: e.target.checked })}
                   />
                   Primary residence — IRC §121 eligible ($250k/$500k exclusion)
+                </label>
+              )}
+
+              {a.asset_type === 'debt_mf' && country === 'US' && (
+                <label style={{
+                  alignSelf: 'end', display: 'flex', alignItems: 'center', gap: 6,
+                  fontSize: 12,
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={a.us_is_tax_exempt_muni ?? false}
+                    onChange={(e) => update(i, { us_is_tax_exempt_muni: e.target.checked })}
+                  />
+                  Tax-exempt municipal bond fund (§103 federal exemption)
                 </label>
               )}
 

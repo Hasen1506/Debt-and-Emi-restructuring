@@ -5,6 +5,7 @@ import { loadProfileServer } from '@/lib/user-store';
 import { StandardTopBar } from '@/components/chrome/StandardTopBar';
 import { EditorialMasthead } from '@/components/chrome/EditorialMasthead';
 import { LedgerHeader } from '@/components/chrome/LedgerHeader';
+import { SessionHydrator } from '@/lib/server-sync';
 import type { Country } from '@/lib/api';
 
 export const metadata: Metadata = {
@@ -29,6 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body>
+        <SessionHydrator />
         <Chrome theme={theme} country={profile.user.country} />
         <main className="app-shell" style={{ paddingTop: 24, paddingBottom: 80 }}>
           {children}

@@ -18,12 +18,15 @@ D = Decimal
 router = APIRouter(tags=["simulation"])
 
 
-def _to_trajectory(result, loans) -> list[TrajectoryPoint]:
+def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
     """Flatten SimulationResult.months → trajectory points. Balance is the sum
     across all loans at each month — that's what the chart wants.
 
     Per-loan payment dict is already position-keyed by the engine, so we
-    pass it through unchanged.
+    pass it through unchanged. `balances_by_currency` is sourced directly
+    from the engine — its id(loan) bookkeeping doesn't survive the
+    deepcopy boundary, so re-computing from `row.balances` here would
+    silently lose the currency tag and bucket everything under INR.
     """
     points: list[TrajectoryPoint] = []
     for row in result.months:
@@ -34,6 +37,7 @@ def _to_trajectory(result, loans) -> list[TrajectoryPoint]:
             interest_paid=row.interest_paid_month,
             invested=row.invested_this_month,
             payments_by_loan_index=row.payments_by_loan_index,
+            balances_by_currency=dict(row.balances_by_currency),
         ))
     return points
 
@@ -41,17 +45,27 @@ def _to_trajectory(result, loans) -> list[TrajectoryPoint]:
 @router.post("/simulate", response_model=SimulateResponse)
 def simulate(req: SimulateRequest) -> SimulateResponse:
     user = req.user.to_engine()
+    # Flatten the reinvest-events list to the tuple shape the engine takes.
+    # Empty list → engine sees None → no reinvest logic runs (preserves
+    # baseline behaviour for callers that don't set the toggle).
+    reinvest_tuples = (
+        [(e.month, e.amount) for e in req.reinvest_events]
+        if req.reinvest_events
+        else None
+    )
     result = simulate_plan(
         user, strategy=req.strategy, horizon_months=req.horizon_months,
         matched_contribution=req.matched_contribution,
         marginal_rate=req.marginal_rate, simple_mode=req.simple_mode,
         simulation_start_month=req.simulation_start_month,
+        reinvest_events=reinvest_tuples,
+        inflate_expenses=req.inflate_expenses,
     )
     return SimulateResponse(
         debt_free_month=result.debt_free_month,
         total_interest_paid=result.total_interest_paid,
         total_invested=result.total_invested,
-        trajectory=_to_trajectory(result, user.loans),
+        trajectory=_to_trajectory(result, user.loans, user),
         months_in_horizon=len(result.months),
     )
 
@@ -66,7 +80,7 @@ def baseline(req: BaselineRequest) -> SimulateResponse:
         debt_free_month=result.debt_free_month,
         total_interest_paid=result.total_interest_paid,
         total_invested=result.total_invested,
-        trajectory=_to_trajectory(result, user.loans),
+        trajectory=_to_trajectory(result, user.loans, user),
         months_in_horizon=len(result.months),
     )
 

@@ -6,17 +6,24 @@ import { Card } from '@/components/Card';
 import { ApplyAction, Field, InfoTip, ScoreChip, Stat, SubmitBar, VerdictHeader } from '@/components/ToolPrimitives';
 import {
   api,
-  formatINR,
+  formatCurrency,
   type ScoreImpactResponse,
   type WindfallResponse,
 } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 
 export function WindfallTool() {
   const profile = useMemo(() => loadProfileClient(), []);
+  const country = profile.user.country;
   const loudest = useMemo(() => deriveMetrics(profile).loudest, [profile]);
+  // Windfall payouts route against the loudest loan, so format figures in
+  // that loan's currency. If there is no loudest (no loans), fall back to
+  // the user's residence currency.
+  const ccy = loudest ? loanCurrency(loudest.loan, country) : userDefaultCurrency(country);
+  const fmt = (v: string | number) => formatCurrency(v, ccy);
   const [amount, setAmount] = useState('');
   const [score, setScore] = useState(
     profile.creditScore != null ? String(profile.creditScore) : '',
@@ -155,7 +162,7 @@ export function WindfallTool() {
               marginBottom: impact ? 12 : 0,
             }}
           >
-            <Stat label="Amount" value={formatINR(v.amount)} />
+            <Stat label="Amount" value={fmt(v.amount)} />
             <Stat
               label={
                 <>
@@ -167,7 +174,7 @@ export function WindfallTool() {
                   </InfoTip>
                 </>
               }
-              value={formatINR(v.interest_avoided)}
+              value={fmt(v.interest_avoided)}
               color={v.invest_instead ? 'var(--negative)' : 'var(--positive)'}
             />
           </div>
@@ -193,13 +200,13 @@ export function WindfallTool() {
                     Number(loudest.loan.scheduled_emi || 0) + Number(v.amount),
                   ),
                   scheduledEmi: loudest.loan.scheduled_emi || '0',
-                  note: `Windfall applied — ${formatINR(v.amount)} to ${v.loan_label}`,
+                  note: `Windfall applied — ${fmt(v.amount)} to ${v.loan_label}`,
                   loans: profile.user.loans,
                   country: profile.user.country,
                 });
                 setApplied(true);
               }}
-              label={`Apply this — log ${formatINR(v.amount)} to ${loudest.loan.bank} & reprice /plan`}
+              label={`Apply this — log ${fmt(v.amount)} to ${loudest.loan.bank} & reprice /plan`}
             />
           )}
         </Card>

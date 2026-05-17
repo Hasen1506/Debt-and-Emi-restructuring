@@ -204,3 +204,74 @@ def test_other_banks_field_grants_relationship_preference():
     assert refi.target_is_existing_relationship is True
     assert refi.target_bank == "PNB"
     assert refi.alternative_target_bank in {"SBI", "ICICI Bank"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Employment-type aware filtering (§ brainstorm #4 — May 2026)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_business_owner_gets_mid_band_on_unsecured_refi():
+    """Self-employed users see mid-of-band rate on unsecured products, since
+    underwriting widens the band for non-salaried income. Compare a personal
+    loan refi for salaried vs business_owner with the same loan."""
+    pl = Loan(
+        loan_type=LoanType.PERSONAL, bank="Some Local NBFC",
+        outstanding=D("500000"), nominal_rate=D("0.20"),
+        rate_type="fixed", tenure_months_remaining=36,
+        scheduled_emi=D("18500"),
+    )
+    # PERSONAL refi isn't covered in scan_all (only HOME/AUTO), so directly
+    # test _best_market_rate behaviour:
+    from engine.restructuring_scan import _best_market_rate
+    sal = _best_market_rate(Country.IN, LoanType.PERSONAL, known=None,
+                             income_type=IncomeType.SALARIED)
+    biz = _best_market_rate(Country.IN, LoanType.PERSONAL, known=None,
+                             income_type=IncomeType.BUSINESS_OWNER)
+    assert sal is not None and biz is not None
+    # business-owner rate must be strictly higher than salaried rate
+    assert biz[1] > sal[1]
+
+
+def test_business_owner_home_loan_rate_unchanged():
+    """Home loans are collateral-backed; SE banding shouldn't widen them.
+    Best-rate result must match salaried."""
+    from engine.restructuring_scan import _best_market_rate
+    sal = _best_market_rate(Country.IN, LoanType.HOME, known=None,
+                             income_type=IncomeType.SALARIED)
+    biz = _best_market_rate(Country.IN, LoanType.HOME, known=None,
+                             income_type=IncomeType.BUSINESS_OWNER)
+    assert sal == biz
+
+
+def test_business_owner_refi_rationale_includes_se_caveat():
+    """Refi rationale for a SE user mentions the SE underwriting caveat."""
+    home = Loan(
+        loan_type=LoanType.HOME, bank="Some Local Bank",
+        outstanding=D("4000000"), nominal_rate=D("0.10"),
+        rate_type="floating", tenure_months_remaining=240,
+        scheduled_emi=D("38601"),
+    )
+    user = _build_user(primary_bank="HDFC Bank", loans=[home])
+    user.income_type = IncomeType.BUSINESS_OWNER
+    opps = scan_all(user)
+    refi = next((o for o in opps if o.kind == "refinance"), None)
+    # Home loan is collateral-backed → no SE caveat appended.
+    assert refi is not None
+    assert "Self-employed" not in refi.rationale
+
+
+def test_business_owner_bt_rationale_includes_se_caveat():
+    """BT rationale for a SE user warns about underwriting friction."""
+    card = Loan(
+        loan_type=LoanType.CREDIT_CARD, bank="ICICI Bank",
+        outstanding=D("100000"), nominal_rate=D("0.42"),
+        rate_type="fixed", tenure_months_remaining=12,
+        scheduled_emi=D("0"),
+    )
+    user = _build_user(primary_bank="HDFC Bank", loans=[card])
+    user.income_type = IncomeType.BUSINESS_OWNER
+    opps = scan_all(user)
+    bt = next((o for o in opps if o.kind == "balance_transfer"), None)
+    assert bt is not None
+    assert "Self-employed" in bt.rationale

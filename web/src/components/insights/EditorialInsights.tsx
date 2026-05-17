@@ -8,6 +8,8 @@
  */
 
 import { ActivityLedger } from './ActivityLedger';
+import { AdvanceTaxLedger } from './AdvanceTaxLedger';
+import { InsightsSummaryStrip } from './InsightsSummaryStrip';
 import type { StoredProfile } from '@/lib/user-store';
 
 export function EditorialInsights({ profile }: { profile: StoredProfile }) {
@@ -60,11 +62,14 @@ export function EditorialInsights({ profile }: { profile: StoredProfile }) {
             fontStyle: 'italic',
           }}
         >
-          Record the months as they happen. Where you fell short, we draw
-          on the bank&apos;s own Schedule of Charges to estimate what the
-          shortfall would have cost — so an honest record stays honestly
-          priced.
+          Where <em>The path</em> projects forward, this page is the record
+          of what actually happened. Log the months as they pass. Where you
+          fell short, we draw on the bank&apos;s own Schedule of Charges to
+          estimate what the shortfall would have cost — so an honest record
+          stays honestly priced.
         </p>
+
+        <InsightsSummaryStrip user={profile.user} variant="editorial" />
 
         <div
           style={{
@@ -74,6 +79,7 @@ export function EditorialInsights({ profile }: { profile: StoredProfile }) {
           }}
         >
           <ActivityLedger user={profile.user} variant="editorial" />
+          <AdvanceTaxLedger user={profile.user} variant="editorial" />
         </div>
       </article>
 

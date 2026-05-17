@@ -23,6 +23,7 @@ export type LoanType =
 export type LiquidityClass = 'liquid' | 'locked' | 'age_gated';
 export type IncomeType = 'salaried' | 'business_owner';
 export type TaxRegimeIN = 'new' | 'old';
+export type FilingStatusUS = 'single' | 'mfj' | 'hoh';
 
 export interface LoanPayload {
   loan_type: LoanType;
@@ -38,6 +39,16 @@ export interface LoanPayload {
   /** Optional user override for credit-card minimum payment. When set, the
    *  bank-specific formula is bypassed. Ignored for non-card loans. */
   min_payment_override?: string;
+  /** Currency the loan is denominated in. Omit when the loan currency
+   *  matches user.country (INR for IN-resident, USD for US-resident). Set
+   *  explicitly for cross-currency cases — e.g. an NRI on a US work visa
+   *  servicing an Indian home loan tags it `currency: 'INR'`. */
+  currency?: 'INR' | 'USD';
+  /** Credit cards only: expected new charges per month. The simulator
+   *  bumps outstanding by this before each min-payment calc, modelling
+   *  "user keeps using the card" rather than freeze-and-pay-off. Default
+   *  '0' for backwards compatibility. Ignored on non-card loans. */
+  expected_monthly_spend?: string;
 }
 
 export interface InvestmentOptionPayload {
@@ -47,12 +58,44 @@ export interface InvestmentOptionPayload {
   is_in_pool?: boolean;
 }
 
+/** Coarse age band — used for downstream nudges (retirement check at 50+,
+ *  emergency-fund-first at <25). Never use exact age; the band is enough. */
+export type AgeBracket = 'under_25' | '25_35' | '35_50' | '50_plus';
+
 export interface UserPayload {
   country: Country;
   income_type: IncomeType;
+  /** Optional display name shown in the app greeting ("Hi, Hasen"). Not
+   *  consumed by the engine — pure UI label. Empty / omitted is fine. */
+  display_name?: string;
+  /** Optional age bracket — used for life-stage-aware suggestions. Not
+   *  consumed by the engine. */
+  age_bracket?: AgeBracket;
   annual_income: string;
   monthly_income: string;
   fixed_expenses: string;
+  /** Discretionary monthly outflows — eating out, travel, shopping. What
+   *  the user could cut if they had to. Optional; older profiles default
+   *  to "0" and the engine subtracts both this and fixed_expenses from
+   *  income to derive available surplus. */
+  variable_expenses?: string;
+  /** Annual pre-tax salary for salaried users — the gross number on the
+   *  offer letter / Form 16 line 1, before TDS and 80C/80D deductions but
+   *  AFTER subtracting employer PF, gratuity, and insurance from CTC.
+   *  Optional; when present we derive marginal_rate + bracket info from
+   *  it (otherwise the manual marginal_rate field takes over). */
+  annual_gross_salary?: string;
+  /** Annual business income for self-employed users — the "Total Income"
+   *  line from last filed ITR-3/ITR-4 (revenue − expenses − depreciation).
+   *  Optional; same role as annual_gross_salary on the SE side. */
+  annual_business_income?: string;
+  /** Self-reported credit score — CIBIL (300-900) for India, FICO (300-850)
+   *  for US. Optional. Drives the rate-prediction chip in setup: a higher
+   *  score moves the predicted rate down inside the bank's published range
+   *  (banks reserve the lower-end of their range for high-tier borrowers).
+   *  Treated as a string for parity with other numeric fields entered in
+   *  free-text inputs. */
+  credit_score?: string;
   savings_balance: string;
   primary_bank: string;
   location_tier?: string;
@@ -61,6 +104,13 @@ export interface UserPayload {
    *  banking relationships over new account opens. */
   other_banks?: string[];
   tax_regime?: TaxRegimeIN;
+  /** US filing status — drives which slab table applies. Defaults to
+   *  'single' if omitted. */
+  filing_status?: FilingStatusUS;
+  /** Optional US state marginal rate as decimal — e.g. '0.0682' for
+   *  California top bracket. Added to federal marginal_rate when present
+   *  so combined effective-rate math reflects state burden. */
+  state_marginal_rate?: string;
   efund_balance?: string;
   efund_target?: string;
   loans: LoanPayload[];
@@ -73,7 +123,29 @@ export interface UserPayload {
   /** Calendar month (1-12) when the annual hike fires. Defaults to 1 (Jan)
    *  if omitted; IN onboarding defaults to 4 (FY-1, April). */
   hike_effective_month?: number;
+  /** Optional hike phases for varied year-by-year rates. Each tuple is
+   *  [yearFrom (1-based inclusive), yearTo (1-based exclusive), rate (decimal)].
+   *  Example: [[1, 3, "0.07"], [3, 7, "0.10"]] = 7% in years 1-2, 10% in
+   *  years 3-6, fallback to annual_hike_rate after. Empty / omitted →
+   *  engine uses annual_hike_rate uniformly. */
+  hike_schedule?: [number, number, string][];
   inflation_rate?: string;
+  /** NRI on a US work visa (tax-resident in US, may hold INR debts). When
+   *  true, the UI threads dual-currency context through debt views and the
+   *  NRI-prepay tool autofills FX/currency fields from the profile. */
+  is_nri_us?: boolean;
+  /** FX rate per loan currency, expressed as "units of residence currency
+   *  per 1 unit of loan currency" — same direction as /api/fx-rate. Used
+   *  by the engine to convert non-residence-currency EMIs into residence
+   *  currency before summing into the surplus / DTI calculation. Empty
+   *  dict is the safe default (parity, so the helper is a no-op). */
+  fx_to_user_currency?: Record<string, string>;
+  /** Annualized FX drift per non-residence currency. When non-empty, the
+   *  engine compounds drift into the FX rate each month so long-horizon
+   *  loans denominated in a different currency see year-over-year
+   *  appreciation/depreciation. Wired up by the /plan FX-drift toggle
+   *  (NRI-US users only). Empty / omitted → flat FX rate. */
+  fx_drift_annualized?: Record<string, string>;
 }
 
 // ─── response types ─────────────────────────────────────────────────────────
@@ -86,6 +158,11 @@ export interface TrajectoryPointRaw {
   /** Per-loan total payment this month, keyed by 0-based index into
    *  `user.loans`. Empty after every loan clears. */
   payments_by_loan_index?: Record<string, string>;
+  /** Total outstanding balance, broken out by loan currency (INR / USD).
+   *  Single-currency users see a 1-element dict matching `balance`. Hybrid
+   *  users see one entry per currency so the trajectory chart can draw
+   *  separate lines instead of summing dissimilar units. */
+  balances_by_currency?: Record<string, string>;
 }
 
 export interface SimulateResponse {
@@ -185,6 +262,10 @@ export interface AssetPayload {
   sgb_at_maturity?: boolean;
   // US-specific — IRC §121 primary-residence exclusion eligibility
   us_section_121_eligible?: boolean;
+  // US-specific — set for muni-bond mutual funds whose coupon interest is
+  // federally tax-exempt under §103. Recasts expected return to taxable-
+  // equivalent yield when ranking hold-vs-sell against debt cost.
+  us_is_tax_exempt_muni?: boolean;
 }
 
 export interface AssetLiquidationResponse {
@@ -340,17 +421,39 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     cache: 'no-store',
+    credentials: 'include',
   });
   if (!res.ok) {
     const detail = await res.text();
     throw new Error(`${path} → ${res.status}: ${detail}`);
   }
+  // 204 No Content has an empty body — return undefined cast to T.
+  if (res.status === 204) return undefined as unknown as T;
   return res.json() as Promise<T>;
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { cache: 'no-store' });
+  const res = await fetch(`${BASE}${path}`, {
+    cache: 'no-store',
+    credentials: 'include',
+  });
   if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+async function putJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`${path} → ${res.status}: ${detail}`);
+  }
+  if (res.status === 204) return undefined as unknown as T;
   return res.json() as Promise<T>;
 }
 
@@ -369,6 +472,15 @@ export const api = {
     /** Calendar month (1-12) corresponding to sim month 1. Anchors hike
      *  firing to the user's actual today. Defaults to 1 (Jan) server-side. */
     simulation_start_month?: number;
+    /** Auto-reinvest events — month-indexed lump-sum injections in user
+     *  residence currency, routed to the highest-effective-APR active loan
+     *  at the matching month. Frontend pre-computes from projected annual
+     *  tax savings when the "Auto-reinvest tax savings" toggle is on.
+     *  Omit / empty array preserves baseline simulation behaviour. */
+    reinvest_events?: { month: number; amount: string }[];
+    /** When true, engine inflates fixed + variable expenses each month
+     *  using user.inflation_rate. Drives the /plan inflation toggle. */
+    inflate_expenses?: boolean;
   }) => post<SimulateResponse>('/api/simulate', req),
 
   baseline: (req: {
@@ -515,7 +627,31 @@ export const api = {
     get<InstitutionPayload[]>(
       `/api/institutions${country ? `?country=${country}` : ''}`,
     ),
+
+  // ─── auth ─────────────────────────────────────────────────────────────────
+  requestOtp: (email: string) =>
+    post<void>('/api/auth/request-otp', { email }),
+  verifyOtp: (email: string, code: string) =>
+    post<AuthUser>('/api/auth/verify-otp', { email, code }),
+  logout: () => post<void>('/api/auth/logout', {}),
+  me: () => get<AuthUser>('/api/auth/me'),
+
+  // ─── per-user state (server-persisted JSON blob) ──────────────────────────
+  getUserState: () => get<UserStatePayload>('/api/user/state'),
+  putUserState: (data: Record<string, unknown>) =>
+    putJson<UserStatePayload>('/api/user/state', { data }),
 };
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  display_name?: string | null;
+}
+
+export interface UserStatePayload {
+  data: Record<string, unknown> | null;
+  updated_at: string | null;
+}
 
 export interface RateRangePayload {
   low: string;

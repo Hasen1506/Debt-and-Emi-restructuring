@@ -12,11 +12,17 @@ export interface NavItem {
   labels: Record<ThemeName, string>;
 }
 
+// Top-level nav restructure: Home → Snapshot (the / route becomes the
+// at-a-glance landing instead of a generic home), Debts is dropped from
+// nav (still reachable via direct URL — managed inside Portfolio + Plan),
+// Portfolio is added as a real top-level tab so the assets surface isn't
+// buried under /onboarding, and Setup → Settings to read as ongoing
+// preferences rather than a one-time wizard.
 export const NAV_ITEMS: readonly NavItem[] = [
-  { route: '/',           labels: { editorial: 'The letter',  ledger: 'LEDGER',   existing: 'Home'     } },
-  { route: '/plan',       labels: { editorial: 'The path',    ledger: 'PLAN',     existing: 'Plan'     } },
-  { route: '/debts',      labels: { editorial: 'Your debts',  ledger: 'DEBTS',    existing: 'Debts'    } },
-  { route: '/tools',      labels: { editorial: 'Decisions',   ledger: 'TOOLS',    existing: 'Tools'    } },
-  { route: '/insights',   labels: { editorial: 'Archive',     ledger: 'INSIGHTS', existing: 'Insights' } },
-  { route: '/onboarding', labels: { editorial: 'Setup',       ledger: 'SETUP',    existing: 'Setup'    } },
+  { route: '/',           labels: { editorial: 'The view',    ledger: 'SNAPSHOT',  existing: 'Snapshot'  } },
+  { route: '/plan',       labels: { editorial: 'The path',    ledger: 'PLAN',      existing: 'Plan'      } },
+  { route: '/tools',      labels: { editorial: 'Decisions',   ledger: 'TOOLS',     existing: 'Tools'     } },
+  { route: '/portfolio',  labels: { editorial: 'Holdings',    ledger: 'PORTFOLIO', existing: 'Portfolio' } },
+  { route: '/insights',   labels: { editorial: 'Archive',     ledger: 'INSIGHTS',  existing: 'Insights'  } },
+  { route: '/onboarding', labels: { editorial: 'Preferences', ledger: 'SETTINGS',  existing: 'Settings'  } },
 ];

@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
 from datetime import date
-from typing import Optional
+from typing import Dict, Optional
 
 
 class Country(str, Enum):
@@ -75,6 +75,19 @@ class Loan:
     # the bank-specific formula in `minimum_payments.py` is bypassed. Ignored
     # for non-card loans (their minimum is `scheduled_emi` unambiguously).
     min_payment_override: Optional[Decimal] = None
+    # Currency the loan is denominated in. None = follow the user's country
+    # default (INR for IN-resident, USD for US-resident). Set explicitly when
+    # the loan currency differs from the user's residence — e.g. an NRI on a
+    # US work visa servicing an Indian home loan would tag their INR loans
+    # `currency="INR"` while their User.country stays "US".
+    currency: Optional[str] = None
+    # For credit cards only: expected new spend the user puts on the card
+    # each month. The simulator adds this to outstanding BEFORE computing
+    # the minimum payment, then proceeds normally. Models real card
+    # behaviour — outstanding doesn't only go down. Default 0 = "freeze
+    # the card today" behaviour (the original assumption, kept for
+    # backwards compatibility). Ignored on non-card loans.
+    expected_monthly_spend: Decimal = Decimal("0")
 
 
 @dataclass
@@ -109,6 +122,14 @@ class Asset:
     # US-specific — IRC §121 primary-residence capital-gains exclusion
     # ($250k single / $500k MFJ if lived in 2 of last 5 years). User confirms.
     us_section_121_eligible: bool = False
+    # US-specific — set True for muni-bond mutual funds whose ordinary coupon
+    # income is federally tax-exempt under §103. Capital gains on disposal
+    # are still taxable, but the asset's expected return (`expected_return_pct`)
+    # is recast to taxable-equivalent terms before being compared against
+    # debt rates in the ranker — a 3.5% tax-exempt yield is closer to ~5.2%
+    # for a 33% bracket holder, so the "should I sell to pay down debt"
+    # math otherwise understates the asset's value.
+    us_is_tax_exempt_muni: bool = False
 
 
 @dataclass
@@ -134,6 +155,26 @@ class User:
     savings_balance: Decimal
     primary_bank: str
     location_tier: str = "urban"    # "urban" | "semi_urban" | "rural"
+    # Discretionary monthly outflows — eating out, travel, shopping. Splits
+    # the old single "fixed_expenses" into truly-locked (rent, utilities)
+    # and squeezable, so the WhatIf "cut spending" slider operates on a
+    # bucket the user can actually trim. Defaults to 0 for old payloads.
+    variable_expenses: Decimal = Decimal("0")
+    # Pre-tax annual income. Salaried users fill `annual_gross_salary`
+    # (Form 16 line 1 — gross before TDS, after CTC minus employer PF /
+    # gratuity / insurance). Self-employed fill `annual_business_income`
+    # (ITR Total Income — revenue minus business expenses + depreciation).
+    # Mutually exclusive in practice; engine derives marginal_rate +
+    # advance-tax liability from whichever is present. None means the
+    # user provided only take-home, and we fall back to the manual
+    # marginal_rate parameter on simulate calls.
+    annual_gross_salary: Optional[Decimal] = None
+    annual_business_income: Optional[Decimal] = None
+    # Self-reported credit score (CIBIL 300-900 / FICO 300-850). Not used
+    # in core engine math; preserved so frontend predictors (rate prefill,
+    # risk band) can reference it without re-asking. None means "not
+    # provided" — predictors fall back to income/employment-type heuristics.
+    credit_score: Optional[int] = None
     # Banks the user holds accounts at (savings / current / DD) without an
     # active loan. Combined with the per-loan `bank` fields this gives the
     # full banking-relationship picture, so the new-debt and refinance
@@ -161,5 +202,38 @@ class User:
     # with `simulation_start_month` to anchor hike firing to the right
     # calendar month instead of "month-13 from sim start".
     hike_effective_month: int = 1
+    # Optional hike phases for users who expect varied hike rates over
+    # time (e.g. "first 2 yrs 7%, next 4 yrs 10%, job switch at year 6").
+    # Each phase is (year_from_inclusive, year_to_exclusive, rate). When
+    # present, takes precedence over annual_hike_rate inside the year range.
+    # Years are 1-based: phase (1, 3, 0.07) means rate 7% applies to the
+    # hike events firing in years 1 and 2 of the simulation. Year-to is
+    # exclusive so phases tile cleanly. Empty list = use annual_hike_rate
+    # uniformly (legacy behaviour preserved).
+    hike_schedule: list[tuple[int, int, Decimal]] = field(default_factory=list)
     business_cagr: Decimal = Decimal("0")
     inflation_rate: Decimal = Decimal("0.046")    # RBI MPC Apr 2026: CPI 4.6% FY26-27
+    # NRI on a US work visa. Tax-resident in the US (W-2 / 1099 income, USD)
+    # while still servicing Indian-origin debts (home loan, family obligations).
+    # When True, country stays "US" but loans may be tagged `currency="INR"`,
+    # and FX-aware affordability surfaces in the UI. Other NRI archetypes
+    # (NRI-UK, NRI-Gulf) aren't modelled in Phase 1.
+    is_nri_us: bool = False
+    # Annualized FX drift per non-residence loan currency. Same key shape
+    # as fx_to_user_currency. When non-empty, simulate_plan compounds the
+    # drift into the FX rate each month: rate_at_m = spot × (1 + drift)^((m-1)/12).
+    # Default empty → no drift, FX stays flat at spot for the whole horizon
+    # (legacy behaviour). Used by the /plan FX-drift toggle for NRI-US
+    # hybrid users; for them a small positive drift on INR captures the
+    # long-run inflation-differential view that the rupee depreciates
+    # ~2.5%/yr vs USD. Setting drift > 0 on the *residence* currency
+    # itself is a no-op since to_user_currency short-circuits parity.
+    fx_drift_annualized: dict[str, Decimal] = field(default_factory=dict)
+    # FX rates used to convert non-residence-currency loan amounts (EMIs,
+    # interest) into the user's residence currency for surplus / DTI math.
+    # Keyed by loan currency ("INR", "USD", ...) with value = "how many
+    # units of residence currency per 1 unit of loan currency" — same
+    # direction as the /api/fx-rate endpoint returns. Missing key falls
+    # back to 1.0 (parity), which is correct for the common single-
+    # currency case where the helper is a no-op.
+    fx_to_user_currency: Dict[str, Decimal] = field(default_factory=dict)

@@ -101,16 +101,43 @@ CII_TABLE = {
     "2022-23": 331,
     "2023-24": 348,
     "2024-25": 363,    # CBDT notification Aug 2024
-    # [VERIFY 2025-26, 2026-27 from CBDT annual notifications]
+}
+
+# Provisional CII values for FYs whose CBDT notification hasn't landed yet.
+# Extrapolated using the most recent 5y CAGR (~4.3%); flagged via
+# `cii_is_provisional()` so callers render an "estimate, awaiting CBDT
+# notification" caveat next to any tax math that relies on them. The
+# alternative — raising on missing FY — leaves the portfolio-liquidation
+# advisor unable to score pre-23-Jul-2024 real estate during the months the
+# notification lags, which is exactly when users are most likely to be
+# planning a sale.
+PROVISIONAL_CII_TABLE = {
+    "2025-26": 380,    # 363 × 1.046 (FY26-27 CPI 4.6%). Pending CBDT.
+    "2026-27": 397,    # 380 × 1.046. Pending CBDT.
 }
 
 
-def lookup_cii(fy_string: str) -> int:
+def lookup_cii(fy_string: str, *, allow_provisional: bool = True) -> int:
     """Returns CII index for the given financial year (e.g. '2024-25').
-    Raises if not found — caller should fail loudly rather than silently substitute."""
-    if fy_string not in CII_TABLE:
-        raise KeyError(f"CII not in table for FY {fy_string}. Refresh from CBDT.")
-    return CII_TABLE[fy_string]
+
+    With `allow_provisional=True` (default), falls back to the extrapolated
+    `PROVISIONAL_CII_TABLE` when the FY isn't in the verified set — keeps
+    downstream LTCG math working while the CBDT notification lags. Callers
+    that need authoritative-only data can pass `allow_provisional=False`
+    and let the KeyError propagate.
+    """
+    if fy_string in CII_TABLE:
+        return CII_TABLE[fy_string]
+    if allow_provisional and fy_string in PROVISIONAL_CII_TABLE:
+        return PROVISIONAL_CII_TABLE[fy_string]
+    raise KeyError(f"CII not in table for FY {fy_string}. Refresh from CBDT.")
+
+
+def cii_is_provisional(fy_string: str) -> bool:
+    """True when the CII for `fy_string` is an extrapolated estimate (CBDT
+    notification not yet released). UI should surface "indicative" copy
+    next to LTCG math relying on this."""
+    return fy_string in PROVISIONAL_CII_TABLE
 
 
 # ─────────────────────────────────────────────────────────────────────────────

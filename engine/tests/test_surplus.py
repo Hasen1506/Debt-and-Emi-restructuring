@@ -71,6 +71,18 @@ def test_available_surplus_floored_at_zero():
     assert compute_available_surplus(user, [card]) == D("0")
 
 
+def test_available_surplus_subtracts_variable_expenses():
+    """variable_expenses (discretionary spending) reduces surplus 1-for-1,
+    on top of fixed_expenses. Older payloads default to 0 so the field
+    is non-breaking."""
+    user = _user(efund_balance=D("400000"))
+    card = _loan(LoanType.CREDIT_CARD, D("50000"))
+    base = compute_available_surplus(user, [card])
+    user.variable_expenses = D("8000")
+    after = compute_available_surplus(user, [card])
+    assert base - after == D("8000")
+
+
 def test_available_surplus_subtracts_match():
     user = _user(efund_balance=D("400000"))
     card = _loan(LoanType.CREDIT_CARD, D("50000"))
@@ -107,3 +119,87 @@ def test_buffer_no_mab_for_us():
     user = _user(country=Country.US, savings=D("500000"), efund_target=D("100000"))
     buf = compute_available_buffer(user, total_monthly_emis=D("30000"))
     assert buf == D("400000")
+
+
+def test_total_minimums_converts_foreign_currency_loans_to_user_ccy():
+    """NRI-US: $4,500 USD income, $1,200 USD card EMI, ₹40k INR home EMI.
+    Without FX conversion the INR EMI would be summed as if it were USD —
+    surplus would go deeply negative. With the FX map (1 INR = 0.012 USD),
+    the home loan contributes 40,000 * 0.012 = $480 USD-equivalent."""
+    user = User(
+        country=Country.US, income_type=IncomeType.SALARIED,
+        annual_income=D("54000"), monthly_income=D("4500"),
+        fixed_expenses=D("1800"), savings_balance=D("20000"),
+        primary_bank="JPMorgan Chase",
+        filing_status=None,  # not exercising US-tax path here
+        efund_balance=D("20000"), efund_target=D("20000"),
+        is_nri_us=True,
+        fx_to_user_currency={"INR": D("0.012")},
+    )
+    us_card = Loan(
+        loan_type=LoanType.CREDIT_CARD, bank="Chase",
+        outstanding=D("8000"), nominal_rate=D("0.249"),
+        rate_type="fixed", tenure_months_remaining=0,
+        scheduled_emi=D("1200"), currency="USD",
+    )
+    in_home = Loan(
+        loan_type=LoanType.HOME, bank="HDFC Bank",
+        outstanding=D("4000000"), nominal_rate=D("0.085"),
+        rate_type="floating", tenure_months_remaining=240,
+        scheduled_emi=D("40000"), currency="INR",
+    )
+    total = compute_total_minimums(user, [us_card, in_home])
+    # Card min (Chase compound base) ≈ $200; home INR EMI 40000 * 0.012 = $480.
+    # Exact card value depends on minimum_payment formula — just assert the
+    # total is in a sane USD range. (~ $680 ± formula minor.)
+    assert D("600") < total < D("800")
+
+
+def test_total_minimums_no_op_when_loan_currency_matches_user_ccy():
+    """Single-currency users are unaffected by the FX path — same totals
+    as before the field existed (regression guard for the no-op claim)."""
+    user = User(
+        country=Country.IN, income_type=IncomeType.SALARIED,
+        annual_income=D("1500000"), monthly_income=D("125000"),
+        fixed_expenses=D("60000"), savings_balance=D("200000"),
+        primary_bank="HDFC Bank", tax_regime=TaxRegimeIN.NEW,
+        efund_balance=D("50000"), efund_target=D("300000"),
+        # Intentionally provide an FX rate that would obviously distort if
+        # mistakenly applied to same-currency loans.
+        fx_to_user_currency={"INR": D("100")},
+    )
+    home = Loan(
+        loan_type=LoanType.HOME, bank="HDFC Bank",
+        outstanding=D("4000000"), nominal_rate=D("0.085"),
+        rate_type="floating", tenure_months_remaining=240,
+        scheduled_emi=D("34713"),
+        # No currency tag → falls back to user residence (INR), so FX is a no-op.
+    )
+    total = compute_total_minimums(user, [home])
+    assert total == D("34713")
+
+
+def test_total_minimums_missing_fx_rate_falls_back_to_parity():
+    """If the user supplies a loan in a foreign currency but no FX rate for
+    it, the engine treats it as parity (rate=1) — wrong number but bounded
+    behaviour. UI is expected to surface this gap as a warning."""
+    user = User(
+        country=Country.US, income_type=IncomeType.SALARIED,
+        annual_income=D("60000"), monthly_income=D("5000"),
+        fixed_expenses=D("2000"), savings_balance=D("20000"),
+        primary_bank="JPMorgan Chase",
+        efund_balance=D("20000"), efund_target=D("20000"),
+        is_nri_us=True,
+        # Deliberately empty — no FX rate provided.
+        fx_to_user_currency={},
+    )
+    in_home = Loan(
+        loan_type=LoanType.HOME, bank="HDFC Bank",
+        outstanding=D("4000000"), nominal_rate=D("0.085"),
+        rate_type="floating", tenure_months_remaining=240,
+        scheduled_emi=D("40000"), currency="INR",
+    )
+    total = compute_total_minimums(user, [in_home])
+    # Parity fallback: 40000 INR → 40000 (no conversion). Engine doesn't
+    # crash; it returns a sum that's clearly off-scale for USD context.
+    assert total == D("40000")

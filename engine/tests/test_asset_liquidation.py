@@ -347,16 +347,20 @@ def test_proceeds_real_estate_uses_existing_ltcg_path():
     assert r.transaction_costs > D("0")
 
 
-def test_proceeds_real_estate_blocks_gracefully_when_cii_missing():
-    """Pre-Finance-Act property + current FY without CBDT-notified CII →
-    blocked with a clear reason, not a crash."""
+def test_proceeds_real_estate_uses_provisional_cii_when_cbdt_lags():
+    """Pre-Finance-Act property + current FY whose CII isn't CBDT-notified
+    yet (e.g. FY 2026-27 mid-2026) → engine uses an extrapolated provisional
+    CII so the math still runs, and surfaces a caveat naming the
+    provisional status. Replaces the prior 'block-on-missing-CII' behaviour
+    after the May 2026 backlog refinement."""
     a = _asset(date(2015, 6, 1), purchase_price=D("5000000"))
     r = compute_liquidation_proceeds(
         a, today=date(2026, 5, 16), country=Country.IN,
         taxable_income=D("1500000"), state="Maharashtra",
     )
-    assert r.is_blocked
-    assert "CII" in r.block_reason
+    assert not r.is_blocked
+    assert r.tax_owed > D("0")
+    assert any("extrapolated CII" in c or "provisional" in c.lower() for c in r.caveats)
 
 
 def test_proceeds_us_equity_no_longer_stubbed():
@@ -771,3 +775,76 @@ def test_us_ranker_skipped_bucket_holds_blocked_retirement():
     assert len(result["recommendations"]) == 0
     assert len(result["considered_but_skipped"]) == 1
     assert result["considered_but_skipped"][0].proceeds.is_blocked
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# US muni-bond tax-exempt yield recast (May 2026 backlog refinement)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_us_muni_bond_recasts_yield_to_tey_in_ranker():
+    """A 3.5% muni-bond fund + 5% mortgage: with TEY recast at 33%
+    marginal, the asset's effective return becomes ~5.22% → ranker
+    should pre-filter out (debt rate doesn't beat asset)."""
+    muni = Asset(
+        asset_type="debt_mf",
+        purchase_price=D("50000"),
+        purchase_date=date(2024, 1, 1),
+        current_market_value=D("52000"),
+        expected_return_pct=D("0.035"),
+        us_is_tax_exempt_muni=True,
+    )
+    mortgage = Loan(
+        loan_type=LoanType.HOME, bank="Chase",
+        outstanding=D("400000"), nominal_rate=D("0.05"), rate_type="fixed",
+        tenure_months_remaining=300, scheduled_emi=D("2147"),
+    )
+    user = _us_user(loans=[mortgage], assets=[muni])
+    # Without TEY recast: 0.035 < 0.05 → would recommend. With TEY at
+    # 33% marginal: TEY = 0.035 / 0.67 ≈ 0.0522 > 0.05 → pre-filtered.
+    result = rank_liquidations(
+        user, debt_effective_rates={0: D("0.05")}, marginal_rate=D("0.33"),
+    )
+    assert len(result["recommendations"]) == 0
+    assert len(result["considered_but_skipped"]) == 1
+    skipped = result["considered_but_skipped"][0]
+    assert "below" in skipped.skip_reason or "asset return" in skipped.skip_reason
+
+
+def test_us_muni_bond_caveat_appears_when_flagged():
+    """When us_is_tax_exempt_muni=True, the proceeds explanation includes
+    the §103 caveat instead of the generic 'flag this as muni' nudge."""
+    muni = Asset(
+        asset_type="debt_mf",
+        purchase_price=D("50000"),
+        purchase_date=date(2024, 1, 1),
+        current_market_value=D("52000"),
+        us_is_tax_exempt_muni=True,
+    )
+    r = compute_liquidation_proceeds(
+        muni, today=date(2026, 5, 16), country=Country.US,
+        taxable_income=D("150000"), filing_status=FilingStatusUS.SINGLE,
+        state_marginal_rate=D("0"),
+    )
+    assert any("§103" in c or "taxable-equivalent" in c for c in r.caveats)
+    # No "set us_is_tax_exempt_muni" nudge when it's already set
+    assert not any("set us_is_tax_exempt_muni" in c for c in r.caveats)
+
+
+def test_us_debt_fund_nudges_user_to_flag_muni_when_unset():
+    """Default behaviour: if us_is_tax_exempt_muni isn't set, surface a
+    caveat nudging the user to set it if applicable. Catches the common
+    case where a user holds VWITX / SHY / MUB but didn't realise it
+    changes the math."""
+    bond = Asset(
+        asset_type="debt_mf",
+        purchase_price=D("50000"),
+        purchase_date=date(2024, 1, 1),
+        current_market_value=D("52000"),
+    )
+    r = compute_liquidation_proceeds(
+        bond, today=date(2026, 5, 16), country=Country.US,
+        taxable_income=D("150000"), filing_status=FilingStatusUS.SINGLE,
+        state_marginal_rate=D("0"),
+    )
+    assert any("us_is_tax_exempt_muni" in c for c in r.caveats)

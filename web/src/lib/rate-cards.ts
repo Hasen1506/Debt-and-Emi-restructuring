@@ -13,7 +13,14 @@
  *       "below your bank's typical 7.75–8.15% range"
  */
 import Decimal from 'decimal.js';
-import type { LoanType } from './api';
+import type { Country, IncomeType, LoanType } from './api';
+import {
+  classifyCreditScore,
+  classifyIncomeBand,
+  getIncomeBenchmark,
+  type IncomeBand,
+  type ScoreBand,
+} from './income-benchmarks';
 import raw from './rate-cards.json';
 
 export interface RateRange {
@@ -167,4 +174,140 @@ export function describePosition(
         phrase: `In the upper third of ${bankLabel}'s typical range (${rangeStr}).`,
       };
   }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Rate prediction
+//
+// "Likely rate for someone with your profile" — driven by income vs. median
+// (banks reserve their lower band for above-median borrowers) and credit
+// score (a 800+ borrower at any income level usually clears the lower
+// tier). Used by the prefill chip in setup so users who don't know their
+// rate get a defensible starting number with explicit reasoning.
+//
+// Output rates are always inside the published range. Predictions are
+// intentionally conservative (bias toward higher) — the failure mode of
+// "we predicted lower than reality" is worse for a debt planner than the
+// reverse: an optimistic prediction silently understates projected
+// interest and over-promises the debt-free date.
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface RatePrediction {
+  /** Predicted nominal rate as a decimal (e.g. "0.0725" for 7.25%). */
+  rate: string;
+  /** 0..1 ratio inside [range.low, range.high]. 0 = bottom of band. */
+  ratio: number;
+  /** One-line rationale, e.g. "salaried · above-median income → lower
+   *  third of HDFC's range". Shown next to the chip so users see why. */
+  rationale: string;
+  /** Inputs that actually contributed. Useful for the UI to know whether
+   *  to nudge the user to enter a credit score for a better prediction. */
+  usedIncomeBand: IncomeBand;
+  usedScoreBand: ScoreBand | null;
+}
+
+/**
+ * Maps (income band, score band) to a target ratio inside [low, high].
+ *
+ * 0 = bottom of range (cheapest), 1 = top (most expensive). The ratios are
+ * shifted right vs. a pure linear mapping — a "high" income band lands at
+ * 0.20 not 0.0, because even top borrowers rarely get the absolute floor
+ * of a bank's published range.
+ *
+ * Credit score overrides income when present and stronger. CIBIL 800+
+ * pulls toward 0.10 regardless of income, since at that tier the lender
+ * is competing for the borrower; low score pushes up to ~0.75 because
+ * the bank prices risk into every offer.
+ */
+function targetRatio(income: IncomeBand, score: ScoreBand | null): number {
+  // Score-driven floors and ceilings — these win when present.
+  if (score === 'top') return 0.10;
+  if (score === 'weak') return 0.75;
+
+  // Otherwise blend income band with a softer score nudge.
+  let base: number;
+  switch (income) {
+    case 'high': base = 0.20; break;
+    case 'above': base = 0.35; break;
+    case 'below': base = 0.60; break;
+    case 'low': base = 0.80; break;
+  }
+  if (score === 'strong') base = Math.max(0.15, base - 0.10);
+  if (score === 'fair') base += 0.05;
+  return Math.min(0.85, Math.max(0.05, base));
+}
+
+/**
+ * Predict where in the bank's range a user would likely fall.
+ *
+ * Inputs:
+ *   • range — the bank's published low/high for this product
+ *   • country, incomeType — drive the median benchmark
+ *   • monthlyIncome — user's stated monthly income (residence currency).
+ *     For business owners with lumpy income, the setup form's
+ *     annual_income / 12 is the canonical input.
+ *   • creditScore — optional CIBIL/FICO; null when not provided.
+ *
+ * Returns null when:
+ *   • range is degenerate (low > high or both 0).
+ *   • monthlyIncome is non-positive (can't classify income band).
+ *
+ * Business-owner caveat: when no credit score is provided, the predictor
+ * adds a small bias toward mid-band (SE borrowers face more variance on
+ * actual quotes vs. published range). With a credit score present, this
+ * caveat falls away — score is a stronger signal than employment type.
+ */
+export function predictUserRate(
+  range: RateRange,
+  country: Country,
+  incomeType: IncomeType,
+  monthlyIncome: number,
+  creditScore?: number | null,
+): RatePrediction | null {
+  const lo = new Decimal(range.low);
+  const hi = new Decimal(range.high);
+  if (!lo.isFinite() || !hi.isFinite() || hi.lte(lo)) return null;
+  if (!Number.isFinite(monthlyIncome) || monthlyIncome <= 0) return null;
+
+  const benchmark = getIncomeBenchmark(country, incomeType);
+  const incomeBand = classifyIncomeBand(monthlyIncome, benchmark);
+  const scoreBand = classifyCreditScore(country, creditScore);
+  let ratio = targetRatio(incomeBand, scoreBand);
+
+  // SE caveat: lacking a credit score, nudge toward mid-band by half a
+  // step. Doesn't trigger when score is present because that's a stronger
+  // anchor than employment type.
+  if (incomeType === 'business_owner' && scoreBand == null) {
+    ratio = (ratio + 0.5) / 2;
+  }
+
+  const rate = lo.add(hi.sub(lo).mul(ratio)).toFixed(4);
+
+  const incomeLabel = {
+    high: 'well-above-median income',
+    above: 'above-median income',
+    below: 'below-median income',
+    low: 'low income',
+  }[incomeBand];
+  const scoreLabel = scoreBand
+    ? ({
+        top: country === 'IN' ? 'CIBIL 800+' : 'FICO 800+',
+        strong: country === 'IN' ? 'CIBIL 750-799' : 'FICO 740-799',
+        fair: country === 'IN' ? 'CIBIL 700-749' : 'FICO 670-739',
+        weak: country === 'IN' ? 'CIBIL <700' : 'FICO <670',
+      }[scoreBand])
+    : null;
+
+  const empLabel = incomeType === 'business_owner' ? 'self-employed' : 'salaried';
+  const rationaleParts = [empLabel, incomeLabel];
+  if (scoreLabel) rationaleParts.push(scoreLabel);
+  const rationale = rationaleParts.join(' · ');
+
+  return {
+    rate,
+    ratio,
+    rationale,
+    usedIncomeBand: incomeBand,
+    usedScoreBand: scoreBand,
+  };
 }

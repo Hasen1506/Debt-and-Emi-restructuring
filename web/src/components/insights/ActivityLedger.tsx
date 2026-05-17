@@ -142,6 +142,7 @@ export function ActivityLedger({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: variant === 'ledger' ? 18 : 22 }}>
       <LogForm onAdd={add} loans={user.loans} country={user.country} variant={variant} />
+      <ForwardPrepayForm onAdd={add} loans={user.loans} country={user.country} variant={variant} />
       <EntriesList
         entries={validEntries}
         loans={user.loans}
@@ -431,6 +432,220 @@ function LogForm({
   );
 }
 
+// ─── Forward-prepay form ───────────────────────────────────────────────────
+//
+// Captures the "I just sold an asset / got a bonus, log N forward months of
+// EMI as already-paid" flow. Records ONE paid_extra entry for today with
+// amount = N × scheduledEmi, tagged with the source. The amortisation engine
+// applies the excess as principal reduction immediately; the forward-month
+// metadata (`coversForwardMonths`, `source`) is informational for the UI so
+// the ledger can render "covers next N months via X" without parsing notes.
+//
+// Why not N separate forward-dated paid_full entries: the activity-cookie
+// reducer treats paid_full as a no-op on outstanding (it's the baseline);
+// only paid_extra contributes principal reduction. So N forward paid_fulls
+// wouldn't actually pull the trajectory forward in /plan — the user would
+// have done all that work and seen no change. One paid_extra does it.
+
+const PREPAY_SOURCES: { value: string; label: string }[] = [
+  { value: 'sold-asset', label: 'Sold an asset' },
+  { value: 'bonus', label: 'Bonus / windfall' },
+  { value: 'gift', label: 'Gift / family transfer' },
+  { value: 'refund', label: 'Refund / settlement' },
+  { value: 'other', label: 'Other' },
+];
+
+function ForwardPrepayForm({
+  onAdd,
+  loans,
+  country,
+  variant,
+}: {
+  onAdd: (draft: Omit<ActivityEntry, 'id' | 'loggedAt'>) => void;
+  loans: LoanPayload[];
+  country: Country;
+  variant: LedgerVariant;
+}) {
+  const [open, setOpen] = useState(false);
+  const [loanIndex, setLoanIndex] = useState(0);
+  const [months, setMonths] = useState('6');
+  const [source, setSource] = useState<string>('sold-asset');
+  const [note, setNote] = useState('');
+
+  const selectedLoan: LoanPayload | undefined = loans[loanIndex];
+  const scheduledEmi = selectedLoan?.scheduled_emi ?? '0';
+  const fmtPreview = country === 'IN' ? formatINR : formatUSD;
+
+  const monthsN = Math.max(0, Math.min(36, Number(months) || 0));
+  const totalAmount = new Decimal(scheduledEmi || 0).mul(monthsN).toFixed(0);
+  const lumpExtra = new Decimal(scheduledEmi || 0).mul(Math.max(0, monthsN - 1)).toFixed(0);
+
+  if (loans.length === 0) return null;
+
+  const inputStyle: React.CSSProperties = {
+    padding: '6px 10px',
+    fontSize: 13,
+    border: '1px solid var(--border)',
+    borderRadius: variant === 'ledger' ? 0 : 6,
+    background: 'var(--canvas)',
+    color: 'var(--ink)',
+    fontFamily: variant === 'ledger' ? 'var(--font-mono)' : 'var(--font-sans)',
+    width: '100%',
+  };
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedLoan || monthsN <= 0) return;
+    onAdd({
+      loanIndex,
+      kind: 'paid_extra',
+      date: today(),
+      amount: totalAmount,
+      scheduledEmi,
+      note: note.trim() || undefined,
+      source,
+      coversForwardMonths: monthsN,
+    });
+    setNote('');
+    setOpen(false);
+    setMonths('6');
+  }
+
+  return (
+    <Panel variant={variant}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
+          color: 'var(--accent)',
+          fontFamily: 'var(--font-sans)',
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+        }}
+        aria-expanded={open}
+      >
+        <span style={{ fontFamily: 'var(--font-mono)' }}>{open ? '▾' : '▸'}</span>
+        Prepay forward months (sold an asset, got a bonus)
+      </button>
+      {open && (
+        <form onSubmit={submit} style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="muted" style={{ fontSize: 11 }}>Which loan</span>
+            <select
+              value={loanIndex}
+              onChange={(e) => setLoanIndex(Number(e.target.value))}
+              style={inputStyle}
+            >
+              {loans.map((l, i) => (
+                <option key={i} value={i}>
+                  {l.bank || 'Unnamed'} · {LOAN_TYPE_SHORT[l.loan_type] ?? l.loan_type}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="muted" style={{ fontSize: 11 }}>Months to prepay (1-36)</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={months}
+              onChange={(e) => setMonths(e.target.value)}
+              style={{ ...inputStyle, fontFamily: 'var(--font-mono)', textAlign: 'right' }}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="muted" style={{ fontSize: 11 }}>Source</span>
+            <select
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              style={inputStyle}
+            >
+              {PREPAY_SOURCES.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="muted" style={{ fontSize: 11 }}>
+              Note (optional)
+            </span>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder={
+                source === 'sold-asset'
+                  ? 'e.g. sold equity MF, prepaying 6 months of EMI'
+                  : 'Optional detail'
+              }
+              style={inputStyle}
+              maxLength={120}
+            />
+          </label>
+          {monthsN > 0 && Number(scheduledEmi) > 0 && (
+            <div
+              style={{
+                gridColumn: '1 / -1',
+                padding: 10,
+                border: '1px dashed var(--border)',
+                borderRadius: variant === 'ledger' ? 0 : 6,
+                background: 'var(--soft-bg)',
+                fontSize: 12,
+                lineHeight: 1.55,
+                color: 'var(--ink)',
+              }}
+            >
+              Will record one <strong>paid_extra</strong> entry today for{' '}
+              <strong>{fmtPreview(totalAmount)}</strong> (
+              {monthsN} × {fmtPreview(scheduledEmi)} EMI). The first EMI
+              counts as this month&apos;s scheduled payment;{' '}
+              <strong>{fmtPreview(lumpExtra)}</strong> goes straight to
+              principal, pulling your debt-free date forward in /plan.
+            </div>
+          )}
+          <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              style={{
+                padding: '6px 12px',
+                fontSize: 13,
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: variant === 'ledger' ? 0 : 6,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={monthsN <= 0 || Number(scheduledEmi) <= 0}
+              style={{
+                padding: '6px 14px',
+                fontSize: 13,
+                cursor: monthsN > 0 ? 'pointer' : 'not-allowed',
+                borderRadius: variant === 'ledger' ? 0 : 6,
+                opacity: monthsN > 0 && Number(scheduledEmi) > 0 ? 1 : 0.6,
+              }}
+            >
+              {variant === 'ledger' ? '[PREPAY]' : 'Record prepayment'}
+            </button>
+          </div>
+        </form>
+      )}
+    </Panel>
+  );
+}
+
 // ─── Entries list ──────────────────────────────────────────────────────────
 
 function EntriesList({
@@ -599,6 +814,19 @@ function LedgerEntries({
                   <span style={{ color: 'var(--muted)' }}>
                     · {LOAN_TYPE_SHORT[loan.loan_type] ?? loan.loan_type}
                   </span>
+                  {e.coversForwardMonths && e.coversForwardMonths > 0 && (
+                    <div
+                      style={{
+                        marginTop: 4,
+                        fontSize: 10,
+                        color: 'var(--accent)',
+                        letterSpacing: '0.06em',
+                      }}
+                    >
+                      covers {e.coversForwardMonths} mo
+                      {e.source ? ` · ${e.source.replace('-', ' ')}` : ''}
+                    </div>
+                  )}
                 </td>
                 <td
                   style={{
@@ -734,6 +962,21 @@ function ExistingEntries({
                   <span className="muted" style={{ fontWeight: 400 }}>
                     · {LOAN_TYPE_SHORT[loan.loan_type] ?? loan.loan_type}
                   </span>
+                  {e.coversForwardMonths && e.coversForwardMonths > 0 && (
+                    <span
+                      className="chip"
+                      style={{
+                        marginLeft: 8,
+                        fontSize: 11,
+                        color: 'var(--accent)',
+                        borderColor: 'var(--accent)',
+                        background: 'transparent',
+                      }}
+                    >
+                      covers {e.coversForwardMonths} mo
+                      {e.source ? ` · ${e.source.replace('-', ' ')}` : ''}
+                    </span>
+                  )}
                 </span>
                 <span
                   className="chip"
@@ -925,8 +1168,25 @@ function EditorialEntries({
                 <>
                   You sent <strong>{fmt(e.amount)}</strong> against your{' '}
                   {LOAN_TYPE_SHORT[loan.loan_type] ?? loan.loan_type} with{' '}
-                  {loan.bank || 'this lender'} on {e.date} — the scheduled EMI
-                  was <strong>{fmt(e.scheduledEmi)}</strong>, so the extra{' '}
+                  {loan.bank || 'this lender'} on {e.date}
+                  {e.coversForwardMonths && e.coversForwardMonths > 0 ? (
+                    <>
+                      {' '}— covering the next{' '}
+                      <strong>{e.coversForwardMonths} months</strong>
+                      {e.source ? (
+                        <>
+                          {' '}from <em>{e.source.replace('-', ' ')}</em>
+                        </>
+                      ) : null}
+                      .
+                    </>
+                  ) : (
+                    <>
+                      {' '}— the scheduled EMI was{' '}
+                      <strong>{fmt(e.scheduledEmi)}</strong>,
+                    </>
+                  )}{' '}
+                  so the extra{' '}
                   <strong style={{ color: 'var(--positive)' }}>
                     {fmt(extra)}
                   </strong>{' '}

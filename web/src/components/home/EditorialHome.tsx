@@ -18,14 +18,15 @@
  * two evergreen principles.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
 import type { LoanType } from '@/lib/api';
-import { formatINR } from '@/lib/api';
+import { formatCurrency } from '@/lib/api';
 import { fmt } from '@/lib/effective-apr';
 import { deriveMetrics } from '@/lib/derived';
 import { buildHeadline, buildMarginalia } from '@/lib/letter';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'credit card',
@@ -37,27 +38,18 @@ const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   bnpl: 'BNPL line',
 };
 
+// Three focused next-steps. The full tool catalog lives at /tools — no
+// need to mirror it on the snapshot landing.
 const MAIN_ACTIONS = [
   { label: 'Show me the math', href: '/plan' },
-  { label: 'What if I disagree?', href: '/tools/windfall' },
-  { label: 'See alternatives', href: '/debts' },
-] as const;
-
-const MORE_ACTIONS = [
-  { label: 'A bonus arrived', href: '/tools/windfall' },
-  { label: 'I paid extra this month', href: '/tools/recompute' },
-  { label: 'I want to borrow more', href: '/tools/new-debt' },
-  { label: 'I want to sell an asset', href: '/tools/liquidate' },
-  { label: 'Cash sitting idle', href: '/tools/cash-yield' },
-  { label: 'Is it the right time?', href: '/tools/right-time' },
-  { label: 'NRI prepay vs invest', href: '/tools/nri-prepay' },
+  { label: 'Browse holdings', href: '/portfolio' },
+  { label: 'Explore decisions', href: '/tools' },
 ] as const;
 
 const D24 = new Decimal('0.24');
 
 export function EditorialHome({ profile }: { profile: StoredProfile }) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
-  const [showMore, setShowMore] = useState(false);
   const headline = buildHeadline(m.loudest);
   const marginalia = useMemo(
     () => buildMarginalia(m.loans, m.blendedEffective, profile.user),
@@ -84,7 +76,7 @@ export function EditorialHome({ profile }: { profile: StoredProfile }) {
             marginBottom: 12,
           }}
         >
-          This week's letter
+          Snapshot · this week
         </div>
         <h1
           style={{
@@ -106,7 +98,7 @@ export function EditorialHome({ profile }: { profile: StoredProfile }) {
         {m.loans.length === 0 ? (
           <EmptyLetter />
         ) : (
-          <BodyLetter metrics={m} />
+          <BodyLetter metrics={m} country={profile.user.country} />
         )}
 
         <div
@@ -137,53 +129,6 @@ export function EditorialHome({ profile }: { profile: StoredProfile }) {
           ))}
         </div>
 
-        <div style={{ marginTop: 28 }}>
-          <button
-            type="button"
-            onClick={() => setShowMore((v) => !v)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--muted)',
-              fontFamily: 'var(--font-sans)',
-              fontSize: 12,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              padding: 0,
-            }}
-          >
-            {showMore ? '— less' : 'Other situations · write back'}
-          </button>
-          {showMore && (
-            <div
-              style={{
-                marginTop: 14,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-                fontFamily: 'var(--font-display)',
-                fontSize: 15,
-                fontStyle: 'italic',
-              }}
-            >
-              {MORE_ACTIONS.map((a) => (
-                <a
-                  key={a.href}
-                  href={a.href}
-                  style={{
-                    color: 'var(--ink)',
-                    textDecoration: 'none',
-                    borderBottom: '1px dotted var(--border)',
-                    paddingBottom: 4,
-                  }}
-                >
-                  {a.label} →
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
       </article>
 
       <aside
@@ -258,7 +203,13 @@ function EmptyLetter() {
   );
 }
 
-function BodyLetter({ metrics }: { metrics: ReturnType<typeof deriveMetrics> }) {
+function BodyLetter({
+  metrics,
+  country,
+}: {
+  metrics: ReturnType<typeof deriveMetrics>;
+  country: 'IN' | 'US';
+}) {
   const loudest = metrics.loudest!;
   const spread = loudest.effective.sub(loudest.nominal);
   const bigSpread = spread.gt(new Decimal('0.03'));
@@ -266,6 +217,10 @@ function BodyLetter({ metrics }: { metrics: ReturnType<typeof deriveMetrics> }) 
   const loudestIsCard = loudest.loan.loan_type === 'credit_card';
   const loudestKind = LOAN_TYPE_LABEL[loudest.loan.loan_type];
   const lender = loudest.loan.bank || 'your highest-rate lender';
+  // Per-loan strings (outstanding) follow the loan's currency; portfolio-level
+  // surplus is already in user-residence ccy because deriveMetrics converts.
+  const userCcy = userDefaultCurrency(country);
+  const loudestCcy = loanCurrency(loudest.loan, country);
 
   return (
     <>
@@ -283,7 +238,7 @@ function BodyLetter({ metrics }: { metrics: ReturnType<typeof deriveMetrics> }) 
             own. Nominal {fmt(loudest.nominal)} becomes{' '}
             <strong>{fmt(loudest.effective)}</strong>{' '}
             {loudestIsCard ? 'once GST is folded in' : 'once fees + GST are folded in'}
-            , and at a balance of <strong>{formatINR(loudest.outstanding)}</strong>{' '}
+            , and at a balance of <strong>{formatCurrency(loudest.outstanding.toString(), loudestCcy)}</strong>{' '}
             that's the line generating the most friction. Until it's closer to
             clear, every other move loses to this one.
           </>
@@ -291,7 +246,7 @@ function BodyLetter({ metrics }: { metrics: ReturnType<typeof deriveMetrics> }) 
           <>
             Your <strong>{lender}</strong> {loudestKind} is currently your
             highest-effective line at <strong>{fmt(loudest.effective)}</strong>.
-            With a balance of <strong>{formatINR(loudest.outstanding)}</strong>,
+            With a balance of <strong>{formatCurrency(loudest.outstanding.toString(), loudestCcy)}</strong>,
             it's the one to chase first — but the spread vs nominal is modest,
             so there's no fire.
           </>
@@ -308,7 +263,7 @@ function BodyLetter({ metrics }: { metrics: ReturnType<typeof deriveMetrics> }) 
           }}
         >
           So the move this month: route the{' '}
-          <strong>{formatINR(metrics.surplus)}</strong>{' '}
+          <strong>{formatCurrency(metrics.surplus.toString(), userCcy)}</strong>{' '}
           <abbr title="Surplus = income − fixed expenses − scheduled EMIs. The cash left over each month to deploy against debt above the minimums.">
             surplus
           </abbr>{' '}
@@ -334,7 +289,7 @@ function BodyLetter({ metrics }: { metrics: ReturnType<typeof deriveMetrics> }) 
           <abbr title="Surplus = income − fixed expenses − scheduled EMIs. The cash left over each month to deploy against debt above the minimums.">
             surplus
           </abbr>{' '}
-          is currently <strong>{formatINR(metrics.surplus)}</strong>
+          is currently <strong>{formatCurrency(metrics.surplus.toString(), userCcy)}</strong>
           /month — there&apos;s nothing to allocate until you trim fixed expenses or
           re-negotiate an EMI. Until then, prepayment isn&apos;t the right move; not
           falling behind is.
@@ -370,7 +325,7 @@ function BodyLetter({ metrics }: { metrics: ReturnType<typeof deriveMetrics> }) 
         >
           {[
             {
-              v: surplusPositive ? formatINR(metrics.surplus) : '—',
+              v: surplusPositive ? formatCurrency(metrics.surplus.toString(), userCcy) : '—',
               l: surplusPositive ? 'surplus this month' : 'no surplus to allocate',
               c: surplusPositive ? 'var(--ink)' : 'var(--muted)',
             },

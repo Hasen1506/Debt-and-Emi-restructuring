@@ -10,15 +10,15 @@
  * it accurately needs the simulation engine.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
 import type { LoanType } from '@/lib/api';
-import { formatINR } from '@/lib/api';
+import { formatCurrency } from '@/lib/api';
 import { fmt } from '@/lib/effective-apr';
 import { deriveMetrics, type LoanWithEffective } from '@/lib/derived';
 import { buildHeadline, buildMarginalia } from '@/lib/letter';
-import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'CREDIT CARD',
@@ -29,14 +29,6 @@ const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   gold_loan: 'GOLD LOAN',
   bnpl: 'BNPL',
 };
-
-// Top 3 quick-actions only — the full tool catalog with descriptions lives
-// at /tools. Keeping the home surface tight avoids duplicating the index.
-const QUICK_TOOLS = [
-  { token: 'WINDFALL', sub: 'BONUS / REFUND / GIFT', href: '/tools/windfall' },
-  { token: 'RECOMPUTE', sub: 'PAID EXTRA → REPRICE', href: '/tools/recompute' },
-  { token: 'NEW-DEBT', sub: 'PRE-BORROW CHECK', href: '/tools/new-debt' },
-] as const;
 
 const LOAN_TYPE_PROSE: Record<LoanType, string> = {
   credit_card: 'credit card',
@@ -68,10 +60,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export function LedgerHome({ profile }: { profile: StoredProfile }) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
-  const { user, marginalRate } = profile;
-  const country = user.country;
-  const taxRegime = country === 'IN' ? user.tax_regime : undefined;
-  const [expanded, setExpanded] = useState<number | null>(null);
+  const { user } = profile;
 
   if (m.loans.length === 0) {
     return (
@@ -94,7 +83,10 @@ export function LedgerHome({ profile }: { profile: StoredProfile }) {
     );
   }
 
-  const ccy = (d: Decimal) => formatINR(d);
+  // Portfolio totals are already FX-converted to user residence currency in
+  // deriveMetrics, so the user-default formatter is the right one here.
+  const userCcy = userDefaultCurrency(profile.user.country);
+  const ccy = (d: Decimal) => formatCurrency(d.toString(), userCcy);
   const surplusTone =
     m.surplus.gt(0) ? 'var(--positive)' : m.surplus.lt(0) ? 'var(--negative)' : 'var(--ink)';
 
@@ -143,7 +135,7 @@ export function LedgerHome({ profile }: { profile: StoredProfile }) {
       }}
     >
       <section>
-        <SectionLabel>$ STATUS</SectionLabel>
+        <SectionLabel>$ SNAPSHOT</SectionLabel>
         <div
           style={{
             display: 'grid',
@@ -186,84 +178,6 @@ export function LedgerHome({ profile }: { profile: StoredProfile }) {
         </div>
       </section>
 
-      <section>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: '0.18em',
-            marginBottom: 6,
-          }}
-        >
-          <span>$ OPEN POSITIONS · {m.loans.length}</span>
-          <a href="/onboarding" style={{ color: 'var(--ink)', textDecoration: 'none' }}>
-            [↻ EDIT]
-          </a>
-        </div>
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontSize: 12,
-          }}
-        >
-          <thead>
-            <tr
-              style={{
-                borderTop: '2px solid var(--ink)',
-                borderBottom: '1px solid var(--ink)',
-              }}
-            >
-              {['#', 'LENDER', 'TYPE', 'NOMINAL', 'EFFECTIVE', 'OUTSTANDING', 'EMI', 'TENURE', ''].map(
-                (h, i) => (
-                  <th
-                    key={h || `c${i}`}
-                    style={{
-                      padding: '8px 12px',
-                      textAlign: i > 2 ? 'right' : 'left',
-                      fontWeight: 700,
-                      letterSpacing: '0.08em',
-                      fontSize: 10,
-                      color: 'var(--muted)',
-                    }}
-                  >
-                    {h}
-                  </th>
-                ),
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {m.loans.map((row) => (
-              <PositionRow
-                key={row.index}
-                row={row}
-                expanded={expanded === row.index}
-                onToggle={() => setExpanded(expanded === row.index ? null : row.index)}
-                marginalRate={marginalRate}
-                country={country}
-                taxRegime={taxRegime}
-                loudestIdx={m.loudest?.index ?? -1}
-              />
-            ))}
-            <tr style={{ borderTop: '2px solid var(--ink)' }}>
-              <td colSpan={5} style={{ padding: '10px 12px', fontWeight: 700 }}>
-                TOTAL
-              </td>
-              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                {ccy(m.totalOutstanding)}
-              </td>
-              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                {ccy(m.emiBurden)}/mo
-              </td>
-              <td colSpan={2}></td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
       {m.loudest && (
         <LedgerLetter
           loudest={m.loudest}
@@ -275,59 +189,64 @@ export function LedgerHome({ profile }: { profile: StoredProfile }) {
       )}
 
       <section>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: '0.18em',
-            marginBottom: 6,
-            fontFamily: 'var(--font-mono)',
-          }}
-        >
-          <span>$ QUICK ACTIONS</span>
+        <SectionLabel>$ NEXT</SectionLabel>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <a
+            href="/plan"
+            style={{
+              padding: '8px 14px',
+              border: '1px solid var(--ink)',
+              background: 'var(--ink)',
+              color: 'var(--canvas)',
+              textDecoration: 'none',
+              fontSize: 11,
+              letterSpacing: '0.12em',
+            }}
+          >
+            [SEE FULL PLAN &rsaquo;]
+          </a>
+          <a
+            href="/portfolio"
+            style={{
+              padding: '8px 14px',
+              border: '1px solid var(--ink)',
+              background: 'var(--canvas)',
+              color: 'var(--ink)',
+              textDecoration: 'none',
+              fontSize: 11,
+              letterSpacing: '0.12em',
+            }}
+          >
+            [HOLDINGS]
+          </a>
           <a
             href="/tools"
-            style={{ color: 'var(--ink)', textDecoration: 'none' }}
+            style={{
+              padding: '8px 14px',
+              border: '1px solid var(--ink)',
+              background: 'var(--canvas)',
+              color: 'var(--ink)',
+              textDecoration: 'none',
+              fontSize: 11,
+              letterSpacing: '0.12em',
+            }}
           >
-            [ALL TOOLS →]
+            [TOOLS]
           </a>
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-            gap: 1,
-            background: 'var(--ink)',
-            padding: 1,
-          }}
-        >
-          {QUICK_TOOLS.map((t) => (
-            <a
-              key={t.token}
-              href={t.href}
-              style={{
-                background: 'var(--canvas)',
-                padding: '10px 12px',
-                textDecoration: 'none',
-                color: 'var(--ink)',
-                display: 'block',
-              }}
-            >
-              <div style={{ fontSize: 12, fontWeight: 700 }}>[{t.token}]</div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: 'var(--muted)',
-                  marginTop: 4,
-                  letterSpacing: '0.06em',
-                }}
-              >
-                {t.sub}
-              </div>
-            </a>
-          ))}
+          <a
+            href="/onboarding"
+            style={{
+              padding: '8px 14px',
+              border: '1px solid var(--ink)',
+              background: 'var(--canvas)',
+              color: 'var(--ink)',
+              textDecoration: 'none',
+              fontSize: 11,
+              letterSpacing: '0.12em',
+            }}
+          >
+            [EDIT PROFILE]
+          </a>
         </div>
       </section>
     </div>
@@ -355,6 +274,12 @@ function LedgerLetter({
   const loudestIsCard = loudest.loan.loan_type === 'credit_card';
   const loudestKind = LOAN_TYPE_PROSE[loudest.loan.loan_type];
   const lender = loudest.loan.bank || 'your highest-rate lender';
+  const userCcy = userDefaultCurrency(user.country);
+  const loudestCcy = loanCurrency(loudest.loan, user.country);
+  const fmtLoudest = (v: string | number | Decimal) =>
+    formatCurrency(v instanceof Decimal ? v.toString() : v, loudestCcy);
+  const fmtUser = (v: string | number | Decimal) =>
+    formatCurrency(v instanceof Decimal ? v.toString() : v, userCcy);
 
   return (
     <section>
@@ -405,7 +330,7 @@ function LedgerLetter({
                   ? 'once GST is folded in'
                   : 'once fees + GST are folded in'}
                 , and at a balance of{' '}
-                <strong>{formatINR(loudest.outstanding)}</strong> that&apos;s the
+                <strong>{fmtLoudest(loudest.outstanding)}</strong> that&apos;s the
                 line generating the most friction. Until it&apos;s closer to
                 clear, every other move loses to this one.
               </>
@@ -414,7 +339,7 @@ function LedgerLetter({
                 Your <strong>{lender}</strong> {loudestKind} is currently your
                 highest-effective line at{' '}
                 <strong>{fmt(loudest.effective)}</strong>. With a balance of{' '}
-                <strong>{formatINR(loudest.outstanding)}</strong>, it&apos;s the
+                <strong>{fmtLoudest(loudest.outstanding)}</strong>, it&apos;s the
                 one to chase first — but the spread vs nominal is modest, so
                 there&apos;s no fire.
               </>
@@ -432,7 +357,7 @@ function LedgerLetter({
             {surplusPositive ? (
               <>
                 Move this month: route the{' '}
-                <strong>{formatINR(surplus)}</strong>{' '}
+                <strong>{fmtUser(surplus)}</strong>{' '}
                 <abbr title="Surplus = income − fixed expenses − scheduled EMIs. The cash left over each month to deploy against debt above the minimums.">
                   surplus
                 </abbr>{' '}
@@ -450,7 +375,7 @@ function LedgerLetter({
                 </abbr>{' '}
                 is{' '}
                 <strong style={{ color: 'var(--negative)' }}>
-                  {formatINR(surplus)}
+                  {fmtUser(surplus)}
                 </strong>
                 /month — there&apos;s nothing to allocate until you trim fixed
                 expenses or re-negotiate an EMI. Until then, prepayment
@@ -471,7 +396,7 @@ function LedgerLetter({
           >
             {[
               {
-                v: surplusPositive ? formatINR(surplus) : '—',
+                v: surplusPositive ? fmtUser(surplus) : '—',
                 l: surplusPositive ? 'SURPLUS / MO' : 'NO SURPLUS',
                 c: surplusPositive ? 'var(--ink)' : 'var(--muted)',
               },
@@ -557,105 +482,5 @@ function LedgerLetter({
         </aside>
       </div>
     </section>
-  );
-}
-
-function PositionRow({
-  row,
-  expanded,
-  onToggle,
-  marginalRate,
-  country,
-  taxRegime,
-  loudestIdx,
-}: {
-  row: LoanWithEffective;
-  expanded: boolean;
-  onToggle: () => void;
-  marginalRate: string;
-  country: 'IN' | 'US';
-  taxRegime: 'new' | 'old' | undefined;
-  loudestIdx: number;
-}) {
-  const hl = row.index === loudestIdx && row.effective.gt(0.24);
-  const tenure =
-    row.loan.tenure_months_remaining > 0 ? `${row.loan.tenure_months_remaining} mo` : '—';
-  const emi =
-    Number(row.loan.scheduled_emi) > 0 ? formatINR(row.loan.scheduled_emi) : '—';
-
-  return (
-    <>
-      <tr
-        style={{
-          borderBottom: expanded ? 'none' : '1px dashed var(--dash)',
-          background: hl ? '#fff3a3' : 'transparent',
-        }}
-      >
-        <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>
-          {String(row.index + 1).padStart(2, '0')}
-        </td>
-        <td style={{ padding: '10px 12px', fontWeight: 700 }}>
-          {row.loan.bank || '—'}
-        </td>
-        <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>
-          {LOAN_TYPE_LABEL[row.loan.loan_type]}
-        </td>
-        <td style={{ padding: '10px 12px', textAlign: 'right' }}>{fmt(row.nominal)}</td>
-        <td
-          style={{
-            padding: '10px 12px',
-            textAlign: 'right',
-            color: hl ? 'var(--negative)' : 'var(--ink)',
-            fontWeight: hl ? 700 : 400,
-          }}
-        >
-          {fmt(row.effective)}
-        </td>
-        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-          {formatINR(row.loan.outstanding || '0')}
-        </td>
-        <td style={{ padding: '10px 12px', textAlign: 'right' }}>{emi}</td>
-        <td
-          style={{
-            padding: '10px 12px',
-            textAlign: 'right',
-            color: 'var(--muted)',
-          }}
-        >
-          {tenure}
-        </td>
-        <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-          <button
-            type="button"
-            onClick={onToggle}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--ink)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              letterSpacing: '0.08em',
-              cursor: 'pointer',
-              padding: 0,
-            }}
-          >
-            {expanded ? '[CLOSE]' : '[BREAKDOWN]'}
-          </button>
-        </td>
-      </tr>
-      {expanded && (
-        <tr style={{ borderBottom: '1px dashed var(--dash)' }}>
-          <td colSpan={9} style={{ padding: '0 12px 14px' }}>
-            <EffectiveAprBreakdown
-              loan={row.loan}
-              marginalTaxRate={marginalRate}
-              country={country}
-              taxRegime={taxRegime}
-              variant="card"
-            />
-          </td>
-        </tr>
-      )}
-    </>
   );
 }

@@ -16,14 +16,64 @@ from engine.country_data import lookup_mab
 D = Decimal
 
 
+def _user_residence_currency(user: User) -> str:
+    """Currency the user earns + spends in. Drives FX conversion direction."""
+    return "USD" if user.country == Country.US else "INR"
+
+
+def loan_currency_or_default(loan: Loan, user: User) -> str:
+    """Resolve a loan's currency, falling back to user residence default."""
+    return loan.currency or _user_residence_currency(user)
+
+
+def to_user_currency(amount: Decimal, loan: Loan, user: User) -> Decimal:
+    """Convert a loan-currency amount into the user's residence currency.
+
+    For single-currency users this is a no-op (rate defaults to 1). For
+    hybrid users (NRI-US with INR loans), `user.fx_to_user_currency["INR"]`
+    holds the per-1-INR USD rate so the surplus / DTI math sums in a
+    single currency.
+    """
+    loan_ccy = loan_currency_or_default(loan, user)
+    if loan_ccy == _user_residence_currency(user):
+        return amount
+    rate = user.fx_to_user_currency.get(loan_ccy, D("1"))
+    return amount * rate
+
+
+def from_user_currency(amount: Decimal, loan: Loan, user: User) -> Decimal:
+    """Inverse: user-currency surplus → loan-currency principal amount.
+
+    Used by the simulator when routing extra surplus (denominated in
+    residence currency) toward a loan held in a different currency.
+    """
+    loan_ccy = loan_currency_or_default(loan, user)
+    if loan_ccy == _user_residence_currency(user):
+        return amount
+    rate = user.fx_to_user_currency.get(loan_ccy, D("1"))
+    if rate == 0:
+        return amount
+    return amount / rate
+
+
 def compute_total_minimums(
     user: User,
     loans: list[Loan],
     simple_mode: bool = False,
 ) -> Decimal:
-    """Sum of bank-specific minimum payments across all loans."""
+    """Sum of bank-specific minimum payments across all loans, converted
+    into the user's residence currency. The pure-INR or pure-USD case is
+    unchanged — FX helper is a no-op when loan currency matches user
+    currency."""
     return sum(
-        (compute_minimum_payment(l, user.country, simple_mode=simple_mode) for l in loans),
+        (
+            to_user_currency(
+                compute_minimum_payment(l, user.country, simple_mode=simple_mode),
+                l,
+                user,
+            )
+            for l in loans
+        ),
         D("0"),
     )
 
@@ -64,6 +114,7 @@ def compute_available_surplus(
     surplus = (
         user.monthly_income
         - user.fixed_expenses
+        - user.variable_expenses
         - total_minimums
         - efund_monthly
         - matched_contribution

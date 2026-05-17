@@ -15,7 +15,7 @@ import {
 } from '@/components/ToolPrimitives';
 import {
   api,
-  formatINR,
+  formatCurrency,
   monthIndexToLabel,
   type QuickRecomputeResponse,
   type ScoreImpactResponse,
@@ -23,9 +23,11 @@ import {
 import { loadProfileClient } from '@/lib/user-store';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 
 export function RecomputeTool() {
   const profile = useMemo(() => loadProfileClient(), []);
+  const country = profile.user.country;
   const loudestIdx = useMemo(() => deriveMetrics(profile).loudest?.index ?? 0, [profile]);
   const [extra, setExtra] = useState('');
   const [targetIdx, setTargetIdx] = useState<string>(String(loudestIdx));
@@ -34,6 +36,15 @@ export function RecomputeTool() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [applied, setApplied] = useState(false);
+
+  // Format figures in the picked loan's currency — `interest saved` and
+  // `extra payment` are both denominated in that loan's currency, not the
+  // user's residence currency.
+  const targetLoan = profile.user.loans[Number(targetIdx)];
+  const targetCcy = targetLoan
+    ? loanCurrency(targetLoan, country)
+    : userDefaultCurrency(country);
+  const fmt = (v: string | number) => formatCurrency(v, targetCcy);
 
   async function check(e: React.FormEvent) {
     e.preventDefault();
@@ -103,7 +114,7 @@ export function RecomputeTool() {
 
   const loanOptions = profile.user.loans.map((l, i) => ({
     value: String(i),
-    label: `${l.bank} · ${l.loan_type.replace('_', ' ')} (${formatINR(l.outstanding)})`,
+    label: `${l.bank} · ${l.loan_type.replace('_', ' ')} (${formatCurrency(l.outstanding, loanCurrency(l, country))})`,
   }));
 
   return (
@@ -193,7 +204,7 @@ export function RecomputeTool() {
                   </InfoTip>
                 </>
               }
-              value={formatINR(v.interest_saved)}
+              value={fmt(v.interest_saved)}
               color="var(--positive)"
             />
           </div>
@@ -226,13 +237,13 @@ export function RecomputeTool() {
                     ? extra
                     : String(Number(sched) + Number(extra)),
                   scheduledEmi: sched,
-                  note: `Recompute applied — ${formatINR(extra)} extra to ${target.bank}`,
+                  note: `Recompute applied — ${fmt(extra)} extra to ${target.bank}`,
                   loans: profile.user.loans,
                   country: profile.user.country,
                 });
                 setApplied(true);
               }}
-              label={`Apply this — log ${formatINR(extra)} to ${profile.user.loans[Number(targetIdx)].bank} & reprice /plan`}
+              label={`Apply this — log ${fmt(extra)} to ${profile.user.loans[Number(targetIdx)].bank} & reprice /plan`}
             />
           )}
         </Card>

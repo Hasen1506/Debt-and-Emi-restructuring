@@ -13,7 +13,7 @@ import {
 } from '@/components/ToolPrimitives';
 import {
   api,
-  formatINR,
+  formatCurrency,
   formatPct,
   type CashYieldResponse,
   type Country,
@@ -21,6 +21,7 @@ import {
 import { loadProfileClient } from '@/lib/user-store';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
+import { userDefaultCurrency } from '@/lib/currency';
 
 export function CashYieldTool() {
   const profile = useMemo(() => loadProfileClient(), []);
@@ -173,7 +174,7 @@ export function CashYieldTool() {
                   </InfoTip>
                 </>
               }
-              value={v.annual_uplift ? formatINR(v.annual_uplift) : '—'}
+              value={v.annual_uplift ? formatCurrency(v.annual_uplift, userDefaultCurrency(country)) : '—'}
               color="var(--positive)"
             />
           </div>
@@ -187,13 +188,13 @@ export function CashYieldTool() {
                   kind: 'paid_extra',
                   amount: String(Number(sched) + Number(idle)),
                   scheduledEmi: sched,
-                  note: `Idle cash redirected to prepay — ${formatINR(idle)} to ${loudest.loan.bank}`,
+                  note: `Idle cash redirected to prepay — ${formatCurrency(idle, userDefaultCurrency(country))} to ${loudest.loan.bank}`,
                   loans: profile.user.loans,
                   country: profile.user.country,
                 });
                 setApplied(true);
               }}
-              label={`Apply this — log ${formatINR(idle)} to ${loudest.loan.bank} & reprice /plan`}
+              label={`Apply this — log ${formatCurrency(idle, userDefaultCurrency(country))} to ${loudest.loan.bank} & reprice /plan`}
             />
           )}
         </Card>

@@ -15,7 +15,7 @@
  * rendered identically — what the user sees in Setup is what they'll see
  * in Debts.
  */
-import type { LoanPayload, Country, TaxRegimeIN } from '@/lib/api';
+import type { LoanPayload, Country, IncomeType, TaxRegimeIN } from '@/lib/api';
 import { computeBreakdown, fmt } from '@/lib/effective-apr';
 import { RATE_CARD_AS_OF } from '@/lib/banks';
 import { RateRangeHint } from '@/components/RateRangeHint';
@@ -26,6 +26,7 @@ export function EffectiveAprBreakdown({
   country,
   taxRegime,
   variant = 'card',
+  incomeType,
 }: {
   loan: LoanPayload;
   marginalTaxRate: string;
@@ -33,6 +34,7 @@ export function EffectiveAprBreakdown({
   taxRegime?: TaxRegimeIN;
   /** 'card' = boxed surface for Setup; 'inline' = minimal for table-row use. */
   variant?: 'card' | 'inline';
+  incomeType?: IncomeType;
 }) {
   const { lines, effective, summary } = computeBreakdown(
     loan,
@@ -145,6 +147,7 @@ export function EffectiveAprBreakdown({
         loanType={loan.loan_type}
         userRate={loan.nominal_rate}
         variant="card"
+        incomeType={incomeType}
       />
       <div
         style={{

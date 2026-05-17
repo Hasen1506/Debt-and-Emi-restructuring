@@ -2,16 +2,24 @@ import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { StrategySwitcher } from '@/components/StrategySwitcher';
 import { HikeToggle } from '@/components/HikeToggle';
+import { TaxReinvestToggle } from '@/components/TaxReinvestToggle';
+import { InflationToggle } from '@/components/InflationToggle';
+import { FxDriftToggle } from '@/components/FxDriftToggle';
 import { STRATEGY_LABEL, STRATEGY_DESCRIPTION } from '@/lib/strategy';
 import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
 import {
-  formatINR,
+  formatCurrency,
   formatPct,
 } from '@/lib/api';
 import type { PlanData } from './PlanData';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
+import { TaxBreakdown } from './TaxBreakdown';
+import { BracketTransitionAlert } from './BracketTransitionAlert';
+import { AdvanceTaxPanel } from './AdvanceTaxPanel';
 import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternative';
+import { FxCachePersister } from './FxCachePersister';
+import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 
 /**
  * Ledger Plan — amortisation print-out.
@@ -46,8 +54,37 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   const strategyLabel = STRATEGY_LABEL[plan.strategy].toUpperCase();
   const hikeRate = Number(plan.user.annual_hike_rate ?? '0');
   const hikeRatePct = hikeRate > 0 ? `${(hikeRate * 100).toFixed(0)}%` : '0%';
+  const inflRate = Number(plan.user.inflation_rate ?? '0');
+  const inflRatePct = inflRate > 0 ? `${(inflRate * 100).toFixed(1)}%` : '0%';
   const hikeMonthIdx = plan.user.hike_effective_month ?? FY_ANCHOR_MONTH[plan.user.country];
   const hikeMonthLabel = MONTH_NAMES[Math.max(0, Math.min(11, hikeMonthIdx - 1))];
+  const ccyList = plan.currenciesInPlay;
+  const isHybrid = ccyList.length > 1;
+  const fmt = (v: string | number) => formatCurrency(v, plan.displayCurrency);
+
+  // Per-currency lines for hybrid users; single string otherwise.
+  const totalInterestDisplay = isHybrid
+    ? ccyList
+        .map((c) => formatCurrency(plan.byCurrency[c]?.totalInterestScenario ?? 0, c))
+        .join(' · ')
+    : fmt(plan.totalInterest);
+  const baselineInterestDisplay = isHybrid
+    ? ccyList
+        .map((c) =>
+          formatCurrency(plan.byCurrencyBaseline[c]?.totalInterestScenario ?? 0, c),
+        )
+        .join(' · ')
+    : fmt(plan.baselineInterest);
+  const interestSavedDisplay = isHybrid
+    ? ccyList
+        .map((c) => {
+          const saved =
+            (plan.byCurrencyBaseline[c]?.totalInterestScenario ?? 0) -
+            (plan.byCurrency[c]?.totalInterestScenario ?? 0);
+          return formatCurrency(Math.max(0, saved), c);
+        })
+        .join(' · ')
+    : fmt(interestSaved);
 
   const kpis = [
     {
@@ -62,19 +99,19 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
     },
     {
       l: 'TOTAL INTEREST',
-      v: formatINR(plan.totalInterest),
+      v: totalInterestDisplay,
       c: 'var(--positive)',
-      sub: `VS ${formatINR(plan.baselineInterest)} IF MINIMUMS ONLY`,
+      sub: `VS ${baselineInterestDisplay} IF MINIMUMS ONLY`,
     },
     {
       l: 'YOU SAVE',
-      v: `${formatINR(interestSaved)} · ${plan.monthsSaved}MO`,
+      v: `${interestSavedDisplay} · ${plan.monthsSaved}MO`,
       c: 'var(--accent)',
       sub: 'INTEREST + TIME VS MINIMUMS',
     },
     {
       l: 'SURPLUS',
-      v: `${formatINR(plan.surplus)}/MO`,
+      v: `${fmt(plan.surplus)}/MO`,
       c: plan.surplus >= 0 ? 'var(--ink)' : 'var(--negative)',
       sub: 'INCOME − FIXED EXPENSES − EMIS',
     },
@@ -91,45 +128,15 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         lineHeight: 1.55,
       }}
     >
+      <FxCachePersister rates={plan.fxRatesUsed} />
+
+      {/* 1. KPI strip — the answer first. */}
       <section>
         <SectionLabel>
           $ PLAN · STRATEGY = {strategyLabel} · HORIZON = {horizonMo}MO · MARGINAL = {marginalPct}%
           {!plan.profileIsLive && ' · DEMO'}
           {!plan.live && ' · OFFLINE'}
         </SectionLabel>
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: '0.04em',
-            lineHeight: 1.65,
-            marginBottom: 10,
-            background: 'var(--card)',
-            border: '1px dashed var(--border)',
-            padding: '10px 12px',
-            fontFamily: 'var(--font-mono)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-          }}
-        >
-          <StrategySwitcher active={plan.strategy} variant="ledger" />
-          <HikeToggle
-            active={plan.hikeModeling}
-            hikeRatePct={hikeRatePct}
-            hikeMonthLabel={hikeMonthLabel}
-            variant="ledger"
-          />
-          <div style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
-            {STRATEGY_DESCRIPTION[plan.strategy]}
-          </div>
-          <div style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
-            <strong style={{ color: 'var(--ink)' }}>HORIZON {horizonMo}MO</strong>
-            {' '}= how far ahead the simulator runs (20 yrs). If you don&apos;t
-            clear inside {horizonMo} months we surface that as &quot;&gt;
-            {horizonMo}mo&quot; rather than invent a date.
-          </div>
-        </div>
         <div
           style={{
             display: 'grid',
@@ -165,18 +172,123 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         </div>
       </section>
 
-      <section>
-        <SectionLabel>$ TRAJECTORY · AVALANCHE VS MIN</SectionLabel>
-        <div
+      <LifecycleArrivalPrompts user={plan.user} variant="ledger" />
+
+      {/* 2. Modeling toggles — visible but compact, collapsed by default. */}
+      <details>
+        <summary
           style={{
-            border: '1px solid var(--ink)',
-            background: 'var(--card)',
-            padding: 12,
-            height: 320,
+            cursor: 'pointer',
+            fontSize: 11,
+            color: 'var(--muted)',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            padding: '4px 0',
           }}
         >
-          <DebtTrajectoryChart data={plan.trajectory} />
+          $ MODELING · STRATEGY + TOGGLES
+        </summary>
+        <div
+          style={{
+            marginTop: 8,
+            fontSize: 11,
+            color: 'var(--muted)',
+            letterSpacing: '0.04em',
+            lineHeight: 1.65,
+            background: 'var(--card)',
+            border: '1px dashed var(--border)',
+            padding: '10px 12px',
+            fontFamily: 'var(--font-mono)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          <StrategySwitcher active={plan.strategy} variant="ledger" />
+          <HikeToggle
+            active={plan.hikeModeling}
+            hikeRatePct={hikeRatePct}
+            hikeMonthLabel={hikeMonthLabel}
+            hikePhases={plan.user.hike_schedule}
+            variant="ledger"
+          />
+          <TaxReinvestToggle
+            active={plan.taxReinvest}
+            totalProjectedSaving={formatCurrency(
+              plan.taxReinvestProjection
+                .reduce((sum, e) => sum + Number(e.amount), 0)
+                .toFixed(0),
+              plan.displayCurrency,
+            )}
+            variant="ledger"
+          />
+          <InflationToggle
+            active={plan.inflationModeling}
+            inflationRatePct={inflRatePct}
+            variant="ledger"
+          />
+          {isHybrid && (
+            <FxDriftToggle
+              active={plan.fxDrift}
+              driftLabel="INR +2.5%/yr (CPI differential)"
+              variant="ledger"
+            />
+          )}
+          <div style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
+            {STRATEGY_DESCRIPTION[plan.strategy]}
+          </div>
+          <div style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
+            <strong style={{ color: 'var(--ink)' }}>HORIZON {horizonMo}MO</strong>
+            {' '}= how far ahead the simulator runs (20 yrs). If you don&apos;t
+            clear inside {horizonMo} months we surface that as &quot;&gt;
+            {horizonMo}mo&quot; rather than invent a date.
+          </div>
         </div>
+      </details>
+
+      {/* 3. Trajectory — visual proof of the KPI strip. */}
+      <section>
+        <SectionLabel>$ TRAJECTORY · AVALANCHE VS MIN</SectionLabel>
+        {isHybrid ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {ccyList.map((c) => (
+              <div key={c}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--muted)',
+                    letterSpacing: '0.18em',
+                    fontFamily: 'var(--font-mono)',
+                    marginBottom: 4,
+                  }}
+                >
+                  {c} TRAJECTORY
+                </div>
+                <div
+                  style={{
+                    border: '1px solid var(--ink)',
+                    background: 'var(--card)',
+                    padding: 12,
+                    height: 220,
+                  }}
+                >
+                  <DebtTrajectoryChart data={plan.trajectory} currency={c} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div
+            style={{
+              border: '1px solid var(--ink)',
+              background: 'var(--card)',
+              padding: 12,
+              height: 320,
+            }}
+          >
+            <DebtTrajectoryChart data={plan.trajectory} currency={plan.displayCurrency} />
+          </div>
+        )}
         <div
           style={{
             fontSize: 11,
@@ -191,26 +303,15 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           your plan (avalanche).{' '}
           <strong style={{ color: 'var(--ink)' }}>DASHED</strong> = balance if
           you only ever paid bank-required minimums. X-axis is months from
-          today, Y-axis is total outstanding (₹L = lakhs, ₹k = thousands).
+          today, Y-axis is total outstanding{isHybrid
+            ? ' — one chart per currency, no cross-currency conversion'
+            : plan.displayCurrency === 'INR'
+              ? ' (₹L = lakhs, ₹k = thousands)'
+              : ' ($k = thousands)'}.
         </div>
       </section>
 
-      {plan.activityImpact && (
-        <ActivityImpactBanner
-          impact={plan.activityImpact}
-          loans={plan.user.loans}
-          country={plan.user.country}
-          variant="ledger"
-        />
-      )}
-
-      <LedgerScheduleTable
-        data={plan.trajectory}
-        monthlyPayments={plan.monthlyPayments}
-        loans={plan.user.loans}
-        country={plan.user.country}
-      />
-
+      {/* 4. Opportunities — highest-leverage action surface, moved up from #8. */}
       {opportunities.length > 0 && (
         <section>
           <div
@@ -225,7 +326,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           >
             <span>$ RESTRUCTURE · {opportunities.length} OPP</span>
             <span style={{ color: 'var(--positive)' }}>
-              ANNUAL SAVING {formatINR(plan.totalAnnualSaving)}
+              ANNUAL SAVING {fmt(plan.totalAnnualSaving)}
             </span>
           </div>
           <table
@@ -300,13 +401,13 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                         color: 'var(--positive)',
                       }}
                     >
-                      {formatINR(opp.estimated_annual_saving)}
+                      {fmt(opp.estimated_annual_saving)}
                     </td>
                   </tr>
                   {opp.alternative_target_bank && (
                     <tr key={`${i}-alt`}>
                       <td colSpan={6} style={{ padding: '0 12px 6px' }}>
-                        <OpportunityAlternative opportunity={opp} variant="ledger" />
+                        <OpportunityAlternative opportunity={opp} variant="ledger" currency={plan.displayCurrency} />
                       </td>
                     </tr>
                   )}
@@ -317,6 +418,70 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         </section>
       )}
 
+      {/* 5. Activity banner — only when activity has shifted the plan. */}
+      {plan.activityImpact && (
+        <ActivityImpactBanner
+          impact={plan.activityImpact}
+          loans={plan.user.loans}
+          country={plan.user.country}
+          variant="ledger"
+        />
+      )}
+
+      {/* 6. Bracket transition alert — conditional. */}
+      <BracketTransitionAlert
+        transitions={plan.bracketTransitions}
+        country={plan.user.country}
+        displayCurrency={plan.displayCurrency}
+        variant="ledger"
+      />
+
+      {/* 7. Advance-tax — conditional, only for SE / high-income. */}
+      {plan.advanceTaxSchedule && (
+        <AdvanceTaxPanel
+          schedule={plan.advanceTaxSchedule}
+          country={plan.user.country}
+          displayCurrency={plan.displayCurrency}
+          monthlyPenaltyCost={plan.advanceTaxPenaltyMonthly}
+          variant="ledger"
+        />
+      )}
+
+      {/* 8. Tax planning — per-loan deduction projection. */}
+      <TaxBreakdown
+        user={{
+          country: plan.user.country,
+          loans: plan.user.loans,
+          tax_regime: plan.user.tax_regime,
+        }}
+        variant="ledger"
+      />
+
+      {/* 9. Schedule — month-by-month, collapsed by default so the page isn't a wall of rows. */}
+      <details>
+        <summary
+          style={{
+            cursor: 'pointer',
+            fontSize: 11,
+            color: 'var(--muted)',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            padding: '4px 0',
+          }}
+        >
+          $ SCHEDULE · MONTH-BY-MONTH · {plan.trajectory.length} ROWS
+        </summary>
+        <div style={{ marginTop: 8 }}>
+          <LedgerScheduleTable
+            data={plan.trajectory}
+            monthlyPayments={plan.monthlyPayments}
+            loans={plan.user.loans}
+            country={plan.user.country}
+          />
+        </div>
+      </details>
+
+      {/* 10. What-if — sandbox, always last. */}
       <section>
         <SectionLabel>$ WHAT IF · TRY A SCENARIO</SectionLabel>
         <div

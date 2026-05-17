@@ -50,12 +50,22 @@ const VERDICT_COLOR: Record<CrossBorderResponse['verdict'], string> = {
 
 export function NriPrepayTool() {
   const profile = useMemo(() => loadProfileClient(), []);
+  // NRI-on-US-work-visa profile flag: when set, default user_currency to USD
+  // and prefer INR for any tagged Indian loan. Saves users from re-selecting
+  // currencies every visit.
+  const profileIsNriUs = !!profile.user.is_nri_us;
+  const profileUserCurrency: Currency =
+    profileIsNriUs ? 'USD'
+      : profile.user.country === 'US' ? 'USD'
+        : 'INR';
   const [targetIdx, setTargetIdx] = useState<string>('');
   const [loanBalance, setLoanBalance] = useState('3500000');
   const [loanRate, setLoanRate] = useState('0.085');
   const [loanTenure, setLoanTenure] = useState('180');
-  const [loanCurrency, setLoanCurrency] = useState<Currency>('INR');
-  const [userCurrency, setUserCurrency] = useState<Currency>('USD');
+  const [loanCurrency, setLoanCurrency] = useState<Currency>(
+    profileIsNriUs ? 'INR' : 'INR',
+  );
+  const [userCurrency, setUserCurrency] = useState<Currency>(profileUserCurrency);
   const [savingsYield, setSavingsYield] = useState('0.05');
   const [marginalTax, setMarginalTax] = useState('0.24');
   // User-facing FX field: "1 [userCurrency] = X [loanCurrency]" — e.g. for
@@ -78,6 +88,15 @@ export function NriPrepayTool() {
       setLoanRate(loan.nominal_rate);
       if (loan.tenure_months_remaining > 0) {
         setLoanTenure(String(loan.tenure_months_remaining));
+      }
+      // Honour the loan's tagged currency when present — set in onboarding
+      // by NRI-US users. Falls back to the profile's country default.
+      if (loan.currency) {
+        setLoanCurrency(loan.currency as Currency);
+      } else if (profileIsNriUs) {
+        // No explicit tag — assume INR (the typical Indian-origin loan for
+        // an NRI-in-US). User can change if needed.
+        setLoanCurrency('INR');
       }
     }
   }

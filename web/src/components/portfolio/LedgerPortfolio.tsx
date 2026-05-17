@@ -1,0 +1,252 @@
+import type { Country } from '@/lib/api';
+import { formatCurrency } from '@/lib/api';
+import {
+  assetTypeLabel,
+  type PortfolioSummary,
+} from './portfolioSummary';
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        color: 'var(--muted)',
+        letterSpacing: '0.18em',
+        marginBottom: 6,
+        fontFamily: 'var(--font-mono)',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function LedgerPortfolio({
+  summary,
+  country,
+}: {
+  summary: PortfolioSummary;
+  country: Country;
+}) {
+  const ccy = country === 'IN' ? 'INR' : 'USD';
+  const fmt = (v: number) => formatCurrency(v.toFixed(0), ccy);
+
+  if (summary.count === 0) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 22,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 12,
+          lineHeight: 1.55,
+        }}
+      >
+        <section>
+          <SectionLabel>$ PORTFOLIO · WHAT YOU OWN</SectionLabel>
+          <div
+            style={{
+              background: 'var(--card)',
+              border: '1px dashed var(--border)',
+              padding: '14px 16px',
+              color: 'var(--muted)',
+              fontSize: 12,
+              lineHeight: 1.6,
+            }}
+          >
+            NO HOLDINGS ON FILE YET. ADD WHAT YOU OWN — FDs, MFs, GOLD, REAL
+            ESTATE — SO TOOLS &rsaquo; LIQUIDATE CAN RANK WHICH ASSET TO SELL
+            BEFORE PREPAYING DEBT.
+            <div style={{ marginTop: 12 }}>
+              <a
+                href="/onboarding/assets"
+                style={{
+                  display: 'inline-block',
+                  padding: '8px 14px',
+                  border: '1px solid var(--ink)',
+                  background: 'var(--ink)',
+                  color: 'var(--canvas)',
+                  textDecoration: 'none',
+                  fontSize: 11,
+                  letterSpacing: '0.12em',
+                }}
+              >
+                + ADD A HOLDING
+              </a>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 22,
+        fontFamily: 'var(--font-mono)',
+        fontSize: 12,
+        lineHeight: 1.55,
+      }}
+    >
+      <section>
+        <SectionLabel>
+          $ PORTFOLIO · {summary.count} HOLDINGS · {summary.byType.length} TYPES
+        </SectionLabel>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 1,
+            background: 'var(--ink)',
+            padding: 1,
+          }}
+        >
+          {[
+            {
+              l: 'TOTAL VALUE',
+              v: fmt(summary.totalValue),
+              sub: `${summary.count} HOLDINGS`,
+            },
+            {
+              l: 'LARGEST',
+              v: summary.topRow ? fmt(summary.topRow.value) : '—',
+              sub: summary.topRow?.label ?? '',
+            },
+            {
+              l: 'TOP TYPE',
+              v: summary.byType[0]
+                ? assetTypeLabel(country, summary.byType[0].assetType).toUpperCase()
+                : '—',
+              sub: summary.byType[0]
+                ? `${((summary.byType[0].total / summary.totalValue) * 100).toFixed(0)}% OF PORTFOLIO`
+                : '',
+            },
+          ].map((s) => (
+            <div
+              key={s.l}
+              style={{ background: 'var(--canvas)', padding: '10px 12px' }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  color: 'var(--muted)',
+                  letterSpacing: '0.12em',
+                  marginBottom: 4,
+                }}
+              >
+                {s.l}
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>{s.v}</div>
+              <div
+                style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}
+              >
+                {s.sub}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <SectionLabel>$ HOLDINGS · BY VALUE</SectionLabel>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr
+              style={{
+                borderTop: '2px solid var(--ink)',
+                borderBottom: '1px solid var(--ink)',
+              }}
+            >
+              {['#', 'LABEL', 'TYPE', 'VALUE', 'SHARE'].map((h, i) => (
+                <th
+                  key={h}
+                  style={{
+                    padding: '8px 12px',
+                    textAlign: i > 2 ? 'right' : 'left',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    fontSize: 10,
+                    color: 'var(--muted)',
+                  }}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {summary.rows.map((r, i) => (
+              <tr key={i} style={{ borderBottom: '1px dashed var(--dash)' }}>
+                <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>
+                  {String(i + 1).padStart(2, '0')}
+                </td>
+                <td style={{ padding: '10px 12px', fontWeight: 600 }}>{r.label}</td>
+                <td
+                  style={{
+                    padding: '10px 12px',
+                    color: 'var(--muted)',
+                    fontSize: 11,
+                  }}
+                >
+                  {assetTypeLabel(country, r.assetType).toUpperCase()}
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
+                  {fmt(r.value)}
+                </td>
+                <td
+                  style={{
+                    padding: '10px 12px',
+                    textAlign: 'right',
+                    color: 'var(--muted)',
+                  }}
+                >
+                  {summary.totalValue > 0
+                    ? `${((r.value / summary.totalValue) * 100).toFixed(0)}%`
+                    : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <SectionLabel>$ ACTIONS</SectionLabel>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <a
+            href="/onboarding/assets"
+            style={{
+              padding: '8px 14px',
+              border: '1px solid var(--ink)',
+              background: 'var(--canvas)',
+              color: 'var(--ink)',
+              textDecoration: 'none',
+              fontSize: 11,
+              letterSpacing: '0.12em',
+            }}
+          >
+            EDIT HOLDINGS
+          </a>
+          <a
+            href="/tools/liquidate"
+            style={{
+              padding: '8px 14px',
+              border: '1px solid var(--ink)',
+              background: 'var(--ink)',
+              color: 'var(--canvas)',
+              textDecoration: 'none',
+              fontSize: 11,
+              letterSpacing: '0.12em',
+            }}
+          >
+            FIND WHAT TO LIQUIDATE &rsaquo;
+          </a>
+        </div>
+      </section>
+    </div>
+  );
+}

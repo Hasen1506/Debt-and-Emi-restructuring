@@ -17,7 +17,8 @@
  */
 
 import { useMemo, useState } from 'react';
-import { formatINR, type Country, type LoanPayload } from '@/lib/api';
+import { formatCurrency, type Country, type LoanPayload } from '@/lib/api';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { getCountryToday } from '@/lib/today';
 import type { TrajectoryPoint } from '@/lib/mock-data';
 import type { MonthlyPaymentBreakdown } from './PlanData';
@@ -78,6 +79,8 @@ export function LedgerScheduleTable({
   // table never grows beyond what's visible (no nested-row scroll mess).
   const [openMonth, setOpenMonth] = useState<number | null>(null);
   const start = useMemo(() => getCountryToday(country), [country]);
+  const displayCcy = userDefaultCurrency(country);
+  const fmt = (v: number) => formatCurrency(v, displayCcy);
 
   // Trim trailing rows where both series have cleared — no signal past that.
   const rows = useMemo(() => {
@@ -245,6 +248,8 @@ export function LedgerScheduleTable({
                   onToggle={() => setOpenMonth(isOpen ? null : r.month)}
                   perLoan={perLoan}
                   loans={loans}
+                  country={country}
+                  fmt={fmt}
                 />
               );
             })}
@@ -278,6 +283,8 @@ function RowGroup({
   onToggle,
   perLoan,
   loans,
+  country,
+  fmt,
 }: {
   monthLabel: string;
   month: number;
@@ -290,6 +297,8 @@ function RowGroup({
   onToggle: () => void;
   perLoan: Record<number, string> | undefined;
   loans: LoanPayload[];
+  country: Country;
+  fmt: (v: number) => string;
 }) {
   const tdStyle = { padding: '8px 12px' } as const;
   return (
@@ -327,10 +336,10 @@ function RowGroup({
             fontWeight: cleared ? 400 : 600,
           }}
         >
-          {cleared ? 'CLEARED' : formatINR(avalanche)}
+          {cleared ? 'CLEARED' : fmt(avalanche)}
         </td>
         <td style={{ ...tdStyle, textAlign: 'right', color: 'var(--muted)' }}>
-          {minimums <= 1 ? 'CLEARED' : formatINR(minimums)}
+          {minimums <= 1 ? 'CLEARED' : fmt(minimums)}
         </td>
         <td
           style={{
@@ -340,7 +349,7 @@ function RowGroup({
             fontWeight: delta > 0 ? 600 : 400,
           }}
         >
-          {delta > 0 ? formatINR(delta) : '—'}
+          {delta > 0 ? fmt(delta) : '—'}
         </td>
       </tr>
       {isOpen && perLoan && (
@@ -381,6 +390,7 @@ function RowGroup({
                     if (!loan) return null;
                     const tag =
                       LOAN_TYPE_SHORT[loan.loan_type] ?? loan.loan_type;
+                    const ccy = loanCurrency(loan, country);
                     return (
                       <tr key={idx}>
                         <td
@@ -392,6 +402,20 @@ function RowGroup({
                         >
                           → {loan.bank || 'Unnamed lender'}{' '}
                           <span style={{ color: 'var(--muted)' }}>· {tag}</span>
+                          {loan.currency && (
+                            <span
+                              style={{
+                                marginLeft: 6,
+                                fontSize: 9,
+                                letterSpacing: '0.08em',
+                                color: 'var(--muted)',
+                                border: '1px solid var(--border)',
+                                padding: '0 4px',
+                              }}
+                            >
+                              {ccy}
+                            </span>
+                          )}
                         </td>
                         <td
                           style={{
@@ -401,7 +425,7 @@ function RowGroup({
                             fontWeight: 600,
                           }}
                         >
-                          {formatINR(amount)}
+                          {formatCurrency(amount, ccy)}
                         </td>
                       </tr>
                     );

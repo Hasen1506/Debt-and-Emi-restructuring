@@ -3,16 +3,25 @@ import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { StrategySwitcher } from '@/components/StrategySwitcher';
 import { HikeToggle } from '@/components/HikeToggle';
+import { TaxReinvestToggle } from '@/components/TaxReinvestToggle';
+import { InflationToggle } from '@/components/InflationToggle';
+import { FxDriftToggle } from '@/components/FxDriftToggle';
 import { STRATEGY_LABEL } from '@/lib/strategy';
 import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
 import {
-  formatINR,
+  formatCurrency,
   formatPct,
   type RestructuringOpportunity,
 } from '@/lib/api';
 import type { PlanData } from './PlanData';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
+import { TaxBreakdown } from './TaxBreakdown';
+import { BracketTransitionAlert } from './BracketTransitionAlert';
+import { AdvanceTaxPanel } from './AdvanceTaxPanel';
 import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternative';
+import { FxCachePersister } from './FxCachePersister';
+import { LedgerScheduleTable } from './LedgerScheduleTable';
+import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 
 const KIND_LABEL: Record<RestructuringOpportunity['kind'], string> = {
   balance_transfer: 'Balance transfer',
@@ -29,10 +38,28 @@ const KIND_COLOR: Record<RestructuringOpportunity['kind'], string> = {
 export function ExistingPlan({ plan }: { plan: PlanData }) {
   const hikeRate = Number(plan.user.annual_hike_rate ?? '0');
   const hikeRatePct = hikeRate > 0 ? `${(hikeRate * 100).toFixed(0)}%` : '0%';
+  const inflRate = Number(plan.user.inflation_rate ?? '0');
+  const inflRatePct = inflRate > 0 ? `${(inflRate * 100).toFixed(1)}%` : '0%';
   const hikeMonthIdx = plan.user.hike_effective_month ?? FY_ANCHOR_MONTH[plan.user.country];
   const hikeMonthLabel = MONTH_NAMES[Math.max(0, Math.min(11, hikeMonthIdx - 1))];
+  const ccyList = plan.currenciesInPlay;
+  const isHybrid = ccyList.length > 1;
+  const fmt = (v: string | number) => formatCurrency(v, plan.displayCurrency);
+  const totalInterestDisplay = isHybrid
+    ? ccyList
+        .map((c) => formatCurrency(plan.byCurrency[c]?.totalInterestScenario ?? 0, c))
+        .join(' · ')
+    : fmt(plan.totalInterest);
+  const baselineInterestDisplay = isHybrid
+    ? ccyList
+        .map((c) =>
+          formatCurrency(plan.byCurrencyBaseline[c]?.totalInterestScenario ?? 0, c),
+        )
+        .join(' · ')
+    : fmt(plan.baselineInterest);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <FxCachePersister rates={plan.fxRatesUsed} />
       <section>
         <h1 className="h1">Your debt-free trajectory</h1>
         <p className="muted">
@@ -48,7 +75,7 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
               color: plan.surplus >= 0 ? 'var(--ink)' : 'var(--negative)',
             }}
           >
-            {formatINR(plan.surplus)}/mo
+            {fmt(plan.surplus)}/mo
           </span>
           {!plan.profileIsLive && (
             <span
@@ -82,20 +109,135 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
             active={plan.hikeModeling}
             hikeRatePct={hikeRatePct}
             hikeMonthLabel={hikeMonthLabel}
+            hikePhases={plan.user.hike_schedule}
             variant="inline"
           />
+          <TaxReinvestToggle
+            active={plan.taxReinvest}
+            totalProjectedSaving={formatCurrency(
+              plan.taxReinvestProjection
+                .reduce((sum, e) => sum + Number(e.amount), 0)
+                .toFixed(0),
+              plan.displayCurrency,
+            )}
+            variant="inline"
+          />
+          <InflationToggle
+            active={plan.inflationModeling}
+            inflationRatePct={inflRatePct}
+            variant="inline"
+          />
+          {isHybrid && (
+            <FxDriftToggle
+              active={plan.fxDrift}
+              driftLabel="INR +2.5%/yr (CPI differential)"
+              variant="inline"
+            />
+          )}
         </div>
       </section>
 
-      {plan.activityImpact && (
-        <ActivityImpactBanner
-          impact={plan.activityImpact}
-          loans={plan.user.loans}
-          country={plan.user.country}
-          variant="inline"
-        />
-      )}
+      <LifecycleArrivalPrompts user={plan.user} variant="existing" />
 
+      {/* 2. KPI cards — moved up to right under the title so the reader
+       *  sees debt-free / interest / months-saved before scrolling. */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 12,
+        }}
+      >
+        <Card>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Debt-free by
+          </div>
+          <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>
+            {plan.debtFreeMonth
+              ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)
+              : 'Beyond 20 yrs'}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            {plan.debtFreeMonth
+              ? `month ${plan.debtFreeMonth} on the avalanche schedule`
+              : 'raise surplus or cut spending to clear inside the 240-month horizon'}
+          </div>
+        </Card>
+        <Card>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Interest you&apos;ll pay
+          </div>
+          <div
+            className="num"
+            style={{
+              fontSize: 22,
+              fontWeight: 600,
+              color: 'var(--positive)',
+            }}
+          >
+            {totalInterestDisplay}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            vs <span className="num">{baselineInterestDisplay}</span>{' '}
+            if you only ever paid the bank-required minimums
+          </div>
+        </Card>
+        <Card>
+          <div className="muted" style={{ fontSize: 12 }}>
+            You save
+          </div>
+          <div
+            className="num"
+            style={{
+              fontSize: 22,
+              fontWeight: 600,
+              color: 'var(--accent)',
+            }}
+          >
+            {plan.monthsSaved} months
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            {plan.monthsSaved > 0
+              ? `cleared sooner than the minimums-only path`
+              : `you'd clear at the same time as paying minimums — your surplus is going to other places`}
+          </div>
+        </Card>
+      </div>
+
+      {/* 3. Trajectory chart. */}
+      <Card>
+        <div className="muted" style={{ fontSize: 12 }}>
+          Total debt over time (avalanche vs minimums)
+          {isHybrid && (
+            <>
+              {' '}— shown per currency, no cross-currency conversion
+            </>
+          )}
+        </div>
+        {isHybrid ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
+            {ccyList.map((c) => (
+              <div key={c}>
+                <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>
+                  {c} trajectory
+                </div>
+                <div style={{ height: 220 }}>
+                  <DebtTrajectoryChart data={plan.trajectory} currency={c} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ height: 320, marginTop: 12 }}>
+            <DebtTrajectoryChart
+              data={plan.trajectory}
+              currency={plan.displayCurrency}
+            />
+          </div>
+        )}
+      </Card>
+
+      {/* 4. Opportunities — the action surface. */}
       {plan.opportunities.length > 0 && (
         <Card style={{ borderLeft: '3px solid var(--positive)' }}>
           <div
@@ -123,7 +265,7 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
                 className="num"
                 style={{ fontSize: 22, fontWeight: 600, color: 'var(--positive)' }}
               >
-                {formatINR(plan.totalAnnualSaving)}
+                {fmt(plan.totalAnnualSaving)}
               </div>
             </div>
           </div>
@@ -179,91 +321,84 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
                       className="num"
                       style={{ fontWeight: 600, color: 'var(--positive)' }}
                     >
-                      {formatINR(opp.estimated_annual_saving)}
+                      {fmt(opp.estimated_annual_saving)}
                     </div>
                     <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
                       {formatPct(opp.current_rate)} → {formatPct(opp.target_rate)}
                     </div>
                   </div>
                 </div>
-                <OpportunityAlternative opportunity={opp} variant="existing" />
+                <OpportunityAlternative opportunity={opp} variant="existing" currency={plan.displayCurrency} />
               </div>
             ))}
           </div>
         </Card>
       )}
 
-      <Card>
-        <div className="muted" style={{ fontSize: 12 }}>
-          Total debt over time (avalanche vs minimums)
-        </div>
-        <div style={{ height: 320, marginTop: 12 }}>
-          <DebtTrajectoryChart data={plan.trajectory} />
-        </div>
-      </Card>
+      {/* 5-8. Context block — conditional alerts + tax planning, now after
+       *  opportunities (was above them). Same order as ledger/editorial. */}
+      {plan.activityImpact && (
+        <ActivityImpactBanner
+          impact={plan.activityImpact}
+          loans={plan.user.loans}
+          country={plan.user.country}
+          variant="inline"
+        />
+      )}
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 12,
+      <BracketTransitionAlert
+        transitions={plan.bracketTransitions}
+        country={plan.user.country}
+        displayCurrency={plan.displayCurrency}
+        variant="inline"
+      />
+
+      {plan.advanceTaxSchedule && (
+        <AdvanceTaxPanel
+          schedule={plan.advanceTaxSchedule}
+          country={plan.user.country}
+          displayCurrency={plan.displayCurrency}
+          monthlyPenaltyCost={plan.advanceTaxPenaltyMonthly}
+          variant="inline"
+        />
+      )}
+
+      <TaxBreakdown
+        user={{
+          country: plan.user.country,
+          loans: plan.user.loans,
+          tax_regime: plan.user.tax_regime,
         }}
-      >
-        <Card>
-          <div className="muted" style={{ fontSize: 12 }}>
-            Debt-free by
-          </div>
-          <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>
-            {plan.debtFreeMonth
-              ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)
-              : 'Beyond 20 yrs'}
-          </div>
-          <div className="muted" style={{ fontSize: 12 }}>
-            {plan.debtFreeMonth
-              ? `month ${plan.debtFreeMonth} on the avalanche schedule`
-              : 'raise surplus or cut spending to clear inside the 240-month horizon'}
-          </div>
-        </Card>
-        <Card>
-          <div className="muted" style={{ fontSize: 12 }}>
-            Interest you&apos;ll pay
-          </div>
-          <div
-            className="num"
+        variant="inline"
+      />
+
+      {/* 9. Schedule — collapsed by default. Added for parity with the
+       *  ledger/editorial skins; existing-skin used to skip the schedule
+       *  entirely, which broke the audit trail. */}
+      <Card>
+        <details>
+          <summary
             style={{
-              fontSize: 22,
+              cursor: 'pointer',
+              fontSize: 14,
               fontWeight: 600,
-              color: 'var(--positive)',
             }}
           >
-            {formatINR(plan.totalInterest)}
+            Schedule — {plan.trajectory.length} months
+          </summary>
+          <div className="muted" style={{ fontSize: 13, marginTop: 8, marginBottom: 12 }}>
+            Month-by-month: what you&apos;ll owe under the plan, what you&apos;d
+            owe paying only minimums, and how far ahead you are. Click any
+            month to see exactly which lender gets paid what.
           </div>
-          <div className="muted" style={{ fontSize: 12 }}>
-            vs <span className="num">{formatINR(plan.baselineInterest)}</span>{' '}
-            if you only ever paid the bank-required minimums
-          </div>
-        </Card>
-        <Card>
-          <div className="muted" style={{ fontSize: 12 }}>
-            You save
-          </div>
-          <div
-            className="num"
-            style={{
-              fontSize: 22,
-              fontWeight: 600,
-              color: 'var(--accent)',
-            }}
-          >
-            {plan.monthsSaved} months
-          </div>
-          <div className="muted" style={{ fontSize: 12 }}>
-            {plan.monthsSaved > 0
-              ? `cleared sooner than the minimums-only path`
-              : `you'd clear at the same time as paying minimums — your surplus is going to other places`}
-          </div>
-        </Card>
-      </div>
+          <LedgerScheduleTable
+            data={plan.trajectory}
+            monthlyPayments={plan.monthlyPayments}
+            loans={plan.user.loans}
+            country={plan.user.country}
+          />
+        </details>
+      </Card>
 
       <Card>
         <div style={{ marginBottom: 12 }}>

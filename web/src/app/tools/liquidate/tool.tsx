@@ -14,7 +14,7 @@ import {
 } from '@/components/ToolPrimitives';
 import {
   api,
-  formatINR,
+  formatCurrency,
   formatPct,
   type AssetLiquidationResponse,
   type LiquidationRecommendation,
@@ -22,6 +22,7 @@ import {
 import { DEMO_ASSET } from '@/lib/demo-user';
 import { loadProfileClient } from '@/lib/user-store';
 import { applyToolResult } from '@/lib/apply-tool-result';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { PortfolioRanker } from './PortfolioRanker';
 
 const FINANCE_ACT_2024_CUTOFF = '2024-07-23';
@@ -51,6 +52,7 @@ type SaleMode = 'whole' | 'partial';
 
 export function LiquidateTool() {
   const profile = useMemo(() => loadProfileClient(), []);
+  const country = profile.user.country;
 
   // ─── Asset inputs ──────────────────────────────────────────────────────
   const [purchasePrice, setPurchasePrice] = useState(DEMO_ASSET.purchase_price);
@@ -99,6 +101,16 @@ export function LiquidateTool() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [applied, setApplied] = useState(false);
+
+  // The asset (real estate, Indian-tax mechanics) is denominated in the user's
+  // residence currency. The picked target loan may be in a different currency
+  // for NRI-US users — format the "apply payoff" line in that loan's currency.
+  const userCcy = userDefaultCurrency(country);
+  const targetLoanForCcy =
+    targetIdx !== '' ? profile.user.loans[Number(targetIdx)] : undefined;
+  const loanCcy = targetLoanForCcy ? loanCurrency(targetLoanForCcy, country) : userCcy;
+  const fmt = (v: string | number) => formatCurrency(v, userCcy);
+  const fmtLoan = (v: string | number) => formatCurrency(v, loanCcy);
 
   // Mirror picked loan's balance + rate into the form.
   function pickTargetLoan(idx: string) {
@@ -352,11 +364,11 @@ export function LiquidateTool() {
               >
                 Derived sale price:{' '}
                 <span className="num" style={{ color: 'var(--ink)' }}>
-                  {formatINR(effectiveSalePrice)}
+                  {fmt(effectiveSalePrice)}
                 </span>{' '}
                 · pro-rated cost basis:{' '}
                 <span className="num" style={{ color: 'var(--ink)' }}>
-                  {formatINR(effectivePurchasePrice)}
+                  {fmt(effectivePurchasePrice)}
                 </span>
               </div>
             </>
@@ -373,7 +385,7 @@ export function LiquidateTool() {
                 ...profile.user.loans
                   .map((l, i) => ({
                     value: String(i),
-                    label: `${l.bank} · ${l.loan_type.replace('_', ' ')} · ${formatPct(l.nominal_rate)} · ${formatINR(l.outstanding)}`,
+                    label: `${l.bank} · ${l.loan_type.replace('_', ' ')} · ${formatPct(l.nominal_rate)} · ${formatCurrency(l.outstanding, loanCurrency(l, country))}`,
                     rate: Number(l.nominal_rate),
                   }))
                   .sort((a, b) => b.rate - a.rate)
@@ -520,7 +532,7 @@ export function LiquidateTool() {
             >
               You&apos;d be left with{' '}
               <strong className="num" style={{ color: 'var(--positive)' }}>
-                {formatINR(partialSaleHint.surplus)}
+                {fmt(partialSaleHint.surplus)}
               </strong>{' '}
               of cash after clearing this debt. If you can split the asset,
               selling roughly{' '}
@@ -540,16 +552,16 @@ export function LiquidateTool() {
           >
             <Stat
               label="Net proceeds (after tax + selling costs)"
-              value={formatINR(v.net_proceeds)}
+              value={fmt(v.net_proceeds)}
             />
             <Stat
               label="LTCG tax"
-              value={formatINR(v.ltcg_tax)}
+              value={fmt(v.ltcg_tax)}
               color="var(--negative)"
             />
             <Stat
               label="Net benefit after debt + interest during sale"
-              value={formatINR(v.net_benefit)}
+              value={fmt(v.net_benefit)}
               color={Number(v.net_benefit) > 0 ? 'var(--positive)' : 'var(--negative)'}
             />
             <Stat
@@ -591,11 +603,11 @@ export function LiquidateTool() {
               >
                 <Stat
                   label="Keep asset, keep debt"
-                  value={formatINR(v.wealth_hold ?? '0')}
+                  value={fmt(v.wealth_hold ?? '0')}
                 />
                 <Stat
                   label="Sell, clear debt, invest surplus"
-                  value={formatINR(v.wealth_sell ?? '0')}
+                  value={fmt(v.wealth_sell ?? '0')}
                   color={
                     Number(v.wealth_edge) > 0
                       ? 'var(--positive)'
@@ -604,7 +616,7 @@ export function LiquidateTool() {
                 />
                 <Stat
                   label="Edge of selling"
-                  value={`${Number(v.wealth_edge) >= 0 ? '+' : ''}${formatINR(v.wealth_edge ?? '0')}`}
+                  value={`${Number(v.wealth_edge) >= 0 ? '+' : ''}${fmt(v.wealth_edge ?? '0')}`}
                   color={
                     Number(v.wealth_edge) > 0
                       ? 'var(--positive)'
@@ -615,7 +627,7 @@ export function LiquidateTool() {
               <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
                 Surplus after clearing debt:{' '}
                 <span className="num" style={{ color: 'var(--ink)' }}>
-                  {formatINR(v.surplus ?? '0')}
+                  {fmt(v.surplus ?? '0')}
                 </span>
               </div>
             </div>
@@ -707,13 +719,13 @@ export function LiquidateTool() {
                       ? proceeds.toFixed(2)
                       : String(Number(sched) + Number(v.net_proceeds)),
                     scheduledEmi: sched,
-                    note: `Asset sold — ${formatINR(v.net_proceeds)} net proceeds applied to ${target.bank}`,
+                    note: `Asset sold — ${fmtLoan(v.net_proceeds)} net proceeds applied to ${target.bank}`,
                     loans: profile.user.loans,
                     country: profile.user.country,
                   });
                   setApplied(true);
                 }}
-                label={`Apply this — log ${formatINR(v.net_proceeds)} payoff to ${profile.user.loans[Number(targetIdx)].bank} & reprice /plan`}
+                label={`Apply this — log ${fmtLoan(v.net_proceeds)} payoff to ${profile.user.loans[Number(targetIdx)].bank} & reprice /plan`}
               />
             )}
         </Card>

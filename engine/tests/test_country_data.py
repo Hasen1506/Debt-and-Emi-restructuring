@@ -58,3 +58,38 @@ def test_institution_tier_india_a_has_six_banks():
 def test_institution_tier_usa_a_has_six():
     assert len(INSTITUTION_TIER[Country.US]["A"]) == 6
     assert "JPMorgan Chase" in INSTITUTION_TIER[Country.US]["A"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CII provisional fallback (May 2026 backlog refinement)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_cii_provisional_returns_extrapolated_value():
+    """FY 2026-27 isn't in the verified CBDT table yet — lookup should return
+    an extrapolated provisional value instead of raising, so LTCG math keeps
+    running while we wait for the annual notification."""
+    from engine.country_data import lookup_cii, cii_is_provisional
+
+    val = lookup_cii("2026-27")
+    assert val > 363  # Must exceed FY24-25's verified 363
+    assert val < 500  # Sanity bound
+    assert cii_is_provisional("2026-27")
+
+
+def test_cii_provisional_can_be_disabled():
+    """Callers can opt out of provisional fallback when they need
+    authoritative-only data (e.g. for audit-grade reporting)."""
+    from engine.country_data import lookup_cii
+    import pytest
+
+    with pytest.raises(KeyError):
+        lookup_cii("2026-27", allow_provisional=False)
+
+
+def test_cii_verified_not_provisional():
+    """Verified FYs (CBDT-published) must not be flagged as provisional."""
+    from engine.country_data import cii_is_provisional
+
+    assert not cii_is_provisional("2024-25")
+    assert not cii_is_provisional("2001-02")

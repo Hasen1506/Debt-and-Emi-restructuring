@@ -19,10 +19,12 @@ import { useState } from 'react';
 import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
 import type { LoanPayload, LoanType } from '@/lib/api';
-import { formatINR } from '@/lib/api';
+import { formatCurrency } from '@/lib/api';
 import { fmt } from '@/lib/effective-apr';
 import { deriveMetrics, type LoanWithEffective } from '@/lib/derived';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
+import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'Revolving credit',
@@ -161,7 +163,7 @@ export function EditorialDebts({ profile }: { profile: StoredProfile }) {
           }}
         >
           A line item is more honest than a stack of cards. Total outstanding{' '}
-          <strong>{formatINR(m.totalOutstanding)}</strong>
+          <strong>{formatCurrency(m.totalOutstanding.toString(), userDefaultCurrency(country))}</strong>
           {m.loudest && m.loudest.effective.gt(new Decimal('0.24')) && (
             <>
               {' '}— most of it ordinary, a sliver of which is on fire.
@@ -190,6 +192,7 @@ export function EditorialDebts({ profile }: { profile: StoredProfile }) {
               marginalRate={marginalRate}
               country={country}
               taxRegime={taxRegime}
+              incomeType={user.income_type}
             />
           ))}
         </div>
@@ -209,6 +212,8 @@ export function EditorialDebts({ profile }: { profile: StoredProfile }) {
             + Add or edit a line →
           </a>
         </div>
+
+        <LifecycleEventsPanel user={profile.user} variant="editorial" />
       </article>
 
       <aside
@@ -245,7 +250,7 @@ export function EditorialDebts({ profile }: { profile: StoredProfile }) {
               lineHeight: 1.1,
             }}
           >
-            {formatINR(m.totalOutstanding)}
+            {formatCurrency(m.totalOutstanding.toString(), userDefaultCurrency(country))}
           </div>
           <div style={{ marginTop: 4 }}>total outstanding</div>
         </div>
@@ -316,6 +321,7 @@ function DebtParagraph({
   marginalRate,
   country,
   taxRegime,
+  incomeType,
 }: {
   row: LoanWithEffective;
   isLast: boolean;
@@ -325,6 +331,7 @@ function DebtParagraph({
   marginalRate: string;
   country: 'IN' | 'US';
   taxRegime: 'new' | 'old' | undefined;
+  incomeType: 'salaried' | 'business_owner';
 }) {
   const tag = [
     LOAN_TYPE_LABEL[row.loan.loan_type],
@@ -388,7 +395,7 @@ function DebtParagraph({
             textAlign: 'right',
           }}
         >
-          {formatINR(row.outstanding)}
+          {formatCurrency(row.outstanding.toString(), loanCurrency(row.loan, country))}
         </div>
       </div>
       <div
@@ -457,6 +464,7 @@ function DebtParagraph({
             country={country}
             taxRegime={taxRegime}
             variant="card"
+            incomeType={incomeType}
           />
         </div>
       )}

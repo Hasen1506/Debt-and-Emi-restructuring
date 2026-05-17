@@ -2,17 +2,25 @@ import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { StrategySwitcher } from '@/components/StrategySwitcher';
 import { HikeToggle } from '@/components/HikeToggle';
+import { TaxReinvestToggle } from '@/components/TaxReinvestToggle';
+import { InflationToggle } from '@/components/InflationToggle';
+import { FxDriftToggle } from '@/components/FxDriftToggle';
 import {
   STRATEGY_LABEL,
   STRATEGY_DESCRIPTION,
   STRATEGY_SHORT,
 } from '@/lib/strategy';
 import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
-import { formatINR, formatPct } from '@/lib/api';
+import { formatCurrency, formatPct } from '@/lib/api';
 import type { PlanData } from './PlanData';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
+import { TaxBreakdown } from './TaxBreakdown';
+import { BracketTransitionAlert } from './BracketTransitionAlert';
+import { AdvanceTaxPanel } from './AdvanceTaxPanel';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternative';
+import { FxCachePersister } from './FxCachePersister';
+import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 
 /**
  * Editorial Plan — "Chapter II · the path".
@@ -36,9 +44,26 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
   const opportunities = plan.opportunities.slice(0, 3);
   const hikeRate = Number(plan.user.annual_hike_rate ?? '0');
   const hikeRatePct = hikeRate > 0 ? `${(hikeRate * 100).toFixed(0)}%` : '0%';
+  const inflRate = Number(plan.user.inflation_rate ?? '0');
+  const inflRatePct = inflRate > 0 ? `${(inflRate * 100).toFixed(1)}%` : '0%';
   const hikeMonthIdx =
     plan.user.hike_effective_month ?? FY_ANCHOR_MONTH[plan.user.country];
   const hikeMonthLabel = MONTH_NAMES[Math.max(0, Math.min(11, hikeMonthIdx - 1))];
+  const ccyList = plan.currenciesInPlay;
+  const isHybrid = ccyList.length > 1;
+  const fmt = (v: string | number) => formatCurrency(v, plan.displayCurrency);
+  const totalInterestDisplay = isHybrid
+    ? ccyList
+        .map((c) => formatCurrency(plan.byCurrency[c]?.totalInterestScenario ?? 0, c))
+        .join(' · ')
+    : fmt(plan.totalInterest);
+  const baselineInterestDisplay = isHybrid
+    ? ccyList
+        .map((c) =>
+          formatCurrency(plan.byCurrencyBaseline[c]?.totalInterestScenario ?? 0, c),
+        )
+        .join(' · ')
+    : fmt(plan.baselineInterest);
 
   return (
     <div
@@ -49,6 +74,7 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
         paddingTop: 16,
       }}
     >
+      <FxCachePersister rates={plan.fxRatesUsed} />
       <article style={{ maxWidth: 760 }}>
         <div
           style={{
@@ -92,7 +118,7 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
           <abbr title="Income minus fixed expenses minus scheduled EMIs — the cash you have left each month to deploy above the minimums.">
             surplus
           </abbr>{' '}
-          stays at <strong>{formatINR(plan.surplus)}/mo</strong>, rates
+          stays at <strong>{fmt(plan.surplus)}/mo</strong>, rates
           don&apos;t shock either way, and you stick with the{' '}
           <strong>{STRATEGY_LABEL[plan.strategy].toLowerCase()}</strong>{' '}
           strategy ({STRATEGY_SHORT[plan.strategy].replace(/\.$/, '')}).
@@ -102,21 +128,14 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
               The restructures below could arrive sooner — they&apos;re worth
               about{' '}
               <strong style={{ color: 'var(--positive)' }}>
-                {formatINR(plan.totalAnnualSaving)}
+                {fmt(plan.totalAnnualSaving)}
               </strong>{' '}
               a year if you act on them.
             </>
           )}
         </p>
 
-        {plan.activityImpact && (
-          <ActivityImpactBanner
-            impact={plan.activityImpact}
-            loans={plan.user.loans}
-            country={plan.user.country}
-            variant="aside"
-          />
-        )}
+        <LifecycleArrivalPrompts user={plan.user} variant="editorial" />
 
         <figure
           style={{
@@ -138,9 +157,36 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
           >
             The trajectory
           </div>
-          <div style={{ height: 280 }}>
-            <DebtTrajectoryChart data={plan.trajectory} />
-          </div>
+          {isHybrid ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {ccyList.map((c) => (
+                <div key={c}>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: 10,
+                      letterSpacing: '0.15em',
+                      textTransform: 'uppercase',
+                      color: 'var(--soft)',
+                      marginBottom: 6,
+                    }}
+                  >
+                    {c} balance
+                  </div>
+                  <div style={{ height: 200 }}>
+                    <DebtTrajectoryChart data={plan.trajectory} currency={c} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ height: 280 }}>
+              <DebtTrajectoryChart
+                data={plan.trajectory}
+                currency={plan.displayCurrency}
+              />
+            </div>
+          )}
           <figcaption
             style={{
               fontFamily: 'var(--font-display)',
@@ -151,8 +197,9 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
               textAlign: 'center',
             }}
           >
-            Total balance over time. Solid: the avalanche path you're on.
-            Dashed: paying minimums only.
+            {isHybrid
+              ? 'Per-currency balances over time — no cross-currency conversion. Solid: the avalanche path. Dashed: paying minimums only.'
+              : "Total balance over time. Solid: the avalanche path you're on. Dashed: paying minimums only."}
           </figcaption>
         </figure>
 
@@ -192,16 +239,55 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
                   )}{' '}
                   {opp.rationale} Saves{' '}
                   <strong style={{ color: 'var(--positive)' }}>
-                    {formatINR(opp.estimated_annual_saving)}
+                    {fmt(opp.estimated_annual_saving)}
                   </strong>
                   /yr — rate {formatPct(opp.current_rate)} →{' '}
                   {formatPct(opp.target_rate)}.
-                  <OpportunityAlternative opportunity={opp} variant="editorial" />
+                  <OpportunityAlternative opportunity={opp} variant="editorial" currency={plan.displayCurrency} />
                 </li>
               ))}
             </ol>
           </div>
         )}
+
+        {/* Context block — conditional alerts + tax planning. Moved from above
+         *  the trajectory to here, so the page leads with answer (headline) +
+         *  visual (figure) + action (opportunities), then the supporting
+         *  details. Matches the canonical /plan section order across skins. */}
+        {plan.activityImpact && (
+          <ActivityImpactBanner
+            impact={plan.activityImpact}
+            loans={plan.user.loans}
+            country={plan.user.country}
+            variant="aside"
+          />
+        )}
+
+        <BracketTransitionAlert
+          transitions={plan.bracketTransitions}
+          country={plan.user.country}
+          displayCurrency={plan.displayCurrency}
+          variant="aside"
+        />
+
+        {plan.advanceTaxSchedule && (
+          <AdvanceTaxPanel
+            schedule={plan.advanceTaxSchedule}
+            country={plan.user.country}
+            displayCurrency={plan.displayCurrency}
+            monthlyPenaltyCost={plan.advanceTaxPenaltyMonthly}
+            variant="aside"
+          />
+        )}
+
+        <TaxBreakdown
+          user={{
+            country: plan.user.country,
+            loans: plan.user.loans,
+            tax_regime: plan.user.tax_regime,
+          }}
+          variant="aside"
+        />
 
         <div
           style={{
@@ -223,8 +309,8 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
                 : 'lift surplus to clear inside the 20-year horizon',
             },
             {
-              v: formatINR(plan.totalInterest),
-              l: `interest you'll pay · vs ${formatINR(plan.baselineInterest)} if minimums only`,
+              v: totalInterestDisplay,
+              l: `interest you'll pay · vs ${baselineInterestDisplay} if minimums only`,
             },
             {
               v: `${plan.monthsSaved} mo`,
@@ -258,15 +344,19 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
           ))}
         </div>
 
-        <section
+        {/* Schedule — collapsed by default; the page leads with the
+         *  visual + opportunities, and a reader who wants the row-by-row
+         *  detail clicks to open it. */}
+        <details
           style={{
             marginTop: 40,
             paddingTop: 24,
             borderTop: '1px solid var(--border)',
           }}
         >
-          <div
+          <summary
             style={{
+              cursor: 'pointer',
               fontFamily: 'var(--font-sans)',
               fontSize: 10,
               letterSpacing: '0.15em',
@@ -275,14 +365,15 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
               marginBottom: 6,
             }}
           >
-            The schedule
-          </div>
+            The schedule — {plan.trajectory.length} months
+          </summary>
           <p
             style={{
               fontFamily: 'var(--font-display)',
               fontStyle: 'italic',
               fontSize: 13,
               color: 'var(--muted)',
+              marginTop: 14,
               marginBottom: 14,
               lineHeight: 1.6,
             }}
@@ -297,7 +388,7 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             loans={plan.user.loans}
             country={plan.user.country}
           />
-        </section>
+        </details>
 
         <div
           style={{
@@ -391,8 +482,31 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
               active={plan.hikeModeling}
               hikeRatePct={hikeRatePct}
               hikeMonthLabel={hikeMonthLabel}
+              hikePhases={plan.user.hike_schedule}
               variant="inline"
             />
+            <TaxReinvestToggle
+              active={plan.taxReinvest}
+              totalProjectedSaving={formatCurrency(
+                plan.taxReinvestProjection
+                  .reduce((sum, e) => sum + Number(e.amount), 0)
+                  .toFixed(0),
+                plan.displayCurrency,
+              )}
+              variant="inline"
+            />
+            <InflationToggle
+              active={plan.inflationModeling}
+              inflationRatePct={inflRatePct}
+              variant="inline"
+            />
+            {isHybrid && (
+              <FxDriftToggle
+                active={plan.fxDrift}
+                driftLabel="INR +2.5%/yr (CPI differential)"
+                variant="inline"
+              />
+            )}
             <div style={{ color: 'var(--soft)', fontSize: 12 }}>
               {STRATEGY_DESCRIPTION[plan.strategy]}
             </div>
@@ -424,7 +538,7 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
                 color: plan.surplus >= 0 ? 'var(--ink)' : 'var(--negative)',
               }}
             >
-              {formatINR(plan.surplus)}/mo
+              {fmt(plan.surplus)}/mo
             </span>{' '}
             — income minus fixed expenses minus scheduled EMIs. Adjusts in{' '}
             <a
