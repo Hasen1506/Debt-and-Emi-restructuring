@@ -1,4 +1,5 @@
 import { ThemeSwitcher } from '@/components/ThemeSwitcher';
+import { SessionIndicator } from '@/components/chrome/SessionIndicator';
 import type { ThemeName } from '@/lib/theme';
 import type { Country } from '@/lib/api';
 import { getCountryToday } from '@/lib/today';
@@ -95,7 +96,8 @@ export function EditorialMasthead({
             </a>
           ))}
         </nav>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <SessionIndicator variant="editorial" />
           <ThemeSwitcher initial={theme} />
         </div>
       </div>

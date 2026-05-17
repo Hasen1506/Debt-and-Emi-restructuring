@@ -13,6 +13,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { loadProfileClient, serializeProfileForServer } from '@/lib/user-store';
+import { hydrateFromServer } from '@/lib/server-sync';
 
 type Phase = 'email' | 'code';
 
@@ -50,7 +51,12 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await api.verifyOtp(email.trim().toLowerCase(), code.trim());
-      await migrateCookieStateIfNeeded();
+      // Pull server state into cookies BEFORE navigating so middleware
+      // doesn't redirect returning users to /onboarding.
+      const hydrated = await hydrateFromServer();
+      // New users (or first-time signups) have nothing on the server —
+      // push their existing cookie state up if any.
+      if (!hydrated) await migrateCookieStateIfNeeded();
       router.push(redirectTo);
       router.refresh();
     } catch (err) {

@@ -1,4 +1,5 @@
 import { ThemeSwitcher } from '@/components/ThemeSwitcher';
+import { SessionIndicator } from '@/components/chrome/SessionIndicator';
 import type { ThemeName } from '@/lib/theme';
 import { NAV_ITEMS } from '@/lib/nav';
 
@@ -41,7 +42,8 @@ export function StandardTopBar({ theme }: { theme: ThemeName }) {
             </a>
           ))}
         </nav>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <SessionIndicator variant="existing" />
           <ThemeSwitcher initial={theme} />
           <span className="chip">IN · ₹</span>
         </div>

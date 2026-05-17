@@ -69,8 +69,21 @@ export async function syncSliceToServer(slice: string, value: unknown): Promise<
 /**
  * Mirror server-side state back into local stores. Called once after
  * boot when /api/user/state returns a populated blob.
+ *
+ * Also handles the profile slice, which spans 3 separate cookies
+ * (finoptima_user, finoptima_marginal, finoptima_score) and so isn't
+ * in SLICE_TARGETS. Without this, returning users on a new device hit
+ * a window where the session cookie exists but the profile cookie
+ * doesn't — long enough for the middleware to redirect them to
+ * /onboarding.
  */
 function hydrateLocalStores(data: Record<string, unknown>): void {
+  const profile = (data as { profile?: { user?: unknown; marginalRate?: string; creditScore?: number | null } }).profile;
+  if (profile && typeof profile === 'object') {
+    if (profile.user) writeCookie('finoptima_user', JSON.stringify(profile.user));
+    if (profile.marginalRate) writeCookie('finoptima_marginal', profile.marginalRate);
+    if (profile.creditScore != null) writeCookie('finoptima_score', String(profile.creditScore));
+  }
   for (const [slice, target] of Object.entries(SLICE_TARGETS)) {
     if (!(slice in data)) continue;
     const value = data[slice];
@@ -82,6 +95,24 @@ function hydrateLocalStores(data: Record<string, unknown>): void {
       if (typeof localStorage === 'undefined') continue;
       localStorage.setItem(target.name, serialized);
     }
+  }
+}
+
+/**
+ * Synchronous hydration triggered from /login right after verify. Avoids
+ * the first-render race where the middleware would see session+no-profile
+ * and bounce returning users to /onboarding before <SessionHydrator/>
+ * fires on mount. No-op for new users (server blob is empty).
+ */
+export async function hydrateFromServer(): Promise<boolean> {
+  const { api } = await import('./api');
+  try {
+    const res = await api.getUserState();
+    if (!res.data) return false;
+    hydrateLocalStores(res.data);
+    return true;
+  } catch {
+    return false;
   }
 }
 
