@@ -27,7 +27,7 @@ import {
   MONTH_NAMES,
   formatCountryDateLong,
 } from '@/lib/today';
-import { explainMinPayment } from '@/lib/min-payment';
+import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { api, formatCurrency } from '@/lib/api';
 import { deriveTenureMonths } from '@/lib/derived';
 import {
@@ -1169,6 +1169,49 @@ export default function OnboardingPage() {
                         Doesn&apos;t change interest math — the engine still
                         accrues monthly. Optional; leave blank if you&apos;d
                         rather not specify.
+                      </>
+                    }
+                  />
+                )}
+                {l.loan_type === 'credit_card' && l.statement_day != null && (
+                  <Field
+                    label="Due day (1-28)"
+                    value={
+                      l.due_day != null
+                        ? String(l.due_day)
+                        : String(
+                            ((l.statement_day - 1 +
+                              suggestedGraceDays(l.bank, country)) %
+                              28) +
+                              1,
+                          )
+                    }
+                    onChange={(v) => {
+                      const n = Number(v);
+                      updateLoan(i, {
+                        due_day:
+                          v.trim() === '' || Number.isNaN(n) || n < 1 || n > 28
+                            ? undefined
+                            : n,
+                      });
+                    }}
+                    placeholder={String(
+                      ((l.statement_day - 1 +
+                        suggestedGraceDays(l.bank, country)) %
+                        28) +
+                        1,
+                    )}
+                    hint={`Pre-filled from ${l.bank || 'country default'} (${suggestedGraceDays(l.bank, country)}-day grace) — override if your card differs`}
+                    info={
+                      <>
+                        The day your payment is due each cycle. Indian banks
+                        give 18-26 days grace from statement to due; US banks
+                        21-25 days (CARD Act ≥21).
+                        <br />
+                        <br />
+                        We pre-fill from a registry of typical grace periods
+                        per bank. If your specific card differs (some premium
+                        variants give longer), override here.
                       </>
                     }
                   />

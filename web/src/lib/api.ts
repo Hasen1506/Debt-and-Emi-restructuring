@@ -55,6 +55,11 @@ export interface LoanPayload {
    *  consume this — interest math stays monthly-accrual. Omitting it
    *  keeps the old "this month" generic framing. */
   statement_day?: number;
+  /** Credit cards only: day-of-month the bill is due (1-28). Onboarding
+   *  pre-fills via suggestedGraceDays(bank) but the user can override —
+   *  banks differ by 18-26 days, and individual cards within a bank can
+   *  too. Like statement_day, UI-only — engine doesn't consume. */
+  due_day?: number;
 }
 
 export interface InvestmentOptionPayload {

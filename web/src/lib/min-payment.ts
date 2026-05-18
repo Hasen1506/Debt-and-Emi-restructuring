@@ -118,6 +118,47 @@ const DEFAULTS: Record<Country, BankFormula> = {
   },
 };
 
+// ─── Grace period registry ─────────────────────────────────────────────────
+
+/**
+ * Statement-to-due grace period (days) by bank. Used as a smart default
+ * for the credit-card due_day input in onboarding — if the user knows
+ * their statement_day, we can pre-fill due_day from this table. They
+ * can still override.
+ *
+ * Country fallback: 20 days for IN, 23 for US (median across surveyed
+ * issuers). CARD Act mandates ≥21 days for US cards.
+ */
+const GRACE_DAYS_IN: Record<string, number> = {
+  'SBI Card': 20,
+  'HDFC Bank': 20,
+  'Axis Bank': 21,
+  'ICICI Bank': 18,
+  'Kotak Mahindra': 20,
+  'Yes Bank': 20,
+  'IndusInd Bank': 20,
+  'RBL Bank': 20,
+  'AmEx India': 26,
+};
+
+const GRACE_DAYS_US: Record<string, number> = {
+  Chase: 21,
+  'Bank of America': 25,
+  Citibank: 23,
+  'Capital One': 25,
+  Discover: 25,
+  'American Express': 25,
+  'Goldman Sachs': 23,
+  Synchrony: 23,
+};
+
+const GRACE_DEFAULTS: Record<Country, number> = { IN: 20, US: 23 };
+
+export function suggestedGraceDays(bank: string, country: Country): number {
+  const registry = country === 'IN' ? GRACE_DAYS_IN : GRACE_DAYS_US;
+  return registry[bank] ?? GRACE_DEFAULTS[country];
+}
+
 export function explainMinPayment(
   loan: Pick<LoanPayload, 'loan_type' | 'bank' | 'outstanding'>,
   country: Country,

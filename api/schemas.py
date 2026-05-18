@@ -43,10 +43,12 @@ class LoanIn(_Base):
     min_payment_override: Optional[Decimal] = None
     currency: Optional[str] = None
     expected_monthly_spend: Decimal = D("0")
-    # Optional statement day-of-month for credit cards (1-28). UI-only —
-    # the engine's monthly-accrual model doesn't consume it. Documented
-    # here so the schema surfaces the field instead of silently dropping.
+    # Optional statement / due day-of-month for credit cards (1-28).
+    # UI-only — the engine's monthly-accrual model doesn't consume them.
+    # Documented here so the schema surfaces the fields instead of
+    # silently dropping them.
     statement_day: Optional[int] = None
+    due_day: Optional[int] = None
 
     def to_engine(self) -> Loan:
         return Loan(

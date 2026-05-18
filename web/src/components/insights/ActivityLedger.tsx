@@ -31,7 +31,7 @@ import {
   type ActivityKind,
 } from '@/lib/activity';
 import { estimateLateFee } from '@/lib/estimate-penalty';
-import { explainMinPayment } from '@/lib/min-payment';
+import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { syncActivityCookieClient } from '@/lib/activity-cookie';
 import {
   formatINR,
@@ -76,14 +76,15 @@ function today(): string {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
-/** Most-recent statement date (≤ today) for a card with day-of-month
- *  `statementDay`, and its due date 20 days later. Returns ISO dates +
- *  short pretty labels. Card billing convention: due ~20d after stmt. */
-function computeCycle(statementDay: number): {
-  statementIso: string;
-  dueIso: string;
-  label: string;
-} {
+/** Most-recent statement date (≤ today) and its due date for a card.
+ *  If `dueDay` is set, anchors the due date on that day-of-month. Else
+ *  adds `graceDays` (bank-aware default from registry) to the statement.
+ *  Returns ISO dates + a short pretty label. */
+function computeCycle(
+  statementDay: number,
+  dueDay: number | undefined,
+  graceDays: number,
+): { statementIso: string; dueIso: string; label: string } {
   const d = new Date();
   let year = d.getFullYear();
   let month = d.getMonth(); // 0-indexed
@@ -96,8 +97,17 @@ function computeCycle(statementDay: number): {
     }
   }
   const stmt = new Date(year, month, statementDay);
-  const due = new Date(stmt);
-  due.setDate(due.getDate() + 20);
+  let due: Date;
+  if (dueDay) {
+    // Anchor due on the user-specified day. If dueDay < statementDay,
+    // it's the next month's same day-of-month.
+    const dueYear = dueDay < statementDay ? (month === 11 ? year + 1 : year) : year;
+    const dueMonth = dueDay < statementDay ? (month + 1) % 12 : month;
+    due = new Date(dueYear, dueMonth, dueDay);
+  } else {
+    due = new Date(stmt);
+    due.setDate(due.getDate() + graceDays);
+  }
   const iso = (x: Date) => {
     const y = x.getFullYear();
     const m = String(x.getMonth() + 1).padStart(2, '0');
@@ -230,13 +240,19 @@ function LogForm({
     : scheduledEmi;
 
   // Cycle labels for cards with a configured statement_day. Compute the
-  // most-recent statement date (≤ today) and its due date (~20 days
-  // later) so the form can label "May 5 statement, due May 25" instead
-  // of generic "this month".
+  // most-recent statement date (≤ today) and its due date — prefer the
+  // user-specified due_day; fall back to the bank's typical grace
+  // period from our registry; fall back further to the country default
+  // (20 days IN, 23 days US).
   const cycle = useMemo(() => {
     if (!isCard || !selectedLoan?.statement_day) return null;
-    return computeCycle(selectedLoan.statement_day);
-  }, [isCard, selectedLoan?.statement_day]);
+    const graceDays = suggestedGraceDays(selectedLoan.bank, country);
+    return computeCycle(
+      selectedLoan.statement_day,
+      selectedLoan.due_day,
+      graceDays,
+    );
+  }, [isCard, selectedLoan?.statement_day, selectedLoan?.due_day, selectedLoan?.bank, country]);
 
   // Default the amount when kind / loan changes.
   useEffect(() => {
