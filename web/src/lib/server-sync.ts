@@ -39,6 +39,7 @@ const SLICE_TARGETS: Record<string, SliceTarget> = {
   tax_reinvest:       { kind: 'cookie',       name: 'finoptima_tax_reinvest' },
   fx_drift:           { kind: 'cookie',       name: 'finoptima_fx_drift' },
   commitments:        { kind: 'localStorage', name: 'finoptima_commitments' },
+  cash_events:        { kind: 'localStorage', name: 'finoptima_cash_events' },
   // Profile slice is handled separately by user-store.ts (it spans 3
   // cookies and predates this file).
 };
