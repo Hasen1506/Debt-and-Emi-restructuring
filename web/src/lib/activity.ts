@@ -70,6 +70,15 @@ export interface ActivityEntry {
   /** When the user logged this (not when it happened). Used for sort
    *  tiebreaks when multiple entries share a date. */
   loggedAt: string;
+  /** Credit cards only: the user's reported new outstanding balance
+   *  AFTER this payment was applied. When set, the activity-deltas
+   *  cookie includes a `balanceOverride` so the server re-anchors the
+   *  card's outstanding to this value before simulating, instead of
+   *  letting it drift from the original onboarding figure.
+   *
+   *  Blank / unset → outstanding unchanged (previous behavior). Engine
+   *  ignores this on non-card loans, which have amortization. */
+  newOutstanding?: string;
 }
 
 export const ACTIVITY_KINDS: ActivityKind[] = [

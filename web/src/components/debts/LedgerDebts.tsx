@@ -20,6 +20,7 @@ import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { computeBreakdown, fmt } from '@/lib/effective-apr';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
+import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'CREDIT CARD',
@@ -293,6 +294,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
         </div>
       </section>
 
+      <StaleCardNudge user={profile.user} variant="ledger" />
       <LifecycleEventsPanel user={profile.user} variant="ledger" />
     </div>
   );

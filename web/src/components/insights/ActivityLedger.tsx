@@ -222,6 +222,7 @@ function LogForm({
   const [date, setDate] = useState(today());
   const [amount, setAmount] = useState('');
   const [penaltyOverride, setPenaltyOverride] = useState('');
+  const [newOutstanding, setNewOutstanding] = useState('');
   const [note, setNote] = useState('');
 
   const selectedLoan: LoanPayload | undefined = loans[loanIndex];
@@ -327,10 +328,15 @@ function LogForm({
         penaltyOverride.trim() !== ''
           ? penaltyOverride
           : undefined,
+      newOutstanding:
+        isCard && newOutstanding.trim() !== ''
+          ? newOutstanding
+          : undefined,
       note: note.trim() || undefined,
     });
     setNote('');
     setPenaltyOverride('');
+    setNewOutstanding('');
     setKind('paid_full');
     setAmount(scheduledEmi);
   }
@@ -534,6 +540,36 @@ function LogForm({
               }}
             />
           </div>
+        )}
+        {isCard && (
+          <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="muted" style={{ fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
+              <span>
+                New outstanding after this payment {country === 'IN' ? '(₹)' : '($)'} —
+                optional
+              </span>
+              <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>
+                Current: {fmtPreview(selectedLoan?.outstanding ?? '0')}
+              </span>
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={newOutstanding}
+              onChange={(e) => setNewOutstanding(e.target.value)}
+              placeholder="Leave blank to keep current"
+              style={{
+                ...inputStyle,
+                fontFamily: 'var(--font-mono)',
+                textAlign: 'right',
+              }}
+            />
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+              When set, /plan re-anchors this card to your reported balance
+              instead of letting it drift. Read this off your statement after
+              the payment posts.
+            </span>
+          </label>
         )}
         <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span className="muted" style={{ fontSize: 11 }}>

@@ -50,6 +50,12 @@ export interface ActivityDelta {
   /** Set when this delta represents a `closed` event — outstanding goes to
    *  zero regardless of the other fields. */
   closed?: boolean;
+  /** Card-only: user-reported new outstanding after the payment posted.
+   *  When set, /plan re-anchors the loan's outstanding to this value
+   *  before simulating — wins over the original onboarding figure +
+   *  any other deltas for the same loan. Carries the most-recent
+   *  override only (older ones get filtered when this is set). */
+  balanceOverride?: string;
 }
 
 interface CookiePayload {
@@ -71,7 +77,37 @@ export function syncActivityCookieClient(
 ): void {
   if (typeof document === 'undefined') return;
 
+  // Build a per-loan map of the most-recent `newOutstanding` user input.
+  // Entries arrive newest-first, so the first sighting per loan wins.
+  const overridesByLoan = new Map<number, string>();
+  for (const e of entries) {
+    if (
+      e.newOutstanding !== undefined &&
+      e.newOutstanding.trim() !== '' &&
+      !overridesByLoan.has(e.loanIndex)
+    ) {
+      overridesByLoan.set(e.loanIndex, e.newOutstanding);
+    }
+  }
+  const overrideEmitted = new Set<number>();
+
   const deltas: ActivityDelta[] = [];
+  // First pass: synthetic "balance-only" deltas for loans that have an
+  // override but no other event would emit a delta for them (e.g. user
+  // only logged paid_full + newOutstanding). The server applies the
+  // override before anything else.
+  for (const [loanIndex, balanceOverride] of overridesByLoan) {
+    const loan = loans[loanIndex];
+    if (!loan || loan.loan_type !== 'credit_card') continue;
+    deltas.push({
+      loanIndex,
+      overdue: '0',
+      penalty: '0',
+      balanceOverride,
+    });
+    overrideEmitted.add(loanIndex);
+    if (deltas.length >= MAX_DELTAS) break;
+  }
   for (const e of entries) {
     if (e.kind === 'paid_full') continue;
     const loan = loans[e.loanIndex];
@@ -204,7 +240,10 @@ export function applyActivityDeltas(
   loans: LoanPayload[],
   deltas: ActivityDelta[],
 ): DeltaApplication {
-  const perLoan = new Map<number, { bump: Decimal; count: number; closed: boolean }>();
+  const perLoan = new Map<
+    number,
+    { bump: Decimal; count: number; closed: boolean; balanceOverride: string | null }
+  >();
   for (const d of deltas) {
     if (d.loanIndex < 0 || d.loanIndex >= loans.length) continue;
     const overdue = new Decimal(d.overdue || 0);
@@ -214,10 +253,15 @@ export function applyActivityDeltas(
       bump: new Decimal(0),
       count: 0,
       closed: false,
+      balanceOverride: null as string | null,
     };
     cur.bump = cur.bump.add(overdue).add(penalty).sub(reduction);
     cur.count += 1;
     if (d.closed) cur.closed = true;
+    // First override wins (deltas are emitted newest-first by syncActivityCookieClient).
+    if (d.balanceOverride !== undefined && cur.balanceOverride === null) {
+      cur.balanceOverride = d.balanceOverride;
+    }
     perLoan.set(d.loanIndex, cur);
   }
 
@@ -226,6 +270,12 @@ export function applyActivityDeltas(
     if (!entry) return loan;
     if (entry.closed) {
       return { ...loan, outstanding: '0' };
+    }
+    // Explicit balance override wins over the bump-from-onboarding logic
+    // for credit cards. The user's reported post-payment balance is the
+    // most accurate ground truth we have.
+    if (entry.balanceOverride !== null) {
+      return { ...loan, outstanding: entry.balanceOverride };
     }
     if (entry.bump.eq(0)) return loan;
     const next = new Decimal(loan.outstanding || 0).add(entry.bump);

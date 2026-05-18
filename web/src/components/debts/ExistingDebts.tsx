@@ -19,6 +19,7 @@ import { fmt } from '@/lib/effective-apr';
 import { deriveMetrics } from '@/lib/derived';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
+import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'Credit card',
@@ -164,6 +165,7 @@ export function ExistingDebts({ profile }: { profile: StoredProfile }) {
         + Add or edit debts
       </a>
 
+      <StaleCardNudge user={profile.user} variant="existing" />
       <LifecycleEventsPanel user={profile.user} variant="existing" />
     </div>
   );
