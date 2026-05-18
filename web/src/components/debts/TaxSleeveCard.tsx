@@ -213,6 +213,32 @@ export function TaxSleeveCard({
         by Mar 15. Missing an installment costs 1%/month penal interest on the
         shortfall.
       </div>
+      <div className="muted" style={{ fontSize: 11, marginTop: 4, fontStyle: 'italic' }}>
+        Annual target of{' '}
+        <strong style={{ color: 'var(--ink)' }}>
+          {formatCurrency(String(annualTarget), currency)}
+        </strong>{' '}
+        comes from{' '}
+        {user.income_type === 'business_owner' ? (
+          <>
+            the tax on your stated <strong>annual business income</strong>.
+            Edit in{' '}
+            <a href="/onboarding?step=2" style={{ color: 'var(--accent)' }}>
+              Setup → Income
+            </a>
+            .
+          </>
+        ) : (
+          <>
+            the <strong>"tax on non-TDS income"</strong> field you entered.
+            Edit or clear it in{' '}
+            <a href="/onboarding?step=2" style={{ color: 'var(--accent)' }}>
+              Setup → Income
+            </a>{' '}
+            to make this card go away.
+          </>
+        )}
+      </div>
     </div>
   );
 

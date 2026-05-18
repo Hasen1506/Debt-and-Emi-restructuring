@@ -22,12 +22,12 @@ import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternat
 import { FxCachePersister } from './FxCachePersister';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
-import { PerLoanTrajectorySection } from './PerLoanTrajectorySection';
+import { AssumptionBadges } from './AssumptionBadges';
 
 const KIND_LABEL: Record<RestructuringOpportunity['kind'], string> = {
-  balance_transfer: 'Balance transfer',
-  consolidation: 'Consolidate',
-  refinance: 'Refinance',
+  balance_transfer: 'Move card balance to a cheaper card',
+  consolidation: 'Combine multiple loans into one',
+  refinance: 'Replace this loan with a cheaper one',
 };
 
 const KIND_COLOR: Record<RestructuringOpportunity['kind'], string> = {
@@ -207,6 +207,7 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
 
       {/* 3. Trajectory chart. */}
       <Card>
+        <AssumptionBadges plan={plan} />
         <div className="muted" style={{ fontSize: 12 }}>
           Total debt over time (avalanche vs minimums)
           {isHybrid && (
@@ -237,8 +238,6 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
           </div>
         )}
       </Card>
-
-      <PerLoanTrajectorySection plan={plan} />
 
       {/* 4. Opportunities — the action surface. */}
       {plan.opportunities.length > 0 && (

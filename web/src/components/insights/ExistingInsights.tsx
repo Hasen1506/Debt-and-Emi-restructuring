@@ -1,9 +1,17 @@
 import { ActivityLedger } from './ActivityLedger';
 import { AdvanceTaxLedger } from './AdvanceTaxLedger';
 import { InsightsSummaryStrip } from './InsightsSummaryStrip';
+import { InsightsPerLoanTrajectorySection } from './PerLoanTrajectorySection';
 import type { StoredProfile } from '@/lib/user-store';
+import type { StrategyName } from '@/lib/strategy';
 
-export function ExistingInsights({ profile }: { profile: StoredProfile }) {
+export function ExistingInsights({
+  profile,
+  strategy,
+}: {
+  profile: StoredProfile;
+  strategy: StrategyName;
+}) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <section>
@@ -17,6 +25,11 @@ export function ExistingInsights({ profile }: { profile: StoredProfile }) {
         </p>
       </section>
       <InsightsSummaryStrip user={profile.user} variant="existing" />
+      <InsightsPerLoanTrajectorySection
+        user={profile.user}
+        marginalRate={profile.marginalRate}
+        strategy={strategy}
+      />
       <ActivityLedger user={profile.user} variant="existing" />
       <AdvanceTaxLedger user={profile.user} variant="existing" />
     </div>

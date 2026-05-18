@@ -14,7 +14,7 @@ import {
 import type { PlanData } from './PlanData';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
-import { PerLoanTrajectorySection } from './PerLoanTrajectorySection';
+import { AssumptionBadges } from './AssumptionBadges';
 import { TaxBreakdown } from './TaxBreakdown';
 import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
@@ -250,6 +250,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
       {/* 3. Trajectory — visual proof of the KPI strip. */}
       <section>
         <SectionLabel>$ TRAJECTORY · AVALANCHE VS MIN</SectionLabel>
+        <AssumptionBadges plan={plan} />
         {isHybrid ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {ccyList.map((c) => (
@@ -311,8 +312,6 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
               : ' ($k = thousands)'}.
         </div>
       </section>
-
-      <PerLoanTrajectorySection plan={plan} />
 
       {/* 4. Opportunities — highest-leverage action surface, moved up from #8. */}
       {opportunities.length > 0 && (

@@ -10,9 +10,17 @@
 import { ActivityLedger } from './ActivityLedger';
 import { AdvanceTaxLedger } from './AdvanceTaxLedger';
 import { InsightsSummaryStrip } from './InsightsSummaryStrip';
+import { InsightsPerLoanTrajectorySection } from './PerLoanTrajectorySection';
 import type { StoredProfile } from '@/lib/user-store';
+import type { StrategyName } from '@/lib/strategy';
 
-export function EditorialInsights({ profile }: { profile: StoredProfile }) {
+export function EditorialInsights({
+  profile,
+  strategy,
+}: {
+  profile: StoredProfile;
+  strategy: StrategyName;
+}) {
   return (
     <div
       style={{
@@ -70,6 +78,14 @@ export function EditorialInsights({ profile }: { profile: StoredProfile }) {
         </p>
 
         <InsightsSummaryStrip user={profile.user} variant="editorial" />
+
+        <div style={{ marginTop: 32 }}>
+          <InsightsPerLoanTrajectorySection
+            user={profile.user}
+            marginalRate={profile.marginalRate}
+            strategy={strategy}
+          />
+        </div>
 
         <div
           style={{

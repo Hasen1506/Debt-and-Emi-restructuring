@@ -206,21 +206,26 @@ def _scan_card_balance_transfer(
     )
     ccy = "₹" if country == Country.IN else "$"
     headline = (
-        f"{promo_months}-month promo: move {ccy}{card.outstanding:,.0f} from "
-        f"{card.bank} card to {target_card.name} at ~{_fmt_pct(cand.effective_bt_apr)}"
+        f"Save ~{ccy}{saving_annualised:,.0f}/yr by moving the "
+        f"{ccy}{card.outstanding:,.0f} on your {card.bank} card to "
+        f"{target_card.name} (cheaper card, {promo_months}-month promo at "
+        f"~{_fmt_pct(cand.effective_bt_apr)})"
     )
     rationale = (
-        f"Promotional rate only — clear the balance before month {promo_months} "
-        f"or the rate snaps back to ~{_fmt_pct(card_effective)}. "
-        f"Effective during promo: {_fmt_pct(promo_rate)} + amortised fee "
-        f"{_fmt_pct(fee_pct)} = {_fmt_pct(cand.effective_bt_apr)} vs the "
-        f"{_fmt_pct(card_effective)} you pay today."
+        f"Card-to-card transfer. You'd pay roughly {_fmt_pct(cand.effective_bt_apr)} "
+        f"on the new card during the {promo_months}-month promo period vs. "
+        f"{_fmt_pct(card_effective)} on your current card. Clear it before the "
+        f"promo ends — after that the rate snaps back to roughly "
+        f"{_fmt_pct(card_effective)} again. The new-card rate already accounts "
+        f"for the {_fmt_pct(fee_pct)} one-time transfer fee spread over the "
+        f"promo months."
     )
     if income_type == IncomeType.BUSINESS_OWNER:
         rationale += (
-            " Self-employed underwriting: most issuers ask for 2-3yr ITR + "
-            "business proof before approving BT promo; expect a manual review "
-            "and a higher chance of decline or partial-limit approval."
+            " Self-employed underwriting: most issuers ask for 2-3 years of "
+            "ITR + business proof before approving these card-to-card "
+            "transfers; expect a manual review and a higher chance of decline "
+            "or partial-limit approval."
         )
     # If the relationship pick differs from the overall winner, surface the
     # alternative so the UI can show a dismissable "even cheaper elsewhere".
@@ -289,20 +294,25 @@ def _scan_consolidation_opportunity(
         return None
     total = sum((l.outstanding for l in cand.loans), D("0"))
     saving = (cand.blended_avg_rate - cand.consolidated_rate) * total
+    ccy = "₹" if user.country == Country.IN else "$"
     headline = (
-        f"Consolidate {len(cand.loans)} unsecured loans into one "
-        f"{target_bank} personal loan at ~{_fmt_pct(cand.consolidated_rate)}"
+        f"Save ~{ccy}{saving:,.0f}/yr by combining your {len(cand.loans)} "
+        f"unsecured loans into one personal loan with {target_bank} at "
+        f"~{_fmt_pct(cand.consolidated_rate)}"
     )
     rationale = (
-        f"Blended effective rate today is {_fmt_pct(cand.blended_avg_rate)}; "
-        f"one personal loan at {_fmt_pct(cand.consolidated_rate)} saves "
-        f"{_fmt_pct(cand.blended_avg_rate - cand.consolidated_rate)} per year."
+        f"Right now your {len(cand.loans)} unsecured loans cost a blended "
+        f"{_fmt_pct(cand.blended_avg_rate)} per year on average. Rolling them "
+        f"into a single personal loan at {_fmt_pct(cand.consolidated_rate)} "
+        f"cuts that to one rate, one EMI, one due date — and saves about "
+        f"{_fmt_pct(cand.blended_avg_rate - cand.consolidated_rate)} per year "
+        f"on the combined balance."
     )
     if user.income_type == IncomeType.BUSINESS_OWNER:
         rationale += (
-            " As a business-owner the quoted rate is the mid-of-band — your "
-            "actual offer depends on 3yr ITR + GST returns + bank-statement "
-            "review. Bring documentation up front to avoid re-pricing."
+            " As a business owner the quoted rate is the mid-of-band — your "
+            "actual offer depends on 3 years of ITR + GST returns + bank-"
+            "statement review. Bring documentation up front to avoid re-pricing."
         )
     alt_bank = alt_rate = alt_saving = None
     if (
@@ -375,20 +385,26 @@ def _scan_refi_opportunity(
     if cand is None:
         return None
     annual_saving = (loan.nominal_rate - new_rate) * loan.outstanding
+    ccy = "₹" if country == Country.IN else "$"
+    net_savings = max(D("0"), interest_saved - refi_costs)
     headline = (
-        f"Refinance {loan.bank} {loan.loan_type.value.replace('_', ' ')} "
-        f"to {target_bank or 'market median'} at ~{_fmt_pct(new_rate)}"
+        f"Save ~{ccy}{net_savings:,.0f} over the life of the loan by replacing "
+        f"your {loan.bank} {loan.loan_type.value.replace('_', ' ')} with a "
+        f"cheaper one from {target_bank or 'market median'} "
+        f"(~{_fmt_pct(new_rate)})"
     )
     rationale = (
-        f"Current rate {_fmt_pct(loan.nominal_rate)} is "
-        f"{_fmt_pct(loan.nominal_rate - median)} above market median "
-        f"{_fmt_pct(median)}; lifetime interest saved "
-        f"{interest_saved:,.0f} vs ~{refi_costs:,.0f} in costs."
+        f"You're paying {_fmt_pct(loan.nominal_rate)}, which is "
+        f"{_fmt_pct(loan.nominal_rate - median)} above what most banks now "
+        f"quote ({_fmt_pct(median)}). Switching the loan over saves roughly "
+        f"{ccy}{interest_saved:,.0f} in interest across the remaining tenure, "
+        f"minus about {ccy}{refi_costs:,.0f} in processing and switching fees "
+        f"— a net win of about {ccy}{net_savings:,.0f}."
     )
     if income_type == IncomeType.BUSINESS_OWNER and loan.loan_type not in _COLLATERAL_BACKED:
         rationale += (
-            " Self-employed underwriting widens the band — bring 3yr ITR + "
-            "business proof to argue for the lower end."
+            " Self-employed underwriting widens the range — bring 3 years of "
+            "ITR + business proof to argue for the lower end."
         )
     alt_bank = alt_rate = alt_saving = None
     if (

@@ -1,11 +1,12 @@
 'use client';
 
 /**
- * Monthly cash check-in card. Phase 2 of the cash module.
+ * Monthly recap card — the user confirms (or overrides) last month's
+ * income, expenses, and EMIs. Phase 2 of the cash module.
  *
- * Surfaces an unobtrusive prompt on /debts asking the user to confirm
- * (or override) the previous month's income, expenses, and EMIs. On
- * confirm:
+ * Collapsed-by-default: closed state is a single tappable headline.
+ * Opening reveals the editable defaults (income / expenses / EMIs paid /
+ * interest earned / optional note). On confirm:
  *   • A MonthlyConfirmation is logged to localStorage + synced to server.
  *   • The primary cash account's balance is bumped by netDelta
  *     (income − expenses − emis + interest).
@@ -37,7 +38,7 @@ import {
 
 type Variant = 'ledger' | 'editorial' | 'existing';
 
-export function CashCheckInCard({
+export function MonthlyRecapCard({
   user,
   variant,
 }: {
@@ -47,6 +48,9 @@ export function CashCheckInCard({
   const [slice, setSlice] = useState<CashEventsSlice>({ confirmations: [] });
   const [ready, setReady] = useState(false);
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
+  // Collapsed by default — the closed state is just the headline + a
+  // chevron. Reduces page-rhythm clunkiness on /debts.
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     let next = readCashEventsClient();
@@ -160,6 +164,7 @@ export function CashCheckInCard({
     pending.length === 1
       ? `Confirm ${monthLabel(pending[0])}`
       : `${pending.length} months pending — start with ${monthLabel(pending[0])}`;
+  const chevron = isOpen ? '▾' : '▸';
 
   // Layout body (the editable form) shared across all 3 skins.
   const body = (
@@ -223,17 +228,25 @@ export function CashCheckInCard({
           marginBottom: 14,
         }}
       >
-        <div
+        <button
+          type="button"
+          onClick={() => setIsOpen((v) => !v)}
           style={{
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            textAlign: 'left',
             fontSize: 11,
             color: 'var(--accent)',
             letterSpacing: '0.18em',
             textTransform: 'uppercase',
+            fontFamily: 'inherit',
           }}
         >
-          $ CHECK-IN · {headline}
-        </div>
-        <div style={{ marginTop: 8 }}>{body}</div>
+          {chevron} $ MONTHLY RECAP · {headline}
+        </button>
+        {isOpen && <div style={{ marginTop: 8 }}>{body}</div>}
       </div>
     );
   }
@@ -247,8 +260,15 @@ export function CashCheckInCard({
           borderLeft: '3px solid var(--accent)',
         }}
       >
-        <div
+        <button
+          type="button"
+          onClick={() => setIsOpen((v) => !v)}
           style={{
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            textAlign: 'left',
             fontFamily: 'var(--font-sans)',
             fontSize: 11,
             letterSpacing: '0.15em',
@@ -256,12 +276,12 @@ export function CashCheckInCard({
             color: 'var(--accent)',
           }}
         >
-          Monthly check-in
-        </div>
+          Monthly recap
+        </button>
         <div style={{ marginTop: 6, fontSize: 14, fontWeight: 600 }}>
-          {headline}
+          {chevron} {headline}
         </div>
-        <div style={{ marginTop: 8 }}>{body}</div>
+        {isOpen && <div style={{ marginTop: 8 }}>{body}</div>}
       </div>
     );
   }
@@ -277,10 +297,25 @@ export function CashCheckInCard({
         borderRadius: 6,
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
-        {headline}
-      </div>
-      <div style={{ marginTop: 8 }}>{body}</div>
+      <button
+        type="button"
+        onClick={() => setIsOpen((v) => !v)}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          textAlign: 'left',
+          fontSize: 13,
+          fontWeight: 600,
+          color: 'var(--accent)',
+          fontFamily: 'inherit',
+          width: '100%',
+        }}
+      >
+        {chevron} Monthly recap · {headline}
+      </button>
+      {isOpen && <div style={{ marginTop: 8 }}>{body}</div>}
     </div>
   );
 }

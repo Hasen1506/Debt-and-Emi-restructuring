@@ -18,7 +18,7 @@ import { TaxBreakdown } from './TaxBreakdown';
 import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
-import { PerLoanTrajectorySection } from './PerLoanTrajectorySection';
+import { AssumptionBadges } from './AssumptionBadges';
 import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternative';
 import { FxCachePersister } from './FxCachePersister';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
@@ -158,6 +158,7 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
           >
             The trajectory
           </div>
+          <AssumptionBadges plan={plan} />
           {isHybrid ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {ccyList.map((c) => (
@@ -203,10 +204,6 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
               : "Total balance over time. Solid: the avalanche path you're on. Dashed: paying minimums only."}
           </figcaption>
         </figure>
-
-        <div style={{ marginTop: 28 }}>
-          <PerLoanTrajectorySection plan={plan} />
-        </div>
 
         {opportunities.length > 0 && (
           <div style={{ marginTop: 36 }}>

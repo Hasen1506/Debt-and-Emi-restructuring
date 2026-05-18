@@ -11,7 +11,9 @@
 import { ActivityLedger } from './ActivityLedger';
 import { AdvanceTaxLedger } from './AdvanceTaxLedger';
 import { InsightsSummaryStrip } from './InsightsSummaryStrip';
+import { InsightsPerLoanTrajectorySection } from './PerLoanTrajectorySection';
 import type { StoredProfile } from '@/lib/user-store';
+import type { StrategyName } from '@/lib/strategy';
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -29,7 +31,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function LedgerInsights({ profile }: { profile: StoredProfile }) {
+export function LedgerInsights({
+  profile,
+  strategy,
+}: {
+  profile: StoredProfile;
+  strategy: StrategyName;
+}) {
   return (
     <div
       style={{
@@ -65,6 +73,12 @@ export function LedgerInsights({ profile }: { profile: StoredProfile }) {
       </section>
 
       <InsightsSummaryStrip user={profile.user} variant="ledger" />
+
+      <InsightsPerLoanTrajectorySection
+        user={profile.user}
+        marginalRate={profile.marginalRate}
+        strategy={strategy}
+      />
 
       <ActivityLedger user={profile.user} variant="ledger" />
       <AdvanceTaxLedger user={profile.user} variant="ledger" />
