@@ -169,6 +169,13 @@ export default function OnboardingPage() {
   const [savingsBalance, setSavingsBalance] = useState('');
   const [efundBalance, setEfundBalance] = useState('');
   const [efundTarget, setEfundTarget] = useState('');
+  // Optional rich cash breakdown. Empty list = legacy single-total mode
+  // (savingsBalance alone is used). When user adds at least one account
+  // here, savingsBalance is auto-derived from the sum of optimizable
+  // (non-checking) balances at save() time.
+  const [cashAccounts, setCashAccounts] = useState<
+    { name: string; balance: string; apy: string; kind: 'checking' | 'savings' | 'hysa' | 'fd' | 'other' }[]
+  >([]);
 
   const [creditScore, setCreditScore] = useState('');
 
@@ -242,6 +249,16 @@ export default function OnboardingPage() {
     setSavingsBalance(u.savings_balance ?? '');
     setEfundBalance(u.efund_balance ?? '');
     setEfundTarget(u.efund_target ?? '');
+    if (u.cash_accounts && u.cash_accounts.length > 0) {
+      setCashAccounts(
+        u.cash_accounts.map((a) => ({
+          name: a.name,
+          balance: a.balance,
+          apy: a.apy,
+          kind: a.kind,
+        })),
+      );
+    }
     setMarginalRate(stored.marginalRate ?? '');
     if (stored.creditScore != null) setCreditScore(String(stored.creditScore));
   }, []);
@@ -304,7 +321,28 @@ export default function OnboardingPage() {
           ? num(annualBusinessIncome)
           : undefined,
       credit_score: creditScore.trim() || undefined,
-      savings_balance: num(savingsBalance),
+      // When user has populated rich per-account cash, derive the legacy
+      // total from the sum of optimizable balances (everything except
+      // 'checking', which is operational float). Single-field users keep
+      // the legacy behaviour.
+      savings_balance: (() => {
+        const valid = cashAccounts.filter(
+          (a) => a.name.trim() !== '' && Number(a.balance) > 0,
+        );
+        if (valid.length === 0) return num(savingsBalance);
+        const optimizable = valid
+          .filter((a) => a.kind !== 'checking')
+          .reduce((s, a) => s + Number(a.balance || 0), 0);
+        return String(optimizable);
+      })(),
+      cash_accounts: cashAccounts
+        .filter((a) => a.name.trim() !== '' && Number(a.balance) >= 0)
+        .map((a) => ({
+          name: a.name.trim(),
+          balance: num(a.balance),
+          apy: num(a.apy),
+          kind: a.kind,
+        })),
       primary_bank: primaryBank,
       other_banks: otherBanks,
       location_tier: 'urban',
@@ -600,26 +638,46 @@ export default function OnboardingPage() {
               }
             />
             <Field
-              label={`Monthly income (${country === 'IN' ? '₹' : '$'})`}
+              label={`In-hand salary (${country === 'IN' ? '₹' : '$'}/month, after TDS + PF)`}
               value={monthlyIncome}
               onChange={setMonthlyIncome}
               hint={
                 country === 'IN'
-                  ? 'Take-home credited each month, AFTER EPF + TDS. Skip bonuses — add via Tools › Windfall when they arrive.'
+                  ? "What actually hits your account each month — NOT your CTC. Skip bonuses; add via Tools › Windfall."
                   : 'Take-home, post-tax, post-401(k). Add bonuses via Tools › Windfall.'
               }
               info={
                 country === 'IN' ? (
                   <>
-                    What lands in your bank account each month, <strong>after</strong>{' '}
-                    EPF and TDS. Don't include annual bonuses or one-off
-                    incentives — add those via Tools › Windfall when they arrive.
+                    The amount your bank account receives each month — <em>NOT</em>{' '}
+                    your CTC.
+                    <br />
+                    <br />
+                    <strong>CTC</strong> (Cost to Company) is the full annual
+                    package including employer's PF contribution, gratuity, and
+                    insurance — most of which you never see in your account.
+                    <br />
+                    <br />
+                    <strong>In-hand salary</strong> = CTC minus employer PF
+                    minus gratuity minus your employee PF minus{' '}
+                    <strong>TDS</strong> minus professional tax. This is what
+                    you can actually spend.
+                    <br />
+                    <br />
+                    <strong>What's TDS?</strong> Your employer estimates your
+                    annual income tax and withholds a slice each month before
+                    paying you. The number you enter here is already net of
+                    that — don't subtract tax again.
+                    <br />
+                    <br />
+                    Skip annual bonuses and one-off incentives — log them via
+                    Tools › Windfall when they actually credit.
                   </>
                 ) : (
                   <>
                     Take-home pay each month, <strong>after</strong> federal /
-                    state tax and 401(k) contributions. Add bonuses separately
-                    via Tools › Windfall.
+                    state tax withholding and 401(k) contributions. NOT your
+                    gross salary. Add bonuses separately via Tools › Windfall.
                   </>
                 )
               }
@@ -1301,46 +1359,219 @@ export default function OnboardingPage() {
         )}
 
         {step === 4 && (
-          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
-            <Field
-              label="Total savings balance"
-              value={savingsBalance}
-              onChange={setSavingsBalance}
-              hint="Excludes locked retirement accounts"
-              info={
-                <>
-                  Liquid funds you can access within a few days — savings
-                  accounts, FDs, liquid mutual funds.{' '}
-                  <strong>Excludes</strong> EPF, NPS, 401(k), PPF, and other
-                  locked instruments.
-                </>
-              }
-            />
-            <Field
-              label="Emergency fund — current"
-              value={efundBalance}
-              onChange={setEfundBalance}
-              info={
-                <>
-                  The portion of your savings you've earmarked for emergencies.
-                  Often kept in a separate sweep or liquid fund so it isn't
-                  spent by accident.
-                </>
-              }
-            />
-            <Field
-              label="Emergency fund — target"
-              value={efundTarget}
-              onChange={setEfundTarget}
-              hint="Typically 3-6 months of expenses"
-              info={
-                <>
-                  Recommended: <strong>3-6 months of fixed expenses</strong>.
-                  This is your buffer so a job loss or medical bill doesn't
-                  force new high-rate debt.
-                </>
-              }
-            />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {cashAccounts.length === 0 && (
+              <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+                <Field
+                  label="Total savings balance"
+                  value={savingsBalance}
+                  onChange={setSavingsBalance}
+                  hint="Excludes locked retirement accounts"
+                  info={
+                    <>
+                      Liquid funds you can access within a few days — savings
+                      accounts, FDs, liquid mutual funds.{' '}
+                      <strong>Excludes</strong> EPF, NPS, 401(k), PPF, and other
+                      locked instruments.
+                    </>
+                  }
+                />
+                <div style={{ alignSelf: 'end', paddingBottom: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCashAccounts([
+                        {
+                          name: country === 'IN' ? 'Primary savings' : 'Checking',
+                          balance: savingsBalance,
+                          apy: '',
+                          kind: country === 'IN' ? 'savings' : 'checking',
+                        },
+                      ])
+                    }
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid var(--border)',
+                      color: 'var(--accent)',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                    }}
+                  >
+                    + Split by account (recommended)
+                  </button>
+                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                    Tracking each account with its APY lets the advisor compare
+                    idle cash against debt payoff (e.g. 0.01% checking vs 24%
+                    card).
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {cashAccounts.length > 0 && (
+              <div>
+                <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+                  <strong style={{ color: 'var(--ink)' }}>Cash accounts.</strong>{' '}
+                  Each one — checking, savings, HYSA, FD. APY can be 0 if you
+                  don't know it; you can update later.
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {cashAccounts.map((acct, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1.4fr 1fr 0.8fr 1fr auto',
+                        gap: 8,
+                        alignItems: 'end',
+                      }}
+                    >
+                      <Field
+                        label="Account name"
+                        value={acct.name}
+                        onChange={(v) =>
+                          setCashAccounts((cur) =>
+                            cur.map((a, i) => (i === idx ? { ...a, name: v } : a)),
+                          )
+                        }
+                        hint={idx === 0 ? 'e.g. Chase Checking, Ally HYSA' : undefined}
+                      />
+                      <Field
+                        label={`Balance (${country === 'IN' ? '₹' : '$'})`}
+                        value={acct.balance}
+                        onChange={(v) =>
+                          setCashAccounts((cur) =>
+                            cur.map((a, i) => (i === idx ? { ...a, balance: v } : a)),
+                          )
+                        }
+                      />
+                      <Field
+                        label="APY (%)"
+                        value={acct.apy === '' ? '' : String(Number(acct.apy) * 100)}
+                        onChange={(v) =>
+                          setCashAccounts((cur) =>
+                            cur.map((a, i) =>
+                              i === idx
+                                ? {
+                                    ...a,
+                                    apy:
+                                      v.trim() === ''
+                                        ? ''
+                                        : String(Number(v) / 100),
+                                  }
+                                : a,
+                            ),
+                          )
+                        }
+                        hint={idx === 0 ? 'e.g. 4.5' : undefined}
+                      />
+                      <Select
+                        label="Kind"
+                        value={acct.kind}
+                        onChange={(v) =>
+                          setCashAccounts((cur) =>
+                            cur.map((a, i) =>
+                              i === idx
+                                ? { ...a, kind: v as typeof acct.kind }
+                                : a,
+                            ),
+                          )
+                        }
+                        options={[
+                          { value: 'checking', label: 'Checking' },
+                          { value: 'savings', label: 'Savings' },
+                          { value: 'hysa', label: 'HYSA' },
+                          { value: 'fd', label: 'FD' },
+                          { value: 'other', label: 'Other' },
+                        ]}
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCashAccounts((cur) => cur.filter((_, i) => i !== idx))
+                        }
+                        aria-label="Remove account"
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--border)',
+                          color: 'var(--muted-ink)',
+                          padding: '6px 10px',
+                          borderRadius: 6,
+                          cursor: 'pointer',
+                          height: 38,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCashAccounts((cur) => [
+                      ...cur,
+                      { name: '', balance: '', apy: '', kind: 'savings' },
+                    ])
+                  }
+                  style={{
+                    marginTop: 10,
+                    background: 'transparent',
+                    border: '1px dashed var(--border)',
+                    color: 'var(--accent)',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                  }}
+                >
+                  + Add another account
+                </button>
+                <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+                  Total optimizable (excluding checking):{' '}
+                  <strong style={{ color: 'var(--ink)' }}>
+                    {formatCurrency(
+                      String(
+                        cashAccounts
+                          .filter((a) => a.kind !== 'checking')
+                          .reduce((s, a) => s + Number(a.balance || 0), 0),
+                      ),
+                      country === 'IN' ? 'INR' : 'USD',
+                    )}
+                  </strong>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+              <Field
+                label="Emergency fund — current"
+                value={efundBalance}
+                onChange={setEfundBalance}
+                info={
+                  <>
+                    The portion of your savings you've earmarked for emergencies.
+                    Often kept in a separate sweep or liquid fund so it isn't
+                    spent by accident.
+                  </>
+                }
+              />
+              <Field
+                label="Emergency fund — target"
+                value={efundTarget}
+                onChange={setEfundTarget}
+                hint="Typically 3-6 months of expenses"
+                info={
+                  <>
+                    Recommended: <strong>3-6 months of fixed expenses</strong>.
+                    This is your buffer so a job loss or medical bill doesn't
+                    force new high-rate debt.
+                  </>
+                }
+              />
+            </div>
           </div>
         )}
 
@@ -1775,6 +2006,21 @@ function GrossIncomeField({
                 figure from Form 16 line 1 ({country === 'IN' ? 'India' : 'or W-2 box 1 in the US'}),
                 not your CTC. CTC includes employer PF, gratuity, and
                 insurance — none of those reach you, so we strip them.
+                {country === 'IN' && (
+                  <>
+                    <br />
+                    <br />
+                    <strong>Quick jargon:</strong>{' '}
+                    <strong>TDS</strong> = tax your employer withholds monthly.{' '}
+                    <strong>Form 12BB / declared deductions</strong> = the
+                    investments you tell your employer in April that you{' '}
+                    <em>plan</em> to make this year (PPF, ELSS, life insurance,
+                    NPS — collectively <strong>80C</strong>, capped at ₹1.5L)
+                    so they withhold less TDS. If you under-invest vs declared,
+                    they claw it back from Jan-Feb paychecks; if you over-invest,
+                    you claim a refund via ITR in July.
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -1782,6 +2028,16 @@ function GrossIncomeField({
                 {country === 'IN' ? 'ITR-3 / ITR-4' : 'Schedule C'} — revenue
                 minus business expenses (and depreciation in India). This is
                 the number that goes through tax slabs.
+                {country === 'IN' && (
+                  <>
+                    <br />
+                    <br />
+                    <strong>Heads up:</strong> for business / freelance income
+                    there's no TDS — you pay <strong>advance tax</strong>{' '}
+                    quarterly (15% by Jun 15, 45% by Sep 15, 75% by Dec 15, 100%
+                    by Mar 15). Missing it costs 1%/month penal interest.
+                  </>
+                )}
               </>
             )}
             <br />

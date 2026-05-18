@@ -26,6 +26,7 @@ import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
+import { CashSummaryCard } from '@/components/debts/CashSummaryCard';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'Revolving credit',
@@ -215,6 +216,7 @@ export function EditorialDebts({ profile }: { profile: StoredProfile }) {
         </div>
 
         <StaleCardNudge user={profile.user} variant="editorial" />
+        <CashSummaryCard user={profile.user} variant="editorial" />
         <LifecycleEventsPanel user={profile.user} variant="editorial" />
       </article>
 

@@ -69,6 +69,34 @@ export interface InvestmentOptionPayload {
   is_in_pool?: boolean;
 }
 
+/** A single cash account — checking, savings, HYSA, FD, or other. The
+ *  cash module captures this as a list so the advisor can compare each
+ *  account's post-tax APY against debt APR independently (e.g. Chase
+ *  checking at 0.01% vs Ally HYSA at 4.5%). The engine doesn't consume
+ *  these yet; for Phase 1 they're pure data capture + display, with
+ *  `savings_balance` derived as the sum for backward compatibility. */
+export type CashAccountKind = 'checking' | 'savings' | 'hysa' | 'fd' | 'other';
+
+export interface CashAccountPayload {
+  /** User-facing label, e.g. "Chase Checking" or "Ally HYSA". */
+  name: string;
+  /** Current balance, decimal string. */
+  balance: string;
+  /** Annual percentage yield as a decimal, e.g. "0.045" for 4.5%. Defaults
+   *  to "0" if user doesn't know. Pre-tax — the advisor computes post-tax
+   *  yield using the user's marginal rate when it runs. */
+  apy: string;
+  /** Kind drives whether the balance is "operational float" (checking,
+   *  ~1 month expenses, excluded from optimizable pool) or "optimizable"
+   *  (savings/HYSA/FD, above floor → eligible for debt-paydown advisor).
+   *  FD has additional locked semantics that Phase 3 will model. */
+  kind: CashAccountKind;
+  /** Currency the account is denominated in. Defaults to user's residence
+   *  currency. Only set explicitly for cross-currency cases (NRI-US user
+   *  with INR savings). */
+  currency?: 'INR' | 'USD';
+}
+
 /** Coarse age band — used for downstream nudges (retirement check at 50+,
  *  emergency-fund-first at <25). Never use exact age; the band is enough. */
 export type AgeBracket = 'under_25' | '25_35' | '35_50' | '50_plus';
@@ -108,6 +136,13 @@ export interface UserPayload {
    *  free-text inputs. */
   credit_score?: string;
   savings_balance: string;
+  /** Optional per-account breakdown of liquid cash. When non-empty, the
+   *  rich `cash_accounts` array is the source of truth and `savings_balance`
+   *  is the legacy total (sum of optimizable balances, kept in sync at
+   *  save time for back-compat with older callers / the engine's surplus
+   *  model). When empty/omitted, `savings_balance` alone is used.
+   *  Captured at onboarding step 4, displayed on /debts. */
+  cash_accounts?: CashAccountPayload[];
   primary_bank: string;
   location_tier?: string;
   /** Banks the user holds savings/current accounts at without an active

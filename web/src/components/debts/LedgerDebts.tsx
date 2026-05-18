@@ -21,6 +21,7 @@ import { computeBreakdown, fmt } from '@/lib/effective-apr';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
+import { CashSummaryCard } from '@/components/debts/CashSummaryCard';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'CREDIT CARD',
@@ -295,6 +296,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
       </section>
 
       <StaleCardNudge user={profile.user} variant="ledger" />
+      <CashSummaryCard user={profile.user} variant="ledger" />
       <LifecycleEventsPanel user={profile.user} variant="ledger" />
     </div>
   );

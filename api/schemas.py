@@ -120,6 +120,20 @@ class InvestmentOptionIn(_Base):
         )
 
 
+class CashAccountIn(_Base):
+    """One cash account — checking / savings / HYSA / FD / other.
+    Phase 1: pure data capture, engine doesn't consume. Phase 2+ will use
+    per-account APY for the cash-vs-debt advisor and operational-float
+    sacred-floor logic. `savings_balance` on UserIn remains the legacy
+    aggregate and is kept in sync (= sum of optimizable balances) at the
+    frontend save layer."""
+    name: str
+    balance: Decimal = D("0")
+    apy: Decimal = D("0")
+    kind: str = Field(..., pattern=r"^(checking|savings|hysa|fd|other)$")
+    currency: Optional[str] = None
+
+
 class PFBalanceIn(_Base):
     epf: Decimal = D("0")
     ppf: Decimal = D("0")
@@ -166,6 +180,12 @@ class UserIn(_Base):
     # so frontend rate-prediction chip can use the entered value across sessions.
     credit_score: Optional[int] = None
     savings_balance: Decimal
+    # Optional rich per-account cash breakdown (checking / savings / HYSA /
+    # FD / other). Engine drops it — used by /debts display and (Phase 2+)
+    # the cash-vs-debt advisor. `savings_balance` above stays authoritative
+    # for engine math; frontend keeps it in sync as the sum of optimizable
+    # balances when cash_accounts is set.
+    cash_accounts: list[CashAccountIn] = Field(default_factory=list)
     primary_bank: str
     location_tier: str = "urban"
     other_banks: list[str] = Field(default_factory=list)
