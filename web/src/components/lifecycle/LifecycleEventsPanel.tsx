@@ -155,12 +155,15 @@ export function LifecycleEventsPanel({
 
   function setStatus(id: string, status: LifecycleStatus) {
     const target = events.find((e) => e.id === id);
+    // Defense in depth: the Confirm button is also disabled for future
+    // dates in the UI. This guard catches programmatic / keyboard-only
+    // edge paths.
+    if (status === 'confirmed' && target && target.effectiveDate > todayIso()) {
+      return;
+    }
     const next = updateLifecycleEvent(events, id, { status });
     writeLifecycleClient(next);
     setEvents(next);
-    // Confirming = baking the event into the profile so the engine sees
-    // the new salary / rate / loan in its simulation. Only fire on the
-    // planned→confirmed transition; re-confirming is a no-op.
     if (status === 'confirmed' && target && target.status !== 'confirmed') {
       const updatedUser = applyConfirmedEvent(user, target);
       saveProfileClient({ user: updatedUser });
@@ -526,7 +529,13 @@ function EventRow({
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         {status === 'planned' && (
           <>
-            <button type="button" onClick={onConfirm} style={miniBtn(variant, true)}>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={!isPast}
+              title={isPast ? 'Mark as happened' : `Can't confirm yet — effective date is in the future (${e.effectiveDate})`}
+              style={{ ...miniBtn(variant, true), opacity: isPast ? 1 : 0.45, cursor: isPast ? 'pointer' : 'not-allowed' }}
+            >
               Confirm
             </button>
             <button type="button" onClick={onCancel} style={miniBtn(variant, false)}>

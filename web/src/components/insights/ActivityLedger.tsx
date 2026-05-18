@@ -31,6 +31,7 @@ import {
   type ActivityKind,
 } from '@/lib/activity';
 import { estimateLateFee } from '@/lib/estimate-penalty';
+import { explainMinPayment } from '@/lib/min-payment';
 import { syncActivityCookieClient } from '@/lib/activity-cookie';
 import {
   formatINR,
@@ -178,6 +179,18 @@ function LogForm({
 
   const selectedLoan: LoanPayload | undefined = loans[loanIndex];
   const scheduledEmi = selectedLoan?.scheduled_emi ?? '0';
+  const isCard = selectedLoan?.loan_type === 'credit_card';
+
+  // For cards, the "amount owed this month" is the bank's minimum-payable
+  // formula on outstanding — paying ≥ that keeps the account current. For
+  // every other loan type, scheduled_emi IS the minimum.
+  const minHint = useMemo(
+    () => (selectedLoan && isCard ? explainMinPayment(selectedLoan, country) : null),
+    [selectedLoan, isCard, country],
+  );
+  const minPayable = isCard
+    ? minHint?.estimated ?? scheduledEmi
+    : scheduledEmi;
 
   // Default the amount when kind / loan changes.
   useEffect(() => {
@@ -191,12 +204,17 @@ function LogForm({
   // Live penalty estimate for missed/partial entries — uses the same engine
   // helper that the cookie writer + entries list use, so what the user sees
   // here is exactly what /plan will apply.
+  //
+  // Cards: shortfall is measured against the minimum payable, not the
+  // scheduled amount. Paying above minimum is fine (revolving interest
+  // applies but no penalty).
   const estimatedPenalty = useMemo(() => {
     if (!selectedLoan || (kind !== 'paid_partial' && kind !== 'missed')) return null;
+    const reference = isCard ? minPayable : scheduledEmi;
     const overdue =
       kind === 'missed'
-        ? scheduledEmi
-        : String(Math.max(0, Number(scheduledEmi) - Number(amount || 0)));
+        ? reference
+        : String(Math.max(0, Number(reference) - Number(amount || 0)));
     if (Number(overdue) <= 0) return null;
     const eventDate = new Date(date);
     const todayDate = new Date();
@@ -211,7 +229,7 @@ function LogForm({
       overdueAmount: overdue,
       daysLate: days,
     });
-  }, [selectedLoan, kind, scheduledEmi, amount, date, country]);
+  }, [selectedLoan, kind, scheduledEmi, minPayable, isCard, amount, date, country]);
 
   const fmtPreview = country === 'IN' ? formatINR : formatUSD;
 
@@ -318,8 +336,25 @@ function LogForm({
           />
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span className="muted" style={{ fontSize: 11 }}>
-            Amount paid {country === 'IN' ? '(₹)' : '($)'}
+          <span
+            className="muted"
+            style={{
+              fontSize: 11,
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 8,
+            }}
+          >
+            <span>Amount paid {country === 'IN' ? '(₹)' : '($)'}</span>
+            {kind !== 'paid_extra' && kind !== 'closed' && (
+              <span
+                style={{ color: 'var(--muted)' }}
+                title={isCard && minHint ? minHint.formula : undefined}
+              >
+                {isCard ? 'Minimum payable' : 'Scheduled'}:{' '}
+                {fmtPreview(isCard ? minPayable : scheduledEmi)}
+              </span>
+            )}
           </span>
           <input
             type="text"
@@ -357,6 +392,31 @@ function LogForm({
               color: 'var(--ink)',
             }}
           >
+            <div style={{ marginBottom: 8, color: 'var(--muted)' }}>
+              <strong style={{ color: 'var(--ink)' }}>
+                {isCard ? 'Below minimum:' : 'Shortfall:'}
+              </strong>{' '}
+              {fmtPreview(isCard ? minPayable : scheduledEmi)}{' '}
+              {isCard ? 'minimum' : 'scheduled'} · {fmtPreview(amount || '0')}{' '}
+              paid ·{' '}
+              <strong style={{ color: 'var(--negative)' }}>
+                {fmtPreview(
+                  String(
+                    Math.max(
+                      0,
+                      Number(isCard ? minPayable : scheduledEmi) - Number(amount || 0),
+                    ),
+                  ),
+                )}{' '}
+                short
+              </strong>
+              {isCard && (
+                <div style={{ marginTop: 4, fontSize: 11, fontStyle: 'italic' }}>
+                  Paying ≥ minimum keeps the card current (revolving interest
+                  still applies, but no late fee or bureau hit).
+                </div>
+              )}
+            </div>
             <div style={{ marginBottom: 8 }}>
               We estimate this would attract a penalty of{' '}
               <strong style={{ color: 'var(--negative)' }}>

@@ -23,6 +23,7 @@
 import Decimal from 'decimal.js';
 import type { ActivityEntry } from './activity';
 import { estimateLateFee } from './estimate-penalty';
+import { explainMinPayment } from './min-payment';
 import type { Country, LoanPayload } from './api';
 import { overdueAmount, daysLate, extraPrincipal } from './activity';
 
@@ -100,8 +101,31 @@ export function syncActivityCookieClient(
       continue;
     }
 
-    // missed / paid_partial — outstanding bumps UP by overdue + penalty.
-    const overdue = overdueAmount(e);
+    // missed / paid_partial.
+    //
+    // Amortizing loans: "minimum" = scheduled EMI. Anything less is
+    // delinquent, and the unpaid portion (overdue) compounds onto
+    // outstanding alongside penal interest.
+    //
+    // Credit cards: "minimum" = bank-formula % of outstanding (see
+    // explainMinPayment). Paying ≥ minimum keeps the account current —
+    // revolving interest accrues but there's no overdue principal and
+    // no penalty. Paying < minimum triggers late fee + penal interest
+    // on the (minimum − paid) shortfall. The unpaid portion isn't
+    // overdue principal either — it's just next month's balance.
+    let overdue: string;
+    let shortfallForPenalty: string;
+    if (loan.loan_type === 'credit_card') {
+      const minHint = explainMinPayment(loan, country);
+      const minPayable = new Decimal(minHint?.estimated ?? loan.scheduled_emi);
+      const paid = new Decimal(e.kind === 'missed' ? '0' : e.amount || '0');
+      if (paid.gte(minPayable)) continue; // paid above min: no delta
+      overdue = '0';
+      shortfallForPenalty = minPayable.sub(paid).toFixed(2);
+    } else {
+      overdue = overdueAmount(e);
+      shortfallForPenalty = overdue;
+    }
     let penalty: string;
     if (e.penaltyOverride && e.penaltyOverride.trim() !== '') {
       penalty = new Decimal(e.penaltyOverride).toFixed(2);
@@ -110,7 +134,7 @@ export function syncActivityCookieClient(
         loanType: loan.loan_type,
         country,
         bank: loan.bank,
-        overdueAmount: overdue,
+        overdueAmount: shortfallForPenalty,
         daysLate: daysLate(e),
       });
       penalty = est.total.toFixed(2);
