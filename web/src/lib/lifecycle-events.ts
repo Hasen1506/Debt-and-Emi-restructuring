@@ -43,6 +43,27 @@ interface BaseEvent {
   /** ISO timestamp the user created the event — sort tiebreak only. */
   loggedAt: string;
   note?: string;
+  /** Snapshot of the profile fields BEFORE applyConfirmedEvent ran.
+   *  Populated when status flips planned→confirmed; consumed by
+   *  undoConfirmedEvent when user reopens/cancels/deletes a previously-
+   *  confirmed event. Limitation: snapshots are independent per event,
+   *  so un-stacking out of order may restore a stale state — that's
+   *  acceptable in v1 (rare case, easy to manually correct). */
+  appliedSnapshot?: AppliedSnapshot;
+}
+
+export interface AppliedSnapshot {
+  // salary_reset
+  prevAnnualIncome?: string;
+  prevMonthlyIncome?: string;
+  prevAnnualGrossSalary?: string;
+  prevAnnualBusinessIncome?: string;
+  // floating_rate_reset
+  prevLoanRate?: string;
+  prevLoanIndex?: number;
+  // property_buy — index of the loan that was appended, so we know
+  // which entry to splice out on undo.
+  addedLoanIndex?: number;
 }
 
 export interface SalaryResetEvent extends BaseEvent {
@@ -260,22 +281,85 @@ export function plannedEventsForEngine(
 export function applyConfirmedEvent(
   user: UserPayload,
   event: LifecycleEvent,
-): UserPayload {
+): { user: UserPayload; snapshot: AppliedSnapshot } {
   if (event.kind === 'salary_reset') {
+    const snapshot: AppliedSnapshot = {
+      prevAnnualIncome: user.annual_income,
+      prevMonthlyIncome: user.monthly_income,
+      prevAnnualGrossSalary: user.annual_gross_salary,
+      prevAnnualBusinessIncome: user.annual_business_income,
+    };
     const next: UserPayload = { ...user, annual_income: event.newAnnualGross };
     if (user.annual_gross_salary) next.annual_gross_salary = event.newAnnualGross;
     if (user.annual_business_income) next.annual_business_income = event.newAnnualGross;
     if (event.newMonthlyTakeHome) next.monthly_income = event.newMonthlyTakeHome;
-    return next;
+    return { user: next, snapshot };
   }
   if (event.kind === 'floating_rate_reset') {
     const loans = user.loans.slice();
     const target = loans[event.loanIndex];
+    const snapshot: AppliedSnapshot = {
+      prevLoanIndex: event.loanIndex,
+      prevLoanRate: target?.nominal_rate,
+    };
     if (target) loans[event.loanIndex] = { ...target, nominal_rate: event.newRate };
-    return { ...user, loans };
+    return { user: { ...user, loans }, snapshot };
   }
   if (event.kind === 'property_buy') {
-    return { ...user, loans: [...user.loans, event.loanDraft] };
+    const snapshot: AppliedSnapshot = { addedLoanIndex: user.loans.length };
+    return {
+      user: { ...user, loans: [...user.loans, event.loanDraft] },
+      snapshot,
+    };
+  }
+  return { user, snapshot: {} };
+}
+
+/**
+ * Inverse of applyConfirmedEvent. Restores the pre-confirm profile state
+ * from event.appliedSnapshot. No-op if the snapshot is missing.
+ *
+ * Stacked events: each event's snapshot captures the state immediately
+ * before that event ran. Un-stacking out of order (reopen A → reopen B
+ * when B was confirmed after A) will restore A's snapshot, which may
+ * not reflect B's intermediate state. Acceptable for v1.
+ */
+export function undoConfirmedEvent(
+  user: UserPayload,
+  event: LifecycleEvent,
+): UserPayload {
+  const snap = event.appliedSnapshot;
+  if (!snap) return user;
+  if (event.kind === 'salary_reset') {
+    const next: UserPayload = { ...user };
+    if (snap.prevAnnualIncome !== undefined) next.annual_income = snap.prevAnnualIncome;
+    if (snap.prevMonthlyIncome !== undefined) next.monthly_income = snap.prevMonthlyIncome;
+    if (snap.prevAnnualGrossSalary !== undefined) {
+      next.annual_gross_salary = snap.prevAnnualGrossSalary;
+    } else {
+      delete next.annual_gross_salary;
+    }
+    if (snap.prevAnnualBusinessIncome !== undefined) {
+      next.annual_business_income = snap.prevAnnualBusinessIncome;
+    } else {
+      delete next.annual_business_income;
+    }
+    return next;
+  }
+  if (event.kind === 'floating_rate_reset' && snap.prevLoanIndex !== undefined) {
+    const loans = user.loans.slice();
+    const target = loans[snap.prevLoanIndex];
+    if (target && snap.prevLoanRate !== undefined) {
+      loans[snap.prevLoanIndex] = { ...target, nominal_rate: snap.prevLoanRate };
+    }
+    return { ...user, loans };
+  }
+  if (event.kind === 'property_buy' && snap.addedLoanIndex !== undefined) {
+    const loans = user.loans.slice();
+    if (snap.addedLoanIndex < loans.length) {
+      loans.splice(snap.addedLoanIndex, 1);
+    }
+    return { ...user, loans };
   }
   return user;
 }

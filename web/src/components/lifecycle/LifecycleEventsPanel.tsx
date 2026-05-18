@@ -25,6 +25,7 @@ import {
   updateLifecycleEvent,
   removeLifecycleEvent,
   applyConfirmedEvent,
+  undoConfirmedEvent,
   LIFECYCLE_KIND_LABEL,
   type LifecycleEvent,
   type LifecycleDraft,
@@ -155,22 +156,48 @@ export function LifecycleEventsPanel({
 
   function setStatus(id: string, status: LifecycleStatus) {
     const target = events.find((e) => e.id === id);
-    // Defense in depth: the Confirm button is also disabled for future
-    // dates in the UI. This guard catches programmatic / keyboard-only
-    // edge paths.
-    if (status === 'confirmed' && target && target.effectiveDate > todayIso()) {
+    if (!target) return;
+    // Defense in depth: future-effective events can't be confirmed.
+    if (status === 'confirmed' && target.effectiveDate > todayIso()) return;
+    // planned → confirmed: apply + snapshot
+    if (status === 'confirmed' && target.status !== 'confirmed') {
+      const { user: updatedUser, snapshot } = applyConfirmedEvent(user, target);
+      saveProfileClient({ user: updatedUser });
+      const next = updateLifecycleEvent(events, id, {
+        status,
+        appliedSnapshot: snapshot,
+      });
+      writeLifecycleClient(next);
+      setEvents(next);
       return;
     }
+    // confirmed → anything else: undo the profile mutation first
+    if (target.status === 'confirmed' && status !== 'confirmed') {
+      if (target.appliedSnapshot) {
+        saveProfileClient({ user: undoConfirmedEvent(user, target) });
+      }
+      const next = updateLifecycleEvent(events, id, {
+        status,
+        appliedSnapshot: undefined,
+      });
+      writeLifecycleClient(next);
+      setEvents(next);
+      return;
+    }
+    // No-mutation transitions (planned ↔ cancelled, etc).
     const next = updateLifecycleEvent(events, id, { status });
     writeLifecycleClient(next);
     setEvents(next);
-    if (status === 'confirmed' && target && target.status !== 'confirmed') {
-      const updatedUser = applyConfirmedEvent(user, target);
-      saveProfileClient({ user: updatedUser });
-    }
   }
 
   function remove(id: string) {
+    const target = events.find((e) => e.id === id);
+    // Deleting a confirmed event means the profile mutation hangs around
+    // forever otherwise. Undo before removing so the user gets a clean
+    // revert.
+    if (target?.status === 'confirmed' && target.appliedSnapshot) {
+      saveProfileClient({ user: undoConfirmedEvent(user, target) });
+    }
     const next = removeLifecycleEvent(events, id);
     writeLifecycleClient(next);
     setEvents(next);

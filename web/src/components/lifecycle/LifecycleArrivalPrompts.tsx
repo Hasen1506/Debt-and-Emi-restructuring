@@ -22,6 +22,7 @@ import {
   writeLifecycleClient,
   updateLifecycleEvent,
   applyConfirmedEvent,
+  undoConfirmedEvent,
   pendingArrivals,
   LIFECYCLE_KIND_LABEL,
   type LifecycleEvent,
@@ -55,16 +56,36 @@ export function LifecycleArrivalPrompts({
 
   function setStatus(id: string, status: 'confirmed' | 'cancelled') {
     const target = events.find((e) => e.id === id);
+    if (!target) return;
+    // planned → confirmed: apply event to profile + capture snapshot.
+    if (status === 'confirmed' && target.status !== 'confirmed') {
+      const { user: updatedUser, snapshot } = applyConfirmedEvent(user, target);
+      saveProfileClient({ user: updatedUser });
+      const next = updateLifecycleEvent(events, id, {
+        status,
+        appliedSnapshot: snapshot,
+      });
+      writeLifecycleClient(next);
+      setEvents(next);
+      return;
+    }
+    // confirmed → cancelled: undo profile change first, then change status.
+    if (target.status === 'confirmed' && status === 'cancelled') {
+      if (target.appliedSnapshot) {
+        saveProfileClient({ user: undoConfirmedEvent(user, target) });
+      }
+      const next = updateLifecycleEvent(events, id, {
+        status,
+        appliedSnapshot: undefined,
+      });
+      writeLifecycleClient(next);
+      setEvents(next);
+      return;
+    }
+    // Other transitions (planned → cancelled): no profile mutation needed.
     const next = updateLifecycleEvent(events, id, { status });
     writeLifecycleClient(next);
     setEvents(next);
-    // On confirm: bake the event into the profile so the engine simulates
-    // against the new salary/rate/loan. saveProfileClient dual-writes to
-    // server, so this carries across devices too.
-    if (status === 'confirmed' && target && target.status !== 'confirmed') {
-      const updatedUser = applyConfirmedEvent(user, target);
-      saveProfileClient({ user: updatedUser });
-    }
   }
 
   function postpone(id: string, currentIso: string) {
