@@ -87,6 +87,7 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         reinvest_events=reinvest_tuples,
         inflate_expenses=req.inflate_expenses,
         lifecycle_events=events,
+        ef_top_up_rate=req.ef_top_up_rate,
     )
     return SimulateResponse(
         debt_free_month=result.debt_free_month,

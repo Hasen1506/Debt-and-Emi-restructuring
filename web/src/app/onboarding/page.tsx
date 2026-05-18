@@ -1562,16 +1562,29 @@ export default function OnboardingPage() {
                 label="Emergency fund — target"
                 value={efundTarget}
                 onChange={setEfundTarget}
-                hint="Typically 3-6 months of expenses"
+                hint="Pick a tier below, or enter your own number"
                 info={
                   <>
-                    Recommended: <strong>3-6 months of fixed expenses</strong>.
-                    This is your buffer so a job loss or medical bill doesn't
-                    force new high-rate debt.
+                    The "Lean / Standard / Conservative" buttons below set this
+                    to 3 / 6 / 9 months of your stated expenses respectively.
+                    /plan diverts 30% of each month's surplus into EF top-up
+                    until this target is met — debt-free is pushed out a bit
+                    in exchange for a real safety net.
                   </>
                 }
               />
             </div>
+
+            <EfTierPicker
+              monthlyExpenses={fixedExpenses}
+              variableExpenses={variableExpenses}
+              efundBalance={efundBalance}
+              currency={country === 'IN' ? 'INR' : 'USD'}
+              currentTarget={efundTarget}
+              onPick={(t) => setEfundTarget(t)}
+              monthlyIncome={monthlyIncome}
+              loans={loans}
+            />
           </div>
         )}
 
@@ -2122,6 +2135,130 @@ function GrossIncomeField({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function EfTierPicker({
+  monthlyExpenses,
+  variableExpenses,
+  efundBalance,
+  currency,
+  currentTarget,
+  onPick,
+  monthlyIncome,
+  loans,
+}: {
+  monthlyExpenses: string;
+  variableExpenses: string;
+  efundBalance: string;
+  currency: 'INR' | 'USD';
+  currentTarget: string;
+  onPick: (next: string) => void;
+  monthlyIncome: string;
+  loans: LoanPayload[];
+}) {
+  const totalMonthlyExpenses =
+    Number(monthlyExpenses || 0) + Number(variableExpenses || 0);
+  if (totalMonthlyExpenses <= 0) {
+    return (
+      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+        Enter your monthly expenses (step 2) to see tier recommendations.
+      </div>
+    );
+  }
+
+  const income = Number(monthlyIncome || 0);
+  const emiSum = loans.reduce(
+    (s, l) => s + Number(l.scheduled_emi || 0),
+    0,
+  );
+  const surplus = Math.max(0, income - totalMonthlyExpenses - emiSum);
+  const balance = Number(efundBalance || 0);
+
+  const tiers = [
+    { id: 'lean' as const, label: 'Lean', months: 3, descr: '3 months of expenses' },
+    { id: 'std' as const, label: 'Standard', months: 6, descr: '6 months — recommended' },
+    { id: 'cons' as const, label: 'Conservative', months: 9, descr: '9 months — high risk or dependents' },
+  ];
+
+  const currentNum = Number(currentTarget || 0);
+  const isPicked = (months: number) =>
+    Math.abs(currentNum - totalMonthlyExpenses * months) < 1;
+
+  // Months to fill at 30% of surplus per month (the engine's waterfall rate).
+  const monthsToFill = (months: number) => {
+    const target = totalMonthlyExpenses * months;
+    const gap = Math.max(0, target - balance);
+    if (gap === 0) return 0;
+    if (surplus <= 0) return Infinity;
+    return Math.ceil(gap / (surplus * 0.3));
+  };
+
+  return (
+    <div
+      style={{
+        marginTop: 4,
+        padding: 12,
+        background: 'var(--canvas)',
+        border: '1px dashed var(--border)',
+        borderRadius: 6,
+      }}
+    >
+      <div
+        className="muted"
+        style={{ fontSize: 12, marginBottom: 8, lineHeight: 1.5 }}
+      >
+        Tier shortcuts — sets <strong style={{ color: 'var(--ink)' }}>EF target</strong>{' '}
+        to N × your stated monthly expenses
+        {' ('}
+        {formatCurrency(String(totalMonthlyExpenses), currency)}/mo
+        {'). '}
+        At 30% of your surplus per month, the time-to-fill estimate is shown
+        beside each option.
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {tiers.map((t) => {
+          const target = totalMonthlyExpenses * t.months;
+          const fill = monthsToFill(t.months);
+          const picked = isPicked(t.months);
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onPick(String(target))}
+              style={{
+                flex: '1 1 0',
+                minWidth: 140,
+                padding: '8px 10px',
+                background: picked ? 'var(--accent)' : 'transparent',
+                color: picked ? 'var(--canvas)' : 'var(--ink)',
+                border: `1px solid ${picked ? 'var(--accent)' : 'var(--border)'}`,
+                borderRadius: 6,
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontSize: 12,
+                lineHeight: 1.45,
+              }}
+            >
+              <div style={{ fontWeight: 600, fontSize: 13 }}>
+                {t.label} · {t.months} months
+              </div>
+              <div style={{ opacity: 0.8 }}>{t.descr}</div>
+              <div style={{ marginTop: 4, fontSize: 11 }}>
+                Target: {formatCurrency(String(target), currency)}
+              </div>
+              <div style={{ fontSize: 11, opacity: 0.85 }}>
+                {fill === 0
+                  ? 'Already met — no waterfall delay'
+                  : fill === Infinity
+                    ? 'No surplus to top up yet'
+                    : `~${fill} month${fill === 1 ? '' : 's'} to fill`}
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

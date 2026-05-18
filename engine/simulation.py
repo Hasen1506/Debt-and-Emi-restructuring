@@ -135,6 +135,7 @@ def simulate_plan(
     reinvest_events: list[tuple[int, Decimal]] | None = None,
     inflate_expenses: bool = False,
     lifecycle_events: list[LifecycleEvent] | None = None,
+    ef_top_up_rate: Decimal = D("0"),
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`. Returns one MonthRow per month
     until either all loans clear or horizon is reached.
@@ -166,6 +167,14 @@ def simulate_plan(
     ^(m/12)` each month so the available surplus shrinks over time as the
     user's purchasing power erodes. False preserves legacy flat-expenses
     behaviour for callers / tests that don't opt in.
+
+    `ef_top_up_rate` (default 0) drives the soft emergency-fund waterfall:
+    when > 0 AND `user.efund_balance < user.efund_target`, that fraction of
+    each month's surplus is diverted into the EF pool before the remainder
+    flows into debt prepayment. Once the running EF balance reaches
+    `efund_target`, allocation switches back to 100% debt. Default 0
+    preserves the legacy "all surplus → debt" behaviour for tests and
+    for users who haven't set an EF target.
     """
     loans = [deepcopy(l) for l in user.loans]
     # Map deep-copied loan identity → its original position in user.loans.
@@ -181,6 +190,11 @@ def simulate_plan(
     months: list[MonthRow] = []
     total_interest = D("0")
     total_invested = D("0")
+    # Soft EF waterfall state — running balance that grows by the diverted
+    # surplus each month until ef_target is hit. Frozen at 0 / no diversion
+    # when ef_top_up_rate=0 (legacy default).
+    ef_balance = user.efund_balance
+    ef_target = user.efund_target
     best_liquid_return = _best_liquid_return(user.investment_options)
     inflation = user.inflation_rate
     debt_free_month: int | None = None
@@ -329,6 +343,22 @@ def simulate_plan(
             scratch_user, active, matched_contribution=matched_contribution,
             simple_mode=simple_mode,
         )
+
+        # Soft EF waterfall: when target unmet and ef_top_up_rate>0, divert
+        # the configured fraction of surplus into the EF pool before debt
+        # gets its share. Once ef_balance >= ef_target, no more diversion —
+        # all surplus flows to debt as in the legacy path.
+        if (
+            ef_top_up_rate > 0
+            and ef_target > 0
+            and ef_balance < ef_target
+            and surplus > 0
+        ):
+            ef_gap = ef_target - ef_balance
+            desired = surplus * ef_top_up_rate
+            diverted = min(desired, ef_gap)
+            ef_balance += diverted
+            surplus -= diverted
 
         # Layer 3 — invest-vs-prepay gate per loan
         # If the top-priority loan fails the gate, redirect its extra to investment.

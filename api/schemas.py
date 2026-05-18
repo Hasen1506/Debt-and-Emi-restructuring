@@ -298,6 +298,11 @@ class SimulateRequest(_Base):
     # Lifecycle events (planned future salary / rate resets). See
     # LifecycleEventIn — empty / omitted preserves baseline behaviour.
     lifecycle_events: list[LifecycleEventIn] = Field(default_factory=list)
+    # Soft EF waterfall — fraction of each month's surplus diverted into
+    # the emergency fund until `user.efund_target` is reached. /plan passes
+    # 0.3 when `efund_balance < efund_target` and 0 otherwise. Default 0
+    # preserves the legacy "100% surplus → debt" behaviour.
+    ef_top_up_rate: Decimal = Field(default=D("0"), ge=D("0"), le=D("1"))
 
 
 class TrajectoryPoint(_Base):

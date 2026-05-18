@@ -493,6 +493,68 @@ def test_floating_rate_reset_mutates_loan_rate_at_effective_month():
     assert cheaper.total_interest_paid < base.total_interest_paid
 
 
+def test_ef_waterfall_zero_rate_is_noop():
+    """ef_top_up_rate=0 (the default) must produce identical results — both
+    debt-free month and total interest — even when an EF gap exists. Phase 3
+    is opt-in; legacy callers and existing tests must remain unaffected."""
+    user = _user_two_loans()
+    user.efund_balance = D("0")
+    user.efund_target = D("600000")  # huge gap to ensure no accidental divert
+    base = simulate_plan(user, Strategy.AVALANCHE, horizon_months=120)
+    explicit_zero = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=120, ef_top_up_rate=D("0"),
+    )
+    assert base.total_interest_paid == explicit_zero.total_interest_paid
+    assert base.debt_free_month == explicit_zero.debt_free_month
+
+
+def test_ef_waterfall_diverts_surplus_when_target_unmet():
+    """With ef_top_up_rate=0.3 and a real EF gap, less surplus reaches debt
+    each month → total interest paid goes UP and debt-free month is pushed
+    out vs. the no-divert baseline. Isolated from Layer 3 by removing the
+    invest-vs-prepay pool so the comparison is pure debt amortisation."""
+    user = _user_two_loans()
+    user.efund_balance = D("0")
+    user.efund_target = D("300000")
+    user.investment_options = []  # no invest-vs-prepay gate
+    base = simulate_plan(user, Strategy.AVALANCHE, horizon_months=120)
+    diverted = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=120, ef_top_up_rate=D("0.3"),
+    )
+    # Diverting 30% of surplus to EF top-up means debt gets less → it
+    # amortises slower and accrues more interest.
+    assert diverted.total_interest_paid > base.total_interest_paid
+    # Either base finishes earlier or — at minimum — diverted doesn't finish
+    # earlier. (debt_free_month can be None when horizon is hit.)
+    if base.debt_free_month is not None and diverted.debt_free_month is not None:
+        assert diverted.debt_free_month >= base.debt_free_month
+
+
+def test_ef_waterfall_stops_at_target():
+    """Once running EF balance reaches efund_target, divert ceases and
+    100% of surplus flows to debt again. Verified indirectly: with a
+    small target reachable in a few months, the long-run total interest
+    should be much closer to baseline than a never-reaching-target case."""
+    user = _user_two_loans()
+    user.efund_balance = D("0")
+    user.investment_options = []
+    base = simulate_plan(user, Strategy.AVALANCHE, horizon_months=120)
+    # Small target — fills in ~1-2 months at 30% of typical surplus.
+    user.efund_target = D("20000")
+    small = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=120, ef_top_up_rate=D("0.3"),
+    )
+    # Big target — divert runs for many months.
+    user.efund_target = D("3000000")
+    big = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=120, ef_top_up_rate=D("0.3"),
+    )
+    # Small target deviation from baseline is much smaller than big target.
+    small_delta = small.total_interest_paid - base.total_interest_paid
+    big_delta = big.total_interest_paid - base.total_interest_paid
+    assert big_delta > small_delta
+
+
 def test_lifecycle_event_with_effective_month_zero_is_ignored():
     """Defensive: events with effective_month < 1 (shouldn't reach the
     engine — frontend filters them) are silently dropped, not applied at

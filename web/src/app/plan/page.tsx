@@ -246,6 +246,13 @@ async function loadPlan(
   const lifecycleEventsRaw = await readLifecycleServer();
   const lifecycle_events = plannedEventsForEngine(lifecycleEventsRaw);
 
+  // Soft EF waterfall — when the user has an EF gap, divert 30% of each
+  // month's surplus to EF top-up until target is hit. Phase 3 of the
+  // cash module. 0 (legacy) when target already met or unset.
+  const efBalance = Number(adjustedUser.efund_balance ?? '0');
+  const efTarget = Number(adjustedUser.efund_target ?? '0');
+  const efTopUpRate = efTarget > 0 && efBalance < efTarget ? '0.3' : undefined;
+
   try {
     const [scenario, baseline, restructuring] = await Promise.all([
       api.simulate({
@@ -257,6 +264,7 @@ async function loadPlan(
         reinvest_events: reinvestEvents.length > 0 ? reinvestEvents : undefined,
         inflate_expenses: inflationModeling === 'on' ? true : undefined,
         lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
+        ef_top_up_rate: efTopUpRate,
       }),
       api.baseline({ user: adjustedUser, horizon_months: 240 }),
       api.restructuring({

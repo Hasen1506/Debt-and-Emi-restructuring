@@ -532,6 +532,11 @@ export const api = {
      *  past events are already baked into the profile via L1 immediate-
      *  apply and should NOT be included here (engine would double-apply). */
     lifecycle_events?: LifecycleEventInput[];
+    /** Soft EF waterfall — fraction of each month's surplus diverted into
+     *  the emergency fund until `efund_target` is hit. /plan sets 0.3 when
+     *  `efund_balance < efund_target`; 0 otherwise. Default 0 preserves
+     *  legacy "100% surplus → debt" behaviour. */
+    ef_top_up_rate?: string;
   }) => post<SimulateResponse>('/api/simulate', req),
 
   baseline: (req: {
