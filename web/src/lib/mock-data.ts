@@ -18,6 +18,10 @@ export type TrajectoryPoint = {
   minimums: number;
   avalancheByCcy?: Record<string, number>;
   minimumsByCcy?: Record<string, number>;
+  /** Per-loan outstanding at this month, keyed by 0-based index into
+   *  user.loans. Drives the per-loan trajectory chart. Cleared loans
+   *  keep their entry at 0 so the chart sees stable series. */
+  balancesByLoanIndex?: Record<string, number>;
 };
 
 export const mockTrajectory: TrajectoryPoint[] = Array.from({ length: 37 }, (_, i) => {

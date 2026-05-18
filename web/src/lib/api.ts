@@ -216,6 +216,10 @@ export interface TrajectoryPointRaw {
    *  users see one entry per currency so the trajectory chart can draw
    *  separate lines instead of summing dissimilar units. */
   balances_by_currency?: Record<string, string>;
+  /** Per-loan outstanding this month, keyed by 0-based index in user.loans.
+   *  Drives the per-loan trajectory chart on /plan. Cleared loans stay
+   *  in the map with value "0" so the chart sees a stable series. */
+  balances_by_loan_index?: Record<string, string>;
 }
 
 export interface SimulateResponse {

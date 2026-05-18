@@ -63,6 +63,7 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
             invested=row.invested_this_month,
             payments_by_loan_index=row.payments_by_loan_index,
             balances_by_currency=dict(row.balances_by_currency),
+            balances_by_loan_index=dict(row.balances_by_loan_index),
         ))
     return points
 

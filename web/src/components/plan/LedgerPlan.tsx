@@ -14,6 +14,7 @@ import {
 import type { PlanData } from './PlanData';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
+import { PerLoanTrajectorySection } from './PerLoanTrajectorySection';
 import { TaxBreakdown } from './TaxBreakdown';
 import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
@@ -310,6 +311,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
               : ' ($k = thousands)'}.
         </div>
       </section>
+
+      <PerLoanTrajectorySection plan={plan} />
 
       {/* 4. Opportunities — highest-leverage action surface, moved up from #8. */}
       {opportunities.length > 0 && (

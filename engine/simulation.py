@@ -61,6 +61,12 @@ class MonthRow:
     # loans tagged with that currency. Lets the API expose a per-currency
     # trajectory series without leaking the engine's id(loan) bookkeeping.
     balances_by_currency: dict[str, Decimal] = field(default_factory=dict)
+    # Per-loan outstanding this month, keyed by 0-based position in the
+    # original user.loans list. Drives the per-loan trajectory chart on
+    # /plan — each loan's curve shrinks visibly until it clears. Includes
+    # cleared loans with value 0 so chart consumers see a flat-at-0 tail
+    # rather than a vanishing series.
+    balances_by_loan_index: dict[int, Decimal] = field(default_factory=dict)
 
 
 @dataclass
@@ -479,6 +485,10 @@ def simulate_plan(
             for lid, amt in payments.items()
             if amt > D("0")
         }
+        # Per-loan balance by 0-based position. ALL loans included so the
+        # chart sees a stable series (cleared loans flat at 0, never
+        # disappearing).
+        balances_by_idx = {loan_position[id(l)]: l.outstanding for l in loans}
         months.append(MonthRow(
             month_index=m,
             available_surplus=surplus,
@@ -491,6 +501,7 @@ def simulate_plan(
             cleared_this_month=cleared,
             payments_by_loan_index=payments_by_idx,
             balances_by_currency=ccy_buckets,
+            balances_by_loan_index=balances_by_idx,
         ))
 
         total_interest += interest_paid

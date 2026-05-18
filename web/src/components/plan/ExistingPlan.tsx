@@ -22,6 +22,7 @@ import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternat
 import { FxCachePersister } from './FxCachePersister';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
+import { PerLoanTrajectorySection } from './PerLoanTrajectorySection';
 
 const KIND_LABEL: Record<RestructuringOpportunity['kind'], string> = {
   balance_transfer: 'Balance transfer',
@@ -236,6 +237,8 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
           </div>
         )}
       </Card>
+
+      <PerLoanTrajectorySection plan={plan} />
 
       {/* 4. Opportunities — the action surface. */}
       {plan.opportunities.length > 0 && (

@@ -13,6 +13,7 @@ import type { TrajectoryPoint } from './mock-data';
 interface MonthBucket {
   total: number;
   byCcy: Record<string, number>;
+  byLoanIndex: Record<string, number>;
 }
 
 export function mergeTrajectories(
@@ -39,6 +40,10 @@ export function mergeTrajectories(
       minimums: mPt?.total ?? 0,
       avalancheByCcy: padCcy(aPt?.byCcy, ccyList),
       minimumsByCcy: padCcy(mPt?.byCcy, ccyList),
+      // Per-loan series is taken from the scenario (avalanche) leg only —
+      // the chart compares loan-vs-loan within the chosen strategy, not
+      // against the minimums baseline.
+      balancesByLoanIndex: aPt?.byLoanIndex,
     });
   }
   return points;
@@ -52,7 +57,12 @@ function byMonth(rows: TrajectoryPointRaw[]): Map<number, MonthBucket> {
     for (const [ccy, val] of Object.entries(raw)) {
       byCcy[ccy] = Number(val) || 0;
     }
-    out.set(r.month, { total: Number(r.balance) || 0, byCcy });
+    const byLoanIndex: Record<string, number> = {};
+    const rawLoan = r.balances_by_loan_index ?? {};
+    for (const [idx, val] of Object.entries(rawLoan)) {
+      byLoanIndex[idx] = Number(val) || 0;
+    }
+    out.set(r.month, { total: Number(r.balance) || 0, byCcy, byLoanIndex });
   }
   return out;
 }

@@ -326,6 +326,11 @@ class TrajectoryPoint(_Base):
     # so the trajectory chart can render separate lines instead of summing
     # ₹ + $ into a misleading single number.
     balances_by_currency: dict[str, Decimal] = Field(default_factory=dict)
+    # Per-loan outstanding this month, keyed by 0-based index in user.loans.
+    # Drives the per-loan trajectory chart on /plan — each loan's curve
+    # shrinks until it clears. Stays populated past the loan's clear date
+    # with value 0 so chart consumers don't see disappearing series.
+    balances_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
 
 
 class SimulateResponse(_Base):
