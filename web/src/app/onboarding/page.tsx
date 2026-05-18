@@ -122,6 +122,9 @@ export default function OnboardingPage() {
   // to the manual marginalRate field below).
   const [annualGrossSalary, setAnnualGrossSalary] = useState('');
   const [annualBusinessIncome, setAnnualBusinessIncome] = useState('');
+  // Salaried-only: tax owed on non-TDS income (rental, FD interest,
+  // cap gains, freelance). Drives the tax-sleeve card on /debts.
+  const [extraIncomeAnnualTax, setExtraIncomeAnnualTax] = useState('');
   // By default we show a single "Monthly expenses" field — users don't
   // need to think about fixed vs. variable. Power users (and anyone with
   // existing variable_expenses from a previous session) get the detailed
@@ -196,6 +199,7 @@ export default function OnboardingPage() {
     setVariableExpenses(u.variable_expenses ?? '');
     setAnnualGrossSalary(u.annual_gross_salary ?? '');
     setAnnualBusinessIncome(u.annual_business_income ?? '');
+    setExtraIncomeAnnualTax(u.extra_income_annual_tax ?? '');
     // Preserve the user's chosen view: if they previously filled out a
     // variable_expenses split, default the form to detailed mode.
     if (Number(u.variable_expenses || 0) > 0) {
@@ -319,6 +323,10 @@ export default function OnboardingPage() {
       annual_business_income:
         incomeType === 'business_owner' && annualBusinessIncome.trim()
           ? num(annualBusinessIncome)
+          : undefined,
+      extra_income_annual_tax:
+        incomeType === 'salaried' && extraIncomeAnnualTax.trim() && Number(extraIncomeAnnualTax) > 0
+          ? num(extraIncomeAnnualTax)
           : undefined,
       credit_score: creditScore.trim() || undefined,
       // When user has populated rich per-account cash, derive the legacy
@@ -736,6 +744,37 @@ export default function OnboardingPage() {
                 }
               />
             </div>
+            {incomeType === 'salaried' && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Field
+                  label={`Tax on non-TDS income (${country === 'IN' ? '₹' : '$'}/year, optional)`}
+                  value={extraIncomeAnnualTax}
+                  onChange={setExtraIncomeAnnualTax}
+                  hint="Skip if all your income is salary. Otherwise: rough estimate of tax you owe on rental, interest, gains, or freelance."
+                  info={
+                    <>
+                      <strong>Most salaried users leave this blank.</strong>{' '}
+                      Employer TDS already covers your salary's tax.
+                      <br />
+                      <br />
+                      Fill this only if you have <strong>income outside salary</strong>:
+                      rental, FD interest above{' '}
+                      {country === 'IN' ? '₹40k' : '$10'}, capital gains, freelance
+                      side-income. Rough estimate is fine — multiply your
+                      expected non-salary income by your tax rate.
+                      <br />
+                      <br />
+                      When &gt; 0, /debts shows a <strong>tax sleeve</strong> card
+                      with the next advance-tax installment date{' '}
+                      {country === 'IN'
+                        ? '(Jun 15 / Sep 15 / Dec 15 / Mar 15)'
+                        : '(Apr 15 / Jun 15 / Sep 15 / Jan 15)'}{' '}
+                      and how much you need to set aside.
+                    </>
+                  }
+                />
+              </div>
+            )}
             {!showDetailedExpenses ? (
               <div style={{ gridColumn: '1 / -1' }}>
                 <Field

@@ -192,6 +192,13 @@ export interface UserPayload {
    *  appreciation/depreciation. Wired up by the /plan FX-drift toggle
    *  (NRI-US users only). Empty / omitted → flat FX rate. */
   fx_drift_annualized?: Record<string, string>;
+  /** Annual tax (₹/$) on income that's NOT covered by employer TDS —
+   *  rental, FD interest > ₹40k, capital gains, freelance side-income.
+   *  Salaried users opt in by entering a number here; the tax sleeve
+   *  card on /debts then targets this annual liability. Defaults to 0
+   *  / undefined when user has no extra income. Business owners ignore
+   *  this — their sleeve target is derived from annual_business_income. */
+  extra_income_annual_tax?: string;
 }
 
 // ─── response types ─────────────────────────────────────────────────────────

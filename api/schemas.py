@@ -186,6 +186,12 @@ class UserIn(_Base):
     # for engine math; frontend keeps it in sync as the sum of optimizable
     # balances when cash_accounts is set.
     cash_accounts: list[CashAccountIn] = Field(default_factory=list)
+    # Optional — annual tax owed on income NOT covered by employer TDS
+    # (rental, FD interest > ₹40k, cap gains, freelance side-income).
+    # Drives the tax-sleeve card on /debts for salaried users with non-
+    # TDS income. Business owners ignore — their sleeve comes from
+    # annual_business_income. Engine drops it.
+    extra_income_annual_tax: Optional[Decimal] = None
     primary_bank: str
     location_tier: str = "urban"
     other_banks: list[str] = Field(default_factory=list)

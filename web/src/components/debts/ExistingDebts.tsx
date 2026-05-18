@@ -22,6 +22,7 @@ import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPane
 import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
 import { CashSummaryCard } from '@/components/debts/CashSummaryCard';
 import { CashCheckInCard } from '@/components/debts/CashCheckInCard';
+import { TaxSleeveCard } from '@/components/debts/TaxSleeveCard';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'Credit card',
@@ -168,6 +169,7 @@ export function ExistingDebts({ profile }: { profile: StoredProfile }) {
       </a>
 
       <StaleCardNudge user={profile.user} variant="existing" />
+      <TaxSleeveCard user={profile.user} variant="existing" />
       <CashCheckInCard user={profile.user} variant="existing" />
       <CashSummaryCard user={profile.user} variant="existing" />
       <LifecycleEventsPanel user={profile.user} variant="existing" />

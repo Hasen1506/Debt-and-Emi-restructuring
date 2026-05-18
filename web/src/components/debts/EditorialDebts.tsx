@@ -28,6 +28,7 @@ import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPane
 import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
 import { CashSummaryCard } from '@/components/debts/CashSummaryCard';
 import { CashCheckInCard } from '@/components/debts/CashCheckInCard';
+import { TaxSleeveCard } from '@/components/debts/TaxSleeveCard';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'Revolving credit',
@@ -217,6 +218,7 @@ export function EditorialDebts({ profile }: { profile: StoredProfile }) {
         </div>
 
         <StaleCardNudge user={profile.user} variant="editorial" />
+        <TaxSleeveCard user={profile.user} variant="editorial" />
         <CashCheckInCard user={profile.user} variant="editorial" />
         <CashSummaryCard user={profile.user} variant="editorial" />
         <LifecycleEventsPanel user={profile.user} variant="editorial" />
