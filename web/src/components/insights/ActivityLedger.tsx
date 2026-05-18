@@ -76,6 +76,43 @@ function today(): string {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
+/** Most-recent statement date (≤ today) for a card with day-of-month
+ *  `statementDay`, and its due date 20 days later. Returns ISO dates +
+ *  short pretty labels. Card billing convention: due ~20d after stmt. */
+function computeCycle(statementDay: number): {
+  statementIso: string;
+  dueIso: string;
+  label: string;
+} {
+  const d = new Date();
+  let year = d.getFullYear();
+  let month = d.getMonth(); // 0-indexed
+  const day = d.getDate();
+  if (day < statementDay) {
+    month -= 1;
+    if (month < 0) {
+      month = 11;
+      year -= 1;
+    }
+  }
+  const stmt = new Date(year, month, statementDay);
+  const due = new Date(stmt);
+  due.setDate(due.getDate() + 20);
+  const iso = (x: Date) => {
+    const y = x.getFullYear();
+    const m = String(x.getMonth() + 1).padStart(2, '0');
+    const dy = String(x.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dy}`;
+  };
+  const short = (x: Date) =>
+    x.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return {
+    statementIso: iso(stmt),
+    dueIso: iso(due),
+    label: `${short(stmt)} statement · due ${short(due)}`,
+  };
+}
+
 function moneyFmt(country: Country) {
   return country === 'IN' ? formatINR : formatUSD;
 }
@@ -192,6 +229,15 @@ function LogForm({
     ? minHint?.estimated ?? scheduledEmi
     : scheduledEmi;
 
+  // Cycle labels for cards with a configured statement_day. Compute the
+  // most-recent statement date (≤ today) and its due date (~20 days
+  // later) so the form can label "May 5 statement, due May 25" instead
+  // of generic "this month".
+  const cycle = useMemo(() => {
+    if (!isCard || !selectedLoan?.statement_day) return null;
+    return computeCycle(selectedLoan.statement_day);
+  }, [isCard, selectedLoan?.statement_day]);
+
   // Default the amount when kind / loan changes.
   useEffect(() => {
     if (kind === 'paid_full') setAmount(scheduledEmi);
@@ -200,6 +246,12 @@ function LogForm({
     else setAmount(''); // partial / paid_extra — user types
     if (kind !== 'paid_partial' && kind !== 'missed') setPenaltyOverride('');
   }, [kind, scheduledEmi, selectedLoan?.outstanding]);
+
+  // For carded loans with a known cycle, default the payment date to
+  // the next due date so the user doesn't have to manually type it.
+  useEffect(() => {
+    if (cycle) setDate(cycle.dueIso);
+  }, [cycle?.dueIso]);
 
   // Live penalty estimate for missed/partial entries — uses the same engine
   // helper that the cookie writer + entries list use, so what the user sees
@@ -283,6 +335,21 @@ function LogForm({
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
         Log a payment event
       </div>
+      {cycle && (
+        <div
+          style={{
+            fontSize: 11,
+            color: 'var(--muted)',
+            marginBottom: 10,
+            padding: '6px 10px',
+            background: 'var(--soft-bg)',
+            borderRadius: variant === 'ledger' ? 0 : 4,
+            borderLeft: '2px solid var(--accent)',
+          }}
+        >
+          {cycle.label}
+        </div>
+      )}
       <form
         onSubmit={submit}
         style={{

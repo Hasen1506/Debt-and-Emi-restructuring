@@ -1143,6 +1143,36 @@ export default function OnboardingPage() {
                     }
                   />
                 )}
+                {l.loan_type === 'credit_card' && (
+                  <Field
+                    label="Statement day (1-28, optional)"
+                    value={l.statement_day != null ? String(l.statement_day) : ''}
+                    onChange={(v) => {
+                      const n = Number(v);
+                      updateLoan(i, {
+                        statement_day:
+                          v.trim() === '' || Number.isNaN(n) || n < 1 || n > 28
+                            ? undefined
+                            : n,
+                      });
+                    }}
+                    placeholder="e.g. 5"
+                    hint="Day-of-month your statement is generated"
+                    info={
+                      <>
+                        The day each month your bank generates the bill for
+                        this card. Used to frame the activity log around your
+                        actual cycle (&quot;May 5 statement, due May 25&quot;)
+                        instead of generic &quot;this month&quot;.
+                        <br />
+                        <br />
+                        Doesn&apos;t change interest math — the engine still
+                        accrues monthly. Optional; leave blank if you&apos;d
+                        rather not specify.
+                      </>
+                    }
+                  />
+                )}
                 <Field
                   label="Processing fee / yr (decimal, optional)"
                   value={l.processing_fee_amortised ?? ''}

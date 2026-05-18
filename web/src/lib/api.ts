@@ -49,6 +49,12 @@ export interface LoanPayload {
    *  "user keeps using the card" rather than freeze-and-pay-off. Default
    *  '0' for backwards compatibility. Ignored on non-card loans. */
   expected_monthly_spend?: string;
+  /** Credit cards only: day-of-month the statement is generated (1-28).
+   *  Used for UX labels in the activity log ("Apr 5 statement, due Apr 25")
+   *  and to default the payment date when logging. The engine doesn't
+   *  consume this — interest math stays monthly-accrual. Omitting it
+   *  keeps the old "this month" generic framing. */
+  statement_day?: number;
 }
 
 export interface InvestmentOptionPayload {
