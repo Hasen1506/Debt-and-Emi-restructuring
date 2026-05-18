@@ -24,6 +24,7 @@ import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
 import { CashSummaryCard } from '@/components/debts/CashSummaryCard';
 import { CashCheckInCard } from '@/components/debts/CashCheckInCard';
 import { TaxSleeveCard } from '@/components/debts/TaxSleeveCard';
+import { CashAdvisorCard } from '@/components/debts/CashAdvisorCard';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'CREDIT CARD',
@@ -297,6 +298,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
         </div>
       </section>
 
+      <CashAdvisorCard profile={profile} variant="ledger" />
       <StaleCardNudge user={profile.user} variant="ledger" />
       <TaxSleeveCard user={profile.user} variant="ledger" />
       <CashCheckInCard user={profile.user} variant="ledger" />

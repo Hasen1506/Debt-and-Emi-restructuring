@@ -23,6 +23,7 @@ import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
 import { CashSummaryCard } from '@/components/debts/CashSummaryCard';
 import { CashCheckInCard } from '@/components/debts/CashCheckInCard';
 import { TaxSleeveCard } from '@/components/debts/TaxSleeveCard';
+import { CashAdvisorCard } from '@/components/debts/CashAdvisorCard';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'Credit card',
@@ -168,6 +169,7 @@ export function ExistingDebts({ profile }: { profile: StoredProfile }) {
         + Add or edit debts
       </a>
 
+      <CashAdvisorCard profile={profile} variant="existing" />
       <StaleCardNudge user={profile.user} variant="existing" />
       <TaxSleeveCard user={profile.user} variant="existing" />
       <CashCheckInCard user={profile.user} variant="existing" />
