@@ -96,6 +96,29 @@ function hydrateLocalStores(data: Record<string, unknown>): void {
       localStorage.setItem(target.name, serialized);
     }
   }
+  // activity_deltas is a derived cache (activity entries × loans → cookie)
+  // — not synced as its own slice. Regenerate it now that both inputs
+  // are present, so the next /plan render sees the user's activity in
+  // the simulation on a fresh device.
+  void regenerateActivityDeltas(data);
+}
+
+async function regenerateActivityDeltas(data: Record<string, unknown>): Promise<void> {
+  const activity = data.activity;
+  const profile = (data as { profile?: { user?: { loans?: unknown; country?: unknown } } }).profile;
+  if (!Array.isArray(activity) || !profile?.user) return;
+  const { loans, country } = profile.user as { loans?: unknown; country?: unknown };
+  if (!Array.isArray(loans) || (country !== 'IN' && country !== 'US')) return;
+  try {
+    const { syncActivityCookieClient } = await import('./activity-cookie');
+    syncActivityCookieClient(
+      activity as Parameters<typeof syncActivityCookieClient>[0],
+      loans as Parameters<typeof syncActivityCookieClient>[1],
+      country,
+    );
+  } catch {
+    // Non-fatal — first /plan render will be slightly stale until next write.
+  }
 }
 
 /**
