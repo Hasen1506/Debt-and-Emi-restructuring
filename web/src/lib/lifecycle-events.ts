@@ -21,7 +21,7 @@
  * should be folded into user state at the right month.
  */
 
-import type { LoanPayload } from './api';
+import type { LoanPayload, UserPayload } from './api';
 
 const COOKIE_NAME = 'finoptima_lifecycle';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -185,6 +185,45 @@ export function removeLifecycleEvent(
   id: string,
 ): LifecycleEvent[] {
   return events.filter((e) => e.id !== id);
+}
+
+// ─── Engine integration: apply a confirmed event to the profile ────────────
+
+/**
+ * Returns a new `UserPayload` with the event's effect baked in. Pure —
+ * caller is responsible for persisting via `saveProfileClient`.
+ *
+ * Level 1 integration: the change applies "as if always true" — the
+ * engine simulates the new profile from month 0. The trajectory will
+ * technically show the past months at the new salary / new rate. That's
+ * acceptable visually; a future level-2 pass will pipe events into the
+ * engine so step-changes appear at the right month.
+ *
+ * For salary_reset we hit `annual_income` (the canonical engine field)
+ * + propagate to whichever of annual_gross_salary/annual_business_income
+ * was already populated, so tax-bracket math stays consistent.
+ */
+export function applyConfirmedEvent(
+  user: UserPayload,
+  event: LifecycleEvent,
+): UserPayload {
+  if (event.kind === 'salary_reset') {
+    const next: UserPayload = { ...user, annual_income: event.newAnnualGross };
+    if (user.annual_gross_salary) next.annual_gross_salary = event.newAnnualGross;
+    if (user.annual_business_income) next.annual_business_income = event.newAnnualGross;
+    if (event.newMonthlyTakeHome) next.monthly_income = event.newMonthlyTakeHome;
+    return next;
+  }
+  if (event.kind === 'floating_rate_reset') {
+    const loans = user.loans.slice();
+    const target = loans[event.loanIndex];
+    if (target) loans[event.loanIndex] = { ...target, nominal_rate: event.newRate };
+    return { ...user, loans };
+  }
+  if (event.kind === 'property_buy') {
+    return { ...user, loans: [...user.loans, event.loanDraft] };
+  }
+  return user;
 }
 
 // ─── Server-side ────────────────────────────────────────────────────────────

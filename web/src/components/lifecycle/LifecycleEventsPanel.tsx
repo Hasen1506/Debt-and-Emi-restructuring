@@ -24,12 +24,14 @@ import {
   addLifecycleEvent,
   updateLifecycleEvent,
   removeLifecycleEvent,
+  applyConfirmedEvent,
   LIFECYCLE_KIND_LABEL,
   type LifecycleEvent,
   type LifecycleDraft,
   type LifecycleKind,
   type LifecycleStatus,
 } from '@/lib/lifecycle-events';
+import { saveProfileClient } from '@/lib/user-store';
 
 export type LifecycleVariant = 'ledger' | 'existing' | 'editorial';
 
@@ -152,9 +154,17 @@ export function LifecycleEventsPanel({
   }
 
   function setStatus(id: string, status: LifecycleStatus) {
+    const target = events.find((e) => e.id === id);
     const next = updateLifecycleEvent(events, id, { status });
     writeLifecycleClient(next);
     setEvents(next);
+    // Confirming = baking the event into the profile so the engine sees
+    // the new salary / rate / loan in its simulation. Only fire on the
+    // planned→confirmed transition; re-confirming is a no-op.
+    if (status === 'confirmed' && target && target.status !== 'confirmed') {
+      const updatedUser = applyConfirmedEvent(user, target);
+      saveProfileClient({ user: updatedUser });
+    }
   }
 
   function remove(id: string) {

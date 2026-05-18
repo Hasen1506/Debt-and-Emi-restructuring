@@ -21,10 +21,12 @@ import {
   readLifecycleClient,
   writeLifecycleClient,
   updateLifecycleEvent,
+  applyConfirmedEvent,
   pendingArrivals,
   LIFECYCLE_KIND_LABEL,
   type LifecycleEvent,
 } from '@/lib/lifecycle-events';
+import { saveProfileClient } from '@/lib/user-store';
 
 type Variant = 'ledger' | 'existing' | 'editorial';
 
@@ -52,9 +54,17 @@ export function LifecycleArrivalPrompts({
   if (pending.length === 0) return null;
 
   function setStatus(id: string, status: 'confirmed' | 'cancelled') {
+    const target = events.find((e) => e.id === id);
     const next = updateLifecycleEvent(events, id, { status });
     writeLifecycleClient(next);
     setEvents(next);
+    // On confirm: bake the event into the profile so the engine simulates
+    // against the new salary/rate/loan. saveProfileClient dual-writes to
+    // server, so this carries across devices too.
+    if (status === 'confirmed' && target && target.status !== 'confirmed') {
+      const updatedUser = applyConfirmedEvent(user, target);
+      saveProfileClient({ user: updatedUser });
+    }
   }
 
   function postpone(id: string, currentIso: string) {
