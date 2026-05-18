@@ -90,6 +90,32 @@ class Loan:
     expected_monthly_spend: Decimal = Decimal("0")
 
 
+class LifecycleEventKind(str, Enum):
+    """Discontinuous events the regular hike_schedule can't express.
+    Property buys are handled outside the engine (L1 immediate-apply on
+    confirm); only salary + rate resets are wired through simulate_plan."""
+    SALARY_RESET = "salary_reset"
+    FLOATING_RATE_RESET = "floating_rate_reset"
+
+
+@dataclass
+class LifecycleEvent:
+    """A planned future event the engine should apply at a specific
+    simulation month. Confirmed past events don't go here — they're
+    baked into the profile before the request hits the engine.
+
+    `effective_month` is 1-based: 1 = "from sim start", 13 = "one year in".
+    """
+    kind: LifecycleEventKind
+    effective_month: int
+    # SALARY_RESET payload — exactly one of these two is required.
+    new_annual_gross: Optional[Decimal] = None      # pre-tax annual; engine derives monthly
+    new_monthly_take_home: Optional[Decimal] = None # net monthly (overrides derived)
+    # FLOATING_RATE_RESET payload
+    loan_index: Optional[int] = None  # 0-based index into user.loans
+    new_rate: Optional[Decimal] = None  # decimal APR (e.g. 0.082)
+
+
 @dataclass
 class InvestmentOption:
     name: str

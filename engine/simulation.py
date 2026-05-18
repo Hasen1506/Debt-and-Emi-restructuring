@@ -16,7 +16,17 @@ Real-EMI: nominal payments deflated by `inflation_rate` per §4.10.
 from decimal import Decimal
 from dataclasses import dataclass, field
 from copy import deepcopy
-from engine.models import User, Loan, LoanType, Country, TaxRegimeIN, InvestmentOption, LiquidityClass
+from engine.models import (
+    User,
+    Loan,
+    LoanType,
+    Country,
+    TaxRegimeIN,
+    InvestmentOption,
+    LiquidityClass,
+    LifecycleEvent,
+    LifecycleEventKind,
+)
 from engine.formulas import effective_rate, prepay_recommended, real_emi
 from engine.minimum_payments import compute_minimum_payment
 from engine.ordering import Strategy, rank_loans
@@ -124,6 +134,7 @@ def simulate_plan(
     simulation_start_month: int = 1,
     reinvest_events: list[tuple[int, Decimal]] | None = None,
     inflate_expenses: bool = False,
+    lifecycle_events: list[LifecycleEvent] | None = None,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`. Returns one MonthRow per month
     until either all loans clear or horizon is reached.
@@ -204,7 +215,39 @@ def simulate_plan(
                 reinvest_by_month.get(ev_month, D("0")) + ev_amount
             )
 
+    # Bucket lifecycle events by their effective month. Multiple events
+    # firing the same month are applied in input order. Events with
+    # effective_month <= 0 are ignored (treated as already-baked into the
+    # profile by the L1 immediate-apply path on the frontend).
+    lifecycle_by_month: dict[int, list[LifecycleEvent]] = {}
+    for ev in lifecycle_events or []:
+        if ev.effective_month and ev.effective_month >= 1:
+            lifecycle_by_month.setdefault(ev.effective_month, []).append(ev)
+
     for m in range(1, horizon_months + 1):
+        # Lifecycle events fire at the very start of month m, before any
+        # other month-mutating logic. A salary_reset at m=12 replaces
+        # `income` immediately; subsequent annual-hike compounding picks
+        # up from the new base. A floating_rate_reset mutates the loan's
+        # nominal_rate so the effective_rate / ranking / amortisation
+        # math from this month forward sees the new value.
+        for ev in lifecycle_by_month.get(m, []):
+            if ev.kind == LifecycleEventKind.SALARY_RESET:
+                if ev.new_monthly_take_home is not None:
+                    income = ev.new_monthly_take_home
+                elif ev.new_annual_gross is not None:
+                    # Rough net-from-gross: divide by 12 and trim 20% as a
+                    # tax/PF/insurance withholding placeholder. Callers
+                    # who care about exact net should set new_monthly_take_home.
+                    income = (ev.new_annual_gross / D("12")) * D("0.8")
+            elif ev.kind == LifecycleEventKind.FLOATING_RATE_RESET:
+                if (
+                    ev.loan_index is not None
+                    and 0 <= ev.loan_index < len(loans)
+                    and ev.new_rate is not None
+                ):
+                    loans[ev.loan_index].nominal_rate = ev.new_rate
+
         # FX drift — update user.fx_to_user_currency at month m to reflect
         # cumulative drift since simulation start. At m=1 drift = 0 (rate
         # equals spot); subsequent months compound the per-currency monthly

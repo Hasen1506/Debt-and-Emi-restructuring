@@ -6,6 +6,7 @@ from engine.simulation import (
 from engine.models import (
     User, Loan, LoanType, Country, IncomeType, TaxRegimeIN,
     InvestmentOption, LiquidityClass,
+    LifecycleEvent, LifecycleEventKind,
 )
 from engine.ordering import Strategy
 
@@ -426,3 +427,100 @@ def test_card_spend_only_applies_to_cards_not_other_loans():
     # Loan should still clear inside the 30-month window.
     final = list(result.final_balances.values())
     assert all(bal == D("0") for bal in final)
+
+
+# ─── Lifecycle events ──────────────────────────────────────────────────────
+
+
+def test_salary_reset_at_month_increases_surplus_cuts_interest():
+    """A salary_reset doubling take-home from m=12 should reduce total
+    interest paid vs. the baseline — more surplus → faster amortisation."""
+    user = _user_two_loans()
+    base = simulate_plan(user, Strategy.AVALANCHE, horizon_months=240)
+    events = [
+        LifecycleEvent(
+            kind=LifecycleEventKind.SALARY_RESET,
+            effective_month=12,
+            new_monthly_take_home=D("300000"),  # 2x baseline 150000
+        ),
+    ]
+    boosted = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=240, lifecycle_events=events
+    )
+    assert boosted.total_interest_paid < base.total_interest_paid
+
+
+def test_floating_rate_reset_mutates_loan_rate_at_effective_month():
+    """A rate reset should be reflected in the loan's nominal_rate at the
+    effective month forward. Isolated from Layer 3 (invest-vs-prepay) by
+    using no investment options + tight surplus — pure amortisation lets
+    the rate change drive total interest directly: lower rate → less
+    interest."""
+    home = Loan(
+        loan_type=LoanType.HOME,
+        bank="HDFC Bank",
+        outstanding=D("4000000"),
+        nominal_rate=D("0.12"),  # exaggerated rate so diff is unambiguous
+        rate_type="floating",
+        tenure_months_remaining=240,
+        scheduled_emi=D("44047"),
+    )
+    user = User(
+        country=Country.IN,
+        income_type=IncomeType.SALARIED,
+        annual_income=D("600000"),
+        monthly_income=D("50000"),
+        fixed_expenses=D("5000"),
+        savings_balance=D("0"),
+        primary_bank="HDFC Bank",
+        tax_regime=TaxRegimeIN.NEW,
+        loans=[home],
+        investment_options=[],  # no Layer 3 invest-vs-prepay decision
+        inflation_rate=D("0.046"),
+    )
+    base = simulate_plan(user, Strategy.AVALANCHE, horizon_months=120)
+    events = [
+        LifecycleEvent(
+            kind=LifecycleEventKind.FLOATING_RATE_RESET,
+            effective_month=6,
+            loan_index=0,
+            new_rate=D("0.06"),  # 12% → 6%
+        ),
+    ]
+    cheaper = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=120, lifecycle_events=events
+    )
+    assert cheaper.total_interest_paid < base.total_interest_paid
+
+
+def test_lifecycle_event_with_effective_month_zero_is_ignored():
+    """Defensive: events with effective_month < 1 (shouldn't reach the
+    engine — frontend filters them) are silently dropped, not applied at
+    m=1."""
+    user = _user_two_loans()
+    base = simulate_plan(user, Strategy.AVALANCHE, horizon_months=120)
+    events = [
+        LifecycleEvent(
+            kind=LifecycleEventKind.SALARY_RESET,
+            effective_month=0,
+            new_monthly_take_home=D("500000"),
+        ),
+    ]
+    result = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=120, lifecycle_events=events
+    )
+    assert result.total_interest_paid == base.total_interest_paid
+
+
+def test_lifecycle_event_empty_list_is_no_op():
+    """Baseline behaviour preserved when lifecycle_events is None or []."""
+    user = _user_two_loans()
+    base = simulate_plan(user, Strategy.AVALANCHE, horizon_months=120)
+    none_result = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=120, lifecycle_events=None
+    )
+    empty_result = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=120, lifecycle_events=[]
+    )
+    assert none_result.total_interest_paid == base.total_interest_paid
+    assert empty_result.total_interest_paid == base.total_interest_paid

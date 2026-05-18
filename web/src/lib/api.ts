@@ -481,6 +481,11 @@ export const api = {
     /** When true, engine inflates fixed + variable expenses each month
      *  using user.inflation_rate. Drives the /plan inflation toggle. */
     inflate_expenses?: boolean;
+    /** Planned future lifecycle events (salary_reset / floating_rate_reset).
+     *  Each applies at its `effective_month` (1-based sim month). Confirmed
+     *  past events are already baked into the profile via L1 immediate-
+     *  apply and should NOT be included here (engine would double-apply). */
+    lifecycle_events?: LifecycleEventInput[];
   }) => post<SimulateResponse>('/api/simulate', req),
 
   baseline: (req: {
@@ -646,6 +651,18 @@ export interface AuthUser {
   id: string;
   email: string;
   display_name?: string | null;
+}
+
+export interface LifecycleEventInput {
+  kind: 'salary_reset' | 'floating_rate_reset';
+  /** 1-based sim month at which the event takes effect. */
+  effective_month: number;
+  /** SALARY_RESET payload. */
+  new_annual_gross?: string;
+  new_monthly_take_home?: string;
+  /** FLOATING_RATE_RESET payload. */
+  loan_index?: number;
+  new_rate?: string;
 }
 
 export interface UserStatePayload {

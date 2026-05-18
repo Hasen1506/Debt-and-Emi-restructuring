@@ -4,6 +4,7 @@ from decimal import Decimal
 from fastapi import APIRouter
 
 from engine.simulation import simulate_plan, baseline_minimums_only
+from engine.models import LifecycleEvent, LifecycleEventKind
 from engine.sensitivity import (
     with_surplus_delta, with_income_shock, with_rate_shock,
     with_strategy, with_lump_sum, compare,
@@ -12,7 +13,31 @@ from engine.sensitivity import (
 from api.schemas import (
     SimulateRequest, SimulateResponse, TrajectoryPoint,
     BaselineRequest, CompareRequest, CompareResponse,
+    LifecycleEventIn,
 )
+
+
+def _to_engine_lifecycle(events: list[LifecycleEventIn]) -> list[LifecycleEvent]:
+    """Translate the wire-format lifecycle events to the engine dataclass.
+    Unknown kinds (e.g. property_buy, which is L1-only) are silently
+    dropped so the frontend can send the full set without filtering."""
+    out: list[LifecycleEvent] = []
+    for e in events:
+        try:
+            kind = LifecycleEventKind(e.kind)
+        except ValueError:
+            continue
+        out.append(
+            LifecycleEvent(
+                kind=kind,
+                effective_month=e.effective_month,
+                new_annual_gross=e.new_annual_gross,
+                new_monthly_take_home=e.new_monthly_take_home,
+                loan_index=e.loan_index,
+                new_rate=e.new_rate,
+            )
+        )
+    return out
 
 D = Decimal
 router = APIRouter(tags=["simulation"])
@@ -53,6 +78,7 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         if req.reinvest_events
         else None
     )
+    events = _to_engine_lifecycle(req.lifecycle_events) if req.lifecycle_events else None
     result = simulate_plan(
         user, strategy=req.strategy, horizon_months=req.horizon_months,
         matched_contribution=req.matched_contribution,
@@ -60,6 +86,7 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         simulation_start_month=req.simulation_start_month,
         reinvest_events=reinvest_tuples,
         inflate_expenses=req.inflate_expenses,
+        lifecycle_events=events,
     )
     return SimulateResponse(
         debt_free_month=result.debt_free_month,

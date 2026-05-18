@@ -238,6 +238,21 @@ class ReinvestEvent(_Base):
     amount: Decimal
 
 
+class LifecycleEventIn(_Base):
+    """Planned future event the engine should apply at its effective month.
+    Past-confirmed events don't go here — the frontend bakes them into the
+    profile via L1 immediate-apply before the simulate call. Only kind
+    ∈ {salary_reset, floating_rate_reset} is supported by the engine;
+    property_buy events stay L1-only because mid-loop dynamic loan
+    addition cascades into response shape + ranking complexity."""
+    kind: str = Field(..., pattern=r"^(salary_reset|floating_rate_reset)$")
+    effective_month: int = Field(..., ge=1)
+    new_annual_gross: Optional[Decimal] = None
+    new_monthly_take_home: Optional[Decimal] = None
+    loan_index: Optional[int] = Field(default=None, ge=0)
+    new_rate: Optional[Decimal] = None
+
+
 class SimulateRequest(_Base):
     user: UserIn
     strategy: Strategy = Strategy.AVALANCHE
@@ -254,6 +269,9 @@ class SimulateRequest(_Base):
     # Inflate fixed + variable expenses month-over-month using user.inflation_rate.
     # Off by default so existing callers see no behavioural change.
     inflate_expenses: bool = False
+    # Lifecycle events (planned future salary / rate resets). See
+    # LifecycleEventIn — empty / omitted preserves baseline behaviour.
+    lifecycle_events: list[LifecycleEventIn] = Field(default_factory=list)
 
 
 class TrajectoryPoint(_Base):

@@ -22,6 +22,10 @@ import {
 import { computeAnnualTax, isAdvanceTaxApplicable } from '@/lib/tax-brackets';
 import { readScheduleServer } from '@/lib/advance-tax-cookie';
 import {
+  readLifecycleServer,
+  plannedEventsForEngine,
+} from '@/lib/lifecycle-events';
+import {
   buildSchedule,
   accruedPenalty,
   type AdvanceTaxSchedule,
@@ -236,6 +240,12 @@ async function loadPlan(
         }))
       : [];
 
+  // Pull planned lifecycle events (salary / rate resets with effectiveDate
+  // in the future) into the engine wire format. Confirmed past events are
+  // already baked into the profile via L1 immediate-apply on confirm.
+  const lifecycleEventsRaw = await readLifecycleServer();
+  const lifecycle_events = plannedEventsForEngine(lifecycleEventsRaw);
+
   try {
     const [scenario, baseline, restructuring] = await Promise.all([
       api.simulate({
@@ -246,6 +256,7 @@ async function loadPlan(
         simulation_start_month,
         reinvest_events: reinvestEvents.length > 0 ? reinvestEvents : undefined,
         inflate_expenses: inflationModeling === 'on' ? true : undefined,
+        lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
       }),
       api.baseline({ user: adjustedUser, horizon_months: 240 }),
       api.restructuring({

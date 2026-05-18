@@ -187,6 +187,60 @@ export function removeLifecycleEvent(
   return events.filter((e) => e.id !== id);
 }
 
+// ─── Engine integration: planned events → engine wire shape ────────────────
+
+import type { LifecycleEventInput } from './api';
+
+/** How many whole months from `from` (inclusive) to `to`. Returns at least 1. */
+function monthsBetween(fromIso: string, toIso: string): number {
+  const a = new Date(fromIso);
+  const b = new Date(toIso);
+  const years = b.getFullYear() - a.getFullYear();
+  const months = b.getMonth() - a.getMonth();
+  return Math.max(1, years * 12 + months + 1);
+}
+
+/**
+ * Translate planned lifecycle events (status === 'planned', effectiveDate
+ * in the future) into the engine's wire format. Confirmed past events
+ * are already baked into the profile via `applyConfirmedEvent`; sending
+ * them again would double-apply.
+ *
+ * `today` defaults to the current date — pass an explicit ISO to override
+ * for deterministic tests.
+ *
+ * Skips kinds the engine doesn't yet handle (property_buy) — those stay
+ * L1-only.
+ */
+export function plannedEventsForEngine(
+  events: LifecycleEvent[],
+  today: string = new Date().toISOString().slice(0, 10),
+): LifecycleEventInput[] {
+  const out: LifecycleEventInput[] = [];
+  for (const e of events) {
+    if (e.status !== 'planned') continue;
+    if (e.effectiveDate <= today) continue;
+    if (e.kind === 'salary_reset') {
+      out.push({
+        kind: 'salary_reset',
+        effective_month: monthsBetween(today, e.effectiveDate),
+        new_annual_gross: e.newAnnualGross,
+        new_monthly_take_home: e.newMonthlyTakeHome,
+      });
+    } else if (e.kind === 'floating_rate_reset') {
+      out.push({
+        kind: 'floating_rate_reset',
+        effective_month: monthsBetween(today, e.effectiveDate),
+        loan_index: e.loanIndex,
+        new_rate: e.newRate,
+      });
+    }
+    // property_buy: engine doesn't handle yet; affects profile only on confirm
+    // via L1 immediate-apply path.
+  }
+  return out;
+}
+
 // ─── Engine integration: apply a confirmed event to the profile ────────────
 
 /**
