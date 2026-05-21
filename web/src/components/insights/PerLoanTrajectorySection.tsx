@@ -20,6 +20,7 @@ import {
 } from '@/components/PerLoanTrajectoryChart';
 import { computeBreakdown } from '@/lib/effective-apr';
 import { userDefaultCurrency } from '@/lib/currency';
+import { InfoTip } from '@/components/ToolPrimitives';
 import { api, type Strategy, type UserPayload } from '@/lib/api';
 import type { TrajectoryPoint } from '@/lib/mock-data';
 
@@ -102,7 +103,37 @@ export function InsightsPerLoanTrajectorySection({
   return (
     <Card>
       <div>
-        <div style={{ fontWeight: 600, fontSize: 15 }}>Each loan over time</div>
+        <div
+          style={{
+            fontWeight: 600,
+            fontSize: 15,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          Each loan over time
+          <InfoTip>
+            <strong>What this chart shows.</strong> Each coloured line is one
+            of your loans, plotted month-by-month as it pays down. The legend
+            lists loans top-to-bottom in the order the engine will attack them.
+            <div style={{ marginTop: 8 }}>
+              <strong>What to look for.</strong>
+            </div>
+            <div style={{ marginTop: 4 }}>
+              • The top line falls steepest first — that's the loan with the
+              highest effective rate getting all your extra surplus.
+            </div>
+            <div style={{ marginTop: 4 }}>
+              • When a line touches zero, the next line's slope gets steeper.
+              That's the cascade — surplus rerouting to the next-priority loan.
+            </div>
+            <div style={{ marginTop: 4 }}>
+              • The series stays flat at zero after clearing, not vanishing —
+              easier to read.
+            </div>
+          </InfoTip>
+        </div>
         <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
           Avalanche kills the highest-effective-rate loan first. Watch the top
           of the legend collapse fastest — once it clears, the surplus

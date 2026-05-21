@@ -19,6 +19,7 @@ import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { AssumptionBadges } from './AssumptionBadges';
+import { RecentActivitySummary } from './RecentActivitySummary';
 import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternative';
 import { FxCachePersister } from './FxCachePersister';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
@@ -391,6 +392,10 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             country={plan.user.country}
           />
         </details>
+
+        <div style={{ marginTop: 24 }}>
+          <RecentActivitySummary user={plan.user} />
+        </div>
 
         <div
           style={{

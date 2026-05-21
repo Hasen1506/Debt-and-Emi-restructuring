@@ -24,6 +24,35 @@ import {
   writeStrategyClient,
   type StrategyName,
 } from '@/lib/strategy';
+import { InfoTip } from '@/components/ToolPrimitives';
+
+const STRATEGY_EXPLAINER: Record<StrategyName, React.ReactNode> = {
+  avalanche: (
+    <>
+      <strong>Avalanche</strong> — pay minimums on every loan, then throw all
+      extra cash at the one with the highest <em>effective</em> APR (the rate
+      after GST, late-fee risk, and tax shields are baked in). When it clears,
+      cascade to the next-highest. This is mathematically the cheapest path —
+      always pays the least total interest.
+    </>
+  ),
+  snowball: (
+    <>
+      <strong>Snowball</strong> — pay minimums, then throw extra at the
+      <em> smallest balance</em> first. You'll pay slightly more interest than
+      Avalanche, but you'll close out loans faster and feel quick wins. Pick
+      this if motivation matters more than optimal math.
+    </>
+  ),
+  hybrid: (
+    <>
+      <strong>Hybrid</strong> — mostly Avalanche, but among loans with similar
+      effective rates, it kills the smaller one first. A compromise: keeps
+      most of the interest savings while still giving you the occasional
+      quick "closed" win.
+    </>
+  ),
+};
 
 export function StrategySwitcher({
   active,
@@ -58,7 +87,22 @@ export function StrategySwitcher({
           color: 'var(--muted)',
         }}
       >
-        <span style={{ color: 'var(--muted)' }}>STRATEGY</span>
+        <span style={{ color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          STRATEGY
+          <InfoTip>
+            <strong>How we attack your debts.</strong> Pick one; the schedule
+            and chart update to match.
+            <div style={{ marginTop: 8 }}>
+              {STRATEGY_EXPLAINER.avalanche}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              {STRATEGY_EXPLAINER.snowball}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              {STRATEGY_EXPLAINER.hybrid}
+            </div>
+          </InfoTip>
+        </span>
         {STRATEGIES.map((s, i) => {
           const selected = s === active;
           return (
@@ -111,6 +155,19 @@ export function StrategySwitcher({
         fontSize: 12,
       }}
     >
+      <span
+        className="muted"
+        style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      >
+        Payoff strategy
+        <InfoTip>
+          <strong>How we attack your debts.</strong> Pick one; the schedule
+          and chart update to match.
+          <div style={{ marginTop: 8 }}>{STRATEGY_EXPLAINER.avalanche}</div>
+          <div style={{ marginTop: 8 }}>{STRATEGY_EXPLAINER.snowball}</div>
+          <div style={{ marginTop: 8 }}>{STRATEGY_EXPLAINER.hybrid}</div>
+        </InfoTip>
+      </span>
       <div
         style={{
           display: 'inline-flex',

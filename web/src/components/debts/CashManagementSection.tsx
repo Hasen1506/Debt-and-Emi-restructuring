@@ -14,6 +14,7 @@
  */
 
 import type { StoredProfile } from '@/lib/user-store';
+import { InfoTip } from '@/components/ToolPrimitives';
 import { CashAdvisorCard } from '@/components/debts/CashAdvisorCard';
 import { TaxSleeveCard } from '@/components/debts/TaxSleeveCard';
 import { MonthlyRecapCard } from '@/components/debts/MonthlyRecapCard';
@@ -28,6 +29,29 @@ export function CashManagementSection({
   profile: StoredProfile;
   variant: Variant;
 }) {
+  const explainer = (
+    <InfoTip>
+      <strong>What is "cash management"?</strong> The cards below treat your
+      idle cash as a first-class actor, not an afterthought.
+      <div style={{ marginTop: 8 }}>
+        • <strong>Cash advisor</strong> — when your idle cash is earning less
+        than your debt costs, suggests a specific transfer.
+      </div>
+      <div style={{ marginTop: 4 }}>
+        • <strong>Tax sleeve</strong> — for users whose tax isn't fully handled
+        by employer TDS, tracks your next advance-tax installment.
+      </div>
+      <div style={{ marginTop: 4 }}>
+        • <strong>Monthly recap</strong> — once a month, confirm or override
+        last month's income / expenses / EMIs. Keeps your balance honest.
+      </div>
+      <div style={{ marginTop: 4 }}>
+        • <strong>Cash summary</strong> — your accounts at a glance: total,
+        optimizable (savings/HYSA), operational float (checking).
+      </div>
+    </InfoTip>
+  );
+
   const header =
     variant === 'ledger' ? (
       <div
@@ -38,9 +62,13 @@ export function CashManagementSection({
           textTransform: 'uppercase',
           fontFamily: 'var(--font-mono)',
           margin: '20px 0 10px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
         }}
       >
         — CASH MANAGEMENT —
+        {explainer}
       </div>
     ) : variant === 'editorial' ? (
       <div
@@ -51,9 +79,13 @@ export function CashManagementSection({
           textTransform: 'uppercase',
           color: 'var(--muted, var(--ink))',
           margin: '24px 0 10px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
         }}
       >
         Cash management
+        {explainer}
       </div>
     ) : (
       <div
@@ -62,9 +94,13 @@ export function CashManagementSection({
           fontWeight: 600,
           color: 'var(--ink)',
           margin: '8px 0 6px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
         }}
       >
         Cash management
+        {explainer}
       </div>
     );
 

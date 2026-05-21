@@ -11,6 +11,7 @@
  */
 
 import { STRATEGY_LABEL } from '@/lib/strategy';
+import { InfoTip } from '@/components/ToolPrimitives';
 import type { PlanData } from './PlanData';
 
 export function AssumptionBadges({ plan }: { plan: PlanData }) {
@@ -56,7 +57,48 @@ export function AssumptionBadges({ plan }: { plan: PlanData }) {
         marginBottom: 8,
       }}
     >
-      <span style={{ color: 'var(--muted)' }}>Assumptions:</span>
+      <span
+        style={{
+          color: 'var(--muted)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+        }}
+      >
+        Assumptions
+        <InfoTip>
+          <strong>What's baked into this chart.</strong> Each chip below is a
+          model the engine applied. Toggles for them live elsewhere on /plan —
+          this strip just summarises what's currently active so you know which
+          combination produced the number.
+          <div style={{ marginTop: 8 }}>
+            • <strong>Strategy</strong> — how extra surplus is allocated across
+            loans. Click the strategy label above the chart to see definitions.
+          </div>
+          <div style={{ marginTop: 4 }}>
+            • <strong>+N% hike</strong> — your stated annual salary increase,
+            compounded yearly.
+          </div>
+          <div style={{ marginTop: 4 }}>
+            • <strong>N% inflation</strong> — expenses grow monthly so surplus
+            shrinks over time.
+          </div>
+          <div style={{ marginTop: 4 }}>
+            • <strong>FX drift</strong> — projected ₹/$ rate drift for users
+            with hybrid (INR + USD) debts.
+          </div>
+          <div style={{ marginTop: 4 }}>
+            • <strong>Tax-saving reinvest</strong> — annual tax refunds get
+            routed back into your highest-rate loan.
+          </div>
+          <div style={{ marginTop: 4 }}>
+            • <strong>30% surplus → EF</strong> — soft waterfall: a third of
+            each month's surplus tops up your emergency fund until the target
+            is hit. Active when EF balance &lt; target.
+          </div>
+        </InfoTip>
+        :
+      </span>
       {chips.map((c) => (
         <span
           key={c.label}

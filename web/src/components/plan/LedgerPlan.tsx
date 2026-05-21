@@ -15,6 +15,7 @@ import type { PlanData } from './PlanData';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
 import { AssumptionBadges } from './AssumptionBadges';
+import { RecentActivitySummary } from './RecentActivitySummary';
 import { TaxBreakdown } from './TaxBreakdown';
 import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
@@ -482,6 +483,12 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           />
         </div>
       </details>
+
+      {/* Recent activity — between the schedule (what you should pay) and
+       *  the what-if sandbox (what if you did X). */}
+      <section>
+        <RecentActivitySummary user={plan.user} />
+      </section>
 
       {/* 10. What-if — sandbox, always last. */}
       <section>

@@ -23,6 +23,7 @@ import { FxCachePersister } from './FxCachePersister';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { AssumptionBadges } from './AssumptionBadges';
+import { RecentActivitySummary } from './RecentActivitySummary';
 
 const KIND_LABEL: Record<RestructuringOpportunity['kind'], string> = {
   balance_transfer: 'Move card balance to a cheaper card',
@@ -400,6 +401,9 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
             country={plan.user.country}
           />
         </details>
+        <div style={{ marginTop: 16 }}>
+          <RecentActivitySummary user={plan.user} />
+        </div>
       </Card>
 
       <Card>
