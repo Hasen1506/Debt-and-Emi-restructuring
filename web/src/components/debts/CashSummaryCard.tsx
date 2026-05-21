@@ -14,6 +14,28 @@ import { Card } from '@/components/Card';
 import { formatCurrency } from '@/lib/api';
 import type { CashAccountPayload, UserPayload } from '@/lib/api';
 import { userDefaultCurrency } from '@/lib/currency';
+import { InfoTip } from '@/components/ToolPrimitives';
+
+const CASH_TIP = (
+  <>
+    <strong>Float vs optimizable.</strong> "Float" is your checking
+    balance — money you need liquid for daily spend, not earning meaningful
+    interest. "Optimizable" is everything else (savings, HYSA, FD, other)
+    — that's the bucket the advisor card above can recommend sweeping into
+    debt or into the EF tier.
+    <div style={{ marginTop: 8 }}>
+      <strong>APY shown</strong> is the balance-weighted average across the
+      optimizable accounts only — float doesn&apos;t pull the number down.
+    </div>
+    <div style={{ marginTop: 8 }}>
+      Edit individual account balances and rates in{' '}
+      <a href="/onboarding?step=4" style={{ color: 'var(--accent)' }}>
+        Setup → Cash &amp; savings
+      </a>
+      .
+    </div>
+  </>
+);
 
 type Variant = 'ledger' | 'editorial' | 'existing';
 
@@ -73,9 +95,13 @@ export function CashSummaryCard({
             color: 'var(--accent)',
             letterSpacing: '0.18em',
             textTransform: 'uppercase',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
           }}
         >
           $ CASH · {accounts.length} ACCOUNT{accounts.length === 1 ? '' : 'S'}
+          <InfoTip>{CASH_TIP}</InfoTip>
         </div>
         <div style={{ marginTop: 6 }}>
           Total <strong>{formatCurrency(String(total), currency)}</strong>
@@ -116,9 +142,13 @@ export function CashSummaryCard({
             letterSpacing: '0.15em',
             textTransform: 'uppercase',
             color: 'var(--accent)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
           }}
         >
           Cash on hand
+          <InfoTip>{CASH_TIP}</InfoTip>
         </div>
         <div style={{ marginTop: 6, fontSize: 14, lineHeight: 1.55 }}>
           Across {accounts.length} account{accounts.length === 1 ? '' : 's'}:{' '}
@@ -159,11 +189,20 @@ export function CashSummaryCard({
         }}
       >
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: 15 }}>
+          <div
+            style={{
+              fontWeight: 600,
+              fontSize: 15,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
             Cash on hand{' '}
             <span className="muted" style={{ fontWeight: 400 }}>
               · {accounts.length} account{accounts.length === 1 ? '' : 's'}
             </span>
+            <InfoTip>{CASH_TIP}</InfoTip>
           </div>
           <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
             Optimizable {formatCurrency(String(optimizable), currency)} · float{' '}

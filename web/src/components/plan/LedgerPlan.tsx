@@ -22,6 +22,7 @@ import { AdvanceTaxPanel } from './AdvanceTaxPanel';
 import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternative';
 import { FxCachePersister } from './FxCachePersister';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
+import { InfoTip } from '@/components/ToolPrimitives';
 
 /**
  * Ledger Plan — amortisation print-out.
@@ -88,7 +89,13 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         .join(' · ')
     : fmt(interestSaved);
 
-  const kpis = [
+  const kpis: Array<{
+    l: string;
+    v: string;
+    c: string;
+    sub: string;
+    tip?: React.ReactNode;
+  }> = [
     {
       l: 'DEBT-FREE BY',
       v: plan.debtFreeMonth
@@ -98,24 +105,66 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
       sub: plan.debtFreeMonth
         ? `MONTH ${plan.debtFreeMonth} ON AVALANCHE`
         : 'RAISE SURPLUS OR CUT SPEND TO CLEAR',
+      tip: (
+        <>
+          The month every loan hits zero, assuming you keep paying the
+          schedule below — minimums on every loan plus the entire surplus
+          rotated through the strategy&apos;s top-priority loan.
+          <div style={{ marginTop: 8 }}>
+            Extra payments pull it in. Missed / partial entries push it out.
+            &quot;&gt;{horizonMo}mo&quot; means the engine couldn&apos;t clear
+            within the 20-year horizon at this surplus.
+          </div>
+        </>
+      ),
     },
     {
       l: 'TOTAL INTEREST',
       v: totalInterestDisplay,
       c: 'var(--positive)',
       sub: `VS ${baselineInterestDisplay} IF MINIMUMS ONLY`,
+      tip: (
+        <>
+          Total interest you&apos;ll pay across all loans from today until
+          debt-free, on the current schedule. The comparison is the
+          minimums-only baseline — so the gap is what attacking the
+          highest-rate debt buys you.
+        </>
+      ),
     },
     {
       l: 'YOU SAVE',
       v: `${interestSavedDisplay} · ${plan.monthsSaved}MO`,
       c: 'var(--accent)',
       sub: 'INTEREST + TIME VS MINIMUMS',
+      tip: (
+        <>
+          Two numbers: interest avoided versus paying only minimums, and how
+          many months earlier you&apos;ll be debt-free.
+          <div style={{ marginTop: 8 }}>
+            If &quot;0mo&quot; — your surplus is going somewhere else (EF tier,
+            tax sleeve, etc.). Check the assumption badges above the chart.
+          </div>
+        </>
+      ),
     },
     {
       l: 'SURPLUS',
       v: `${fmt(plan.surplus)}/MO`,
       c: plan.surplus >= 0 ? 'var(--ink)' : 'var(--negative)',
       sub: 'INCOME − FIXED EXPENSES − EMIS',
+      tip: (
+        <>
+          What&apos;s left over each month after your fixed expenses and
+          minimum EMIs. This is the engine&apos;s ammunition — every rupee
+          here is what gets routed into the priority loan.
+          <div style={{ marginTop: 8 }}>
+            Negative surplus means you&apos;re running short before extras —
+            the schedule will fall back to minimums and the debt-free date
+            won&apos;t improve.
+          </div>
+        </>
+      ),
     },
   ];
 
@@ -159,9 +208,13 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                   color: 'var(--muted)',
                   letterSpacing: '0.12em',
                   marginBottom: 4,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
                 }}
               >
                 {s.l}
+                {s.tip && <InfoTip>{s.tip}</InfoTip>}
               </div>
               <div style={{ fontSize: 18, fontWeight: 700, color: s.c }}>
                 {s.v}
@@ -327,7 +380,22 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
               marginBottom: 6,
             }}
           >
-            <span>$ RESTRUCTURE · {opportunities.length} OPP</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              $ RESTRUCTURE · {opportunities.length} OPP
+              <InfoTip>
+                <strong>Why this comes before the schedule.</strong> Refinancing
+                or transferring a balance can cut your rate by 4–8 percentage
+                points overnight; paying the same loan down faster only saves
+                interest on the shrinking principal. The math almost always
+                says re-price first, accelerate second.
+                <div style={{ marginTop: 8 }}>
+                  Each row picks the bank that wins for <em>you</em> —
+                  preferring lenders you already deal with (no fresh KYC).
+                  When a different bank is meaningfully cheaper we surface it
+                  as a low-key &quot;also worth knowing&quot; line.
+                </div>
+              </InfoTip>
+            </span>
             <span style={{ color: 'var(--positive)' }}>
               ANNUAL SAVING {fmt(plan.totalAnnualSaving)}
             </span>

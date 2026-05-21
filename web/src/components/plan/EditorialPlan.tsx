@@ -23,6 +23,7 @@ import { RecentActivitySummary } from './RecentActivitySummary';
 import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternative';
 import { FxCachePersister } from './FxCachePersister';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
+import { InfoTip } from '@/components/ToolPrimitives';
 
 /**
  * Editorial Plan — "Chapter II · the path".
@@ -218,12 +219,28 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
                 marginBottom: 14,
               }}
             >
-              {opportunities.length === 1
-                ? 'One way'
-                : opportunities.length === 2
-                  ? 'Two ways'
-                  : 'Three ways'}{' '}
-              to shave months off
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {opportunities.length === 1
+                  ? 'One way'
+                  : opportunities.length === 2
+                    ? 'Two ways'
+                    : 'Three ways'}{' '}
+                to shave months off
+                <InfoTip>
+                  <strong>Why this is first.</strong> Refinancing or
+                  transferring a balance can cut your rate by 4–8 percentage
+                  points overnight; paying the same loan down faster only saves
+                  interest on the shrinking principal. Re-price first,
+                  accelerate second — that&apos;s the order most of these
+                  numbers will pay back.
+                  <div style={{ marginTop: 8 }}>
+                    Each suggestion prefers a bank you already deal with
+                    (no fresh KYC); when an outside lender is meaningfully
+                    cheaper we surface it as a low-key &quot;also worth
+                    knowing&quot; note.
+                  </div>
+                </InfoTip>
+              </span>
             </div>
             <ol
               style={{
@@ -302,7 +319,7 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             gap: 24,
           }}
         >
-          {[
+          {([
             {
               v: plan.debtFreeMonth
                 ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)
@@ -310,16 +327,44 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
               l: plan.debtFreeMonth
                 ? 'debt-free, at this pace'
                 : 'lift surplus to clear inside the 20-year horizon',
+              tip: (
+                <>
+                  The month every loan hits zero, assuming you keep paying the
+                  schedule above — minimums on every loan plus the surplus
+                  rotated through the priority loan.
+                  <div style={{ marginTop: 8 }}>
+                    Pay extra → it pulls in. Miss / partial → it pushes out.
+                    The badges above the chart list the models baked in (hike,
+                    inflation, FX drift, tax-saving reinvest).
+                  </div>
+                </>
+              ),
             },
             {
               v: totalInterestDisplay,
               l: `interest you'll pay · vs ${baselineInterestDisplay} if minimums only`,
+              tip: (
+                <>
+                  Total interest across all loans from today until debt-free.
+                  The comparison line is the minimums-only baseline — the gap
+                  is what attacking the highest-effective-rate loan first
+                  buys you.
+                </>
+              ),
             },
             {
               v: `${plan.monthsSaved} mo`,
               l: 'sooner than the minimums-only path',
+              tip: (
+                <>
+                  How much earlier you&apos;ll be debt-free compared to paying
+                  only the bank-required minimums. If this reads &quot;0 mo&quot;,
+                  your surplus is being routed elsewhere (EF tier, tax sleeve,
+                  invest layer) — see the assumption badges.
+                </>
+              ),
             },
-          ].map((s) => (
+          ] as Array<{ v: string; l: string; tip: React.ReactNode }>).map((s) => (
             <div key={s.l}>
               <div
                 style={{
@@ -339,9 +384,13 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
                   fontSize: 11,
                   marginTop: 6,
                   letterSpacing: '0.04em',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
                 }}
               >
                 {s.l}
+                <InfoTip>{s.tip}</InfoTip>
               </div>
             </div>
           ))}

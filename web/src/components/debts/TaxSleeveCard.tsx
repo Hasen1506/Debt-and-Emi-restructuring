@@ -38,6 +38,35 @@ import {
   type InstallmentInfo,
   type TaxSleeveSlice,
 } from '@/lib/tax-sleeve';
+import { InfoTip } from '@/components/ToolPrimitives';
+
+const TAX_SLEEVE_TIP = (
+  <>
+    <strong>What this is.</strong> A reminder + calculator for advance tax
+    (India) or estimated tax (US) — the quarterly self-paid tax you owe on
+    income your employer doesn&apos;t withhold (business income, rental,
+    capital gains, side work).
+    <div style={{ marginTop: 8 }}>
+      <strong>Why it lives here.</strong> If you ignore it, the penal interest
+      (1%/month in India on the shortfall) silently shows up in March and
+      eats your debt-free date. Better to park a fixed monthly amount aside
+      now than to scramble at year-end.
+    </div>
+    <div style={{ marginTop: 8 }}>
+      <strong>How the target is calculated.</strong> From the &quot;tax on
+      non-TDS income&quot; field you entered at onboarding (salaried) or
+      from your stated annual business income (business owner). The
+      installments follow the statutory schedule for your country.
+    </div>
+    <div style={{ marginTop: 8 }}>
+      Not your situation? Clear the non-TDS field in{' '}
+      <a href="/onboarding?step=2" style={{ color: 'var(--accent)' }}>
+        Setup → Income
+      </a>{' '}
+      and the card goes away.
+    </div>
+  </>
+);
 
 type Variant = 'ledger' | 'editorial' | 'existing';
 
@@ -262,6 +291,12 @@ function renderBody(
   },
 ): React.ReactElement {
   const accent = urgent ? 'var(--negative)' : 'var(--accent)';
+  const titleWithTip = (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      {title}
+      <InfoTip>{TAX_SLEEVE_TIP}</InfoTip>
+    </span>
+  );
   if (variant === 'ledger') {
     return (
       <div
@@ -282,7 +317,7 @@ function renderBody(
             textTransform: 'uppercase',
           }}
         >
-          $ {title}
+          $ {titleWithTip}
         </div>
         <div style={{ marginTop: 6 }}>{headline}</div>
         {body}
@@ -307,7 +342,7 @@ function renderBody(
             color: accent,
           }}
         >
-          {title}
+          {titleWithTip}
         </div>
         <div style={{ marginTop: 6, fontSize: 14 }}>{headline}</div>
         {body}
@@ -325,7 +360,7 @@ function renderBody(
         borderRadius: 6,
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 600, color: accent }}>{title}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: accent }}>{titleWithTip}</div>
       <div style={{ marginTop: 4, fontSize: 13 }}>{headline}</div>
       {body}
     </div>

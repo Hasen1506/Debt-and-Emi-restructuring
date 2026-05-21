@@ -24,6 +24,7 @@ import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { AssumptionBadges } from './AssumptionBadges';
 import { RecentActivitySummary } from './RecentActivitySummary';
+import { InfoTip } from '@/components/ToolPrimitives';
 
 const KIND_LABEL: Record<RestructuringOpportunity['kind'], string> = {
   balance_transfer: 'Move card balance to a cheaper card',
@@ -151,8 +152,28 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
         }}
       >
         <Card>
-          <div className="muted" style={{ fontSize: 12 }}>
+          <div
+            className="muted"
+            style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          >
             Debt-free by
+            <InfoTip>
+              <strong>What this is.</strong> The month every loan hits zero,
+              assuming you keep paying the schedule shown below — minimums on
+              every loan, plus the entire surplus rotated through whichever
+              loan the strategy attacks first.
+              <div style={{ marginTop: 8 }}>
+                <strong>What changes it.</strong> Pay extra → it pulls in.
+                Miss / partial → it pushes out. The badges above the chart
+                tell you which models (hike, inflation, FX drift, tax-saving
+                reinvest) are baked into this date.
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <strong>"Beyond 20 yrs"</strong> means the engine couldn't
+                clear inside the 240-month horizon at the current surplus —
+                you need more surplus or a lower-rate refi.
+              </div>
+            </InfoTip>
           </div>
           <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>
             {plan.debtFreeMonth
@@ -253,8 +274,35 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
             }}
           >
             <div>
-              <div style={{ fontSize: 16, fontWeight: 600 }}>
+              <div
+                style={{
+                  fontSize: 16,
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
                 Restructure before you accelerate
+                <InfoTip>
+                  <strong>Why first.</strong> A balance transfer or refi can
+                  drop your rate by 4–8 percentage points overnight; paying
+                  the same loan down faster only saves the interest on the
+                  shrinking balance. The math almost always favours
+                  re-pricing the debt before throwing more cash at it.
+                  <div style={{ marginTop: 8 }}>
+                    <strong>How we pick.</strong> Each card shows the bank
+                    that wins for you specifically — preferring lenders you
+                    already have a relationship with (no fresh KYC). When a
+                    different bank is meaningfully cheaper, we surface that
+                    as a low-key "also worth knowing" line below.
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    <strong>The savings number</strong> is annualised. One
+                    refi can recover a year or two of surplus the avalanche
+                    would have spent on interest.
+                  </div>
+                </InfoTip>
               </div>
               <div className="muted" style={{ fontSize: 13 }}>
                 Re-pricing existing debt usually beats paying it down faster — do these first.
