@@ -23,6 +23,7 @@ import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternat
 import { FxCachePersister } from './FxCachePersister';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { InfoTip } from '@/components/ToolPrimitives';
+import { InvestVsPrepayCard } from './InvestVsPrepayCard';
 
 /**
  * Ledger Plan — amortisation print-out.
@@ -366,6 +367,9 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
               : ' ($k = thousands)'}.
         </div>
       </section>
+
+      {/* 3.5 Invest-vs-prepay decision card. */}
+      <InvestVsPrepayCard plan={plan} variant="ledger" />
 
       {/* 4. Opportunities — highest-leverage action surface, moved up from #8. */}
       {opportunities.length > 0 && (

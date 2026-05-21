@@ -24,6 +24,7 @@ import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternat
 import { FxCachePersister } from './FxCachePersister';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { InfoTip } from '@/components/ToolPrimitives';
+import { InvestVsPrepayCard } from './InvestVsPrepayCard';
 
 /**
  * Editorial Plan — "Chapter II · the path".
@@ -206,6 +207,8 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
               : "Total balance over time. Solid: the avalanche path you're on. Dashed: paying minimums only."}
           </figcaption>
         </figure>
+
+        <InvestVsPrepayCard plan={plan} variant="editorial" />
 
         {opportunities.length > 0 && (
           <div style={{ marginTop: 36 }}>

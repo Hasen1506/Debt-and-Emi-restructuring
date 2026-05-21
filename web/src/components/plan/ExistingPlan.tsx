@@ -25,6 +25,7 @@ import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrival
 import { AssumptionBadges } from './AssumptionBadges';
 import { RecentActivitySummary } from './RecentActivitySummary';
 import { InfoTip } from '@/components/ToolPrimitives';
+import { InvestVsPrepayCard } from './InvestVsPrepayCard';
 
 const KIND_LABEL: Record<RestructuringOpportunity['kind'], string> = {
   balance_transfer: 'Move card balance to a cheaper card',
@@ -260,6 +261,11 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
           </div>
         )}
       </Card>
+
+      {/* 3.5 Invest-vs-prepay decision card — sits between the trajectory
+       *  and the restructuring action surface. Anchors against the priority
+       *  loan and the country's best safe vehicles after tax. */}
+      <InvestVsPrepayCard plan={plan} variant="existing" />
 
       {/* 4. Opportunities — the action surface. */}
       {plan.opportunities.length > 0 && (

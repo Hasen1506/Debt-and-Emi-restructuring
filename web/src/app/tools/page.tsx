@@ -17,6 +17,7 @@ import { LiquidateTool } from './liquidate/tool';
 import { CashYieldTool } from './cash-yield/tool';
 import { RightTimeTool } from './right-time/tool';
 import { NriPrepayTool } from './nri-prepay/tool';
+import { InvestVsPrepayDeepTool } from './invest-vs-prepay/tool';
 
 type ToolKey =
   | 'windfall'
@@ -25,7 +26,8 @@ type ToolKey =
   | 'liquidate'
   | 'cash-yield'
   | 'right-time'
-  | 'nri-prepay';
+  | 'nri-prepay'
+  | 'invest-vs-prepay';
 
 interface ToolEntry {
   key: ToolKey;
@@ -91,6 +93,14 @@ const TOOLS: ToolEntry[] = [
     explainer:
       "Loan abroad, savings here? The prepay-vs-invest call has to account for currency drift, not just rate-vs-yield. Bakes in FX risk and remittance friction.",
     Body: NriPrepayTool,
+  },
+  {
+    key: 'invest-vs-prepay',
+    label: 'Invest vs prepay (deep-dive)',
+    sub: 'Variable returns, downside check',
+    explainer:
+      "When the option you're weighing has a *range* of outcomes (equity, MF) instead of a single yield. Compares expected after-tax return against your loan rate, then checks what happens in the conservative (− 1σ) scenario. The /plan card handles the simple safe-vehicle case.",
+    Body: InvestVsPrepayDeepTool,
   },
 ];
 
