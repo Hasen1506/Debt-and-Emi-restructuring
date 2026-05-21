@@ -20,7 +20,8 @@ import type {
 } from '@/lib/api';
 import { DeductionsPanel } from '@/components/onboarding/DeductionsPanel';
 import { IncomeStreamsPanel } from '@/components/onboarding/IncomeStreamsPanel';
-import { deriveMonthlyIncome } from '@/lib/income-streams';
+import { activeGrossAnnual, deriveMonthlyIncome } from '@/lib/income-streams';
+import { deriveMarginalRate } from '@/lib/deductions';
 
 /**
  * True when any field on the deductions payload is set to a meaningful
@@ -474,10 +475,37 @@ export default function OnboardingPage() {
     // bracket they fall into — that's a sharper signal than the manual
     // marginal_rate field on Step 4. Fall back to the manual value only
     // when no gross is provided.
+    // Streams (when present) override the single annual_gross_salary /
+    // annual_business_income input. Sum of *active* streams = total gross
+    // — this is what bracket + deductions math should consume.
+    const streamGross =
+      incomeStreams.length > 0
+        ? Number(activeGrossAnnual(incomeStreams).toString())
+        : 0;
     const grossForBracket =
-      incomeType === 'salaried'
-        ? Number(annualGrossSalary)
-        : Number(annualBusinessIncome);
+      streamGross > 0
+        ? streamGross
+        : incomeType === 'salaried'
+          ? Number(annualGrossSalary)
+          : Number(annualBusinessIncome);
+
+    // When deductions are populated, they refine the bracket math by
+    // pulling taxable income (and thus marginal rate) down. Use the
+    // deductions-aware derivation as the primary source; fall back to
+    // bracket-only and then the manual field.
+    const deductionDerived =
+      hasAnyDeductions(deductions) && grossForBracket > 0
+        ? deriveMarginalRate({
+            grossAnnual: grossForBracket,
+            country,
+            taxRegime,
+            filingStatus,
+            deductions,
+            ageBracket: ageBracket || undefined,
+            stateMarginalRate,
+          })
+        : null;
+
     const derivedBracket =
       grossForBracket > 0
         ? classifyBracket(
@@ -496,8 +524,12 @@ export default function OnboardingPage() {
       country === 'US' && stateMarginalRate.trim()
         ? Number(num(stateMarginalRate, '0'))
         : 0;
-    const combined = federalMarginal + stateRate;
-    const resolvedMarginalRate = combined.toFixed(4);
+    // Deductions-derived rate wins when present — it already includes
+    // state for US users (via stateMarginalRate threaded into the
+    // helper). Otherwise fall through to bracket + state composition.
+    const resolvedMarginalRate = deductionDerived
+      ? deductionDerived.toFixed(4)
+      : (federalMarginal + stateRate).toFixed(4);
     saveProfileClient({
       user: userWithFx,
       marginalRate: resolvedMarginalRate,
