@@ -1240,6 +1240,91 @@ export default function OnboardingPage() {
                     </>
                   }
                 />
+                {l.rate_type === 'floating' && (
+                  <>
+                    <Select
+                      label="Bank's reset frequency"
+                      value={String(l.rate_reset_frequency_months ?? '')}
+                      onChange={(v) =>
+                        updateLoan(i, {
+                          rate_reset_frequency_months:
+                            v === '' ? undefined : Number(v),
+                        })
+                      }
+                      options={[
+                        { value: '', label: 'Not sure / not tracking' },
+                        { value: '1', label: 'Monthly (RLLR / EBLR)' },
+                        { value: '3', label: 'Quarterly' },
+                        { value: '6', label: 'Half-yearly (older MCLR)' },
+                        { value: '12', label: 'Yearly (legacy MCLR)' },
+                      ]}
+                      info={
+                        <>
+                          <strong>How often the bank re-prices this loan.</strong>{' '}
+                          Post-Oct-2019 IN home loans are typically RLLR /
+                          EBLR (1-month reset) — your bank applies the new
+                          rate automatically from the next billing cycle, no
+                          refi needed.
+                          <br />
+                          <br />
+                          Older MCLR loans reset 6 or 12 months. Check your
+                          sanction letter (&quot;reset frequency&quot; or
+                          &quot;reset clause&quot;) if you&apos;re unsure.
+                          <br />
+                          <br />
+                          Leave at &quot;Not sure&quot; and the engine
+                          assumes no auto-reset — your floating rate stays
+                          at today&apos;s value across the horizon.
+                        </>
+                      }
+                    />
+                    <Field
+                      label="Next reset date (YYYY-MM, optional)"
+                      value={l.next_reset_date ?? ''}
+                      onChange={(v) =>
+                        updateLoan(i, { next_reset_date: v || undefined })
+                      }
+                      hint="Leave blank to skip auto-reset modelling"
+                      info={
+                        <>
+                          When the next rate adjustment fires. /plan uses
+                          this to schedule the auto-reset inside the
+                          simulation. From that month onwards, the loan
+                          re-prices every <em>{l.rate_reset_frequency_months ?? '?'}</em>{' '}
+                          months at the drift you specify below.
+                        </>
+                      }
+                    />
+                    <Field
+                      label="Expected rate drift (decimal/yr)"
+                      value={l.rate_drift_annualized ?? ''}
+                      onChange={(v) =>
+                        updateLoan(i, { rate_drift_annualized: v })
+                      }
+                      placeholder="0"
+                      hint="+0.005 = expect +50bps/yr (hike thesis); -0.005 = cuts"
+                      info={
+                        <>
+                          Your view of where the benchmark rate is going.
+                          The simulator bumps this loan&apos;s rate by{' '}
+                          <em>drift × (reset_freq / 12)</em> at each scheduled
+                          reset.
+                          <br />
+                          <br />
+                          Example: +0.005 with a 12-month reset adds 50bps
+                          per reset; with a 1-month reset adds ~4bps per
+                          month. Compounds across resets.
+                          <br />
+                          <br />
+                          Default 0 (no drift) — flat-rate floating
+                          baseline. Reasonable starter values are RBI repo
+                          neutral so 0; if you have a strong view, ±0.005
+                          to ±0.015 is the typical range.
+                        </>
+                      }
+                    />
+                  </>
+                )}
                 {isNriUs && (
                   <Select
                     label="Currency"
@@ -1304,28 +1389,52 @@ export default function OnboardingPage() {
                 )}
                 {l.loan_type === 'credit_card' && (
                   <Field
-                    label="Expected monthly spend on this card"
+                    label="Spend you'll carry (not what you'll repay in full)"
                     value={l.expected_monthly_spend ?? ''}
                     onChange={(v) =>
                       updateLoan(i, { expected_monthly_spend: v })
                     }
                     placeholder="0"
-                    hint="0 if you've frozen the card; bake in real spend otherwise"
+                    hint="Set 0 if you pay the statement in full each month — most users with surplus do."
                     info={
                       <>
-                        Roughly how much you usually <strong>charge</strong> to
-                        this card each month — groceries, fuel, subscriptions.
+                        <strong>What this is.</strong> Only the slice of new
+                        spend that will <em>revolve</em> — i.e. carry past the
+                        statement due date and accrue interest. If you pay
+                        the full bill on time, this is <strong>0</strong>;
+                        the EMI/minimum-only crowd is who needs it non-zero.
                         <br />
                         <br />
-                        /plan adds this to your outstanding before computing
-                        each month&apos;s minimum, so the trajectory shows
-                        what will <em>actually</em> happen at your current
-                        usage rate, not the optimistic &quot;freeze the
-                        card&quot; assumption.
+                        <strong>How the projection works.</strong> Each
+                        sim month:
+                        <div style={{ marginTop: 4 }}>
+                          <code>
+                            outstanding[m] = outstanding[m−1] + spend × (1 −
+                            payoff_pct) + interest
+                          </code>
+                        </div>
+                        Here <em>payoff_pct</em> is the fraction of the
+                        statement you typically clear (≈ 1.0 if you pay in
+                        full). The field captures only the carried portion,
+                        so the formula simplifies to:
+                        <div style={{ marginTop: 4 }}>
+                          <code>
+                            outstanding[m] = outstanding[m−1] + spend +
+                            interest
+                          </code>
+                        </div>
+                        Engine path:{' '}
+                        <code>engine/simulation.py:317-322</code> bumps
+                        outstanding by this amount <strong>before</strong>{' '}
+                        computing the minimum, so trajectory reflects real
+                        behaviour, not the optimistic &quot;freeze the
+                        card&quot; default.
                         <br />
                         <br />
-                        Leave at <strong>0</strong> if you&apos;ve already
-                        stopped using the card and are paying it down.
+                        <strong>Rule of thumb.</strong> If you have monthly
+                        surplus &gt; statement, leave at <strong>0</strong> —
+                        we&apos;ll model card paid in full. Otherwise enter
+                        the chunk that genuinely rolls over.
                       </>
                     }
                   />

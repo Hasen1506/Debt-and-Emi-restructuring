@@ -49,6 +49,13 @@ class LoanIn(_Base):
     # silently dropping them.
     statement_day: Optional[int] = None
     due_day: Optional[int] = None
+    # Floating-rate scheduling — only meaningful when rate_type == "floating".
+    # See engine/models.py:Loan for semantics. next_reset_month is 1-based
+    # against the simulation; the frontend derives it from a calendar
+    # next_reset_date before sending.
+    rate_reset_frequency_months: Optional[int] = None
+    next_reset_month: Optional[int] = None
+    rate_drift_annualized: Decimal = D("0")
 
     def to_engine(self) -> Loan:
         return Loan(
@@ -63,6 +70,9 @@ class LoanIn(_Base):
             min_payment_override=self.min_payment_override,
             currency=self.currency,
             expected_monthly_spend=self.expected_monthly_spend,
+            rate_reset_frequency_months=self.rate_reset_frequency_months,
+            next_reset_month=self.next_reset_month,
+            rate_drift_annualized=self.rate_drift_annualized,
         )
 
 
@@ -612,6 +622,17 @@ class MarketMedianResponse(_Base):
     country: Country
     loan_type: LoanType
     median: Optional[Decimal]
+
+
+class MarketLowestResponse(_Base):
+    """Cheapest Tier-A indicative rate for (country, loan_type). Surfaced
+    by the goals achievability checker as the T3 (last-resort) new-loan
+    suggestion. Indicative — partner-API integration is the eventual
+    replacement (see [[project_deferred_2026_05_21]])."""
+    country: Country
+    loan_type: LoanType
+    bank: Optional[str]
+    low: Optional[Decimal]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

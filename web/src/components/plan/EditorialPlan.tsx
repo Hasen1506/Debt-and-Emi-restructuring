@@ -4,6 +4,8 @@ import { StrategySwitcher } from '@/components/StrategySwitcher';
 import { HikeToggle } from '@/components/HikeToggle';
 import { TaxReinvestToggle } from '@/components/TaxReinvestToggle';
 import { InflationToggle } from '@/components/InflationToggle';
+import { EfSplitSlider } from '@/components/EfSplitSlider';
+import { PlanStartPicker } from '@/components/PlanStartPicker';
 import { FxDriftToggle } from '@/components/FxDriftToggle';
 import {
   STRATEGY_LABEL,
@@ -326,7 +328,7 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             {
               v: plan.debtFreeMonth
                 ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)
-                : 'Beyond 20 yrs',
+                : `Beyond ${Math.round(plan.horizonMonths / 12)} yrs`,
               l: plan.debtFreeMonth
                 ? 'debt-free, at this pace'
                 : 'lift surplus to clear inside the 20-year horizon',
@@ -537,6 +539,7 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             }}
           >
             <StrategySwitcher active={plan.strategy} variant="inline" />
+            <PlanStartPicker active={plan.planStart} variant="inline" />
             <HikeToggle
               active={plan.hikeModeling}
               hikeRatePct={hikeRatePct}
@@ -557,6 +560,16 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             <InflationToggle
               active={plan.inflationModeling}
               inflationRatePct={inflRatePct}
+              variant="inline"
+            />
+            <EfSplitSlider
+              active={plan.efSplit}
+              hasGap={
+                Number(plan.user.efund_target || 0) > 0 &&
+                Number(plan.user.efund_balance || 0) <
+                  Number(plan.user.efund_target || 0)
+              }
+              ccySym={plan.user.country === 'IN' ? '₹' : '$'}
               variant="inline"
             />
             {isHybrid && (

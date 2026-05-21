@@ -562,3 +562,27 @@ def market_median(country: Country, loan_type: LoanType) -> Decimal | None:
     medians.sort()
     n = len(medians)
     return medians[n // 2] if n % 2 == 1 else (medians[n // 2 - 1] + medians[n // 2]) / D("2")
+
+
+def market_lowest(country: Country, loan_type: LoanType) -> tuple[str, Decimal] | None:
+    """Lowest indicative `low` across Tier-A institutions, with the source
+    bank name. Used by the goals achievability checker to surface a
+    realistic "if you needed a new loan, here's the cheapest typical
+    rate" line for the T3 (last-resort) tier.
+
+    Indicative only — the static rate-card refreshes monthly via data ops.
+    A future partner-API integration (Paisabazaar / NerdWallet) will
+    replace this with live rates; this fallback ships until then.
+
+    Returns (bank_name, low_rate) or None when no entries are populated
+    for the (country, loan_type) pair.
+    """
+    pool = INDIA_TIER_A if country == Country.IN else USA_TIER_A
+    best: tuple[str, Decimal] | None = None
+    for card in pool:
+        r = lookup_rate(card.name, loan_type)
+        if r is None:
+            continue
+        if best is None or r.low < best[1]:
+            best = (card.name, r.low)
+    return best

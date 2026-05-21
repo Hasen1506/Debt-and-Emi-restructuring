@@ -60,6 +60,22 @@ export interface LoanPayload {
    *  banks differ by 18-26 days, and individual cards within a bank can
    *  too. Like statement_day, UI-only — engine doesn't consume. */
   due_day?: number;
+  /** Floating-rate loans only: bank's reset frequency in months. RLLR /
+   *  EBLR (most post-2019 IN loans, all US ARMs after intro period) reset
+   *  every 1 month; older MCLR loans typically 6 or 12 months. Drives
+   *  the auto-reset cadence inside the simulator. */
+  rate_reset_frequency_months?: number;
+  /** Floating-rate loans only: calendar date of the next reset
+   *  (YYYY-MM-DD). Frontend translates to sim-month before sending. */
+  next_reset_date?: string;
+  /** Engine-facing 1-based simulation month for the next reset. Derived
+   *  on the request path from next_reset_date; not authored by the user. */
+  next_reset_month?: number;
+  /** Floating-rate loans only: projected annualised drift in the
+   *  benchmark rate (e.g. '0.005' = +50bps/yr if you expect RBI hikes;
+   *  '-0.005' if you expect cuts). Applied at each reset proportional
+   *  to the reset frequency. */
+  rate_drift_annualized?: string;
 }
 
 export interface InvestmentOptionPayload {
@@ -798,6 +814,11 @@ export const api = {
   getUserState: () => get<UserStatePayload>('/api/user/state'),
   putUserState: (data: Record<string, unknown>) =>
     putJson<UserStatePayload>('/api/user/state', { data }),
+
+  marketLowest: (country: 'IN' | 'US', loanType: string) =>
+    get<{ country: string; loan_type: string; bank: string | null; low: string | null }>(
+      `/api/market-lowest?country=${country}&loan_type=${loanType}`,
+    ),
 };
 
 export interface AuthUser {

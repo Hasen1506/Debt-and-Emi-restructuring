@@ -37,11 +37,15 @@ export function AssumptionBadges({ plan }: { plan: PlanData }) {
     chips.push({ label: 'Tax-saving reinvest', tone: 'on' });
   }
 
-  // EF waterfall implicit toggle — fires when there's an EF gap.
+  // EF waterfall — fires when there's an EF gap. Slider controls the %.
+  // Goal pre-empt forces it to 0 silently; chip surfaces the override.
   const efBal = Number(plan.user.efund_balance || 0);
   const efTgt = Number(plan.user.efund_target || 0);
-  if (efTgt > 0 && efBal < efTgt) {
-    chips.push({ label: '30% surplus → EF', tone: 'on' });
+  const efPct = Math.round(Number(plan.efSplit || '0.3') * 100);
+  if (plan.efPreempted) {
+    chips.push({ label: 'EF paused (goal pre-empt)', tone: 'on' });
+  } else if (efTgt > 0 && efBal < efTgt && efPct > 0) {
+    chips.push({ label: `${efPct}% surplus → EF`, tone: 'on' });
   }
 
   if (chips.length <= 1) return null; // Just strategy = nothing remarkable

@@ -5,6 +5,8 @@ import { StrategySwitcher } from '@/components/StrategySwitcher';
 import { HikeToggle } from '@/components/HikeToggle';
 import { TaxReinvestToggle } from '@/components/TaxReinvestToggle';
 import { InflationToggle } from '@/components/InflationToggle';
+import { EfSplitSlider } from '@/components/EfSplitSlider';
+import { PlanStartPicker } from '@/components/PlanStartPicker';
 import { FxDriftToggle } from '@/components/FxDriftToggle';
 import { STRATEGY_LABEL } from '@/lib/strategy';
 import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
@@ -109,6 +111,7 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
         )}
         <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 24 }}>
           <StrategySwitcher active={plan.strategy} variant="inline" />
+          <PlanStartPicker active={plan.planStart} variant="inline" />
           <HikeToggle
             active={plan.hikeModeling}
             hikeRatePct={hikeRatePct}
@@ -129,6 +132,16 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
           <InflationToggle
             active={plan.inflationModeling}
             inflationRatePct={inflRatePct}
+            variant="inline"
+          />
+          <EfSplitSlider
+            active={plan.efSplit}
+            hasGap={
+              Number(plan.user.efund_target || 0) > 0 &&
+              Number(plan.user.efund_balance || 0) <
+                Number(plan.user.efund_target || 0)
+            }
+            ccySym={plan.user.country === 'IN' ? '₹' : '$'}
             variant="inline"
           />
           {isHybrid && (
@@ -170,21 +183,22 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
                 reinvest) are baked into this date.
               </div>
               <div style={{ marginTop: 8 }}>
-                <strong>"Beyond 20 yrs"</strong> means the engine couldn't
-                clear inside the 240-month horizon at the current surplus —
-                you need more surplus or a lower-rate refi.
+                <strong>&quot;Beyond horizon&quot;</strong> means the engine
+                couldn&apos;t clear inside the {plan.horizonMonths}-month
+                window at the current surplus — you need more surplus or
+                a lower-rate refi.
               </div>
             </InfoTip>
           </div>
           <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>
             {plan.debtFreeMonth
               ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)
-              : 'Beyond 20 yrs'}
+              : `Beyond ${Math.round(plan.horizonMonths / 12)} yrs`}
           </div>
           <div className="muted" style={{ fontSize: 12 }}>
             {plan.debtFreeMonth
               ? `month ${plan.debtFreeMonth} on the avalanche schedule`
-              : 'raise surplus or cut spending to clear inside the 240-month horizon'}
+              : `raise surplus or cut spending to clear inside the ${plan.horizonMonths}-month horizon`}
           </div>
         </Card>
         <Card>

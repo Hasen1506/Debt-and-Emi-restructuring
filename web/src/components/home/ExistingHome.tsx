@@ -129,6 +129,20 @@ export function ExistingHome({ profile }: { profile: StoredProfile }) {
           Holdings
         </a>
         <a
+          href="/goals"
+          className="btn"
+          style={{ textDecoration: 'none' }}
+        >
+          Goals
+        </a>
+        <a
+          href="/decisions"
+          className="btn"
+          style={{ textDecoration: 'none' }}
+        >
+          Decisions
+        </a>
+        <a
           href="/tools"
           className="btn"
           style={{ textDecoration: 'none' }}

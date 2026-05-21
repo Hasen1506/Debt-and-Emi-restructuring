@@ -4,6 +4,8 @@ import { StrategySwitcher } from '@/components/StrategySwitcher';
 import { HikeToggle } from '@/components/HikeToggle';
 import { TaxReinvestToggle } from '@/components/TaxReinvestToggle';
 import { InflationToggle } from '@/components/InflationToggle';
+import { EfSplitSlider } from '@/components/EfSplitSlider';
+import { PlanStartPicker } from '@/components/PlanStartPicker';
 import { FxDriftToggle } from '@/components/FxDriftToggle';
 import { STRATEGY_LABEL, STRATEGY_DESCRIPTION } from '@/lib/strategy';
 import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
@@ -51,7 +53,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export function LedgerPlan({ plan }: { plan: PlanData }) {
-  const horizonMo = 240;
+  const horizonMo = plan.horizonMonths;
   const marginalPct = (Number(plan.marginalRate) * 100).toFixed(0);
   const opportunities = plan.opportunities;
   const interestSaved = Number(plan.baselineInterest) - Number(plan.totalInterest);
@@ -261,6 +263,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           }}
         >
           <StrategySwitcher active={plan.strategy} variant="ledger" />
+          <PlanStartPicker active={plan.planStart} variant="ledger" />
           <HikeToggle
             active={plan.hikeModeling}
             hikeRatePct={hikeRatePct}
@@ -283,6 +286,16 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             inflationRatePct={inflRatePct}
             variant="ledger"
           />
+          <EfSplitSlider
+            active={plan.efSplit}
+            hasGap={
+              Number(plan.user.efund_target || 0) > 0 &&
+              Number(plan.user.efund_balance || 0) <
+                Number(plan.user.efund_target || 0)
+            }
+            ccySym={plan.user.country === 'IN' ? '₹' : '$'}
+            variant="ledger"
+          />
           {isHybrid && (
             <FxDriftToggle
               active={plan.fxDrift}
@@ -295,7 +308,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           </div>
           <div style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
             <strong style={{ color: 'var(--ink)' }}>HORIZON {horizonMo}MO</strong>
-            {' '}= how far ahead the simulator runs (20 yrs). If you don&apos;t
+            {' '}= how far ahead the simulator runs ({Math.round(horizonMo / 12)} yrs, derived from your longest loan tenure). If you don&apos;t
             clear inside {horizonMo} months we surface that as &quot;&gt;
             {horizonMo}mo&quot; rather than invent a date.
           </div>

@@ -220,6 +220,34 @@ export function LedgerHome({ profile }: { profile: StoredProfile }) {
             [HOLDINGS]
           </a>
           <a
+            href="/goals"
+            style={{
+              padding: '8px 14px',
+              border: '1px solid var(--ink)',
+              background: 'var(--canvas)',
+              color: 'var(--ink)',
+              textDecoration: 'none',
+              fontSize: 11,
+              letterSpacing: '0.12em',
+            }}
+          >
+            [GOALS]
+          </a>
+          <a
+            href="/decisions"
+            style={{
+              padding: '8px 14px',
+              border: '1px solid var(--ink)',
+              background: 'var(--canvas)',
+              color: 'var(--ink)',
+              textDecoration: 'none',
+              fontSize: 11,
+              letterSpacing: '0.12em',
+            }}
+          >
+            [DECISIONS]
+          </a>
+          <a
             href="/tools"
             style={{
               padding: '8px 14px',

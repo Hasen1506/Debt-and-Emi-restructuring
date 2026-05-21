@@ -134,6 +134,64 @@ export const KIND_LABELS: Record<IncomeStreamPayload['kind'], string> = {
   other: 'Other',
 };
 
+/**
+ * Project income-stream transitions inside the simulation horizon as
+ * engine-shaped lifecycle events.
+ *
+ * Why: the engine takes a scalar `monthly_income` and applies an annual
+ * hike — it has no native concept of multiple streams switching on and
+ * off mid-horizon. But it DOES support `salary_reset` lifecycle events
+ * (engine/models.py:LifecycleEventKind), so we synthesise one per
+ * transition month. The simulator already handles the rest.
+ *
+ * Algorithm: walk each calendar month from `today + 1` to
+ * `today + horizonMonths`. Whenever the set of active streams changes
+ * vs. the previous month, emit a salary_reset with the new monthly
+ * take-home (sum of active gross / 12 — same formula as the at-save
+ * monthly_income derivation, keeping a consistent scale).
+ *
+ * Streams already active at `today` are baked into the user's
+ * monthly_income by the onboarding save path — we don't emit an event
+ * for month 1.
+ */
+export function streamTransitionsAsLifecycleEvents(
+  streams: IncomeStreamPayload[] | undefined,
+  horizonMonths: number,
+  today: Date = new Date(),
+): { kind: 'salary_reset'; effective_month: number; new_monthly_take_home: string }[] {
+  const list = streams ?? [];
+  if (list.length === 0 || horizonMonths <= 1) return [];
+
+  const events: {
+    kind: 'salary_reset';
+    effective_month: number;
+    new_monthly_take_home: string;
+  }[] = [];
+
+  // Baseline: gross active right now. The save-time path bakes this into
+  // monthly_income, so we don't emit a duplicate event for it.
+  let prevGross = activeGrossAnnual(list, today).toString();
+
+  for (let m = 2; m <= horizonMonths; m += 1) {
+    const probe = new Date(
+      today.getFullYear(),
+      today.getMonth() + (m - 1),
+      today.getDate(),
+    );
+    const gross = activeGrossAnnual(list, probe).toString();
+    if (gross !== prevGross) {
+      const takeHome = D(gross).div(12).toFixed(2);
+      events.push({
+        kind: 'salary_reset',
+        effective_month: m,
+        new_monthly_take_home: takeHome,
+      });
+      prevGross = gross;
+    }
+  }
+  return events;
+}
+
 /** TDS-default by kind — pre-fills when the user picks a kind. */
 export function defaultTdsForKind(kind: IncomeStreamPayload['kind']): string {
   switch (kind) {

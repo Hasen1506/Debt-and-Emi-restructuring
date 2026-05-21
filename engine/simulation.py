@@ -268,6 +268,24 @@ def simulate_plan(
                 ):
                     loans[ev.loan_index].nominal_rate = ev.new_rate
 
+        # Auto floating-rate resets — for any floating loan with a
+        # next_reset_month + rate_reset_frequency_months pair, fire a
+        # rate adjustment whenever m hits the schedule. The new rate is
+        # current_rate + (rate_drift_annualized × frequency/12) so a
+        # +50bps/yr drift with a 12mo reset bumps the loan by 50bps each
+        # reset, while a 1-month-reset loan bumps by ~4bps per reset.
+        # Defensive: skip when fields are missing OR rate_type != floating.
+        for li, ln in enumerate(loans):
+            if ln.rate_type != "floating":
+                continue
+            if ln.next_reset_month is None or ln.rate_reset_frequency_months is None:
+                continue
+            if m == ln.next_reset_month:
+                freq = max(1, ln.rate_reset_frequency_months)
+                step = ln.rate_drift_annualized * D(str(freq)) / D("12")
+                ln.nominal_rate = ln.nominal_rate + step
+                ln.next_reset_month = m + freq
+
         # FX drift — update user.fx_to_user_currency at month m to reflect
         # cumulative drift since simulation start. At m=1 drift = 0 (rate
         # equals spot); subsequent months compound the per-currency monthly

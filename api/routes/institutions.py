@@ -6,10 +6,15 @@ from engine.models import Country, LoanType
 from engine.rate_cards import (
     INDIA_TIER_A, INDIA_TIER_B, INDIA_TIER_C,
     USA_TIER_A, USA_TIER_B, USA_TIER_C,
-    ALL_INSTITUTIONS, market_median,
+    ALL_INSTITUTIONS, market_median, market_lowest,
 )
 
-from api.schemas import InstitutionOut, MarketMedianResponse, RateRangeOut
+from api.schemas import (
+    InstitutionOut,
+    MarketMedianResponse,
+    MarketLowestResponse,
+    RateRangeOut,
+)
 
 router = APIRouter(tags=["institutions"])
 
@@ -60,3 +65,16 @@ def get_institution(name: str) -> InstitutionOut:
 def get_market_median(country: Country, loan_type: LoanType) -> MarketMedianResponse:
     median = market_median(country, loan_type)
     return MarketMedianResponse(country=country, loan_type=loan_type, median=median)
+
+
+@router.get("/market-lowest", response_model=MarketLowestResponse)
+def get_market_lowest(country: Country, loan_type: LoanType) -> MarketLowestResponse:
+    """Cheapest Tier-A indicative rate for (country, loan_type) and which
+    bank quotes it. Drives the goals achievability T3 "you'd need a new
+    loan around this rate" line."""
+    found = market_lowest(country, loan_type)
+    if found is None:
+        return MarketLowestResponse(country=country, loan_type=loan_type, bank=None, low=None)
+    return MarketLowestResponse(
+        country=country, loan_type=loan_type, bank=found[0], low=found[1],
+    )

@@ -25,6 +25,7 @@ import {
   readLifecycleServer,
   plannedEventsForEngine,
 } from '@/lib/lifecycle-events';
+import { streamTransitionsAsLifecycleEvents } from '@/lib/income-streams';
 import {
   buildSchedule,
   accruedPenalty,
@@ -35,6 +36,8 @@ import { projectAnnualTaxSavings } from '@/lib/tax-projection';
 import { projectBracketTransitions } from '@/lib/bracket-transitions';
 import Decimal from 'decimal.js';
 import { getCountryMonth } from '@/lib/today';
+import { loadPlanStartServer, resolveStartMonth } from '@/lib/plan-start';
+import { deriveHorizonMonths } from '@/lib/horizon';
 import {
   applyActivityDeltas,
   loadActivityDeltasServer,
@@ -121,10 +124,12 @@ async function loadPlan(
     }
   }
 
-  // Anchor the simulation's "month 1" to the user's country today, so the
-  // hike-effective-month fires on the right calendar month instead of
-  // month-13-from-now.
-  const simulation_start_month = getCountryMonth(profile.user.country);
+  // Anchor the simulation's "month 1" to the user's chosen start month,
+  // falling back to country-today when no override is set. Lets users
+  // who say "I'll start serious budgeting from next month" or "from FY
+  // start" line up the projection with their actual zero-day.
+  const planStartPref = await loadPlanStartServer();
+  const simulation_start_month = resolveStartMonth(planStartPref, profile.user.country);
 
   // Bracket-transition projection — only meaningful when the user has
   // provided gross income (otherwise we can't classify their current
@@ -244,21 +249,77 @@ async function loadPlan(
   // in the future) into the engine wire format. Confirmed past events are
   // already baked into the profile via L1 immediate-apply on confirm.
   const lifecycleEventsRaw = await readLifecycleServer();
-  const lifecycle_events = plannedEventsForEngine(lifecycleEventsRaw);
+  // Manual events (planned salary / rate resets) PLUS synthesized events
+  // from income_streams whose start or end date falls inside the horizon.
+  // Without the synthesized batch the engine would hold marginal income
+  // constant for 240 months even when the user has already told us "this
+  // freelance stream starts in 3 months" or "salaried gig ends Sept".
+  // Translate any per-loan next_reset_date (calendar) to next_reset_month
+  // (sim-relative). The engine needs months; the user authored dates.
+  // Skipped silently for fixed-rate or unset values.
+  function nextResetSimMonth(iso: string | undefined): number | undefined {
+    if (!iso) return undefined;
+    const t = Date.parse(iso.length === 7 ? `${iso}-01` : iso);
+    if (!Number.isFinite(t)) return undefined;
+    const today = new Date();
+    const target = new Date(t);
+    const diff =
+      (target.getFullYear() - today.getFullYear()) * 12 +
+      (target.getMonth() - today.getMonth()) +
+      1;
+    return diff > 0 ? diff : undefined;
+  }
+  adjustedUser.loans = adjustedUser.loans.map((l) => {
+    if (l.rate_type !== 'floating') return l;
+    const computed = nextResetSimMonth(l.next_reset_date);
+    if (!computed && !l.rate_reset_frequency_months) return l;
+    return { ...l, next_reset_month: computed } as typeof l & {
+      next_reset_month?: number;
+    };
+  }) as typeof adjustedUser.loans;
 
-  // Soft EF waterfall — when the user has an EF gap, divert 30% of each
-  // month's surplus to EF top-up until target is hit. Phase 3 of the
-  // cash module. 0 (legacy) when target already met or unset.
+  // Derive horizon early so the stream-transition synthesiser uses the
+  // same window as the engine call. Re-derived inside the try block too
+  // (cheap), but the lifecycle batch needs it now.
+  const lifecycleHorizon = deriveHorizonMonths(adjustedUser);
+  const lifecycle_events = [
+    ...plannedEventsForEngine(lifecycleEventsRaw),
+    ...streamTransitionsAsLifecycleEvents(
+      adjustedUser.income_streams,
+      lifecycleHorizon,
+    ),
+  ];
+
+  // Soft EF waterfall — when the user has an EF gap, divert a user-chosen
+  // fraction of monthly surplus to EF top-up until target is hit. Default
+  // 0.3 (30% EF / 70% debt) preserves the pre-slider behaviour; the cookie
+  // is the source of truth now that /plan surfaces a control.
   const efBalance = Number(adjustedUser.efund_balance ?? '0');
   const efTarget = Number(adjustedUser.efund_target ?? '0');
-  const efTopUpRate = efTarget > 0 && efBalance < efTarget ? '0.3' : undefined;
+  const efSplit = await (await import('@/lib/ef-split')).loadEfSplitServer();
+  const { anyActivePreemptingGoalServer } = await import('@/lib/goals');
+  const efPreempted = await anyActivePreemptingGoalServer();
+  // When an active goal pre-empts EF, force the diversion rate to 0 so
+  // the engine routes 100% of surplus to debt during the goal window.
+  // The goal card on /goals owns the suggestion-to-pre-empt UX; /plan
+  // just respects the flag silently and shows the assumption chip.
+  const efTopUpRate =
+    !efPreempted && efTarget > 0 && efBalance < efTarget && Number(efSplit) > 0
+      ? efSplit
+      : undefined;
+
+  // Derive horizon from the user's actual loan tenures. Hardcoded 240 used
+  // to undershoot 25-30yr home-loan users; deriveHorizonMonths bumps it
+  // to (longest_tenure + 12) when needed, capped at 600. Future life-goal
+  // events extend it further via goalTargetMonth (passed once #14 lands).
+  const horizonMonths = deriveHorizonMonths(adjustedUser);
 
   try {
     const [scenario, baseline, restructuring] = await Promise.all([
       api.simulate({
         user: adjustedUser,
         strategy,
-        horizon_months: 240,
+        horizon_months: horizonMonths,
         marginal_rate: profile.marginalRate,
         simulation_start_month,
         reinvest_events: reinvestEvents.length > 0 ? reinvestEvents : undefined,
@@ -266,7 +327,7 @@ async function loadPlan(
         lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
         ef_top_up_rate: efTopUpRate,
       }),
-      api.baseline({ user: adjustedUser, horizon_months: 240 }),
+      api.baseline({ user: adjustedUser, horizon_months: horizonMonths }),
       api.restructuring({
         user: adjustedUser,
         marginal_rate: profile.marginalRate,
@@ -325,6 +386,10 @@ async function loadPlan(
       byCurrency,
       byCurrencyBaseline,
       fxRatesUsed,
+      efSplit,
+      planStart: planStartPref,
+      horizonMonths,
+      efPreempted,
     };
   } catch {
     const ccyList = currenciesInPlay(profile.user.loans, profile.user.country);
@@ -357,6 +422,10 @@ async function loadPlan(
       byCurrency: {},
       byCurrencyBaseline: {},
       fxRatesUsed: {},
+      efSplit,
+      planStart: planStartPref,
+      horizonMonths,
+      efPreempted,
     };
   }
 }

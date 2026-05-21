@@ -88,6 +88,20 @@ class Loan:
     # the card today" behaviour (the original assumption, kept for
     # backwards compatibility). Ignored on non-card loans.
     expected_monthly_spend: Decimal = Decimal("0")
+    # Floating-rate scheduling (ignored when rate_type == "fixed"):
+    #   • rate_reset_frequency_months — how often the bank re-prices the loan
+    #     (RLLR / EBLR loans: monthly = 1; older MCLR: typically 6 or 12).
+    #   • next_reset_month — 1-based sim month at which the next reset fires.
+    #     /plan derives this from the calendar `next_reset_date` on the
+    #     frontend before sending. Once consumed, the simulator schedules
+    #     subsequent resets every `rate_reset_frequency_months` thereafter.
+    #   • rate_drift_annualized — projected annual change in the benchmark
+    #     rate (decimal; e.g. +0.005 = +50bps/yr). Applied at each reset
+    #     so the trajectory reflects the user's repo-cut / hike thesis.
+    # Defaults preserve legacy behaviour (no auto-reset).
+    rate_reset_frequency_months: Optional[int] = None
+    next_reset_month: Optional[int] = None
+    rate_drift_annualized: Decimal = Decimal("0")
 
 
 class LifecycleEventKind(str, Enum):
