@@ -113,16 +113,31 @@ export function WindfallTool() {
           style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
         >
           <Field
-            label="Windfall amount"
+            label="Windfall amount (net of tax)"
             value={amount}
             onChange={setAmount}
-            hint="Bonus, tax refund, gift, asset sale, etc."
+            hint="The figure that actually hit your account — bonus, refund, gift, sale"
             info={
               <>
                 Any lump sum that&apos;s not part of your monthly cash flow.
-                We compare paying it against your loudest loan vs parking it
-                in liquid (FD, HYSA, liquid fund) and recommend the higher
-                after-tax return.
+                Enter the <strong>net amount</strong> — i.e. what landed in
+                your bank after the payer&apos;s TDS / withholding.
+                <div style={{ marginTop: 8 }}>
+                  <strong>Why net?</strong> A {profile.user.country === 'IN' ? '₹5L' : '$5k'} bonus
+                  with 30% TDS lands as {profile.user.country === 'IN' ? '~₹3.4L' : '~$3.5k'} —
+                  that smaller figure is what you can actually deploy. We
+                  compare it against your loudest loan and the best liquid
+                  parking option, after-tax on both sides.
+                </div>
+                {profile.user.income_type === 'business_owner' && (
+                  <div style={{ marginTop: 8 }}>
+                    <strong>Business income?</strong> No TDS was withheld
+                    on this — you owe the tax yourself at the next advance-tax
+                    installment. Set aside roughly{' '}
+                    {Math.round(Number(profile.marginalRate) * 100)}% of any
+                    amount you enter here before deploying it.
+                  </div>
+                )}
               </>
             }
           />
@@ -154,6 +169,34 @@ export function WindfallTool() {
             color={v.invest_instead ? 'var(--accent)' : 'var(--positive)'}
             detail={v.rationale}
           />
+          {profile.user.income_type === 'business_owner' &&
+            Number(amount) > 0 && (
+              <div
+                style={{
+                  padding: '8px 12px',
+                  marginBottom: 12,
+                  background: 'var(--soft-bg)',
+                  border: '1px solid var(--border)',
+                  borderLeft: '3px solid var(--accent)',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  lineHeight: 1.55,
+                }}
+              >
+                <strong>Tax set-aside reminder.</strong> If this is business
+                income (no TDS withheld), park{' '}
+                <strong>
+                  {fmt(
+                    Math.round(
+                      Number(amount) * Number(profile.marginalRate || '0'),
+                    ),
+                  )}
+                </strong>{' '}
+                in your <a href="/debts" style={{ color: 'var(--accent)' }}>tax sleeve</a>{' '}
+                before deploying the rest. The advance-tax installment will
+                catch up either way.
+              </div>
+            )}
           <div
             style={{
               display: 'grid',
