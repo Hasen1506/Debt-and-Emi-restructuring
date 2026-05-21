@@ -1,16 +1,21 @@
-import type { Country } from '@/lib/api';
+import type { Country, UserPayload } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
 import {
   assetTypeLabel,
   type PortfolioSummary,
 } from './portfolioSummary';
+import { HoldingsTracker } from './HoldingsTracker';
 
 export function EditorialPortfolio({
   summary,
   country,
+  user,
+  marginalRate,
 }: {
   summary: PortfolioSummary;
   country: Country;
+  user: UserPayload;
+  marginalRate: string;
 }) {
   const ccy = country === 'IN' ? 'INR' : 'USD';
   const fmt = (v: number) => formatCurrency(v.toFixed(0), ccy);
@@ -81,6 +86,7 @@ export function EditorialPortfolio({
             Add a holding
           </a>
         </div>
+        <HoldingsTracker user={user} marginalRate={marginalRate} variant="editorial" />
       </article>
     );
   }
@@ -207,6 +213,8 @@ export function EditorialPortfolio({
             </li>
           ))}
         </ol>
+
+        <HoldingsTracker user={user} marginalRate={marginalRate} variant="editorial" />
 
         <div style={{ marginTop: 36, display: 'flex', flexWrap: 'wrap', gap: 12 }}>
           <a

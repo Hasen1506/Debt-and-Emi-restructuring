@@ -1,9 +1,10 @@
-import type { Country } from '@/lib/api';
+import type { Country, UserPayload } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
 import {
   assetTypeLabel,
   type PortfolioSummary,
 } from './portfolioSummary';
+import { HoldingsTracker } from './HoldingsTracker';
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -24,9 +25,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export function LedgerPortfolio({
   summary,
   country,
+  user,
+  marginalRate,
 }: {
   summary: PortfolioSummary;
   country: Country;
+  user: UserPayload;
+  marginalRate: string;
 }) {
   const ccy = country === 'IN' ? 'INR' : 'USD';
   const fmt = (v: number) => formatCurrency(v.toFixed(0), ccy);
@@ -77,6 +82,7 @@ export function LedgerPortfolio({
             </div>
           </div>
         </section>
+        <HoldingsTracker user={user} marginalRate={marginalRate} variant="ledger" />
       </div>
     );
   }
@@ -213,6 +219,8 @@ export function LedgerPortfolio({
           </tbody>
         </table>
       </section>
+
+      <HoldingsTracker user={user} marginalRate={marginalRate} variant="ledger" />
 
       <section>
         <SectionLabel>$ ACTIONS</SectionLabel>

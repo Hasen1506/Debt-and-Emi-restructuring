@@ -23,10 +23,31 @@ export default async function PortfolioPage() {
   const summary = summarisePortfolio(profile.user.assets, profile.user.country);
 
   if (theme === 'ledger') {
-    return <LedgerPortfolio summary={summary} country={profile.user.country} />;
+    return (
+      <LedgerPortfolio
+        summary={summary}
+        country={profile.user.country}
+        user={profile.user}
+        marginalRate={profile.marginalRate}
+      />
+    );
   }
   if (theme === 'editorial') {
-    return <EditorialPortfolio summary={summary} country={profile.user.country} />;
+    return (
+      <EditorialPortfolio
+        summary={summary}
+        country={profile.user.country}
+        user={profile.user}
+        marginalRate={profile.marginalRate}
+      />
+    );
   }
-  return <ExistingPortfolio summary={summary} country={profile.user.country} />;
+  return (
+    <ExistingPortfolio
+      summary={summary}
+      country={profile.user.country}
+      user={profile.user}
+      marginalRate={profile.marginalRate}
+    />
+  );
 }

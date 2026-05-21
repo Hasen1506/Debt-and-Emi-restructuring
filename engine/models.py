@@ -156,6 +156,16 @@ class Asset:
     # for a 33% bracket holder, so the "should I sell to pay down debt"
     # math otherwise understates the asset's value.
     us_is_tax_exempt_muni: bool = False
+    # Holdings tracker — populated for equity_stocks / equity_mf entries that
+    # the user enters as ticker+quantity rather than a flat market value. When
+    # set, `current_market_value` is derived as quantity × last_price and is
+    # refreshed from the Yahoo Finance quote API on demand from the frontend.
+    # Engine-side this is informational only; the liquidation advisor and the
+    # /plan invest-vs-prepay card still consume `current_market_value`.
+    ticker: Optional[str] = None
+    quantity: Optional[Decimal] = None
+    last_price: Optional[Decimal] = None
+    last_price_at: Optional[str] = None         # ISO timestamp string
 
 
 @dataclass

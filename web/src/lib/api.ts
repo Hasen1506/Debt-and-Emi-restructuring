@@ -323,6 +323,13 @@ export interface AssetPayload {
   // federally tax-exempt under §103. Recasts expected return to taxable-
   // equivalent yield when ranking hold-vs-sell against debt cost.
   us_is_tax_exempt_muni?: boolean;
+  // Holdings tracker — when set, current_market_value is derived as
+  // quantity × last_price and can be refreshed via /api/holdings/quote.
+  // Only meaningful for equity_stocks and equity_mf entries.
+  ticker?: string;
+  quantity?: string;
+  last_price?: string;
+  last_price_at?: string;
 }
 
 export interface AssetLiquidationResponse {

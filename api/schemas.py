@@ -85,6 +85,11 @@ class AssetIn(_Base):
     sgb_at_maturity: bool = False
     us_section_121_eligible: bool = False
     us_is_tax_exempt_muni: bool = False
+    # Holdings tracker fields — see Asset docstring in engine/models.py
+    ticker: Optional[str] = None
+    quantity: Optional[Decimal] = None
+    last_price: Optional[Decimal] = None
+    last_price_at: Optional[str] = None
 
     def to_engine(self) -> Asset:
         return Asset(
@@ -104,6 +109,10 @@ class AssetIn(_Base):
             sgb_at_maturity=self.sgb_at_maturity,
             us_section_121_eligible=self.us_section_121_eligible,
             us_is_tax_exempt_muni=self.us_is_tax_exempt_muni,
+            ticker=self.ticker,
+            quantity=self.quantity,
+            last_price=self.last_price,
+            last_price_at=self.last_price_at,
         )
 
 

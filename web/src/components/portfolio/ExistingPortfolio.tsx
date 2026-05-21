@@ -1,17 +1,22 @@
 import { Card } from '@/components/Card';
-import type { Country } from '@/lib/api';
+import type { Country, UserPayload } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
 import {
   assetTypeLabel,
   type PortfolioSummary,
 } from './portfolioSummary';
+import { HoldingsTracker } from './HoldingsTracker';
 
 export function ExistingPortfolio({
   summary,
   country,
+  user,
+  marginalRate,
 }: {
   summary: PortfolioSummary;
   country: Country;
+  user: UserPayload;
+  marginalRate: string;
 }) {
   const ccy = country === 'IN' ? 'INR' : 'USD';
   const fmt = (v: number) => formatCurrency(v.toFixed(0), ccy);
@@ -28,9 +33,11 @@ export function ExistingPortfolio({
             do its job.
           </p>
         </section>
+        <HoldingsTracker user={user} marginalRate={marginalRate} variant="existing" />
         <Card>
           <div className="muted" style={{ marginBottom: 12 }}>
-            No holdings on file yet.
+            Got non-equity holdings (FD, gold, real estate, retirement)? Use
+            the full wizard.
           </div>
           <a
             href="/onboarding/assets"
@@ -145,6 +152,8 @@ export function ExistingPortfolio({
           ))}
         </div>
       </Card>
+
+      <HoldingsTracker user={user} marginalRate={marginalRate} variant="existing" />
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         <a
