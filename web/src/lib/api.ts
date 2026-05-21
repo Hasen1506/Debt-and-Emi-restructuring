@@ -199,6 +199,47 @@ export interface UserPayload {
    *  / undefined when user has no extra income. Business owners ignore
    *  this — their sleeve target is derived from annual_business_income. */
   extra_income_annual_tax?: string;
+  /** Old-regime / itemized deductions. Captured at onboarding step 2
+   *  conditionally — IN only renders these when tax_regime === 'old';
+   *  US renders the itemized block unconditionally (state tax + mortgage
+   *  interest are universally relevant). All fields are annual rupees /
+   *  dollars as strings, optional everywhere. Drives a more accurate
+   *  derived marginal_rate when gross income is on file. */
+  deductions?: DeductionsPayload;
+}
+
+/**
+ * Tax deduction inputs. Indian fields (hra_*, sec_80*) only meaningful
+ * for old-regime filers; US fields (state_marginal_rate_override,
+ * mortgage_interest_annual, itemized_deductions_other) apply unconditionally
+ * and feed an itemize-vs-standard helper.
+ */
+export interface DeductionsPayload {
+  // India — old regime only
+  /** Annual HRA claimed by user (already net of statutory cap). */
+  hra_claim_annual?: string;
+  /** Annual rent paid — UI shows this alongside HRA so the user can
+   *  sanity-check that the claim doesn't exceed the rent. Not used in
+   *  the math directly. */
+  rent_paid_annual?: string;
+  /** 80C: PPF + ELSS + life insurance + principal-of-home-loan etc.
+   *  Capped at ₹1.5L at compute time. */
+  sec_80c_annual?: string;
+  /** 80D: health insurance premiums. Cap depends on family + parent
+   *  ages; we apply the conservative ₹25k cap unless the user is 60+. */
+  sec_80d_annual?: string;
+  /** 80E: education loan interest. Fully deductible — no cap. */
+  sec_80e_annual?: string;
+  /** 80CCD(1B): NPS additional contribution (₹50k cap). */
+  sec_80ccd1b_annual?: string;
+  // US — applies regardless of state
+  /** Override for the auto-detected state marginal rate. Defaults to
+   *  user.state_marginal_rate (already on UserPayload) when omitted. */
+  state_marginal_rate_override?: string;
+  /** Annual mortgage interest paid — feeds itemize-vs-standard. */
+  mortgage_interest_annual?: string;
+  /** Other itemized deductions (SALT cap'd at $10k, charity, etc.) */
+  itemized_deductions_other?: string;
 }
 
 // ─── response types ─────────────────────────────────────────────────────────

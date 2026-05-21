@@ -9,6 +9,7 @@ import { RateRangeHint } from '@/components/RateRangeHint';
 import type {
   AgeBracket,
   Country,
+  DeductionsPayload,
   FilingStatusUS,
   IncomeType,
   LoanPayload,
@@ -16,6 +17,16 @@ import type {
   TaxRegimeIN,
   UserPayload,
 } from '@/lib/api';
+import { DeductionsPanel } from '@/components/onboarding/DeductionsPanel';
+
+/**
+ * True when any field on the deductions payload is set to a meaningful
+ * (truthy + > 0) value. Used to decide whether to persist the slice.
+ */
+function hasAnyDeductions(d: DeductionsPayload | undefined): boolean {
+  if (!d) return false;
+  return Object.values(d).some((v) => v != null && Number(v) > 0);
+}
 import {
   loadProfileClient,
   saveProfileClient,
@@ -125,6 +136,10 @@ export default function OnboardingPage() {
   // Salaried-only: tax owed on non-TDS income (rental, FD interest,
   // cap gains, freelance). Drives the tax-sleeve card on /debts.
   const [extraIncomeAnnualTax, setExtraIncomeAnnualTax] = useState('');
+  // Old-regime + itemized deductions. Captured at step 2 conditionally
+  // (IN-old or US). Engine ignores; drives the derived-marginal preview
+  // and the tax breakdown panel. Round-trips via the cookie.
+  const [deductions, setDeductions] = useState<DeductionsPayload | undefined>(undefined);
   // By default we show a single "Monthly expenses" field — users don't
   // need to think about fixed vs. variable. Power users (and anyone with
   // existing variable_expenses from a previous session) get the detailed
@@ -200,6 +215,7 @@ export default function OnboardingPage() {
     setAnnualGrossSalary(u.annual_gross_salary ?? '');
     setAnnualBusinessIncome(u.annual_business_income ?? '');
     setExtraIncomeAnnualTax(u.extra_income_annual_tax ?? '');
+    setDeductions(u.deductions);
     // Preserve the user's chosen view: if they previously filled out a
     // variable_expenses split, default the form to detailed mode.
     if (Number(u.variable_expenses || 0) > 0) {
@@ -328,6 +344,7 @@ export default function OnboardingPage() {
         incomeType === 'salaried' && extraIncomeAnnualTax.trim() && Number(extraIncomeAnnualTax) > 0
           ? num(extraIncomeAnnualTax)
           : undefined,
+      deductions: hasAnyDeductions(deductions) ? deductions : undefined,
       credit_score: creditScore.trim() || undefined,
       // When user has populated rich per-account cash, derive the legacy
       // total from the sum of optimizable balances (everything except
@@ -1021,13 +1038,27 @@ export default function OnboardingPage() {
                     <br />
                     <br />
                     <strong>Old regime:</strong> higher rates, but you can claim
-                    80C (₹1.5L), HRA, and home-loan interest under section 24b
-                    (up to ₹2L on self-occupied property). Pick whichever
-                    you've filed under.
+                    80C (₹1.5L), HRA, 80D, 80E, NPS top-up, and home-loan
+                    interest under section 24b (up to ₹2L on self-occupied
+                    property). Pick whichever you've filed under — if you
+                    pick old, the deductions panel below captures the numbers
+                    we use to derive your true marginal rate.
                   </>
                 }
               />
             )}
+            <DeductionsPanel
+              country={country}
+              taxRegime={taxRegime}
+              filingStatus={filingStatus}
+              ageBracket={ageBracket || undefined}
+              grossAnnual={
+                incomeType === 'salaried' ? annualGrossSalary : annualBusinessIncome
+              }
+              stateMarginalRate={stateMarginalRate}
+              value={deductions}
+              onChange={setDeductions}
+            />
           </div>
         )}
 

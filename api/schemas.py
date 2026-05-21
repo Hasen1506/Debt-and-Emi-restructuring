@@ -129,6 +129,26 @@ class InvestmentOptionIn(_Base):
         )
 
 
+class DeductionsIn(_Base):
+    """Old-regime + itemized deductions captured at onboarding.
+
+    Drives a more accurate derived marginal_rate display and the tax
+    breakdown panel; engine consumes only the resulting marginal_rate
+    today, so these fields don't flow through to_engine().
+    """
+    # India — old regime only
+    hra_claim_annual: Optional[Decimal] = None
+    rent_paid_annual: Optional[Decimal] = None
+    sec_80c_annual: Optional[Decimal] = None
+    sec_80d_annual: Optional[Decimal] = None
+    sec_80e_annual: Optional[Decimal] = None
+    sec_80ccd1b_annual: Optional[Decimal] = None
+    # US — itemize-vs-standard
+    state_marginal_rate_override: Optional[Decimal] = None
+    mortgage_interest_annual: Optional[Decimal] = None
+    itemized_deductions_other: Optional[Decimal] = None
+
+
 class CashAccountIn(_Base):
     """One cash account — checking / savings / HYSA / FD / other.
     Phase 1: pure data capture, engine doesn't consume. Phase 2+ will use
@@ -231,6 +251,10 @@ class UserIn(_Base):
     # monthly: rate_at_m = spot × (1 + drift)^((m-1)/12). Empty / omitted
     # → no drift, FX stays flat at spot. Used by the NRI-US FX-drift toggle.
     fx_drift_annualized: Dict[str, Decimal] = Field(default_factory=dict)
+    # Old-regime / itemized deductions. Engine drops these — used by the
+    # frontend to derive a more accurate marginal_rate display + tax
+    # breakdown. See `DeductionsIn` for field semantics.
+    deductions: Optional["DeductionsIn"] = None
 
     def to_engine(self) -> User:
         return User(
