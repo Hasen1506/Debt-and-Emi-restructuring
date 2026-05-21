@@ -25,8 +25,9 @@
 import { useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import { Card } from '@/components/Card';
-import { Stat } from '@/components/ToolPrimitives';
+import { InfoTip, Stat } from '@/components/ToolPrimitives';
 import { quarterlyCompound } from '@/lib/invest-vs-prepay';
+import { simulateMonteCarlo, toRealRate } from '@/lib/monte-carlo';
 
 const D = (v: string | number | Decimal) => new Decimal(v);
 
@@ -110,6 +111,13 @@ export function InvestVsPrepayDeepTool() {
   const [country, setCountry] = useState<'IN' | 'US'>('IN');
   const [loanRatePct, setLoanRatePct] = useState('11');
   const [marginalPct, setMarginalPct] = useState('30');
+  // Holding period for the Monte Carlo simulation — equity returns
+  // converge over longer windows, so this knob meaningfully shifts the
+  // probability of beating a fixed-rate loan.
+  const [yearsHeld, setYearsHeld] = useState('5');
+  // Inflation rate for the real-terms comparison. Defaults to typical
+  // CPI by country; user can edit.
+  const [inflationPct, setInflationPct] = useState('6');
 
   const instruments = country === 'IN' ? INSTRUMENTS_IN : INSTRUMENTS_US;
   const [instKey, setInstKey] = useState(instruments[0].key);
@@ -133,6 +141,7 @@ export function InvestVsPrepayDeepTool() {
     setInstKey(next.key);
     setExpReturnPct((next.defaultReturn * 100).toFixed(1));
     setVolPct((next.defaultVol * 100).toFixed(1));
+    setInflationPct(c === 'IN' ? '6' : '3');
   }
 
   const result = useMemo(() => {
@@ -218,6 +227,35 @@ export function InvestVsPrepayDeepTool() {
       explanation,
     };
   }, [loanRatePct, marginalPct, expReturnPct, volPct, inst]);
+
+  // Monte Carlo distribution. For fixed-income instruments (vol=0) the
+  // result collapses to a deterministic point — we still run the sim
+  // because the distribution UI degrades gracefully.
+  const mc = useMemo(() => {
+    const expReturn = Number(expReturnPct) / 100;
+    const vol = Math.max(0, Number(volPct) / 100);
+    const taxRate = inst.taxFraction > 0 && inst.taxFraction < 1
+      ? inst.taxFraction
+      : inst.taxFraction === 1
+        ? Number(marginalPct) / 100
+        : 0;
+    const inflation = Math.max(0, Number(inflationPct) / 100);
+    return simulateMonteCarlo({
+      expectedReturn: expReturn,
+      volatility: vol,
+      years: Math.max(1, Number(yearsHeld)),
+      taxRate,
+      inflation,
+      trials: 5000,
+    });
+  }, [expReturnPct, volPct, marginalPct, yearsHeld, inflationPct, inst]);
+
+  const loanRateDecimal = Number(loanRatePct) / 100;
+  const loanRealDecimal = Number(
+    toRealRate(loanRateDecimal, Number(inflationPct) / 100).toString(),
+  );
+  const probBeatNominal = mc.probBeatLoanNominal(loanRateDecimal);
+  const probBeatReal = mc.probBeatLoanReal(loanRealDecimal);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -346,10 +384,142 @@ export function InvestVsPrepayDeepTool() {
         </div>
       </Card>
 
+      <Card>
+        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          Probabilistic comparison
+          <InfoTip>
+            <strong>What this adds.</strong> The verdict above is one
+            expected case + one 1σ downside. This block runs 5,000
+            trials of annual returns drawn from a log-normal
+            distribution with your stated mean and volatility, then
+            compounds each trial over the holding period.
+            <div style={{ marginTop: 8 }}>
+              <strong>Key reads.</strong> P(beat loan) is the share of
+              trials where your after-tax annualized return tops the
+              loan rate. The 5th / 50th / 95th percentiles bracket your
+              realistic best-and-worst case.
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <strong>Real vs nominal.</strong> Real-terms strips out
+              inflation — useful because a 7% FD against 6% CPI is
+              barely positive in actual buying power. We show both side
+              by side.
+            </div>
+          </InfoTip>
+        </div>
+        <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+          {Math.max(1, Number(yearsHeld))}-year holding period, 5,000 trials.
+          Inflation drag of {inflationPct}% applied for the real-terms column.
+        </div>
+
+        <div style={{ display: 'flex', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
+          <Field label="Years held">
+            <NumInput value={yearsHeld} onChange={setYearsHeld} />
+          </Field>
+          <Field label="Inflation (%)">
+            <NumInput value={inflationPct} onChange={setInflationPct} />
+          </Field>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: 12,
+          }}
+        >
+          <Stat
+            label="P(beat loan, nominal)"
+            value={`${(probBeatNominal * 100).toFixed(0)}%`}
+          />
+          <Stat
+            label="P(beat loan, real)"
+            value={`${(probBeatReal * 100).toFixed(0)}%`}
+          />
+          <Stat
+            label="Median nominal after-tax"
+            value={`${(mc.percentilesNominal[50] * 100).toFixed(2)}%`}
+          />
+          <Stat
+            label="Median real after-tax"
+            value={`${(mc.percentilesReal[50] * 100).toFixed(2)}%`}
+          />
+        </div>
+
+        <table
+          style={{
+            width: '100%',
+            marginTop: 14,
+            borderCollapse: 'collapse',
+            fontSize: 12,
+          }}
+        >
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>
+              <th style={{ textAlign: 'left', padding: '6px 0' }}>Percentile</th>
+              <th style={{ textAlign: 'right', padding: '6px 0' }}>Nominal after-tax</th>
+              <th style={{ textAlign: 'right', padding: '6px 0' }}>Real after-tax</th>
+            </tr>
+          </thead>
+          <tbody>
+            {([5, 25, 50, 75, 95] as const).map((p) => (
+              <tr key={p} style={{ borderBottom: '1px dashed var(--border)' }}>
+                <td style={{ padding: '4px 0' }}>p{p}</td>
+                <td style={{ textAlign: 'right', padding: '4px 0', fontVariantNumeric: 'tabular-nums' }}>
+                  {(mc.percentilesNominal[p] * 100).toFixed(2)}%
+                </td>
+                <td style={{ textAlign: 'right', padding: '4px 0', fontVariantNumeric: 'tabular-nums' }}>
+                  {(mc.percentilesReal[p] * 100).toFixed(2)}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div
+          style={{
+            marginTop: 12,
+            padding: 10,
+            background: 'var(--soft-bg)',
+            borderRadius: 6,
+            fontSize: 12,
+            lineHeight: 1.55,
+          }}
+        >
+          <strong>How to read this.</strong>{' '}
+          {probBeatNominal >= 0.75 ? (
+            <>
+              {(probBeatNominal * 100).toFixed(0)}% of trials beat your{' '}
+              {loanRatePct}% loan in nominal terms — investing wins clearly
+              in the expected case. {probBeatReal < 0.5 && (
+                <>
+                  But real-terms says only {(probBeatReal * 100).toFixed(0)}%
+                  of trials win after inflation — inflation eats most of the
+                  edge.
+                </>
+              )}
+            </>
+          ) : probBeatNominal <= 0.4 ? (
+            <>
+              Only {(probBeatNominal * 100).toFixed(0)}% of trials beat your
+              loan — prepaying is the safer bet, math agrees with intuition.
+            </>
+          ) : (
+            <>
+              Coin-flippy: {(probBeatNominal * 100).toFixed(0)}% of trials
+              beat the loan. You&apos;re paid a small expected premium for
+              taking on the volatility; if you can stomach the worst-case
+              p5 of {(mc.percentilesNominal[5] * 100).toFixed(2)}%/yr,
+              invest. Otherwise prepay.
+            </>
+          )}
+        </div>
+      </Card>
+
       <div className="muted" style={{ fontSize: 11 }}>
-        v1: deterministic comparison + 1σ downside check. Probabilistic
-        Monte-Carlo and inflation-adjusted real-terms comparison coming next.
-        For the simple case (safe vehicles only), the card on /plan handles it.
+        v2: deterministic baseline + 5,000-trial Monte Carlo + real-terms
+        adjustment. Log-normal returns; tax treatment per instrument
+        (LTCG flat for equity, slab for FDs/HYSAs).
       </div>
     </div>
   );
