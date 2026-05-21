@@ -129,6 +129,20 @@ class InvestmentOptionIn(_Base):
         )
 
 
+class IncomeStreamIn(_Base):
+    """One income stream entry. Multiple streams capture concurrent
+    sources or transitions across time. Engine drops these — frontend
+    uses them to derive monthly_income and dynamic tax-sleeve targets.
+    """
+    id: str
+    kind: str = Field(..., pattern=r"^(salaried|business_owner|freelance|rental|capital_gains|other)$")
+    label: str
+    gross_annual: Decimal
+    start_date: str
+    end_date: Optional[str] = None
+    tds_pct: Optional[Decimal] = None
+
+
 class DeductionsIn(_Base):
     """Old-regime + itemized deductions captured at onboarding.
 
@@ -255,6 +269,7 @@ class UserIn(_Base):
     # frontend to derive a more accurate marginal_rate display + tax
     # breakdown. See `DeductionsIn` for field semantics.
     deductions: Optional["DeductionsIn"] = None
+    income_streams: list[IncomeStreamIn] = Field(default_factory=list)
 
     def to_engine(self) -> User:
         return User(

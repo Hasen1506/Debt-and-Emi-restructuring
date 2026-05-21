@@ -11,6 +11,7 @@ import type {
   Country,
   DeductionsPayload,
   FilingStatusUS,
+  IncomeStreamPayload,
   IncomeType,
   LoanPayload,
   LoanType,
@@ -18,6 +19,8 @@ import type {
   UserPayload,
 } from '@/lib/api';
 import { DeductionsPanel } from '@/components/onboarding/DeductionsPanel';
+import { IncomeStreamsPanel } from '@/components/onboarding/IncomeStreamsPanel';
+import { deriveMonthlyIncome } from '@/lib/income-streams';
 
 /**
  * True when any field on the deductions payload is set to a meaningful
@@ -140,6 +143,10 @@ export default function OnboardingPage() {
   // (IN-old or US). Engine ignores; drives the derived-marginal preview
   // and the tax breakdown panel. Round-trips via the cookie.
   const [deductions, setDeductions] = useState<DeductionsPayload | undefined>(undefined);
+  // Multi-source income streams. Empty = legacy single-source mode
+  // (monthlyIncome alone). When non-empty, derived monthly_income from
+  // active streams takes priority at save time.
+  const [incomeStreams, setIncomeStreams] = useState<IncomeStreamPayload[]>([]);
   // By default we show a single "Monthly expenses" field — users don't
   // need to think about fixed vs. variable. Power users (and anyone with
   // existing variable_expenses from a previous session) get the detailed
@@ -216,6 +223,7 @@ export default function OnboardingPage() {
     setAnnualBusinessIncome(u.annual_business_income ?? '');
     setExtraIncomeAnnualTax(u.extra_income_annual_tax ?? '');
     setDeductions(u.deductions);
+    setIncomeStreams(u.income_streams ?? []);
     // Preserve the user's chosen view: if they previously filled out a
     // variable_expenses split, default the form to detailed mode.
     if (Number(u.variable_expenses || 0) > 0) {
@@ -328,8 +336,21 @@ export default function OnboardingPage() {
       income_type: incomeType,
       display_name: displayName.trim() || undefined,
       age_bracket: ageBracket || undefined,
-      annual_income: String(Number(num(monthlyIncome)) * 12),
-      monthly_income: num(monthlyIncome),
+      annual_income: (() => {
+        // Streams override the manual monthly field when present.
+        const derived = incomeStreams.length > 0
+          ? deriveMonthlyIncome(incomeStreams)
+          : null;
+        return derived
+          ? derived.mul(12).toFixed(0)
+          : String(Number(num(monthlyIncome)) * 12);
+      })(),
+      monthly_income: (() => {
+        const derived = incomeStreams.length > 0
+          ? deriveMonthlyIncome(incomeStreams)
+          : null;
+        return derived ? derived.toFixed(0) : num(monthlyIncome);
+      })(),
       fixed_expenses: num(fixedExpenses),
       variable_expenses: num(variableExpenses),
       annual_gross_salary:
@@ -345,6 +366,7 @@ export default function OnboardingPage() {
           ? num(extraIncomeAnnualTax)
           : undefined,
       deductions: hasAnyDeductions(deductions) ? deductions : undefined,
+      income_streams: incomeStreams.length > 0 ? incomeStreams : undefined,
       credit_score: creditScore.trim() || undefined,
       // When user has populated rich per-account cash, derive the legacy
       // total from the sum of optimizable balances (everything except
@@ -1058,6 +1080,11 @@ export default function OnboardingPage() {
               stateMarginalRate={stateMarginalRate}
               value={deductions}
               onChange={setDeductions}
+            />
+            <IncomeStreamsPanel
+              country={country}
+              value={incomeStreams}
+              onChange={setIncomeStreams}
             />
           </div>
         )}

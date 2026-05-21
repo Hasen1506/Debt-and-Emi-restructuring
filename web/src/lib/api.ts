@@ -199,6 +199,16 @@ export interface UserPayload {
    *  / undefined when user has no extra income. Business owners ignore
    *  this — their sleeve target is derived from annual_business_income. */
   extra_income_annual_tax?: string;
+  /** Multi-stream income model — captures sources beyond a single
+   *  primary income, and historical transitions (salaried → freelance,
+   *  added a side gig, retired from one role). When non-empty, the
+   *  monthly_income field is derived as sum of *active* streams / 12 at
+   *  save time, and the tax sleeve consumes active streams instead of a
+   *  single annual_business_income / extra_income_annual_tax input.
+   *
+   *  Empty / omitted → legacy single-source behaviour. Engine drops the
+   *  field — it consumes the derived monthly_income + marginal_rate. */
+  income_streams?: IncomeStreamPayload[];
   /** Old-regime / itemized deductions. Captured at onboarding step 2
    *  conditionally — IN only renders these when tax_regime === 'old';
    *  US renders the itemized block unconditionally (state tax + mortgage
@@ -206,6 +216,39 @@ export interface UserPayload {
    *  dollars as strings, optional everywhere. Drives a more accurate
    *  derived marginal_rate when gross income is on file. */
   deductions?: DeductionsPayload;
+}
+
+export type IncomeStreamKind =
+  | 'salaried'
+  | 'business_owner'
+  | 'freelance'
+  | 'rental'
+  | 'capital_gains'
+  | 'other';
+
+/**
+ * One income stream. Multiple streams capture concurrent sources
+ * (salary + side consulting) or transitions over time (salaried from
+ * Jan-Jun, freelance from Jul onwards — end the salaried entry and
+ * start the freelance one).
+ */
+export interface IncomeStreamPayload {
+  /** Client-generated stable id, used for React keys and ledger linking. */
+  id: string;
+  kind: IncomeStreamKind;
+  /** User-facing label — "Acme Co salary", "Consulting", "Rental — Pune flat". */
+  label: string;
+  /** Annual gross from this stream, as string for decimal precision. */
+  gross_annual: string;
+  /** When the stream started — YYYY-MM-DD or YYYY-MM (month-only OK). */
+  start_date: string;
+  /** When the stream ended. Omitted / blank = currently active. */
+  end_date?: string;
+  /** TDS / withholding rate as decimal — 0.3 means 30% already withheld at
+   *  source (typical for salaried). 0 means you owe the tax yourself
+   *  (business income, freelance under 194J, capital gains). Used by the
+   *  tax sleeve to know how much liability falls on the user vs the payer. */
+  tds_pct?: string;
 }
 
 /**

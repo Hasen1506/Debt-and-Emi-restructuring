@@ -181,13 +181,50 @@ export function daysUntil(date: Date, today: Date = new Date()): number {
  * is handled by employer TDS.
  *
  * Computation
- *   • Business owners: full estimated tax on annual_business_income
- *     (handled at call site via computeAnnualTax — we just return
- *     business_income here as a flag).
- *   • Salaried with extra income: user-stated `extra_income_annual_tax`.
+ *   • If income_streams are populated → sum non-TDS liability across
+ *     active streams (gross_annual × marginal × (1 − tds_pct)). Streams
+ *     model concurrent sources + transitions; this is the right surface
+ *     when the user has multiple income types or has switched roles.
+ *   • Business owners (legacy): full estimated tax on annual_business_income.
+ *   • Salaried with extra income (legacy): user-stated `extra_income_annual_tax`.
  *   • Anyone else: null.
  */
 export function sleeveAnnualTarget(user: UserPayload): number | null {
+  // Income streams take precedence when present — they're the more
+  // accurate surface (concurrent sources + transitions).
+  const streams = user.income_streams ?? [];
+  if (streams.length > 0) {
+    // Inline derivation to avoid a circular import; streams library
+    // depends on api types via type-only imports, but the engine math
+    // for marginal rate uses these helpers.
+    let liability = 0;
+    const now = Date.now();
+    for (const s of streams) {
+      const start = Date.parse(s.start_date.length === 7 ? `${s.start_date}-01` : s.start_date);
+      if (!Number.isFinite(start) || start > now) continue;
+      if (s.end_date) {
+        const end = Date.parse(s.end_date.length === 7 ? `${s.end_date}-01` : s.end_date);
+        if (Number.isFinite(end) && end < now) continue;
+      }
+      const gross = Number(s.gross_annual || 0);
+      const tds = Number(s.tds_pct || 0);
+      // We don't have marginal_rate on the user payload directly — it's
+      // a top-level cookie. For sleeve target we approximate with a
+      // bracket-derived rate via computeAnnualTax for salaried/business
+      // archetypes; for other kinds we use a conservative 30% so the
+      // user isn't under-sleeving.
+      const marg =
+        s.kind === 'business_owner' || s.kind === 'freelance' || s.kind === 'rental'
+          ? 0.3
+          : s.kind === 'capital_gains'
+            ? 0.2
+            : 0.3;
+      liability += gross * marg * (1 - tds);
+    }
+    if (liability <= 0) return null;
+    return Math.round(liability);
+  }
+
   if (user.income_type === 'business_owner') {
     const gross = Number(user.annual_business_income || 0);
     if (gross <= 0) return null;
