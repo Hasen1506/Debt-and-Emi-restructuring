@@ -889,91 +889,23 @@ export default function OnboardingPage() {
                 )
               }
             />
-            {country === 'US' && (
-              <div style={{ gridColumn: '1 / -1', display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
-                <Select
-                  label="Filing status"
-                  value={filingStatus}
-                  onChange={setFilingStatus}
-                  options={[
-                    { value: 'single' as FilingStatusUS, label: 'Single' },
-                    { value: 'mfj' as FilingStatusUS, label: 'Married, filing jointly' },
-                    { value: 'hoh' as FilingStatusUS, label: 'Head of household' },
-                  ]}
-                  info={
-                    <>
-                      Drives which IRS slab table applies to your federal
-                      income. <strong>MFJ</strong> doubles the single-filer
-                      slabs; <strong>HoH</strong> sits between single and MFJ
-                      in the lower brackets, merges with single at the top.
-                    </>
-                  }
-                />
-                <Field
-                  label="State marginal rate (optional)"
-                  value={stateMarginalRate}
-                  onChange={setStateMarginalRate}
-                  hint="e.g. 0.0682 for CA top, 0 for TX/FL/WA"
-                  info={
-                    <>
-                      Your <strong>state income tax</strong> marginal rate as
-                      a decimal. Added on top of federal marginal_rate when
-                      computing tax savings on deductible interest. Leave
-                      blank if your state has no income tax (TX, FL, WA, NV,
-                      TN, AK, SD, WY, NH).
-                    </>
-                  }
-                />
-              </div>
-            )}
             <div style={{ gridColumn: '1 / -1' }}>
-              <GrossIncomeField
-                incomeType={incomeType}
+              <AdvancedTaxDetails
                 country={country}
+                incomeType={incomeType}
                 taxRegime={taxRegime}
-                filingStatus={country === 'US' ? filingStatus : undefined}
-                stateMarginalRate={country === 'US' ? stateMarginalRate : undefined}
-                value={
-                  incomeType === 'salaried' ? annualGrossSalary : annualBusinessIncome
-                }
-                onChange={
-                  incomeType === 'salaried'
-                    ? setAnnualGrossSalary
-                    : setAnnualBusinessIncome
-                }
+                filingStatus={filingStatus}
+                stateMarginalRate={stateMarginalRate}
+                annualGrossSalary={annualGrossSalary}
+                annualBusinessIncome={annualBusinessIncome}
+                extraIncomeAnnualTax={extraIncomeAnnualTax}
+                onFilingStatusChange={setFilingStatus}
+                onStateMarginalRateChange={setStateMarginalRate}
+                onAnnualGrossSalaryChange={setAnnualGrossSalary}
+                onAnnualBusinessIncomeChange={setAnnualBusinessIncome}
+                onExtraIncomeAnnualTaxChange={setExtraIncomeAnnualTax}
               />
             </div>
-            {incomeType === 'salaried' && (
-              <div style={{ gridColumn: '1 / -1' }}>
-                <Field
-                  label={`Tax on non-TDS income (${country === 'IN' ? '₹' : '$'}/year, optional)`}
-                  value={extraIncomeAnnualTax}
-                  onChange={setExtraIncomeAnnualTax}
-                  hint="Skip if all your income is salary. Otherwise: rough estimate of tax you owe on rental, interest, gains, or freelance."
-                  info={
-                    <>
-                      <strong>Most salaried users leave this blank.</strong>{' '}
-                      Employer TDS already covers your salary's tax.
-                      <br />
-                      <br />
-                      Fill this only if you have <strong>income outside salary</strong>:
-                      rental, FD interest above{' '}
-                      {country === 'IN' ? '₹40k' : '$10'}, capital gains, freelance
-                      side-income. Rough estimate is fine — multiply your
-                      expected non-salary income by your tax rate.
-                      <br />
-                      <br />
-                      When &gt; 0, /debts shows a <strong>tax sleeve</strong> card
-                      with the next advance-tax installment date{' '}
-                      {country === 'IN'
-                        ? '(Jun 15 / Sep 15 / Dec 15 / Mar 15)'
-                        : '(Apr 15 / Jun 15 / Sep 15 / Jan 15)'}{' '}
-                      and how much you need to set aside.
-                    </>
-                  }
-                />
-              </div>
-            )}
             {!showDetailedExpenses ? (
               <div style={{ gridColumn: '1 / -1' }}>
                 <Field
@@ -2743,6 +2675,171 @@ function GrossIncomeField({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Advanced-tax disclosure: filing status, state marginal rate, gross
+ * income, and non-TDS tax. Hidden behind a "+ Advanced: tax details"
+ * expander so first-time setup is just "take-home + expenses". Auto-
+ * expanded when ANY of the wrapped fields already has a value (e.g. user
+ * coming back via Edit profile, or stored profile carrying tax info).
+ *
+ * All fields are optional from the engine's perspective — leaving them
+ * blank means we don't try to derive marginal rate from gross slabs;
+ * the manual marginal-rate field at the bottom of step 2 fills in.
+ */
+function AdvancedTaxDetails({
+  country,
+  incomeType,
+  taxRegime,
+  filingStatus,
+  stateMarginalRate,
+  annualGrossSalary,
+  annualBusinessIncome,
+  extraIncomeAnnualTax,
+  onFilingStatusChange,
+  onStateMarginalRateChange,
+  onAnnualGrossSalaryChange,
+  onAnnualBusinessIncomeChange,
+  onExtraIncomeAnnualTaxChange,
+}: {
+  country: Country;
+  incomeType: IncomeType;
+  taxRegime: TaxRegimeIN;
+  filingStatus: FilingStatusUS;
+  stateMarginalRate: string;
+  annualGrossSalary: string;
+  annualBusinessIncome: string;
+  extraIncomeAnnualTax: string;
+  onFilingStatusChange: (v: FilingStatusUS) => void;
+  onStateMarginalRateChange: (v: string) => void;
+  onAnnualGrossSalaryChange: (v: string) => void;
+  onAnnualBusinessIncomeChange: (v: string) => void;
+  onExtraIncomeAnnualTaxChange: (v: string) => void;
+}) {
+  // Auto-expand when any wrapped field has a non-empty / non-default value.
+  // A returning user shouldn't have to hunt for where their stored numbers
+  // live; if they previously filled the gross slab, surface it immediately.
+  const hasGross =
+    incomeType === 'salaried'
+      ? Number(annualGrossSalary || 0) > 0
+      : Number(annualBusinessIncome || 0) > 0;
+  const hasExtraTax = Number(extraIncomeAnnualTax || 0) > 0;
+  const hasState = Number(stateMarginalRate || 0) > 0;
+  const defaultOpen = hasGross || hasExtraTax || hasState;
+
+  return (
+    <details open={defaultOpen}>
+      <summary
+        style={{
+          cursor: 'pointer',
+          fontSize: 12,
+          color: 'var(--accent)',
+          padding: '6px 0',
+          letterSpacing: '0.02em',
+        }}
+      >
+        + Advanced: tax details (auto-derive marginal rate, file the tax sleeve)
+      </summary>
+      <div
+        style={{
+          display: 'grid',
+          gap: 12,
+          gridTemplateColumns: '1fr 1fr',
+          marginTop: 10,
+          padding: '10px 12px',
+          border: '1px dashed var(--border)',
+          borderRadius: 6,
+        }}
+      >
+        <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--muted)', lineHeight: 1.55 }}>
+          Optional. Leave blank if you just want a plan from your take-home —
+          the engine will use the manual marginal-rate field at the bottom of
+          this step. Fill these to get the tax-sleeve card, deduction
+          projections, and a derived marginal rate based on your actual slab.
+        </div>
+        {country === 'US' && (
+          <>
+            <Select
+              label="Filing status"
+              value={filingStatus}
+              onChange={onFilingStatusChange}
+              options={[
+                { value: 'single' as FilingStatusUS, label: 'Single' },
+                { value: 'mfj' as FilingStatusUS, label: 'Married, filing jointly' },
+                { value: 'hoh' as FilingStatusUS, label: 'Head of household' },
+              ]}
+              info={
+                <>
+                  Drives which IRS slab table applies to your federal income.{' '}
+                  <strong>MFJ</strong> doubles the single-filer slabs;{' '}
+                  <strong>HoH</strong> sits between single and MFJ in the lower
+                  brackets, merges with single at the top.
+                </>
+              }
+            />
+            <Field
+              label="State marginal rate (optional)"
+              value={stateMarginalRate}
+              onChange={onStateMarginalRateChange}
+              hint="e.g. 0.0682 for CA top, 0 for TX/FL/WA"
+              info={
+                <>
+                  Your <strong>state income tax</strong> marginal rate as a
+                  decimal. Added on top of federal marginal_rate when computing
+                  tax savings on deductible interest. Leave blank for states
+                  with no income tax (TX, FL, WA, NV, TN, AK, SD, WY, NH).
+                </>
+              }
+            />
+          </>
+        )}
+        <div style={{ gridColumn: '1 / -1' }}>
+          <GrossIncomeField
+            incomeType={incomeType}
+            country={country}
+            taxRegime={taxRegime}
+            filingStatus={country === 'US' ? filingStatus : undefined}
+            stateMarginalRate={country === 'US' ? stateMarginalRate : undefined}
+            value={
+              incomeType === 'salaried' ? annualGrossSalary : annualBusinessIncome
+            }
+            onChange={
+              incomeType === 'salaried'
+                ? onAnnualGrossSalaryChange
+                : onAnnualBusinessIncomeChange
+            }
+          />
+        </div>
+        {incomeType === 'salaried' && (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <Field
+              label={`Tax on non-TDS income (${country === 'IN' ? '₹' : '$'}/year, optional)`}
+              value={extraIncomeAnnualTax}
+              onChange={onExtraIncomeAnnualTaxChange}
+              hint="Skip if all your income is salary. Otherwise: rough estimate of tax you owe on rental, interest, gains, or freelance."
+              info={
+                <>
+                  <strong>Most salaried users leave this blank.</strong>{' '}
+                  Employer TDS already covers your salary's tax.
+                  <br />
+                  <br />
+                  Fill only if you have income <strong>outside salary</strong>:
+                  rental, FD interest above{' '}
+                  {country === 'IN' ? '₹40k' : '$10'}, capital gains, freelance
+                  side-income.
+                  <br />
+                  <br />
+                  When &gt; 0, /debts shows a <strong>tax sleeve</strong> card
+                  with the next advance-tax installment date.
+                </>
+              }
+            />
+          </div>
+        )}
+      </div>
+    </details>
   );
 }
 

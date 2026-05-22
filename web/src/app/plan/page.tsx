@@ -317,6 +317,9 @@ async function loadPlan(
     inflate_expenses: inflationModeling === 'on' ? true : undefined,
     lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
     ef_top_up_rate: efTopUpRate,
+    // Forwarded so the engine returns a surplus_allocation that reflects
+    // the goal-preemption state. Engine routes 100% to goal_slice when set.
+    ef_preempted: efPreempted || undefined,
   };
   const otherStrategies = STRATEGIES.filter((s) => s !== strategy);
 
@@ -401,6 +404,16 @@ async function loadPlan(
       planStart: planStartPref,
       efPreempted,
       strategyCompare,
+      surplusAllocation: scenario.surplus_allocation
+        ? {
+            surplus: Number(scenario.surplus_allocation.surplus),
+            goalSlice: Number(scenario.surplus_allocation.goal_slice),
+            efSlice: Number(scenario.surplus_allocation.ef_slice),
+            debtSlice: Number(scenario.surplus_allocation.debt_slice),
+            efPreempted: scenario.surplus_allocation.ef_preempted,
+            efSplit: Number(scenario.surplus_allocation.ef_split),
+          }
+        : null,
     };
   } catch {
     const ccyList = currenciesInPlay(profile.user.loans, profile.user.country);
@@ -441,6 +454,8 @@ async function loadPlan(
         hybrid: { debtFreeMonth: null, totalInterest: '0' },
         snowball: { debtFreeMonth: null, totalInterest: '0' },
       },
+      // Offline mock branch — engine didn't run, no real allocation.
+      surplusAllocation: null,
     };
   }
 }

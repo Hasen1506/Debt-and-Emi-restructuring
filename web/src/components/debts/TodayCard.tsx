@@ -9,24 +9,24 @@
  *   Due soon       — total EMI burden + earliest scheduled date
  *   Free cash      — balance minus EF reserve minus EMIs not yet paid
  *
- * Rendered above everything else on /debts. CashAdvisor, TaxSleeve,
- * MonthlyRecap, CashSummary remain below — but the day-1 question is
- * answered by this card alone.
- *
- * The "Free cash" number is conservative on purpose: it subtracts the
- * full EF target (not just the gap), so a user who's already at target
- * doesn't get told to spend more, and a user under target sees the
- * shortfall implicitly. Anything labeled "free" should be money the
- * user can actually deploy without making a tradeoff.
+ * D-pilot conversion: this component is the proof-of-concept for the
+ * theme-token system. One render path covers all three themes via
+ * `@/components/themed/Themed`. Visual differences (font, radius,
+ * border treatment, label letter-spacing) are encoded in
+ * `@/styles/theme-tokens` — no per-variant duplicated JSX.
  */
 
 import Decimal from 'decimal.js';
-import Link from 'next/link';
 import type { LoanPayload, UserPayload } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
 import { userDefaultCurrency } from '@/lib/currency';
-
-type Variant = 'ledger' | 'editorial' | 'existing';
+import {
+  ThemedContainer,
+  ThemedKpi,
+  ThemedKpiGrid,
+  ThemedLabel,
+} from '@/components/themed/Themed';
+import type { ThemeName } from '@/lib/theme';
 
 function todayLabel(country: 'IN' | 'US'): string {
   const d = new Date();
@@ -50,7 +50,7 @@ export function TodayCard({
   variant,
 }: {
   user: UserPayload;
-  variant: Variant;
+  variant: ThemeName;
 }) {
   const accounts = user.cash_accounts ?? [];
   const loans = user.loans ?? [];
@@ -90,212 +90,56 @@ export function TodayCard({
   if (accounts.length === 0 && totalScheduledEmi.eq(0)) return null;
 
   const dueLabel = nextEmiDueLabel(loans);
-
-  const ccyFmt = (v: Decimal | string | number) =>
-    formatCurrency(typeof v === 'object' ? v.toString() : String(v), currency);
-
+  const ccyFmt = (v: Decimal) => formatCurrency(v.toString(), currency);
+  const accountsLabel = `${accounts.length} account${accounts.length === 1 ? '' : 's'}${lockedFd.gt(0) ? ` · ${ccyFmt(lockedFd)} in FD` : ''}`;
   const date = todayLabel(user.country);
+  const upper = variant === 'ledger';
 
-  if (variant === 'ledger') {
-    return (
-      <div
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 12,
-          lineHeight: 1.6,
-          border: '1px solid var(--ink)',
-          padding: '12px 14px',
-          marginBottom: 18,
-          background: 'var(--card)',
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-            marginBottom: 8,
-          }}
-        >
-          $ TODAY · {date.toUpperCase()}
-        </div>
-        <TodayRows
-          rows={[
-            {
-              label: 'YOU HAVE',
-              value: ccyFmt(totalBalance),
-              detail: `${accounts.length} account${accounts.length === 1 ? '' : 's'}${lockedFd.gt(0) ? ` · ${ccyFmt(lockedFd)} in FD` : ''}`,
-              color: 'var(--ink)',
-            },
-            {
-              label: 'DUE SOON',
-              value: totalScheduledEmi.gt(0)
-                ? `${ccyFmt(totalScheduledEmi)}/MO`
-                : '—',
-              detail: dueLabel
+  return (
+    <ThemedContainer variant={variant} style={{ marginBottom: 18 }}>
+      <ThemedLabel variant={variant}>
+        {upper ? `TODAY · ${date.toUpperCase()}` : `Today · ${date}`}
+      </ThemedLabel>
+      <ThemedKpiGrid>
+        <ThemedKpi
+          variant={variant}
+          label={upper ? 'YOU HAVE' : 'You have'}
+          value={ccyFmt(totalBalance)}
+          detail={accountsLabel}
+        />
+        <ThemedKpi
+          variant={variant}
+          label={upper ? 'DUE SOON' : 'Due soon'}
+          value={totalScheduledEmi.gt(0) ? `${ccyFmt(totalScheduledEmi)}/mo` : '—'}
+          detail={
+            dueLabel
+              ? upper
                 ? `EMIS THIS MONTH (${dueLabel.toUpperCase()})`
-                : 'NO ACTIVE EMIS',
-              color: totalScheduledEmi.gt(0) ? 'var(--negative)' : 'var(--muted)',
-            },
-            {
-              label: 'FREE CASH',
-              value: ccyFmt(freeCash),
-              detail: tight
+                : `EMIs this month (${dueLabel})`
+              : upper
+                ? 'NO ACTIVE EMIS'
+                : 'no active EMIs'
+          }
+          valueColor={
+            totalScheduledEmi.gt(0) ? 'var(--negative)' : 'var(--muted)'
+          }
+        />
+        <ThemedKpi
+          variant={variant}
+          label={upper ? 'FREE CASH' : 'Free cash'}
+          value={ccyFmt(freeCash)}
+          detail={
+            tight
+              ? upper
                 ? 'TIGHT — EF + EMIS EXCEED BALANCE'
-                : 'AFTER EF RESERVE + THIS MONTH’S EMIS',
-              color: tight ? 'var(--negative)' : 'var(--positive)',
-            },
-          ]}
-          mono
+                : 'Tight — EF + EMIs exceed balance'
+              : upper
+                ? 'AFTER EF RESERVE + THIS MONTH’S EMIS'
+                : "After EF reserve + this month's EMIs"
+          }
+          valueColor={tight ? 'var(--negative)' : 'var(--positive)'}
         />
-      </div>
-    );
-  }
-
-  if (variant === 'editorial') {
-    return (
-      <div
-        style={{
-          margin: '14px 0 22px',
-          paddingLeft: 14,
-          borderLeft: '3px solid var(--accent)',
-        }}
-      >
-        <div
-          style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 11,
-            letterSpacing: '0.15em',
-            textTransform: 'uppercase',
-            color: 'var(--accent)',
-            marginBottom: 6,
-          }}
-        >
-          Today · {date}
-        </div>
-        <TodayRows
-          rows={[
-            {
-              label: 'You have',
-              value: ccyFmt(totalBalance),
-              detail: `${accounts.length} account${accounts.length === 1 ? '' : 's'}${lockedFd.gt(0) ? `, ${ccyFmt(lockedFd)} in FD` : ''}`,
-            },
-            {
-              label: 'Due soon',
-              value: totalScheduledEmi.gt(0) ? `${ccyFmt(totalScheduledEmi)}/mo` : '—',
-              detail: dueLabel ? `EMIs this month (${dueLabel})` : 'no active EMIs',
-            },
-            {
-              label: 'Free cash',
-              value: ccyFmt(freeCash),
-              detail: tight
-                ? 'Tight — EF + EMIs exceed balance'
-                : "After EF reserve + this month's EMIs",
-            },
-          ]}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div
-      style={{
-        padding: 14,
-        marginBottom: 16,
-        background: 'var(--card)',
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          color: 'var(--muted)',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          marginBottom: 8,
-        }}
-      >
-        Today · {date}
-      </div>
-      <TodayRows
-        rows={[
-          {
-            label: 'You have',
-            value: ccyFmt(totalBalance),
-            detail: `${accounts.length} account${accounts.length === 1 ? '' : 's'}${lockedFd.gt(0) ? `, ${ccyFmt(lockedFd)} in FD` : ''}`,
-          },
-          {
-            label: 'Due soon',
-            value: totalScheduledEmi.gt(0) ? `${ccyFmt(totalScheduledEmi)}/mo` : '—',
-            detail: dueLabel ? `EMIs this month (${dueLabel})` : 'no active EMIs',
-          },
-          {
-            label: 'Free cash',
-            value: ccyFmt(freeCash),
-            detail: tight
-              ? 'Tight — EF + EMIs exceed balance'
-              : "After EF reserve + this month's EMIs",
-          },
-        ]}
-      />
-      <div style={{ marginTop: 10, fontSize: 12 }}>
-        <Link
-          href="/plan"
-          style={{ color: 'var(--accent)', textDecoration: 'none' }}
-        >
-          See full plan →
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function TodayRows({
-  rows,
-  mono = false,
-}: {
-  rows: Array<{ label: string; value: string; detail: string; color?: string }>;
-  mono?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: 12,
-        fontFamily: mono ? 'inherit' : undefined,
-      }}
-    >
-      {rows.map((r) => (
-        <div key={r.label}>
-          <div
-            style={{
-              fontSize: 10,
-              color: 'var(--muted)',
-              letterSpacing: mono ? '0.12em' : '0.04em',
-              textTransform: 'uppercase',
-              marginBottom: 4,
-            }}
-          >
-            {r.label}
-          </div>
-          <div
-            style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: r.color ?? 'var(--ink)',
-            }}
-          >
-            {r.value}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-            {r.detail}
-          </div>
-        </div>
-      ))}
-    </div>
+      </ThemedKpiGrid>
+    </ThemedContainer>
   );
 }

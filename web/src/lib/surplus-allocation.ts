@@ -1,13 +1,14 @@
 /**
- * Surplus allocation logic — mirrors `engine/surplus.py` so the
- * SurplusWaterfall card on /plan can render the same breakdown the
- * engine actually applies, without a round-trip.
+ * Surplus allocation fallback — mirrors `engine/surplus.py:allocate_surplus`.
  *
- * IMPORTANT: any change to engine/surplus.py allocation order MUST be
- * mirrored here, and the unit tests in surplus-allocation.test.ts MUST
- * be updated alongside. If/when the engine API starts returning the
- * pre-computed allocation, this module should be deleted in favour of
- * reading the server value.
+ * Primary source of truth is now `plan.surplusAllocation` returned by the
+ * /api/simulate endpoint. This client function exists only as a fallback
+ * for the offline-mock branch when the simulate call errored out, so the
+ * waterfall card can still render something coherent.
+ *
+ * Any change to engine/surplus.py allocation order should be mirrored
+ * here so the mock-mode UI stays consistent; mismatches will only ever
+ * show during the brief network failure window.
  */
 
 export interface SurplusAllocation {

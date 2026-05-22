@@ -4,17 +4,50 @@ from decimal import Decimal
 from fastapi import APIRouter
 
 from engine.simulation import simulate_plan, baseline_minimums_only
-from engine.models import LifecycleEvent, LifecycleEventKind
+from engine.models import LifecycleEvent, LifecycleEventKind, User
 from engine.sensitivity import (
     with_surplus_delta, with_income_shock, with_rate_shock,
     with_strategy, with_lump_sum, compare,
 )
+from engine.surplus import allocate_surplus, compute_available_surplus
 
 from api.schemas import (
-    SimulateRequest, SimulateResponse, TrajectoryPoint,
+    SimulateRequest, SimulateResponse, SurplusAllocationOut, TrajectoryPoint,
     BaselineRequest, CompareRequest, CompareResponse,
     LifecycleEventIn,
 )
+
+
+def _build_surplus_allocation(
+    user: User,
+    matched_contribution: Decimal,
+    ef_split: Decimal,
+    ef_preempted: bool,
+    simple_mode: bool = False,
+) -> SurplusAllocationOut:
+    """Compute the first-month surplus + allocation the engine will apply.
+    This is the snapshot the /plan SurplusWaterfall card renders — engine
+    truth, not a client-side mirror."""
+    surplus = compute_available_surplus(
+        user, user.loans,
+        matched_contribution=matched_contribution,
+        simple_mode=simple_mode,
+    )
+    ef_gap = max(D("0"), user.efund_target - user.efund_balance)
+    allocation = allocate_surplus(
+        surplus=surplus,
+        ef_split=ef_split,
+        ef_gap=ef_gap,
+        ef_preempted=ef_preempted,
+    )
+    return SurplusAllocationOut(
+        surplus=surplus,
+        goal_slice=allocation.goal_slice,
+        ef_slice=allocation.ef_slice,
+        debt_slice=allocation.debt_slice,
+        ef_preempted=ef_preempted,
+        ef_split=ef_split,
+    )
 
 
 def _to_engine_lifecycle(events: list[LifecycleEventIn]) -> list[LifecycleEvent]:
@@ -96,6 +129,13 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         total_invested=result.total_invested,
         trajectory=_to_trajectory(result, user.loans, user),
         months_in_horizon=len(result.months),
+        surplus_allocation=_build_surplus_allocation(
+            user,
+            matched_contribution=req.matched_contribution,
+            ef_split=req.ef_top_up_rate,
+            ef_preempted=req.ef_preempted,
+            simple_mode=req.simple_mode,
+        ),
     )
 
 
@@ -111,6 +151,9 @@ def baseline(req: BaselineRequest) -> SimulateResponse:
         total_invested=result.total_invested,
         trajectory=_to_trajectory(result, user.loans, user),
         months_in_horizon=len(result.months),
+        # Baseline endpoint runs minimums-only — the engine doesn't route
+        # any surplus, so no allocation breakdown to return.
+        surplus_allocation=None,
     )
 
 

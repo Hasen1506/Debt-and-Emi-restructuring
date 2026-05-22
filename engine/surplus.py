@@ -8,12 +8,57 @@ Hard floors (always honoured): minimum payments, e-fund top-up, Layer 0 match.
 India-specific: MAB is a cash floor on `savings_balance` (not a monthly deduction).
 Business-owner DSR: 3× monthly EMIs held in savings (one-time reserve, not monthly).
 """
+from dataclasses import dataclass
 from decimal import Decimal
 from engine.models import User, Loan, Country, IncomeType
 from engine.minimum_payments import compute_minimum_payment
 from engine.country_data import lookup_mab
 
 D = Decimal
+
+
+@dataclass(frozen=True)
+class SurplusAllocation:
+    """Breakdown of how each month's surplus gets routed across goal / EF /
+    debt sinks. Returned by `allocate_surplus` for both the engine simulator
+    and the /plan SurplusWaterfall card so the displayed pie matches the
+    engine's actual allocation.
+
+    Invariant: goal_slice + ef_slice + debt_slice == surplus (when surplus
+    is non-negative). Each slice is non-negative.
+    """
+    goal_slice: Decimal
+    ef_slice: Decimal
+    debt_slice: Decimal
+
+
+def allocate_surplus(
+    surplus: Decimal,
+    ef_split: Decimal,
+    ef_gap: Decimal,
+    ef_preempted: bool,
+) -> SurplusAllocation:
+    """Route the month's surplus across goal / EF / debt sinks.
+
+    Priority order:
+      1. If a preempting goal is open → 100% to goal (EF + debt paused).
+      2. Else: divert `ef_split` fraction to EF until gap closes.
+      3. Remainder → debt slice (the simulator lands this on the
+         highest-effective-APR active loan).
+
+    Zero across the board when surplus ≤ 0. The simulator and the
+    SurplusWaterfall UI card both consume this so the displayed pie
+    matches what the engine actually applies.
+    """
+    if surplus <= 0:
+        return SurplusAllocation(D("0"), D("0"), D("0"))
+    if ef_preempted:
+        return SurplusAllocation(surplus, D("0"), D("0"))
+    if ef_gap > 0 and ef_split > 0:
+        want = surplus * ef_split
+        ef_slice = min(want, ef_gap)
+        return SurplusAllocation(D("0"), ef_slice, surplus - ef_slice)
+    return SurplusAllocation(D("0"), D("0"), surplus)
 
 
 def _user_residence_currency(user: User) -> str:

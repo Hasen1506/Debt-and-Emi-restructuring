@@ -1,6 +1,7 @@
 """§4.23 — available surplus + one-time buffer."""
 from decimal import Decimal
 from engine.surplus import (
+    SurplusAllocation, allocate_surplus,
     compute_available_surplus, compute_available_buffer,
     compute_efund_monthly, compute_total_minimums,
 )
@@ -203,3 +204,73 @@ def test_total_minimums_missing_fx_rate_falls_back_to_parity():
     # Parity fallback: 40000 INR → 40000 (no conversion). Engine doesn't
     # crash; it returns a sum that's clearly off-scale for USD context.
     assert total == D("40000")
+
+
+# ─── allocate_surplus ─────────────────────────────────────────────────────
+
+
+def test_allocate_zero_surplus_returns_zeros():
+    out = allocate_surplus(
+        surplus=D("0"), ef_split=D("0.3"), ef_gap=D("50000"), ef_preempted=False,
+    )
+    assert out == SurplusAllocation(D("0"), D("0"), D("0"))
+
+
+def test_allocate_negative_surplus_returns_zeros():
+    out = allocate_surplus(
+        surplus=D("-100"), ef_split=D("0.3"), ef_gap=D("50000"), ef_preempted=False,
+    )
+    assert out.goal_slice == D("0")
+    assert out.ef_slice == D("0")
+    assert out.debt_slice == D("0")
+
+
+def test_allocate_preempted_routes_full_to_goal():
+    out = allocate_surplus(
+        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("50000"), ef_preempted=True,
+    )
+    assert out == SurplusAllocation(D("10000"), D("0"), D("0"))
+
+
+def test_allocate_ef_under_target_splits_with_debt():
+    # 30% of 10000 = 3000 to EF, 7000 to debt. EF gap (50k) > requested
+    # slice (3k), so the full requested slice lands.
+    out = allocate_surplus(
+        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("50000"), ef_preempted=False,
+    )
+    assert out.goal_slice == D("0")
+    assert out.ef_slice == D("3000")
+    assert out.debt_slice == D("7000")
+
+
+def test_allocate_ef_gap_caps_slice():
+    # 30% of 10000 = 3000 wanted, but only 500 needed to close the gap.
+    # The remainder (9500) lands on debt.
+    out = allocate_surplus(
+        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("500"), ef_preempted=False,
+    )
+    assert out.ef_slice == D("500")
+    assert out.debt_slice == D("9500")
+
+
+def test_allocate_ef_met_routes_all_to_debt():
+    out = allocate_surplus(
+        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("0"), ef_preempted=False,
+    )
+    assert out.ef_slice == D("0")
+    assert out.debt_slice == D("10000")
+
+
+def test_allocate_zero_split_routes_all_to_debt():
+    out = allocate_surplus(
+        surplus=D("10000"), ef_split=D("0"), ef_gap=D("50000"), ef_preempted=False,
+    )
+    assert out.ef_slice == D("0")
+    assert out.debt_slice == D("10000")
+
+
+def test_allocate_invariant_slices_sum_to_surplus():
+    out = allocate_surplus(
+        surplus=D("12345.67"), ef_split=D("0.3"), ef_gap=D("9999"), ef_preempted=False,
+    )
+    assert out.goal_slice + out.ef_slice + out.debt_slice == D("12345.67")

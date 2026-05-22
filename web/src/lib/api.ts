@@ -381,12 +381,32 @@ export interface TrajectoryPointRaw {
   balances_by_loan_index?: Record<string, string>;
 }
 
+export interface SurplusAllocationRaw {
+  /** First-month surplus the engine computed, decimal string. */
+  surplus: string;
+  /** Slice routed to the active preempting goal (zero unless ef_preempted). */
+  goal_slice: string;
+  /** Slice routed to the EF top-up (zero when EF target reached or ef_split=0). */
+  ef_slice: string;
+  /** Slice routed to highest-effective-APR debt (the remainder). */
+  debt_slice: string;
+  /** Whether a preempting goal forced 100%-to-goal routing. */
+  ef_preempted: boolean;
+  /** EF split fraction the engine applied (0..1). */
+  ef_split: string;
+}
+
 export interface SimulateResponse {
   debt_free_month: number | null;
   total_interest_paid: string;
   total_invested: string;
   trajectory: TrajectoryPointRaw[];
   months_in_horizon: number;
+  /** Engine-computed surplus allocation for the first sim month. The /plan
+   *  SurplusWaterfall card reads this so the displayed pie matches what
+   *  the engine actually applies (instead of a client-side mirror that
+   *  could drift). Absent on /baseline (minimums-only doesn't route surplus). */
+  surplus_allocation?: SurplusAllocationRaw | null;
 }
 
 export interface CompareResponse {
@@ -729,6 +749,10 @@ export const api = {
      *  `efund_balance < efund_target`; 0 otherwise. Default 0 preserves
      *  legacy "100% surplus → debt" behaviour. */
     ef_top_up_rate?: string;
+    /** True when an active preempting goal exists (e.g. wedding, medical).
+     *  The engine routes 100% surplus to the goal_slice in the allocation
+     *  response when set. Default false preserves legacy behaviour. */
+    ef_preempted?: boolean;
   }) => post<SimulateResponse>('/api/simulate', req),
 
   baseline: (req: {

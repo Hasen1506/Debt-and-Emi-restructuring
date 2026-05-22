@@ -395,6 +395,12 @@ class SimulateRequest(_Base):
     # 0.3 when `efund_balance < efund_target` and 0 otherwise. Default 0
     # preserves the legacy "100% surplus → debt" behaviour.
     ef_top_up_rate: Decimal = Field(default=D("0"), ge=D("0"), le=D("1"))
+    # True when the user has an active preempting goal open (e.g. medical
+    # bill, planned wedding) that takes priority over EF + debt for the
+    # goal's funding window. Drives the surplus_allocation routing in the
+    # response: ef_preempted=True → 100% to goal_slice. Default False
+    # preserves baseline behaviour for callers that omit it.
+    ef_preempted: bool = False
 
 
 class TrajectoryPoint(_Base):
@@ -419,12 +425,32 @@ class TrajectoryPoint(_Base):
     balances_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
 
 
+class SurplusAllocationOut(_Base):
+    """How the engine routes each month's surplus. Mirrors
+    engine.surplus.SurplusAllocation. The /plan SurplusWaterfall card
+    reads these values directly instead of re-deriving client-side, so
+    the displayed pie can't drift from the engine's actual allocation."""
+    surplus: Decimal
+    goal_slice: Decimal
+    ef_slice: Decimal
+    debt_slice: Decimal
+    ef_preempted: bool
+    # ef_split fraction the engine applied (0..1). Echoed back so the UI
+    # can render the "30% of surplus" note without re-reading the user
+    # profile or the request payload.
+    ef_split: Decimal
+
+
 class SimulateResponse(_Base):
     debt_free_month: Optional[int]
     total_interest_paid: Decimal
     total_invested: Decimal
     trajectory: list[TrajectoryPoint]
     months_in_horizon: int
+    # Surplus allocation computed by the engine for the *first* month of
+    # the simulation — the snapshot the /plan waterfall card renders.
+    # Engine truth, not a client mirror.
+    surplus_allocation: Optional[SurplusAllocationOut] = None
 
 
 class BaselineRequest(_Base):

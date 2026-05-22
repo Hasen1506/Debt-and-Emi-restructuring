@@ -141,4 +141,16 @@ export interface PlanData {
     StrategyName,
     { debtFreeMonth: number | null; totalInterest: string }
   >;
+  /** Server-computed surplus allocation for the first sim month. Drives
+   *  the SurplusWaterfall card directly so the displayed pie matches the
+   *  engine's actual routing (instead of a client-side mirror that could
+   *  drift). Null when /simulate fell back to mock data. */
+  surplusAllocation: {
+    surplus: number;
+    goalSlice: number;
+    efSlice: number;
+    debtSlice: number;
+    efPreempted: boolean;
+    efSplit: number;
+  } | null;
 }

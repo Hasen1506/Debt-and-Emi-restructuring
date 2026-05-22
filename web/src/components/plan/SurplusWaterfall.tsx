@@ -76,12 +76,17 @@ export function SurplusWaterfall({ plan }: { plan: PlanData }) {
     );
   }
 
-  const { goalSlice, efSlice, debtSlice } = allocateSurplus({
-    surplus,
-    efSplit,
-    efGap,
-    efPreempted: plan.efPreempted,
-  });
+  // Prefer the engine-computed allocation (server-side truth). Fall back
+  // to the client mirror only when the simulate call errored out — keeps
+  // the card from going blank in offline-mock mode.
+  const { goalSlice, efSlice, debtSlice } = plan.surplusAllocation ?? {
+    ...allocateSurplus({
+      surplus,
+      efSplit,
+      efGap,
+      efPreempted: plan.efPreempted,
+    }),
+  };
 
   const debtTarget = m.loudest;
 
