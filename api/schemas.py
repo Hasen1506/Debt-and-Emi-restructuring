@@ -667,7 +667,13 @@ class LoanTermsResponse(_Base):
     """Per-bank-per-loan-type True-APR triggers (prepay penalty, lock-in,
     part-payment frequency) merged with country/regulatory defaults.
     Feeds the onboarding click-to-fill UX so users see realistic
-    suggestions instead of blank fields. See engine.rate_cards.lookup_loan_terms."""
+    suggestions instead of blank fields. See engine.rate_cards.lookup_loan_terms.
+
+    `is_indicative=False` means the values came from a regulatory mandate
+    (RBI master direction / CARD Act / QM rule) and the user can trust
+    them as ground truth. `is_indicative=True` means typical industry
+    norms — the UI surfaces this as a "confirm with sanction letter"
+    caveat next to the suggestion."""
     country: Country
     loan_type: LoanType
     bank: Optional[str]
@@ -675,6 +681,8 @@ class LoanTermsResponse(_Base):
     prepayment_penalty_pct: Optional[Decimal]
     prepay_lock_in_months: Optional[int]
     part_payment_freq_months: Optional[int]
+    is_indicative: bool = True
+    last_verified: str = ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────

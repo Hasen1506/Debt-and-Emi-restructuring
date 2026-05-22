@@ -911,6 +911,12 @@ export interface LoanTermsResponse {
   prepayment_penalty_pct: string | null;
   prepay_lock_in_months: number | null;
   part_payment_freq_months: number | null;
+  /** False = regulatory mandate (trust the value); true = typical
+   *  industry norm (user should confirm against their sanction letter). */
+  is_indicative: boolean;
+  /** Provenance string — either a regulatory citation (e.g. "RBI master
+   *  direction...") or an honest "industry norms" tag with the date. */
+  last_verified: string;
 }
 
 export interface CentralBankMeeting {

@@ -105,4 +105,6 @@ def get_loan_terms(
         prepayment_penalty_pct=terms.prepayment_penalty_pct,
         prepay_lock_in_months=terms.prepay_lock_in_months,
         part_payment_freq_months=terms.part_payment_freq_months,
+        is_indicative=terms.is_indicative,
+        last_verified=terms.last_verified,
     )

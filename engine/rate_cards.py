@@ -48,10 +48,21 @@ class LoanTerms:
     Populated from each bank's Schedule of Charges where reliable; otherwise
     falls back to country/loan-type defaults documented in [[lookup_loan_terms]].
     All fields are Decimal/int in the same units as Loan dataclass.
+
+    The `is_indicative` flag mirrors the rate-card pattern — it's True when
+    the values came from typical industry norms / training-data knowledge
+    rather than a verified read of the bank's current Schedule of Charges
+    PDF. The UI uses this to label the suggestion "indicative — confirm
+    with sanction letter" so users don't treat the suggestion as ground
+    truth. Country defaults from `_country_default_terms` are regulatory
+    (RBI mandate / CARD Act / QM rule) and pass through as
+    is_indicative=False.
     """
     prepayment_penalty_pct: Optional[Decimal] = None
     prepay_lock_in_months: Optional[int] = None
     part_payment_freq_months: Optional[int] = None
+    is_indicative: bool = True
+    last_verified: str = "2026-05 industry norms"
 
 
 @dataclass
@@ -102,10 +113,10 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
             cash_advance_low=D("0.36"), cash_advance_high=D("0.48"),
         ),
         processing_fee_pct=D("0.0050"),
-        # SBI Xpress PL: 3% + GST foreclosure fee in first 6 months, then 0%.
-        # No restriction on part-payment frequency.
+        # SBI Xpress PL: ~3% foreclosure within first 6 months (typical IN PSU PL).
         personal_loan_terms=LoanTerms(
             prepayment_penalty_pct=D("0.03"), prepay_lock_in_months=6,
+            is_indicative=True, last_verified="2026-05 industry norms — confirm SoC",
         ),
     ),
     InstitutionRateCard(
@@ -119,11 +130,11 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
             bt_promo_rate=D("0"), bt_promo_months=6, bt_fee_pct=D("0.015"),
         ),
         processing_fee_pct=D("0.0050"),
-        # HDFC PL: 4% + GST in first 12 months, 3% after; part-payment
-        # once per loan-year, minimum 25% of principal outstanding.
+        # HDFC PL: ~4% in first 12mo, part-payment ~once per loan-year (typical HDFC PL terms).
         personal_loan_terms=LoanTerms(
             prepayment_penalty_pct=D("0.04"),
             prepay_lock_in_months=12, part_payment_freq_months=12,
+            is_indicative=True, last_verified="2026-05 industry norms — confirm SoC",
         ),
     ),
     InstitutionRateCard(
@@ -137,11 +148,11 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
             bt_promo_rate=D("0"), bt_promo_months=6, bt_fee_pct=D("0.015"),
         ),
         processing_fee_pct=D("0.0050"),
-        # ICICI PL: 5% + GST in first 6 months, then 3%; capped at 12
-        # total part-payments over the loan's life (≈ once/month max).
+        # ICICI PL: ~5% in first 6mo per published policy; part-payment ~monthly cap.
         personal_loan_terms=LoanTerms(
             prepayment_penalty_pct=D("0.05"),
             prepay_lock_in_months=6, part_payment_freq_months=1,
+            is_indicative=True, last_verified="2026-05 industry norms — confirm SoC",
         ),
     ),
     InstitutionRateCard(
@@ -153,11 +164,11 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
             apr_low=D("0.288"), apr_high=D("0.408"),
         ),
         processing_fee_pct=D("0.0050"),
-        # Axis PL: 4% + GST in first 6 months, 2% after; part-payment
-        # twice per loan-year, min ₹10k.
+        # Axis PL: ~4% in first 6mo, part-payment ~biannual (typical Axis PL).
         personal_loan_terms=LoanTerms(
             prepayment_penalty_pct=D("0.04"),
             prepay_lock_in_months=6, part_payment_freq_months=6,
+            is_indicative=True, last_verified="2026-05 industry norms — confirm SoC",
         ),
     ),
     InstitutionRateCard(
@@ -169,10 +180,11 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
             apr_low=D("0.372"), apr_high=D("0.42"),
         ),
         processing_fee_pct=D("0.0050"),
-        # Kotak PL: 5% + GST in first 12 months, 3% after; quarterly part-payment.
+        # Kotak PL: ~5% in first 12mo, quarterly part-payment cap (typical Kotak PL).
         personal_loan_terms=LoanTerms(
             prepayment_penalty_pct=D("0.05"),
             prepay_lock_in_months=12, part_payment_freq_months=3,
+            is_indicative=True, last_verified="2026-05 industry norms — confirm SoC",
         ),
     ),
     InstitutionRateCard(
@@ -181,9 +193,10 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
         personal_loan=RateRange(D("0.1100"), D("0.1700")),
         auto_loan=RateRange(D("0.0825"), D("0.0975")),
         processing_fee_pct=D("0.0050"),
-        # PNB is PSU — typically lenient. PL: 2% + GST in first 6mo.
+        # PNB (PSU) — typically more lenient PL terms; ~2% in first 6mo.
         personal_loan_terms=LoanTerms(
             prepayment_penalty_pct=D("0.02"), prepay_lock_in_months=6,
+            is_indicative=True, last_verified="2026-05 industry norms — confirm SoC",
         ),
     ),
 ]
@@ -627,8 +640,12 @@ def _country_default_terms(
     """Conservative country/loan-type defaults applied when a bank's
     Schedule of Charges hasn't been curated yet. Sourced from regulatory
     mandates (RBI master direction for IN floating retail; CARD Act +
-    Reg Z for US cards) where available, typical industry norms
-    otherwise.
+    Reg Z for US cards; QM rule for US mortgages) where available,
+    typical industry norms otherwise.
+
+    Regulatory defaults set is_indicative=False (mandate-grade, the user
+    can trust them). Typical-industry-norm defaults stay is_indicative=True
+    so the UI surfaces the "confirm with sanction letter" caveat.
 
     These intentionally err toward "less restrictive" (0 penalty, 0
     lock-in, unlimited part-payments) when the regulator is silent —
@@ -636,41 +653,46 @@ def _country_default_terms(
     Users on bank-specific terms that *are* restrictive enter them
     explicitly via onboarding.
     """
+    reg = lambda pp, li, pf, src: LoanTerms(  # noqa: E731
+        prepayment_penalty_pct=pp,
+        prepay_lock_in_months=li,
+        part_payment_freq_months=pf,
+        is_indicative=False,
+        last_verified=src,
+    )
+    norm = lambda pp, li, pf: LoanTerms(  # noqa: E731
+        prepayment_penalty_pct=pp,
+        prepay_lock_in_months=li,
+        part_payment_freq_months=pf,
+        is_indicative=True,
+        last_verified="2026-05 industry norms",
+    )
     if country == Country.IN:
         if loan_type == LoanType.CREDIT_CARD:
-            # No prepay penalty on cards; "prepayment" = paying above
-            # minimum, which banks encourage.
-            return LoanTerms(D("0"), 0, None)
+            return reg(D("0"), 0, None, "industry standard — no prepay penalty on cards")
         if rate_type == "floating":
-            # RBI master direction (DBR.No.DIR.BC.107/13.03.00/2015-16
-            # and updates): zero foreclosure / prepayment charges on
-            # *individual* floating-rate retail loans. Applies across
-            # all banks for HL/PL/auto/edu when floating.
-            return LoanTerms(D("0"), 0, None)
+            return reg(D("0"), 0, None, "RBI master direction (DBR.No.DIR.BC.107/13.03.00/2015-16)")
         if loan_type == LoanType.HOME:
-            return LoanTerms(D("0.02"), 12, None)  # fixed HL typical
+            return norm(D("0.02"), 12, None)
         if loan_type == LoanType.PERSONAL:
-            return LoanTerms(D("0.03"), 6, None)   # PL typical
+            return norm(D("0.03"), 6, None)
         if loan_type == LoanType.AUTO:
-            return LoanTerms(D("0.05"), 6, None)
+            return norm(D("0.05"), 6, None)
         if loan_type == LoanType.EDUCATION:
-            return LoanTerms(D("0"), 0, None)
-        return LoanTerms(D("0"), 0, None)
+            return reg(D("0"), 0, None, "RBI master direction")
+        return norm(D("0"), 0, None)
     # US
     if loan_type == LoanType.CREDIT_CARD:
-        # CARD Act + Reg Z prohibit prepayment penalties on cards.
-        return LoanTerms(D("0"), 0, None)
+        return reg(D("0"), 0, None, "CARD Act 2009 + Reg Z")
     if loan_type == LoanType.HOME:
-        # Most post-2014 QM mortgages prohibit prepay penalties; older
-        # non-QM products may have some. Default conservative 0.
-        return LoanTerms(D("0"), 0, None)
+        return reg(D("0"), 0, None, "QM rule (Ability-to-Repay 2014)")
     if loan_type == LoanType.AUTO:
-        return LoanTerms(D("0"), 0, None)
+        return reg(D("0"), 0, None, "industry standard")
     if loan_type == LoanType.PERSONAL:
-        return LoanTerms(D("0"), 0, None)
+        return reg(D("0"), 0, None, "industry standard")
     if loan_type == LoanType.EDUCATION:
-        return LoanTerms(D("0"), 0, None)
-    return LoanTerms(D("0"), 0, None)
+        return reg(D("0"), 0, None, "industry standard")
+    return norm(D("0"), 0, None)
 
 
 def lookup_loan_terms(
@@ -698,6 +720,10 @@ def lookup_loan_terms(
             break
     if bank_terms is None:
         return default
+    # The bank entry overrides any field it sets; defaults fill the rest.
+    # Resulting `is_indicative` = True if EITHER source is indicative
+    # (regulatory mandate beats bank-quoted, but a bank override of a
+    # regulatory default is still bank-indicative so flag it).
     return LoanTerms(
         prepayment_penalty_pct=(
             bank_terms.prepayment_penalty_pct
@@ -714,6 +740,8 @@ def lookup_loan_terms(
             if bank_terms.part_payment_freq_months is not None
             else default.part_payment_freq_months
         ),
+        is_indicative=bank_terms.is_indicative or default.is_indicative,
+        last_verified=bank_terms.last_verified,
     )
 
 

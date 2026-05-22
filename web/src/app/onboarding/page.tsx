@@ -54,6 +54,24 @@ import {
   describeBracket,
   isAdvanceTaxApplicable,
 } from '@/lib/tax-brackets';
+import type { LoanTermsResponse } from '@/lib/api';
+
+/**
+ * Format a loan-terms suggestion label. Honest about provenance:
+ * regulatory mandates (is_indicative=false) are presented as ground
+ * truth ("RBI mandate — tap to use"); typical industry norms get a
+ * "confirm SoC" caveat so users don't treat the number as verified.
+ */
+function suggestionLabel(
+  source: string,
+  value: string,
+  terms: LoanTermsResponse,
+): string {
+  if (!terms.is_indicative) {
+    return `${source}: ${value} (${terms.last_verified || 'regulatory mandate'} — tap to use)`;
+  }
+  return `${source}: ~${value} (indicative — confirm with sanction letter)`;
+}
 
 const STEPS = [
   'You',
@@ -1447,9 +1465,11 @@ export default function OnboardingPage() {
                     loanSuggestions[i]?.prepayment_penalty_pct != null
                       ? {
                           value: loanSuggestions[i]!.prepayment_penalty_pct!,
-                          label: `${l.bank || 'default'} ${l.rate_type || 'floating'}: ${(
-                            Number(loanSuggestions[i]!.prepayment_penalty_pct!) * 100
-                          ).toFixed(1)}% (tap to use)`,
+                          label: suggestionLabel(
+                            `${l.bank || 'default'} ${l.rate_type || 'floating'}`,
+                            `${(Number(loanSuggestions[i]!.prepayment_penalty_pct!) * 100).toFixed(1)}%`,
+                            loanSuggestions[i]!,
+                          ),
                         }
                       : undefined
                   }
@@ -1477,9 +1497,11 @@ export default function OnboardingPage() {
                     loanSuggestions[i]?.prepay_lock_in_months != null
                       ? {
                           value: String(loanSuggestions[i]!.prepay_lock_in_months),
-                          label: `${l.bank || 'default'} ${l.rate_type || 'floating'}: ${
-                            loanSuggestions[i]!.prepay_lock_in_months
-                          } months (tap to use)`,
+                          label: suggestionLabel(
+                            `${l.bank || 'default'} ${l.rate_type || 'floating'}`,
+                            `${loanSuggestions[i]!.prepay_lock_in_months} months`,
+                            loanSuggestions[i]!,
+                          ),
                         }
                       : undefined
                   }
@@ -1507,9 +1529,11 @@ export default function OnboardingPage() {
                     loanSuggestions[i]?.part_payment_freq_months != null
                       ? {
                           value: String(loanSuggestions[i]!.part_payment_freq_months),
-                          label: `${l.bank || 'default'}: every ${
-                            loanSuggestions[i]!.part_payment_freq_months
-                          } months (tap to use)`,
+                          label: suggestionLabel(
+                            `${l.bank || 'default'}`,
+                            `every ${loanSuggestions[i]!.part_payment_freq_months} months`,
+                            loanSuggestions[i]!,
+                          ),
                         }
                       : undefined
                   }
