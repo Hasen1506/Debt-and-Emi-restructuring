@@ -20,9 +20,6 @@ import { useEffect, useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import {
   addActivityEntry,
-  daysLate,
-  extraPrincipal,
-  overdueAmount,
   readActivityClient,
   removeActivityEntry,
   sortActivityNewestFirst,
@@ -30,6 +27,7 @@ import {
   type ActivityEntry,
   type ActivityKind,
 } from '@/lib/activity';
+import { decorateEntry } from '@/lib/activity-derived';
 import { estimateLateFee } from '@/lib/estimate-penalty';
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { syncActivityCookieClient } from '@/lib/activity-cookie';
@@ -116,6 +114,63 @@ function computeCycle(
 
 function moneyFmt(country: Country) {
   return country === 'IN' ? formatINR : formatUSD;
+}
+
+/** Form input styling shared by LogForm and ForwardPrepayForm. Ledger
+ *  variant uses mono font + sharp corners; the warm-card themes use sans
+ *  + rounded. */
+function themedInputStyle(variant: LedgerVariant): React.CSSProperties {
+  return {
+    padding: '6px 10px',
+    fontSize: 13,
+    border: '1px solid var(--border)',
+    borderRadius: variant === 'ledger' ? 0 : 6,
+    background: 'var(--canvas)',
+    color: 'var(--ink)',
+    fontFamily: variant === 'ledger' ? 'var(--font-mono)' : 'var(--font-sans)',
+    width: '100%',
+  };
+}
+
+/** Vertical label + input wrapper used throughout the activity forms. The
+ *  optional `hint` slot renders right-aligned next to the label — used by
+ *  amount fields to show "Scheduled: ₹X" alongside "Amount paid (₹)". */
+function Field({
+  label,
+  hint,
+  fullWidth = false,
+  children,
+}: {
+  label: React.ReactNode;
+  hint?: React.ReactNode;
+  /** When true, the label spans the full grid row (both columns) inside
+   *  the 1fr/1fr form grid. */
+  fullWidth?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+        ...(fullWidth ? { gridColumn: '1 / -1' } : null),
+      }}
+    >
+      <span
+        className="muted"
+        style={
+          hint
+            ? { fontSize: 11, display: 'flex', justifyContent: 'space-between', gap: 8 }
+            : { fontSize: 11 }
+        }
+      >
+        <span>{label}</span>
+        {hint}
+      </span>
+      {children}
+    </label>
+  );
 }
 
 export function ActivityLedger({
@@ -332,16 +387,7 @@ function LogForm({
     setAmount(scheduledEmi);
   }
 
-  const inputStyle: React.CSSProperties = {
-    padding: '6px 10px',
-    fontSize: 13,
-    border: '1px solid var(--border)',
-    borderRadius: variant === 'ledger' ? 0 : 6,
-    background: 'var(--canvas)',
-    color: 'var(--ink)',
-    fontFamily: variant === 'ledger' ? 'var(--font-mono)' : 'var(--font-sans)',
-    width: '100%',
-  };
+  const inputStyle = themedInputStyle(variant);
 
   return (
     <Panel variant={variant}>
@@ -371,10 +417,7 @@ function LogForm({
           gap: 10,
         }}
       >
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span className="muted" style={{ fontSize: 11 }}>
-            Which loan
-          </span>
+        <Field label="Which loan">
           <select
             value={loanIndex}
             onChange={(e) => setLoanIndex(Number(e.target.value))}
@@ -386,11 +429,8 @@ function LogForm({
               </option>
             ))}
           </select>
-        </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span className="muted" style={{ fontSize: 11 }}>
-            What happened
-          </span>
+        </Field>
+        <Field label="What happened">
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as ActivityKind)}
@@ -402,11 +442,8 @@ function LogForm({
             <option value="paid_extra">Paid extra (lump sum)</option>
             <option value="closed">Closed (paid off entirely)</option>
           </select>
-        </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span className="muted" style={{ fontSize: 11 }}>
-            Payment date
-          </span>
+        </Field>
+        <Field label="Payment date">
           <input
             type="date"
             value={date}
@@ -414,19 +451,11 @@ function LogForm({
             max={today()}
             style={inputStyle}
           />
-        </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span
-            className="muted"
-            style={{
-              fontSize: 11,
-              display: 'flex',
-              justifyContent: 'space-between',
-              gap: 8,
-            }}
-          >
-            <span>Amount paid {country === 'IN' ? '(₹)' : '($)'}</span>
-            {kind !== 'paid_extra' && kind !== 'closed' && (
+        </Field>
+        <Field
+          label={`Amount paid ${country === 'IN' ? '(₹)' : '($)'}`}
+          hint={
+            kind !== 'paid_extra' && kind !== 'closed' ? (
               <span
                 style={{ color: 'var(--muted)' }}
                 title={isCard && minHint ? minHint.formula : undefined}
@@ -434,8 +463,9 @@ function LogForm({
                 {isCard ? 'Minimum payable' : 'Scheduled'}:{' '}
                 {fmtPreview(isCard ? minPayable : scheduledEmi)}
               </span>
-            )}
-          </span>
+            ) : undefined
+          }
+        >
           <input
             type="text"
             inputMode="numeric"
@@ -458,7 +488,7 @@ function LogForm({
               opacity: kind === 'missed' ? 0.5 : 1,
             }}
           />
-        </label>
+        </Field>
         {(kind === 'paid_partial' || kind === 'missed') && estimatedPenalty && (
           <div
             style={{
@@ -533,16 +563,15 @@ function LogForm({
           </div>
         )}
         {isCard && (
-          <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span className="muted" style={{ fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
-              <span>
-                New outstanding after this payment {country === 'IN' ? '(₹)' : '($)'} —
-                optional
-              </span>
+          <Field
+            fullWidth
+            label={`New outstanding after this payment ${country === 'IN' ? '(₹)' : '($)'} — optional`}
+            hint={
               <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>
                 Current: {fmtPreview(selectedLoan?.outstanding ?? '0')}
               </span>
-            </span>
+            }
+          >
             <input
               type="text"
               inputMode="numeric"
@@ -560,12 +589,9 @@ function LogForm({
               instead of letting it drift. Read this off your statement after
               the payment posts.
             </span>
-          </label>
+          </Field>
         )}
-        <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span className="muted" style={{ fontSize: 11 }}>
-            Note (optional)
-          </span>
+        <Field fullWidth label="Note (optional)">
           <input
             type="text"
             value={note}
@@ -574,7 +600,7 @@ function LogForm({
             style={inputStyle}
             maxLength={120}
           />
-        </label>
+        </Field>
         <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
           <button
             type="submit"
@@ -652,16 +678,7 @@ function ForwardPrepayForm({
 
   if (loans.length === 0) return null;
 
-  const inputStyle: React.CSSProperties = {
-    padding: '6px 10px',
-    fontSize: 13,
-    border: '1px solid var(--border)',
-    borderRadius: variant === 'ledger' ? 0 : 6,
-    background: 'var(--canvas)',
-    color: 'var(--ink)',
-    fontFamily: variant === 'ledger' ? 'var(--font-mono)' : 'var(--font-sans)',
-    width: '100%',
-  };
+  const inputStyle = themedInputStyle(variant);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -706,8 +723,7 @@ function ForwardPrepayForm({
       </button>
       {open && (
         <form onSubmit={submit} style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span className="muted" style={{ fontSize: 11 }}>Which loan</span>
+          <Field label="Which loan">
             <select
               value={loanIndex}
               onChange={(e) => setLoanIndex(Number(e.target.value))}
@@ -719,9 +735,8 @@ function ForwardPrepayForm({
                 </option>
               ))}
             </select>
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span className="muted" style={{ fontSize: 11 }}>Months to prepay (1-36)</span>
+          </Field>
+          <Field label="Months to prepay (1-36)">
             <input
               type="text"
               inputMode="numeric"
@@ -729,9 +744,8 @@ function ForwardPrepayForm({
               onChange={(e) => setMonths(e.target.value)}
               style={{ ...inputStyle, fontFamily: 'var(--font-mono)', textAlign: 'right' }}
             />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span className="muted" style={{ fontSize: 11 }}>Source</span>
+          </Field>
+          <Field label="Source">
             <select
               value={source}
               onChange={(e) => setSource(e.target.value)}
@@ -741,11 +755,8 @@ function ForwardPrepayForm({
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span className="muted" style={{ fontSize: 11 }}>
-              Note (optional)
-            </span>
+          </Field>
+          <Field label="Note (optional)">
             <input
               type="text"
               value={note}
@@ -758,7 +769,7 @@ function ForwardPrepayForm({
               style={inputStyle}
               maxLength={120}
             />
-          </label>
+          </Field>
           {monthsN > 0 && Number(scheduledEmi) > 0 && (
             <div
               style={{
@@ -955,20 +966,7 @@ function LedgerEntries({
         <tbody>
           {entries.map((e) => {
             const loan = loans[e.loanIndex];
-            const overdue = overdueAmount(e);
-            const needsPenalty = e.kind === 'paid_partial' || e.kind === 'missed';
-            const est = !needsPenalty
-              ? null
-              : e.penaltyOverride && e.penaltyOverride.trim() !== ''
-                ? buildOverrideEstimate(e.penaltyOverride)
-                : estimateLateFee({
-                    loanType: loan.loan_type,
-                    country,
-                    bank: loan.bank,
-                    overdueAmount: overdue,
-                    daysLate: daysLate(e),
-                  });
-            const extra = extraPrincipal(e);
+            const { est, extra } = decorateEntry(e, loan, country);
             return (
               <tr
                 key={e.id}
@@ -1089,20 +1087,7 @@ function ExistingEntries({
       </div>
       {entries.map((e) => {
         const loan = loans[e.loanIndex];
-        const overdue = overdueAmount(e);
-        const needsPenalty = e.kind === 'paid_partial' || e.kind === 'missed';
-        const est = !needsPenalty
-          ? null
-          : e.penaltyOverride && e.penaltyOverride.trim() !== ''
-            ? buildOverrideEstimate(e.penaltyOverride)
-            : estimateLateFee({
-                loanType: loan.loan_type,
-                country,
-                bank: loan.bank,
-                overdueAmount: overdue,
-                daysLate: daysLate(e),
-              });
-        const extra = extraPrincipal(e);
+        const { est, extra } = decorateEntry(e, loan, country);
         return (
           <div
             key={e.id}
@@ -1275,20 +1260,7 @@ function EditorialEntries({
       </div>
       {entries.map((e, i) => {
         const loan = loans[e.loanIndex];
-        const overdue = overdueAmount(e);
-        const needsPenalty = e.kind === 'paid_partial' || e.kind === 'missed';
-        const est = !needsPenalty
-          ? null
-          : e.penaltyOverride && e.penaltyOverride.trim() !== ''
-            ? buildOverrideEstimate(e.penaltyOverride)
-            : estimateLateFee({
-                loanType: loan.loan_type,
-                country,
-                bank: loan.bank,
-                overdueAmount: overdue,
-                daysLate: daysLate(e),
-              });
-        const extra = extraPrincipal(e);
+        const { est, extra } = decorateEntry(e, loan, country);
         return (
           <div
             key={e.id}
@@ -1518,22 +1490,6 @@ function Panel({
       {children}
     </section>
   );
-}
-
-/** Shape the user's penalty override into the same record `estimateLateFee`
- *  returns, so downstream UI renders identically — total comes from the
- *  override, breakdown components zero out, and source is tagged. */
-function buildOverrideEstimate(
-  override: string,
-): ReturnType<typeof estimateLateFee> {
-  const total = new Decimal(override || '0');
-  return {
-    flatFee: total,
-    penalInterest: new Decimal(0),
-    gst: new Decimal(0),
-    total,
-    source: 'bank_specific',
-  };
 }
 
 function PenaltyBreakdownTooltip({

@@ -19,7 +19,7 @@ import { formatCurrency } from '@/lib/api';
 import { readActivityClient, type ActivityEntry } from '@/lib/activity';
 import { readScheduleClient } from '@/lib/advance-tax-cookie';
 import type { AdvanceTaxSchedule } from '@/lib/advance-tax';
-import { estimateLateFee } from '@/lib/estimate-penalty';
+import { decorateEntry } from '@/lib/activity-derived';
 import { LedgerKpiGrid } from '@/components/themed/LedgerKpiGrid';
 
 type Variant = 'ledger' | 'existing' | 'editorial';
@@ -53,37 +53,10 @@ function computeSummary(
     else if (e.kind === 'missed') missed++;
     else if (e.kind === 'paid_extra') paidExtra++;
 
-    if (e.kind === 'paid_partial' || e.kind === 'missed') {
-      // Honour the user's override when present, else derive a fresh estimate
-      // using the same engine as the ledger detail row.
-      if (e.penaltyOverride && e.penaltyOverride.trim() !== '') {
-        const v = Number(e.penaltyOverride);
-        if (Number.isFinite(v)) totalPenalty += v;
-      } else {
-        const loan = user.loans[e.loanIndex];
-        if (loan) {
-          const shortfall =
-            e.kind === 'missed'
-              ? Number(e.scheduledEmi)
-              : Math.max(0, Number(e.scheduledEmi) - Number(e.amount));
-          if (shortfall > 0) {
-            const dueDate = new Date(e.date);
-            const now = new Date();
-            const diffMs = now.getTime() - dueDate.getTime();
-            const days =
-              diffMs <= 0 ? 1 : Math.max(1, Math.floor(diffMs / 86400000));
-            const est = estimateLateFee({
-              loanType: loan.loan_type,
-              country: user.country,
-              bank: loan.bank,
-              overdueAmount: String(shortfall),
-              daysLate: days,
-            });
-            totalPenalty += Number(est.total.toString());
-          }
-        }
-      }
-    }
+    // Penalty figures derived through the same helper the entries renderers
+    // use, so what's displayed in the summary matches what's shown per row.
+    const { est } = decorateEntry(e, user.loans[e.loanIndex], user.country);
+    if (est) totalPenalty += Number(est.total.toString());
   }
 
   const advanceTaxPaid =
