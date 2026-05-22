@@ -22,20 +22,34 @@
  */
 
 import type { ThemeName } from '@/lib/theme';
-import { THEME_TOKENS } from '@/styles/theme-tokens';
+import { THEME_TOKENS, TONE_COLOR, type ThemedTone } from '@/styles/theme-tokens';
 
 type Variant = ThemeName;
 
+/**
+ * Container resolves the visual chrome (border / radius / padding / font) for
+ * the given theme. `tone` tints the left-accent stripe + the label color when
+ * the caller's child label inherits from `currentColor` — useful for cards
+ * that read as positive (cash advisor), negative (warning), or warning
+ * (advance-tax penalty).
+ */
 export function ThemedContainer({
   variant,
+  tone = 'neutral',
   children,
   style,
 }: {
   variant: Variant;
+  tone?: ThemedTone;
   children: React.ReactNode;
   style?: React.CSSProperties;
 }) {
   const t = THEME_TOKENS[variant];
+  const accentColor = TONE_COLOR[tone];
+  // For non-neutral tones, recolour the left-accent stripe to the tone.
+  const leftAccent = t.leftAccent
+    ? t.leftAccent.replace('var(--accent)', accentColor)
+    : t.containerBorder;
   return (
     <div
       style={{
@@ -43,7 +57,7 @@ export function ThemedContainer({
         fontSize: t.fontSize,
         lineHeight: 1.55,
         border: t.containerBorder,
-        borderLeft: t.leftAccent || t.containerBorder,
+        borderLeft: leftAccent,
         borderRadius: t.radius,
         padding: t.padding,
         background: variant === 'editorial' ? 'transparent' : 'var(--card)',
@@ -57,10 +71,12 @@ export function ThemedContainer({
 
 export function ThemedLabel({
   variant,
+  tone = 'neutral',
   children,
   trailing,
 }: {
   variant: Variant;
+  tone?: ThemedTone;
   children: React.ReactNode;
   trailing?: React.ReactNode;
 }) {
@@ -71,7 +87,7 @@ export function ThemedLabel({
         fontSize: t.fontSize,
         letterSpacing: t.letterSpacing,
         textTransform: t.textTransform,
-        color: t.color,
+        color: tone === 'neutral' ? t.color : TONE_COLOR[tone],
         marginBottom: 8,
         display: 'flex',
         alignItems: 'center',
@@ -81,6 +97,56 @@ export function ThemedLabel({
       {t.prefix}
       {children}
       {trailing}
+    </div>
+  );
+}
+
+/** Headline text (one bigger line). Used by cards that lead with prose
+ *  rather than a KPI grid (CashAdvisor, DebtFreeRedirectPrompt). */
+export function ThemedHeadline({
+  variant,
+  children,
+}: {
+  variant: Variant;
+  children: React.ReactNode;
+}) {
+  const t = THEME_TOKENS[variant].value;
+  return (
+    <div
+      style={{
+        fontSize: variant === 'ledger' ? 12 : 14,
+        fontWeight: t.fontWeight,
+        lineHeight: 1.55,
+        marginTop: 4,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Muted detail paragraph below a headline. Drops the size down. */
+export function ThemedDetail({
+  variant,
+  children,
+  style,
+}: {
+  variant: Variant;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
+  const t = THEME_TOKENS[variant].detail;
+  return (
+    <div
+      style={{
+        fontSize: t.fontSize,
+        color: t.color,
+        marginTop: 6,
+        lineHeight: 1.55,
+        ...style,
+      }}
+    >
+      {children}
     </div>
   );
 }

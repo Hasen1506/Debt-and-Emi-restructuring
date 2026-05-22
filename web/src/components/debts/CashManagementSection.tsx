@@ -11,6 +11,8 @@
  *   2. TaxSleeveCard     — time-sensitive (red when near deadline)
  *   3. MonthlyRecapCard  — collapsed-by-default check-in
  *   4. CashSummaryCard   — per-account snapshot (reference, not action)
+ *
+ * D-pilot: themed primitives for the section header.
  */
 
 import type { StoredProfile } from '@/lib/user-store';
@@ -19,31 +21,31 @@ import { CashAdvisorCard } from '@/components/debts/CashAdvisorCard';
 import { TaxSleeveCard } from '@/components/debts/TaxSleeveCard';
 import { MonthlyRecapCard } from '@/components/debts/MonthlyRecapCard';
 import { CashSummaryCard } from '@/components/debts/CashSummaryCard';
-
-type Variant = 'ledger' | 'editorial' | 'existing';
+import { THEME_TOKENS } from '@/styles/theme-tokens';
+import type { ThemeName } from '@/lib/theme';
 
 export function CashManagementSection({
   profile,
   variant,
 }: {
   profile: StoredProfile;
-  variant: Variant;
+  variant: ThemeName;
 }) {
   const explainer = (
     <InfoTip>
-      <strong>What is "cash management"?</strong> The cards below treat your
-      idle cash as a first-class actor, not an afterthought.
+      <strong>What is &quot;cash management&quot;?</strong> The cards below
+      treat your idle cash as a first-class actor, not an afterthought.
       <div style={{ marginTop: 8 }}>
         • <strong>Cash advisor</strong> — when your idle cash is earning less
         than your debt costs, suggests a specific transfer.
       </div>
       <div style={{ marginTop: 4 }}>
-        • <strong>Tax sleeve</strong> — for users whose tax isn't fully handled
-        by employer TDS, tracks your next advance-tax installment.
+        • <strong>Tax sleeve</strong> — for users whose tax isn&apos;t fully
+        handled by employer TDS, tracks your next advance-tax installment.
       </div>
       <div style={{ marginTop: 4 }}>
         • <strong>Monthly recap</strong> — once a month, confirm or override
-        last month's income / expenses / EMIs. Keeps your balance honest.
+        last month&apos;s income / expenses / EMIs. Keeps your balance honest.
       </div>
       <div style={{ marginTop: 4 }}>
         • <strong>Cash summary</strong> — your accounts at a glance: total,
@@ -52,61 +54,30 @@ export function CashManagementSection({
     </InfoTip>
   );
 
-  const header =
-    variant === 'ledger' ? (
-      <div
-        style={{
-          fontSize: 11,
-          color: 'var(--muted)',
-          letterSpacing: '0.18em',
-          textTransform: 'uppercase',
-          fontFamily: 'var(--font-mono)',
-          margin: '20px 0 10px',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-        }}
-      >
-        — CASH MANAGEMENT —
-        {explainer}
-      </div>
-    ) : variant === 'editorial' ? (
-      <div
-        style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: 11,
-          letterSpacing: '0.15em',
-          textTransform: 'uppercase',
-          color: 'var(--muted, var(--ink))',
-          margin: '24px 0 10px',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-        }}
-      >
-        Cash management
-        {explainer}
-      </div>
-    ) : (
-      <div
-        style={{
-          fontSize: 14,
-          fontWeight: 600,
-          color: 'var(--ink)',
-          margin: '8px 0 6px',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-        }}
-      >
-        Cash management
-        {explainer}
-      </div>
-    );
+  const t = THEME_TOKENS[variant].label;
+  const upper = variant === 'ledger';
+  // Section header — bigger margin top + bottom than a card-level label,
+  // and the ledger variant wraps in em-dashes to read as a divider.
+  const headerStyle: React.CSSProperties = {
+    fontSize: variant === 'existing' ? 14 : t.fontSize,
+    fontWeight: variant === 'existing' ? 600 : undefined,
+    letterSpacing: t.letterSpacing,
+    textTransform: t.textTransform,
+    color: variant === 'existing' ? 'var(--ink)' : 'var(--muted)',
+    fontFamily: variant === 'ledger' ? 'var(--font-mono)' : undefined,
+    margin: variant === 'existing' ? '8px 0 6px' : '20px 0 10px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+  };
+  const headerText = upper ? '— CASH MANAGEMENT —' : 'Cash management';
 
   return (
     <section>
-      {header}
+      <div style={headerStyle}>
+        {headerText}
+        {explainer}
+      </div>
       <CashAdvisorCard profile={profile} variant={variant} />
       <TaxSleeveCard user={profile.user} variant={variant} />
       <MonthlyRecapCard user={profile.user} variant={variant} />

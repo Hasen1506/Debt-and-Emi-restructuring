@@ -8,22 +8,24 @@
  *
  * Reads localStorage directly via readActivityClient; renders nothing
  * pre-hydration to avoid SSR/CSR mismatch.
+ *
+ * D-pilot: themed primitives.
  */
 
 import { useEffect, useState } from 'react';
 import type { UserPayload } from '@/lib/api';
 import { readActivityClient } from '@/lib/activity';
+import { ThemedContainer, ThemedHeadline, ThemedLabel } from '@/components/themed/Themed';
+import type { ThemeName } from '@/lib/theme';
 
 const STALE_DAYS = 45;
-
-type Variant = 'ledger' | 'editorial' | 'existing';
 
 export function StaleCardNudge({
   user,
   variant,
 }: {
   user: UserPayload;
-  variant: Variant;
+  variant: ThemeName;
 }) {
   const [stale, setStale] = useState<{ bank: string; daysSince: number | null }[]>([]);
   const [ready, setReady] = useState(false);
@@ -56,15 +58,14 @@ export function StaleCardNudge({
 
   if (!ready || stale.length === 0) return null;
 
+  const upper = variant === 'ledger';
   return (
-    <div style={containerStyle(variant)}>
-      <div style={labelStyle(variant)}>
-        {variant === 'ledger' ? '$ STALE · CARD BALANCES' : 'Card balances may have drifted'}
-      </div>
-      <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.55 }}>
-        {stale.length === 1
-          ? `${stale[0].bank}: `
-          : `${stale.length} cards: `}
+    <ThemedContainer variant={variant} tone="accent" style={{ marginBottom: 14 }}>
+      <ThemedLabel variant={variant} tone="accent">
+        {upper ? 'STALE · CARD BALANCES' : 'Card balances may have drifted'}
+      </ThemedLabel>
+      <ThemedHeadline variant={variant}>
+        {stale.length === 1 ? `${stale[0].bank}: ` : `${stale.length} cards: `}
         {stale.map((s, i) => (
           <span key={s.bank}>
             {i > 0 && ', '}
@@ -78,56 +79,7 @@ export function StaleCardNudge({
         </a>{' '}
         — entering the new outstanding keeps the /plan trajectory anchored to
         reality.
-      </div>
-    </div>
+      </ThemedHeadline>
+    </ThemedContainer>
   );
-}
-
-function containerStyle(variant: Variant): React.CSSProperties {
-  if (variant === 'ledger') {
-    return {
-      fontFamily: 'var(--font-mono)',
-      fontSize: 12,
-      lineHeight: 1.55,
-      borderLeft: '3px solid var(--accent)',
-      paddingLeft: 12,
-      marginBottom: 14,
-    };
-  }
-  if (variant === 'editorial') {
-    return {
-      margin: '14px 0 18px',
-      paddingLeft: 14,
-      borderLeft: '3px solid var(--accent)',
-    };
-  }
-  return {
-    padding: 12,
-    marginBottom: 14,
-    background: 'var(--card)',
-    border: '1px solid var(--border)',
-    borderLeft: '3px solid var(--accent)',
-    borderRadius: 6,
-  };
-}
-
-function labelStyle(variant: Variant): React.CSSProperties {
-  if (variant === 'ledger') {
-    return {
-      fontSize: 11,
-      color: 'var(--accent)',
-      letterSpacing: '0.18em',
-      textTransform: 'uppercase',
-    };
-  }
-  if (variant === 'editorial') {
-    return {
-      fontFamily: 'var(--font-sans)',
-      fontSize: 11,
-      letterSpacing: '0.15em',
-      textTransform: 'uppercase',
-      color: 'var(--accent)',
-    };
-  }
-  return { fontSize: 13, fontWeight: 600, color: 'var(--accent)' };
 }

@@ -19,6 +19,18 @@
 
 import type { ThemeName } from '@/lib/theme';
 
+/** Tone tints the accent stripe / label color of a themed container.
+ *  Maps to css vars so the existing palette stays the source of truth. */
+export type ThemedTone = 'neutral' | 'accent' | 'positive' | 'negative' | 'warning';
+
+export const TONE_COLOR: Record<ThemedTone, string> = {
+  neutral: 'var(--ink)',
+  accent: 'var(--accent)',
+  positive: 'var(--positive)',
+  negative: 'var(--negative)',
+  warning: 'var(--warning, #d68a00)',
+};
+
 export interface ThemeTokens {
   /** Font family applied to the whole container (cascades to text). */
   fontFamily: string;

@@ -33,6 +33,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/api';
 import { monthIndexToCountryLabel } from '@/lib/today';
+import {
+  ThemedContainer,
+  ThemedDetail,
+  ThemedHeadline,
+  ThemedLabel,
+} from '@/components/themed/Themed';
 import type { PlanData } from './PlanData';
 
 const DISMISS_KEY = 'finoptima_debtfree_prompt_dismissed';
@@ -85,21 +91,17 @@ export function DebtFreeRedirectPrompt({
   const headline = `In ${monthsAway} ${monthsAway === 1 ? 'month' : 'months'} (${dateLabel}), your last EMI clears. ${freedAmountLabel}/mo of cash flow comes back.`;
   const sub =
     "Pre-decide where it goes now — habits set on the freed-cash moment tend to stick.";
-
   const mono = variant === 'ledger';
+  const upper = mono;
 
   return (
-    <div
+    <ThemedContainer
+      variant={variant}
+      tone="positive"
       style={{
         margin: '10px 0 14px',
-        padding: '12px 14px',
         background: 'var(--soft-bg, rgba(0, 150, 80, 0.06))',
         border: '1px solid var(--positive)',
-        borderRadius: variant === 'ledger' ? 0 : 6,
-        fontFamily: mono ? 'var(--font-mono)' : undefined,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
       }}
     >
       <div
@@ -111,31 +113,11 @@ export function DebtFreeRedirectPrompt({
         }}
       >
         <div style={{ flex: 1 }}>
-          <div
-            style={{
-              fontSize: mono ? 11 : 12,
-              letterSpacing: mono ? '0.08em' : '0.04em',
-              textTransform: 'uppercase',
-              color: 'var(--positive)',
-              fontWeight: 600,
-              marginBottom: 4,
-            }}
-          >
-            Cash flow restoring soon
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.45 }}>
-            {headline}
-          </div>
-          <div
-            style={{
-              fontSize: 12,
-              color: 'var(--muted)',
-              marginTop: 4,
-              lineHeight: 1.55,
-            }}
-          >
-            {sub}
-          </div>
+          <ThemedLabel variant={variant} tone="positive">
+            {upper ? 'CASH FLOW RESTORING SOON' : 'Cash flow restoring soon'}
+          </ThemedLabel>
+          <ThemedHeadline variant={variant}>{headline}</ThemedHeadline>
+          <ThemedDetail variant={variant}>{sub}</ThemedDetail>
         </div>
         <button
           type="button"
@@ -159,23 +141,14 @@ export function DebtFreeRedirectPrompt({
           display: 'flex',
           gap: 8,
           flexWrap: 'wrap',
-          marginTop: 2,
+          marginTop: 10,
         }}
       >
-        <PromptCta
-          href="/goals"
-          label="Plan a goal SIP"
-          mono={mono}
-          primary
-        />
+        <PromptCta href="/goals" label="Plan a goal SIP" mono={mono} primary />
         <PromptCta href="/onboarding?step=4" label="Boost EF" mono={mono} />
-        <PromptCta
-          href="/tools/recompute"
-          label="Run what-if"
-          mono={mono}
-        />
+        <PromptCta href="/tools/recompute" label="Run what-if" mono={mono} />
       </div>
-    </div>
+    </ThemedContainer>
   );
 }
 
