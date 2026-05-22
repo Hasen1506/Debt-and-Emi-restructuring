@@ -20,10 +20,17 @@ import { ActivityImpactBanner } from './ActivityImpactBanner';
 import { TaxBreakdown } from './TaxBreakdown';
 import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
-import { OpportunityAlternative, RelationshipBadge, RateAsOfBadge } from './OpportunityAlternative';
+import {
+  OpportunityAlternative,
+  RelationshipBadge,
+  RateAsOfBadge,
+  EligibilityCaveat,
+  UpdateTermsButton,
+} from './OpportunityAlternative';
 import { FxCachePersister } from './FxCachePersister';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { KeyClearanceDates } from './KeyClearanceDates';
+import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
 import { CentralBankHint } from './CentralBankHint';
 import { SurplusWaterfall } from './SurplusWaterfall';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
@@ -113,7 +120,12 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
           </p>
         )}
         <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 24 }}>
-          <StrategySwitcher active={plan.strategy} variant="inline" />
+          <StrategySwitcher
+            active={plan.strategy}
+            variant="inline"
+            compare={plan.strategyCompare}
+            country={plan.user.country}
+          />
           <PlanStartPicker active={plan.planStart} variant="inline" />
           <HikeToggle
             active={plan.hikeModeling}
@@ -411,6 +423,17 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
                     </div>
                   </div>
                 </div>
+                <EligibilityCaveat
+                  kind={opp.kind}
+                  country={plan.user.country}
+                  variant="existing"
+                />
+                <UpdateTermsButton
+                  opportunity={opp}
+                  user={plan.user}
+                  currency={plan.displayCurrency}
+                  variant="existing"
+                />
                 <OpportunityAlternative opportunity={opp} variant="existing" currency={plan.displayCurrency} />
               </div>
             ))}
@@ -463,6 +486,7 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
           <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
             Key dates — when things clear
           </h3>
+          <DebtFreeRedirectPrompt plan={plan} variant="existing" />
           <KeyClearanceDates plan={plan} />
         </section>
         <details>

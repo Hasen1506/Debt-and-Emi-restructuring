@@ -21,11 +21,18 @@ import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { KeyClearanceDates } from './KeyClearanceDates';
+import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
 import { CentralBankHint } from './CentralBankHint';
 import { SurplusWaterfall } from './SurplusWaterfall';
 import { AssumptionBadges } from './AssumptionBadges';
 import { RecentActivitySummary } from './RecentActivitySummary';
-import { OpportunityAlternative, RelationshipBadge, RateAsOfBadge } from './OpportunityAlternative';
+import {
+  OpportunityAlternative,
+  RelationshipBadge,
+  RateAsOfBadge,
+  EligibilityCaveat,
+  UpdateTermsButton,
+} from './OpportunityAlternative';
 import { FxCachePersister } from './FxCachePersister';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { InfoTip } from '@/components/ToolPrimitives';
@@ -281,6 +288,17 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
                   </strong>
                   /yr — rate {formatPct(opp.current_rate)} →{' '}
                   {formatPct(opp.target_rate)}.
+                  <EligibilityCaveat
+                    kind={opp.kind}
+                    country={plan.user.country}
+                    variant="editorial"
+                  />
+                  <UpdateTermsButton
+                    opportunity={opp}
+                    user={plan.user}
+                    currency={plan.displayCurrency}
+                    variant="editorial"
+                  />
                   <OpportunityAlternative opportunity={opp} variant="editorial" currency={plan.displayCurrency} />
                 </li>
               ))}
@@ -435,6 +453,7 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
           >
             Key dates — when things clear
           </h3>
+          <DebtFreeRedirectPrompt plan={plan} variant="editorial" />
           <KeyClearanceDates plan={plan} />
         </section>
 
@@ -574,7 +593,12 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
               gap: 8,
             }}
           >
-            <StrategySwitcher active={plan.strategy} variant="inline" />
+            <StrategySwitcher
+              active={plan.strategy}
+              variant="inline"
+              compare={plan.strategyCompare}
+              country={plan.user.country}
+            />
             <PlanStartPicker active={plan.planStart} variant="inline" />
             <HikeToggle
               active={plan.hikeModeling}

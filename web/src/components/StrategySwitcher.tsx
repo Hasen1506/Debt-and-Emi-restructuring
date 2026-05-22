@@ -25,6 +25,19 @@ import {
   type StrategyName,
 } from '@/lib/strategy';
 import { InfoTip } from '@/components/ToolPrimitives';
+import { monthIndexToCountryLabel } from '@/lib/today';
+import type { Country } from '@/lib/api';
+
+/**
+ * Per-strategy headline metrics — close month + total interest — keyed by
+ * strategy name. The `null` debt-free-month case means horizon ran out
+ * before clearance (rare; only happens when surplus is too thin to clear
+ * within 100y).
+ */
+export type StrategyCompare = Record<
+  StrategyName,
+  { debtFreeMonth: number | null; totalInterest: string }
+>;
 
 const STRATEGY_EXPLAINER: Record<StrategyName, React.ReactNode> = {
   avalanche: (
@@ -54,12 +67,79 @@ const STRATEGY_EXPLAINER: Record<StrategyName, React.ReactNode> = {
   ),
 };
 
+function formatInterest(value: string, country?: Country): string {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n) || n === 0) return '—';
+  const sym = country === 'US' ? '$' : '₹';
+  if (country === 'US') {
+    if (n >= 1_000_000) return `${sym}${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${sym}${(n / 1_000).toFixed(0)}k`;
+    return `${sym}${n.toFixed(0)}`;
+  }
+  if (n >= 10_000_000) return `${sym}${(n / 10_000_000).toFixed(2)}Cr`;
+  if (n >= 100_000) return `${sym}${(n / 100_000).toFixed(2)}L`;
+  if (n >= 1_000) return `${sym}${(n / 1_000).toFixed(0)}k`;
+  return `${sym}${n.toFixed(0)}`;
+}
+
+function CompareRow({
+  strategy,
+  isActive,
+  compare,
+  country,
+  mono,
+}: {
+  strategy: StrategyName;
+  isActive: boolean;
+  compare: StrategyCompare;
+  country?: Country;
+  mono: boolean;
+}) {
+  const entry = compare[strategy];
+  const dateLabel =
+    entry?.debtFreeMonth != null
+      ? monthIndexToCountryLabel(entry.debtFreeMonth, country ?? 'IN')
+      : 'beyond horizon';
+  const interestLabel = formatInterest(entry?.totalInterest ?? '0', country);
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '90px 1fr auto',
+        gap: 8,
+        fontFamily: mono ? 'var(--font-mono)' : undefined,
+        fontSize: 12,
+        padding: '2px 0',
+        color: isActive ? 'var(--ink)' : 'var(--muted)',
+        fontWeight: isActive ? 600 : 400,
+      }}
+    >
+      <span style={{ letterSpacing: mono ? '0.08em' : undefined, textTransform: mono ? 'uppercase' : undefined }}>
+        {isActive && '▸ '}
+        {STRATEGY_LABEL[strategy]}
+      </span>
+      <span>{dateLabel}</span>
+      <span style={{ color: 'var(--muted)' }}>{interestLabel} interest</span>
+    </div>
+  );
+}
+
 export function StrategySwitcher({
   active,
   variant = 'inline',
+  compare,
+  country,
 }: {
   active: StrategyName;
   variant?: 'inline' | 'ledger';
+  /** Per-strategy headline metrics. When provided, the switcher renders a
+   *  compact 3-row comparison below the picker so the decision is visible
+   *  without flipping strategies one-by-one to A/B. */
+  compare?: StrategyCompare;
+  /** User country — drives the close-month label (M YYYY) format + currency
+   *  symbol on the interest column. Defaults to country-aware label helper's
+   *  fallback when omitted. */
+  country?: Country;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -75,6 +155,7 @@ export function StrategySwitcher({
 
   if (variant === 'ledger') {
     return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div
         style={{
           display: 'flex',
@@ -142,6 +223,29 @@ export function StrategySwitcher({
           {pending ? 'recomputing…' : STRATEGY_SHORT[active]}
         </span>
       </div>
+      {compare && (
+        <div
+          style={{
+            paddingLeft: 6,
+            borderLeft: '2px solid var(--border)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 0,
+          }}
+        >
+          {STRATEGIES.map((s) => (
+            <CompareRow
+              key={s}
+              strategy={s}
+              isActive={s === active}
+              compare={compare}
+              country={country}
+              mono
+            />
+          ))}
+        </div>
+      )}
+      </div>
     );
   }
 
@@ -207,6 +311,30 @@ export function StrategySwitcher({
       >
         {pending ? 'Recomputing schedule…' : STRATEGY_SHORT[active]}
       </span>
+      {compare && (
+        <div
+          style={{
+            marginTop: 4,
+            paddingLeft: 8,
+            borderLeft: '2px solid var(--border)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 0,
+            maxWidth: 360,
+          }}
+        >
+          {STRATEGIES.map((s) => (
+            <CompareRow
+              key={s}
+              strategy={s}
+              isActive={s === active}
+              compare={compare}
+              country={country}
+              mono={false}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

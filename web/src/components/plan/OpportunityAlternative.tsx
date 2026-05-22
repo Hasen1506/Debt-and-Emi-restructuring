@@ -17,8 +17,9 @@
  */
 import { useState } from 'react';
 import { formatCurrency } from '@/lib/api';
-import type { RestructuringOpportunity } from '@/lib/api';
+import type { RestructuringOpportunity, UserPayload } from '@/lib/api';
 import type { CurrencyCode } from '@/lib/currency';
+import { UpdateRestructureModal } from './UpdateRestructureModal';
 
 interface Props {
   opportunity: RestructuringOpportunity;
@@ -132,6 +133,120 @@ export function OpportunityAlternative({ opportunity, variant = 'existing', curr
       >
         ×
       </button>
+    </div>
+  );
+}
+
+/**
+ * Trigger button: "I took this — update terms" on an opportunity card.
+ * Opens the UpdateRestructureModal so the user can record the actual
+ * negotiated terms (rates often drift a few bps from advertised). Only
+ * renders when the opportunity has a known affected_loan_index, since
+ * we need that pointer to know which loan(s) to mutate.
+ */
+export function UpdateTermsButton({
+  opportunity,
+  user,
+  currency,
+  variant = 'existing',
+}: {
+  opportunity: RestructuringOpportunity;
+  user: UserPayload;
+  currency: CurrencyCode;
+  variant?: 'existing' | 'ledger' | 'editorial';
+}) {
+  const [open, setOpen] = useState(false);
+  const indices = opportunity.affected_loan_indices ?? [];
+  if (indices.length === 0) return null;
+
+  const mono = variant === 'ledger';
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        style={{
+          marginTop: 6,
+          padding: '4px 10px',
+          background: 'transparent',
+          border: '1px solid var(--accent)',
+          color: 'var(--accent)',
+          borderRadius: variant === 'ledger' ? 0 : 4,
+          cursor: 'pointer',
+          fontSize: 11,
+          fontWeight: 600,
+          fontFamily: mono ? 'var(--font-mono)' : undefined,
+          letterSpacing: mono ? '0.06em' : undefined,
+          textTransform: mono ? 'uppercase' : undefined,
+        }}
+      >
+        I took this — update terms
+      </button>
+      {open && (
+        <UpdateRestructureModal
+          opportunity={opportunity}
+          user={user}
+          currency={currency}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * Eligibility caveat — a single muted line under an opportunity card that
+ * makes the user-level dependencies explicit. The rate-card numbers we
+ * recommend assume the user qualifies at the *advertised* rate, but actual
+ * offers re-price against credit score, employer tier, DTI, and (for SE)
+ * ITR vintage — none of which we have full inputs for today.
+ *
+ * Rather than hide the rec or pretend it's gospel, this surfaces the
+ * dependency so the user knows to verify before banking on the saving
+ * number. Matches the indicative-vs-verified gradient we use elsewhere
+ * (True-APR fields, RateAsOfBadge).
+ */
+export function EligibilityCaveat({
+  kind,
+  country,
+  variant = 'existing',
+}: {
+  kind: 'balance_transfer' | 'consolidation' | 'refinance';
+  country: 'IN' | 'US';
+  variant?: 'existing' | 'ledger' | 'editorial';
+}) {
+  const isIN = country === 'IN';
+  const scoreLabel = isIN ? 'CIBIL/Experian score' : 'FICO/VantageScore';
+  const incomeFactor = isIN
+    ? 'employer category + (if self-employed) 2–3 yrs ITR + GST returns'
+    : 'employer category + DTI + W-2 history (or Schedule C if SE)';
+  const kindNote =
+    kind === 'balance_transfer'
+      ? 'Card issuers also weigh utilisation and on-time history — limit + promo eligibility can be partial.'
+      : kind === 'consolidation'
+      ? 'Personal-loan underwriting is the strictest of the three; expect a fresh ITR/W-2 review.'
+      : 'Refinance underwriting re-runs end-to-end as if it were a new loan, including a fresh credit pull.';
+
+  const mono = variant === 'ledger';
+  return (
+    <div
+      style={{
+        marginTop: 6,
+        padding: '6px 10px',
+        fontSize: 11,
+        lineHeight: 1.5,
+        background: 'transparent',
+        border: '1px dotted var(--border)',
+        borderRadius: variant === 'ledger' ? 0 : 4,
+        color: 'var(--muted)',
+        fontFamily: mono ? 'var(--font-mono)' : undefined,
+      }}
+    >
+      <strong style={{ color: 'var(--muted-ink, var(--muted))' }}>Indicative</strong>
+      {' — your actual offer keys off your '}
+      {scoreLabel}, {incomeFactor}. Quoted rate is the bank&apos;s advertised
+      best/typical end for your income type; underwriting may re-price.
+      {' '}{kindNote}{' '}Apply to confirm before banking on the saving figure.
     </div>
   );
 }

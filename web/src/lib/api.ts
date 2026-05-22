@@ -626,6 +626,12 @@ export interface RestructuringOpportunity {
    *  null for Tier-B/C indicative entries or non-card-sourced rates. UI
    *  surfaces this as a "rate as of" tag on the opportunity row. */
   target_rate_as_of?: string | null;
+  /** 0-based positions into user.loans this opportunity acts on. Drives
+   *  the "I took this — update terms" modal: refi/BT use [0] to mutate
+   *  one loan in place; consolidation lists every loan being merged so
+   *  the modal can mark them cleared and append a new consolidated
+   *  personal loan. */
+  affected_loan_indices?: number[];
 }
 
 export interface RestructuringResponse {

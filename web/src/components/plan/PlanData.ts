@@ -131,4 +131,14 @@ export interface PlanData {
    *  EF top-up is paused for the current horizon. Drives an assumption
    *  chip + the EF slider's disabled state. */
   efPreempted: boolean;
+  /** Headline metrics per strategy (avalanche / hybrid / snowball) using
+   *  the same surplus / hike / lifecycle assumptions as the active run.
+   *  Lets the strategy chooser show a side-by-side close-month comparison
+   *  without each component re-simulating. The currently-active strategy's
+   *  numbers match `debtFreeMonth` / `totalInterest`. Falls back to nulls
+   *  when the engine call errors out (offline mock branch). */
+  strategyCompare: Record<
+    StrategyName,
+    { debtFreeMonth: number | null; totalInterest: string }
+  >;
 }

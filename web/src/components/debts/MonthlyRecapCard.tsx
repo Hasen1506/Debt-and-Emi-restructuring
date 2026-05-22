@@ -34,6 +34,7 @@ import {
   readCashEventsClient,
   type CashEventsSlice,
   type MonthlyConfirmation,
+  type PaymentSource,
 } from '@/lib/cash-events';
 
 type Variant = 'ledger' | 'editorial' | 'existing';
@@ -101,23 +102,38 @@ export function MonthlyRecapCard({
     interest: string,
     note: string | undefined,
     overridden: boolean,
+    paymentSource: PaymentSource,
   ): void {
+    // Excess prepayment = anything above the scheduled minimum EMI for the
+    // month. That excess is what we attribute to the chosen payment source;
+    // the scheduled portion is always treated as regular cash flow.
+    const scheduledD = new Decimal(defaultEmis || 0);
+    const emisD = new Decimal(emis || 0);
+    const excess = Decimal.max(0, emisD.sub(scheduledD));
+
+    // Cash-account net delta:
+    //   • surplus  → income − expenses − emis + interest (full EMI counts)
+    //   • non-surplus → income − expenses − scheduled + interest (excess
+    //     comes from the tagged bucket instead of the primary account)
+    const emisChargedToPrimary = paymentSource === 'surplus' ? emisD : scheduledD;
     const netDelta = new Decimal(income || 0)
       .sub(new Decimal(expenses || 0))
-      .sub(new Decimal(emis || 0))
+      .sub(emisChargedToPrimary)
       .add(new Decimal(interest || 0));
 
     const confirmation: MonthlyConfirmation = {
       monthKey,
       income: new Decimal(income || 0).toFixed(2),
       expenses: new Decimal(expenses || 0).toFixed(2),
-      emisPaid: new Decimal(emis || 0).toFixed(2),
+      emisPaid: emisD.toFixed(2),
       interestEarned: new Decimal(interest || 0).toFixed(2),
       netDelta: netDelta.toFixed(2),
       primaryAccountName: primaryAccount!.name,
       confirmedAt: new Date().toISOString(),
       source: overridden ? 'override' : 'confirmed',
       note: note?.trim() ? note.trim() : undefined,
+      paymentSource,
+      excessPaid: excess.toFixed(2),
     };
 
     setSlice((cur) => appendConfirmation(cur, confirmation));
@@ -140,15 +156,31 @@ export function MonthlyRecapCard({
     );
     // Also keep savings_balance in sync as the legacy aggregate
     // (sum of optimizable balances).
-    const newSavings = nextAccounts
+    let newSavings = nextAccounts
       .filter((a) => a.kind !== 'checking')
-      .reduce((s, a) => s.add(new Decimal(a.balance || 0)), new Decimal(0))
-      .toFixed(2);
+      .reduce((s, a) => s.add(new Decimal(a.balance || 0)), new Decimal(0));
+    let newEfund = new Decimal(stored.user.efund_balance || 0);
+
+    if (excess.gt(0)) {
+      if (paymentSource === 'savings_drawdown') {
+        // Drain idle savings, floor at 0. The aggregate `savings_balance`
+        // is the user-visible idle-cash bucket; we reduce it directly
+        // since the per-account cash_accounts list may not have a row
+        // matching "savings" (the user may store idle cash in assets/FDs).
+        newSavings = Decimal.max(0, newSavings.sub(excess));
+      } else if (paymentSource === 'ef_drawdown') {
+        newEfund = Decimal.max(0, newEfund.sub(excess));
+      }
+      // 'one_off' leaves both alone — windfall paid debt, no tracked
+      // bucket should shrink.
+    }
+
     saveProfileClient({
       user: {
         ...stored.user,
         cash_accounts: nextAccounts,
-        savings_balance: newSavings,
+        savings_balance: newSavings.toFixed(2),
+        efund_balance: newEfund.toFixed(2),
       },
       marginalRate: stored.marginalRate,
       creditScore: stored.creditScore,
@@ -343,6 +375,7 @@ function ConfirmForm({
     interest: string,
     note: string | undefined,
     overridden: boolean,
+    paymentSource: PaymentSource,
   ) => void;
 }) {
   const [income, setIncome] = useState(defaultIncome);
@@ -350,6 +383,7 @@ function ConfirmForm({
   const [emis, setEmis] = useState(defaultEmis);
   const [interest, setInterest] = useState('0');
   const [note, setNote] = useState('');
+  const [paymentSource, setPaymentSource] = useState<PaymentSource>('surplus');
 
   // Reset when month changes (user clicked a different pending month).
   useEffect(() => {
@@ -358,6 +392,7 @@ function ConfirmForm({
     setEmis(defaultEmis);
     setInterest('0');
     setNote('');
+    setPaymentSource('surplus');
   }, [monthKey, defaultIncome, defaultExpenses, defaultEmis]);
 
   const overridden =
@@ -365,7 +400,14 @@ function ConfirmForm({
     expenses !== defaultExpenses ||
     emis !== defaultEmis ||
     new Decimal(interest || 0).gt(0) ||
-    note.trim() !== '';
+    note.trim() !== '' ||
+    paymentSource !== 'surplus';
+
+  const excessAmount = Decimal.max(
+    0,
+    new Decimal(emis || 0).sub(new Decimal(defaultEmis || 0)),
+  );
+  const hasExcess = excessAmount.gt(0);
 
   const net = new Decimal(income || 0)
     .sub(new Decimal(expenses || 0))
@@ -404,6 +446,46 @@ function ConfirmForm({
           isText
         />
       </div>
+      {hasExcess && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontSize: 11, color: 'var(--muted-ink, var(--muted))' }}>
+            You paid{' '}
+            <strong>
+              {currencyLabel === 'INR' ? '₹' : '$'}
+              {excessAmount.toFixed(0)}
+            </strong>{' '}
+            above the scheduled EMI. Where did that extra come from?
+          </span>
+          <select
+            value={paymentSource}
+            onChange={(e) => setPaymentSource(e.target.value as PaymentSource)}
+            style={{
+              padding: '5px 8px',
+              border: '1px solid var(--border)',
+              borderRadius: 4,
+              background: 'var(--canvas)',
+              color: 'var(--ink)',
+              fontSize: 12,
+              fontFamily: 'inherit',
+            }}
+          >
+            <option value="surplus">Surplus (cut back on spending)</option>
+            <option value="savings_drawdown">Idle savings drawdown</option>
+            <option value="ef_drawdown">Emergency fund drawdown</option>
+            <option value="one_off">One-off / windfall (bonus, gift)</option>
+          </select>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+            {paymentSource === 'surplus' &&
+              'Default — primary cash account absorbs the hit.'}
+            {paymentSource === 'savings_drawdown' &&
+              'Idle savings balance shrinks by the excess.'}
+            {paymentSource === 'ef_drawdown' &&
+              'Emergency fund balance shrinks by the excess. We’ll flag if EF dips below target.'}
+            {paymentSource === 'one_off' &&
+              'No tracked balance changes — external windfall paid down debt.'}
+          </span>
+        </div>
+      )}
       <div
         style={{
           display: 'flex',
@@ -432,7 +514,16 @@ function ConfirmForm({
         <button
           type="button"
           onClick={() =>
-            onConfirm(monthKey, income, expenses, emis, interest, note, overridden)
+            onConfirm(
+              monthKey,
+              income,
+              expenses,
+              emis,
+              interest,
+              note,
+              overridden,
+              paymentSource,
+            )
           }
           style={{
             background: 'var(--accent)',

@@ -8,7 +8,7 @@ and a one-line rationale ready to render in the UI.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal, Optional
 
@@ -76,6 +76,16 @@ class RestructuringOpportunity:
     # this to surface a "rate as of {date}" tag so users know how fresh
     # the recommendation is.
     target_rate_as_of: Optional[str] = None
+    # 0-based positions into user.loans of the loans this opportunity
+    # operates on. Populated for every opp:
+    #   • balance_transfer → [card_index]
+    #   • refinance       → [loan_index]
+    #   • consolidation   → list of unsecured-loan indices being merged
+    # The UI uses this to wire up the "I took this — update terms"
+    # modal: refi/BT mutate the indexed loan in place, consolidation
+    # zeroes the listed loans and appends a new consolidated personal
+    # loan.
+    affected_loan_indices: list[int] = field(default_factory=list)
 
 
 def _country_pool(country: Country) -> list[InstitutionRateCard]:
@@ -190,6 +200,7 @@ def _bt_saving_annualised(
 
 def _scan_card_balance_transfer(
     card: Loan,
+    card_index: int,
     card_effective: Decimal,
     country: Country,
     known: set[str],
@@ -266,6 +277,7 @@ def _scan_card_balance_transfer(
         alternative_annual_saving=alt_saving,
         target_is_existing_relationship=rel_offer is not None,
         target_rate_as_of=getattr(target_card, "last_verified", None),
+        affected_loan_indices=[card_index],
     )
 
 
@@ -277,10 +289,11 @@ def _scan_consolidation_opportunity(
     """Look at unsecured high-rate loans (personal + credit card) and see if
     a single consolidated personal loan at market rate would beat the blended
     average by ≥3pp."""
-    unsecured = [
-        l for l in user.loans
+    unsecured_with_idx = [
+        (i, l) for i, l in enumerate(user.loans)
         if l.loan_type in (LoanType.PERSONAL, LoanType.CREDIT_CARD)
     ]
+    unsecured = [l for _, l in unsecured_with_idx]
     if len(unsecured) < 2:
         return None
     rel_market = (
@@ -353,7 +366,10 @@ def _scan_consolidation_opportunity(
         alternative_target_rate=alt_rate,
         alternative_annual_saving=alt_saving,
         target_is_existing_relationship=rel_market is not None,
-        target_rate_as_of=_latest_verified(country),
+        target_rate_as_of=_latest_verified(user.country),
+        affected_loan_indices=[
+            i for i, l in unsecured_with_idx if l in cand.loans
+        ],
     )
 
 
@@ -371,6 +387,7 @@ def _refi_interest_saved(loan: Loan, new_rate: Decimal) -> Decimal:
 
 def _scan_refi_opportunity(
     loan: Loan,
+    loan_index: int,
     country: Country,
     known: set[str],
     income_type: Optional[IncomeType] = None,
@@ -445,6 +462,7 @@ def _scan_refi_opportunity(
         alternative_annual_saving=alt_saving,
         target_is_existing_relationship=rel_market is not None,
         target_rate_as_of=_latest_verified(country),
+        affected_loan_indices=[loan_index],
     )
 
 
@@ -470,10 +488,10 @@ def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringO
     known = _known_banks(user)
     out: list[RestructuringOpportunity] = []
 
-    for l in user.loans:
+    for i, l in enumerate(user.loans):
         if l.loan_type == LoanType.CREDIT_CARD:
             opp = _scan_card_balance_transfer(
-                l, rates[id(l)], user.country, known, user.income_type,
+                l, i, rates[id(l)], user.country, known, user.income_type,
             )
             if opp is not None:
                 out.append(opp)
@@ -482,9 +500,9 @@ def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringO
     if consol is not None:
         out.append(consol)
 
-    for l in user.loans:
+    for i, l in enumerate(user.loans):
         if l.loan_type in (LoanType.HOME, LoanType.AUTO):
-            opp = _scan_refi_opportunity(l, user.country, known, user.income_type)
+            opp = _scan_refi_opportunity(l, i, user.country, known, user.income_type)
             if opp is not None:
                 out.append(opp)
 

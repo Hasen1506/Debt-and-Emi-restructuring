@@ -709,6 +709,10 @@ class RestructuringOpportunityOut(_Base):
     alternative_annual_saving: Optional[Decimal] = None
     target_is_existing_relationship: bool = False
     target_rate_as_of: Optional[str] = None
+    # 0-based indices into the user's loan list this opportunity acts on.
+    # Drives the "I took this — update terms" modal: refi/BT mutate the
+    # indexed loan, consolidation rolls them up into a new loan.
+    affected_loan_indices: list[int] = Field(default_factory=list)
 
 
 class RestructuringResponse(_Base):

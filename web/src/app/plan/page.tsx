@@ -1,7 +1,7 @@
 import { api, type SimulateResponse, type UserPayload } from '@/lib/api';
 import { loadFxCacheServer, loadProfileServer } from '@/lib/user-store';
 import { loadThemeServer } from '@/lib/theme';
-import { loadStrategyServer, type StrategyName } from '@/lib/strategy';
+import { loadStrategyServer, STRATEGIES, type StrategyName } from '@/lib/strategy';
 import {
   loadHikeModelingServer,
   type HikeModeling,
@@ -304,25 +304,46 @@ async function loadPlan(
       ? efSplit
       : undefined;
 
+  // Build the same simulate-args dict for every strategy variant so the
+  // comparison table reflects "what if you flipped only the strategy".
+  // The active strategy still pulls scenario+baseline+restructuring; the
+  // other two run as bare simulates (we only need their headline metrics).
+  const simBaseArgs = {
+    user: adjustedUser,
+    horizon_months: HORIZON_MONTHS,
+    marginal_rate: profile.marginalRate,
+    simulation_start_month,
+    reinvest_events: reinvestEvents.length > 0 ? reinvestEvents : undefined,
+    inflate_expenses: inflationModeling === 'on' ? true : undefined,
+    lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
+    ef_top_up_rate: efTopUpRate,
+  };
+  const otherStrategies = STRATEGIES.filter((s) => s !== strategy);
+
   try {
-    const [scenario, baseline, restructuring] = await Promise.all([
-      api.simulate({
-        user: adjustedUser,
-        strategy,
-        horizon_months: HORIZON_MONTHS,
-        marginal_rate: profile.marginalRate,
-        simulation_start_month,
-        reinvest_events: reinvestEvents.length > 0 ? reinvestEvents : undefined,
-        inflate_expenses: inflationModeling === 'on' ? true : undefined,
-        lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
-        ef_top_up_rate: efTopUpRate,
-      }),
+    const [scenario, baseline, restructuring, ...altSims] = await Promise.all([
+      api.simulate({ ...simBaseArgs, strategy }),
       api.baseline({ user: adjustedUser, horizon_months: HORIZON_MONTHS }),
       api.restructuring({
         user: adjustedUser,
         marginal_rate: profile.marginalRate,
       }),
+      ...otherStrategies.map((s) => api.simulate({ ...simBaseArgs, strategy: s })),
     ]);
+    const strategyCompare = {
+      [strategy]: {
+        debtFreeMonth: scenario.debt_free_month,
+        totalInterest: scenario.total_interest_paid,
+      },
+      [otherStrategies[0]]: {
+        debtFreeMonth: altSims[0].debt_free_month,
+        totalInterest: altSims[0].total_interest_paid,
+      },
+      [otherStrategies[1]]: {
+        debtFreeMonth: altSims[1].debt_free_month,
+        totalInterest: altSims[1].total_interest_paid,
+      },
+    } as PlanData['strategyCompare'];
     const monthsSaved =
       scenario.debt_free_month && baseline.debt_free_month
         ? baseline.debt_free_month - scenario.debt_free_month
@@ -379,6 +400,7 @@ async function loadPlan(
       efSplit,
       planStart: planStartPref,
       efPreempted,
+      strategyCompare,
     };
   } catch {
     const ccyList = currenciesInPlay(profile.user.loans, profile.user.country);
@@ -414,6 +436,11 @@ async function loadPlan(
       efSplit,
       planStart: planStartPref,
       efPreempted,
+      strategyCompare: {
+        avalanche: { debtFreeMonth: null, totalInterest: '0' },
+        hybrid: { debtFreeMonth: null, totalInterest: '0' },
+        snowball: { debtFreeMonth: null, totalInterest: '0' },
+      },
     };
   }
 }

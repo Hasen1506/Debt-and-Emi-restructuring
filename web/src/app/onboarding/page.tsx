@@ -2066,9 +2066,22 @@ export default function OnboardingPage() {
                 onChange={setEfundBalance}
                 info={
                   <>
-                    The portion of your savings you've earmarked for emergencies.
-                    Often kept in a separate sweep or liquid fund so it isn't
-                    spent by accident.
+                    The portion of your savings earmarked for emergencies.
+                    <div style={{ marginTop: 6 }}>
+                      <strong>Liquidity rule:</strong> only count money you can
+                      withdraw the same day without breaking — savings account,
+                      sweep deposit, or a liquid mutual fund. Lock-in FDs,
+                      equity, gold, and bonds <em>do not</em> belong here even
+                      if you mentally label them as "backup". Park them as
+                      regular assets in the next step; the engine will treat
+                      them as idle yield candidates instead.
+                    </div>
+                    <div style={{ marginTop: 6 }}>
+                      Why it matters: in an emergency you need cash in hours,
+                      not days. Anything illiquid forces you to sell at the
+                      worst possible moment or take a fresh loan — the exact
+                      situation EF is meant to prevent.
+                    </div>
                   </>
                 }
               />
@@ -2084,6 +2097,13 @@ export default function OnboardingPage() {
                     /plan diverts 30% of each month's surplus into EF top-up
                     until this target is met — debt-free is pushed out a bit
                     in exchange for a real safety net.
+                    <div style={{ marginTop: 6 }}>
+                      The target counts only liquid balances (savings / sweep /
+                      liquid fund). Any illiquid wealth — FDs, equity, gold,
+                      property — is tracked separately and doesn't reduce this
+                      gap, even if you'd <em>technically</em> tap it in an
+                      emergency.
+                    </div>
                   </>
                 }
               />

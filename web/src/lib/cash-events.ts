@@ -29,6 +29,33 @@
 
 import { syncSliceToServer } from './server-sync';
 
+/**
+ * Funding source for any prepayment beyond the scheduled minimum.
+ *
+ *   • surplus           — money came out of regular cash flow (income −
+ *                         expenses). The primary cash account absorbs the
+ *                         hit, same as before this dimension existed.
+ *   • savings_drawdown  — user dipped into idle savings/asset balance to
+ *                         pay the extra. We deduct excess from
+ *                         `user.savings_balance` and leave the primary
+ *                         cash account untouched for the excess portion.
+ *   • ef_drawdown       — emergency fund was tapped. We deduct excess
+ *                         from `user.efund_balance`. Surfaces a warning
+ *                         later if EF dips below target.
+ *   • one_off           — windfall (bonus, gift, refund) not previously
+ *                         in the model. No tracked balance shrinks; this
+ *                         is essentially "external money paid down debt".
+ *
+ * The tag affects ONLY excess-above-scheduled portions. The scheduled
+ * EMI itself always counts as regular cash flow regardless of source —
+ * that's what defines an EMI.
+ */
+export type PaymentSource =
+  | 'surplus'
+  | 'savings_drawdown'
+  | 'ef_drawdown'
+  | 'one_off';
+
 export interface MonthlyConfirmation {
   /** YYYY-MM */
   monthKey: string;
@@ -51,6 +78,15 @@ export interface MonthlyConfirmation {
   /** 'confirmed' = user accepted defaults; 'override' = user edited. */
   source: 'confirmed' | 'override';
   note?: string;
+  /** Where the *excess* portion of `emisPaid` came from. See
+   *  PaymentSource docstring. Older entries with no tag default to
+   *  'surplus' at read time, preserving pre-feature behaviour. */
+  paymentSource?: PaymentSource;
+  /** Amount of `emisPaid` that exceeded the scheduled minimum, decimal
+   *  string. Stored alongside the source so future audit views can show
+   *  "you drew ₹X from EF in May" without re-deriving from scheduled
+   *  EMIs (which may have shifted since). 0 when no excess. */
+  excessPaid?: string;
 }
 
 export interface CashEventsSlice {

@@ -16,6 +16,7 @@ import {
 import type { PlanData } from './PlanData';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
 import { KeyClearanceDates } from './KeyClearanceDates';
+import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
 import { CentralBankHint } from './CentralBankHint';
 import { SurplusWaterfall } from './SurplusWaterfall';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
@@ -24,7 +25,13 @@ import { RecentActivitySummary } from './RecentActivitySummary';
 import { TaxBreakdown } from './TaxBreakdown';
 import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
-import { OpportunityAlternative, RelationshipBadge, RateAsOfBadge } from './OpportunityAlternative';
+import {
+  OpportunityAlternative,
+  RelationshipBadge,
+  RateAsOfBadge,
+  EligibilityCaveat,
+  UpdateTermsButton,
+} from './OpportunityAlternative';
 import { FxCachePersister } from './FxCachePersister';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { InfoTip } from '@/components/ToolPrimitives';
@@ -269,7 +276,12 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             gap: 8,
           }}
         >
-          <StrategySwitcher active={plan.strategy} variant="ledger" />
+          <StrategySwitcher
+            active={plan.strategy}
+            variant="ledger"
+            compare={plan.strategyCompare}
+            country={plan.user.country}
+          />
           <PlanStartPicker active={plan.planStart} variant="ledger" />
           <HikeToggle
             active={plan.hikeModeling}
@@ -500,6 +512,17 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                   {opp.alternative_target_bank && (
                     <tr key={`${i}-alt`}>
                       <td colSpan={6} style={{ padding: '0 12px 6px' }}>
+                        <EligibilityCaveat
+                          kind={opp.kind}
+                          country={plan.user.country}
+                          variant="ledger"
+                        />
+                        <UpdateTermsButton
+                          opportunity={opp}
+                          user={plan.user}
+                          currency={plan.displayCurrency}
+                          variant="ledger"
+                        />
                         <OpportunityAlternative opportunity={opp} variant="ledger" currency={plan.displayCurrency} />
                       </td>
                     </tr>
@@ -555,6 +578,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
        *  month-by-month grid is one layer deeper, collapsed by default. */}
       <section>
         <SectionLabel>$ KEY DATES · WHEN THINGS CLEAR</SectionLabel>
+        <DebtFreeRedirectPrompt plan={plan} variant="ledger" />
         <KeyClearanceDates plan={plan} />
       </section>
       <details>
