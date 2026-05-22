@@ -83,7 +83,7 @@ export function CashAdvisorCard({
         {fmt(advice.loudest.effective)} — {fmt(advice.spread)} spread.
       </div>
       <div style={{ marginTop: 4 }}>
-        Sacred floor preserved:{' '}
+        Reserve kept untouched:{' '}
         <strong style={{ color: 'var(--ink)' }}>
           {formatCurrency(advice.sacredFloor.toString(), currency)}
         </strong>{' '}

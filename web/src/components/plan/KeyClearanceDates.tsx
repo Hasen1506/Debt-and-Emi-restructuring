@@ -200,10 +200,18 @@ function colorFor(kind: Milestone['kind']): string {
 }
 
 function MonthDetail({ plan, milestone }: { plan: PlanData; milestone: Milestone }) {
-  // Show last 6 months leading up to the milestone — that's the window
-  // the user is actually deciding on (the early months are just inertia).
+  // Window scales with milestone distance: 6 months works for a 12-month
+  // payoff (full half), but for a 240-month payoff 6 months is noise. Use
+  // the last ~10% of months leading up, clamped to [6, 18] so the table
+  // stays scannable. Keeps the "what's the momentum just before this"
+  // question answerable at any horizon.
+  const windowMonths = Math.min(
+    18,
+    Math.max(6, Math.ceil(milestone.month * 0.1)),
+  );
   const tail = plan.trajectory.filter(
-    (p) => p.month <= milestone.month && p.month > milestone.month - 6,
+    (p) =>
+      p.month <= milestone.month && p.month > milestone.month - windowMonths,
   );
   if (tail.length === 0) {
     return (

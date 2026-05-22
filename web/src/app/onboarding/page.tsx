@@ -8,6 +8,7 @@ import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { RateRangeHint } from '@/components/RateRangeHint';
 import type {
   AgeBracket,
+  CashAccountPayload,
   Country,
   DeductionsPayload,
   FilingStatusUS,
@@ -73,14 +74,17 @@ function suggestionLabel(
   return `${source}: ~${value} (indicative — confirm with sanction letter)`;
 }
 
-const STEPS = [
-  'You',
-  'Country',
-  'Income',
-  'Loans',
-  'Savings',
-  'Credit score',
-  'Review',
+// `optional: true` steps are skippable — they don't gate the engine and
+// the progress chip is rendered lighter so first-time users can finish
+// in 90s with just the load-bearing steps (country / income / loans).
+const STEPS: ReadonlyArray<{ label: string; optional?: boolean }> = [
+  { label: 'You', optional: true },
+  { label: 'Country' },
+  { label: 'Income' },
+  { label: 'Loans' },
+  { label: 'Savings' },
+  { label: 'Credit score', optional: true },
+  { label: 'Review' },
 ] as const;
 
 // `?step=loans` (or `?step=income`, etc.) deep-links to a specific step so
@@ -140,6 +144,11 @@ export default function OnboardingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState(() => parseStepParam(searchParams.get('step')));
+  // True iff the user deep-linked past step 1 (?step=loans, ?step=savings…)
+  // with no saved profile to back it. Used to surface a "jump to start"
+  // banner so they don't get stuck mid-flow with missing prerequisites.
+  // Hydrates on mount because loadProfileClient is browser-only.
+  const [emptyDeepLink, setEmptyDeepLink] = useState(false);
 
   // ─── form state ─────────────────────────────────────────────────────────
   // Both optional. We never gate the flow on them — the "You" step is a soft
@@ -239,6 +248,10 @@ export default function OnboardingPage() {
   // isLive=false means there's no cookie — leave empty defaults in place.
   useEffect(() => {
     const stored = loadProfileClient();
+    // If the URL points past step 1 but there's no profile yet, the user
+    // is deep-linked into a step that depends on earlier inputs they
+    // never filled. Surface a banner; they keep their landing step.
+    if (!stored.isLive && step > 1) setEmptyDeepLink(true);
     if (!stored.isLive) return;
     const u = stored.user;
     if (u.display_name) setDisplayName(u.display_name);
@@ -622,21 +635,75 @@ export default function OnboardingPage() {
         </p>
       </section>
 
-      {/* progress chips */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {STEPS.map((s, i) => (
-          <span
-            key={s}
-            className="chip"
+      {emptyDeepLink && (
+        <div
+          style={{
+            padding: '10px 12px',
+            background: 'var(--soft-bg, rgba(220, 130, 0, 0.06))',
+            border: '1px solid var(--warning, #d68a00)',
+            borderRadius: 6,
+            fontSize: 13,
+            lineHeight: 1.55,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 10,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>
+            You jumped to <strong>{STEPS[step]?.label ?? 'a later step'}</strong>{' '}
+            but haven't filled the earlier sections yet. Start at step 1 to get
+            a complete plan?
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setStep(0);
+              setEmptyDeepLink(false);
+            }}
             style={{
-              background: i === step ? 'var(--accent)' : 'var(--card)',
-              color: i === step ? '#fff' : 'var(--muted)',
-              opacity: i < step ? 0.6 : 1,
+              background: 'var(--accent)',
+              color: '#fff',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: 4,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
             }}
           >
-            {i + 1}. {s}
-          </span>
-        ))}
+            Start at step 1 →
+          </button>
+        </div>
+      )}
+
+      {/* progress chips */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        {STEPS.map((s, i) => {
+          const active = i === step;
+          const done = i < step;
+          return (
+            <span
+              key={s.label}
+              className="chip"
+              style={{
+                background: active ? 'var(--accent)' : 'var(--card)',
+                color: active ? '#fff' : 'var(--muted)',
+                opacity: done ? 0.6 : 1,
+                fontWeight: active ? 600 : s.optional ? 400 : 500,
+                borderStyle: s.optional && !active ? 'dashed' : undefined,
+              }}
+            >
+              {i + 1}. {s.label}
+              {s.optional && !active && (
+                <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }}>
+                  optional
+                </span>
+              )}
+            </span>
+          );
+        })}
       </div>
 
       <Card>
@@ -2109,6 +2176,12 @@ export default function OnboardingPage() {
               />
             </div>
 
+            <EfLiquidityWarning
+              efundBalance={efundBalance}
+              cashAccounts={cashAccounts}
+              currency={country === 'IN' ? 'INR' : 'USD'}
+            />
+
             <EfTierPicker
               monthlyExpenses={fixedExpenses}
               variableExpenses={variableExpenses}
@@ -2669,6 +2742,49 @@ function GrossIncomeField({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function EfLiquidityWarning({
+  efundBalance,
+  cashAccounts,
+  currency,
+}: {
+  efundBalance: string;
+  cashAccounts: CashAccountPayload[];
+  currency: 'INR' | 'USD';
+}) {
+  const ef = Number(efundBalance || 0);
+  if (ef <= 0) return null;
+  // Truly same-day-withdrawable: savings + HYSA. FD is locked-in (premature
+  // break costs penalty); checking is operational float not EF; "other" is
+  // user-tagged and ambiguous — don't auto-count.
+  const liquid = cashAccounts
+    .filter((a) => a.kind === 'savings' || a.kind === 'hysa')
+    .reduce((s, a) => s + Number(a.balance || 0), 0);
+  if (cashAccounts.length === 0 || liquid >= ef) return null;
+  const gap = ef - liquid;
+  return (
+    <div
+      style={{
+        padding: '10px 12px',
+        background: 'var(--soft-bg, rgba(220, 130, 0, 0.06))',
+        border: '1px solid var(--warning, #d68a00)',
+        borderRadius: 6,
+        fontSize: 12,
+        lineHeight: 1.55,
+      }}
+    >
+      <strong style={{ color: 'var(--warning, #d68a00)' }}>
+        Heads up — EF exceeds your liquid balance.
+      </strong>{' '}
+      You've earmarked {formatCurrency(String(ef), currency)} as EF, but only{' '}
+      {formatCurrency(String(liquid), currency)} sits in savings/HYSA accounts
+      where you can withdraw same-day. The other{' '}
+      <strong>{formatCurrency(String(gap), currency)}</strong> is in FDs or
+      other illiquid spots and shouldn't count toward EF. Either lower the EF
+      number or add the missing liquid balance as a savings account above.
     </div>
   );
 }

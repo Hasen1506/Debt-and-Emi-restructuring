@@ -27,6 +27,7 @@ import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
 import { CashManagementSection } from '@/components/debts/CashManagementSection';
+import { TodayCard } from '@/components/debts/TodayCard';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'Revolving credit',
@@ -127,6 +128,7 @@ export function EditorialDebts({ profile }: { profile: StoredProfile }) {
       }}
     >
       <article style={{ maxWidth: 720 }}>
+        <TodayCard user={user} variant="editorial" />
         <div
           style={{
             fontFamily: 'var(--font-sans)',

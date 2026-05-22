@@ -10,10 +10,13 @@
  * the cash routes — is what turns a debtor into an investor.
  *
  * Visibility rules:
- *   • Shows when `plan.debtFreeMonth` is set AND within 12 months ahead
- *     (early warning) OR within 3 months past (recent landing).
+ *   • Shows when `plan.debtFreeMonth` is set AND within 12 months ahead.
  *   • Hidden when there are no loans (nothing to free up).
  *   • Hidden when the user has dismissed it for the session.
+ *
+ * Note: the engine simulates forward from today, so `debtFreeMonth` is
+ * always ≥ 1 when present — there's no "past" case to detect here. A
+ * landed debt-free moment is captured by the activity log instead.
  *
  * Freed amount = total scheduled EMI today across all positive-balance
  * loans. This is what'll stop draining once everything clears. It's not
@@ -62,9 +65,8 @@ export function DebtFreeRedirectPrompt({
   if (plan.debtFreeMonth == null) return null;
 
   const monthsAway = plan.debtFreeMonth;
-  // Only show in the near band — far-future doesn't need this nudge,
-  // and very-past means we've stopped being useful here.
-  if (monthsAway > 12 && monthsAway > 0) return null;
+  // Far-future doesn't need this nudge — only show inside the 12-month band.
+  if (monthsAway > 12) return null;
 
   const freedMonthlyEmi = plan.user.loans
     .filter((l) => Number(l.outstanding || 0) > 0)
@@ -80,14 +82,9 @@ export function DebtFreeRedirectPrompt({
     plan.displayCurrency,
   );
 
-  const isPast = monthsAway <= 0;
-  const headline = isPast
-    ? `Your last EMI cleared in ${dateLabel}. That's ${freedAmountLabel}/mo back in your hands.`
-    : `In ${monthsAway} ${monthsAway === 1 ? 'month' : 'months'} (${dateLabel}), your last EMI clears. ${freedAmountLabel}/mo of cash flow comes back.`;
-
-  const sub = isPast
-    ? "Decide where it goes before lifestyle inflation absorbs it."
-    : "Pre-decide where it goes now — habits set on the freed-cash moment tend to stick.";
+  const headline = `In ${monthsAway} ${monthsAway === 1 ? 'month' : 'months'} (${dateLabel}), your last EMI clears. ${freedAmountLabel}/mo of cash flow comes back.`;
+  const sub =
+    "Pre-decide where it goes now — habits set on the freed-cash moment tend to stick.";
 
   const mono = variant === 'ledger';
 
@@ -124,7 +121,7 @@ export function DebtFreeRedirectPrompt({
               marginBottom: 4,
             }}
           >
-            {isPast ? 'Cash flow restored' : 'Cash flow restoring soon'}
+            Cash flow restoring soon
           </div>
           <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.45 }}>
             {headline}

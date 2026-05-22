@@ -17,6 +17,18 @@ export function userDefaultCurrency(country: Country): CurrencyCode {
   return country === 'US' ? 'USD' : 'INR';
 }
 
+/** Currency symbol for inline labels (e.g. "Balance (₹)"). For full-number
+ *  rendering use `formatCurrency` — this is just the one-char prefix. */
+export function currencySymbol(currency: CurrencyCode): string {
+  return currency === 'INR' ? '₹' : '$';
+}
+
+/** Convenience: prefix derived directly from country, when the caller doesn't
+ *  already have a CurrencyCode in scope. */
+export function countryCurrencySymbol(country: Country): string {
+  return currencySymbol(userDefaultCurrency(country));
+}
+
 /** Each loan's display currency: explicit tag if present, else user default. */
 export function loanCurrency(loan: LoanPayload, country: Country): CurrencyCode {
   return (loan.currency as CurrencyCode | undefined) ?? userDefaultCurrency(country);

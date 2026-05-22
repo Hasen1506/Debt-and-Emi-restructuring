@@ -126,7 +126,7 @@ export function WindfallTool() {
                   <strong>Why net?</strong> A {profile.user.country === 'IN' ? '₹5L' : '$5k'} bonus
                   with 30% TDS lands as {profile.user.country === 'IN' ? '~₹3.4L' : '~$3.5k'} —
                   that smaller figure is what you can actually deploy. We
-                  compare it against your loudest loan and the best liquid
+                  compare it against your highest-rate loan and the best liquid
                   parking option, after-tax on both sides.
                 </div>
                 {profile.user.income_type === 'business_owner' && (

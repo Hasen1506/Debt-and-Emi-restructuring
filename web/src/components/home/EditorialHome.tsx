@@ -234,8 +234,8 @@ function BodyLetter({
       >
         {bigSpread ? (
           <>
-            Your <strong>{lender}</strong> {loudestKind} is the loudest debt you
-            own. Nominal {fmt(loudest.nominal)} becomes{' '}
+            Your <strong>{lender}</strong> {loudestKind} is your highest-rate
+            debt. Nominal {fmt(loudest.nominal)} becomes{' '}
             <strong>{fmt(loudest.effective)}</strong>{' '}
             {loudestIsCard ? 'once GST is folded in' : 'once fees + GST are folded in'}
             , and at a balance of <strong>{formatCurrency(loudest.outstanding.toString(), loudestCcy)}</strong>{' '}

@@ -43,7 +43,7 @@ const TOOLS: ToolEntry[] = [
     label: 'Windfall handler',
     sub: 'Bonus, refund, or gift just arrived',
     explainer:
-      "Decides where a one-time inflow goes. Compares prepaying the loudest debt against topping up the emergency fund or parking in liquid until you allocate. Returns one number per option so you can pick without spreadsheets.",
+      "Decides where a one-time inflow goes. Compares prepaying your highest-rate debt against topping up the emergency fund or parking in liquid until you allocate. Returns one number per option so you can pick without spreadsheets.",
     Body: WindfallTool,
   },
   {

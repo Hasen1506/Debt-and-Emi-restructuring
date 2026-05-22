@@ -152,9 +152,9 @@ export function RecomputeTool() {
             options={loanOptions}
             info={
               <>
-                Defaults to your highest-rate loan (the &ldquo;loudest&rdquo;
-                one). For multi-loan households, override if the payment
-                actually went somewhere else.
+                Defaults to your highest-rate loan. For multi-loan
+                households, override if the payment actually went somewhere
+                else.
               </>
             }
           />

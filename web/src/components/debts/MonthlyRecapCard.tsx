@@ -24,7 +24,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import type { CashAccountPayload, UserPayload } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
-import { userDefaultCurrency } from '@/lib/currency';
+import { currencySymbol, userDefaultCurrency } from '@/lib/currency';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import {
   appendConfirmation,
@@ -56,9 +56,15 @@ export function MonthlyRecapCard({
   useEffect(() => {
     let next = readCashEventsClient();
     // Only start tracking once the user has actually populated cash_accounts.
-    // Otherwise there's nothing meaningful to confirm against.
+    // Otherwise there's nothing meaningful to confirm against. Picking the
+    // primary account at startup-time lets us stamp it on the slice so
+    // future confirmations keep landing on the same account even if the
+    // user later reorders or renames.
     if (user.cash_accounts && user.cash_accounts.length > 0) {
-      next = ensureStarted(next);
+      const candidate =
+        user.cash_accounts.find((a) => a.kind !== 'checking') ??
+        user.cash_accounts[0];
+      next = ensureStarted(next, candidate?.name);
     }
     setSlice(next);
     setReady(true);
@@ -66,12 +72,20 @@ export function MonthlyRecapCard({
 
   const pending = useMemo(() => pendingMonths(slice), [slice]);
 
-  // Pick the primary account: first non-checking, else first overall.
+  // Resolve the primary account: prefer the one stamped on the slice
+  // (set at ensureStarted time). Fall back to live picking only for
+  // legacy slices that pre-date the stamp.
   const primaryAccount: CashAccountPayload | null = useMemo(() => {
     const accounts = user.cash_accounts ?? [];
     if (accounts.length === 0) return null;
+    if (slice.primaryAccountName) {
+      const stamped = accounts.find((a) => a.name === slice.primaryAccountName);
+      if (stamped) return stamped;
+      // Stamp pointed at an account that no longer exists (user deleted it).
+      // Fall through to the live picker.
+    }
     return accounts.find((a) => a.kind !== 'checking') ?? accounts[0];
-  }, [user.cash_accounts]);
+  }, [user.cash_accounts, slice.primaryAccountName]);
 
   if (!ready) return null;
   if (!primaryAccount) return null;
@@ -143,7 +157,7 @@ export function MonthlyRecapCard({
     // catastrophic month doesn't go negative and confuse downstream math.
     const stored = loadProfileClient();
     const accounts = stored.user.cash_accounts ?? [];
-    const nextAccounts = accounts.map((a) =>
+    let nextAccounts = accounts.map((a) =>
       a.name === primaryAccount!.name
         ? {
             ...a,
@@ -154,32 +168,42 @@ export function MonthlyRecapCard({
           }
         : a,
     );
-    // Also keep savings_balance in sync as the legacy aggregate
-    // (sum of optimizable balances).
-    let newSavings = nextAccounts
-      .filter((a) => a.kind !== 'checking')
-      .reduce((s, a) => s.add(new Decimal(a.balance || 0)), new Decimal(0));
     let newEfund = new Decimal(stored.user.efund_balance || 0);
 
     if (excess.gt(0)) {
       if (paymentSource === 'savings_drawdown') {
-        // Drain idle savings, floor at 0. The aggregate `savings_balance`
-        // is the user-visible idle-cash bucket; we reduce it directly
-        // since the per-account cash_accounts list may not have a row
-        // matching "savings" (the user may store idle cash in assets/FDs).
-        newSavings = Decimal.max(0, newSavings.sub(excess));
+        // Draw from the highest-APY non-checking account first (the one the
+        // advisor would have flagged anyway). Floor at zero per-account, but
+        // don't cascade — if the chosen account can't cover the excess we
+        // accept the partial drawdown rather than touch unrelated accounts.
+        const drawableIdx = nextAccounts
+          .map((a, i) => ({ a, i }))
+          .filter((x) => x.a.kind !== 'checking' && Number(x.a.balance || 0) > 0)
+          .sort((x, y) => Number(y.a.apy || 0) - Number(x.a.apy || 0))[0]?.i;
+        if (drawableIdx != null) {
+          const cur = new Decimal(nextAccounts[drawableIdx].balance || 0);
+          nextAccounts = nextAccounts.map((a, i) =>
+            i === drawableIdx
+              ? { ...a, balance: Decimal.max(0, cur.sub(excess)).toFixed(2) }
+              : a,
+          );
+        }
       } else if (paymentSource === 'ef_drawdown') {
         newEfund = Decimal.max(0, newEfund.sub(excess));
       }
-      // 'one_off' leaves both alone — windfall paid debt, no tracked
+      // 'one_off' leaves balances alone — windfall paid debt, no tracked
       // bucket should shrink.
     }
 
+    // `savings_balance` is intentionally NOT rewritten here. It's a legacy
+    // aggregate that users may have entered independently of cash_accounts
+    // (pre-Phase 1 profiles, or accounts they don't break out per-row);
+    // silently sweeping it to the cash-accounts sum would clobber that
+    // standalone value.
     saveProfileClient({
       user: {
         ...stored.user,
         cash_accounts: nextAccounts,
-        savings_balance: newSavings.toFixed(2),
         efund_balance: newEfund.toFixed(2),
       },
       marginalRate: stored.marginalRate,
@@ -197,6 +221,24 @@ export function MonthlyRecapCard({
       ? `Confirm ${monthLabel(pending[0])}`
       : `${pending.length} months pending — start with ${monthLabel(pending[0])}`;
   const chevron = isOpen ? '▾' : '▸';
+
+  // One-tap confirm with stated defaults — for the common case where the
+  // user hasn't deviated from their stated income / expenses / EMI. Lives
+  // alongside the expand-to-edit path so a user who wants to override can
+  // still do so. `interest=0`, `note=''`, `paymentSource='surplus'` — the
+  // sensible defaults the form would render anyway.
+  function quickConfirm() {
+    handleConfirm(
+      focusMonth,
+      defaultIncome,
+      defaultExpenses,
+      defaultEmis,
+      '0',
+      undefined,
+      false,
+      'surplus',
+    );
+  }
 
   // Layout body (the editable form) shared across all 3 skins.
   const body = (
@@ -260,24 +302,46 @@ export function MonthlyRecapCard({
           marginBottom: 14,
         }}
       >
-        <button
-          type="button"
-          onClick={() => setIsOpen((v) => !v)}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            textAlign: 'left',
-            fontSize: 11,
-            color: 'var(--accent)',
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-            fontFamily: 'inherit',
-          }}
-        >
-          {chevron} $ MONTHLY RECAP · {headline}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setIsOpen((v) => !v)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontSize: 11,
+              color: 'var(--accent)',
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              fontFamily: 'inherit',
+              flex: 1,
+            }}
+          >
+            {chevron} $ MONTHLY RECAP · {headline}
+          </button>
+          {!isOpen && (
+            <button
+              type="button"
+              onClick={quickConfirm}
+              style={{
+                background: 'var(--accent)',
+                color: 'var(--canvas)',
+                border: 'none',
+                padding: '4px 10px',
+                fontFamily: 'inherit',
+                fontSize: 10,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              [Use defaults]
+            </button>
+          )}
+        </div>
         {isOpen && <div style={{ marginTop: 8 }}>{body}</div>}
       </div>
     );
@@ -310,8 +374,38 @@ export function MonthlyRecapCard({
         >
           Monthly recap
         </button>
-        <div style={{ marginTop: 6, fontSize: 14, fontWeight: 600 }}>
-          {chevron} {headline}
+        <div
+          style={{
+            marginTop: 6,
+            fontSize: 14,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ flex: 1 }}>
+            {chevron} {headline}
+          </span>
+          {!isOpen && (
+            <button
+              type="button"
+              onClick={quickConfirm}
+              style={{
+                background: 'transparent',
+                color: 'var(--accent)',
+                border: '1px solid var(--accent)',
+                padding: '3px 10px',
+                borderRadius: 4,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Use defaults →
+            </button>
+          )}
         </div>
         {isOpen && <div style={{ marginTop: 8 }}>{body}</div>}
       </div>
@@ -329,24 +423,44 @@ export function MonthlyRecapCard({
         borderRadius: 6,
       }}
     >
-      <button
-        type="button"
-        onClick={() => setIsOpen((v) => !v)}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          padding: 0,
-          cursor: 'pointer',
-          textAlign: 'left',
-          fontSize: 13,
-          fontWeight: 600,
-          color: 'var(--accent)',
-          fontFamily: 'inherit',
-          width: '100%',
-        }}
-      >
-        {chevron} Monthly recap · {headline}
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => setIsOpen((v) => !v)}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            textAlign: 'left',
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--accent)',
+            fontFamily: 'inherit',
+            flex: 1,
+          }}
+        >
+          {chevron} Monthly recap · {headline}
+        </button>
+        {!isOpen && (
+          <button
+            type="button"
+            onClick={quickConfirm}
+            style={{
+              background: 'var(--accent)',
+              color: 'var(--canvas)',
+              border: 'none',
+              padding: '4px 12px',
+              borderRadius: 4,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Use defaults →
+          </button>
+        )}
+      </div>
       {isOpen && <div style={{ marginTop: 8 }}>{body}</div>}
     </div>
   );
@@ -363,7 +477,7 @@ function ConfirmForm({
   onConfirm,
 }: {
   monthKey: string;
-  currencyLabel: string;
+  currencyLabel: 'INR' | 'USD';
   defaultIncome: string;
   defaultExpenses: string;
   defaultEmis: string;
@@ -418,7 +532,7 @@ function ConfirmForm({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
         <SmallField
-          label={`Income (${currencyLabel === 'INR' ? '₹' : '$'})`}
+          label={`Income (${currencySymbol(currencyLabel)})`}
           value={income}
           onChange={setIncome}
         />
@@ -451,7 +565,7 @@ function ConfirmForm({
           <span style={{ fontSize: 11, color: 'var(--muted-ink, var(--muted))' }}>
             You paid{' '}
             <strong>
-              {currencyLabel === 'INR' ? '₹' : '$'}
+              {currencySymbol(currencyLabel)}
               {excessAmount.toFixed(0)}
             </strong>{' '}
             above the scheduled EMI. Where did that extra come from?

@@ -19,6 +19,7 @@ import { formatCurrency, type LoanType } from '@/lib/api';
 import { fmt } from '@/lib/effective-apr';
 import { deriveMetrics } from '@/lib/derived';
 import { readGoalsClient, monthsUntil } from '@/lib/goals';
+import { allocateSurplus } from '@/lib/surplus-allocation';
 import { useEffect, useState } from 'react';
 import type { PlanData } from './PlanData';
 
@@ -75,23 +76,12 @@ export function SurplusWaterfall({ plan }: { plan: PlanData }) {
     );
   }
 
-  // Mirror the engine's allocation logic:
-  //   1. If a preempting goal exists, route 100% surplus to it (EF + debt
-  //      pause for the goal window).
-  //   2. Else: if EF target unmet, divert efSplit fraction to EF until gap
-  //      is closed. Remainder goes to debt.
-  //   3. Debt slice always lands on the highest-effective-APR active loan.
-  let goalSlice = 0;
-  let efSlice = 0;
-  let debtSlice = surplus;
-  if (plan.efPreempted) {
-    goalSlice = surplus;
-    debtSlice = 0;
-  } else if (efGap > 0 && efSplit > 0) {
-    const want = surplus * efSplit;
-    efSlice = Math.min(want, efGap);
-    debtSlice = surplus - efSlice;
-  }
+  const { goalSlice, efSlice, debtSlice } = allocateSurplus({
+    surplus,
+    efSplit,
+    efGap,
+    efPreempted: plan.efPreempted,
+  });
 
   const debtTarget = m.loudest;
 

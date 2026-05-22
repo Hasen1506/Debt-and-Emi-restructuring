@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { StrategySwitcher } from '@/components/StrategySwitcher';
@@ -468,11 +469,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             </thead>
             <tbody>
               {opportunities.map((opp, i) => (
-                <>
-                  <tr
-                    key={i}
-                    style={{ borderBottom: '1px dashed var(--dash)' }}
-                  >
+                <Fragment key={i}>
+                  <tr style={{ borderBottom: '1px dashed var(--dash)' }}>
                     <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>
                       {String(i + 1).padStart(2, '0')}
                     </td>
@@ -509,25 +507,29 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                       {fmt(opp.estimated_annual_saving)}
                     </td>
                   </tr>
-                  {opp.alternative_target_bank && (
-                    <tr key={`${i}-alt`}>
-                      <td colSpan={6} style={{ padding: '0 12px 6px' }}>
-                        <EligibilityCaveat
-                          kind={opp.kind}
-                          country={plan.user.country}
-                          variant="ledger"
-                        />
-                        <UpdateTermsButton
+                  <tr>
+                    <td colSpan={6} style={{ padding: '0 12px 6px' }}>
+                      <EligibilityCaveat
+                        kind={opp.kind}
+                        country={plan.user.country}
+                        variant="ledger"
+                      />
+                      <UpdateTermsButton
+                        opportunity={opp}
+                        user={plan.user}
+                        currency={plan.displayCurrency}
+                        variant="ledger"
+                      />
+                      {opp.alternative_target_bank && (
+                        <OpportunityAlternative
                           opportunity={opp}
-                          user={plan.user}
-                          currency={plan.displayCurrency}
                           variant="ledger"
+                          currency={plan.displayCurrency}
                         />
-                        <OpportunityAlternative opportunity={opp} variant="ledger" currency={plan.displayCurrency} />
-                      </td>
-                    </tr>
-                  )}
-                </>
+                      )}
+                    </td>
+                  </tr>
+                </Fragment>
               ))}
             </tbody>
           </table>

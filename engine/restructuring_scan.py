@@ -368,7 +368,13 @@ def _scan_consolidation_opportunity(
         target_is_existing_relationship=rel_market is not None,
         target_rate_as_of=_latest_verified(user.country),
         affected_loan_indices=[
-            i for i, l in unsecured_with_idx if l in cand.loans
+            # Identity check, not value-equality: two unsecured loans with the
+            # same bank / type / outstanding would compare equal under the
+            # default dataclass __eq__, and we'd flag the wrong index for the
+            # update-restructure modal. scan_consolidation returns the same
+            # Loan object references it received, so `is` is the safe match.
+            i for i, l in unsecured_with_idx
+            if any(l is cl for cl in cand.loans)
         ],
     )
 
@@ -500,8 +506,21 @@ def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringO
     if consol is not None:
         out.append(consol)
 
+    # Refi candidates: collateral-backed (home/auto) plus unsecured personal
+    # and education loans. Credit cards use the BT pathway above; gold/BNPL
+    # don't have refi markets worth modelling.
+    #
+    # Personal loans also flow through consolidation when there are ≥2 of
+    # them. We let both opportunities surface — they're different actions
+    # (one cheaper bank vs. merge into one EMI). Estimated saving sorts the
+    # list so the bigger win lands on top.
     for i, l in enumerate(user.loans):
-        if l.loan_type in (LoanType.HOME, LoanType.AUTO):
+        if l.loan_type in (
+            LoanType.HOME,
+            LoanType.AUTO,
+            LoanType.PERSONAL,
+            LoanType.EDUCATION,
+        ):
             opp = _scan_refi_opportunity(l, i, user.country, known, user.income_type)
             if opp is not None:
                 out.append(opp)

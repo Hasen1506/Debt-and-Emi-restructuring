@@ -22,6 +22,7 @@ import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
 import { CashManagementSection } from '@/components/debts/CashManagementSection';
+import { TodayCard } from '@/components/debts/TodayCard';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'CREDIT CARD',
@@ -129,6 +130,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
         lineHeight: 1.55,
       }}
     >
+      <TodayCard user={user} variant="ledger" />
       <section>
         <SectionLabel>$ DEBTS · {loans.length} OPEN</SectionLabel>
         <div

@@ -21,6 +21,7 @@ import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
 import { CashManagementSection } from '@/components/debts/CashManagementSection';
+import { TodayCard } from '@/components/debts/TodayCard';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'Credit card',
@@ -58,6 +59,7 @@ export function ExistingDebts({ profile }: { profile: StoredProfile }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <TodayCard user={user} variant="existing" />
       <section>
         <h1 className="h1">Your debts</h1>
         <p className="muted">

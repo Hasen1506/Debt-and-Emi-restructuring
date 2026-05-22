@@ -94,6 +94,12 @@ export interface CashEventsSlice {
   /** YYYY-MM-DD the user first started cash tracking. Prompts only go
    *  back to the month containing this date. Unset = never started. */
   startedAt?: string;
+  /** Name of the cash account that absorbs each month's net delta. Stamped
+   *  once at `startedAt` time so future confirmations keep referencing the
+   *  same account even if the user reorders / renames accounts in the
+   *  cash_accounts list. Falls back to live picking when unset (legacy
+   *  slices) so older users don't break. */
+  primaryAccountName?: string;
 }
 
 const STORAGE_KEY = 'finoptima_cash_events';
@@ -171,15 +177,25 @@ export function pendingMonths(
 }
 
 /**
- * Ensure the slice has a baseline date. If not, stamp it to today and
- * persist. Called by the check-in card the first time it mounts for a
- * user with populated cash_accounts.
+ * Ensure the slice has a baseline date and a primary-account stamp. If
+ * either is missing, set them and persist. Called by the check-in card
+ * the first time it mounts for a user with populated cash_accounts.
+ *
+ * `primaryAccountName` is picked from the live cash_accounts list (first
+ * non-checking, else first overall) once. Stamping it on the slice means
+ * later renames / reorderings of the accounts don't silently shift which
+ * account absorbs the monthly net.
  */
-export function ensureStarted(slice: CashEventsSlice): CashEventsSlice {
-  if (slice.startedAt) return slice;
+export function ensureStarted(
+  slice: CashEventsSlice,
+  candidatePrimaryName?: string,
+): CashEventsSlice {
+  if (slice.startedAt && slice.primaryAccountName) return slice;
   const next: CashEventsSlice = {
     ...slice,
-    startedAt: new Date().toISOString().slice(0, 10),
+    startedAt: slice.startedAt ?? new Date().toISOString().slice(0, 10),
+    primaryAccountName:
+      slice.primaryAccountName ?? candidatePrimaryName ?? undefined,
   };
   writeCashEventsClient(next);
   return next;
