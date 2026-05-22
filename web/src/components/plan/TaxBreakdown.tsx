@@ -7,8 +7,7 @@
  * taxes against actual paid interest, not projected; the projection
  * exists to help them notice when a cap will or won't bind.
  *
- * Three layout variants mirror the Plan themes (ledger / inline / aside).
- * Kept compact: a heading + a small table + a single caveat.
+ * Three layout variants mirror the Plan themes; chrome lives in PanelShell.
  */
 import {
   formatCurrency,
@@ -17,16 +16,11 @@ import {
   type TaxRegimeIN,
 } from '@/lib/api';
 import { projectYear1Interest } from '@/lib/tax-projection';
+import { LOAN_TYPE_SHORT } from '@/lib/loan-types';
+import { PanelShell } from '@/components/themed/PanelShell';
 
-const LOAN_TYPE_SHORT: Record<string, string> = {
-  home_loan: 'home',
-  auto_loan: 'auto',
-  personal_loan: 'personal',
-  credit_card: 'card',
-  education_loan: 'education',
-  gold_loan: 'gold',
-  bnpl: 'BNPL',
-};
+const CAVEAT =
+  'Estimate from scheduled-EMI amortisation. Actual deductible interest depends on when you pay (file off the year-end statement, not this projection).';
 
 export function TaxBreakdown({
   user,
@@ -68,88 +62,55 @@ export function TaxBreakdown({
     })
     .filter(<T,>(l: T): l is NonNullable<T> => l !== null);
 
-  const caveat =
-    'Estimate from scheduled-EMI amortisation. Actual deductible interest depends on when you pay (file off the year-end statement, not this projection).';
-
   if (variant === 'ledger') {
     return (
-      <section style={{ marginTop: 16 }}>
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: '0.18em',
-            marginBottom: 6,
-            fontFamily: 'var(--font-mono)',
-          }}
-        >
-          $ TAX PLANNING · YEAR-1 INTEREST
-        </div>
-        <div
-          style={{
-            border: '1px solid var(--border)',
-            padding: '10px 12px',
-            background: 'var(--card)',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 12,
-            lineHeight: 1.6,
-          }}
-        >
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <tbody>
-              {lines.map((l) => (
-                <tr key={l.key}>
-                  <td style={{ padding: '4px 0', color: 'var(--ink)', width: '40%' }}>
-                    → {l.bank} · {l.type}
-                  </td>
-                  <td
-                    style={{
-                      padding: '4px 0',
-                      color: l.eligible ? 'var(--ink)' : 'var(--muted)',
-                      textAlign: 'right',
-                      fontWeight: l.eligible ? 700 : 400,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {formatCurrency(l.interest.toFixed(0), l.currency)}
-                  </td>
-                  <td
-                    style={{
-                      padding: '4px 0 4px 10px',
-                      color: 'var(--muted)',
-                      fontSize: 11,
-                    }}
-                  >
-                    {l.context}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ marginTop: 8, color: 'var(--muted)', fontSize: 11 }}>
-            {caveat}
-          </div>
-        </div>
-      </section>
+      <PanelShell
+        variant="ledger"
+        eyebrow="TAX PLANNING · YEAR-1 INTEREST"
+        caveat={CAVEAT}
+      >
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <tbody>
+            {lines.map((l) => (
+              <tr key={l.key}>
+                <td style={{ padding: '4px 0', color: 'var(--ink)', width: '40%' }}>
+                  → {l.bank} · {l.type}
+                </td>
+                <td
+                  style={{
+                    padding: '4px 0',
+                    color: l.eligible ? 'var(--ink)' : 'var(--muted)',
+                    textAlign: 'right',
+                    fontWeight: l.eligible ? 700 : 400,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {formatCurrency(l.interest.toFixed(0), l.currency)}
+                </td>
+                <td
+                  style={{
+                    padding: '4px 0 4px 10px',
+                    color: 'var(--muted)',
+                    fontSize: 11,
+                  }}
+                >
+                  {l.context}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </PanelShell>
     );
   }
 
   if (variant === 'inline') {
     return (
-      <div
-        style={{
-          background: 'var(--card)',
-          padding: 14,
-          borderRadius: 8,
-          border: '1px solid var(--border)',
-          fontSize: 13,
-          lineHeight: 1.55,
-          marginTop: 16,
-        }}
+      <PanelShell
+        variant="inline"
+        eyebrow="Tax planning — what you can claim next year"
+        caveat={CAVEAT}
       >
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>
-          Tax planning — what you can claim next year
-        </div>
         <ul
           style={{
             margin: 0,
@@ -183,42 +144,18 @@ export function TaxBreakdown({
             </li>
           ))}
         </ul>
-        <div className="muted" style={{ fontSize: 11, marginTop: 10, lineHeight: 1.5 }}>
-          {caveat}
-        </div>
-      </div>
+      </PanelShell>
     );
   }
 
   // aside (editorial)
   return (
-    <div
-      style={{
-        marginTop: 28,
-        paddingTop: 20,
-        borderTop: '1px solid var(--border)',
-        fontFamily: 'var(--font-display)',
-      }}
+    <PanelShell
+      variant="aside"
+      eyebrow="Tax planning · what to claim next year"
+      caveat={CAVEAT}
     >
-      <div
-        style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: 10,
-          letterSpacing: '0.15em',
-          textTransform: 'uppercase',
-          color: 'var(--soft)',
-          marginBottom: 10,
-        }}
-      >
-        Tax planning · what to claim next year
-      </div>
-      <div
-        style={{
-          fontSize: 14,
-          fontFamily: 'var(--font-sans)',
-          lineHeight: 1.7,
-        }}
-      >
+      <div style={{ fontSize: 14, fontFamily: 'var(--font-sans)', lineHeight: 1.7 }}>
         {lines.map((l) => (
           <div
             key={l.key}
@@ -246,18 +183,7 @@ export function TaxBreakdown({
             </span>
           </div>
         ))}
-        <p
-          style={{
-            marginTop: 14,
-            fontStyle: 'italic',
-            fontSize: 12,
-            color: 'var(--muted)',
-            fontFamily: 'var(--font-sans)',
-          }}
-        >
-          {caveat}
-        </p>
       </div>
-    </div>
+    </PanelShell>
   );
 }

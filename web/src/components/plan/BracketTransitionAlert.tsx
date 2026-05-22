@@ -61,7 +61,7 @@ export function BracketTransitionAlert({
         </div>
         <div
           style={{
-            border: '1px dashed var(--warning, #c97800)',
+            border: '1px dashed var(--warning)',
             padding: '10px 12px',
             background: 'var(--card)',
             fontFamily: 'var(--font-mono)',
@@ -91,7 +91,7 @@ export function BracketTransitionAlert({
           padding: 14,
           borderRadius: 8,
           border: '1px solid var(--border)',
-          borderLeft: '3px solid var(--warning, #c97800)',
+          borderLeft: '3px solid var(--warning)',
           fontSize: 13,
           lineHeight: 1.55,
           marginTop: 16,

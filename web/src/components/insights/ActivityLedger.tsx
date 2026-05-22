@@ -33,6 +33,7 @@ import {
 import { estimateLateFee } from '@/lib/estimate-penalty';
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { syncActivityCookieClient } from '@/lib/activity-cookie';
+import { LOAN_TYPE_SHORT } from '@/lib/loan-types';
 import {
   formatINR,
   formatUSD,
@@ -57,16 +58,6 @@ const KIND_TONE: Record<ActivityKind, string> = {
   missed: 'var(--negative)',
   paid_extra: 'var(--positive)',
   closed: 'var(--positive)',
-};
-
-const LOAN_TYPE_SHORT: Record<string, string> = {
-  home_loan: 'home',
-  auto_loan: 'auto',
-  personal_loan: 'personal',
-  credit_card: 'card',
-  education_loan: 'education',
-  gold_loan: 'gold',
-  bnpl: 'BNPL',
 };
 
 function today(): string {

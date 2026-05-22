@@ -640,7 +640,7 @@ export default function OnboardingPage() {
           style={{
             padding: '10px 12px',
             background: 'var(--soft-bg, rgba(220, 130, 0, 0.06))',
-            border: '1px solid var(--warning, #d68a00)',
+            border: '1px solid var(--warning)',
             borderRadius: 6,
             fontSize: 13,
             lineHeight: 1.55,
@@ -2469,7 +2469,7 @@ function HikeScheduleEditor({
             marginTop: 8,
             padding: '6px 8px',
             background: 'var(--soft-bg, rgba(255,180,0,0.08))',
-            borderLeft: '2px solid var(--warning, #c97800)',
+            borderLeft: '2px solid var(--warning)',
             fontSize: 11,
             color: 'var(--ink)',
           }}
@@ -2661,7 +2661,7 @@ function GrossIncomeField({
                 marginTop: 6,
                 padding: '6px 8px',
                 background: 'var(--soft-bg, rgba(255,180,0,0.08))',
-                borderLeft: '2px solid var(--warning, #c97800)',
+                borderLeft: '2px solid var(--warning)',
                 fontSize: 11,
                 color: 'var(--ink)',
               }}
@@ -2867,13 +2867,13 @@ function EfLiquidityWarning({
       style={{
         padding: '10px 12px',
         background: 'var(--soft-bg, rgba(220, 130, 0, 0.06))',
-        border: '1px solid var(--warning, #d68a00)',
+        border: '1px solid var(--warning)',
         borderRadius: 6,
         fontSize: 12,
         lineHeight: 1.55,
       }}
     >
-      <strong style={{ color: 'var(--warning, #d68a00)' }}>
+      <strong style={{ color: 'var(--warning)' }}>
         Heads up — EF exceeds your liquid balance.
       </strong>{' '}
       You've earmarked {formatCurrency(String(ef), currency)} as EF, but only{' '}

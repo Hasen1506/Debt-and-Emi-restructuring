@@ -121,7 +121,7 @@ export function AdvanceTaxLedger({
       style={{
         background: 'var(--card)',
         border: '1px solid var(--border)',
-        borderLeft: '3px solid var(--warning, #c97800)',
+        borderLeft: '3px solid var(--warning)',
         padding: 14,
         borderRadius: 8,
         marginTop: 16,

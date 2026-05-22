@@ -13,6 +13,9 @@
  * "Mark paid" affordance. Partial payments are supported via an input
  * for amount (defaults to amountDue). Past-due unpaid rows render in
  * warning style with the accrued 234C / 2210 penalty inline.
+ *
+ * Three layout variants mirror the Plan themes; chrome lives in PanelShell.
+ * Editorial/aside variant is intentionally read-only.
  */
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
@@ -21,6 +24,7 @@ import type { CurrencyCode } from '@/lib/currency';
 import type { AdvanceTaxSchedule } from '@/lib/advance-tax';
 import { accruedPenalty } from '@/lib/advance-tax';
 import { markPaid, writeScheduleClient } from '@/lib/advance-tax-cookie';
+import { PanelShell } from '@/components/themed/PanelShell';
 
 export function AdvanceTaxPanel({
   schedule,
@@ -33,16 +37,12 @@ export function AdvanceTaxPanel({
   country: Country;
   displayCurrency: CurrencyCode;
   /** Per-month surplus reduction the penalty causes. Driven by the server
-   *  component which folds it into fixed_expenses for the simulation. We
-   *  display it here so users see the link between "I missed Q1" and
-   *  "my debt-free month moved later". Zero when paid up. */
+   *  component which folds it into fixed_expenses for the simulation. */
   monthlyPenaltyCost: number;
   variant: 'ledger' | 'inline' | 'aside';
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  // Per-instalment local amount drafts so users can enter partial amounts
-  // before committing. Keyed by ordinal.
   const [drafts, setDrafts] = useState<Record<number, string>>({});
 
   const today = new Date();
@@ -87,90 +87,64 @@ export function AdvanceTaxPanel({
       : `${schedule.fiscalYearLabel} · Form 1040-ES estimated tax`;
   const baseCaveat =
     country === 'IN'
-      ? `Default schedule assumes you pay on time. Missing an instalment accrues Sec 234C at ~1%/month on the shortfall; year-end balance accrues Sec 234B in addition.`
-      : `Default schedule assumes you pay on time. Missing payments accrue Form 2210 underpayment penalty (~8% APR) on the shortfall.`;
+      ? 'Default schedule assumes you pay on time. Missing an instalment accrues Sec 234C at ~1%/month on the shortfall; year-end balance accrues Sec 234B in addition.'
+      : 'Default schedule assumes you pay on time. Missing payments accrue Form 2210 underpayment penalty (~8% APR) on the shortfall.';
+
+  const penaltyLine = totalPenalty > 0 ? (
+    <>
+      {country === 'IN' ? '234C ' : 'Form 2210 '}
+      {formatCurrency(penalty.sec234C, displayCurrency)}
+      {country === 'IN' && Number(penalty.sec234B) > 0
+        ? ` · 234B ${formatCurrency(penalty.sec234B, displayCurrency)}`
+        : ''}
+    </>
+  ) : null;
 
   if (variant === 'ledger') {
     return (
-      <section style={{ marginTop: 16 }}>
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: '0.18em',
-            marginBottom: 6,
-            fontFamily: 'var(--font-mono)',
-          }}
-        >
-          $ ADVANCE TAX · {headline.toUpperCase()}
-        </div>
-        <div
-          style={{
-            border: '1px dashed var(--warning, #c97800)',
-            padding: '10px 12px',
-            background: 'var(--card)',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 12,
-            lineHeight: 1.6,
-          }}
-        >
-          {rows.map((r) => (
-            <RowLedger
-              key={r.ordinal}
-              row={r}
-              displayCurrency={displayCurrency}
-              draft={drafts[r.ordinal] ?? ''}
-              onDraft={(v) =>
-                setDrafts((d) => ({ ...d, [r.ordinal]: v }))
-              }
-              onPay={(amount) => payOrdinal(r.ordinal, amount)}
-              pending={pending}
-            />
-          ))}
-          {totalPenalty > 0 && (
-            <div style={{ marginTop: 8, color: 'var(--negative)' }}>
-              Penalty accrued: {formatCurrency(penalty.total, displayCurrency)}
-              {' '}
-              <span style={{ color: 'var(--muted)' }}>
-                ({country === 'IN' ? '234C ' : 'Form 2210 '}
-                {formatCurrency(penalty.sec234C, displayCurrency)}
-                {country === 'IN' && Number(penalty.sec234B) > 0
-                  ? ` · 234B ${formatCurrency(penalty.sec234B, displayCurrency)}`
-                  : ''}
-                )
-              </span>
-            </div>
-          )}
-          {monthlyPenaltyCost > 0 && (
-            <div style={{ marginTop: 4, color: 'var(--negative)', fontSize: 11 }}>
-              → reducing surplus by{' '}
-              {formatCurrency(monthlyPenaltyCost.toFixed(0), displayCurrency)}/mo
-              · pushing debt-free month out
-            </div>
-          )}
-          <div style={{ marginTop: 8, color: 'var(--muted)', fontSize: 11 }}>
-            {baseCaveat}
+      <PanelShell
+        variant="ledger"
+        tone="warning"
+        border="dashed"
+        eyebrow={`ADVANCE TAX · ${headline.toUpperCase()}`}
+        caveat={baseCaveat}
+      >
+        {rows.map((r) => (
+          <RowLedger
+            key={r.ordinal}
+            row={r}
+            displayCurrency={displayCurrency}
+            draft={drafts[r.ordinal] ?? ''}
+            onDraft={(v) => setDrafts((d) => ({ ...d, [r.ordinal]: v }))}
+            onPay={(amount) => payOrdinal(r.ordinal, amount)}
+            pending={pending}
+          />
+        ))}
+        {totalPenalty > 0 && (
+          <div style={{ marginTop: 8, color: 'var(--negative)' }}>
+            Penalty accrued: {formatCurrency(penalty.total, displayCurrency)}{' '}
+            <span style={{ color: 'var(--muted)' }}>({penaltyLine})</span>
           </div>
-        </div>
-      </section>
+        )}
+        {monthlyPenaltyCost > 0 && (
+          <div style={{ marginTop: 4, color: 'var(--negative)', fontSize: 11 }}>
+            → reducing surplus by{' '}
+            {formatCurrency(monthlyPenaltyCost.toFixed(0), displayCurrency)}/mo
+            · pushing debt-free month out
+          </div>
+        )}
+      </PanelShell>
     );
   }
 
   if (variant === 'inline') {
     return (
-      <div
-        style={{
-          background: 'var(--card)',
-          padding: 14,
-          borderRadius: 8,
-          border: '1px solid var(--border)',
-          borderLeft: '3px solid var(--warning, #c97800)',
-          fontSize: 13,
-          lineHeight: 1.55,
-          marginTop: 16,
-        }}
+      <PanelShell
+        variant="inline"
+        tone="warning"
+        eyebrow={headline}
+        caveat={baseCaveat}
       >
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>{headline}</div>
         <ul
           style={{
             margin: 0,
@@ -188,9 +162,7 @@ export function AdvanceTaxPanel({
               row={r}
               displayCurrency={displayCurrency}
               draft={drafts[r.ordinal] ?? ''}
-              onDraft={(v) =>
-                setDrafts((d) => ({ ...d, [r.ordinal]: v }))
-              }
+              onDraft={(v) => setDrafts((d) => ({ ...d, [r.ordinal]: v }))}
               onPay={(amount) => payOrdinal(r.ordinal, amount)}
               pending={pending}
             />
@@ -218,44 +190,18 @@ export function AdvanceTaxPanel({
             , pushing your debt-free month later.
           </div>
         )}
-        <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
-          {baseCaveat}
-        </div>
-      </div>
+      </PanelShell>
     );
   }
 
-  // aside / editorial — read-only summary, no action buttons (editorial
-  // theme is reading-focused; users can switch to ledger / existing to
-  // mark instalments paid).
+  // aside / editorial — read-only summary, no action buttons.
   return (
-    <div
-      style={{
-        marginTop: 28,
-        paddingTop: 20,
-        borderTop: '1px solid var(--border)',
-        fontFamily: 'var(--font-display)',
-      }}
+    <PanelShell
+      variant="aside"
+      eyebrow={`Quarterly advance tax · ${schedule.fiscalYearLabel}`}
+      caveat={`${baseCaveat} Switch to the ledger or existing theme to mark instalments paid.`}
     >
-      <div
-        style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: 10,
-          letterSpacing: '0.15em',
-          textTransform: 'uppercase',
-          color: 'var(--soft)',
-          marginBottom: 10,
-        }}
-      >
-        Quarterly advance tax · {schedule.fiscalYearLabel}
-      </div>
-      <div
-        style={{
-          fontSize: 14,
-          fontFamily: 'var(--font-sans)',
-          lineHeight: 1.7,
-        }}
-      >
+      <div style={{ fontSize: 14, fontFamily: 'var(--font-sans)', lineHeight: 1.7 }}>
         {rows.map((r) => (
           <div
             key={r.ordinal}
@@ -287,19 +233,8 @@ export function AdvanceTaxPanel({
             Penalty: {formatCurrency(penalty.total, displayCurrency)} accrued so far.
           </p>
         )}
-        <p
-          style={{
-            marginTop: 12,
-            fontStyle: 'italic',
-            fontSize: 12,
-            color: 'var(--muted)',
-            fontFamily: 'var(--font-sans)',
-          }}
-        >
-          {baseCaveat} Switch to the ledger or existing theme to mark instalments paid.
-        </p>
       </div>
-    </div>
+    </PanelShell>
   );
 }
 

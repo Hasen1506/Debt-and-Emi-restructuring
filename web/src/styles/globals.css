@@ -12,6 +12,7 @@
   --accent-muted: #e8a892;
   --positive: #2d6a4f;
   --negative: #a23b3b;
+  --warning: #c97800;
   --soft-bg: #f3efe9;
   --calm-bg: #ffffff;
   --overwhelmed-bg: #faf6f0;
@@ -65,6 +66,7 @@
   --accent: #b91c1c;
   --negative: #b91c1c;
   --positive: #15803d;
+  --warning: #a05a00;
   --soft-bg: #f3f1e3;
 
   --font-sans: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;

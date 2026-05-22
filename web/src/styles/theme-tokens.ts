@@ -28,7 +28,7 @@ export const TONE_COLOR: Record<ThemedTone, string> = {
   accent: 'var(--accent)',
   positive: 'var(--positive)',
   negative: 'var(--negative)',
-  warning: 'var(--warning, #d68a00)',
+  warning: 'var(--warning)',
 };
 
 export interface ThemeTokens {
