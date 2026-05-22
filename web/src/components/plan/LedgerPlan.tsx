@@ -37,6 +37,7 @@ import { FxCachePersister } from './FxCachePersister';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { InfoTip } from '@/components/ToolPrimitives';
 import { InvestVsPrepayCard } from './InvestVsPrepayCard';
+import { LedgerKpiGrid, type LedgerKpiCell } from '@/components/themed/LedgerKpiGrid';
 
 /**
  * Ledger Plan — amortisation print-out.
@@ -102,24 +103,17 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         .join(' · ')
     : fmt(interestSaved);
 
-  const kpis: Array<{
-    l: string;
-    v: string;
-    c: string;
-    sub: string;
-    tip?: React.ReactNode;
-  }> = [
+  const kpis: LedgerKpiCell[] = [
     {
-      l: 'DEBT-FREE BY',
-      v: plan.debtFreeMonth
+      label: 'DEBT-FREE BY',
+      value: plan.debtFreeMonth
         ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()
         : 'NOT IN LIFETIME',
-      c: 'var(--ink)',
       sub: plan.debtFreeMonth
         ? `MONTH ${plan.debtFreeMonth} ON AVALANCHE`
         : 'RAISE SURPLUS OR CUT SPEND TO CLEAR',
       tip: (
-        <>
+        <InfoTip>
           The month every loan hits zero, assuming you keep paying the
           schedule below — minimums on every loan plus the entire surplus
           rotated through the strategy&apos;s top-priority loan.
@@ -128,46 +122,46 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             &quot;Not in lifetime&quot; means even with the simulation running
             past 100 years, the surplus can&apos;t outrun the interest.
           </div>
-        </>
+        </InfoTip>
       ),
     },
     {
-      l: 'TOTAL INTEREST',
-      v: totalInterestDisplay,
-      c: 'var(--positive)',
+      label: 'TOTAL INTEREST',
+      value: totalInterestDisplay,
+      tone: 'var(--positive)',
       sub: `VS ${baselineInterestDisplay} IF MINIMUMS ONLY`,
       tip: (
-        <>
+        <InfoTip>
           Total interest you&apos;ll pay across all loans from today until
           debt-free, on the current schedule. The comparison is the
           minimums-only baseline — so the gap is what attacking the
           highest-rate debt buys you.
-        </>
+        </InfoTip>
       ),
     },
     {
-      l: 'YOU SAVE',
-      v: `${interestSavedDisplay} · ${plan.monthsSaved}MO`,
-      c: 'var(--accent)',
+      label: 'YOU SAVE',
+      value: `${interestSavedDisplay} · ${plan.monthsSaved}MO`,
+      tone: 'var(--accent)',
       sub: 'INTEREST + TIME VS MINIMUMS',
       tip: (
-        <>
+        <InfoTip>
           Two numbers: interest avoided versus paying only minimums, and how
           many months earlier you&apos;ll be debt-free.
           <div style={{ marginTop: 8 }}>
             If &quot;0mo&quot; — your surplus is going somewhere else (EF tier,
             tax sleeve, etc.). Check the assumption badges above the chart.
           </div>
-        </>
+        </InfoTip>
       ),
     },
     {
-      l: 'SURPLUS',
-      v: `${fmt(plan.surplus)}/MO`,
-      c: plan.surplus >= 0 ? 'var(--ink)' : 'var(--negative)',
+      label: 'SURPLUS',
+      value: `${fmt(plan.surplus)}/MO`,
+      tone: plan.surplus >= 0 ? undefined : 'var(--negative)',
       sub: 'INCOME − FIXED EXPENSES − EMIS',
       tip: (
-        <>
+        <InfoTip>
           What&apos;s left over each month after your fixed expenses and
           minimum EMIs. This is the engine&apos;s ammunition — every rupee
           here is what gets routed into the priority loan.
@@ -176,7 +170,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             the schedule will fall back to minimums and the debt-free date
             won&apos;t improve.
           </div>
-        </>
+        </InfoTip>
       ),
     },
   ];
@@ -201,43 +195,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           {!plan.profileIsLive && ' · DEMO'}
           {!plan.live && ' · OFFLINE'}
         </SectionLabel>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: 1,
-            background: 'var(--ink)',
-            padding: 1,
-          }}
-        >
-          {kpis.map((s) => (
-            <div
-              key={s.l}
-              style={{ background: 'var(--canvas)', padding: '10px 12px' }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: 'var(--muted)',
-                  letterSpacing: '0.12em',
-                  marginBottom: 4,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-              >
-                {s.l}
-                {s.tip && <InfoTip>{s.tip}</InfoTip>}
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: s.c }}>
-                {s.v}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
-                {s.sub}
-              </div>
-            </div>
-          ))}
-        </div>
+        <LedgerKpiGrid cells={kpis} />
       </section>
 
       <LifecycleArrivalPrompts user={plan.user} variant="ledger" />

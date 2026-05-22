@@ -23,6 +23,7 @@ import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPane
 import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
 import { CashManagementSection } from '@/components/debts/CashManagementSection';
 import { TodayCard } from '@/components/debts/TodayCard';
+import { LedgerKpiGrid } from '@/components/themed/LedgerKpiGrid';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'CREDIT CARD',
@@ -133,56 +134,28 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
       <TodayCard user={user} variant="ledger" />
       <section>
         <SectionLabel>$ DEBTS · {loans.length} OPEN</SectionLabel>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 1,
-            background: 'var(--ink)',
-            padding: 1,
-          }}
-        >
-          {[
+        <LedgerKpiGrid
+          cells={[
             {
-              l: 'TOTAL OUTSTANDING',
-              v: formatCurrency(metrics.total.toString(), userDefaultCurrency(country)),
-              s: 'SUM OF PRINCIPALS',
+              label: 'TOTAL OUTSTANDING',
+              value: formatCurrency(metrics.total.toString(), userDefaultCurrency(country)),
+              sub: 'SUM OF PRINCIPALS',
             },
             {
-              l: 'BLENDED EFFECTIVE APR',
-              v: fmt(metrics.blendedEffective),
-              s: 'WEIGHTED BY BALANCE',
+              label: 'BLENDED EFFECTIVE APR',
+              value: fmt(metrics.blendedEffective),
+              sub: 'WEIGHTED BY BALANCE',
             },
             {
-              l: 'EMI BURDEN',
-              v: `${formatCurrency(metrics.emiBurden.toString(), userDefaultCurrency(country))}/MO`,
-              s:
+              label: 'EMI BURDEN',
+              value: `${formatCurrency(metrics.emiBurden.toString(), userDefaultCurrency(country))}/MO`,
+              sub:
                 burdenPct === '—'
                   ? 'NO INCOME ON FILE'
                   : `${burdenPct}% OF MONTHLY INCOME`,
             },
-          ].map((m) => (
-            <div
-              key={m.l}
-              style={{ background: 'var(--canvas)', padding: '10px 12px' }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: 'var(--muted)',
-                  letterSpacing: '0.12em',
-                  marginBottom: 4,
-                }}
-              >
-                {m.l}
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>{m.v}</div>
-              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
-                {m.s}
-              </div>
-            </div>
-          ))}
-        </div>
+          ]}
+        />
       </section>
 
       <section>

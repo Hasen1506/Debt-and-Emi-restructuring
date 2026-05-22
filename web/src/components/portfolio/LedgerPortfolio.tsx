@@ -6,6 +6,7 @@ import {
 } from './portfolioSummary';
 import { HoldingsTracker } from './HoldingsTracker';
 import { CreditCardChips } from './CreditCardChips';
+import { LedgerKpiGrid } from '@/components/themed/LedgerKpiGrid';
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -104,59 +105,29 @@ export function LedgerPortfolio({
         <SectionLabel>
           $ PORTFOLIO · {summary.count} HOLDINGS · {summary.byType.length} TYPES
         </SectionLabel>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 1,
-            background: 'var(--ink)',
-            padding: 1,
-          }}
-        >
-          {[
+        <LedgerKpiGrid
+          cells={[
             {
-              l: 'TOTAL VALUE',
-              v: fmt(summary.totalValue),
+              label: 'TOTAL VALUE',
+              value: fmt(summary.totalValue),
               sub: `${summary.count} HOLDINGS`,
             },
             {
-              l: 'LARGEST',
-              v: summary.topRow ? fmt(summary.topRow.value) : '—',
+              label: 'LARGEST',
+              value: summary.topRow ? fmt(summary.topRow.value) : '—',
               sub: summary.topRow?.label ?? '',
             },
             {
-              l: 'TOP TYPE',
-              v: summary.byType[0]
+              label: 'TOP TYPE',
+              value: summary.byType[0]
                 ? assetTypeLabel(country, summary.byType[0].assetType).toUpperCase()
                 : '—',
               sub: summary.byType[0]
                 ? `${((summary.byType[0].total / summary.totalValue) * 100).toFixed(0)}% OF PORTFOLIO`
                 : '',
             },
-          ].map((s) => (
-            <div
-              key={s.l}
-              style={{ background: 'var(--canvas)', padding: '10px 12px' }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: 'var(--muted)',
-                  letterSpacing: '0.12em',
-                  marginBottom: 4,
-                }}
-              >
-                {s.l}
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>{s.v}</div>
-              <div
-                style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}
-              >
-                {s.sub}
-              </div>
-            </div>
-          ))}
-        </div>
+          ]}
+        />
       </section>
 
       <section>

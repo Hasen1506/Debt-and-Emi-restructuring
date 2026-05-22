@@ -20,6 +20,7 @@ import { readActivityClient, type ActivityEntry } from '@/lib/activity';
 import { readScheduleClient } from '@/lib/advance-tax-cookie';
 import type { AdvanceTaxSchedule } from '@/lib/advance-tax';
 import { estimateLateFee } from '@/lib/estimate-penalty';
+import { LedgerKpiGrid } from '@/components/themed/LedgerKpiGrid';
 
 type Variant = 'ledger' | 'existing' | 'editorial';
 
@@ -153,40 +154,29 @@ export function InsightsSummaryStrip({
         >
           $ AUDIT · AT A GLANCE
         </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: 1,
-            background: 'var(--ink)',
-            padding: 1,
-          }}
-        >
-          {[
+        <LedgerKpiGrid
+          cells={[
             {
-              l: 'ENTRIES LOGGED',
-              v: String(summary.entriesCount),
+              label: 'ENTRIES LOGGED',
+              value: String(summary.entriesCount),
               sub:
                 summary.paidFull > 0 || summary.paidExtra > 0
                   ? `${summary.paidFull + summary.paidExtra} PAID · ${summary.paidPartial} PARTIAL · ${summary.missed} MISSED`
                   : 'GET STARTED BELOW',
-              c: 'var(--ink)',
             },
             {
-              l: 'PENALTIES ACCRUED',
-              v: penaltyLabel,
+              label: 'PENALTIES ACCRUED',
+              value: penaltyLabel,
               sub:
                 summary.totalPenalty > 0
                   ? 'ESTIMATED FROM BANK SCHEDULES'
                   : 'CLEAN RECORD · NO SHORTFALL',
-              c:
-                summary.totalPenalty > 0
-                  ? 'var(--negative)'
-                  : 'var(--positive)',
+              tone:
+                summary.totalPenalty > 0 ? 'var(--negative)' : 'var(--positive)',
             },
             {
-              l: 'ADVANCE TAX',
-              v:
+              label: 'ADVANCE TAX',
+              value:
                 summary.advanceTaxTotal > 0
                   ? `${summary.advanceTaxPaid}/${summary.advanceTaxTotal}`
                   : '—',
@@ -194,43 +184,16 @@ export function InsightsSummaryStrip({
                 summary.advanceTaxTotal > 0
                   ? `${summary.advanceTaxMissed} MISSED`
                   : 'NOT APPLICABLE',
-              c:
-                summary.advanceTaxMissed > 0
-                  ? 'var(--negative)'
-                  : 'var(--ink)',
+              tone:
+                summary.advanceTaxMissed > 0 ? 'var(--negative)' : undefined,
             },
             {
-              l: 'AUDIT TRAIL',
-              v: `${summary.entriesCount + (summary.advanceTaxPaid + summary.advanceTaxMissed)}`,
+              label: 'AUDIT TRAIL',
+              value: `${summary.entriesCount + (summary.advanceTaxPaid + summary.advanceTaxMissed)}`,
               sub: 'TOTAL EVENTS ON FILE',
-              c: 'var(--ink)',
             },
-          ].map((s) => (
-            <div
-              key={s.l}
-              style={{ background: 'var(--canvas)', padding: '10px 12px' }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: 'var(--muted)',
-                  letterSpacing: '0.12em',
-                  marginBottom: 4,
-                }}
-              >
-                {s.l}
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: s.c }}>
-                {s.v}
-              </div>
-              <div
-                style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}
-              >
-                {s.sub}
-              </div>
-            </div>
-          ))}
-        </div>
+          ]}
+        />
       </section>
     );
   }

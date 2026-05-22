@@ -11,6 +11,7 @@ import { ActivityLedger } from './ActivityLedger';
 import { AdvanceTaxLedger } from './AdvanceTaxLedger';
 import { InsightsSummaryStrip } from './InsightsSummaryStrip';
 import { InsightsPerLoanTrajectorySection } from './PerLoanTrajectorySection';
+import { MarginaliaItem } from '@/components/themed/EditorialMarginalia';
 import type { StoredProfile } from '@/lib/user-store';
 import type { StrategyName } from '@/lib/strategy';
 
@@ -118,52 +119,14 @@ export function EditorialInsights({
         >
           On the record
         </div>
-        <div
-          style={{
-            borderLeft: '2px solid var(--border)',
-            paddingLeft: 12,
-            marginBottom: 18,
-          }}
-        >
-          <div
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 13,
-              color: 'var(--ink)',
-              fontStyle: 'italic',
-              marginBottom: 6,
-            }}
-          >
-            Stored locally
-          </div>
-          <div style={{ color: 'var(--ink)', fontSize: 12, lineHeight: 1.55 }}>
-            Your entries never leave this browser. Same model as the rest of
-            your profile.
-          </div>
-        </div>
-        <div
-          style={{
-            borderLeft: '2px solid var(--border)',
-            paddingLeft: 12,
-            marginBottom: 18,
-          }}
-        >
-          <div
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 13,
-              color: 'var(--ink)',
-              fontStyle: 'italic',
-              marginBottom: 6,
-            }}
-          >
-            Penalty source
-          </div>
-          <div style={{ color: 'var(--ink)', fontSize: 12, lineHeight: 1.55 }}>
-            Each bank&apos;s published Schedule of Charges when we have it,
-            with country medians ({profile.user.country === 'IN' ? '₹500 flat + 2–3 %/mo' : '$25–30 flat + ~5 %/yr'}) as a careful fallback.
-          </div>
-        </div>
+        <MarginaliaItem title="Stored locally">
+          Your entries never leave this browser. Same model as the rest of
+          your profile.
+        </MarginaliaItem>
+        <MarginaliaItem title="Penalty source">
+          Each bank&apos;s published Schedule of Charges when we have it,
+          with country medians ({profile.user.country === 'IN' ? '₹500 flat + 2–3 %/mo' : '$25–30 flat + ~5 %/yr'}) as a careful fallback.
+        </MarginaliaItem>
       </aside>
     </div>
   );

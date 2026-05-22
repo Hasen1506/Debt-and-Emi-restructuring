@@ -28,6 +28,10 @@ import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPane
 import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
 import { CashManagementSection } from '@/components/debts/CashManagementSection';
 import { TodayCard } from '@/components/debts/TodayCard';
+import {
+  MarginaliaItem,
+  MarginaliaKpi,
+} from '@/components/themed/EditorialMarginalia';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'Revolving credit',
@@ -241,69 +245,18 @@ export function EditorialDebts({ profile }: { profile: StoredProfile }) {
         >
           Tally
         </div>
-        <div
-          style={{
-            borderLeft: '2px solid var(--border)',
-            paddingLeft: 12,
-            marginBottom: 18,
-          }}
-        >
-          <div
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 22,
-              color: 'var(--ink)',
-              lineHeight: 1.1,
-            }}
-          >
-            {formatCurrency(m.totalOutstanding.toString(), userDefaultCurrency(country))}
-          </div>
-          <div style={{ marginTop: 4 }}>total outstanding</div>
-        </div>
-        <div
-          style={{
-            borderLeft: '2px solid var(--border)',
-            paddingLeft: 12,
-            marginBottom: 18,
-          }}
-        >
-          <div
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 22,
-              color: 'var(--ink)',
-              lineHeight: 1.1,
-            }}
-          >
-            {fmt(m.blendedEffective)}
-          </div>
-          <div style={{ marginTop: 4 }}>
-            blended effective rate, weighted by balance
-          </div>
-        </div>
+        <MarginaliaKpi
+          value={formatCurrency(m.totalOutstanding.toString(), userDefaultCurrency(country))}
+          label="total outstanding"
+        />
+        <MarginaliaKpi
+          value={fmt(m.blendedEffective)}
+          label="blended effective rate, weighted by balance"
+        />
         {m.loudest && (
-          <div
-            style={{
-              borderLeft: '2px solid var(--accent)',
-              paddingLeft: 12,
-              marginBottom: 18,
-            }}
-          >
-            <div
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 13,
-                color: 'var(--accent)',
-                fontStyle: 'italic',
-                marginBottom: 6,
-              }}
-            >
-              The loudest line
-            </div>
-            <div style={{ color: 'var(--ink)', fontSize: 12, lineHeight: 1.55 }}>
-              {loudestNote(m.loudest, m.totalOutstanding)}
-            </div>
-          </div>
+          <MarginaliaItem title="The loudest line" accent>
+            {loudestNote(m.loudest, m.totalOutstanding)}
+          </MarginaliaItem>
         )}
       </aside>
     </div>

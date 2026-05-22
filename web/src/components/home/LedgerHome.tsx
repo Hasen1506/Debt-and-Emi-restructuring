@@ -19,6 +19,7 @@ import { fmt } from '@/lib/effective-apr';
 import { deriveMetrics, type LoanWithEffective } from '@/lib/derived';
 import { buildHeadline, buildMarginalia } from '@/lib/letter';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
+import { LedgerKpiGrid, type LedgerKpiCell } from '@/components/themed/LedgerKpiGrid';
 
 const LOAN_TYPE_LABEL: Record<LoanType, string> = {
   credit_card: 'CREDIT CARD',
@@ -90,36 +91,34 @@ export function LedgerHome({ profile }: { profile: StoredProfile }) {
   const surplusTone =
     m.surplus.gt(0) ? 'var(--positive)' : m.surplus.lt(0) ? 'var(--negative)' : 'var(--ink)';
 
-  const kpis = [
+  const kpis: LedgerKpiCell[] = [
     {
-      l: 'OUTSTANDING',
-      v: ccy(m.totalOutstanding),
-      s: `${m.loans.length} OPEN ${m.loans.length === 1 ? 'LINE' : 'LINES'}`,
-      tone: 'var(--ink)',
+      label: 'OUTSTANDING',
+      value: ccy(m.totalOutstanding),
+      sub: `${m.loans.length} OPEN ${m.loans.length === 1 ? 'LINE' : 'LINES'}`,
     },
     {
-      l: 'DEBT-FREE',
-      v: '→ SEE /PLAN',
-      s: 'NEEDS SIMULATION',
+      label: 'DEBT-FREE',
+      value: '→ SEE /PLAN',
+      sub: 'NEEDS SIMULATION',
       tone: 'var(--muted)',
     },
     {
-      l: 'EFFECTIVE APR',
-      v: fmt(m.blendedEffective),
-      s: 'WEIGHTED BY BALANCE',
-      tone: 'var(--ink)',
+      label: 'EFFECTIVE APR',
+      value: fmt(m.blendedEffective),
+      sub: 'WEIGHTED BY BALANCE',
     },
     {
-      l: 'SURPLUS',
-      v: `${ccy(m.surplus)}/MO`,
-      s: m.surplus.gt(0) ? 'NET ALLOC' : 'OVER BUDGET',
+      label: 'SURPLUS',
+      value: `${ccy(m.surplus)}/MO`,
+      sub: m.surplus.gt(0) ? 'NET ALLOC' : 'OVER BUDGET',
       tone: surplusTone,
     },
     {
-      l: 'LOUDEST',
-      v: m.loudest ? `${m.loudest.loan.bank.toUpperCase() || '—'}` : '—',
-      s: m.loudest ? `${fmt(m.loudest.effective)} EFFECTIVE` : '—',
-      tone: m.loudest && m.loudest.effective.gt(0.24) ? 'var(--negative)' : 'var(--ink)',
+      label: 'LOUDEST',
+      value: m.loudest ? `${m.loudest.loan.bank.toUpperCase() || '—'}` : '—',
+      sub: m.loudest ? `${fmt(m.loudest.effective)} EFFECTIVE` : '—',
+      tone: m.loudest && m.loudest.effective.gt(0.24) ? 'var(--negative)' : undefined,
     },
   ];
 
@@ -136,46 +135,7 @@ export function LedgerHome({ profile }: { profile: StoredProfile }) {
     >
       <section>
         <SectionLabel>$ SNAPSHOT</SectionLabel>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(5, 1fr)',
-            gap: 1,
-            background: 'var(--ink)',
-            padding: 1,
-          }}
-        >
-          {kpis.map((k) => (
-            <div
-              key={k.l}
-              style={{ background: 'var(--canvas)', padding: '10px 12px' }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: 'var(--muted)',
-                  letterSpacing: '0.12em',
-                  marginBottom: 4,
-                }}
-              >
-                {k.l}
-              </div>
-              <div
-                style={{
-                  fontSize: 17,
-                  fontWeight: 700,
-                  color: k.tone,
-                  letterSpacing: '-0.01em',
-                }}
-              >
-                {k.v}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
-                {k.s}
-              </div>
-            </div>
-          ))}
-        </div>
+        <LedgerKpiGrid cells={kpis} valueFontSize={17} valueLetterSpacing="-0.01em" />
       </section>
 
       {m.loudest && (
