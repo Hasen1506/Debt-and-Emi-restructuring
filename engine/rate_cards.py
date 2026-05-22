@@ -39,6 +39,22 @@ class CreditCardCard:
 
 
 @dataclass
+class LoanTerms:
+    """Per-bank, per-loan-type True-APR restructuring triggers — surfaced
+    to onboarding as click-to-fill suggestions so users with their sanction
+    letter handy don't have to look up every field, while users who skip
+    them still get a working plan (defaults to no restrictions).
+
+    Populated from each bank's Schedule of Charges where reliable; otherwise
+    falls back to country/loan-type defaults documented in [[lookup_loan_terms]].
+    All fields are Decimal/int in the same units as Loan dataclass.
+    """
+    prepayment_penalty_pct: Optional[Decimal] = None
+    prepay_lock_in_months: Optional[int] = None
+    part_payment_freq_months: Optional[int] = None
+
+
+@dataclass
 class InstitutionRateCard:
     institution_id: str
     country: Country
@@ -60,6 +76,15 @@ class InstitutionRateCard:
     late_payment_penal_rate: Optional[Decimal] = None    # annualised; added to nominal on overdue principal
     last_verified: str = "2026-05-14"
     is_indicative: bool = False     # True for Tier-B/C extrapolations
+    # Per-loan-type True-APR triggers. When set, the /api/loan-terms
+    # endpoint exposes them as onboarding click-to-fill suggestions for
+    # users on this bank + loan type. When None, callers fall through
+    # to the country / loan-type default (see lookup_loan_terms).
+    home_loan_terms: Optional[LoanTerms] = None
+    personal_loan_terms: Optional[LoanTerms] = None
+    auto_loan_terms: Optional[LoanTerms] = None
+    education_loan_terms: Optional[LoanTerms] = None
+    credit_card_terms: Optional[LoanTerms] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -77,6 +102,11 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
             cash_advance_low=D("0.36"), cash_advance_high=D("0.48"),
         ),
         processing_fee_pct=D("0.0050"),
+        # SBI Xpress PL: 3% + GST foreclosure fee in first 6 months, then 0%.
+        # No restriction on part-payment frequency.
+        personal_loan_terms=LoanTerms(
+            prepayment_penalty_pct=D("0.03"), prepay_lock_in_months=6,
+        ),
     ),
     InstitutionRateCard(
         institution_id="IN_HDFC", country=Country.IN, name="HDFC Bank", scrape_tier="A",
@@ -89,6 +119,12 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
             bt_promo_rate=D("0"), bt_promo_months=6, bt_fee_pct=D("0.015"),
         ),
         processing_fee_pct=D("0.0050"),
+        # HDFC PL: 4% + GST in first 12 months, 3% after; part-payment
+        # once per loan-year, minimum 25% of principal outstanding.
+        personal_loan_terms=LoanTerms(
+            prepayment_penalty_pct=D("0.04"),
+            prepay_lock_in_months=12, part_payment_freq_months=12,
+        ),
     ),
     InstitutionRateCard(
         institution_id="IN_ICICI", country=Country.IN, name="ICICI Bank", scrape_tier="A",
@@ -101,6 +137,12 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
             bt_promo_rate=D("0"), bt_promo_months=6, bt_fee_pct=D("0.015"),
         ),
         processing_fee_pct=D("0.0050"),
+        # ICICI PL: 5% + GST in first 6 months, then 3%; capped at 12
+        # total part-payments over the loan's life (≈ once/month max).
+        personal_loan_terms=LoanTerms(
+            prepayment_penalty_pct=D("0.05"),
+            prepay_lock_in_months=6, part_payment_freq_months=1,
+        ),
     ),
     InstitutionRateCard(
         institution_id="IN_AXIS", country=Country.IN, name="Axis Bank", scrape_tier="A",
@@ -111,6 +153,12 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
             apr_low=D("0.288"), apr_high=D("0.408"),
         ),
         processing_fee_pct=D("0.0050"),
+        # Axis PL: 4% + GST in first 6 months, 2% after; part-payment
+        # twice per loan-year, min ₹10k.
+        personal_loan_terms=LoanTerms(
+            prepayment_penalty_pct=D("0.04"),
+            prepay_lock_in_months=6, part_payment_freq_months=6,
+        ),
     ),
     InstitutionRateCard(
         institution_id="IN_KOTAK", country=Country.IN, name="Kotak Mahindra", scrape_tier="A",
@@ -121,6 +169,11 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
             apr_low=D("0.372"), apr_high=D("0.42"),
         ),
         processing_fee_pct=D("0.0050"),
+        # Kotak PL: 5% + GST in first 12 months, 3% after; quarterly part-payment.
+        personal_loan_terms=LoanTerms(
+            prepayment_penalty_pct=D("0.05"),
+            prepay_lock_in_months=12, part_payment_freq_months=3,
+        ),
     ),
     InstitutionRateCard(
         institution_id="IN_PNB", country=Country.IN, name="PNB", scrape_tier="A",
@@ -128,6 +181,10 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
         personal_loan=RateRange(D("0.1100"), D("0.1700")),
         auto_loan=RateRange(D("0.0825"), D("0.0975")),
         processing_fee_pct=D("0.0050"),
+        # PNB is PSU — typically lenient. PL: 2% + GST in first 6mo.
+        personal_loan_terms=LoanTerms(
+            prepayment_penalty_pct=D("0.02"), prepay_lock_in_months=6,
+        ),
     ),
 ]
 
@@ -546,6 +603,118 @@ def lookup_rate(bank: str, loan_type: LoanType) -> RateRange | None:
         cc = card.credit_card
         return RateRange(cc.apr_low, cc.apr_high) if cc else None
     return None
+
+
+def _terms_field_for(card: InstitutionRateCard, loan_type: LoanType) -> Optional[LoanTerms]:
+    if loan_type == LoanType.HOME:
+        return card.home_loan_terms
+    if loan_type == LoanType.PERSONAL:
+        return card.personal_loan_terms
+    if loan_type == LoanType.AUTO:
+        return card.auto_loan_terms
+    if loan_type == LoanType.EDUCATION:
+        return card.education_loan_terms
+    if loan_type == LoanType.CREDIT_CARD:
+        return card.credit_card_terms
+    return None
+
+
+def _country_default_terms(
+    country: Country,
+    loan_type: LoanType,
+    rate_type: str = "floating",
+) -> LoanTerms:
+    """Conservative country/loan-type defaults applied when a bank's
+    Schedule of Charges hasn't been curated yet. Sourced from regulatory
+    mandates (RBI master direction for IN floating retail; CARD Act +
+    Reg Z for US cards) where available, typical industry norms
+    otherwise.
+
+    These intentionally err toward "less restrictive" (0 penalty, 0
+    lock-in, unlimited part-payments) when the regulator is silent —
+    a missing field shouldn't make the engine gate against the user.
+    Users on bank-specific terms that *are* restrictive enter them
+    explicitly via onboarding.
+    """
+    if country == Country.IN:
+        if loan_type == LoanType.CREDIT_CARD:
+            # No prepay penalty on cards; "prepayment" = paying above
+            # minimum, which banks encourage.
+            return LoanTerms(D("0"), 0, None)
+        if rate_type == "floating":
+            # RBI master direction (DBR.No.DIR.BC.107/13.03.00/2015-16
+            # and updates): zero foreclosure / prepayment charges on
+            # *individual* floating-rate retail loans. Applies across
+            # all banks for HL/PL/auto/edu when floating.
+            return LoanTerms(D("0"), 0, None)
+        if loan_type == LoanType.HOME:
+            return LoanTerms(D("0.02"), 12, None)  # fixed HL typical
+        if loan_type == LoanType.PERSONAL:
+            return LoanTerms(D("0.03"), 6, None)   # PL typical
+        if loan_type == LoanType.AUTO:
+            return LoanTerms(D("0.05"), 6, None)
+        if loan_type == LoanType.EDUCATION:
+            return LoanTerms(D("0"), 0, None)
+        return LoanTerms(D("0"), 0, None)
+    # US
+    if loan_type == LoanType.CREDIT_CARD:
+        # CARD Act + Reg Z prohibit prepayment penalties on cards.
+        return LoanTerms(D("0"), 0, None)
+    if loan_type == LoanType.HOME:
+        # Most post-2014 QM mortgages prohibit prepay penalties; older
+        # non-QM products may have some. Default conservative 0.
+        return LoanTerms(D("0"), 0, None)
+    if loan_type == LoanType.AUTO:
+        return LoanTerms(D("0"), 0, None)
+    if loan_type == LoanType.PERSONAL:
+        return LoanTerms(D("0"), 0, None)
+    if loan_type == LoanType.EDUCATION:
+        return LoanTerms(D("0"), 0, None)
+    return LoanTerms(D("0"), 0, None)
+
+
+def lookup_loan_terms(
+    bank: str,
+    country: Country,
+    loan_type: LoanType,
+    rate_type: str = "floating",
+) -> LoanTerms:
+    """Returns per-bank, per-loan-type True-APR suggestion (merged with
+    country default for fields the bank didn't override). Used by the
+    /api/loan-terms endpoint to feed the click-to-fill suggestion UX
+    in onboarding.
+
+    Lookup order:
+      1. Bank-specific entry from the rate-card registry — if the bank
+         has set the LoanTerms for this loan_type, those fields take
+         priority.
+      2. Country/loan-type default from _country_default_terms.
+    """
+    default = _country_default_terms(country, loan_type, rate_type)
+    bank_terms: Optional[LoanTerms] = None
+    for card in _country_cards(country):
+        if card.name.lower() == bank.lower():
+            bank_terms = _terms_field_for(card, loan_type)
+            break
+    if bank_terms is None:
+        return default
+    return LoanTerms(
+        prepayment_penalty_pct=(
+            bank_terms.prepayment_penalty_pct
+            if bank_terms.prepayment_penalty_pct is not None
+            else default.prepayment_penalty_pct
+        ),
+        prepay_lock_in_months=(
+            bank_terms.prepay_lock_in_months
+            if bank_terms.prepay_lock_in_months is not None
+            else default.prepay_lock_in_months
+        ),
+        part_payment_freq_months=(
+            bank_terms.part_payment_freq_months
+            if bank_terms.part_payment_freq_months is not None
+            else default.part_payment_freq_months
+        ),
+    )
 
 
 def _country_cards(country: Country) -> list[InstitutionRateCard]:

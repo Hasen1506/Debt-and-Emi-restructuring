@@ -15,6 +15,7 @@ from engine.models import (
     Asset, Country, FilingStatusUS, IncomeType, InvestmentOption,
     LiquidityClass, Loan, LoanType, PFBalance, TaxRegimeIN, User,
 )
+from engine.formulas import flat_to_reducing
 from engine.layer0 import EmployerMatch
 from engine.ordering import Strategy
 
@@ -61,14 +62,26 @@ class LoanIn(_Base):
     prepay_lock_in_months: int = 0
     part_payment_freq_months: Optional[int] = None
     pre_emi_months_remaining: int = 0
+    # Quoted rate basis — "flat" (consumer-durable / NBFC quote) or
+    # "reducing" (bank quote). Converted to reducing at to_engine().
+    rate_basis: str = "reducing"
     # Optional UI-only labelling for credit cards. Engine ignores both.
     card_last_6: Optional[str] = None
     cardholder_name: Optional[str] = None
 
     def to_engine(self) -> Loan:
+        # Convert flat-quoted consumer-durable / NBFC rates to their
+        # reducing-balance equivalent so the engine math (which assumes
+        # reducing) stays consistent. No-op for the default "reducing"
+        # case which covers all bank quotes.
+        effective_rate = self.nominal_rate
+        if self.rate_basis == "flat" and self.tenure_months_remaining > 0:
+            effective_rate = flat_to_reducing(
+                self.nominal_rate, self.tenure_months_remaining,
+            )
         return Loan(
             loan_type=self.loan_type, bank=self.bank,
-            outstanding=self.outstanding, nominal_rate=self.nominal_rate,
+            outstanding=self.outstanding, nominal_rate=effective_rate,
             rate_type=self.rate_type,
             tenure_months_remaining=self.tenure_months_remaining,
             scheduled_emi=self.scheduled_emi,
@@ -85,6 +98,7 @@ class LoanIn(_Base):
             prepay_lock_in_months=self.prepay_lock_in_months,
             part_payment_freq_months=self.part_payment_freq_months,
             pre_emi_months_remaining=self.pre_emi_months_remaining,
+            rate_basis=self.rate_basis,
         )
 
 
@@ -647,6 +661,20 @@ class MarketLowestResponse(_Base):
     loan_type: LoanType
     bank: Optional[str]
     low: Optional[Decimal]
+
+
+class LoanTermsResponse(_Base):
+    """Per-bank-per-loan-type True-APR triggers (prepay penalty, lock-in,
+    part-payment frequency) merged with country/regulatory defaults.
+    Feeds the onboarding click-to-fill UX so users see realistic
+    suggestions instead of blank fields. See engine.rate_cards.lookup_loan_terms."""
+    country: Country
+    loan_type: LoanType
+    bank: Optional[str]
+    rate_type: str
+    prepayment_penalty_pct: Optional[Decimal]
+    prepay_lock_in_months: Optional[int]
+    part_payment_freq_months: Optional[int]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

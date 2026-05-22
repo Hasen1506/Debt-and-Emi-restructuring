@@ -21,6 +21,47 @@ def emi(principal: Decimal, nominal_rate: Decimal, tenure_months: int) -> Decima
     return principal * r * factor / (factor - D("1"))
 
 
+def flat_to_reducing(flat_rate: Decimal, tenure_months: int) -> Decimal:
+    """Convert a flat-rate loan quote to its reducing-balance APR equivalent.
+
+    Used at schema → engine boundary for consumer-durable / NBFC loans
+    that advertise rates like "flat 8% over 24mo" — mathematically these
+    are 1.7-1.9x the equivalent reducing-balance rate. The engine's
+    amortisation math assumes reducing-balance, so flat-quote loans get
+    converted once at parse time and everything downstream stays
+    consistent.
+
+    Derivation: a flat-quote loan of principal P at flat rate f over n
+    months charges total interest = P × f × (n/12) and total repayment
+    = P × (1 + f × n/12). EMI = total / n. We then solve for the reducing
+    rate r whose EMI on principal P over n months matches — Newton's
+    method via bisection (closed form is messy; this needs ~20 iters to
+    converge to 5dp). Returns the reducing-balance annual rate as a
+    Decimal so the result slots into the existing nominal_rate field
+    without changing any other math.
+
+    Conservative cap: returns the flat rate unchanged for tenures <= 1
+    month (no meaningful difference). Caller should ensure tenure_months
+    is positive.
+    """
+    if tenure_months <= 1 or flat_rate <= 0:
+        return flat_rate
+    n = tenure_months
+    flat_total_repaid = D("1") + flat_rate * D(n) / D("12")
+    target_emi = flat_total_repaid / D(n)  # EMI per ₹1 of principal
+    lo, hi = D("0"), flat_rate * D("3")    # reducing always within 2-3× flat
+    for _ in range(40):
+        mid = (lo + hi) / D("2")
+        candidate = emi(D("1"), mid, n)
+        if candidate < target_emi:
+            lo = mid
+        else:
+            hi = mid
+        if hi - lo < D("0.00001"):
+            break
+    return (lo + hi) / D("2")
+
+
 def remaining_balance(
     principal: Decimal, nominal_rate: Decimal, tenure_months: int, months_paid: int
 ) -> Decimal:

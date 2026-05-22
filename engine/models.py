@@ -128,6 +128,19 @@ class Loan:
     # no principal reduction, decrement counter. Default 0 → no pre-EMI
     # period (post-possession or non-construction loan).
     pre_emi_months_remaining: int = 0
+    # Quoted rate basis. Most bank loans are quoted reducing-balance — the
+    # interest each month is computed against the *outstanding* (the rate
+    # the engine math expects). Consumer-durable + NBFC loans frequently
+    # advertise a *flat* rate that's mathematically very different: "flat
+    # 8% over 24mo" means total interest = 8% × 2yr × principal = 16% of
+    # principal, which equates to ~14-15% APR on a reducing-balance basis.
+    #
+    # When `rate_basis = "flat"`, the schema layer converts `nominal_rate`
+    # to its reducing-balance equivalent at to_engine() time using the
+    # remaining tenure, so the engine math always sees reducing rates and
+    # the comparison with bank loans stays apples-to-apples. Engine itself
+    # never reads this field — it's a frontend / schema concern.
+    rate_basis: str = "reducing"   # "flat" | "reducing"
 
 
 class LifecycleEventKind(str, Enum):

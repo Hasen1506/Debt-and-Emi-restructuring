@@ -130,6 +130,7 @@ export function Field({
   kind = 'decimal',
   placeholder,
   list,
+  suggestion,
 }: {
   label: string;
   value: string;
@@ -139,8 +140,17 @@ export function Field({
   kind?: FieldKind;
   placeholder?: string;
   list?: string;
+  /** Click-to-fill suggestion. When set and `value` is empty, renders a
+   *  muted recommendation line below the field; touching/focusing the
+   *  input fills it with `suggestion.value`. User can edit or clear. The
+   *  caller decides what counts as "empty" — typically `value === ''`. */
+  suggestion?: { value: string; label: string };
 }) {
   const isNumeric = kind === 'decimal' || kind === 'integer';
+  const hasSuggestion = !!suggestion && value === '';
+  const handleFocus = () => {
+    if (hasSuggestion && suggestion) onChange(suggestion.value);
+  };
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <LabelRow label={label} info={info} />
@@ -148,6 +158,7 @@ export function Field({
         className={isNumeric ? 'num' : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={handleFocus}
         type={kind === 'date' ? 'date' : 'text'}
         inputMode={
           kind === 'decimal' ? 'decimal' : kind === 'integer' ? 'numeric' : 'text'
@@ -164,6 +175,27 @@ export function Field({
           fontFamily: isNumeric ? 'var(--font-mono)' : 'var(--font-sans)',
         }}
       />
+      {hasSuggestion && suggestion && (
+        <button
+          type="button"
+          onClick={() => onChange(suggestion.value)}
+          style={{
+            alignSelf: 'flex-start',
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            margin: 0,
+            fontSize: 11,
+            color: 'var(--soft, color-mix(in srgb, var(--ink) 55%, var(--canvas)))',
+            cursor: 'pointer',
+            textAlign: 'left',
+            fontStyle: 'italic',
+          }}
+          title="Click or focus the field to use this suggestion"
+        >
+          ↳ {suggestion.label}
+        </button>
+      )}
       {hint && (
         <span className="muted" style={{ fontSize: 11 }}>
           {hint}

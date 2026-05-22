@@ -194,6 +194,14 @@ export default function OnboardingPage() {
   const [manualTenureIdxs, setManualTenureIdxs] = useState<Set<number>>(
     () => new Set(),
   );
+  // Per-loan True-APR suggestions, keyed by loan index. Populated by a
+  // background fetch to /api/loan-terms whenever the bank / loan_type /
+  // rate_type triplet changes — the Field components render these as
+  // click-to-fill hints below the prepay/lock-in/freq inputs. Engine math
+  // is unaffected; this is pure UX scaffolding.
+  const [loanSuggestions, setLoanSuggestions] = useState<
+    Record<number, import('@/lib/api').LoanTermsResponse | null>
+  >({});
 
   const [savingsBalance, setSavingsBalance] = useState('');
   const [efundBalance, setEfundBalance] = useState('');
@@ -294,6 +302,36 @@ export default function OnboardingPage() {
     setMarginalRate(stored.marginalRate ?? '');
     if (stored.creditScore != null) setCreditScore(String(stored.creditScore));
   }, []);
+
+  // Fetch True-APR suggestions whenever the bank / loan_type / rate_type
+  // triplet of any loan changes. Keyed by JSON.stringify of the relevant
+  // fields so unrelated edits (rate, EMI, outstanding) don't trigger a
+  // re-fetch. Failures stash a null so the suggestion stays hidden rather
+  // than blocking the form. No spinner UI — these are decorations, the
+  // field is fully usable while loading.
+  const triplets = loans
+    .map((l) => `${l.bank}|${l.loan_type}|${l.rate_type ?? 'floating'}`)
+    .join('§');
+  useEffect(() => {
+    loans.forEach((l, i) => {
+      if (!l.loan_type) return;
+      if (!l.bank && country !== 'US') return; // empty bank only useful when country regs cover it
+      api
+        .loanTerms(
+          country,
+          l.loan_type,
+          l.bank || '',
+          (l.rate_type as 'floating' | 'fixed') || 'floating',
+        )
+        .then((res) =>
+          setLoanSuggestions((prev) => ({ ...prev, [i]: res })),
+        )
+        .catch(() =>
+          setLoanSuggestions((prev) => ({ ...prev, [i]: null })),
+        );
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triplets, country]);
 
   function updateLoan(idx: number, patch: Partial<LoanPayload>) {
     setLoans((cur) => cur.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
@@ -1247,16 +1285,71 @@ export default function OnboardingPage() {
                   ]}
                   info={
                     <>
-                      <strong>Floating</strong> = rate moves when RBI repo or
-                      your lender's benchmark changes. Most home loans in India
-                      today.
+                      <strong>Fixed</strong> — your interest rate is{' '}
+                      <em>locked at today&apos;s value</em> for the entire
+                      tenure (or for a fixed initial period, then floats
+                      after). Your EMI never goes up because of a rate move.
+                      The trade-off: if benchmark rates fall, you don&apos;t
+                      benefit unless you refinance. Common on personal loans,
+                      credit-card revolving balances, auto loans, and most US
+                      mortgages.
                       <br />
                       <br />
-                      <strong>Fixed</strong> = locked for the loan's life. Most
-                      personal loans and credit cards.
+                      <strong>Floating</strong> — your rate <em>tracks a
+                      benchmark</em> (RBI repo / EBLR / RLLR / MCLR in IN,
+                      SOFR / prime rate in US) and re-prices on the bank&apos;s
+                      reset cadence. When the benchmark moves, your EMI (or
+                      tenure) adjusts. You benefit when rates fall, take the
+                      hit when they rise. Default for most India home loans
+                      post-Oct-2019; common for US HELOCs and ARMs.
+                      <br />
+                      <br />
+                      <strong>Rule of thumb.</strong> Read your sanction
+                      letter — it says &quot;Type of Interest&quot; explicitly.
+                      Your EMI changing between cycles for the same loan =
+                      floating; never changing = fixed.
                     </>
                   }
                 />
+                {(l.loan_type === 'personal_loan' ||
+                  l.loan_type === 'auto_loan' ||
+                  l.loan_type === 'gold_loan' ||
+                  l.loan_type === 'bnpl') && (
+                  <Select
+                    label="Rate basis"
+                    value={l.rate_basis ?? 'reducing'}
+                    onChange={(v) =>
+                      updateLoan(i, { rate_basis: v as 'flat' | 'reducing' })
+                    }
+                    options={[
+                      { value: 'reducing' as const, label: 'Reducing balance (banks)' },
+                      { value: 'flat' as const, label: 'Flat rate (consumer-durable / NBFC)' },
+                    ]}
+                    info={
+                      <>
+                        <strong>Reducing balance</strong> — interest is computed
+                        each month on the <em>outstanding</em>. The rate the
+                        bank quotes <em>is</em> the APR. Default for all bank
+                        loans.
+                        <br />
+                        <br />
+                        <strong>Flat rate</strong> — interest is computed on
+                        the <em>original principal</em> for every month. Common
+                        on consumer-durable loans (TV, phone EMI at the store)
+                        and some NBFC personal loans. A &quot;flat 8% over 24
+                        months&quot; is mathematically ~14-15% APR
+                        (reducing-balance equivalent).
+                        <br />
+                        <br />
+                        We auto-convert flat → reducing internally so the
+                        engine math compares apples-to-apples with bank loans.
+                        Pick &quot;Flat&quot; if your loan agreement shows
+                        a flat rate or the EMI was computed as principal × rate
+                        × tenure / 12 / months.
+                      </>
+                    }
+                  />
+                )}
                 {l.rate_type === 'floating' && (
                   <>
                     <Select
@@ -1350,6 +1443,16 @@ export default function OnboardingPage() {
                   }
                   placeholder="0"
                   hint="0.02 = 2% on any prepaid principal; 0 for floating retail in India"
+                  suggestion={
+                    loanSuggestions[i]?.prepayment_penalty_pct != null
+                      ? {
+                          value: loanSuggestions[i]!.prepayment_penalty_pct!,
+                          label: `${l.bank || 'default'} ${l.rate_type || 'floating'}: ${(
+                            Number(loanSuggestions[i]!.prepayment_penalty_pct!) * 100
+                          ).toFixed(1)}% (tap to use)`,
+                        }
+                      : undefined
+                  }
                   info={
                     <>
                       What the bank charges on above-schedule payments.
@@ -1370,6 +1473,16 @@ export default function OnboardingPage() {
                   }
                   placeholder="0"
                   hint="Months from start before prepay is allowed (typically 6-12)"
+                  suggestion={
+                    loanSuggestions[i]?.prepay_lock_in_months != null
+                      ? {
+                          value: String(loanSuggestions[i]!.prepay_lock_in_months),
+                          label: `${l.bank || 'default'} ${l.rate_type || 'floating'}: ${
+                            loanSuggestions[i]!.prepay_lock_in_months
+                          } months (tap to use)`,
+                        }
+                      : undefined
+                  }
                   info={
                     <>
                       During the lock-in, the bank rejects any
@@ -1390,6 +1503,16 @@ export default function OnboardingPage() {
                   }
                   placeholder="(unlimited)"
                   hint="Minimum gap between extra payments — e.g. 12 = once a year"
+                  suggestion={
+                    loanSuggestions[i]?.part_payment_freq_months != null
+                      ? {
+                          value: String(loanSuggestions[i]!.part_payment_freq_months),
+                          label: `${l.bank || 'default'}: every ${
+                            loanSuggestions[i]!.part_payment_freq_months
+                          } months (tap to use)`,
+                        }
+                      : undefined
+                  }
                   info={
                     <>
                       Some banks restrict part-payments to once per

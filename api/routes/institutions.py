@@ -6,11 +6,12 @@ from engine.models import Country, LoanType
 from engine.rate_cards import (
     INDIA_TIER_A, INDIA_TIER_B, INDIA_TIER_C,
     USA_TIER_A, USA_TIER_B, USA_TIER_C,
-    ALL_INSTITUTIONS, market_median, market_lowest,
+    ALL_INSTITUTIONS, market_median, market_lowest, lookup_loan_terms,
 )
 
 from api.schemas import (
     InstitutionOut,
+    LoanTermsResponse,
     MarketMedianResponse,
     MarketLowestResponse,
     RateRangeOut,
@@ -77,4 +78,31 @@ def get_market_lowest(country: Country, loan_type: LoanType) -> MarketLowestResp
         return MarketLowestResponse(country=country, loan_type=loan_type, bank=None, low=None)
     return MarketLowestResponse(
         country=country, loan_type=loan_type, bank=found[0], low=found[1],
+    )
+
+
+@router.get("/loan-terms", response_model=LoanTermsResponse)
+def get_loan_terms(
+    country: Country,
+    loan_type: LoanType,
+    bank: str = "",
+    rate_type: str = "floating",
+) -> LoanTermsResponse:
+    """Per-bank-per-loan-type True-APR suggestion (prepay penalty,
+    lock-in months, part-payment frequency) for the onboarding
+    click-to-fill UX. Merges the bank's curated overrides (if any) with
+    the country/regulatory default — see lookup_loan_terms docstring.
+
+    Caller passes empty bank to get the country default outright (useful
+    when the user hasn't picked a bank yet but the loan-type alone
+    determines a regulatory mandate, e.g. US credit cards = 0% prepay)."""
+    terms = lookup_loan_terms(bank, country, loan_type, rate_type=rate_type)
+    return LoanTermsResponse(
+        country=country,
+        loan_type=loan_type,
+        bank=bank or None,
+        rate_type=rate_type,
+        prepayment_penalty_pct=terms.prepayment_penalty_pct,
+        prepay_lock_in_months=terms.prepay_lock_in_months,
+        part_payment_freq_months=terms.part_payment_freq_months,
     )

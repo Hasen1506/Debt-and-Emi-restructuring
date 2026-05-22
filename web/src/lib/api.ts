@@ -87,6 +87,11 @@ export interface LoanPayload {
   prepay_lock_in_months?: number;
   part_payment_freq_months?: number;
   pre_emi_months_remaining?: number;
+  /** How the lender quoted the rate. "reducing" (bank loans, default)
+   *  treats `nominal_rate` as the APR. "flat" (consumer-durable / NBFC
+   *  loans) gets converted to its reducing-balance equivalent at the
+   *  engine boundary so the math stays apples-to-apples with bank quotes. */
+  rate_basis?: 'flat' | 'reducing';
   /** Last 6 digits of the credit-card number (optional). Stored as a
    *  string ('XXXXXX'). UI-only — engine doesn't consume it. Used to
    *  render a recognisable card chip on /portfolio and Holdings. */
@@ -883,9 +888,30 @@ export const api = {
       `/api/market-lowest?country=${country}&loan_type=${loanType}`,
     ),
 
+  loanTerms: (
+    country: 'IN' | 'US',
+    loanType: string,
+    bank: string = '',
+    rateType: 'floating' | 'fixed' = 'floating',
+  ) =>
+    get<LoanTermsResponse>(
+      `/api/loan-terms?country=${country}&loan_type=${loanType}` +
+        `&bank=${encodeURIComponent(bank)}&rate_type=${rateType}`,
+    ),
+
   centralRates: () =>
     get<CentralRatesResponse>('/api/rates/central'),
 };
+
+export interface LoanTermsResponse {
+  country: 'IN' | 'US';
+  loan_type: string;
+  bank: string | null;
+  rate_type: string;
+  prepayment_penalty_pct: string | null;
+  prepay_lock_in_months: number | null;
+  part_payment_freq_months: number | null;
+}
 
 export interface CentralBankMeeting {
   date: string;
