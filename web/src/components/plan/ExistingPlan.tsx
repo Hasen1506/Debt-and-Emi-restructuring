@@ -20,9 +20,12 @@ import { ActivityImpactBanner } from './ActivityImpactBanner';
 import { TaxBreakdown } from './TaxBreakdown';
 import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
-import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternative';
+import { OpportunityAlternative, RelationshipBadge, RateAsOfBadge } from './OpportunityAlternative';
 import { FxCachePersister } from './FxCachePersister';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
+import { KeyClearanceDates } from './KeyClearanceDates';
+import { CentralBankHint } from './CentralBankHint';
+import { SurplusWaterfall } from './SurplusWaterfall';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { AssumptionBadges } from './AssumptionBadges';
 import { RecentActivitySummary } from './RecentActivitySummary';
@@ -156,6 +159,11 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
 
       <LifecycleArrivalPrompts user={plan.user} variant="existing" />
 
+      <CentralBankHint
+        country={plan.user.country}
+        hasFloating={plan.user.loans.some((l) => l.rate_type === 'floating')}
+      />
+
       {/* 2. KPI cards — moved up to right under the title so the reader
        *  sees debt-free / interest / months-saved before scrolling. */}
       <div
@@ -183,22 +191,22 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
                 reinvest) are baked into this date.
               </div>
               <div style={{ marginTop: 8 }}>
-                <strong>&quot;Beyond horizon&quot;</strong> means the engine
-                couldn&apos;t clear inside the {plan.horizonMonths}-month
-                window at the current surplus — you need more surplus or
-                a lower-rate refi.
+                <strong>&quot;Not in your lifetime&quot;</strong> means the
+                engine ran past 100 years and the surplus still couldn&apos;t
+                outrun the interest — you need more surplus or a lower-rate
+                refi.
               </div>
             </InfoTip>
           </div>
           <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>
             {plan.debtFreeMonth
               ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)
-              : `Beyond ${Math.round(plan.horizonMonths / 12)} yrs`}
+              : 'Not in your lifetime'}
           </div>
           <div className="muted" style={{ fontSize: 12 }}>
             {plan.debtFreeMonth
               ? `month ${plan.debtFreeMonth} on the avalanche schedule`
-              : `raise surplus or cut spending to clear inside the ${plan.horizonMonths}-month horizon`}
+              : 'raise surplus or cut spending to make this reachable'}
           </div>
         </Card>
         <Card>
@@ -275,6 +283,9 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
           </div>
         )}
       </Card>
+
+      {/* 3.4 Surplus allocation waterfall — where each rupee goes. */}
+      <SurplusWaterfall plan={plan} />
 
       {/* 3.5 Invest-vs-prepay decision card — sits between the trajectory
        *  and the restructuring action surface. Anchors against the priority
@@ -379,6 +390,7 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
                       {opp.target_is_existing_relationship && (
                         <RelationshipBadge variant="existing" />
                       )}
+                      <RateAsOfBadge asOf={opp.target_rate_as_of} variant="existing" />
                     </div>
                     <div className="muted" style={{ fontSize: 13 }}>
                       {opp.rationale}
@@ -447,6 +459,12 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
        *  ledger/editorial skins; existing-skin used to skip the schedule
        *  entirely, which broke the audit trail. */}
       <Card>
+        <section style={{ marginBottom: 16 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+            Key dates — when things clear
+          </h3>
+          <KeyClearanceDates plan={plan} />
+        </section>
         <details>
           <summary
             style={{
@@ -455,12 +473,12 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
               fontWeight: 600,
             }}
           >
-            Schedule — {plan.trajectory.length} months
+            Full monthly grid — {plan.trajectory.length} rows
           </summary>
           <div className="muted" style={{ fontSize: 13, marginTop: 8, marginBottom: 12 }}>
             Month-by-month: what you&apos;ll owe under the plan, what you&apos;d
-            owe paying only minimums, and how far ahead you are. Click any
-            month to see exactly which lender gets paid what.
+            owe paying only minimums. Most users don&apos;t need this — the
+            key dates above already capture what matters.
           </div>
           <LedgerScheduleTable
             data={plan.trajectory}

@@ -23,6 +23,7 @@ import {
 import { loadProfileClient } from '@/lib/user-store';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
+import { HORIZON_MONTHS } from '@/lib/horizon';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 
 export function RecomputeTool() {
@@ -62,7 +63,7 @@ export function RecomputeTool() {
         extra_payment: extra,
         target_loan_index: Number(targetIdx),
         strategy: 'avalanche',
-        horizon_months: 360,
+        horizon_months: HORIZON_MONTHS,
         marginal_rate: profile.marginalRate,
       });
       setV(result);

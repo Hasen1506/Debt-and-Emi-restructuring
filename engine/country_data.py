@@ -4,6 +4,7 @@ Stub data, refresh from primary sources (§7.6, §7.7 in design spec). All money
 local currency (₹ for India, $ for US). All rates as decimals.
 """
 from decimal import Decimal
+from typing import Optional
 from engine.models import Country
 
 D = Decimal
@@ -180,6 +181,36 @@ def lookup_asset_return(asset_type: str, country: Country = Country.IN) -> Decim
     """Default nominal annual return for an asset class. Unknown → 6% conservative."""
     table = ASSET_DEFAULT_RETURNS_IN if country == Country.IN else ASSET_DEFAULT_RETURNS_US
     return table.get(asset_type, D("0.06"))
+
+
+def project_future_value(
+    current_value: Decimal,
+    asset_type: str,
+    country: Country,
+    months_forward: int,
+    user_cagr_override: Optional[Decimal] = None,
+) -> Decimal:
+    """Compound a holding's current market value forward by `months_forward`
+    using the user's per-asset CAGR override when set, falling back to the
+    country-default for the asset type. Conservative compounding: monthly
+    rate r/12 applied `months_forward` times.
+
+    Used by the goal-achievability tier-3 (will my liquidatable corpus be
+    big enough by the target month?) and the portfolio advisor (which of
+    these is the best to liquidate next year vs now?).
+
+    Zero months → returns current_value unchanged. Negative cagr → value
+    decays. Conservative cap: if the implied rate is > 100%/yr the helper
+    still computes — caller is expected to sanity-check the input.
+    """
+    if months_forward <= 0:
+        return current_value
+    cagr = user_cagr_override if user_cagr_override is not None else lookup_asset_return(asset_type, country)
+    if cagr == 0:
+        return current_value
+    monthly = cagr / D("12")
+    factor = (D("1") + monthly) ** months_forward
+    return current_value * factor
 
 
 # ─── US real-estate selling costs (closing costs + agent commission) ─────────

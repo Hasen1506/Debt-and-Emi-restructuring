@@ -5,6 +5,7 @@ import {
   type PortfolioSummary,
 } from './portfolioSummary';
 import { HoldingsTracker } from './HoldingsTracker';
+import { CreditCardChips } from './CreditCardChips';
 
 export function EditorialPortfolio({
   summary,
@@ -101,6 +102,7 @@ export function EditorialPortfolio({
       }}
     >
       <article style={{ maxWidth: 760 }}>
+        <CreditCardChips user={user} marginalRate={marginalRate} />
         <div
           style={{
             fontFamily: 'var(--font-sans)',

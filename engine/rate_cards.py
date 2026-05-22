@@ -548,6 +548,15 @@ def lookup_rate(bank: str, loan_type: LoanType) -> RateRange | None:
     return None
 
 
+def _country_cards(country: Country) -> list[InstitutionRateCard]:
+    """All rate-card entries for the given country, every tier. Used by
+    the restructuring scanner to look up the freshest `last_verified`
+    timestamp so the UI can surface a 'rates as of {date}' tag."""
+    if country == Country.IN:
+        return INDIA_TIER_A + INDIA_TIER_B + INDIA_TIER_C
+    return USA_TIER_A + USA_TIER_B + USA_TIER_C
+
+
 def market_median(country: Country, loan_type: LoanType) -> Decimal | None:
     """Median across all populated Tier-A entries in `country`. Used by
     restructuring.scan_refinance() as the market reference."""

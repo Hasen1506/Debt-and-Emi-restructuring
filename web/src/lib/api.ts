@@ -76,6 +76,25 @@ export interface LoanPayload {
    *  '-0.005' if you expect cuts). Applied at each reset proportional
    *  to the reset frequency. */
   rate_drift_annualized?: string;
+  /** True-APR restructuring triggers — see engine/models.py:Loan for
+   *  semantics. All optional; defaults model the "no penalties / no
+   *  restrictions / immediate-EMI" case.
+   *  • prepayment_penalty_pct  — '0.02' = 2% of the prepay amount fee
+   *  • prepay_lock_in_months   — months from disbursal before prepay allowed
+   *  • part_payment_freq_months — minimum gap between extra payments
+   *  • pre_emi_months_remaining — interest-only window before EMI starts */
+  prepayment_penalty_pct?: string;
+  prepay_lock_in_months?: number;
+  part_payment_freq_months?: number;
+  pre_emi_months_remaining?: number;
+  /** Last 6 digits of the credit-card number (optional). Stored as a
+   *  string ('XXXXXX'). UI-only — engine doesn't consume it. Used to
+   *  render a recognisable card chip on /portfolio and Holdings. */
+  card_last_6?: string;
+  /** Cardholder name as printed on the card. Surfaces in the chip
+   *  visualisation so the user can disambiguate two cards with the same
+   *  bank (e.g. "Joint card" vs personal). */
+  cardholder_name?: string;
 }
 
 export interface InvestmentOptionPayload {
@@ -243,6 +262,34 @@ export type IncomeStreamKind =
   | 'other';
 
 /**
+ * How the stream gets taxed — drives slab vs flat-tax routing in the
+ * marginal-rate computation. Defaulted from `kind` at the UI layer; the
+ * user can override (e.g. a freelancer whose actual expenses exceed 50%
+ * of gross will pick business_normal over the presumptive default).
+ *
+ *  • salary           — slab; TDS by employer; standard deduction applies
+ *                       (₹50k IN / per-filing-status US)
+ *  • business_44ada   — presumptive professionals: 50% of gross deemed
+ *                       profit; remaining gross excluded from slab pool.
+ *                       Requires gross < ₹50L (IN services).
+ *  • business_normal  — full P&L: stream contributes gross to slab pool,
+ *                       allowable_expenses subtract back out at compute.
+ *  • rental           — house property: gross × 0.7 contributes to slab
+ *                       (30% standard deduction), home-loan interest
+ *                       deductible separately at the loan record.
+ *  • capital_gains    — bypasses slab; LTCG taxed at 20% (with indexation)
+ *                       or 10% above ₹1L exempt threshold (equity STT).
+ *                       Stream's tax computed at flat rate, added to total
+ *                       liability after slab math runs.
+ */
+export type IncomeStreamTaxTreatment =
+  | 'salary'
+  | 'business_44ada'
+  | 'business_normal'
+  | 'rental'
+  | 'capital_gains';
+
+/**
  * One income stream. Multiple streams capture concurrent sources
  * (salary + side consulting) or transitions over time (salaried from
  * Jan-Jun, freelance from Jul onwards — end the salaried entry and
@@ -265,6 +312,13 @@ export interface IncomeStreamPayload {
    *  (business income, freelance under 194J, capital gains). Used by the
    *  tax sleeve to know how much liability falls on the user vs the payer. */
   tds_pct?: string;
+  /** Tax-treatment routing for the bracket computation. Defaulted from
+   *  `kind` at the UI layer; users with non-typical situations (a
+   *  freelancer claiming actual expenses, a salary stream with allowances)
+   *  override it explicitly. When omitted, callers must apply
+   *  `defaultTaxTreatment(kind)`. See [[IncomeStreamTaxTreatment]] for the
+   *  routing rules. */
+  tax_treatment?: IncomeStreamTaxTreatment;
 }
 
 /**
@@ -430,6 +484,10 @@ export interface AssetPayload {
   quantity?: string;
   last_price?: string;
   last_price_at?: string;
+  /** Per-asset projected appreciation CAGR (decimal — e.g. "0.07" = 7%/yr).
+   *  Optional; when omitted the country/asset-type default is used. Most
+   *  meaningful for real-estate (regional CAGRs vary wildly) and gold. */
+  appreciation_cagr?: string;
 }
 
 export interface AssetLiquidationResponse {
@@ -558,6 +616,11 @@ export interface RestructuringOpportunity {
    *  (primary_bank, other_banks, or an existing loan). UI uses this to add a
    *  "you already use this bank" badge. */
   target_is_existing_relationship?: boolean;
+  /** ISO date of the rate-card entry the target_rate was sourced from.
+   *  Populated when the target is a Tier-A bank with a verified card;
+   *  null for Tier-B/C indicative entries or non-card-sourced rates. UI
+   *  surfaces this as a "rate as of" tag on the opportunity row. */
+  target_rate_as_of?: string | null;
 }
 
 export interface RestructuringResponse {
@@ -819,7 +882,29 @@ export const api = {
     get<{ country: string; loan_type: string; bank: string | null; low: string | null }>(
       `/api/market-lowest?country=${country}&loan_type=${loanType}`,
     ),
+
+  centralRates: () =>
+    get<CentralRatesResponse>('/api/rates/central'),
 };
+
+export interface CentralBankMeeting {
+  date: string;
+  outcome_rate: string | null;
+  note: string;
+}
+export interface CentralBankCountryRate {
+  country: 'IN' | 'US';
+  current_rate: string;
+  updated_at: string;
+  upcoming_meetings: CentralBankMeeting[];
+  next_meeting_date: string | null;
+  days_until_next: number | null;
+}
+export interface CentralRatesResponse {
+  last_updated: string;
+  IN: CentralBankCountryRate;
+  US: CentralBankCountryRate;
+}
 
 export interface AuthUser {
   id: string;

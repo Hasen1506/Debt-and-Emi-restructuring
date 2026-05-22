@@ -21,6 +21,7 @@ import {
   type UserPayload,
 } from '@/lib/api';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
+import { HORIZON_MONTHS } from '@/lib/horizon';
 import { computeBreakdown } from '@/lib/effective-apr';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { applyToolResult } from '@/lib/apply-tool-result';
@@ -239,7 +240,7 @@ export function WhatIfPanel({
             user,
             marginal_rate: marginalRate,
             strategy,
-            horizon_months: 240,
+            horizon_months: HORIZON_MONTHS,
             surplus_delta: String(surplusDelta),
             surplus_delta_start_month: surplusStartMonth,
           }),
@@ -255,7 +256,7 @@ export function WhatIfPanel({
             user,
             marginal_rate: marginalRate,
             strategy,
-            horizon_months: 240,
+            horizon_months: HORIZON_MONTHS,
             rate_shock_delta: (rateShockBps / 10_000).toFixed(4),
             rate_shock_floating_only: true,
           }),
@@ -271,7 +272,7 @@ export function WhatIfPanel({
             user,
             marginal_rate: marginalRate,
             strategy,
-            horizon_months: 240,
+            horizon_months: HORIZON_MONTHS,
             lump_sum_amount: String(lumpAmount),
             lump_sum_target_loan_index: lumpTarget,
           }),

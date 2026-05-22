@@ -56,6 +56,14 @@ class LoanIn(_Base):
     rate_reset_frequency_months: Optional[int] = None
     next_reset_month: Optional[int] = None
     rate_drift_annualized: Decimal = D("0")
+    # True-APR restructuring triggers — see engine/models.py:Loan docstring.
+    prepayment_penalty_pct: Decimal = D("0")
+    prepay_lock_in_months: int = 0
+    part_payment_freq_months: Optional[int] = None
+    pre_emi_months_remaining: int = 0
+    # Optional UI-only labelling for credit cards. Engine ignores both.
+    card_last_6: Optional[str] = None
+    cardholder_name: Optional[str] = None
 
     def to_engine(self) -> Loan:
         return Loan(
@@ -73,6 +81,10 @@ class LoanIn(_Base):
             rate_reset_frequency_months=self.rate_reset_frequency_months,
             next_reset_month=self.next_reset_month,
             rate_drift_annualized=self.rate_drift_annualized,
+            prepayment_penalty_pct=self.prepayment_penalty_pct,
+            prepay_lock_in_months=self.prepay_lock_in_months,
+            part_payment_freq_months=self.part_payment_freq_months,
+            pre_emi_months_remaining=self.pre_emi_months_remaining,
         )
 
 
@@ -100,6 +112,7 @@ class AssetIn(_Base):
     quantity: Optional[Decimal] = None
     last_price: Optional[Decimal] = None
     last_price_at: Optional[str] = None
+    appreciation_cagr: Optional[Decimal] = None
 
     def to_engine(self) -> Asset:
         return Asset(
@@ -123,6 +136,7 @@ class AssetIn(_Base):
             quantity=self.quantity,
             last_price=self.last_price,
             last_price_at=self.last_price_at,
+            appreciation_cagr=self.appreciation_cagr,
         )
 
 
@@ -658,6 +672,7 @@ class RestructuringOpportunityOut(_Base):
     alternative_target_rate: Optional[Decimal] = None
     alternative_annual_saving: Optional[Decimal] = None
     target_is_existing_relationship: bool = False
+    target_rate_as_of: Optional[str] = None
 
 
 class RestructuringResponse(_Base):

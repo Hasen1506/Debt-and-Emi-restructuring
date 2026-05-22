@@ -5,6 +5,7 @@ import {
   type PortfolioSummary,
 } from './portfolioSummary';
 import { HoldingsTracker } from './HoldingsTracker';
+import { CreditCardChips } from './CreditCardChips';
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -98,6 +99,7 @@ export function LedgerPortfolio({
         lineHeight: 1.55,
       }}
     >
+      <CreditCardChips user={user} marginalRate={marginalRate} />
       <section>
         <SectionLabel>
           $ PORTFOLIO · {summary.count} HOLDINGS · {summary.byType.length} TYPES

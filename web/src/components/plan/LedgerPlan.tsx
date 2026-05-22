@@ -15,13 +15,16 @@ import {
 } from '@/lib/api';
 import type { PlanData } from './PlanData';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
+import { KeyClearanceDates } from './KeyClearanceDates';
+import { CentralBankHint } from './CentralBankHint';
+import { SurplusWaterfall } from './SurplusWaterfall';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
 import { AssumptionBadges } from './AssumptionBadges';
 import { RecentActivitySummary } from './RecentActivitySummary';
 import { TaxBreakdown } from './TaxBreakdown';
 import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
-import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternative';
+import { OpportunityAlternative, RelationshipBadge, RateAsOfBadge } from './OpportunityAlternative';
 import { FxCachePersister } from './FxCachePersister';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { InfoTip } from '@/components/ToolPrimitives';
@@ -53,7 +56,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export function LedgerPlan({ plan }: { plan: PlanData }) {
-  const horizonMo = plan.horizonMonths;
   const marginalPct = (Number(plan.marginalRate) * 100).toFixed(0);
   const opportunities = plan.opportunities;
   const interestSaved = Number(plan.baselineInterest) - Number(plan.totalInterest);
@@ -103,7 +105,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
       l: 'DEBT-FREE BY',
       v: plan.debtFreeMonth
         ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()
-        : `>${horizonMo}MO`,
+        : 'NOT IN LIFETIME',
       c: 'var(--ink)',
       sub: plan.debtFreeMonth
         ? `MONTH ${plan.debtFreeMonth} ON AVALANCHE`
@@ -115,8 +117,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           rotated through the strategy&apos;s top-priority loan.
           <div style={{ marginTop: 8 }}>
             Extra payments pull it in. Missed / partial entries push it out.
-            &quot;&gt;{horizonMo}mo&quot; means the engine couldn&apos;t clear
-            within the 20-year horizon at this surplus.
+            &quot;Not in lifetime&quot; means even with the simulation running
+            past 100 years, the surplus can&apos;t outrun the interest.
           </div>
         </>
       ),
@@ -187,7 +189,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
       {/* 1. KPI strip — the answer first. */}
       <section>
         <SectionLabel>
-          $ PLAN · STRATEGY = {strategyLabel} · HORIZON = {horizonMo}MO · MARGINAL = {marginalPct}%
+          $ PLAN · STRATEGY = {strategyLabel} · MARGINAL = {marginalPct}%
           {!plan.profileIsLive && ' · DEMO'}
           {!plan.live && ' · OFFLINE'}
         </SectionLabel>
@@ -231,6 +233,11 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
       </section>
 
       <LifecycleArrivalPrompts user={plan.user} variant="ledger" />
+
+      <CentralBankHint
+        country={plan.user.country}
+        hasFloating={plan.user.loans.some((l) => l.rate_type === 'floating')}
+      />
 
       {/* 2. Modeling toggles — visible but compact, collapsed by default. */}
       <details>
@@ -306,12 +313,6 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           <div style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
             {STRATEGY_DESCRIPTION[plan.strategy]}
           </div>
-          <div style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
-            <strong style={{ color: 'var(--ink)' }}>HORIZON {horizonMo}MO</strong>
-            {' '}= how far ahead the simulator runs ({Math.round(horizonMo / 12)} yrs, derived from your longest loan tenure). If you don&apos;t
-            clear inside {horizonMo} months we surface that as &quot;&gt;
-            {horizonMo}mo&quot; rather than invent a date.
-          </div>
         </div>
       </details>
 
@@ -380,6 +381,9 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
               : ' ($k = thousands)'}.
         </div>
       </section>
+
+      {/* 3.4 Surplus allocation waterfall — where each rupee goes. */}
+      <SurplusWaterfall plan={plan} />
 
       {/* 3.5 Invest-vs-prepay decision card. */}
       <InvestVsPrepayCard plan={plan} variant="ledger" />
@@ -474,6 +478,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                       {opp.target_is_existing_relationship && (
                         <RelationshipBadge variant="ledger" />
                       )}
+                      <RateAsOfBadge asOf={opp.target_rate_as_of} variant="ledger" />
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                       {formatPct(opp.current_rate)}
@@ -545,7 +550,13 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         variant="ledger"
       />
 
-      {/* 9. Schedule — month-by-month, collapsed by default so the page isn't a wall of rows. */}
+      {/* 9. Key clearance dates — the milestones that matter, each
+       *  expandable to a short pre-clearance trajectory. The exhaustive
+       *  month-by-month grid is one layer deeper, collapsed by default. */}
+      <section>
+        <SectionLabel>$ KEY DATES · WHEN THINGS CLEAR</SectionLabel>
+        <KeyClearanceDates plan={plan} />
+      </section>
       <details>
         <summary
           style={{
@@ -557,7 +568,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             padding: '4px 0',
           }}
         >
-          $ SCHEDULE · MONTH-BY-MONTH · {plan.trajectory.length} ROWS
+          $ FULL MONTHLY GRID · {plan.trajectory.length} ROWS
         </summary>
         <div style={{ marginTop: 8 }}>
           <LedgerScheduleTable

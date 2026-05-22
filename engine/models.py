@@ -102,6 +102,32 @@ class Loan:
     rate_reset_frequency_months: Optional[int] = None
     next_reset_month: Optional[int] = None
     rate_drift_annualized: Decimal = Decimal("0")
+    # True-APR restructuring triggers (see project_brainstorm_backlog memo).
+    # These mirror what's in lender T&Cs and bite when the user wants to
+    # prepay aggressively or part-pay frequently. Defaults (0/None) keep
+    # legacy callers running unchanged.
+    #   • prepayment_penalty_pct  — % of the *extra* amount the bank
+    #     charges as a fee when you pay above-schedule. RBI mandates 0 for
+    #     individual floating-rate retail loans, so most India home/PL is
+    #     0; fixed-rate or US loans frequently 2-4% within the lock-in.
+    #   • prepay_lock_in_months   — number of sim-months from start during
+    #     which any extra principal payment is rejected. Surplus that
+    #     can't go anywhere flows to the next-priority loan via the
+    #     ranker cascade.
+    #   • part_payment_freq_months — restricts how often above-schedule
+    #     payments can be made. 12 = once per calendar year; 1 = monthly
+    #     OK. None = unlimited (the default).
+    prepayment_penalty_pct: Decimal = Decimal("0")
+    prepay_lock_in_months: int = 0
+    part_payment_freq_months: Optional[int] = None
+    # Pre-EMI broken-period interest. Used for under-construction home
+    # loans: lender disburses tranches before possession, charging
+    # interest-only on the disbursed amount until full possession. EMI
+    # principal repayment starts only after pre_emi_months_remaining
+    # decrements to 0. Each sim-month: accrue interest, add to outstanding,
+    # no principal reduction, decrement counter. Default 0 → no pre-EMI
+    # period (post-possession or non-construction loan).
+    pre_emi_months_remaining: int = 0
 
 
 class LifecycleEventKind(str, Enum):
@@ -180,6 +206,13 @@ class Asset:
     quantity: Optional[Decimal] = None
     last_price: Optional[Decimal] = None
     last_price_at: Optional[str] = None         # ISO timestamp string
+    # Per-asset projected appreciation (decimal annual CAGR; e.g. 0.07 = +7%/yr).
+    # When set, future-value math (portfolio advisor, goal achievability,
+    # liquidation timing) compounds the current_market_value forward by this
+    # rate. None = use the country-default per asset_type from country_data.
+    # Most useful for real_estate (regional CAGRs vary wildly) and gold,
+    # where the user often has a strong view that differs from the default.
+    appreciation_cagr: Optional[Decimal] = None
 
 
 @dataclass

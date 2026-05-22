@@ -127,10 +127,6 @@ export interface PlanData {
   /** User's chosen plan-start (YYYY-MM), empty = "today". Anchors the
    *  simulation_start_month and is surfaced via the PlanStartPicker. */
   planStart: string;
-  /** Derived horizon in months — max of 240 (baseline), longest loan
-   *  tenure + 12 buffer, and goal-target-month + 12 (when set). Capped
-   *  at 600. Replaces the hardcoded 240 in plan variants. */
-  horizonMonths: number;
   /** True when at least one active goal has preempts_ef=true, meaning
    *  EF top-up is paused for the current horizon. Drives an assumption
    *  chip + the EF slider's disabled state. */

@@ -6,6 +6,7 @@ import {
   type PortfolioSummary,
 } from './portfolioSummary';
 import { HoldingsTracker } from './HoldingsTracker';
+import { CreditCardChips } from './CreditCardChips';
 
 export function ExistingPortfolio({
   summary,
@@ -53,6 +54,7 @@ export function ExistingPortfolio({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <CreditCardChips user={user} marginalRate={marginalRate} />
       <section>
         <h1 className="h1">Portfolio</h1>
         <p className="muted">

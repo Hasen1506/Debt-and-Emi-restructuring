@@ -20,7 +20,10 @@ import type {
 } from '@/lib/api';
 import { DeductionsPanel } from '@/components/onboarding/DeductionsPanel';
 import { IncomeStreamsPanel } from '@/components/onboarding/IncomeStreamsPanel';
-import { activeGrossAnnual, deriveMonthlyIncome } from '@/lib/income-streams';
+import {
+  activeSlabGrossAnnual,
+  deriveMonthlyIncome,
+} from '@/lib/income-streams';
 import { deriveMarginalRate } from '@/lib/deductions';
 
 /**
@@ -476,11 +479,13 @@ export default function OnboardingPage() {
     // marginal_rate field on Step 4. Fall back to the manual value only
     // when no gross is provided.
     // Streams (when present) override the single annual_gross_salary /
-    // annual_business_income input. Sum of *active* streams = total gross
-    // — this is what bracket + deductions math should consume.
+    // annual_business_income input. Each stream contributes per its
+    // tax_treatment: salary/business_normal at 100%, 44ADA at 50%,
+    // rental at 70% (post-30% std ded), capital_gains at 0% (taxed flat,
+    // routed below). Avoids over-counting deemed-profit / std-ded buckets.
     const streamGross =
       incomeStreams.length > 0
-        ? Number(activeGrossAnnual(incomeStreams).toString())
+        ? Number(activeSlabGrossAnnual(incomeStreams).toString())
         : 0;
     const grossForBracket =
       streamGross > 0
@@ -849,10 +854,10 @@ export default function OnboardingPage() {
             {!showDetailedExpenses ? (
               <div style={{ gridColumn: '1 / -1' }}>
                 <Field
-                  label="Monthly expenses"
+                  label="Avg. monthly expenses (excludes EMIs)"
                   value={fixedExpenses}
                   onChange={setFixedExpenses}
-                  hint="Rent, food, utilities, subscriptions — all non-debt outflows"
+                  hint="Rent, food, utilities, subscriptions — do NOT include loan EMIs here"
                   info={
                     <>
                       Everything non-debt: rent, groceries, fuel, utilities,
@@ -860,15 +865,22 @@ export default function OnboardingPage() {
                       number is fine — best estimate works.
                       <br />
                       <br />
-                      <strong>Don't include income tax</strong> — your monthly
-                      income is post-tax (take-home), so tax is already
-                      accounted for.
+                      <strong>Don&apos;t include EMIs</strong> — your loan EMIs
+                      are tracked separately on the debt cards above. The
+                      surplus calc subtracts EMIs out of income on its own,
+                      so adding them here double-counts and makes the plan
+                      under-promise.
                       <br />
                       <br />
-                      If you want the What-if "trim spending" slider on
-                      /plan to operate on just the squeezable bucket (eating
-                      out, shopping) instead of your rent, use the detailed
-                      breakdown below.
+                      <strong>Don&apos;t include income tax</strong> — your
+                      monthly income is post-tax (take-home), so tax is
+                      already accounted for.
+                      <br />
+                      <br />
+                      If you want the What-if &quot;trim spending&quot;
+                      slider on /plan to operate on just the squeezable
+                      bucket (eating out, shopping) instead of your rent,
+                      use the detailed breakdown below.
                     </>
                   }
                 />
@@ -893,16 +905,21 @@ export default function OnboardingPage() {
             ) : (
               <>
                 <Field
-                  label="Monthly fixed expenses"
+                  label="Monthly fixed expenses (excludes EMIs)"
                   value={fixedExpenses}
                   onChange={setFixedExpenses}
-                  hint="Rent, utilities, school fees — locked"
+                  hint="Rent, utilities, school fees — locked. Do NOT include loan EMIs."
                   info={
                     <>
                       Recurring <strong>locked-in</strong> non-debt outflows:
                       rent (not loan EMI), utilities, school fees, insurance
-                      premiums. You'd need to make a real change (move,
+                      premiums. You&apos;d need to make a real change (move,
                       switch plan) to cut these.
+                      <br />
+                      <br />
+                      <strong>EMIs are excluded</strong> — they&apos;re
+                      tracked on the debt cards above and subtracted out of
+                      income by the surplus calc.
                     </>
                   }
                 />
@@ -1325,6 +1342,87 @@ export default function OnboardingPage() {
                     />
                   </>
                 )}
+                <Field
+                  label="Prepayment penalty (decimal)"
+                  value={l.prepayment_penalty_pct ?? ''}
+                  onChange={(v) =>
+                    updateLoan(i, { prepayment_penalty_pct: v })
+                  }
+                  placeholder="0"
+                  hint="0.02 = 2% on any prepaid principal; 0 for floating retail in India"
+                  info={
+                    <>
+                      What the bank charges on above-schedule payments.
+                      RBI mandates 0 for individual floating-rate retail
+                      loans (HL / PL); fixed-rate IN loans + US loans
+                      frequently 2-4% during lock-in. Check your sanction
+                      letter for the exact figure.
+                    </>
+                  }
+                />
+                <Field
+                  label="Prepay lock-in months"
+                  value={String(l.prepay_lock_in_months ?? '')}
+                  onChange={(v) =>
+                    updateLoan(i, {
+                      prepay_lock_in_months: v === '' ? undefined : Number(v),
+                    })
+                  }
+                  placeholder="0"
+                  hint="Months from start before prepay is allowed (typically 6-12)"
+                  info={
+                    <>
+                      During the lock-in, the bank rejects any
+                      above-minimum payment. Surplus that would have gone
+                      here gets routed to the next-priority debt that
+                      isn&apos;t locked. Most floating-rate retail loans
+                      have no lock-in; fixed-rate often 6-12 months.
+                    </>
+                  }
+                />
+                <Field
+                  label="Part-payment frequency (months)"
+                  value={String(l.part_payment_freq_months ?? '')}
+                  onChange={(v) =>
+                    updateLoan(i, {
+                      part_payment_freq_months: v === '' ? undefined : Number(v),
+                    })
+                  }
+                  placeholder="(unlimited)"
+                  hint="Minimum gap between extra payments — e.g. 12 = once a year"
+                  info={
+                    <>
+                      Some banks restrict part-payments to once per
+                      calendar year, or to once every N months. Leave blank
+                      for &quot;as often as you want&quot;. When the gate
+                      blocks a payment, surplus cascades to the next loan.
+                    </>
+                  }
+                />
+                {l.loan_type === 'home_loan' && (
+                  <Field
+                    label="Pre-EMI months remaining"
+                    value={String(l.pre_emi_months_remaining ?? '')}
+                    onChange={(v) =>
+                      updateLoan(i, {
+                        pre_emi_months_remaining:
+                          v === '' ? undefined : Number(v),
+                      })
+                    }
+                    placeholder="0"
+                    hint="For under-construction property: months until full possession + EMI start"
+                    info={
+                      <>
+                        During pre-EMI, the bank charges interest-only on
+                        the disbursed amount (no principal repayment).
+                        Once possession completes and full disbursal lands,
+                        EMI kicks in. Set to the number of months remaining
+                        in the pre-EMI window; default 0 for
+                        already-possessed property.
+                      </>
+                    }
+                  />
+                )}
                 {isNriUs && (
                   <Select
                     label="Currency"
@@ -1467,6 +1565,37 @@ export default function OnboardingPage() {
                         rather not specify.
                       </>
                     }
+                  />
+                )}
+                {l.loan_type === 'credit_card' && (
+                  <Field
+                    label="Last 6 digits (optional)"
+                    value={l.card_last_6 ?? ''}
+                    onChange={(v) => {
+                      const digits = v.replace(/\D/g, '').slice(0, 6);
+                      updateLoan(i, { card_last_6: digits || undefined });
+                    }}
+                    placeholder="e.g. 654657"
+                    hint="Helps you tell two cards apart on /portfolio"
+                    info={
+                      <>
+                        Optional — purely a UI label. We mask the rest of the
+                        number (xxxx xx{l.card_last_6 || '••'}) and never
+                        display these digits anywhere outside your own
+                        device. Skip if you&apos;d rather not.
+                      </>
+                    }
+                  />
+                )}
+                {l.loan_type === 'credit_card' && (
+                  <Field
+                    label="Cardholder name (optional)"
+                    value={l.cardholder_name ?? ''}
+                    onChange={(v) =>
+                      updateLoan(i, { cardholder_name: v || undefined })
+                    }
+                    placeholder="As printed on card"
+                    hint="Disambiguates personal vs joint cards"
                   />
                 )}
                 {l.loan_type === 'credit_card' && l.statement_day != null && (

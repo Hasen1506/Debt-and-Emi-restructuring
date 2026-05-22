@@ -11,7 +11,10 @@
  * we treat it as the first of that month for comparisons).
  */
 import Decimal from 'decimal.js';
-import type { IncomeStreamPayload } from './api';
+import type {
+  IncomeStreamPayload,
+  IncomeStreamTaxTreatment,
+} from './api';
 
 const D = (v: string | number | Decimal | null | undefined) =>
   new Decimal(v ?? '0');
@@ -122,6 +125,7 @@ export function blankStream(): IncomeStreamPayload {
     gross_annual: '',
     start_date: `${yyyy}-${mm}`,
     tds_pct: '0.3',
+    tax_treatment: 'salary',
   };
 }
 
@@ -190,6 +194,101 @@ export function streamTransitionsAsLifecycleEvents(
     }
   }
   return events;
+}
+
+/**
+ * Default tax_treatment for a given stream kind. Used by the UI when the
+ * user picks a kind without explicitly setting treatment, and by the tax
+ * routing when older saved streams have no treatment field at all.
+ *
+ *   salaried        → salary
+ *   business_owner  → business_normal (full P&L; user can override to 44ADA)
+ *   freelance       → business_44ada  (typical for professionals < ₹50L)
+ *   rental          → rental
+ *   capital_gains   → capital_gains
+ *   other           → salary          (safe fallback: routes through slab)
+ */
+export function defaultTaxTreatment(
+  kind: IncomeStreamPayload['kind'],
+): IncomeStreamTaxTreatment {
+  switch (kind) {
+    case 'salaried':
+      return 'salary';
+    case 'business_owner':
+      return 'business_normal';
+    case 'freelance':
+      return 'business_44ada';
+    case 'rental':
+      return 'rental';
+    case 'capital_gains':
+      return 'capital_gains';
+    default:
+      return 'salary';
+  }
+}
+
+/**
+ * How much of this stream's gross flows into the slab pool. Capital-gains
+ * streams contribute 0 (taxed at flat rate separately). Presumptive 44ADA
+ * contributes 50% (the deemed-profit portion). Rental contributes 70%
+ * (after standard 30% deduction). Salary/business_normal contribute 100%
+ * of gross — for business_normal, the user's separate `allowable_expenses`
+ * pull it back at the deductions layer.
+ */
+export function streamSlabContribution(
+  stream: IncomeStreamPayload,
+): Decimal {
+  const gross = D(stream.gross_annual);
+  const treatment = stream.tax_treatment ?? defaultTaxTreatment(stream.kind);
+  switch (treatment) {
+    case 'salary':
+    case 'business_normal':
+      return gross;
+    case 'business_44ada':
+      return gross.mul('0.5');
+    case 'rental':
+      return gross.mul('0.7');
+    case 'capital_gains':
+      return D(0);
+    default:
+      return gross;
+  }
+}
+
+/**
+ * Sum of slab-eligible income across active streams — replacement for
+ * raw `activeGrossAnnual` in the marginal-rate derivation. Capital-gains
+ * streams excluded; presumptive / rental streams contribute their deemed
+ * share. Used by the onboarding save path to compute `grossForBracket`.
+ */
+export function activeSlabGrossAnnual(
+  streams: IncomeStreamPayload[] | undefined,
+  asOf: Date = new Date(),
+): Decimal {
+  return activeStreams(streams, asOf).reduce(
+    (s, x) => s.plus(streamSlabContribution(x)),
+    D(0),
+  );
+}
+
+/**
+ * Flat tax owed on capital-gains streams — added to slab tax for the
+ * total annual liability. Conservative default: LTCG 20% with indexation
+ * (India) / LTCG 20% (US). Users with STCG-heavy streams can override
+ * via the treatment-flat-rate override (future field, not yet exposed).
+ * Country gate: India and US use the same 20% rate by happy coincidence
+ * for LTCG on most asset classes; equity-specific rates handled later.
+ */
+export function activeCapitalGainsFlatTax(
+  streams: IncomeStreamPayload[] | undefined,
+  asOf: Date = new Date(),
+): Decimal {
+  return activeStreams(streams, asOf)
+    .filter(
+      (s) =>
+        (s.tax_treatment ?? defaultTaxTreatment(s.kind)) === 'capital_gains',
+    )
+    .reduce((sum, s) => sum.plus(D(s.gross_annual).mul('0.2')), D(0));
 }
 
 /** TDS-default by kind — pre-fills when the user picks a kind. */

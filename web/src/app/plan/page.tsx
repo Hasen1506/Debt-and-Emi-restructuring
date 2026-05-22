@@ -37,7 +37,7 @@ import { projectBracketTransitions } from '@/lib/bracket-transitions';
 import Decimal from 'decimal.js';
 import { getCountryMonth } from '@/lib/today';
 import { loadPlanStartServer, resolveStartMonth } from '@/lib/plan-start';
-import { deriveHorizonMonths } from '@/lib/horizon';
+import { HORIZON_MONTHS } from '@/lib/horizon';
 import {
   applyActivityDeltas,
   loadActivityDeltasServer,
@@ -278,15 +278,11 @@ async function loadPlan(
     };
   }) as typeof adjustedUser.loans;
 
-  // Derive horizon early so the stream-transition synthesiser uses the
-  // same window as the engine call. Re-derived inside the try block too
-  // (cheap), but the lifecycle batch needs it now.
-  const lifecycleHorizon = deriveHorizonMonths(adjustedUser);
   const lifecycle_events = [
     ...plannedEventsForEngine(lifecycleEventsRaw),
     ...streamTransitionsAsLifecycleEvents(
       adjustedUser.income_streams,
-      lifecycleHorizon,
+      HORIZON_MONTHS,
     ),
   ];
 
@@ -308,18 +304,12 @@ async function loadPlan(
       ? efSplit
       : undefined;
 
-  // Derive horizon from the user's actual loan tenures. Hardcoded 240 used
-  // to undershoot 25-30yr home-loan users; deriveHorizonMonths bumps it
-  // to (longest_tenure + 12) when needed, capped at 600. Future life-goal
-  // events extend it further via goalTargetMonth (passed once #14 lands).
-  const horizonMonths = deriveHorizonMonths(adjustedUser);
-
   try {
     const [scenario, baseline, restructuring] = await Promise.all([
       api.simulate({
         user: adjustedUser,
         strategy,
-        horizon_months: horizonMonths,
+        horizon_months: HORIZON_MONTHS,
         marginal_rate: profile.marginalRate,
         simulation_start_month,
         reinvest_events: reinvestEvents.length > 0 ? reinvestEvents : undefined,
@@ -327,7 +317,7 @@ async function loadPlan(
         lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
         ef_top_up_rate: efTopUpRate,
       }),
-      api.baseline({ user: adjustedUser, horizon_months: horizonMonths }),
+      api.baseline({ user: adjustedUser, horizon_months: HORIZON_MONTHS }),
       api.restructuring({
         user: adjustedUser,
         marginal_rate: profile.marginalRate,
@@ -388,7 +378,6 @@ async function loadPlan(
       fxRatesUsed,
       efSplit,
       planStart: planStartPref,
-      horizonMonths,
       efPreempted,
     };
   } catch {
@@ -424,7 +413,6 @@ async function loadPlan(
       fxRatesUsed: {},
       efSplit,
       planStart: planStartPref,
-      horizonMonths,
       efPreempted,
     };
   }

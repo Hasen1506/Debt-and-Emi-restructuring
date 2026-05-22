@@ -164,3 +164,49 @@ export function RelationshipBadge({
     </span>
   );
 }
+
+/**
+ * "Rate as of {date}" tag rendered next to opportunity rows when the
+ * recommendation draws from a rate-card lookup. Visibly grounds the
+ * number in a date so users can judge freshness without clicking
+ * through to the rate-card source.
+ */
+export function RateAsOfBadge({
+  asOf,
+  variant = 'existing',
+}: {
+  asOf: string | null | undefined;
+  variant?: 'existing' | 'ledger' | 'editorial';
+}) {
+  if (!asOf) return null;
+  let label: string;
+  try {
+    label = new Date(asOf).toLocaleDateString(undefined, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    label = asOf;
+  }
+  return (
+    <span
+      title={`Rate-card last verified ${label}. Updates each batch refresh — quarterly cadence today, partner-API live feed once that ships.`}
+      style={{
+        marginLeft: 6,
+        padding: '2px 6px',
+        fontSize: 10,
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+        background: 'transparent',
+        color: 'var(--muted)',
+        border: '1px solid var(--border)',
+        borderRadius: variant === 'ledger' ? 0 : 4,
+        fontFamily: variant === 'ledger' ? 'var(--font-mono)' : undefined,
+        cursor: 'help',
+      }}
+    >
+      as of {label}
+    </span>
+  );
+}

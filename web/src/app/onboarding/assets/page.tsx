@@ -115,6 +115,7 @@ export default function OnboardingAssetsPage() {
         if (a.us_section_121_eligible !== undefined) {
           out.us_section_121_eligible = a.us_section_121_eligible;
         }
+        if (a.appreciation_cagr) out.appreciation_cagr = a.appreciation_cagr;
         if (a.us_is_tax_exempt_muni !== undefined) {
           out.us_is_tax_exempt_muni = a.us_is_tax_exempt_muni;
         }
@@ -286,6 +287,17 @@ export default function OnboardingAssetsPage() {
                   onChange={(v) => update(i, { state: v })}
                   kind="text"
                   placeholder="e.g. Maharashtra"
+                />
+              )}
+
+              {(isRE || a.asset_type === 'gold_physical') && (
+                <Field
+                  label="Projected CAGR (decimal, optional)"
+                  value={a.appreciation_cagr ?? ''}
+                  onChange={(v) => update(i, { appreciation_cagr: v })}
+                  kind="text"
+                  placeholder={country === 'IN' ? '0.07' : '0.06'}
+                  hint="Your CAGR view — overrides the country/asset default. 0.09 = 9%/yr."
                 />
               )}
 

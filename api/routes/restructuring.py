@@ -35,6 +35,7 @@ def restructuring(req: RestructuringRequest) -> RestructuringResponse:
                 alternative_target_rate=o.alternative_target_rate,
                 alternative_annual_saving=o.alternative_annual_saving,
                 target_is_existing_relationship=o.target_is_existing_relationship,
+                target_rate_as_of=o.target_rate_as_of,
             )
             for o in opps
         ],

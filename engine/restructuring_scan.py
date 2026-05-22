@@ -70,6 +70,12 @@ class RestructuringOpportunity:
     # user.other_banks ∪ {loan.bank}. Lets the UI add a "you already use this
     # bank" badge without recomputing the set.
     target_is_existing_relationship: bool = False
+    # ISO date of the rate-card entry the target_rate was sourced from.
+    # Populated when target_bank is a Tier-A bank in the registry; None
+    # for Tier-B/C indicative entries or non-card-derived rates. UI uses
+    # this to surface a "rate as of {date}" tag so users know how fresh
+    # the recommendation is.
+    target_rate_as_of: Optional[str] = None
 
 
 def _country_pool(country: Country) -> list[InstitutionRateCard]:
@@ -259,6 +265,7 @@ def _scan_card_balance_transfer(
         alternative_target_rate=alt_rate,
         alternative_annual_saving=alt_saving,
         target_is_existing_relationship=rel_offer is not None,
+        target_rate_as_of=getattr(target_card, "last_verified", None),
     )
 
 
@@ -346,6 +353,7 @@ def _scan_consolidation_opportunity(
         alternative_target_rate=alt_rate,
         alternative_annual_saving=alt_saving,
         target_is_existing_relationship=rel_market is not None,
+        target_rate_as_of=_latest_verified(country),
     )
 
 
@@ -436,7 +444,20 @@ def _scan_refi_opportunity(
         alternative_target_rate=alt_rate,
         alternative_annual_saving=alt_saving,
         target_is_existing_relationship=rel_market is not None,
+        target_rate_as_of=_latest_verified(country),
     )
+
+
+def _latest_verified(country: Country) -> Optional[str]:
+    """Most-recent `last_verified` across the country's rate cards. Used
+    by every opportunity that draws from rate-card data so the UI can
+    surface a single 'rates as of {date}' tag without per-bank lookups."""
+    from engine.rate_cards import _country_cards  # local to avoid cycle
+    latest = ""
+    for card in _country_cards(country):
+        if card.last_verified and card.last_verified > latest:
+            latest = card.last_verified
+    return latest or None
 
 
 def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringOpportunity]:

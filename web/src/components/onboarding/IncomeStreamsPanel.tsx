@@ -23,9 +23,19 @@ import {
   activeGrossAnnual,
   activeStreams,
   blankStream,
+  defaultTaxTreatment,
   defaultTdsForKind,
   hasHistoricalTransitions,
 } from '@/lib/income-streams';
+import type { IncomeStreamTaxTreatment } from '@/lib/api';
+
+const TAX_TREATMENT_LABELS: Record<IncomeStreamTaxTreatment, string> = {
+  salary: 'Salary — slab',
+  business_44ada: 'Business — presumptive (44ADA/44AD)',
+  business_normal: 'Business — full P&L',
+  rental: 'Rental — house property',
+  capital_gains: 'Capital gains — flat',
+};
 
 interface Props {
   country: Country;
@@ -176,6 +186,7 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
                     updateStream(i, {
                       kind,
                       tds_pct: defaultTdsForKind(kind),
+                      tax_treatment: defaultTaxTreatment(kind),
                     });
                   }}
                   options={(Object.keys(KIND_LABELS) as IncomeStreamPayload['kind'][]).map((k) => ({
@@ -189,6 +200,55 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
                       = 10% withheld (you owe the gap to slab). Rental /
                       business / cap-gains = 0% withheld; you pay the full
                       tax yourself at advance-tax installments.
+                    </>
+                  }
+                />
+                <Select
+                  label="Tax treatment"
+                  value={s.tax_treatment ?? defaultTaxTreatment(s.kind)}
+                  onChange={(v) =>
+                    updateStream(i, {
+                      tax_treatment: v as IncomeStreamTaxTreatment,
+                    })
+                  }
+                  options={(Object.keys(TAX_TREATMENT_LABELS) as IncomeStreamTaxTreatment[]).map((t) => ({
+                    value: t,
+                    label: TAX_TREATMENT_LABELS[t],
+                  }))}
+                  info={
+                    <>
+                      How the income gets taxed. Defaulted from the source
+                      kind, override when your situation differs.
+                      <div style={{ marginTop: 6 }}>
+                        <strong>Salary</strong> — TDS by employer, slab rates,
+                        standard deduction applies.
+                      </div>
+                      <div style={{ marginTop: 4 }}>
+                        <strong>Business — presumptive (44ADA/44AD)</strong> —
+                        For professionals (doctors, lawyers, consultants,
+                        freelancers): 50% of gross deemed profit, taxed at
+                        slab. Requires gross &lt; ₹50L (services) / ₹2Cr
+                        (trade). No bookkeeping.
+                      </div>
+                      <div style={{ marginTop: 4 }}>
+                        <strong>Business — full P&L</strong> — gross −
+                        allowable expenses = profit, taxed at slab. Use when
+                        actual expenses exceed 50% of gross, or you breach
+                        the presumptive turnover ceiling.
+                      </div>
+                      <div style={{ marginTop: 4 }}>
+                        <strong>Rental — house property</strong> — 30%
+                        standard deduction off gross, plus home-loan
+                        interest deductible separately. Net taxed at slab.
+                      </div>
+                      <div style={{ marginTop: 4 }}>
+                        <strong>Capital gains — flat</strong> — bypasses slab.
+                        LTCG 20% with indexation (or 10% for equity above
+                        ₹1L exempt). STCG: 15% for equity (STT-paid), slab
+                        otherwise. Conservative 20% LTCG applied by default;
+                        edit the stream&apos;s gross to reflect indexed cost
+                        already if needed.
+                      </div>
                     </>
                   }
                 />

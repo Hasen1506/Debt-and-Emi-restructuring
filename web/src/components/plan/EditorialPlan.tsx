@@ -20,9 +20,12 @@ import { TaxBreakdown } from './TaxBreakdown';
 import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
 import { LedgerScheduleTable } from './LedgerScheduleTable';
+import { KeyClearanceDates } from './KeyClearanceDates';
+import { CentralBankHint } from './CentralBankHint';
+import { SurplusWaterfall } from './SurplusWaterfall';
 import { AssumptionBadges } from './AssumptionBadges';
 import { RecentActivitySummary } from './RecentActivitySummary';
-import { OpportunityAlternative, RelationshipBadge } from './OpportunityAlternative';
+import { OpportunityAlternative, RelationshipBadge, RateAsOfBadge } from './OpportunityAlternative';
 import { FxCachePersister } from './FxCachePersister';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { InfoTip } from '@/components/ToolPrimitives';
@@ -143,6 +146,11 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
 
         <LifecycleArrivalPrompts user={plan.user} variant="editorial" />
 
+        <CentralBankHint
+          country={plan.user.country}
+          hasFloating={plan.user.loans.some((l) => l.rate_type === 'floating')}
+        />
+
         <figure
           style={{
             margin: '36px 0 12px',
@@ -210,6 +218,10 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
           </figcaption>
         </figure>
 
+        <div style={{ marginTop: 24 }}>
+          <SurplusWaterfall plan={plan} />
+        </div>
+
         <InvestVsPrepayCard plan={plan} variant="editorial" />
 
         {opportunities.length > 0 && (
@@ -261,7 +273,8 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
                   <strong>{opp.headline}.</strong>
                   {opp.target_is_existing_relationship && (
                     <RelationshipBadge variant="editorial" />
-                  )}{' '}
+                  )}
+                  <RateAsOfBadge asOf={opp.target_rate_as_of} variant="editorial" />{' '}
                   {opp.rationale} Saves{' '}
                   <strong style={{ color: 'var(--positive)' }}>
                     {fmt(opp.estimated_annual_saving)}
@@ -328,10 +341,10 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             {
               v: plan.debtFreeMonth
                 ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)
-                : `Beyond ${Math.round(plan.horizonMonths / 12)} yrs`,
+                : 'Not in your lifetime',
               l: plan.debtFreeMonth
                 ? 'debt-free, at this pace'
-                : 'lift surplus to clear inside the 20-year horizon',
+                : 'raise surplus or cut spending to make this reachable',
               tip: (
                 <>
                   The month every loan hits zero, assuming you keep paying the
@@ -401,12 +414,35 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
           ))}
         </div>
 
-        {/* Schedule — collapsed by default; the page leads with the
-         *  visual + opportunities, and a reader who wants the row-by-row
-         *  detail clicks to open it. */}
-        <details
+        {/* Key clearance dates — the moments that matter, surfaced
+         *  ahead of the dense monthly grid. */}
+        <section
           style={{
             marginTop: 40,
+            paddingTop: 24,
+            borderTop: '1px solid var(--border)',
+          }}
+        >
+          <h3
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: 10,
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              color: 'var(--soft)',
+              marginBottom: 12,
+            }}
+          >
+            Key dates — when things clear
+          </h3>
+          <KeyClearanceDates plan={plan} />
+        </section>
+
+        {/* Full monthly schedule — collapsed; a reader who wants the
+         *  row-by-row detail clicks to open it. */}
+        <details
+          style={{
+            marginTop: 24,
             paddingTop: 24,
             borderTop: '1px solid var(--border)',
           }}
@@ -422,7 +458,7 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
               marginBottom: 6,
             }}
           >
-            The schedule — {plan.trajectory.length} months
+            Full monthly grid — {plan.trajectory.length} rows
           </summary>
           <p
             style={{
@@ -436,8 +472,8 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             }}
           >
             Month-by-month: what you&apos;ll owe under the plan, what you&apos;d
-            owe paying only minimums, and how far ahead you are. Click any
-            month to see exactly which lender gets paid what.
+            owe paying only minimums. The key dates above already capture
+            the moments that matter — this is here only for the curious.
           </p>
           <LedgerScheduleTable
             data={plan.trajectory}

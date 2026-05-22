@@ -22,6 +22,7 @@ import { computeBreakdown } from '@/lib/effective-apr';
 import { userDefaultCurrency } from '@/lib/currency';
 import { InfoTip } from '@/components/ToolPrimitives';
 import { api, type Strategy, type UserPayload } from '@/lib/api';
+import { HORIZON_MONTHS } from '@/lib/horizon';
 import type { TrajectoryPoint } from '@/lib/mock-data';
 
 interface LoanLegendEntry {
@@ -48,7 +49,7 @@ export function InsightsPerLoanTrajectorySection({
       .simulate({
         user,
         strategy,
-        horizon_months: 240,
+        horizon_months: HORIZON_MONTHS,
         marginal_rate: marginalRate,
       })
       .then((res) => {

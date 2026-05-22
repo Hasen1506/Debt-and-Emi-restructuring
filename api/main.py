@@ -20,6 +20,7 @@ from api.routes import (  # noqa: E402
     credit_score,
     restructuring,
     portfolio,
+    rates,
     user_state,
 )
 
@@ -58,6 +59,7 @@ app.include_router(fx.router, prefix="/api")
 app.include_router(credit_score.router, prefix="/api")
 app.include_router(restructuring.router, prefix="/api")
 app.include_router(portfolio.router, prefix="/api")
+app.include_router(rates.router, prefix="/api")
 app.include_router(user_state.router, prefix="/api")
 
 

@@ -225,6 +225,33 @@ def simulate_plan(
         for ccy, drift in (user.fx_drift_annualized or {}).items()
         if drift != D("0")
     }
+    # Part-payment frequency tracker — keyed by Python id(loan), value =
+    # last sim month at which an above-minimum payment landed on that loan.
+    # Consulted alongside lock-in months to decide whether `extra_for_debt`
+    # is legally allowed to deploy here this month, per the bank's T&Cs.
+    last_part_payment_month: dict[int, int] = {}
+
+    def _can_part_pay(loan, m: int) -> bool:
+        """True when an above-minimum payment is allowed on this loan in
+        sim-month `m`. Three gates:
+          1. Not in lock-in: m > prepay_lock_in_months.
+          2. Frequency window cleared: at least
+             `part_payment_freq_months` since the last extra payment
+             (None ⇒ unlimited).
+          3. Not currently in pre-EMI: pre_emi_months_remaining == 0
+             (the loan is interest-only, can't accept principal yet).
+        """
+        if loan.pre_emi_months_remaining > 0:
+            return False
+        if m <= loan.prepay_lock_in_months:
+            return False
+        freq = loan.part_payment_freq_months
+        if freq:
+            last = last_part_payment_month.get(id(loan), 0)
+            if last > 0 and (m - last) < freq:
+                return False
+        return True
+
     # Bucket reinvest events by month for O(1) lookup inside the loop. We
     # sum amounts if multiple events land on the same month (defensive — the
     # frontend currently emits one per year, but the engine shouldn't care).
@@ -401,10 +428,27 @@ def simulate_plan(
         # amortisation math (interest/principal) stays consistent with the
         # loan's outstanding balance. No-op for single-currency users.
         payments = {id(l): minimums[id(l)] for l in active}
+        # Pre-compute the per-loan penalty paid this month from prepay
+        # routing (in user residence currency). Added back to interest_paid
+        # after amortisation so the user sees the real cost — the bank
+        # took the fee out of the principal payment, not as a separate
+        # charge against surplus.
+        prepay_penalty_paid = D("0")
         if extra_for_debt > 0 and ranked:
-            target = ranked[0]
-            extra_in_loan_ccy = from_user_currency(extra_for_debt, target, user)
-            payments[id(target)] += extra_in_loan_ccy
+            # Pick the highest-ranked loan that's actually open to extra
+            # payment this month (out of lock-in, past its part-payment
+            # cooldown, and not in pre-EMI). Falls back to the next-best
+            # candidate, then no-op if every loan is gated — surplus
+            # carries forward implicitly via the EF buffer.
+            target = next((l for l in ranked if _can_part_pay(l, m)), None)
+            if target is not None:
+                extra_in_loan_ccy = from_user_currency(extra_for_debt, target, user)
+                penalty_in_loan_ccy = extra_in_loan_ccy * target.prepayment_penalty_pct
+                effective_prepay = extra_in_loan_ccy - penalty_in_loan_ccy
+                payments[id(target)] += effective_prepay
+                if penalty_in_loan_ccy > 0:
+                    prepay_penalty_paid = to_user_currency(penalty_in_loan_ccy, target, user)
+                last_part_payment_month[id(target)] = m
 
         # Amortise each loan; track cascade
         interest_paid = D("0")
@@ -421,8 +465,18 @@ def simulate_plan(
         for l in active:
             monthly_rate = l.nominal_rate / D("12")
             interest_this = l.outstanding * monthly_rate
-            pay = payments[id(l)]
-            principal_this = pay - interest_this
+            # Pre-EMI broken-period: bank charges interest only, no
+            # principal payment. The user pays exactly `interest_this`
+            # for this month; payments[id(l)] gets overwritten so the
+            # UI breakdown reflects the actual cash outflow.
+            if l.pre_emi_months_remaining > 0:
+                payments[id(l)] = interest_this
+                pay = interest_this
+                principal_this = D("0")
+                l.pre_emi_months_remaining -= 1
+            else:
+                pay = payments[id(l)]
+                principal_this = pay - interest_this
             if principal_this >= l.outstanding:
                 # Loan clears; cascade the unused portion (in user ccy so
                 # we can route it to a different-ccy loan cleanly).
@@ -438,6 +492,13 @@ def simulate_plan(
                 l.outstanding -= principal_this
             interest_paid += to_user_currency(interest_this, l, user)
             principal_paid += to_user_currency(principal_this, l, user)
+
+        # Fold prepay penalty into interest_paid — bank pocketed it,
+        # principal didn't budge by that amount. Accounting it as
+        # interest keeps total_interest comparable across runs and
+        # makes the cost visible in the debt-free month.
+        if prepay_penalty_paid > 0:
+            interest_paid += prepay_penalty_paid
 
         # Apply cascade within the same month to the next-priority active loan
         # (after the clears we just processed)

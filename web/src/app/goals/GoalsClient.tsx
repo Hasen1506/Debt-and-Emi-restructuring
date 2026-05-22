@@ -26,6 +26,7 @@ import {
   writeGoalsClient,
 } from '@/lib/goals';
 import { analyseGoal, recommendedTier } from '@/lib/achievability';
+import { projectedLiquidatableValue } from '@/lib/asset-returns';
 import { readEfSplitClient } from '@/lib/ef-split';
 import { readDecisionsClient, recordDecision } from '@/lib/decisions';
 import {
@@ -83,12 +84,14 @@ export function GoalsClient({ user, lowestRates }: Props) {
   const efBalance = Number(user.efund_balance || '0');
   const efTarget = Number(user.efund_target || '0');
 
-  // Sum of current_market_value across user-marked-liquid assets.
-  // Pre-portfolio-advisor integration; the advisor returns a precise
-  // optimal liquidation order. For the goal card we just need a ceiling.
-  const liquidatableValue = (user.assets ?? [])
-    .filter((a) => a.user_marks_liquid !== false)
-    .reduce((s, a) => s + Number(a.current_market_value || '0'), 0);
+  // Liquid assets are passed to the card; per-goal we compound forward
+  // by months_until_target so T3 reflects what the portfolio will be
+  // worth on the goal's due-date, not today. Per-asset CAGR override
+  // is honoured; otherwise country/asset-type defaults from
+  // [[lib/asset-returns]] kick in.
+  const liquidAssets = (user.assets ?? []).filter(
+    (a) => a.user_marks_liquid !== false,
+  );
 
   // Indicative T3 rate — pick the kind-most-likely loan type. We default
   // to personal_loan (highest-likelihood new-credit option for goal
@@ -255,7 +258,11 @@ export function GoalsClient({ user, lowestRates }: Props) {
           efBalance={efBalance}
           efTarget={efTarget}
           efSplit={Number(efSplit)}
-          liquidatableValue={liquidatableValue}
+          liquidatableValue={projectedLiquidatableValue(
+            liquidAssets,
+            user.country,
+            monthsUntil(g),
+          )}
           indicativeRate={indicativeRate}
           indicativeBank={lowestRates.personal?.bank ?? null}
           onPatch={(patch) => updateGoal(g.id, patch)}
