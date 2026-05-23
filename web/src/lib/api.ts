@@ -381,6 +381,19 @@ export interface TrajectoryPointRaw {
   balances_by_loan_index?: Record<string, string>;
 }
 
+export interface GoalContributionRaw {
+  /** Goal id mirroring the request's `goals[].id`. */
+  goal_id: string;
+  /** Amount routed to this goal in the first sim month. */
+  amount: string;
+  /** Run-rate (remaining / months_until) for this month. Lets the UI
+   *  show "₹X needed / ₹Y allocated" when funded partially. */
+  run_rate: string;
+  /** null when funded; else 'past_date' | 'over_funded' | 'lower_tier'
+   *  | 'shortfall'. Drives the queued-goals footer text. */
+  queued_reason: string | null;
+}
+
 export interface SurplusAllocationRaw {
   /** First-month surplus the engine computed, decimal string. */
   surplus: string;
@@ -394,6 +407,27 @@ export interface SurplusAllocationRaw {
   ef_preempted: boolean;
   /** EF split fraction the engine applied (0..1). */
   ef_split: string;
+  /** Per-goal slices for the first sim month — empty when no goals
+   *  passed in the request. */
+  goal_contributions?: GoalContributionRaw[];
+  /** True when at least one active goal received less than its
+   *  run-rate this month. Drives the "some goals are short" banner. */
+  any_goal_short?: boolean;
+}
+
+export interface GoalFinalRaw {
+  /** Mirrors the request goal id. */
+  goal_id: string;
+  /** Funded amount (= goal.amount × (1 + buffer_pct)). */
+  required: string;
+  /** Amount actually saved by the target month (or at end of horizon
+   *  when the target is beyond the simulated window). */
+  saved_at_target: string;
+  /** saved_at_target / required, clamped to [0, 1]. Decimal string. */
+  fill_rate: string;
+  /** True when the target month was within the simulated horizon. When
+   *  False, the fill_rate is based on end-of-horizon saved so far. */
+  target_reached: boolean;
 }
 
 export interface SimulateResponse {
@@ -407,6 +441,10 @@ export interface SimulateResponse {
    *  the engine actually applies (instead of a client-side mirror that
    *  could drift). Absent on /baseline (minimums-only doesn't route surplus). */
   surplus_allocation?: SurplusAllocationRaw | null;
+  /** Per-goal end-of-trajectory fill rates. Drives the "expected X%
+   *  by your target" badge on /goals + /plan. Empty when no goals
+   *  were sent in the request. */
+  goal_finals?: GoalFinalRaw[];
 }
 
 export interface CompareResponse {
@@ -753,6 +791,29 @@ export const api = {
      *  The engine routes 100% surplus to the goal_slice in the allocation
      *  response when set. Default false preserves legacy behaviour. */
     ef_preempted?: boolean;
+    /** Multi-goal monthly outflow — the total tier-pro-rata contribution
+     *  computed across all active goals (critical → important →
+     *  discretionary). Engine subtracts this from each month's surplus
+     *  before the EF/debt cascade. When > 0, supersedes the binary
+     *  ef_preempted flag. Default 0 preserves the legacy path.
+     *
+     *  Prefer `goals` over this — when both are sent the engine uses
+     *  `goals` for proper per-month / per-goal handling, and this
+     *  field is ignored. Kept for backward compat with callers that
+     *  haven't migrated. */
+    goal_outflow_monthly?: string;
+    /** Per-goal payloads — when set, engine runs serial-fill per
+     *  month with goal-expiry awareness and returns per-goal slices
+     *  in `surplus_allocation.goal_contributions` plus end-of-trajectory
+     *  fill rates in `goal_finals`. */
+    goals?: {
+      id: string;
+      target_month_index: number;
+      required_amount: string;
+      saved_so_far?: string;
+      priority_bump?: boolean;
+      order_index?: number | null;
+    }[];
   }) => post<SimulateResponse>('/api/simulate', req),
 
   baseline: (req: {

@@ -5,6 +5,7 @@ from fastapi import APIRouter
 
 from engine.simulation import simulate_plan, baseline_minimums_only
 from engine.models import LifecycleEvent, LifecycleEventKind, User
+from engine.goals import GoalState, serial_fill_allocation
 from engine.sensitivity import (
     with_surplus_delta, with_income_shock, with_rate_shock,
     with_strategy, with_lump_sum, compare,
@@ -12,10 +13,67 @@ from engine.sensitivity import (
 from engine.surplus import allocate_surplus, compute_available_surplus
 
 from api.schemas import (
-    SimulateRequest, SimulateResponse, SurplusAllocationOut, TrajectoryPoint,
-    BaselineRequest, CompareRequest, CompareResponse,
-    LifecycleEventIn,
+    GoalContributionOut, GoalFinalOut, GoalIn, SimulateRequest,
+    SimulateResponse, SurplusAllocationOut, TrajectoryPoint,
+    BaselineRequest, CompareRequest, CompareResponse, LifecycleEventIn,
 )
+
+
+def _build_goal_states(goals: list[GoalIn]) -> list[GoalState]:
+    """Translate Pydantic GoalIn → engine GoalState. Each engine state
+    is mutable across the trajectory loop (saved_so_far accumulates)."""
+    return [
+        GoalState(
+            id=g.id,
+            target_month_index=g.target_month_index,
+            required_amount=g.required_amount,
+            saved_so_far=g.saved_so_far,
+            priority_bump=g.priority_bump,
+            order_index=g.order_index,
+        )
+        for g in goals
+    ]
+
+
+def _build_goal_finals(
+    goal_states: list[GoalState] | None,
+    horizon_months: int,
+) -> list[GoalFinalOut]:
+    """Build per-goal end-of-trajectory fill rates from the mutated
+    GoalState list. `saved_at_target` is set by the engine only when
+    the sim actually iterates through the goal's target month; that's
+    the authoritative signal for `target_reached`. Comparing
+    `target_month_index <= horizon_months` would lie when the sim
+    breaks out early (debt-free before horizon) — the goal's target
+    month would look "reachable" but the engine never reached it.
+    Falls back to `saved_so_far` (state at sim end) only when the
+    target wasn't actually visited."""
+    if not goal_states:
+        return []
+    _ = horizon_months  # kept in signature for future use
+    out: list[GoalFinalOut] = []
+    for g in goal_states:
+        target_reached = g.saved_at_target is not None
+        saved = (
+            g.saved_at_target
+            if target_reached
+            else g.saved_so_far
+        )
+        # Clamp to [0, 1] so over-funded goals don't surface a 110%
+        # fill — confusing for the user.
+        fill_rate = Decimal("0")
+        if g.required_amount > 0:
+            fill_rate = min(Decimal("1"), saved / g.required_amount)
+        out.append(
+            GoalFinalOut(
+                goal_id=g.id,
+                required=g.required_amount,
+                saved_at_target=saved,
+                fill_rate=fill_rate,
+                target_reached=target_reached,
+            )
+        )
+    return out
 
 
 def _build_surplus_allocation(
@@ -23,22 +81,53 @@ def _build_surplus_allocation(
     matched_contribution: Decimal,
     ef_split: Decimal,
     ef_preempted: bool,
+    goal_outflow_monthly: Decimal = Decimal("0"),
+    goal_states: list[GoalState] | None = None,
     simple_mode: bool = False,
 ) -> SurplusAllocationOut:
     """Compute the first-month surplus + allocation the engine will apply.
     This is the snapshot the /plan SurplusWaterfall card renders — engine
-    truth, not a client-side mirror."""
+    truth, not a client-side mirror.
+
+    When `goal_states` is supplied, we run serial-fill once for sim
+    month 0 to produce per-goal contributions and the any-short flag.
+    A deep copy is used so the snapshot's mutation doesn't pollute
+    simulate_plan's own pass (the route handler gives that function
+    a fresh list).
+    """
     surplus = compute_available_surplus(
         user, user.loans,
         matched_contribution=matched_contribution,
         simple_mode=simple_mode,
     )
     ef_gap = max(D("0"), user.efund_target - user.efund_balance)
+
+    goal_contributions_out: list[GoalContributionOut] = []
+    any_goal_short = False
+    effective_outflow = goal_outflow_monthly
+
+    if goal_states:
+        from copy import deepcopy
+        snapshot_goals = deepcopy(goal_states)
+        alloc = serial_fill_allocation(snapshot_goals, surplus, current_sim_month=0)
+        effective_outflow = alloc.total_outflow
+        any_goal_short = alloc.any_goal_short
+        goal_contributions_out = [
+            GoalContributionOut(
+                goal_id=c.goal_id,
+                amount=c.amount,
+                run_rate=c.run_rate,
+                queued_reason=c.queued_reason,
+            )
+            for c in alloc.contributions
+        ]
+
     allocation = allocate_surplus(
         surplus=surplus,
         ef_split=ef_split,
         ef_gap=ef_gap,
         ef_preempted=ef_preempted,
+        goal_outflow=effective_outflow,
     )
     return SurplusAllocationOut(
         surplus=surplus,
@@ -47,6 +136,8 @@ def _build_surplus_allocation(
         debt_slice=allocation.debt_slice,
         ef_preempted=ef_preempted,
         ef_split=ef_split,
+        goal_contributions=goal_contributions_out,
+        any_goal_short=any_goal_short,
     )
 
 
@@ -113,6 +204,14 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         else None
     )
     events = _to_engine_lifecycle(req.lifecycle_events) if req.lifecycle_events else None
+    # Build engine goal states from the request, if any. The handler
+    # owns two independent copies — one for simulate_plan (which mutates
+    # saved_so_far + saved_at_target across the trajectory) and one for
+    # the snapshot builder. Both start from the same request payload so
+    # the snapshot reflects the same starting state. After simulate_plan
+    # returns, the first list carries end-of-trajectory state used for
+    # per-goal fill rates.
+    goal_states = _build_goal_states(req.goals) if req.goals else None
     result = simulate_plan(
         user, strategy=req.strategy, horizon_months=req.horizon_months,
         matched_contribution=req.matched_contribution,
@@ -122,6 +221,8 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         inflate_expenses=req.inflate_expenses,
         lifecycle_events=events,
         ef_top_up_rate=req.ef_top_up_rate,
+        goal_outflow_monthly=req.goal_outflow_monthly,
+        goals=goal_states,
     )
     return SimulateResponse(
         debt_free_month=result.debt_free_month,
@@ -134,8 +235,11 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
             matched_contribution=req.matched_contribution,
             ef_split=req.ef_top_up_rate,
             ef_preempted=req.ef_preempted,
+            goal_outflow_monthly=req.goal_outflow_monthly,
+            goal_states=_build_goal_states(req.goals) if req.goals else None,
             simple_mode=req.simple_mode,
         ),
+        goal_finals=_build_goal_finals(goal_states, req.horizon_months),
     )
 
 

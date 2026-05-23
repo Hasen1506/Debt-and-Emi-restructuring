@@ -37,14 +37,27 @@ def allocate_surplus(
     ef_split: Decimal,
     ef_gap: Decimal,
     ef_preempted: bool,
+    goal_outflow: Decimal = D("0"),
 ) -> SurplusAllocation:
     """Route the month's surplus across goal / EF / debt sinks.
 
     Priority order:
-      1. If a preempting goal is open → 100% to goal (EF + debt paused).
-      2. Else: divert `ef_split` fraction to EF until gap closes.
-      3. Remainder → debt slice (the simulator lands this on the
+      1. If `goal_outflow > 0` → that amount (clamped at surplus) goes
+         to goal_slice; the remainder cascades through EF + debt.
+      2. Else if a preempting goal is open (legacy single-goal flag) →
+         100% to goal_slice (EF + debt paused).
+      3. Else: divert `ef_split` fraction to EF until gap closes.
+      4. Remainder → debt slice (the simulator lands this on the
          highest-effective-APR active loan).
+
+    `goal_outflow` is the multi-goal path: the client computes the
+    tier-pro-rata total across all active goals (critical → important
+    → discretionary) and passes the sum. The engine doesn't need
+    per-goal info — the split happens client-side for display, the
+    engine only needs the aggregate to subtract from surplus. When
+    `goal_outflow == 0` (default) behaviour matches the legacy
+    `ef_preempted` flag exactly, so existing callers/tests are
+    unaffected.
 
     Zero across the board when surplus ≤ 0. The simulator and the
     SurplusWaterfall UI card both consume this so the displayed pie
@@ -52,6 +65,16 @@ def allocate_surplus(
     """
     if surplus <= 0:
         return SurplusAllocation(D("0"), D("0"), D("0"))
+    if goal_outflow > 0:
+        committed_goal = min(goal_outflow, surplus)
+        remaining = surplus - committed_goal
+        if remaining <= 0:
+            return SurplusAllocation(committed_goal, D("0"), D("0"))
+        if ef_gap > 0 and ef_split > 0:
+            want = remaining * ef_split
+            ef_slice = min(want, ef_gap)
+            return SurplusAllocation(committed_goal, ef_slice, remaining - ef_slice)
+        return SurplusAllocation(committed_goal, D("0"), remaining)
     if ef_preempted:
         return SurplusAllocation(surplus, D("0"), D("0"))
     if ef_gap > 0 and ef_split > 0:

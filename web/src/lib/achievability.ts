@@ -45,11 +45,14 @@ export interface AchievabilityInput {
   efBalance: number;
   /** EF target. */
   efTarget: number;
-  /** Current EF-split slider value (0–1). When > 0, the assumed
-   *  funding from surplus is `surplus × (1 − ef_split)` because the
-   *  rest gets diverted to EF. preemptsEf=true on the goal overrides
-   *  this — surplus runs at full whack. */
-  efSplit: number;
+  /** Sum of monthly run-rates for goals that rank AHEAD of `goal` in
+   *  the engine's serial-fill order (bumped goals first, then by
+   *  order_index / target date). These goals claim their slice of
+   *  surplus before this one does, so the realistic T1 ceiling is
+   *  `(monthlySurplus − priorGoalsMonthlyDraw) × months`. Default 0
+   *  reproduces the legacy "this goal in isolation" upper bound, which
+   *  is correct when this goal is at the front of the queue. */
+  priorGoalsMonthlyDraw?: number;
   /** Sum of currently-liquid assets eligible for liquidation. Decimal
    *  string from the portfolio. Zero when user has nothing to sell. */
   liquidatableValue: number;
@@ -62,7 +65,7 @@ export interface AchievabilityInput {
  *  which to surface — typically the first achievable one, but power
  *  users may want to see all three so they can pick a stricter source. */
 export function analyseGoal(input: AchievabilityInput): TierResult[] {
-  const { goal, monthlySurplus, efBalance, efTarget, efSplit, liquidatableValue } = input;
+  const { goal, monthlySurplus, efBalance, efTarget, liquidatableValue } = input;
   const months = monthsUntil(goal);
   const required = fundedAmount(goal);
   const allowed = new Set(goal.fundingSources);
@@ -74,21 +77,24 @@ export function analyseGoal(input: AchievabilityInput): TierResult[] {
   }
 
   // T1 — surplus only.
-  const surplusRoutingToGoal = goal.preemptsEf
-    ? monthlySurplus
-    : monthlySurplus * (1 - efSplit);
-  const t1Reachable = Math.max(0, surplusRoutingToGoal * months);
+  //
+  // Engine routes surplus serially: goals ahead of this one in
+  // user-effective order (bumped first, then by date) claim their
+  // run-rates first. EF top-up + debt prepay come AFTER goals, so
+  // they don't subtract here. The realistic ceiling is the surplus
+  // left after higher-priority goals have taken their share.
+  const priorDraw = Math.max(0, input.priorGoalsMonthlyDraw ?? 0);
+  const surplusAvailable = Math.max(0, monthlySurplus - priorDraw);
+  const t1Reachable = surplusAvailable * months;
   const t1: TierResult = {
     tier: 'T1',
     achievable: allowed.has('surplus') && t1Reachable >= required,
     reachable: t1Reachable,
     required,
     shortfall: Math.max(0, required - t1Reachable),
-    description: goal.preemptsEf
-      ? `Full surplus routed to this goal for ${months} months (EF top-up paused — pre-empt is on).`
-      : `${Math.round((1 - efSplit) * 100)}% of surplus routed to this goal for ${months} months. ${
-          efSplit > 0 ? 'Other surplus continues to fill EF.' : ''
-        }`.trim(),
+    description: priorDraw > 0
+      ? `Surplus alone for ${months} months, after ${currencyShort(priorDraw)}/mo claimed by higher-priority goals. Engine-side fill rate is the authoritative number.`
+      : `Surplus alone for ${months} months. Engine-side fill rate is the authoritative number.`,
     sources: [{ source: 'surplus', contributes: t1Reachable }],
   };
 
@@ -202,4 +208,98 @@ function buildT3Description(
   }
   if (parts.length === 1) parts.push('No additional sources allowed — adjust the goal.');
   return parts.join(' ');
+}
+
+// ─── Honest "can't afford" levers ──────────────────────────────────────────
+
+export interface ShortfallLevers {
+  /** Extra months past the target date that would close the gap with
+   *  current surplus + (optional) EF + liquid sources. Null when even
+   *  unlimited horizon won't close it (surplus + EF + liquid still < required). */
+  extendMonthsBy: number | null;
+  /** Lower the target amount by this much (in user ccy) to fit the
+   *  current horizon + sources. Always ≥ 0. */
+  lowerTargetBy: number;
+  /** Extra monthly surplus needed to hit the goal on the current date,
+   *  without changing sources. Always ≥ 0. */
+  increaseSurplusBy: number;
+}
+
+/**
+ * Compute the three "honest" levers shown when a goal isn't achievable
+ * with the user's current surplus + allowed sources. Mirrors the
+ * purchase-advisor levers but for savings goals: rather than telling
+ * the user "no", show them what would need to change.
+ *
+ *   • extendMonthsBy: keep target + surplus, push the date out.
+ *   • lowerTargetBy:  keep date + surplus, drop the target amount.
+ *   • increaseSurplusBy: keep date + target, increase monthly inflow.
+ *
+ * Returns all three so the UI can present them side-by-side — the user
+ * picks which lever to pull. None of them mutate the goal; the caller
+ * applies whichever the user chooses.
+ */
+export function computeShortfallLevers(input: AchievabilityInput): ShortfallLevers {
+  const { goal, monthlySurplus, efBalance, efTarget, liquidatableValue } = input;
+  const months = require_('months', input);
+  const required = require_('required', input);
+  if (months === 0 || required === 0) {
+    return {
+      extendMonthsBy: null,
+      lowerTargetBy: 0,
+      increaseSurplusBy: 0,
+    };
+  }
+
+  const allowed = new Set(goal.fundingSources);
+  // Mirror the T1 ceiling: subtract higher-priority goals' run-rates
+  // from the surplus this goal can route per month. Without the
+  // deduction, levers would tell the user "you can hit this date with
+  // ₹X/mo extra" when in reality a bumped sibling goal would still
+  // eat that ₹X.
+  const priorDraw = Math.max(0, input.priorGoalsMonthlyDraw ?? 0);
+  const surplusRouting = Math.max(0, monthlySurplus - priorDraw);
+
+  // Non-monthly contribution sources (EF + liquid, both lump-sum
+  // assumptions). New_loan doesn't extend "feasible by time" — it just
+  // takes whatever shortfall remains, so it's excluded from the
+  // extend-months lever (taking a longer-tenure loan is a different
+  // question that lives in the purchase advisor).
+  const efAvailable = allowed.has('ef')
+    ? Math.max(0, efBalance - efTarget * 0.5)
+    : 0;
+  const liquidAvailable = allowed.has('liquidation') ? liquidatableValue : 0;
+  const lumpSum = efAvailable + liquidAvailable;
+
+  // extendMonthsBy: how many extra months at current surplus to close
+  // (required − lumpSum). Null when even with infinite horizon, surplus
+  // is zero (can't extend out of a hole if no inflow).
+  const remainingAfterLump = Math.max(0, required - lumpSum);
+  const extendMonthsBy =
+    surplusRouting > 0
+      ? Math.max(0, Math.ceil(remainingAfterLump / surplusRouting) - months)
+      : null;
+
+  // lowerTargetBy: how much to chop from required so that
+  //   surplus × months + lumpSum >= required'
+  const reachableNow = surplusRouting * months + lumpSum;
+  const lowerTargetBy = Math.max(0, Math.round(required - reachableNow));
+
+  // increaseSurplusBy: extra monthly inflow needed so that
+  //   (surplus + delta) × months + lumpSum >= required
+  const increaseSurplusBy =
+    months > 0 ? Math.max(0, Math.ceil(lowerTargetBy / months)) : 0;
+
+  return {
+    extendMonthsBy,
+    lowerTargetBy,
+    increaseSurplusBy,
+  };
+}
+
+/** Tiny helper to share the same `monthsUntil` / `fundedAmount` derivation
+ *  with `analyseGoal` without re-importing them at every call site. */
+function require_(kind: 'months' | 'required', input: AchievabilityInput): number {
+  if (kind === 'months') return monthsUntil(input.goal);
+  return fundedAmount(input.goal);
 }

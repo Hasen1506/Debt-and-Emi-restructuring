@@ -293,14 +293,33 @@ async function loadPlan(
   const efBalance = Number(adjustedUser.efund_balance ?? '0');
   const efTarget = Number(adjustedUser.efund_target ?? '0');
   const efSplit = await (await import('@/lib/ef-split')).loadEfSplitServer();
-  const { anyActivePreemptingGoalServer } = await import('@/lib/goals');
-  const efPreempted = await anyActivePreemptingGoalServer();
-  // When an active goal pre-empts EF, force the diversion rate to 0 so
-  // the engine routes 100% of surplus to debt during the goal window.
-  // The goal card on /goals owns the suggestion-to-pre-empt UX; /plan
-  // just respects the flag silently and shows the assumption chip.
+  const { goalsForSimulateServer } = await import('@/lib/goals');
+  const { readContributionTotalsServer } = await import(
+    '@/lib/goal-contributions'
+  );
+  // Per-goal payload for the engine. Engine runs serial-fill per
+  // month, threads saved_so_far across iterations, and returns
+  // per-goal contributions for the first sim month plus end-of-
+  // trajectory fill rates in `goal_finals`. Empty list when no goals
+  // are on file — engine just runs the EF/debt cascade as before.
+  //
+  // `saved_so_far` per goal comes from the goal-contributions ledger
+  // (cookie digest mirror). Without ledger entries it defaults to 0
+  // and the run-rate computes against the full funded amount.
+  const contributionTotals = await readContributionTotalsServer();
+  const goalsForEngine = await goalsForSimulateServer(
+    new Date(),
+    contributionTotals,
+  );
+  const hasGoalsForEngine = goalsForEngine.length > 0;
+  // When goals are being sent to the engine, suppress EF top-up rate
+  // — the engine handles EF cascade on the post-goal remainder, so
+  // setting top-up here would double-subtract from surplus.
   const efTopUpRate =
-    !efPreempted && efTarget > 0 && efBalance < efTarget && Number(efSplit) > 0
+    !hasGoalsForEngine &&
+    efTarget > 0 &&
+    efBalance < efTarget &&
+    Number(efSplit) > 0
       ? efSplit
       : undefined;
 
@@ -317,9 +336,10 @@ async function loadPlan(
     inflate_expenses: inflationModeling === 'on' ? true : undefined,
     lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
     ef_top_up_rate: efTopUpRate,
-    // Forwarded so the engine returns a surplus_allocation that reflects
-    // the goal-preemption state. Engine routes 100% to goal_slice when set.
-    ef_preempted: efPreempted || undefined,
+    // Per-goal payload — engine runs serial-fill per month with
+    // goal-expiry awareness, threads saved_so_far across iterations,
+    // and returns per-goal slices + end-of-trajectory fill rates.
+    goals: hasGoalsForEngine ? goalsForEngine : undefined,
   };
   const otherStrategies = STRATEGIES.filter((s) => s !== strategy);
 
@@ -402,7 +422,29 @@ async function loadPlan(
       fxRatesUsed,
       efSplit,
       planStart: planStartPref,
-      efPreempted,
+      goalsActive: hasGoalsForEngine,
+      goalContributions:
+        scenario.surplus_allocation?.goal_contributions?.map((c) => ({
+          goalId: c.goal_id,
+          amount: Number(c.amount),
+          runRate: Number(c.run_rate),
+          queuedReason:
+            (c.queued_reason as
+              | 'past_date'
+              | 'over_funded'
+              | 'surplus_exhausted'
+              | 'partial_fill'
+              | null) ?? null,
+        })) ?? [],
+      goalFinals:
+        scenario.goal_finals?.map((f) => ({
+          goalId: f.goal_id,
+          required: Number(f.required),
+          savedAtTarget: Number(f.saved_at_target),
+          fillRate: Number(f.fill_rate),
+          targetReached: f.target_reached,
+        })) ?? [],
+      anyGoalShort: !!scenario.surplus_allocation?.any_goal_short,
       strategyCompare,
       surplusAllocation: scenario.surplus_allocation
         ? {
@@ -448,7 +490,10 @@ async function loadPlan(
       fxRatesUsed: {},
       efSplit,
       planStart: planStartPref,
-      efPreempted,
+      goalsActive: hasGoalsForEngine,
+      goalContributions: [],
+      goalFinals: [],
+      anyGoalShort: false,
       strategyCompare: {
         avalanche: { debtFreeMonth: null, totalInterest: '0' },
         hybrid: { debtFreeMonth: null, totalInterest: '0' },

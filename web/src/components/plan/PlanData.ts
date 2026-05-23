@@ -127,10 +127,37 @@ export interface PlanData {
   /** User's chosen plan-start (YYYY-MM), empty = "today". Anchors the
    *  simulation_start_month and is surfaced via the PlanStartPicker. */
   planStart: string;
-  /** True when at least one active goal has preempts_ef=true, meaning
-   *  EF top-up is paused for the current horizon. Drives an assumption
-   *  chip + the EF slider's disabled state. */
-  efPreempted: boolean;
+  /** True when at least one active goal is being routed surplus by the
+   *  engine, meaning EF top-up is paused for the current horizon.
+   *  Drives an assumption chip + the EF slider's disabled state.
+   *
+   *  Replaces the old `efPreempted` boolean — same UX meaning,
+   *  derived from "any goal is currently in the engine payload"
+   *  rather than the dropped preempts_ef flag. */
+  goalsActive: boolean;
+  /** Engine-computed per-goal contributions for the first sim month.
+   *  Drives the multi-goal SurplusWaterfall rendering directly from
+   *  engine truth (no client-side re-derivation that could drift).
+   *  Empty when no goals were sent to /simulate. */
+  goalContributions: {
+    goalId: string;
+    amount: number;
+    runRate: number;
+    queuedReason: 'past_date' | 'over_funded' | 'surplus_exhausted' | 'partial_fill' | null;
+  }[];
+  /** Per-goal end-of-trajectory fill rates from the engine. Drives the
+   *  "expected X% by your target" badge per goal. Empty when no goals
+   *  were sent to /simulate. */
+  goalFinals: {
+    goalId: string;
+    required: number;
+    savedAtTarget: number;
+    fillRate: number;
+    targetReached: boolean;
+  }[];
+  /** True when at least one active goal received less than its
+   *  run-rate this month. Drives the "some goals are short" banner. */
+  anyGoalShort: boolean;
   /** Headline metrics per strategy (avalanche / hybrid / snowball) using
    *  the same surplus / hike / lifecycle assumptions as the active run.
    *  Lets the strategy chooser show a side-by-side close-month comparison

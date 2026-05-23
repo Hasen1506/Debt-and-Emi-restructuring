@@ -44,8 +44,8 @@ export function TaxReinvestToggle({
 
   const disabledReason = noSavings
     ? variant === 'ledger'
-      ? 'no eligible deductions — switch regime or add a deductible loan'
-      : 'No eligible deductions projected. India users: switch to old tax regime in setup to unlock Sec 24/80E. US users: only home + student loan interest qualify.'
+      ? 'no eligible deductions for your tax setup'
+      : 'No eligible deductions projected for your tax setup — only home / education-loan interest qualifies, subject to regime and country rules.'
     : undefined;
 
   const helper =

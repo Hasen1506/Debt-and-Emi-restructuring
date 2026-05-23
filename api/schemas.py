@@ -401,6 +401,21 @@ class SimulateRequest(_Base):
     # response: ef_preempted=True → 100% to goal_slice. Default False
     # preserves baseline behaviour for callers that omit it.
     ef_preempted: bool = False
+    # Multi-goal monthly outflow — the total tier-pro-rata contribution
+    # the client computes across all active goals (critical → important
+    # → discretionary). Subtracted from each month's surplus before the
+    # EF cascade. When > 0, supersedes the binary ef_preempted flag for
+    # routing. Default 0 preserves the legacy single-preempting-goal
+    # path for callers that haven't migrated.
+    goal_outflow_monthly: Decimal = Field(default=D("0"), ge=D("0"))
+    # Per-goal input — when supplied, engine runs tier-pro-rata per
+    # month with goal-expiry awareness instead of treating
+    # `goal_outflow_monthly` as a constant outflow. The engine returns
+    # per-goal contributions in `surplus_allocation.goal_contributions`
+    # so the SurplusWaterfall can render slices without re-computing
+    # client-side. Empty / omitted preserves the legacy constant-outflow
+    # path.
+    goals: list[GoalIn] = Field(default_factory=list)
 
 
 class TrajectoryPoint(_Base):
@@ -425,6 +440,59 @@ class TrajectoryPoint(_Base):
     balances_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
 
 
+class GoalIn(_Base):
+    """Per-goal input passed to /simulate. Mirrors
+    engine.goals.GoalState — engine takes this list, runs serial-fill
+    per month with goal-expiry awareness, and returns the per-month
+    contributions via the simulator state plus a first-month snapshot
+    in `surplus_allocation.goal_contributions` and an end-of-trajectory
+    fill rate in `goal_finals`."""
+    id: str
+    # 0-based sim-month at which the goal needs to be funded. Set by
+    # the client as (target_calendar_month - simulation_start_month).
+    target_month_index: int
+    # Funded amount (= goal.amount × (1 + buffer_pct)). Decimal string.
+    required_amount: Decimal
+    # User's saved-so-far on this goal. 0 when no contributions ledger.
+    saved_so_far: Decimal = D("0")
+    # Single explicit priority override — when True, this goal is
+    # funded ahead of goals with earlier target dates. Replaces the
+    # 3-tier critical/important/discretionary model.
+    priority_bump: bool = False
+    # Stable within-group ordering (lower = earlier). Set by the
+    # drag-to-reorder UI; None falls back to target-month ordering.
+    order_index: int | None = None
+
+
+class GoalContributionOut(_Base):
+    """Per-goal slice returned for the first sim month — feeds the
+    SurplusWaterfall rendering. Mirrors engine.goals.GoalContribution."""
+    goal_id: str
+    amount: Decimal
+    run_rate: Decimal
+    # None when funded, else 'past_date' | 'over_funded' |
+    # 'surplus_exhausted' | 'partial_fill'. Lets the UI explain why a
+    # goal didn't get its run-rate.
+    queued_reason: str | None = None
+
+
+class GoalFinalOut(_Base):
+    """End-of-trajectory per-goal fill rate. Drives the "expected
+    X% by your target" badge on /goals + /plan. Engine reads
+    GoalState.saved_at_target after the trajectory finishes — if the
+    goal's date fell within the horizon, that's the saved amount on
+    the target month; otherwise the saved-so-far at horizon end."""
+    goal_id: str
+    required: Decimal
+    saved_at_target: Decimal
+    # saved_at_target / required, clamped to [0, 1]. Decimal string.
+    fill_rate: Decimal
+    # True when target month was reached within the simulated horizon.
+    # When False, fill_rate is based on saved at horizon-end (the user
+    # hasn't reached the goal yet within the projection window).
+    target_reached: bool
+
+
 class SurplusAllocationOut(_Base):
     """How the engine routes each month's surplus. Mirrors
     engine.surplus.SurplusAllocation. The /plan SurplusWaterfall card
@@ -439,6 +507,15 @@ class SurplusAllocationOut(_Base):
     # can render the "30% of surplus" note without re-reading the user
     # profile or the request payload.
     ef_split: Decimal
+    # Per-goal first-month contributions. Populated when `goals` was
+    # passed to /simulate; empty list otherwise. Lets SurplusWaterfall
+    # render funded + queued goal rows from engine truth instead of a
+    # client-side re-derivation that could drift.
+    goal_contributions: list[GoalContributionOut] = Field(default_factory=list)
+    # True when at least one active goal received less than its
+    # run-rate this month. Drives the "some goals are short" banner
+    # on /plan.
+    any_goal_short: bool = False
 
 
 class SimulateResponse(_Base):
@@ -451,6 +528,10 @@ class SimulateResponse(_Base):
     # the simulation — the snapshot the /plan waterfall card renders.
     # Engine truth, not a client mirror.
     surplus_allocation: Optional[SurplusAllocationOut] = None
+    # Per-goal end-of-trajectory fill rates. Populated when `goals` was
+    # passed in the request — drives the "expected X% by your target"
+    # badge on /goals + /plan. Empty list when no goals were sent.
+    goal_finals: list[GoalFinalOut] = Field(default_factory=list)
 
 
 class BaselineRequest(_Base):

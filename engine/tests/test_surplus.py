@@ -274,3 +274,64 @@ def test_allocate_invariant_slices_sum_to_surplus():
         surplus=D("12345.67"), ef_split=D("0.3"), ef_gap=D("9999"), ef_preempted=False,
     )
     assert out.goal_slice + out.ef_slice + out.debt_slice == D("12345.67")
+
+
+# ─── goal_outflow (multi-goal path) ───────────────────────────────────────
+
+
+def test_goal_outflow_routes_amount_to_goal_then_cascades():
+    # 4k to goal, leftover 6k flows through the EF/debt cascade. EF gets
+    # 30% of the *remaining* 6k = 1800, debt gets the rest.
+    out = allocate_surplus(
+        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("50000"),
+        ef_preempted=False, goal_outflow=D("4000"),
+    )
+    assert out.goal_slice == D("4000")
+    assert out.ef_slice == D("1800")
+    assert out.debt_slice == D("4200")
+
+
+def test_goal_outflow_clamped_at_surplus():
+    # Goals want 15k but surplus is only 10k — clamped, no EF/debt slice.
+    out = allocate_surplus(
+        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("50000"),
+        ef_preempted=False, goal_outflow=D("15000"),
+    )
+    assert out.goal_slice == D("10000")
+    assert out.ef_slice == D("0")
+    assert out.debt_slice == D("0")
+
+
+def test_goal_outflow_takes_precedence_over_ef_preempted():
+    # New multi-goal path (goal_outflow > 0) supersedes the legacy
+    # single-preempting-goal flag, so the cascade runs on the remainder
+    # instead of routing 100% to the goal slice.
+    out = allocate_surplus(
+        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("50000"),
+        ef_preempted=True, goal_outflow=D("3000"),
+    )
+    assert out.goal_slice == D("3000")
+    assert out.ef_slice == D("2100")
+    assert out.debt_slice == D("4900")
+
+
+def test_goal_outflow_zero_preserves_legacy_preempted_path():
+    # Default (goal_outflow=0) must keep the existing ef_preempted=True
+    # behaviour exactly — every surplus rupee to the goal slice.
+    out = allocate_surplus(
+        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("50000"),
+        ef_preempted=True, goal_outflow=D("0"),
+    )
+    assert out == SurplusAllocation(D("10000"), D("0"), D("0"))
+
+
+def test_goal_outflow_with_capped_ef_gap():
+    # Goal takes 4k; remainder 6k tries to put 1800 in EF but the gap is
+    # only 500 → 500 to EF, 5500 to debt.
+    out = allocate_surplus(
+        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("500"),
+        ef_preempted=False, goal_outflow=D("4000"),
+    )
+    assert out.goal_slice == D("4000")
+    assert out.ef_slice == D("500")
+    assert out.debt_slice == D("5500")

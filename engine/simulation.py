@@ -30,6 +30,7 @@ from engine.models import (
 from engine.formulas import effective_rate, prepay_recommended, real_emi
 from engine.minimum_payments import compute_minimum_payment
 from engine.ordering import Strategy, rank_loans
+from engine.goals import GoalState, MonthlyGoalAllocation, serial_fill_allocation
 from engine.surplus import (
     compute_available_surplus,
     from_user_currency,
@@ -76,6 +77,11 @@ class SimulationResult:
     total_interest_paid: Decimal
     total_invested: Decimal
     final_balances: dict[int, Decimal]
+    # First-month goal allocation snapshot. Populated when `goals` was
+    # passed to simulate_plan; None otherwise. Lets the API handler
+    # surface per-goal contributions in the SurplusAllocationOut
+    # response without re-running the allocator.
+    first_month_goal_allocation: MonthlyGoalAllocation | None = None
 
 
 def _marginal_rate(user: User, marginal_rate_override: Decimal | None) -> Decimal:
@@ -142,6 +148,8 @@ def simulate_plan(
     inflate_expenses: bool = False,
     lifecycle_events: list[LifecycleEvent] | None = None,
     ef_top_up_rate: Decimal = D("0"),
+    goal_outflow_monthly: Decimal = D("0"),
+    goals: list[GoalState] | None = None,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`. Returns one MonthRow per month
     until either all loans clear or horizon is reached.
@@ -181,6 +189,15 @@ def simulate_plan(
     `efund_target`, allocation switches back to 100% debt. Default 0
     preserves the legacy "all surplus → debt" behaviour for tests and
     for users who haven't set an EF target.
+
+    `goal_outflow_monthly` (default 0) is the total tier-pro-rata goal
+    contribution computed by the client across all active goals
+    (critical / important / discretionary). When > 0, that amount is
+    subtracted from each month's surplus before the EF/debt cascade —
+    representing money the user has committed to fund their goals
+    outside the debt-payoff path. Clamped at the available surplus so
+    the engine never goes negative. Default 0 preserves the legacy
+    single-preempting-goal flag (`ef_preempted` in callers) behaviour.
     """
     loans = [deepcopy(l) for l in user.loans]
     # Map deep-copied loan identity → its original position in user.loans.
@@ -204,6 +221,7 @@ def simulate_plan(
     best_liquid_return = _best_liquid_return(user.investment_options)
     inflation = user.inflation_rate
     debt_free_month: int | None = None
+    first_month_alloc: MonthlyGoalAllocation | None = None
     first_hike = _first_hike_month_index(simulation_start_month, user.hike_effective_month)
     # Pre-compute the monthly compounding factor for the inflation toggle —
     # Decimal doesn't support fractional exponents natively, so we convert
@@ -394,6 +412,33 @@ def simulate_plan(
             scratch_user, active, matched_contribution=matched_contribution,
             simple_mode=simple_mode,
         )
+
+        # Multi-goal monthly outflow.
+        #
+        # Two paths, both subtract from surplus before EF/debt cascade:
+        #
+        #   1. `goals` (preferred): engine knows each goal's target
+        #      month + saved-so-far. Per-month tier-pro-rata, goals
+        #      expire when their target month passes, saved_so_far
+        #      threads across iterations so each future month's
+        #      run-rate adjusts as the goal approaches funding.
+        #
+        #   2. `goal_outflow_monthly` (legacy): client-computed
+        #      constant outflow. Same number every month — no expiry
+        #      awareness. Kept for backward compat with callers that
+        #      haven't migrated to per-goal data.
+        #
+        # When both are passed, `goals` wins; `goal_outflow_monthly`
+        # is ignored to avoid double-subtraction.
+        if goals and surplus > 0:
+            alloc = serial_fill_allocation(goals, surplus, m - 1)
+            goal_committed = min(alloc.total_outflow, surplus)
+            surplus -= goal_committed
+            if m == 1:
+                first_month_alloc = alloc
+        elif goal_outflow_monthly > 0 and surplus > 0:
+            goal_committed = min(goal_outflow_monthly, surplus)
+            surplus -= goal_committed
 
         # Soft EF waterfall: when target unmet and ef_top_up_rate>0, divert
         # the configured fraction of surplus into the EF pool before debt
@@ -596,6 +641,7 @@ def simulate_plan(
         total_interest_paid=total_interest,
         total_invested=total_invested,
         final_balances={id(l): l.outstanding for l in loans},
+        first_month_goal_allocation=first_month_alloc,
     )
 
 

@@ -97,13 +97,13 @@ function expandFire(input: TemplateInput): TemplateOutput {
   debtFree.label = 'Debts fully cleared (FIRE prerequisite)';
   debtFree.targetMonth = targetMonthFromNow(debtFreeMonth);
   debtFree.amount = '0';
-  debtFree.priority = 'critical';
+  debtFree.priorityBump = true;
 
   const corpusGoal = applyPresetDefaults(blankGoal('custom'), 'custom');
   corpusGoal.label = `FIRE corpus (25× annual expenses)`;
   corpusGoal.amount = String(Math.round(corpus));
   corpusGoal.targetMonth = targetMonthFromNow(corpusMonth);
-  corpusGoal.priority = 'critical';
+  corpusGoal.priorityBump = true;
   corpusGoal.bufferPct = '0.10';
   corpusGoal.fundingSources = ['surplus', 'liquidation'];
 
@@ -111,8 +111,7 @@ function expandFire(input: TemplateInput): TemplateOutput {
   cushion.label = '1 year living-expense cushion';
   cushion.amount = String(Math.round(monthlyExpenses * 12));
   cushion.targetMonth = targetMonthFromNow(cushionMonth);
-  cushion.priority = 'critical';
-  cushion.preemptsEf = true;
+  cushion.priorityBump = true;
   cushion.fundingSources = ['surplus', 'liquidation'];
 
   return {
@@ -144,7 +143,7 @@ function expandBuyHome(input: TemplateInput): TemplateOutput {
   closingCosts.label = 'Closing costs + stamp duty';
   closingCosts.amount = String(Math.round(homeValue * 0.05));
   closingCosts.targetMonth = targetMonthFromNow(monthsAhead);
-  closingCosts.priority = 'critical';
+  closingCosts.priorityBump = true;
   closingCosts.bufferPct = '0.10';
   closingCosts.fundingSources = ['surplus'];
 
@@ -197,9 +196,8 @@ function expandBusinessLaunch(input: TemplateInput): TemplateOutput {
   runwayGoal.label = '12-month personal runway';
   runwayGoal.amount = String(Math.round(runway));
   runwayGoal.targetMonth = targetMonthFromNow(monthsAhead);
-  runwayGoal.priority = 'critical';
+  runwayGoal.priorityBump = true;
   runwayGoal.bufferPct = '0.20';
-  runwayGoal.preemptsEf = false;
   runwayGoal.fundingSources = ['surplus', 'liquidation'];
 
   return {
@@ -227,7 +225,7 @@ function expandRetirement(input: TemplateInput): TemplateOutput {
   corpusGoal.label = `Retirement corpus (30× annual expenses)`;
   corpusGoal.amount = String(Math.round(corpus));
   corpusGoal.targetMonth = targetMonthFromNow(months);
-  corpusGoal.priority = 'critical';
+  corpusGoal.priorityBump = true;
   corpusGoal.bufferPct = '0.15';
   corpusGoal.fundingSources = ['surplus', 'liquidation'];
 

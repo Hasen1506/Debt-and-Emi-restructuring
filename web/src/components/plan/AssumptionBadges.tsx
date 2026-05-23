@@ -42,8 +42,8 @@ export function AssumptionBadges({ plan }: { plan: PlanData }) {
   const efBal = Number(plan.user.efund_balance || 0);
   const efTgt = Number(plan.user.efund_target || 0);
   const efPct = Math.round(Number(plan.efSplit || '0.3') * 100);
-  if (plan.efPreempted) {
-    chips.push({ label: 'EF paused (goal pre-empt)', tone: 'on' });
+  if (plan.goalsActive) {
+    chips.push({ label: 'EF paused (goals active)', tone: 'on' });
   } else if (efTgt > 0 && efBal < efTgt && efPct > 0) {
     chips.push({ label: `${efPct}% surplus → EF`, tone: 'on' });
   }
