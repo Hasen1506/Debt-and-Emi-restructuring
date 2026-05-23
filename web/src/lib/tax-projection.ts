@@ -294,8 +294,10 @@ export function projectAnnualTaxSavings(
  *   • New regime (FY24+ default):
  *     - All of the above are NOT available except let-out property
  *       interest (Sec 24b for rental — but we don't currently track
- *       let-out vs self-occupied, so we surface a "switch regime to
- *       claim" hint instead of pretending it works).
+ *       let-out vs self-occupied, so we just surface "not deductible
+ *       on new regime" without nudging a switch. Switching regimes
+ *       costs the lower slab rates, which this app can't fully
+ *       evaluate against, so the choice is left to the user.
  *
  * US — single regime, deductions stable:
  *   • Home loan interest: Schedule A itemised, $750k cap (TCJA).
@@ -314,7 +316,10 @@ function describeDeduction(
       if (isNew) {
         return {
           eligible: false,
-          context: 'Sec 24(b) self-occupied: not available under new regime. Switch to old regime to claim ₹2L/yr.',
+          // The user picked new regime in onboarding. We respect the choice
+          // and don't nudge them to switch — regime change has consequences
+          // (loses lower slab rates) that this app can't fully evaluate.
+          context: 'Sec 24(b) self-occupied: not deductible on new regime.',
         };
       }
       return {
@@ -326,7 +331,7 @@ function describeDeduction(
       if (isNew) {
         return {
           eligible: false,
-          context: 'Sec 80E: not available under new regime. Switch to old to claim full interest (8-year cap).',
+          context: 'Sec 80E: not deductible on new regime.',
         };
       }
       return {

@@ -22,6 +22,7 @@
  */
 
 import type { LoanPayload, UserPayload } from './api';
+import { deriveMarginalRateForUser } from './deductions';
 
 const COOKIE_NAME = 'finoptima_lifecycle';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -64,6 +65,14 @@ export interface AppliedSnapshot {
   // property_buy — index of the loan that was appended, so we know
   // which entry to splice out on undo.
   addedLoanIndex?: number;
+  /** Pre-apply marginal rate. Captured because the post-apply user
+   *  may sit in a different tax bracket — a salary jump from ₹10L to
+   *  ₹25L flips the user from 20% (old regime) to 30%, and the stored
+   *  marginalRate must follow or every downstream calc (purchase
+   *  advisor, effective-APR, tax sleeve) will lie. On undo we restore
+   *  the prior value rather than re-deriving, so the round-trip is
+   *  exact even if bracket tables shift between confirm and undo. */
+  prevMarginalRate?: string;
 }
 
 export interface SalaryResetEvent extends BaseEvent {
@@ -316,6 +325,31 @@ export function applyConfirmedEvent(
 }
 
 /**
+ * Apply event + refresh the stored marginal tax rate to match the
+ * updated user fields. Wraps `applyConfirmedEvent` so callers don't
+ * have to remember the two-step (apply → re-derive); skipping the
+ * re-derive was a real bug — a salary-bump from ₹10L to ₹25L left the
+ * stored `marginalRate` at 20% when actual was 30%, silently mis-pricing
+ * every downstream tax-aware calc (purchase advisor, effective APR,
+ * tax sleeve). The previous marginalRate is stashed in the snapshot so
+ * undo is a round-trip exact, not a re-derive that could differ if
+ * bracket tables shift between confirm and undo.
+ */
+export function applyConfirmedEventWithRefresh(
+  user: UserPayload,
+  prevMarginalRate: string,
+  event: LifecycleEvent,
+): { user: UserPayload; marginalRate: string; snapshot: AppliedSnapshot } {
+  const { user: updatedUser, snapshot } = applyConfirmedEvent(user, event);
+  const marginalRate = deriveMarginalRateForUser(updatedUser);
+  return {
+    user: updatedUser,
+    marginalRate,
+    snapshot: { ...snapshot, prevMarginalRate },
+  };
+}
+
+/**
  * Inverse of applyConfirmedEvent. Restores the pre-confirm profile state
  * from event.appliedSnapshot. No-op if the snapshot is missing.
  *
@@ -362,6 +396,23 @@ export function undoConfirmedEvent(
     return { ...user, loans };
   }
   return user;
+}
+
+/**
+ * Inverse of `applyConfirmedEventWithRefresh`. Restores both the user
+ * fields and the stored marginal rate. Prefers the snapshot's
+ * `prevMarginalRate` (round-trip exact) and falls back to re-deriving
+ * from the restored user — covers legacy events whose snapshots
+ * pre-date the marginalRate-staleness fix.
+ */
+export function undoConfirmedEventWithRefresh(
+  user: UserPayload,
+  event: LifecycleEvent,
+): { user: UserPayload; marginalRate: string } {
+  const restoredUser = undoConfirmedEvent(user, event);
+  const fromSnapshot = event.appliedSnapshot?.prevMarginalRate;
+  const marginalRate = fromSnapshot ?? deriveMarginalRateForUser(restoredUser);
+  return { user: restoredUser, marginalRate };
 }
 
 // ─── Server-side ────────────────────────────────────────────────────────────

@@ -21,13 +21,13 @@ import {
   readLifecycleClient,
   writeLifecycleClient,
   updateLifecycleEvent,
-  applyConfirmedEvent,
-  undoConfirmedEvent,
+  applyConfirmedEventWithRefresh,
+  undoConfirmedEventWithRefresh,
   pendingArrivals,
   LIFECYCLE_KIND_LABEL,
   type LifecycleEvent,
 } from '@/lib/lifecycle-events';
-import { saveProfileClient } from '@/lib/user-store';
+import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 
 type Variant = 'ledger' | 'existing' | 'editorial';
 
@@ -58,9 +58,14 @@ export function LifecycleArrivalPrompts({
     const target = events.find((e) => e.id === id);
     if (!target) return;
     // planned → confirmed: apply event to profile + capture snapshot.
+    // Refresh marginalRate alongside the user mutation — a salary
+    // bump changes the bracket, and downstream tax-aware calcs lie
+    // when the stored marginal stays at the pre-event value.
     if (status === 'confirmed' && target.status !== 'confirmed') {
-      const { user: updatedUser, snapshot } = applyConfirmedEvent(user, target);
-      saveProfileClient({ user: updatedUser });
+      const prevMarginal = loadProfileClient().marginalRate;
+      const { user: updatedUser, marginalRate, snapshot } =
+        applyConfirmedEventWithRefresh(user, prevMarginal, target);
+      saveProfileClient({ user: updatedUser, marginalRate });
       const next = updateLifecycleEvent(events, id, {
         status,
         appliedSnapshot: snapshot,
@@ -72,7 +77,9 @@ export function LifecycleArrivalPrompts({
     // confirmed → cancelled: undo profile change first, then change status.
     if (target.status === 'confirmed' && status === 'cancelled') {
       if (target.appliedSnapshot) {
-        saveProfileClient({ user: undoConfirmedEvent(user, target) });
+        const { user: restoredUser, marginalRate } =
+          undoConfirmedEventWithRefresh(user, target);
+        saveProfileClient({ user: restoredUser, marginalRate });
       }
       const next = updateLifecycleEvent(events, id, {
         status,

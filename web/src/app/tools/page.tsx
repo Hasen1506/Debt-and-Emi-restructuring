@@ -18,6 +18,7 @@ import { CashYieldTool } from './cash-yield/tool';
 import { RightTimeTool } from './right-time/tool';
 import { NriPrepayTool } from './nri-prepay/tool';
 import { InvestVsPrepayDeepTool } from './invest-vs-prepay/tool';
+import { PurchaseTool } from './purchase/tool';
 
 type ToolKey =
   | 'windfall'
@@ -27,7 +28,8 @@ type ToolKey =
   | 'cash-yield'
   | 'right-time'
   | 'nri-prepay'
-  | 'invest-vs-prepay';
+  | 'invest-vs-prepay'
+  | 'purchase';
 
 interface ToolEntry {
   key: ToolKey;
@@ -61,6 +63,14 @@ const TOOLS: ToolEntry[] = [
     explainer:
       "Should I take this EMI? Models the impact on surplus, total interest, and debt-free date before you sign anything. Flags if the new line pushes surplus negative.",
     Body: NewDebtTool,
+  },
+  {
+    key: 'purchase',
+    label: 'Purchase advisor',
+    sub: 'Planning a house, car, or bike',
+    explainer:
+      "Models a planned big-ticket buy as a single decision: down-payment savings + loan EMI + tax benefit (regime-gated, no nudging) + depreciation caveats. Shows TCO and three levers — lower the price, push the date, or raise the down payment — when the current plan is tight.",
+    Body: PurchaseTool,
   },
   {
     key: 'liquidate',

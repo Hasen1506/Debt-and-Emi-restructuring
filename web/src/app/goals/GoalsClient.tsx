@@ -20,15 +20,30 @@ import {
   type GoalKind,
   applyPresetDefaults,
   blankGoal,
+  compareGoalsForOrder,
   fundedAmount,
   monthsUntil,
   readGoalsClient,
   writeGoalsClient,
 } from '@/lib/goals';
-import { analyseGoal, recommendedTier } from '@/lib/achievability';
+import {
+  addContribution,
+  readContributionsClient,
+  removeContribution,
+  totalsByGoal,
+  writeContributionsClient,
+  type GoalContributionEntry,
+} from '@/lib/goal-contributions';
+import {
+  analyseGoal,
+  computeShortfallLevers,
+  recommendedTier,
+  type ShortfallLevers,
+} from '@/lib/achievability';
 import { projectedLiquidatableValue } from '@/lib/asset-returns';
-import { readEfSplitClient } from '@/lib/ef-split';
 import { readDecisionsClient, recordDecision } from '@/lib/decisions';
+import { commitExpenseReduction } from '@/lib/expense-commit';
+import { loadProfileClient } from '@/lib/user-store';
 import {
   TEMPLATE_CATALOGUE,
   type TemplateKind,
@@ -60,15 +75,96 @@ const FUNDING_LABELS: Record<GoalFundingSource, string> = {
   new_loan: 'Take a new loan',
 };
 
-export function GoalsClient({ user, lowestRates }: Props) {
+export function GoalsClient({ user: userProp, lowestRates }: Props) {
   const [goals, setGoals] = useState<Goal[]>([]);
-  const [efSplit, setEfSplit] = useState('0.3');
+  const [contributions, setContributions] = useState<GoalContributionEntry[]>([]);
+  // `user` is mirrored to local state so commits made on this page
+  // (e.g. expense reductions) propagate to the derived surplus + tier
+  // analysis on the next render. Without this, the server-passed
+  // `user` prop stays frozen until a navigation refreshes it, and
+  // the achievability re-evaluation would lag the actual mutation.
+  const [user, setUser] = useState<UserPayload>(userProp);
   const ccySym = user.country === 'IN' ? '₹' : '$';
 
   useEffect(() => {
     setGoals(readGoalsClient());
-    setEfSplit(readEfSplitClient());
+    setContributions(readContributionsClient());
   }, []);
+
+  // Re-read the stored profile after any locally-applied mutation
+  // (expense commit, future commit-style flows). Pulled into a
+  // callback so leaf components can request a refresh without
+  // knowing about the storage layer.
+  function refreshUserFromStore() {
+    setUser(loadProfileClient().user);
+  }
+
+  const savedByGoal = useMemo(() => totalsByGoal(contributions), [contributions]);
+
+  /**
+   * Per-goal "draw from prior serial-fill claimants" — the sum of
+   * monthly run-rates for every goal that ranks ahead of this one in
+   * the engine's allocator order. Lets each GoalCard's achievability
+   * check ask "what's the surplus I'd actually see, after my higher-
+   * priority siblings have taken their slice?". Without this, T1
+   * over-promises any non-leading goal because the engine's serial
+   * fill drains earlier goals first.
+   */
+  const priorDrawByGoal = useMemo(() => {
+    const sorted = [...goals].sort(compareGoalsForOrder);
+    const draw: Record<string, number> = {};
+    let cum = 0;
+    for (const g of sorted) {
+      draw[g.id] = cum;
+      const months = monthsUntil(g);
+      if (months <= 0) continue;
+      const required = fundedAmount(g);
+      const saved = savedByGoal[g.id] ?? 0;
+      const remaining = Math.max(0, required - saved);
+      if (remaining <= 0) continue;
+      cum += remaining / months;
+    }
+    return draw;
+  }, [goals, savedByGoal]);
+
+  function commitContributions(next: GoalContributionEntry[]) {
+    setContributions(next);
+    writeContributionsClient(next);
+  }
+
+  function logContribution(
+    goalId: string,
+    amount: string,
+    date: string,
+    source?: string,
+  ) {
+    commitContributions(
+      addContribution(contributions, { goalId, amount, date, source }),
+    );
+  }
+
+  function unlogContribution(id: string) {
+    commitContributions(removeContribution(contributions, id));
+  }
+
+  /**
+   * Apply an expense reduction the user committed to in the lever
+   * panel. Mutates the stored profile via `commitExpenseReduction`
+   * (which also writes a decision-log entry for the activity ledger
+   * + audit trail) then refreshes local `user` state so the next
+   * render's surplus + tier analysis reflects the cut.
+   *
+   * Returns true on success — callers can use it to switch a button
+   * into a "committed" confirmation state without re-querying the
+   * store.
+   */
+  function commitCut(monthlyDelta: number, goalId: string, goalLabel: string): boolean {
+    if (monthlyDelta <= 0) return false;
+    const result = commitExpenseReduction({ monthlyDelta, goalId, goalLabel });
+    if (!result) return false;
+    refreshUserFromStore();
+    return true;
+  }
 
   const surplus = useMemo(() => {
     const income = new Decimal(user.monthly_income || '0');
@@ -257,7 +353,6 @@ export function GoalsClient({ user, lowestRates }: Props) {
           monthlySurplus={surplus}
           efBalance={efBalance}
           efTarget={efTarget}
-          efSplit={Number(efSplit)}
           liquidatableValue={projectedLiquidatableValue(
             liquidAssets,
             user.country,
@@ -265,9 +360,22 @@ export function GoalsClient({ user, lowestRates }: Props) {
           )}
           indicativeRate={indicativeRate}
           indicativeBank={lowestRates.personal?.bank ?? null}
+          savedSoFar={savedByGoal[g.id] ?? 0}
+          priorGoalsMonthlyDraw={priorDrawByGoal[g.id] ?? 0}
+          contributions={contributions.filter((c) => c.goalId === g.id)}
           onPatch={(patch) => updateGoal(g.id, patch)}
           onToggleFunding={(src) => toggleFunding(g.id, src)}
           onRemove={() => removeGoal(g.id)}
+          onLogContribution={(amount, date, source) =>
+            logContribution(g.id, amount, date, source)
+          }
+          onUnlogContribution={unlogContribution}
+          totalExpenses={
+            Number(user.fixed_expenses || '0') + Number(user.variable_expenses || '0')
+          }
+          onCommitExpenseCut={(monthlyDelta) =>
+            commitCut(monthlyDelta, g.id, g.label || GOAL_PRESETS[g.kind].label)
+          }
         />
       ))}
 
@@ -335,41 +443,60 @@ function GoalCard({
   monthlySurplus,
   efBalance,
   efTarget,
-  efSplit,
   liquidatableValue,
   indicativeRate,
   indicativeBank,
+  savedSoFar,
+  priorGoalsMonthlyDraw,
+  contributions,
   onPatch,
   onToggleFunding,
   onRemove,
+  onLogContribution,
+  onUnlogContribution,
+  totalExpenses,
+  onCommitExpenseCut,
 }: {
   goal: Goal;
   ccySym: string;
   monthlySurplus: number;
   efBalance: number;
   efTarget: number;
-  efSplit: number;
   liquidatableValue: number;
   indicativeRate: number;
   indicativeBank: string | null;
+  savedSoFar: number;
+  priorGoalsMonthlyDraw: number;
+  contributions: GoalContributionEntry[];
   onPatch: (patch: Partial<Goal>) => void;
   onToggleFunding: (src: GoalFundingSource) => void;
   onRemove: () => void;
+  onLogContribution: (amount: string, date: string, source?: string) => void;
+  onUnlogContribution: (id: string) => void;
+  totalExpenses: number;
+  onCommitExpenseCut: (monthlyDelta: number) => boolean;
 }) {
   const preset = GOAL_PRESETS[goal.kind];
   const months = monthsUntil(goal);
   const required = fundedAmount(goal);
 
-  const tiers = analyseGoal({
+  const achievabilityInput = {
     goal,
     monthlySurplus,
     efBalance,
     efTarget,
-    efSplit,
+    priorGoalsMonthlyDraw,
     liquidatableValue,
     newLoanIndicativeRate: indicativeRate,
-  });
+  };
+  const tiers = analyseGoal(achievabilityInput);
   const rec = recommendedTier(tiers);
+  // Only compute "honest" levers when the recommended path falls short
+  // — feasible goals don't need them, and avoiding the call keeps the
+  // common-case render cheap.
+  const levers: ShortfallLevers | null = rec.achievable
+    ? null
+    : computeShortfallLevers(achievabilityInput);
 
   return (
     <section
@@ -390,6 +517,24 @@ function GoalCard({
           <span style={{ color: 'var(--muted)', fontSize: 12, marginLeft: 4 }}>
             · {KIND_OPTIONS.find((o) => o.value === goal.kind)?.label}
           </span>
+          {goal.priorityBump && (
+            <span
+              style={{
+                marginLeft: 8,
+                padding: '1px 6px',
+                fontSize: 10,
+                fontWeight: 600,
+                color: 'var(--accent)',
+                border: '1px solid var(--accent)',
+                borderRadius: 3,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Bumped
+            </span>
+          )}
+          <FillRateBadge goal={goal} required={required} savedSoFar={savedSoFar} />
           <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
             {preset.description}
           </div>
@@ -437,23 +582,6 @@ function GoalCard({
           onChange={(v) => onPatch({ targetMonth: v })}
           hint={`${months} months from now`}
         />
-        <Select
-          label="Priority"
-          value={goal.priority}
-          onChange={(v) => onPatch({ priority: v as 'critical' | 'standard' })}
-          options={[
-            { value: 'standard', label: 'Standard' },
-            { value: 'critical', label: 'Critical' },
-          ]}
-          info={
-            <>
-              <strong>Critical</strong> goals pre-empt the EF waterfall and
-              get prioritised when multiple goals contend for the same
-              month&apos;s surplus. <strong>Standard</strong> goals share
-              the surplus pool fairly.
-            </>
-          }
-        />
         <Field
           label="Buffer % (decimal)"
           value={goal.bufferPct}
@@ -466,16 +594,17 @@ function GoalCard({
         <label style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
           <input
             type="checkbox"
-            checked={goal.preemptsEf}
-            onChange={(e) => onPatch({ preemptsEf: e.target.checked })}
+            checked={goal.priorityBump}
+            onChange={(e) => onPatch({ priorityBump: e.target.checked })}
           />
-          This goal pre-empts EF top-up
+          Bump priority
           <InfoTip>
-            When checked, the EF / debt split slider on /plan is overridden
-            for this goal&apos;s funding window. 100% of surplus routes to
-            the goal instead of 30% being siphoned to EF. Use for high-
-            stakes, fixed-date goals (wedding, medical) where you&apos;d
-            rather rebuild EF after.
+            By default, goals are funded in target-date order — earliest
+            first. Check this if this goal matters more than its date
+            suggests (e.g. a medical reserve due in 18 months that should
+            beat a vacation due in 6). Bumped goals are funded ahead of
+            earlier-dated ones; you can also drag a goal on the /plan
+            waterfall to toggle this.
           </InfoTip>
         </label>
         <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -506,32 +635,256 @@ function GoalCard({
         </div>
       </div>
 
+      <ContributionsPanel
+        ccySym={ccySym}
+        savedSoFar={savedSoFar}
+        required={required}
+        contributions={contributions}
+        onLog={onLogContribution}
+        onUnlog={onUnlogContribution}
+      />
+
       <Achievability
         tiers={tiers}
         rec={rec}
+        levers={levers}
         ccySym={ccySym}
         indicativeBank={indicativeBank}
         required={required}
         goalAmount={goal.amount}
+        totalExpenses={totalExpenses}
+        onCommitExpenseCut={onCommitExpenseCut}
       />
     </section>
+  );
+}
+
+/**
+ * Goal contributions ledger UI. Per-goal "I put ₹X in on date Y" log.
+ *
+ * Two responsibilities:
+ *   1. Show saved-so-far / required progress so the user can see how
+ *      close they are without doing arithmetic.
+ *   2. Capture new contributions inline (amount + date + optional
+ *      source) so the cookie digest mirror updates → the engine's
+ *      next /plan render sees a lower run-rate.
+ *
+ * Past entries get a remove affordance — corrections are common when
+ * users mis-log amounts or dates.
+ */
+function ContributionsPanel({
+  ccySym,
+  savedSoFar,
+  required,
+  contributions,
+  onLog,
+  onUnlog,
+}: {
+  ccySym: string;
+  savedSoFar: number;
+  required: number;
+  contributions: GoalContributionEntry[];
+  onLog: (amount: string, date: string, source?: string) => void;
+  onUnlog: (id: string) => void;
+}) {
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [source, setSource] = useState('');
+  const progressPct =
+    required > 0 ? Math.min(100, Math.round((savedSoFar / required) * 100)) : 0;
+
+  function submit() {
+    const n = Number(amount);
+    if (!Number.isFinite(n) || n <= 0) return;
+    onLog(amount, date, source || undefined);
+    setAmount('');
+    setSource('');
+  }
+
+  return (
+    <div
+      style={{
+        padding: 12,
+        background: 'var(--soft-bg)',
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 8,
+          alignItems: 'baseline',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <div className="muted" style={{ fontSize: 11, letterSpacing: '0.06em' }}>
+            SAVED SO FAR
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 600 }}>
+            {ccySym}
+            {Math.round(savedSoFar).toLocaleString()}{' '}
+            <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>
+              / {ccySym}
+              {Math.round(required).toLocaleString()} ({progressPct}%)
+            </span>
+          </div>
+        </div>
+        <div
+          style={{
+            flex: '0 0 200px',
+            height: 6,
+            background: 'var(--border)',
+            borderRadius: 3,
+            overflow: 'hidden',
+            alignSelf: 'center',
+          }}
+        >
+          <div
+            style={{
+              width: `${progressPct}%`,
+              height: '100%',
+              background: progressPct >= 100 ? 'var(--positive)' : 'var(--accent)',
+            }}
+          />
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr 1fr auto',
+          gap: 8,
+          alignItems: 'end',
+        }}
+      >
+        <Field
+          label={`Amount (${ccySym})`}
+          value={amount}
+          onChange={setAmount}
+          hint="One-time contribution"
+          kind="decimal"
+        />
+        <Field
+          label="Date (YYYY-MM-DD)"
+          value={date}
+          onChange={setDate}
+          hint="When it actually moved"
+          kind="date"
+        />
+        <Field
+          label="Source"
+          value={source}
+          onChange={setSource}
+          hint="surplus / bonus / gift / sold X"
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!amount || Number(amount) <= 0}
+          style={{
+            padding: '8px 14px',
+            border: '1px solid var(--ink)',
+            background: 'var(--ink)',
+            color: 'var(--canvas)',
+            borderRadius: 4,
+            fontSize: 12,
+            cursor: amount && Number(amount) > 0 ? 'pointer' : 'not-allowed',
+            opacity: amount && Number(amount) > 0 ? 1 : 0.5,
+            height: 34,
+          }}
+        >
+          + Log
+        </button>
+      </div>
+
+      {contributions.length > 0 && (
+        <ul
+          style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: 0,
+            fontSize: 12,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          {contributions.slice(0, 6).map((c) => (
+            <li
+              key={c.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 8,
+                padding: '4px 8px',
+                background: 'var(--card)',
+                borderRadius: 4,
+              }}
+            >
+              <span>
+                {c.date} ·{' '}
+                <strong>
+                  {ccySym}
+                  {Number(c.amount).toLocaleString()}
+                </strong>
+                {c.source ? (
+                  <span className="muted"> · {c.source}</span>
+                ) : null}
+              </span>
+              <button
+                type="button"
+                onClick={() => onUnlog(c.id)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--negative)',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  padding: 0,
+                }}
+                aria-label="Remove contribution"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+          {contributions.length > 6 && (
+            <li className="muted" style={{ fontSize: 11 }}>
+              +{contributions.length - 6} older entries
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
   );
 }
 
 function Achievability({
   tiers,
   rec,
+  levers,
   ccySym,
   indicativeBank,
   required,
   goalAmount,
+  totalExpenses,
+  onCommitExpenseCut,
 }: {
   tiers: ReturnType<typeof analyseGoal>;
   rec: ReturnType<typeof recommendedTier>;
+  levers: ShortfallLevers | null;
   ccySym: string;
   indicativeBank: string | null;
   required: number;
   goalAmount: string;
+  totalExpenses: number;
+  onCommitExpenseCut: (monthlyDelta: number) => boolean;
 }) {
   // Identify whether T3 (or rec) leans on liquidation — that's the
   // signal to surface the portfolio-advisor CTA.
@@ -556,6 +909,14 @@ function Achievability({
         Recommended path: <strong>{rec.tier}</strong> ·{' '}
         {rec.achievable ? 'achievable' : `${ccySym}${Math.round(rec.shortfall).toLocaleString()} short`}
       </div>
+      {levers && (
+        <ShortfallLeverPanel
+          levers={levers}
+          ccySym={ccySym}
+          totalExpenses={totalExpenses}
+          onCommitExpenseCut={onCommitExpenseCut}
+        />
+      )}
       {showAdvisorCta && (
         <div
           style={{
@@ -615,5 +976,299 @@ function Achievability({
         })}
       </div>
     </div>
+  );
+}
+
+/**
+ * Honest "can't afford this on the current plan" framing. Shown only
+ * when no tier reaches the goal. Surfaces three levers side by side so
+ * the user picks which to pull rather than being told "no":
+ *
+ *   • Push the date out by N months (keep target + surplus).
+ *   • Lower the target by X (keep date + surplus).
+ *   • Increase surplus by Y/mo (keep date + target).
+ *
+ * Read-only by design — applying the chosen lever is the user's call.
+ * Editing the goal fields directly above re-runs the analysis on the
+ * next render, so the lever values update in place.
+ */
+function ShortfallLeverPanel({
+  levers,
+  ccySym,
+  totalExpenses,
+  onCommitExpenseCut,
+}: {
+  levers: ShortfallLevers;
+  ccySym: string;
+  totalExpenses: number;
+  onCommitExpenseCut: (monthlyDelta: number) => boolean;
+}) {
+  // If no lever offers a path forward, fall back to a single line so
+  // we don't render a panel of three "n/a" cells.
+  const hasAnyPath =
+    (levers.extendMonthsBy != null && levers.extendMonthsBy > 0) ||
+    levers.lowerTargetBy > 0 ||
+    levers.increaseSurplusBy > 0;
+  if (!hasAnyPath) {
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: 10,
+          border: '1px solid var(--negative)',
+          borderRadius: 4,
+          fontSize: 12,
+          color: 'var(--negative)',
+          lineHeight: 1.5,
+        }}
+      >
+        This goal isn&apos;t reachable on any current source — even with
+        unlimited time. Add a funding source above, or widen the EF tap
+        floor by reducing the EF target.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        padding: 10,
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        borderRadius: 4,
+      }}
+    >
+      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
+        What would make this work?
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 8,
+          fontSize: 12,
+        }}
+      >
+        <Lever
+          label="Push the date out"
+          value={
+            levers.extendMonthsBy != null
+              ? `+${levers.extendMonthsBy} months`
+              : 'not enough inflow'
+          }
+          subtle={
+            levers.extendMonthsBy != null
+              ? 'Same target, same surplus — later finish.'
+              : 'Need additional inflow to ever close.'
+          }
+          disabled={levers.extendMonthsBy == null}
+        />
+        <Lever
+          label="Lower the target"
+          value={`-${ccySym}${levers.lowerTargetBy.toLocaleString()}`}
+          subtle="Trim scope to fit the current date + surplus."
+          disabled={levers.lowerTargetBy === 0}
+        />
+        <Lever
+          label="Increase monthly inflow"
+          value={`+${ccySym}${levers.increaseSurplusBy.toLocaleString()}/mo`}
+          subtle="Same date, same target — needs higher surplus."
+          disabled={levers.increaseSurplusBy === 0}
+        />
+      </div>
+      <CommitExpenseCutRow
+        monthlyDelta={levers.increaseSurplusBy}
+        totalExpenses={totalExpenses}
+        ccySym={ccySym}
+        onCommit={onCommitExpenseCut}
+      />
+    </div>
+  );
+}
+
+/**
+ * Companion to the "Increase monthly inflow" lever: lets the user
+ * actually *commit* to the cut from this surface, without bouncing
+ * out to a separate budget editor. The mutation lands on the profile
+ * + writes a decision-log entry (visible later in the activity
+ * ledger). Hidden when there's no shortfall to close or when total
+ * monthly expenses are too low to absorb the cut (heuristic: leave
+ * at least 30% of current spend untouched so we don't suggest a cut
+ * that's effectively impossible).
+ */
+function CommitExpenseCutRow({
+  monthlyDelta,
+  totalExpenses,
+  ccySym,
+  onCommit,
+}: {
+  monthlyDelta: number;
+  totalExpenses: number;
+  ccySym: string;
+  onCommit: (monthlyDelta: number) => boolean;
+}) {
+  const [committed, setCommitted] = useState(false);
+  if (monthlyDelta <= 0) return null;
+  // Cap: don't propose cuts larger than 70% of current total expenses
+  // — that's the "lifestyle pain" floor we agreed in the design pass.
+  // Below that floor we suppress the affordance entirely so the user
+  // doesn't end up acting on a suggestion they can't realistically
+  // sustain. Caller's next rung (cross-goal, liquidate, loan) picks up.
+  const cuttable = totalExpenses > 0 && monthlyDelta <= totalExpenses * 0.7;
+  if (!cuttable) return null;
+
+  function handleClick() {
+    const ok = window.confirm(
+      `Commit to cutting ${ccySym}${Math.round(monthlyDelta).toLocaleString()}/mo from your expenses, starting next month?\n\nYour stored budget will update immediately. You can undo from the activity ledger anytime.`,
+    );
+    if (!ok) return;
+    if (onCommit(monthlyDelta)) setCommitted(true);
+  }
+
+  if (committed) {
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '8px 10px',
+          background: 'var(--soft-bg)',
+          borderLeft: '3px solid var(--positive)',
+          fontSize: 12,
+          color: 'var(--ink)',
+          lineHeight: 1.5,
+        }}
+      >
+        <strong style={{ color: 'var(--positive)' }}>Committed.</strong>{' '}
+        Expenses reduced by {ccySym}
+        {Math.round(monthlyDelta).toLocaleString()}/mo. The ledger
+        records this — you can reconcile or undo there.
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+        padding: '6px 10px',
+        background: 'var(--soft-bg)',
+        borderRadius: 4,
+        fontSize: 12,
+        color: 'var(--muted)',
+        lineHeight: 1.45,
+      }}
+    >
+      <span>
+        Plan to cut {ccySym}
+        {Math.round(monthlyDelta).toLocaleString()}/mo from expenses? Apply
+        now and your plan will reflect the higher surplus from next month.
+      </span>
+      <button
+        type="button"
+        onClick={handleClick}
+        style={{
+          flexShrink: 0,
+          padding: '5px 12px',
+          border: '1px solid var(--ink)',
+          background: 'var(--canvas)',
+          color: 'var(--ink)',
+          borderRadius: 4,
+          cursor: 'pointer',
+          fontSize: 12,
+          fontWeight: 600,
+        }}
+      >
+        Commit cut
+      </button>
+    </div>
+  );
+}
+
+function Lever({
+  label,
+  value,
+  subtle,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  subtle: string;
+  disabled: boolean;
+}) {
+  return (
+    <div
+      style={{
+        padding: 8,
+        background: 'var(--soft-bg)',
+        borderRadius: 4,
+        opacity: disabled ? 0.55 : 1,
+        lineHeight: 1.4,
+      }}
+    >
+      <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.04em' }}>
+        {label.toUpperCase()}
+      </div>
+      <div style={{ fontWeight: 600, marginTop: 2 }}>{value}</div>
+      <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 2 }}>{subtle}</div>
+    </div>
+  );
+}
+
+/**
+ * Headline "expected fill rate" badge on each goal card. Two flavours:
+ *
+ *   • If the user has saved-so-far on this goal (contributions logged)
+ *     we show the actual progress (saved / required) — concrete, not
+ *     a projection.
+ *   • Otherwise we surface what the achievability check projects for
+ *     T1 (surplus-only). That's an upper bound — the engine's
+ *     per-goal allocation may share surplus with other goals, but
+ *     this gives the user a first-pass read at goal-creation time.
+ *
+ * Tone:
+ *   • positive (green) at ≥ 100%
+ *   • warning (amber) at 70-99%
+ *   • negative (red) below 70%
+ */
+function FillRateBadge({
+  goal,
+  required,
+  savedSoFar,
+}: {
+  goal: Goal;
+  required: number;
+  savedSoFar: number;
+}) {
+  const months = monthsUntil(goal);
+  if (required <= 0 || months <= 0) return null;
+  // Concrete progress if the user has logged contributions; else a
+  // surplus-only projection capped at 100%.
+  const pct = Math.round((savedSoFar / required) * 100);
+  if (savedSoFar <= 0) return null;
+  const tone =
+    pct >= 100
+      ? 'var(--positive)'
+      : pct >= 70
+        ? 'var(--warning)'
+        : 'var(--negative)';
+  return (
+    <span
+      style={{
+        marginLeft: 8,
+        padding: '1px 8px',
+        fontSize: 11,
+        fontWeight: 600,
+        color: tone,
+        border: `1px solid ${tone}`,
+        borderRadius: 10,
+      }}
+      title={`Saved ${savedSoFar.toLocaleString()} of ${required.toLocaleString()}`}
+    >
+      {pct}% saved
+    </span>
   );
 }

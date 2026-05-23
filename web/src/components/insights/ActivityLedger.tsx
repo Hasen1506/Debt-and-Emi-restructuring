@@ -27,6 +27,17 @@ import {
   type ActivityEntry,
   type ActivityKind,
 } from '@/lib/activity';
+import {
+  readExpenseCommits,
+  staleExpenseCommits,
+  undoExpenseCommit,
+} from '@/lib/expense-commit';
+import {
+  deleteDecision,
+  readDecisionsClient,
+  writeDecisionsClient,
+  type DecisionEntry,
+} from '@/lib/decision-log';
 import { decorateEntry } from '@/lib/activity-derived';
 import { estimateLateFee } from '@/lib/estimate-penalty';
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
@@ -233,8 +244,42 @@ export function ActivityLedger({
     [sorted, user.loans.length],
   );
 
+  function confirmNothingChanged() {
+    const month = today().slice(0, 7);
+    const additions: Omit<ActivityEntry, 'id' | 'loggedAt'>[] = [];
+    user.loans.forEach((loan, idx) => {
+      // Skip loans that already have an entry this month — the user
+      // intentionally recorded something, don't overwrite it with a
+      // generic "paid_full" assumption.
+      const has = entries.some(
+        (e) => e.loanIndex === idx && e.date.slice(0, 7) === month,
+      );
+      if (has) return;
+      additions.push({
+        loanIndex: idx,
+        kind: 'paid_full',
+        date: today(),
+        amount: loan.scheduled_emi || '0',
+        scheduledEmi: loan.scheduled_emi || '0',
+      });
+    });
+    if (additions.length === 0) return;
+    let next = entries;
+    for (const draft of additions) {
+      next = addActivityEntry(next, draft);
+    }
+    commit(next);
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: variant === 'ledger' ? 18 : 22 }}>
+      <NothingChangedBar
+        entries={entries}
+        loans={user.loans}
+        variant={variant}
+        onConfirm={confirmNothingChanged}
+      />
+      <BudgetCommitments country={user.country} variant={variant} />
       <LogForm onAdd={add} loans={user.loans} country={user.country} variant={variant} />
       <ForwardPrepayForm onAdd={add} loans={user.loans} country={user.country} variant={variant} />
       <EntriesList
@@ -246,6 +291,250 @@ export function ActivityLedger({
         hydrated={hydrated}
         variant={variant}
       />
+    </div>
+  );
+}
+
+/**
+ * Budget-commitments panel — surfaces `expense_commit` entries from the
+ * decision log directly in the activity ledger. Each row carries the
+ * committed monthly delta, the source goal, the effective month, and
+ * an undo affordance that restores the prior expense values on the
+ * profile.
+ *
+ * Stale (>30d unreconciled) commitments get a "needs reconciliation"
+ * highlight — the nudge from the design pass. The plan has been
+ * silently assuming the cut held that whole time; the user needs to
+ * confirm or undo before drift compounds.
+ *
+ * Renders nothing when there are no commitments — no empty banner.
+ */
+function BudgetCommitments({
+  country,
+  variant,
+}: {
+  country: Country;
+  variant: LedgerVariant;
+}) {
+  const [commits, setCommits] = useState<DecisionEntry[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+  const ccySym = country === 'IN' ? '₹' : '$';
+
+  useEffect(() => {
+    setCommits(readExpenseCommits());
+    setHydrated(true);
+  }, []);
+
+  const stale = useMemo(() => staleExpenseCommits(commits), [commits]);
+
+  function handleUndo(entry: DecisionEntry) {
+    const ok = window.confirm(
+      'Undo this expense cut? Your monthly expenses will be restored to the pre-commit value.',
+    );
+    if (!ok) return;
+    undoExpenseCommit(entry);
+    const next = deleteDecision(readDecisionsClient(), entry.id);
+    writeDecisionsClient(next);
+    setCommits(readExpenseCommits());
+  }
+
+  if (!hydrated || commits.length === 0) return null;
+
+  return (
+    <section
+      style={{
+        padding: variant === 'ledger' ? '10px 12px' : 14,
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        borderLeft: '3px solid var(--accent)',
+        borderRadius: variant === 'ledger' ? 0 : 6,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          color: 'var(--accent)',
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          marginBottom: 8,
+          fontFamily: variant === 'ledger' ? 'var(--font-mono)' : 'inherit',
+        }}
+      >
+        Budget commitments
+      </div>
+      {stale.length > 0 && (
+        <div
+          style={{
+            padding: '6px 10px',
+            background: 'var(--soft-bg)',
+            borderLeft: '3px solid var(--warning)',
+            fontSize: 12,
+            color: 'var(--ink)',
+            lineHeight: 1.45,
+            marginBottom: 10,
+          }}
+        >
+          <strong>{stale.length} commitment{stale.length === 1 ? '' : 's'}</strong>{' '}
+          {stale.length === 1 ? 'is' : 'are'} more than 30 days old without a
+          reconcile. Did the cut hold? Reconcile or undo to keep the plan honest.
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {commits.map((e) => {
+          const meta = e.recommendation.metadata ?? {};
+          const delta = Number(meta.monthlyDelta ?? '0');
+          const effective = meta.effectiveMonth ?? '';
+          const prevFixed = Number(meta.previousFixedExpenses ?? '0');
+          const prevVariable = Number(meta.previousVariableExpenses ?? '0');
+          const prevTotal = prevFixed + prevVariable;
+          const newTotal = Math.max(0, prevTotal - delta);
+          const isStale = stale.some((s) => s.id === e.id);
+          return (
+            <div
+              key={e.id}
+              style={{
+                display: 'flex',
+                gap: 10,
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                padding: '8px 10px',
+                background: 'var(--soft-bg)',
+                border: isStale ? '1px solid var(--warning)' : '1px solid var(--border)',
+                borderRadius: variant === 'ledger' ? 0 : 4,
+                fontSize: 12,
+                lineHeight: 1.5,
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600 }}>
+                  Expense reduction · −{ccySym}
+                  {Math.round(delta).toLocaleString()}/mo
+                  {effective && (
+                    <span className="muted" style={{ fontWeight: 400, marginLeft: 6 }}>
+                      · from {effective}
+                    </span>
+                  )}
+                </div>
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {e.recommendation.context} · {ccySym}
+                  {Math.round(prevTotal).toLocaleString()} → {ccySym}
+                  {Math.round(newTotal).toLocaleString()}/mo
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleUndo(e)}
+                title="Undo this commitment"
+                style={{
+                  flexShrink: 0,
+                  padding: '4px 10px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--muted)',
+                  borderRadius: variant === 'ledger' ? 0 : 4,
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  fontFamily: variant === 'ledger' ? 'var(--font-mono)' : 'inherit',
+                }}
+              >
+                Undo
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * One-tap "nothing changed this month" affordance. Shown when the user
+ * has loans on file but no entries for the current calendar month yet
+ * — it auto-creates `paid_full` entries at the scheduled EMI for each
+ * loan that's still unlogged this month, so the ledger doesn't go
+ * stale just because the user didn't open the page.
+ *
+ * Loans that already have any entry for the current month are skipped
+ * (the user logged something deliberately and we shouldn't overwrite).
+ * When everything's already logged the bar hides itself entirely.
+ */
+function NothingChangedBar({
+  entries,
+  loans,
+  variant,
+  onConfirm,
+}: {
+  entries: ActivityEntry[];
+  loans: LoanPayload[];
+  variant: LedgerVariant;
+  onConfirm: () => void;
+}) {
+  const month = today().slice(0, 7);
+  const unlogged = loans.filter(
+    (_, idx) =>
+      !entries.some(
+        (e) => e.loanIndex === idx && e.date.slice(0, 7) === month,
+      ),
+  );
+  if (loans.length === 0 || unlogged.length === 0) return null;
+  const monthLabel = new Date(`${month}-01T00:00:00`).toLocaleString(undefined, {
+    month: 'long',
+    year: 'numeric',
+  });
+  const isLedger = variant === 'ledger';
+  return (
+    <div
+      style={{
+        padding: isLedger ? '10px 14px' : '12px 14px',
+        background: 'var(--card)',
+        border: isLedger ? '1px dashed var(--border)' : '1px solid var(--border)',
+        borderRadius: isLedger ? 0 : 6,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        fontFamily: isLedger ? 'var(--font-mono)' : undefined,
+        fontSize: isLedger ? 11 : 13,
+      }}
+    >
+      <div style={{ lineHeight: 1.5 }}>
+        {isLedger ? (
+          <>
+            <span style={{ color: 'var(--muted)' }}>
+              {monthLabel.toUpperCase()} ·{' '}
+            </span>
+            {unlogged.length} LOAN{unlogged.length === 1 ? '' : 'S'} UNLOGGED
+            THIS MONTH
+          </>
+        ) : (
+          <>
+            <strong>Nothing changed this {monthLabel}?</strong>{' '}
+            <span className="muted">
+              One tap fills in &lsquo;paid in full&rsquo; at the scheduled EMI
+              for the {unlogged.length} loan{unlogged.length === 1 ? '' : 's'} you
+              haven&apos;t logged yet — keeps your audit trail current without
+              clicking through each row.
+            </span>
+          </>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onConfirm}
+        style={{
+          padding: isLedger ? '6px 10px' : '8px 14px',
+          border: '1px solid var(--ink)',
+          background: 'var(--ink)',
+          color: 'var(--canvas)',
+          cursor: 'pointer',
+          fontSize: isLedger ? 10 : 12,
+          letterSpacing: isLedger ? '0.12em' : undefined,
+          borderRadius: isLedger ? 0 : 4,
+          flexShrink: 0,
+        }}
+      >
+        {isLedger ? 'CONFIRM ALL · NO CHANGES' : 'Nothing changed → mark all paid'}
+      </button>
     </div>
   );
 }

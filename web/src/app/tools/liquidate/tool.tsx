@@ -23,6 +23,7 @@ import { DEMO_ASSET } from '@/lib/demo-user';
 import { loadProfileClient } from '@/lib/user-store';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
+import { DecisionLogControls } from '@/components/DecisionLogControls';
 import { PortfolioRanker } from './PortfolioRanker';
 
 const FINANCE_ACT_2024_CUTOFF = '2024-07-23';
@@ -700,6 +701,18 @@ export function LiquidateTool() {
             />
           </div>
 
+          <DecisionLogControls
+            kind="liquidation"
+            context={
+              v.recommend_liquidation
+                ? 'Sell asset — recommended'
+                : 'Sell asset — hold instead'
+            }
+            estimatedAmount={v.net_proceeds}
+            reasoning={v.rationale}
+            source="tools/liquidate"
+            ccySym={userCcy === 'INR' ? '₹' : '$'}
+          />
           {v.recommend_liquidation &&
             targetIdx !== '' &&
             profile.isLive &&

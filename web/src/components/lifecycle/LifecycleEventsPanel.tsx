@@ -24,15 +24,15 @@ import {
   addLifecycleEvent,
   updateLifecycleEvent,
   removeLifecycleEvent,
-  applyConfirmedEvent,
-  undoConfirmedEvent,
+  applyConfirmedEventWithRefresh,
+  undoConfirmedEventWithRefresh,
   LIFECYCLE_KIND_LABEL,
   type LifecycleEvent,
   type LifecycleDraft,
   type LifecycleKind,
   type LifecycleStatus,
 } from '@/lib/lifecycle-events';
-import { saveProfileClient } from '@/lib/user-store';
+import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 
 export type LifecycleVariant = 'ledger' | 'existing' | 'editorial';
 
@@ -159,10 +159,13 @@ export function LifecycleEventsPanel({
     if (!target) return;
     // Defense in depth: future-effective events can't be confirmed.
     if (status === 'confirmed' && target.effectiveDate > todayIso()) return;
-    // planned → confirmed: apply + snapshot
+    // planned → confirmed: apply + snapshot (also refreshes marginalRate
+    // so a salary jump doesn't leave the bracket stale).
     if (status === 'confirmed' && target.status !== 'confirmed') {
-      const { user: updatedUser, snapshot } = applyConfirmedEvent(user, target);
-      saveProfileClient({ user: updatedUser });
+      const prevMarginal = loadProfileClient().marginalRate;
+      const { user: updatedUser, marginalRate, snapshot } =
+        applyConfirmedEventWithRefresh(user, prevMarginal, target);
+      saveProfileClient({ user: updatedUser, marginalRate });
       const next = updateLifecycleEvent(events, id, {
         status,
         appliedSnapshot: snapshot,
@@ -174,7 +177,9 @@ export function LifecycleEventsPanel({
     // confirmed → anything else: undo the profile mutation first
     if (target.status === 'confirmed' && status !== 'confirmed') {
       if (target.appliedSnapshot) {
-        saveProfileClient({ user: undoConfirmedEvent(user, target) });
+        const { user: restoredUser, marginalRate } =
+          undoConfirmedEventWithRefresh(user, target);
+        saveProfileClient({ user: restoredUser, marginalRate });
       }
       const next = updateLifecycleEvent(events, id, {
         status,
@@ -196,7 +201,9 @@ export function LifecycleEventsPanel({
     // forever otherwise. Undo before removing so the user gets a clean
     // revert.
     if (target?.status === 'confirmed' && target.appliedSnapshot) {
-      saveProfileClient({ user: undoConfirmedEvent(user, target) });
+      const { user: restoredUser, marginalRate } =
+        undoConfirmedEventWithRefresh(user, target);
+      saveProfileClient({ user: restoredUser, marginalRate });
     }
     const next = removeLifecycleEvent(events, id);
     writeLifecycleClient(next);
