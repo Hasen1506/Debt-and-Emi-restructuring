@@ -1,4 +1,5 @@
 """FastAPI gateway entrypoint. Run with: uvicorn api.main:app --reload"""
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -9,8 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # Load .env before anything reads os.environ (engine, resend, etc).
 load_dotenv()
 
-from api.auth.routes import router as auth_router  # noqa: E402
-from api.db.database import init_db  # noqa: E402
+from api.db.database import db_enabled, init_db  # noqa: E402
 from api.routes import (  # noqa: E402
     simulation,
     decisions,
@@ -21,8 +21,9 @@ from api.routes import (  # noqa: E402
     restructuring,
     portfolio,
     rates,
-    user_state,
 )
+
+log = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -50,7 +51,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router, prefix="/api")
 app.include_router(simulation.router, prefix="/api")
 app.include_router(decisions.router, prefix="/api")
 app.include_router(layer0.router, prefix="/api")
@@ -60,9 +60,20 @@ app.include_router(credit_score.router, prefix="/api")
 app.include_router(restructuring.router, prefix="/api")
 app.include_router(portfolio.router, prefix="/api")
 app.include_router(rates.router, prefix="/api")
-app.include_router(user_state.router, prefix="/api")
+
+# DB-bound routers — only mounted when DATABASE_URL is configured.
+# Skipping them on the Render free tier keeps the API up without a
+# Postgres add-on while we're still in trial mode.
+if db_enabled():
+    from api.auth.routes import router as auth_router
+    from api.routes import user_state
+
+    app.include_router(auth_router, prefix="/api")
+    app.include_router(user_state.router, prefix="/api")
+else:
+    log.warning("Skipping /api/auth/* and /api/user-state — DATABASE_URL unset.")
 
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "db": "enabled" if db_enabled() else "disabled"}
