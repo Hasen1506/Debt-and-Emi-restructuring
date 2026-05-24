@@ -56,18 +56,26 @@
 }
 
 [data-theme='ledger'] {
-  --canvas: #fbfaf3;
-  --card: #ffffff;
+  /* Palette mirrors L_T in components/ledger/primitives.tsx. Keep the two
+   * in sync — the spec calls for a fixed 13-colour set, so non-rebuilt
+   * screens (onboarding, tools, goals, portfolio, decisions) inherit the
+   * right look just by reading these tokens. */
+  --canvas: #fbfaf3;            /* L_T.bg     — newsprint */
+  --card: #ffffff;              /* L_T.paper  — inset white */
   --ink: #0a0a0a;
   --muted: #5e5e58;
-  --soft: #a8a8a3;
+  --soft: #a8a8a3;              /* L_T.faint  — dashed row dividers */
   --border: #0a0a0a;            /* hard rule */
   --dash: #a8a8a3;
-  --accent: #b91c1c;
+  --accent: #c96442;            /* terracotta — loudest-debt highlight */
+  --accent-ink: #8b3a1f;        /* reserved for hover/pressed states */
   --negative: #b91c1c;
   --positive: #15803d;
   --warning: #a05a00;
   --soft-bg: #f3f1e3;
+  --highlight: #fff3a3;
+  --highlight-soft: #fff8d3;
+  --rule-soft: #d8d6cd;          /* slider track */
 
   --font-sans: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
   --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;

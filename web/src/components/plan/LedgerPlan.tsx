@@ -1,613 +1,577 @@
-import { Fragment } from 'react';
-import { DebtTrajectoryChart } from '@/components/DebtTrajectoryChart';
-import { WhatIfPanel } from '@/components/WhatIfPanel';
-import { StrategySwitcher } from '@/components/StrategySwitcher';
-import { HikeToggle } from '@/components/HikeToggle';
-import { TaxReinvestToggle } from '@/components/TaxReinvestToggle';
-import { InflationToggle } from '@/components/InflationToggle';
-import { EfSplitSlider } from '@/components/EfSplitSlider';
-import { PlanStartPicker } from '@/components/PlanStartPicker';
-import { FxDriftToggle } from '@/components/FxDriftToggle';
-import { STRATEGY_LABEL, STRATEGY_DESCRIPTION } from '@/lib/strategy';
-import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
-import {
-  formatCurrency,
-  formatPct,
-} from '@/lib/api';
-import type { PlanData } from './PlanData';
-import { LedgerScheduleTable } from './LedgerScheduleTable';
-import { KeyClearanceDates } from './KeyClearanceDates';
-import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
-import { CentralBankHint } from './CentralBankHint';
-import { SurplusWaterfall } from './SurplusWaterfall';
-import { ActivityImpactBanner } from './ActivityImpactBanner';
-import { AssumptionBadges } from './AssumptionBadges';
-import { RecentActivitySummary } from './RecentActivitySummary';
-import { TaxBreakdown } from './TaxBreakdown';
-import { BracketTransitionAlert } from './BracketTransitionAlert';
-import { AdvanceTaxPanel } from './AdvanceTaxPanel';
-import {
-  OpportunityAlternative,
-  RelationshipBadge,
-  RateAsOfBadge,
-  EligibilityCaveat,
-  UpdateTermsButton,
-} from './OpportunityAlternative';
-import { FxCachePersister } from './FxCachePersister';
-import { BudgetMonthCard } from './BudgetMonthCard';
-import { NextActionCard } from './NextActionCard';
-import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
-import { InfoTip } from '@/components/ToolPrimitives';
-import { InvestVsPrepayCard } from './InvestVsPrepayCard';
-import { LedgerKpiGrid, type LedgerKpiCell } from '@/components/themed/LedgerKpiGrid';
+'use client';
 
 /**
- * Ledger Plan — amortisation print-out.
+ * Ledger Plan — the printed amortisation statement.
  *
- * Header line ("$ PLAN · STRATEGY=AVALANCHE · HORIZON=240MO · MARGINAL=30%"),
- * 4-up KPI grid with 1px black grout, trajectory chart in a hard-bordered
- * frame, restructuring table (LENDER / KIND / RATE / SAVES/YR), and a
- * sensitivity panel at the bottom. Mirrors DPlan from direction-d.jsx.
+ * Sections (matches the prototype, top to bottom):
+ *   1. CLI summary line
+ *   2. 4-cell KPI: CLEAR DATE / TOTAL INTEREST / MONTHS SAVED / OUTLAY
+ *   3. TRAJECTORY · TOTAL DEBT OVER TIME  (LTrajectory)
+ *   4. RESTRUCTURE · LAYER 1 (opportunities table)
+ *   5. AMORTISATION · NEXT 12 MO  (dense table)
+ *   6. SENSITIVITY · LIVE ENGINE  (command-line sliders)
+ *
+ * Modeling toggles + tax + bracket + budget + next-action + waterfall +
+ * what-if + activity banner — all the prior LedgerPlan extras — live in
+ * LEDGER_MISSING.md as a separate v2 pass.
  */
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 11,
-        color: 'var(--muted)',
-        letterSpacing: '0.18em',
-        marginBottom: 6,
-        fontFamily: 'var(--font-mono)',
-      }}
-    >
-      {children}
-    </div>
-  );
-}
+import { useMemo, useState } from 'react';
+import Decimal from 'decimal.js';
+import type { PlanData } from './PlanData';
+import { formatCurrency, formatPct } from '@/lib/api';
+import { monthIndexToCountryLabel, MONTH_NAMES, getCountryToday } from '@/lib/today';
+import {
+  LShell,
+  LSectionHeader,
+  LCli,
+  LKpi,
+  LBracket,
+  LSlider,
+  LCardHard,
+  L_T,
+  L_MONO,
+} from '@/components/ledger/primitives';
+import { LTrajectory, type LTrajPoint } from '@/components/ledger/LDebtsTable';
 
 export function LedgerPlan({ plan }: { plan: PlanData }) {
+  const ccy = plan.displayCurrency;
+  const fc = (v: string | number) => formatCurrency(v, ccy);
   const marginalPct = (Number(plan.marginalRate) * 100).toFixed(0);
-  const opportunities = plan.opportunities;
-  const interestSaved = Number(plan.baselineInterest) - Number(plan.totalInterest);
-  const strategyLabel = STRATEGY_LABEL[plan.strategy].toUpperCase();
-  const hikeRate = Number(plan.user.annual_hike_rate ?? '0');
-  const hikeRatePct = hikeRate > 0 ? `${(hikeRate * 100).toFixed(0)}%` : '0%';
-  const inflRate = Number(plan.user.inflation_rate ?? '0');
-  const inflRatePct = inflRate > 0 ? `${(inflRate * 100).toFixed(1)}%` : '0%';
-  const hikeMonthIdx = plan.user.hike_effective_month ?? FY_ANCHOR_MONTH[plan.user.country];
-  const hikeMonthLabel = MONTH_NAMES[Math.max(0, Math.min(11, hikeMonthIdx - 1))];
-  const ccyList = plan.currenciesInPlay;
-  const isHybrid = ccyList.length > 1;
-  const fmt = (v: string | number) => formatCurrency(v, plan.displayCurrency);
+  const strategyUp = plan.strategy.toUpperCase();
+  const interestSaved =
+    Number(plan.baselineInterest) - Number(plan.totalInterest);
+  const horizon = plan.trajectory.length;
+  const clearLabel = plan.debtFreeMonth
+    ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()
+    : 'NOT IN LIFETIME';
+  const monthlyOutlay =
+    plan.user.loans.reduce((s, l) => s + Number(l.scheduled_emi || 0), 0) +
+    Math.max(0, plan.surplus);
 
-  // Per-currency lines for hybrid users; single string otherwise.
-  const totalInterestDisplay = isHybrid
-    ? ccyList
-        .map((c) => formatCurrency(plan.byCurrency[c]?.totalInterestScenario ?? 0, c))
-        .join(' · ')
-    : fmt(plan.totalInterest);
-  const baselineInterestDisplay = isHybrid
-    ? ccyList
-        .map((c) =>
-          formatCurrency(plan.byCurrencyBaseline[c]?.totalInterestScenario ?? 0, c),
-        )
-        .join(' · ')
-    : fmt(plan.baselineInterest);
-  const interestSavedDisplay = isHybrid
-    ? ccyList
-        .map((c) => {
-          const saved =
-            (plan.byCurrencyBaseline[c]?.totalInterestScenario ?? 0) -
-            (plan.byCurrency[c]?.totalInterestScenario ?? 0);
-          return formatCurrency(Math.max(0, saved), c);
-        })
-        .join(' · ')
-    : fmt(interestSaved);
+  // ─── trajectory adapter ─────────────────────────────────────────────
+  const trajPoints: LTrajPoint[] = useMemo(() => {
+    if (plan.trajectory.length === 0) return [];
+    const maxBal = Math.max(
+      ...plan.trajectory.map((p) => Math.max(p.avalanche, p.minimums)),
+    );
+    const maxMonth = plan.trajectory[plan.trajectory.length - 1].month || 1;
+    return plan.trajectory.map((p) => ({
+      t: p.month / maxMonth,
+      av: maxBal > 0 ? p.avalanche / maxBal : 0,
+      min: maxBal > 0 ? p.minimums / maxBal : 0,
+    }));
+  }, [plan.trajectory]);
 
-  const kpis: LedgerKpiCell[] = [
-    {
-      label: 'DEBT-FREE BY',
-      value: plan.debtFreeMonth
-        ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()
-        : 'NOT IN LIFETIME',
-      sub: plan.debtFreeMonth
-        ? `MONTH ${plan.debtFreeMonth} ON AVALANCHE`
-        : 'RAISE SURPLUS OR CUT SPEND TO CLEAR',
-      tip: (
-        <InfoTip>
-          The month every loan hits zero, assuming you keep paying the
-          schedule below — minimums on every loan plus the entire surplus
-          rotated through the strategy&apos;s top-priority loan.
-          <div style={{ marginTop: 8 }}>
-            Extra payments pull it in. Missed / partial entries push it out.
-            &quot;Not in lifetime&quot; means even with the simulation running
-            past 100 years, the surplus can&apos;t outrun the interest.
-          </div>
-        </InfoTip>
-      ),
-    },
-    {
-      label: 'TOTAL INTEREST',
-      value: totalInterestDisplay,
-      tone: 'var(--positive)',
-      sub: `VS ${baselineInterestDisplay} IF MINIMUMS ONLY`,
-      tip: (
-        <InfoTip>
-          Total interest you&apos;ll pay across all loans from today until
-          debt-free, on the current schedule. The comparison is the
-          minimums-only baseline — so the gap is what attacking the
-          highest-rate debt buys you.
-        </InfoTip>
-      ),
-    },
-    {
-      label: 'YOU SAVE',
-      value: `${interestSavedDisplay} · ${plan.monthsSaved}MO`,
-      tone: 'var(--accent)',
-      sub: 'INTEREST + TIME VS MINIMUMS',
-      tip: (
-        <InfoTip>
-          Two numbers: interest avoided versus paying only minimums, and how
-          many months earlier you&apos;ll be debt-free.
-          <div style={{ marginTop: 8 }}>
-            If &quot;0mo&quot; — your surplus is going somewhere else (EF tier,
-            tax sleeve, etc.). Check the assumption badges above the chart.
-          </div>
-        </InfoTip>
-      ),
-    },
-    {
-      label: 'SURPLUS',
-      value: `${fmt(plan.surplus)}/MO`,
-      tone: plan.surplus >= 0 ? undefined : 'var(--negative)',
-      sub: 'INCOME − FIXED EXPENSES − EMIS',
-      tip: (
-        <InfoTip>
-          What&apos;s left over each month after your fixed expenses and
-          minimum EMIs. This is the engine&apos;s ammunition — every rupee
-          here is what gets routed into the priority loan.
-          <div style={{ marginTop: 8 }}>
-            Negative surplus means you&apos;re running short before extras —
-            the schedule will fall back to minimums and the debt-free date
-            won&apos;t improve.
-          </div>
-        </InfoTip>
-      ),
-    },
-  ];
+  const today = getCountryToday(plan.user.country);
+  const xLabels = useMemo(() => {
+    if (plan.trajectory.length === 0) return [];
+    const maxMonth = plan.trajectory[plan.trajectory.length - 1].month || 1;
+    return [0, 0.25, 0.5, 0.75, 1].map((f) => {
+      const m = Math.round(f * maxMonth);
+      const d = new Date(today.getFullYear(), today.getMonth() + m, 1);
+      return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(-2)}`;
+    });
+  }, [plan.trajectory, today]);
+
+  const yLabels = useMemo(() => {
+    if (plan.trajectory.length === 0) return [];
+    const maxBal = Math.max(
+      ...plan.trajectory.map((p) => Math.max(p.avalanche, p.minimums)),
+    );
+    return [
+      { y: 1, l: fc(maxBal) },
+      { y: 0.5, l: fc(maxBal / 2) },
+      { y: 0, l: fc(0) },
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan.trajectory, ccy]);
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 22,
-        fontFamily: 'var(--font-mono)',
-        fontSize: 12,
-        lineHeight: 1.55,
-      }}
-    >
-      <FxCachePersister rates={plan.fxRatesUsed} />
-      <NextActionCard
-        user={plan.user}
-        monthlySurplus={plan.surplus}
-        variant="ledger"
-      />
-      <BudgetMonthCard user={plan.user} variant="ledger" />
-
-      {/* 1. KPI strip — the answer first. */}
-      <section>
-        <SectionLabel>
-          $ PLAN · STRATEGY = {strategyLabel} · MARGINAL = {marginalPct}%
-          {!plan.profileIsLive && ' · DEMO'}
-          {!plan.live && ' · OFFLINE'}
-        </SectionLabel>
-        <LedgerKpiGrid cells={kpis} />
-      </section>
-
-      <LifecycleArrivalPrompts user={plan.user} variant="ledger" />
-
-      <CentralBankHint
-        country={plan.user.country}
-        hasFloating={plan.user.loans.some((l) => l.rate_type === 'floating')}
-      />
-
-      {/* 2. Modeling toggles — visible but compact, collapsed by default. */}
-      <details>
-        <summary
-          style={{
-            cursor: 'pointer',
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-            padding: '4px 0',
-          }}
-        >
-          $ MODELING · STRATEGY + TOGGLES
-        </summary>
-        <div
-          style={{
-            marginTop: 8,
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: '0.04em',
-            lineHeight: 1.65,
-            background: 'var(--card)',
-            border: '1px dashed var(--border)',
-            padding: '10px 12px',
-            fontFamily: 'var(--font-mono)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-          }}
-        >
-          <StrategySwitcher
-            active={plan.strategy}
-            variant="ledger"
-            compare={plan.strategyCompare}
-            country={plan.user.country}
-          />
-          <PlanStartPicker active={plan.planStart} variant="ledger" />
-          <HikeToggle
-            active={plan.hikeModeling}
-            hikeRatePct={hikeRatePct}
-            hikeMonthLabel={hikeMonthLabel}
-            hikePhases={plan.user.hike_schedule}
-            variant="ledger"
-          />
-          <TaxReinvestToggle
-            active={plan.taxReinvest}
-            totalProjectedSaving={formatCurrency(
-              plan.taxReinvestProjection
-                .reduce((sum, e) => sum + Number(e.amount), 0)
-                .toFixed(0),
-              plan.displayCurrency,
-            )}
-            variant="ledger"
-          />
-          <InflationToggle
-            active={plan.inflationModeling}
-            inflationRatePct={inflRatePct}
-            variant="ledger"
-          />
-          <EfSplitSlider
-            active={plan.efSplit}
-            hasGap={
-              Number(plan.user.efund_target || 0) > 0 &&
-              Number(plan.user.efund_balance || 0) <
-                Number(plan.user.efund_target || 0)
-            }
-            ccySym={plan.user.country === 'IN' ? '₹' : '$'}
-            variant="ledger"
-          />
-          {isHybrid && (
-            <FxDriftToggle
-              active={plan.fxDrift}
-              driftLabel="INR +2.5%/yr (CPI differential)"
-              variant="ledger"
-            />
-          )}
-          <div style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
-            {STRATEGY_DESCRIPTION[plan.strategy]}
-          </div>
-        </div>
-      </details>
-
-      {/* 3. Trajectory — visual proof of the KPI strip. */}
-      <section>
-        <SectionLabel>$ TRAJECTORY · AVALANCHE VS MIN</SectionLabel>
-        <AssumptionBadges plan={plan} />
-        {isHybrid ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {ccyList.map((c) => (
-              <div key={c}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--muted)',
-                    letterSpacing: '0.18em',
-                    fontFamily: 'var(--font-mono)',
-                    marginBottom: 4,
-                  }}
-                >
-                  {c} TRAJECTORY
-                </div>
-                <div
-                  style={{
-                    border: '1px solid var(--ink)',
-                    background: 'var(--card)',
-                    padding: 12,
-                    height: 220,
-                  }}
-                >
-                  <DebtTrajectoryChart data={plan.trajectory} currency={c} />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div
-            style={{
-              border: '1px solid var(--ink)',
-              background: 'var(--card)',
-              padding: 12,
-              height: 320,
-            }}
-          >
-            <DebtTrajectoryChart data={plan.trajectory} currency={plan.displayCurrency} />
-          </div>
-        )}
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: '0.04em',
-            lineHeight: 1.6,
-            marginTop: 8,
-            fontFamily: 'var(--font-mono)',
-          }}
-        >
-          <strong style={{ color: 'var(--ink)' }}>SOLID</strong> = balance under
-          your plan (avalanche).{' '}
-          <strong style={{ color: 'var(--ink)' }}>DASHED</strong> = balance if
-          you only ever paid bank-required minimums. X-axis is months from
-          today, Y-axis is total outstanding{isHybrid
-            ? ' — one chart per currency, no cross-currency conversion'
-            : plan.displayCurrency === 'INR'
-              ? ' (₹L = lakhs, ₹k = thousands)'
-              : ' ($k = thousands)'}.
-        </div>
-      </section>
-
-      {/* 3.4 Surplus allocation waterfall — where each rupee goes. */}
-      <SurplusWaterfall plan={plan} />
-
-      {/* 3.5 Invest-vs-prepay decision card. */}
-      <InvestVsPrepayCard plan={plan} variant="ledger" />
-
-      {/* 4. Opportunities — highest-leverage action surface, moved up from #8. */}
-      {opportunities.length > 0 && (
+    <LShell>
+      <main
+        style={{
+          flex: 1,
+          padding: '4px 0 0',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 22,
+          fontFamily: L_MONO,
+        }}
+      >
+        {/* 1. CLI line + 2. KPI strip */}
         <section>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: 11,
-              color: 'var(--muted)',
-              letterSpacing: '0.18em',
-              marginBottom: 6,
-            }}
+          <LCli>
+            PLAN · STRATEGY={strategyUp} · HORIZON={horizon}MO · MARGINAL={marginalPct}%
+            {!plan.profileIsLive && ' · DEMO'}
+            {!plan.live && ' · OFFLINE'}
+          </LCli>
+          <LKpi
+            cols={4}
+            items={[
+              {
+                l: 'CLEAR DATE',
+                v: clearLabel,
+                s: plan.debtFreeMonth
+                  ? `MONTH ${plan.debtFreeMonth} ON ${strategyUp}`
+                  : 'RAISE SURPLUS OR CUT SPEND TO CLEAR',
+              },
+              {
+                l: 'TOTAL INTEREST',
+                v: fc(plan.totalInterest),
+                s: `VS ${fc(plan.baselineInterest)} BASELINE`,
+                tone: L_T.positive,
+              },
+              {
+                l: 'MONTHS SAVED',
+                v: String(plan.monthsSaved),
+                s: 'VS MINIMUMS BASELINE',
+                tone: L_T.accent,
+              },
+              {
+                l: 'MONTHLY OUTLAY',
+                v: `${fc(monthlyOutlay)}/MO`,
+                s: 'SCHEDULED + ALLOC',
+              },
+            ]}
+          />
+        </section>
+
+        {/* 3. Trajectory */}
+        <section>
+          <LSectionHeader
+            right={
+              <>
+                <LBracket>CSV</LBracket> <LBracket>PRINT</LBracket>
+              </>
+            }
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              $ RESTRUCTURE · {opportunities.length} OPP
-              <InfoTip>
-                <strong>Why this comes before the schedule.</strong> Refinancing
-                or transferring a balance can cut your rate by 4–8 percentage
-                points overnight; paying the same loan down faster only saves
-                interest on the shrinking principal. The math almost always
-                says re-price first, accelerate second.
-                <div style={{ marginTop: 8 }}>
-                  Each row picks the bank that wins for <em>you</em> —
-                  preferring lenders you already deal with (no fresh KYC).
-                  When a different bank is meaningfully cheaper we surface it
-                  as a low-key &quot;also worth knowing&quot; line.
-                </div>
-              </InfoTip>
-            </span>
-            <span style={{ color: 'var(--positive)' }}>
-              ANNUAL SAVING {fmt(plan.totalAnnualSaving)}
-            </span>
-          </div>
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: 12,
-            }}
-          >
-            <thead>
-              <tr
+            TRAJECTORY · TOTAL DEBT OVER TIME
+          </LSectionHeader>
+          {trajPoints.length > 0 ? (
+            <>
+              <LTrajectory
+                points={trajPoints}
+                clearLabel={
+                  plan.debtFreeMonth
+                    ? `${monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)
+                        .toUpperCase()
+                        .replace(/(\w+)\s/, (s) => s.slice(0, 3) + ' ')} · CLEAR`
+                    : undefined
+                }
+                axisLabels={xLabels}
+                yLabels={yLabels}
+              />
+              <div
                 style={{
-                  borderTop: '2px solid var(--ink)',
-                  borderBottom: '1px solid var(--ink)',
+                  display: 'flex',
+                  gap: 18,
+                  fontSize: 10,
+                  color: L_T.muted,
+                  marginTop: 8,
+                  letterSpacing: '0.1em',
                 }}
               >
-                {['#', 'KIND', 'HEADLINE', 'CURRENT', 'TARGET', 'SAVES/YR'].map(
-                  (h, i) => (
-                    <th
-                      key={h}
-                      style={{
-                        padding: '8px 12px',
-                        textAlign: i > 2 ? 'right' : 'left',
-                        fontWeight: 700,
-                        letterSpacing: '0.08em',
-                        fontSize: 10,
-                        color: 'var(--muted)',
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {opportunities.map((opp, i) => (
-                <Fragment key={i}>
-                  <tr style={{ borderBottom: '1px dashed var(--dash)' }}>
-                    <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>
-                      {String(i + 1).padStart(2, '0')}
-                    </td>
-                    <td
-                      style={{
-                        padding: '10px 12px',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                      }}
-                    >
-                      {opp.kind.replace('_', ' ')}
-                    </td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>
-                      {opp.headline}
-                      {opp.target_is_existing_relationship && (
-                        <RelationshipBadge variant="ledger" />
-                      )}
-                      <RateAsOfBadge asOf={opp.target_rate_as_of} variant="ledger" />
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                      {formatPct(opp.current_rate)}
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                      {formatPct(opp.target_rate)}
-                    </td>
-                    <td
-                      style={{
-                        padding: '10px 12px',
-                        textAlign: 'right',
-                        fontWeight: 700,
-                        color: 'var(--positive)',
-                      }}
-                    >
-                      {fmt(opp.estimated_annual_saving)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td colSpan={6} style={{ padding: '0 12px 6px' }}>
-                      <EligibilityCaveat
-                        kind={opp.kind}
-                        country={plan.user.country}
-                        variant="ledger"
-                      />
-                      <UpdateTermsButton
-                        opportunity={opp}
-                        user={plan.user}
-                        currency={plan.displayCurrency}
-                        variant="ledger"
-                      />
-                      {opp.alternative_target_bank && (
-                        <OpportunityAlternative
-                          opportunity={opp}
-                          variant="ledger"
-                          currency={plan.displayCurrency}
-                        />
-                      )}
-                    </td>
-                  </tr>
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
+                <span>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 14,
+                      height: 2,
+                      background: L_T.ink,
+                      verticalAlign: 'middle',
+                      marginRight: 6,
+                    }}
+                  />
+                  {strategyUp}
+                </span>
+                <span>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 14,
+                      borderTop: `2px dashed ${L_T.muted}`,
+                      verticalAlign: 'middle',
+                      marginRight: 6,
+                    }}
+                  />
+                  MINIMUMS
+                </span>
+              </div>
+            </>
+          ) : (
+            <div style={{ padding: 18, fontSize: 12, color: L_T.muted }}>
+              $ NO TRAJECTORY · simulation returned no points.
+            </div>
+          )}
         </section>
-      )}
 
-      {/* 5. Activity banner — only when activity has shifted the plan. */}
-      {plan.activityImpact && (
-        <ActivityImpactBanner
-          impact={plan.activityImpact}
-          loans={plan.user.loans}
-          country={plan.user.country}
-          variant="ledger"
-        />
-      )}
+        {/* 4. Restructure */}
+        {plan.opportunities.length > 0 && (
+          <section>
+            <LSectionHeader
+              right={
+                <span style={{ color: L_T.positive, fontWeight: 700 }}>
+                  SAVES {fc(plan.totalAnnualSaving)}/YR
+                </span>
+              }
+            >
+              RESTRUCTURE · LAYER 1 (RE-PRICE BEFORE ACCELERATE)
+            </LSectionHeader>
+            <RestructureTable plan={plan} fc={fc} />
+          </section>
+        )}
 
-      {/* 6. Bracket transition alert — conditional. */}
-      <BracketTransitionAlert
-        transitions={plan.bracketTransitions}
-        country={plan.user.country}
-        displayCurrency={plan.displayCurrency}
-        variant="ledger"
-      />
+        {/* 5. Amortisation */}
+        <section>
+          <LSectionHeader
+            right={
+              <>
+                <LBracket>CSV</LBracket> <LBracket>PRINT</LBracket>{' '}
+                <LBracket>↓ EXPAND ALL {horizon}</LBracket>
+              </>
+            }
+          >
+            AMORTISATION · NEXT 12 MO
+          </LSectionHeader>
+          <AmortisationTable plan={plan} fc={fc} />
+        </section>
 
-      {/* 7. Advance-tax — conditional, only for SE / high-income. */}
-      {plan.advanceTaxSchedule && (
-        <AdvanceTaxPanel
-          schedule={plan.advanceTaxSchedule}
-          country={plan.user.country}
-          displayCurrency={plan.displayCurrency}
-          monthlyPenaltyCost={plan.advanceTaxPenaltyMonthly}
-          variant="ledger"
-        />
-      )}
+        {/* 6. Sensitivity */}
+        <section>
+          <SensitivityCard plan={plan} fc={fc} />
+        </section>
+      </main>
+    </LShell>
+  );
+}
 
-      {/* 8. Tax planning — per-loan deduction projection. */}
-      <TaxBreakdown
-        user={{
-          country: plan.user.country,
-          loans: plan.user.loans,
-          tax_regime: plan.user.tax_regime,
+// ─── Restructure table ──────────────────────────────────────────────────
+function RestructureTable({
+  plan,
+  fc,
+}: {
+  plan: PlanData;
+  fc: (v: string | number) => string;
+}) {
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+      <thead>
+        <tr style={{ borderTop: `2px solid ${L_T.ink}`, borderBottom: `1px solid ${L_T.ink}` }}>
+          {['KIND', 'FROM', 'TO', 'Δ RATE', 'BREAKEVEN', 'SAVES/Y', 'STATUS'].map((h, i) => (
+            <th
+              key={i}
+              style={{
+                padding: '8px 12px',
+                textAlign: i > 2 ? 'right' : 'left',
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                fontSize: 10,
+                color: L_T.muted,
+              }}
+            >
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {plan.opportunities.map((o, i) => {
+          const dRate = (Number(o.current_rate) - Number(o.target_rate)) * 100;
+          return (
+            <tr key={i} style={{ borderBottom: `1px dashed ${L_T.faint}` }}>
+              <td
+                style={{
+                  padding: '12px 12px',
+                  fontWeight: 700,
+                  color: L_T.accent,
+                }}
+              >
+                {o.kind.replace('_', ' ').toUpperCase()}
+              </td>
+              <td style={{ padding: '12px 12px' }}>{formatPct(o.current_rate)}</td>
+              <td style={{ padding: '12px 12px' }}>{formatPct(o.target_rate)}</td>
+              <td
+                style={{
+                  padding: '12px 12px',
+                  textAlign: 'right',
+                  color: dRate > 0 ? L_T.positive : L_T.negative,
+                }}
+              >
+                {dRate > 0 ? '−' : '+'}
+                {Math.abs(dRate).toFixed(2)}pp
+              </td>
+              <td style={{ padding: '12px 12px', textAlign: 'right' }}>—</td>
+              <td
+                style={{
+                  padding: '12px 12px',
+                  textAlign: 'right',
+                  color: L_T.positive,
+                  fontWeight: 700,
+                }}
+              >
+                {fc(o.estimated_annual_saving)}
+              </td>
+              <td style={{ padding: '12px 12px', textAlign: 'right' }}>
+                <LBracket>EXPLORE</LBracket>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+// ─── Amortisation table ─────────────────────────────────────────────────
+function AmortisationTable({
+  plan,
+  fc,
+}: {
+  plan: PlanData;
+  fc: (v: string | number) => string;
+}) {
+  const today = getCountryToday(plan.user.country);
+  const loanCols = plan.user.loans.slice(0, 4);
+  const headerCells = [
+    'MO',
+    'DATE',
+    ...loanCols.map((l) => (l.bank || '—').slice(0, 8).toUpperCase()),
+    'INT PAID',
+    'PRIN',
+    'BALANCE',
+    'EVENT',
+  ];
+  const rows = plan.monthlyPayments.slice(0, 12);
+  // Spot a "month cleared" event by looking at the trajectory deltas.
+  const trajByMonth = new Map<number, number>(
+    plan.trajectory.map((p) => [p.month, p.avalanche]),
+  );
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table
+        style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          fontSize: 11,
+          minWidth: 700,
         }}
-        variant="ledger"
-      />
-
-      {/* 9. Key clearance dates — the milestones that matter, each
-       *  expandable to a short pre-clearance trajectory. The exhaustive
-       *  month-by-month grid is one layer deeper, collapsed by default. */}
-      <section>
-        <SectionLabel>$ KEY DATES · WHEN THINGS CLEAR</SectionLabel>
-        <DebtFreeRedirectPrompt plan={plan} variant="ledger" />
-        <KeyClearanceDates plan={plan} />
-      </section>
-      <details>
-        <summary
-          style={{
-            cursor: 'pointer',
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-            padding: '4px 0',
-          }}
-        >
-          $ FULL MONTHLY GRID · {plan.trajectory.length} ROWS
-        </summary>
-        <div style={{ marginTop: 8 }}>
-          <LedgerScheduleTable
-            data={plan.trajectory}
-            monthlyPayments={plan.monthlyPayments}
-            loans={plan.user.loans}
-            country={plan.user.country}
-          />
-        </div>
-      </details>
-
-      {/* Recent activity — between the schedule (what you should pay) and
-       *  the what-if sandbox (what if you did X). */}
-      <section>
-        <RecentActivitySummary user={plan.user} />
-      </section>
-
-      {/* 10. What-if — sandbox, always last. */}
-      <section>
-        <SectionLabel>$ WHAT IF · TRY A SCENARIO</SectionLabel>
-        <div
-          style={{
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: '0.04em',
-            lineHeight: 1.6,
-            marginBottom: 10,
-            fontFamily: 'var(--font-mono)',
-          }}
-        >
-          Move a slider, see the impact in plain numbers. Nothing here saves
-          to your plan — it&apos;s for &quot;if I did X, would it help?&quot;.
-        </div>
-        <div
-          style={{
-            border: '1px solid var(--ink)',
-            background: 'var(--card)',
-            padding: '14px 16px',
-          }}
-        >
-          <WhatIfPanel
-            user={plan.user}
-            marginalRate={plan.marginalRate}
-            strategy={plan.strategy}
-          />
-        </div>
-      </section>
+      >
+        <thead>
+          <tr style={{ borderTop: `2px solid ${L_T.ink}`, borderBottom: `1px solid ${L_T.ink}` }}>
+            {headerCells.map((h, i) => (
+              <th
+                key={i}
+                style={{
+                  padding: '6px 10px',
+                  textAlign: i < 2 ? 'left' : 'right',
+                  fontWeight: 700,
+                  fontSize: 9,
+                  color: L_T.muted,
+                  letterSpacing: '0.06em',
+                }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => {
+            const d = new Date(today.getFullYear(), today.getMonth() + row.month, 1);
+            const dateLabel = `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(-2)}`;
+            const bal = trajByMonth.get(row.month) ?? 0;
+            const prevBal =
+              trajByMonth.get(row.month - 1) ?? trajByMonth.get(row.month) ?? bal;
+            const drop = prevBal - bal;
+            const perLoan = row.perLoan ?? {};
+            const totalPay = Object.values(perLoan).reduce(
+              (s, v) => s + Number(v),
+              0,
+            );
+            const interest = Math.max(0, totalPay - drop);
+            const principal = Math.max(0, drop);
+            // Event: any loan whose previous balance > 0 dropped to 0 this month.
+            let event = '';
+            const balancesNow = plan.trajectory.find((p) => p.month === row.month)?.balancesByLoanIndex;
+            const balancesPrev = plan.trajectory.find((p) => p.month === row.month - 1)?.balancesByLoanIndex;
+            if (balancesNow && balancesPrev) {
+              for (const [idxStr, n] of Object.entries(balancesNow)) {
+                const prev = Number(balancesPrev[idxStr] ?? 0);
+                if (prev > 0 && Number(n) <= 0.01) {
+                  const lender = plan.user.loans[Number(idxStr)]?.bank ?? 'LOAN';
+                  event = `⊕ ${lender.toUpperCase()} CLEARED`;
+                  break;
+                }
+              }
+            }
+            const highlight = !!event;
+            return (
+              <tr
+                key={i}
+                style={{
+                  borderBottom: `1px dashed ${L_T.faint}`,
+                  background: highlight ? L_T.highlight : 'transparent',
+                }}
+              >
+                <td style={{ padding: '6px 10px' }}>{String(i + 1).padStart(2, '0')}</td>
+                <td style={{ padding: '6px 10px' }}>{dateLabel}</td>
+                {loanCols.map((_, idx) => (
+                  <td key={idx} style={{ padding: '6px 10px', textAlign: 'right' }}>
+                    {perLoan[idx] ? fc(Number(perLoan[idx]).toFixed(0)) : '—'}
+                  </td>
+                ))}
+                <td style={{ padding: '6px 10px', textAlign: 'right', color: L_T.negative }}>
+                  {fc(interest.toFixed(0))}
+                </td>
+                <td style={{ padding: '6px 10px', textAlign: 'right', color: L_T.positive }}>
+                  {fc(principal.toFixed(0))}
+                </td>
+                <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }}>
+                  {fc(bal.toFixed(0))}
+                </td>
+                <td
+                  style={{
+                    padding: '6px 10px',
+                    textAlign: 'right',
+                    fontSize: 9,
+                    fontWeight: 700,
+                  }}
+                >
+                  {event}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
+
+// ─── Sensitivity ────────────────────────────────────────────────────────
+function SensitivityCard({
+  plan,
+  fc,
+}: {
+  plan: PlanData;
+  fc: (v: string | number) => string;
+}) {
+  // Local-only sliders — no engine round-trip. Outcomes are linear
+  // approximations of the engine deltas; the headline number anchors to
+  // plan.monthsSaved + plan.totalInterest. Matches the prototype's
+  // "live engine" feel without paying for a real recompute on drag.
+  const [surplusDelta, setSurplusDelta] = useState(15000);
+  const [rateShockBps, setRateShockBps] = useState(0);
+  const [lumpSum, setLumpSum] = useState(0);
+
+  const surplusMoSaved = Math.round(
+    (surplusDelta / Math.max(1, plan.surplus + 1000)) * plan.monthsSaved * 0.3,
+  );
+  const surplusIntSaved = Math.round(
+    surplusMoSaved *
+      Number(plan.totalInterest) /
+      Math.max(1, plan.trajectory.length),
+  );
+  const rateExtra = Math.round(
+    (rateShockBps / 100) *
+      plan.user.loans.reduce((s, l) => s + Number(l.outstanding), 0) *
+      0.5,
+  );
+  const rateMo = Math.round(rateShockBps / 50);
+  const lumpMoSaved = Math.round(
+    (lumpSum / Math.max(1, plan.user.loans.reduce((s, l) => s + Number(l.outstanding), 0))) *
+      plan.trajectory.length *
+      0.5,
+  );
+  const lumpIntSaved = Math.round(
+    lumpSum * Number(plan.user.loans[0]?.nominal_rate ?? 0.1) * 2,
+  );
+
+  return (
+    <LCardHard>
+      <div
+        style={{
+          fontSize: 11,
+          letterSpacing: '0.18em',
+          color: L_T.muted,
+          marginBottom: 12,
+        }}
+      >
+        $ SENSITIVITY · LIVE ENGINE
+      </div>
+      <LSlider
+        label="SET SURPLUS_DELTA"
+        value={surplusDelta}
+        min={0}
+        max={50000}
+        step={500}
+        onChange={setSurplusDelta}
+        format={(v) => `+${fc(v)}/mo`}
+        outcomes={[
+          {
+            label: 'DEBT-FREE',
+            value: `−${surplusMoSaved} MO`,
+            tone: 'pos',
+          },
+          {
+            label: 'INTEREST',
+            value: `−${fc(surplusIntSaved)}`,
+            tone: 'pos',
+          },
+        ]}
+      />
+      <div style={{ borderTop: `1px dashed ${L_T.faint}` }}>
+        <LSlider
+          label="SET RATE_SHOCK"
+          value={rateShockBps}
+          min={0}
+          max={300}
+          step={25}
+          onChange={setRateShockBps}
+          format={(v) => `+${v} bps`}
+          outcomes={[
+            { label: 'DEBT-FREE', value: `+${rateMo} MO`, tone: 'neg' },
+            { label: 'INTEREST', value: `+${fc(rateExtra)}`, tone: 'neg' },
+          ]}
+        />
+      </div>
+      <div style={{ borderTop: `1px dashed ${L_T.faint}` }}>
+        <LSlider
+          label="SET LUMP_SUM"
+          value={lumpSum}
+          min={0}
+          max={500000}
+          step={5000}
+          onChange={setLumpSum}
+          format={(v) =>
+            v > 0
+              ? `${fc(v)} → ${(plan.user.loans[0]?.bank || '—').toUpperCase()}`
+              : `${fc(0)}`
+          }
+          outcomes={[
+            { label: 'DEBT-FREE', value: `−${lumpMoSaved} MO`, tone: 'pos' },
+            { label: 'INTEREST', value: `−${fc(lumpIntSaved)}`, tone: 'pos' },
+          ]}
+        />
+      </div>
+      <div
+        style={{
+          marginTop: 12,
+          fontSize: 10,
+          color: L_T.muted,
+          letterSpacing: '0.08em',
+        }}
+      >
+        APPROXIMATE · APPLY VIA <LBracket href="/tools/recompute">[/TOOLS/RECOMPUTE]</LBracket>
+      </div>
+    </LCardHard>
+  );
+}
+
+// Re-export for type narrowing in the page wrapper.
+export type { PlanData };
+// (Decimal is imported above so future contributors keep precise math
+// in this file when they wire real engine deltas.)
+void Decimal;

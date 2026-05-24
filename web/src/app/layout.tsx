@@ -4,7 +4,8 @@ import { loadThemeServer, type ThemeName } from '@/lib/theme';
 import { loadProfileServer } from '@/lib/user-store';
 import { StandardTopBar } from '@/components/chrome/StandardTopBar';
 import { EditorialMasthead } from '@/components/chrome/EditorialMasthead';
-import { LedgerHeader } from '@/components/chrome/LedgerHeader';
+import { LMasthead } from '@/components/ledger/LMasthead';
+import { LFooter } from '@/components/ledger/primitives';
 import { SessionHydrator } from '@/lib/server-sync';
 import type { Country } from '@/lib/api';
 
@@ -32,9 +33,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <SessionHydrator />
         <Chrome theme={theme} country={profile.user.country} />
-        <main className="app-shell" style={{ paddingTop: 24, paddingBottom: 80 }}>
+        <main
+          className="app-shell"
+          style={{
+            paddingTop: theme === 'ledger' ? 18 : 24,
+            paddingBottom: theme === 'ledger' ? 32 : 80,
+          }}
+        >
           {children}
         </main>
+        {theme === 'ledger' && <LFooter />}
       </body>
     </html>
   );
@@ -42,6 +50,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
 function Chrome({ theme, country }: { theme: ThemeName; country: Country }) {
   if (theme === 'editorial') return <EditorialMasthead theme={theme} country={country} />;
-  if (theme === 'ledger') return <LedgerHeader theme={theme} country={country} />;
+  if (theme === 'ledger') return <LMasthead theme={theme} country={country} />;
   return <StandardTopBar theme={theme} />;
 }

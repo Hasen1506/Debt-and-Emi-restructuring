@@ -1,401 +1,242 @@
 'use client';
 
 /**
- * Ledger Debts — open positions from the user's saved profile.
+ * Ledger Debts — full positions list with a highlighted "loudest" card.
  *
- * Reads the real loans the user entered during onboarding (passed in via
- * server-loaded profile). Two sections:
- *   1. Header KPI strip: TOTAL OUTSTANDING / BLENDED EFFECTIVE APR / EMI BURDEN
- *   2. Per-loan table with expandable rows. Click [BREAKDOWN] on any row to
- *      reveal the effective-APR breakdown (nominal → tax shield → GST →
- *      fees → effective) — same component as Setup so the math matches.
+ * Sections, top to bottom (matches prototype §4.5):
+ *   1. CLI summary line
+ *   2. 4-cell KPI: TOTAL OUTSTANDING / WEIGHTED APR / TOTAL EMI / NEXT RESET
+ *   3. OPEN POSITIONS · DETAILED  (LDebtsTable with POST-TAX column)
+ *   4. HIGHLIGHTED · LOUDEST DEBT  (accent-bordered card)
+ *
+ * Per-loan expandable breakdown, lifecycle events panel, today card, cash
+ * management, and stale-card nudge — all the prior LedgerDebts extras —
+ * live in LEDGER_MISSING.md.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
-import type { LoanPayload, LoanType } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
-import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
-import { computeBreakdown, fmt } from '@/lib/effective-apr';
-import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
-import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
-import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
-import { CashManagementSection } from '@/components/debts/CashManagementSection';
-import { TodayCard } from '@/components/debts/TodayCard';
-import { LedgerKpiGrid } from '@/components/themed/LedgerKpiGrid';
-
-const LOAN_TYPE_LABEL: Record<LoanType, string> = {
-  credit_card: 'CREDIT CARD',
-  personal_loan: 'PERSONAL LOAN',
-  home_loan: 'HOME LOAN',
-  auto_loan: 'AUTO LOAN',
-  education_loan: 'EDUCATION LOAN',
-  gold_loan: 'GOLD LOAN',
-  bnpl: 'BNPL',
-};
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 11,
-        color: 'var(--muted)',
-        letterSpacing: '0.18em',
-        marginBottom: 6,
-        fontFamily: 'var(--font-mono)',
-      }}
-    >
-      {children}
-    </div>
-  );
-}
+import { fmt as fmtPct } from '@/lib/effective-apr';
+import { deriveMetrics } from '@/lib/derived';
+import { userDefaultCurrency } from '@/lib/currency';
+import {
+  LShell,
+  LSectionHeader,
+  LCli,
+  LKpi,
+  LBracket,
+  L_T,
+  L_MONO,
+} from '@/components/ledger/primitives';
+import { LDebtsTable } from '@/components/ledger/LDebtsTable';
 
 export function LedgerDebts({ profile }: { profile: StoredProfile }) {
-  const { user, marginalRate } = profile;
-  const loans = user.loans ?? [];
-  const country = user.country;
-  const taxRegime = country === 'IN' ? user.tax_regime : undefined;
+  const m = useMemo(() => deriveMetrics(profile), [profile]);
+  const ccy = userDefaultCurrency(profile.user.country);
+  const fc = (v: string | number) => formatCurrency(v, ccy);
 
-  const [expanded, setExpanded] = useState<number | null>(null);
-
-  const metrics = useMemo(() => {
-    if (loans.length === 0) {
-      return {
-        total: new Decimal(0),
-        blendedEffective: new Decimal(0),
-        emiBurden: new Decimal(0),
-      };
-    }
-    // Convert per-loan amounts into user-residence currency before summing.
-    // Hybrid users previously had ₹ + $ summed as if they shared units.
-    const userCcy = userDefaultCurrency(country);
-    const fxMap = user.fx_to_user_currency ?? {};
-    const toUser = (amount: Decimal, loan: LoanPayload): Decimal => {
-      const lc = loanCurrency(loan, country);
-      if (lc === userCcy) return amount;
-      return amount.mul(new Decimal(fxMap[lc] ?? '1'));
-    };
-    let total = new Decimal(0);
-    let weightedEffSum = new Decimal(0);
-    let emi = new Decimal(0);
-    for (const l of loans) {
-      const balUser = toUser(new Decimal(l.outstanding || 0), l);
-      const emiUser = toUser(new Decimal(l.scheduled_emi || 0), l);
-      const { effective } = computeBreakdown(l, marginalRate, country, taxRegime);
-      total = total.add(balUser);
-      weightedEffSum = weightedEffSum.add(balUser.mul(effective));
-      emi = emi.add(emiUser);
-    }
-    return {
-      total,
-      blendedEffective: total.gt(0) ? weightedEffSum.div(total) : new Decimal(0),
-      emiBurden: emi,
-    };
-  }, [loans, marginalRate, country, taxRegime, user.fx_to_user_currency]);
-
-  const monthlyIncome = new Decimal(user.monthly_income || 0);
-  const burdenPct = monthlyIncome.gt(0)
-    ? metrics.emiBurden.div(monthlyIncome).mul(100).toFixed(0)
-    : '—';
-
-  if (loans.length === 0) {
+  if (m.loans.length === 0) {
     return (
-      <div
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 12,
-          padding: 24,
-          border: '1px dashed var(--border)',
-        }}
-      >
-        $ DEBTS · 0 OPEN
-        <br />
-        <br />
-        No loans on file. Add your first debt:{' '}
-        <a href="/onboarding?step=loans" style={{ color: 'var(--accent)' }}>
-          [+ ADD DEBT →]
-        </a>
-      </div>
+      <LShell>
+        <main style={{ padding: '40px 0' }}>
+          <LCli>DEBTS · NO OPEN POSITIONS</LCli>
+          <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
+            Run setup to add your debts: <LBracket href="/onboarding">SETUP →</LBracket>
+          </div>
+        </main>
+      </LShell>
     );
   }
 
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 22,
-        fontFamily: 'var(--font-mono)',
-        fontSize: 12,
-        lineHeight: 1.55,
-      }}
-    >
-      <TodayCard user={user} variant="ledger" />
-      <section>
-        <SectionLabel>$ DEBTS · {loans.length} OPEN</SectionLabel>
-        <LedgerKpiGrid
-          cells={[
-            {
-              label: 'TOTAL OUTSTANDING',
-              value: formatCurrency(metrics.total.toString(), userDefaultCurrency(country)),
-              sub: 'SUM OF PRINCIPALS',
-            },
-            {
-              label: 'BLENDED EFFECTIVE APR',
-              value: fmt(metrics.blendedEffective),
-              sub: 'WEIGHTED BY BALANCE',
-            },
-            {
-              label: 'EMI BURDEN',
-              value: `${formatCurrency(metrics.emiBurden.toString(), userDefaultCurrency(country))}/MO`,
-              sub:
-                burdenPct === '—'
-                  ? 'NO INCOME ON FILE'
-                  : `${burdenPct}% OF MONTHLY INCOME`,
-            },
-          ]}
-        />
-      </section>
-
-      <section>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontSize: 11,
-            color: 'var(--muted)',
-            letterSpacing: '0.18em',
-            marginBottom: 6,
-          }}
-        >
-          <span>$ POSITIONS · DETAIL</span>
-          <a
-            href="/onboarding?step=loans"
-            style={{ color: 'var(--ink)', textDecoration: 'none' }}
-          >
-            [+ ADD / EDIT DEBT]
-          </a>
-        </div>
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontSize: 12,
-          }}
-        >
-          <thead>
-            <tr
-              style={{
-                borderTop: '2px solid var(--ink)',
-                borderBottom: '1px solid var(--ink)',
-              }}
-            >
-              {['#', 'LENDER', 'KIND', 'NOMINAL', 'EFFECTIVE', 'OUTSTANDING', 'EMI', 'TENURE', ''].map(
-                (h, i) => (
-                  <th
-                    key={h || `c${i}`}
-                    style={{
-                      padding: '8px 12px',
-                      textAlign: i > 2 ? 'right' : 'left',
-                      fontWeight: 700,
-                      letterSpacing: '0.08em',
-                      fontSize: 10,
-                      color: 'var(--muted)',
-                    }}
-                  >
-                    {h}
-                  </th>
-                ),
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {loans.map((l, i) => {
-              const { effective } = computeBreakdown(l, marginalRate, country, taxRegime);
-              const nominal = new Decimal(l.nominal_rate || 0);
-              const isCard = l.loan_type === 'credit_card';
-              const hl = isCard && effective.gt(D24);
-              return (
-                <RowGroup
-                  key={i}
-                  index={i}
-                  loan={l}
-                  nominal={nominal}
-                  effective={effective}
-                  highlight={hl}
-                  expanded={expanded === i}
-                  onToggle={() => setExpanded(expanded === i ? null : i)}
-                  marginalRate={marginalRate}
-                  country={country}
-                  taxRegime={taxRegime}
-                  incomeType={user.income_type}
-                />
-              );
-            })}
-            <tr style={{ borderTop: '2px solid var(--ink)' }}>
-              <td colSpan={5} style={{ padding: '10px 12px', fontWeight: 700 }}>
-                TOTAL
-              </td>
-              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                {formatCurrency(metrics.total.toString(), userDefaultCurrency(country))}
-              </td>
-              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                {formatCurrency(metrics.emiBurden.toString(), userDefaultCurrency(country))}/mo
-              </td>
-              <td></td>
-              <td></td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section>
-        <SectionLabel>$ NOTE · RATES</SectionLabel>
-        <div
-          style={{
-            border: '1px solid var(--ink)',
-            padding: '12px 16px',
-            background: 'var(--card)',
-            fontSize: 12,
-            lineHeight: 1.6,
-          }}
-        >
-          Effective APR = nominal − tax shield + GST + processing fee + insurance.
-          Banks quote nominal only; the spread is what actually hits your
-          statement. Tap <strong>[BREAKDOWN]</strong> on any row to see exactly
-          how that loan's effective rate is built. The formula matches{' '}
-          <span className="num">engine/formulas.py</span> exactly — if it
-          changes there, the breakdown updates here.
-        </div>
-      </section>
-
-      <StaleCardNudge user={profile.user} variant="ledger" />
-      <CashManagementSection profile={profile} variant="ledger" />
-      <LifecycleEventsPanel user={profile.user} variant="ledger" />
-    </div>
+  const loudest = m.loudest!;
+  const totalEmi = m.loans.reduce(
+    (s, d) => s + Number(d.loan.scheduled_emi || 0),
+    0,
   );
-}
+  // Floating loans surface a cycle length (months) rather than a precise
+  // next-reset date. Pick the shortest cycle as a proxy for "next thing
+  // that will requote". /plan's lifecycle events panel has the dated
+  // version — listed in LEDGER_MISSING.md as a fidelity gap.
+  const nextResetLoan = m.loans
+    .map((d) => ({
+      d,
+      cycle: Number(d.loan.rate_reset_frequency_months ?? 0),
+    }))
+    .filter((x) => x.cycle > 0 && x.d.loan.rate_type === 'floating')
+    .sort((a, b) => a.cycle - b.cycle)[0];
 
-const D24 = new Decimal('0.24');
+  // Monthly interest on the loudest line = outstanding * (nominal / 12).
+  // Use nominal not effective because that's what the bank charges; the
+  // shield comes back at filing time, not month-to-month.
+  const loudestMonthlyInt = new Decimal(loudest.loan.outstanding || 0)
+    .mul(new Decimal(loudest.loan.nominal_rate || 0))
+    .div(12)
+    .toFixed(0);
 
-function RowGroup({
-  index,
-  loan,
-  nominal,
-  effective,
-  highlight,
-  expanded,
-  onToggle,
-  marginalRate,
-  country,
-  taxRegime,
-  incomeType,
-}: {
-  index: number;
-  loan: LoanPayload;
-  nominal: Decimal;
-  effective: Decimal;
-  highlight: boolean;
-  expanded: boolean;
-  onToggle: () => void;
-  marginalRate: string;
-  country: 'IN' | 'US';
-  taxRegime: 'new' | 'old' | undefined;
-  incomeType: 'salaried' | 'business_owner';
-}) {
-  const kind = LOAN_TYPE_LABEL[loan.loan_type] ?? loan.loan_type;
-  const tenure =
-    loan.tenure_months_remaining > 0 ? `${loan.tenure_months_remaining} mo` : '—';
-  const loanCcy = loanCurrency(loan, country);
-  const emi =
-    Number(loan.scheduled_emi) > 0
-      ? formatCurrency(loan.scheduled_emi, loanCcy)
-      : '—';
+  // Spread vs next-loudest as a single number — same comparison the
+  // prototype uses to justify "this one is loudest".
+  const next = m.loans[1];
+  const vsNext = next
+    ? new Decimal(loudest.loan.outstanding || 0)
+        .mul(new Decimal(loudest.loan.nominal_rate || 0).sub(new Decimal(next.loan.nominal_rate || 0)))
+        .div(12)
+        .toFixed(0)
+    : '0';
+
   return (
-    <>
-      <tr
+    <LShell>
+      <main
         style={{
-          borderBottom: expanded ? 'none' : '1px dashed var(--dash)',
-          background: highlight ? '#fff3a3' : 'transparent',
+          flex: 1,
+          padding: '4px 0 0',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 22,
+          fontFamily: L_MONO,
         }}
       >
-        <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>
-          {String(index + 1).padStart(2, '0')}
-        </td>
-        <td style={{ padding: '10px 12px', fontWeight: 700 }}>
-          {loan.bank || '—'}
-          {loan.currency && (
-            <span
-              className="muted"
-              style={{
-                marginLeft: 6,
-                fontSize: 10,
-                fontWeight: 600,
-                padding: '1px 5px',
-                border: '1px solid var(--dash)',
-                borderRadius: 3,
-                letterSpacing: '0.05em',
-              }}
-            >
-              {loan.currency}
-            </span>
-          )}
-        </td>
-        <td style={{ padding: '10px 12px', color: 'var(--muted)' }}>{kind}</td>
-        <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-          {fmt(nominal)}
-        </td>
-        <td
-          style={{
-            padding: '10px 12px',
-            textAlign: 'right',
-            color: highlight ? 'var(--negative)' : 'var(--ink)',
-            fontWeight: highlight ? 700 : 400,
-          }}
-        >
-          {fmt(effective)}
-        </td>
-        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-          {formatCurrency(loan.outstanding || '0', loanCcy)}
-        </td>
-        <td style={{ padding: '10px 12px', textAlign: 'right' }}>{emi}</td>
-        <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--muted)' }}>
-          {tenure}
-        </td>
-        <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-          <button
-            type="button"
-            onClick={onToggle}
+        <section>
+          <LCli>
+            DEBTS · {m.loans.length} OPEN · WEIGHTED EFFECTIVE APR{' '}
+            {fmtPct(m.blendedEffective)}
+          </LCli>
+          <LKpi
+            cols={4}
+            items={[
+              {
+                l: 'TOTAL OUTSTANDING',
+                v: fc(m.totalOutstanding.toString()),
+                s: `${m.loans.length} OPEN LINES`,
+              },
+              {
+                l: 'WEIGHTED APR',
+                v: fmtPct(m.blendedEffective),
+                s: 'POST-TAX',
+              },
+              {
+                l: 'TOTAL EMI',
+                v: totalEmi > 0 ? `${fc(totalEmi)}/MO` : '—',
+                s: 'SCHEDULED',
+              },
+              {
+                l: 'RESET CYCLE',
+                v: nextResetLoan ? `${nextResetLoan.cycle} MO` : 'NONE',
+                s: nextResetLoan
+                  ? `${(nextResetLoan.d.loan.bank || '—').toUpperCase()} FLT`
+                  : 'NO FLOATING LOANS',
+                tone: nextResetLoan ? L_T.accent : L_T.muted,
+              },
+            ]}
+          />
+        </section>
+
+        <section>
+          <LSectionHeader right={<LBracket href="/onboarding">+ ADD DEBT</LBracket>}>
+            OPEN POSITIONS · DETAILED
+          </LSectionHeader>
+          <LDebtsTable loans={m.loans} country={profile.user.country} showShield />
+        </section>
+
+        {/* Highlighted loudest debt — only block where the border itself goes accent. */}
+        <section style={{ border: `2px solid ${L_T.accent}`, padding: '18px 22px' }}>
+          <div
             style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--ink)',
-              fontFamily: 'var(--font-mono)',
               fontSize: 11,
-              letterSpacing: '0.08em',
-              cursor: 'pointer',
-              padding: 0,
+              letterSpacing: '0.18em',
+              color: L_T.accent,
+              fontWeight: 700,
+              marginBottom: 8,
             }}
           >
-            {expanded ? '[CLOSE]' : '[BREAKDOWN]'}
-          </button>
-        </td>
-      </tr>
-      {expanded && (
-        <tr style={{ borderBottom: '1px dashed var(--dash)' }}>
-          <td colSpan={9} style={{ padding: '0 12px 14px' }}>
-            <EffectiveAprBreakdown
-              loan={loan}
-              marginalTaxRate={marginalRate}
-              country={country}
-              taxRegime={taxRegime}
-              variant="card"
-              incomeType={incomeType}
-            />
-          </td>
-        </tr>
-      )}
-    </>
+            $ HIGHLIGHTED · LOUDEST DEBT
+          </div>
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              letterSpacing: '-0.01em',
+              marginBottom: 8,
+            }}
+          >
+            {(loudest.loan.bank || '—').toUpperCase()} ·{' '}
+            {loudest.loan.loan_type.replace('_', ' ').toUpperCase()}
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginTop: 8 }}>
+            <tbody>
+              {([
+                ['NOMINAL RATE', fmtPct(loudest.nominal), 'PUBLISHED APR'],
+                [
+                  'EFFECTIVE',
+                  fmtPct(loudest.effective),
+                  loudest.effective.gt(loudest.nominal)
+                    ? 'FEES + GST FOLDED IN'
+                    : loudest.effective.lt(loudest.nominal)
+                      ? 'TAX SHIELD APPLIED'
+                      : 'NO ADJUSTMENTS',
+                  loudest.effective.gt(new Decimal('0.24')) ? L_T.negative : L_T.ink,
+                ],
+                [
+                  'OUTSTANDING',
+                  fc(loudest.loan.outstanding),
+                  loudest.loan.loan_type === 'credit_card'
+                    ? 'REVOLVING BALANCE'
+                    : 'PRINCIPAL REMAINING',
+                ],
+                ['MONTHLY INT', fc(loudestMonthlyInt), 'PURE FRICTION'],
+                next
+                  ? [
+                      'VS NEXT',
+                      `+${fc(vsNext)}`,
+                      `MORE THAN ${(next.loan.bank || '—').toUpperCase()} ${next.loan.loan_type.toUpperCase().replace('_', ' ')} EACH MONTH`,
+                    ]
+                  : null,
+              ].filter(Boolean) as [string, string, string, string?][]).map((r, i) => (
+                <tr key={i} style={{ borderBottom: `1px dashed ${L_T.faint}` }}>
+                  <td
+                    style={{
+                      padding: '6px 0',
+                      color: L_T.muted,
+                      width: 160,
+                      letterSpacing: '0.08em',
+                    }}
+                  >
+                    {r[0]}
+                  </td>
+                  <td
+                    style={{
+                      padding: '6px 0',
+                      fontWeight: 700,
+                      color: r[3] ?? L_T.ink,
+                      width: 140,
+                    }}
+                  >
+                    {r[1]}
+                  </td>
+                  <td
+                    style={{
+                      padding: '6px 0',
+                      color: L_T.muted,
+                      fontSize: 10,
+                      letterSpacing: '0.06em',
+                    }}
+                  >
+                    {r[2]}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <LBracket active href="/plan">
+              BALANCE TRANSFER →
+            </LBracket>
+            <LBracket href="/plan">SHOW MATH</LBracket>
+            <LBracket href="/insights#activity-ledger">MARK PAID</LBracket>
+          </div>
+        </section>
+      </main>
+    </LShell>
   );
 }
