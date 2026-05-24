@@ -1,9 +1,16 @@
 'use client';
 
+/**
+ * Windfall tool — spec §4.9.1 worked example.
+ *
+ * Implements the §4.9 skeleton: INPUT → VERDICT (with allocation bar)
+ * → MATH. The engine call + score-impact branch are unchanged from the
+ * legacy implementation; only the chrome flipped from `Card` / `Stat` /
+ * `VerdictHeader` to the ledger primitives.
+ */
+
 import { useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
-import { Card } from '@/components/Card';
-import { ApplyAction, Field, InfoTip, ScoreChip, Stat, SubmitBar, VerdictHeader } from '@/components/ToolPrimitives';
 import {
   api,
   formatCurrency,
@@ -14,16 +21,23 @@ import { loadProfileClient } from '@/lib/user-store';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
+import {
+  LToolInput,
+  LToolVerdict,
+  LToolMath,
+  LAllocationBar,
+} from '@/components/ledger/LToolShell';
+import { LBracket, L_T } from '@/components/ledger/primitives';
 
 export function WindfallTool() {
   const profile = useMemo(() => loadProfileClient(), []);
   const country = profile.user.country;
   const loudest = useMemo(() => deriveMetrics(profile).loudest, [profile]);
-  // Windfall payouts route against the loudest loan, so format figures in
-  // that loan's currency. If there is no loudest (no loans), fall back to
-  // the user's residence currency.
-  const ccy = loudest ? loanCurrency(loudest.loan, country) : userDefaultCurrency(country);
+  const ccy = loudest
+    ? loanCurrency(loudest.loan, country)
+    : userDefaultCurrency(country);
   const fmt = (v: string | number) => formatCurrency(v, ccy);
+
   const [amount, setAmount] = useState('');
   const [score, setScore] = useState(
     profile.creditScore != null ? String(profile.creditScore) : '',
@@ -52,8 +66,10 @@ export function WindfallTool() {
         strategy: 'avalanche',
       });
       setV(result);
-
-      if (!result.invest_instead && result.loan_label.toLowerCase().includes('credit_card')) {
+      if (
+        !result.invest_instead &&
+        result.loan_label.toLowerCase().includes('credit_card')
+      ) {
         const card = profile.user.loans.find((l) => l.loan_type === 'credit_card');
         if (card) {
           const limit = new Decimal(card.outstanding).div('0.7');
@@ -80,180 +96,279 @@ export function WindfallTool() {
     }
   }
 
+  const lender = loudest?.loan.bank?.toUpperCase() ?? 'YOUR LOUDEST DEBT';
+  const loudestRate = loudest
+    ? `${(Number(loudest.effective) * 100).toFixed(2)}%`
+    : '—';
+  const interestAvoided = v ? Number(v.interest_avoided) : 0;
+  const amountNum = Number(amount || '0');
+
+  // Allocation bar segments: §4.9.1 spec shows the four buckets the
+  // engine routes between. The recommended bucket (the engine's verdict)
+  // gets the accent tone.
+  const segments = v
+    ? [
+        {
+          label: v.invest_instead ? 'PREPAY' : 'PREPAY',
+          pct: v.invest_instead ? 0 : 1,
+          tone: (v.invest_instead ? 'muted' : 'accent') as
+            | 'accent'
+            | 'muted',
+        },
+        {
+          label: 'INVEST',
+          pct: v.invest_instead ? 1 : 0,
+          tone: (v.invest_instead ? 'accent' : 'muted') as 'accent' | 'muted',
+        },
+        { label: 'EF', pct: 0, tone: 'muted' as const },
+        { label: 'KEEP', pct: 0, tone: 'muted' as const },
+      ]
+    : [];
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <>
       {!profile.isLive && (
-        <div className="chip" style={{ alignSelf: 'flex-start', color: 'var(--muted)' }}>
-          demo profile · <a href="/onboarding">set up yours</a>
+        <div
+          style={{
+            fontSize: 11,
+            color: L_T.muted,
+            letterSpacing: '0.08em',
+            padding: '6px 0',
+          }}
+        >
+          $ DEMO PROFILE · <a href="/onboarding">[SETUP →]</a>
         </div>
       )}
 
-      <Card>
+      <LToolInput>
         {loudest && (
           <div
-            className="muted"
             style={{
-              fontSize: 12,
-              lineHeight: 1.55,
-              marginBottom: 10,
-              padding: '8px 10px',
-              border: '1px dashed var(--border)',
-              borderRadius: 6,
+              fontSize: 11,
+              lineHeight: 1.6,
+              color: L_T.muted,
+              padding: '6px 10px',
+              border: `1px dashed ${L_T.faint}`,
+              marginBottom: 12,
             }}
           >
-            Based on your profile, the windfall will be routed against your{' '}
-            <strong style={{ color: 'var(--ink)' }}>
-              {loudest.loan.bank || 'highest-rate'} {loudest.loan.loan_type.replace('_', ' ')}
-            </strong>{' '}
-            unless investing beats it.
+            ROUTES AGAINST{' '}
+            <strong style={{ color: L_T.ink }}>{lender}</strong> AT{' '}
+            <strong style={{ color: L_T.ink }}>{loudestRate}</strong> UNLESS
+            INVESTING BEATS IT.
           </div>
         )}
         <form
           onSubmit={check}
-          style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          style={{
+            display: 'grid',
+            gap: 14,
+            gridTemplateColumns: '1fr 1fr',
+          }}
         >
-          <Field
-            label="Windfall amount (net of tax)"
+          <LToolField
+            label="WINDFALL AMOUNT"
             value={amount}
             onChange={setAmount}
-            hint="The figure that actually hit your account — bonus, refund, gift, sale"
-            info={
-              <>
-                Any lump sum that&apos;s not part of your monthly cash flow.
-                Enter the <strong>net amount</strong> — i.e. what landed in
-                your bank after the payer&apos;s TDS / withholding.
-                <div style={{ marginTop: 8 }}>
-                  <strong>Why net?</strong> A {profile.user.country === 'IN' ? '₹5L' : '$5k'} bonus
-                  with 30% TDS lands as {profile.user.country === 'IN' ? '~₹3.4L' : '~$3.5k'} —
-                  that smaller figure is what you can actually deploy. We
-                  compare it against your highest-rate loan and the best liquid
-                  parking option, after-tax on both sides.
-                </div>
-                {profile.user.income_type === 'business_owner' && (
-                  <div style={{ marginTop: 8 }}>
-                    <strong>Business income?</strong> No TDS was withheld
-                    on this — you owe the tax yourself at the next advance-tax
-                    installment. Set aside roughly{' '}
-                    {Math.round(Number(profile.marginalRate) * 100)}% of any
-                    amount you enter here before deploying it.
-                  </div>
-                )}
-              </>
-            }
+            hint="Net of tax — what landed in your account."
           />
-          <Field
-            label="Your current credit score"
+          <LToolField
+            label="CURRENT CREDIT SCORE"
             value={score}
             onChange={setScore}
-            hint="CIBIL/Experian; leave blank to skip score impact"
-            info={
-              <>
-                Used only if the windfall lands on a credit card —
-                we&apos;ll model the utilisation drop and project the score
-                bump. Leave blank if you&apos;d rather skip that.
-              </>
-            }
+            hint="CIBIL / Experian. Blank skips the score-bump model."
           />
-          <SubmitBar busy={busy} error={err} label="Where should it go?" />
-        </form>
-      </Card>
-
-      {v && (
-        <Card>
-          <VerdictHeader
-            label={
-              v.invest_instead
-                ? `Invest in ${v.investment_name ?? '—'}`
-                : `Pay down ${v.loan_label}`
-            }
-            color={v.invest_instead ? 'var(--accent)' : 'var(--positive)'}
-            detail={v.rationale}
-          />
-          {profile.user.income_type === 'business_owner' &&
-            Number(amount) > 0 && (
-              <div
-                style={{
-                  padding: '8px 12px',
-                  marginBottom: 12,
-                  background: 'var(--soft-bg)',
-                  border: '1px solid var(--border)',
-                  borderLeft: '3px solid var(--accent)',
-                  borderRadius: 6,
-                  fontSize: 12,
-                  lineHeight: 1.55,
-                }}
-              >
-                <strong>Tax set-aside reminder.</strong> If this is business
-                income (no TDS withheld), park{' '}
-                <strong>
-                  {fmt(
-                    Math.round(
-                      Number(amount) * Number(profile.marginalRate || '0'),
-                    ),
-                  )}
-                </strong>{' '}
-                in your <a href="/debts" style={{ color: 'var(--accent)' }}>tax sleeve</a>{' '}
-                before deploying the rest. The advance-tax installment will
-                catch up either way.
-              </div>
-            )}
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
+              gridColumn: '1 / -1',
+              display: 'flex',
               gap: 12,
-              marginBottom: impact ? 12 : 0,
+              alignItems: 'center',
+              flexWrap: 'wrap',
             }}
           >
-            <Stat label="Amount" value={fmt(v.amount)} />
-            <Stat
-              label={
-                <>
-                  {v.invest_instead ? 'Interest given up (vs prepay)' : 'Interest avoided'}{' '}
-                  <InfoTip>
-                    {v.invest_instead
-                      ? 'Investing instead of prepaying means your loan keeps accruing. This is the extra interest you\'ll pay over the loan\'s remaining life — the opportunity cost of investing.'
-                      : 'Interest you won\'t pay because the loan balance is smaller now. Calculated against the loan\'s remaining tenure at its current rate.'}
-                  </InfoTip>
-                </>
-              }
-              value={fmt(v.interest_avoided)}
-              color={v.invest_instead ? 'var(--negative)' : 'var(--positive)'}
-            />
-          </div>
-          {impact && (
-            <ScoreChip
-              deltaLow={impact.delta_low}
-              deltaHigh={impact.delta_high}
-              daysToRealise={impact.days_to_realise}
-              currentBand={impact.current_band}
-              projectedBandHigh={impact.projected_band_high}
-              source={impact.source}
-              rationale={impact.rationale}
-            />
-          )}
-          {!v.invest_instead && loudest && profile.isLive && (
-            <ApplyAction
-              applied={applied}
-              onApply={() => {
-                applyToolResult({
-                  loanIndex: loudest.index,
-                  kind: 'paid_extra',
-                  amount: String(
-                    Number(loudest.loan.scheduled_emi || 0) + Number(v.amount),
-                  ),
-                  scheduledEmi: loudest.loan.scheduled_emi || '0',
-                  note: `Windfall applied — ${fmt(v.amount)} to ${v.loan_label}`,
-                  loans: profile.user.loans,
-                  country: profile.user.country,
-                });
-                setApplied(true);
+            <button
+              type="submit"
+              disabled={busy}
+              style={{
+                fontFamily:
+                  "'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                padding: '8px 14px',
+                background: L_T.ink,
+                color: L_T.paper,
+                border: `1px solid ${L_T.ink}`,
+                cursor: busy ? 'wait' : 'pointer',
               }}
-              label={`Apply this — log ${fmt(v.amount)} to ${loudest.loan.bank} & reprice /plan`}
-            />
-          )}
-        </Card>
+            >
+              {busy ? '[ RESOLVING… ]' : '[ WHERE SHOULD IT GO? → ]'}
+            </button>
+            {err && (
+              <span style={{ color: L_T.negative, fontSize: 11 }}>{err}</span>
+            )}
+          </div>
+        </form>
+      </LToolInput>
+
+      {v && (
+        <LToolVerdict
+          eyebrow={v.invest_instead ? 'INVEST INSTEAD' : 'PAY DOWN DEBT'}
+          headline={
+            v.invest_instead
+              ? `INVEST IN ${(v.investment_name ?? '—').toUpperCase()}`
+              : `PAY ${fmt(v.amount)} → ${v.loan_label.toUpperCase()}`
+          }
+          visual={<LAllocationBar segments={segments} />}
+          kpi={[
+            { l: 'AMOUNT', v: fmt(v.amount) },
+            {
+              l: v.invest_instead ? 'INTEREST GIVEN UP' : 'INTEREST AVOIDED',
+              v: fmt(v.interest_avoided),
+              tone: v.invest_instead ? 'neg' : 'pos',
+            },
+            {
+              l: 'MARGINAL RATE',
+              v: `${(Number(profile.marginalRate) * 100).toFixed(0)}%`,
+            },
+            {
+              l: 'SCORE BUMP',
+              v: impact
+                ? `+${impact.delta_low}–${impact.delta_high}`
+                : '—',
+              tone: impact ? 'accent' : undefined,
+            },
+          ]}
+          actions={
+            !v.invest_instead && loudest && profile.isLive ? (
+              <LBracket
+                accent
+                onClick={() => {
+                  applyToolResult({
+                    loanIndex: loudest.index,
+                    kind: 'paid_extra',
+                    amount: String(
+                      Number(loudest.loan.scheduled_emi || 0) + Number(v.amount),
+                    ),
+                    scheduledEmi: loudest.loan.scheduled_emi || '0',
+                    note: `Windfall applied — ${fmt(v.amount)} to ${v.loan_label}`,
+                    loans: profile.user.loans,
+                    country: profile.user.country,
+                  });
+                  setApplied(true);
+                }}
+              >
+                {applied ? 'LOGGED ✓' : `APPLY → ${lender}`}
+              </LBracket>
+            ) : (
+              <LBracket>EXPLORE ALTERNATIVES</LBracket>
+            )
+          }
+        />
       )}
-    </div>
+
+      {v && (
+        <LToolMath
+          rows={[
+            { k: 'amount', v: fmt(v.amount) },
+            {
+              k: 'route',
+              v: v.invest_instead
+                ? (v.investment_name ?? '—')
+                : v.loan_label,
+              note: v.rationale,
+            },
+            {
+              k: 'lender rate',
+              v: loudestRate,
+              note: 'effective APR, post-shield',
+            },
+            {
+              k: 'interest avoided',
+              v: fmt(v.interest_avoided),
+              tone: v.invest_instead ? 'neg' : 'pos',
+              note: v.invest_instead
+                ? 'this is the OPPORTUNITY COST of investing'
+                : 'over remaining tenure at current rate',
+            },
+            {
+              k: 'principal cut',
+              v: fmt(amountNum.toFixed(0)),
+              note: 'goes directly against the outstanding',
+            },
+            {
+              k: 'expected return',
+              v: v.invest_instead
+                ? `${(((interestAvoided + amountNum) / Math.max(1, amountNum)) * 100 - 100).toFixed(2)}%`
+                : '—',
+              note: v.invest_instead
+                ? 'after-tax, vs the lender rate above'
+                : 'invest option lost on net',
+            },
+          ]}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── inline LField-shaped input that doesn't pull in the heavy
+//     `Field` component from `ToolPrimitives` (which carries its own
+//     non-ledger styling). Plain monospace input + dashed underline
+//     matches the prototype. ──────────────────────────────────────────
+function LToolField({
+  label,
+  value,
+  onChange,
+  hint,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  hint?: string;
+}) {
+  return (
+    <label
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+        fontFamily:
+          "'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace",
+      }}
+    >
+      <span
+        style={{
+          fontSize: 9,
+          letterSpacing: '0.18em',
+          color: L_T.muted,
+        }}
+      >
+        {label}
+      </span>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          borderBottom: `1px solid ${L_T.ink}`,
+          padding: '6px 0',
+          fontFamily: 'inherit',
+          fontSize: 14,
+          fontWeight: 700,
+          color: L_T.ink,
+          outline: 'none',
+        }}
+      />
+      {hint && (
+        <span style={{ fontSize: 10, color: L_T.muted, lineHeight: 1.5 }}>
+          {hint}
+        </span>
+      )}
+    </label>
   );
 }

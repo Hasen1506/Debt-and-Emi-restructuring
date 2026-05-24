@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/Card';
 import { BankCombobox, Field, Select, SubmitBar } from '@/components/ToolPrimitives';
+import { L_T, L_MONO } from '@/components/ledger/primitives';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { RateRangeHint } from '@/components/RateRangeHint';
 import type {
@@ -85,6 +86,21 @@ const STEPS: ReadonlyArray<{ label: string; optional?: boolean }> = [
   { label: 'Savings' },
   { label: 'Credit score', optional: true },
   { label: 'Review' },
+] as const;
+
+/**
+ * Spec §4.7 labels for the six-cell rail. Step 0 (the optional "You"
+ * welcome screen) is intentionally excluded — the rail is the six-step
+ * spine the spec mandates. Use ALL-CAPS short labels (`CREDIT` not
+ * `CREDIT SCORE`) so the cells stay narrow on small viewports.
+ */
+const LEDGER_RAIL_LABELS = [
+  'COUNTRY',
+  'INCOME',
+  'LOANS',
+  'SAVINGS',
+  'CREDIT',
+  'REVIEW',
 ] as const;
 
 // `?step=loans` (or `?step=income`, etc.) deep-links to a specific step so
@@ -678,33 +694,18 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      {/* progress chips */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        {STEPS.map((s, i) => {
-          const active = i === step;
-          const done = i < step;
-          return (
-            <span
-              key={s.label}
-              className="chip"
-              style={{
-                background: active ? 'var(--accent)' : 'var(--card)',
-                color: active ? '#fff' : 'var(--muted)',
-                opacity: done ? 0.6 : 1,
-                fontWeight: active ? 600 : s.optional ? 400 : 500,
-                borderStyle: s.optional && !active ? 'dashed' : undefined,
-              }}
-            >
-              {i + 1}. {s.label}
-              {s.optional && !active && (
-                <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }}>
-                  optional
-                </span>
-              )}
-            </span>
-          );
-        })}
-      </div>
+      {/* §4.7 step rail — six cells (Country · Income · Loans · Savings ·
+       *  Credit · Review). Step 0 ("You") is the optional welcome screen
+       *  and renders without the rail so the wizard's main spine stays
+       *  visually anchored to the six-step contract. Tri-state colours:
+       *  current = accent fill + ink text, past = ink fill + paper text,
+       *  future = paper fill + muted text + 1px ink border. */}
+      {step >= 1 && (
+        <LedgerStepRail
+          steps={LEDGER_RAIL_LABELS}
+          currentRailIndex={step - 1}
+        />
+      )}
 
       <Card>
         {step === 0 && (
@@ -2212,7 +2213,8 @@ export default function OnboardingPage() {
               opacity: step === 0 ? 0.4 : 1,
             }}
           >
-            ← Back
+            {/* Spec §4.7: Back is always `[← BACK]` (no destination name). */}
+            [← BACK]
           </button>
           {step < STEPS.length - 1 ? (
             <button
@@ -2222,7 +2224,8 @@ export default function OnboardingPage() {
               className="btn btn-primary"
               style={{ opacity: canAdvance ? 1 : 0.4, cursor: canAdvance ? 'pointer' : 'not-allowed' }}
             >
-              Next →
+              {/* Spec §4.7: Continue button always names the next step. */}
+              [ CONTINUE → {STEPS[step + 1]?.label.toUpperCase() ?? 'NEXT'} ]
             </button>
           ) : (
             <button
@@ -2230,7 +2233,7 @@ export default function OnboardingPage() {
               onClick={save}
               className="btn btn-primary"
             >
-              Save profile &amp; see my plan
+              [ SAVE PROFILE → ]
             </button>
           )}
         </div>
@@ -3621,6 +3624,87 @@ function ReviewCard({
         </button>
       </div>
       <div style={{ fontSize: 14, lineHeight: 1.55 }}>{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Spec §4.7 step rail — six 1px-ink-bordered cells side-by-side.
+ *
+ * Cell states:
+ *   • current → accent fill, ink text, 2px ink border (the heavier
+ *     border makes the active cell pop against neighbours)
+ *   • past    → ink fill, paper text — "this is done"
+ *   • future  → paper fill, muted text — "still to come"
+ *
+ * Caption above the rail names the current step so non-visual users
+ * (and small viewports where the rail wraps) still get the spine.
+ */
+function LedgerStepRail({
+  steps,
+  currentRailIndex,
+}: {
+  steps: ReadonlyArray<string>;
+  currentRailIndex: number;
+}) {
+  return (
+    <div style={{ fontFamily: L_MONO }}>
+      <div
+        style={{
+          fontSize: 10,
+          letterSpacing: '0.18em',
+          color: L_T.muted,
+          marginBottom: 8,
+        }}
+      >
+        $ SETUP · STEP {currentRailIndex + 1}/{steps.length} ·{' '}
+        {steps[currentRailIndex]}
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${steps.length}, 1fr)`,
+          gap: 0,
+          background: L_T.ink,
+          border: `1px solid ${L_T.ink}`,
+          fontSize: 11,
+          letterSpacing: '0.1em',
+        }}
+      >
+        {steps.map((label, i) => {
+          const isCurrent = i === currentRailIndex;
+          const isPast = i < currentRailIndex;
+          const bg = isCurrent
+            ? L_T.accent
+            : isPast
+              ? L_T.ink
+              : L_T.paper ?? '#ffffff';
+          const color = isCurrent
+            ? L_T.ink
+            : isPast
+              ? L_T.paper ?? '#ffffff'
+              : L_T.muted;
+          return (
+            <div
+              key={label}
+              style={{
+                background: bg,
+                color,
+                padding: '10px 8px',
+                textAlign: 'center',
+                fontWeight: isCurrent ? 700 : 500,
+                // The 1px gap between cells is the grid background (ink)
+                // bleeding through — same 1px-ink-grid trick used by the
+                // KPI primitive. Skip the rule on the last cell so the
+                // outer border isn't doubled.
+                marginRight: i < steps.length - 1 ? 1 : 0,
+              }}
+            >
+              {String(i + 1).padStart(2, '0')} · {label}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

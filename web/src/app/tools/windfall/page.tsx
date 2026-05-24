@@ -1,17 +1,10 @@
 import { WindfallTool } from './tool';
+import { LToolPageHeader } from '@/components/ledger/LToolPageHeader';
 
 export default function WindfallPage() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <section>
-        <h1 className="h1">Got a bonus — where should it go?</h1>
-        <p className="muted">
-          Compares prepaying your highest-rate debt against topping up the
-          emergency fund or parking the cash in liquid — and tells you the
-          single best home for it.
-        </p>
-      </section>
+    <LToolPageHeader id="windfall">
       <WindfallTool />
-    </div>
+    </LToolPageHeader>
   );
 }

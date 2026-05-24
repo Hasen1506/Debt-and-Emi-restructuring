@@ -223,19 +223,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         )}
 
         {/* 5. Amortisation */}
-        <section>
-          <LSectionHeader
-            right={
-              <>
-                <LBracket>CSV</LBracket> <LBracket>PRINT</LBracket>{' '}
-                <LBracket>↓ EXPAND ALL {horizon}</LBracket>
-              </>
-            }
-          >
-            AMORTISATION · NEXT 12 MO
-          </LSectionHeader>
-          <AmortisationTable plan={plan} fc={fc} />
-        </section>
+        <AmortisationSection plan={plan} fc={fc} horizon={horizon} />
 
         {/* 6. Sensitivity */}
         <section>
@@ -323,130 +311,263 @@ function RestructureTable({
   );
 }
 
-// ─── Amortisation table ─────────────────────────────────────────────────
-function AmortisationTable({
+// ─── Amortisation §4.4 ──────────────────────────────────────────────────
+// Spec: default state is COLLAPSED — only event-bearing rows render, each
+// with a yellow wash. The bracket flips `[↓ EXPAND ALL N]` ↔ `[↑ COLLAPSE]`.
+// Glyphs: ⊕ rate reset · ⊙ annual review · ★ debt cleared / windfall.
+function AmortisationSection({
   plan,
   fc,
+  horizon,
 }: {
   plan: PlanData;
   fc: (v: string | number) => string;
+  horizon: number;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const today = getCountryToday(plan.user.country);
   const loanCols = plan.user.loans.slice(0, 4);
-  const headerCells = [
-    'MO',
-    'DATE',
-    ...loanCols.map((l) => (l.bank || '—').slice(0, 8).toUpperCase()),
-    'INT PAID',
-    'PRIN',
-    'BALANCE',
-    'EVENT',
-  ];
-  const rows = plan.monthlyPayments.slice(0, 12);
-  // Spot a "month cleared" event by looking at the trajectory deltas.
+
+  // Build all rows once with derived event + numbers, then filter at render
+  // time depending on collapse state. Keeps event-detection logic in one
+  // place and lets us count rows for the header label.
   const trajByMonth = new Map<number, number>(
     plan.trajectory.map((p) => [p.month, p.avalanche]),
   );
+  const scheduledTotal = plan.user.loans.reduce(
+    (s, l) => s + Number(l.scheduled_emi || 0),
+    0,
+  );
+  // ⊕ rate reset + ⊙ salary reset glyphs are gated on threading
+  // `lifecycle_events` into PlanData — see LEDGER_MISSING §G.1 follow-up.
+  // For now we surface ★ cleared (from trajectory) and ⊙ annual review
+  // (every 12th month), which both derive purely from plan data.
+
+  type Row = {
+    mo: number;
+    date: string;
+    perLoan: Record<number, string>;
+    extra: number;
+    interest: number;
+    principal: number;
+    balance: number;
+    event: string;
+  };
+
+  const rows: Row[] = plan.monthlyPayments.map((row) => {
+    const d = new Date(
+      today.getFullYear(),
+      today.getMonth() + row.month,
+      1,
+    );
+    const date = `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(-2)}`;
+    const bal = trajByMonth.get(row.month) ?? 0;
+    const prevBal =
+      trajByMonth.get(row.month - 1) ?? trajByMonth.get(row.month) ?? bal;
+    const drop = prevBal - bal;
+    const perLoan = row.perLoan ?? {};
+    const totalPay = Object.values(perLoan).reduce(
+      (s, v) => s + Number(v),
+      0,
+    );
+    const interest = Math.max(0, totalPay - drop);
+    const principal = Math.max(0, drop);
+    const extra = Math.max(0, totalPay - scheduledTotal);
+    // Event resolution — pick the loudest event for this month.
+    let event = '';
+    const balancesNow = plan.trajectory.find(
+      (p) => p.month === row.month,
+    )?.balancesByLoanIndex;
+    const balancesPrev = plan.trajectory.find(
+      (p) => p.month === row.month - 1,
+    )?.balancesByLoanIndex;
+    if (balancesNow && balancesPrev) {
+      for (const [idxStr, n] of Object.entries(balancesNow)) {
+        const prev = Number(balancesPrev[idxStr] ?? 0);
+        if (prev > 0 && Number(n) <= 0.01) {
+          const lender = plan.user.loans[Number(idxStr)]?.bank ?? 'LOAN';
+          event = `★ ${lender.toUpperCase()} CLEARED`;
+          break;
+        }
+      }
+    }
+    if (!event && row.month > 1 && row.month % 12 === 0) {
+      event = `⊙ ANNUAL REVIEW`;
+    }
+    return {
+      mo: row.month,
+      date,
+      perLoan,
+      extra,
+      interest,
+      principal,
+      balance: bal,
+      event,
+    };
+  });
+
+  const eventRows = rows.filter((r) => r.event);
+  const visibleRows = expanded ? rows : eventRows;
+  const totalCount = rows.length || horizon;
 
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table
-        style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          fontSize: 11,
-          minWidth: 700,
-        }}
+    <section>
+      <LSectionHeader
+        right={
+          <>
+            <LBracket>CSV</LBracket> <LBracket>PRINT</LBracket>{' '}
+            <LBracket onClick={() => setExpanded((v) => !v)}>
+              {expanded ? '↑ COLLAPSE' : `↓ EXPAND ALL ${totalCount}`}
+            </LBracket>
+          </>
+        }
       >
-        <thead>
-          <tr style={{ borderTop: `2px solid ${L_T.ink}`, borderBottom: `1px solid ${L_T.ink}` }}>
-            {headerCells.map((h, i) => (
-              <th
-                key={i}
-                style={{
-                  padding: '6px 10px',
-                  textAlign: i < 2 ? 'left' : 'right',
-                  fontWeight: 700,
-                  fontSize: 9,
-                  color: L_T.muted,
-                  letterSpacing: '0.06em',
-                }}
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => {
-            const d = new Date(today.getFullYear(), today.getMonth() + row.month, 1);
-            const dateLabel = `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(-2)}`;
-            const bal = trajByMonth.get(row.month) ?? 0;
-            const prevBal =
-              trajByMonth.get(row.month - 1) ?? trajByMonth.get(row.month) ?? bal;
-            const drop = prevBal - bal;
-            const perLoan = row.perLoan ?? {};
-            const totalPay = Object.values(perLoan).reduce(
-              (s, v) => s + Number(v),
-              0,
-            );
-            const interest = Math.max(0, totalPay - drop);
-            const principal = Math.max(0, drop);
-            // Event: any loan whose previous balance > 0 dropped to 0 this month.
-            let event = '';
-            const balancesNow = plan.trajectory.find((p) => p.month === row.month)?.balancesByLoanIndex;
-            const balancesPrev = plan.trajectory.find((p) => p.month === row.month - 1)?.balancesByLoanIndex;
-            if (balancesNow && balancesPrev) {
-              for (const [idxStr, n] of Object.entries(balancesNow)) {
-                const prev = Number(balancesPrev[idxStr] ?? 0);
-                if (prev > 0 && Number(n) <= 0.01) {
-                  const lender = plan.user.loans[Number(idxStr)]?.bank ?? 'LOAN';
-                  event = `⊕ ${lender.toUpperCase()} CLEARED`;
-                  break;
-                }
-              }
-            }
-            const highlight = !!event;
-            return (
+        AMORTISATION ·{' '}
+        {expanded
+          ? `${totalCount} MO`
+          : `${eventRows.length} EVENT${eventRows.length === 1 ? '' : 'S'} · EXPAND FOR ${totalCount} MO`}
+      </LSectionHeader>
+      {visibleRows.length === 0 ? (
+        <div style={{ padding: '14px 0', fontSize: 11, color: L_T.muted }}>
+          $ NO EVENTS · the next {totalCount} months hold steady. Expand to
+          inspect every row.
+        </div>
+      ) : (
+        <div
+          style={{
+            overflowX: 'auto',
+            maxHeight: expanded ? 460 : undefined,
+            overflowY: expanded ? 'auto' : undefined,
+            borderBottom: expanded ? `1px solid ${L_T.faint}` : undefined,
+          }}
+        >
+          <table
+            style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: 11,
+              minWidth: 760,
+            }}
+          >
+            <thead>
               <tr
-                key={i}
                 style={{
-                  borderBottom: `1px dashed ${L_T.faint}`,
-                  background: highlight ? L_T.highlight : 'transparent',
+                  borderTop: `2px solid ${L_T.ink}`,
+                  borderBottom: `1px solid ${L_T.ink}`,
+                  background: L_T.bg,
+                  position: expanded ? 'sticky' : undefined,
+                  top: 0,
+                  zIndex: 1,
                 }}
               >
-                <td style={{ padding: '6px 10px' }}>{String(i + 1).padStart(2, '0')}</td>
-                <td style={{ padding: '6px 10px' }}>{dateLabel}</td>
-                {loanCols.map((_, idx) => (
-                  <td key={idx} style={{ padding: '6px 10px', textAlign: 'right' }}>
-                    {perLoan[idx] ? fc(Number(perLoan[idx]).toFixed(0)) : '—'}
-                  </td>
+                {[
+                  'MO',
+                  'DATE',
+                  ...loanCols.map((l) =>
+                    (l.bank || '—').slice(0, 8).toUpperCase(),
+                  ),
+                  'EXTRA',
+                  'INT PAID',
+                  'PRIN',
+                  'BALANCE',
+                  'EVENT',
+                ].map((h, i) => (
+                  <th
+                    key={i}
+                    style={{
+                      padding: '6px 10px',
+                      textAlign: i < 2 ? 'left' : 'right',
+                      fontWeight: 700,
+                      fontSize: 9,
+                      color: L_T.muted,
+                      letterSpacing: '0.06em',
+                    }}
+                  >
+                    {h}
+                  </th>
                 ))}
-                <td style={{ padding: '6px 10px', textAlign: 'right', color: L_T.negative }}>
-                  {fc(interest.toFixed(0))}
-                </td>
-                <td style={{ padding: '6px 10px', textAlign: 'right', color: L_T.positive }}>
-                  {fc(principal.toFixed(0))}
-                </td>
-                <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }}>
-                  {fc(bal.toFixed(0))}
-                </td>
-                <td
-                  style={{
-                    padding: '6px 10px',
-                    textAlign: 'right',
-                    fontSize: 9,
-                    fontWeight: 700,
-                  }}
-                >
-                  {event}
-                </td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+            </thead>
+            <tbody>
+              {visibleRows.map((r, i) => {
+                const highlight = !!r.event;
+                return (
+                  <tr
+                    key={i}
+                    style={{
+                      borderBottom: `1px dashed ${L_T.faint}`,
+                      background: highlight ? L_T.highlight : 'transparent',
+                    }}
+                  >
+                    <td style={{ padding: '6px 10px' }}>
+                      {String(r.mo).padStart(2, '0')}
+                    </td>
+                    <td style={{ padding: '6px 10px' }}>{r.date}</td>
+                    {loanCols.map((_, idx) => (
+                      <td
+                        key={idx}
+                        style={{ padding: '6px 10px', textAlign: 'right' }}
+                      >
+                        {r.perLoan[idx]
+                          ? fc(Number(r.perLoan[idx]).toFixed(0))
+                          : '—'}
+                      </td>
+                    ))}
+                    <td
+                      style={{
+                        padding: '6px 10px',
+                        textAlign: 'right',
+                        color: L_T.accent,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {r.extra > 0 ? fc(r.extra.toFixed(0)) : '—'}
+                    </td>
+                    <td
+                      style={{
+                        padding: '6px 10px',
+                        textAlign: 'right',
+                        color: L_T.negative,
+                      }}
+                    >
+                      {fc(r.interest.toFixed(0))}
+                    </td>
+                    <td
+                      style={{
+                        padding: '6px 10px',
+                        textAlign: 'right',
+                        color: L_T.positive,
+                      }}
+                    >
+                      {fc(r.principal.toFixed(0))}
+                    </td>
+                    <td
+                      style={{
+                        padding: '6px 10px',
+                        textAlign: 'right',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {fc(r.balance.toFixed(0))}
+                    </td>
+                    <td
+                      style={{
+                        padding: '6px 10px',
+                        textAlign: 'right',
+                        fontSize: 9,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {r.event}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 
