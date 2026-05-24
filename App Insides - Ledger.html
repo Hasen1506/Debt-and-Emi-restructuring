@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>App Insides · Ledger skin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
+    <style>
+      html, body { margin: 0; padding: 0; background: #fbfaf3; font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+      #root { min-height: 100vh; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+    <script src="app-content.js"></script>
+    <script type="text/babel" src="design-canvas.jsx"></script>
+    <script type="text/babel" src="ledger-skin-home.jsx"></script>
+    <script type="text/babel" src="ledger-skin-rest.jsx"></script>
+
+    <script type="text/babel">
+      function App() {
+        return (
+          <DesignCanvas>
+            <DCSection
+              id="ledger-desktop"
+              title="Ledger skin · Desktop"
+              subtitle="The Statement: IBM Plex Mono everywhere, ASCII rules, dense tables, no rounded corners, brutalist. Simple/Detailed × Calm/Overwhelmed map to view-density toggles in the masthead. Every screen reads like a printed bank statement."
+            >
+              <DCArtboard id="l-home-simple"      label="Home · Simple × Calm  (daily statement)"    width={1200} height={920}><LHomeSimple /></DCArtboard>
+              <DCArtboard id="l-home-detailed"    label="Home · Detailed × Calm  (full diagnostics)" width={1200} height={1240}><LHomeDetailed /></DCArtboard>
+              <DCArtboard id="l-home-overwhelmed" label="Home · Simple × Overwhelmed  (soft view)"   width={1200} height={760}><LHomeOverwhelmed /></DCArtboard>
+              <DCArtboard id="l-plan"             label="Plan · trajectory + amortisation + what-if"  width={1200} height={1900}><LPlanScreen /></DCArtboard>
+              <DCArtboard id="l-debts"            label="Debts · full ledger + highlighted detail"   width={1200} height={1180}><LDebtsScreen /></DCArtboard>
+              <DCArtboard id="l-insights"         label="Notes · the engine's commentary"            width={1200} height={1080}><LInsightsScreen /></DCArtboard>
+              <DCArtboard id="l-onboarding"       label="Setup · step 3 of 6 (Loans)"                width={1200} height={1080}><LOnboardingScreen /></DCArtboard>
+              <DCArtboard id="l-tools"            label="Tools · 7 one-question tools"               width={1200} height={780}><LToolsIndex /></DCArtboard>
+              <DCArtboard id="l-tools-windfall"   label="Tools · §8a Windfall, a transaction slip"   width={1200} height={1280}><LWindfallScreen /></DCArtboard>
+            </DCSection>
+
+            <DCSection
+              id="ledger-mobile"
+              title="Ledger skin · Mobile"
+              subtitle="Tables stay tables — they scroll horizontally rather than reflow. Density is the point. Type stays at 11–12px because monospace at smaller sizes is illegible."
+            >
+              <DCArtboard id="l-m-home-simple"      label="Home · Simple"               width={390} height={1080}><LHomeSimple     mobile /></DCArtboard>
+              <DCArtboard id="l-m-home-detailed"    label="Home · Detailed"             width={390} height={1280}><LHomeDetailed   mobile /></DCArtboard>
+              <DCArtboard id="l-m-home-overwhelmed" label="Home · Overwhelmed"          width={390} height={760}><LHomeOverwhelmed mobile /></DCArtboard>
+              <DCArtboard id="l-m-plan"             label="Plan"                        width={390} height={2000}><LPlanScreen      mobile /></DCArtboard>
+              <DCArtboard id="l-m-debts"            label="Debts"                       width={390} height={1280}><LDebtsScreen     mobile /></DCArtboard>
+              <DCArtboard id="l-m-insights"         label="Notes"                       width={390} height={1380}><LInsightsScreen mobile /></DCArtboard>
+              <DCArtboard id="l-m-onboarding"       label="Setup"                       width={390} height={1280}><LOnboardingScreen mobile /></DCArtboard>
+              <DCArtboard id="l-m-tools"            label="Tools"                       width={390} height={1100}><LToolsIndex     mobile /></DCArtboard>
+              <DCArtboard id="l-m-tools-windfall"   label="Tools · Windfall"            width={390} height={1620}><LWindfallScreen mobile /></DCArtboard>
+            </DCSection>
+          </DesignCanvas>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+  </body>
+</html>
