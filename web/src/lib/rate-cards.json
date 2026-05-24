@@ -895,6 +895,86 @@
       "last_verified": "2026-05-14",
       "is_indicative": true
     },
+    "KreditBee": {
+      "institution_id": "IN_KREDITBEE",
+      "country": "IN",
+      "name": "KreditBee",
+      "scrape_tier": "C",
+      "home_loan": null,
+      "personal_loan": {
+        "low": "0.1700",
+        "high": "0.3000"
+      },
+      "auto_loan": null,
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0250",
+      "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Cred": {
+      "institution_id": "IN_CRED",
+      "country": "IN",
+      "name": "Cred",
+      "scrape_tier": "C",
+      "home_loan": null,
+      "personal_loan": {
+        "low": "0.1200",
+        "high": "0.1800"
+      },
+      "auto_loan": null,
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0100",
+      "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "Google Pay": {
+      "institution_id": "IN_GPAY",
+      "country": "IN",
+      "name": "Google Pay",
+      "scrape_tier": "C",
+      "home_loan": null,
+      "personal_loan": {
+        "low": "0.1200",
+        "high": "0.2400"
+      },
+      "auto_loan": null,
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0200",
+      "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
+    "PaisaBazaar": {
+      "institution_id": "IN_PAISABAZAAR",
+      "country": "IN",
+      "name": "PaisaBazaar",
+      "scrape_tier": "C",
+      "home_loan": null,
+      "personal_loan": {
+        "low": "0.1100",
+        "high": "0.2400"
+      },
+      "auto_loan": null,
+      "education_loan": null,
+      "credit_card": null,
+      "processing_fee_pct": "0.0200",
+      "prepayment_penalty_floating": "0",
+      "late_payment_flat_fee": null,
+      "late_payment_penal_rate": null,
+      "last_verified": "2026-05-14",
+      "is_indicative": true
+    },
     "JPMorgan Chase": {
       "institution_id": "US_CHASE",
       "country": "US",

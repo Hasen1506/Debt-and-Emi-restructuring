@@ -1178,6 +1178,7 @@ export default function OnboardingPage() {
               taxRegime={taxRegime}
               filingStatus={filingStatus}
               ageBracket={ageBracket || undefined}
+              incomeType={incomeType}
               grossAnnual={
                 incomeType === 'salaried' ? annualGrossSalary : annualBusinessIncome
               }

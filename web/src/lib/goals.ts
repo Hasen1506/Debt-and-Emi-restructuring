@@ -70,6 +70,28 @@ export interface Goal {
    *  same-bump-state peers. Null/undefined falls back to target-date
    *  ordering. */
   orderIndex?: number;
+  /** Deferred-start: 0-based sim-month before which engine routes 0
+   *  to this goal. Lets the user "park" a short-needed goal until
+   *  later in the timeline so debt prepay gets the full surplus
+   *  until funding kicks in. Stored as a YYYY-MM month for UI
+   *  legibility; converted to a sim-month index at engine-call time.
+   *  Undefined preserves the legacy "start at month 0" behavior. */
+  fundingStartMonth?: string;
+  /** When true (the default), the app auto-recomputes fundingStartMonth
+   *  after each /simulate response to keep the goal optimally deferred
+   *  (max debt prepay until funding kicks in). When false, the user
+   *  has explicitly clicked "Start saving now" — fundingStartMonth is
+   *  treated as fixed and not auto-overwritten. Pre-existing goals
+   *  without the flag default to true (opt-in for legacy data). */
+  autoDefer?: boolean;
+  /** Whether the target date can be slipped. 'hard' (wedding,
+   *  admission deadline, court-ordered medical) means the date is
+   *  locked — the shortfall-lever UI hides the "extend by N months"
+   *  option and surfaces only lower-target / increase-surplus / tap
+   *  lump-sum. 'soft' (default) means the date is preferred but
+   *  movable; all levers apply. Optional for legacy data — undefined
+   *  is treated as 'soft'. */
+  deadlineKind?: 'hard' | 'soft';
 }
 
 // ─── Presets ───────────────────────────────────────────────────────────────
@@ -80,6 +102,9 @@ interface PresetDefaults {
   priorityBump: boolean;
   fundingSources: GoalFundingSource[];
   description: string;
+  /** Whether the kind defaults to a hard or soft deadline. User can
+   *  flip per-goal via the deadline toggle. */
+  deadlineKind: 'hard' | 'soft';
 }
 
 export const GOAL_PRESETS: Record<GoalKind, PresetDefaults> = {
@@ -90,6 +115,7 @@ export const GOAL_PRESETS: Record<GoalKind, PresetDefaults> = {
     fundingSources: ['surplus'],
     description:
       'Short-horizon, low-stakes. Surplus-only is enough; never tap EF for it.',
+    deadlineKind: 'hard',
   },
   travel: {
     label: 'Travel / trip',
@@ -98,6 +124,7 @@ export const GOAL_PRESETS: Record<GoalKind, PresetDefaults> = {
     fundingSources: ['surplus', 'liquidation'],
     description:
       '10% buffer for in-trip surprises. Liquidation allowed for users with surplus assets they’d rather convert.',
+    deadlineKind: 'soft',
   },
   wedding: {
     label: 'Wedding',
@@ -106,6 +133,7 @@ export const GOAL_PRESETS: Record<GoalKind, PresetDefaults> = {
     fundingSources: ['surplus', 'ef', 'liquidation', 'new_loan'],
     description:
       'High-stakes, fixed-date. Buffer is 15%. Not bumped by default — natural date order usually suffices; flip the bump toggle if it must override a longer-horizon goal.',
+    deadlineKind: 'hard',
   },
   education: {
     label: 'Child education',
@@ -114,6 +142,7 @@ export const GOAL_PRESETS: Record<GoalKind, PresetDefaults> = {
     fundingSources: ['surplus', 'liquidation', 'new_loan'],
     description:
       'Long-horizon, often partially covered by education-loan tax breaks. Not bumped by default — the long horizon means date order is usually right.',
+    deadlineKind: 'hard',
   },
   business_seed: {
     label: 'Business seed capital',
@@ -122,6 +151,7 @@ export const GOAL_PRESETS: Record<GoalKind, PresetDefaults> = {
     fundingSources: ['surplus', 'liquidation', 'new_loan'],
     description:
       '20% buffer for working-capital surprises. EF off-limits — runway needs its own pool.',
+    deadlineKind: 'soft',
   },
   downpayment: {
     label: 'Home downpayment',
@@ -130,6 +160,7 @@ export const GOAL_PRESETS: Record<GoalKind, PresetDefaults> = {
     fundingSources: ['surplus', 'liquidation'],
     description:
       'Big-ticket, well-defined. No new loans (the home loan itself is the financing); liquidation is the fallback.',
+    deadlineKind: 'soft',
   },
   medical: {
     label: 'Medical reserve',
@@ -138,6 +169,7 @@ export const GOAL_PRESETS: Record<GoalKind, PresetDefaults> = {
     fundingSources: ['surplus', 'ef', 'liquidation', 'new_loan'],
     description:
       'Highest buffer (25%). Bumped by default — this is exactly what the EF exists for, but goals with target_date model the explicit case.',
+    deadlineKind: 'soft',
   },
   custom: {
     label: '',
@@ -145,6 +177,7 @@ export const GOAL_PRESETS: Record<GoalKind, PresetDefaults> = {
     priorityBump: false,
     fundingSources: ['surplus'],
     description: 'Free-form goal — you set the label and the funding rules.',
+    deadlineKind: 'soft',
   },
 };
 
@@ -234,6 +267,8 @@ export function writeGoalsClient(goals: Goal[]) {
       bufferPct: g.bufferPct,
       priorityBump: g.priorityBump,
       orderIndex: g.orderIndex,
+      fundingStartMonth: g.fundingStartMonth,
+      autoDefer: g.autoDefer,
     }));
     const value = btoa(JSON.stringify(digest));
     document.cookie = `${DIGEST_COOKIE}=${value}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
@@ -269,6 +304,13 @@ interface GoalDigestRow {
   bufferPct?: string;
   priorityBump?: boolean;
   orderIndex?: number;
+  /** Deferred-start (YYYY-MM). When present, engine routes 0 to this
+   *  goal until this month. Lets the user park the goal until later
+   *  so debt prepay gets the full surplus until funding kicks in. */
+  fundingStartMonth?: string;
+  /** Auto-defer flag — see Goal.autoDefer. Undefined in the cookie
+   *  falls back to true on read (default-on for legacy goals). */
+  autoDefer?: boolean;
   // Legacy fields kept for migration; not written going forward.
   priority?: 'critical' | 'important' | 'discretionary' | 'standard';
   preemptsEf?: boolean;
@@ -307,6 +349,7 @@ export interface GoalSimulateInput {
   saved_so_far: string;
   priority_bump: boolean;
   order_index: number | null;
+  funding_start_month_index: number | null;
 }
 
 function targetMonthIndex(goalTargetMonth: string, today: Date): number {
@@ -346,13 +389,33 @@ export async function goalsForSimulateServer(
       const base = Number(r.amount || '0');
       const buf = Number(r.bufferPct || '0');
       const required = base * (1 + (Number.isFinite(buf) ? buf : 0));
+      const targetIdx = targetMonthIndex(r.targetMonth, today);
+      const rawFundingStart =
+        typeof r.fundingStartMonth === 'string' && r.fundingStartMonth.length >= 7
+          ? targetMonthIndex(r.fundingStartMonth, today)
+          : null;
+      // Defense-in-depth alongside the API-side validator: a stale
+      // cookie can carry a fundingStartMonth that has slid past the
+      // targetMonth (target moved earlier, or the user left the tab
+      // open across a long window). Drop the deferred-start in that
+      // case so the request validates instead of 422-ing the whole
+      // /plan render. The UI's auto-defer effect will recompute a
+      // valid index on next interaction.
+      const fundingStart =
+        rawFundingStart !== null &&
+        targetIdx > 0 &&
+        rawFundingStart >= 0 &&
+        rawFundingStart < targetIdx
+          ? rawFundingStart
+          : null;
       return {
         id: r.id!,
-        target_month_index: targetMonthIndex(r.targetMonth, today),
+        target_month_index: targetIdx,
         required_amount: required.toFixed(2),
         saved_so_far: (currentlySaved[r.id!] ?? 0).toFixed(2),
         priority_bump: r.priorityBump === true,
         order_index: typeof r.orderIndex === 'number' ? r.orderIndex : null,
+        funding_start_month_index: fundingStart,
       };
     })
     .filter((g) => g.target_month_index > 0);
@@ -387,6 +450,7 @@ export function blankGoal(kind: GoalKind = 'custom'): Goal {
     fundingSources: [...p.fundingSources],
     priorityBump: p.priorityBump,
     bufferPct: p.bufferPct,
+    deadlineKind: p.deadlineKind,
   };
 }
 
@@ -399,6 +463,7 @@ export function applyPresetDefaults(goal: Goal, kind: GoalKind): Goal {
     fundingSources: [...p.fundingSources],
     priorityBump: p.priorityBump,
     bufferPct: p.bufferPct,
+    deadlineKind: p.deadlineKind,
   };
 }
 

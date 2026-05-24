@@ -47,6 +47,12 @@ export const BANKS_IN: readonly string[] = [
   'J&K Bank',
   'Ujjivan SFB',
   'Suryoday SFB',
+  // Fintech & aggregator — indicative; users typically pick the brand
+  // they applied through, even when the actual NBFC is a partner.
+  'KreditBee',
+  'Cred',
+  'Google Pay',
+  'PaisaBazaar',
 ] as const;
 
 export const BANKS_US: readonly string[] = [

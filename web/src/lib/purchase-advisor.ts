@@ -208,6 +208,12 @@ export function analyzePurchase(input: PurchaseInput): PurchaseAnalysis {
     emiOverSurplus,
   );
 
+  // Clamp downPct away from 1.0 so the "lower price" lever doesn't blow
+  // up: the formula divides by (1 - downPct) to gross the principal back
+  // up to a price, which is Infinity at 100% down. Any down ≥ 95% leaves
+  // so little financed that the lever is meaningless anyway — pin at 0.95
+  // so the user gets a finite-and-honest "lower the price to ≤ X" number.
+  const safeDownPct = Math.min(downPct, 0.95);
   const levers = {
     lowerPriceTo: round2(
       // What price keeps EMI at ≤ 50% of surplus?
@@ -218,7 +224,7 @@ export function analyzePurchase(input: PurchaseInput): PurchaseAnalysis {
               input.monthlySurplus * 0.5,
               input.loanRateAnnual,
               tenureYears * 12,
-            ) / (1 - downPct),
+            ) / (1 - safeDownPct),
           )
         : 0,
     ),

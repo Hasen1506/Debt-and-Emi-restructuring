@@ -42,6 +42,17 @@ import { decorateEntry } from '@/lib/activity-derived';
 import { estimateLateFee } from '@/lib/estimate-penalty';
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { syncActivityCookieClient } from '@/lib/activity-cookie';
+import {
+  addMonthlySpend,
+  readMonthlySpendClient,
+  removeMonthlySpend,
+  spentForMonth,
+  writeMonthlySpendClient,
+  type MonthlySpendEntry,
+} from '@/lib/monthly-spend';
+import { getCountryToday, MONTH_NAMES } from '@/lib/today';
+import { formatCurrency } from '@/lib/api';
+import { userDefaultCurrency } from '@/lib/currency';
 import { LOAN_TYPE_SHORT } from '@/lib/loan-types';
 import {
   formatINR,
@@ -272,13 +283,22 @@ export function ActivityLedger({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: variant === 'ledger' ? 18 : 22 }}>
+    <div
+      id="activity-ledger"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: variant === 'ledger' ? 18 : 22,
+        scrollMarginTop: 24,
+      }}
+    >
       <NothingChangedBar
         entries={entries}
         loans={user.loans}
         variant={variant}
         onConfirm={confirmNothingChanged}
       />
+      <MonthlySpendCard user={user} variant={variant} />
       <BudgetCommitments country={user.country} variant={variant} />
       <LogForm onAdd={add} loans={user.loans} country={user.country} variant={variant} />
       <ForwardPrepayForm onAdd={add} loans={user.loans} country={user.country} variant={variant} />
@@ -323,6 +343,22 @@ function BudgetCommitments({
   useEffect(() => {
     setCommits(readExpenseCommits());
     setHydrated(true);
+    // Cross-tab sync — if another tab undoes a commit (or commits a new
+    // cut from /goals), reflect that here without a hard refresh.
+    // Mirrors the activity-ledger storage listener above so the two
+    // panels stay consistent. Listens to both keys: the legacy
+    // `finoptima_decisions` key (in case migration hasn't run in the
+    // other tab yet) and the new `finoptima_decision_log` key.
+    function onStorage(e: StorageEvent) {
+      if (
+        e.key === 'finoptima_decision_log' ||
+        e.key === 'finoptima_decisions'
+      ) {
+        setCommits(readExpenseCommits());
+      }
+    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   const stale = useMemo(() => staleExpenseCommits(commits), [commits]);
@@ -1810,5 +1846,269 @@ function PenaltyBreakdownTooltip({
     >
       breakdown
     </abbr>
+  );
+}
+
+// ─── Monthly-spend log ─────────────────────────────────────────────────────
+
+/**
+ * "What did you actually spend this month?" — a single-line capture that
+ * lets the BudgetMonthCard on /plan render a variance against the
+ * planned envelope. Stored independently of the activity-ledger
+ * payment events; doesn't move any loan, doesn't run through the
+ * engine.
+ *
+ * Renders the current month's entry inline (with an Edit affordance)
+ * and a small "Past months" expandable list for completeness.
+ */
+function MonthlySpendCard({
+  user,
+  variant,
+}: {
+  user: UserPayload;
+  variant: LedgerVariant;
+}) {
+  const [entries, setEntries] = useState<MonthlySpendEntry[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
+
+  const today = getCountryToday(user.country);
+  const currentMonthIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const monthLabel = `${MONTH_NAMES[today.getMonth()]} ${today.getFullYear()}`;
+  const ccy = userDefaultCurrency(user.country);
+  const ccySym = user.country === 'IN' ? '₹' : '$';
+  const upper = variant === 'ledger';
+
+  useEffect(() => {
+    setEntries(readMonthlySpendClient());
+    setHydrated(true);
+    function onStorage(e: StorageEvent) {
+      if (e.key === 'finoptima_monthly_spend') {
+        setEntries(readMonthlySpendClient());
+      }
+    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const loggedThisMonth = spentForMonth(entries, currentMonthIso);
+  const plannedBudget =
+    Number(user.fixed_expenses || 0) + Number(user.variable_expenses || 0);
+
+  function commit() {
+    const cleaned = draft.replace(/[,₹$\s]/g, '');
+    const n = Number(cleaned);
+    if (!Number.isFinite(n) || n < 0) return;
+    const next = addMonthlySpend(entries, {
+      monthIso: currentMonthIso,
+      spent: String(n),
+    });
+    writeMonthlySpendClient(next);
+    setEntries(next);
+    setDraft('');
+  }
+
+  function remove(id: string) {
+    const next = removeMonthlySpend(entries, id);
+    writeMonthlySpendClient(next);
+    setEntries(next);
+  }
+
+  const variance =
+    loggedThisMonth !== null && plannedBudget > 0
+      ? loggedThisMonth - plannedBudget
+      : null;
+  const overBudget = variance !== null && variance > 0;
+
+  // Past months — distinct monthIso values excluding the current one,
+  // sorted descending. One row per month showing the latest entry.
+  const pastMonths = useMemo(() => {
+    const winners = new Map<string, MonthlySpendEntry>();
+    for (const e of entries) {
+      if (e.monthIso === currentMonthIso) continue;
+      const prev = winners.get(e.monthIso);
+      if (!prev || e.loggedAt > prev.loggedAt) {
+        winners.set(e.monthIso, e);
+      }
+    }
+    return Array.from(winners.values()).sort((a, b) =>
+      b.monthIso.localeCompare(a.monthIso),
+    );
+  }, [entries, currentMonthIso]);
+
+  return (
+    <section
+      style={{
+        padding: variant === 'ledger' ? '10px 12px' : 14,
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        borderLeft: '3px solid var(--accent)',
+        borderRadius: variant === 'ledger' ? 0 : 6,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          color: 'var(--accent)',
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          marginBottom: 8,
+          fontFamily: variant === 'ledger' ? 'var(--font-mono)' : 'inherit',
+        }}
+      >
+        {upper
+          ? `THIS MONTH'S SPEND · ${monthLabel.toUpperCase()}`
+          : `This month's spend · ${monthLabel}`}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 8,
+          alignItems: 'center',
+        }}
+      >
+        <span className="muted" style={{ fontSize: 12 }}>
+          Planned {formatCurrency(plannedBudget.toString(), ccy)} ·{' '}
+          {hydrated && loggedThisMonth !== null ? (
+            <>
+              logged{' '}
+              <strong style={{ color: 'var(--ink)' }}>
+                {formatCurrency(loggedThisMonth.toString(), ccy)}
+              </strong>
+              {variance !== null && Math.abs(variance) >= 1 && (
+                <>
+                  {' '}·{' '}
+                  <span
+                    style={{
+                      color: overBudget ? 'var(--negative)' : 'var(--positive)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {overBudget ? '+' : '−'}
+                    {formatCurrency(Math.abs(variance).toString(), ccy)}{' '}
+                    {overBudget ? 'over' : 'under'}
+                  </span>
+                </>
+              )}
+            </>
+          ) : (
+            <span className="muted">not logged yet</span>
+          )}
+        </span>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={loggedThisMonth !== null ? 'Update' : `${ccySym} this month`}
+            style={{
+              ...themedInputStyle(variant),
+              width: 120,
+              padding: '4px 8px',
+              fontSize: 12,
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commit();
+            }}
+          />
+          <button
+            type="button"
+            onClick={commit}
+            disabled={!draft.trim()}
+            style={{
+              padding: '4px 10px',
+              fontSize: 12,
+              background: draft.trim() ? 'var(--accent)' : 'var(--soft-bg)',
+              color: draft.trim() ? '#fff' : 'var(--muted)',
+              border: 'none',
+              borderRadius: variant === 'ledger' ? 0 : 4,
+              cursor: draft.trim() ? 'pointer' : 'not-allowed',
+              fontFamily: variant === 'ledger' ? 'var(--font-mono)' : 'inherit',
+            }}
+          >
+            {loggedThisMonth !== null ? 'Update' : 'Log'}
+          </button>
+        </div>
+      </div>
+      {pastMonths.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <button
+            type="button"
+            onClick={() => setShowHistory((v) => !v)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--accent)',
+              fontSize: 11,
+              padding: 0,
+              cursor: 'pointer',
+              fontFamily: variant === 'ledger' ? 'var(--font-mono)' : 'inherit',
+            }}
+          >
+            {showHistory
+              ? upper
+                ? '[HIDE PAST MONTHS]'
+                : 'Hide past months'
+              : upper
+                ? `[SHOW PAST MONTHS · ${pastMonths.length}]`
+                : `Show past months (${pastMonths.length})`}
+          </button>
+          {showHistory && (
+            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {pastMonths.map((e) => {
+                const v = Number(e.spent || '0');
+                const delta = plannedBudget > 0 ? v - plannedBudget : 0;
+                return (
+                  <div
+                    key={e.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      fontSize: 12,
+                      padding: '4px 0',
+                      borderBottom: '1px solid var(--border)',
+                    }}
+                  >
+                    <span>{e.monthIso}</span>
+                    <span style={{ color: 'var(--ink)' }}>
+                      {formatCurrency(v.toString(), ccy)}
+                      {plannedBudget > 0 && Math.abs(delta) >= 1 && (
+                        <span
+                          style={{
+                            color: delta > 0 ? 'var(--negative)' : 'var(--positive)',
+                            marginLeft: 6,
+                          }}
+                        >
+                          {delta > 0 ? '+' : '−'}
+                          {formatCurrency(Math.abs(delta).toString(), ccy)}
+                        </span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => remove(e.id)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--muted)',
+                        cursor: 'pointer',
+                        fontSize: 11,
+                      }}
+                      title="Remove this entry"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

@@ -23,6 +23,7 @@
 
 import { useEffect, useState } from 'react';
 import {
+  findActiveEntry,
   logRecommendation,
   decideRecommendation,
   deleteDecision,
@@ -30,6 +31,7 @@ import {
   reconcileDecision,
   readDecisionsClient,
   summarizeCalibration,
+  updateRecommendation,
   writeDecisionsClient,
   type DecisionEntry,
   type DecisionKind,
@@ -74,44 +76,84 @@ export function DecisionLogControls({
   const [calibration, setCalibration] = useState<ReturnType<
     typeof summarizeCalibration
   > | null>(null);
+  // Notice surfaced when mount-time pruning deletes stale rows. Without
+  // this, the user has no idea the cleanup happened — silent data loss.
+  // Dismissed by the user; not reset across mounts of the same tool.
+  const [prunedCount, setPrunedCount] = useState(0);
 
-  // Resume an in-progress entry on mount: if the log already has a
-  // not-yet-reconciled record for this exact (kind + source + context
-  // + estimatedAmount) combination, pick it up so reloading the tool
-  // doesn't lose the workflow. Matching on estimatedAmount too means
-  // re-running the same tool with different inputs starts a fresh
-  // entry rather than hijacking the previous one.
+  // Resume an in-progress entry on mount: pick up the most-recent
+  // unreconciled entry for this (kind, source) pair via findActiveEntry.
+  // Matching on (kind, source) only — not on estimatedAmount/context —
+  // means tweaking tool inputs while the workflow is in flight updates
+  // the existing entry rather than spawning a fresh orphan. Calibration
+  // narrows to (kind, source) too so cross-tool noise stays out of the
+  // historical badge.
   //
   // Side-effect on mount: prune orphan `recommended` rows older than
-  // 30 days. Tweaking tool inputs spawns fresh entries (the match key
-  // includes estimatedAmount) so abandoned ones accumulate — without
-  // pruning, localStorage grows unboundedly across sessions.
+  // 30 days. Surface the count via the dismissible notice below so the
+  // user can see what was cleaned up.
   useEffect(() => {
     const raw = readDecisionsClient();
     const pruned = pruneStaleRecommendations(raw);
-    if (pruned.length !== raw.length) writeDecisionsClient(pruned);
-    const match = pruned.find(
-      (e) =>
-        e.kind === kind &&
-        e.recommendation.context === context &&
-        e.recommendation.estimatedAmount === estimatedAmount &&
-        (e.recommendation.source ?? null) === (source ?? null) &&
-        e.status !== 'reconciled',
-    );
+    const diff = raw.length - pruned.length;
+    if (diff > 0) {
+      writeDecisionsClient(pruned);
+      setPrunedCount((c) => c + diff);
+    }
+    const match = findActiveEntry(pruned, kind, source);
     if (match) setEntry(match);
-    setCalibration(summarizeCalibration(pruned, kind));
-  }, [kind, context, estimatedAmount, source]);
+    setCalibration(summarizeCalibration(pruned, kind, source));
+  }, [kind, source]);
 
-  function record() {
-    const next = logRecommendation(readDecisionsClient(), kind, {
+  // Keep the active entry in sync with current inputs: if the user is
+  // tweaking the tool with a still-recommended entry tracked, write the
+  // new estimatedAmount / context / reasoning to the existing row
+  // rather than letting it drift away from what the UI is showing. No-op
+  // when there's no entry or it's already past 'recommended'.
+  useEffect(() => {
+    if (!entry || entry.status !== 'recommended') return;
+    const same =
+      entry.recommendation.context === context &&
+      entry.recommendation.estimatedAmount === estimatedAmount &&
+      (entry.recommendation.reasoning ?? '') === (reasoning ?? '');
+    if (same) return;
+    const next = updateRecommendation(readDecisionsClient(), entry.id, {
       context,
       estimatedAmount,
       reasoning,
       source,
     });
     writeDecisionsClient(next);
-    setEntry(next[0]);
-    setCalibration(summarizeCalibration(next, kind));
+    const updated = next.find((e) => e.id === entry.id);
+    if (updated) setEntry(updated);
+  }, [context, estimatedAmount, reasoning, source, entry]);
+
+  function record() {
+    // If an unreconciled entry already exists for this (kind, source),
+    // update it in place rather than spawning a parallel orphan. This
+    // matches the resume-on-mount semantics above.
+    const current = readDecisionsClient();
+    const existing = findActiveEntry(current, kind, source);
+    let next: DecisionEntry[];
+    if (existing) {
+      next = updateRecommendation(current, existing.id, {
+        context,
+        estimatedAmount,
+        reasoning,
+        source,
+      });
+    } else {
+      next = logRecommendation(current, kind, {
+        context,
+        estimatedAmount,
+        reasoning,
+        source,
+      });
+    }
+    writeDecisionsClient(next);
+    const updated = findActiveEntry(next, kind, source);
+    setEntry(updated);
+    setCalibration(summarizeCalibration(next, kind, source));
   }
 
   function decide(d: 'accepted' | 'declined') {
@@ -124,17 +166,19 @@ export function DecisionLogControls({
 
   function reconcile() {
     if (!entry) return;
-    const n = Number(actualAmount);
-    if (!Number.isFinite(n) || n <= 0) return;
+    const n = parseAmount(actualAmount);
+    if (n <= 0) return;
     const next = reconcileDecision(readDecisionsClient(), entry.id, {
-      actualAmount,
+      // Persist the cleaned numeric string so calibration math (which
+      // does `Number(actualAmount)` later) doesn't trip on commas again.
+      actualAmount: String(n),
       actualDate,
       notes: notes || undefined,
     });
     writeDecisionsClient(next);
     const updated = next.find((e) => e.id === entry.id);
     if (updated) setEntry(updated);
-    setCalibration(summarizeCalibration(next, kind));
+    setCalibration(summarizeCalibration(next, kind, source));
   }
 
   function discard() {
@@ -151,24 +195,31 @@ export function DecisionLogControls({
       // quota, etc.) leaves the audit trail intact rather than losing
       // both the mutation snapshot AND the entry.
       undoExpenseCommit(entry);
-    } else if (entry.status !== 'recommended') {
-      // Other non-recommended entries are calibration data — confirm
-      // before discarding so we don't silently lose signal.
-      const ok = window.confirm(
-        'Delete this tracked recommendation? Calibration history will lose this entry.',
-      );
+    } else {
+      // Confirm for every other kind — including 'recommended'. The
+      // bare × button was a one-tap data loser before: a user
+      // exploring the tool, clicked "Track this", then hit × to
+      // dismiss the panel, lost the entry without warning. Now every
+      // discard goes through confirm; the message varies by status so
+      // calibration-bearing entries get a stronger warning.
+      const msg =
+        entry.status === 'recommended'
+          ? 'Discard this tracked recommendation?'
+          : 'Delete this tracked recommendation? Calibration history will lose this entry.';
+      const ok = window.confirm(msg);
       if (!ok) return;
     }
     const next = deleteDecision(readDecisionsClient(), entry.id);
     writeDecisionsClient(next);
     setEntry(null);
-    setCalibration(summarizeCalibration(next, kind));
+    setCalibration(summarizeCalibration(next, kind, source));
   }
 
   if (!entry) {
     return (
       <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <CalibrationBadge calibration={calibration} />
+        <PrunedNotice count={prunedCount} onDismiss={() => setPrunedCount(0)} />
         <div
           style={{
             padding: '10px 12px',
@@ -218,6 +269,7 @@ export function DecisionLogControls({
     return (
       <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <CalibrationBadge calibration={calibration} />
+        <PrunedNotice count={prunedCount} onDismiss={() => setPrunedCount(0)} />
         <div
           style={{
             padding: 12,
@@ -272,6 +324,7 @@ export function DecisionLogControls({
   return (
     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <CalibrationBadge calibration={calibration} />
+      <PrunedNotice count={prunedCount} onDismiss={() => setPrunedCount(0)} />
       <div
         style={{
           padding: 12,
@@ -366,12 +419,12 @@ export function DecisionLogControls({
         <button
           type="button"
           onClick={reconcile}
-          disabled={!actualAmount || Number(actualAmount) <= 0}
+          disabled={parseAmount(actualAmount) <= 0}
           style={{
             ...btnStyle('var(--ink)'),
             background: 'var(--ink)',
             color: 'var(--canvas)',
-            opacity: actualAmount && Number(actualAmount) > 0 ? 1 : 0.5,
+            opacity: parseAmount(actualAmount) > 0 ? 1 : 0.5,
             height: 30,
           }}
         >
@@ -437,6 +490,59 @@ function CalibrationBadge({
   );
 }
 
+/** Dismissible "we cleaned up N stale tracked recommendations" notice.
+ *  Surfaces what pruneStaleRecommendations did on mount — without this
+ *  the cleanup is silent data loss from the user's perspective. */
+function PrunedNotice({
+  count,
+  onDismiss,
+}: {
+  count: number;
+  onDismiss: () => void;
+}) {
+  if (count <= 0) return null;
+  return (
+    <div
+      style={{
+        padding: '6px 10px',
+        background: 'var(--soft-bg)',
+        borderLeft: '3px solid var(--muted)',
+        borderRadius: 4,
+        fontSize: 11,
+        color: 'var(--muted)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+        lineHeight: 1.45,
+      }}
+    >
+      <span>
+        Cleaned up <strong>{count}</strong> tracked{' '}
+        {count === 1 ? 'recommendation' : 'recommendations'} from over 30
+        days ago that {count === 1 ? 'was' : 'were'} never decided on.
+      </span>
+      <button
+        type="button"
+        onClick={onDismiss}
+        title="Dismiss"
+        style={{
+          flexShrink: 0,
+          padding: '0 6px',
+          border: '1px solid var(--border)',
+          background: 'transparent',
+          color: 'var(--muted)',
+          borderRadius: 4,
+          cursor: 'pointer',
+          fontSize: 12,
+        }}
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
 const lblStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -464,6 +570,16 @@ function btnStyle(color: string): React.CSSProperties {
     cursor: 'pointer',
     fontSize: 12,
   };
+}
+
+/** Strip locale thousands separators + currency symbols, return as number.
+ *  Used by both the parse-on-submit path and the button-enabled check so
+ *  the two stay in lock-step. NaN → 0 so the button never enables on
+ *  unparseable input. */
+function parseAmount(raw: string): number {
+  const cleaned = raw.replace(/[,₹$\s]/g, '');
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
 }
 
 const discardBtnStyle: React.CSSProperties = {

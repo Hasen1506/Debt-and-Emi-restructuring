@@ -130,3 +130,136 @@ def test_sensitivity_rate_shock(client, india_user_payload):
     assert r.status_code == 200, r.text
     body = r.json()
     assert D(body["interest_saved"]) > 0
+
+
+def test_simulate_emits_engine_truth_surplus_series(client, india_user_payload):
+    """Per-month surplus + per-goal contribution arrays power
+    client-side achievability (replaces the flat `monthlySurplus ×
+    months` approximation). Validates the engine-truth shape:
+    available_surplus is positive across the goal's funding window,
+    and goal_contributions[goal_id] sums to the engine's
+    `saved_at_target` for that goal."""
+    r = client.post("/api/simulate", json={
+        "user": india_user_payload, "strategy": "avalanche",
+        "horizon_months": 24, "marginal_rate": "0.30",
+        "goals": [
+            {
+                "id": "wedding",
+                "target_month_index": 12,
+                "required_amount": "120000",
+                "saved_so_far": "0",
+                "priority_bump": False,
+            }
+        ],
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    # Every trajectory point carries the new fields (default values
+    # when no goal was funded that month).
+    first = body["trajectory"][0]
+    assert "available_surplus" in first
+    assert "goal_contributions" in first
+    assert D(first["available_surplus"]) > 0
+    # The wedding goal should be on track — sum of contributions
+    # over the funding window equals the engine's saved_at_target.
+    sum_contrib = sum(
+        D(p["goal_contributions"].get("wedding", "0"))
+        for p in body["trajectory"]
+    )
+    finals = {f["goal_id"]: f for f in body["goal_finals"]}
+    assert "wedding" in finals
+    assert sum_contrib == D(finals["wedding"]["saved_at_target"])
+    # And the new `funded` flag should be present.
+    assert "funded" in finals["wedding"]
+
+
+def test_simulate_rejects_funding_start_at_or_after_target(
+    client, india_user_payload,
+):
+    """A stale-cookie or bad-client payload with
+    funding_start_month_index >= target_month_index should 422 at the
+    API edge rather than silently funding the goal at 0 forever. The
+    Pydantic model_validator on GoalIn enforces this."""
+    r = client.post("/api/simulate", json={
+        "user": india_user_payload, "strategy": "avalanche",
+        "horizon_months": 24, "marginal_rate": "0.30",
+        "goals": [
+            {
+                "id": "broken",
+                "target_month_index": 6,
+                "required_amount": "60000",
+                "saved_so_far": "0",
+                "priority_bump": False,
+                # Start month equals target month — engine would never
+                # fund this goal; reject upstream instead.
+                "funding_start_month_index": 6,
+            }
+        ],
+    })
+    assert r.status_code == 422, r.text
+    assert "funding_start_month_index" in r.text
+
+
+def test_simulate_marks_goal_past_horizon_when_target_after_debt_free(
+    client, india_user_payload,
+):
+    """When the sim breaks out at debt_free_month, a goal whose target
+    sits beyond that point should surface `target_past_horizon=True`
+    so the UI can render an honest "deadline is past your debt-free
+    month" message instead of a misleading "not reached" tone."""
+    r = client.post("/api/simulate", json={
+        "user": india_user_payload, "strategy": "avalanche",
+        # Long horizon so debt-free lands before the goal target.
+        "horizon_months": 600, "marginal_rate": "0.30",
+        "goals": [
+            {
+                # Place the goal far in the future (50 years out) so
+                # the sim definitely breaks out at debt-free before
+                # reaching it.
+                "id": "long_horizon",
+                "target_month_index": 599,
+                "required_amount": "100000",
+                "saved_so_far": "0",
+                "priority_bump": False,
+            }
+        ],
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["debt_free_month"] is not None
+    finals = {f["goal_id"]: f for f in body["goal_finals"]}
+    g = finals["long_horizon"]
+    assert g["target_reached"] is False
+    assert g["target_past_horizon"] is True
+
+
+def test_simulate_snapshot_surfaces_funding_start_index_for_deferred_goal(
+    client, india_user_payload,
+):
+    """When a goal is deferred (funding_start_month_index > 0), the
+    snapshot's per-goal contribution row should carry that index so
+    /plan can render 'starts month N' instead of just '₹0 — deferred'.
+    Closes the snapshot honesty gap noted in the 3.4 critique."""
+    r = client.post("/api/simulate", json={
+        "user": india_user_payload, "strategy": "avalanche",
+        "horizon_months": 24, "marginal_rate": "0.30",
+        "goals": [
+            {
+                "id": "wedding",
+                "target_month_index": 12,
+                "required_amount": "60000",
+                "saved_so_far": "0",
+                "priority_bump": False,
+                # Defer funding until month 7 — engine should emit
+                # `deferred` queued_reason for months < 7.
+                "funding_start_month_index": 7,
+            }
+        ],
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    contribs = body["surplus_allocation"]["goal_contributions"]
+    wedding = next(c for c in contribs if c["goal_id"] == "wedding")
+    assert wedding["queued_reason"] == "deferred"
+    assert wedding["funding_start_month_index"] == 7
+    assert D(wedding["amount"]) == D("0")

@@ -34,6 +34,8 @@ import {
   UpdateTermsButton,
 } from './OpportunityAlternative';
 import { FxCachePersister } from './FxCachePersister';
+import { BudgetMonthCard } from './BudgetMonthCard';
+import { NextActionCard } from './NextActionCard';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { InfoTip } from '@/components/ToolPrimitives';
 import { InvestVsPrepayCard } from './InvestVsPrepayCard';
@@ -187,6 +189,12 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
       }}
     >
       <FxCachePersister rates={plan.fxRatesUsed} />
+      <NextActionCard
+        user={plan.user}
+        monthlySurplus={plan.surplus}
+        variant="ledger"
+      />
+      <BudgetMonthCard user={plan.user} variant="ledger" />
 
       {/* 1. KPI strip — the answer first. */}
       <section>

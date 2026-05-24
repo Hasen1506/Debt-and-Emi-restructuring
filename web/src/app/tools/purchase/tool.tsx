@@ -31,6 +31,12 @@ import {
   type PurchaseType,
   type PurchaseAnalysis,
 } from '@/lib/purchase-advisor';
+import { readGoalsClient } from '@/lib/goals';
+import {
+  readContributionsClient,
+  totalsByGoal,
+} from '@/lib/goal-contributions';
+import { computeGoalSlip, materialSlips } from '@/lib/goal-slip';
 
 const TYPE_OPTIONS: { value: PurchaseType; label: string }[] = [
   { value: 'home', label: 'Home' },
@@ -83,21 +89,31 @@ export function PurchaseTool() {
   // Taxable income (pre-home-loan-deduction). Lets the advisor walk
   // slab boundaries when the Sec 24(b) deduction (or US mortgage-
   // interest deduction) crosses a bracket — saves at the actual
-  // blended rate instead of a flat `deduction × marginalRate`. The
-  // bracket walker handles edge cases naturally; here we just supply
-  // the inputs.
+  // blended rate instead of a flat `deduction × marginalRate`.
+  //
+  // Gross source mirrors deriveMarginalRateForUser: prefer income_streams
+  // (richer — captures presumptive / rental / capital-gains splits),
+  // but fall back to the scalar `annual_income` when streams aren't
+  // configured. Without the fallback, users who skipped the streams
+  // panel got `taxableIncome === 0`, which silently routed them through
+  // the flat `marginalRate × deduction` path inside computeTaxBenefit —
+  // exactly the approximation the bracket walker exists to avoid.
   const taxableIncome = useMemo(() => {
     const slabGross = Number(
       activeSlabGrossAnnual(profile.user.income_streams).toString(),
     );
-    if (slabGross <= 0) return 0;
+    const gross = slabGross > 0
+      ? slabGross
+      : Number(profile.user.annual_income || '0');
+    if (gross <= 0) return 0;
     const { totalAllowed } = summariseDeductions(
       profile.user.deductions,
       profile.user.country,
       profile.user.tax_regime,
       profile.user.age_bracket,
+      profile.user.income_type,
     );
-    return Math.max(0, slabGross - Number(totalAllowed.toString()));
+    return Math.max(0, gross - Number(totalAllowed.toString()));
   }, [profile]);
 
   const [type, setType] = useState<PurchaseType>('home');
@@ -107,18 +123,34 @@ export function PurchaseTool() {
   const [tenureYears, setTenureYears] = useState(DEFAULTS.home.tenureYears);
   const [rate, setRate] = useState(DEFAULTS.home.rate);
   const [itemisesUS, setItemisesUS] = useState(false);
+  // Per-field "user touched this" flags. Without these, the prior
+  // heuristic ("only reset when current value matches the prior
+  // default") silently overwrote intentional edits any time the user
+  // happened to type a value identical to the prior default and then
+  // switched type. Once a field is touched it stays sticky across type
+  // changes; untouched fields adopt the new type's defaults.
+  const [touched, setTouched] = useState({
+    downPct: false,
+    tenureYears: false,
+    rate: false,
+  });
 
-  // Push type defaults when the user switches type — but only when the
-  // current value still matches some default (so we don't overwrite
-  // intentional edits).
   function applyTypeDefaults(t: PurchaseType) {
-    const cur = DEFAULTS[type];
     const next = DEFAULTS[t];
-    if (downPct === cur.downPct) setDownPct(next.downPct);
-    if (tenureYears === cur.tenureYears) setTenureYears(next.tenureYears);
-    if (rate === cur.rate) setRate(next.rate);
+    if (!touched.downPct) setDownPct(next.downPct);
+    if (!touched.tenureYears) setTenureYears(next.tenureYears);
+    if (!touched.rate) setRate(next.rate);
     setType(t);
   }
+
+  // Active goals + their saved totals — read client-side so a user who
+  // has logged a partial down-payment toward a goal sees the slip from
+  // the *remaining* gap, not the full goal amount.
+  const goals = useMemo(() => readGoalsClient(), []);
+  const contributionTotals = useMemo(
+    () => totalsByGoal(readContributionsClient()),
+    [],
+  );
 
   const priceNum = Number(price || '0');
   const analysis: PurchaseAnalysis | null =
@@ -142,6 +174,29 @@ export function PurchaseTool() {
           monthlySurplus,
         })
       : null;
+
+  // Goal-slip: how much does each active goal's earliest feasible month
+  // shift if the user takes this purchase's EMI on top of current
+  // commitments? Negative-surplus-delta = goal slips later (or breaks).
+  // Empty rows when there are no goals, or when no goal is materially
+  // impacted (slip < 1 month, no deadline break).
+  const goalSlipRows = useMemo(() => {
+    if (!analysis || goals.length === 0) return [];
+    const emi = analysis.affordability.monthlyEmi;
+    if (!Number.isFinite(emi) || emi <= 0) return [];
+    const rows = computeGoalSlip({
+      goals,
+      contributionTotals,
+      baselineMonthlySurplus: monthlySurplus,
+      surplusDelta: -emi,
+      efBalance: Number(profile.user.efund_balance || 0),
+      efTarget: Number(profile.user.efund_target || 0),
+      monthlyExpenses:
+        Number(profile.user.fixed_expenses || 0) +
+        Number(profile.user.variable_expenses || 0),
+    });
+    return materialSlips(rows);
+  }, [analysis, goals, contributionTotals, monthlySurplus, profile.user]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -174,14 +229,20 @@ export function PurchaseTool() {
         <Field
           label="Down payment (%)"
           value={downPct}
-          onChange={setDownPct}
+          onChange={(v) => {
+            setDownPct(v);
+            if (!touched.downPct) setTouched((t) => ({ ...t, downPct: true }));
+          }}
           hint="Cash up front, balance financed"
           kind="decimal"
         />
         <Field
           label="Loan tenure (years)"
           value={tenureYears}
-          onChange={setTenureYears}
+          onChange={(v) => {
+            setTenureYears(v);
+            if (!touched.tenureYears) setTouched((t) => ({ ...t, tenureYears: true }));
+          }}
           hint={
             type === 'vehicle' ? 'Longer = underwater risk' : 'Longer = lower EMI, more interest'
           }
@@ -190,7 +251,10 @@ export function PurchaseTool() {
         <Field
           label="Indicative rate (% p.a.)"
           value={rate}
-          onChange={setRate}
+          onChange={(v) => {
+            setRate(v);
+            if (!touched.rate) setTouched((t) => ({ ...t, rate: true }));
+          }}
           hint="Sanction-letter rate; shop around"
           kind="decimal"
         />
@@ -222,7 +286,15 @@ export function PurchaseTool() {
 
       {analysis && (
         <>
-          <AnalysisPanel analysis={analysis} fmt={fmt} ccySym={ccy === 'INR' ? '₹' : '$'} />
+          <AnalysisPanel
+            analysis={analysis}
+            fmt={fmt}
+            ccySym={ccy === 'INR' ? '₹' : '$'}
+            marginalRate={marginalRate}
+          />
+          {goalSlipRows.length > 0 && (
+            <GoalSlipPanel rows={goalSlipRows} />
+          )}
           <DecisionLogControls
             kind="new_loan"
             context={`${type} purchase — ${analysis.feasibility} on current surplus`}
@@ -268,12 +340,18 @@ function AnalysisPanel({
   analysis,
   fmt,
   ccySym,
+  marginalRate,
 }: {
   analysis: PurchaseAnalysis;
   fmt: (v: number) => string;
   ccySym: string;
+  /** Tax bracket the TCO/effective-rate math used. Surfaced inline so
+   *  the user can tell when the stored value is stale (0% or far from
+   *  their expected bracket) before trusting the verdict. */
+  marginalRate: number;
 }) {
   const showLevers = analysis.feasibility !== 'feasible';
+  const marginalPct = marginalRate > 0 ? `${Math.round(marginalRate * 100)}%` : null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div
@@ -298,6 +376,16 @@ function AnalysisPanel({
           {analysis.affordability.emiOverSurplus === Infinity
             ? 'no surplus on file'
             : `EMI ${Math.round(analysis.affordability.emiOverSurplus * 100)}% of surplus`}
+          {marginalPct ? (
+            <> · at your {marginalPct} marginal bracket</>
+          ) : (
+            <>
+              {' '}·{' '}
+              <span style={{ color: 'var(--warning)' }}>
+                no marginal rate on file — tax benefit will read as zero
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -483,6 +571,80 @@ function LeverCell({
       </div>
       <div style={{ fontWeight: 600, marginTop: 2 }}>{value}</div>
       <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 2 }}>{subtle}</div>
+    </div>
+  );
+}
+
+// ─── Goal-slip panel ───────────────────────────────────────────────────────
+
+function GoalSlipPanel({
+  rows,
+}: {
+  rows: ReturnType<typeof materialSlips>;
+}) {
+  const breaking = rows.filter((r) => r.breaksDeadline);
+  const slipping = rows.filter((r) => !r.breaksDeadline);
+  return (
+    <div
+      style={{
+        padding: 12,
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        borderLeft: '3px solid var(--warning, var(--accent))',
+        borderRadius: 6,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: 'var(--accent)',
+          marginBottom: 8,
+          letterSpacing: '0.04em',
+          textTransform: 'uppercase',
+        }}
+      >
+        Impact on your goals
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {breaking.map((r) => (
+          <div key={r.goalId} style={{ fontSize: 13 }}>
+            <span style={{ color: 'var(--negative)', fontWeight: 600 }}>
+              {r.goalLabel}
+            </span>{' '}
+            <span className="muted">— breaks the deadline.</span>{' '}
+            {r.baseEarliestLabel && r.postEarliestLabel && (
+              <span className="muted">
+                Was achievable by {r.baseEarliestLabel}; now earliest{' '}
+                {r.postEarliestLabel}.
+              </span>
+            )}
+            {r.postEarliest === null && (
+              <span className="muted">
+                Forward surplus can&apos;t reach it after this purchase.
+              </span>
+            )}
+          </div>
+        ))}
+        {slipping.map((r) => (
+          <div key={r.goalId} style={{ fontSize: 13 }}>
+            <span style={{ fontWeight: 600 }}>{r.goalLabel}</span>{' '}
+            <span className="muted">
+              — slips by {r.slipMonths} month{r.slipMonths === 1 ? '' : 's'}
+              {r.baseEarliestLabel && r.postEarliestLabel ? (
+                <>
+                  {' '}({r.baseEarliestLabel} → {r.postEarliestLabel})
+                </>
+              ) : null}
+              .
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="muted" style={{ fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>
+        Estimated from current surplus held steady. The /plan engine runs a
+        fuller projection that includes lifecycle events and inflation.
+      </div>
     </div>
   );
 }

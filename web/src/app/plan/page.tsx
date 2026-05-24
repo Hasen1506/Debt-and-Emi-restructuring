@@ -434,7 +434,9 @@ async function loadPlan(
               | 'over_funded'
               | 'surplus_exhausted'
               | 'partial_fill'
+              | 'deferred'
               | null) ?? null,
+          fundingStartMonthIndex: c.funding_start_month_index ?? null,
         })) ?? [],
       goalFinals:
         scenario.goal_finals?.map((f) => ({
@@ -443,6 +445,8 @@ async function loadPlan(
           savedAtTarget: Number(f.saved_at_target),
           fillRate: Number(f.fill_rate),
           targetReached: f.target_reached,
+          targetPastHorizon: f.target_past_horizon === true,
+          funded: f.funded,
         })) ?? [],
       anyGoalShort: !!scenario.surplus_allocation?.any_goal_short,
       strategyCompare,

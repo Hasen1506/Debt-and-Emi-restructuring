@@ -61,14 +61,33 @@ export function ExistingDebts({ profile }: { profile: StoredProfile }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <TodayCard user={user} variant="existing" />
       <section>
-        <h1 className="h1">Your debts</h1>
-        <p className="muted">
-          {m.loans.length} active. Total outstanding{' '}
-          <strong style={{ color: 'var(--ink)' }}>
-            {formatCurrency(m.totalOutstanding.toString(), userDefaultCurrency(country))}
-          </strong>{' '}
-          · blended effective {fmt(m.blendedEffective)}.
-        </p>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h1 className="h1" style={{ marginBottom: 4 }}>Your debts</h1>
+            <p className="muted" style={{ margin: 0 }}>
+              {m.loans.length} active. Total outstanding{' '}
+              <strong style={{ color: 'var(--ink)' }}>
+                {formatCurrency(m.totalOutstanding.toString(), userDefaultCurrency(country))}
+              </strong>{' '}
+              · blended effective {fmt(m.blendedEffective)}.
+            </p>
+          </div>
+          <a
+            href="/onboarding?step=loans"
+            className="btn btn-primary"
+            style={{ textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            + Add loan
+          </a>
+        </div>
       </section>
 
       {m.loans.map((row) => {
@@ -162,10 +181,14 @@ export function ExistingDebts({ profile }: { profile: StoredProfile }) {
 
       <a
         href="/onboarding?step=loans"
-        className="btn btn-primary"
-        style={{ alignSelf: 'flex-start', textDecoration: 'none' }}
+        style={{
+          color: 'var(--muted)',
+          fontSize: 13,
+          textDecoration: 'none',
+          alignSelf: 'flex-start',
+        }}
       >
-        + Add or edit debts
+        Edit loan details →
       </a>
 
       <StaleCardNudge user={profile.user} variant="existing" />

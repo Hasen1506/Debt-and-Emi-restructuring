@@ -28,7 +28,7 @@
  *     wins when set.
  */
 import Decimal from 'decimal.js';
-import type { AgeBracket, Country, DeductionsPayload, FilingStatusUS, TaxRegimeIN, UserPayload } from './api';
+import type { AgeBracket, Country, DeductionsPayload, FilingStatusUS, IncomeType, TaxRegimeIN, UserPayload } from './api';
 import { activeSlabGrossAnnual } from './income-streams';
 
 const D = (v: string | number | Decimal | null | undefined) =>
@@ -83,24 +83,29 @@ export function summariseDeductions(
   country: Country,
   taxRegime: TaxRegimeIN | undefined,
   ageBracket: AgeBracket | undefined,
+  incomeType?: IncomeType,
 ): DeductionsSummary {
   const ded = deductions ?? {};
   const lines: DeductionLine[] = [];
 
   if (country === 'IN') {
     const isOld = taxRegime === 'old';
-    // Standard deduction applies in both regimes for salaried filers.
-    // Auto-applied here so the marginal-rate calc reflects what the
-    // user actually owes; without it, a salaried user at ₹15L gross
-    // was being put in the 30% slab when their actual taxable
-    // (₹15L - ₹75k) lands in 20%.
-    const stdDed = isOld ? STD_DEDUCTION_OLD : STD_DEDUCTION_NEW;
-    lines.push({
-      label: 'Standard deduction',
-      claimed: stdDed,
-      allowed: stdDed,
-      note: 'Auto-applied for salaried filers',
-    });
+    // Standard deduction is a salaried-filer benefit. Business-owner
+    // filers don't get it — earlier versions pushed the ₹50k/₹75k line
+    // to every IN profile, which under-stated the bracket of a
+    // ₹15L-business-income user. `income_type` undefined falls back to
+    // applying the deduction (the historical default — most users are
+    // salaried).
+    const isBusinessOwner = incomeType === 'business_owner';
+    if (!isBusinessOwner) {
+      const stdDed = isOld ? STD_DEDUCTION_OLD : STD_DEDUCTION_NEW;
+      lines.push({
+        label: 'Standard deduction',
+        claimed: stdDed,
+        allowed: stdDed,
+        note: 'Auto-applied for salaried filers',
+      });
+    }
     if (!isOld) {
       // New regime: only the standard deduction (plus employer-NPS
       // 80CCD(2), not currently captured). All other 80-series items
@@ -241,6 +246,8 @@ export function deriveMarginalRate(args: {
   filingStatus?: FilingStatusUS;
   deductions?: DeductionsPayload;
   ageBracket?: AgeBracket;
+  /** Salaried vs business-owner — gates the IN standard deduction. */
+  incomeType?: IncomeType;
   /** State marginal rate on the user payload (US only). */
   stateMarginalRate?: string;
 }): Decimal | null {
@@ -254,6 +261,7 @@ export function deriveMarginalRate(args: {
       'IN',
       args.taxRegime,
       args.ageBracket,
+      args.incomeType,
     );
     taxable = Decimal.max(gross.minus(summary.totalAllowed), D(0));
     return marginalIN(taxable, args.taxRegime ?? 'new');
@@ -298,6 +306,7 @@ export function deriveMarginalRateForUser(user: UserPayload): string {
     filingStatus: user.filing_status,
     deductions: user.deductions,
     ageBracket: user.age_bracket,
+    incomeType: user.income_type,
     stateMarginalRate: user.state_marginal_rate,
   });
   return derived?.toString() ?? '0';
@@ -350,6 +359,21 @@ const US_SINGLE_BRACKETS: Bracket[] = [
   [Infinity, '0.37'],
 ];
 
+// Head-of-household sits between single and MFJ — wider 10/12 slabs but
+// hits the top rate at the same point as single. Without a dedicated
+// table HoH filers were silently routed through `US_SINGLE_BRACKETS`,
+// which over-stated tax in the lower bands and mis-priced cross-bracket
+// deduction savings.
+const US_HOH_BRACKETS: Bracket[] = [
+  [16550, '0.10'],
+  [63100, '0.12'],
+  [100500, '0.22'],
+  [191950, '0.24'],
+  [243700, '0.32'],
+  [609350, '0.35'],
+  [Infinity, '0.37'],
+];
+
 /** Marginal rate at a given taxable income — picks the bracket whose
  *  upper bound the income falls into. */
 function marginalForBrackets(taxable: Decimal, brackets: Bracket[]): Decimal {
@@ -382,7 +406,9 @@ function bracketsIN(regime: TaxRegimeIN): Bracket[] {
 }
 
 function bracketsUS(filing: FilingStatusUS): Bracket[] {
-  return filing === 'mfj' ? US_MFJ_BRACKETS : US_SINGLE_BRACKETS;
+  if (filing === 'mfj') return US_MFJ_BRACKETS;
+  if (filing === 'hoh') return US_HOH_BRACKETS;
+  return US_SINGLE_BRACKETS;
 }
 
 function marginalIN(taxable: Decimal, regime: TaxRegimeIN): Decimal {

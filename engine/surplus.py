@@ -19,10 +19,17 @@ D = Decimal
 
 @dataclass(frozen=True)
 class SurplusAllocation:
-    """Breakdown of how each month's surplus gets routed across goal / EF /
-    debt sinks. Returned by `allocate_surplus` for both the engine simulator
-    and the /plan SurplusWaterfall card so the displayed pie matches the
-    engine's actual allocation.
+    """Breakdown of how each month's POST-GOAL surplus gets routed across
+    EF / debt sinks. Returned by `allocate_surplus` for both the engine
+    simulator and the /plan SurplusWaterfall snapshot so the displayed
+    pie matches the engine's actual allocation.
+
+    Goals are subtracted by the caller before calling `allocate_surplus`
+    (a single shape for both the engine loop and the snapshot — keeps
+    the cascade contract in one place). `goal_slice` therefore reflects
+    only the `ef_preempted` legacy single-goal flag; the multi-goal path
+    composes the per-goal breakdown externally and adds it to the
+    response object.
 
     Invariant: goal_slice + ef_slice + debt_slice == surplus (when surplus
     is non-negative). Each slice is non-negative.
@@ -37,44 +44,25 @@ def allocate_surplus(
     ef_split: Decimal,
     ef_gap: Decimal,
     ef_preempted: bool,
-    goal_outflow: Decimal = D("0"),
 ) -> SurplusAllocation:
-    """Route the month's surplus across goal / EF / debt sinks.
+    """Route the month's POST-GOAL surplus across EF / debt sinks.
+
+    The caller subtracts multi-goal outflow from `surplus` before calling
+    this function — that way both the engine trajectory and the snapshot
+    use the same one-shape contract (no diverging "goal_outflow argument
+    vs. pre-subtracted surplus" code paths).
 
     Priority order:
-      1. If `goal_outflow > 0` → that amount (clamped at surplus) goes
-         to goal_slice; the remainder cascades through EF + debt.
-      2. Else if a preempting goal is open (legacy single-goal flag) →
+      1. If a preempting goal is open (legacy single-goal flag) →
          100% to goal_slice (EF + debt paused).
-      3. Else: divert `ef_split` fraction to EF until gap closes.
-      4. Remainder → debt slice (the simulator lands this on the
+      2. Else: divert `ef_split` fraction to EF until gap closes.
+      3. Remainder → debt slice (the simulator lands this on the
          highest-effective-APR active loan).
 
-    `goal_outflow` is the multi-goal path: the client computes the
-    tier-pro-rata total across all active goals (critical → important
-    → discretionary) and passes the sum. The engine doesn't need
-    per-goal info — the split happens client-side for display, the
-    engine only needs the aggregate to subtract from surplus. When
-    `goal_outflow == 0` (default) behaviour matches the legacy
-    `ef_preempted` flag exactly, so existing callers/tests are
-    unaffected.
-
-    Zero across the board when surplus ≤ 0. The simulator and the
-    SurplusWaterfall UI card both consume this so the displayed pie
-    matches what the engine actually applies.
+    Zero across the board when surplus ≤ 0.
     """
     if surplus <= 0:
         return SurplusAllocation(D("0"), D("0"), D("0"))
-    if goal_outflow > 0:
-        committed_goal = min(goal_outflow, surplus)
-        remaining = surplus - committed_goal
-        if remaining <= 0:
-            return SurplusAllocation(committed_goal, D("0"), D("0"))
-        if ef_gap > 0 and ef_split > 0:
-            want = remaining * ef_split
-            ef_slice = min(want, ef_gap)
-            return SurplusAllocation(committed_goal, ef_slice, remaining - ef_slice)
-        return SurplusAllocation(committed_goal, D("0"), remaining)
     if ef_preempted:
         return SurplusAllocation(surplus, D("0"), D("0"))
     if ef_gap > 0 and ef_split > 0:

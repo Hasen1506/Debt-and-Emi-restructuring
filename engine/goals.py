@@ -48,6 +48,7 @@ QueuedReason = Literal[
     "over_funded",       # saved_so_far ≥ required
     "surplus_exhausted", # pool drained before reaching this goal
     "partial_fill",      # got something, but below run-rate
+    "deferred",          # before funding_start_month_index — intentional
 ]
 
 
@@ -73,6 +74,17 @@ class GoalState:
     # your date" fill-rate badge on /goals + /plan. None until target
     # month is reached.
     saved_at_target: Decimal | None = None
+    # Deferred-start: when set, the engine emits a `deferred` queued
+    # reason for every month current_sim_month < funding_start_month_index
+    # and routes 0 to this goal. Once we reach the start month, the
+    # standard run-rate / remaining_required math takes over — naturally
+    # concentrating contributions into the shorter active window (e.g.
+    # 50k goal at month 9 with start=7 → ~25k/mo across months 7+8).
+    # Useful when required_amount × months_to_target ≪ monthly_surplus:
+    # debt prepay gets the full surplus until funding kicks in, which
+    # reduces lifetime interest more than spreading the goal across the
+    # whole window. None preserves the legacy "start at month 0" behavior.
+    funding_start_month_index: int | None = None
 
 
 @dataclass(frozen=True)
@@ -89,7 +101,6 @@ class MonthlyGoalAllocation:
     """Aggregated result for one sim month."""
     contributions: list[GoalContribution] = field(default_factory=list)
     total_outflow: Decimal = D("0")
-    total_required: Decimal = D("0")
     # True when at least one active goal received less than its
     # run-rate this month (partial_fill or surplus_exhausted). Drives
     # the "some goals are short — review levers" banner on /plan.
@@ -124,8 +135,10 @@ def serial_fill_allocation(
     that received nothing — the queued_reason explains why so the UI
     can surface honest "this goal isn't getting funded because…" notes.
 
-    Surplus ≤ 0 short-circuits to empty allocation with no mutation,
-    matching the simulator's negative-surplus branch.
+    Surplus ≤ 0 still iterates the goal list so `past_date` /
+    `over_funded` / `surplus_exhausted` rows are populated for the
+    UI; the funding branch (`contribution > 0`) is naturally
+    short-circuited because `remaining` starts at 0.
     """
     # Always snapshot saved_at_target for goals whose target month has
     # arrived, even when surplus is zero — the fill-rate badge still
@@ -134,11 +147,15 @@ def serial_fill_allocation(
         if g.saved_at_target is None and current_sim_month >= g.target_month_index:
             g.saved_at_target = g.saved_so_far
 
-    if available_surplus <= 0 or not goals:
+    if not goals:
         return MonthlyGoalAllocation()
 
     ordered = sorted(goals, key=_sort_key)
-    remaining = available_surplus
+    # Clamp negative surplus to 0 so the funding branch can't draw
+    # from a negative pool. Past-date / over-funded / surplus-
+    # exhausted rows still emit so the UI gets honest status signals
+    # in lean months.
+    remaining = available_surplus if available_surplus > 0 else D("0")
     contributions: list[GoalContribution] = []
     any_short = False
 
@@ -162,6 +179,24 @@ def serial_fill_allocation(
                     amount=D("0"),
                     run_rate=D("0"),
                     queued_reason="over_funded",
+                )
+            )
+            continue
+        # Deferred-start: skip funding until the configured start
+        # month. Surplus stays in the pool for downstream goals + the
+        # EF/debt cascade — that's the whole point (more debt prepay
+        # while we wait). `deferred` is NOT counted as `any_goal_short`
+        # because the goal is intentionally idle, not falling behind.
+        if (
+            g.funding_start_month_index is not None
+            and current_sim_month < g.funding_start_month_index
+        ):
+            contributions.append(
+                GoalContribution(
+                    goal_id=g.id,
+                    amount=D("0"),
+                    run_rate=D("0"),
+                    queued_reason="deferred",
                 )
             )
             continue
@@ -199,10 +234,10 @@ def serial_fill_allocation(
             any_short = True
 
     total_outflow = sum((c.amount for c in contributions), D("0"))
-    total_required = sum((c.run_rate for c in contributions), D("0"))
     return MonthlyGoalAllocation(
         contributions=contributions,
         total_outflow=total_outflow,
-        total_required=total_required,
         any_goal_short=any_short,
     )
+
+

@@ -38,6 +38,8 @@ import { AssumptionBadges } from './AssumptionBadges';
 import { RecentActivitySummary } from './RecentActivitySummary';
 import { InfoTip } from '@/components/ToolPrimitives';
 import { InvestVsPrepayCard } from './InvestVsPrepayCard';
+import { BudgetMonthCard } from './BudgetMonthCard';
+import { NextActionCard } from './NextActionCard';
 
 const KIND_LABEL: Record<RestructuringOpportunity['kind'], string> = {
   balance_transfer: 'Move card balance to a cheaper card',
@@ -76,6 +78,12 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <FxCachePersister rates={plan.fxRatesUsed} />
+      <NextActionCard
+        user={plan.user}
+        monthlySurplus={plan.surplus}
+        variant="existing"
+      />
+      <BudgetMonthCard user={plan.user} variant="existing" />
       <section>
         <h1 className="h1">Your debt-free trajectory</h1>
         <p className="muted">

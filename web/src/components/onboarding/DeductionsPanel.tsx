@@ -20,6 +20,7 @@ import type {
   Country,
   DeductionsPayload,
   FilingStatusUS,
+  IncomeType,
   TaxRegimeIN,
 } from '@/lib/api';
 import {
@@ -36,6 +37,8 @@ interface Props {
   taxRegime?: TaxRegimeIN;
   filingStatus?: FilingStatusUS;
   ageBracket?: AgeBracket;
+  /** Salaried vs business-owner — gates the IN standard deduction. */
+  incomeType?: IncomeType;
   /** User's gross annual salary (or business income); used only for the
    *  derived-marginal preview. */
   grossAnnual?: string;
@@ -50,6 +53,7 @@ export function DeductionsPanel({
   taxRegime,
   filingStatus,
   ageBracket,
+  incomeType,
   grossAnnual,
   stateMarginalRate,
   value,
@@ -61,8 +65,8 @@ export function DeductionsPanel({
     onChange({ ...ded, ...patch });
 
   const summary = useMemo(
-    () => summariseDeductions(ded, country, taxRegime, ageBracket),
-    [ded, country, taxRegime, ageBracket],
+    () => summariseDeductions(ded, country, taxRegime, ageBracket, incomeType),
+    [ded, country, taxRegime, ageBracket, incomeType],
   );
   const derived = useMemo(
     () =>
@@ -73,9 +77,10 @@ export function DeductionsPanel({
         filingStatus,
         deductions: ded,
         ageBracket,
+        incomeType,
         stateMarginalRate,
       }),
-    [grossAnnual, country, taxRegime, filingStatus, ded, ageBracket, stateMarginalRate],
+    [grossAnnual, country, taxRegime, filingStatus, ded, ageBracket, incomeType, stateMarginalRate],
   );
   const usPick = useMemo(
     () => (country === 'US' ? pickUSDeduction(ded, filingStatus) : null),

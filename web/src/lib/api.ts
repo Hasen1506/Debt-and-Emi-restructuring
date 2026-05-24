@@ -379,6 +379,16 @@ export interface TrajectoryPointRaw {
    *  Drives the per-loan trajectory chart on /plan. Cleared loans stay
    *  in the map with value "0" so the chart sees a stable series. */
   balances_by_loan_index?: Record<string, string>;
+  /** Pre-allocation surplus the engine had to route this month. Lets
+   *  client-side achievability sum the realised surplus (which already
+   *  reflects inflation, hike, lifecycle events) instead of multiplying
+   *  a single static number by a month count. */
+  available_surplus?: string;
+  /** Per-goal contribution this month, keyed by goal id. Empty when
+   *  `goals` wasn't sent to /simulate. Lets achievability subtract
+   *  prior-goal actual draws (which expire after their target dates)
+   *  instead of a flat priorDraw approximation. */
+  goal_contributions?: Record<string, string>;
 }
 
 export interface GoalContributionRaw {
@@ -389,9 +399,17 @@ export interface GoalContributionRaw {
   /** Run-rate (remaining / months_until) for this month. Lets the UI
    *  show "₹X needed / ₹Y allocated" when funded partially. */
   run_rate: string;
-  /** null when funded; else 'past_date' | 'over_funded' | 'lower_tier'
-   *  | 'shortfall'. Drives the queued-goals footer text. */
+  /** null when funded; else 'past_date' | 'over_funded' |
+   *  'surplus_exhausted' | 'partial_fill' | 'deferred'. Drives the
+   *  queued-goals footer text. `deferred` is the user's explicit
+   *  choice to delay funding until a later sim month — distinct
+   *  from `surplus_exhausted` (which is involuntary). */
   queued_reason: string | null;
+  /** Snapshot-only — 0-based sim-month at which deferred funding
+   *  starts. null when not deferred. Lets the SurplusWaterfall on
+   *  /plan render "Wedding · ₹0/mo (starts month 7)" instead of
+   *  just "₹0/mo (deferred)" with no horizon. */
+  funding_start_month_index?: number | null;
 }
 
 export interface SurplusAllocationRaw {
@@ -428,6 +446,16 @@ export interface GoalFinalRaw {
   /** True when the target month was within the simulated horizon. When
    *  False, the fill_rate is based on end-of-horizon saved so far. */
   target_reached: boolean;
+  /** True when the goal's target month is beyond the simulated horizon
+   *  (typically because the sim broke out at debt_free_month). Lets the
+   *  UI render an honest "deadline is past your debt-free month — fund
+   *  manually after that" instead of a misleading "not reached" tone.
+   *  Always False when target_reached is True. */
+  target_past_horizon?: boolean;
+  /** True when saved_at_target ≥ required. Distinct from target_reached:
+   *  `funded=true, target_reached=false` means the sim ended before
+   *  the goal's deadline but the user is already on track to hit it. */
+  funded: boolean;
 }
 
 export interface SimulateResponse {
@@ -791,17 +819,6 @@ export const api = {
      *  The engine routes 100% surplus to the goal_slice in the allocation
      *  response when set. Default false preserves legacy behaviour. */
     ef_preempted?: boolean;
-    /** Multi-goal monthly outflow — the total tier-pro-rata contribution
-     *  computed across all active goals (critical → important →
-     *  discretionary). Engine subtracts this from each month's surplus
-     *  before the EF/debt cascade. When > 0, supersedes the binary
-     *  ef_preempted flag. Default 0 preserves the legacy path.
-     *
-     *  Prefer `goals` over this — when both are sent the engine uses
-     *  `goals` for proper per-month / per-goal handling, and this
-     *  field is ignored. Kept for backward compat with callers that
-     *  haven't migrated. */
-    goal_outflow_monthly?: string;
     /** Per-goal payloads — when set, engine runs serial-fill per
      *  month with goal-expiry awareness and returns per-goal slices
      *  in `surplus_allocation.goal_contributions` plus end-of-trajectory
@@ -813,6 +830,10 @@ export const api = {
       saved_so_far?: string;
       priority_bump?: boolean;
       order_index?: number | null;
+      /** Deferred-start: engine routes 0 to this goal until this
+       *  sim-month index. Lets the UI park a goal until later in the
+       *  timeline. null = start at month 0 (legacy behavior). */
+      funding_start_month_index?: number | null;
     }[];
   }) => post<SimulateResponse>('/api/simulate', req),
 

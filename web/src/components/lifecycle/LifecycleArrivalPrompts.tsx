@@ -40,6 +40,12 @@ export function LifecycleArrivalPrompts({
 }) {
   const [ready, setReady] = useState(false);
   const [events, setEvents] = useState<LifecycleEvent[]>([]);
+  // Per-event postpone log: id → most-recent new effectiveDate. Drives
+  // the inline "Postponed to YYYY-MM-DD" confirmation under each row so
+  // a user clicking Postpone twice in a row can see what happened.
+  // Cleared when the user confirms or cancels (the row disappears
+  // anyway), or after a manual dismiss.
+  const [postponedTo, setPostponedTo] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setEvents(readLifecycleClient());
@@ -98,11 +104,11 @@ export function LifecycleArrivalPrompts({
   function postpone(id: string, currentIso: string) {
     const d = new Date(currentIso);
     d.setDate(d.getDate() + 30);
-    const next = updateLifecycleEvent(events, id, {
-      effectiveDate: d.toISOString().slice(0, 10),
-    });
+    const newIso = d.toISOString().slice(0, 10);
+    const next = updateLifecycleEvent(events, id, { effectiveDate: newIso });
     writeLifecycleClient(next);
     setEvents(next);
+    setPostponedTo((prev) => ({ ...prev, [id]: newIso }));
   }
 
   return (
@@ -119,6 +125,7 @@ export function LifecycleArrivalPrompts({
             event={e}
             user={user}
             variant={variant}
+            postponedTo={postponedTo[e.id] ?? null}
             onConfirm={() => setStatus(e.id, 'confirmed')}
             onCancel={() => setStatus(e.id, 'cancelled')}
             onPostpone={() => postpone(e.id, e.effectiveDate)}
@@ -141,6 +148,7 @@ function Prompt({
   event: e,
   user,
   variant,
+  postponedTo,
   onConfirm,
   onCancel,
   onPostpone,
@@ -148,6 +156,10 @@ function Prompt({
   event: LifecycleEvent;
   user: UserPayload;
   variant: Variant;
+  /** When non-null, the user just postponed this row to this date —
+   *  render an inline confirmation so a follow-up tap doesn't look
+   *  silent. */
+  postponedTo: string | null;
   onConfirm: () => void;
   onCancel: () => void;
   onPostpone: () => void;
@@ -174,6 +186,18 @@ function Prompt({
         {e.note && (
           <div className="muted" style={{ fontSize: 12, marginTop: 2, fontStyle: 'italic' }}>
             {e.note}
+          </div>
+        )}
+        {postponedTo && (
+          <div
+            style={{
+              fontSize: 11,
+              marginTop: 4,
+              color: 'var(--accent)',
+              fontStyle: variant === 'editorial' ? 'italic' : 'normal',
+            }}
+          >
+            Postponed to {postponedTo}
           </div>
         )}
       </div>

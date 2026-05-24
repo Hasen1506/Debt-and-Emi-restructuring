@@ -91,6 +91,44 @@ export interface DecisionEntry {
 // app-issued advisory recommendations + calibration data. They used to
 // share a key and silently clobber each other.
 const STORAGE_KEY = 'finoptima_decision_log';
+const LEGACY_KEY = 'finoptima_decisions';
+const MIGRATION_FLAG = 'finoptima_decision_log_migrated_v1';
+
+/**
+ * One-shot salvage from the legacy `finoptima_decisions` key. Before the
+ * key rename, this module wrote decision-log entries under
+ * `finoptima_decisions` — the same key `decisions.ts` uses for plan-
+ * choice entries, so the two silently clobbered each other depending on
+ * write order. Now that the keys are split, walk the legacy key one
+ * time at first read, salvage anything that matches the decision-log
+ * shape via `isValid` (plan-choice entries fail the shape check and are
+ * left where they are), and merge into the new key.
+ *
+ * Idempotent — the flag prevents repeat migration on subsequent reads.
+ * Cheap to skip — flag is checked first.
+ */
+function migrateFromLegacyKey(): void {
+  if (typeof localStorage === 'undefined') return;
+  if (localStorage.getItem(MIGRATION_FLAG)) return;
+  try {
+    const legacyRaw = localStorage.getItem(LEGACY_KEY);
+    const salvaged = safeParse(legacyRaw);
+    if (salvaged.length > 0) {
+      const current = safeParse(localStorage.getItem(STORAGE_KEY));
+      const seen = new Set(current.map((e) => e.id));
+      const merged = [
+        ...current,
+        ...salvaged.filter((e) => !seen.has(e.id)),
+      ];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    }
+  } catch {
+    // Salvage is best-effort; localStorage may throw under quota
+    // pressure. Setting the flag below either way so we don't retry
+    // every read.
+  }
+  localStorage.setItem(MIGRATION_FLAG, '1');
+}
 
 function safeParse(raw: string | null): DecisionEntry[] {
   if (!raw) return [];
@@ -117,6 +155,7 @@ function isValid(v: unknown): v is DecisionEntry {
 
 export function readDecisionsClient(): DecisionEntry[] {
   if (typeof localStorage === 'undefined') return [];
+  migrateFromLegacyKey();
   return safeParse(localStorage.getItem(STORAGE_KEY));
 }
 
@@ -144,6 +183,51 @@ export function logRecommendation(
     recommendedAt: new Date().toISOString(),
   };
   return [entry, ...entries];
+}
+
+/**
+ * Update an existing entry's recommendation payload in place. Used by
+ * DecisionLogControls when the tool inputs change while a tracked
+ * (still-recommended) entry exists — we'd rather update the estimate
+ * than spawn a new orphan row that the user never explicitly decided
+ * on. Status stays at 'recommended'; only `recommendation` is
+ * overwritten.
+ */
+export function updateRecommendation(
+  entries: DecisionEntry[],
+  id: string,
+  rec: DecisionRecommendation,
+): DecisionEntry[] {
+  return entries.map((e) =>
+    e.id === id ? { ...e, recommendation: rec } : e,
+  );
+}
+
+/**
+ * Find the most-recent unreconciled (recommended / accepted / declined)
+ * entry for a given (kind, source) pair. Used by DecisionLogControls to
+ * decide whether `record()` should spawn a new row or update an existing
+ * one. Returns null when nothing matches — caller should logRecommendation.
+ *
+ * Matching on `(kind, source)` instead of `(kind, source, context,
+ * estimatedAmount)` means tweaking tool inputs replaces the prior entry
+ * in place rather than abandoning it as an orphan. To track two distinct
+ * purchases on the same tool, reconcile or discard the first before
+ * starting the second.
+ */
+export function findActiveEntry(
+  entries: DecisionEntry[],
+  kind: DecisionKind,
+  source: string | undefined,
+): DecisionEntry | null {
+  const normalizedSource = source ?? null;
+  for (const e of entries) {
+    if (e.kind !== kind) continue;
+    if ((e.recommendation.source ?? null) !== normalizedSource) continue;
+    if (e.status === 'reconciled') continue;
+    return e;
+  }
+  return null;
 }
 
 /** Move a recommendation to accepted or declined (locked-in decision). */
@@ -218,16 +302,23 @@ export interface CalibrationStats {
  * "your estimates tend to undershoot by X%" badges or for adjusting
  * future recommendations' confidence intervals. Zero sample size →
  * all stats are zero (caller should check `sampleSize`).
+ *
+ * When `source` is provided, the sample narrows to that tool only —
+ * /tools/purchase calibration shouldn't be muddied by /tools/new-debt
+ * entries even though both share `kind === 'new_loan'`. Pass `undefined`
+ * to aggregate across all sources.
  */
 export function summarizeCalibration(
   entries: DecisionEntry[],
   kind?: DecisionKind,
+  source?: string,
 ): CalibrationStats {
   const sample = entries.filter(
     (e) =>
       e.status === 'reconciled' &&
       e.outcome &&
       (kind == null || e.kind === kind) &&
+      (source == null || e.recommendation.source === source) &&
       Number(e.recommendation.estimatedAmount) > 0,
   );
   if (sample.length === 0) {

@@ -9,7 +9,7 @@
  * re-hydration will land with auth.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Decimal from 'decimal.js';
 import { Field, InfoTip, Select } from '@/components/ToolPrimitives';
@@ -37,9 +37,16 @@ import {
 import {
   analyseGoal,
   computeShortfallLevers,
+  earliestFeasibleMonths,
+  monthsToTargetLabel,
   recommendedTier,
   type ShortfallLevers,
 } from '@/lib/achievability';
+import {
+  planDefersForGoals,
+  simMonthToCalendar,
+  type GoalDeferResult,
+} from '@/lib/goal-defer';
 import { projectedLiquidatableValue } from '@/lib/asset-returns';
 import { readDecisionsClient, recordDecision } from '@/lib/decisions';
 import { commitExpenseReduction } from '@/lib/expense-commit';
@@ -85,6 +92,17 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
   // the achievability re-evaluation would lag the actual mutation.
   const [user, setUser] = useState<UserPayload>(userProp);
   const ccySym = user.country === 'IN' ? '₹' : '$';
+  // Captured once on mount. Two readers downstream:
+  //   • The auto-defer write-back effect — without a stable today, a
+  //     calendar rollover during a long session would churn the
+  //     persisted YYYY-MM and trigger a re-write.
+  //   • Every `monthsUntil(goal)` call inside this component tree —
+  //     without a stable today, the "X months remaining" figure
+  //     ticks down at midnight on the 1st, recomputing the achievability
+  //     ladder and the funding rates mid-session.
+  // The effect mount picks up the genuine new month on next page load.
+  const todayRef = useRef(new Date());
+  const today = todayRef.current;
 
   useEffect(() => {
     setGoals(readGoalsClient());
@@ -100,32 +118,6 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
   }
 
   const savedByGoal = useMemo(() => totalsByGoal(contributions), [contributions]);
-
-  /**
-   * Per-goal "draw from prior serial-fill claimants" — the sum of
-   * monthly run-rates for every goal that ranks ahead of this one in
-   * the engine's allocator order. Lets each GoalCard's achievability
-   * check ask "what's the surplus I'd actually see, after my higher-
-   * priority siblings have taken their slice?". Without this, T1
-   * over-promises any non-leading goal because the engine's serial
-   * fill drains earlier goals first.
-   */
-  const priorDrawByGoal = useMemo(() => {
-    const sorted = [...goals].sort(compareGoalsForOrder);
-    const draw: Record<string, number> = {};
-    let cum = 0;
-    for (const g of sorted) {
-      draw[g.id] = cum;
-      const months = monthsUntil(g);
-      if (months <= 0) continue;
-      const required = fundedAmount(g);
-      const saved = savedByGoal[g.id] ?? 0;
-      const remaining = Math.max(0, required - saved);
-      if (remaining <= 0) continue;
-      cum += remaining / months;
-    }
-    return draw;
-  }, [goals, savedByGoal]);
 
   function commitContributions(next: GoalContributionEntry[]) {
     setContributions(next);
@@ -177,14 +169,141 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
     return Math.max(0, Number(income.sub(fixed).sub(variable).sub(emi).toString()));
   }, [user]);
 
+  /**
+   * Auto-defer pass — for every goal with `autoDefer !== false`,
+   * compute the latest funding-start month that still hits the
+   * deadline (so debt prepay gets the full surplus until then). The
+   * /goals page doesn't call /simulate directly today, so we
+   * synthesize a flat surplus series from the current static
+   * `surplus` figure. /plan still gets engine-truth fill rates;
+   * this is purely for the suggestion shown on the goal card +
+   * the funding_start_month_index we pass to the engine.
+   *
+   * Walking goals in user-effective priority order means each
+   * goal's defer accounts for higher-priority goals' projected
+   * draws (single-pass, no oscillation).
+   */
+  const deferPlan = useMemo(() => {
+    const sorted = [...goals].sort(compareGoalsForOrder);
+    const maxTarget = sorted.reduce(
+      (m, g) => Math.max(m, monthsUntil(g, today)),
+      0,
+    );
+    if (maxTarget === 0) {
+      return {
+        suggestionsByGoal: {} as Record<string, GoalDeferResult>,
+        proposedContributionsByGoal: {} as Record<string, number[]>,
+        orderedGoalIds: [] as string[],
+        series: [] as number[],
+      };
+    }
+    const series = new Array<number>(maxTarget).fill(surplus);
+    const planned = planDefersForGoals(
+      sorted.map((g) => ({
+        id: g.id,
+        targetMonthIndex: monthsUntil(g, today),
+        requiredAmount: fundedAmount(g),
+        savedSoFar: savedByGoal[g.id] ?? 0,
+      })),
+      series,
+    );
+    const suggestionsByGoal: Record<string, GoalDeferResult> = {};
+    for (const r of planned.suggestions) suggestionsByGoal[r.goalId] = r;
+    return {
+      suggestionsByGoal,
+      proposedContributionsByGoal: planned.proposedContributionsByGoal,
+      orderedGoalIds: planned.orderedGoalIds,
+      series,
+    };
+  }, [goals, surplus, savedByGoal, today]);
+  const deferSuggestions = deferPlan.suggestionsByGoal;
+
+  /**
+   * For each goal, the slice of `proposedContributionsByGoal` that
+   * belongs to higher-priority goals (those processed before it in
+   * the defer planner's pass). Threaded into each card as
+   * `priorGoalsContributionsByMonth` so achievability can sum
+   * per-month leftovers instead of using the flat
+   * `priorGoalsMonthlyDraw` approximation — correctly reclaims
+   * surplus once a prior goal expires (target month passes).
+   */
+  const priorContribsByGoal = useMemo(() => {
+    const out: Record<string, Record<string, number[]>> = {};
+    const seen: Record<string, number[]> = {};
+    for (const gid of deferPlan.orderedGoalIds) {
+      out[gid] = { ...seen };
+      const series = deferPlan.proposedContributionsByGoal[gid];
+      if (series) seen[gid] = series;
+    }
+    return out;
+  }, [deferPlan]);
+
+  /**
+   * Per-goal "average monthly draw taken by higher-priority claimants"
+   * — used only for the description-line copy on the achievability
+   * tier ("after the ₹X/mo your higher-priority goals take first").
+   * The T1 math itself uses the per-month `priorContribsByGoal` series
+   * above, which correctly handles deferred goals (concentrated late
+   * draws) and prior-goal expiry. This average is purely a display
+   * aid, computed by summing the per-month draws across THIS goal's
+   * window and dividing by the window length. Deferred prior goals
+   * therefore contribute their concentrated draws into the right
+   * months instead of a misleading flat run-rate.
+   */
+  const priorDrawByGoal = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const g of goals) {
+      const targetIdx = monthsUntil(g, today);
+      if (targetIdx <= 0) {
+        out[g.id] = 0;
+        continue;
+      }
+      const priors = priorContribsByGoal[g.id] ?? {};
+      let sum = 0;
+      for (const arr of Object.values(priors)) {
+        for (let m = 0; m < targetIdx; m++) {
+          sum += arr[m] ?? 0;
+        }
+      }
+      out[g.id] = sum / targetIdx;
+    }
+    return out;
+  }, [goals, priorContribsByGoal, today]);
+
+  /**
+   * Persist auto-computed defer back to each goal when it differs
+   * from what's stored. Guards prevent render loops: we only
+   * `updateGoal` when the suggestion is non-null AND the goal has
+   * `autoDefer !== false` AND the computed YYYY-MM differs from
+   * the current `fundingStartMonth`. User overrides set autoDefer
+   * to false, which skips the goal here.
+   */
+  useEffect(() => {
+    let dirty = false;
+    const next = goals.map((g) => {
+      if (g.autoDefer === false) return g;
+      const s = deferSuggestions[g.id];
+      if (!s || s.unreachable) return g;
+      const wanted =
+        s.startMonthIndex > 0 ? simMonthToCalendar(s.startMonthIndex, today) : undefined;
+      if (g.fundingStartMonth === wanted) return g;
+      dirty = true;
+      return { ...g, fundingStartMonth: wanted };
+    });
+    if (dirty) {
+      setGoals(next);
+      writeGoalsClient(next);
+    }
+  }, [deferSuggestions, goals, today]);
+
   const efBalance = Number(user.efund_balance || '0');
   const efTarget = Number(user.efund_target || '0');
 
   // Liquid assets are passed to the card; per-goal we compound forward
   // by months_until_target so T3 reflects what the portfolio will be
-  // worth on the goal's due-date, not today. Per-asset CAGR override
-  // is honoured; otherwise country/asset-type defaults from
-  // [[lib/asset-returns]] kick in.
+  // worth on the goal's due-date, not the captured `today`. Per-asset
+  // CAGR override is honoured; otherwise country/asset-type defaults
+  // from [[lib/asset-returns]] kick in.
   const liquidAssets = (user.assets ?? []).filter(
     (a) => a.user_marks_liquid !== false,
   );
@@ -349,6 +468,7 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
         <GoalCard
           key={g.id}
           goal={g}
+          today={today}
           ccySym={ccySym}
           monthlySurplus={surplus}
           efBalance={efBalance}
@@ -356,13 +476,16 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
           liquidatableValue={projectedLiquidatableValue(
             liquidAssets,
             user.country,
-            monthsUntil(g),
+            monthsUntil(g, today),
           )}
           indicativeRate={indicativeRate}
           indicativeBank={lowestRates.personal?.bank ?? null}
           savedSoFar={savedByGoal[g.id] ?? 0}
           priorGoalsMonthlyDraw={priorDrawByGoal[g.id] ?? 0}
+          monthlySurplusSeries={deferPlan.series}
+          priorGoalsContributionsByMonth={priorContribsByGoal[g.id] ?? {}}
           contributions={contributions.filter((c) => c.goalId === g.id)}
+          deferSuggestion={deferSuggestions[g.id] ?? null}
           onPatch={(patch) => updateGoal(g.id, patch)}
           onToggleFunding={(src) => toggleFunding(g.id, src)}
           onRemove={() => removeGoal(g.id)}
@@ -439,6 +562,7 @@ function EmptyState({ onPick }: { onPick: (k: GoalKind) => void }) {
 
 function GoalCard({
   goal,
+  today,
   ccySym,
   monthlySurplus,
   efBalance,
@@ -448,7 +572,10 @@ function GoalCard({
   indicativeBank,
   savedSoFar,
   priorGoalsMonthlyDraw,
+  monthlySurplusSeries,
+  priorGoalsContributionsByMonth,
   contributions,
+  deferSuggestion,
   onPatch,
   onToggleFunding,
   onRemove,
@@ -458,6 +585,10 @@ function GoalCard({
   onCommitExpenseCut,
 }: {
   goal: Goal;
+  /** Shared "now" anchor captured once on parent mount — keeps every
+   *  monthsUntil call within the page in agreement across renders,
+   *  including across a calendar-day rollover during a long session. */
+  today: Date;
   ccySym: string;
   monthlySurplus: number;
   efBalance: number;
@@ -467,7 +598,10 @@ function GoalCard({
   indicativeBank: string | null;
   savedSoFar: number;
   priorGoalsMonthlyDraw: number;
+  monthlySurplusSeries: number[];
+  priorGoalsContributionsByMonth: Record<string, number[]>;
   contributions: GoalContributionEntry[];
+  deferSuggestion: GoalDeferResult | null;
   onPatch: (patch: Partial<Goal>) => void;
   onToggleFunding: (src: GoalFundingSource) => void;
   onRemove: () => void;
@@ -477,15 +611,25 @@ function GoalCard({
   onCommitExpenseCut: (monthlyDelta: number) => boolean;
 }) {
   const preset = GOAL_PRESETS[goal.kind];
-  const months = monthsUntil(goal);
+  const months = monthsUntil(goal, today);
   const required = fundedAmount(goal);
 
   const achievabilityInput = {
     goal,
+    savedSoFar,
     monthlySurplus,
     efBalance,
     efTarget,
+    monthlyExpenses: totalExpenses,
     priorGoalsMonthlyDraw,
+    monthlySurplusSeries,
+    priorGoalsContributionsByMonth,
+    // /goals synthesises a flat surplus series from the current
+    // monthly figure — `seriesQuality: 'flat'` tells analyseGoal to
+    // describe the tier as "your current surplus held steady" rather
+    // than "projected cashflow". /plan, when it adopts this surface,
+    // should pass 'live' so the description reflects engine truth.
+    seriesQuality: 'flat' as const,
     liquidatableValue,
     newLoanIndicativeRate: indicativeRate,
   };
@@ -497,6 +641,15 @@ function GoalCard({
   const levers: ShortfallLevers | null = rec.achievable
     ? null
     : computeShortfallLevers(achievabilityInput);
+  // Earliest month forward surplus alone could fund this goal — the
+  // optimal-timeline chip shown next to the user's target-date field.
+  // Suppresses when the user's chosen date matches the earliest (no
+  // earlier date to suggest) and when the answer is null (infeasible).
+  const earliestMonths = earliestFeasibleMonths(achievabilityInput);
+  const earliestLabel =
+    earliestMonths !== null && earliestMonths > 0 && earliestMonths < months
+      ? monthsToTargetLabel(earliestMonths, today)
+      : null;
 
   return (
     <section
@@ -534,7 +687,16 @@ function GoalCard({
               Bumped
             </span>
           )}
-          <FillRateBadge goal={goal} required={required} savedSoFar={savedSoFar} />
+          <FillRateBadge
+            goal={goal}
+            today={today}
+            required={required}
+            savedSoFar={savedSoFar}
+            projectedFillRate={
+              required > 0 ? Math.min(1, rec.reachable / required) : 0
+            }
+            projectedFunded={rec.achievable}
+          />
           <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
             {preset.description}
           </div>
@@ -557,6 +719,23 @@ function GoalCard({
         </button>
       </div>
 
+      <FundingSchedulePanel
+        goal={goal}
+        ccySym={ccySym}
+        months={months}
+        required={required}
+        savedSoFar={savedSoFar}
+        monthlySurplus={monthlySurplus}
+        priorGoalsMonthlyDraw={priorGoalsMonthlyDraw}
+        deferSuggestion={deferSuggestion}
+        onUseAutoDefer={() =>
+          onPatch({ autoDefer: true, fundingStartMonth: undefined })
+        }
+        onStartNow={() =>
+          onPatch({ autoDefer: false, fundingStartMonth: undefined })
+        }
+      />
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
         <Select
           label="Kind"
@@ -576,12 +755,37 @@ function GoalCard({
           onChange={(v) => onPatch({ amount: v })}
           hint={`Buffer of ${(Number(goal.bufferPct) * 100).toFixed(0)}% added on top`}
         />
-        <Field
-          label="Target month (YYYY-MM)"
-          value={goal.targetMonth}
-          onChange={(v) => onPatch({ targetMonth: v })}
-          hint={`${months} months from now`}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <Field
+            label="Target month (YYYY-MM)"
+            value={goal.targetMonth}
+            onChange={(v) => onPatch({ targetMonth: v })}
+            hint={`${months} months from now`}
+          />
+          {earliestMonths === null ? (
+            <span style={{ fontSize: 11, color: 'var(--warning, var(--negative))' }}>
+              Forward surplus alone can&apos;t fund this — see options below.
+            </span>
+          ) : earliestLabel ? (
+            <button
+              type="button"
+              onClick={() => onPatch({ targetMonth: earliestLabel })}
+              style={{
+                fontSize: 11,
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--accent)',
+                padding: 0,
+                cursor: 'pointer',
+                textAlign: 'left',
+                alignSelf: 'flex-start',
+              }}
+              title="Set the target to the earliest month forward surplus alone can reach"
+            >
+              Earliest feasible: {earliestLabel} ↺
+            </button>
+          ) : null}
+        </div>
         <Field
           label="Buffer % (decimal)"
           value={goal.bufferPct}
@@ -605,6 +809,25 @@ function GoalCard({
             beat a vacation due in 6). Bumped goals are funded ahead of
             earlier-dated ones; you can also drag a goal on the /plan
             waterfall to toggle this.
+          </InfoTip>
+        </label>
+        <label style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+          <input
+            type="checkbox"
+            checked={(goal.deadlineKind ?? 'soft') === 'hard'}
+            onChange={(e) =>
+              onPatch({ deadlineKind: e.target.checked ? 'hard' : 'soft' })
+            }
+          />
+          Date is locked (can&apos;t be slipped)
+          <InfoTip>
+            Use this for fixed dates you genuinely can&apos;t move — wedding,
+            school admission cutoff, court-ordered medical. The shortfall
+            adviser will hide the &quot;push the date out&quot; option and
+            surface only lever options that respect the locked date (lower
+            the amount, increase surplus, tap EF/portfolio). Leave off for
+            preferred-but-movable targets — that&apos;s the default for
+            most goals.
           </InfoTip>
         </label>
         <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -648,12 +871,15 @@ function GoalCard({
         tiers={tiers}
         rec={rec}
         levers={levers}
+        deadlineKind={goal.deadlineKind ?? 'soft'}
         ccySym={ccySym}
         indicativeBank={indicativeBank}
         required={required}
         goalAmount={goal.amount}
         totalExpenses={totalExpenses}
         onCommitExpenseCut={onCommitExpenseCut}
+        priorityBump={goal.priorityBump}
+        onBumpPriority={() => onPatch({ priorityBump: true })}
       />
     </section>
   );
@@ -869,22 +1095,33 @@ function Achievability({
   tiers,
   rec,
   levers,
+  deadlineKind,
   ccySym,
   indicativeBank,
   required,
   goalAmount,
   totalExpenses,
   onCommitExpenseCut,
+  priorityBump,
+  onBumpPriority,
 }: {
   tiers: ReturnType<typeof analyseGoal>;
   rec: ReturnType<typeof recommendedTier>;
   levers: ShortfallLevers | null;
+  deadlineKind: 'hard' | 'soft';
   ccySym: string;
   indicativeBank: string | null;
   required: number;
   goalAmount: string;
   totalExpenses: number;
   onCommitExpenseCut: (monthlyDelta: number) => boolean;
+  /** Current priority-bump state of this goal — hides the bump lever
+   *  when already true. */
+  priorityBump: boolean;
+  /** One-click action to flip priorityBump on. The bump lever calls
+   *  this; the recommendation panel exposes the same action so the
+   *  user doesn't have to find the toggle higher up the form. */
+  onBumpPriority: () => void;
 }) {
   // Identify whether T3 (or rec) leans on liquidation — that's the
   // signal to surface the portfolio-advisor CTA.
@@ -912,9 +1149,12 @@ function Achievability({
       {levers && (
         <ShortfallLeverPanel
           levers={levers}
+          deadlineKind={deadlineKind}
           ccySym={ccySym}
           totalExpenses={totalExpenses}
           onCommitExpenseCut={onCommitExpenseCut}
+          priorityBump={priorityBump}
+          onBumpPriority={onBumpPriority}
         />
       )}
       {showAdvisorCta && (
@@ -994,21 +1234,36 @@ function Achievability({
  */
 function ShortfallLeverPanel({
   levers,
+  deadlineKind,
   ccySym,
   totalExpenses,
   onCommitExpenseCut,
+  priorityBump,
+  onBumpPriority,
 }: {
   levers: ShortfallLevers;
+  deadlineKind: 'hard' | 'soft';
   ccySym: string;
   totalExpenses: number;
   onCommitExpenseCut: (monthlyDelta: number) => boolean;
+  priorityBump: boolean;
+  onBumpPriority: () => void;
 }) {
-  // If no lever offers a path forward, fall back to a single line so
-  // we don't render a panel of three "n/a" cells.
+  // Hard deadlines (wedding, school admission) can't be slipped — so
+  // we drop the "push the date out" lever entirely rather than offer
+  // an answer the user can't use. The other two levers still apply.
+  const extendDisabled =
+    deadlineKind === 'hard' ||
+    levers.extendMonthsBy == null ||
+    levers.extendMonthsBy === 0;
+  const showsExtend = deadlineKind !== 'hard';
+  const bumpAvailable = !priorityBump && levers.bumpPriorityGain > 0;
   const hasAnyPath =
-    (levers.extendMonthsBy != null && levers.extendMonthsBy > 0) ||
+    (!extendDisabled) ||
     levers.lowerTargetBy > 0 ||
-    levers.increaseSurplusBy > 0;
+    levers.increaseSurplusBy > 0 ||
+    levers.increaseSurplusByWithLumpSum > 0 ||
+    bumpAvailable;
   if (!hasAnyPath) {
     return (
       <div
@@ -1029,6 +1284,14 @@ function ShortfallLeverPanel({
     );
   }
 
+  // When the surplus-only lever differs from the with-lump-sum lever,
+  // show both so the user can compare. They differ only when EF /
+  // liquidation are toggled on AND have non-zero balances.
+  const showsBothSurplusLevers =
+    levers.increaseSurplusByWithLumpSum > 0 &&
+    levers.increaseSurplusByWithLumpSum !== levers.increaseSurplusBy;
+  const surplusCols =
+    showsExtend ? (showsBothSurplusLevers ? 4 : 3) : (showsBothSurplusLevers ? 3 : 2);
   return (
     <div
       style={{
@@ -1041,48 +1304,147 @@ function ShortfallLeverPanel({
     >
       <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
         What would make this work?
+        {deadlineKind === 'hard' && (
+          <span style={{ marginLeft: 6, fontStyle: 'italic' }}>
+            (date is locked — extend lever hidden)
+          </span>
+        )}
       </div>
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: `repeat(${surplusCols}, 1fr)`,
           gap: 8,
           fontSize: 12,
         }}
       >
-        <Lever
-          label="Push the date out"
-          value={
-            levers.extendMonthsBy != null
-              ? `+${levers.extendMonthsBy} months`
-              : 'not enough inflow'
-          }
-          subtle={
-            levers.extendMonthsBy != null
-              ? 'Same target, same surplus — later finish.'
-              : 'Need additional inflow to ever close.'
-          }
-          disabled={levers.extendMonthsBy == null}
-        />
+        {showsExtend && (
+          <Lever
+            label="Push the date out"
+            value={
+              levers.extendMonthsBy != null && levers.extendMonthsBy > 0
+                ? `+${levers.extendMonthsBy} months`
+                : levers.extendMonthsBy === 0
+                  ? 'no extra months needed'
+                  : 'not enough inflow'
+            }
+            subtle={
+              levers.extendMonthsBy == null
+                ? 'Need additional inflow to ever close.'
+                : levers.extendMonthsBy === 0
+                  ? 'Lump-sum sources alone close the gap.'
+                  : 'Same target, same surplus — later finish.'
+            }
+            disabled={extendDisabled}
+          />
+        )}
         <Lever
           label="Lower the target"
           value={`-${ccySym}${levers.lowerTargetBy.toLocaleString()}`}
-          subtle="Trim scope to fit the current date + surplus."
+          subtle="Trim scope to fit the current date + sources."
           disabled={levers.lowerTargetBy === 0}
         />
         <Lever
           label="Increase monthly inflow"
           value={`+${ccySym}${levers.increaseSurplusBy.toLocaleString()}/mo`}
-          subtle="Same date, same target — needs higher surplus."
+          subtle="Without tapping EF / portfolio — surplus alone closes it."
           disabled={levers.increaseSurplusBy === 0}
         />
+        {showsBothSurplusLevers && (
+          <Lever
+            label="…or, if you also tap lump sums"
+            value={`+${ccySym}${levers.increaseSurplusByWithLumpSum.toLocaleString()}/mo`}
+            subtle="EF + portfolio cover the rest; smaller monthly add."
+            disabled={false}
+          />
+        )}
       </div>
+      <BumpPriorityRow
+        gain={levers.bumpPriorityGain}
+        closesGap={levers.bumpPriorityClosesGap}
+        priorityBump={priorityBump}
+        deadlineKind={deadlineKind}
+        ccySym={ccySym}
+        onBump={onBumpPriority}
+      />
       <CommitExpenseCutRow
         monthlyDelta={levers.increaseSurplusBy}
         totalExpenses={totalExpenses}
         ccySym={ccySym}
         onCommit={onCommitExpenseCut}
       />
+    </div>
+  );
+}
+
+/**
+ * Bump-priority CTA shown inside the shortfall panel. Hidden when:
+ *   • this goal is already bumped (no further upside),
+ *   • there are no higher-priority goals draining surplus (`gain ≤ 0`),
+ *   • or the gain is trivial (<1 user-currency unit) — e.g. all priors
+ *     have already expired.
+ *
+ * Rendered most prominently when the deadline is hard AND bumping
+ * alone closes the gap — that's the only single-click fix when the
+ * extend-date lever has been hidden.
+ */
+function BumpPriorityRow({
+  gain,
+  closesGap,
+  priorityBump,
+  deadlineKind,
+  ccySym,
+  onBump,
+}: {
+  gain: number;
+  closesGap: boolean;
+  priorityBump: boolean;
+  deadlineKind: 'hard' | 'soft';
+  ccySym: string;
+  onBump: () => void;
+}) {
+  if (priorityBump) return null;
+  if (gain <= 0) return null;
+  const isHardAndCloses = deadlineKind === 'hard' && closesGap;
+  const accent = isHardAndCloses ? 'var(--positive)' : 'var(--accent)';
+  const headline = closesGap
+    ? `Bumping priority would unlock ${ccySym}${gain.toLocaleString()} of surplus currently routed to earlier goals — enough to close this shortfall.`
+    : `Bumping priority would route ${ccySym}${gain.toLocaleString()} of surplus to this goal first instead of earlier-dated ones. Helps, but won't close the gap alone.`;
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+        padding: '6px 10px',
+        background: 'var(--soft-bg)',
+        borderLeft: `3px solid ${accent}`,
+        borderRadius: 4,
+        fontSize: 12,
+        color: 'var(--muted)',
+        lineHeight: 1.45,
+      }}
+    >
+      <span>{headline}</span>
+      <button
+        type="button"
+        onClick={onBump}
+        style={{
+          flexShrink: 0,
+          padding: '5px 12px',
+          border: `1px solid ${accent}`,
+          background: 'var(--canvas)',
+          color: 'var(--ink)',
+          borderRadius: 4,
+          cursor: 'pointer',
+          fontSize: 12,
+          fontWeight: 600,
+        }}
+      >
+        Bump priority
+      </button>
     </div>
   );
 }
@@ -1097,6 +1459,232 @@ function ShortfallLeverPanel({
  * at least 30% of current spend untouched so we don't suggest a cut
  * that's effectively impossible).
  */
+/**
+ * Funding-schedule panel — shows the auto-computed defer suggestion
+ * for the goal and an "Start saving now" override link.
+ *
+ * Default behavior: app auto-defers funding until the latest month
+ * that still hits the deadline, so debt prepay gets the full surplus
+ * until then. Less total interest paid over the life of the debt.
+ *
+ * User can override: clicking "Start saving now" sets
+ * `autoDefer=false` + `fundingStartMonth=undefined` — engine routes
+ * to this goal from month 0 onward, the panel stops auto-recomputing.
+ */
+function FundingSchedulePanel({
+  goal,
+  ccySym,
+  months,
+  required,
+  savedSoFar,
+  monthlySurplus,
+  priorGoalsMonthlyDraw,
+  deferSuggestion,
+  onUseAutoDefer,
+  onStartNow,
+}: {
+  goal: Goal;
+  ccySym: string;
+  months: number;
+  required: number;
+  savedSoFar: number;
+  /** Total monthly surplus this user has. Used in override mode to
+   *  detect when prior-goal draws + this goal's run-rate exceed
+   *  available surplus, so we can warn the user honestly instead of
+   *  quoting a rate the engine can't deliver. */
+  monthlySurplus: number;
+  /** Average monthly draw taken by higher-priority goals across this
+   *  goal's window — see `priorDrawByGoal` in the parent. */
+  priorGoalsMonthlyDraw: number;
+  deferSuggestion: GoalDeferResult | null;
+  onUseAutoDefer: () => void;
+  onStartNow: () => void;
+}) {
+  if (required <= 0) return null;
+  if (required <= savedSoFar) return null;
+  // Past-date goals: the target month already happened (months <= 0).
+  // Don't render the "saving starts [date]" narrative — it's
+  // misleading. Instead surface a clear past-date state so the user
+  // either updates the date or removes the goal.
+  if (months <= 0) {
+    return (
+      <div
+        style={{
+          padding: '10px 12px',
+          border: '1px solid var(--warning)',
+          background: 'var(--soft-bg)',
+          borderRadius: 6,
+          fontSize: 13,
+          color: 'var(--warning)',
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 2 }}>
+          Target date has passed
+        </div>
+        <div style={{ color: 'var(--muted)', fontSize: 12 }}>
+          {ccySym}
+          {Math.round(required - savedSoFar).toLocaleString()} still needed.
+          Update the target month above to plan funding, or remove this goal
+          if it&apos;s no longer relevant.
+        </div>
+      </div>
+    );
+  }
+
+  const autoDeferOn = goal.autoDefer !== false;
+  const startMonthLabel = goal.fundingStartMonth
+    ? prettyMonth(goal.fundingStartMonth)
+    : null;
+  const activeMonths = deferSuggestion
+    ? Math.max(1, months - deferSuggestion.startMonthIndex)
+    : months;
+  const fundingRate = deferSuggestion?.fundingMonthlyRate ?? 0;
+
+  // Two narratives:
+  //   • Auto-defer applied (default): "Saving from [Month] – ₹X/mo for Y months."
+  //     Override link offered, not pushed.
+  //   • User has overridden: "Saving now – ₹X/mo for Y months." Hint to re-enable.
+  if (autoDeferOn && deferSuggestion && deferSuggestion.startMonthIndex > 0) {
+    return (
+      <div
+        style={{
+          padding: '10px 12px',
+          border: '1px solid var(--border)',
+          background: 'var(--soft-bg)',
+          borderRadius: 6,
+          fontSize: 13,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          justifyContent: 'space-between',
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, marginBottom: 2 }}>
+            Saving starts {startMonthLabel ?? '—'} · {ccySym}
+            {Math.round(fundingRate).toLocaleString()}/mo for {activeMonths} months
+          </div>
+          <div style={{ color: 'var(--muted)', fontSize: 12 }}>
+            All surplus flows to debt prepay until then — less total interest
+            on the way. <InfoTip>{deferRationale(deferSuggestion, months, ccySym, required)}</InfoTip>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onStartNow}
+          style={{
+            padding: '6px 10px',
+            border: '1px solid var(--border)',
+            background: 'transparent',
+            color: 'var(--accent)',
+            borderRadius: 4,
+            fontSize: 12,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Start saving now anyway
+        </button>
+      </div>
+    );
+  }
+
+  // Override path — user has chosen to start saving immediately.
+  if (!autoDeferOn) {
+    // Target rate: what this goal asks for, spread across the window.
+    const targetRate =
+      months > 0 ? Math.max(0, (required - savedSoFar) / months) : 0;
+    // Achievable rate: capped by the surplus that's actually free
+    // after higher-priority goals take their share. When prior goals
+    // claim more than the total surplus, this clamps to 0.
+    const remainingSurplus = Math.max(0, monthlySurplus - priorGoalsMonthlyDraw);
+    const deliverableRate = Math.min(targetRate, remainingSurplus);
+    const isStrained = deliverableRate < targetRate - 1; // 1-unit tolerance for float math
+    return (
+      <div
+        style={{
+          padding: '10px 12px',
+          border: '1px solid var(--border)',
+          background: 'var(--soft-bg)',
+          borderRadius: 6,
+          fontSize: 13,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          justifyContent: 'space-between',
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, marginBottom: 2 }}>
+            Saving now · {ccySym}
+            {Math.round(deliverableRate).toLocaleString()}/mo for {months} months
+            {isStrained && (
+              <span
+                style={{ color: 'var(--warning)', fontWeight: 500, marginLeft: 6 }}
+              >
+                · short of the {ccySym}
+                {Math.round(targetRate).toLocaleString()}/mo this goal needs
+              </span>
+            )}
+          </div>
+          <div style={{ color: 'var(--muted)', fontSize: 12 }}>
+            {isStrained
+              ? `Your remaining surplus after higher-priority goals is ${ccySym}${Math.round(remainingSurplus).toLocaleString()}/mo — see the shortfall levers below.`
+              : "Surplus is split between this goal + debt every month. Auto-defer would push saving later to leave more surplus for debt prepay until then — switch back if you prefer."}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onUseAutoDefer}
+          style={{
+            padding: '6px 10px',
+            border: '1px solid var(--accent)',
+            background: 'var(--accent)',
+            color: 'var(--bg)',
+            borderRadius: 4,
+            fontSize: 12,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Use recommended timeline
+        </button>
+      </div>
+    );
+  }
+
+  // No defer possible (full window needed) — silent. The goal is
+  // already drawing every month it has; nothing to surface.
+  return null;
+}
+
+function prettyMonth(yyyymm: string): string {
+  if (!yyyymm || yyyymm.length < 7) return yyyymm;
+  const [y, m] = yyyymm.split('-');
+  const idx = Math.max(1, Math.min(12, Number(m)));
+  const name = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ][idx - 1];
+  return `${name} ${y}`;
+}
+
+function deferRationale(
+  s: GoalDeferResult,
+  totalMonths: number,
+  ccySym: string,
+  required: number,
+): string {
+  const evenPerMonth = totalMonths > 0 ? required / totalMonths : 0;
+  const activeMonths = Math.max(1, totalMonths - s.startMonthIndex);
+  return (
+    `You need ${ccySym}${Math.round(required).toLocaleString()} in ${totalMonths} months. ` +
+    `Splitting that evenly would mean ${ccySym}${Math.round(evenPerMonth).toLocaleString()}/mo to this goal for the whole window. ` +
+    `Saving in the last ${activeMonths} months instead lets every ${ccySym}/mo go to debt prepay until then — ` +
+    `your loan balance drops faster, so total interest paid over the life of the loan drops too.`
+  );
+}
+
 function CommitExpenseCutRow({
   monthlyDelta,
   totalExpenses,
@@ -1112,11 +1700,31 @@ function CommitExpenseCutRow({
   if (monthlyDelta <= 0) return null;
   // Cap: don't propose cuts larger than 70% of current total expenses
   // — that's the "lifestyle pain" floor we agreed in the design pass.
-  // Below that floor we suppress the affordance entirely so the user
-  // doesn't end up acting on a suggestion they can't realistically
-  // sustain. Caller's next rung (cross-goal, liquidate, loan) picks up.
+  // Above that floor we render an honest "too steep" note instead of
+  // suppressing the affordance entirely, so the user sees *why* the
+  // commit-cut path isn't being offered for this gap and knows to look
+  // at the other levers (cross-goal reorder, liquidate, new loan).
   const cuttable = totalExpenses > 0 && monthlyDelta <= totalExpenses * 0.7;
-  if (!cuttable) return null;
+  if (!cuttable) {
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '6px 10px',
+          background: 'var(--soft-bg)',
+          borderLeft: '3px solid var(--muted)',
+          fontSize: 12,
+          color: 'var(--muted)',
+          lineHeight: 1.45,
+        }}
+      >
+        Cutting {ccySym}
+        {Math.round(monthlyDelta).toLocaleString()}/mo would mean
+        reducing your expenses by more than 70% — too steep to be
+        sustainable. Look at the other levers below.
+      </div>
+    );
+  }
 
   function handleClick() {
     const ok = window.confirm(
@@ -1236,25 +1844,56 @@ function Lever({
  */
 function FillRateBadge({
   goal,
+  today,
   required,
   savedSoFar,
+  projectedFillRate,
+  projectedFunded,
 }: {
   goal: Goal;
+  today: Date;
   required: number;
   savedSoFar: number;
+  /** 0–1 fill rate the recommended tier projects for the target month.
+   *  Includes both already-saved contributions and the forward
+   *  contribution this tier delivers — so a 70%-saved goal with a
+   *  smaller forward window still reads as ≥ 70%. */
+  projectedFillRate: number;
+  /** True when the recommended tier reaches required — the "funded"
+   *  equivalent of the engine's GoalFinal.funded flag, computed
+   *  locally from the same arithmetic that drives the lever panel. */
+  projectedFunded: boolean;
 }) {
-  const months = monthsUntil(goal);
+  const months = monthsUntil(goal, today);
   if (required <= 0 || months <= 0) return null;
-  // Concrete progress if the user has logged contributions; else a
-  // surplus-only projection capped at 100%.
-  const pct = Math.round((savedSoFar / required) * 100);
-  if (savedSoFar <= 0) return null;
-  const tone =
-    pct >= 100
-      ? 'var(--positive)'
-      : pct >= 70
-        ? 'var(--warning)'
-        : 'var(--negative)';
+  const savedPct = Math.round((savedSoFar / required) * 100);
+  const projPct = Math.round(projectedFillRate * 100);
+  const hasSaved = savedSoFar > 0;
+  // Tone driven by total reachable (saved + projection). Already
+  // funded → green regardless of forward surplus. Short → red.
+  // 70%+ but not closing the gap → warning.
+  const tone = projectedFunded
+    ? 'var(--positive)'
+    : projPct >= 70
+      ? 'var(--warning)'
+      : 'var(--negative)';
+  // Label combinations:
+  //   • nothing saved → "X% projected by target"
+  //   • saved == projected (no forward growth) → "X% saved"
+  //   • saved < projected → "X% saved → Y% by target"
+  //   • already funded by saved alone → "100% saved"
+  let label: string;
+  if (!hasSaved) {
+    label = `${projPct}% projected by target`;
+  } else if (projPct <= savedPct) {
+    label = `${savedPct}% saved`;
+  } else {
+    label = `${savedPct}% saved → ${projPct}% by target`;
+  }
+  const projectedTotal = Math.round(projectedFillRate * required);
+  const tooltip = hasSaved
+    ? `Already saved ${savedSoFar.toLocaleString()} of ${required.toLocaleString()}. By the target month you're projected to have ${projectedTotal.toLocaleString()} (${projPct}%).`
+    : `Projected ${projectedTotal.toLocaleString()} of ${required.toLocaleString()} by target month.`;
   return (
     <span
       style={{
@@ -1266,9 +1905,9 @@ function FillRateBadge({
         border: `1px solid ${tone}`,
         borderRadius: 10,
       }}
-      title={`Saved ${savedSoFar.toLocaleString()} of ${required.toLocaleString()}`}
+      title={tooltip}
     >
-      {pct}% saved
+      {label}
     </span>
   );
 }

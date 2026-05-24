@@ -9,7 +9,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Dict, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from engine.models import (
     Asset, Country, FilingStatusUS, IncomeType, InvestmentOption,
@@ -401,20 +401,11 @@ class SimulateRequest(_Base):
     # response: ef_preempted=True → 100% to goal_slice. Default False
     # preserves baseline behaviour for callers that omit it.
     ef_preempted: bool = False
-    # Multi-goal monthly outflow — the total tier-pro-rata contribution
-    # the client computes across all active goals (critical → important
-    # → discretionary). Subtracted from each month's surplus before the
-    # EF cascade. When > 0, supersedes the binary ef_preempted flag for
-    # routing. Default 0 preserves the legacy single-preempting-goal
-    # path for callers that haven't migrated.
-    goal_outflow_monthly: Decimal = Field(default=D("0"), ge=D("0"))
-    # Per-goal input — when supplied, engine runs tier-pro-rata per
-    # month with goal-expiry awareness instead of treating
-    # `goal_outflow_monthly` as a constant outflow. The engine returns
-    # per-goal contributions in `surplus_allocation.goal_contributions`
-    # so the SurplusWaterfall can render slices without re-computing
-    # client-side. Empty / omitted preserves the legacy constant-outflow
-    # path.
+    # Per-goal input — engine runs serial-fill allocation per month
+    # with goal-expiry awareness, returning per-goal contributions in
+    # `surplus_allocation.goal_contributions` so the SurplusWaterfall
+    # can render slices without re-computing client-side. Empty list
+    # means "no active goals" (cascade gets full surplus).
     goals: list[GoalIn] = Field(default_factory=list)
 
 
@@ -438,6 +429,18 @@ class TrajectoryPoint(_Base):
     # shrinks until it clears. Stays populated past the loan's clear date
     # with value 0 so chart consumers don't see disappearing series.
     balances_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
+    # Pre-allocation surplus for this month — what the engine had to
+    # route before goals / EF / debt took their slices. Lets client-side
+    # achievability sum the actual series (which accounts for inflation,
+    # hike, lifecycle events) instead of multiplying a single static
+    # surplus by a month count. Defaults to 0 for clients that don't
+    # populate it (mirrors MonthRow.available_surplus default).
+    available_surplus: Decimal = Field(default=D("0"))
+    # Per-goal contribution this month, keyed by goal id. Populated only
+    # when `goals` was passed to /simulate. Lets achievability subtract
+    # higher-priority goals' actual draws (which expire after their
+    # target dates) instead of a flat priorDraw approximation.
+    goal_contributions: dict[str, Decimal] = Field(default_factory=dict)
 
 
 class GoalIn(_Base):
@@ -462,6 +465,36 @@ class GoalIn(_Base):
     # Stable within-group ordering (lower = earlier). Set by the
     # drag-to-reorder UI; None falls back to target-month ordering.
     order_index: int | None = None
+    # Deferred-start: when set, engine routes 0 to this goal for every
+    # current_sim_month < this value (emits a `deferred` queued_reason
+    # row). Lets the UI park a goal until later in the timeline so
+    # debt prepay gets the full surplus until funding kicks in. None
+    # preserves the legacy "start at month 0" behavior.
+    funding_start_month_index: int | None = None
+
+    @model_validator(mode="after")
+    def _validate_funding_window(self) -> "GoalIn":
+        """Reject `funding_start_month_index >= target_month_index` —
+        otherwise the engine emits `deferred` for every sim month and
+        the goal silently funds 0 with no actionable UI signal. A
+        stale cookie or buggy client can produce this shape; failing
+        loudly at the API edge surfaces the bug instead of papering
+        over it with a zero-funding result."""
+        if self.funding_start_month_index is None:
+            return self
+        if self.funding_start_month_index < 0:
+            raise ValueError(
+                f"funding_start_month_index must be ≥ 0 (got "
+                f"{self.funding_start_month_index})"
+            )
+        if self.funding_start_month_index >= self.target_month_index:
+            raise ValueError(
+                f"funding_start_month_index ({self.funding_start_month_index}) "
+                f"must be before target_month_index "
+                f"({self.target_month_index}); otherwise the goal can never "
+                "fund. Clear the start month or move the target out."
+            )
+        return self
 
 
 class GoalContributionOut(_Base):
@@ -471,9 +504,13 @@ class GoalContributionOut(_Base):
     amount: Decimal
     run_rate: Decimal
     # None when funded, else 'past_date' | 'over_funded' |
-    # 'surplus_exhausted' | 'partial_fill'. Lets the UI explain why a
-    # goal didn't get its run-rate.
+    # 'surplus_exhausted' | 'partial_fill' | 'deferred'. Lets the UI
+    # explain why a goal didn't get its run-rate.
     queued_reason: str | None = None
+    # Snapshot-only: 0-based sim-month index at which deferred funding
+    # is scheduled to begin. Lets /plan render "starts month N" instead
+    # of just "₹0 — deferred" with no horizon. None when not deferred.
+    funding_start_month_index: int | None = None
 
 
 class GoalFinalOut(_Base):
@@ -488,9 +525,23 @@ class GoalFinalOut(_Base):
     # saved_at_target / required, clamped to [0, 1]. Decimal string.
     fill_rate: Decimal
     # True when target month was reached within the simulated horizon.
-    # When False, fill_rate is based on saved at horizon-end (the user
-    # hasn't reached the goal yet within the projection window).
+    # When False, the user hasn't reached the goal yet within the
+    # projection window — see `target_past_horizon` for whether that's
+    # because the sim stopped early (debt-free) or genuinely missed.
     target_reached: bool
+    # True when the goal's target month sits beyond the simulated
+    # horizon — typically because the sim broke out at debt_free_month
+    # before reaching it. Lets the UI render an honest "deadline is
+    # past your debt-free month — fund manually after that" instead
+    # of the misleading "not reached" tone. Always False when
+    # target_reached is True.
+    target_past_horizon: bool = False
+    # True when saved_at_target ≥ required. Distinct from target_reached:
+    # a goal can be `funded=True, target_reached=False` (sim broke out
+    # early — e.g., debt-free at month 18, goal at month 24 — but the
+    # accumulated saving already covers required). Without this, the UI
+    # can't tell "missed the deadline" from "on track, horizon was short".
+    funded: bool
 
 
 class SurplusAllocationOut(_Base):

@@ -276,62 +276,50 @@ def test_allocate_invariant_slices_sum_to_surplus():
     assert out.goal_slice + out.ef_slice + out.debt_slice == D("12345.67")
 
 
-# ─── goal_outflow (multi-goal path) ───────────────────────────────────────
+# ─── post-goal surplus cascade ────────────────────────────────────────────
+# The multi-goal path no longer goes through `allocate_surplus` — the
+# caller (engine loop / snapshot route) subtracts goal outflow first
+# and then invokes the cascade on the post-goal residual. These tests
+# pin the cascade shape under that contract.
 
 
-def test_goal_outflow_routes_amount_to_goal_then_cascades():
-    # 4k to goal, leftover 6k flows through the EF/debt cascade. EF gets
-    # 30% of the *remaining* 6k = 1800, debt gets the rest.
+def test_post_goal_cascade_splits_remainder_with_ef():
+    # Caller has already pulled 4k for goals; 6k residual cascades.
+    # EF wants 30% of 6k = 1800, debt gets the rest.
     out = allocate_surplus(
-        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("50000"),
-        ef_preempted=False, goal_outflow=D("4000"),
+        surplus=D("6000"), ef_split=D("0.3"), ef_gap=D("50000"),
+        ef_preempted=False,
     )
-    assert out.goal_slice == D("4000")
+    assert out.goal_slice == D("0")
     assert out.ef_slice == D("1800")
     assert out.debt_slice == D("4200")
 
 
-def test_goal_outflow_clamped_at_surplus():
-    # Goals want 15k but surplus is only 10k — clamped, no EF/debt slice.
+def test_post_goal_cascade_zero_residual_returns_zeros():
+    # Goals ate everything — residual is 0, cascade emits no slices.
     out = allocate_surplus(
-        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("50000"),
-        ef_preempted=False, goal_outflow=D("15000"),
+        surplus=D("0"), ef_split=D("0.3"), ef_gap=D("50000"),
+        ef_preempted=False,
     )
-    assert out.goal_slice == D("10000")
-    assert out.ef_slice == D("0")
-    assert out.debt_slice == D("0")
+    assert out == SurplusAllocation(D("0"), D("0"), D("0"))
 
 
-def test_goal_outflow_takes_precedence_over_ef_preempted():
-    # New multi-goal path (goal_outflow > 0) supersedes the legacy
-    # single-preempting-goal flag, so the cascade runs on the remainder
-    # instead of routing 100% to the goal slice.
+def test_post_goal_cascade_respects_ef_preempted_on_residual():
+    # ef_preempted means "any residual goes 100% to the goal slice"
+    # (legacy single-preempt path). With goals fully handled externally
+    # this is rarely hit but the contract still applies.
     out = allocate_surplus(
-        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("50000"),
-        ef_preempted=True, goal_outflow=D("3000"),
+        surplus=D("7000"), ef_split=D("0.3"), ef_gap=D("50000"),
+        ef_preempted=True,
     )
-    assert out.goal_slice == D("3000")
-    assert out.ef_slice == D("2100")
-    assert out.debt_slice == D("4900")
+    assert out == SurplusAllocation(D("7000"), D("0"), D("0"))
 
 
-def test_goal_outflow_zero_preserves_legacy_preempted_path():
-    # Default (goal_outflow=0) must keep the existing ef_preempted=True
-    # behaviour exactly — every surplus rupee to the goal slice.
+def test_post_goal_cascade_capped_ef_gap():
+    # Residual 6k, EF gap only 500 → 500 to EF, 5500 to debt.
     out = allocate_surplus(
-        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("50000"),
-        ef_preempted=True, goal_outflow=D("0"),
+        surplus=D("6000"), ef_split=D("0.3"), ef_gap=D("500"),
+        ef_preempted=False,
     )
-    assert out == SurplusAllocation(D("10000"), D("0"), D("0"))
-
-
-def test_goal_outflow_with_capped_ef_gap():
-    # Goal takes 4k; remainder 6k tries to put 1800 in EF but the gap is
-    # only 500 → 500 to EF, 5500 to debt.
-    out = allocate_surplus(
-        surplus=D("10000"), ef_split=D("0.3"), ef_gap=D("500"),
-        ef_preempted=False, goal_outflow=D("4000"),
-    )
-    assert out.goal_slice == D("4000")
     assert out.ef_slice == D("500")
     assert out.debt_slice == D("5500")

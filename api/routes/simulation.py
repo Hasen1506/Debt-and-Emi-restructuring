@@ -30,6 +30,7 @@ def _build_goal_states(goals: list[GoalIn]) -> list[GoalState]:
             saved_so_far=g.saved_so_far,
             priority_bump=g.priority_bump,
             order_index=g.order_index,
+            funding_start_month_index=g.funding_start_month_index,
         )
         for g in goals
     ]
@@ -38,6 +39,7 @@ def _build_goal_states(goals: list[GoalIn]) -> list[GoalState]:
 def _build_goal_finals(
     goal_states: list[GoalState] | None,
     horizon_months: int,
+    effective_last_month: int | None = None,
 ) -> list[GoalFinalOut]:
     """Build per-goal end-of-trajectory fill rates from the mutated
     GoalState list. `saved_at_target` is set by the engine only when
@@ -47,10 +49,17 @@ def _build_goal_finals(
     breaks out early (debt-free before horizon) — the goal's target
     month would look "reachable" but the engine never reached it.
     Falls back to `saved_so_far` (state at sim end) only when the
-    target wasn't actually visited."""
+    target wasn't actually visited.
+
+    `effective_last_month` is the last sim month the engine actually
+    iterated through (= debt_free_month when the sim broke out, else
+    horizon_months). When a goal's target sits past that point, we
+    emit `target_past_horizon=True` so the UI can render an honest
+    "deadline is past your debt-free month" message instead of the
+    misleading "not reached"."""
     if not goal_states:
         return []
-    _ = horizon_months  # kept in signature for future use
+    last_month = effective_last_month if effective_last_month is not None else horizon_months
     out: list[GoalFinalOut] = []
     for g in goal_states:
         target_reached = g.saved_at_target is not None
@@ -64,6 +73,9 @@ def _build_goal_finals(
         fill_rate = Decimal("0")
         if g.required_amount > 0:
             fill_rate = min(Decimal("1"), saved / g.required_amount)
+        past_horizon = (
+            not target_reached and g.target_month_index > last_month
+        )
         out.append(
             GoalFinalOut(
                 goal_id=g.id,
@@ -71,6 +83,8 @@ def _build_goal_finals(
                 saved_at_target=saved,
                 fill_rate=fill_rate,
                 target_reached=target_reached,
+                target_past_horizon=past_horizon,
+                funded=g.required_amount > 0 and saved >= g.required_amount,
             )
         )
     return out
@@ -81,7 +95,6 @@ def _build_surplus_allocation(
     matched_contribution: Decimal,
     ef_split: Decimal,
     ef_preempted: bool,
-    goal_outflow_monthly: Decimal = Decimal("0"),
     goal_states: list[GoalState] | None = None,
     simple_mode: bool = False,
 ) -> SurplusAllocationOut:
@@ -104,12 +117,14 @@ def _build_surplus_allocation(
 
     goal_contributions_out: list[GoalContributionOut] = []
     any_goal_short = False
-    effective_outflow = goal_outflow_monthly
+    effective_outflow = D("0")
 
-    if goal_states:
+    if goal_states is not None:
         from copy import deepcopy
         snapshot_goals = deepcopy(goal_states)
-        alloc = serial_fill_allocation(snapshot_goals, surplus, current_sim_month=0)
+        alloc = serial_fill_allocation(
+            snapshot_goals, surplus, current_sim_month=0,
+        )
         effective_outflow = alloc.total_outflow
         any_goal_short = alloc.any_goal_short
         goal_contributions_out = [
@@ -118,20 +133,30 @@ def _build_surplus_allocation(
                 amount=c.amount,
                 run_rate=c.run_rate,
                 queued_reason=c.queued_reason,
+                funding_start_month_index=_lookup_funding_start(
+                    snapshot_goals, c.goal_id,
+                ),
             )
             for c in alloc.contributions
         ]
 
+    # Pre-subtract goal outflow before calling the cascade — same shape
+    # the engine loop uses, so there's only one way to compose the
+    # final allocation. `goal_slice` in the response is composed here
+    # from the multi-goal serial-fill output (`effective_outflow`),
+    # not pulled from `allocation.goal_slice` (which now only carries
+    # the legacy `ef_preempted` single-goal path).
+    post_goal_surplus = surplus - effective_outflow
     allocation = allocate_surplus(
-        surplus=surplus,
+        surplus=post_goal_surplus,
         ef_split=ef_split,
         ef_gap=ef_gap,
         ef_preempted=ef_preempted,
-        goal_outflow=effective_outflow,
     )
+    composed_goal_slice = effective_outflow + allocation.goal_slice
     return SurplusAllocationOut(
         surplus=surplus,
-        goal_slice=allocation.goal_slice,
+        goal_slice=composed_goal_slice,
         ef_slice=allocation.ef_slice,
         debt_slice=allocation.debt_slice,
         ef_preempted=ef_preempted,
@@ -139,6 +164,18 @@ def _build_surplus_allocation(
         goal_contributions=goal_contributions_out,
         any_goal_short=any_goal_short,
     )
+
+
+def _lookup_funding_start(
+    goals: list[GoalState], goal_id: str
+) -> int | None:
+    """Pick the funding_start_month_index off the engine GoalState by id
+    so the snapshot can tell /plan when a deferred goal actually starts
+    funding (rather than just showing "₹0 — deferred" with no horizon)."""
+    for g in goals:
+        if g.id == goal_id:
+            return g.funding_start_month_index
+    return None
 
 
 def _to_engine_lifecycle(events: list[LifecycleEventIn]) -> list[LifecycleEvent]:
@@ -188,6 +225,8 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
             payments_by_loan_index=row.payments_by_loan_index,
             balances_by_currency=dict(row.balances_by_currency),
             balances_by_loan_index=dict(row.balances_by_loan_index),
+            available_surplus=row.available_surplus,
+            goal_contributions=dict(row.goal_contributions),
         ))
     return points
 
@@ -221,7 +260,6 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         inflate_expenses=req.inflate_expenses,
         lifecycle_events=events,
         ef_top_up_rate=req.ef_top_up_rate,
-        goal_outflow_monthly=req.goal_outflow_monthly,
         goals=goal_states,
     )
     return SimulateResponse(
@@ -235,11 +273,18 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
             matched_contribution=req.matched_contribution,
             ef_split=req.ef_top_up_rate,
             ef_preempted=req.ef_preempted,
-            goal_outflow_monthly=req.goal_outflow_monthly,
             goal_states=_build_goal_states(req.goals) if req.goals else None,
             simple_mode=req.simple_mode,
         ),
-        goal_finals=_build_goal_finals(goal_states, req.horizon_months),
+        goal_finals=_build_goal_finals(
+            goal_states,
+            req.horizon_months,
+            effective_last_month=(
+                result.debt_free_month
+                if result.debt_free_month is not None
+                else req.horizon_months
+            ),
+        ),
     )
 
 

@@ -433,6 +433,59 @@ INDIA_TIER_C: list[InstitutionRateCard] = [
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# India — Fintech & aggregator brands (KreditBee, GPay, Cred, PaisaBazaar)
+# These aren't banks — they're NBFCs or aggregator front-ends — but users
+# routinely think of them as their lender ("my KreditBee loan"). Personal
+# loan is the only product surface; rates wider than bank Tier-C because
+# distribution-heavy and risk-priced. No prepay penalty is typical post a
+# short cool-off. All indicative; confirm in the user's actual loan doc.
+# ─────────────────────────────────────────────────────────────────────────────
+
+INDIA_FINTECH: list[InstitutionRateCard] = [
+    InstitutionRateCard(
+        institution_id="IN_KREDITBEE", country=Country.IN, name="KreditBee", scrape_tier="C",
+        is_indicative=True,
+        personal_loan=RateRange(D("0.1700"), D("0.3000")),
+        processing_fee_pct=D("0.0250"),
+        personal_loan_terms=LoanTerms(
+            prepayment_penalty_pct=D("0"), prepay_lock_in_months=3,
+            is_indicative=True, last_verified="2026-05 fintech NBFC norms — confirm in doc",
+        ),
+    ),
+    InstitutionRateCard(
+        institution_id="IN_CRED", country=Country.IN, name="Cred", scrape_tier="C",
+        is_indicative=True,
+        personal_loan=RateRange(D("0.1200"), D("0.1800")),
+        processing_fee_pct=D("0.0100"),
+        personal_loan_terms=LoanTerms(
+            prepayment_penalty_pct=D("0"), prepay_lock_in_months=3,
+            is_indicative=True, last_verified="2026-05 Cred Cash terms — confirm in doc",
+        ),
+    ),
+    InstitutionRateCard(
+        institution_id="IN_GPAY", country=Country.IN, name="Google Pay", scrape_tier="C",
+        is_indicative=True,
+        personal_loan=RateRange(D("0.1200"), D("0.2400")),
+        processing_fee_pct=D("0.0200"),
+        personal_loan_terms=LoanTerms(
+            prepayment_penalty_pct=D("0"), prepay_lock_in_months=3,
+            is_indicative=True, last_verified="2026-05 partner-NBFC norms (DMI / Hero) — confirm",
+        ),
+    ),
+    InstitutionRateCard(
+        institution_id="IN_PAISABAZAAR", country=Country.IN, name="PaisaBazaar", scrape_tier="C",
+        is_indicative=True,
+        personal_loan=RateRange(D("0.1100"), D("0.2400")),
+        processing_fee_pct=D("0.0200"),
+        personal_loan_terms=LoanTerms(
+            prepayment_penalty_pct=D("0"), prepay_lock_in_months=3,
+            is_indicative=True, last_verified="2026-05 aggregator partner norms — confirm",
+        ),
+    ),
+]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # USA — Tier A (6 institutions, indicative May 2026, Fed 3.50-3.75%)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -591,7 +644,7 @@ USA_TIER_C: list[InstitutionRateCard] = [
 ALL_INSTITUTIONS: dict[str, InstitutionRateCard] = {
     card.name: card
     for card in (
-        INDIA_TIER_A + INDIA_TIER_B + INDIA_TIER_C
+        INDIA_TIER_A + INDIA_TIER_B + INDIA_TIER_C + INDIA_FINTECH
         + USA_TIER_A + USA_TIER_B + USA_TIER_C
     )
 }
@@ -750,7 +803,7 @@ def _country_cards(country: Country) -> list[InstitutionRateCard]:
     the restructuring scanner to look up the freshest `last_verified`
     timestamp so the UI can surface a 'rates as of {date}' tag."""
     if country == Country.IN:
-        return INDIA_TIER_A + INDIA_TIER_B + INDIA_TIER_C
+        return INDIA_TIER_A + INDIA_TIER_B + INDIA_TIER_C + INDIA_FINTECH
     return USA_TIER_A + USA_TIER_B + USA_TIER_C
 
 

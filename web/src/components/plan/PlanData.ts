@@ -143,7 +143,11 @@ export interface PlanData {
     goalId: string;
     amount: number;
     runRate: number;
-    queuedReason: 'past_date' | 'over_funded' | 'surplus_exhausted' | 'partial_fill' | null;
+    queuedReason: 'past_date' | 'over_funded' | 'surplus_exhausted' | 'partial_fill' | 'deferred' | null;
+    /** 0-based sim-month at which deferred funding starts. null when
+     *  not deferred. Lets the waterfall render "starts month N" so the
+     *  user knows when the deferred ₹0 row turns into real funding. */
+    fundingStartMonthIndex: number | null;
   }[];
   /** Per-goal end-of-trajectory fill rates from the engine. Drives the
    *  "expected X% by your target" badge per goal. Empty when no goals
@@ -154,6 +158,14 @@ export interface PlanData {
     savedAtTarget: number;
     fillRate: number;
     targetReached: boolean;
+    /** True when the goal's target month sits beyond the simulated
+     *  horizon (sim broke out at debt-free before reaching it). UI
+     *  should render "deadline is past your debt-free month" instead
+     *  of "not reached" when this is set. */
+    targetPastHorizon: boolean;
+    /** `funded=true, targetReached=false` = on track but sim ended
+     *  before deadline. Distinct from "missed the deadline". */
+    funded: boolean;
   }[];
   /** True when at least one active goal received less than its
    *  run-rate this month. Drives the "some goals are short" banner. */

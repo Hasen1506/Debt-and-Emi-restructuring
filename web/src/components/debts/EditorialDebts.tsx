@@ -135,15 +135,39 @@ export function EditorialDebts({ profile }: { profile: StoredProfile }) {
         <TodayCard user={user} variant="editorial" />
         <div
           style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 11,
-            letterSpacing: '0.15em',
-            textTransform: 'uppercase',
-            color: 'var(--soft)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
             marginBottom: 12,
+            gap: 16,
           }}
         >
-          The register · {headlineCount}
+          <div
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: 11,
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              color: 'var(--soft)',
+            }}
+          >
+            The register · {headlineCount}
+          </div>
+          <a
+            href="/onboarding?step=loans"
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: 12,
+              color: 'var(--accent)',
+              border: '1px solid var(--accent)',
+              borderRadius: 4,
+              padding: '4px 10px',
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            + Add loan
+          </a>
         </div>
         <h1
           style={{

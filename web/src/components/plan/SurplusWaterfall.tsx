@@ -52,7 +52,18 @@ const QUEUED_REASON_TEXT: Record<
   over_funded: 'already at target',
   surplus_exhausted: "no surplus left after earlier goals",
   partial_fill: 'partially funded — below run-rate',
+  deferred: 'deferred — saving starts later',
 };
+
+/** Convert a 0-based sim-month offset into a short YYYY-MM calendar
+ *  label for the queued-goals footer. Sim month 0 = current calendar
+ *  month, so we add the offset to today's year/month and format. */
+function simIndexToCalendarLabel(idx: number): string {
+  const today = new Date();
+  const d = new Date(today.getFullYear(), today.getMonth() + idx, 1);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[d.getMonth()]} ${d.getFullYear()}`;
+}
 
 export function SurplusWaterfall({ plan }: { plan: PlanData }) {
   const router = useRouter();
@@ -167,6 +178,12 @@ export function SurplusWaterfall({ plan }: { plan: PlanData }) {
   const queuedContributions = plan.goalContributions.filter((c) => c.amount === 0);
   const fillRateById = new Map(
     plan.goalFinals.map((f) => [f.goalId, f.fillRate]),
+  );
+  // Companion map for "deadline beyond debt-free" — the queued-goals
+  // footer renders an honest "deadline is past your debt-free month"
+  // line instead of a misleading low projected-fill when this is set.
+  const pastHorizonById = new Map(
+    plan.goalFinals.map((f) => [f.goalId, f.targetPastHorizon]),
   );
 
   return (
@@ -302,6 +319,7 @@ export function SurplusWaterfall({ plan }: { plan: PlanData }) {
           contributions={queuedContributions}
           goalsById={goalsById}
           fillRateById={fillRateById}
+          pastHorizonById={pastHorizonById}
         />
       )}
     </div>
@@ -322,10 +340,12 @@ function QueuedGoalsFooter({
   contributions,
   goalsById,
   fillRateById,
+  pastHorizonById,
 }: {
   contributions: PlanData['goalContributions'];
   goalsById: Map<string, Goal>;
   fillRateById: Map<string, number>;
+  pastHorizonById: Map<string, boolean>;
 }) {
   return (
     <div
@@ -349,17 +369,38 @@ function QueuedGoalsFooter({
           const g = goalsById.get(c.goalId);
           const label = g?.label || g?.kind || c.goalId;
           const fill = fillRateById.get(c.goalId);
+          const reasonText = c.queuedReason
+            ? QUEUED_REASON_TEXT[c.queuedReason]
+            : 'not funded this month';
+          // For deferred rows, append "(starts <calendar month>)" so the
+          // user sees when the ₹0 turns into real funding — closes the
+          // honesty gap noted in the snapshot critique.
+          const deferredStart =
+            c.queuedReason === 'deferred' && c.fundingStartMonthIndex !== null
+              ? ` (starts ${simIndexToCalendarLabel(c.fundingStartMonthIndex)})`
+              : '';
+          // Past-horizon: the sim went debt-free before this goal's
+          // deadline. The user isn't behind — the projection just
+          // stops short. Surface that honestly instead of a low
+          // "projected fill %" that reads as failure.
+          const pastHorizon = pastHorizonById.get(c.goalId) === true;
           return (
             <li key={c.goalId}>
-              <span style={{ color: 'var(--ink)' }}>{label}</span> —{' '}
-              {c.queuedReason
-                ? QUEUED_REASON_TEXT[c.queuedReason]
-                : 'not funded this month'}
-              {fill !== undefined && fill < 1 && (
+              <span style={{ color: 'var(--ink)' }}>{label}</span> — {reasonText}
+              {deferredStart}
+              {pastHorizon ? (
                 <span className="muted">
                   {' '}
-                  · projected fill {Math.round(fill * 100)}%
+                  · deadline is past your debt-free month — fund it
+                  manually then
                 </span>
+              ) : (
+                fill !== undefined && fill < 1 && (
+                  <span className="muted">
+                    {' '}
+                    · projected fill {Math.round(fill * 100)}%
+                  </span>
+                )
               )}
             </li>
           );

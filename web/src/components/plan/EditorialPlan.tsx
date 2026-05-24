@@ -34,6 +34,8 @@ import {
   UpdateTermsButton,
 } from './OpportunityAlternative';
 import { FxCachePersister } from './FxCachePersister';
+import { BudgetMonthCard } from './BudgetMonthCard';
+import { NextActionCard } from './NextActionCard';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { InfoTip } from '@/components/ToolPrimitives';
 import { InvestVsPrepayCard } from './InvestVsPrepayCard';
@@ -92,6 +94,12 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
     >
       <FxCachePersister rates={plan.fxRatesUsed} />
       <article style={{ maxWidth: 760 }}>
+        <NextActionCard
+          user={plan.user}
+          monthlySurplus={plan.surplus}
+          variant="editorial"
+        />
+        <BudgetMonthCard user={plan.user} variant="editorial" />
         <div
           style={{
             fontFamily: 'var(--font-sans)',

@@ -32,7 +32,9 @@ from engine.minimum_payments import compute_minimum_payment
 from engine.ordering import Strategy, rank_loans
 from engine.goals import GoalState, MonthlyGoalAllocation, serial_fill_allocation
 from engine.surplus import (
+    allocate_surplus,
     compute_available_surplus,
+    compute_efund_monthly,
     from_user_currency,
     loan_currency_or_default,
     to_user_currency,
@@ -68,6 +70,12 @@ class MonthRow:
     # cleared loans with value 0 so chart consumers see a flat-at-0 tail
     # rather than a vanishing series.
     balances_by_loan_index: dict[int, Decimal] = field(default_factory=dict)
+    # Per-goal contribution this month, keyed by goal id. Empty when
+    # `goals` wasn't passed to simulate_plan. Lets the API expose an
+    # engine-truth array so client-side achievability can sum actuals
+    # (accounting for inflation / hike / expiry) instead of multiplying
+    # a single static surplus by a month count.
+    goal_contributions: dict[str, Decimal] = field(default_factory=dict)
 
 
 @dataclass
@@ -148,7 +156,6 @@ def simulate_plan(
     inflate_expenses: bool = False,
     lifecycle_events: list[LifecycleEvent] | None = None,
     ef_top_up_rate: Decimal = D("0"),
-    goal_outflow_monthly: Decimal = D("0"),
     goals: list[GoalState] | None = None,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`. Returns one MonthRow per month
@@ -190,14 +197,13 @@ def simulate_plan(
     preserves the legacy "all surplus → debt" behaviour for tests and
     for users who haven't set an EF target.
 
-    `goal_outflow_monthly` (default 0) is the total tier-pro-rata goal
-    contribution computed by the client across all active goals
-    (critical / important / discretionary). When > 0, that amount is
-    subtracted from each month's surplus before the EF/debt cascade —
-    representing money the user has committed to fund their goals
-    outside the debt-payoff path. Clamped at the available surplus so
-    the engine never goes negative. Default 0 preserves the legacy
-    single-preempting-goal flag (`ef_preempted` in callers) behaviour.
+    `goals` (default None) is the engine-authoritative per-goal state
+    list. When provided, the serial-fill allocator runs each month,
+    routing surplus to goals in user-effective order before the
+    EF/debt cascade. An explicit empty list means "no active goals"
+    (cascade gets the full surplus). When None, the engine skips the
+    goal block entirely — the legacy "all surplus → EF/debt" behaviour
+    for callers that don't model goals.
     """
     loans = [deepcopy(l) for l in user.loans]
     # Map deep-copied loan identity → its original position in user.loans.
@@ -408,53 +414,83 @@ def simulate_plan(
             growth = monthly_inflation_factor ** m
             scratch_user.fixed_expenses = user.fixed_expenses * growth
             scratch_user.variable_expenses = user.variable_expenses * growth
+        # Sync the EF state into scratch_user BEFORE computing surplus.
+        # compute_available_surplus internally calls compute_efund_monthly
+        # against user.efund_balance — without this sync it'd see the
+        # frozen initial balance every month, never the growing one, and
+        # the held-back EF allocation would never decline as the fund fills.
+        scratch_user.efund_balance = ef_balance
+        # The 1/12 linear path EF top-up: compute_available_surplus subtracts
+        # this from `surplus` (treating it as a baseline obligation), so we
+        # must credit it back to ef_balance below — otherwise the held-back
+        # money never lands anywhere and the EF target is never reached even
+        # though debt prepay is suppressed every month. Capped at the gap
+        # to ef_target so the EF never overshoots.
+        efund_monthly_to_credit = compute_efund_monthly(scratch_user)
+        if ef_balance + efund_monthly_to_credit > ef_target:
+            efund_monthly_to_credit = max(D("0"), ef_target - ef_balance)
         surplus = compute_available_surplus(
             scratch_user, active, matched_contribution=matched_contribution,
             simple_mode=simple_mode,
         )
+        # Pre-allocation snapshot — captured before goal / EF / debt
+        # routing so the API can expose an engine-truth surplus series
+        # for client-side achievability without back-deriving it from
+        # the post-allocation `surplus` variable below.
+        pre_allocation_surplus = surplus
+        # Land the baseline EF allocation. This is *separate* from the
+        # cascade ef_slice below: the baseline 1/12 path always fires
+        # (when there's a gap); the cascade ef_slice is the additional
+        # top-up driven by ef_top_up_rate. With ef_top_up_rate=0 (the
+        # legacy default), only the baseline path contributes, and the
+        # EF still fills geometrically toward target.
+        ef_balance += efund_monthly_to_credit
 
-        # Multi-goal monthly outflow.
-        #
-        # Two paths, both subtract from surplus before EF/debt cascade:
-        #
-        #   1. `goals` (preferred): engine knows each goal's target
-        #      month + saved-so-far. Per-month tier-pro-rata, goals
-        #      expire when their target month passes, saved_so_far
-        #      threads across iterations so each future month's
-        #      run-rate adjusts as the goal approaches funding.
-        #
-        #   2. `goal_outflow_monthly` (legacy): client-computed
-        #      constant outflow. Same number every month — no expiry
-        #      awareness. Kept for backward compat with callers that
-        #      haven't migrated to per-goal data.
-        #
-        # When both are passed, `goals` wins; `goal_outflow_monthly`
-        # is ignored to avoid double-subtraction.
-        if goals and surplus > 0:
+        # Multi-goal monthly outflow. `goals is not None` (not
+        # `if goals`): an explicit empty list means "no active goals"
+        # and falls through to the cascade — the goal block is skipped
+        # only when the caller didn't model goals at all (goals=None).
+        # We call the allocator unconditionally (even when surplus is
+        # 0 or negative) so the API can surface past_date / over_funded
+        # / surplus_exhausted rows in lean months. The allocator
+        # internally clamps the funding pool at 0, so the surplus
+        # subtraction below is a no-op when there's nothing to give.
+        goal_contributions_this_month: dict[str, Decimal] = {}
+        if goals is not None:
             alloc = serial_fill_allocation(goals, surplus, m - 1)
-            goal_committed = min(alloc.total_outflow, surplus)
-            surplus -= goal_committed
+            # `alloc.total_outflow` is already bounded by `surplus`
+            # inside the allocator, so no defensive min() needed —
+            # adding one would risk a desync where goal.saved_so_far
+            # disagrees with the surplus subtraction.
+            surplus -= alloc.total_outflow
+            # Capture per-goal contributions for this month so the API
+            # can expose an engine-truth array. Includes zero rows for
+            # past_date / over_funded / surplus_exhausted goals so the
+            # client sees a consistent shape across months.
+            goal_contributions_this_month = {
+                c.goal_id: c.amount for c in alloc.contributions
+            }
             if m == 1:
                 first_month_alloc = alloc
-        elif goal_outflow_monthly > 0 and surplus > 0:
-            goal_committed = min(goal_outflow_monthly, surplus)
-            surplus -= goal_committed
 
-        # Soft EF waterfall: when target unmet and ef_top_up_rate>0, divert
-        # the configured fraction of surplus into the EF pool before debt
-        # gets its share. Once ef_balance >= ef_target, no more diversion —
-        # all surplus flows to debt as in the legacy path.
-        if (
-            ef_top_up_rate > 0
-            and ef_target > 0
-            and ef_balance < ef_target
-            and surplus > 0
-        ):
-            ef_gap = ef_target - ef_balance
-            desired = surplus * ef_top_up_rate
-            diverted = min(desired, ef_gap)
-            ef_balance += diverted
-            surplus -= diverted
+        # Soft EF waterfall: route through the shared `allocate_surplus`
+        # helper so the engine and the /plan SurplusWaterfall snapshot
+        # use one source of truth for the goal/EF/debt cascade. Any
+        # future change to the cascade semantics (e.g. EF preempts goal
+        # under hardship) only needs editing in one place.
+        ef_gap_this_month = (
+            ef_target - ef_balance
+            if ef_target > 0 and ef_balance < ef_target
+            else D("0")
+        )
+        cascade = allocate_surplus(
+            surplus=surplus,
+            ef_split=ef_top_up_rate,
+            ef_gap=ef_gap_this_month,
+            ef_preempted=False,
+        )
+        ef_balance += cascade.ef_slice
+        surplus = cascade.debt_slice
 
         # Layer 3 — invest-vs-prepay gate per loan
         # If the top-priority loan fails the gate, redirect its extra to investment.
@@ -615,7 +651,10 @@ def simulate_plan(
         balances_by_idx = {loan_position[id(l)]: l.outstanding for l in loans}
         months.append(MonthRow(
             month_index=m,
-            available_surplus=surplus,
+            # Pre-allocation surplus — the pool the engine had to work
+            # with this month, before goals / EF / debt took their
+            # slices. Achievability sums this across the goal's window.
+            available_surplus=pre_allocation_surplus,
             total_payment_nominal=total_payment_nominal,
             total_payment_real=total_payment_real,
             interest_paid_month=interest_paid,
@@ -626,6 +665,7 @@ def simulate_plan(
             payments_by_loan_index=payments_by_idx,
             balances_by_currency=ccy_buckets,
             balances_by_loan_index=balances_by_idx,
+            goal_contributions=goal_contributions_this_month,
         ))
 
         total_interest += interest_paid

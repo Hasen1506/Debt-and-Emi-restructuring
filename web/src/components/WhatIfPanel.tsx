@@ -33,6 +33,12 @@ import {
   writeCommitmentsClient,
   type CommitmentEntry,
 } from '@/lib/commitments';
+import { readGoalsClient } from '@/lib/goals';
+import {
+  readContributionsClient,
+  totalsByGoal,
+} from '@/lib/goal-contributions';
+import { computeGoalSlip, materialPullForwards } from '@/lib/goal-slip';
 
 type ScenarioKey = 'surplus' | 'rate' | 'lump';
 
@@ -283,6 +289,52 @@ export function WhatIfPanel({
   const surplusStep = roundStep(fixedExpensesCap / 50, 100);
   const lumpStep = roundStep(totalOutstandingCap / 100, 1_000);
 
+  // Active goals + their saved totals — for the goal-impact line on the
+  // surplus slider. Read once at mount; the surplus delta itself drives
+  // the recompute via useMemo below.
+  const goalSlipInputs = useMemo(() => {
+    const goals = readGoalsClient();
+    const totals = totalsByGoal(readContributionsClient());
+    // Baseline surplus: derive from profile rather than the slider so the
+    // pull-forward we report counts from the user's actual starting
+    // position, not relative to some other displaced surplus value.
+    const profile = loadProfileClient();
+    const baseline = Math.max(
+      0,
+      Number(profile.user.monthly_income || 0) -
+        Number(profile.user.fixed_expenses || 0) -
+        Number(profile.user.variable_expenses || 0) -
+        profile.user.loans.reduce(
+          (s, l) => s + Number(l.scheduled_emi || 0),
+          0,
+        ),
+    );
+    return {
+      goals,
+      totals,
+      baseline,
+      efBalance: Number(profile.user.efund_balance || 0),
+      efTarget: Number(profile.user.efund_target || 0),
+      monthlyExpenses:
+        Number(profile.user.fixed_expenses || 0) +
+        Number(profile.user.variable_expenses || 0),
+    };
+  }, []);
+
+  const goalPullForward = useMemo(() => {
+    if (surplusDelta <= 0 || goalSlipInputs.goals.length === 0) return [];
+    const rows = computeGoalSlip({
+      goals: goalSlipInputs.goals,
+      contributionTotals: goalSlipInputs.totals,
+      baselineMonthlySurplus: goalSlipInputs.baseline,
+      surplusDelta: surplusDelta,
+      efBalance: goalSlipInputs.efBalance,
+      efTarget: goalSlipInputs.efTarget,
+      monthlyExpenses: goalSlipInputs.monthlyExpenses,
+    });
+    return materialPullForwards(rows);
+  }, [surplusDelta, goalSlipInputs]);
+
   const summary = (s: CompareResponse | null, positive: boolean): string | null => {
     if (!s) return null;
     const months = Math.round(Number(s.months_pulled_forward));
@@ -328,7 +380,18 @@ export function WhatIfPanel({
         formatInterest={fmtUser}
         state={surplus}
         positive
-        summary={summary(surplus.result, true)}
+        summary={(() => {
+          const base = summary(surplus.result, true);
+          if (goalPullForward.length === 0) return base;
+          const goalLine = goalPullForward
+            .slice(0, 2)
+            .map((r) => {
+              const months = Math.abs(r.slipMonths ?? 0);
+              return `${r.goalLabel} lands ${months}mo sooner`;
+            })
+            .join(', ');
+          return base ? `${base}. Goals: ${goalLine}.` : `Goals: ${goalLine}.`;
+        })()}
         disabled={fixedExpensesCap <= 0}
         extraControls={
           <>
