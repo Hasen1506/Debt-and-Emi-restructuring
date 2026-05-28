@@ -88,8 +88,8 @@ const LFooter = ({ mode = 'SIMPLE', tone = 'CALM', mobile }) => (
 );
 
 const LSectionHeader = ({ children, right }) => (
-  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, fontSize: 11, letterSpacing: '0.18em', flexWrap: 'wrap', gap: 8 }}>
-    <span style={{ color: L_T.muted, fontWeight: 600 }}>$ {children}</span>
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, paddingBottom: 6, borderBottom: `2px solid ${L_T.ink}`, fontSize: 13, letterSpacing: '0.18em', flexWrap: 'wrap', gap: 8 }}>
+    <span style={{ color: L_T.ink, fontWeight: 700, textTransform: 'uppercase' }}>$ {children}</span>
     {right}
   </div>
 );
