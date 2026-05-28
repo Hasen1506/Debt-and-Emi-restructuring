@@ -246,3 +246,79 @@ Assume user sets 4000 dollars as expense budget
 but ends up having to withdraw 2k dollars in
 cash now what (or) how could he proven if
 he didn't use up that cash?
+
+
+The following are questions in general I did asked and had as side notes , research on these topics:
+Research on prepayment penalties for every bank
+
+
+
+You must maintain Minimum Account Balance so where do we ask him this, whether he follows (or) ensures this
+
+
+
+Should we Ask for 3 month average Credit card spend to determine their expense for credit card since it is revlving ?(or) allocate that into expense bracket?
+
+
+
+How do we represent this in open positions? Since this debt is revolving we can't really say the user to allocate this much to this yeah? So entire budgeting of expense, surplus and it’s subsequent allocation to goals and highest apr debts may get questionable no?
+
+Activity ledger must have like a separate dedicated credit card window to model  this out? Like he may close his account in full – that’s a scenario and  how much he owes the next month? Do we need this? considering 3 months average?
+
+
+
+Full Terms of Taking a loan → Floating loans. VS Fixed rate loans
+
+
+
+Ideally user may not even know the type of loan he is, so pulling all bank loan details associated to the account is the way yeah? But how do I register?
+
+For MVP we could assume the user knows his loan type?
+
+
+
+
+
+  Paisabazaar kind of has those details perfectly?
+
+Like how do we know e.g.: SBI says penalty of 0-4% principal, if prepayment in 6 months - 12 months.
+
+
+
+Should I need to find benchmark rate? Is it like telling a user whether he is overpaying (or) not, so if he has put adequate surplus
+
+Then instead of refinancing he should switch to a floating loan?
+
+
+
+Like: Are there good suggestions (or)? Like building the engine [accurately?] is half the battle done in my opinion.
+
+
+
+Like, Determining whether he is actually being charged more or less, But is this credit score dependent?  Other factors too?
+
+Think of removing the ask for idle cash → Too much question more (or) less confusing. I'm assuming the state of a user signing up to this app on any particular day.
+
+A user holding 50,00,000 still has his money compounding even if it sits in FD no? How could we say 'remove a pay off the interest instead' → Even if we suggest to remove and he accepts it → How do we define how much to remove → should goals also say
+
+it goes (i) not → for hard constrained goals it should (or)
+
+
+
+For goals we model this separately again? → Like assume user has hard constraint goal → But surplus could not fulfill that now we explore other options, yeah →
+
+Have we list (a) (i) Savings: Top into savings  (ii) take a new loan (How do we suggest best possible ones?- I know paisabazaar has this?)  (iii) Liquidate assets —
+
+
+
+And if we still rejects all else? Then we just like say only 75% of goal achievable & so so yeah?
+
+
+
+The kind of loans & rates offered depends on whether user is salaried → Many other metrics → Paisabazaar may ask such questions before suggesting to take a loan (or)... If a user has a  Business then many questions like his turnover, gst registered (or) not, etc., Make sure to research this thoroughly.
+
+
+
+Switching like from Salaried to Salaried + Business (or) Just business → Should he ideally have a dedicated account for his business? If unified then has the allocation, expense etc. would be too much no?
+
+
