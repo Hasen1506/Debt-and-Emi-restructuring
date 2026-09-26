@@ -71,12 +71,16 @@ export function RightTimeTool() {
   const [institutions, setInstitutions] = useState<InstitutionPayload[] | null>(null);
   const [bank, setBank] = useState<string>('');
 
-  const [principal, setPrincipal] = useState('5000000');
+  // Blank until the user says: a sample ₹50 lakh loan and a presumed
+  // 50 bps cut gave "Wait, save ₹3,69,508" on the first click.
+  const [principal, setPrincipal] = useState('');
   const [tenure, setTenure] = useState(TENURE_DEFAULT.home_loan);
   const [urgency, setUrgency] = useState<Urgency>('3m_ok');
 
-  const [changeBps, setChangeBps] = useState('-50');
-  const [monthsTo, setMonthsTo] = useState('3');
+  const [changeBps, setChangeBps] = useState('');
+  // Filled from the published meeting calendar (the date is shown).
+  const [monthsTo, setMonthsTo] = useState('');
+  const [nextMeeting, setNextMeeting] = useState<string | null>(null);
 
   // Allow override but derive from rate-card by default.
   const [currentRateOverride, setCurrentRateOverride] = useState('');
@@ -85,8 +89,26 @@ export function RightTimeTool() {
 
   const [v, setV] = useState<BorrowTimingResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const { err, setErr, clear, fail, at } = useFormErrors();
+  const { err, setErr, clear, fail, failField, at } = useFormErrors();
   const [added, setAdded] = useState(false);
+
+  // Months to the next RBI MPC / FOMC decision, from the calendar the
+  // API keeps (rbi.org.in / federalreserve.gov).
+  useEffect(() => {
+    let cancelled = false;
+    api.centralRates()
+      .then((r) => {
+        const next = r[country]?.next_meeting_date;
+        const days = r[country]?.days_until_next;
+        if (cancelled || !next || days == null) return;
+        setNextMeeting(next);
+        setMonthsTo((m) => (m === '' ? String(Math.max(1, Math.round(days / 30.4))) : m));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [country]);
 
   useEffect(() => {
     setTenure(TENURE_DEFAULT[loanType] ?? '60');
@@ -160,6 +182,18 @@ export function RightTimeTool() {
       setErr('Pick a bank with a published rate card, or enter a rate manually under Advanced.');
       return;
     }
+    if (!(Number(principal) > 0)) {
+      failField('principal', 'Enter how much you plan to borrow.');
+      return;
+    }
+    if (changeBps.trim() === '' || !Number.isFinite(Number(changeBps))) {
+      failField('changeBps', 'Enter the change you expect, e.g. −25 for a cut. 0 if you have no view.');
+      return;
+    }
+    if (!(Number(monthsTo) >= 1)) {
+      failField('monthsTo', 'Enter the months until the next rate decision.');
+      return;
+    }
     setBusy(true);
     clear();
     setAdded(false);
@@ -221,7 +255,13 @@ export function RightTimeTool() {
               (median {formatPct(bankRange.median, 2)})
             </div>
           )}
-          <Field label="Loan amount" value={principal} onChange={setPrincipal} error={at('principal')} />
+          <Field
+            label="Loan amount"
+            value={principal}
+            onChange={setPrincipal}
+            error={at('principal')}
+            placeholder={country === 'IN' ? 'e.g. 3000000' : 'e.g. 300000'}
+          />
           <Field
             label="Tenure (months)"
             value={tenure}
@@ -241,16 +281,18 @@ export function RightTimeTool() {
             info={<>If you can&apos;t wait, the answer is always &ldquo;borrow now&rdquo; — locking today&apos;s rate is the right call.</>}
           />
           <Field
-            label="Consensus change at next decision (bps)"
+            label="Rate change you expect at the next decision (bps)"
             value={changeBps}
             error={at('changeBps')}
             onChange={setChangeBps}
-            hint="−50 = 50bps cut expected; +25 = 25bps hike. 0 if unsure."
+            placeholder="e.g. -25"
+            hint="Your view or a published forecast: −25 = a 0.25% cut, +25 = a rise, 0 = no view."
             info={
               <>
-                Market consensus for the next central-bank move, in basis
-                points (1bp = 0.01%). Bloomberg / CNBC publish street
-                consensus before each MPC / FOMC meeting.
+                We don&apos;t guess this for you: the answer turns on it. Economists&apos;
+                polls before each {country === 'IN' ? 'RBI MPC' : 'FOMC'} meeting are
+                reported by the financial press; enter 0 if you have no view,
+                and the tool compares today&apos;s rate with the recent average.
               </>
             }
           />
@@ -260,7 +302,11 @@ export function RightTimeTool() {
             error={at('monthsTo')}
             onChange={setMonthsTo}
             kind="integer"
-            hint="RBI MPC: every 2 months. Fed FOMC: every ~6 weeks."
+            hint={
+              nextMeeting
+                ? `Next ${country === 'IN' ? 'RBI MPC' : 'FOMC'} decision: ${new Date(`${nextMeeting}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} (published calendar)`
+                : 'RBI MPC: every 2 months. Fed FOMC: every ~6 weeks.'
+            }
           />
 
           <div style={{ gridColumn: '1 / -1', marginTop: 4 }}>
@@ -311,6 +357,14 @@ export function RightTimeTool() {
             color={v.verdict === 'wait' ? 'var(--accent)' : 'var(--positive)'}
             detail={v.detail}
           />
+          <p className="muted" style={{ margin: '0 0 10px', fontSize: 12 }}>
+            Based on your expectation of{' '}
+            {Number(changeBps) === 0
+              ? 'no change'
+              : `a ${Math.abs(Number(changeBps))} bps ${Number(changeBps) < 0 ? 'cut' : 'rise'}`}{' '}
+            in {monthsTo} month{Number(monthsTo) === 1 ? '' : 's'}. If that doesn&apos;t
+            happen, neither does the saving.
+          </p>
           <div
             style={{
               display: 'grid',

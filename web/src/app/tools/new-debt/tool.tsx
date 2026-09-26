@@ -85,22 +85,26 @@ export function NewDebtTool() {
   // collapse to the same number (no negotiation discount). For credit-card,
   // list/cash diverge — that's the whole point of the foregone-discount
   // check.
-  const [loanAmount, setLoanAmount] = useState('300000');
+  // The amounts start blank: a preloaded ₹3 lakh loan and an assumed 720
+  // score could return "Take the EMI" on the first click, for a loan the
+  // user never described.
+  const [loanAmount, setLoanAmount] = useState('');
   const [tenure, setTenure] = useState(TENURE_DEFAULT_BY_TYPE.personal_loan);
-  const [listPrice, setListPrice] = useState('20000');
-  const [cashPrice, setCashPrice] = useState('17000');
+  const [listPrice, setListPrice] = useState('');
+  const [cashPrice, setCashPrice] = useState('');
 
   const [selectedBank, setSelectedBank] = useState<string>('');
   const [fee, setFee] = useState('0');
-  const [savings, setSavings] = useState(profile.user.savings_balance ?? '50000');
+  const [savings, setSavings] = useState(profile.isLive ? profile.user.savings_balance ?? '' : '');
+  // The profile's score, or blank: no score, no score-impact estimate.
   const [score, setScore] = useState(
-    profile.creditScore != null ? String(profile.creditScore) : '720',
+    profile.isLive && profile.creditScore != null ? String(profile.creditScore) : '',
   );
 
   const [v, setV] = useState<NewDebtResponse | null>(null);
   const [impact, setImpact] = useState<ScoreImpactResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const { err, setErr, clear, fail, at } = useFormErrors();
+  const { err, setErr, clear, fail, failField, at } = useFormErrors();
   const [added, setAdded] = useState(false);
 
   // Refresh sensible tenure default when the loan type changes.
@@ -161,12 +165,29 @@ export function NewDebtTool() {
 
   async function check(e: React.FormEvent) {
     e.preventDefault();
+    const card = loanType === 'credit_card';
+    if (!card && !(Number(loanAmount) > 0)) {
+      failField('loanAmount', 'Enter how much you want to borrow.');
+      return;
+    }
+    if (card && !(Number(listPrice) > 0)) {
+      failField('listPrice', 'Enter the price on the EMI offer.');
+      return;
+    }
+    if (card && !(Number(cashPrice) > 0)) {
+      failField('cashPrice', 'Enter what it costs if you pay in full (the same price if there is no discount).');
+      return;
+    }
+    if (savings.trim() === '') {
+      failField('savings', 'Enter your savings outside the emergency fund (0 if none).');
+      return;
+    }
     setBusy(true);
     clear();
     setImpact(null);
     setAdded(false);
     try {
-      const isCard = loanType === 'credit_card';
+      const isCard = card;
       const cashEq = isCard ? cashPrice : loanAmount;
       const list = isCard ? listPrice : loanAmount;
       const months = Number(tenure);
@@ -186,7 +207,7 @@ export function NewDebtTool() {
       });
       setV(result);
 
-      if (result.verdict === 'take' && Number(score) >= 300 && activeBank && !activeBank.isExisting) {
+      if (result.verdict === 'take' && score.trim() !== '' && Number(score) >= 300 && activeBank && !activeBank.isExisting) {
         const impactResult = await api.scoreImpact({
           action: 'new_account',
           current_score: Number(score),
@@ -237,6 +258,7 @@ export function NewDebtTool() {
                 value={loanAmount}
                 error={at('loanAmount')}
                 onChange={setLoanAmount}
+                placeholder={country === 'IN' ? 'e.g. 300000' : 'e.g. 15000'}
                 info={<>What you want to borrow, in your home currency.</>}
               />
               <Field
@@ -334,11 +356,11 @@ export function NewDebtTool() {
             }
           />
           <Field
-            label="Your credit score"
+            label="Your credit score (optional)"
             value={score}
             error={at('score')}
             onChange={setScore}
-            hint="CIBIL/Experian (IN) or FICO (US) — drives the score-impact estimate"
+            hint="CIBIL/Experian (IN) or FICO (US). Leave blank if you don't know it: no score estimate is shown then."
             info={
               <>
                 Used only if the verdict is &ldquo;take&rdquo;{' '}
@@ -360,7 +382,7 @@ export function NewDebtTool() {
             detail={
               activeBank
                 ? `${v.detail}  Based on ${activeBank.name}'s median rate ${formatPct(String(activeBank.median), 2)}.`
-                : v.detail
+                : `${v.detail}  No bank rate card was found, so this uses a typical ${isCard ? '36%' : '14%'} rate. Pick a bank above to use its published rate.`
             }
           />
           <div

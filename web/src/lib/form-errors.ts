@@ -95,5 +95,11 @@ export function useFormErrors() {
     [fieldErr],
   );
 
-  return { err, setErr, clear, fail, at };
+  /** A check made before calling the API (a required field left blank). */
+  const failField = useCallback((key: string, message: string) => {
+    setFieldErr({ field: key, message });
+    setErr('Fix the highlighted field.');
+  }, []);
+
+  return { err, setErr, clear, fail, failField, at };
 }

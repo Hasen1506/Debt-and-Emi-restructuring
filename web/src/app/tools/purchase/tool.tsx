@@ -445,42 +445,45 @@ function AnalysisPanel({
           <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
             What would make this comfortable?
           </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: fitColumns(3, 140),
-              gap: 8,
-              fontSize: 12,
-            }}
-          >
-            <LeverCell
-              label="Lower the price"
-              value={
-                analysis.levers.lowerPriceTo > 0
-                  ? `≤ ${ccySym}${Math.round(analysis.levers.lowerPriceTo).toLocaleString()}`
-                  : 'n/a'
-              }
-              subtle="Keeps EMI to ≤ 50% of surplus."
-            />
-            <LeverCell
-              label="Push the date out"
-              value={
-                analysis.levers.extendTargetByMonths > 0
-                  ? `+${analysis.levers.extendTargetByMonths} months`
-                  : 'date already fits surplus'
-              }
-              subtle="More months to accumulate the down payment."
-            />
-            <LeverCell
-              label="More down payment"
-              value={
-                analysis.levers.increaseDownPaymentToPct > 0
-                  ? `≥ ${Math.round(analysis.levers.increaseDownPaymentToPct * 100)}%`
-                  : 'n/a'
-              }
-              subtle="Shrinks the loan so EMI fits surplus."
-            />
-          </div>
+          {analysis.levers.lowerPriceTo == null &&
+          analysis.levers.extendTargetByMonths == null &&
+          analysis.levers.increaseDownPaymentToPct == null ? (
+            <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+              No single change fixes this: the monthly surplus leaves no room.
+              Free up money each month first (see your plan), then check again.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: fitColumns(3, 140),
+                gap: 8,
+                fontSize: 12,
+              }}
+            >
+              {analysis.levers.lowerPriceTo != null && (
+                <LeverCell
+                  label="Lower the price"
+                  value={`≤ ${fmt(Math.round(analysis.levers.lowerPriceTo))}`}
+                  subtle="Fits the down payment by your date and keeps the EMI within 40% of surplus."
+                />
+              )}
+              {analysis.levers.extendTargetByMonths != null && (
+                <LeverCell
+                  label="Push the date out"
+                  value={`+${analysis.levers.extendTargetByMonths} months`}
+                  subtle="Time to save the down payment from your surplus."
+                />
+              )}
+              {analysis.levers.increaseDownPaymentToPct != null && (
+                <LeverCell
+                  label="More down payment"
+                  value={`${Math.ceil(analysis.levers.increaseDownPaymentToPct * 100)}%`}
+                  subtle="Shrinks the loan so the EMI fits; you can still save it by your date."
+                />
+              )}
+            </div>
+          )}
         </div>
       )}
 
