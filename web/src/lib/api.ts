@@ -793,6 +793,85 @@ export interface LoanCheckResponse {
   stale_rates_warning: string | null;
 }
 
+export type ComplaintReply = 'none' | 'fixed' | 'partly' | 'rejected';
+
+/** Loan facts plus where the complaint has got to. No personal details:
+ *  letters come back with placeholders the browser fills in. */
+export interface ComplaintRequest extends LoanCheckRequest {
+  sent_on?: string;                 // "YYYY-MM-DD"
+  received_on?: string;
+  reply?: ComplaintReply;
+  reply_on?: string;
+  io_reviewed?: boolean;
+  bank_reference?: string;
+}
+
+export interface ComplaintLetter {
+  kind: 'grievance' | 'io_followup';
+  subject: string;
+  claim_amount: string;
+  citations: LoanCheckCitation[];
+  annexure: { month: string; should_be: string; charged: string; excess: string }[];
+  annexure_total: string;
+  /** The whole letter as plain text, placeholders included. */
+  text: string;
+}
+
+export interface ComplaintMilestone {
+  key: string;
+  label: string;
+  day: string;                      // "YYYY-MM-DD"
+  state: 'done' | 'due' | 'overdue' | 'upcoming' | 'missed';
+  note: string;
+}
+
+export interface ComplaintTimeline {
+  stage:
+    | 'awaiting_reply'
+    | 'internal_ombudsman'
+    | 'ombudsman_open'
+    | 'window_closed'
+    | 'fixed';
+  milestones: ComplaintMilestone[];
+  next_action: string;
+  days_left: number | null;
+  escalation_opens: string | null;
+  escalation_deadline: string | null;
+  notes: string[];
+}
+
+export interface OmbudsmanComplaint {
+  fields: { label: string; value: string; hint: string }[];
+  facts: string;
+  relief: string;
+  declarations: string[];
+  documents: string[];
+  opens: string | null;
+  deadline: string | null;
+  how_to_file: string[];
+  citations: LoanCheckCitation[];
+  claim_amount: string;
+}
+
+export interface ComplaintPlaceholders {
+  name: string;
+  account: string;
+  phone: string;
+  email: string;
+  address: string;
+  bank_reference: string;
+  bank_name: string;
+  optional_lines: string[];
+}
+
+export interface ComplaintResponse {
+  letter: ComplaintLetter;
+  timeline: ComplaintTimeline | null;
+  io_followup: ComplaintLetter | null;
+  ombudsman: OmbudsmanComplaint | null;
+  placeholders: ComplaintPlaceholders;
+}
+
 /** A 422 from an endpoint that answers `{detail: {field, message}}`. */
 export class ApiFieldError extends Error {
   constructor(public field: string, message: string) {
@@ -993,6 +1072,9 @@ export const api = {
 
   loanCheck: (req: LoanCheckRequest) =>
     postWithFieldErrors<LoanCheckResponse>('/api/loan-check', req),
+
+  complaintIn: (req: ComplaintRequest) =>
+    postWithFieldErrors<ComplaintResponse>('/api/complaints/in', req),
 
   scoreImpact: (req: {
     action: ScoreAction;

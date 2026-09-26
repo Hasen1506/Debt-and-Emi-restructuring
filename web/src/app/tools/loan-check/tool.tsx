@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import Decimal from 'decimal.js';
 import { Card } from '@/components/Card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
+import { ComplaintPanel } from './complaint';
 import {
   BankCombobox,
   Field,
@@ -19,6 +20,7 @@ import {
   formatPct,
   type LoanBenchmark,
   type LoanCheckFinding,
+  type LoanCheckRequest,
   type LoanCheckResponse,
 } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
@@ -104,6 +106,8 @@ export function LoanCheckTool() {
   const [lastReset, setLastReset] = useState('');
 
   const [result, setResult] = useState<LoanCheckResponse | null>(null);
+  // The request behind `result`, reused by the complaint panel.
+  const [checked, setChecked] = useState<LoanCheckRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
@@ -144,7 +148,7 @@ export function LoanCheckTool() {
     setBusy(true);
     setErr(null);
     try {
-      const res = await api.loanCheck({
+      const req: LoanCheckRequest = {
         lender: lender || undefined,
         loan_start: loanStart,
         ...(startMode === 'headline'
@@ -159,11 +163,14 @@ export function LoanCheckTool() {
         emi: emi ? emi.replace(/,/g, '') : undefined,
         benchmark,
         last_reset: lastReset || undefined,
-      });
+      };
+      const res = await api.loanCheck(req);
       setResult(res);
+      setChecked(req);
       requestAnimationFrame(() => resultRef.current?.focus());
     } catch (e) {
       setResult(null);
+      setChecked(null);
       setErr(e instanceof ApiFieldError ? e.message : (e as Error).message);
     } finally {
       setBusy(false);
@@ -359,6 +366,9 @@ export function LoanCheckTool() {
       <div aria-live="polite" ref={resultRef} tabIndex={-1} style={{ outline: 'none' }}>
         {result && <LoanCheckResult r={result} />}
       </div>
+      {result && checked && result.findings.some((f) => f.claimable) && (
+        <ComplaintPanel request={checked} />
+      )}
     </div>
   );
 }

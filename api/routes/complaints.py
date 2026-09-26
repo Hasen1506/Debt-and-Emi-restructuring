@@ -20,7 +20,7 @@ from api.routes.loan_check import (
 from api.schemas import _Base
 from engine.complaint_deadlines import Reply, Timeline, TimelineInputError, india_timeline
 from engine.complaints_in import (
-    ACCOUNT, ADDRESS, BANK_REFERENCE, EMAIL, NAME, OPTIONAL_LINES, PHONE,
+    ACCOUNT, ADDRESS, BANK_NAME, BANK_REFERENCE, EMAIL, NAME, OPTIONAL_LINES, PHONE,
     Letter, NothingToClaim, OmbudsmanComplaint, grievance_letter,
     io_followup_letter, ombudsman_complaint,
 )
@@ -109,6 +109,7 @@ class Placeholders(_Base):
     email: str = EMAIL
     address: str = ADDRESS
     bank_reference: str = BANK_REFERENCE
+    bank_name: str = BANK_NAME
     # Sign-off lines to drop when the borrower leaves them blank.
     optional_lines: list[str] = list(OPTIONAL_LINES)
 
