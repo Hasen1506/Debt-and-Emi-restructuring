@@ -526,10 +526,11 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
             min(12, inp.tenure_months_remaining),
         ))
         repo_fell = repo_ref < repo_start
-        lender = card.name if card else (inp.lender or "Your lender")
+        named = card.name if card else (inp.lender.strip() if inp.lender else None)
+        lender = named or "your lender"
         if repo_fell:
             headline = (
-                f"{lender} has not passed on {_pct(gap)} of RBI rate cuts"
+                f"{named or 'Your lender'} has not passed on {_pct(gap)} of RBI rate cuts"
             )
         else:
             headline = (

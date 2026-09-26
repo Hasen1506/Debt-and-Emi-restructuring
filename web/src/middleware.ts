@@ -40,8 +40,13 @@ export function middleware(req: NextRequest) {
   }
 
   // /onboarding is reachable without a profile cookie — that's
-  // literally what it exists to capture.
-  if (url.pathname.startsWith('/onboarding')) {
+  // literally what it exists to capture. Loan Check is too: it needs
+  // only the loan's own facts, and it is the first thing a new visitor
+  // should be able to try.
+  if (
+    url.pathname.startsWith('/onboarding') ||
+    url.pathname.startsWith('/tools/loan-check')
+  ) {
     return NextResponse.next();
   }
 

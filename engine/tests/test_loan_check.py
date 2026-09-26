@@ -104,6 +104,13 @@ def test_rate_below_expected_never_goes_negative():
     assert r.amount_at_stake_this_year == 0
 
 
+def test_no_lender_reads_naturally():
+    r = check_loan(_inp(lender=None, loan_start=date(2024, 1, 1), start_rate=D("0.0900")))
+    f = r.findings[0]
+    assert f.headline.startswith("Your lender has not passed on")
+    assert "Send your lender a written complaint" in f.next_step
+
+
 def test_rise_without_repo_rise_is_flagged():
     r = check_loan(_inp(
         loan_start=date(2026, 1, 1), start_rate=D("0.0800"),

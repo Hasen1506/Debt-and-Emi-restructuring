@@ -737,6 +737,91 @@ export interface CrossBorderResponse {
   loan_emi_user_currency_y5: string;
 }
 
+// ─── Loan Check ─────────────────────────────────────────────────────────────
+
+export type LoanBenchmark = 'repo' | 'mclr' | 'base_rate' | 'unknown';
+
+export interface LoanCheckRequest {
+  lender?: string;
+  loan_start: string;               // "YYYY-MM"
+  start_rate?: string;              // fractions
+  start_benchmark_rate?: string;
+  start_spread?: string;
+  current_rate: string;
+  outstanding: string;
+  tenure_months_remaining: number;
+  emi?: string;
+  benchmark: LoanBenchmark;
+  last_reset?: string;              // "YYYY-MM"
+}
+
+export interface LoanCheckCitation {
+  rule: string;
+  requirement: string;
+  source: string;
+  verified_against_text: boolean;
+}
+
+export interface LoanCheckFinding {
+  kind: 'missed_rate_cut' | 'pricing_gap' | 'old_benchmark';
+  headline: string;
+  detail: string;
+  claimable: boolean;
+  rate_gap: string;
+  amount_this_year: string;
+  overcharged_so_far: string;
+  months_overcharged: number;
+  citations: LoanCheckCitation[];
+  next_step: string;
+}
+
+export interface LoanCheckResponse {
+  status: 'issues_found' | 'no_issue' | 'not_applicable';
+  summary: string;
+  findings: LoanCheckFinding[];
+  start_rate: string;
+  expected_rate: string | null;
+  current_rate: string;
+  repo_at_start: string | null;
+  repo_reference_now: string | null;
+  repo_today: string;
+  repo_changes_since_start: { date: string; old_rate: string; new_rate: string }[];
+  claim_amount: string;
+  amount_at_stake_this_year: string;
+  assumptions: string[];
+  rates_as_of: string;
+  stale_rates_warning: string | null;
+}
+
+/** A 422 from an endpoint that answers `{detail: {field, message}}`. */
+export class ApiFieldError extends Error {
+  constructor(public field: string, message: string) {
+    super(message);
+  }
+}
+
+async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+    credentials: 'include',
+  });
+  if (res.status === 422) {
+    const data = await res.json().catch(() => null);
+    const d = data?.detail;
+    if (d && typeof d === 'object' && !Array.isArray(d) && typeof d.message === 'string') {
+      throw new ApiFieldError(String(d.field ?? ''), d.message);
+    }
+    throw new ApiFieldError('', 'Some of the details could not be read. Check the numbers and try again.');
+  }
+  if (!res.ok) {
+    throw new Error(`The server could not run the check (${res.status}). Try again in a minute.`);
+  }
+  return res.json() as Promise<T>;
+}
+
 // ─── thin fetch helper ──────────────────────────────────────────────────────
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -905,6 +990,9 @@ export const api = {
     principal: string;
     tenure_months: number;
   }) => post<BorrowTimingResponse>('/api/right-time-to-borrow', req),
+
+  loanCheck: (req: LoanCheckRequest) =>
+    postWithFieldErrors<LoanCheckResponse>('/api/loan-check', req),
 
   scoreImpact: (req: {
     action: ScoreAction;

@@ -117,12 +117,19 @@ The home-loan finding: *your floating-rate lender did not pass on rate cuts
 it owed you*, plus how much that costs you this year.
 
 **Inputs**
-- [ ] "Month you took the loan" and "Loan start month": **Month dropdown +
+- [x] "Month you took the loan" and "Loan start month": **Month dropdown +
       Year dropdown**, never `<input type="month">` (see Phase 6.1).
-- [ ] Starting rate (two fields: benchmark + spread, or the headline rate) and current rate.
-- [ ] If only one of the two starting-rate fields is filled, show **"Still needed: …"**.
-- [ ] A rate typed as a fraction (`0.0855` meaning 8.55%) is caught in **both**
-      the starting-rate and current-rate fields.
+      `web/src/components/MonthYearPicker.tsx`; says "Still needed: the year"
+      when only half is picked.
+- [x] Starting rate (two fields: benchmark + spread, or the headline rate) and current rate.
+- [x] If only one of the two starting-rate fields is filled, show **"Still needed: …"**
+      (on screen and from the API).
+- [x] A rate typed as a fraction (`0.0855` meaning 8.55%) is caught in **both**
+      the starting-rate and current-rate fields, with a one-click "Use 8.55%"
+      fix (`web/src/lib/rate-input.ts`). The spread field has its own check.
+- [x] Screen at `/tools/loan-check`, first in the Tools list; reachable
+      without onboarding (it needs only the loan's own facts). Pre-fills from
+      a real profile's home loan, never from the demo profile.
 - [x] Server **rejects** a date it can't parse with a clear error; it must not
       silently skip the check (`POST /api/loan-check`, 422 with `field` + `message`). (Lost bug: typing "03/2019" in Firefox made the
       rate-cut finding quietly disappear.)
@@ -250,6 +257,9 @@ All of these were run and passing before the crash; redo each one and keep it in
 - [ ] `npx playwright install firefox webkit` (~150 MB; only Chromium is preinstalled).
 - [ ] **Every** month field becomes Month + Year dropdowns. Firefox desktop and
       Safari render `type="month"` as a plain text box, so people typed dates the app couldn't read.
+      Loan Check done. No `type="month"` is left in `main`; still to review:
+      the `type="date"` inputs in goals, onboarding/assets, lifecycle events,
+      decision log and activity ledger (full dates, where a month would do?).
 - [ ] Full step-by-step E2E flow (onboarding → Loan Check → letter → outcome)
       passes in all three browsers.
 
@@ -257,9 +267,16 @@ All of these were run and passing before the crash; redo each one and keep it in
 - [ ] **Zero axe violations on all 24 screens at desktop and phone width.**
 - [ ] Accent orange darkened slightly for text contrast (`#c96442` is too faint as text).
 - [ ] Every slider has a label; the keyboard focus ring is never hidden.
+- [x] **Found and fixed:** in the shared `Field`, `Select` and `BankCombobox`
+      the ⓘ help button sat *inside* the `<label>`. A label names the first
+      control it contains, so every field with a help tip had its label on
+      the ⓘ button and an **unnamed input** for screen readers. Likely the
+      "screen-reader bug found by accident" below. Labels now use `htmlFor`,
+      hints are linked with `aria-describedby`, the bank search box is named.
 - [ ] Every page has headings and landmarks, plus a "Skip to content" link.
 - [ ] Wide tables on phones are keyboard-scrollable (focusable region with a label).
-- [ ] Check results are announced to screen readers (`aria-live`).
+      Loan Check's repo-rate table done.
+- [ ] Check results are announced to screen readers (`aria-live`). Loan Check done.
 - [ ] Re-find and fix the screen-reader bug found by accident last time (not
       recorded in the screenshots; the axe pass plus a manual VoiceOver/NVDA run should surface it).
 
@@ -309,6 +326,43 @@ The honest status before the crash: *a working, tested demo, not ready to launch
 - [ ] Trademark search and domain for **RightDue**.
 - [ ] CSP + anti-framing headers switched on (Phase 6.4).
 - [ ] Deferred Ledger-skin items: walk `LEDGER_MISSING.md` and decide per item (re-introduce / v2 / drop).
+
+---
+
+## New ideas (added while rebuilding)
+
+Ideas that came up during the rebuild. Not in the lost work; each needs a
+yes/no from the owner before it is scheduled.
+
+- [ ] **Negative-amortisation check** (Loan Check). RBI's Aug 2023 circular on
+      resetting floating-rate EMI loans says a rate rise must not leave the EMI
+      below the interest due, and at each reset the bank must offer a switch to
+      a fixed rate and a choice of higher EMI or longer tenure. Flag a loan whose
+      EMI no longer covers its interest, or whose tenure was stretched without
+      asking. Verify the circular's text first.
+- [ ] **Reset watch after every RBI decision.** When the repo rate changes, each
+      user with a repo-linked loan gets a dated reminder: "your rate should drop
+      to X% by <date + 3 months>". If the statement still shows the old rate
+      after that date, Loan Check opens with the finding ready. Builds on Phase 5.
+- [ ] **Statement upload** (SBI / HDFC PDFs first). Read the actual rate history
+      from the statement instead of asking for the start rate and last-change
+      month, which makes the overcharge exact instead of cautious. Pairs with the
+      golden tests in 6.6.
+- [ ] **EMI or tenure on a rate cut.** When a cut is passed on, banks usually
+      keep the EMI and shorten the tenure. Show the interest difference between
+      the two and let the user ask for the one they want.
+- [ ] **Spread-change claim.** If the user gives their spread history, flag a
+      spread raised without a change in their credit assessment (allowed only in
+      narrow cases) as its own claim.
+- [ ] **Other repo-linked loans.** The 2019 rules cover all new floating-rate
+      personal and retail loans, not just home loans: extend Loan Check to
+      floating-rate auto, education and personal loans.
+- [ ] **US Loan Check: adjustable-rate mortgages.** Index (SOFR) + margin vs the
+      rate charged, within the note's caps; errors feed the Phase 2 notice of error.
+- [ ] **Shareable result card.** A result image or link without personal details
+      ("My bank owed me 0.75%"). Brings in users and outcome reports (Phase 4).
+- [ ] **Quiet the profile-sync 404s.** In no-database trial mode the web app still
+      calls `GET /api/user/state` on every page, which 404s. Skip the call when sync is off.
 
 ---
 

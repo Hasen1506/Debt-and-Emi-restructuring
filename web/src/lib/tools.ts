@@ -23,6 +23,14 @@ export interface ToolMeta {
 
 export const TOOLS: ToolMeta[] = [
   {
+    id: 'loan-check',
+    tag: 'LC',
+    name: 'Loan check',
+    question: 'Is my bank passing on rate cuts?',
+    sub: 'Compares your home-loan rate with every RBI repo move since you borrowed.',
+    href: '/tools/loan-check',
+  },
+  {
     id: 'windfall',
     tag: '8a',
     name: 'Windfall',

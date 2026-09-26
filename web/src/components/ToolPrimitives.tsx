@@ -103,13 +103,28 @@ export function InfoTip({ children }: { children: ReactNode }) {
  * Label row reused by every form primitive. Renders the text label and,
  * when present, an InfoTip on the right.
  */
-function LabelRow({ label, info }: { label: string; info?: ReactNode }) {
+function LabelRow({
+  label,
+  info,
+  htmlFor,
+  id,
+}: {
+  label: string;
+  info?: ReactNode;
+  htmlFor?: string;
+  id?: string;
+}) {
+  // The InfoTip button sits *beside* the <label>, never inside it: a label
+  // names the first control it contains, so a button inside it would take
+  // the name and leave the real input unnamed for screen readers.
   return (
     <span
       className="muted"
       style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
     >
-      {label}
+      <label htmlFor={htmlFor} id={id}>
+        {label}
+      </label>
       {info && <InfoTip>{info}</InfoTip>}
     </span>
   );
@@ -146,15 +161,18 @@ export function Field({
    *  caller decides what counts as "empty" — typically `value === ''`. */
   suggestion?: { value: string; label: string };
 }) {
+  const inputId = useId();
   const isNumeric = kind === 'decimal' || kind === 'integer';
   const hasSuggestion = !!suggestion && value === '';
   const handleFocus = () => {
     if (hasSuggestion && suggestion) onChange(suggestion.value);
   };
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <LabelRow label={label} info={info} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <LabelRow label={label} info={info} htmlFor={inputId} />
       <input
+        id={inputId}
+        aria-describedby={hint ? `${inputId}-hint` : undefined}
         className={isNumeric ? 'num' : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -197,11 +215,11 @@ export function Field({
         </button>
       )}
       {hint && (
-        <span className="muted" style={{ fontSize: 11 }}>
+        <span id={`${inputId}-hint`} className="muted" style={{ fontSize: 11 }}>
           {hint}
         </span>
       )}
-    </label>
+    </div>
   );
 }
 
@@ -234,8 +252,10 @@ export function BankCombobox({
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const rootRef = useRef<HTMLLabelElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const buttonId = useId();
+  const labelId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -271,16 +291,18 @@ export function BankCombobox({
   }
 
   return (
-    <label
+    <div
       ref={rootRef}
       style={{ display: 'flex', flexDirection: 'column', gap: 4, position: 'relative' }}
     >
-      <LabelRow label={label} info={info} />
+      <LabelRow label={label} info={info} htmlFor={buttonId} id={labelId} />
       <button
+        id={buttonId}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-labelledby={`${labelId} ${buttonId}`}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -325,6 +347,7 @@ export function BankCombobox({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search bank or type your own…"
+            aria-label="Search banks"
             autoComplete="off"
             style={{
               padding: '10px 12px',
@@ -399,7 +422,7 @@ export function BankCombobox({
           {hint}
         </span>
       )}
-    </label>
+    </div>
   );
 }
 
@@ -416,10 +439,12 @@ export function Select<T extends string>({
   options: { value: T; label: string }[];
   info?: ReactNode;
 }) {
+  const selectId = useId();
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <LabelRow label={label} info={info} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <LabelRow label={label} info={info} htmlFor={selectId} />
       <select
+        id={selectId}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
         style={{
@@ -437,7 +462,7 @@ export function Select<T extends string>({
           </option>
         ))}
       </select>
-    </label>
+    </div>
   );
 }
 
