@@ -7,3 +7,6 @@ node_modules/
 .env
 .env.local
 *.log
+# Last good fetched rates (api/rates_feed.py); rebuilt on each deploy.
+api/data/rates_live.json
+api/data/rates_live.tmp

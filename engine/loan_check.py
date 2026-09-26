@@ -55,7 +55,7 @@ SANCTION_LAG_MONTHS = 2
 TOLERANCE = D("0.0005")
 # Below this, "new borrowers pay less" is not worth a finding.
 PRICING_GAP_MIN = D("0.0025")
-# After this many days past policy_rates.LAST_VERIFIED, warn that a newer
+# After this many days past policy_rates.rates_as_of, warn that a newer
 # RBI decision may be missing.
 STALE_AFTER_DAYS = 60
 
@@ -385,10 +385,11 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
     repo_today = policy_rates.rate_on(Country.IN, inp.as_of)
     assumptions: list[str] = []
 
+    rates_as_of = policy_rates.rates_as_of(Country.IN)
     stale = None
-    if (inp.as_of - policy_rates.LAST_VERIFIED).days > STALE_AFTER_DAYS:
+    if (inp.as_of - rates_as_of).days > STALE_AFTER_DAYS:
         stale = (
-            f"RBI rates were last checked on {policy_rates.LAST_VERIFIED:%d %b %Y}. "
+            f"RBI rates were last checked on {rates_as_of:%d %b %Y}. "
             f"A later RBI decision may not be included."
         )
 
@@ -425,6 +426,7 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
             claim_amount=D("0"),
             amount_at_stake_this_year=D("0"),
             assumptions=assumptions,
+            rates_as_of=rates_as_of,
             stale_rates_warning=stale,
         )
 
@@ -593,5 +595,6 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
         claim_amount=claim_amount,
         amount_at_stake_this_year=at_stake,
         assumptions=assumptions,
+        rates_as_of=rates_as_of,
         stale_rates_warning=stale,
     )

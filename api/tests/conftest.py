@@ -1,7 +1,11 @@
 """Shared fixtures — a realistic India user with two loans for round-trip tests."""
+import os
 from decimal import Decimal
 import pytest
 from fastapi.testclient import TestClient
+
+# Tests never reach FRED or the RBI website; feed tests pass their own fetcher.
+os.environ.setdefault("RATES_FEED", "off")
 
 from api.main import app
 

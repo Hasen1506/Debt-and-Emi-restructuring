@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # Load .env before anything reads os.environ (engine, resend, etc).
 load_dotenv()
 
+from api import rates_feed  # noqa: E402
 from api.db.database import db_enabled, init_db  # noqa: E402
 from api.routes import (  # noqa: E402
     simulation,
@@ -32,7 +33,9 @@ log = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    rates_feed.start()
     yield
+    rates_feed.stop()
 
 
 app = FastAPI(

@@ -1277,7 +1277,9 @@ export interface CentralBankMeeting {
 export interface CentralBankCountryRate {
   country: 'IN' | 'US';
   current_rate: string;
-  updated_at: string;
+  updated_at: string;   // the decision that set current_rate
+  as_of: string;        // last day the rate was known to be current
+  source: string;
   upcoming_meetings: CentralBankMeeting[];
   next_meeting_date: string | null;
   days_until_next: number | null;

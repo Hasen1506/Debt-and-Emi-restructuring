@@ -34,9 +34,5 @@
       {"date": "2027-11-03", "outcome_rate": null, "note": "Nov FOMC"},
       {"date": "2027-12-15", "outcome_rate": null, "note": "Dec FOMC + SEP"}
     ]
-  },
-  "current_rates": {
-    "IN": {"repo": "0.0525", "updated_at": "2026-08-05"},
-    "US": {"fed_funds_upper": "0.0400", "fed_funds_lower": "0.0375", "updated_at": "2026-09-16"}
   }
 }
