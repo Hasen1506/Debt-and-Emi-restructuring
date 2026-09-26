@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 # Load .env before anything reads os.environ (engine, resend, etc).
 load_dotenv()
 
-from api import rates_feed  # noqa: E402
+from api import outcomes_store, rates_feed  # noqa: E402
 from api.security import SecurityMiddleware  # noqa: E402
 from api.db.database import db_enabled, init_db  # noqa: E402
 from api.routes import (  # noqa: E402
@@ -28,6 +28,7 @@ from api.routes import (  # noqa: E402
     complaints,
     offers,
     loan_check,
+    outcomes,
 )
 
 log = logging.getLogger(__name__)
@@ -36,9 +37,11 @@ log = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await outcomes_store.store().init()
     rates_feed.start()
     yield
     rates_feed.stop()
+    await outcomes_store.store().close()
 
 
 app = FastAPI(
@@ -97,6 +100,7 @@ app.include_router(rates.router, prefix="/api")
 app.include_router(loan_check.router, prefix="/api")
 app.include_router(complaints.router, prefix="/api")
 app.include_router(offers.router, prefix="/api")
+app.include_router(outcomes.router, prefix="/api")
 
 # DB-bound routers — only mounted when DATABASE_URL is configured.
 # Skipping them on the Render free tier keeps the API up without a
@@ -113,4 +117,10 @@ else:
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "db": "enabled" if db_enabled() else "disabled"}
+    kind = outcomes_store.store().kind
+    return {
+        "status": "ok",
+        "db": "enabled" if db_enabled() else "disabled",
+        # "sqlite" on Render's free plan loses shared reports on every deploy.
+        "outcomes_storage": "database" if kind == "postgresql" else "local file",
+    }

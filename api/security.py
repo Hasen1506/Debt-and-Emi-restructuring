@@ -10,9 +10,8 @@ One ASGI middleware, so it also covers requests FastAPI never routes.
   (ROADMAP 6.4): they stop the app opening in VS Code's preview.
 - **Rate limits:** a token bucket per client IP on every POST, PUT,
   PATCH and DELETE, tighter on sign-in (it sends email) and admin.
-  The client IP is spoof-proof: X-Forwarded-For is read only as far
-  back as TRUSTED_PROXY_HOPS proxies we run behind (0 = use the socket
-  peer), counting from the right, so a client-supplied value is ignored.
+  The client IP is spoof-proof (api/client_ip.py): X-Forwarded-For is
+  read only as far back as TRUSTED_PROXY_HOPS proxies we run behind.
   The Next.js server renders /plan by calling the API itself, for every
   user; it sends INTERNAL_API_TOKEN and is not limited. RATE_LIMITS=off
   turns limits off (tests).
@@ -25,6 +24,8 @@ import os
 import time
 from dataclasses import dataclass
 from typing import Callable, Optional
+
+from api import client_ip
 
 MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", 256 * 1024))
 WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -41,6 +42,7 @@ DEFAULT_LIMITS: list[tuple[str, Limit]] = [
     ("/api/auth/request-otp", Limit(per_minute=2, burst=5)),     # sends an email
     ("/api/auth/verify-otp", Limit(per_minute=6, burst=10)),
     ("/api/admin/", Limit(per_minute=2, burst=5)),
+    ("/api/outcomes", Limit(per_minute=6, burst=10)),           # plus 10 a day (outcomes_store)
     ("/api/", Limit(per_minute=120, burst=60)),
 ]
 
@@ -67,7 +69,7 @@ class SecurityMiddleware:
         self.limits = limits if limits is not None else DEFAULT_LIMITS
         self.rate_limits = (rate_limits if rate_limits is not None else
                             os.environ.get("RATE_LIMITS", "on").lower() not in ("off", "0", "false", "no"))
-        self.proxy_hops = proxy_hops if proxy_hops is not None else int(os.environ.get("TRUSTED_PROXY_HOPS", "0"))
+        self.proxy_hops = proxy_hops if proxy_hops is not None else client_ip.proxy_hops()
         token = internal_token if internal_token is not None else os.environ.get("INTERNAL_API_TOKEN", "")
         self.internal_token = token.encode()
         self.max_body = max_body if max_body is not None else MAX_BODY_BYTES
@@ -76,14 +78,8 @@ class SecurityMiddleware:
         self._seen = 0
 
     # ── who is asking ──────────────────────────────────────────────────────
-    def client_ip(self, scope, headers: dict[bytes, bytes]) -> str:
-        peer = scope["client"][0] if scope.get("client") else "unknown"
-        if self.proxy_hops <= 0:
-            return peer
-        chain = [x.strip() for x in headers.get(b"x-forwarded-for", b"").decode("latin-1").split(",") if x.strip()]
-        if not chain:
-            return peer
-        return chain[-self.proxy_hops] if len(chain) >= self.proxy_hops else chain[0]
+    def client_ip(self, scope) -> str:
+        return client_ip.from_scope(scope, self.proxy_hops)
 
     def _internal(self, headers: dict[bytes, bytes]) -> bool:
         sent = headers.get(b"x-internal-token")
@@ -151,7 +147,7 @@ class SecurityMiddleware:
                 if too_big:
                     return await reply(*_json(413, "The request is too large."))
             if self.rate_limits and not self._internal(headers):
-                wait = self._take(self.client_ip(scope, headers), scope.get("path", ""))
+                wait = self._take(self.client_ip(scope), scope.get("path", ""))
                 if wait is not None:
                     return await reply(*_json(
                         429, "Too many requests from this connection. Wait a minute and try again.",

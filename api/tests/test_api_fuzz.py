@@ -246,6 +246,8 @@ def _bodies(user: dict) -> dict:
         "/api/complaints/in": loan,
         "/api/offers/compare": {**loan, "reset": {"rate": "0.0790", "fee": "25000"},
                                 "refinance": {"rate": "0.0760", "processing_fee": "10000"}},
+        "/api/outcomes": {"lender": "HDFC Bank", "outcome": "fixed_full", "days_taken": 12,
+                          "rate_before": "0.0925", "rate_after": "0.0870"},
     }
 
 
@@ -287,7 +289,9 @@ def test_hostile_values_never_crash(client, india_user_payload):
                 took = time.monotonic() - t
                 tried += 1
                 where = f"{ep} {'.'.join(map(str, path))}={str(v)[:20]!r}"
-                assert r.status_code in (200, 400, 422), f"{where}: {r.status_code} {r.text[:200]}"
+                # Outcome reports stop at 2 per bank a day, so later valid ones get a 429.
+                allowed = (200, 400, 422, 429) if ep == "/api/outcomes" else (200, 400, 422)
+                assert r.status_code in allowed, f"{where}: {r.status_code} {r.text[:200]}"
                 assert took < 3, f"{where}: {took:.1f}s"
                 if r.status_code == 422:
                     assert r.json()["detail"]["message"], where

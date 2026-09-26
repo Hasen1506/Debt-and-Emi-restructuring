@@ -9,9 +9,19 @@ os.environ.setdefault("RATES_FEED", "off")
 # The fuzz sends thousands of requests from one client; limits have their own tests.
 os.environ.setdefault("RATE_LIMITS", "off")
 
+from api import outcomes_store
 from api.main import app
 
 D = Decimal
+
+
+@pytest.fixture(autouse=True)
+def outcome_store(tmp_path):
+    """Every test gets its own empty outcome store, never api/data's."""
+    s = outcomes_store.OutcomeStore(outcomes_store.sqlite_engine(tmp_path / "outcomes.sqlite3"), key=b"test-key")
+    outcomes_store.set_store(s)
+    yield s
+    outcomes_store.set_store(None)
 
 
 @pytest.fixture()
