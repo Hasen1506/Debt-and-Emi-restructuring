@@ -1,0 +1,42 @@
+{
+  "_how_to_verify": "Paste the regulation's own wording into quoted_clause, set verified_against_text=True on the Citation in engine/citations.py, and run the tests. Every pattern in key_facts must appear in both the quote and the app's summary. Leave quoted_clause null until the text has actually been read.",
+  "EBLR_RESET": {
+    "where": [
+      "rbi.org.in, Notifications, 28 Nov 2025: RBI (Commercial Banks – Interest Rates on Advances) Directions, 2025 (DOR.RRC.REC.302/33-01-010/2025-26)",
+      "https://rbidocs.rbi.org.in/rdocs/notification/PDFs/NOTI53B238D8EB8CD847E7AE8031090F4DCE00.PDF (4 Sep 2019 circular, RBI/2019-20/53)"
+    ],
+    "key_facts": ["reset", "three months"],
+    "quoted_clause": null
+  },
+  "EBLR_SPREAD": {
+    "where": [
+      "rbi.org.in, Notifications, 28 Nov 2025: Interest Rates on Advances Directions, 2025",
+      "https://rbidocs.rbi.org.in/rdocs/notification/PDFs/NOTI53B238D8EB8CD847E7AE8031090F4DCE00.PDF"
+    ],
+    "key_facts": ["credit risk premium", "credit assessment", "three years"],
+    "quoted_clause": null
+  },
+  "EBLR_MANDATE": {
+    "where": ["https://rbidocs.rbi.org.in/rdocs/notification/PDFs/NOTI53B238D8EB8CD847E7AE8031090F4DCE00.PDF"],
+    "key_facts": ["October", "2019", "external benchmark", "mutually acceptable"],
+    "quoted_clause": null
+  },
+  "IO_ESCALATION": {
+    "where": [
+      "rbi.org.in, Notifications, 29 Dec 2023: RBI (Internal Ombudsman for Regulated Entities) Directions, 2023 (RBI/CEPD/2023-24/108)",
+      "RBI instructions of Jan 2026 on automatic escalation"
+    ],
+    "key_facts": ["Internal Ombudsman", "wholly or partly", "30 days"],
+    "quoted_clause": null
+  },
+  "RBIOS_ACCESS": {
+    "where": ["https://www.rbi.org.in/commonman/Upload/English/FAQs/PDFs/RBIOS01072026.pdf (RB-IOS 2026 FAQ)"],
+    "key_facts": ["30 days", "90 days"],
+    "quoted_clause": null
+  },
+  "RBIOS_COMPENSATION": {
+    "where": ["https://www.rbi.org.in/commonman/Upload/English/FAQs/PDFs/RBIOS01072026.pdf (RB-IOS 2026 FAQ)"],
+    "key_facts": ["30 lakh", "3 lakh"],
+    "quoted_clause": null
+  }
+}
