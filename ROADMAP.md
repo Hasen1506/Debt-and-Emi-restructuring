@@ -675,45 +675,74 @@ Tidy the code:
 Bigger bets that would turn this from a calculator into the app people
 open every month. Rough order: most leverage first.
 
+**Owner, 26 Sep:** none of these yet; decide later. Liked: Loan Check on
+autopilot, the payday checklist, the no-cost EMI checker, couples, and the
+stress test with insurance. Dropped: Ask the plan. Notes under each.
+
 - [ ] **No typing: pull the loans in.** India's Account Aggregator network
       (RBI-licensed, consent-based) returns real balances, rates and EMIs
       from the bank; a CIBIL/Experian report upload lists every loan and
       card with lender and outstanding. Setup becomes "connect and check".
       The same pull each month *is* the month close, and a rate that
       didn't fall after a repo cut shows up without the user noticing.
+      *Owner: pulling AA data needs a licence.* Right: only a regulated
+      Financial Information User can pull. Without one, start with the
+      user's own credit report (a PDF read on the device), and partner with
+      a regulated lender for AA later.
 - [ ] **Loan Check on autopilot.** After each RBI/Fed decision, check every
       repo-linked loan's next reset and send "HDFC should move you to
       8.25% on 1 Jan; here's the letter" before the bank forgets; chase at
       day 30, pre-fill the RBI CMS complaint at day 30+. The scorecard
       becomes a public "which banks pass on cuts" index journalists quote.
+      *Owner: yes.*
 - [ ] **Fee traps finder.** Spot charges the rules forbid or cap:
       foreclosure charges on floating-rate personal loans (RBI bars them),
       bundled loan insurance, penal interest after the Jan 2024 penal-
       charges rules, processing fees above the sanction letter. Each with
       its letter.
+      *Owner: how would it know, if the user never types the fee in?* It
+      can't scan in the background. It checks at the moments the user
+      already has the number: a foreclosure or prepayment quote (offers,
+      what-if), a statement or sanction letter uploaded, the credit report.
+      Setup could also ask one yes/no per loan ("insurance added to the
+      loan?"). So it rides on the credit-report upload above.
 - [ ] **Payday checklist.** On salary day, one screen: pay card X ₹A, part-
       prepay loan Y ₹B, ₹C to the fund, with UPI/AutoPay links and a tick
       per line. Ticks feed the progress view ("3 months ahead").
+      *Owner: yes.*
 - [ ] **No-cost EMI checker at checkout.** A share-sheet / browser add-on
       that reads the Amazon/Flipkart price and says what the EMI really
       costs against the cash discount (the new-debt engine already does
       the maths).
-- [ ] **Ask the plan.** A chat that answers "can I afford a ₹15L car?" or
+      *Owner: yes.*
+- [ ] ~~**Ask the plan.**~~ *Owner: no.* A chat that answers "can I afford a ₹15L car?" or
       "why the card first?" from the engine's own numbers, and writes the
       phone script for calling the bank. Hindi and other languages.
 - [ ] **Couples and households.** Two incomes, joint loans, who pays what;
       one shared plan and date.
+      *Owner: yes.*
 - [ ] **Tax season mode (Jan–Mar, India).** Old vs new regime *with* the
       loans (home-loan interest and principal favour the old regime),
       80C/80D against prepaying, the 87A cliff and marginal relief.
-- [ ] **Gold and idle-money arbitrage.** Gold at home → a 9% gold loan to
+- [ ] **Borrow against what you own.** Gold at home → a 9% gold loan to
       kill a 42% card; FD → overdraft against FD; the ranker already
       knows the tax and penalties.
+      *Owner: why only gold?* It shouldn't be. Every route to swap dear
+      unsecured debt for cheaper secured borrowing: gold loan, loan or
+      overdraft against an FD, loan against mutual funds or shares, top-up
+      home loan, PPF loan, insurance policy loan, card balance transfer;
+      in the US a HELOC, 401(k) loan or 0% balance-transfer card. Each shows
+      its risk too (gold auctioned, a margin call on pledged funds, the
+      home at stake, lost compounding).
 - [ ] **NRI remit timing.** Alert when the rupee weakens past a line:
       "remit now: your $ goes 3% further on the home loan".
 - [ ] **Stress test with insurance.** Job loss for 6 months, a rate spike,
       a hospital bill: how long the fund lasts, and whether term cover
       clears the loans if the earner dies.
+      *Owner: yes, as financial-health recs.* Months of runway if income
+      stops, term cover against the loans, health cover, job-loss cover.
+      Sizing the cover is fine; naming or selling particular policies needs
+      an IRDAI intermediary registration.
 - [ ] **A phone widget and a share card.** Debt-free date on the home screen;
       "34 → 31 months" card for WhatsApp, no amounts shown.
 - [ ] **Employer benefit (B2B).** Offer it through HR as financial
@@ -721,6 +750,12 @@ open every month. Rough order: most leverage first.
 - [ ] **Private by default.** Everything works offline on the device
       (PWA, encrypted local store); sync is opt-in. A trust edge over
       apps that sell leads.
+      *Owner: is offline possible?* Yes, in two steps. (1) A PWA that keeps
+      the last plan readable offline. (2) New numbers offline need the
+      engine in the browser: it uses only Python's standard library, so
+      Pyodide can run it as is (a download of a few MB, once), which keeps
+      one engine rather than a second copy of the maths in TypeScript.
+      Live rates and shared lender reports still need the network.
 
 ---
 
