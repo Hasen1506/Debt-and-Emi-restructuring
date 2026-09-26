@@ -4,12 +4,16 @@ import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Load .env before anything reads os.environ (engine, resend, etc).
 load_dotenv()
 
+from api import outcomes_store, rates_feed  # noqa: E402
+from api.security import SecurityMiddleware  # noqa: E402
 from api.db.database import db_enabled, init_db  # noqa: E402
 from api.routes import (  # noqa: E402
     simulation,
@@ -21,6 +25,10 @@ from api.routes import (  # noqa: E402
     restructuring,
     portfolio,
     rates,
+    complaints,
+    offers,
+    loan_check,
+    outcomes,
 )
 
 log = logging.getLogger(__name__)
@@ -29,7 +37,11 @@ log = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await outcomes_store.store().init()
+    rates_feed.start()
     yield
+    rates_feed.stop()
+    await outcomes_store.store().close()
 
 
 app = FastAPI(
@@ -43,6 +55,9 @@ app = FastAPI(
 _default_origins = "http://localhost:3000,http://127.0.0.1:3000"
 _origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", _default_origins).split(",") if o.strip()]
 
+# Size cap, security headers, rate limits. Added before CORS so CORS wraps
+# it and a 413 or 429 still reaches the browser readable.
+app.add_middleware(SecurityMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
@@ -50,6 +65,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Every 422 in one shape: {"detail": {"field", "message"}}.
+
+    The routes' own checks already answer like this (api/routes/loan_check.py
+    `bad`); schema errors now match, so the web client can show any of
+    them next to the field. The input is not echoed back.
+    """
+    errors = []
+    for e in exc.errors():
+        if e.get("type") == "json_invalid":
+            errors.append({"field": "", "message": "The request is not valid JSON."})
+            continue
+        field = ".".join(str(x) for x in e.get("loc", ()) if x != "body")
+        msg = str(e.get("msg", "Invalid value")).removeprefix("Value error, ")
+        errors.append({"field": field, "message": f"{field}: {msg}" if field else msg})
+    first = errors[0] if errors else {"field": "", "message": "The request could not be read."}
+    return JSONResponse(status_code=422, content={"detail": first, "errors": errors[:20]})
+
 
 app.include_router(simulation.router, prefix="/api")
 app.include_router(decisions.router, prefix="/api")
@@ -60,6 +97,10 @@ app.include_router(credit_score.router, prefix="/api")
 app.include_router(restructuring.router, prefix="/api")
 app.include_router(portfolio.router, prefix="/api")
 app.include_router(rates.router, prefix="/api")
+app.include_router(loan_check.router, prefix="/api")
+app.include_router(complaints.router, prefix="/api")
+app.include_router(offers.router, prefix="/api")
+app.include_router(outcomes.router, prefix="/api")
 
 # DB-bound routers — only mounted when DATABASE_URL is configured.
 # Skipping them on the Render free tier keeps the API up without a
@@ -76,4 +117,10 @@ else:
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "db": "enabled" if db_enabled() else "disabled"}
+    kind = outcomes_store.store().kind
+    return {
+        "status": "ok",
+        "db": "enabled" if db_enabled() else "disabled",
+        # "sqlite" on Render's free plan loses shared reports on every deploy.
+        "outcomes_storage": "database" if kind == "postgresql" else "local file",
+    }

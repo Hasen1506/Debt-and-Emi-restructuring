@@ -129,7 +129,7 @@ export function LedgerInsights({
 
   return (
     <LShell>
-      <main
+      <div
         style={{
           flex: 1,
           padding: '4px 0 0',
@@ -141,7 +141,7 @@ export function LedgerInsights({
       >
         <section>
           <LCli>
-            NOTES · ENGINE OUTPUT · {notes.length} ENTRIES · LAST UPDATED{' '}
+            NOTES · {notes.length} ENTRIES · LAST UPDATED{' '}
             {getCountryToday(profile.user.country)
               .toDateString()
               .toUpperCase()}
@@ -210,7 +210,7 @@ export function LedgerInsights({
           <LSectionHeader>ACTUALS · ACTIVITY LEDGER</LSectionHeader>
           <ActivityLedger user={profile.user} variant="ledger" />
         </section>
-      </main>
+      </div>
     </LShell>
   );
 }

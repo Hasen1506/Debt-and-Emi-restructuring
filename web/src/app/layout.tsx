@@ -1,13 +1,10 @@
 import type { Metadata } from 'next';
 import '@/styles/globals.css';
-import { loadThemeServer, type ThemeName } from '@/lib/theme';
 import { loadProfileServer } from '@/lib/user-store';
-import { StandardTopBar } from '@/components/chrome/StandardTopBar';
-import { EditorialMasthead } from '@/components/chrome/EditorialMasthead';
 import { LMasthead } from '@/components/ledger/LMasthead';
 import { LFooter } from '@/components/ledger/primitives';
 import { SessionHydrator } from '@/lib/server-sync';
-import type { Country } from '@/lib/api';
+import { ProfileProvider } from '@/lib/use-profile';
 
 export const metadata: Metadata = {
   title: 'FinOptima — Debt & EMI Optimiser',
@@ -16,40 +13,29 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [theme, profile] = await Promise.all([
-    loadThemeServer(),
-    loadProfileServer(),
-  ]);
+  const profile = await loadProfileServer();
   return (
-    <html lang="en" data-theme={theme}>
+    <html lang="en">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        {/* One family: the ledger look is IBM Plex Mono throughout. */}
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Spectral:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
         />
       </head>
       <body>
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
         <SessionHydrator />
-        <Chrome theme={theme} country={profile.user.country} />
-        <main
-          className="app-shell"
-          style={{
-            paddingTop: theme === 'ledger' ? 18 : 24,
-            paddingBottom: theme === 'ledger' ? 32 : 80,
-          }}
-        >
-          {children}
+        <LMasthead country={profile.user.country} />
+        <main id="main" tabIndex={-1} className="app-shell" style={{ paddingTop: 18, paddingBottom: 32 }}>
+          <ProfileProvider profile={profile}>{children}</ProfileProvider>
         </main>
-        {theme === 'ledger' && <LFooter />}
+        <LFooter />
       </body>
     </html>
   );
-}
-
-function Chrome({ theme, country }: { theme: ThemeName; country: Country }) {
-  if (theme === 'editorial') return <EditorialMasthead theme={theme} country={country} />;
-  if (theme === 'ledger') return <LMasthead theme={theme} country={country} />;
-  return <StandardTopBar theme={theme} />;
 }

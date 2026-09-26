@@ -20,7 +20,7 @@ import type { ToolMeta } from '@/lib/tools';
 export function LedgerToolsIndex({ tools }: { tools: ToolMeta[] }) {
   return (
     <LShell>
-      <main
+      <div
         style={{
           flex: 1,
           padding: '4px 0 0',
@@ -58,7 +58,7 @@ export function LedgerToolsIndex({ tools }: { tools: ToolMeta[] }) {
                       letterSpacing: '0.1em',
                     }}
                   >
-                    {h}
+                    {h || <span className="sr-only">Open</span>}
                   </th>
                 ))}
               </tr>
@@ -93,7 +93,7 @@ export function LedgerToolsIndex({ tools }: { tools: ToolMeta[] }) {
             </tbody>
           </table>
         </section>
-      </main>
+      </div>
     </LShell>
   );
 }

@@ -135,7 +135,8 @@ export function SurplusWaterfall({ plan }: { plan: PlanData }) {
     creditScore: null,
     isLive: plan.profileIsLive,
   });
-  const surplus = plan.surplus;
+  // The engine's figure, so the header is the total the slices add up to.
+  const surplus = plan.surplusAllocation?.surplus ?? plan.surplus;
   const ccy = plan.displayCurrency;
   const efSplit = Number(plan.efSplit || '0');
   const efBalance = Number(plan.user.efund_balance || '0');

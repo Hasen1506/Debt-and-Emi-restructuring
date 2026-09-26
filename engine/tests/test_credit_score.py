@@ -124,3 +124,21 @@ def test_home_loan_spread_smaller_than_personal():
     home_spread = home_fair - advertised
     personal_spread = personal_fair - advertised
     assert home_spread < personal_spread
+
+
+# ─── Bugs found 26 Sep 2026 ──────────────────────────────────────────────────
+
+def test_rising_utilisation_costs_points():
+    """10% → 70% used to predict 0; it mirrors the same-size drop."""
+    up = predict_impact(ScoreAction.UTILISATION_DROP, 760,
+                        utilisation_from=D("0.10"), utilisation_to=D("0.70"))
+    down = predict_impact(ScoreAction.UTILISATION_DROP, 760,
+                          utilisation_from=D("0.70"), utilisation_to=D("0.10"))
+    assert up.delta_high < 0
+    assert (up.delta_low, up.delta_high) == (-down.delta_high, -down.delta_low)
+    assert "rises" in up.rationale
+
+
+def test_paying_off_an_empty_card_changes_nothing():
+    r = predict_impact(ScoreAction.CARD_PAID_OFF, 760, utilisation_from=D("0"))
+    assert (r.delta_low, r.delta_high) == (0, 0)

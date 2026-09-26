@@ -23,8 +23,9 @@
  */
 import Decimal from 'decimal.js';
 import type { Country, FilingStatusUS, IncomeType, TaxRegimeIN } from './api';
+import TAX from './tax-tables.json';
 
-export const TAX_SLABS_AS_OF = 'FY 2026-27 (IN) · TY 2026 (US)';
+export const TAX_SLABS_AS_OF = TAX.as_of;
 
 interface Slab {
   /** Income bound at the START of this slab (the previous slab's end). */
@@ -39,82 +40,42 @@ interface Slab {
 // Source: Income Tax Act, Section 115BAC. Revised slabs effective FY 25-26
 // onwards (Budget 2025) continue into FY 26-27. Standard deduction ₹75k
 // for salaried; rebate u/s 87A makes income up to ₹12L effectively tax-free.
-const IN_NEW_SLABS: Slab[] = [
-  { from: 0, to: 300_000, rate: 0 },
-  { from: 300_000, to: 700_000, rate: 0.05 },
-  { from: 700_000, to: 1_000_000, rate: 0.10 },
-  { from: 1_000_000, to: 1_200_000, rate: 0.15 },
-  { from: 1_200_000, to: 1_500_000, rate: 0.20 },
-  { from: 1_500_000, to: Infinity, rate: 0.30 },
-];
-const IN_NEW_STANDARD_DEDUCTION = 75_000;
-const IN_NEW_REBATE_87A_CAP = 1_200_000;     // income below which liability = 0
-
-// ─── India · Old regime · FY 26-27 ─────────────────────────────────────────
-// Section 80C/80D/24/etc. deductions available; we surface only the slabs
-// here, and let TaxBreakdown handle the per-deduction caps separately.
-const IN_OLD_SLABS: Slab[] = [
-  { from: 0, to: 250_000, rate: 0 },
-  { from: 250_000, to: 500_000, rate: 0.05 },
-  { from: 500_000, to: 1_000_000, rate: 0.20 },
-  { from: 1_000_000, to: Infinity, rate: 0.30 },
-];
-const IN_OLD_STANDARD_DEDUCTION = 50_000;
-const IN_OLD_REBATE_87A_CAP = 500_000;       // income below which liability = 0
-
-// India surcharge + cess. Applied on top of slab tax for high-income earners.
-const IN_HEALTH_EDU_CESS = 0.04;             // 4% cess on (tax + surcharge)
-function inSurchargeRate(taxableIncome: number): number {
-  // Surcharge slabs (same under both regimes for FY 26-27).
-  if (taxableIncome > 50_000_000) return 0.37;
-  if (taxableIncome > 20_000_000) return 0.25;
-  if (taxableIncome > 10_000_000) return 0.15;
-  if (taxableIncome > 5_000_000) return 0.10;
-  return 0;
+// One source: the engine's tables, exported by
+// scripts/export_tax_tables.py. The copies that used to live here were
+// labelled FY 2026-27 but held the 2024 India slabs and 2025 US figures.
+type SlabRows = Array<[number | null, number]>;
+function toSlabs(rows: SlabRows): Slab[] {
+  let from = 0;
+  return rows.map(([limit, rate]) => {
+    const to = limit ?? Infinity;
+    const slab = { from, to, rate };
+    from = to;
+    return slab;
+  });
 }
 
-// ─── US · TY 2026 federal slabs by filing status ──────────────────────────
-// Source: IRS Rev. Proc. 2025-32 inflation adjustments for 2026.
-//
-// MFJ slabs are roughly 2× single (TCJA "marriage penalty fix" sticks until
-// 2026 sunset rules kick in for 2027+). HoH sits between single and MFJ in
-// the lower brackets, then merges with single at the top.
-const US_SINGLE_SLABS: Slab[] = [
-  { from: 0, to: 11_925, rate: 0.10 },
-  { from: 11_925, to: 48_475, rate: 0.12 },
-  { from: 48_475, to: 103_350, rate: 0.22 },
-  { from: 103_350, to: 197_300, rate: 0.24 },
-  { from: 197_300, to: 250_525, rate: 0.32 },
-  { from: 250_525, to: 626_350, rate: 0.35 },
-  { from: 626_350, to: Infinity, rate: 0.37 },
-];
-const US_MFJ_SLABS: Slab[] = [
-  { from: 0, to: 23_850, rate: 0.10 },
-  { from: 23_850, to: 96_950, rate: 0.12 },
-  { from: 96_950, to: 206_700, rate: 0.22 },
-  { from: 206_700, to: 394_600, rate: 0.24 },
-  { from: 394_600, to: 501_050, rate: 0.32 },
-  { from: 501_050, to: 751_600, rate: 0.35 },
-  { from: 751_600, to: Infinity, rate: 0.37 },
-];
-const US_HOH_SLABS: Slab[] = [
-  { from: 0, to: 17_000, rate: 0.10 },
-  { from: 17_000, to: 64_850, rate: 0.12 },
-  { from: 64_850, to: 103_350, rate: 0.22 },
-  { from: 103_350, to: 197_300, rate: 0.24 },
-  { from: 197_300, to: 250_500, rate: 0.32 },
-  { from: 250_500, to: 626_350, rate: 0.35 },
-  { from: 626_350, to: Infinity, rate: 0.37 },
-];
-const US_STANDARD_DEDUCTION: Record<FilingStatusUS, number> = {
-  single: 15_000,
-  mfj: 30_000,
-  hoh: 22_500,
-};
+const IN_NEW_SLABS: Slab[] = toSlabs(TAX.in.new.slabs as SlabRows);
+const IN_NEW_STANDARD_DEDUCTION = TAX.in.new.standard_deduction;
+const IN_NEW_REBATE_87A_CAP = TAX.in.new.rebate_87a.threshold; // income below which liability = 0
 
-// ────────────────────────────────────────────────────────────────────────────
-// Public API
-// ────────────────────────────────────────────────────────────────────────────
+const IN_OLD_SLABS: Slab[] = toSlabs(TAX.in.old.slabs as SlabRows);
+const IN_OLD_STANDARD_DEDUCTION = TAX.in.old.standard_deduction;
+const IN_OLD_REBATE_87A_CAP = TAX.in.old.rebate_87a.threshold; // income below which liability = 0
+
+const IN_HEALTH_EDU_CESS = TAX.in.cess;      // cess on (tax + surcharge)
+const IN_SURCHARGE: Slab[] = toSlabs(TAX.in.surcharge as SlabRows);
+export function inSurchargeRate(taxableIncome: number): number {
+  return IN_SURCHARGE.find((b) => taxableIncome <= b.to)?.rate ?? 0;
+}
+
+const US_SINGLE_SLABS: Slab[] = toSlabs(TAX.us.single.slabs as SlabRows);
+const US_MFJ_SLABS: Slab[] = toSlabs(TAX.us.mfj.slabs as SlabRows);
+const US_HOH_SLABS: Slab[] = toSlabs(TAX.us.hoh.slabs as SlabRows);
+export const US_STANDARD_DEDUCTION: Record<FilingStatusUS, number> = {
+  single: TAX.us.single.standard_deduction,
+  mfj: TAX.us.mfj.standard_deduction,
+  hoh: TAX.us.hoh.standard_deduction,
+};
 
 export interface BracketInfo {
   /** Marginal rate the user falls into, as a decimal (e.g. 0.30). */
@@ -156,8 +117,8 @@ function pickSlabs(
       // Schedule C (business deductions reduce the income BEFORE bracket
       // calc). For our purposes — surplus math — we apply std deduction
       // for salaried, zero for SE.
-      standardDeduction:
-        incomeType === 'salaried' ? US_STANDARD_DEDUCTION[status] : 0,
+      // Every US filer gets the standard deduction, not just employees.
+      standardDeduction: US_STANDARD_DEDUCTION[status],
       rebate87ACap: 0,           // no equivalent in US
     };
   }
@@ -226,48 +187,59 @@ export function computeAnnualTax(
   filingStatus?: FilingStatusUS,
 ): Decimal {
   if (!Number.isFinite(grossIncome) || grossIncome <= 0) return new Decimal(0);
-  const { slabs, standardDeduction, rebate87ACap } = pickSlabs(country, regime, incomeType, filingStatus);
+  const { standardDeduction } = pickSlabs(country, regime, incomeType, filingStatus);
   const taxable = Math.max(0, grossIncome - standardDeduction);
+  return country === 'IN'
+    ? incomeTaxIN(taxable, regime === 'old' ? 'old' : 'new')
+    : federalTaxUS(taxable, filingStatus ?? 'single');
+}
 
-  // Walk slabs, taxing each layer at its rate.
+function slabTax(taxable: number, slabs: Slab[]): Decimal {
   let tax = new Decimal(0);
   for (const slab of slabs) {
     if (taxable <= slab.from) break;
     const layer = Math.min(taxable, slab.to) - slab.from;
     tax = tax.add(new Decimal(layer).mul(slab.rate));
   }
-
-  if (country === 'IN') {
-    // Rebate u/s 87A — full waiver when taxable income ≤ cap. This is
-    // how the new regime stays "tax-free up to ₹12L" despite slabs
-    // starting at ₹3L.
-    if (rebate87ACap > 0 && taxable <= rebate87ACap) {
-      tax = new Decimal(0);
-    }
-    // Surcharge for high-income earners (10/15/25/37%).
-    const surcharge = inSurchargeRate(taxable);
-    if (surcharge > 0) tax = tax.mul(1 + surcharge);
-    // Health & Education cess (4%) on (tax + surcharge) — always applies.
-    tax = tax.mul(1 + IN_HEALTH_EDU_CESS);
-  }
   return tax;
 }
 
-/**
- * Convenience — marginal rate as a decimal string for use as the
- * simulate-plan `marginal_rate` parameter. Returns null when bracket
- * can't be derived (caller falls back to the manual marginal_rate
- * field on UserPayload).
- */
-export function deriveMarginalRate(
-  country: Country,
-  regime: TaxRegimeIN | null | undefined,
-  incomeType: IncomeType,
-  grossIncome: number,
-): string | null {
-  const info = classifyBracket(country, regime, incomeType, grossIncome);
-  if (!info) return null;
-  return info.marginalRate.toFixed(2);
+/** India tax on taxable income, as engine/tax/india.py `income_tax`:
+ *  slab tax, less the 87A rebate, plus surcharge, plus 4% cess. */
+export function incomeTaxIN(taxable: number, regime: TaxRegimeIN): Decimal {
+  const t = regime === 'old' ? TAX.in.old : TAX.in.new;
+  let tax = slabTax(taxable, regime === 'old' ? IN_OLD_SLABS : IN_NEW_SLABS);
+  if (taxable <= t.rebate_87a.threshold) {
+    tax = Decimal.max(0, tax.minus(t.rebate_87a.max));
+  } else if (regime !== 'old') {
+    // Marginal relief (new regime), as the engine: just above the ₹12L
+    // line the tax can't exceed the income above it.
+    tax = Decimal.min(tax, taxable - t.rebate_87a.threshold);
+  }
+  return tax.mul(1 + inSurchargeRate(taxable)).mul(1 + IN_HEALTH_EDU_CESS);
+}
+
+/** US federal tax on taxable income (no state). */
+export function federalTaxUS(taxable: number, filing: FilingStatusUS): Decimal {
+  const slabs = filing === 'mfj' ? US_MFJ_SLABS : filing === 'hoh' ? US_HOH_SLABS : US_SINGLE_SLABS;
+  return slabTax(taxable, slabs);
+}
+
+/** India marginal rate as engine/tax/india.py `marginal_rate`:
+ *  slab rate × (1 + surcharge) × (1 + cess), and 0 at or below the 87A
+ *  line, where the rebate cancels the tax. */
+export function marginalRateIN(taxable: number, regime: TaxRegimeIN): number {
+  const t = regime === 'old' ? TAX.in.old : TAX.in.new;
+  if (taxable <= t.rebate_87a.threshold) return 0;
+  const slabs = regime === 'old' ? IN_OLD_SLABS : IN_NEW_SLABS;
+  const slab = slabs.find((s) => taxable <= s.to) ?? slabs[slabs.length - 1];
+  return slab.rate * (1 + inSurchargeRate(taxable)) * (1 + IN_HEALTH_EDU_CESS);
+}
+
+/** US federal marginal rate. */
+export function marginalRateUS(taxable: number, filing: FilingStatusUS): number {
+  const slabs = filing === 'mfj' ? US_MFJ_SLABS : filing === 'hoh' ? US_HOH_SLABS : US_SINGLE_SLABS;
+  return (slabs.find((s) => taxable <= s.to) ?? slabs[slabs.length - 1]).rate;
 }
 
 /**

@@ -19,8 +19,9 @@
 
 import { useMemo, useState } from 'react';
 import { Field, InfoTip, Select } from '@/components/ToolPrimitives';
+import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { formatCurrency } from '@/lib/api';
-import { loadProfileClient } from '@/lib/user-store';
+import { useStoredProfile } from '@/lib/use-profile';
 import { userDefaultCurrency } from '@/lib/currency';
 import { deriveMetrics } from '@/lib/derived';
 import { summariseDeductions } from '@/lib/deductions';
@@ -37,6 +38,7 @@ import {
   totalsByGoal,
 } from '@/lib/goal-contributions';
 import { computeGoalSlip, materialSlips } from '@/lib/goal-slip';
+import { fitColumns } from '@/lib/grid';
 
 const TYPE_OPTIONS: { value: PurchaseType; label: string }[] = [
   { value: 'home', label: 'Home' },
@@ -57,7 +59,7 @@ function nextSixMonths(): string {
 }
 
 export function PurchaseTool() {
-  const profile = useMemo(() => loadProfileClient(), []);
+  const profile = useStoredProfile();
   const country = profile.user.country as 'IN' | 'US';
   const ccy = userDefaultCurrency(country);
   const fmt = (v: number) => formatCurrency(v.toFixed(0), ccy);
@@ -203,7 +205,7 @@ export function PurchaseTool() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: fitColumns(3, 140),
           gap: 12,
         }}
       >
@@ -220,10 +222,12 @@ export function PurchaseTool() {
           hint="Out-the-door cost"
           kind="decimal"
         />
-        <Field
-          label="Target month (YYYY-MM)"
+        <MonthYearPicker
+          label="Target month"
           value={targetMonth}
           onChange={setTargetMonth}
+          minYear={new Date().getFullYear()}
+          maxYear={new Date().getFullYear() + 10}
           hint="When you need to buy"
         />
         <Field
@@ -392,7 +396,7 @@ function AnalysisPanel({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: fitColumns(3, 140),
           gap: 10,
         }}
       >
@@ -444,7 +448,7 @@ function AnalysisPanel({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateColumns: fitColumns(3, 140),
               gap: 8,
               fontSize: 12,
             }}

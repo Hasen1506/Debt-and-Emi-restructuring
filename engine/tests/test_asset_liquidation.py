@@ -60,15 +60,16 @@ def test_post_finance_act_2024_flat_125_no_indexation():
     """Property bought after 23 Jul 2024 → flat 12.5%, no indexation. CII not needed."""
     asset = _asset(date(2024, 8, 1), purchase_price=D("5000000"))
     net, tax = india_ltcg_tax(asset, sale_price=D("10000000"),
-                               state="Maharashtra", taxable_income=D("1500000"))
-    # selling cost MH = 6% + 1% reg + 1.5% brokerage = 8.5%
-    # gross = 10000000 × 0.915 = 9150000
-    # gain = 9150000 − 5000000 = 4150000
-    # ltcg_base = 4150000 × 0.125 = 518750
+                               state="Maharashtra", taxable_income=D("1500000"),
+                               today=date(2026, 9, 26))
+    # seller pays brokerage only (1.5%); stamp duty + registration are the buyer's
+    # gross = 10000000 × 0.985 = 9850000
+    # gain = 9850000 − 5000000 = 4850000
+    # ltcg_base = 4850000 × 0.125 = 606250
     # surcharge for ₹15L income = 0
-    # tax = 518750 × 1.04 = 539500
-    assert tax == D("539500.00000")
-    assert net == D("9150000") - D("539500.00000")
+    # tax = 606250 × 1.04 = 630500
+    assert tax == D("630500")
+    assert net == D("9850000") - D("630500")
 
 
 def test_pre_finance_act_picks_lower_of_two_methods():
@@ -78,24 +79,25 @@ def test_pre_finance_act_picks_lower_of_two_methods():
                                state="Maharashtra", taxable_income=D("1500000"),
                                purchase_fy="2015-16", current_fy="2024-25")
     # CII 2015-16 = 254; 2024-25 = 363
-    # gross = 9,150,000
-    # option_a (no index) = (9150000 − 5000000) × 0.125 = 518,750
+    # gross = 9,850,000 (1.5% brokerage)
+    # option_a (no index) = (9850000 − 5000000) × 0.125 = 606,250
     # indexed_cost = 5000000 × 363 / 254 ≈ 7,145,669
-    # option_b (indexed) = max(0, 9150000 − 7145669) × 0.20 ≈ 400,866
-    # → option_b is lower; tax_base ≈ 400,866; with 4% cess ≈ 416,901
-    assert tax < D("418000")
-    assert tax > D("415000")
+    # option_b (indexed) = max(0, 9850000 − 7145669) × 0.20 ≈ 540,866
+    # → option_b is lower; with 4% cess ≈ 562,501
+    assert tax < D("563000")
+    assert tax > D("562000")
 
 
 def test_ltcg_surcharge_cap_25_for_super_high_income():
     """LTCG surcharge is capped at 25% even for >₹5Cr filers (where normal cap is 37%)."""
     asset = _asset(date(2024, 8, 1), purchase_price=D("5000000"))
     net, tax = india_ltcg_tax(asset, sale_price=D("10000000"),
-                               state="Maharashtra", taxable_income=D("60000000"))
-    # gain = 4,150,000; ltcg_base = 518,750
+                               state="Maharashtra", taxable_income=D("60000000"),
+                               today=date(2026, 9, 26))
+    # gain = 4,850,000; ltcg_base = 606,250
     # surcharge capped at 25% (NOT 37%)
-    # tax = 518,750 × 1.25 × 1.04
-    expected = D("518750") * D("1.25") * D("1.04")
+    # tax = 606,250 × 1.25 × 1.04
+    expected = D("606250") * D("1.25") * D("1.04")
     assert tax == expected
 
 
@@ -848,3 +850,80 @@ def test_us_debt_fund_nudges_user_to_flag_muni_when_unset():
         state_marginal_rate=D("0"),
     )
     assert any("us_is_tax_exempt_muni" in c for c in r.caveats)
+
+
+# ─── Bugs found 26 Sep 2026 ──────────────────────────────────────────────────
+
+def test_property_held_24_months_or_less_is_short_term_at_slab():
+    """A flat held 13 months was taxed at the 12.5% LTCG rate; it's
+    short-term, so the gain is taxed at the slab rate (incl. cess)."""
+    asset = _asset(date(2025, 9, 1), purchase_price=D("9000000"))
+    net, tax = india_ltcg_tax(asset, sale_price=D("10000000"),
+                               state="Maharashtra", taxable_income=D("1800000"),
+                               marginal_rate=D("0.312"), today=date(2026, 9, 26))
+    # gross 9,850,000; gain 850,000 × 31.2% = 265,200
+    assert tax == D("850000") * D("0.312")
+    assert net == D("9850000") - tax
+
+
+def test_property_long_term_only_after_24_whole_months():
+    asset = _asset(date(2024, 9, 26), purchase_price=D("9000000"))
+    kw = dict(sale_price=D("10000000"), state="", taxable_income=D("1800000"),
+              marginal_rate=D("0.312"))
+    _, on_anniversary = india_ltcg_tax(asset, today=date(2026, 9, 26), **kw)
+    _, day_after = india_ltcg_tax(asset, today=date(2026, 9, 27), **kw)
+    assert on_anniversary == D("850000") * D("0.312")          # still short-term
+    assert day_after == D("850000") * D("0.125") * D("1.04")   # long-term
+
+
+def test_real_estate_proceeds_without_state_are_not_blocked():
+    """The seller's cost is brokerage, so a missing state no longer blocks it."""
+    a = _asset(date(2018, 6, 1))
+    a.state = None
+    r = compute_liquidation_proceeds(a, today=date(2026, 9, 26), country=Country.IN,
+                                     taxable_income=D("1500000"))
+    assert not r.is_blocked
+    assert r.transaction_costs == D("10000000") * D("0.015")
+
+
+def test_short_term_property_caveat_says_slab():
+    a = _asset(date(2025, 9, 1), purchase_price=D("9000000"))
+    r = compute_liquidation_proceeds(a, today=date(2026, 9, 26), country=Country.IN,
+                                     taxable_income=D("1800000"), marginal_rate=D("0.312"))
+    assert any("slab rate" in c for c in r.caveats)
+    assert not any("54EC" in c for c in r.caveats)
+
+
+def test_slab_rate_taxes_do_not_add_cess_twice():
+    """The profile's marginal rate already includes cess (31.2%, not 30%)."""
+    today = date(2026, 9, 26)
+    debt_mf = Asset(asset_type="debt_mf", purchase_price=D("400000"),
+                    purchase_date=date(2024, 1, 1), current_market_value=D("500000"))
+    r = compute_liquidation_proceeds(debt_mf, today=today, marginal_rate=D("0.312"))
+    assert r.tax_owed == D("100000") * D("0.312")
+
+    gold = Asset(asset_type="gold_physical", purchase_price=D("100000"),
+                 purchase_date=date(2026, 1, 1), current_market_value=D("200000"))
+    r = compute_liquidation_proceeds(gold, today=today, marginal_rate=D("0.312"))
+    gain = D("200000") * (1 - D("0.03")) - D("100000")
+    assert r.tax_owed == gain * D("0.312")
+
+
+def test_fd_with_no_premature_penalty_stays_at_zero():
+    fd = Asset(asset_type="fixed_deposit", purchase_price=D("100000"),
+               purchase_date=date(2025, 1, 1), current_market_value=D("100000"),
+               fd_premature_penalty_pct=D("0"))
+    r = compute_liquidation_proceeds(fd, today=date(2026, 9, 26))
+    assert r.penalty == 0
+    assert r.net_proceeds == D("100000")
+
+
+def test_hold_vs_sell_compounds_fractional_years():
+    from engine.asset_liquidation import hold_vs_sell_wealth
+    half = hold_vs_sell_wealth(
+        asset_value=D("100"), asset_nominal_return=D("0.21"), holding_cost_rate=D("0"),
+        net_proceeds=D("100"), debt_balance=D("0"), debt_effective_rate=D("0.4"),
+        surplus_reinvestment_yield=D("0"), horizon_years=D("0.5"),
+    )
+    # 100 × 1.21^0.5 = 110; int(0.5) used to make this 100
+    assert abs(half["wealth_hold"] - D("110")) < D("0.0001")

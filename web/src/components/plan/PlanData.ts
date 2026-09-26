@@ -1,8 +1,9 @@
 /**
- * Shared shape produced by Plan page's data loader and consumed by every
- * theme variant (ExistingPlan, EditorialPlan, LedgerPlan).
+ * Shared shape produced by the Plan page's data loader (load-plan.ts) and
+ * consumed by LedgerPlan and the home page.
  */
 import type {
+  PlanRunArgs,
   RestructuringOpportunity,
   UserPayload,
 } from '@/lib/api';
@@ -26,7 +27,11 @@ import type { CurrencyCode, PerCurrencyMetrics } from '@/lib/currency';
  */
 export interface MonthlyPaymentBreakdown {
   month: number;
+  /** Per-loan payment in each loan's own currency. */
   perLoan: Record<number, string>;
+  /** Total paid and the part above the minimums, in the user's currency. */
+  totalPaid: number;
+  extraPaid: number;
 }
 
 /**
@@ -98,6 +103,11 @@ export interface PlanData {
   /** Month-by-month per-loan payments for the active strategy. Empty when
    *  the engine call falls back to mock data (offline mode). */
   monthlyPayments: MonthlyPaymentBreakdown[];
+  /** The settings this plan ran with (user as adjusted for activity,
+   *  goals, EF split, planned events...), for the what-if panel. */
+  runArgs: PlanRunArgs | null;
+  /** Month-1 payment per loan on the pay-minimums run (loan index → amount). */
+  firstMonthMinimums: Record<number, string>;
   /** Summary of activity-ledger deltas applied to the projection. Null
    *  when no missed/partial events are recorded. */
   activityImpact: ActivityImpact | null;
@@ -124,9 +134,6 @@ export interface PlanData {
    *  0.30 preserves the pre-slider behaviour. Read from the ef_split
    *  cookie at request time. */
   efSplit: string;
-  /** User's chosen plan-start (YYYY-MM), empty = "today". Anchors the
-   *  simulation_start_month and is surfaced via the PlanStartPicker. */
-  planStart: string;
   /** True when at least one active goal is being routed surplus by the
    *  engine, meaning EF top-up is paused for the current horizon.
    *  Drives an assumption chip + the EF slider's disabled state.

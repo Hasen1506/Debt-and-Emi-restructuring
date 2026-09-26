@@ -26,6 +26,24 @@ services:
         value: .
       - key: CORS_ORIGINS
         sync: false                # Fill in the dashboard: e.g. https://finoptima-web.onrender.com
+      # Rate limits (api/security.py): the web server's own calls send this
+      # token and are not limited. Generated here, copied to the web below.
+      - key: INTERNAL_API_TOKEN
+        generateValue: true
+      # Render's proxy appends the client address to X-Forwarded-For; read
+      # one hop back. Confirm after the first deploy (ROADMAP 6.4).
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
+      # Shared outcome reports (api/outcomes_store.py) keep a keyed hash of
+      # the client address for the daily limit, never the address itself.
+      - key: OUTCOMES_IP_KEY
+        generateValue: true
+      # "labelled" shows the lender scorecard marked unverified; "hidden"
+      # keeps it back until reports can be verified (owner decision).
+      - key: SCORECARD_MODE
+        value: labelled
+      # Without DATABASE_URL, outcome reports go to a local SQLite file,
+      # which the free plan wipes on every deploy.
       # Uncomment when you provision a Postgres add-on:
       # - key: DATABASE_URL
       #   fromDatabase:
@@ -45,6 +63,11 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      - key: INTERNAL_API_TOKEN
+        fromService:
+          type: web
+          name: finoptima-api
+          envVarKey: INTERNAL_API_TOKEN
       - key: NEXT_PUBLIC_API_BASE_URL
         sync: false                # Fill in the dashboard: e.g. https://finoptima-api.onrender.com
       - key: NEXT_PUBLIC_DISABLE_AUTH

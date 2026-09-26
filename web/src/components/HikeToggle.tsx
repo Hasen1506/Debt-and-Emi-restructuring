@@ -14,8 +14,8 @@ import { writeHikeModelingClient, type HikeModeling } from '@/lib/hike-modeling'
 import { ThemedSegmentedControl } from '@/components/themed/ThemedSegmentedControl';
 
 const OPTIONS: { value: HikeModeling; label: string }[] = [
-  { value: 'on', label: 'Model hike' },
-  { value: 'off', label: 'Lock income' },
+  { value: 'on', label: 'Include' },
+  { value: 'off', label: 'Ignore' },
 ];
 
 const HELP_ON =
@@ -54,7 +54,7 @@ export function HikeToggle({
 
   const disabledReason = noHike
     ? variant === 'ledger'
-      ? 'no hike set — add one in setup to enable'
+      ? 'no pay rise set — add one in setup'
       : "You haven't set a hike rate in setup, so there's nothing to model. Add one to enable."
     : undefined;
 
@@ -64,7 +64,7 @@ export function HikeToggle({
         ? phasesSummary
           ? `${phasesSummary} · then ${hikeRatePct} fallback`
           : `${hikeRatePct} every ${hikeMonthLabel}`
-        : 'flat income across horizon'
+        : 'income stays flat'
       : active === 'on'
         ? phasesSummary
           ? `${HELP_ON} Phases: ${phasesSummary}. Years outside any phase use ${hikeRatePct}.`
@@ -74,7 +74,7 @@ export function HikeToggle({
   return (
     <ThemedSegmentedControl<HikeModeling>
       variant={variant}
-      label="Hike model"
+      label="Pay rises"
       options={OPTIONS}
       active={active}
       onPick={writeHikeModelingClient}

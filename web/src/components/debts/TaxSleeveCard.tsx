@@ -39,7 +39,6 @@ import {
   ThemedLabel,
 } from '@/components/themed/Themed';
 import type { ThemedTone } from '@/styles/theme-tokens';
-import type { ThemeName } from '@/lib/theme';
 
 const TAX_SLEEVE_TIP = (
   <>
@@ -71,10 +70,8 @@ const TAX_SLEEVE_TIP = (
 
 export function TaxSleeveCard({
   user,
-  variant,
 }: {
   user: UserPayload;
-  variant: ThemeName;
 }) {
   const [slice, setSlice] = useState<TaxSleeveSlice>({ paidInstallments: [] });
   const [ready, setReady] = useState(false);
@@ -110,12 +107,12 @@ export function TaxSleeveCard({
 
   if (!next) {
     return (
-      <Shell variant={variant} tone="accent" title="Tax sleeve · all clear">
-        <ThemedHeadline variant={variant}>
+      <Shell tone="accent" title="Tax sleeve · all clear">
+        <ThemedHeadline>
           Annual target {formatCurrency(String(annualTarget), currency)} — all 4
           installments paid.
         </ThemedHeadline>
-        <ThemedDetail variant={variant}>
+        <ThemedDetail>
           The next cycle starts on{' '}
           <strong>{country === 'IN' ? 'June 15' : 'April 15'}</strong> next
           fiscal year. We&apos;ll surface the reminder then.
@@ -142,15 +139,15 @@ export function TaxSleeveCard({
       : 'Tax sleeve';
 
   return (
-    <Shell variant={variant} tone={tone} title={title}>
-      <ThemedHeadline variant={variant}>
+    <Shell tone={tone} title={title}>
+      <ThemedHeadline>
         Annual target{' '}
         <strong>{formatCurrency(String(annualTarget), currency)}</strong>.{' '}
         {next.label}:{' '}
         <strong>{(next.cumulativePct * 100).toFixed(0)}%</strong> cumulative
         due ({formatCurrency(String(Math.round(cumulativeDue)), currency)}).
       </ThemedHeadline>
-      <ThemedDetail variant={variant}>
+      <ThemedDetail>
         <div>
           Already paid:{' '}
           <strong>
@@ -259,25 +256,21 @@ export function TaxSleeveCard({
 }
 
 function Shell({
-  variant,
   tone,
   title,
   children,
 }: {
-  variant: ThemeName;
   tone: ThemedTone;
   title: string;
   children: React.ReactNode;
 }) {
-  const upper = variant === 'ledger';
   return (
-    <ThemedContainer variant={variant} tone={tone} style={{ marginBottom: 14 }}>
+    <ThemedContainer tone={tone} style={{ marginBottom: 14 }}>
       <ThemedLabel
-        variant={variant}
         tone={tone}
         trailing={<InfoTip>{TAX_SLEEVE_TIP}</InfoTip>}
       >
-        {upper ? title.toUpperCase() : title}
+        {title.toUpperCase()}
       </ThemedLabel>
       {children}
     </ThemedContainer>

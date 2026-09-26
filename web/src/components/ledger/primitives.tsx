@@ -16,6 +16,8 @@
  */
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
+import { fitColumns } from '@/lib/grid';
 
 export const L_T = {
   bg: '#fbfaf3',
@@ -26,9 +28,9 @@ export const L_T = {
   faint: '#a8a8a3',
   rule: '#0a0a0a',
   ruleSoft: '#d8d6cd',
-  accent: '#c96442',
+  accent: '#ab4f30',       // 4.5:1 as text on bg and under white text (was #c96442)
   accentInk: '#8b3a1f',
-  positive: '#15803d',
+  positive: '#137a3a',     // 4.5:1 on the highlight rows too (was #15803d)
   negative: '#b91c1c',
   highlight: '#fff3a3',
   highlightSoft: '#fff8d3',
@@ -160,7 +162,10 @@ export function LSectionHeader({
         gap: 8,
       }}
     >
-      <span style={{ color: L_T.muted, fontWeight: 600 }}>$ {children}</span>
+      <h2 style={{ margin: 0, font: 'inherit', color: L_T.muted, fontWeight: 600 }}>
+        <span aria-hidden="true">$ </span>
+        {children}
+      </h2>
       {right}
     </div>
   );
@@ -192,6 +197,13 @@ export interface LKpiItem {
   tone?: string;
 }
 
+/** Up to `n` equal columns, dropping to fewer when a column would be
+ *  narrower than `minPx` (a 4-up strip on a phone gave 84 px cells, and
+ *  "₹1,05,000/MO" pushed the page sideways). */
+export function lGridColumns(n: number, minPx: number): string {
+  return fitColumns(n, minPx, 1);
+}
+
 export function LKpi({
   items,
   cols,
@@ -206,7 +218,7 @@ export function LKpi({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`,
+        gridTemplateColumns: lGridColumns(n, 140),
         gap: 1,
         background: L_T.ink,
         padding: 1,
@@ -230,6 +242,7 @@ export function LKpi({
               fontWeight: 700,
               color: m.tone ?? L_T.ink,
               letterSpacing: '-0.01em',
+              overflowWrap: 'anywhere',
             }}
           >
             {m.v}
@@ -297,7 +310,6 @@ export function LField({
               flex: 1,
               minWidth: 0,
               border: 'none',
-              outline: 'none',
               padding: 0,
               fontFamily: L_MONO,
               fontSize: 13,
@@ -404,6 +416,7 @@ export function LSlider({
   onChange,
   format,
   outcomes,
+  ariaLabel,
 }: {
   label: string;
   value: number;
@@ -413,6 +426,8 @@ export function LSlider({
   onChange?: (v: number) => void;
   format: (v: number) => string;
   outcomes: Array<{ label: string; value: string; tone?: 'pos' | 'neg' }>;
+  /** What a screen reader calls the slider; the visible label is terminal-speak. */
+  ariaLabel?: string;
 }) {
   const fill = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
   return (
@@ -465,6 +480,8 @@ export function LSlider({
             step={step}
             value={value}
             onChange={(e) => onChange(Number(e.target.value))}
+            aria-label={ariaLabel ?? label.replace(/^SET /, '').replace(/_/g, ' ').toLowerCase()}
+            aria-valuetext={format(value)}
             style={{
               position: 'absolute',
               inset: 0,
@@ -563,6 +580,9 @@ function writeTone(t: LTone) {
 }
 
 export function LFooter({ mobile }: { mobile?: boolean }) {
+  // The mode and calm toggles change only the home page; elsewhere they
+  // reloaded the page and nothing changed.
+  const onHome = (usePathname() || '/') === '/';
   const [mode, setMode] = useState<LMode>('SIMPLE');
   const [tone, setTone] = useState<LTone>('CALM');
   useEffect(() => {
@@ -582,8 +602,9 @@ export function LFooter({ mobile }: { mobile?: boolean }) {
     setTone(next);
     window.location.reload();
   }
+  if (!onHome) return null;
   return (
-    <div
+    <footer
       style={{
         borderTop: `1px solid ${L_T.ink}`,
         padding: mobile ? '8px 18px' : '10px 32px',
@@ -608,7 +629,7 @@ export function LFooter({ mobile }: { mobile?: boolean }) {
           DETAILED
         </LBracket>
       </span>
-    </div>
+    </footer>
   );
 }
 

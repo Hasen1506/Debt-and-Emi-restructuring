@@ -4,6 +4,7 @@
  * `formatINR` / `formatUSD` for display.
  */
 import Decimal from 'decimal.js';
+import { dec } from './safe-decimal';
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
@@ -139,7 +140,8 @@ export interface CashAccountPayload {
 
 /** Coarse age band — used for downstream nudges (retirement check at 50+,
  *  emergency-fund-first at <25). Never use exact age; the band is enough. */
-export type AgeBracket = 'under_25' | '25_35' | '35_50' | '50_plus';
+/** '50_plus' is 50–59 (it was "50+" before 60+ had its own bracket). */
+export type AgeBracket = 'under_25' | '25_35' | '35_50' | '50_plus' | '60_plus';
 
 export interface UserPayload {
   country: Country;
@@ -389,6 +391,10 @@ export interface TrajectoryPointRaw {
    *  prior-goal actual draws (which expire after their target dates)
    *  instead of a flat priorDraw approximation. */
   goal_contributions?: Record<string, string>;
+  /** All payments this month, in the user's currency. */
+  total_paid?: string;
+  /** The part above each loan's minimum (extra, cascade), user's currency. */
+  extra_paid?: string;
 }
 
 export interface GoalContributionRaw {
@@ -497,11 +503,17 @@ export interface NewDebtResponse {
 
 export interface WindfallResponse {
   loan_label: string;
+  /** Position in user.loans of the loan the money goes to; null when invested. */
+  loan_index?: number | null;
   amount: string;
   rationale: string;
+  /** Never negative. When investing wins, the interest given up. */
   interest_avoided: string;
   invest_instead: boolean;
   investment_name: string | null;
+  investment_return: string | null;
+  /** Windfall left after clearing the loan. */
+  leftover: string;
 }
 
 export interface QuickRecomputeResponse {
@@ -691,7 +703,15 @@ export interface RestructuringOpportunity {
   kind: RestructuringKind;
   headline: string;
   rationale: string;
+  /** Interest saved in the first 12 months, minus the one-time cost. The
+   *  same measure for every kind. */
   estimated_annual_saving: string;
+  /** Fee or switching cost paid up front. */
+  one_time_cost?: string;
+  /** Months of lower interest needed to earn back `one_time_cost`. */
+  breakeven_months?: number | null;
+  /** Refinance only: saving over the rest of the loan, after costs. */
+  lifetime_net_saving?: string | null;
   affected_loan_banks: string[];
   target_bank: string | null;
   target_rate: string;
@@ -737,12 +757,297 @@ export interface CrossBorderResponse {
   loan_emi_user_currency_y5: string;
 }
 
+// ─── Loan Check ─────────────────────────────────────────────────────────────
+
+export type LoanBenchmark = 'repo' | 'mclr' | 'base_rate' | 'unknown';
+
+export interface LoanCheckRequest {
+  lender?: string;
+  loan_start: string;               // "YYYY-MM"
+  start_rate?: string;              // fractions
+  start_benchmark_rate?: string;
+  start_spread?: string;
+  current_rate: string;
+  outstanding: string;
+  tenure_months_remaining: number;
+  emi?: string;
+  benchmark: LoanBenchmark;
+  last_reset?: string;              // "YYYY-MM"
+}
+
+export interface LoanCheckCitation {
+  rule: string;
+  requirement: string;
+  source: string;
+  verified_against_text: boolean;
+}
+
+export interface LoanCheckFinding {
+  kind: 'missed_rate_cut' | 'pricing_gap' | 'old_benchmark';
+  headline: string;
+  detail: string;
+  claimable: boolean;
+  rate_gap: string;
+  amount_this_year: string;
+  overcharged_so_far: string;
+  months_overcharged: number;
+  citations: LoanCheckCitation[];
+  next_step: string;
+}
+
+export interface LoanCheckResponse {
+  status: 'issues_found' | 'no_issue' | 'not_applicable';
+  summary: string;
+  findings: LoanCheckFinding[];
+  start_rate: string;
+  expected_rate: string | null;
+  current_rate: string;
+  repo_at_start: string | null;
+  repo_reference_now: string | null;
+  repo_today: string;
+  repo_changes_since_start: { date: string; old_rate: string; new_rate: string }[];
+  claim_amount: string;
+  amount_at_stake_this_year: string;
+  assumptions: string[];
+  rates_as_of: string;
+  rates_source: string;
+  stale_rates_warning: string | null;
+}
+
+export type ComplaintReply = 'none' | 'fixed' | 'partly' | 'rejected';
+
+/** Loan facts plus where the complaint has got to. No personal details:
+ *  letters come back with placeholders the browser fills in. */
+export interface ComplaintRequest extends LoanCheckRequest {
+  sent_on?: string;                 // "YYYY-MM-DD"
+  received_on?: string;
+  reply?: ComplaintReply;
+  reply_on?: string;
+  io_reviewed?: boolean;
+  bank_reference?: string;
+}
+
+export interface ComplaintLetter {
+  kind: 'grievance' | 'io_followup';
+  subject: string;
+  claim_amount: string;
+  citations: LoanCheckCitation[];
+  annexure: { month: string; should_be: string; charged: string; excess: string }[];
+  annexure_total: string;
+  /** The whole letter as plain text, placeholders included. */
+  text: string;
+}
+
+export interface ComplaintMilestone {
+  key: string;
+  label: string;
+  day: string;                      // "YYYY-MM-DD"
+  state: 'done' | 'due' | 'overdue' | 'upcoming' | 'missed';
+  note: string;
+}
+
+export interface ComplaintTimeline {
+  stage:
+    | 'awaiting_reply'
+    | 'internal_ombudsman'
+    | 'ombudsman_open'
+    | 'window_closed'
+    | 'fixed';
+  milestones: ComplaintMilestone[];
+  next_action: string;
+  days_left: number | null;
+  escalation_opens: string | null;
+  escalation_deadline: string | null;
+  notes: string[];
+}
+
+export interface OmbudsmanComplaint {
+  fields: { label: string; value: string; hint: string }[];
+  facts: string;
+  relief: string;
+  declarations: string[];
+  documents: string[];
+  opens: string | null;
+  deadline: string | null;
+  how_to_file: string[];
+  citations: LoanCheckCitation[];
+  claim_amount: string;
+}
+
+export interface ComplaintPlaceholders {
+  name: string;
+  account: string;
+  phone: string;
+  email: string;
+  address: string;
+  bank_reference: string;
+  bank_name: string;
+  optional_lines: string[];
+}
+
+export interface ComplaintResponse {
+  letter: ComplaintLetter;
+  timeline: ComplaintTimeline | null;
+  io_followup: ComplaintLetter | null;
+  ombudsman: OmbudsmanComplaint | null;
+  placeholders: ComplaintPlaceholders;
+}
+
+// ─── Offer comparison (the lender's reply) ─────────────────────────────────
+
+export interface ResetOfferIn {
+  rate: string;                     // fraction
+  fee?: string;                     // amount, or…
+  fee_percent?: string;             // …a fraction of the outstanding
+  fee_plus_gst?: boolean;
+}
+
+export interface RefinanceOfferIn {
+  rate: string;
+  lender?: string;
+  processing_fee?: string;
+  processing_fee_percent?: string;
+  fee_plus_gst?: boolean;
+  stamp_duty?: string;
+  legal_and_valuation?: string;
+  prepayment_charge?: string;
+  months?: number;
+}
+
+export type OfferMode = 'lower_emi' | 'same_emi';
+
+export interface OfferCompareRequest extends LoanCheckRequest {
+  reset?: ResetOfferIn;
+  refinance?: RefinanceOfferIn;
+  mode?: OfferMode;
+  horizon_months?: number;
+}
+
+export interface OfferOption {
+  key: 'keep' | 'keep_owed' | 'reset' | 'refinance';
+  label: string;
+  rate: string;
+  emi: string;
+  months: number;
+  last_payment: string;
+  upfront: { label: string; amount: string }[];
+  upfront_total: string;
+  interest_total: string;
+  cost_to_horizon: string;
+  saving: string;
+  break_even_month: number | null;
+  break_even_on: string | null;
+}
+
+export interface OfferCompareResponse {
+  options: OfferOption[];
+  baseline: 'keep' | 'keep_owed';
+  horizon_months: number;
+  verdict: 'keep' | 'reset' | 'refinance';
+  headline: string;
+  reason: string;
+  next_step: string;
+  warnings: string[];
+  notes: string[];
+  citations: LoanCheckCitation[];
+  entitled_rate: string | null;
+}
+
+// ─── shared lender outcomes (Phase 4) ──────────────────────────────────────
+
+export type OutcomeKind = 'fixed_full' | 'fixed_part' | 'refused' | 'no_reply';
+
+/** Only these facts are ever shared: no name, account, amount or date. */
+export interface OutcomeReportRequest {
+  lender: string;
+  outcome: OutcomeKind;
+  days_taken: number;
+  rate_before: string;
+  rate_after?: string;
+}
+
+export interface OutcomeReportResponse {
+  lender: string;
+  reports_for_lender: number;
+  min_reports: number;
+  message: string;
+}
+
+export interface LenderScore {
+  known: boolean;
+  lender_id: string | null;
+  lender: string | null;
+  reports: number;
+  min_reports: number;
+  shown: boolean;
+  hidden_reason: string | null;
+  headline: string | null;
+  fixed_in_full_pct: string | null;
+  fixed_any_pct: string | null;
+  median_days: string | null;
+  median_rate_cut: string | null;
+  counts: Partial<Record<OutcomeKind, number>>;
+  verified_reports: number;
+  label: string;
+  label_detail: string;
+}
+
+/** A 422 from an endpoint that answers `{detail: {field, message}}`. */
+export class ApiFieldError extends Error {
+  constructor(public field: string, message: string) {
+    super(message);
+  }
+}
+
+/**
+ * Calls made by the Next.js server (the /plan render calls the API for
+ * every user) identify themselves so the API does not rate-limit them
+ * together. INTERNAL_API_TOKEN is not a NEXT_PUBLIC_ variable, so it is
+ * never built into the browser bundle; in the browser this is empty.
+ */
+function serverHeaders(): Record<string, string> {
+  const token = typeof window === 'undefined' ? process.env.INTERNAL_API_TOKEN : undefined;
+  return token ? { 'X-Internal-Token': token } : {};
+}
+
+async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...serverHeaders() },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+    credentials: 'include',
+  });
+  if (res.status === 422) {
+    const data = await res.json().catch(() => null);
+    const d = data?.detail;
+    if (d && typeof d === 'object' && !Array.isArray(d) && typeof d.message === 'string') {
+      throw new ApiFieldError(String(d.field ?? ''), d.message);
+    }
+    throw new ApiFieldError('', 'Some of the details could not be read. Check the numbers and try again.');
+  }
+  if (res.status === 429) {
+    const data = await res.json().catch(() => null);
+    const m = data?.detail?.message;
+    throw new Error(
+      typeof m === 'string' ? m : 'Too many checks from this connection. Wait a minute and try again.',
+    );
+  }
+  if (res.status === 413) {
+    throw new Error('That is more than the app can check at once. Remove some entries and try again.');
+  }
+  if (!res.ok) {
+    throw new Error(`The server could not run the check (${res.status}). Try again in a minute.`);
+  }
+  return res.json() as Promise<T>;
+}
+
 // ─── thin fetch helper ──────────────────────────────────────────────────────
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
     cache: 'no-store',
     credentials: 'include',
@@ -758,6 +1063,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
+    headers: serverHeaders(),
     cache: 'no-store',
     credentials: 'include',
   });
@@ -768,7 +1074,7 @@ async function get<T>(path: string): Promise<T> {
 async function putJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
     cache: 'no-store',
     credentials: 'include',
@@ -786,64 +1092,20 @@ async function putJson<T>(path: string, body: unknown): Promise<T> {
 export const api = {
   health: () => get<{ status: string }>('/api/health'),
 
-  simulate: (req: {
-    user: UserPayload;
-    strategy?: Strategy;
-    horizon_months?: number;
-    matched_contribution?: string;
-    marginal_rate?: string;
-    simple_mode?: boolean;
-    /** Calendar month (1-12) corresponding to sim month 1. Anchors hike
-     *  firing to the user's actual today. Defaults to 1 (Jan) server-side. */
-    simulation_start_month?: number;
-    /** Auto-reinvest events — month-indexed lump-sum injections in user
-     *  residence currency, routed to the highest-effective-APR active loan
-     *  at the matching month. Frontend pre-computes from projected annual
-     *  tax savings when the "Auto-reinvest tax savings" toggle is on.
-     *  Omit / empty array preserves baseline simulation behaviour. */
-    reinvest_events?: { month: number; amount: string }[];
-    /** When true, engine inflates fixed + variable expenses each month
-     *  using user.inflation_rate. Drives the /plan inflation toggle. */
-    inflate_expenses?: boolean;
-    /** Planned future lifecycle events (salary_reset / floating_rate_reset).
-     *  Each applies at its `effective_month` (1-based sim month). Confirmed
-     *  past events are already baked into the profile via L1 immediate-
-     *  apply and should NOT be included here (engine would double-apply). */
-    lifecycle_events?: LifecycleEventInput[];
-    /** Soft EF waterfall — fraction of each month's surplus diverted into
-     *  the emergency fund until `efund_target` is hit. /plan sets 0.3 when
-     *  `efund_balance < efund_target`; 0 otherwise. Default 0 preserves
-     *  legacy "100% surplus → debt" behaviour. */
-    ef_top_up_rate?: string;
-    /** True when an active preempting goal exists (e.g. wedding, medical).
-     *  The engine routes 100% surplus to the goal_slice in the allocation
-     *  response when set. Default false preserves legacy behaviour. */
-    ef_preempted?: boolean;
-    /** Per-goal payloads — when set, engine runs serial-fill per
-     *  month with goal-expiry awareness and returns per-goal slices
-     *  in `surplus_allocation.goal_contributions` plus end-of-trajectory
-     *  fill rates in `goal_finals`. */
-    goals?: {
-      id: string;
-      target_month_index: number;
-      required_amount: string;
-      saved_so_far?: string;
-      priority_bump?: boolean;
-      order_index?: number | null;
-      /** Deferred-start: engine routes 0 to this goal until this
-       *  sim-month index. Lets the UI park a goal until later in the
-       *  timeline. null = start at month 0 (legacy behavior). */
-      funding_start_month_index?: number | null;
-    }[];
-  }) => post<SimulateResponse>('/api/simulate', req),
+  simulate: (req: SimulateArgs) => post<SimulateResponse>('/api/simulate', req),
 
   baseline: (req: {
     user: UserPayload;
     horizon_months?: number;
     simple_mode?: boolean;
+    /** Same planned rate resets as the plan, so "saved vs minimums"
+     *  compares like with like. */
+    lifecycle_events?: LifecycleEventInput[];
   }) => post<SimulateResponse>('/api/baseline', req),
 
-  sensitivity: (req: {
+  /** Both runs take the plan's own settings (PlanRunArgs), so the
+   *  what-if's "before" is the plan /plan shows. */
+  sensitivity: (req: Partial<PlanRunArgs> & {
     user: UserPayload;
     horizon_months?: number;
     marginal_rate?: string;
@@ -868,14 +1130,15 @@ export const api = {
     emi_offer_monthly_payment: string;
     processing_fee?: string;
     user_savings_after_efund?: string;
-  }) => post<NewDebtResponse>('/api/new-debt', req),
+    country?: 'IN' | 'US';
+  }) => postWithFieldErrors<NewDebtResponse>('/api/new-debt', req),
 
   windfall: (req: {
     amount: string;
     user: UserPayload;
     marginal_rate?: string;
     strategy?: Strategy;
-  }) => post<WindfallResponse>('/api/windfall', req),
+  }) => postWithFieldErrors<WindfallResponse>('/api/windfall', req),
 
   quickRecompute: (req: {
     user: UserPayload;
@@ -884,7 +1147,7 @@ export const api = {
     strategy?: Strategy;
     horizon_months?: number;
     marginal_rate?: string;
-  }) => post<QuickRecomputeResponse>('/api/quick-recompute', req),
+  }) => postWithFieldErrors<QuickRecomputeResponse>('/api/quick-recompute', req),
 
   cashYield: (req: {
     idle_balance: string;
@@ -894,7 +1157,7 @@ export const api = {
     best_alt_yield?: string;
     alt_name?: string;
     minimum_idle_threshold?: string;
-  }) => post<CashYieldResponse>('/api/cash-yield', req),
+  }) => postWithFieldErrors<CashYieldResponse>('/api/cash-yield', req),
 
   rightTime: (req: {
     current_rate: string;
@@ -904,7 +1167,25 @@ export const api = {
     urgency: 'now' | '3m_ok' | '6m_ok';
     principal: string;
     tenure_months: number;
-  }) => post<BorrowTimingResponse>('/api/right-time-to-borrow', req),
+    country?: Country;
+  }) => postWithFieldErrors<BorrowTimingResponse>('/api/right-time-to-borrow', req),
+
+  loanCheck: (req: LoanCheckRequest) =>
+    postWithFieldErrors<LoanCheckResponse>('/api/loan-check', req),
+
+  complaintIn: (req: ComplaintRequest) =>
+    postWithFieldErrors<ComplaintResponse>('/api/complaints/in', req),
+
+  compareOffers: (req: OfferCompareRequest) =>
+    postWithFieldErrors<OfferCompareResponse>('/api/offers/compare', req),
+
+  shareOutcome: (req: OutcomeReportRequest) =>
+    postWithFieldErrors<OutcomeReportResponse>('/api/outcomes', req),
+
+  lenderScore: (name: string) =>
+    get<LenderScore>(`/api/outcomes/scorecard/lender?name=${encodeURIComponent(name)}`),
+
+  outcomeLenders: () => get<{ id: string; name: string }[]>('/api/outcomes/lenders'),
 
   scoreImpact: (req: {
     action: ScoreAction;
@@ -914,14 +1195,14 @@ export const api = {
     utilisation_to?: string;
     is_only_instalment_loan?: boolean;
     has_thin_file?: boolean;
-  }) => post<ScoreImpactResponse>('/api/score-impact', req),
+  }) => postWithFieldErrors<ScoreImpactResponse>('/api/score-impact', req),
 
   rateOffered: (req: {
     advertised_rate: string;
     score: number;
     loan_type: string;
     country?: string;
-  }) => post<RateOfferedResponse>('/api/rate-offered', req),
+  }) => postWithFieldErrors<RateOfferedResponse>('/api/rate-offered', req),
 
   fxRate: (base: string, quote: string) =>
     get<FxRateResponse>(`/api/fx-rate?base=${base}&quote=${quote}`),
@@ -937,7 +1218,7 @@ export const api = {
     manual_fx_rate?: string;
     manual_fx_drift_annual?: string;
     inflation_user_country?: string;
-  }) => post<CrossBorderResponse>('/api/cross-border-decision', req),
+  }) => postWithFieldErrors<CrossBorderResponse>('/api/cross-border-decision', req),
 
   restructuring: (req: {
     user: UserPayload;
@@ -960,7 +1241,9 @@ export const api = {
     current_fy?: string;
     brokerage_rate?: string;
     surplus_reinvestment_yield?: string;
-  }) => post<AssetLiquidationResponse>('/api/asset-liquidation', req),
+    /** Slab rate incl. cess; used when the property was held ≤ 24 months. */
+    marginal_rate?: string;
+  }) => postWithFieldErrors<AssetLiquidationResponse>('/api/asset-liquidation', req),
 
   liquidationRankings: (req: {
     user: UserPayload;
@@ -973,8 +1256,7 @@ export const api = {
     horizon_years?: string;
     surplus_reinvestment_yield?: string;
     pre_filter_margin?: string;
-  }) => post<LiquidationRankingsResponse>(
-    '/api/portfolio/liquidation-rankings', req,
+  }) => postWithFieldErrors<LiquidationRankingsResponse>('/api/portfolio/liquidation-rankings', req,
   ),
 
   institutions: (country?: Country) =>
@@ -1039,7 +1321,9 @@ export interface CentralBankMeeting {
 export interface CentralBankCountryRate {
   country: 'IN' | 'US';
   current_rate: string;
-  updated_at: string;
+  updated_at: string;   // the decision that set current_rate
+  as_of: string;        // last day the rate was known to be current
+  source: string;
   upcoming_meetings: CentralBankMeeting[];
   next_meeting_date: string | null;
   days_until_next: number | null;
@@ -1114,37 +1398,106 @@ function westernGroup(intStr: string): string {
   return (neg ? '-' : '') + body.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+/** The minus goes before the symbol ("−₹29,200", not "₹-29,200"), and an
+ *  amount that rounds to zero has no sign. Blank or non-numeric input is
+ *  0 rather than a throw. */
+function signed(
+  value: string | number | Decimal,
+  places: number,
+  body: (abs: Decimal) => string,
+): string {
+  const d = dec(value);
+  const neg = d.isNegative() && !d.abs().toDecimalPlaces(places).isZero();
+  return `${neg ? '−' : ''}${body(d.abs())}`;
+}
+
 /** Rupees with lakh comma format. ₹1,23,45,678 — exact, no abbreviation. */
 export function formatINR(value: string | number | Decimal): string {
-  const d = new Decimal(value);
-  return `₹${indianGroup(d.toFixed(0))}`;
+  return signed(value, 0, (d) => `₹${indianGroup(d.toFixed(0))}`);
 }
 
 /** Dollars with Western comma format. $1,234,567.89 — exact, no abbreviation. */
 export function formatUSD(value: string | number | Decimal): string {
-  const d = new Decimal(value);
-  const [intPart, decPart] = d.toFixed(2).split('.');
-  return `$${westernGroup(intPart)}.${decPart}`;
+  return signed(value, 2, (d) => {
+    const [intPart, decPart] = d.toFixed(2).split('.');
+    return `$${westernGroup(intPart)}.${decPart}`;
+  });
 }
 
 /** Compact INR for chart axes / tight stat tiles. Uses Cr/L/k abbreviation. */
 export function formatINRCompact(value: string | number | Decimal): string {
-  const d = new Decimal(value);
-  const abs = d.abs();
-  if (abs.gte(10_000_000)) return `₹${d.div(10_000_000).toFixed(2)}Cr`;
-  if (abs.gte(100_000)) return `₹${d.div(100_000).toFixed(2)}L`;
-  if (abs.gte(1_000)) return `₹${d.div(1_000).toFixed(1)}k`;
-  return `₹${d.toFixed(0)}`;
+  return signed(value, 0, (d) => {
+    if (d.gte(10_000_000)) return `₹${d.div(10_000_000).toFixed(2)}Cr`;
+    if (d.gte(100_000)) return `₹${d.div(100_000).toFixed(2)}L`;
+    if (d.gte(1_000)) return `₹${d.div(1_000).toFixed(1)}k`;
+    return `₹${d.toFixed(0)}`;
+  });
 }
 
 /** Compact USD for chart axes / tight stat tiles. Uses M/k abbreviation. */
 export function formatUSDCompact(value: string | number | Decimal): string {
-  const d = new Decimal(value);
-  const abs = d.abs();
-  if (abs.gte(1_000_000)) return `$${d.div(1_000_000).toFixed(2)}M`;
-  if (abs.gte(1_000)) return `$${d.div(1_000).toFixed(1)}k`;
-  return `$${d.toFixed(2)}`;
+  return signed(value, 2, (d) => {
+    if (d.gte(1_000_000)) return `$${d.div(1_000_000).toFixed(2)}M`;
+    if (d.gte(1_000)) return `$${d.div(1_000).toFixed(1)}k`;
+    return `$${d.toFixed(2)}`;
+  });
 }
+
+/** POST /api/simulate body. */
+export interface SimulateArgs {
+  user: UserPayload;
+  strategy?: Strategy;
+  horizon_months?: number;
+  matched_contribution?: string;
+  marginal_rate?: string;
+  simple_mode?: boolean;
+  /** Calendar month (1-12) corresponding to sim month 1. Anchors hike
+   *  firing to the user's actual today. Defaults to 1 (Jan) server-side. */
+  simulation_start_month?: number;
+  /** Auto-reinvest events — month-indexed lump-sum injections in user
+   *  residence currency, routed to the highest-effective-APR active loan
+   *  at the matching month. Frontend pre-computes from projected annual
+   *  tax savings when the "Auto-reinvest tax savings" toggle is on.
+   *  Omit / empty array preserves baseline simulation behaviour. */
+  reinvest_events?: { month: number; amount: string }[];
+  /** When true, engine inflates fixed + variable expenses each month
+   *  using user.inflation_rate. Drives the /plan inflation toggle. */
+  inflate_expenses?: boolean;
+  /** Planned future lifecycle events (salary_reset / floating_rate_reset).
+   *  Each applies at its `effective_month` (1-based sim month). Confirmed
+   *  past events are already baked into the profile via L1 immediate-
+   *  apply and should NOT be included here (engine would double-apply). */
+  lifecycle_events?: LifecycleEventInput[];
+  /** Soft EF waterfall — fraction of each month's surplus diverted into
+   *  the emergency fund until `efund_target` is hit. /plan sets 0.3 when
+   *  `efund_balance < efund_target`; 0 otherwise. Default 0 preserves
+   *  legacy "100% surplus → debt" behaviour. */
+  ef_top_up_rate?: string;
+  /** True when an active preempting goal exists (e.g. wedding, medical).
+   *  The engine routes 100% surplus to the goal_slice in the allocation
+   *  response when set. Default false preserves legacy behaviour. */
+  ef_preempted?: boolean;
+  /** Per-goal payloads — when set, engine runs serial-fill per
+   *  month with goal-expiry awareness and returns per-goal slices
+   *  in `surplus_allocation.goal_contributions` plus end-of-trajectory
+   *  fill rates in `goal_finals`. */
+  goals?: {
+    id: string;
+    target_month_index: number;
+    required_amount: string;
+    saved_so_far?: string;
+    priority_bump?: boolean;
+    order_index?: number | null;
+    /** Deferred-start: engine routes 0 to this goal until this
+     *  sim-month index. Lets the UI park a goal until later in the
+     *  timeline. null = start at month 0 (legacy behavior). */
+    funding_start_month_index?: number | null;
+  }[];
+}
+
+/** The plan's settings for a run (everything /plan sends to /simulate
+ *  but the strategy): handed to the what-if panel so its runs match. */
+export type PlanRunArgs = Omit<SimulateArgs, 'strategy'>;
 
 export function formatCurrency(value: string | number | Decimal, currency: string): string {
   return currency.toUpperCase() === 'USD' ? formatUSD(value) : formatINR(value);
@@ -1163,6 +1516,7 @@ export function monthIndexToLabel(
   start: Date = new Date(),
 ): string {
   if (monthIndex === null) return '—';
-  const d = new Date(start.getFullYear(), start.getMonth() + monthIndex, 1);
+  // Month 1 is the current month, so month N is N − 1 months away.
+  const d = new Date(start.getFullYear(), start.getMonth() + monthIndex - 1, 1);
   return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 }

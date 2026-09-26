@@ -18,11 +18,13 @@ import {
   formatCurrency,
   type CompareResponse,
   type Strategy,
+  type PlanRunArgs,
   type UserPayload,
 } from '@/lib/api';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import { computeBreakdown } from '@/lib/effective-apr';
+import { usItemises } from '@/lib/deductions';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import {
@@ -54,13 +56,23 @@ export function WhatIfPanel({
   user,
   marginalRate,
   strategy = 'avalanche',
+  runArgs,
 }: {
   user: UserPayload;
   marginalRate: string;
   /** Active payoff strategy — what-if scenarios run against the same one
    *  the user has selected on the Plan page so deltas are apples-to-apples. */
   strategy?: Strategy;
+  /** The plan's own run settings (goals, EF split, planned events...).
+   *  Without them the sliders ran a plainer plan, so "before" could differ
+   *  from the date /plan shows. */
+  runArgs?: PlanRunArgs | null;
 }) {
+  // Every scenario starts from the plan's settings, then changes one thing.
+  const base = useMemo(
+    () => ({ ...(runArgs ?? { user, marginal_rate: marginalRate }), strategy }),
+    [runArgs, user, marginalRate, strategy],
+  );
   // The user's residence currency drives surplus + aggregate displays
   // (interest saved is summed across loans in the engine; for hybrid
   // NRI-US users that mixes ccy, but user-default is the least-wrong
@@ -96,6 +108,7 @@ export function WhatIfPanel({
             marginalRate,
             user.country,
             user.tax_regime,
+            usItemises(user),
           );
           return { i, l, effective, outstanding: new Decimal(l.outstanding || 0) };
         })
@@ -243,9 +256,7 @@ export function WhatIfPanel({
       surplusDelta === 0
         ? null
         : api.sensitivity({
-            user,
-            marginal_rate: marginalRate,
-            strategy,
+            ...base,
             horizon_months: HORIZON_MONTHS,
             surplus_delta: String(surplusDelta),
             surplus_delta_start_month: surplusStartMonth,
@@ -259,9 +270,7 @@ export function WhatIfPanel({
       rateShockBps === 0
         ? null
         : api.sensitivity({
-            user,
-            marginal_rate: marginalRate,
-            strategy,
+            ...base,
             horizon_months: HORIZON_MONTHS,
             rate_shock_delta: (rateShockBps / 10_000).toFixed(4),
             rate_shock_floating_only: true,
@@ -275,9 +284,7 @@ export function WhatIfPanel({
       lumpAmount === 0
         ? null
         : api.sensitivity({
-            user,
-            marginal_rate: marginalRate,
-            strategy,
+            ...base,
             horizon_months: HORIZON_MONTHS,
             lump_sum_amount: String(lumpAmount),
             lump_sum_target_loan_index: lumpTarget,
@@ -437,12 +444,12 @@ export function WhatIfPanel({
         showMaxButton={false}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12 }}>
         <SliderRow
-          title="One-time lump-sum payment"
+          title="Paid extra, or about to?"
           hint={
             totalOutstandingCap > 0
-              ? `A windfall — bonus, tax refund, gift — applied today against the loan chosen on the right. Capped at your total outstanding (${fmtLump(totalOutstandingCap)}).`
+              ? `A one-off payment against the loan chosen on the right. Already paid it? Log it so the plan starts from the new balance. Capped at your total outstanding (${fmtLump(totalOutstandingCap)}).`
               : 'Add your loans in setup to use this slider.'
           }
           unit=""
@@ -461,8 +468,8 @@ export function WhatIfPanel({
           extraControls={
             <LockItInButton
               disabled={lumpAmount <= 0}
-              label={`Lock in — pay ${fmtLump(lumpAmount || 0)} today to ${loanOptions[lumpTarget]?.label.split(' · ')[0] ?? 'loan'}`}
-              shortLabel="Lock it in"
+              label={`Log it — ${fmtLump(lumpAmount || 0)} paid today to ${loanOptions[lumpTarget]?.label.split(' · ')[0] ?? 'loan'}`}
+              shortLabel="I paid this — log it"
               onClick={commitLumpSum}
             />
           }
@@ -703,7 +710,7 @@ function SliderRow({
         borderRadius: 8,
         padding: 12,
         display: 'grid',
-        gridTemplateColumns: '1fr 220px',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
         gap: 16,
         alignItems: 'center',
         opacity: disabled ? 0.55 : 1,
@@ -778,6 +785,8 @@ function SliderRow({
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
           disabled={disabled}
+          aria-label={title}
+          aria-valuetext={formatValue(value)}
           style={{ width: '100%', marginTop: 8 }}
         />
         <div className="muted" style={{ fontSize: 11, marginTop: 4, lineHeight: 1.5 }}>
@@ -884,15 +893,16 @@ function StartMonthPicker({
         alignItems: 'center',
         gap: 8,
         fontSize: 12,
-        opacity: disabled ? 0.55 : 1,
       }}
     >
       <span className="muted">Apply this cut</span>
       <select
+        aria-label="Apply this cut"
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         disabled={disabled}
         style={{
+          opacity: disabled ? 0.55 : 1,
           padding: '3px 8px',
           fontSize: 12,
           fontFamily: 'var(--font-sans)',

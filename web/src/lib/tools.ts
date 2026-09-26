@@ -23,11 +23,19 @@ export interface ToolMeta {
 
 export const TOOLS: ToolMeta[] = [
   {
+    id: 'loan-check',
+    tag: 'LC',
+    name: 'Loan check',
+    question: 'Is my bank passing on rate cuts?',
+    sub: 'Compares your home-loan rate with every RBI repo move since you borrowed.',
+    href: '/tools/loan-check',
+  },
+  {
     id: 'windfall',
     tag: '8a',
-    name: 'Windfall',
-    question: 'Got a bonus?',
-    sub: 'Where should it go — debt, EF, or invested?',
+    name: 'Spare cash',
+    question: 'Got a bonus, or savings sitting idle?',
+    sub: 'Splits it between your emergency fund and the right loan, and says where to park the rest.',
     href: '/tools/windfall',
   },
   {
@@ -45,22 +53,6 @@ export const TOOLS: ToolMeta[] = [
     question: 'Sell an asset to clear debt?',
     sub: 'After-tax yield vs highest effective APR.',
     href: '/tools/liquidate',
-  },
-  {
-    id: 'recompute',
-    tag: '8d',
-    name: 'Recompute',
-    question: 'I just paid extra — now what?',
-    sub: 'Rebuilds the plan in under a second.',
-    href: '/tools/recompute',
-  },
-  {
-    id: 'cash-yield',
-    tag: '8e',
-    name: 'Cash yield',
-    question: 'Where is your idle cash?',
-    sub: 'Savings drag vs sweep / FD / HYSA.',
-    href: '/tools/cash-yield',
   },
   {
     id: 'right-time',

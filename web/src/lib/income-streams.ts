@@ -11,13 +11,13 @@
  * we treat it as the first of that month for comparisons).
  */
 import Decimal from 'decimal.js';
+import { dec } from './safe-decimal';
 import type {
   IncomeStreamPayload,
   IncomeStreamTaxTreatment,
 } from './api';
 
-const D = (v: string | number | Decimal | null | undefined) =>
-  new Decimal(v ?? '0');
+const D = dec;
 
 /** Parse a YYYY-MM or YYYY-MM-DD date string to a Date at midnight UTC. */
 export function parseStreamDate(d: string | undefined | null): Date | null {

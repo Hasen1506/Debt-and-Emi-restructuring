@@ -30,7 +30,7 @@ class BTCandidate:
 class ConsolidationCandidate:
     loans: list[Loan]
     blended_avg_rate: Decimal
-    consolidated_rate: Decimal       # market personal loan rate × (1 + fee_amortised)
+    consolidated_rate: Decimal       # market personal loan rate + fee_amortised
 
 
 @dataclass
@@ -72,7 +72,11 @@ def scan_consolidation(
     fee_amortised: Decimal,
 ) -> ConsolidationCandidate | None:
     """§4.7 — candidate if ≥2 unsecured loans at effective_rate > 15% AND
-    consolidated rate × (1 + fee) < blended_avg − 3pp."""
+    market rate + fee_amortised < blended_avg − 3pp.
+
+    `fee_amortised` is the one-time fee spread over the loan as a yearly
+    rate (1% over 3 years ≈ 0.33 points), so it is added to the rate. It was
+    multiplied (12% × 1.0033 = 12.04%), which made the fee almost vanish."""
     high_rate = [l for l in unsecured_loans
                  if effective_rates[id(l)] > CONSOLIDATION_RATE_THRESHOLD]
     if len(high_rate) < CONSOLIDATION_DEBT_COUNT_MIN:
@@ -82,7 +86,7 @@ def scan_consolidation(
     if total_balance == 0:
         return None
     blended = sum((effective_rates[id(l)] * l.outstanding for l in high_rate), D("0")) / total_balance
-    consolidated = market_personal_loan_rate * (D("1") + fee_amortised)
+    consolidated = market_personal_loan_rate + fee_amortised
     if consolidated >= blended - CONSOLIDATION_SAVINGS_HURDLE:
         return None
     return ConsolidationCandidate(high_rate, blended, consolidated)

@@ -5,15 +5,16 @@
  *
  * Three view modes (toggled from the global LFooter):
  *   SIMPLE   · CALM         → STATUS / ACTION / OPEN POSITIONS / TOOLS
- *   DETAILED · CALM         → adds confidence band, trajectory, sensitivity, insight
+ *   DETAILED · CALM         → adds the next loan to target and an insight
  *   ANY      · OVERWHELMED  → soft view: one card, one sentence, one button
  *
  * Data: all numbers derive from the saved profile (deriveMetrics). The
- * DEBT-FREE / TRAJECTORY visuals link to /plan for the engine-true
- * numbers — they can't be computed from the profile alone.
+ * debt-free date needs the simulation, so the home page links to /plan
+ * for it rather than showing an empty placeholder.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrency } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
@@ -30,6 +31,7 @@ import {
   L_T,
   L_MONO,
   LButton,
+  lGridColumns,
   readLedgerMode,
   readLedgerTone,
   type LMode,
@@ -37,7 +39,27 @@ import {
 } from '@/components/ledger/primitives';
 import { LDebtsTable } from '@/components/ledger/LDebtsTable';
 
-export function LedgerHome({ profile }: { profile: StoredProfile }) {
+/** The plan's debt-free date and caption, streamed in by the page. */
+export interface DebtFreeSlot {
+  v: ReactNode;
+  s: ReactNode;
+}
+
+/** This month's move from the plan's first month, streamed in by the page. */
+export interface MoveSlot {
+  headline: ReactNode;
+  detail: ReactNode;
+  /** One step only, for the calm view. */
+  oneStep: ReactNode;
+}
+
+interface HomeProps {
+  profile: StoredProfile;
+  debtFree?: DebtFreeSlot;
+  move?: MoveSlot;
+}
+
+export function LedgerHome({ profile, debtFree, move }: HomeProps) {
   const [mode, setMode] = useState<LMode>('SIMPLE');
   const [tone, setTone] = useState<LTone>('CALM');
   useEffect(() => {
@@ -45,36 +67,39 @@ export function LedgerHome({ profile }: { profile: StoredProfile }) {
     setTone(readLedgerTone());
   }, []);
 
-  if (tone === 'OVERWHELMED') return <LedgerHomeSoft profile={profile} />;
-  if (mode === 'DETAILED') return <LedgerHomeDetailed profile={profile} />;
-  return <LedgerHomeSimple profile={profile} />;
+  if (tone === 'OVERWHELMED') return <LedgerHomeSoft profile={profile} move={move} />;
+  if (mode === 'DETAILED') return <LedgerHomeDetailed profile={profile} debtFree={debtFree} />;
+  return <LedgerHomeSimple profile={profile} debtFree={debtFree} move={move} />;
 }
 
 // ─── SIMPLE × CALM ─────────────────────────────────────────────────────
-function LedgerHomeSimple({ profile }: { profile: StoredProfile }) {
+function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrency(v, ccy);
 
-  if (m.loans.length === 0) return <EmptyState />;
+  if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
 
   const loudest = m.loudest!;
   const loudestBank = (loudest.loan.bank || 'YOUR LOUDEST').toUpperCase();
   const loudestProduct = loudest.loan.loan_type.replace('_', ' ').toUpperCase();
   const surplusTone =
     m.surplus.gt(0) ? L_T.positive : m.surplus.lt(0) ? L_T.negative : L_T.ink;
-  const extraSuggestion = m.surplus.gt(0) ? m.surplus : loudest.outstanding;
-  const extraRounded = Math.round(Number(extraSuggestion.toString()));
-  // Rough annual saving = balance × effective × 1yr if we cleared it today.
-  // Honest upper bound — actual saving depends on the schedule, which
-  // /plan computes. Good enough for a headline.
-  const annualSaving = Math.round(
-    Number(loudest.outstanding.toString()) * Number(loudest.effective.toString()),
-  );
+  // The extra this month is the surplus, never more than the balance. With
+  // no surplus there is nothing extra to pay: it used to fall back to the
+  // whole balance ("PAY ₹30,00,000 EXTRA") for someone already over budget.
+  const hasSurplus = m.surplus.gt(0);
+  const extra = hasSurplus
+    ? Decimal.min(m.surplus, loudest.outstanding)
+    : new Decimal(0);
+  const extraRounded = Math.round(Number(extra.toString()));
+  // Interest the extra avoids over a year at this loan's effective rate
+  // (not the whole balance's interest, which is what it showed before).
+  const annualSaving = Math.round(Number(extra.times(loudest.effective).toString()));
 
   return (
     <LShell>
-      <main
+      <div
         style={{
           flex: 1,
           padding: '4px 0 0',
@@ -86,22 +111,18 @@ function LedgerHomeSimple({ profile }: { profile: StoredProfile }) {
         <section>
           <LSectionHeader>STATUS</LSectionHeader>
           <LKpi
-            cols={5}
+            cols={4}
             items={[
               { l: 'OUTSTANDING', v: fc(m.totalOutstanding.toString()), s: `${m.loans.length} OPEN` },
-              { l: 'DEBT-FREE', v: '→ SEE /PLAN', s: 'NEEDS SIMULATION', tone: L_T.muted },
-              { l: 'EFFECTIVE APR', v: fmtPct(m.blendedEffective), s: 'WEIGHTED' },
+              debtFree
+                ? { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.positive }
+                : { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
+              { l: 'EFFECTIVE RATE', v: fmtPct(m.blendedEffective), s: 'AVERAGE · AFTER FEES + TAX' },
               {
                 l: 'SURPLUS',
                 v: `${fc(m.surplus.toString())}/MO`,
-                s: m.surplus.gt(0) ? 'NET ALLOC' : 'OVER BUDGET',
+                s: m.surplus.gt(0) ? 'AFTER COSTS + EMIS' : 'OVER BUDGET',
                 tone: surplusTone,
-              },
-              {
-                l: 'NEXT ACTION',
-                v: m.surplus.gt(0) ? `PAY ${fc(extraRounded)}` : `→ ${loudestBank}`,
-                s: `→ ${loudestBank} · ${fmtPct(loudest.effective)} APR`,
-                tone: L_T.accent,
               },
             ]}
           />
@@ -128,17 +149,26 @@ function LedgerHomeSimple({ profile }: { profile: StoredProfile }) {
               marginBottom: 6,
             }}
           >
-            PAY {fc(extraRounded)} EXTRA → {loudestBank} {loudestProduct}
+            {move
+              ? move.headline
+              : hasSurplus
+                ? `PAY ${fc(extraRounded)} EXTRA → ${loudestBank} ${loudestProduct}`
+                : `PAY THE MINIMUMS · FIND ${fc(Math.round(Math.abs(Number(m.surplus.toString()))))}/MO`}
           </div>
           <div style={{ fontSize: 12, color: L_T.muted, marginBottom: 14 }}>
-            HIGHEST EFFECTIVE APR · {fmtPct(loudest.effective)} · SAVES ~{fc(annualSaving)} INT/YR
+            {move
+              ? move.detail
+              : hasSurplus
+                ? `HIGHEST EFFECTIVE RATE · ${fmtPct(loudest.effective)} · AVOIDS ~${fc(annualSaving)} INTEREST A YEAR`
+                : 'INCOME DOES NOT COVER COSTS AND EMIS YET · TRIM SPENDING BEFORE PAYING EXTRA'}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <LBracket active href="/insights#activity-ledger">
-              I PAID THIS
-            </LBracket>
-            <LBracket href="/plan">WHY?</LBracket>
-            <LBracket href="/plan">SHOW MATH ↓</LBracket>
+            {hasSurplus && (
+              <LBracket active href="/insights#activity-ledger">
+                I PAID THIS
+              </LBracket>
+            )}
+            <LBracket href="/plan">WHY? SEE THE PLAN →</LBracket>
           </div>
         </section>
 
@@ -146,7 +176,12 @@ function LedgerHomeSimple({ profile }: { profile: StoredProfile }) {
           <LSectionHeader right={<LBracket href="/onboarding">+ ADD DEBT</LBracket>}>
             OPEN POSITIONS · {m.loans.length}
           </LSectionHeader>
-          <LDebtsTable loans={m.loans} country={profile.user.country} />
+          <LDebtsTable
+            loans={m.loans}
+            country={profile.user.country}
+            totalOutstanding={m.totalOutstanding}
+            totalEmi={m.emiBurden}
+          />
         </section>
 
         <section>
@@ -154,7 +189,7 @@ function LedgerHomeSimple({ profile }: { profile: StoredProfile }) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: `repeat(${Math.min(TOOLS.length, 7)}, 1fr)`,
+              gridTemplateColumns: lGridColumns(Math.min(TOOLS.length, 5), 150),
               gap: 1,
               background: L_T.ink,
               padding: 1,
@@ -192,51 +227,44 @@ function LedgerHomeSimple({ profile }: { profile: StoredProfile }) {
             ))}
           </div>
         </section>
-      </main>
+      </div>
     </LShell>
   );
 }
 
 // ─── DETAILED × CALM ───────────────────────────────────────────────────
-function LedgerHomeDetailed({ profile }: { profile: StoredProfile }) {
+function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; debtFree?: DebtFreeSlot }) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrency(v, ccy);
-  if (m.loans.length === 0) return <EmptyState />;
+  if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
   const loudest = m.loudest!;
 
   return (
     <LShell>
-      <main style={{ flex: 1, padding: '4px 0 0', display: 'flex', flexDirection: 'column', gap: 22 }}>
+      <div style={{ flex: 1, padding: '4px 0 0', display: 'flex', flexDirection: 'column', gap: 22 }}>
         <section>
-          <LSectionHeader
-            right={
-              <span style={{ color: L_T.muted, letterSpacing: '0.1em' }}>
-                ★★★★☆ · SIMULATION ON /PLAN
-              </span>
-            }
-          >
-            STATUS · CONFIDENCE BAND
-          </LSectionHeader>
+          <LSectionHeader>STATUS</LSectionHeader>
           <LKpi
-            cols={5}
+            cols={4}
             items={[
-              { l: 'CLEAR · CENTRAL', v: '→ SEE /PLAN', s: 'P50', tone: L_T.muted },
-              { l: 'CLEAR · BAND', v: '—', s: 'P10 → P90', tone: L_T.muted },
+              debtFree
+                ? { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.positive }
+                : { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
               {
                 l: 'OUTSTANDING',
                 v: fc(m.totalOutstanding.toString()),
                 s: `${m.loans.length} OPEN`,
               },
               {
-                l: 'EFFECTIVE APR',
+                l: 'EFFECTIVE RATE',
                 v: fmtPct(m.blendedEffective),
-                s: 'WEIGHTED · POST-TAX',
+                s: 'AVERAGE · AFTER FEES + TAX',
               },
               {
                 l: 'NEXT',
                 v: `${(loudest.loan.bank || '—').toUpperCase()}`,
-                s: `${fmtPct(loudest.effective)} APR`,
+                s: `${fmtPct(loudest.effective)} EFFECTIVE`,
                 tone: L_T.accent,
               },
             ]}
@@ -244,36 +272,15 @@ function LedgerHomeDetailed({ profile }: { profile: StoredProfile }) {
         </section>
 
         <section>
-          <LSectionHeader
-            right={
-              <>
-                <LBracket>CSV</LBracket> <LBracket>PRINT</LBracket>
-              </>
-            }
-          >
-            TRAJECTORY · {profile.user.loans.length} OPEN
-          </LSectionHeader>
-          <div
-            style={{
-              border: `2px solid ${L_T.ink}`,
-              padding: 24,
-              background: L_T.paper,
-              textAlign: 'center',
-              color: L_T.muted,
-              fontSize: 11,
-              letterSpacing: '0.12em',
-            }}
-          >
-            FULL TRAJECTORY LIVES ON <LBracket href="/plan">/PLAN</LBracket> — NEEDS THE
-            SIMULATION ENGINE
-          </div>
-        </section>
-
-        <section>
           <LSectionHeader right={<LBracket href="/onboarding">+ ADD DEBT</LBracket>}>
             OPEN POSITIONS · {m.loans.length}
           </LSectionHeader>
-          <LDebtsTable loans={m.loans} country={profile.user.country} showShield />
+          <LDebtsTable
+            loans={m.loans}
+            country={profile.user.country}
+            totalOutstanding={m.totalOutstanding}
+            totalEmi={m.emiBurden}
+          />
         </section>
 
         <section style={{ border: `1px solid ${L_T.ink}`, padding: '12px 16px' }}>
@@ -288,30 +295,30 @@ function LedgerHomeDetailed({ profile }: { profile: StoredProfile }) {
             $ INSIGHT · {(loudest.loan.bank || '—').toUpperCase()}
           </div>
           <div style={{ fontSize: 12, color: L_T.ink }}>
-            Real {(loudest.loan.bank || 'lender').toLowerCase()} rate ={' '}
+            Effective rate on {loudest.loan.bank || 'this loan'} ={' '}
             <span style={{ color: L_T.accent, fontWeight: 700 }}>{fmtPct(loudest.effective)}</span>{' '}
-            after fees / shield are folded in.{' '}
-            <LBracket href="/plan">show formula ↓</LBracket>
+            once fees and any tax saving are counted.{' '}
+            <LBracket href="/debts">see the breakdown →</LBracket>
           </div>
         </section>
-      </main>
+      </div>
     </LShell>
   );
 }
 
 // ─── OVERWHELMED — soft view ───────────────────────────────────────────
-function LedgerHomeSoft({ profile }: { profile: StoredProfile }) {
+function LedgerHomeSoft({ profile, move }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrency(v, ccy);
-  if (m.loans.length === 0) return <EmptyState />;
+  if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
   const loudest = m.loudest!;
   const amount = m.surplus.gt(0) ? Math.round(Number(m.surplus.toString())) : 0;
   const lender = (loudest.loan.bank || 'your highest-rate lender').toUpperCase();
 
   return (
     <LShell>
-      <main
+      <div
         style={{
           flex: 1,
           padding: '60px 32px 40px',
@@ -358,11 +365,13 @@ function LedgerHomeSoft({ profile }: { profile: StoredProfile }) {
               letterSpacing: '-0.01em',
             }}
           >
-            {amount > 0
-              ? `PAY ${fc(amount)} TO YOUR ${lender} ${loudest.loan.loan_type
-                  .replace('_', ' ')
-                  .toUpperCase()}.`
-              : `KEEP CURRENT EMIS RUNNING.`}
+            {move
+              ? move.oneStep
+              : amount > 0
+                ? `PAY ${fc(Math.min(amount, Number(loudest.loan.outstanding)))} TO YOUR ${lender} ${loudest.loan.loan_type
+                    .replace('_', ' ')
+                    .toUpperCase()}.`
+                : `KEEP CURRENT EMIS RUNNING.`}
           </div>
           <div style={{ fontSize: 12, color: L_T.muted, marginTop: 18, lineHeight: 1.7 }}>
             THE SINGLE MOST USEFUL THING YOU CAN DO RIGHT NOW.
@@ -411,21 +420,33 @@ function LedgerHomeSoft({ profile }: { profile: StoredProfile }) {
           <br />
           THEY&apos;LL STILL BE HERE WHEN YOU&apos;RE READY.
         </div>
-      </main>
+      </div>
     </LShell>
   );
 }
 
-function EmptyState() {
+function EmptyState({ paidOff }: { paidOff: boolean }) {
+  // paidOff: loans are on file but every balance is 0.
   return (
     <LShell>
-      <main style={{ padding: '40px 0' }}>
-        <LCli>STATUS · NO DEBTS ON FILE</LCli>
+      <div style={{ padding: '40px 0' }}>
+        <LCli>{paidOff ? 'STATUS · DEBT-FREE' : 'STATUS · NO DEBTS ON FILE'}</LCli>
         <LRule length={200} />
         <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
-          Run setup to add your debts: <LBracket href="/onboarding">SETUP →</LBracket>
+          {paidOff ? (
+            <>
+              Every loan on file is paid off. Put the old EMIs to work:{' '}
+              <LBracket href="/goals">GOALS →</LBracket>{' '}
+              <LBracket href="/portfolio">PORTFOLIO →</LBracket>{' '}
+              <LBracket href="/onboarding?step=loans">ADD A LOAN →</LBracket>
+            </>
+          ) : (
+            <>
+              Run setup to add your debts: <LBracket href="/onboarding">SETUP →</LBracket>
+            </>
+          )}
         </div>
-      </main>
+      </div>
     </LShell>
   );
 }

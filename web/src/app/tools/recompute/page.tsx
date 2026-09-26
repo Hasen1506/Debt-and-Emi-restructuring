@@ -1,10 +1,7 @@
-import { RecomputeTool } from './tool';
-import { LToolPageHeader } from '@/components/ledger/LToolPageHeader';
+import { redirect } from 'next/navigation';
 
+// Recompute was the what-if panel's one-off payment with a separate form;
+// /plan's what-if does the same and logs it. Old links land there.
 export default function RecomputePage() {
-  return (
-    <LToolPageHeader id="recompute">
-      <RecomputeTool />
-    </LToolPageHeader>
-  );
+  redirect('/plan#what-if');
 }

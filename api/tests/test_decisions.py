@@ -13,6 +13,24 @@ def test_windfall_routes_to_card(client, india_user_payload):
     assert "credit_card" in body["loan_label"] or body["invest_instead"] is True
 
 
+def test_windfall_names_the_loan_it_pays(client, india_user_payload):
+    """The response carries the target loan's position, so the client logs
+    the payment against the loan the engine chose. It used to log against
+    the highest-rate loan whatever the strategy picked."""
+    for strategy, expect in (("avalanche", 1), ("snowball", 1)):
+        r = client.post("/api/windfall", json={
+            "amount": "50000", "user": india_user_payload, "marginal_rate": "0.30",
+            "strategy": strategy,
+        })
+        assert r.status_code == 200, r.text
+        body = r.json()
+        if body["invest_instead"]:
+            assert body["loan_index"] is None
+        else:
+            # Card: highest rate (avalanche) and smallest balance (snowball).
+            assert body["loan_index"] == expect
+
+
 def test_new_debt_no_cost_emi(client):
     """₹20k phone, ₹17k cash equivalent, 6×₹3333 = 'no-cost' EMI."""
     r = client.post("/api/new-debt", json={
@@ -154,3 +172,46 @@ def test_asset_liquidation_post_2024_flat(client):
     body = r.json()
     assert body["gate_2_high_rate"] is False
     assert body["recommend_liquidation"] is False
+
+
+# ─── Bad input comes back as a named 422; wording in the user's currency ────
+
+def test_new_debt_bad_input_is_a_named_422(client):
+    r = client.post("/api/new-debt", json={
+        "list_price": "80000", "cash_price_elsewhere": "74000",
+        "emi_offer_months": 0, "emi_offer_monthly_payment": "6667",
+    })
+    assert r.status_code == 422
+    assert r.json()["detail"]["field"] == "emi_offer_months"
+
+
+def test_new_debt_us_wording(client):
+    r = client.post("/api/new-debt", json={
+        "list_price": "1200", "cash_price_elsewhere": "1000", "emi_offer_months": 12,
+        "emi_offer_monthly_payment": "100", "user_savings_after_efund": "5000", "country": "US",
+    })
+    assert r.status_code == 200 and "$200" in r.json()["detail"]
+
+
+def test_windfall_zero_amount_is_a_named_422(client, india_user_payload):
+    r = client.post("/api/windfall", json={"amount": "0", "user": india_user_payload})
+    assert r.status_code == 422
+    assert r.json()["detail"]["field"] == "amount"
+
+
+def test_right_time_rejects_unknown_urgency(client):
+    r = client.post("/api/right-time-to-borrow", json={
+        "current_rate": "0.09", "six_month_avg": "0.09",
+        "consensus_change_bps": -50, "months_to_decision": 3,
+        "urgency": "whenever", "principal": "500000", "tenure_months": 36,
+    })
+    assert r.status_code == 422
+
+
+def test_quick_recompute_rejects_a_loan_that_is_not_there(client, india_user_payload):
+    """Index 7 of 2 loans used to answer 'saves nothing'."""
+    r = client.post("/api/quick-recompute", json={
+        "user": india_user_payload, "extra_payment": "100000", "target_loan_index": 7,
+    })
+    assert r.status_code == 422
+    assert r.json()["detail"]["field"] == "target_loan_index"

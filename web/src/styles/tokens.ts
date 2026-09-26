@@ -15,7 +15,7 @@ export const tokens = {
     dash: '#b8b8b8',
     card: '#ffffff',
     canvas: '#f0eee9',
-    accent: '#c96442',            // warm terracotta — primary CTA + key chart line
+    accent: '#ab4f30',            // warm terracotta (darkened for 4.5:1 text contrast) — primary CTA + key chart line
     accentMuted: '#e8a892',
     positive: '#2d6a4f',          // savings / good news
     negative: '#a23b3b',           // high-rate debt / warning
@@ -47,13 +47,13 @@ export const tokens = {
   },
   // Chart-specific palette (Visx)
   chart: {
-    primary: '#c96442',
+    primary: '#ab4f30',
     secondary: '#2d6a4f',
     tertiary: '#6b6b6b',
     grid: 'rgba(0,0,0,0.08)',
     axis: '#9a9a9a',
     text: '#1a1a1a',
-    series: ['#c96442', '#2d6a4f', '#3b6ea2', '#a23b3b', '#7a5d3a', '#5a4a2a'],
+    series: ['#ab4f30', '#2d6a4f', '#3b6ea2', '#a23b3b', '#7a5d3a', '#5a4a2a'],
   },
 } as const;
 

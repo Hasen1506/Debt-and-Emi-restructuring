@@ -28,7 +28,6 @@ import {
   ThemedHeadline,
   ThemedLabel,
 } from '@/components/themed/Themed';
-import type { ThemeName } from '@/lib/theme';
 
 const LOAN_TYPE_LABEL: Record<string, string> = {
   credit_card: 'credit card',
@@ -42,10 +41,8 @@ const LOAN_TYPE_LABEL: Record<string, string> = {
 
 export function CashAdvisorCard({
   profile,
-  variant,
 }: {
   profile: StoredProfile;
-  variant: ThemeName;
 }) {
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
@@ -66,15 +63,14 @@ export function CashAdvisorCard({
   const isCard = advice.loudest.loan.loan_type === 'credit_card';
   const loanLabel =
     LOAN_TYPE_LABEL[advice.loudest.loan.loan_type] ?? 'loan';
-  const upper = variant === 'ledger';
-  const labelText = upper ? 'ADVISOR · CASH → DEBT' : 'Cash advisor';
+  const labelText = 'ADVISOR · CASH → DEBT';
 
   return (
-    <ThemedContainer variant={variant} tone="positive" style={{ marginBottom: 14 }}>
-      <ThemedLabel variant={variant} tone="positive">
+    <ThemedContainer tone="positive" style={{ marginBottom: 14 }}>
+      <ThemedLabel tone="positive">
         {labelText}
       </ThemedLabel>
-      <ThemedHeadline variant={variant}>
+      <ThemedHeadline>
         Move{' '}
         <strong>{formatCurrency(advice.excess.toString(), currency)}</strong> from{' '}
         <strong>{source.name}</strong> to{' '}
@@ -85,7 +81,7 @@ export function CashAdvisorCard({
         </strong>{' '}
         in interest.
       </ThemedHeadline>
-      <ThemedDetail variant={variant}>
+      <ThemedDetail>
         <div>
           Cash post-tax yield ~{fmt(advice.postTaxApy)} vs. {loanLabel} effective{' '}
           {fmt(advice.loudest.effective)} — {fmt(advice.spread)} spread.

@@ -235,10 +235,11 @@ export default function OnboardingAssetsPage() {
               {isFD && (
                 <>
                   <Field
-                    label="FD rate (decimal)"
+                    label="FD rate (%)"
+                    kind="percent"
                     value={a.fd_rate_pct ?? ''}
                     onChange={(v) => update(i, { fd_rate_pct: v })}
-                    hint="e.g. 0.072 for 7.2%"
+                    hint="e.g. 7.2"
                   />
                   <Field
                     label="Maturity date"
@@ -247,7 +248,8 @@ export default function OnboardingAssetsPage() {
                     kind="date"
                   />
                   <Field
-                    label="Premature withdrawal penalty (decimal)"
+                    label="Premature withdrawal penalty (%)"
+                    kind="percent"
                     value={a.fd_premature_penalty_pct ?? ''}
                     onChange={(v) => update(i, { fd_premature_penalty_pct: v })}
                     hint="Default 1% if unknown. Bank-specific."
@@ -280,24 +282,14 @@ export default function OnboardingAssetsPage() {
                 </label>
               )}
 
-              {isRE && country === 'IN' && (
-                <Field
-                  label="State (for stamp duty)"
-                  value={a.state ?? ''}
-                  onChange={(v) => update(i, { state: v })}
-                  kind="text"
-                  placeholder="e.g. Maharashtra"
-                />
-              )}
-
               {(isRE || a.asset_type === 'gold_physical') && (
                 <Field
-                  label="Projected CAGR (decimal, optional)"
+                  label="Growth a year (%, optional)"
                   value={a.appreciation_cagr ?? ''}
                   onChange={(v) => update(i, { appreciation_cagr: v })}
-                  kind="text"
-                  placeholder={country === 'IN' ? '0.07' : '0.06'}
-                  hint="Your CAGR view — overrides the country/asset default. 0.09 = 9%/yr."
+                  kind="percent"
+                  placeholder={country === 'IN' ? '7' : '6'}
+                  hint="Your view of yearly growth; overrides the default for this asset type."
                 />
               )}
 

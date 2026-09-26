@@ -117,6 +117,10 @@ function isActivityEntry(v: unknown): v is ActivityEntry {
   );
 }
 
+/** localStorage key: the date setup last saved the user's balances. A card
+ *  entered then is up to date even with no activity logged yet. */
+export const BALANCES_ENTERED_KEY = 'finoptima_balances_entered';
+
 export function readActivityClient(): ActivityEntry[] {
   if (typeof window === 'undefined') return [];
   return safeParse(window.localStorage.getItem(STORAGE_KEY));

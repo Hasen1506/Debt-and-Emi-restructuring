@@ -8,7 +8,7 @@ from engine.asset_liquidation import (
 )
 from engine.country_data import india_selling_cost_pct
 from engine.decisions import (
-    allocate_windfall, evaluate_new_debt, quick_recompute,
+    DecisionInputError, allocate_windfall, evaluate_new_debt, quick_recompute,
     cash_yield_check, right_time_to_borrow,
 )
 from engine.formulas import effective_rate
@@ -27,39 +27,59 @@ D = Decimal
 router = APIRouter(tags=["decisions"])
 
 
+def _bad(e: DecisionInputError) -> HTTPException:
+    """422 in the same shape as Loan Check: {"detail": {"field", "message"}}."""
+    return HTTPException(status_code=422, detail={"field": e.field, "message": str(e)})
+
+
 @router.post("/windfall", response_model=WindfallResponse)
 def windfall(req: WindfallRequest) -> WindfallResponse:
     user = req.user.to_engine()
     marg = req.marginal_rate if req.marginal_rate is not None else D("0")
     rates = {
-        id(l): effective_rate(l, marg, user.country, user.tax_regime)
+        id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises)
         for l in user.loans
     }
-    allocation = allocate_windfall(
-        req.amount, user.loans, rates,
-        user.investment_options, user.inflation_rate, strategy=req.strategy,
-        country=user.country,
-    )
+    try:
+        allocation = allocate_windfall(
+            req.amount, user.loans, rates,
+            user.investment_options, user.inflation_rate, strategy=req.strategy,
+            country=user.country,
+        )
+    except DecisionInputError as e:
+        raise _bad(e)
+    index_by_id = {id(l): i for i, l in enumerate(user.loans)}
     return WindfallResponse(
         loan_label=allocation.loan_label,
+        loan_index=(
+            index_by_id.get(allocation.to_loan_id)
+            if not allocation.invest_instead and allocation.to_loan_id is not None
+            else None
+        ),
         amount=allocation.amount,
         rationale=allocation.rationale,
         interest_avoided=allocation.interest_avoided,
         invest_instead=allocation.invest_instead,
         investment_name=allocation.investment_name,
+        investment_return=allocation.investment_return,
+        leftover=allocation.leftover,
     )
 
 
 @router.post("/new-debt", response_model=NewDebtResponse)
 def new_debt(req: NewDebtRequest) -> NewDebtResponse:
-    verdict = evaluate_new_debt(
-        list_price=req.list_price,
-        cash_price_elsewhere=req.cash_price_elsewhere,
-        emi_offer_months=req.emi_offer_months,
-        emi_offer_monthly_payment=req.emi_offer_monthly_payment,
-        processing_fee=req.processing_fee,
-        user_savings_after_efund=req.user_savings_after_efund,
-    )
+    try:
+        verdict = evaluate_new_debt(
+            list_price=req.list_price,
+            cash_price_elsewhere=req.cash_price_elsewhere,
+            emi_offer_months=req.emi_offer_months,
+            emi_offer_monthly_payment=req.emi_offer_monthly_payment,
+            processing_fee=req.processing_fee,
+            user_savings_after_efund=req.user_savings_after_efund,
+            country=req.country,
+        )
+    except DecisionInputError as e:
+        raise _bad(e)
     return NewDebtResponse(**verdict.__dict__)
 
 
@@ -70,11 +90,16 @@ def recompute(req: QuickRecomputeRequest) -> QuickRecomputeResponse:
         user, strategy=req.strategy, horizon_months=req.horizon_months,
         marginal_rate=req.marginal_rate,
     )
-    # Apply the lump-sum payment to the chosen loan, then resimulate.
+    # Apply the lump-sum payment to the chosen loan, then resimulate. An
+    # index past the last loan used to "save nothing" instead of saying so.
+    if not 0 <= req.target_loan_index < len(user.loans):
+        raise HTTPException(status_code=422, detail={
+            "field": "target_loan_index",
+            "message": "Pick one of your loans.",
+        })
     scratch = deepcopy(user)
-    if 0 <= req.target_loan_index < len(scratch.loans):
-        l = scratch.loans[req.target_loan_index]
-        l.outstanding = max(D("0"), l.outstanding - req.extra_payment)
+    l = scratch.loans[req.target_loan_index]
+    l.outstanding = max(D("0"), l.outstanding - req.extra_payment)
     new = simulate_plan(
         scratch, strategy=req.strategy, horizon_months=req.horizon_months,
         marginal_rate=req.marginal_rate,
@@ -121,6 +146,7 @@ def borrow_timing(req: BorrowTimingRequest) -> BorrowTimingResponse:
         months_to_decision=req.months_to_decision,
         urgency=req.urgency, principal=req.principal,
         tenure_months=req.tenure_months,
+        country=req.country,
     )
     return BorrowTimingResponse(**verdict.__dict__)
 
@@ -142,6 +168,7 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
             purchase_fy=req.purchase_fy,
             current_fy=req.current_fy,
             brokerage_rate=req.brokerage_rate,
+            marginal_rate=req.marginal_rate,
         )
     except (KeyError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))

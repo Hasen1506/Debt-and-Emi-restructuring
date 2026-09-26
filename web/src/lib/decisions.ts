@@ -29,7 +29,7 @@ export type DecisionKind =
   | 'tax_reinvest_toggle'
   | 'fx_drift_toggle'
   | 'ef_split_change'
-  | 'plan_start_change'
+  | 'plan_start_change' // retired: the plan always starts this month; kept so old log rows still read
   | 'goal_added'
   | 'goal_edited'
   | 'goal_removed'

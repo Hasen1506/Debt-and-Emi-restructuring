@@ -81,6 +81,11 @@ def income_tax(
     # 87A rebate
     if regime == TaxRegimeIN.NEW and taxable_income <= REBATE_87A_NEW_THRESHOLD:
         tax = max(D("0"), tax - REBATE_87A_NEW)
+    elif regime == TaxRegimeIN.NEW:
+        # Marginal relief (s.87A proviso, new regime): just above the ₹12L
+        # line the tax can't exceed the income above it. Without it ₹12.1L
+        # was taxed ₹63,960 instead of ₹10,400. Runs out near ₹12.71L.
+        tax = min(tax, taxable_income - REBATE_87A_NEW_THRESHOLD)
     elif regime == TaxRegimeIN.OLD and taxable_income <= REBATE_87A_OLD_THRESHOLD:
         tax = max(D("0"), tax - REBATE_87A_OLD)
 
@@ -94,10 +99,19 @@ def income_tax(
 def marginal_rate(taxable_income: Decimal, regime: TaxRegimeIN) -> Decimal:
     """Effective marginal rate at given income: slab_rate × (1+surcharge) × 1.04.
 
-    Note: at the 87A cliff (taxable_income just above ₹12L new regime), true
-    marginal rate is enormous because the next rupee forfeits the ₹60k rebate.
-    Callers should detect cliff_proximity and warn the user separately.
+    At or below the 87A line (₹12L new regime, ₹5L old) the rebate cancels
+    the tax, so the next rupee, and a deduction's saving, is taxed at 0; it
+    used to read 10.4% (new) or 5.2% (old).
+
+    Just above the new-regime line, marginal relief taxes each extra rupee
+    at ~104% until about ₹12.71L. That is not returned here (a rate above
+    100% would make a loan's tax shield worth more than its interest); the
+    slab rate stands in, and callers warn with is_at_87a_cliff.
     """
+    if regime == TaxRegimeIN.NEW and taxable_income <= REBATE_87A_NEW_THRESHOLD:
+        return D("0")
+    if regime == TaxRegimeIN.OLD and taxable_income <= REBATE_87A_OLD_THRESHOLD:
+        return D("0")
     slabs = NEW_REGIME_SLABS if regime == TaxRegimeIN.NEW else OLD_REGIME_SLABS
     base = D("0")
     prev = D("0")

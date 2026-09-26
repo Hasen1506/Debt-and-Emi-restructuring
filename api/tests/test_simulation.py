@@ -263,3 +263,128 @@ def test_simulate_snapshot_surfaces_funding_start_index_for_deferred_goal(
     assert wedding["queued_reason"] == "deferred"
     assert wedding["funding_start_month_index"] == 7
     assert D(wedding["amount"]) == D("0")
+
+
+# ─── Audit fixes (AUDIT.md §2) ──────────────────────────────────────────
+
+def _nri_payload():
+    return {
+        "country": "US", "income_type": "salaried",
+        "annual_income": "120000", "monthly_income": "10000",
+        "fixed_expenses": "4000", "savings_balance": "50000",
+        "primary_bank": "JPMorgan Chase", "is_nri_us": True,
+        "fx_to_user_currency": {"INR": "0.012"},
+        "loans": [
+            {"loan_type": "home_loan", "bank": "HDFC Bank", "outstanding": "4000000",
+             "nominal_rate": "0.085", "rate_type": "floating",
+             "tenure_months_remaining": 240, "scheduled_emi": "34713", "currency": "INR"},
+            {"loan_type": "credit_card", "bank": "Chase", "outstanding": "25000",
+             "nominal_rate": "0.249", "rate_type": "fixed",
+             "tenure_months_remaining": 0, "scheduled_emi": "800", "currency": "USD"},
+        ],
+    }
+
+
+def test_trajectory_balance_is_in_the_users_currency(client):
+    """₹40L + $25k used to come back as a 'balance' of 4,025,000."""
+    body = client.post("/api/simulate", json={
+        "user": _nri_payload(), "horizon_months": 12, "marginal_rate": "0.24",
+    }).json()
+    first = body["trajectory"][0]
+    bucket = first["balances_by_currency"]
+    assert D(first["balance"]) == D(bucket["INR"]) * D("0.012") + D(bucket["USD"])
+    assert D(first["balance"]) < D("100000")
+
+
+def _us_home_payload(outstanding, deductions=None, filing="single"):
+    payload = {
+        "country": "US", "income_type": "salaried",
+        "annual_income": "150000", "monthly_income": "9000",
+        "fixed_expenses": "3000", "savings_balance": "20000",
+        "primary_bank": "Chase", "filing_status": filing,
+        "loans": [{
+            "loan_type": "home_loan", "bank": "Chase", "outstanding": outstanding,
+            "nominal_rate": "0.065", "rate_type": "fixed",
+            "tenure_months_remaining": 300, "scheduled_emi": "2500",
+        }],
+    }
+    if deductions is not None:
+        payload["deductions"] = deductions
+    return payload
+
+
+def test_us_itemise_is_worked_out_from_deductions():
+    from api.schemas import UserIn
+
+    # $100k at 6.5% = $6.5k of interest: below the standard deduction.
+    assert UserIn(**_us_home_payload("100000")).to_engine().itemises is False
+    # $600k at 6.5% = $39k: above it.
+    assert UserIn(**_us_home_payload("600000")).to_engine().itemises is True
+    # Entered deductions win over the estimate.
+    small = _us_home_payload("600000", {"mortgage_interest_annual": "2000"})
+    assert UserIn(**small).to_engine().itemises is False
+    extra = _us_home_payload("100000", {"itemized_deductions_other": "20000"})
+    assert UserIn(**extra).to_engine().itemises is True
+    # Stated explicitly: kept.
+    stated = {**_us_home_payload("100000"), "itemises": True}
+    assert UserIn(**stated).to_engine().itemises is True
+
+
+def test_india_user_never_itemises(india_user_payload):
+    from api.schemas import UserIn
+
+    assert UserIn(**india_user_payload).to_engine().itemises is False
+
+
+def test_baseline_applies_planned_rate_resets(client, india_user_payload):
+    events = [{"kind": "floating_rate_reset", "effective_month": 3,
+               "loan_index": 0, "new_rate": "0.12"}]
+    plain = client.post("/api/baseline", json={
+        "user": india_user_payload, "horizon_months": 120,
+    }).json()
+    with_reset = client.post("/api/baseline", json={
+        "user": india_user_payload, "horizon_months": 120, "lifecycle_events": events,
+    })
+    assert with_reset.status_code == 200, with_reset.text
+    assert D(with_reset.json()["total_interest_paid"]) > D(plain["total_interest_paid"])
+
+
+def test_restructuring_total_counts_each_loan_once():
+    """A card can be balance-transferred or folded into a consolidation
+    loan, not both; the total used to add both."""
+    from api.routes.restructuring import _non_overlapping_total
+    from engine.restructuring_scan import scan_all
+    from engine.tests.test_restructuring import _mixed_book
+    opps = scan_all(_mixed_book(), Decimal("0.3"))
+    naive = sum(o.estimated_annual_saving for o in opps)
+    total = _non_overlapping_total(opps)
+    assert total < naive
+    by_kind = {o.kind: o.estimated_annual_saving for o in opps}
+    # Consolidation (loans 1-3, card included) + refinance (loan 0); the
+    # card's own transfer overlaps the consolidation and is skipped.
+    assert total == by_kind["consolidation"] + by_kind["refinance"]
+
+
+def test_what_if_baseline_is_the_plan_the_user_sees(client, india_user_payload):
+    """With goals, an emergency-fund split and a planned rate reset, the
+    what-if's 'before' must be /plan's own date and interest. The compare
+    endpoint used to drop all three."""
+    u = dict(india_user_payload, efund_balance="0", efund_target="600000")
+    plan = {
+        "simulation_start_month": 9,
+        "ef_top_up_rate": "0.5",
+        "lifecycle_events": [
+            {"kind": "floating_rate_reset", "effective_month": 4,
+             "loan_index": 0, "new_rate": "0.095"},
+        ],
+        "goals": [
+            {"id": "car", "target_month_index": 18, "required_amount": "400000"},
+        ],
+    }
+    sim = client.post("/api/simulate", json={"user": u, **plan}).json()
+    cmp_ = client.post("/api/sensitivity/compare",
+                       json={"user": u, **plan, "surplus_delta": "10000"}).json()
+    assert cmp_["baseline_debt_free_month"] == sim["debt_free_month"]
+    bare = client.post("/api/simulate", json={"user": u}).json()
+    assert bare["debt_free_month"] != sim["debt_free_month"]   # the settings matter
+    assert cmp_["scenario_debt_free_month"] <= cmp_["baseline_debt_free_month"]

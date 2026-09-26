@@ -61,7 +61,6 @@ import type { UserPayload } from '@/lib/api';
 interface Props {
   user: UserPayload;
   lowestRates: Record<string, { bank: string | null; low: string | null }>;
-  themeName: string;
 }
 
 const KIND_OPTIONS: { value: GoalKind; label: string }[] = [
@@ -340,6 +339,7 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
       '25_35': 30,
       '35_50': 42,
       '50_plus': 55,
+      '60_plus': 63,
     };
     const currentAge = user.age_bracket ? ageMap[user.age_bracket] : 30;
     const monthlyExpenses =
@@ -395,7 +395,7 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
   }
 
   return (
-    <main style={{ maxWidth: 980, margin: '24px auto', padding: '0 16px' }}>
+    <div style={{ maxWidth: 980, margin: '24px auto', padding: '0 16px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1 style={{ fontSize: 22, fontWeight: 600 }}>Goals</h1>
         <Link href="/plan" style={{ color: 'var(--accent)', fontSize: 13 }}>
@@ -520,7 +520,7 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
           </button>
         </div>
       )}
-    </main>
+    </div>
   );
 }
 
@@ -787,10 +787,11 @@ function GoalCard({
           ) : null}
         </div>
         <Field
-          label="Buffer % (decimal)"
+          label="Buffer (%)"
+          kind="percent"
           value={goal.bufferPct}
           onChange={(v) => onPatch({ bufferPct: v })}
-          hint="0.10 = 10% extra on top of target amount"
+          hint="10 = 10% extra on top of the target amount"
         />
       </div>
 

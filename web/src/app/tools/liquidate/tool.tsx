@@ -20,13 +20,14 @@ import {
   type LiquidationRecommendation,
 } from '@/lib/api';
 import { DEMO_ASSET } from '@/lib/demo-user';
-import { loadProfileClient } from '@/lib/user-store';
+import { useStoredProfile } from '@/lib/use-profile';
+import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { DecisionLogControls } from '@/components/DecisionLogControls';
 import { PortfolioRanker } from './PortfolioRanker';
+import { fitColumns } from '@/lib/grid';
 
-const FINANCE_ACT_2024_CUTOFF = '2024-07-23';
 const DEFAULT_INFLATION = '0.046';
 const ENGINE_DEFAULT_LEFTOVER_YIELD = '0.068';
 
@@ -41,18 +42,28 @@ function normalizePurchaseDate(input: string): string | null {
   return null;
 }
 
-function fyFromISO(iso: string): string {
-  const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = d.getMonth() + 1;
-  return m >= 4 ? `${y}-${String((y + 1) % 100).padStart(2, '0')}`
-                : `${y - 1}-${String(y % 100).padStart(2, '0')}`;
-}
-
 type SaleMode = 'whole' | 'partial';
 
+
+// The API's field names → this form's inputs, so a rejected value's
+// message shows under the input it came from.
+const FIELDS: Record<string, string> = {
+  'asset.purchase_price': 'purchasePrice',
+  'asset.purchase_date': 'purchaseDate',
+  'asset.state': 'state',
+  'asset.current_market_value': 'salePrice',
+  sale_price: 'salePrice',
+  debt_balance: 'debtBalance',
+  debt_effective_rate: 'debtRate',
+  taxable_income: 'taxableIncome',
+  asset_nominal_return: 'assetReturn',
+  inflation: 'inflation',
+  expected_hold_years_post_sale: 'holdYears',
+  surplus_reinvestment_yield: 'leftoverYield',
+};
+
 export function LiquidateTool() {
-  const profile = useMemo(() => loadProfileClient(), []);
+  const profile = useStoredProfile();
   const country = profile.user.country;
 
   // ─── Asset inputs ──────────────────────────────────────────────────────
@@ -100,7 +111,7 @@ export function LiquidateTool() {
 
   const [v, setV] = useState<AssetLiquidationResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { err, setErr, clear, fail, at } = useFormErrors();
   const [applied, setApplied] = useState(false);
 
   // The asset (real estate, Indian-tax mechanics) is denominated in the user's
@@ -156,14 +167,13 @@ export function LiquidateTool() {
   async function check(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setErr(null);
+    clear();
     setApplied(false);
     try {
       const isoDate = normalizePurchaseDate(purchaseDate);
       if (!isoDate) {
         throw new Error('Enter purchase as a year (2018), year-month (2018-06), or full date (2018-06-15).');
       }
-      const isPre = isoDate < FINANCE_ACT_2024_CUTOFF;
       const payload = {
         asset: {
           asset_type: 'real_estate',
@@ -180,13 +190,13 @@ export function LiquidateTool() {
         inflation,
         expected_hold_years_post_sale: holdYears,
         surplus_reinvestment_yield: leftoverYield,
-        ...(isPre
-          ? { purchase_fy: fyFromISO(isoDate), current_fy: '2024-25' }
-          : {}),
+        // The API works out both financial years from the purchase date and
+        // today (this used to send a fixed "2024-25" as the current year).
+        ...(profile.marginalRate ? { marginal_rate: profile.marginalRate } : {}),
       };
       setV(await api.assetLiquidation(payload));
     } catch (e) {
-      setErr((e as Error).message);
+      fail(e, FIELDS);
     } finally {
       setBusy(false);
     }
@@ -267,12 +277,13 @@ export function LiquidateTool() {
       <Card>
         <form
           onSubmit={check}
-          style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          style={{ display: 'grid', gap: 12, gridTemplateColumns: fitColumns(2, 200) }}
         >
           {/* Asset block */}
           <Field
             label="Purchase price"
             value={purchasePrice}
+            error={at('purchasePrice')}
             onChange={setPurchasePrice}
             info={
               <>
@@ -285,6 +296,7 @@ export function LiquidateTool() {
           <Field
             label="Purchase year or date"
             value={purchaseDate}
+            error={at('purchaseDate')}
             onChange={setPurchaseDate}
             kind="text"
             placeholder="e.g. 2018 or 2018-06-15"
@@ -294,19 +306,6 @@ export function LiquidateTool() {
                 Purchase date drives Finance Act 2024 indexation eligibility.
                 Anything before 23 Jul 2024 can use indexed cost (CII); newer
                 purchases pay flat 12.5% on the gain.
-              </>
-            }
-          />
-          <Field
-            label="State (for selling costs)"
-            value={state}
-            onChange={setState}
-            kind="text"
-            info={
-              <>
-                Stamp duty + registration vary by state in India. Maharashtra,
-                Karnataka and Delhi all have different rates. Brokerage is
-                assumed 1.5% on top.
               </>
             }
           />
@@ -331,6 +330,7 @@ export function LiquidateTool() {
             <Field
               label="Expected sale price (whole asset)"
               value={salePrice}
+              error={at('salePrice')}
               onChange={setSalePrice}
               info={<>What you realistically expect to net before tax + selling costs.</>}
             />
@@ -357,6 +357,7 @@ export function LiquidateTool() {
               <Field
                 label={`Price per ${unitLabel}`}
                 value={unitPrice}
+                error={at('salePrice')}
                 onChange={setUnitPrice}
               />
               <div
@@ -404,13 +405,16 @@ export function LiquidateTool() {
           <Field
             label="Debt balance to clear"
             value={debtBalance}
+            error={at('debtBalance')}
             onChange={setDebtBalance}
           />
           <Field
-            label="Loan rate (decimal)"
+            label="Loan rate (%)"
+            kind="percent"
             value={debtRate}
+            error={at('debtRate')}
             onChange={setDebtRate}
-            hint="e.g. 0.36 for 36% card APR, 0.085 for 8.5% home loan"
+            hint="e.g. 36 for a card, 8.5 for a home loan"
             info={
               <>
                 The <strong>effective</strong> interest rate you&apos;re paying
@@ -423,6 +427,7 @@ export function LiquidateTool() {
           <Field
             label="Your annual taxable income"
             value={taxableIncome}
+            error={at('taxableIncome')}
             onChange={setTaxableIncome}
             hint="Drives the LTCG surcharge band"
             info={
@@ -454,10 +459,12 @@ export function LiquidateTool() {
           {showAdvanced && (
             <>
               <Field
-                label="Asset's expected return (decimal, nominal)"
+                label="Asset's expected return (%, a year)"
+                kind="percent"
                 value={assetReturn}
+                error={at('assetReturn')}
                 onChange={setAssetReturn}
-                hint="e.g. 0.06 for 6% — what you think this asset will appreciate"
+                hint="e.g. 6 — what you think this asset will appreciate"
                 info={
                   <>
                     Nominal annual return you expect from the asset if you{' '}
@@ -470,6 +477,7 @@ export function LiquidateTool() {
               <Field
                 label="Years you'd hold if you don't sell"
                 value={holdYears}
+                error={at('holdYears')}
                 onChange={setHoldYears}
                 info={
                   <>
@@ -482,6 +490,7 @@ export function LiquidateTool() {
               <Field
                 label="What would the leftover cash earn?"
                 value={leftoverYield}
+                error={at('leftoverYield')}
                 onChange={setLeftoverYield}
                 hint="Default 6.8% — liquid fund / 12-mo FD (IN)"
                 info={
@@ -493,8 +502,10 @@ export function LiquidateTool() {
                 }
               />
               <Field
-                label="Inflation (decimal)"
+                label="Inflation (%)"
+                kind="percent"
                 value={inflation}
+                error={at('inflation')}
                 onChange={setInflation}
                 hint="Default 4.6% — RBI's headline CPI target band"
                 info={
@@ -546,7 +557,7 @@ export function LiquidateTool() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
+              gridTemplateColumns: fitColumns(2, 200),
               gap: 12,
               marginBottom: 12,
             }}
@@ -598,7 +609,7 @@ export function LiquidateTool() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gridTemplateColumns: fitColumns(3, 140),
                   gap: 12,
                 }}
               >

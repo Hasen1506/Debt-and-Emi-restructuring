@@ -28,6 +28,8 @@ import { Card } from '@/components/Card';
 import { InfoTip, Stat } from '@/components/ToolPrimitives';
 import { quarterlyCompound } from '@/lib/invest-vs-prepay';
 import { simulateMonteCarlo, toRealRate } from '@/lib/monte-carlo';
+import { useStoredProfile } from '@/lib/use-profile';
+import { deriveMetrics } from '@/lib/derived';
 
 const D = (v: string | number | Decimal) => new Decimal(v);
 
@@ -108,16 +110,28 @@ const INSTRUMENTS_US: Instrument[] = [
 ];
 
 export function InvestVsPrepayDeepTool() {
-  const [country, setCountry] = useState<'IN' | 'US'>('IN');
-  const [loanRatePct, setLoanRatePct] = useState('11');
-  const [marginalPct, setMarginalPct] = useState('30');
+  // Start from the profile: its country, its dearest loan's effective
+  // rate and its tax rate (these used to default to India, 11% and 30%).
+  const profile = useStoredProfile();
+  const loudest = useMemo(() => deriveMetrics(profile).loudest, [profile]);
+  const [country, setCountry] = useState<'IN' | 'US'>(profile.user.country);
+  const [loanRatePct, setLoanRatePct] = useState(
+    loudest ? (Number(loudest.effective) * 100).toFixed(2) : '11',
+  );
+  const [marginalPct, setMarginalPct] = useState(
+    (Number(profile.marginalRate || 0.3) * 100).toFixed(0),
+  );
   // Holding period for the Monte Carlo simulation — equity returns
   // converge over longer windows, so this knob meaningfully shifts the
   // probability of beating a fixed-rate loan.
   const [yearsHeld, setYearsHeld] = useState('5');
   // Inflation rate for the real-terms comparison. Defaults to typical
   // CPI by country; user can edit.
-  const [inflationPct, setInflationPct] = useState('6');
+  const [inflationPct, setInflationPct] = useState(
+    profile.user.inflation_rate && Number(profile.user.inflation_rate) > 0
+      ? (Number(profile.user.inflation_rate) * 100).toFixed(1)
+      : profile.user.country === 'US' ? '3' : '6',
+  );
 
   const instruments = country === 'IN' ? INSTRUMENTS_IN : INSTRUMENTS_US;
   const [instKey, setInstKey] = useState(instruments[0].key);

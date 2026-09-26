@@ -93,7 +93,7 @@ def _build_goal_finals(
 def _build_surplus_allocation(
     user: User,
     matched_contribution: Decimal,
-    ef_split: Decimal,
+    ef_split: Decimal | None,
     ef_preempted: bool,
     goal_states: list[GoalState] | None = None,
     simple_mode: bool = False,
@@ -108,11 +108,16 @@ def _build_surplus_allocation(
     simulate_plan's own pass (the route handler gives that function
     a fresh list).
     """
+    # Same rule as simulate_plan: a given split is the only EF top-up, so
+    # no fixed gap / 12 is held back first.
     surplus = compute_available_surplus(
         user, user.loans,
         matched_contribution=matched_contribution,
         simple_mode=simple_mode,
+        efund_monthly=D("0") if ef_split is not None else None,
     )
+    if ef_split is None:
+        ef_split = D("0")
     ef_gap = max(D("0"), user.efund_target - user.efund_balance)
 
     goal_contributions_out: list[GoalContributionOut] = []
@@ -216,7 +221,8 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
     """
     points: list[TrajectoryPoint] = []
     for row in result.months:
-        total_balance = sum(row.balances.values(), D("0"))
+        # In the user's currency: a plain sum added ₹ and $ balances.
+        total_balance = row.balance_in_user_currency
         points.append(TrajectoryPoint(
             month=row.month_index,
             balance=total_balance,
@@ -227,40 +233,45 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
             balances_by_loan_index=dict(row.balances_by_loan_index),
             available_surplus=row.available_surplus,
             goal_contributions=dict(row.goal_contributions),
+            total_paid=row.total_payment_nominal,
+            extra_paid=row.extra_paid,
         ))
     return points
+
+
+def _plan_kwargs(req: SimulateRequest | CompareRequest) -> dict:
+    """The plan's own settings as simulate_plan keyword arguments, shared
+    by /simulate and the what-if compare so both run the same plan.
+    Goal states are fresh (the engine fills them in place)."""
+    return dict(
+        matched_contribution=req.matched_contribution,
+        simple_mode=req.simple_mode,
+        simulation_start_month=req.simulation_start_month,
+        # Empty list → None → no reinvest logic runs.
+        reinvest_events=(
+            [(e.month, e.amount) for e in req.reinvest_events]
+            if req.reinvest_events else None
+        ),
+        inflate_expenses=req.inflate_expenses,
+        lifecycle_events=(
+            _to_engine_lifecycle(req.lifecycle_events) if req.lifecycle_events else None
+        ),
+        ef_top_up_rate=req.ef_top_up_rate,
+        goals=_build_goal_states(req.goals) if req.goals else None,
+    )
 
 
 @router.post("/simulate", response_model=SimulateResponse)
 def simulate(req: SimulateRequest) -> SimulateResponse:
     user = req.user.to_engine()
-    # Flatten the reinvest-events list to the tuple shape the engine takes.
-    # Empty list → engine sees None → no reinvest logic runs (preserves
-    # baseline behaviour for callers that don't set the toggle).
-    reinvest_tuples = (
-        [(e.month, e.amount) for e in req.reinvest_events]
-        if req.reinvest_events
-        else None
-    )
-    events = _to_engine_lifecycle(req.lifecycle_events) if req.lifecycle_events else None
-    # Build engine goal states from the request, if any. The handler
-    # owns two independent copies — one for simulate_plan (which mutates
-    # saved_so_far + saved_at_target across the trajectory) and one for
-    # the snapshot builder. Both start from the same request payload so
-    # the snapshot reflects the same starting state. After simulate_plan
-    # returns, the first list carries end-of-trajectory state used for
-    # per-goal fill rates.
-    goal_states = _build_goal_states(req.goals) if req.goals else None
+    # simulate_plan mutates these goal states (saved_so_far, saved_at_target);
+    # afterwards they carry the end-of-trajectory state for the fill rates.
+    # The snapshot builder below gets its own fresh copy.
+    kwargs = _plan_kwargs(req)
+    goal_states = kwargs["goals"]
     result = simulate_plan(
         user, strategy=req.strategy, horizon_months=req.horizon_months,
-        matched_contribution=req.matched_contribution,
-        marginal_rate=req.marginal_rate, simple_mode=req.simple_mode,
-        simulation_start_month=req.simulation_start_month,
-        reinvest_events=reinvest_tuples,
-        inflate_expenses=req.inflate_expenses,
-        lifecycle_events=events,
-        ef_top_up_rate=req.ef_top_up_rate,
-        goals=goal_states,
+        marginal_rate=req.marginal_rate, **kwargs,
     )
     return SimulateResponse(
         debt_free_month=result.debt_free_month,
@@ -293,6 +304,9 @@ def baseline(req: BaselineRequest) -> SimulateResponse:
     user = req.user.to_engine()
     result = baseline_minimums_only(
         user, horizon_months=req.horizon_months, simple_mode=req.simple_mode,
+        lifecycle_events=(
+            _to_engine_lifecycle(req.lifecycle_events) if req.lifecycle_events else None
+        ),
     )
     return SimulateResponse(
         debt_free_month=result.debt_free_month,
@@ -311,11 +325,12 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
     """Runs baseline vs scenario and diffs them. Exactly one what-if knob
     should be set per request — if multiple are set, they stack."""
     user = req.user.to_engine()
-    sm = req.simulation_start_month
+    plan = _plan_kwargs(req)
+    sm = plan.pop("simulation_start_month")
     base = simulate_plan(
         user, strategy=req.strategy, horizon_months=req.horizon_months,
-        marginal_rate=req.marginal_rate,
-        simulation_start_month=sm,
+        marginal_rate=req.marginal_rate, simulation_start_month=sm,
+        **{**plan, "goals": deepcopy(plan["goals"])},
     )
 
     scenario_user = deepcopy(user)
@@ -325,33 +340,33 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
             scenario_user, req.surplus_delta, strategy=req.strategy,
             horizon_months=req.horizon_months, marginal_rate=req.marginal_rate,
             start_month=req.surplus_delta_start_month,
-            simulation_start_month=sm,
+            simulation_start_month=sm, plan=plan,
         )
     elif req.income_shock_months is not None:
         scenario_result = with_income_shock(
             scenario_user, req.income_shock_months, strategy=req.strategy,
             horizon_months=req.horizon_months, marginal_rate=req.marginal_rate,
-            simulation_start_month=sm,
+            simulation_start_month=sm, plan=plan,
         )
     elif req.rate_shock_delta is not None:
         scenario_result = with_rate_shock(
             scenario_user, req.rate_shock_delta, strategy=req.strategy,
             horizon_months=req.horizon_months, marginal_rate=req.marginal_rate,
             floating_only=req.rate_shock_floating_only,
-            simulation_start_month=sm,
+            simulation_start_month=sm, plan=plan,
         )
     elif req.alt_strategy is not None:
         scenario_result = with_strategy(
             scenario_user, req.alt_strategy, horizon_months=req.horizon_months,
             marginal_rate=req.marginal_rate,
-            simulation_start_month=sm,
+            simulation_start_month=sm, plan=plan,
         )
     elif req.lump_sum_amount is not None and req.lump_sum_target_loan_index is not None:
         scenario_result = with_lump_sum(
             scenario_user, req.lump_sum_amount, req.lump_sum_target_loan_index,
             strategy=req.strategy, horizon_months=req.horizon_months,
             marginal_rate=req.marginal_rate,
-            simulation_start_month=sm,
+            simulation_start_month=sm, plan=plan,
         )
 
     diff = compare(base, scenario_result)

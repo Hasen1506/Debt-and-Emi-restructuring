@@ -1,13 +1,13 @@
 {
   "$schema_note": "Schedule of MPC (RBI) and FOMC (Fed) meeting dates. Update annually in January when central banks publish the next year's calendar. Source: rbi.org.in / federalreserve.gov.",
-  "last_updated": "2026-05-21",
+  "last_updated": "2026-09-26",
   "meetings": {
     "IN": [
-      {"date": "2026-02-06", "outcome_rate": "0.0625", "note": "Feb MPC"},
-      {"date": "2026-04-09", "outcome_rate": "0.0625", "note": "Apr MPC"},
-      {"date": "2026-06-04", "outcome_rate": null, "note": "Jun MPC"},
-      {"date": "2026-08-07", "outcome_rate": null, "note": "Aug MPC"},
-      {"date": "2026-10-08", "outcome_rate": null, "note": "Oct MPC"},
+      {"date": "2026-02-06", "outcome_rate": "0.0525", "note": "Feb MPC"},
+      {"date": "2026-04-08", "outcome_rate": "0.0525", "note": "Apr MPC"},
+      {"date": "2026-06-05", "outcome_rate": "0.0525", "note": "Jun MPC"},
+      {"date": "2026-08-05", "outcome_rate": "0.0525", "note": "Aug MPC"},
+      {"date": "2026-10-07", "outcome_rate": null, "note": "Oct MPC"},
       {"date": "2026-12-05", "outcome_rate": null, "note": "Dec MPC"},
       {"date": "2027-02-04", "outcome_rate": null, "note": "Feb MPC"},
       {"date": "2027-04-08", "outcome_rate": null, "note": "Apr MPC"},
@@ -17,12 +17,12 @@
       {"date": "2027-12-09", "outcome_rate": null, "note": "Dec MPC"}
     ],
     "US": [
-      {"date": "2026-01-28", "outcome_rate": "0.0450", "note": "Jan FOMC"},
-      {"date": "2026-03-18", "outcome_rate": "0.0450", "note": "Mar FOMC + SEP"},
-      {"date": "2026-04-29", "outcome_rate": "0.0450", "note": "Apr FOMC"},
-      {"date": "2026-06-17", "outcome_rate": null, "note": "Jun FOMC + SEP"},
-      {"date": "2026-07-29", "outcome_rate": null, "note": "Jul FOMC"},
-      {"date": "2026-09-16", "outcome_rate": null, "note": "Sep FOMC + SEP"},
+      {"date": "2026-01-28", "outcome_rate": "0.0375", "note": "Jan FOMC"},
+      {"date": "2026-03-18", "outcome_rate": "0.0375", "note": "Mar FOMC + SEP"},
+      {"date": "2026-04-29", "outcome_rate": "0.0375", "note": "Apr FOMC"},
+      {"date": "2026-06-17", "outcome_rate": "0.0375", "note": "Jun FOMC + SEP"},
+      {"date": "2026-07-29", "outcome_rate": "0.0375", "note": "Jul FOMC"},
+      {"date": "2026-09-16", "outcome_rate": "0.0400", "note": "Sep FOMC + SEP (hike)"},
       {"date": "2026-10-28", "outcome_rate": null, "note": "Oct FOMC"},
       {"date": "2026-12-09", "outcome_rate": null, "note": "Dec FOMC + SEP"},
       {"date": "2027-01-27", "outcome_rate": null, "note": "Jan FOMC"},
@@ -34,9 +34,5 @@
       {"date": "2027-11-03", "outcome_rate": null, "note": "Nov FOMC"},
       {"date": "2027-12-15", "outcome_rate": null, "note": "Dec FOMC + SEP"}
     ]
-  },
-  "current_rates": {
-    "IN": {"repo": "0.0625", "updated_at": "2026-04-09"},
-    "US": {"fed_funds_upper": "0.0450", "fed_funds_lower": "0.0425", "updated_at": "2026-04-29"}
   }
 }

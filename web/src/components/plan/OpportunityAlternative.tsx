@@ -17,6 +17,7 @@
  */
 import { useState } from 'react';
 import { formatCurrency } from '@/lib/api';
+import { formatAsOf } from '@/lib/as-of';
 import type { RestructuringOpportunity, UserPayload } from '@/lib/api';
 import type { CurrencyCode } from '@/lib/currency';
 import { UpdateRestructureModal } from './UpdateRestructureModal';
@@ -294,19 +295,12 @@ export function RateAsOfBadge({
   variant?: 'existing' | 'ledger' | 'editorial';
 }) {
   if (!asOf) return null;
-  let label: string;
-  try {
-    label = new Date(asOf).toLocaleDateString(undefined, {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    label = asOf;
-  }
+  // Rate-card labels can carry a note ("2026-05 industry norms — confirm
+  // SoC"); the badge shows the date and the tooltip keeps the note.
+  const label = formatAsOf(asOf);
   return (
     <span
-      title={`Rate-card last verified ${label}. Updates each batch refresh — quarterly cadence today, partner-API live feed once that ships.`}
+      title={`Rate card last checked: ${asOf}. Banks change their rates; confirm with the lender.`}
       style={{
         marginLeft: 6,
         padding: '2px 6px',

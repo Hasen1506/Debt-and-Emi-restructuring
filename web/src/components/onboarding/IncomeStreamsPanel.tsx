@@ -86,6 +86,9 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
         background: 'var(--soft-bg)',
       }}
     >
+      {/* The info tip is its own button, so it sits beside the toggle
+          rather than inside it (a button can't contain a button). */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -111,27 +114,6 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
           }}
         >
           Multiple incomes or a recent transition?
-          <InfoTip>
-            <strong>What this is.</strong> If you have a single salary,
-            ignore this — the field above handles you. Open this panel if
-            you have:
-            <div style={{ marginTop: 6 }}>
-              • <strong>Multiple concurrent sources</strong> (salary + freelance
-              side work, salary + rental, etc.) — list them as separate streams.
-            </div>
-            <div style={{ marginTop: 4 }}>
-              • <strong>A recent role change</strong> (salaried until June, then
-              freelance) — record both, with the old one&apos;s end-date set
-              to the transition month.
-            </div>
-            <div style={{ marginTop: 8 }}>
-              <strong>How it&apos;s used.</strong> Tax sleeve recomputes from
-              active streams instead of a single annual_business_income input;
-              your effective monthly income comes from sum-of-active / 12.
-              Historical streams stay on file so future tax-year math has
-              the context.
-            </div>
-          </InfoTip>
           <span
             style={{
               fontSize: 11,
@@ -150,6 +132,28 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
           {expanded ? '▾' : '▸'}
         </span>
       </button>
+      <InfoTip>
+        <strong>What this is.</strong> If you have a single salary,
+        ignore this — the field above handles you. Open this panel if
+        you have:
+        <div style={{ marginTop: 6 }}>
+          • <strong>Multiple concurrent sources</strong> (salary + freelance
+          side work, salary + rental, etc.) — list them as separate streams.
+        </div>
+        <div style={{ marginTop: 4 }}>
+          • <strong>A recent role change</strong> (salaried until June, then
+          freelance) — record both, with the old one&apos;s end-date set
+          to the transition month.
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <strong>How it&apos;s used.</strong> Tax sleeve recomputes from
+          active streams instead of a single annual_business_income input;
+          your effective monthly income comes from sum-of-active / 12.
+          Historical streams stay on file so future tax-year math has
+          the context.
+        </div>
+      </InfoTip>
+      </div>
 
       {expanded && (
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -271,10 +275,11 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
                   hint="Pre-tax annual from this source alone"
                 />
                 <Field
-                  label="TDS / withholding (decimal)"
+                  label="TDS / withholding (%)"
+                  kind="percent"
                   value={s.tds_pct ?? ''}
                   onChange={(v) => updateStream(i, { tds_pct: v })}
-                  hint="0.3 = 30% withheld at source; 0 = you owe full tax yourself"
+                  hint="30 = 30% withheld at source; 0 = you owe the full tax yourself"
                   info={
                     <>
                       The fraction of this stream&apos;s tax that&apos;s

@@ -70,3 +70,18 @@ def test_fx_rate_live_path_mocked(mock_client, client):
 def test_fx_rate_unsupported_pair_returns_502(client):
     r = client.get("/api/fx-rate?base=XYZ&quote=USD")
     assert r.status_code == 502
+
+
+def test_cross_border_rejects_zero_or_negative_fx_rate(client):
+    """A 0 rate made every EMI 0 in the user's currency; negative made it < 0."""
+    base = {
+        "loan_balance": "3500000", "loan_nominal_rate": "0.085",
+        "loan_tenure_months": 180, "loan_currency": "INR", "user_currency": "USD",
+        "user_savings_yield": "0.05",
+    }
+    for bad in ("0", "-0.012"):
+        r = client.post("/api/cross-border-decision", json={**base, "manual_fx_rate": bad})
+        assert r.status_code == 422, bad
+    r = client.post("/api/cross-border-decision",
+                    json={**base, "manual_fx_rate": "0.012", "manual_fx_drift_annual": "3"})
+    assert r.status_code == 422

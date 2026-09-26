@@ -87,7 +87,7 @@ export function EfSplitSlider({
           color: 'var(--muted)',
         }}
       >
-        <span>EF / DEBT SPLIT {explainer}</span>
+        <span>EXTRA MONEY SPLIT {explainer}</span>
         <input
           type="range"
           min={0}
@@ -98,10 +98,12 @@ export function EfSplitSlider({
             commit((Number(e.target.value) / 100).toFixed(2))
           }
           disabled={pending}
+          aria-label="Emergency fund share of extra money"
+          aria-valuetext={`${pct}% emergency fund, ${100 - pct}% debt`}
           style={{ width: 140 }}
         />
         <span style={{ color: 'var(--ink)' }}>
-          {pct}% EF · {debtPct}% DEBT
+          {pct}% EMERGENCY FUND · {debtPct}% DEBT
         </span>
         {pending && <span>recomputing…</span>}
       </div>
@@ -131,6 +133,8 @@ export function EfSplitSlider({
             commit((Number(e.target.value) / 100).toFixed(2))
           }
           disabled={pending}
+          aria-label="Emergency fund share of extra money"
+          aria-valuetext={`${pct}% emergency fund, ${100 - pct}% debt`}
           style={{ width: 200 }}
         />
         <span style={{ fontWeight: 600 }}>

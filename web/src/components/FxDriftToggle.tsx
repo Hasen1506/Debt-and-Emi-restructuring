@@ -16,8 +16,8 @@ import { writeFxDriftClient, type FxDriftSetting } from '@/lib/fx-drift';
 import { ThemedSegmentedControl } from '@/components/themed/ThemedSegmentedControl';
 
 const OPTIONS: { value: FxDriftSetting; label: string }[] = [
-  { value: 'on', label: 'Model drift' },
-  { value: 'off', label: 'Flat FX' },
+  { value: 'on', label: 'Include' },
+  { value: 'off', label: 'Ignore' },
 ];
 
 const HELP_ON =
@@ -47,7 +47,7 @@ export function FxDriftToggle({
   return (
     <ThemedSegmentedControl<FxDriftSetting>
       variant={variant}
-      label="FX drift"
+      label="Rupee weakening"
       options={OPTIONS}
       active={active}
       onPick={writeFxDriftClient}

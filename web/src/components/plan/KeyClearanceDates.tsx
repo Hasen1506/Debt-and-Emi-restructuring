@@ -93,7 +93,7 @@ export function KeyClearanceDates({ plan }: { plan: PlanData }) {
       out.push({
         month: plan.debtFreeMonth,
         label: 'Debt-free',
-        detail: 'every loan at zero on the avalanche schedule',
+        detail: `every loan at zero on the ${plan.strategy} schedule`,
         kind: 'debt_free',
       });
     }
@@ -102,7 +102,8 @@ export function KeyClearanceDates({ plan }: { plan: PlanData }) {
       const m = monthsUntil(g);
       if (m <= 0) return;
       out.push({
-        month: m,
+        // monthsUntil counts from this month; plan months start at 1.
+        month: m + 1,
         label: g.label || `Goal: ${g.kind}`,
         detail: g.amount
           ? `target ${formatCurrency(g.amount, ccy)}`

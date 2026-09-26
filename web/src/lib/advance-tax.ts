@@ -21,7 +21,9 @@
  * "Partial mark-paid" is supported: governments accept any amount toward
  * an instalment; shortfall just rolls forward and accrues 234C / 2210.
  */
+import { localIsoDate } from './today';
 import Decimal from 'decimal.js';
+import { dec } from './safe-decimal';
 import type { Country } from './api';
 
 export type AdvanceTaxStatus = 'pending' | 'paid' | 'missed';
@@ -80,7 +82,7 @@ export function buildSchedule(
 
   // Filter to upcoming (today or later). Past ones are out of scope
   // for the generator; existing cookie state owns their status.
-  const todayIso = today.toISOString().slice(0, 10);
+  const todayIso = localIsoDate(today);
   const upcoming = allInstalments.filter((i) => i.dueDate >= todayIso);
   if (upcoming.length === 0) return null;
 
@@ -156,12 +158,12 @@ export function detectMissedInstalments(
   schedule: AdvanceTaxSchedule,
   today: Date,
 ): { instalment: AdvanceTaxInstalment; shortfall: string }[] {
-  const todayIso = today.toISOString().slice(0, 10);
+  const todayIso = localIsoDate(today);
   const out: { instalment: AdvanceTaxInstalment; shortfall: string }[] = [];
   for (const inst of schedule.instalments) {
     if (inst.dueDate >= todayIso) continue;            // not yet due
     if (inst.status === 'missed') continue;            // already flagged
-    const paid = new Decimal(inst.paidAmount ?? '0');
+    const paid = dec(inst.paidAmount);
     const due = new Decimal(inst.amountDue);
     if (paid.gte(due)) continue;                       // fully paid (incl. overpay)
     out.push({
@@ -204,7 +206,7 @@ export function accruedPenalty(
 
   for (const inst of schedule.instalments) {
     const due = new Decimal(inst.amountDue);
-    const paid = new Decimal(inst.paidAmount ?? '0');
+    const paid = dec(inst.paidAmount);
     if (paid.gte(due)) continue;
     const shortfall = due.sub(paid);
     const dueDate = new Date(inst.dueDate + 'T00:00:00').getTime();
@@ -233,7 +235,7 @@ export function accruedPenalty(
         let totalUnpaid = new Decimal(0);
         for (const inst of schedule.instalments) {
           const due = new Decimal(inst.amountDue);
-          const paid = new Decimal(inst.paidAmount ?? '0');
+          const paid = dec(inst.paidAmount);
           if (paid.lt(due)) totalUnpaid = totalUnpaid.add(due.sub(paid));
         }
         total234B = totalUnpaid.mul(rate234C).mul(monthsPastFy);

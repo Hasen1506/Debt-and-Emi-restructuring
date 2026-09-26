@@ -16,9 +16,9 @@
  * sampling variance.
  */
 import Decimal from 'decimal.js';
+import { dec } from './safe-decimal';
 
-const D = (v: string | number | Decimal | null | undefined) =>
-  new Decimal(v ?? '0');
+const D = dec;
 
 /** One sample from a standard normal distribution (mean 0, std 1). */
 function boxMuller(): number {

@@ -22,7 +22,7 @@
  */
 
 import type { CSSProperties, ReactNode } from 'react';
-import { LCardSoft, LCardHard, LMathBlock, L_T, L_MONO } from './primitives';
+import { LCardSoft, LCardHard, LMathBlock, L_T, L_MONO, lGridColumns } from './primitives';
 
 // ─── Header: CLI line + hero question ──────────────────────────────────
 export function LToolHeader({
@@ -31,7 +31,8 @@ export function LToolHeader({
   date,
   question,
 }: {
-  /** Section tag from `lib/tools` (`8a`, `8b`, `FX`, …). */
+  /** Section tag from `lib/tools` (`8a`, `8b`, `FX`, …). Not shown: spec
+   *  numbering meant nothing to users. */
   tag: string;
   /** Tool name in ALL CAPS, e.g. WINDFALL ROUTER. */
   name: string;
@@ -50,7 +51,7 @@ export function LToolHeader({
           marginBottom: 14,
         }}
       >
-        $ §{tag.toUpperCase()} · {name.toUpperCase()} · {date.toUpperCase()}
+        $ {name.toUpperCase()} · {date.toUpperCase()}
       </div>
       <h1
         style={{
@@ -178,7 +179,7 @@ export function LToolVerdict({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: `repeat(${Math.min(kpi.length, 4)}, 1fr)`,
+            gridTemplateColumns: lGridColumns(Math.min(kpi.length, 4), 140),
             gap: 1,
             background: L_T.ink,
             border: `1px solid ${L_T.ink}`,
@@ -373,7 +374,7 @@ export function LToolMath({
 // ─── LToolShell wrapper — sets up the column gap + font for any tool ───
 export function LToolShell({ children }: { children: ReactNode }) {
   return (
-    <main
+    <div
       style={{
         flex: 1,
         padding: '4px 0 0',
@@ -384,6 +385,6 @@ export function LToolShell({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-    </main>
+    </div>
   );
 }

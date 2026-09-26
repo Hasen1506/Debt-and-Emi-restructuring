@@ -151,6 +151,9 @@ export async function hydrateFromServer(): Promise<boolean> {
  */
 export function SessionHydrator(): null {
   useEffect(() => {
+    // Trial mode has no sign-in (and no /api/user/state): nothing to fetch,
+    // and asking anyway cost a 404 on every page.
+    if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') return;
     let cancelled = false;
     async function hydrate() {
       const { api } = await import('./api');

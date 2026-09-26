@@ -19,6 +19,7 @@
 import Decimal from 'decimal.js';
 import type { PlanData } from './PlanData';
 import { computeBreakdown } from '@/lib/effective-apr';
+import { usItemises } from '@/lib/deductions';
 import {
   compareToLoan,
   pct,
@@ -47,7 +48,7 @@ export function InvestVsPrepayCard({ plan, variant }: Props) {
   const ranked = loansWithBalance
     .map((loan) => ({
       loan,
-      breakdown: computeBreakdown(loan, plan.marginalRate, plan.user.country, taxRegime),
+      breakdown: computeBreakdown(loan, plan.marginalRate, plan.user.country, taxRegime, usItemises(plan.user)),
     }))
     .sort((a, b) => b.breakdown.effective.cmp(a.breakdown.effective));
 
@@ -207,7 +208,7 @@ function CardLayout({ plan, top, result, vehicles, tip }: LayoutProps) {
       <div className="muted" style={{ fontSize: 11, marginTop: 10 }}>
         Variable-return options (equity, MF) involve probability and
         drawdowns →{' '}
-        <a href="/tools/invest-vs-prepay" style={{ color: 'var(--accent)' }}>
+        <a href="/tools/invest-vs-prepay" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
           deeper analysis
         </a>
         {plan.user.country === 'IN' && (
@@ -275,7 +276,7 @@ function LedgerLayout({ plan, top, result, vehicles, tip }: LayoutProps) {
       </div>
       <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>
         VARIABLE-RETURN OPTIONS →{' '}
-        <a href="/tools/invest-vs-prepay" style={{ color: 'var(--accent)' }}>
+        <a href="/tools/invest-vs-prepay" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
           /TOOLS/INVEST-VS-PREPAY
         </a>
       </div>
@@ -340,7 +341,7 @@ function EditorialLayout({ plan, top, result, vehicles, tip }: LayoutProps) {
       </div>
       <div style={{ marginTop: 10, fontSize: 12, color: 'var(--muted)' }}>
         Variable returns →{' '}
-        <a href="/tools/invest-vs-prepay" style={{ color: 'var(--accent)' }}>
+        <a href="/tools/invest-vs-prepay" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
           deeper analysis
         </a>
       </div>

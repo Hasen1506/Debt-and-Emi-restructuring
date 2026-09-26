@@ -6,21 +6,20 @@
  * Sections, top to bottom (matches prototype §4.5):
  *   1. CLI summary line
  *   2. 4-cell KPI: TOTAL OUTSTANDING / WEIGHTED APR / TOTAL EMI / NEXT RESET
- *   3. OPEN POSITIONS · DETAILED  (LDebtsTable with POST-TAX column)
+ *   3. OPEN POSITIONS · DETAILED  (LDebtsTable)
  *   4. HIGHLIGHTED · LOUDEST DEBT  (accent-bordered card)
  *
- * Per-loan expandable breakdown, lifecycle events panel, today card, cash
- * management, and stale-card nudge — all the prior LedgerDebts extras —
- * live in LEDGER_MISSING.md.
+ *   5. HOW EACH RATE IS WORKED OUT  (per-loan breakdown)
+ *   6. Stale-card nudge, cash section, life events
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrency } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { deriveMetrics } from '@/lib/derived';
-import { userDefaultCurrency } from '@/lib/currency';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import {
   LShell,
   LSectionHeader,
@@ -31,41 +30,43 @@ import {
   L_MONO,
 } from '@/components/ledger/primitives';
 import { LDebtsTable } from '@/components/ledger/LDebtsTable';
+import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
+import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
+import { CashManagementSection } from '@/components/debts/CashManagementSection';
+import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 
 export function LedgerDebts({ profile }: { profile: StoredProfile }) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
+  const [showMath, setShowMath] = useState(false);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: string | number) => formatCurrency(v, ccy);
 
   if (m.loans.length === 0) {
+    const paidOff = (profile.user.loans?.length ?? 0) > 0;
     return (
       <LShell>
-        <main style={{ padding: '40px 0' }}>
-          <LCli>DEBTS · NO OPEN POSITIONS</LCli>
+        <div style={{ padding: '40px 0' }}>
+          <LCli>{paidOff ? 'DEBTS · ALL PAID OFF' : 'DEBTS · NO OPEN POSITIONS'}</LCli>
           <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
-            Run setup to add your debts: <LBracket href="/onboarding">SETUP →</LBracket>
+            {paidOff ? 'Every loan on file is at 0. ' : 'Run setup to add your debts: '}
+            <LBracket href="/onboarding?step=loans">{paidOff ? 'ADD A LOAN →' : 'SETUP →'}</LBracket>
           </div>
-        </main>
+        </div>
       </LShell>
     );
   }
 
   const loudest = m.loudest!;
-  const totalEmi = m.loans.reduce(
-    (s, d) => s + Number(d.loan.scheduled_emi || 0),
-    0,
-  );
-  // Floating loans surface a cycle length (months) rather than a precise
-  // next-reset date. Pick the shortest cycle as a proxy for "next thing
-  // that will requote". /plan's lifecycle events panel has the dated
-  // version — listed in LEDGER_MISSING.md as a fidelity gap.
-  const nextResetLoan = m.loans
-    .map((d) => ({
-      d,
-      cycle: Number(d.loan.rate_reset_frequency_months ?? 0),
-    }))
-    .filter((x) => x.cycle > 0 && x.d.loan.rate_type === 'floating')
-    .sort((a, b) => a.cycle - b.cycle)[0];
+  // Both in the user's currency: rupee and dollar EMIs used to be added
+  // as plain numbers for NRIs.
+  const totalEmi = m.emiBurden.toNumber();
+  // What the debts cost each month, before any tax refund: the figure a
+  // borrower feels. (A reset-cycle length used to sit here; it said
+  // nothing about when the rate next moves.)
+  const monthlyInterest = m.monthlyInterest;
+  // The dearest loan's own figures, in its own currency.
+  const fcLoudest = (v: string | number) =>
+    formatCurrency(v, loanCurrency(loudest.loan, profile.user.country));
 
   // Monthly interest on the loudest line = outstanding * (nominal / 12).
   // Use nominal not effective because that's what the bank charges; the
@@ -74,20 +75,16 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
     .mul(new Decimal(loudest.loan.nominal_rate || 0))
     .div(12)
     .toFixed(0);
-
-  // Spread vs next-loudest as a single number — same comparison the
-  // prototype uses to justify "this one is loudest".
-  const next = m.loans[1];
-  const vsNext = next
-    ? new Decimal(loudest.loan.outstanding || 0)
-        .mul(new Decimal(loudest.loan.nominal_rate || 0).sub(new Decimal(next.loan.nominal_rate || 0)))
-        .div(12)
-        .toFixed(0)
-    : '0';
+  const breakdownProps = {
+    marginalTaxRate: profile.marginalRate,
+    country: profile.user.country,
+    taxRegime: profile.user.country === 'IN' ? profile.user.tax_regime : undefined,
+    incomeType: profile.user.income_type,
+  };
 
   return (
     <LShell>
-      <main
+      <div
         style={{
           flex: 1,
           padding: '4px 0 0',
@@ -99,7 +96,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
       >
         <section>
           <LCli>
-            DEBTS · {m.loans.length} OPEN · WEIGHTED EFFECTIVE APR{' '}
+            DEBTS · {m.loans.length} OPEN · AVERAGE EFFECTIVE RATE{' '}
             {fmtPct(m.blendedEffective)}
           </LCli>
           <LKpi
@@ -108,12 +105,12 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
               {
                 l: 'TOTAL OUTSTANDING',
                 v: fc(m.totalOutstanding.toString()),
-                s: `${m.loans.length} OPEN LINES`,
+                s: `${m.loans.length} OPEN`,
               },
               {
-                l: 'WEIGHTED APR',
+                l: 'EFFECTIVE RATE',
                 v: fmtPct(m.blendedEffective),
-                s: 'POST-TAX',
+                s: 'AVERAGE · AFTER FEES + TAX',
               },
               {
                 l: 'TOTAL EMI',
@@ -121,12 +118,10 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
                 s: 'SCHEDULED',
               },
               {
-                l: 'RESET CYCLE',
-                v: nextResetLoan ? `${nextResetLoan.cycle} MO` : 'NONE',
-                s: nextResetLoan
-                  ? `${(nextResetLoan.d.loan.bank || '—').toUpperCase()} FLT`
-                  : 'NO FLOATING LOANS',
-                tone: nextResetLoan ? L_T.accent : L_T.muted,
+                l: 'INTEREST',
+                v: `${fc(monthlyInterest.toFixed(0))}/MO`,
+                s: 'CHARGED THIS MONTH',
+                tone: L_T.negative,
               },
             ]}
           />
@@ -136,7 +131,12 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
           <LSectionHeader right={<LBracket href="/onboarding">+ ADD DEBT</LBracket>}>
             OPEN POSITIONS · DETAILED
           </LSectionHeader>
-          <LDebtsTable loans={m.loans} country={profile.user.country} showShield />
+          <LDebtsTable
+            loans={m.loans}
+            country={profile.user.country}
+            totalOutstanding={m.totalOutstanding}
+            totalEmi={m.emiBurden}
+          />
         </section>
 
         {/* Highlighted loudest debt — only block where the border itself goes accent. */}
@@ -179,19 +179,12 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
                 ],
                 [
                   'OUTSTANDING',
-                  fc(loudest.loan.outstanding),
+                  fcLoudest(loudest.loan.outstanding),
                   loudest.loan.loan_type === 'credit_card'
                     ? 'REVOLVING BALANCE'
                     : 'PRINCIPAL REMAINING',
                 ],
-                ['MONTHLY INT', fc(loudestMonthlyInt), 'PURE FRICTION'],
-                next
-                  ? [
-                      'VS NEXT',
-                      `+${fc(vsNext)}`,
-                      `MORE THAN ${(next.loan.bank || '—').toUpperCase()} ${next.loan.loan_type.toUpperCase().replace('_', ' ')} EACH MONTH`,
-                    ]
-                  : null,
+                ['MONTHLY INT', fcLoudest(loudestMonthlyInt), 'CHARGED EACH MONTH'],
               ].filter(Boolean) as [string, string, string, string?][]).map((r, i) => (
                 <tr key={i} style={{ borderBottom: `1px dashed ${L_T.faint}` }}>
                   <td
@@ -230,13 +223,42 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
           </table>
           <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <LBracket active href="/plan">
-              BALANCE TRANSFER →
+              {loudest.loan.loan_type === 'credit_card' ? 'CHEAPER CARD RATE →' : 'CHEAPER RATE →'}
             </LBracket>
-            <LBracket href="/plan">SHOW MATH</LBracket>
+            <LBracket onClick={() => setShowMath((v) => !v)} active={showMath}>
+              {showMath ? 'HIDE MATH' : 'SHOW MATH'}
+            </LBracket>
             <LBracket href="/insights#activity-ledger">MARK PAID</LBracket>
           </div>
+          {showMath && (
+            <div style={{ marginTop: 12 }}>
+              <EffectiveAprBreakdown loan={loudest.loan} variant="inline" {...breakdownProps} />
+            </div>
+          )}
         </section>
-      </main>
+
+        {/* Every loan's rate, worked out */}
+        {m.loans.length > 1 && (
+          <section>
+            <LSectionHeader>HOW EACH RATE IS WORKED OUT</LSectionHeader>
+            {m.loans.map((d, i) => (
+              <details key={i} style={{ borderBottom: `1px dashed ${L_T.faint}`, padding: '8px 0' }}>
+                <summary style={{ cursor: 'pointer', fontSize: 11, letterSpacing: '0.06em' }}>
+                  {(d.loan.bank || '—').toUpperCase()} · {d.loan.loan_type.replace('_', ' ').toUpperCase()} ·{' '}
+                  {fmtPct(d.nominal)} → <strong>{fmtPct(d.effective)}</strong>
+                </summary>
+                <div style={{ marginTop: 8 }}>
+                  <EffectiveAprBreakdown loan={d.loan} variant="inline" {...breakdownProps} />
+                </div>
+              </details>
+            ))}
+          </section>
+        )}
+
+        <StaleCardNudge user={profile.user} />
+        <CashManagementSection profile={profile} />
+        <LifecycleEventsPanel user={profile.user} variant="ledger" />
+      </div>
     </LShell>
   );
 }

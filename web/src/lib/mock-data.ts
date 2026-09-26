@@ -22,6 +22,9 @@ export type TrajectoryPoint = {
    *  user.loans. Drives the per-loan trajectory chart. Cleared loans
    *  keep their entry at 0 so the chart sees stable series. */
   balancesByLoanIndex?: Record<string, number>;
+  /** Interest charged this month on the plan's schedule, in the user's
+   *  currency (the engine's figure, not derived from balance changes). */
+  interest?: number;
 };
 
 export const mockTrajectory: TrajectoryPoint[] = Array.from({ length: 37 }, (_, i) => {

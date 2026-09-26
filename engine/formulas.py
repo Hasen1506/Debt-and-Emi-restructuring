@@ -91,16 +91,20 @@ def country_cap_home_loan(country: Country, regime: TaxRegimeIN, property_use: s
     return D("200000") if regime == TaxRegimeIN.OLD else D("0")
 
 
-def gst_component(loan_type: LoanType, nominal_rate: Decimal, processing_fee: Decimal,
-                  principal: Decimal, tenure_years: Decimal) -> Decimal:
+def gst_component(loan_type: LoanType, nominal_rate: Decimal,
+                  processing_fee_rate: Decimal) -> Decimal:
     """India GST contribution to effective rate. 18% on credit-card interest;
-    18% on processing fee (amortised) for personal/home/auto."""
+    18% on the processing fee for personal/home/auto.
+
+    `processing_fee_rate` is the fee already spread over the tenure as a
+    yearly rate (`Loan.processing_fee_amortised`). It used to be divided
+    again by balance × years as if it were a rupee amount, which made the
+    GST on the fee about zero.
+    """
     if loan_type == LoanType.CREDIT_CARD:
         return nominal_rate * D("0.18")
     if loan_type in (LoanType.PERSONAL, LoanType.HOME, LoanType.AUTO):
-        if principal <= 0 or tenure_years <= 0:
-            return D("0")
-        return (processing_fee * D("0.18")) / (principal * tenure_years)
+        return processing_fee_rate * D("0.18")
     return D("0")
 
 
@@ -113,22 +117,33 @@ def effective_rate(
     marginal_tax_rate: Decimal,
     country: Country,
     tax_regime: TaxRegimeIN | None = None,
+    itemises: bool = True,
 ) -> Decimal:
     """§4.1 effective rate = nominal × [1 − shield_fraction × marginal_rate] + fees + GST.
 
     Tax shield only applies to home loan (Sec 24(b) India / IRC §163 US) and
     education loan (Sec 80E India, interest-only). Non-deductible loan types
     (credit card, personal, auto, gold, BNPL) get zero shield.
+
+    - India, new regime: no 80E, so an education loan gets no shield (Sec
+      24(b) on a let-out home is still allowed; self-occupied is capped at 0).
+    - US: mortgage interest only helps someone who itemises. Callers pass
+      `user.itemises`; the default keeps older direct callers unchanged.
     """
     nominal = loan.nominal_rate
     annual_interest = loan.outstanding * nominal
+    regime = tax_regime or TaxRegimeIN.NEW
 
     deductible_set = DEDUCTIBLE_LOAN_TYPES_IN if country == Country.IN else DEDUCTIBLE_LOAN_TYPES_US
     if loan.loan_type not in deductible_set or annual_interest <= 0:
         shield_pct = D("0")
+    elif country == Country.IN and loan.loan_type == LoanType.EDUCATION and regime == TaxRegimeIN.NEW:
+        shield_pct = D("0")
+    elif country == Country.US and not itemises:
+        shield_pct = D("0")
     else:
         if loan.loan_type == LoanType.HOME and country == Country.IN:
-            cap = country_cap_home_loan(country, tax_regime or TaxRegimeIN.NEW,
+            cap = country_cap_home_loan(country, regime,
                                         loan.property_use or "self_occupied")
         else:
             cap = D("Infinity")
@@ -143,9 +158,8 @@ def effective_rate(
 
     base = nominal * (D("1") - shield_pct)
 
-    tenure_years = D(loan.tenure_months_remaining) / D("12") if loan.tenure_months_remaining else D("1")
     gst = gst_component(
-        loan.loan_type, nominal, loan.processing_fee_amortised, loan.outstanding, tenure_years
+        loan.loan_type, nominal, loan.processing_fee_amortised,
     ) if country == Country.IN else D("0")
 
     return base + loan.processing_fee_amortised + loan.insurance_premium_pct + gst

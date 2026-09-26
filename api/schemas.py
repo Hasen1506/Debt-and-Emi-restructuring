@@ -7,9 +7,9 @@ stay thin — they parse → convert → call engine → wrap in response model.
 from __future__ import annotations
 from datetime import date
 from decimal import Decimal
-from typing import Dict, Optional
+from typing import Annotated, Any, Dict, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from engine.models import (
     Asset, Country, FilingStatusUS, IncomeType, InvestmentOption,
@@ -27,41 +27,123 @@ class _Base(BaseModel):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Input bounds
+#
+# Anything outside these is a typing slip or an attack, and they keep the
+# engines' month-by-month loops short. Before them, numbers like 1E+999999
+# crashed ten endpoints and 500 loans in one request were accepted
+# (api/tests/test_api_fuzz.py). Request bodies subclass _In; responses
+# don't, so a large projected figure can never fail on the way out.
+# ─────────────────────────────────────────────────────────────────────────────
+
+MAX_AMOUNT = D("1e12")          # ₹1 lakh crore / $1 trillion
+MAX_INT = 100_000
+MAX_MONTHS = 1200               # the plan horizon is 100 years
+MAX_LOANS = 50
+MAX_ITEMS = 100
+MAX_TEXT = 200
+
+
+def _check_bounds(v: Any) -> Any:
+    if isinstance(v, Decimal):
+        if not v.is_finite():
+            raise ValueError("must be a finite number")
+        if abs(v) > MAX_AMOUNT:
+            raise ValueError("numbers above 1,000,000,000,000 are not accepted")
+    elif isinstance(v, bool):
+        pass
+    elif isinstance(v, int):
+        if abs(v) > MAX_INT:
+            raise ValueError(f"whole numbers above {MAX_INT:,} are not accepted")
+    elif isinstance(v, str):
+        if len(v) > MAX_TEXT:
+            raise ValueError(f"text longer than {MAX_TEXT} characters is not accepted")
+    elif isinstance(v, (list, tuple)):
+        if len(v) > MAX_ITEMS:
+            raise ValueError(f"more than {MAX_ITEMS} entries are not accepted")
+        for x in v:
+            _check_bounds(x)
+    elif isinstance(v, dict):
+        if len(v) > MAX_ITEMS:
+            raise ValueError(f"more than {MAX_ITEMS} entries are not accepted")
+        for k, x in v.items():
+            _check_bounds(k)
+            _check_bounds(x)
+    return v
+
+
+def _amount(v: Decimal) -> Decimal:
+    if v < 0:
+        raise ValueError("can't be negative")
+    return v
+
+
+def _rate(v: Decimal) -> Decimal:
+    if v < 0:
+        raise ValueError("a rate can't be negative")
+    if v > 1:
+        raise ValueError(
+            f"rates are fractions of 1: send {v / 100:f} for {v:f}%. "
+            f"Rates above 100% a year are not accepted"
+        )
+    return v
+
+
+Amount = Annotated[Decimal, AfterValidator(_amount)]
+Rate = Annotated[Decimal, AfterValidator(_rate)]
+SignedRate = Annotated[Decimal, Field(ge=-1, le=1)]
+Months = Annotated[int, Field(ge=0, le=MAX_MONTHS)]
+Horizon = Annotated[int, Field(ge=1, le=MAX_MONTHS)]
+LoanIndex = Annotated[int, Field(ge=0, lt=MAX_LOANS)]
+# An effective APR (fees included) can pass 100% on a short BNPL plan.
+EffectiveRate = Annotated[Decimal, Field(ge=0, le=10)]
+
+
+class _In(_Base):
+    """Request bodies: every number finite and bounded, text and lists short."""
+
+    @field_validator("*", mode="after")
+    @classmethod
+    def _bounded(cls, v: Any) -> Any:
+        return _check_bounds(v)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Loan / Asset / Investment / PF
 # ─────────────────────────────────────────────────────────────────────────────
 
-class LoanIn(_Base):
+class LoanIn(_In):
     loan_type: LoanType
-    bank: str
-    outstanding: Decimal
-    nominal_rate: Decimal
+    bank: str = Field(..., max_length=120)
+    outstanding: Amount
+    nominal_rate: Rate
     rate_type: str = "floating"
-    tenure_months_remaining: int
-    scheduled_emi: Decimal
-    processing_fee_amortised: Decimal = D("0")
+    tenure_months_remaining: Months
+    scheduled_emi: Amount
+    processing_fee_amortised: Amount = D("0")
     insurance_premium_pct: Decimal = D("0")
     property_use: Optional[str] = None
-    min_payment_override: Optional[Decimal] = None
+    min_payment_override: Optional[Amount] = None
     currency: Optional[str] = None
-    expected_monthly_spend: Decimal = D("0")
+    expected_monthly_spend: Amount = D("0")
     # Optional statement / due day-of-month for credit cards (1-28).
     # UI-only — the engine's monthly-accrual model doesn't consume them.
     # Documented here so the schema surfaces the fields instead of
     # silently dropping them.
-    statement_day: Optional[int] = None
-    due_day: Optional[int] = None
+    statement_day: Optional[int] = Field(None, ge=1, le=31)
+    due_day: Optional[int] = Field(None, ge=1, le=31)
     # Floating-rate scheduling — only meaningful when rate_type == "floating".
     # See engine/models.py:Loan for semantics. next_reset_month is 1-based
     # against the simulation; the frontend derives it from a calendar
     # next_reset_date before sending.
-    rate_reset_frequency_months: Optional[int] = None
-    next_reset_month: Optional[int] = None
-    rate_drift_annualized: Decimal = D("0")
+    rate_reset_frequency_months: Optional[int] = Field(None, ge=1, le=MAX_MONTHS)
+    next_reset_month: Optional[int] = Field(None, ge=1, le=MAX_MONTHS)
+    rate_drift_annualized: SignedRate = D("0")
     # True-APR restructuring triggers — see engine/models.py:Loan docstring.
     prepayment_penalty_pct: Decimal = D("0")
-    prepay_lock_in_months: int = 0
-    part_payment_freq_months: Optional[int] = None
-    pre_emi_months_remaining: int = 0
+    prepay_lock_in_months: Months = 0
+    part_payment_freq_months: Optional[int] = Field(None, ge=1, le=MAX_MONTHS)
+    pre_emi_months_remaining: Months = 0
     # Quoted rate basis — "flat" (consumer-durable / NBFC quote) or
     # "reducing" (bank quote). Converted to reducing at to_engine().
     rate_basis: str = "reducing"
@@ -102,13 +184,13 @@ class LoanIn(_Base):
         )
 
 
-class AssetIn(_Base):
+class AssetIn(_In):
     asset_type: str
-    purchase_price: Decimal
+    purchase_price: Amount
     purchase_date: date
-    current_market_value: Decimal
-    rental_income_annual: Decimal = D("0")
-    holding_costs_annual: Decimal = D("0")
+    current_market_value: Amount
+    rental_income_annual: Amount = D("0")
+    holding_costs_annual: Amount = D("0")
     state: Optional[str] = None
     # Liquidation-advisor fields (all optional)
     label: Optional[str] = None
@@ -123,8 +205,8 @@ class AssetIn(_Base):
     us_is_tax_exempt_muni: bool = False
     # Holdings tracker fields — see Asset docstring in engine/models.py
     ticker: Optional[str] = None
-    quantity: Optional[Decimal] = None
-    last_price: Optional[Decimal] = None
+    quantity: Optional[Amount] = None
+    last_price: Optional[Amount] = None
     last_price_at: Optional[str] = None
     appreciation_cagr: Optional[Decimal] = None
 
@@ -154,7 +236,7 @@ class AssetIn(_Base):
         )
 
 
-class InvestmentOptionIn(_Base):
+class InvestmentOptionIn(_In):
     name: str
     expected_return: Decimal
     liquidity_class: LiquidityClass
@@ -167,7 +249,7 @@ class InvestmentOptionIn(_Base):
         )
 
 
-class IncomeStreamIn(_Base):
+class IncomeStreamIn(_In):
     """One income stream entry. Multiple streams capture concurrent
     sources or transitions across time. Engine drops these — frontend
     uses them to derive monthly_income and dynamic tax-sleeve targets.
@@ -181,7 +263,7 @@ class IncomeStreamIn(_Base):
     tds_pct: Optional[Decimal] = None
 
 
-class DeductionsIn(_Base):
+class DeductionsIn(_In):
     """Old-regime + itemized deductions captured at onboarding.
 
     Drives a more accurate derived marginal_rate display and the tax
@@ -201,7 +283,7 @@ class DeductionsIn(_Base):
     itemized_deductions_other: Optional[Decimal] = None
 
 
-class CashAccountIn(_Base):
+class CashAccountIn(_In):
     """One cash account — checking / savings / HYSA / FD / other.
     Phase 1: pure data capture, engine doesn't consume. Phase 2+ will use
     per-account APY for the cash-vs-debt advisor and operational-float
@@ -209,22 +291,22 @@ class CashAccountIn(_Base):
     aggregate and is kept in sync (= sum of optimizable balances) at the
     frontend save layer."""
     name: str
-    balance: Decimal = D("0")
+    balance: Amount = D("0")
     apy: Decimal = D("0")
     kind: str = Field(..., pattern=r"^(checking|savings|hysa|fd|other)$")
     currency: Optional[str] = None
 
 
-class PFBalanceIn(_Base):
-    epf: Decimal = D("0")
-    ppf: Decimal = D("0")
-    nps_tier1: Decimal = D("0")
-    nps_tier2: Decimal = D("0")
+class PFBalanceIn(_In):
+    epf: Amount = D("0")
+    ppf: Amount = D("0")
+    nps_tier1: Amount = D("0")
+    nps_tier2: Amount = D("0")
     years_in_service: int = 0
     years_since_ppf_open: int = 0
     years_since_nps_open: int = 0
-    voluntary_pf_monthly: Decimal = D("0")
-    ppf_monthly: Decimal = D("0")
+    voluntary_pf_monthly: Amount = D("0")
+    ppf_monthly: Amount = D("0")
 
     def to_engine(self) -> PFBalance:
         return PFBalance(**self.model_dump())
@@ -234,7 +316,7 @@ class PFBalanceIn(_Base):
 # User
 # ─────────────────────────────────────────────────────────────────────────────
 
-class UserIn(_Base):
+class UserIn(_In):
     country: Country
     income_type: IncomeType
     # Optional display name + coarse age bracket — pure UI metadata, not
@@ -242,25 +324,25 @@ class UserIn(_Base):
     # carries them and to_engine() simply drops them.
     display_name: Optional[str] = None
     age_bracket: Optional[str] = None
-    annual_income: Decimal
-    monthly_income: Decimal
-    fixed_expenses: Decimal
+    annual_income: Amount
+    monthly_income: Amount
+    fixed_expenses: Amount
     # Discretionary monthly outflows (eating out, travel, shopping) — what
     # the user would cut if they had to. Optional, defaults to 0 so legacy
     # payloads still validate; the WhatIf "trim spending" slider operates
     # on this bucket so it isn't asking the user to halve their rent.
-    variable_expenses: Decimal = D("0")
+    variable_expenses: Amount = D("0")
     # Pre-tax annual income — salaried users fill annual_gross_salary
     # (Form 16 line 1), SE users fill annual_business_income (ITR Total
     # Income). Either one unlocks bracket display + tax-aware features;
     # leaving both blank falls back to the manual marginal_rate field.
-    annual_gross_salary: Optional[Decimal] = None
-    annual_business_income: Optional[Decimal] = None
+    annual_gross_salary: Optional[Amount] = None
+    annual_business_income: Optional[Amount] = None
     # Self-reported credit score — CIBIL (300-900) for India, FICO (300-850)
     # for US. Optional; engine doesn't consume it directly but it round-trips
     # so frontend rate-prediction chip can use the entered value across sessions.
     credit_score: Optional[int] = None
-    savings_balance: Decimal
+    savings_balance: Amount
     # Optional rich per-account cash breakdown (checking / savings / HYSA /
     # FD / other). Engine drops it — used by /debts display and (Phase 2+)
     # the cash-vs-debt advisor. `savings_balance` above stays authoritative
@@ -272,7 +354,7 @@ class UserIn(_Base):
     # Drives the tax-sleeve card on /debts for salaried users with non-
     # TDS income. Business owners ignore — their sleeve comes from
     # annual_business_income. Engine drops it.
-    extra_income_annual_tax: Optional[Decimal] = None
+    extra_income_annual_tax: Optional[Amount] = None
     primary_bank: str
     location_tier: str = "urban"
     other_banks: list[str] = Field(default_factory=list)
@@ -280,14 +362,14 @@ class UserIn(_Base):
     pf: Optional[PFBalanceIn] = None
     filing_status: Optional[FilingStatusUS] = None
     state: Optional[str] = None
-    state_marginal_rate: Decimal = D("0")
+    state_marginal_rate: Rate = D("0")
     itemises: bool = False
-    efund_balance: Decimal = D("0")
-    efund_target: Decimal = D("0")
-    loans: list[LoanIn] = Field(default_factory=list)
+    efund_balance: Amount = D("0")
+    efund_target: Amount = D("0")
+    loans: list[LoanIn] = Field(default_factory=list, max_length=MAX_LOANS)
     assets: list[AssetIn] = Field(default_factory=list)
     investment_options: list[InvestmentOptionIn] = Field(default_factory=list)
-    annual_hike_rate: Decimal = D("0")
+    annual_hike_rate: Decimal = Field(D("0"), ge=D("-0.5"), le=1)
     hike_effective_month: int = Field(default=1, ge=1, le=12)
     # Optional list of hike phases. Each entry: [year_from, year_to, rate].
     # year_from is 1-based inclusive, year_to is 1-based exclusive, rate
@@ -295,8 +377,8 @@ class UserIn(_Base):
     # uniformly. Validated for non-overlap on the frontend; engine picks
     # the first matching phase regardless.
     hike_schedule: list[tuple[int, int, Decimal]] = Field(default_factory=list)
-    business_cagr: Decimal = D("0")
-    inflation_rate: Decimal = D("0.046")
+    business_cagr: Decimal = Field(D("0"), ge=D("-0.5"), le=1)
+    inflation_rate: Decimal = Field(D("0.046"), ge=D("-0.1"), le=1)
     is_nri_us: bool = False
     fx_to_user_currency: Dict[str, Decimal] = Field(default_factory=dict)
     # Annualized FX drift per non-residence currency. Engine compounds
@@ -308,6 +390,32 @@ class UserIn(_Base):
     # breakdown. See `DeductionsIn` for field semantics.
     deductions: Optional["DeductionsIn"] = None
     income_streams: list[IncomeStreamIn] = Field(default_factory=list)
+
+    def _itemises(self) -> bool:
+        """US only: does this person itemise? Mortgage interest lowers the
+        cost of a US home loan only for someone who itemises, and most
+        people take the standard deduction. The web app never sends
+        `itemises`, so it is worked out from the deductions entered at
+        onboarding; with none entered, mortgage interest is estimated
+        from the US home loans themselves."""
+        if self.itemises:
+            return True
+        if self.country != Country.US:
+            return False
+        from engine.tax.usa import STANDARD_DEDUCTION_2026
+
+        ded = self.deductions
+        if ded is not None and ded.mortgage_interest_annual is not None:
+            mortgage = ded.mortgage_interest_annual
+        else:
+            mortgage = sum(
+                (l.outstanding * l.nominal_rate for l in self.loans
+                 if l.loan_type == LoanType.HOME and (l.currency or "USD") == "USD"),
+                D("0"),
+            )
+        other = (ded.itemized_deductions_other if ded is not None else None) or D("0")
+        std = STANDARD_DEDUCTION_2026[self.filing_status or FilingStatusUS.SINGLE]
+        return mortgage + other > std
 
     def to_engine(self) -> User:
         return User(
@@ -325,7 +433,7 @@ class UserIn(_Base):
             pf=self.pf.to_engine() if self.pf else None,
             filing_status=self.filing_status, state=self.state,
             state_marginal_rate=self.state_marginal_rate,
-            itemises=self.itemises,
+            itemises=self._itemises(),
             efund_balance=self.efund_balance, efund_target=self.efund_target,
             loans=[l.to_engine() for l in self.loans],
             assets=[a.to_engine() for a in self.assets],
@@ -345,18 +453,18 @@ class UserIn(_Base):
 # Simulation
 # ─────────────────────────────────────────────────────────────────────────────
 
-class ReinvestEvent(_Base):
+class ReinvestEvent(_In):
     """One auto-reinvest event for simulate_plan.
 
     Used by the "auto-reinvest tax savings" toggle on /plan — frontend
     pre-computes annual deductible-interest × marginal_rate and posts
     one event per fiscal year, timed to post-ITR-filing months.
     """
-    month: int = Field(..., ge=1)
-    amount: Decimal
+    month: int = Field(..., ge=1, le=MAX_MONTHS)
+    amount: Amount
 
 
-class LifecycleEventIn(_Base):
+class LifecycleEventIn(_In):
     """Planned future event the engine should apply at its effective month.
     Past-confirmed events don't go here — the frontend bakes them into the
     profile via L1 immediate-apply before the simulate call. Only kind
@@ -364,19 +472,19 @@ class LifecycleEventIn(_Base):
     property_buy events stay L1-only because mid-loop dynamic loan
     addition cascades into response shape + ranking complexity."""
     kind: str = Field(..., pattern=r"^(salary_reset|floating_rate_reset)$")
-    effective_month: int = Field(..., ge=1)
-    new_annual_gross: Optional[Decimal] = None
-    new_monthly_take_home: Optional[Decimal] = None
-    loan_index: Optional[int] = Field(default=None, ge=0)
-    new_rate: Optional[Decimal] = None
+    effective_month: int = Field(..., ge=1, le=MAX_MONTHS)
+    new_annual_gross: Optional[Amount] = None
+    new_monthly_take_home: Optional[Amount] = None
+    loan_index: Optional[LoanIndex] = None
+    new_rate: Optional[Rate] = None
 
 
-class SimulateRequest(_Base):
+class SimulateRequest(_In):
     user: UserIn
     strategy: Strategy = Strategy.AVALANCHE
-    horizon_months: int = 360
-    matched_contribution: Decimal = D("0")
-    marginal_rate: Optional[Decimal] = None
+    horizon_months: Horizon = 360
+    matched_contribution: Amount = D("0")
+    marginal_rate: Optional[Rate] = None
     simple_mode: bool = False
     # 1=Jan, 12=Dec. Calendar month corresponding to sim month 1. Anchors
     # hike firing to the user's actual today. Defaults to 1 → preserves
@@ -390,11 +498,11 @@ class SimulateRequest(_Base):
     # Lifecycle events (planned future salary / rate resets). See
     # LifecycleEventIn — empty / omitted preserves baseline behaviour.
     lifecycle_events: list[LifecycleEventIn] = Field(default_factory=list)
-    # Soft EF waterfall — fraction of each month's surplus diverted into
-    # the emergency fund until `user.efund_target` is reached. /plan passes
-    # 0.3 when `efund_balance < efund_target` and 0 otherwise. Default 0
-    # preserves the legacy "100% surplus → debt" behaviour.
-    ef_top_up_rate: Decimal = Field(default=D("0"), ge=D("0"), le=D("1"))
+    # Emergency-fund split — the share of each month's surplus that goes
+    # to the fund until `user.efund_target` is reached (the /plan slider).
+    # When given it is the only EF top-up; omitted, the engine holds back
+    # a fixed gap / 12 each month instead.
+    ef_top_up_rate: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
     # True when the user has an active preempting goal open (e.g. medical
     # bill, planned wedding) that takes priority over EF + debt for the
     # goal's funding window. Drives the surplus_allocation routing in the
@@ -436,6 +544,10 @@ class TrajectoryPoint(_Base):
     # surplus by a month count. Defaults to 0 for clients that don't
     # populate it (mirrors MonthRow.available_surplus default).
     available_surplus: Decimal = Field(default=D("0"))
+    # All payments this month and the part above each loan's minimum, both
+    # in the user's currency (per-loan payments are in each loan's own).
+    total_paid: Decimal = Field(default=D("0"))
+    extra_paid: Decimal = Field(default=D("0"))
     # Per-goal contribution this month, keyed by goal id. Populated only
     # when `goals` was passed to /simulate. Lets achievability subtract
     # higher-priority goals' actual draws (which expire after their
@@ -443,7 +555,7 @@ class TrajectoryPoint(_Base):
     goal_contributions: dict[str, Decimal] = Field(default_factory=dict)
 
 
-class GoalIn(_Base):
+class GoalIn(_In):
     """Per-goal input passed to /simulate. Mirrors
     engine.goals.GoalState — engine takes this list, runs serial-fill
     per month with goal-expiry awareness, and returns the per-month
@@ -453,11 +565,11 @@ class GoalIn(_Base):
     id: str
     # 0-based sim-month at which the goal needs to be funded. Set by
     # the client as (target_calendar_month - simulation_start_month).
-    target_month_index: int
+    target_month_index: Months
     # Funded amount (= goal.amount × (1 + buffer_pct)). Decimal string.
-    required_amount: Decimal
+    required_amount: Amount
     # User's saved-so-far on this goal. 0 when no contributions ledger.
-    saved_so_far: Decimal = D("0")
+    saved_so_far: Amount = D("0")
     # Single explicit priority override — when True, this goal is
     # funded ahead of goals with earlier target dates. Replaces the
     # 3-tier critical/important/discretionary model.
@@ -570,6 +682,8 @@ class SurplusAllocationOut(_Base):
 
 
 class SimulateResponse(_Base):
+    # 1 = this month. 0 = nothing is owed now (no loans, or all at 0);
+    # None = not cleared within the horizon.
     debt_free_month: Optional[int]
     total_interest_paid: Decimal
     total_invested: Decimal
@@ -585,28 +699,42 @@ class SimulateResponse(_Base):
     goal_finals: list[GoalFinalOut] = Field(default_factory=list)
 
 
-class BaselineRequest(_Base):
+class BaselineRequest(_In):
     user: UserIn
-    horizon_months: int = 360
+    horizon_months: Horizon = 360
     simple_mode: bool = False
+    # Planned rate resets, so the minimums-only comparison sees the same
+    # rates as the plan it is compared with.
+    lifecycle_events: list[LifecycleEventIn] = Field(default_factory=list, max_length=500)
 
 
-class CompareRequest(_Base):
-    """For sensitivity comparisons — caller supplies the two scenarios."""
+class CompareRequest(_In):
+    """For sensitivity comparisons — caller supplies the two scenarios.
+
+    The plan fields below are the same as SimulateRequest's, so both runs
+    are the plan /plan shows (the sliders used to run a plainer one and
+    their "before" date could differ from the plan's)."""
     user: UserIn
-    horizon_months: int = 360
-    marginal_rate: Optional[Decimal] = None
+    horizon_months: Horizon = 360
+    marginal_rate: Optional[Rate] = None
     strategy: Strategy = Strategy.AVALANCHE
     simulation_start_month: int = Field(default=1, ge=1, le=12)
+    matched_contribution: Amount = D("0")
+    simple_mode: bool = False
+    reinvest_events: list[ReinvestEvent] = Field(default_factory=list)
+    inflate_expenses: bool = False
+    lifecycle_events: list[LifecycleEventIn] = Field(default_factory=list)
+    ef_top_up_rate: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
+    goals: list[GoalIn] = Field(default_factory=list)
     # what-if knobs
     surplus_delta: Optional[Decimal] = None
-    surplus_delta_start_month: int = 1
-    income_shock_months: Optional[int] = None
-    rate_shock_delta: Optional[Decimal] = None
+    surplus_delta_start_month: int = Field(1, ge=1, le=MAX_MONTHS)
+    income_shock_months: Optional[Months] = None
+    rate_shock_delta: Optional[SignedRate] = None
     rate_shock_floating_only: bool = True
     alt_strategy: Optional[Strategy] = None
-    lump_sum_amount: Optional[Decimal] = None
-    lump_sum_target_loan_index: Optional[int] = None
+    lump_sum_amount: Optional[Amount] = None
+    lump_sum_target_loan_index: Optional[LoanIndex] = None
 
 
 class CompareResponse(_Base):
@@ -621,29 +749,35 @@ class CompareResponse(_Base):
 # Decision modules
 # ─────────────────────────────────────────────────────────────────────────────
 
-class WindfallRequest(_Base):
-    amount: Decimal
+class WindfallRequest(_In):
+    amount: Amount
     user: UserIn
-    marginal_rate: Optional[Decimal] = None
+    marginal_rate: Optional[Rate] = None
     strategy: Strategy = Strategy.AVALANCHE
 
 
 class WindfallResponse(_Base):
     loan_label: str
+    # Position in user.loans of the loan the money goes to (None when it is
+    # invested), so the client logs the payment against that loan.
+    loan_index: Optional[int] = None
     amount: Decimal
     rationale: str
-    interest_avoided: Decimal
+    interest_avoided: Decimal               # never negative; "given up" when investing
     invest_instead: bool
     investment_name: Optional[str]
+    investment_return: Optional[Decimal] = None
+    leftover: Decimal = D("0")
 
 
-class NewDebtRequest(_Base):
-    list_price: Decimal
-    cash_price_elsewhere: Decimal
-    emi_offer_months: int
-    emi_offer_monthly_payment: Decimal
-    processing_fee: Decimal = D("0")
-    user_savings_after_efund: Decimal = D("0")
+class NewDebtRequest(_In):
+    list_price: Amount
+    cash_price_elsewhere: Amount
+    emi_offer_months: Months
+    emi_offer_monthly_payment: Amount
+    processing_fee: Amount = D("0")
+    user_savings_after_efund: Amount = D("0")
+    country: Country = Country.IN           # currency in the wording
 
 
 class NewDebtResponse(_Base):
@@ -658,13 +792,13 @@ class NewDebtResponse(_Base):
     detail: str
 
 
-class QuickRecomputeRequest(_Base):
+class QuickRecomputeRequest(_In):
     user: UserIn
-    extra_payment: Decimal
-    target_loan_index: int = 0
+    extra_payment: Amount
+    target_loan_index: LoanIndex = 0
     strategy: Strategy = Strategy.AVALANCHE
-    horizon_months: int = 360
-    marginal_rate: Optional[Decimal] = None
+    horizon_months: Horizon = 360
+    marginal_rate: Optional[Rate] = None
 
 
 class QuickRecomputeResponse(_Base):
@@ -674,14 +808,14 @@ class QuickRecomputeResponse(_Base):
     interest_saved: Decimal
 
 
-class CashYieldRequest(_Base):
-    idle_balance: Decimal
-    current_yield: Decimal
+class CashYieldRequest(_In):
+    idle_balance: Amount
+    current_yield: Rate
     country: Country
-    top_loan_effective_rate: Optional[Decimal] = None
-    best_alt_yield: Optional[Decimal] = None
+    top_loan_effective_rate: Optional[EffectiveRate] = None
+    best_alt_yield: Optional[Rate] = None
     alt_name: Optional[str] = None
-    minimum_idle_threshold: Decimal = D("10000")
+    minimum_idle_threshold: Amount = D("10000")
 
 
 class CashYieldResponse(_Base):
@@ -695,14 +829,16 @@ class CashYieldResponse(_Base):
     rationale: Optional[str] = None
 
 
-class BorrowTimingRequest(_Base):
-    current_rate: Decimal
-    six_month_avg: Decimal
-    consensus_change_bps: int
-    months_to_decision: int
-    urgency: str                      # "now" | "3m_ok" | "6m_ok"
-    principal: Decimal
-    tenure_months: int
+class BorrowTimingRequest(_In):
+    current_rate: Rate
+    six_month_avg: Rate
+    consensus_change_bps: int = Field(..., ge=-1000, le=1000)
+    months_to_decision: int = Field(..., ge=0, le=120)
+    urgency: Literal["now", "3m_ok", "6m_ok"]
+    principal: Amount
+    tenure_months: int = Field(..., ge=1, le=MAX_MONTHS)
+    # Currency for the wording and the "worth waiting" threshold.
+    country: Country = Country.IN
 
 
 class BorrowTimingResponse(_Base):
@@ -720,22 +856,26 @@ class BorrowTimingResponse(_Base):
 # Asset liquidation (§8c / §4.18)
 # ─────────────────────────────────────────────────────────────────────────────
 
-class AssetLiquidationRequest(_Base):
+class AssetLiquidationRequest(_In):
     asset: AssetIn
-    sale_price: Decimal
-    debt_balance: Decimal
-    debt_effective_rate: Decimal
-    taxable_income: Decimal
-    asset_nominal_return: Decimal = D("0.06")
-    inflation: Decimal = D("0.046")
-    holding_cost_rate: Decimal = D("0.01")
-    expected_hold_years_post_sale: Decimal = D("5")
-    selling_period_months: int = 3
-    high_rate_threshold: Decimal = D("0.20")
-    purchase_fy: Optional[str] = None        # required if purchase pre-23-Jul-2024
+    sale_price: Amount
+    debt_balance: Amount
+    debt_effective_rate: EffectiveRate
+    taxable_income: Amount
+    asset_nominal_return: SignedRate = D("0.06")
+    inflation: Decimal = Field(D("0.046"), ge=D("-0.1"), le=1)
+    holding_cost_rate: Rate = D("0.01")
+    expected_hold_years_post_sale: Decimal = Field(D("5"), gt=0, le=100)
+    selling_period_months: int = Field(3, ge=0, le=120)
+    high_rate_threshold: Rate = D("0.20")
+    # Default to the purchase date's FY and today's FY.
+    purchase_fy: Optional[str] = None
     current_fy: Optional[str] = None
-    brokerage_rate: Decimal = D("0.015")
-    surplus_reinvestment_yield: Optional[Decimal] = None   # if absent, Gate 0 is skipped
+    brokerage_rate: Rate = D("0.015")
+    surplus_reinvestment_yield: Optional[SignedRate] = None   # if absent, Gate 0 is skipped
+    # Slab rate incl. surcharge + cess, used when the property was held 24
+    # months or less (short-term). Derived from taxable_income if absent.
+    marginal_rate: Optional[Rate] = None
 
 
 class AssetLiquidationResponse(_Base):
@@ -760,14 +900,14 @@ class AssetLiquidationResponse(_Base):
 # Layer 0 — employer match
 # ─────────────────────────────────────────────────────────────────────────────
 
-class EmployerMatchIn(_Base):
+class EmployerMatchIn(_In):
     name: str
-    annual_salary: Decimal
-    match_cap_pct: Decimal
-    match_rate: Decimal
-    current_user_contribution_pct: Decimal
-    expected_annual_return: Decimal
-    years_to_retirement: int
+    annual_salary: Amount
+    match_cap_pct: Rate
+    match_rate: Decimal = Field(..., ge=0, le=10)
+    current_user_contribution_pct: Rate
+    expected_annual_return: SignedRate
+    years_to_retirement: int = Field(..., ge=0, le=80)
 
     def to_engine(self) -> EmployerMatch:
         return EmployerMatch(**self.model_dump())
@@ -847,9 +987,9 @@ class LoanTermsResponse(_Base):
 # Restructuring (§4.7) — Layer 1 scanner
 # ─────────────────────────────────────────────────────────────────────────────
 
-class RestructuringRequest(_Base):
+class RestructuringRequest(_In):
     user: UserIn
-    marginal_rate: Optional[Decimal] = None
+    marginal_rate: Optional[Rate] = None
 
 
 class RestructuringOpportunityOut(_Base):
@@ -871,6 +1011,12 @@ class RestructuringOpportunityOut(_Base):
     # Drives the "I took this — update terms" modal: refi/BT mutate the
     # indexed loan, consolidation rolls them up into a new loan.
     affected_loan_indices: list[int] = Field(default_factory=list)
+    # Fee or switching cost paid up front; months to earn it back; for a
+    # refinance, the saving over the rest of the loan after costs.
+    # `estimated_annual_saving` is the first 12 months after that cost.
+    one_time_cost: Decimal = Decimal("0")
+    breakeven_months: Optional[int] = None
+    lifetime_net_saving: Optional[Decimal] = None
 
 
 class RestructuringResponse(_Base):
@@ -915,17 +1061,17 @@ class LiquidationRecommendationOut(_Base):
     skip_reason: Optional[str] = None
 
 
-class LiquidationRankingsRequest(_Base):
+class LiquidationRankingsRequest(_In):
     user: UserIn
     # Map of loan index → effective APR for that loan. Caller computes these
     # using the same effective-APR helper the UI already uses, so the ranker
     # uses consistent rates with what the user sees elsewhere.
-    debt_effective_rates: dict[int, Decimal]
-    marginal_rate: Decimal = D("0.30")
-    high_rate_threshold: Decimal = D("0.20")
-    horizon_years: Decimal = D("5")
-    surplus_reinvestment_yield: Decimal = D("0.07")
-    pre_filter_margin: Decimal = D("0.01")
+    debt_effective_rates: dict[LoanIndex, EffectiveRate] = Field(..., max_length=MAX_LOANS)
+    marginal_rate: Rate = D("0.30")
+    high_rate_threshold: Rate = D("0.20")
+    horizon_years: Decimal = Field(D("5"), gt=0, le=100)
+    surplus_reinvestment_yield: SignedRate = D("0.07")
+    pre_filter_margin: Rate = D("0.01")
 
 
 class LiquidationRankingsResponse(_Base):

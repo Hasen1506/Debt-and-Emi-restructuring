@@ -1,20 +1,17 @@
-"""GET /api/rates/central · POST /api/admin/rate-update.
+"""GET /api/rates/central · GET /api/rates/feed-health · POST /api/admin/rate-update.
 
 Central-bank policy rates (RBI repo + Fed funds) and the published MPC /
-FOMC meeting calendar. Source of truth is `api/data/central_bank_calendar.json`,
-read at request time so a dev can edit the file and have all clients
-pick up the change on next fetch.
+FOMC meeting calendar.
 
-Architecture: backend owns one record per central bank; web + future
-mobile clients hit GET /api/rates/central with a short cache. After each
-MPC / FOMC meeting, the dev POSTs the new outcome to
-/api/admin/rate-update with the ADMIN_RATE_UPDATE_TOKEN env-var token.
-Every connected client sees the update on its next poll — no per-install
-push needed.
+Current rates come from engine/policy_rates.py: the verified table plus
+decisions the live feeds found since (api/rates_feed.py, every 6 hours).
+Each rate carries `as_of`, the day it was last known to be current, so
+screens can show it. The meeting calendar is
+`api/data/central_bank_calendar.json`, updated once a year.
 
-Proper auth (JWT, RBAC) ships with the broader auth deferral. For now,
-a single shared env-var token is sufficient: only the dev knows it, the
-endpoint is mutation-only, and the data is non-PII.
+`/admin/rate-update` records a meeting's outcome in the calendar's
+meeting list. It does not change the rate history: corrections to that go
+in the verified table, where they are reviewed.
 """
 
 import json
@@ -25,8 +22,12 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException
+from fastapi.responses import JSONResponse
 
-from api.schemas import _Base
+from api import rates_feed
+from api.schemas import _Base, _In
+from engine import policy_rates
+from engine.models import Country
 
 
 router = APIRouter(tags=["rates"])
@@ -43,7 +44,9 @@ class MeetingEntry(_Base):
 class CountryRateEntry(_Base):
     country: str  # "IN" | "US"
     current_rate: Decimal
-    updated_at: str
+    updated_at: str               # the decision that set current_rate
+    as_of: str                    # last day the rate was known to be current
+    source: str
     upcoming_meetings: list[MeetingEntry]
     next_meeting_date: Optional[str]
     days_until_next: Optional[int]
@@ -55,7 +58,7 @@ class CentralRatesResponse(_Base):
     US: CountryRateEntry  # noqa: N815
 
 
-class RateUpdateRequest(_Base):
+class RateUpdateRequest(_In):
     country: str          # "IN" or "US"
     new_rate: Decimal     # decimal, e.g. 0.0625
     decision_date: str    # YYYY-MM-DD — which meeting this was the outcome of
@@ -97,6 +100,21 @@ def _upcoming_for(country: str, calendar: dict, today: date) -> tuple[list[Meeti
     return entries, next_iso, days_until
 
 
+def _country_entry(country: Country, cal: dict, today: date) -> CountryRateEntry:
+    meetings, next_iso, days = _upcoming_for(country.value, cal, today)
+    decided = [(d, r) for d, r in policy_rates.history(country) if d <= today]
+    return CountryRateEntry(
+        country=country.value,
+        current_rate=decided[-1][1],
+        updated_at=decided[-1][0].isoformat(),
+        as_of=policy_rates.rates_as_of(country).isoformat(),
+        source=rates_feed.source_label(country),
+        upcoming_meetings=meetings,
+        next_meeting_date=next_iso,
+        days_until_next=days,
+    )
+
+
 @router.get("/rates/central", response_model=CentralRatesResponse)
 def get_central_rates() -> CentralRatesResponse:
     """Current policy rates + upcoming meeting schedule for RBI + Fed.
@@ -104,31 +122,23 @@ def get_central_rates() -> CentralRatesResponse:
     per central bank so the data is intentionally slow-moving."""
     cal = _load_calendar()
     today = date.today()
-    in_meetings, in_next, in_days = _upcoming_for("IN", cal, today)
-    us_meetings, us_next, us_days = _upcoming_for("US", cal, today)
-
-    in_cur = cal.get("current_rates", {}).get("IN", {})
-    us_cur = cal.get("current_rates", {}).get("US", {})
-
     return CentralRatesResponse(
         last_updated=cal.get("last_updated", ""),
-        IN=CountryRateEntry(
-            country="IN",
-            current_rate=Decimal(str(in_cur.get("repo", "0"))),
-            updated_at=in_cur.get("updated_at", ""),
-            upcoming_meetings=in_meetings,
-            next_meeting_date=in_next,
-            days_until_next=in_days,
-        ),
-        US=CountryRateEntry(
-            country="US",
-            current_rate=Decimal(str(us_cur.get("fed_funds_upper", "0"))),
-            updated_at=us_cur.get("updated_at", ""),
-            upcoming_meetings=us_meetings,
-            next_meeting_date=us_next,
-            days_until_next=us_days,
-        ),
+        IN=_country_entry(Country.IN, cal, today),
+        US=_country_entry(Country.US, cal, today),
     )
+
+
+@router.get("/rates/feed-health")
+def get_feed_health() -> JSONResponse:
+    """Last good fetch per source, its age and any error.
+
+    503 when a source has had no good fetch for 24 hours (or never), so a
+    free uptime monitor can alert on the status code alone. The app keeps
+    working meanwhile on the last good values.
+    """
+    body = rates_feed.feed.health(rates_feed.enabled())
+    return JSONResponse(body, status_code=503 if body["status"] == "degraded" else 200)
 
 
 @router.post("/admin/rate-update")
@@ -136,11 +146,10 @@ def post_rate_update(
     req: RateUpdateRequest,
     x_admin_token: str = Header(default=""),
 ) -> dict:
-    """Dev-only endpoint to record a central-bank decision. The dev posts
-    after each MPC / FOMC meeting; all clients see the new rate on next
-    poll of /rates/central. Token check is via X-Admin-Token header
-    matched against ADMIN_RATE_UPDATE_TOKEN env var. Returns the updated
-    record for confirmation.
+    """Dev-only: record a meeting's outcome in the calendar's meeting
+    list. Current rates come from the feeds and the verified table, not
+    from here. Token check is via X-Admin-Token header matched against
+    ADMIN_RATE_UPDATE_TOKEN env var.
     """
     expected = os.environ.get("ADMIN_RATE_UPDATE_TOKEN", "")
     if not expected or x_admin_token != expected:
@@ -153,12 +162,6 @@ def post_rate_update(
         raise HTTPException(status_code=400, detail="decision_date must be YYYY-MM-DD.")
 
     cal = _load_calendar()
-    cal.setdefault("current_rates", {})
-    cur_key = "repo" if req.country == "IN" else "fed_funds_upper"
-    cal["current_rates"][req.country] = {
-        cur_key: str(req.new_rate),
-        "updated_at": req.decision_date,
-    }
     # Mark the meeting outcome in-place if we have it on file.
     for m in cal.get("meetings", {}).get(req.country, []):
         if m["date"] == req.decision_date:

@@ -56,14 +56,16 @@ export function computeBreakdown(
   marginalTaxRate: string | Decimal,
   country: Country,
   taxRegime: TaxRegimeIN | undefined,
+  /** US: mortgage interest only helps someone who itemises. Pass
+   *  `usItemises(user)`; the default keeps screens without a user (the
+   *  onboarding preview) showing the itemiser's figure, as labelled. */
+  itemises = true,
 ): Breakdown {
   const nominal = D(loan.nominal_rate || '0');
   const outstanding = D(loan.outstanding || '0');
   const processingFee = D(loan.processing_fee_amortised || '0');
   const insurance = D(loan.insurance_premium_pct || '0');
   const marginal = D(marginalTaxRate || '0');
-  const tenureMonths = loan.tenure_months_remaining || 0;
-  const tenureYears = tenureMonths > 0 ? D(tenureMonths).div(12) : D('1');
 
   const lines: BreakdownLine[] = [
     { label: 'Nominal rate (bank quote)', value: nominal, sign: '+' },
@@ -78,7 +80,16 @@ export function computeBreakdown(
 
   let shieldPct = D('0');
   let shieldNote: string | undefined;
-  if (deductible.has(loan.loan_type) && annualInterest.gt(0)) {
+  if (
+    loan.loan_type === 'education_loan' &&
+    country === 'IN' &&
+    (taxRegime ?? 'new') === 'new'
+  ) {
+    // 80E is an old-regime deduction; the engine gives no shield here.
+    shieldNote = 'New regime: no 80E deduction';
+  } else if (loan.loan_type === 'home_loan' && country === 'US' && !itemises) {
+    shieldNote = 'Standard deduction: mortgage interest saves no tax';
+  } else if (deductible.has(loan.loan_type) && annualInterest.gt(0)) {
     let cap: Decimal;
     if (loan.loan_type === 'home_loan' && country === 'IN') {
       cap = homeLoan24bCap(taxRegime ?? 'new', loan.property_use ?? 'self_occupied');
@@ -136,10 +147,10 @@ export function computeBreakdown(
       loan.loan_type === 'home_loan' ||
       loan.loan_type === 'auto_loan'
     ) {
-      if (processingFee.gt(0) && outstanding.gt(0) && tenureYears.gt(0)) {
-        const gst = processingFee
-          .mul(D('0.18'))
-          .div(outstanding.mul(tenureYears));
+      if (processingFee.gt(0)) {
+        // The fee is already a yearly rate: GST is 18% of it. It used to
+        // be divided again by balance × years, which made it about zero.
+        const gst = processingFee.mul(D('0.18'));
         if (gst.gt(0)) {
           lines.push({
             label: 'GST on processing fee (18%)',

@@ -14,18 +14,15 @@
 
 import { useEffect, useState } from 'react';
 import type { UserPayload } from '@/lib/api';
-import { readActivityClient } from '@/lib/activity';
+import { BALANCES_ENTERED_KEY, readActivityClient } from '@/lib/activity';
 import { ThemedContainer, ThemedHeadline, ThemedLabel } from '@/components/themed/Themed';
-import type { ThemeName } from '@/lib/theme';
 
 const STALE_DAYS = 45;
 
 export function StaleCardNudge({
   user,
-  variant,
 }: {
   user: UserPayload;
-  variant: ThemeName;
 }) {
   const [stale, setStale] = useState<{ bank: string; daysSince: number | null }[]>([]);
   const [ready, setReady] = useState(false);
@@ -37,10 +34,18 @@ export function StaleCardNudge({
       // Entries arrive newest-first; first sighting per loan wins.
       if (!lastByLoan.has(e.loanIndex)) lastByLoan.set(e.loanIndex, e.date);
     }
+    // Balances typed into setup count as an update.
+    let entered: string | null = null;
+    try {
+      entered = window.localStorage.getItem(BALANCES_ENTERED_KEY);
+    } catch {
+      entered = null;
+    }
     const result: { bank: string; daysSince: number | null }[] = [];
     user.loans.forEach((loan, idx) => {
       if (loan.loan_type !== 'credit_card') return;
-      const last = lastByLoan.get(idx);
+      const logged = lastByLoan.get(idx);
+      const last = logged && entered ? (logged > entered ? logged : entered) : logged ?? entered ?? undefined;
       if (!last) {
         result.push({ bank: loan.bank || `Card #${idx + 1}`, daysSince: null });
         return;
@@ -58,14 +63,13 @@ export function StaleCardNudge({
 
   if (!ready || stale.length === 0) return null;
 
-  const upper = variant === 'ledger';
   return (
-    <ThemedContainer variant={variant} tone="accent" style={{ marginBottom: 14 }}>
-      <ThemedLabel variant={variant} tone="accent">
-        {upper ? 'STALE · CARD BALANCES' : 'Card balances may have drifted'}
+    <ThemedContainer tone="accent" style={{ marginBottom: 14 }}>
+      <ThemedLabel tone="accent">
+        {'STALE · CARD BALANCES'}
       </ThemedLabel>
-      <ThemedHeadline variant={variant}>
-        {stale.length === 1 ? `${stale[0].bank}: ` : `${stale.length} cards: `}
+      <ThemedHeadline>
+        {stale.length > 1 && `${stale.length} cards: `}
         {stale.map((s, i) => (
           <span key={s.bank}>
             {i > 0 && ', '}
@@ -74,7 +78,7 @@ export function StaleCardNudge({
           </span>
         ))}
         .{' '}
-        <a href="/insights" style={{ color: 'var(--accent)' }}>
+        <a href="/insights" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
           Log this cycle&apos;s payment
         </a>{' '}
         — entering the new outstanding keeps the /plan trajectory anchored to

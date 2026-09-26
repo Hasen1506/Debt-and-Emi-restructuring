@@ -13,9 +13,10 @@ Per month:
 Salary growth: apply `annual_hike_rate` once every 12 months.
 Real-EMI: nominal payments deflated by `inflation_rate` per §4.10.
 """
+import math
 from decimal import Decimal
 from dataclasses import dataclass, field
-from copy import deepcopy
+from copy import copy, deepcopy
 from engine.models import (
     User,
     Loan,
@@ -27,7 +28,7 @@ from engine.models import (
     LifecycleEvent,
     LifecycleEventKind,
 )
-from engine.formulas import effective_rate, prepay_recommended, real_emi
+from engine.formulas import emi, effective_rate, prepay_recommended, real_emi
 from engine.minimum_payments import compute_minimum_payment
 from engine.ordering import Strategy, rank_loans
 from engine.goals import GoalState, MonthlyGoalAllocation, serial_fill_allocation
@@ -41,6 +42,50 @@ from engine.surplus import (
 )
 
 D = Decimal
+
+# Auto rate drift stops this far from the loan's starting rate. A +1%/yr
+# drift applied for 30 years took a home loan to 38%; rate cycles don't
+# run one way for decades.
+MAX_RATE_DRIFT = D("0.03")
+
+
+def _months_to_clear(balance: Decimal, rate: Decimal, payment: Decimal) -> int | None:
+    """Months a fixed payment takes to clear `balance` at annual `rate`.
+    None when the payment doesn't cover the interest."""
+    if balance <= 0:
+        return 0
+    r = float(rate) / 12
+    p, a = float(balance), float(payment)
+    if a <= 0:
+        return None
+    if r == 0:
+        return math.ceil(p / a)
+    if a <= r * p:
+        return None
+    return math.ceil(-math.log(1 - r * p / a) / math.log(1 + r))
+
+
+def _reset_rate(loan: Loan, new_rate: Decimal, months_left: int) -> None:
+    """Move a floating loan to `new_rate`.
+
+    A cut keeps the EMI, so the loan finishes sooner. A rise raises the
+    EMI just enough to keep the same end date. RBI's 2023 reset rules
+    forbid negative amortisation, and a fixed EMI under a rising rate
+    grew a ₹30L loan without limit (₹82 crore of interest).
+    """
+    new_rate = max(D("0"), new_rate)
+    old_rate = loan.nominal_rate
+    loan.nominal_rate = new_rate
+    if new_rate <= old_rate or loan.loan_type == LoanType.CREDIT_CARD:
+        return
+    if loan.scheduled_emi <= 0 or loan.outstanding <= 0:
+        return
+    n = _months_to_clear(loan.outstanding, old_rate, loan.scheduled_emi) or (
+        months_left if months_left > 0 else 12
+    )
+    needed = emi(loan.outstanding, new_rate, n)
+    if needed > loan.scheduled_emi:
+        loan.scheduled_emi = needed
 
 
 @dataclass
@@ -70,12 +115,21 @@ class MonthRow:
     # cleared loans with value 0 so chart consumers see a flat-at-0 tail
     # rather than a vanishing series.
     balances_by_loan_index: dict[int, Decimal] = field(default_factory=dict)
+    # Sum of all balances converted to the user's currency at this month's
+    # rate. Adding ₹ and $ balances as plain numbers gave NRI users a
+    # meaningless total on the chart.
+    balance_in_user_currency: Decimal = D("0")
     # Per-goal contribution this month, keyed by goal id. Empty when
     # `goals` wasn't passed to simulate_plan. Lets the API expose an
     # engine-truth array so client-side achievability can sum actuals
     # (accounting for inflation / hike / expiry) instead of multiplying
     # a single static surplus by a month count.
     goal_contributions: dict[str, Decimal] = field(default_factory=dict)
+    # Paid above each loan's minimum this month (extra, cascade, reinvest),
+    # in the user's currency. The /plan schedule used to take the scheduled
+    # EMIs off the total paid, so a card's minimum (EMI 0) read as "extra",
+    # a cleared loan's EMI kept being subtracted, and ₹ and $ were mixed.
+    extra_paid: Decimal = D("0")
 
 
 @dataclass
@@ -155,8 +209,9 @@ def simulate_plan(
     reinvest_events: list[tuple[int, Decimal]] | None = None,
     inflate_expenses: bool = False,
     lifecycle_events: list[LifecycleEvent] | None = None,
-    ef_top_up_rate: Decimal = D("0"),
+    ef_top_up_rate: Decimal | None = None,
     goals: list[GoalState] | None = None,
+    minimums_only: bool = False,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`. Returns one MonthRow per month
     until either all loans clear or horizon is reached.
@@ -189,13 +244,14 @@ def simulate_plan(
     user's purchasing power erodes. False preserves legacy flat-expenses
     behaviour for callers / tests that don't opt in.
 
-    `ef_top_up_rate` (default 0) drives the soft emergency-fund waterfall:
-    when > 0 AND `user.efund_balance < user.efund_target`, that fraction of
-    each month's surplus is diverted into the EF pool before the remainder
-    flows into debt prepayment. Once the running EF balance reaches
-    `efund_target`, allocation switches back to 100% debt. Default 0
-    preserves the legacy "all surplus → debt" behaviour for tests and
-    for users who haven't set an EF target.
+    Emergency fund: one mechanism per run, never both.
+    - `ef_top_up_rate=None` (the default): a fixed monthly top-up of the
+      starting gap / 12 is held back from surplus until the fund is full.
+    - `ef_top_up_rate` given (0–1): that share of each month's surplus goes
+      to the fund until it reaches `efund_target`, and nothing else does.
+      0 means every rupee goes to debt. This is the /plan slider, so the
+      split the user picks is the split that happens (it used to be added
+      on top of the fixed top-up, and 0% still diverted gap / 12).
 
     `goals` (default None) is the engine-authoritative per-goal state
     list. When provided, the serial-fill allocator runs each month,
@@ -204,12 +260,24 @@ def simulate_plan(
     (cascade gets the full surplus). When None, the engine skips the
     goal block entirely — the legacy "all surplus → EF/debt" behaviour
     for callers that don't model goals.
+
+    `minimums_only` pays each loan its minimum and nothing more: no
+    surplus, no cascade when a loan clears, no reinvest events. It is the
+    "pay only minimums" comparison, run through the same month loop so
+    rate resets, pre-EMI and unpaid interest are treated the same way in
+    both.
     """
+    # FX drift below rewrites the exchange rates every month. Work on a
+    # copy: the caller's user used to come back with drifted rates, and a
+    # second run started from them.
+    user = copy(user)
+    user.fx_to_user_currency = dict(user.fx_to_user_currency)
     loans = [deepcopy(l) for l in user.loans]
     # Map deep-copied loan identity → its original position in user.loans.
     # Used to translate per-loan payments into a position-keyed dict that
     # the API can pass to the frontend without leaking Python ids.
     loan_position = {id(l): i for i, l in enumerate(loans)}
+    start_rate = {id(l): l.nominal_rate for l in loans}
     income = user.monthly_income
     if income_delta != D("0") and income_delta_from_month <= 1:
         # Apply immediately — preserves the old with_surplus_delta semantics
@@ -219,11 +287,14 @@ def simulate_plan(
     months: list[MonthRow] = []
     total_interest = D("0")
     total_invested = D("0")
-    # Soft EF waterfall state — running balance that grows by the diverted
-    # surplus each month until ef_target is hit. Frozen at 0 / no diversion
-    # when ef_top_up_rate=0 (legacy default).
+    # EF state — running balance that grows by whichever top-up applies
+    # (fixed gap / 12, or the caller's split) until ef_target is hit.
     ef_balance = user.efund_balance
     ef_target = user.efund_target
+    efund_monthly_plan = (
+        compute_efund_monthly(user) if ef_top_up_rate is None else D("0")
+    )
+    ef_split = ef_top_up_rate if ef_top_up_rate is not None else D("0")
     best_liquid_return = _best_liquid_return(user.investment_options)
     inflation = user.inflation_rate
     debt_free_month: int | None = None
@@ -317,7 +388,8 @@ def simulate_plan(
                     and 0 <= ev.loan_index < len(loans)
                     and ev.new_rate is not None
                 ):
-                    loans[ev.loan_index].nominal_rate = ev.new_rate
+                    ln = loans[ev.loan_index]
+                    _reset_rate(ln, ev.new_rate, ln.tenure_months_remaining - (m - 1))
 
         # Auto floating-rate resets — for any floating loan with a
         # next_reset_month + rate_reset_frequency_months pair, fire a
@@ -334,7 +406,9 @@ def simulate_plan(
             if m == ln.next_reset_month:
                 freq = max(1, ln.rate_reset_frequency_months)
                 step = ln.rate_drift_annualized * D(str(freq)) / D("12")
-                ln.nominal_rate = ln.nominal_rate + step
+                base = start_rate[id(ln)]
+                new_rate = min(max(ln.nominal_rate + step, base - MAX_RATE_DRIFT), base + MAX_RATE_DRIFT)
+                _reset_rate(ln, new_rate, ln.tenure_months_remaining - (m - 1))
                 ln.next_reset_month = m + freq
 
         # FX drift — update user.fx_to_user_currency at month m to reflect
@@ -390,13 +464,21 @@ def simulate_plan(
             ):
                 l.outstanding += l.expected_monthly_spend
 
-        # Minimum payments per active loan
-        minimums = {id(l): compute_minimum_payment(l, user.country, simple_mode=simple_mode)
-                    for l in active}
+        # Minimum payments per active loan. Card formulas of the "interest +
+        # x%" kind need this month's interest; without it a $5,000 card at
+        # 24% had a $50 minimum against $100 of interest.
+        minimums = {
+            id(l): compute_minimum_payment(
+                l, user.country,
+                interest_accrued=l.outstanding * l.nominal_rate / D("12"),
+                simple_mode=simple_mode,
+            )
+            for l in active
+        }
 
         # Effective rate per loan (drives ordering + Layer 3 gate)
         rates = {
-            id(l): effective_rate(l, marg, user.country, user.tax_regime)
+            id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises)
             for l in active
         }
 
@@ -426,24 +508,27 @@ def simulate_plan(
         # money never lands anywhere and the EF target is never reached even
         # though debt prepay is suppressed every month. Capped at the gap
         # to ef_target so the EF never overshoots.
-        efund_monthly_to_credit = compute_efund_monthly(scratch_user)
-        if ef_balance + efund_monthly_to_credit > ef_target:
-            efund_monthly_to_credit = max(D("0"), ef_target - ef_balance)
+        # A fixed amount (the starting gap over 12 months) until the fund
+        # is full. Recomputing gap / 12 every month shrank the top-up as
+        # the fund grew, so it never filled: 65% after a year, still
+        # trickling years later while holding back debt payments.
+        efund_monthly_to_credit = min(
+            efund_monthly_plan, max(D("0"), ef_target - ef_balance),
+        )
         surplus = compute_available_surplus(
             scratch_user, active, matched_contribution=matched_contribution,
-            simple_mode=simple_mode,
+            simple_mode=simple_mode, efund_monthly=efund_monthly_to_credit,
         )
+        if minimums_only:
+            surplus = D("0")
+            efund_monthly_to_credit = D("0")
         # Pre-allocation snapshot — captured before goal / EF / debt
         # routing so the API can expose an engine-truth surplus series
         # for client-side achievability without back-deriving it from
         # the post-allocation `surplus` variable below.
         pre_allocation_surplus = surplus
-        # Land the baseline EF allocation. This is *separate* from the
-        # cascade ef_slice below: the baseline 1/12 path always fires
-        # (when there's a gap); the cascade ef_slice is the additional
-        # top-up driven by ef_top_up_rate. With ef_top_up_rate=0 (the
-        # legacy default), only the baseline path contributes, and the
-        # EF still fills geometrically toward target.
+        # Land the fixed EF top-up (zero when the caller gave a split;
+        # then the cascade ef_slice below is the only EF money).
         ef_balance += efund_monthly_to_credit
 
         # Multi-goal monthly outflow. `goals is not None` (not
@@ -456,7 +541,7 @@ def simulate_plan(
         # internally clamps the funding pool at 0, so the surplus
         # subtraction below is a no-op when there's nothing to give.
         goal_contributions_this_month: dict[str, Decimal] = {}
-        if goals is not None:
+        if goals is not None and not minimums_only:
             alloc = serial_fill_allocation(goals, surplus, m - 1)
             # `alloc.total_outflow` is already bounded by `surplus`
             # inside the allocator, so no defensive min() needed —
@@ -485,24 +570,29 @@ def simulate_plan(
         )
         cascade = allocate_surplus(
             surplus=surplus,
-            ef_split=ef_top_up_rate,
+            ef_split=ef_split,
             ef_gap=ef_gap_this_month,
             ef_preempted=False,
         )
         ef_balance += cascade.ef_slice
         surplus = cascade.debt_slice
 
-        # Layer 3 — invest-vs-prepay gate per loan
-        # If the top-priority loan fails the gate, redirect its extra to investment.
+        # Layer 3 — invest-vs-prepay gate, loan by loan. Extra goes to the
+        # first loan in payoff order that beats the best liquid return;
+        # only if none does is the surplus invested. Checking just the
+        # first loan made snowball invest everything while a 42% card
+        # sat at its minimum, because a small 7% car loan came first.
         ranked = rank_loans(active, rates, strategy, country=user.country)
         invested_this_month = D("0")
         extra_for_debt = surplus
+        worth_prepaying = [
+            l for l in ranked
+            if prepay_recommended(rates[id(l)], best_liquid_return, inflation)
+        ]
 
-        if ranked and surplus > 0:
-            top = ranked[0]
-            if not prepay_recommended(rates[id(top)], best_liquid_return, inflation):
-                invested_this_month = surplus
-                extra_for_debt = D("0")
+        if ranked and surplus > 0 and not worth_prepaying:
+            invested_this_month = surplus
+            extra_for_debt = D("0")
 
         # Allocate. `extra_for_debt` is in the user's residence currency;
         # convert to the target loan's currency before adding so the
@@ -521,7 +611,7 @@ def simulate_plan(
             # cooldown, and not in pre-EMI). Falls back to the next-best
             # candidate, then no-op if every loan is gated — surplus
             # carries forward implicitly via the EF buffer.
-            target = next((l for l in ranked if _can_part_pay(l, m)), None)
+            target = next((l for l in worth_prepaying if _can_part_pay(l, m)), None)
             if target is not None:
                 extra_in_loan_ccy = from_user_currency(extra_for_debt, target, user)
                 penalty_in_loan_ccy = extra_in_loan_ccy * target.prepayment_penalty_pct
@@ -583,7 +673,7 @@ def simulate_plan(
 
         # Apply cascade within the same month to the next-priority active loan
         # (after the clears we just processed)
-        if cascade_surplus > 0:
+        if cascade_surplus > 0 and not minimums_only:
             next_active = [l for l in ranked if l.outstanding > 0]
             if next_active:
                 top = next_active[0]
@@ -602,7 +692,7 @@ def simulate_plan(
         # into debt). Layered on top of cascade — same routing rule (highest
         # effective-APR active loan after this month's payments). Cascades
         # again if it clears the target.
-        if m in reinvest_by_month:
+        if m in reinvest_by_month and not minimums_only:
             reinvest_amount = reinvest_by_month[m]
             remaining_active = [l for l in loans if l.outstanding > 0]
             if remaining_active:
@@ -610,7 +700,7 @@ def simulate_plan(
                 # cleared this month — those drop out automatically).
                 reinvest_ranked = rank_loans(
                     remaining_active,
-                    {id(l): effective_rate(l, marg, user.country, user.tax_regime)
+                    {id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises)
                      for l in remaining_active},
                     strategy,
                     country=user.country,
@@ -645,10 +735,23 @@ def simulate_plan(
             for lid, amt in payments.items()
             if amt > D("0")
         }
+        loan_by_id = {id(l): l for l in loans}
+        extra_paid = sum(
+            (
+                to_user_currency(
+                    max(D("0"), amt - minimums.get(lid, D("0"))), loan_by_id[lid], user,
+                )
+                for lid, amt in payments.items()
+            ),
+            D("0"),
+        )
         # Per-loan balance by 0-based position. ALL loans included so the
         # chart sees a stable series (cleared loans flat at 0, never
         # disappearing).
         balances_by_idx = {loan_position[id(l)]: l.outstanding for l in loans}
+        balance_user_ccy = sum(
+            (to_user_currency(l.outstanding, l, user) for l in loans), D("0"),
+        )
         months.append(MonthRow(
             month_index=m,
             # Pre-allocation surplus — the pool the engine had to work
@@ -665,7 +768,9 @@ def simulate_plan(
             payments_by_loan_index=payments_by_idx,
             balances_by_currency=ccy_buckets,
             balances_by_loan_index=balances_by_idx,
+            balance_in_user_currency=balance_user_ccy,
             goal_contributions=goal_contributions_this_month,
+            extra_paid=extra_paid,
         ))
 
         total_interest += interest_paid
@@ -689,74 +794,20 @@ def baseline_minimums_only(
     user: User,
     horizon_months: int = 360,
     simple_mode: bool = False,
+    lifecycle_events: list[LifecycleEvent] | None = None,
 ) -> SimulationResult:
     """Counterfactual: pay only minimums (no extra), no Layer 3 redirection.
     Used to compute `savings_vs_minimums` for the Plan screen.
+
+    Runs the plan's own month loop with `minimums_only`, so both sides see
+    the same rate resets, drift, pre-EMI months and card spend. The old
+    separate loop kept a balance flat when the minimum didn't cover the
+    interest, and counted interest the user never paid.
     """
-    loans = [deepcopy(l) for l in user.loans]
-    months: list[MonthRow] = []
-    total_interest = D("0")
-    debt_free_month: int | None = None
-
-    for m in range(1, horizon_months + 1):
-        active = [l for l in loans if l.outstanding > 0]
-        if not active:
-            debt_free_month = m - 1
-            break
-
-        # Same card-spend bump as the scenario sim so baseline stays
-        # apples-to-apples — both legs assume the same user spending
-        # behaviour.
-        for l in active:
-            if (
-                l.loan_type == LoanType.CREDIT_CARD
-                and l.expected_monthly_spend > 0
-            ):
-                l.outstanding += l.expected_monthly_spend
-
-        interest_paid = D("0")
-        principal_paid = D("0")
-        cleared: list[int] = []
-        for l in active:
-            mp = compute_minimum_payment(l, user.country, simple_mode=simple_mode)
-            monthly_rate = l.nominal_rate / D("12")
-            interest_this = l.outstanding * monthly_rate
-            principal_this = mp - interest_this
-            if principal_this <= 0:
-                # Minimum doesn't cover interest — loan grows. Cap principal at zero.
-                interest_paid += to_user_currency(interest_this, l, user)
-                continue
-            if principal_this >= l.outstanding:
-                principal_this = l.outstanding
-                cleared.append(id(l))
-            l.outstanding -= principal_this
-            interest_paid += to_user_currency(interest_this, l, user)
-            principal_paid += to_user_currency(principal_this, l, user)
-
-        balances_snapshot = {id(l): l.outstanding for l in loans}
-        ccy_buckets: dict[str, Decimal] = {}
-        for l in loans:
-            ccy = loan_currency_or_default(l, user)
-            ccy_buckets[ccy] = ccy_buckets.get(ccy, D("0")) + l.outstanding
-        months.append(MonthRow(
-            month_index=m,
-            available_surplus=D("0"),
-            total_payment_nominal=interest_paid + principal_paid,
-            total_payment_real=real_emi(interest_paid + principal_paid, user.inflation_rate, m),
-            interest_paid_month=interest_paid,
-            principal_paid_month=principal_paid,
-            invested_this_month=D("0"),
-            balances=balances_snapshot,
-            cleared_this_month=cleared,
-            balances_by_currency=ccy_buckets,
-        ))
-        total_interest += interest_paid
-        if all(l.outstanding == 0 for l in loans):
-            debt_free_month = m
-            break
-
-    return SimulationResult(
-        months=months, debt_free_month=debt_free_month,
-        total_interest_paid=total_interest, total_invested=D("0"),
-        final_balances={id(l): l.outstanding for l in loans},
+    return simulate_plan(
+        user,
+        horizon_months=horizon_months,
+        simple_mode=simple_mode,
+        lifecycle_events=lifecycle_events,
+        minimums_only=True,
     )

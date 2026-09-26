@@ -17,6 +17,7 @@
  * Three layout variants mirror the Plan themes; chrome lives in PanelShell.
  * Editorial/aside variant is intentionally read-only.
  */
+import { localIsoDate } from '@/lib/today';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatCurrency, type Country } from '@/lib/api';
@@ -46,7 +47,7 @@ export function AdvanceTaxPanel({
   const [drafts, setDrafts] = useState<Record<number, string>>({});
 
   const today = new Date();
-  const todayIso = today.toISOString().slice(0, 10);
+  const todayIso = localIsoDate(today);
   const penalty = accruedPenalty(schedule, today);
   const totalPenalty = Number(penalty.total);
 

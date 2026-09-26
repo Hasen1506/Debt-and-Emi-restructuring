@@ -493,39 +493,59 @@ def test_floating_rate_reset_mutates_loan_rate_at_effective_month():
     assert cheaper.total_interest_paid < base.total_interest_paid
 
 
-def test_ef_waterfall_zero_rate_is_noop():
-    """ef_top_up_rate=0 (the default) must produce identical results — both
-    debt-free month and total interest — even when an EF gap exists. Phase 3
-    is opt-in; legacy callers and existing tests must remain unaffected."""
+def test_ef_split_zero_sends_everything_to_debt():
+    """A split of 0 is the user saying "no emergency-fund top-up": every
+    rupee of surplus goes to debt. It used to fall back to the fixed
+    gap / 12 hold-back, so the /plan slider could not reach 0%."""
     user = _user_two_loans()
     user.efund_balance = D("0")
-    user.efund_target = D("600000")  # huge gap to ensure no accidental divert
-    base = simulate_plan(user, Strategy.AVALANCHE, horizon_months=120)
-    explicit_zero = simulate_plan(
+    user.efund_target = D("600000")
+    user.investment_options = []
+    fixed = simulate_plan(user, Strategy.AVALANCHE, horizon_months=120)
+    zero = simulate_plan(
         user, Strategy.AVALANCHE, horizon_months=120, ef_top_up_rate=D("0"),
     )
-    assert base.total_interest_paid == explicit_zero.total_interest_paid
-    assert base.debt_free_month == explicit_zero.debt_free_month
+    assert zero.total_interest_paid < fixed.total_interest_paid
+    assert zero.debt_free_month <= fixed.debt_free_month
 
 
-def test_ef_waterfall_diverts_surplus_when_target_unmet():
-    """With ef_top_up_rate=0.3 and a real EF gap, less surplus reaches debt
-    each month → total interest paid goes UP and debt-free month is pushed
-    out vs. the no-divert baseline. Isolated from Layer 3 by removing the
-    invest-vs-prepay pool so the comparison is pure debt amortisation."""
+def test_ef_split_is_the_only_top_up_when_given():
+    """With a split, month 1's extra payment is exactly (1 - split) of the
+    surplus; no fixed gap / 12 is taken first (the two used to stack:
+    ₹12,500 fixed plus 30% of the rest)."""
     user = _user_two_loans()
     user.efund_balance = D("0")
     user.efund_target = D("300000")
-    user.investment_options = []  # no invest-vs-prepay gate
-    base = simulate_plan(user, Strategy.AVALANCHE, horizon_months=120)
+    user.investment_options = []
+    none = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=12, ef_top_up_rate=D("0"),
+    )
+    split = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=12, ef_top_up_rate=D("0.3"),
+    )
+    paid_none = sum(none.months[0].payments_by_loan_index.values(), D("0"))
+    paid_split = sum(split.months[0].payments_by_loan_index.values(), D("0"))
+    minimums = paid_none - none.months[0].available_surplus
+    extra_split = paid_split - minimums
+    assert abs(extra_split - none.months[0].available_surplus * D("0.7")) < D("0.01")
+
+
+def test_ef_waterfall_diverts_surplus_when_target_unmet():
+    """With a 30% split and a real EF gap, less surplus reaches debt
+    each month than with a 0% split → more interest, later debt-free
+    month. Isolated from Layer 3 by removing the invest-vs-prepay pool
+    so the comparison is pure debt amortisation."""
+    user = _user_two_loans()
+    user.efund_balance = D("0")
+    user.efund_target = D("300000")
+    user.investment_options = []
+    base = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=120, ef_top_up_rate=D("0"),
+    )
     diverted = simulate_plan(
         user, Strategy.AVALANCHE, horizon_months=120, ef_top_up_rate=D("0.3"),
     )
-    # Diverting 30% of surplus to EF top-up means debt gets less → it
-    # amortises slower and accrues more interest.
     assert diverted.total_interest_paid > base.total_interest_paid
-    # Either base finishes earlier or — at minimum — diverted doesn't finish
-    # earlier. (debt_free_month can be None when horizon is hit.)
     if base.debt_free_month is not None and diverted.debt_free_month is not None:
         assert diverted.debt_free_month >= base.debt_free_month
 
@@ -586,3 +606,39 @@ def test_lifecycle_event_empty_list_is_no_op():
     )
     assert none_result.total_interest_paid == base.total_interest_paid
     assert empty_result.total_interest_paid == base.total_interest_paid
+
+
+# ─── Extra paid per month (26 Sep 2026) ──────────────────────────────────────
+
+def test_minimums_only_pays_no_extra_even_for_a_card_with_no_emi():
+    """A card's minimum with scheduled EMI 0 read as 'extra' on /plan."""
+    user = _user_card_only()
+    user.loans[0].scheduled_emi = D("0")
+    result = baseline_minimums_only(user, horizon_months=24)
+    assert result.months
+    assert all(row.extra_paid == 0 for row in result.months)
+
+
+def test_extra_paid_is_the_debt_share_of_the_surplus_in_month_1():
+    user = _user_two_loans()
+    user.investment_options = []
+    result = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=12, ef_top_up_rate=D("0"),
+    )
+    m1 = result.months[0]
+    assert m1.extra_paid > 0
+    assert abs(m1.extra_paid - m1.available_surplus) < D("1")
+
+
+def test_extra_paid_is_in_the_users_currency():
+    """A dollar loan's extra is converted, not added to rupees as-is."""
+    user = _user_two_loans()
+    user.investment_options = []
+    for l in user.loans:
+        l.currency = "USD"
+    user.fx_to_user_currency = {"USD": D("84")}
+    result = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=12, ef_top_up_rate=D("0"),
+    )
+    m1 = result.months[0]
+    assert abs(m1.extra_paid - m1.available_surplus) < D("1")

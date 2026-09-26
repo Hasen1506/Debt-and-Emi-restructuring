@@ -5,9 +5,12 @@
  * narrow decision: a few inputs → one verdict + a couple of numbers.
  */
 import { ReactNode, useEffect, useId, useRef, useState } from 'react';
+import Decimal from 'decimal.js';
 import { BANKS_IN, BANKS_US } from '@/lib/banks';
 
-export type FieldKind = 'decimal' | 'integer' | 'text' | 'date';
+/** 'percent': the caller's value is a fraction ("0.085"); the field shows
+ *  and accepts a percentage ("8.5"). */
+export type FieldKind = 'decimal' | 'integer' | 'text' | 'date' | 'percent';
 
 /**
  * Tap-to-toggle info tooltip. Renders an ⓘ button inline with a label and
@@ -103,13 +106,28 @@ export function InfoTip({ children }: { children: ReactNode }) {
  * Label row reused by every form primitive. Renders the text label and,
  * when present, an InfoTip on the right.
  */
-function LabelRow({ label, info }: { label: string; info?: ReactNode }) {
+function LabelRow({
+  label,
+  info,
+  htmlFor,
+  id,
+}: {
+  label: string;
+  info?: ReactNode;
+  htmlFor?: string;
+  id?: string;
+}) {
+  // The InfoTip button sits *beside* the <label>, never inside it: a label
+  // names the first control it contains, so a button inside it would take
+  // the name and leave the real input unnamed for screen readers.
   return (
     <span
       className="muted"
       style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
     >
-      {label}
+      <label htmlFor={htmlFor} id={id}>
+        {label}
+      </label>
       {info && <InfoTip>{info}</InfoTip>}
     </span>
   );
@@ -131,6 +149,7 @@ export function Field({
   placeholder,
   list,
   suggestion,
+  error,
 }: {
   label: string;
   value: string;
@@ -140,35 +159,57 @@ export function Field({
   kind?: FieldKind;
   placeholder?: string;
   list?: string;
+  /** A problem with this field (e.g. the server's 422 message), shown
+   *  under it and announced; the input is marked invalid. */
+  error?: string | null;
   /** Click-to-fill suggestion. When set and `value` is empty, renders a
    *  muted recommendation line below the field; touching/focusing the
    *  input fills it with `suggestion.value`. User can edit or clear. The
    *  caller decides what counts as "empty" — typically `value === ''`. */
   suggestion?: { value: string; label: string };
 }) {
-  const isNumeric = kind === 'decimal' || kind === 'integer';
+  const inputId = useId();
+  const isPercent = kind === 'percent';
+  const isNumeric = kind === 'decimal' || kind === 'integer' || isPercent;
   const hasSuggestion = !!suggestion && value === '';
+  // Percent fields keep the typed text ("8.", "8.5") and hand the caller
+  // the fraction; re-derived only when the value changes from outside.
+  const [pctText, setPctText] = useState(() => fractionToPercentText(value));
+  useEffect(() => {
+    if (!isPercent) return;
+    setPctText((t) => (percentTextToFraction(t) === value ? t : fractionToPercentText(value)));
+  }, [isPercent, value]);
+  const shown = isPercent ? pctText : value;
+  const handleChange = (raw: string) => {
+    if (!isPercent) return onChange(raw);
+    setPctText(raw);
+    const f = percentTextToFraction(raw);
+    onChange(f ?? raw);
+  };
   const handleFocus = () => {
     if (hasSuggestion && suggestion) onChange(suggestion.value);
   };
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <LabelRow label={label} info={info} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <LabelRow label={label} info={info} htmlFor={inputId} />
       <input
+        id={inputId}
+        aria-describedby={describedBy(inputId, hint, error)}
+        aria-invalid={error ? true : undefined}
         className={isNumeric ? 'num' : undefined}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={shown}
+        onChange={(e) => handleChange(e.target.value)}
         onFocus={handleFocus}
         type={kind === 'date' ? 'date' : 'text'}
         inputMode={
-          kind === 'decimal' ? 'decimal' : kind === 'integer' ? 'numeric' : 'text'
+          kind === 'decimal' || isPercent ? 'decimal' : kind === 'integer' ? 'numeric' : 'text'
         }
         autoComplete={kind === 'text' ? 'off' : undefined}
         placeholder={placeholder}
         list={list}
         style={{
           padding: '8px 10px',
-          border: '1px solid var(--border)',
+          border: `1px solid ${error ? 'var(--negative)' : 'var(--border)'}`,
           borderRadius: 6,
           background: 'var(--canvas)',
           color: 'var(--ink)',
@@ -196,12 +237,44 @@ export function Field({
           ↳ {suggestion.label}
         </button>
       )}
+      <FieldError id={inputId} error={error} />
       {hint && (
-        <span className="muted" style={{ fontSize: 11 }}>
+        <span id={`${inputId}-hint`} className="muted" style={{ fontSize: 11 }}>
           {hint}
         </span>
       )}
-    </label>
+    </div>
+  );
+}
+
+/** "0.085" → "8.5"; anything that isn't a number is shown as typed. */
+export function fractionToPercentText(v: string): string {
+  const t = v.trim();
+  if (t === '' || !/^-?\d*\.?\d+$/.test(t)) return t;
+  return new Decimal(t).mul(100).toDecimalPlaces(6).toString();
+}
+
+/** "8.5" or "8.5%" → "0.085"; null when it isn't a number yet. */
+export function percentTextToFraction(v: string): string | null {
+  // A trailing "." is mid-typing ("8." on the way to "8.5").
+  const t = v.trim().replace(/%$/, '').trim().replace(/\.$/, '');
+  if (t === '') return '';
+  if (!/^-?\d*\.?\d+$/.test(t)) return null;
+  return new Decimal(t).div(100).toString();
+}
+
+function describedBy(id: string, hint?: string, error?: string | null): string | undefined {
+  const ids = [error ? `${id}-err` : '', hint ? `${id}-hint` : ''].filter(Boolean);
+  return ids.length ? ids.join(' ') : undefined;
+}
+
+/** The message under a field that the server (or a check) rejected. */
+export function FieldError({ id, error }: { id: string; error?: string | null }) {
+  if (!error) return null;
+  return (
+    <span id={`${id}-err`} role="alert" style={{ fontSize: 12, color: 'var(--negative)' }}>
+      {error}
+    </span>
   );
 }
 
@@ -234,8 +307,10 @@ export function BankCombobox({
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const rootRef = useRef<HTMLLabelElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const buttonId = useId();
+  const labelId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -271,16 +346,18 @@ export function BankCombobox({
   }
 
   return (
-    <label
+    <div
       ref={rootRef}
       style={{ display: 'flex', flexDirection: 'column', gap: 4, position: 'relative' }}
     >
-      <LabelRow label={label} info={info} />
+      <LabelRow label={label} info={info} htmlFor={buttonId} id={labelId} />
       <button
+        id={buttonId}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-labelledby={`${labelId} ${buttonId}`}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -325,6 +402,7 @@ export function BankCombobox({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search bank or type your own…"
+            aria-label="Search banks"
             autoComplete="off"
             style={{
               padding: '10px 12px',
@@ -334,7 +412,6 @@ export function BankCombobox({
               color: 'var(--ink)',
               fontFamily: 'var(--font-sans)',
               fontSize: 14,
-              outline: 'none',
             }}
           />
           <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -399,7 +476,7 @@ export function BankCombobox({
           {hint}
         </span>
       )}
-    </label>
+    </div>
   );
 }
 
@@ -409,22 +486,28 @@ export function Select<T extends string>({
   onChange,
   options,
   info,
+  error,
 }: {
   label: string;
   value: T;
   onChange: (v: T) => void;
   options: { value: T; label: string }[];
   info?: ReactNode;
+  error?: string | null;
 }) {
+  const selectId = useId();
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <LabelRow label={label} info={info} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <LabelRow label={label} info={info} htmlFor={selectId} />
       <select
+        id={selectId}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
+        aria-describedby={describedBy(selectId, undefined, error)}
+        aria-invalid={error ? true : undefined}
         style={{
           padding: '8px 10px',
-          border: '1px solid var(--border)',
+          border: `1px solid ${error ? 'var(--negative)' : 'var(--border)'}`,
           borderRadius: 6,
           background: 'var(--canvas)',
           color: 'var(--ink)',
@@ -437,7 +520,8 @@ export function Select<T extends string>({
           </option>
         ))}
       </select>
-    </label>
+      <FieldError id={selectId} error={error} />
+    </div>
   );
 }
 

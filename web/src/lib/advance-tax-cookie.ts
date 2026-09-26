@@ -19,6 +19,7 @@ import {
 } from './advance-tax';
 import type { Country } from './api';
 import Decimal from 'decimal.js';
+import { dec } from './safe-decimal';
 
 const COOKIE_NAME = 'finoptima_advance_tax';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -87,7 +88,7 @@ export function markPaid(
     ...schedule,
     instalments: schedule.instalments.map((inst) => {
       if (inst.ordinal !== ordinal) return inst;
-      const prevPaid = new Decimal(inst.paidAmount ?? '0');
+      const prevPaid = dec(inst.paidAmount);
       const due = new Decimal(inst.amountDue);
       const newPaid = prevPaid.add(amountD);
       const status: AdvanceTaxInstalment['status'] = newPaid.gte(due)

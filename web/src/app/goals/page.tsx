@@ -10,7 +10,6 @@
 
 import { loadProfileServer } from '@/lib/user-store';
 import { api } from '@/lib/api';
-import { loadThemeServer } from '@/lib/theme';
 import { GoalsClient } from './GoalsClient';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +17,6 @@ export const dynamic = 'force-dynamic';
 export default async function GoalsPage() {
   const profile = await loadProfileServer();
   const country = profile.user.country;
-  const theme = await loadThemeServer();
 
   // Pre-fetch indicative lowest rates by loan type — used to populate
   // the T3 tier copy ("you'd take ~₹X at ~Y% from {bank}"). Failure
@@ -40,7 +38,6 @@ export default async function GoalsPage() {
     <GoalsClient
       user={profile.user}
       lowestRates={rates}
-      themeName={theme}
     />
   );
 }

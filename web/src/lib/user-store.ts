@@ -45,6 +45,11 @@ function writeClientCookie(name: string, value: string) {
   document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
 }
 
+/** The raw profile cookies, to tell when the saved profile has changed. */
+export function profileCookieKey(): string {
+  return [COOKIE_NAME, MARGINAL_COOKIE, SCORE_COOKIE].map((c) => readClientCookie(c) ?? '').join('\u0000');
+}
+
 export function loadProfileClient(): StoredProfile {
   const raw = readClientCookie(COOKIE_NAME);
   if (!raw) {

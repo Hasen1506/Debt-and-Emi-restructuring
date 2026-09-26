@@ -4,9 +4,6 @@
  * Sign-in via email + 6-digit code. Two phases in one page:
  *   1. Enter email      → POST /api/auth/request-otp
  *   2. Enter code       → POST /api/auth/verify-otp → cookie set → redirect
- *
- * Themed via CSS variables on <html data-theme>; works across all 3 skins
- * without per-skin variants.
  */
 
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -189,7 +186,6 @@ const input: React.CSSProperties = {
   borderRadius: 6,
   background: 'var(--canvas)',
   color: 'var(--ink)',
-  outline: 'none',
 };
 const primary: React.CSSProperties = {
   padding: '10px 14px',

@@ -28,11 +28,19 @@
  *     wins when set.
  */
 import Decimal from 'decimal.js';
+import { dec } from './safe-decimal';
 import type { AgeBracket, Country, DeductionsPayload, FilingStatusUS, IncomeType, TaxRegimeIN, UserPayload } from './api';
 import { activeSlabGrossAnnual } from './income-streams';
+import {
+  US_STANDARD_DEDUCTION as US_STD_NUM,
+  federalTaxUS,
+  incomeTaxIN,
+  marginalRateIN,
+  marginalRateUS,
+} from './tax-brackets';
+import TAX from './tax-tables.json';
 
-const D = (v: string | number | Decimal | null | undefined) =>
-  new Decimal(v ?? '0');
+const D = dec;
 
 // India statutory caps (FY25/AY26)
 const CAP_80C = D('150000');
@@ -46,18 +54,21 @@ const CAP_80CCD_1B = D('50000');
 // over-claim slightly via this line but the bracket distortion is
 // smaller than not applying it at all (which over-stated marginal
 // rate for everyone).
-const STD_DEDUCTION_OLD = D('50000');
-const STD_DEDUCTION_NEW = D('75000');
+const STD_DEDUCTION_OLD = D(TAX.in.old.standard_deduction);
+const STD_DEDUCTION_NEW = D(TAX.in.new.standard_deduction);
 
-// US standard deduction for FY2026 (approx — IRS releases yearly)
+// US standard deduction, from the engine's 2026 table (this copy was
+// 2024's: $14,600 single).
 const US_STD_DEDUCTION: Record<FilingStatusUS, Decimal> = {
-  single: D('14600'),
-  mfj: D('29200'),
-  hoh: D('21900'),
+  single: D(US_STD_NUM.single),
+  mfj: D(US_STD_NUM.mfj),
+  hoh: D(US_STD_NUM.hoh),
 };
 
+// The higher 80D cap is for senior citizens (60+). '50_plus' is 50–59
+// (it read "50+" before the 60+ bracket existed), so it gets the standard cap.
 function get80DCap(ageBracket?: AgeBracket): Decimal {
-  return ageBracket === '50_plus' ? CAP_80D_SENIOR : CAP_80D_DEFAULT;
+  return ageBracket === '60_plus' ? CAP_80D_SENIOR : CAP_80D_DEFAULT;
 }
 
 export interface DeductionLine {
@@ -211,6 +222,25 @@ export function summariseDeductions(
 }
 
 /**
+ * US: does this person itemise? Mirrors `UserIn._itemises` on the API:
+ * yes if their itemisable deductions beat the standard deduction. With
+ * no deductions entered, mortgage interest is estimated from their US
+ * home loans. Always false outside the US.
+ */
+export function usItemises(user: UserPayload): boolean {
+  if (user.country !== 'US') return false;
+  const ded = user.deductions;
+  const mortgage =
+    ded?.mortgage_interest_annual != null && ded.mortgage_interest_annual !== ''
+      ? D(ded.mortgage_interest_annual)
+      : user.loans
+          .filter((l) => l.loan_type === 'home_loan' && (l.currency ?? 'USD') === 'USD')
+          .reduce((s, l) => s.plus(D(l.outstanding).mul(D(l.nominal_rate))), D(0));
+  return pickUSDeduction({ ...ded, mortgage_interest_annual: mortgage.toString() }, user.filing_status)
+    .uses === 'itemized';
+}
+
+/**
  * Pick the higher of itemized vs standard for US users. Returns the
  * effective deduction amount that should be applied against gross.
  */
@@ -312,111 +342,17 @@ export function deriveMarginalRateForUser(user: UserPayload): string {
   return derived?.toString() ?? '0';
 }
 
-// ─── Bracket tables + shared walkers ───────────────────────────────────────
-// These mirror engine/country_data.py bracket structures at a coarse level.
-// We don't need surgical accuracy — these power the Setup "derived marginal"
-// preview and the deduction-saving calc, not the actual tax sleeve math.
-//
-// Tables are listed as `[upper_bound_inclusive, rate]`. Use `Infinity` for
-// the top slab. The shared walkers handle both marginal lookup and total-
-// tax integration, so the two stay in lock-step when brackets are edited.
-
-type Bracket = [upperBound: number, rate: string];
-
-const IN_NEW_BRACKETS: Bracket[] = [
-  [300000, '0'],
-  [700000, '0.05'],
-  [1000000, '0.10'],
-  [1200000, '0.15'],
-  [1500000, '0.20'],
-  [Infinity, '0.30'],
-];
-
-const IN_OLD_BRACKETS: Bracket[] = [
-  [250000, '0'],
-  [500000, '0.05'],
-  [1000000, '0.20'],
-  [Infinity, '0.30'],
-];
-
-const US_MFJ_BRACKETS: Bracket[] = [
-  [23200, '0.10'],
-  [94300, '0.12'],
-  [201050, '0.22'],
-  [383900, '0.24'],
-  [487450, '0.32'],
-  [731200, '0.35'],
-  [Infinity, '0.37'],
-];
-
-const US_SINGLE_BRACKETS: Bracket[] = [
-  [11600, '0.10'],
-  [47150, '0.12'],
-  [100525, '0.22'],
-  [191950, '0.24'],
-  [243725, '0.32'],
-  [609350, '0.35'],
-  [Infinity, '0.37'],
-];
-
-// Head-of-household sits between single and MFJ — wider 10/12 slabs but
-// hits the top rate at the same point as single. Without a dedicated
-// table HoH filers were silently routed through `US_SINGLE_BRACKETS`,
-// which over-stated tax in the lower bands and mis-priced cross-bracket
-// deduction savings.
-const US_HOH_BRACKETS: Bracket[] = [
-  [16550, '0.10'],
-  [63100, '0.12'],
-  [100500, '0.22'],
-  [191950, '0.24'],
-  [243700, '0.32'],
-  [609350, '0.35'],
-  [Infinity, '0.37'],
-];
-
-/** Marginal rate at a given taxable income — picks the bracket whose
- *  upper bound the income falls into. */
-function marginalForBrackets(taxable: Decimal, brackets: Bracket[]): Decimal {
-  const t = taxable.toNumber();
-  for (const [bound, rate] of brackets) {
-    if (t <= bound) return D(rate);
-  }
-  return D(brackets[brackets.length - 1][1]);
-}
-
-/** Total tax owed on a given taxable income — sums the rate-weighted
- *  width of every slab the income reaches. */
-function totalTaxForBrackets(taxable: Decimal, brackets: Bracket[]): Decimal {
-  let tax = D(0);
-  let prevBound = 0;
-  const t = taxable.toNumber();
-  if (t <= 0) return tax;
-  for (const [bound, rate] of brackets) {
-    const slabWidth = Math.min(t, bound) - prevBound;
-    if (slabWidth <= 0) break;
-    tax = tax.plus(D(slabWidth).mul(rate));
-    prevBound = bound;
-    if (t <= bound) break;
-  }
-  return tax;
-}
-
-function bracketsIN(regime: TaxRegimeIN): Bracket[] {
-  return regime === 'new' ? IN_NEW_BRACKETS : IN_OLD_BRACKETS;
-}
-
-function bracketsUS(filing: FilingStatusUS): Bracket[] {
-  if (filing === 'mfj') return US_MFJ_BRACKETS;
-  if (filing === 'hoh') return US_HOH_BRACKETS;
-  return US_SINGLE_BRACKETS;
-}
+// ─── Tax walkers ───────────────────────────────────────────────────────────
+// The bracket tables live in tax-tables.json, exported from the engine
+// (scripts/export_tax_tables.py). This file used to keep its own copy:
+// India's 2024 slabs (30% from ₹15L) and 2024 US brackets.
 
 function marginalIN(taxable: Decimal, regime: TaxRegimeIN): Decimal {
-  return marginalForBrackets(taxable, bracketsIN(regime));
+  return D(marginalRateIN(taxable.toNumber(), regime).toFixed(4));
 }
 
 function marginalUS(taxable: Decimal, filing: FilingStatusUS): Decimal {
-  return marginalForBrackets(taxable, bracketsUS(filing));
+  return D(marginalRateUS(taxable.toNumber(), filing));
 }
 
 /**
@@ -456,15 +392,17 @@ export function deductionTaxSaving(args: {
   if (deduction.lte(0) || taxable.lte(0)) return D(0);
   const reduced = Decimal.max(taxable.minus(deduction), D(0));
   if (args.country === 'IN') {
-    const brackets = bracketsIN(args.taxRegime ?? 'new');
-    const saving = totalTaxForBrackets(taxable, brackets).minus(
-      totalTaxForBrackets(reduced, brackets),
+    // Includes the 87A rebate, surcharge and cess, so a deduction that
+    // takes income under the rebate line saves the whole tax.
+    const regime = args.taxRegime ?? 'new';
+    const saving = incomeTaxIN(taxable.toNumber(), regime).minus(
+      incomeTaxIN(reduced.toNumber(), regime),
     );
     return Decimal.max(saving, D(0));
   }
-  const brackets = bracketsUS(args.filingStatus ?? 'single');
-  const federalSaving = totalTaxForBrackets(taxable, brackets).minus(
-    totalTaxForBrackets(reduced, brackets),
+  const filing = args.filingStatus ?? 'single';
+  const federalSaving = federalTaxUS(taxable.toNumber(), filing).minus(
+    federalTaxUS(reduced.toNumber(), filing),
   );
   const stateOverride = D(args.stateMarginalRateOverride);
   const stateRate = stateOverride.gt(0)

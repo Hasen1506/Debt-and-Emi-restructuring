@@ -20,9 +20,11 @@ import {
   type CrossBorderResponse,
   type LoanType,
 } from '@/lib/api';
-import { loadProfileClient } from '@/lib/user-store';
+import { useStoredProfile } from '@/lib/use-profile';
+import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
+import { fitColumns } from '@/lib/grid';
 
 type Currency = 'INR' | 'USD' | 'GBP' | 'EUR' | 'AUD' | 'CAD' | 'SGD' | 'AED';
 
@@ -48,8 +50,21 @@ const VERDICT_COLOR: Record<CrossBorderResponse['verdict'], string> = {
   marginal: 'var(--muted)',
 };
 
+
+// The API's field names → this form's inputs, so a rejected value's
+// message shows under the input it came from.
+const FIELDS: Record<string, string> = {
+  loan_balance: 'loanBalance',
+  loan_nominal_rate: 'loanRate',
+  loan_tenure_months: 'loanTenure',
+  user_savings_yield: 'savingsYield',
+  user_marginal_tax: 'marginalTax',
+  manual_fx_rate: 'fxInverse',
+  manual_fx_drift_annual: 'manualDrift',
+};
+
 export function NriPrepayTool() {
-  const profile = useMemo(() => loadProfileClient(), []);
+  const profile = useStoredProfile();
   // NRI-on-US-work-visa profile flag: when set, default user_currency to USD
   // and prefer INR for any tagged Indian loan. Saves users from re-selecting
   // currencies every visit.
@@ -75,7 +90,7 @@ export function NriPrepayTool() {
   const [manualDrift, setManualDrift] = useState('');
   const [v, setV] = useState<CrossBorderResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { err, setErr, clear, fail, at } = useFormErrors();
   const [applied, setApplied] = useState(false);
   const [added, setAdded] = useState(false);
 
@@ -115,7 +130,7 @@ export function NriPrepayTool() {
       // Invert: 1 user = ? loan
       setFxInverse(new Decimal(1).div(enginePerUnit).toFixed(4));
     } catch (e) {
-      setErr((e as Error).message);
+      fail(e, FIELDS);
     }
   }
 
@@ -131,7 +146,7 @@ export function NriPrepayTool() {
   async function check(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setErr(null);
+    clear();
     setApplied(false);
     setAdded(false);
     try {
@@ -149,7 +164,7 @@ export function NriPrepayTool() {
         }),
       );
     } catch (e) {
-      setErr((e as Error).message);
+      fail(e, FIELDS);
     } finally {
       setBusy(false);
     }
@@ -169,7 +184,7 @@ export function NriPrepayTool() {
       <Card>
         <form
           onSubmit={check}
-          style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          style={{ display: 'grid', gap: 12, gridTemplateColumns: fitColumns(2, 200) }}
         >
           {profile.user.loans.length > 0 && (
             <Select
@@ -196,17 +211,21 @@ export function NriPrepayTool() {
           <Field
             label="Loan balance (in loan currency)"
             value={loanBalance}
+            error={at('loanBalance')}
             onChange={setLoanBalance}
           />
           <Field
-            label="Loan rate (decimal)"
+            label="Loan rate (%)"
+            kind="percent"
             value={loanRate}
+            error={at('loanRate')}
             onChange={setLoanRate}
-            hint="e.g. 0.085 for 8.5%"
+            hint="e.g. 8.5"
           />
           <Field
             label="Tenure remaining (months)"
             value={loanTenure}
+            error={at('loanTenure')}
             onChange={setLoanTenure}
             kind="integer"
           />
@@ -223,14 +242,17 @@ export function NriPrepayTool() {
             options={CURRENCIES}
           />
           <Field
-            label="Your savings yield (decimal, pre-tax)"
+            label="Your savings yield (%, before tax)"
+            kind="percent"
             value={savingsYield}
+            error={at('savingsYield')}
             onChange={setSavingsYield}
             hint="HYSA, T-bills, FD, equity etc."
           />
           <Field
             label="Your marginal tax rate on yield"
             value={marginalTax}
+            error={at('marginalTax')}
             onChange={setMarginalTax}
             hint="e.g. 0.24 for 24%"
           />
@@ -238,6 +260,7 @@ export function NriPrepayTool() {
             <Field
               label={`FX rate — 1 ${userCurrency} = ? ${loanCurrency}`}
               value={fxInverse}
+              error={at('fxInverse')}
               onChange={setFxInverse}
               hint={
                 userCurrency === 'USD' && loanCurrency === 'INR'
@@ -273,6 +296,7 @@ export function NriPrepayTool() {
           <Field
             label="FX drift % p.a. (optional)"
             value={manualDrift}
+            error={at('manualDrift')}
             onChange={setManualDrift}
             hint="Positive = loan currency strengthens. Blank = historical default."
             info={
@@ -297,7 +321,7 @@ export function NriPrepayTool() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
+              gridTemplateColumns: fitColumns(2, 200),
               gap: 12,
               marginBottom: 12,
             }}
@@ -344,7 +368,7 @@ export function NriPrepayTool() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
+              gridTemplateColumns: fitColumns(2, 200),
               gap: 12,
             }}
           >

@@ -18,9 +18,8 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { LRule, LBracket, L_T, L_MONO } from './primitives';
-import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 import { getCountryToday } from '@/lib/today';
-import type { ThemeName } from '@/lib/theme';
+import { SessionIndicator } from '@/components/chrome/SessionIndicator';
 import type { Country } from '@/lib/api';
 
 export type LedgerSection =
@@ -34,12 +33,16 @@ export type LedgerSection =
   | 'portfolio'
   | 'decisions';
 
+// Every top-level page is one click away. Goals and Portfolio had no
+// link here, and "LEDGER" / "NOTES" named the skin, not the page.
 const NAV: Array<[label: string, key: LedgerSection, href: string]> = [
-  ['LEDGER', 'home', '/'],
+  ['HOME', 'home', '/'],
   ['PLAN', 'plan', '/plan'],
   ['DEBTS', 'debts', '/debts'],
+  ['GOALS', 'goals', '/goals'],
+  ['PORTFOLIO', 'portfolio', '/portfolio'],
   ['TOOLS', 'tools', '/tools'],
-  ['NOTES', 'insights', '/insights'],
+  ['ACTIVITY', 'insights', '/insights'],
   ['SETUP', 'setup', '/onboarding'],
 ];
 
@@ -99,13 +102,7 @@ function timeNow(country: Country): string {
   });
 }
 
-export function LMasthead({
-  country,
-  theme,
-}: {
-  country: Country;
-  theme: ThemeName;
-}) {
+export function LMasthead({ country }: { country: Country }) {
   const path = usePathname() || '/';
   const section = sectionFromPath(path);
   const stmt = stmtFromPath(path);
@@ -119,7 +116,7 @@ export function LMasthead({
   const localePin = country === 'IN' ? 'IN · ₹' : 'US · $';
 
   return (
-    <div
+    <header
       style={{
         borderTop: `6px solid ${L_T.ink}`,
         padding: '14px 32px 0',
@@ -153,7 +150,8 @@ export function LMasthead({
       <div style={{ margin: '8px 0 0' }}>
         <LRule length={300} />
       </div>
-      <div
+      <nav
+        aria-label="Main"
         style={{
           display: 'flex',
           gap: 22,
@@ -170,10 +168,10 @@ export function LMasthead({
         ))}
         <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8, alignItems: 'center' }}>
           <LBracket>{localePin}</LBracket>
-          <ThemeSwitcher initial={theme} />
+          <SessionIndicator />
         </span>
-      </div>
+      </nav>
       <LRule length={300} />
-    </div>
+    </header>
   );
 }

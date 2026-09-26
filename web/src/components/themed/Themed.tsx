@@ -1,30 +1,18 @@
 'use client';
 
 /**
- * Themed presentational primitives — one component per concept, dispatching
- * to the per-theme token table in `@/styles/theme-tokens`. Use these to
- * write a surface ONCE for all three themes:
+ * Card-style presentational primitives (container, label, headline,
+ * detail, KPI, button) on the ledger token set. Used by the smaller
+ * surfaces on /debts and /plan so they share one border and label style:
  *
- *   <ThemedContainer variant={theme}>
- *     <ThemedLabel variant={theme}>Today</ThemedLabel>
- *     <ThemedKpiGrid>
- *       <ThemedKpi label="You have" value="₹2.40L" detail="3 accounts" />
- *       …
- *     </ThemedKpiGrid>
+ *   <ThemedContainer tone="accent">
+ *     <ThemedLabel>Cash advisor</ThemedLabel>
+ *     <ThemedHeadline>Move ₹40,000 …</ThemedHeadline>
  *   </ThemedContainer>
- *
- * Existing /debts /plan /home triplets each implement their own version
- * of these patterns inline; the migration plan is to peel them off
- * component-by-component, with this file as the receiving end.
- *
- * The pilot conversion is TodayCard — see web/src/components/debts/
- * TodayCard.tsx. Pattern is proven; the rest is mechanical.
  */
 
-import type { ThemeName } from '@/lib/theme';
-import { THEME_TOKENS, TONE_COLOR, type ThemedTone } from '@/styles/theme-tokens';
+import { TOKENS, TONE_COLOR, type ThemedTone } from '@/styles/theme-tokens';
 
-type Variant = ThemeName;
 
 /**
  * Container resolves the visual chrome (border / radius / padding / font) for
@@ -34,17 +22,15 @@ type Variant = ThemeName;
  * (advance-tax penalty).
  */
 export function ThemedContainer({
-  variant,
   tone = 'neutral',
   children,
   style,
 }: {
-  variant: Variant;
   tone?: ThemedTone;
   children: React.ReactNode;
   style?: React.CSSProperties;
 }) {
-  const t = THEME_TOKENS[variant];
+  const t = TOKENS;
   const accentColor = TONE_COLOR[tone];
   // For non-neutral tones, recolour the left-accent stripe to the tone.
   const leftAccent = t.leftAccent
@@ -60,7 +46,7 @@ export function ThemedContainer({
         borderLeft: leftAccent,
         borderRadius: t.radius,
         padding: t.padding,
-        background: variant === 'editorial' ? 'transparent' : 'var(--card)',
+        background: 'var(--card)',
         ...style,
       }}
     >
@@ -70,17 +56,15 @@ export function ThemedContainer({
 }
 
 export function ThemedLabel({
-  variant,
   tone = 'neutral',
   children,
   trailing,
 }: {
-  variant: Variant;
   tone?: ThemedTone;
   children: React.ReactNode;
   trailing?: React.ReactNode;
 }) {
-  const t = THEME_TOKENS[variant].label;
+  const t = TOKENS.label;
   return (
     <div
       style={{
@@ -104,17 +88,15 @@ export function ThemedLabel({
 /** Headline text (one bigger line). Used by cards that lead with prose
  *  rather than a KPI grid (CashAdvisor, DebtFreeRedirectPrompt). */
 export function ThemedHeadline({
-  variant,
   children,
 }: {
-  variant: Variant;
   children: React.ReactNode;
 }) {
-  const t = THEME_TOKENS[variant].value;
+  const t = TOKENS.value;
   return (
     <div
       style={{
-        fontSize: variant === 'ledger' ? 12 : 14,
+        fontSize: 12,
         fontWeight: t.fontWeight,
         lineHeight: 1.55,
         marginTop: 4,
@@ -127,15 +109,13 @@ export function ThemedHeadline({
 
 /** Muted detail paragraph below a headline. Drops the size down. */
 export function ThemedDetail({
-  variant,
   children,
   style,
 }: {
-  variant: Variant;
   children: React.ReactNode;
   style?: React.CSSProperties;
 }) {
-  const t = THEME_TOKENS[variant].detail;
+  const t = TOKENS.detail;
   return (
     <div
       style={{
@@ -166,19 +146,17 @@ export function ThemedKpiGrid({ children }: { children: React.ReactNode }) {
 }
 
 export function ThemedKpi({
-  variant,
   label,
   value,
   detail,
   valueColor,
 }: {
-  variant: Variant;
   label: string;
   value: string;
   detail: string;
   valueColor?: string;
 }) {
-  const t = THEME_TOKENS[variant];
+  const t = TOKENS;
   return (
     <div>
       <div
@@ -215,17 +193,15 @@ export function ThemedKpi({
 }
 
 export function ThemedButton({
-  variant,
   children,
   onClick,
   type = 'button',
 }: {
-  variant: Variant;
   children: React.ReactNode;
   onClick?: () => void;
   type?: 'button' | 'submit';
 }) {
-  const t = THEME_TOKENS[variant].button;
+  const t = TOKENS.button;
   return (
     <button
       type={type}

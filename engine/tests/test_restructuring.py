@@ -275,3 +275,70 @@ def test_business_owner_bt_rationale_includes_se_caveat():
     bt = next((o for o in opps if o.kind == "balance_transfer"), None)
     assert bt is not None
     assert "Self-employed" in bt.rationale
+
+
+# ─── One saving measure, pay-back, same-bank transfers (audit, 26 Sep) ────
+
+
+def _mixed_book(card_bank: str = "HDFC Bank") -> User:
+    return _build_user(primary_bank="HDFC Bank", loans=[
+        Loan(loan_type=LoanType.HOME, bank="HDFC", outstanding=D("3000000"),
+             nominal_rate=D("0.105"), rate_type="floating",
+             tenure_months_remaining=240, scheduled_emi=D("29951")),
+        Loan(loan_type=LoanType.PERSONAL, bank="Bajaj Finance", outstanding=D("300000"),
+             nominal_rate=D("0.20"), rate_type="fixed",
+             tenure_months_remaining=36, scheduled_emi=D("11149")),
+        Loan(loan_type=LoanType.PERSONAL, bank="Tata Capital", outstanding=D("200000"),
+             nominal_rate=D("0.19"), rate_type="fixed",
+             tenure_months_remaining=36, scheduled_emi=D("7331")),
+        Loan(loan_type=LoanType.CREDIT_CARD, bank=card_bank, outstanding=D("150000"),
+             nominal_rate=D("0.42"), rate_type="fixed",
+             tenure_months_remaining=12, scheduled_emi=D("0")),
+    ])
+
+
+def test_consolidation_fee_is_added_to_the_rate_not_multiplied():
+    """A 1% fee over 3 years adds ~0.33 points. Multiplying 12% by 1.0033
+    added 0.04 points, so the fee all but vanished."""
+    a = Loan(loan_type=LoanType.PERSONAL, bank="X", outstanding=D("200000"),
+             nominal_rate=D("0.18"), rate_type="fixed", tenure_months_remaining=36,
+             scheduled_emi=D("7234"))
+    b = Loan(loan_type=LoanType.PERSONAL, bank="Y", outstanding=D("100000"),
+             nominal_rate=D("0.22"), rate_type="fixed", tenure_months_remaining=24,
+             scheduled_emi=D("5183"))
+    cand = scan_consolidation([a, b], {id(a): D("0.18"), id(b): D("0.22")},
+                              D("0.12"), D("0.0033"))
+    assert cand.consolidated_rate == D("0.1233")
+
+
+def test_every_kind_reports_first_year_saving_after_costs_and_payback():
+    opps = {o.kind: o for o in scan_all(_mixed_book(), D("0.3"))}
+    assert set(opps) == {"refinance", "consolidation", "balance_transfer"}
+    for o in opps.values():
+        assert o.one_time_cost > 0
+        assert o.breakeven_months is not None and o.breakeven_months >= 1
+    refi = opps["refinance"]
+    gross = (refi.current_rate - refi.target_rate) * D("3000000")
+    assert refi.estimated_annual_saving == gross - refi.one_time_cost
+    assert refi.lifetime_net_saving > refi.estimated_annual_saving
+    # 1% cost against 2.75 points a year: earned back in month 5.
+    assert refi.breakeven_months == 5
+    consol = opps["consolidation"]
+    assert consol.one_time_cost == D("0.01") * D("650000")
+    assert "in the first year" in consol.headline
+    bt = opps["balance_transfer"]
+    assert "in the first year" in bt.headline and "/yr" not in bt.headline
+
+
+def test_balance_transfer_never_targets_the_cards_own_bank():
+    """Banks don't take a transfer from their own card."""
+    for typed in ("HDFC Bank", "HDFC", "hdfc bank ltd."):
+        bt = [o for o in scan_all(_mixed_book(typed), D("0.3")) if o.kind == "balance_transfer"]
+        assert bt and "hdfc" not in bt[0].target_bank.lower()
+
+
+def test_same_bank_refinance_reads_as_a_rate_reset():
+    refi = next(o for o in scan_all(_mixed_book(), D("0.3")) if o.kind == "refinance")
+    assert refi.target_bank == "HDFC Bank"
+    assert "asking HDFC to move your home loan" in refi.headline
+    assert "Loan Check" in refi.rationale
