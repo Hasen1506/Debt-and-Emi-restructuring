@@ -6,6 +6,7 @@ import { Card } from '@/components/Card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { ComplaintPanel } from './complaint';
 import { OfferPanel } from './offers';
+import { LenderRecord } from './outcome';
 import { RateProblem } from './rate-problem';
 import {
   BankCombobox,
@@ -337,7 +338,10 @@ export function LoanCheckTool() {
         {result && <LoanCheckResult r={result} />}
       </div>
       {result && checked && result.findings.some((f) => f.claimable) && (
-        <ComplaintPanel request={checked} />
+        <>
+          <LenderRecord lender={checked.lender} />
+          <ComplaintPanel request={checked} />
+        </>
       )}
       {result && checked && <OfferPanel request={checked} />}
     </div>

@@ -23,6 +23,8 @@ import {
   type LoanCheckRequest,
 } from '@/lib/api';
 import { EMPTY_BORROWER, fillLetter, missingDetails, type Borrower } from '@/lib/complaint-fill';
+import { parsePercentInput } from '@/lib/rate-input';
+import { ShareOutcome } from './outcome';
 
 const TRACK_KEY = 'rightdue.complaint.in.v1';
 
@@ -33,6 +35,8 @@ interface Track {
   reply_on: string;
   io_reviewed: boolean;
   bank_reference: string;
+  /** The rate after the bank's fix, as typed (percent). */
+  new_rate: string;
 }
 
 const EMPTY_TRACK: Track = {
@@ -42,6 +46,7 @@ const EMPTY_TRACK: Track = {
   reply_on: '',
   io_reviewed: false,
   bank_reference: '',
+  new_rate: '',
 };
 
 function loadTrack(): Track {
@@ -95,6 +100,8 @@ function longDate(iso: string): string {
 export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
   const [who, setWho] = useState<Borrower>(EMPTY_BORROWER);
   const [track, setTrack] = useState<Track>(EMPTY_TRACK);
+  // The tracker as last applied (what the deadlines and sharing use).
+  const [applied, setApplied] = useState<Track | null>(null);
   const [res, setRes] = useState<ComplaintResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -114,6 +121,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
         bank_reference: t.bank_reference.trim() || undefined,
       });
       setRes(r);
+      setApplied(t);
     } catch (e) {
       setErr(e instanceof ApiFieldError ? e.message : (e as Error).message);
     } finally {
@@ -136,11 +144,17 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
       setErr("Still needed: the date of the bank's reply.");
       return;
     }
+    if (fixedReply && track.new_rate && newRate.error) {
+      setErr(`New rate: ${newRate.error}`);
+      return;
+    }
     saveTrack(track);
     load(track);
   }
 
   const set = <K extends keyof Track>(k: K) => (v: Track[K]) => setTrack((t) => ({ ...t, [k]: v }));
+  const fixedReply = track.reply === 'fixed' || track.reply === 'partly';
+  const newRate = parsePercentInput(track.new_rate);
   const setWhoField = (k: keyof Borrower) => (v: string) => setWho((w) => ({ ...w, [k]: v }));
 
   if (!res) {
@@ -246,6 +260,15 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
           {track.reply !== 'none' && (
             <Field label="Date of the reply" kind="date" value={track.reply_on} onChange={set('reply_on')} />
           )}
+          {fixedReply && (
+            <Field
+              label="Your new rate (%)"
+              value={track.new_rate}
+              onChange={set('new_rate')}
+              hint="From the bank's reply or your next statement."
+              error={track.new_rate ? newRate.error : null}
+            />
+          )}
           {(track.reply === 'partly' || track.reply === 'rejected') && (
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
               <input
@@ -300,6 +323,10 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
           </div>
         )}
       </Card>
+
+      {applied && (
+        <ShareOutcome lender={request.lender} currentRate={request.current_rate} track={applied} />
+      )}
 
       {res.io_followup && (
         <Card>

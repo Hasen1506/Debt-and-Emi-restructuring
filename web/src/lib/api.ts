@@ -937,6 +937,45 @@ export interface OfferCompareResponse {
   entitled_rate: string | null;
 }
 
+// ─── shared lender outcomes (Phase 4) ──────────────────────────────────────
+
+export type OutcomeKind = 'fixed_full' | 'fixed_part' | 'refused' | 'no_reply';
+
+/** Only these facts are ever shared: no name, account, amount or date. */
+export interface OutcomeReportRequest {
+  lender: string;
+  outcome: OutcomeKind;
+  days_taken: number;
+  rate_before: string;
+  rate_after?: string;
+}
+
+export interface OutcomeReportResponse {
+  lender: string;
+  reports_for_lender: number;
+  min_reports: number;
+  message: string;
+}
+
+export interface LenderScore {
+  known: boolean;
+  lender_id: string | null;
+  lender: string | null;
+  reports: number;
+  min_reports: number;
+  shown: boolean;
+  hidden_reason: string | null;
+  headline: string | null;
+  fixed_in_full_pct: string | null;
+  fixed_any_pct: string | null;
+  median_days: string | null;
+  median_rate_cut: string | null;
+  counts: Partial<Record<OutcomeKind, number>>;
+  verified_reports: number;
+  label: string;
+  label_detail: string;
+}
+
 /** A 422 from an endpoint that answers `{detail: {field, message}}`. */
 export class ApiFieldError extends Error {
   constructor(public field: string, message: string) {
@@ -972,7 +1011,11 @@ async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
     throw new ApiFieldError('', 'Some of the details could not be read. Check the numbers and try again.');
   }
   if (res.status === 429) {
-    throw new Error('Too many checks from this connection. Wait a minute and try again.');
+    const data = await res.json().catch(() => null);
+    const m = data?.detail?.message;
+    throw new Error(
+      typeof m === 'string' ? m : 'Too many checks from this connection. Wait a minute and try again.',
+    );
   }
   if (res.status === 413) {
     throw new Error('That is more than the app can check at once. Remove some entries and try again.');
@@ -1162,6 +1205,14 @@ export const api = {
 
   compareOffers: (req: OfferCompareRequest) =>
     postWithFieldErrors<OfferCompareResponse>('/api/offers/compare', req),
+
+  shareOutcome: (req: OutcomeReportRequest) =>
+    postWithFieldErrors<OutcomeReportResponse>('/api/outcomes', req),
+
+  lenderScore: (name: string) =>
+    get<LenderScore>(`/api/outcomes/scorecard/lender?name=${encodeURIComponent(name)}`),
+
+  outcomeLenders: () => get<{ id: string; name: string }[]>('/api/outcomes/lenders'),
 
   scoreImpact: (req: {
     action: ScoreAction;

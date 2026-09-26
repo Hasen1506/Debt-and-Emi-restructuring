@@ -146,6 +146,7 @@ export function Field({
   placeholder,
   list,
   suggestion,
+  error,
 }: {
   label: string;
   value: string;
@@ -155,6 +156,9 @@ export function Field({
   kind?: FieldKind;
   placeholder?: string;
   list?: string;
+  /** A problem with this field (e.g. the server's 422 message), shown
+   *  under it and announced; the input is marked invalid. */
+  error?: string | null;
   /** Click-to-fill suggestion. When set and `value` is empty, renders a
    *  muted recommendation line below the field; touching/focusing the
    *  input fills it with `suggestion.value`. User can edit or clear. The
@@ -172,7 +176,8 @@ export function Field({
       <LabelRow label={label} info={info} htmlFor={inputId} />
       <input
         id={inputId}
-        aria-describedby={hint ? `${inputId}-hint` : undefined}
+        aria-describedby={describedBy(inputId, hint, error)}
+        aria-invalid={error ? true : undefined}
         className={isNumeric ? 'num' : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -186,7 +191,7 @@ export function Field({
         list={list}
         style={{
           padding: '8px 10px',
-          border: '1px solid var(--border)',
+          border: `1px solid ${error ? 'var(--negative)' : 'var(--border)'}`,
           borderRadius: 6,
           background: 'var(--canvas)',
           color: 'var(--ink)',
@@ -214,12 +219,28 @@ export function Field({
           ↳ {suggestion.label}
         </button>
       )}
+      <FieldError id={inputId} error={error} />
       {hint && (
         <span id={`${inputId}-hint`} className="muted" style={{ fontSize: 11 }}>
           {hint}
         </span>
       )}
     </div>
+  );
+}
+
+function describedBy(id: string, hint?: string, error?: string | null): string | undefined {
+  const ids = [error ? `${id}-err` : '', hint ? `${id}-hint` : ''].filter(Boolean);
+  return ids.length ? ids.join(' ') : undefined;
+}
+
+/** The message under a field that the server (or a check) rejected. */
+export function FieldError({ id, error }: { id: string; error?: string | null }) {
+  if (!error) return null;
+  return (
+    <span id={`${id}-err`} role="alert" style={{ fontSize: 12, color: 'var(--negative)' }}>
+      {error}
+    </span>
   );
 }
 
@@ -432,12 +453,14 @@ export function Select<T extends string>({
   onChange,
   options,
   info,
+  error,
 }: {
   label: string;
   value: T;
   onChange: (v: T) => void;
   options: { value: T; label: string }[];
   info?: ReactNode;
+  error?: string | null;
 }) {
   const selectId = useId();
   return (
@@ -447,9 +470,11 @@ export function Select<T extends string>({
         id={selectId}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
+        aria-describedby={describedBy(selectId, undefined, error)}
+        aria-invalid={error ? true : undefined}
         style={{
           padding: '8px 10px',
-          border: '1px solid var(--border)',
+          border: `1px solid ${error ? 'var(--negative)' : 'var(--border)'}`,
           borderRadius: 6,
           background: 'var(--canvas)',
           color: 'var(--ink)',
@@ -462,6 +487,7 @@ export function Select<T extends string>({
           </option>
         ))}
       </select>
+      <FieldError id={selectId} error={error} />
     </div>
   );
 }
