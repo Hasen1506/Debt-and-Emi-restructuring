@@ -19,6 +19,7 @@ import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrency } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { deriveMetrics } from '@/lib/derived';
+import { projectionGaps } from '@/lib/loan-gaps';
 import { userDefaultCurrency } from '@/lib/currency';
 import { TOOLS } from '@/lib/tools';
 import {
@@ -81,6 +82,8 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
   if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
 
   const loudest = m.loudest!;
+  // A loan with no rate or EMI on file: no rates or "pay this" until it's added.
+  const gaps = projectionGaps(profile.user.loans);
   const loudestBank = (loudest.loan.bank || 'YOUR LOUDEST').toUpperCase();
   const loudestProduct = loudest.loan.loan_type.replace('_', ' ').toUpperCase();
   const surplusTone =
@@ -117,11 +120,13 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
               debtFree
                 ? { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.positive }
                 : { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
-              { l: 'EFFECTIVE RATE', v: fmtPct(m.blendedEffective), s: 'AVERAGE · AFTER FEES + TAX' },
+              gaps.length > 0
+                ? { l: 'EFFECTIVE RATE', v: '—', s: 'ADD YOUR LOAN DETAILS' }
+                : { l: 'EFFECTIVE RATE', v: fmtPct(m.blendedEffective), s: 'AVERAGE · AFTER FEES + TAX' },
               {
                 l: 'SURPLUS',
                 v: `${fc(m.surplus.toString())}/MO`,
-                s: m.surplus.gt(0) ? 'AFTER COSTS + EMIS' : 'OVER BUDGET',
+                s: m.surplus.gt(0) ? 'AFTER COSTS + MINIMUMS' : m.surplus.lt(0) ? 'SHORT EACH MONTH' : 'NOTHING SPARE',
                 tone: surplusTone,
               },
             ]}
@@ -153,17 +158,23 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
               ? move.headline
               : hasSurplus
                 ? `PAY ${fc(extraRounded)} EXTRA → ${loudestBank} ${loudestProduct}`
-                : `PAY THE MINIMUMS · FIND ${fc(Math.round(Math.abs(Number(m.surplus.toString()))))}/MO`}
+                : m.surplus.lt(0)
+                  ? `SHORT ${fc(Math.round(Math.abs(Number(m.surplus.toString()))))}/MO · COSTS + MINIMUM PAYMENTS ARE MORE THAN INCOME`
+                  : 'PAY THE MINIMUMS · NOTHING SPARE THIS MONTH'}
           </div>
           <div style={{ fontSize: 12, color: L_T.muted, marginBottom: 14 }}>
             {move
               ? move.detail
               : hasSurplus
                 ? `HIGHEST EFFECTIVE RATE · ${fmtPct(loudest.effective)} · AVOIDS ~${fc(annualSaving)} INTEREST A YEAR`
-                : 'INCOME DOES NOT COVER COSTS AND EMIS YET · TRIM SPENDING BEFORE PAYING EXTRA'}
+                : 'CUT COSTS OR ASK THE BANK FOR A LOWER PAYMENT · NO EXTRA PAYMENTS UNTIL THE GAP CLOSES'}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {hasSurplus && (
+            {gaps.length > 0 ? (
+              <LBracket active href="/onboarding?step=loans">
+                ADD THE DETAILS
+              </LBracket>
+            ) : hasSurplus && (
               <LBracket active href="/insights#activity-ledger">
                 I PAID THIS
               </LBracket>
@@ -181,6 +192,7 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
             country={profile.user.country}
             totalOutstanding={m.totalOutstanding}
             totalEmi={m.emiBurden}
+            spare={m.surplus.gt(0)}
           />
         </section>
 
@@ -239,6 +251,7 @@ function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; deb
   const fc = (v: number | string) => formatCurrency(v, ccy);
   if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
   const loudest = m.loudest!;
+  const gaps = projectionGaps(profile.user.loans);
 
   return (
     <LShell>
@@ -256,17 +269,21 @@ function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; deb
                 v: fc(m.totalOutstanding.toString()),
                 s: `${m.loans.length} OPEN`,
               },
-              {
-                l: 'EFFECTIVE RATE',
-                v: fmtPct(m.blendedEffective),
-                s: 'AVERAGE · AFTER FEES + TAX',
-              },
-              {
-                l: 'NEXT',
-                v: `${(loudest.loan.bank || '—').toUpperCase()}`,
-                s: `${fmtPct(loudest.effective)} EFFECTIVE`,
-                tone: L_T.accent,
-              },
+              gaps.length > 0
+                ? { l: 'EFFECTIVE RATE', v: '—', s: 'ADD YOUR LOAN DETAILS' }
+                : {
+                    l: 'EFFECTIVE RATE',
+                    v: fmtPct(m.blendedEffective),
+                    s: 'AVERAGE · AFTER FEES + TAX',
+                  },
+              gaps.length > 0
+                ? { l: 'NEXT', v: 'ADD DETAILS', s: 'RATE OR EMI MISSING', tone: L_T.accent }
+                : {
+                    l: 'NEXT',
+                    v: `${(loudest.loan.bank || '—').toUpperCase()}`,
+                    s: `${fmtPct(loudest.effective)} EFFECTIVE`,
+                    tone: L_T.accent,
+                  },
             ]}
           />
         </section>
@@ -280,9 +297,11 @@ function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; deb
             country={profile.user.country}
             totalOutstanding={m.totalOutstanding}
             totalEmi={m.emiBurden}
+            spare={m.surplus.gt(0)}
           />
         </section>
 
+        {gaps.length === 0 && (
         <section style={{ border: `1px solid ${L_T.ink}`, padding: '12px 16px' }}>
           <div
             style={{
@@ -301,6 +320,7 @@ function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; deb
             <LBracket href="/debts">see the breakdown →</LBracket>
           </div>
         </section>
+        )}
       </div>
     </LShell>
   );
@@ -313,6 +333,7 @@ function LedgerHomeSoft({ profile, move }: HomeProps) {
   const fc = (v: number | string) => formatCurrency(v, ccy);
   if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
   const loudest = m.loudest!;
+  const gaps = projectionGaps(profile.user.loans);
   const amount = m.surplus.gt(0) ? Math.round(Number(m.surplus.toString())) : 0;
   const lender = (loudest.loan.bank || 'your highest-rate lender').toUpperCase();
 
@@ -379,7 +400,7 @@ function LedgerHomeSoft({ profile, move }: HomeProps) {
             NOTHING ELSE NEEDS TO BE DECIDED TODAY.
           </div>
           <div style={{ marginTop: 24 }}>
-            <LButton href="/insights#activity-ledger" full>
+            <LButton href={gaps.length > 0 ? '/onboarding?step=loans' : '/insights#activity-ledger'} full>
               I&apos;LL DO THIS
             </LButton>
           </div>
@@ -442,7 +463,11 @@ function EmptyState({ paidOff }: { paidOff: boolean }) {
             </>
           ) : (
             <>
-              Run setup to add your debts: <LBracket href="/onboarding">SETUP →</LBracket>
+              No loans or cards on file. Plan ahead:{' '}
+              <LBracket href="/goals">GOALS →</LBracket>{' '}
+              <LBracket href="/tools/purchase">A BIG PURCHASE →</LBracket>{' '}
+              <LBracket href="/portfolio">PORTFOLIO →</LBracket>{' '}
+              <LBracket href="/onboarding?step=loans">ADD A LOAN →</LBracket>
             </>
           )}
         </div>

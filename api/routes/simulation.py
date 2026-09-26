@@ -235,6 +235,7 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
             goal_contributions=dict(row.goal_contributions),
             total_paid=row.total_payment_nominal,
             extra_paid=row.extra_paid,
+            shortfall=row.shortfall,
         ))
     return points
 
@@ -279,6 +280,7 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         total_invested=result.total_invested,
         trajectory=_to_trajectory(result, user.loans, user),
         months_in_horizon=len(result.months),
+        shortfall=result.months[0].shortfall if result.months else D("0"),
         surplus_allocation=_build_surplus_allocation(
             user,
             matched_contribution=req.matched_contribution,
@@ -314,6 +316,7 @@ def baseline(req: BaselineRequest) -> SimulateResponse:
         total_invested=result.total_invested,
         trajectory=_to_trajectory(result, user.loans, user),
         months_in_horizon=len(result.months),
+        shortfall=result.months[0].shortfall if result.months else D("0"),
         # Baseline endpoint runs minimums-only — the engine doesn't route
         # any surplus, so no allocation breakdown to return.
         surplus_allocation=None,

@@ -319,9 +319,11 @@ export function WindfallTool() {
                     k: w.invest_instead ? 'interest given up' : 'interest avoided',
                     v: fmt(w.interest_avoided),
                     tone: (w.invest_instead ? 'neg' : 'pos') as 'neg' | 'pos',
+                    // A card has no tenure: its figure runs until the card is
+                    // cleared at the usual or minimum payment, and says so.
                     note: w.invest_instead
-                      ? 'what prepaying would have saved; the investment should beat it'
-                      : 'over the loan’s remaining life, EMI kept, so it ends sooner',
+                      ? `what prepaying would have saved (${w.interest_basis || 'over the loan’s remaining life'}); the investment should beat it`
+                      : w.interest_basis || 'over the loan’s remaining life, EMI kept, so it ends sooner',
                   },
                 ]
               : []),

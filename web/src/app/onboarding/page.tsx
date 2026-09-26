@@ -51,6 +51,7 @@ import { BALANCES_ENTERED_KEY } from '@/lib/activity';
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { api, formatCurrency } from '@/lib/api';
 import { deriveTenureMonths } from '@/lib/derived';
+import { loanDraftErrors } from '@/lib/loan-gaps';
 import {
   classifyBracket,
   computeAnnualTax,
@@ -79,28 +80,26 @@ function suggestionLabel(
 // `optional: true` steps are skippable — they don't gate the engine and
 // the progress chip is rendered lighter so first-time users can finish
 // in 90s with just the load-bearing steps (country / income / loans).
+// The credit score sits on the Savings step: a step of its own for one
+// optional field was friction.
 const STEPS: ReadonlyArray<{ label: string; optional?: boolean }> = [
   { label: 'You', optional: true },
   { label: 'Country' },
   { label: 'Income' },
   { label: 'Loans' },
-  { label: 'Savings' },
-  { label: 'Credit score', optional: true },
+  { label: 'Savings', optional: true },
   { label: 'Review' },
 ] as const;
 
 /**
- * Spec §4.7 labels for the six-cell rail. Step 0 (the optional "You"
- * welcome screen) is intentionally excluded — the rail is the six-step
- * spine the spec mandates. Use ALL-CAPS short labels (`CREDIT` not
- * `CREDIT SCORE`) so the cells stay narrow on small viewports.
+ * Labels for the step rail. Step 0 (the optional "You" welcome screen)
+ * is left out. ALL-CAPS short labels so the cells stay narrow on phones.
  */
 const LEDGER_RAIL_LABELS = [
   'COUNTRY',
   'INCOME',
   'LOANS',
   'SAVINGS',
-  'CREDIT',
   'REVIEW',
 ] as const;
 
@@ -113,8 +112,8 @@ const STEP_ALIASES: Record<string, number> = {
   income: 2,
   loans: 3,
   savings: 4,
-  credit: 5,
-  review: 6,
+  credit: 4,
+  review: 5,
 };
 
 const AGE_BRACKETS: { value: AgeBracket; label: string }[] = [
@@ -232,6 +231,8 @@ export default function OnboardingPage() {
   }, [country, hikeMonthTouched]);
 
   const [loans, setLoans] = useState<LoanPayload[]>([blankLoan()]);
+  // Set when Continue is pressed with a loan missing its rate or EMI.
+  const [showLoanErrors, setShowLoanErrors] = useState(false);
   // Most users don't know their exact remaining tenure — they know
   // outstanding, EMI, rate. We default to deriving tenure from those three
   // and only let the user override when they explicitly ask. This set tracks
@@ -552,6 +553,12 @@ export default function OnboardingPage() {
   }
 
   async function save() {
+    // A deep link can reach Review without passing the Loans check.
+    if (!loansComplete) {
+      setStep(3);
+      setShowLoanErrors(true);
+      return;
+    }
     const score = Number(creditScore);
     // For hybrid (NRI-US) users with any foreign-currency loan, pre-populate
     // FX rates before persisting so /plan and /debts don't fetch on first
@@ -637,21 +644,32 @@ export default function OnboardingPage() {
     router.push('/');
   }
 
+  // Loans need what the projection needs; no loans at all is fine (goals,
+  // portfolio and purchase planning work without one).
+  const loanErrors = loans.map((l) => loanDraftErrors(l));
+  const loansComplete = loanErrors.every((e) => Object.keys(e).length === 0);
   const canAdvance =
     step === 0 ? true                                                       // 'You' is fully optional — never gate the flow
       : step === 1 ? !!country
       : step === 2 ? Number(monthlyIncome) > 0 && Number(fixedExpenses) >= 0
-      : step === 3 ? loans.some((l) => Number(l.outstanding) > 0)
       : step === 4 ? Number(savingsBalance) >= 0
-      : step === 5 ? true
       : true;
+
+  function next() {
+    if (step === 3 && !loansComplete) {
+      setShowLoanErrors(true);
+      return;
+    }
+    setShowLoanErrors(false);
+    setStep((s) => s + 1);
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <section>
         <h1 className="h1">Set up your profile</h1>
         <p className="muted">
-          Six short steps, about two minutes. Your details stay in this
+          Five short steps, about two minutes. Your details stay in this
           browser (and your account, if you sign in); our engine sees them
           only to work out the plan. You can edit them any time.
         </p>
@@ -700,10 +718,10 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      {/* §4.7 step rail — six cells (Country · Income · Loans · Savings ·
-       *  Credit · Review). Step 0 ("You") is the optional welcome screen
+      {/* Step rail — five cells (Country · Income · Loans · Savings ·
+       *  Review). Step 0 ("You") is the optional welcome screen
        *  and renders without the rail so the wizard's main spine stays
-       *  visually anchored to the six-step contract. Tri-state colours:
+       *  visually anchored. Tri-state colours:
        *  current = accent fill + ink text, past = ink fill + paper text,
        *  future = paper fill + muted text + 1px ink border. */}
       {step >= 1 && (
@@ -1205,6 +1223,11 @@ export default function OnboardingPage() {
 
         {step === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+              For each loan or card: what you owe, the interest rate and the
+              monthly EMI. No loans? Leave this blank and continue: goals,
+              portfolio and purchase planning work without one.
+            </p>
             {loans.map((l, i) => (
               <div
                 key={i}
@@ -1272,6 +1295,7 @@ export default function OnboardingPage() {
                     value={l.nominal_rate}
                     onChange={(v) => updateLoan(i, { nominal_rate: v })}
                     hint="The rate on your statement, e.g. 8.5"
+                    error={showLoanErrors ? loanErrors[i]?.rate : null}
                     info={
                       <>
                         The <strong>headline interest rate</strong> your bank
@@ -1613,9 +1637,10 @@ export default function OnboardingPage() {
                   onSetManual={(manual) => setTenureMode(i, manual)}
                 />
                 <Field
-                  label="Bank-required EMI"
+                  label={l.loan_type === 'credit_card' ? 'Usual monthly payment (optional)' : 'Bank-required EMI'}
                   value={l.scheduled_emi}
                   onChange={(v) => updateLoan(i, { scheduled_emi: v })}
+                  error={showLoanErrors ? loanErrors[i]?.emi : null}
                   info={
                     <>
                       The <strong>contractual monthly amount</strong> the bank
@@ -1883,6 +1908,13 @@ export default function OnboardingPage() {
             >
               + Add another loan
             </button>
+            {showLoanErrors && !loansComplete && (
+              <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--negative)' }}>
+                Fill in the fields marked above so the plan can work out your
+                payments. Without a rate or EMI it would treat the loan as
+                interest-free or never paid down.
+              </p>
+            )}
           </div>
         )}
 
@@ -2139,43 +2171,40 @@ export default function OnboardingPage() {
               monthlyIncome={monthlyIncome}
               loans={loans}
             />
-          </div>
-        )}
-
-        {step === 5 && (
-          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
-            <Field
-              label="Current credit score (optional)"
-              value={creditScore}
-              onChange={setCreditScore}
-              hint={
-                country === 'IN'
-                  ? 'CIBIL/Experian — 300 to 900'
-                  : 'FICO/VantageScore — 300 to 850'
-              }
-              info={
-                country === 'IN' ? (
-                  <>
-                    <strong>India:</strong> CIBIL or Experian, range 300-900.
-                    Used only to flag which tool actions might affect your
-                    score — never to gate features. Skip if you don't know it.
-                  </>
-                ) : (
-                  <>
-                    <strong>US:</strong> FICO or VantageScore, range 300-850.
-                    Used only to flag which tool actions might affect your
-                    score — never to gate features. Skip if you don't know it.
-                  </>
-                )
-              }
-            />
-            <div className="muted" style={{ fontSize: 12, alignSelf: 'end' }}>
-              Used for the score-impact chips on each tool. Skip if you don't know it.
+            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+              <Field
+                label="Current credit score (optional)"
+                value={creditScore}
+                onChange={setCreditScore}
+                hint={
+                  country === 'IN'
+                    ? 'CIBIL/Experian — 300 to 900'
+                    : 'FICO/VantageScore — 300 to 850'
+                }
+                info={
+                  country === 'IN' ? (
+                    <>
+                      <strong>India:</strong> CIBIL or Experian, range 300-900.
+                      Used only to flag which tool actions might affect your
+                      score — never to gate features. Skip if you don't know it.
+                    </>
+                  ) : (
+                    <>
+                      <strong>US:</strong> FICO or VantageScore, range 300-850.
+                      Used only to flag which tool actions might affect your
+                      score — never to gate features. Skip if you don't know it.
+                    </>
+                  )
+                }
+              />
+              <div className="muted" style={{ fontSize: 12, alignSelf: 'end' }}>
+                Used for the score-impact chips on each tool. Skip if you don't know it.
+              </div>
             </div>
           </div>
         )}
 
-        {step === 6 && (
+        {step === 5 && (
           <ReviewSummary
             displayName={displayName}
             ageBracket={ageBracket || undefined}
@@ -2232,7 +2261,7 @@ export default function OnboardingPage() {
           {step < STEPS.length - 1 ? (
             <button
               type="button"
-              onClick={() => setStep((s) => s + 1)}
+              onClick={next}
               disabled={!canAdvance}
               className="btn btn-primary"
               style={{ opacity: canAdvance ? 1 : 0.4, cursor: canAdvance ? 'pointer' : 'not-allowed' }}
@@ -3564,7 +3593,7 @@ function ReviewSummary(props: {
         )}
       </ReviewCard>
 
-      <ReviewCard title={'Banking & credit'} onEdit={() => onJumpToStep(5)}>
+      <ReviewCard title={'Banking & credit'} onEdit={() => onJumpToStep(4)}>
         {primaryBank ? (
           <>
             <strong>{primaryBank}</strong>{' '}

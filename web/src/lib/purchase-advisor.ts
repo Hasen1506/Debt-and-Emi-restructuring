@@ -109,11 +109,18 @@ export interface PurchaseAnalysis {
      *  into expenses or other income to service. */
     emiOverSurplus: number;
   };
-  /** Three levers to surface if not feasible (or as user options). */
+  /** Changes that would make it comfortable (savings for the down payment
+   *  fit the surplus by the date, and the EMI is at most 40% of it). Each
+   *  is null when it isn't needed or wouldn't help: they used to echo the
+   *  entered price and down payment back as "≤ ₹20 lakh" and "≥ 20%". */
   levers: {
-    lowerPriceTo: number;
-    extendTargetByMonths: number;
-    increaseDownPaymentToPct: number;
+    /** Highest price that fits both, at the entered down payment and date. */
+    lowerPriceTo: number | null;
+    /** Extra months to save the down payment (fixes the savings gap only). */
+    extendTargetByMonths: number | null;
+    /** Down payment that brings the EMI within 40%, offered only when it
+     *  can still be saved by the date (a bigger one widens that gap). */
+    increaseDownPaymentToPct: number | null;
   };
   /** Free-text caveats specific to this purchase. */
   warnings: string[];
@@ -208,50 +215,40 @@ export function analyzePurchase(input: PurchaseInput): PurchaseAnalysis {
     emiOverSurplus,
   );
 
-  // Clamp downPct away from 1.0 so the "lower price" lever doesn't blow
-  // up: the formula divides by (1 - downPct) to gross the principal back
-  // up to a price, which is Infinity at 100% down. Any down ≥ 95% leaves
-  // so little financed that the lever is meaningless anyway — pin at 0.95
-  // so the user gets a finite-and-honest "lower the price to ≤ X" number.
+  // Levers against the two things that can go wrong: saving the down
+  // payment by the date, and an EMI above 40% of the surplus afterwards.
+  const surplus = input.monthlySurplus;
+  const n = tenureYears * 12;
+  const comfortableEmi = surplus * 0.4;
+  const savingsFit = monthsToTarget > 0 && downAmount <= surplus * monthsToTarget;
+  const emiFits = surplus > 0 && monthlyEmi <= comfortableEmi;
+  // Largest loan whose EMI is comfortable.
+  const maxPrincipal = surplus > 0 ? invertEmiForPrincipal(comfortableEmi, input.loanRateAnnual, n) : 0;
+  // Clamp away from 100% down: the price lever divides by (1 − down).
   const safeDownPct = Math.min(downPct, 0.95);
+  const priceForSavings =
+    monthsToTarget > 0 && downPct > 0 ? (surplus * monthsToTarget) / downPct : monthsToTarget > 0 ? Infinity : 0;
+  const priceForEmi = maxPrincipal / (1 - safeDownPct);
+  const bestPrice = Math.min(priceForSavings, priceForEmi);
+  const neededDownPct = input.price > 0 ? 1 - maxPrincipal / input.price : 1;
   const levers = {
-    lowerPriceTo: round2(
-      // What price keeps EMI at ≤ 50% of surplus?
-      input.monthlySurplus > 0
-        ? Math.min(
-            input.price,
-            invertEmiForPrincipal(
-              input.monthlySurplus * 0.5,
-              input.loanRateAnnual,
-              tenureYears * 12,
-            ) / (1 - safeDownPct),
-          )
-        : 0,
-    ),
-    // How many extra months to bring monthly savings to ≤ surplus?
+    lowerPriceTo:
+      surplus > 0 && bestPrice > 0 && bestPrice < input.price && !(savingsFit && emiFits)
+        ? round2(bestPrice)
+        : null,
     extendTargetByMonths:
-      input.monthlySurplus > 0 && monthsToTarget > 0
-        ? Math.max(
-            0,
-            Math.ceil(downAmount / input.monthlySurplus - monthsToTarget),
-          )
-        : 0,
-    // What down-payment % brings EMI to ≤ 50% of surplus?
-    increaseDownPaymentToPct: round4(
-      Math.min(
-        1,
-        Math.max(
-          downPct,
-          1 -
-            invertEmiForPrincipal(
-              input.monthlySurplus * 0.5,
-              input.loanRateAnnual,
-              tenureYears * 12,
-            ) /
-              input.price,
-        ),
-      ),
-    ),
+      !savingsFit && surplus > 0
+        ? Math.max(1, Math.ceil(downAmount / surplus) - monthsToTarget)
+        : null,
+    increaseDownPaymentToPct:
+      !emiFits &&
+      surplus > 0 &&
+      neededDownPct > downPct &&
+      neededDownPct < 1 &&
+      monthsToTarget > 0 &&
+      neededDownPct * input.price <= surplus * monthsToTarget
+        ? round4(neededDownPct)
+        : null,
   };
 
   const warnings = buildWarnings(input, monthsToTarget);

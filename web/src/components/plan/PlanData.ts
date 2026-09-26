@@ -16,6 +16,7 @@ import type { FxDriftSetting } from '@/lib/fx-drift';
 import type { BracketTransition } from '@/lib/bracket-transitions';
 import type { AdvanceTaxSchedule } from '@/lib/advance-tax';
 import type { CurrencyCode, PerCurrencyMetrics } from '@/lib/currency';
+import type { ProfileGap } from '@/lib/loan-gaps';
 
 /**
  * Per-month per-loan payment breakdown sourced from the engine.
@@ -199,4 +200,11 @@ export interface PlanData {
     efPreempted: boolean;
     efSplit: number;
   } | null;
+  /** This month's income short of costs plus minimum payments, in the
+   *  user's currency (0 when covered). Above 0 the pages show no
+   *  debt-free date: the plan's payments assume money the user lacks. */
+  shortfall: number;
+  /** Open loans missing a rate or EMI. When any, the engine isn't run and
+   *  the pages ask for the details instead of projecting. */
+  gaps: ProfileGap[];
 }

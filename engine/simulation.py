@@ -35,6 +35,7 @@ from engine.goals import GoalState, MonthlyGoalAllocation, serial_fill_allocatio
 from engine.surplus import (
     allocate_surplus,
     compute_available_surplus,
+    compute_shortfall,
     compute_efund_monthly,
     from_user_currency,
     loan_currency_or_default,
@@ -130,6 +131,9 @@ class MonthRow:
     # EMIs off the total paid, so a card's minimum (EMI 0) read as "extra",
     # a cleared loan's EMI kept being subtracted, and ₹ and $ were mixed.
     extra_paid: Decimal = D("0")
+    # Income short of costs plus minimums this month (user's currency); the
+    # month's payments assume the gap was found somewhere.
+    shortfall: Decimal = D("0")
 
 
 @dataclass
@@ -519,6 +523,7 @@ def simulate_plan(
             scratch_user, active, matched_contribution=matched_contribution,
             simple_mode=simple_mode, efund_monthly=efund_monthly_to_credit,
         )
+        shortfall = compute_shortfall(scratch_user, active, simple_mode=simple_mode)
         if minimums_only:
             surplus = D("0")
             efund_monthly_to_credit = D("0")
@@ -771,6 +776,7 @@ def simulate_plan(
             balance_in_user_currency=balance_user_ccy,
             goal_contributions=goal_contributions_this_month,
             extra_paid=extra_paid,
+            shortfall=shortfall,
         ))
 
         total_interest += interest_paid

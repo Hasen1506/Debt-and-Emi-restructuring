@@ -388,3 +388,34 @@ def test_what_if_baseline_is_the_plan_the_user_sees(client, india_user_payload):
     bare = client.post("/api/simulate", json={"user": u}).json()
     assert bare["debt_free_month"] != sim["debt_free_month"]   # the settings matter
     assert cmp_["scenario_debt_free_month"] <= cmp_["baseline_debt_free_month"]
+
+
+def test_simulate_reports_this_months_shortfall(client, india_user_payload):
+    """Costs + card minimum above income: the response says by how much, so
+    the pages can hold back a date built on payments that can't be made."""
+    user = {
+        **india_user_payload,
+        "monthly_income": "30000", "annual_income": "360000",
+        "fixed_expenses": "34000", "variable_expenses": "0",
+        "efund_balance": "0", "efund_target": "0",
+        "loans": [{
+            "loan_type": "credit_card", "bank": "Axis Bank",
+            "outstanding": "100000", "nominal_rate": "0.36",
+            "rate_type": "fixed", "tenure_months_remaining": 0,
+            "scheduled_emi": "0",
+        }],
+    }
+    r = client.post("/api/simulate", json={
+        "user": user, "strategy": "avalanche", "horizon_months": 12,
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert D(body["shortfall"]) == D("9000")
+    assert D(body["trajectory"][0]["shortfall"]) == D("9000")
+
+
+def test_simulate_shortfall_is_zero_when_covered(client, india_user_payload):
+    r = client.post("/api/simulate", json={
+        "user": india_user_payload, "strategy": "avalanche", "horizon_months": 12,
+    })
+    assert D(r.json()["shortfall"]) == 0

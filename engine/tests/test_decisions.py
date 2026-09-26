@@ -349,3 +349,42 @@ def test_new_debt_rejects_bad_input(kw, field):
 def test_money_formats():
     assert money(D("1234567")) == "₹12,34,567"
     assert money(D("1234567"), Country.US) == "$1,234,567"
+
+
+def _card(balance, usual="0"):
+    return Loan(loan_type=LoanType.CREDIT_CARD, bank="Axis Bank", outstanding=D(balance),
+                nominal_rate=D("0.34"), rate_type="fixed", tenure_months_remaining=0,
+                scheduled_emi=D(usual))
+
+
+def test_card_interest_avoided_runs_to_the_card_clearing():
+    """₹85,000 off a 34% card was "₹2,408 over the loan's remaining life":
+    one month's interest, because a card (no tenure) was treated as cleared
+    in a month. Paying the bank's minimum (5%, ₹200 floor) it takes years."""
+    from engine.decisions import interest_basis
+    card = _card("85000")
+    saved = interest_saved_by_prepaying(card, D("85000"))
+    assert saved > 12 * D("2408")
+    # Worked by hand: 34%/12 interest, then the larger of 5% and ₹200 paid.
+    bal, total = D("85000"), D("0")
+    while bal > 0:
+        i = bal * D("0.34") / 12
+        total += i
+        pay = max(bal * D("0.05"), D("200"), i + bal * D("0.01"))
+        bal = bal + i - min(pay, bal + i)
+    assert abs(saved - total) <= 1
+    assert interest_basis(card) == "until the card is cleared, paying the bank's minimum each month"
+
+
+def test_card_interest_avoided_uses_the_usual_payment_when_higher():
+    from engine.decisions import interest_basis
+    card = _card("85000", usual="10000")
+    assert interest_saved_by_prepaying(card, D("85000")) < interest_saved_by_prepaying(_card("85000"), D("85000"))
+    assert "your usual ₹10,000 a month" in interest_basis(card)
+
+
+def test_windfall_reports_what_its_interest_figure_assumes():
+    home, card = _loans()
+    rates = {id(home): D("0.085"), id(card): D("0.4248")}
+    out = allocate_windfall(D("50000"), [home, card], rates, [], D("0.046"))
+    assert out.interest_basis.startswith("until the card is cleared")

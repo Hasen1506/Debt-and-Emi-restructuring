@@ -19,7 +19,6 @@ import {
   type AssetLiquidationResponse,
   type LiquidationRecommendation,
 } from '@/lib/api';
-import { DEMO_ASSET } from '@/lib/demo-user';
 import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
@@ -67,19 +66,21 @@ export function LiquidateTool() {
   const country = profile.user.country;
 
   // ─── Asset inputs ──────────────────────────────────────────────────────
-  const [purchasePrice, setPurchasePrice] = useState(DEMO_ASSET.purchase_price);
+  // Blank until the user describes their asset (or picks one from the
+  // ranker): a sample property here gave a "Sell the asset" verdict and a
+  // ₹9.77 lakh advantage to someone who had never entered one.
+  const [purchasePrice, setPurchasePrice] = useState('');
   // Accepts YYYY, YYYY-MM, or YYYY-MM-DD. Free-text so user can type a year.
-  const [purchaseDate, setPurchaseDate] = useState(
-    DEMO_ASSET.purchase_date.slice(0, 4),
-  );
-  const [state, setState] = useState(DEMO_ASSET.state ?? 'Maharashtra');
+  const [purchaseDate, setPurchaseDate] = useState('');
+  // Not asked for (the seller pays no stamp duty); kept for assets that carry one.
+  const [state, setState] = useState<string | undefined>(undefined);
 
   // Sale mode: sell the whole thing, or only a piece (sq.ft, shares, etc.)
   const [saleMode, setSaleMode] = useState<SaleMode>('whole');
-  const [salePrice, setSalePrice] = useState(DEMO_ASSET.current_market_value);
-  const [qty, setQty] = useState('1000');
-  const [unitPrice, setUnitPrice] = useState('5000');
-  const [totalQty, setTotalQty] = useState('4000');
+  const [salePrice, setSalePrice] = useState('');
+  const [qty, setQty] = useState('');
+  const [unitPrice, setUnitPrice] = useState('');
+  const [totalQty, setTotalQty] = useState('');
   const [unitLabel, setUnitLabel] = useState('sq.ft');
 
   // ─── Debt inputs ──────────────────────────────────────────────────────
@@ -98,9 +99,14 @@ export function LiquidateTool() {
     return String(best);
   }, [profile.user.loans]);
   const [targetIdx, setTargetIdx] = useState<string>(initialIdx);
-  const [debtBalance, setDebtBalance] = useState('1500000');
-  const [debtRate, setDebtRate] = useState('0.36');
-  const [taxableIncome, setTaxableIncome] = useState('1800000');
+  // From the profile's dearest loan (below) and its income, else blank.
+  const [debtBalance, setDebtBalance] = useState('');
+  const [debtRate, setDebtRate] = useState('');
+  const [taxableIncome, setTaxableIncome] = useState(() => {
+    if (!profile.isLive) return '';
+    const u = profile.user;
+    return u.annual_gross_salary || u.annual_business_income || u.annual_income || '';
+  });
 
   // ─── Advanced (asset-return, hold horizon, leftover yield, inflation) ─
   const [assetReturn, setAssetReturn] = useState('0.06');
@@ -111,7 +117,7 @@ export function LiquidateTool() {
 
   const [v, setV] = useState<AssetLiquidationResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const { err, setErr, clear, fail, at } = useFormErrors();
+  const { err, setErr, clear, fail, failField, at } = useFormErrors();
   const [applied, setApplied] = useState(false);
 
   // The asset (real estate, Indian-tax mechanics) is denominated in the user's
@@ -166,6 +172,25 @@ export function LiquidateTool() {
 
   async function check(e: React.FormEvent) {
     e.preventDefault();
+    const required: [string, string, string][] = [
+      ['purchasePrice', purchasePrice, 'Enter what you paid for it.'],
+      ['purchaseDate', purchaseDate, 'Enter when you bought it, e.g. 2018.'],
+      ...(saleMode === 'whole'
+        ? [['salePrice', salePrice, 'Enter what you expect to sell it for.'] as [string, string, string]]
+        : [
+            ['totalQty', totalQty, 'Enter how much you own.'] as [string, string, string],
+            ['qty', qty, 'Enter how much you would sell.'] as [string, string, string],
+            ['unitPrice', unitPrice, 'Enter the price per unit.'] as [string, string, string],
+          ]),
+      ['debtBalance', debtBalance, 'Enter the debt this would clear.'],
+      ['debtRate', debtRate, 'Enter that loan’s interest rate.'],
+      ['taxableIncome', taxableIncome, 'Enter your annual taxable income (it sets the tax on the sale).'],
+    ];
+    const missing = required.find(([, value]) => value.trim() === '');
+    if (missing) {
+      failField(missing[0], missing[2]);
+      return;
+    }
     setBusy(true);
     clear();
     setApplied(false);
@@ -284,6 +309,7 @@ export function LiquidateTool() {
             label="Purchase price"
             value={purchasePrice}
             error={at('purchasePrice')}
+            placeholder={country === 'IN' ? 'e.g. 4500000' : 'e.g. 350000'}
             onChange={setPurchasePrice}
             info={
               <>
@@ -346,18 +372,20 @@ export function LiquidateTool() {
               <Field
                 label={`Total owned (${unitLabel})`}
                 value={totalQty}
+                error={at('totalQty')}
                 onChange={setTotalQty}
                 info={<>Total quantity you own. Used to pro-rate the purchase price.</>}
               />
               <Field
                 label={`Quantity to sell (${unitLabel})`}
                 value={qty}
+                error={at('qty')}
                 onChange={setQty}
               />
               <Field
                 label={`Price per ${unitLabel}`}
                 value={unitPrice}
-                error={at('salePrice')}
+                error={at('unitPrice') ?? at('salePrice')}
                 onChange={setUnitPrice}
               />
               <div
@@ -529,6 +557,11 @@ export function LiquidateTool() {
             color={v.recommend_liquidation ? 'var(--positive)' : 'var(--muted)'}
             detail={v.rationale}
           />
+          <p className="muted" style={{ margin: '0 0 12px', fontSize: 12 }}>
+            Assumes the asset grows {formatPct(assetReturn, 1)} a year over {holdYears} years
+            if you keep it, and leftover cash earns {formatPct(leftoverYield, 1)}. Change these under
+            Advanced; the verdict can flip.
+          </p>
 
           {partialSaleHint && (
             <div

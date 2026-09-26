@@ -30,7 +30,7 @@ class FxRateResponse(_Base):
     base: str
     quote: str
     rate: Decimal
-    source: str             # "frankfurter" | "manual" | "fallback"
+    source: str             # "frankfurter" | "parity" (same currency) | "fallback"
     as_of: Optional[str]    # YYYY-MM-DD if from upstream
 
 
@@ -64,6 +64,11 @@ class CrossBorderResponse(_Base):
 
 async def _fetch_fx(base: str, quote: str) -> tuple[Decimal, str, Optional[str]]:
     """Returns (rate, source, as_of). Falls back to 1.0 if unsupported pair."""
+    # Same currency: 1, with nothing to fetch. It used to go to the provider,
+    # which has no INR/INR quote, so a rupee loan checked from rupees
+    # failed with a 502.
+    if base == quote:
+        return D("1"), "parity", None
     if base not in _FRANKFURTER_SUPPORTED or quote not in _FRANKFURTER_SUPPORTED:
         return D("1"), "fallback", None
     url = f"https://api.frankfurter.dev/v1/latest?base={base}&symbols={quote}"

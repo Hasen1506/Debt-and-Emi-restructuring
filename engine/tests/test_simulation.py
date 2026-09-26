@@ -642,3 +642,32 @@ def test_extra_paid_is_in_the_users_currency():
     )
     m1 = result.months[0]
     assert abs(m1.extra_paid - m1.available_surplus) < D("1")
+
+
+def _user_short_of_cash() -> User:
+    """₹30,000 in, ₹34,000 of costs, and a ₹1 lakh card with no EMI set:
+    the card's minimum (₹5,000) is on top of the costs."""
+    card = Loan(loan_type=LoanType.CREDIT_CARD, bank="Axis Bank",
+                outstanding=D("100000"), nominal_rate=D("0.36"),
+                rate_type="fixed", tenure_months_remaining=0,
+                scheduled_emi=D("0"))
+    return User(
+        country=Country.IN, income_type=IncomeType.SALARIED,
+        annual_income=D("360000"), monthly_income=D("30000"),
+        fixed_expenses=D("34000"), savings_balance=D("0"),
+        primary_bank="Axis Bank", tax_regime=TaxRegimeIN.NEW,
+        efund_balance=D("0"), efund_target=D("0"),
+        loans=[card], investment_options=[], inflation_rate=D("0.046"),
+    )
+
+
+def test_shortfall_counts_costs_and_card_minimums():
+    """The gap is costs + minimums − income (₹9,000), not costs − income
+    (₹4,000): the old home screen said "find ₹4,000/mo"."""
+    result = simulate_plan(_user_short_of_cash(), Strategy.AVALANCHE, horizon_months=12)
+    assert result.months[0].shortfall == D("9000")
+
+
+def test_no_shortfall_when_income_covers_costs_and_minimums():
+    result = simulate_plan(_user_two_loans(), Strategy.AVALANCHE, horizon_months=12)
+    assert all(m.shortfall == 0 for m in result.months)

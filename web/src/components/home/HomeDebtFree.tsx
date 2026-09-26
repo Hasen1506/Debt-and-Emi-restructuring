@@ -10,6 +10,8 @@ import { loadPlanFromCookies } from '@/components/plan/load-plan';
 import { monthIndexToCountryLabel } from '@/lib/today';
 import { thisMonthMove } from '@/lib/this-month';
 import { deriveMetrics } from '@/lib/derived';
+import { describeGap } from '@/lib/loan-gaps';
+import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { loadProfileServer } from '@/lib/user-store';
 import { formatCurrency } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
@@ -20,6 +22,7 @@ const loadPlanOnce = cache(loadPlanFromCookies);
 
 export async function HomeDebtFreeValue() {
   const plan = await loadPlanOnce();
+  if (plan.gaps.length > 0 || plan.shortfall > 0) return <>NO DATE YET</>;
   if (!plan.live) return <Link href="/plan">SEE PLAN →</Link>;
   // 0 = nothing owed now; null = not cleared within the horizon.
   if (plan.debtFreeMonth === 0) return <>NOW</>;
@@ -29,6 +32,14 @@ export async function HomeDebtFreeValue() {
 
 export async function HomeDebtFreeCaption() {
   const plan = await loadPlanOnce();
+  if (plan.gaps.length > 0) return <Link href="/onboarding?step=loans">ADD LOAN DETAILS →</Link>;
+  if (plan.shortfall > 0) {
+    return (
+      <Link href="/plan">
+        SHORT {formatCurrency(Math.round(plan.shortfall), userDefaultCurrency(plan.user.country))}/MO · PLAN →
+      </Link>
+    );
+  }
   if (!plan.live) return <>DATE + MONTHLY SCHEDULE</>;
   if (plan.debtFreeMonth === 0) return <>NOTHING OWED</>;
   if (!plan.debtFreeMonth) return <Link href="/plan">RAISE SURPLUS · SEE PLAN →</Link>;
@@ -61,10 +72,30 @@ const moveWords = cache(async (): Promise<{ headline: string; detail: string; on
   const m = deriveMetrics(profile);
   const fc = (v: number) => formatCurrency(v, userDefaultCurrency(profile.user.country));
   const move = thisMonthMove(plan);
+  if (plan.gaps.length > 0) {
+    const g = plan.gaps[0];
+    return {
+      headline: `ADD ${describeGap(g.missing).toUpperCase()} FOR ${(g.loan.bank || 'YOUR').toUpperCase()} ${LOAN_TYPE_NAME[g.loan.loan_type].toUpperCase()}`,
+      detail: plan.gaps.length > 1
+        ? `${plan.gaps.length} LOANS NEED DETAILS · WITHOUT THEM THE PLAN CAN'T WORK OUT WHAT TO PAY`
+        : "WITHOUT IT THE PLAN CAN'T WORK OUT WHAT TO PAY",
+      oneStep: 'ADD YOUR LOAN DETAILS IN SETUP.',
+    };
+  }
+  // Short of cash: the engine's gap (costs + minimums − income) when it
+  // ran, else the same sum from the profile.
+  const short = plan.live ? plan.shortfall : Math.max(0, -Number(m.surplus));
+  if (short > 0) {
+    return {
+      headline: `SHORT ${fc(Math.round(short))}/MO · COSTS + MINIMUM PAYMENTS ARE MORE THAN INCOME`,
+      detail: 'CUT COSTS OR ASK THE BANK FOR A LOWER PAYMENT · NO EXTRA PAYMENTS UNTIL THE GAP CLOSES',
+      oneStep: 'PAY AT LEAST THE MINIMUMS. IF YOU CAN’T, CALL THE BANK BEFORE THE DUE DATE.',
+    };
+  }
   if (m.surplus.lte(0)) {
     return {
-      headline: `PAY THE MINIMUMS · FIND ${fc(Math.round(Math.abs(Number(m.surplus))))}/MO`,
-      detail: 'INCOME DOES NOT COVER COSTS AND EMIS YET · TRIM SPENDING BEFORE PAYING EXTRA',
+      headline: 'PAY THE MINIMUMS · NOTHING SPARE THIS MONTH',
+      detail: 'INCOME JUST COVERS COSTS AND MINIMUM PAYMENTS',
       oneStep: 'KEEP CURRENT EMIS RUNNING.',
     };
   }

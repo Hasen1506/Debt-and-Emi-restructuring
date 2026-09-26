@@ -4,10 +4,11 @@ Each returns a single decision with the key number. Inputs are kept narrow so
 each can be wired to a focused UI screen.
 """
 from decimal import ROUND_HALF_UP, Decimal
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from engine.models import Loan, Country, LoanType, InvestmentOption, LiquidityClass
 from engine.formulas import emi, effective_rate, prepay_recommended
+from engine.minimum_payments import compute_minimum_payment
 from engine.loan_check import _inr
 from engine.ordering import Strategy, rank_loans
 
@@ -47,18 +48,54 @@ def _interest_to_clear(balance: Decimal, rate: Decimal, payment: Decimal) -> Dec
     return total
 
 
-def interest_saved_by_prepaying(loan: Loan, prepay: Decimal) -> Decimal:
+def _card_interest_to_clear(loan: Loan, balance: Decimal, country: Country) -> Decimal:
+    """Interest paid clearing a card balance, paying each month the larger
+    of the user's usual payment and the bank's minimum (and at least 1% of
+    the balance above the interest, so a minimum that only covers the
+    interest still clears it)."""
+    monthly = loan.nominal_rate / D("12")
+    usual = loan.scheduled_emi or D("0")
+    total = D("0")
+    for _ in range(1200):
+        if balance <= 0:
+            break
+        i = balance * monthly
+        total += i
+        minimum = compute_minimum_payment(replace(loan, outstanding=balance), country, interest_accrued=i)
+        pay = max(usual, minimum, i + balance * D("0.01"))
+        balance = balance + i - min(pay, balance + i)
+    return total
+
+
+def interest_basis(loan: Loan, country: Country = Country.IN) -> str:
+    """What `interest_saved_by_prepaying` assumes, in words for the page."""
+    if loan.loan_type == LoanType.CREDIT_CARD:
+        if loan.scheduled_emi and loan.scheduled_emi > 0:
+            return (f"until the card is cleared, paying your usual {money(loan.scheduled_emi, country)} "
+                    "a month (or the minimum, if higher)")
+        return "until the card is cleared, paying the bank's minimum each month"
+    return "over the loan's remaining life, EMI kept, so it ends sooner"
+
+
+def interest_saved_by_prepaying(loan: Loan, prepay: Decimal, country: Country = Country.IN) -> Decimal:
     """Interest avoided by paying `prepay` off `loan` now, keeping the EMI so
     the loan finishes sooner (the usual default after a part-payment).
 
-    Works the loan month by month. If the scheduled EMI is missing or does
-    not cover the interest (a card's minimum payment), the EMI that clears
-    the balance over the months left (at least one) is used instead.
+    Works the loan month by month. A card is paid down at the larger of the
+    usual payment and the bank's minimum; it used to be treated as cleared
+    within the month (a card has no tenure), so ₹85,000 off a 34% card
+    avoided "₹2,408", one month's interest. For other loans, if the EMI is
+    missing or does not cover the interest, the EMI that clears the balance
+    over the months left is used.
     """
     balance, rate = loan.outstanding, loan.nominal_rate
     prepay = min(prepay, balance)
     if prepay <= 0 or rate <= 0:
         return D("0")
+    if loan.loan_type == LoanType.CREDIT_CARD:
+        saved = (_card_interest_to_clear(loan, balance, country)
+                 - _card_interest_to_clear(loan, balance - prepay, country))
+        return max(D("0"), saved.quantize(D("1"), rounding=ROUND_HALF_UP))
     payment = loan.scheduled_emi or D("0")
     if payment <= balance * rate / D("12"):
         payment = emi(balance, rate, max(loan.tenure_months_remaining or 0, 1))
@@ -72,13 +109,17 @@ class WindfallAllocation:
     loan_label: str
     amount: Decimal                         # what goes to the loan (capped at its balance)
     rationale: str                          # e.g. "highest effective rate (38.4%)"
-    # Interest the prepayment avoids over the loan's remaining life. When
-    # investing wins, the interest given up by not prepaying. Never negative.
+    # Interest the prepayment avoids over the loan's remaining life (a card:
+    # until it's cleared at the usual or minimum payment). When investing
+    # wins, the interest given up by not prepaying. Never negative.
     interest_avoided: Decimal
     invest_instead: bool = False
     investment_name: str | None = None
     investment_return: Decimal | None = None
     leftover: Decimal = D("0")              # windfall beyond the loan's balance
+    # What interest_avoided assumes, e.g. "until the card is cleared, paying
+    # the bank's minimum each month".
+    interest_basis: str = ""
 
 
 def allocate_windfall(
@@ -124,15 +165,16 @@ def allocate_windfall(
         return WindfallAllocation(
             to_loan_id=None, loan_label=f"{top.bank} {top.loan_type.value}", amount=amount,
             rationale=f"Best liquid return {best_return*100:.2f}% beats your costliest loan ({top_rate*100:.2f}%) after inflation",
-            interest_avoided=interest_saved_by_prepaying(top, min(amount, top.outstanding)),
+            interest_avoided=interest_saved_by_prepaying(top, min(amount, top.outstanding), country),
             invest_instead=True, investment_name=best.name, investment_return=best_return,
+            interest_basis=interest_basis(top, country),
         )
 
     top = worth[0]
     top_rate = effective_rates[id(top)]
     label = f"{top.bank} {top.loan_type.value}"
     to_loan = min(amount, top.outstanding)
-    avoided = interest_saved_by_prepaying(top, to_loan)
+    avoided = interest_saved_by_prepaying(top, to_loan, country)
 
     leftover = amount - to_loan
     if strategy == Strategy.AVALANCHE or top is max(ranked, key=lambda l: effective_rates[id(l)]):
@@ -146,6 +188,7 @@ def allocate_windfall(
     return WindfallAllocation(
         to_loan_id=id(top), loan_label=label, amount=to_loan,
         rationale=rationale, interest_avoided=avoided, leftover=leftover,
+        interest_basis=interest_basis(top, country),
     )
 
 

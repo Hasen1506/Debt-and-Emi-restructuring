@@ -9,6 +9,7 @@
  */
 import Decimal from 'decimal.js';
 import type { Country, LoanPayload } from './api';
+import { dec } from './safe-decimal';
 
 export interface MinPaymentExplanation {
   /** Short one-liner like "5% of outstanding or ₹200, whichever is higher". */
@@ -24,17 +25,15 @@ export interface MinPaymentExplanation {
 interface BankFormula {
   /** Display string used in the UI explainer. */
   description: string;
-  /** Computes the minimum payment for a given outstanding. Excludes the
-   *  interest-accrued / fees / over-limit components that the engine layers
-   *  on at simulation time — we only need a representative number for the
-   *  override hint. */
-  compute(outstanding: Decimal): Decimal;
+  /** The minimum for a balance and this month's interest, as the engine
+   *  works it out (fees, over-limit and past-due amounts left out). */
+  compute(outstanding: Decimal, interest: Decimal): Decimal;
 }
 
 const INDIA: Record<string, BankFormula> = {
   'SBI Card': {
     description: '5% of outstanding or ₹200, whichever is higher, plus interest + fees',
-    compute: (o) => Decimal.max(o.mul('0.05'), new Decimal('200')),
+    compute: (o, i) => Decimal.max(o.mul('0.05'), new Decimal('200')).add(i),
   },
   'Axis Bank': {
     description: '5% of outstanding or ₹200, whichever is higher',
@@ -63,12 +62,12 @@ const INDIA: Record<string, BankFormula> = {
   },
   'Kotak Mahindra': {
     description: '5% of outstanding (or ₹200) plus interest and fees',
-    compute: (o) => Decimal.max(o.mul('0.05'), new Decimal('200')),
+    compute: (o, i) => Decimal.max(o.mul('0.05'), new Decimal('200')).add(i),
   },
   'ICICI Bank': {
     description:
       'Higher of (interest + fees + 1% principal) or 5% of outstanding, floored at ₹100',
-    compute: (o) => Decimal.max(o.mul('0.05'), o.mul('0.01'), new Decimal('100')),
+    compute: (o, i) => Decimal.max(i.add(o.mul('0.01')), o.mul('0.05'), new Decimal('100')),
   },
 };
 
@@ -79,7 +78,7 @@ const USA: Record<string, BankFormula> = {
   },
   'Bank of America': {
     description: '1% of outstanding plus interest and fees, floor $35',
-    compute: (o) => Decimal.max(o.mul('0.01'), new Decimal('35')),
+    compute: (o, i) => Decimal.max(i.add(o.mul('0.01')), new Decimal('35')),
   },
   Citibank: {
     description: '2% of outstanding or $25, whichever is higher',
@@ -95,11 +94,11 @@ const USA: Record<string, BankFormula> = {
   },
   'American Express': {
     description: '1% of outstanding plus interest and fees, floor $35',
-    compute: (o) => Decimal.max(o.mul('0.01'), new Decimal('35')),
+    compute: (o, i) => Decimal.max(i.add(o.mul('0.01')), new Decimal('35')),
   },
   'Goldman Sachs': {
     description: '1% of outstanding plus interest and fees, floor $35',
-    compute: (o) => Decimal.max(o.mul('0.01'), new Decimal('35')),
+    compute: (o, i) => Decimal.max(i.add(o.mul('0.01')), new Decimal('35')),
   },
   Synchrony: {
     description: '2% of outstanding or $25, whichever is higher',
@@ -160,18 +159,33 @@ export function suggestedGraceDays(bank: string, country: Country): number {
 }
 
 export function explainMinPayment(
-  loan: Pick<LoanPayload, 'loan_type' | 'bank' | 'outstanding'>,
+  loan: Pick<LoanPayload, 'loan_type' | 'bank' | 'outstanding'> & Partial<Pick<LoanPayload, 'nominal_rate'>>,
   country: Country,
 ): MinPaymentExplanation | null {
   if (loan.loan_type !== 'credit_card') return null;
   const registry = country === 'IN' ? INDIA : USA;
   const hit = registry[loan.bank];
   const formula = hit ?? DEFAULTS[country];
-  const outstanding = new Decimal(loan.outstanding || 0);
+  const outstanding = dec(loan.outstanding);
+  const interest = outstanding.mul(dec(loan.nominal_rate)).div(12);
   return {
     formula: formula.description,
-    estimated: formula.compute(outstanding).toFixed(0),
+    estimated: formula.compute(outstanding, interest).toFixed(0),
     source: hit ? 'bank' : 'default',
     bank: loan.bank || '(unspecified bank)',
   };
+}
+
+/**
+ * What the bank requires this month, in the loan's currency: the EMI, or
+ * for a card its minimum (the user's override, else the bank's formula on
+ * this month's balance and interest), as the engine's
+ * compute_total_minimums works it out. A card with no EMI set used to
+ * count as ₹0 a month, so someone ₹9,000 short was told to find ₹4,000.
+ */
+export function requiredMonthly(loan: LoanPayload, country: Country): Decimal {
+  if (loan.loan_type !== 'credit_card') return dec(loan.scheduled_emi);
+  const override = dec(loan.min_payment_override);
+  if (override.gt(0)) return override;
+  return new Decimal(explainMinPayment(loan, country)?.estimated ?? 0);
 }

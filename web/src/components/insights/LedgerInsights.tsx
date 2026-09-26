@@ -18,7 +18,8 @@ import { useMemo } from 'react';
 import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
 import type { StrategyName } from '@/lib/strategy';
-import { fmt as fmtPct } from '@/lib/effective-apr';
+import { computeBreakdown, fmt as fmtPct } from '@/lib/effective-apr';
+import { usItemises } from '@/lib/deductions';
 import { deriveMetrics } from '@/lib/derived';
 import { formatCurrency } from '@/lib/api';
 import { userDefaultCurrency } from '@/lib/currency';
@@ -79,16 +80,33 @@ function buildNotes(profile: StoredProfile): Note[] {
 
   const homeLoan = m.loans.find((l) => l.loan.loan_type === 'home_loan');
   if (homeLoan && profile.user.country === 'IN') {
-    const annualInt = new Decimal(homeLoan.loan.outstanding || 0).mul(
-      new Decimal(homeLoan.loan.nominal_rate || 0),
-    );
-    const shieldValue = annualInt.mul(new Decimal(profile.marginalRate || 0));
+    // The deduction the plan actually counts: none under the new regime
+    // for a self-occupied home, capped at ₹2 lakh under the old. It used
+    // to be interest × marginal rate whatever the regime, so a new-regime
+    // user read of a ₹68,250 "shield" that "lowered" 8.75% to 8.75%.
+    const shieldLine = computeBreakdown(
+      homeLoan.loan,
+      profile.marginalRate,
+      'IN',
+      profile.user.tax_regime,
+      usItemises(profile.user),
+    ).lines.find((l) => l.label === 'Tax shield');
+    const shieldRate = shieldLine?.value ?? new Decimal(0);
+    const shieldValue = homeLoan.outstanding.mul(shieldRate);
     if (shieldValue.gt(1000)) {
       notes.push({
         date: dateLabel,
         eyebrow: 'TAX',
-        title: `Your Sec 24 shield is worth ${fc(shieldValue.toFixed(0))}/yr`,
-        body: `At your marginal rate, the home-loan interest deduction brings the effective cost from ${fmtPct(homeLoan.nominal)} down to ${fmtPct(homeLoan.effective)}. Factored into avalanche ordering — without it the home loan would queue earlier.`,
+        title: `Your Sec 24 deduction saves about ${fc(shieldValue.toFixed(0))} a year`,
+        body: `At your marginal rate, deducting the home-loan interest takes ${fmtPct(shieldRate)} off its cost, so it counts as ${fmtPct(homeLoan.effective)} once fees are added. Factored into the payoff order — without it the home loan would queue earlier.`,
+        tags: ['Sec 24', 'tax', 'home-loan'],
+      });
+    } else if ((profile.user.tax_regime ?? 'new') === 'new' && (homeLoan.loan.property_use ?? 'self_occupied') === 'self_occupied') {
+      notes.push({
+        date: dateLabel,
+        eyebrow: 'TAX',
+        title: 'No tax deduction on your home loan under the new regime',
+        body: `The new regime doesn't allow the Sec 24(b) interest deduction on a home you live in, so the loan costs its full ${fmtPct(homeLoan.nominal)}. The old regime allows up to ₹2 lakh of interest a year; whether it's better overall depends on your other deductions.`,
         tags: ['Sec 24', 'tax', 'home-loan'],
       });
     }
@@ -110,7 +128,7 @@ function buildNotes(profile: StoredProfile): Note[] {
       date: dateLabel,
       eyebrow: 'MILESTONE',
       title: `Surplus of ${fc(m.surplus.toString())}/mo is what the engine routes`,
-      body: `Income minus fixed expenses minus scheduled EMIs leaves ${fc(m.surplus.toString())} that the plan rotates through the priority loan each month. Anything you log on the activity ledger above this baseline gets bonus-routed too.`,
+      body: `Income minus expenses, EMIs and card minimums leaves ${fc(m.surplus.toString())} that the plan rotates through the priority loan each month. Anything you log on the activity ledger above this baseline gets bonus-routed too.`,
       tags: ['surplus', 'allocation'],
     });
   }

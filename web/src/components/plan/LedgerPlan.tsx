@@ -40,6 +40,8 @@ import {
 } from '@/components/ledger/primitives';
 import { deriveMetrics } from '@/lib/derived';
 import { dec } from '@/lib/safe-decimal';
+import { describeGap, type ProfileGap } from '@/lib/loan-gaps';
+import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import type { StoredProfile } from '@/lib/user-store';
 import { LTrajectory, type LTrajPoint } from '@/components/ledger/LDebtsTable';
 import {
@@ -73,9 +75,14 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   const interestSaved =
     Number(plan.baselineInterest) - Number(plan.totalInterest);
   const horizon = plan.trajectory.length;
-  const clearLabel = plan.debtFreeMonth
-    ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()
-    : 'NOT IN LIFETIME';
+  // Short of cash this month: the schedule below pays minimums the user
+  // can't fund, so its date isn't one to plan around.
+  const short = plan.shortfall > 0;
+  const clearLabel = short
+    ? 'NO DATE YET'
+    : plan.debtFreeMonth
+      ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()
+      : 'NOT IN LIFETIME';
   // What the plan pays the banks this month (EMIs, card minimums and the
   // extra), in the user's currency. Summing scheduled EMIs mixed ₹ and $,
   // counted paid-off loans and missed card minimums with no EMI set.
@@ -120,6 +127,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   );
 
   if (debtFreeNow) return <DebtFreeNow hasLoans={plan.user.loans.length > 0} />;
+  if (plan.gaps.length > 0) return <NeedsLoanDetails gaps={plan.gaps} />;
 
   const xLabels = [0, 0.25, 0.5, 0.75, 1].map((f) => {
     const month = firstMonth + Math.round(f * span);
@@ -167,13 +175,20 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           <LKpi
             cols={4}
             items={[
-              {
-                l: 'DEBT-FREE',
-                v: clearLabel,
-                s: plan.debtFreeMonth
-                  ? `IN ${plan.debtFreeMonth} MONTHS`
-                  : 'RAISE SURPLUS OR CUT SPEND TO CLEAR',
-              },
+              short
+                ? {
+                    l: 'DEBT-FREE',
+                    v: clearLabel,
+                    s: `SHORT ${fc(Math.round(plan.shortfall))}/MO`,
+                    tone: L_T.negative,
+                  }
+                : {
+                    l: 'DEBT-FREE',
+                    v: clearLabel,
+                    s: plan.debtFreeMonth
+                      ? `IN ${plan.debtFreeMonth} MONTHS`
+                      : 'RAISE SURPLUS OR CUT SPEND TO CLEAR',
+                  },
               {
                 l: 'TOTAL INTEREST',
                 v: fc(plan.totalInterest),
@@ -195,6 +210,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           />
         </section>
 
+        {short && <ShortfallBanner plan={plan} />}
         <FxCachePersister rates={plan.fxRatesUsed} />
         <LifecycleArrivalPrompts user={plan.user} variant="ledger" />
         {plan.activityImpact && (
@@ -834,6 +850,57 @@ void Decimal;
 
 /** /plan when nothing is owed: the plan's cards (date, outlay, chart)
  *  would all be made up ("NOT IN LIFETIME", an outlay with no loans). */
+/** Income doesn't cover costs plus minimums: say by how much and what the
+ *  schedule assumes, instead of offering its date as a plan. */
+function ShortfallBanner({ plan }: { plan: PlanData }) {
+  const fc = (v: number) => formatCurrency(Math.round(v), plan.displayCurrency);
+  const income = dec(plan.user.monthly_income).toNumber();
+  const costs = dec(plan.user.fixed_expenses).add(dec(plan.user.variable_expenses)).toNumber();
+  // The engine's minimums, so the three figures add up to its shortfall.
+  const minimums = Math.max(0, plan.shortfall + income - costs);
+  return (
+    <section
+      role="status"
+      style={{ border: `2px solid ${L_T.negative}`, padding: '14px 18px', fontSize: 12, lineHeight: 1.7 }}
+    >
+      <div style={{ fontWeight: 700, color: L_T.negative, letterSpacing: '0.08em', marginBottom: 6 }}>
+        $ SHORT {fc(plan.shortfall)} A MONTH · NO PAYOFF DATE YET
+      </div>
+      Your costs ({fc(costs)}) and minimum payments ({fc(minimums)}) come to more
+      than your income ({fc(income)}). The schedule below assumes the minimums get
+      paid anyway; each month they can&apos;t be, the balance grows and late fees
+      start. First close the gap: cut costs (try the what-if below), raise income,
+      or ask the bank for a lower payment (a longer tenure, or moving a card
+      balance to a cheaper loan).
+    </section>
+  );
+}
+
+/** A loan is missing its rate or EMI: no projection until it's added. */
+function NeedsLoanDetails({ gaps }: { gaps: ProfileGap[] }) {
+  return (
+    <LShell>
+      <div style={{ padding: '40px 0', fontFamily: L_MONO }}>
+        <LCli>PLAN · NEEDS YOUR LOAN DETAILS</LCli>
+        <LRule length={200} />
+        <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
+          There&apos;s no payoff date yet: without these the plan would treat a
+          loan as interest-free or never paid down.
+          <ul style={{ margin: '10px 0 14px', paddingLeft: 18, color: L_T.ink }}>
+            {gaps.map((g) => (
+              <li key={g.index}>
+                {(g.loan.bank || 'Your').toUpperCase()} {LOAN_TYPE_NAME[g.loan.loan_type].toUpperCase()}: add{' '}
+                {describeGap(g.missing)}
+              </li>
+            ))}
+          </ul>
+          <LBracket href="/onboarding?step=loans">ADD THE DETAILS →</LBracket>
+        </div>
+      </div>
+    </LShell>
+  );
+}
+
 function DebtFreeNow({ hasLoans }: { hasLoans: boolean }) {
   return (
     <LShell>

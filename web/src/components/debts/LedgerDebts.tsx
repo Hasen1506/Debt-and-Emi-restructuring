@@ -115,7 +115,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
               {
                 l: 'TOTAL EMI',
                 v: totalEmi > 0 ? `${fc(totalEmi)}/MO` : '—',
-                s: 'SCHEDULED',
+                s: 'EMIS + CARD MINIMUMS',
               },
               {
                 l: 'INTEREST',
@@ -136,6 +136,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
             country={profile.user.country}
             totalOutstanding={m.totalOutstanding}
             totalEmi={m.emiBurden}
+            spare={m.surplus.gt(0)}
           />
         </section>
 
