@@ -7,8 +7,8 @@
  * this component owns the pill chrome, the bracketed ledger variant, the
  * `useTransition` + `router.refresh()` wiring, and the disabled/pending UX.
  *
- * Not used by StrategySwitcher (carries per-option metric chips), EfSplitSlider
- * (range input), or PlanStartPicker (dropdown). Those are intentionally bespoke.
+ * Not used by StrategySwitcher (carries per-option metric chips) or
+ * EfSplitSlider (range input); those are intentionally bespoke.
  *
  * The variant prop here is `'inline' | 'ledger'` — separate from the
  * `ThemeName` used by Themed.tsx primitives, because the toggle's "inline" mode

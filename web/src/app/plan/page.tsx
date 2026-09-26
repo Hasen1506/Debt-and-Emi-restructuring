@@ -35,7 +35,6 @@ import { projectAnnualTaxSavings } from '@/lib/tax-projection';
 import { projectBracketTransitions } from '@/lib/bracket-transitions';
 import Decimal from 'decimal.js';
 import { getCountryMonth, localIsoDate } from '@/lib/today';
-import { loadPlanStartServer, resolveStartMonth } from '@/lib/plan-start';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import {
   applyActivityDeltas,
@@ -125,8 +124,8 @@ async function loadPlan(
   // falling back to country-today when no override is set. Lets users
   // who say "I'll start serious budgeting from next month" or "from FY
   // start" line up the projection with their actual zero-day.
-  const planStartPref = await loadPlanStartServer();
-  const simulation_start_month = resolveStartMonth(planStartPref, profile.user.country);
+  // The plan starts this month, from the balances the user entered.
+  const simulation_start_month = getCountryMonth(profile.user.country);
 
   // Bracket-transition projection — only meaningful when the user has
   // provided gross income (otherwise we can't classify their current
@@ -417,7 +416,6 @@ async function loadPlan(
       byCurrencyBaseline,
       fxRatesUsed,
       efSplit,
-      planStart: planStartPref,
       goalsActive: hasGoalsForEngine,
       goalContributions:
         scenario.surplus_allocation?.goal_contributions?.map((c) => ({
@@ -489,7 +487,6 @@ async function loadPlan(
       byCurrencyBaseline: {},
       fxRatesUsed: {},
       efSplit,
-      planStart: planStartPref,
       goalsActive: hasGoalsForEngine,
       goalContributions: [],
       goalFinals: [],

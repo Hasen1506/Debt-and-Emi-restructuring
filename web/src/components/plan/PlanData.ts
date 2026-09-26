@@ -124,9 +124,6 @@ export interface PlanData {
    *  0.30 preserves the pre-slider behaviour. Read from the ef_split
    *  cookie at request time. */
   efSplit: string;
-  /** User's chosen plan-start (YYYY-MM), empty = "today". Anchors the
-   *  simulation_start_month and is surfaced via the PlanStartPicker. */
-  planStart: string;
   /** True when at least one active goal is being routed surplus by the
    *  engine, meaning EF top-up is paused for the current horizon.
    *  Drives an assumption chip + the EF slider's disabled state.

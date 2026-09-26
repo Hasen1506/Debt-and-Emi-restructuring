@@ -5,7 +5,7 @@
  * chronological list with soft-undo for recent entries.
  *
  * Soft-undo restores the snapshot to the relevant slice (efSplit
- * cookie, planStart cookie, goals slice, etc.) without re-running
+ * cookie, goals slice, etc.) without re-running
  * any simulation — the page refresh on the affected route picks up
  * the restored state.
  */
@@ -19,7 +19,6 @@ import {
   readDecisionsClient,
 } from '@/lib/decisions';
 import { writeEfSplitClient } from '@/lib/ef-split';
-import { writePlanStartClient } from '@/lib/plan-start';
 import { readGoalsClient, writeGoalsClient } from '@/lib/goals';
 
 export function DecisionsClient() {
@@ -39,11 +38,6 @@ export function DecisionsClient() {
         case 'ef_split_change': {
           const prev = String(entry.snapshot.efSplit ?? '0.3');
           writeEfSplitClient(prev);
-          break;
-        }
-        case 'plan_start_change': {
-          const prev = String(entry.snapshot.planStart ?? '');
-          writePlanStartClient(prev);
           break;
         }
         case 'goal_added': {
