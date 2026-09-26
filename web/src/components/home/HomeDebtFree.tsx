@@ -21,6 +21,8 @@ const loadPlanOnce = cache(loadPlanFromCookies);
 export async function HomeDebtFreeValue() {
   const plan = await loadPlanOnce();
   if (!plan.live) return <Link href="/plan">SEE PLAN →</Link>;
+  // 0 = nothing owed now; null = not cleared within the horizon.
+  if (plan.debtFreeMonth === 0) return <>NOW</>;
   if (!plan.debtFreeMonth) return <>NOT ON THIS PLAN</>;
   return <>{monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()}</>;
 }
@@ -28,6 +30,7 @@ export async function HomeDebtFreeValue() {
 export async function HomeDebtFreeCaption() {
   const plan = await loadPlanOnce();
   if (!plan.live) return <>DATE + MONTHLY SCHEDULE</>;
+  if (plan.debtFreeMonth === 0) return <>NOTHING OWED</>;
   if (!plan.debtFreeMonth) return <Link href="/plan">RAISE SURPLUS · SEE PLAN →</Link>;
   return (
     <Link href="/plan">

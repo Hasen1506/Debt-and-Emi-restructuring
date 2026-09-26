@@ -125,6 +125,11 @@ class MonthRow:
     # (accounting for inflation / hike / expiry) instead of multiplying
     # a single static surplus by a month count.
     goal_contributions: dict[str, Decimal] = field(default_factory=dict)
+    # Paid above each loan's minimum this month (extra, cascade, reinvest),
+    # in the user's currency. The /plan schedule used to take the scheduled
+    # EMIs off the total paid, so a card's minimum (EMI 0) read as "extra",
+    # a cleared loan's EMI kept being subtracted, and ₹ and $ were mixed.
+    extra_paid: Decimal = D("0")
 
 
 @dataclass
@@ -730,6 +735,16 @@ def simulate_plan(
             for lid, amt in payments.items()
             if amt > D("0")
         }
+        loan_by_id = {id(l): l for l in loans}
+        extra_paid = sum(
+            (
+                to_user_currency(
+                    max(D("0"), amt - minimums.get(lid, D("0"))), loan_by_id[lid], user,
+                )
+                for lid, amt in payments.items()
+            ),
+            D("0"),
+        )
         # Per-loan balance by 0-based position. ALL loans included so the
         # chart sees a stable series (cleared loans flat at 0, never
         # disappearing).
@@ -755,6 +770,7 @@ def simulate_plan(
             balances_by_loan_index=balances_by_idx,
             balance_in_user_currency=balance_user_ccy,
             goal_contributions=goal_contributions_this_month,
+            extra_paid=extra_paid,
         ))
 
         total_interest += interest_paid

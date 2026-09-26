@@ -233,6 +233,8 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
             balances_by_loan_index=dict(row.balances_by_loan_index),
             available_surplus=row.available_surplus,
             goal_contributions=dict(row.goal_contributions),
+            total_paid=row.total_payment_nominal,
+            extra_paid=row.extra_paid,
         ))
     return points
 

@@ -323,3 +323,22 @@ def test_post_goal_cascade_capped_ef_gap():
     )
     assert out.ef_slice == D("500")
     assert out.debt_slice == D("5500")
+
+
+def test_paid_off_loan_has_no_minimum_in_the_surplus():
+    """A loan at 0 outstanding still had its EMI taken out of the surplus
+    (₹53,300 → ₹43,047 on /plan) while the simulator's month 1 didn't."""
+    from engine.models import Loan, LoanType
+    from engine.surplus import compute_total_minimums
+    paid = Loan(
+        loan_type=LoanType.PERSONAL, bank="ICICI Bank", outstanding=D("0"),
+        nominal_rate=D("0.14"), rate_type="fixed",
+        tenure_months_remaining=36, scheduled_emi=D("10253"),
+    )
+    open_ = Loan(
+        loan_type=LoanType.PERSONAL, bank="ICICI Bank", outstanding=D("300000"),
+        nominal_rate=D("0.14"), rate_type="fixed",
+        tenure_months_remaining=36, scheduled_emi=D("10253"),
+    )
+    user = _user()
+    assert compute_total_minimums(user, [paid, open_]) == compute_total_minimums(user, [open_])

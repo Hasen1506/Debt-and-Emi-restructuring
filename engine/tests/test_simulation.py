@@ -606,3 +606,39 @@ def test_lifecycle_event_empty_list_is_no_op():
     )
     assert none_result.total_interest_paid == base.total_interest_paid
     assert empty_result.total_interest_paid == base.total_interest_paid
+
+
+# ─── Extra paid per month (26 Sep 2026) ──────────────────────────────────────
+
+def test_minimums_only_pays_no_extra_even_for_a_card_with_no_emi():
+    """A card's minimum with scheduled EMI 0 read as 'extra' on /plan."""
+    user = _user_card_only()
+    user.loans[0].scheduled_emi = D("0")
+    result = baseline_minimums_only(user, horizon_months=24)
+    assert result.months
+    assert all(row.extra_paid == 0 for row in result.months)
+
+
+def test_extra_paid_is_the_debt_share_of_the_surplus_in_month_1():
+    user = _user_two_loans()
+    user.investment_options = []
+    result = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=12, ef_top_up_rate=D("0"),
+    )
+    m1 = result.months[0]
+    assert m1.extra_paid > 0
+    assert abs(m1.extra_paid - m1.available_surplus) < D("1")
+
+
+def test_extra_paid_is_in_the_users_currency():
+    """A dollar loan's extra is converted, not added to rupees as-is."""
+    user = _user_two_loans()
+    user.investment_options = []
+    for l in user.loans:
+        l.currency = "USD"
+    user.fx_to_user_currency = {"USD": D("84")}
+    result = simulate_plan(
+        user, Strategy.AVALANCHE, horizon_months=12, ef_top_up_rate=D("0"),
+    )
+    m1 = result.months[0]
+    assert abs(m1.extra_paid - m1.available_surplus) < D("1")

@@ -78,7 +78,7 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrency(v, ccy);
 
-  if (m.loans.length === 0) return <EmptyState />;
+  if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
 
   const loudest = m.loudest!;
   const loudestBank = (loudest.loan.bank || 'YOUR LOUDEST').toUpperCase();
@@ -176,7 +176,12 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
           <LSectionHeader right={<LBracket href="/onboarding">+ ADD DEBT</LBracket>}>
             OPEN POSITIONS · {m.loans.length}
           </LSectionHeader>
-          <LDebtsTable loans={m.loans} country={profile.user.country} />
+          <LDebtsTable
+            loans={m.loans}
+            country={profile.user.country}
+            totalOutstanding={m.totalOutstanding}
+            totalEmi={m.emiBurden}
+          />
         </section>
 
         <section>
@@ -232,7 +237,7 @@ function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; deb
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrency(v, ccy);
-  if (m.loans.length === 0) return <EmptyState />;
+  if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
   const loudest = m.loudest!;
 
   return (
@@ -270,7 +275,12 @@ function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; deb
           <LSectionHeader right={<LBracket href="/onboarding">+ ADD DEBT</LBracket>}>
             OPEN POSITIONS · {m.loans.length}
           </LSectionHeader>
-          <LDebtsTable loans={m.loans} country={profile.user.country} />
+          <LDebtsTable
+            loans={m.loans}
+            country={profile.user.country}
+            totalOutstanding={m.totalOutstanding}
+            totalEmi={m.emiBurden}
+          />
         </section>
 
         <section style={{ border: `1px solid ${L_T.ink}`, padding: '12px 16px' }}>
@@ -301,7 +311,7 @@ function LedgerHomeSoft({ profile, move }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrency(v, ccy);
-  if (m.loans.length === 0) return <EmptyState />;
+  if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
   const loudest = m.loudest!;
   const amount = m.surplus.gt(0) ? Math.round(Number(m.surplus.toString())) : 0;
   const lender = (loudest.loan.bank || 'your highest-rate lender').toUpperCase();
@@ -415,14 +425,26 @@ function LedgerHomeSoft({ profile, move }: HomeProps) {
   );
 }
 
-function EmptyState() {
+function EmptyState({ paidOff }: { paidOff: boolean }) {
+  // paidOff: loans are on file but every balance is 0.
   return (
     <LShell>
       <div style={{ padding: '40px 0' }}>
-        <LCli>STATUS · NO DEBTS ON FILE</LCli>
+        <LCli>{paidOff ? 'STATUS · DEBT-FREE' : 'STATUS · NO DEBTS ON FILE'}</LCli>
         <LRule length={200} />
         <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
-          Run setup to add your debts: <LBracket href="/onboarding">SETUP →</LBracket>
+          {paidOff ? (
+            <>
+              Every loan on file is paid off. Put the old EMIs to work:{' '}
+              <LBracket href="/goals">GOALS →</LBracket>{' '}
+              <LBracket href="/portfolio">PORTFOLIO →</LBracket>{' '}
+              <LBracket href="/onboarding?step=loans">ADD A LOAN →</LBracket>
+            </>
+          ) : (
+            <>
+              Run setup to add your debts: <LBracket href="/onboarding">SETUP →</LBracket>
+            </>
+          )}
         </div>
       </div>
     </LShell>

@@ -6,6 +6,7 @@
  * (via lib/effective-apr.ts), same blending logic everywhere — toggle
  * themes and the numbers stay consistent.
  */
+import { dec } from './safe-decimal';
 import Decimal from 'decimal.js';
 import type { LoanPayload, Country, TaxRegimeIN } from './api';
 import type { StoredProfile } from './user-store';
@@ -33,6 +34,11 @@ export interface DerivedMetrics {
   surplus: Decimal;
   /** Loan with the highest effective APR (the "loudest" debt). null if no loans. */
   loudest: LoanWithEffective | null;
+  /** This month's interest across open loans (balance × nominal ÷ 12), in
+   *  the user's currency. */
+  monthlyInterest: Decimal;
+  /** A loan-currency amount in the user's currency (FX map, parity if none). */
+  toUserCcy: (amount: Decimal, loan: LoanPayload) => Decimal;
 }
 
 export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
@@ -52,22 +58,30 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
     return amount.mul(rate);
   };
 
-  const loans: LoanWithEffective[] = rawLoans.map((loan, index) => {
-    const { effective } = computeBreakdown(loan, marginalRate, country, taxRegime, itemises);
-    return {
-      loan,
-      index,
-      nominal: new Decimal(loan.nominal_rate || 0),
-      effective,
-      outstanding: new Decimal(loan.outstanding || 0),
-    };
-  });
+  // Open loans only: a loan paid down to 0 has no EMI left and isn't a
+  // debt. Counting it crashed home and /debts when every loan was paid off
+  // (no "loudest" loan) and took its old EMI out of the surplus. `index`
+  // stays the position in user.loans.
+  const loans: LoanWithEffective[] = rawLoans
+    .map((loan, index) => {
+      const { effective } = computeBreakdown(loan, marginalRate, country, taxRegime, itemises);
+      return {
+        loan,
+        index,
+        nominal: new Decimal(loan.nominal_rate || 0),
+        effective,
+        outstanding: dec(loan.outstanding),
+      };
+    })
+    .filter((l) => l.outstanding.gt(0));
 
   let totalOutstanding = new Decimal(0);
   let weightedEffSum = new Decimal(0);
   let emi = new Decimal(0);
+  let monthlyInterest = new Decimal(0);
   let loudest: LoanWithEffective | null = null;
   for (const l of loans) {
+    monthlyInterest = monthlyInterest.add(toUserCcy(l.outstanding.mul(l.nominal).div(12), l.loan));
     // Both outstanding and EMI need conversion before summing — totals
     // were silently mixing INR and USD for hybrid users before this.
     const outUser = toUserCcy(l.outstanding, l.loan);
@@ -104,6 +118,8 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
     emiBurden: emi,
     surplus,
     loudest,
+    monthlyInterest,
+    toUserCcy,
   };
 }
 

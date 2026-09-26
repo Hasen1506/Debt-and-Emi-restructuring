@@ -13,8 +13,10 @@
  */
 
 import { useEffect, useState } from 'react';
+import type Decimal from 'decimal.js';
 import type { Country, LoanType } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import type { LoanWithEffective } from '@/lib/derived';
 import { L_T, L_MONO } from './primitives';
@@ -32,10 +34,15 @@ const LOAN_TYPE_SHORT: Record<LoanType, string> = {
 export function LDebtsTable({
   loans,
   country,
+  totalOutstanding,
+  totalEmi,
   mobile,
 }: {
   loans: LoanWithEffective[];
   country: Country;
+  /** Totals already in the user's currency (deriveMetrics converts them). */
+  totalOutstanding: Decimal;
+  totalEmi: Decimal;
   mobile?: boolean;
 }) {
   if (loans.length === 0) {
@@ -46,14 +53,14 @@ export function LDebtsTable({
     );
   }
 
-  const ccy = country === 'IN' ? 'INR' : 'USD';
+  // Each row in its loan's own currency (a $25k loan used to read ₹25,000
+  // for an NRI); the totals are converted into the user's currency.
+  const ccy = userDefaultCurrency(country);
   const fc = (v: string | number) => formatCurrency(v, ccy);
-  const totalOutstanding = loans.reduce(
-    (sum, d) => sum + Number(d.loan.outstanding || 0),
-    0,
-  );
+  const fcLoan = (v: string | number, d: LoanWithEffective) =>
+    formatCurrency(v, loanCurrency(d.loan, country));
+  const mixed = loans.some((d) => loanCurrency(d.loan, country) !== ccy);
   const dearest = loans.reduce((best, d) => (d.effective.gt(best.effective) ? d : best), loans[0]);
-  const totalEmi = loans.reduce((sum, d) => sum + Number(d.loan.scheduled_emi || 0), 0);
   const headers = [
     '#',
     'LENDER',
@@ -135,10 +142,10 @@ export function LDebtsTable({
                   {fmtPct(d.effective)}
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                  {fc(d.loan.outstanding)}
+                  {fcLoan(d.loan.outstanding, d)}
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                  {d.loan.scheduled_emi && Number(d.loan.scheduled_emi) > 0 ? fc(d.loan.scheduled_emi) : '—'}
+                  {d.loan.scheduled_emi && Number(d.loan.scheduled_emi) > 0 ? fcLoan(d.loan.scheduled_emi, d) : '—'}
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', color: L_T.muted }}>
                   {tenureLabel}
@@ -166,13 +173,13 @@ export function LDebtsTable({
                 fontSize: 10,
               }}
             >
-              TOTAL
+              {mixed ? `TOTAL IN ${ccy}` : 'TOTAL'}
             </td>
             <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-              {fc(totalOutstanding)}
+              {fc(totalOutstanding.toFixed(0))}
             </td>
             <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-              {totalEmi > 0 ? fc(totalEmi) : '—'}
+              {totalEmi.gt(0) ? fc(totalEmi.toFixed(0)) : '—'}
             </td>
             <td colSpan={2} />
           </tr>

@@ -4,6 +4,7 @@
  * `formatINR` / `formatUSD` for display.
  */
 import Decimal from 'decimal.js';
+import { dec } from './safe-decimal';
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
@@ -389,6 +390,10 @@ export interface TrajectoryPointRaw {
    *  prior-goal actual draws (which expire after their target dates)
    *  instead of a flat priorDraw approximation. */
   goal_contributions?: Record<string, string>;
+  /** All payments this month, in the user's currency. */
+  total_paid?: string;
+  /** The part above each loan's minimum (extra, cascade), user's currency. */
+  extra_paid?: string;
 }
 
 export interface GoalContributionRaw {
@@ -1439,36 +1444,49 @@ function westernGroup(intStr: string): string {
   return (neg ? '-' : '') + body.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+/** The minus goes before the symbol ("−₹29,200", not "₹-29,200"), and an
+ *  amount that rounds to zero has no sign. Blank or non-numeric input is
+ *  0 rather than a throw. */
+function signed(
+  value: string | number | Decimal,
+  places: number,
+  body: (abs: Decimal) => string,
+): string {
+  const d = dec(value);
+  const neg = d.isNegative() && !d.abs().toDecimalPlaces(places).isZero();
+  return `${neg ? '−' : ''}${body(d.abs())}`;
+}
+
 /** Rupees with lakh comma format. ₹1,23,45,678 — exact, no abbreviation. */
 export function formatINR(value: string | number | Decimal): string {
-  const d = new Decimal(value);
-  return `₹${indianGroup(d.toFixed(0))}`;
+  return signed(value, 0, (d) => `₹${indianGroup(d.toFixed(0))}`);
 }
 
 /** Dollars with Western comma format. $1,234,567.89 — exact, no abbreviation. */
 export function formatUSD(value: string | number | Decimal): string {
-  const d = new Decimal(value);
-  const [intPart, decPart] = d.toFixed(2).split('.');
-  return `$${westernGroup(intPart)}.${decPart}`;
+  return signed(value, 2, (d) => {
+    const [intPart, decPart] = d.toFixed(2).split('.');
+    return `$${westernGroup(intPart)}.${decPart}`;
+  });
 }
 
 /** Compact INR for chart axes / tight stat tiles. Uses Cr/L/k abbreviation. */
 export function formatINRCompact(value: string | number | Decimal): string {
-  const d = new Decimal(value);
-  const abs = d.abs();
-  if (abs.gte(10_000_000)) return `₹${d.div(10_000_000).toFixed(2)}Cr`;
-  if (abs.gte(100_000)) return `₹${d.div(100_000).toFixed(2)}L`;
-  if (abs.gte(1_000)) return `₹${d.div(1_000).toFixed(1)}k`;
-  return `₹${d.toFixed(0)}`;
+  return signed(value, 0, (d) => {
+    if (d.gte(10_000_000)) return `₹${d.div(10_000_000).toFixed(2)}Cr`;
+    if (d.gte(100_000)) return `₹${d.div(100_000).toFixed(2)}L`;
+    if (d.gte(1_000)) return `₹${d.div(1_000).toFixed(1)}k`;
+    return `₹${d.toFixed(0)}`;
+  });
 }
 
 /** Compact USD for chart axes / tight stat tiles. Uses M/k abbreviation. */
 export function formatUSDCompact(value: string | number | Decimal): string {
-  const d = new Decimal(value);
-  const abs = d.abs();
-  if (abs.gte(1_000_000)) return `$${d.div(1_000_000).toFixed(2)}M`;
-  if (abs.gte(1_000)) return `$${d.div(1_000).toFixed(1)}k`;
-  return `$${d.toFixed(2)}`;
+  return signed(value, 2, (d) => {
+    if (d.gte(1_000_000)) return `$${d.div(1_000_000).toFixed(2)}M`;
+    if (d.gte(1_000)) return `$${d.div(1_000).toFixed(1)}k`;
+    return `$${d.toFixed(2)}`;
+  });
 }
 
 export function formatCurrency(value: string | number | Decimal, currency: string): string {

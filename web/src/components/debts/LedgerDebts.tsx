@@ -19,7 +19,7 @@ import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrency } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { deriveMetrics } from '@/lib/derived';
-import { userDefaultCurrency } from '@/lib/currency';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import {
   LShell,
   LSectionHeader,
@@ -42,12 +42,14 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
   const fc = (v: string | number) => formatCurrency(v, ccy);
 
   if (m.loans.length === 0) {
+    const paidOff = (profile.user.loans?.length ?? 0) > 0;
     return (
       <LShell>
         <div style={{ padding: '40px 0' }}>
-          <LCli>DEBTS · NO OPEN POSITIONS</LCli>
+          <LCli>{paidOff ? 'DEBTS · ALL PAID OFF' : 'DEBTS · NO OPEN POSITIONS'}</LCli>
           <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
-            Run setup to add your debts: <LBracket href="/onboarding">SETUP →</LBracket>
+            {paidOff ? 'Every loan on file is at 0. ' : 'Run setup to add your debts: '}
+            <LBracket href="/onboarding?step=loans">{paidOff ? 'ADD A LOAN →' : 'SETUP →'}</LBracket>
           </div>
         </div>
       </LShell>
@@ -55,17 +57,16 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
   }
 
   const loudest = m.loudest!;
-  const totalEmi = m.loans.reduce(
-    (s, d) => s + Number(d.loan.scheduled_emi || 0),
-    0,
-  );
+  // Both in the user's currency: rupee and dollar EMIs used to be added
+  // as plain numbers for NRIs.
+  const totalEmi = m.emiBurden.toNumber();
   // What the debts cost each month, before any tax refund: the figure a
   // borrower feels. (A reset-cycle length used to sit here; it said
   // nothing about when the rate next moves.)
-  const monthlyInterest = m.loans.reduce(
-    (s, d) => s.add(new Decimal(d.loan.outstanding || 0).mul(d.loan.nominal_rate || 0).div(12)),
-    new Decimal(0),
-  );
+  const monthlyInterest = m.monthlyInterest;
+  // The dearest loan's own figures, in its own currency.
+  const fcLoudest = (v: string | number) =>
+    formatCurrency(v, loanCurrency(loudest.loan, profile.user.country));
 
   // Monthly interest on the loudest line = outstanding * (nominal / 12).
   // Use nominal not effective because that's what the bank charges; the
@@ -130,7 +131,12 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
           <LSectionHeader right={<LBracket href="/onboarding">+ ADD DEBT</LBracket>}>
             OPEN POSITIONS · DETAILED
           </LSectionHeader>
-          <LDebtsTable loans={m.loans} country={profile.user.country} />
+          <LDebtsTable
+            loans={m.loans}
+            country={profile.user.country}
+            totalOutstanding={m.totalOutstanding}
+            totalEmi={m.emiBurden}
+          />
         </section>
 
         {/* Highlighted loudest debt — only block where the border itself goes accent. */}
@@ -173,12 +179,12 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
                 ],
                 [
                   'OUTSTANDING',
-                  fc(loudest.loan.outstanding),
+                  fcLoudest(loudest.loan.outstanding),
                   loudest.loan.loan_type === 'credit_card'
                     ? 'REVOLVING BALANCE'
                     : 'PRINCIPAL REMAINING',
                 ],
-                ['MONTHLY INT', fc(loudestMonthlyInt), 'CHARGED EACH MONTH'],
+                ['MONTHLY INT', fcLoudest(loudestMonthlyInt), 'CHARGED EACH MONTH'],
               ].filter(Boolean) as [string, string, string, string?][]).map((r, i) => (
                 <tr key={i} style={{ borderBottom: `1px dashed ${L_T.faint}` }}>
                   <td

@@ -123,6 +123,8 @@ def compute_total_minimums(
     currency."""
     # With this month's interest, as the simulator pays it: without it the
     # surplus counted a smaller card minimum than was actually paid.
+    # A paid-off loan (nothing outstanding) has no EMI left; counting it cut
+    # the /plan surplus snapshot below the simulator's own month 1.
     return sum(
         (
             to_user_currency(
@@ -135,6 +137,7 @@ def compute_total_minimums(
                 user,
             )
             for l in loans
+            if l.outstanding > 0
         ),
         D("0"),
     )

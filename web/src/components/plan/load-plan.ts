@@ -66,7 +66,12 @@ function extractMonthlyPayments(
       for (const [idx, amount] of Object.entries(p.payments_by_loan_index ?? {})) {
         perLoan[Number(idx)] = amount;
       }
-      return { month: p.month, perLoan };
+      return {
+        month: p.month,
+        perLoan,
+        totalPaid: Number(p.total_paid ?? 0),
+        extraPaid: Number(p.extra_paid ?? 0),
+      };
     });
 }
 

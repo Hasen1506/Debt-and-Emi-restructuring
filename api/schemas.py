@@ -544,6 +544,10 @@ class TrajectoryPoint(_Base):
     # surplus by a month count. Defaults to 0 for clients that don't
     # populate it (mirrors MonthRow.available_surplus default).
     available_surplus: Decimal = Field(default=D("0"))
+    # All payments this month and the part above each loan's minimum, both
+    # in the user's currency (per-loan payments are in each loan's own).
+    total_paid: Decimal = Field(default=D("0"))
+    extra_paid: Decimal = Field(default=D("0"))
     # Per-goal contribution this month, keyed by goal id. Populated only
     # when `goals` was passed to /simulate. Lets achievability subtract
     # higher-priority goals' actual draws (which expire after their

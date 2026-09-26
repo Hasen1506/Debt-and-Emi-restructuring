@@ -34,9 +34,13 @@ import {
   LKpi,
   LBracket,
   LCardHard,
+  LRule,
   L_T,
   L_MONO,
 } from '@/components/ledger/primitives';
+import { deriveMetrics } from '@/lib/derived';
+import { dec } from '@/lib/safe-decimal';
+import type { StoredProfile } from '@/lib/user-store';
 import { LTrajectory, type LTrajPoint } from '@/components/ledger/LDebtsTable';
 import {
   EligibilityCaveat,
@@ -72,11 +76,16 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   const clearLabel = plan.debtFreeMonth
     ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()
     : 'NOT IN LIFETIME';
-  // EMIs plus this month's extra to debt (not the emergency-fund or goal
-  // share of the surplus, which isn't a debt payment).
+  // What the plan pays the banks this month (EMIs, card minimums and the
+  // extra), in the user's currency. Summing scheduled EMIs mixed ₹ and $,
+  // counted paid-off loans and missed card minimums with no EMI set.
   const monthlyOutlay =
-    plan.user.loans.reduce((s, l) => s + Number(l.scheduled_emi || 0), 0) +
-    Math.max(0, plan.surplusAllocation?.debtSlice ?? plan.surplus);
+    plan.monthlyPayments.find((p) => p.month === 1)?.totalPaid ??
+    deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate } as StoredProfile)
+      .emiBurden.toNumber() +
+      Math.max(0, plan.surplusAllocation?.debtSlice ?? plan.surplus);
+  // Nothing owed: every loan on file is at 0, or there are none.
+  const debtFreeNow = !plan.user.loans.some((l) => dec(l.outstanding).gt(0));
   const isHybrid = plan.currenciesInPlay.length > 1;
   const hikeRate = Number(plan.user.annual_hike_rate ?? '0');
   const inflRate = Number(plan.user.inflation_rate ?? '0');
@@ -109,6 +118,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [traj, maxBal],
   );
+
+  if (debtFreeNow) return <DebtFreeNow hasLoans={plan.user.loans.length > 0} />;
 
   const xLabels = [0, 0.25, 0.5, 0.75, 1].map((f) => {
     const month = firstMonth + Math.round(f * span);
@@ -570,10 +581,6 @@ function AmortisationSection({
   const interestByMonth = new Map<number, number | undefined>(
     plan.trajectory.map((p) => [p.month, p.interest]),
   );
-  const scheduledTotal = plan.user.loans.reduce(
-    (s, l) => s + Number(l.scheduled_emi || 0),
-    0,
-  );
   // ⊕ rate reset + ⊙ salary reset glyphs are gated on threading
   // `lifecycle_events` into PlanData — see LEDGER_MISSING §G.1 follow-up.
   // For now we surface ★ cleared (from trajectory) and ⊙ annual review
@@ -586,10 +593,11 @@ function AmortisationSection({
     const date = `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(-2)}`;
     const bal = trajByMonth.get(row.month) ?? 0;
     const perLoan = row.perLoan ?? {};
-    const totalPay = Object.values(perLoan).reduce(
-      (s, v) => s + Number(v),
-      0,
-    );
+    // The engine's totals, in the user's currency: summing perLoan mixed
+    // ₹ and $, and "extra" was the total less every scheduled EMI, so a
+    // card's minimum (EMI 0) read as extra and a cleared loan's EMI kept
+    // being taken off.
+    const totalPay = row.totalPaid;
     // The engine's interest for the month. Deriving it from the balance
     // drop made month 1 all interest (there is no month 0 to compare with).
     const engineInterest = interestByMonth.get(row.month);
@@ -601,7 +609,7 @@ function AmortisationSection({
           ? Math.max(0, totalPay - (prevBal - bal))
           : 0;
     const principal = Math.max(0, totalPay - interest);
-    const extra = Math.max(0, totalPay - scheduledTotal);
+    const extra = row.extraPaid;
     // Event resolution — pick the loudest event for this month.
     let event = '';
     const balancesNow = plan.trajectory.find(
@@ -817,3 +825,24 @@ export type { PlanData };
 // (Decimal is imported above so future contributors keep precise math
 // in this file when they wire real engine deltas.)
 void Decimal;
+
+
+/** /plan when nothing is owed: the plan's cards (date, outlay, chart)
+ *  would all be made up ("NOT IN LIFETIME", an outlay with no loans). */
+function DebtFreeNow({ hasLoans }: { hasLoans: boolean }) {
+  return (
+    <LShell>
+      <div style={{ padding: '40px 0', fontFamily: L_MONO }}>
+        <LCli>{hasLoans ? 'PLAN · DEBT-FREE' : 'PLAN · NO DEBTS ON FILE'}</LCli>
+        <LRule length={200} />
+        <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
+          {hasLoans
+            ? 'Every loan on file is paid off, so there is nothing to plan here. '
+            : 'Add a loan to see your payoff date and monthly plan. '}
+          <LBracket href="/goals">GOALS →</LBracket>{' '}
+          <LBracket href="/onboarding?step=loans">{hasLoans ? 'ADD A LOAN →' : 'ADD YOUR LOANS →'}</LBracket>
+        </div>
+      </div>
+    </LShell>
+  );
+}

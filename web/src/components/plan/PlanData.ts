@@ -26,7 +26,11 @@ import type { CurrencyCode, PerCurrencyMetrics } from '@/lib/currency';
  */
 export interface MonthlyPaymentBreakdown {
   month: number;
+  /** Per-loan payment in each loan's own currency. */
   perLoan: Record<number, string>;
+  /** Total paid and the part above the minimums, in the user's currency. */
+  totalPaid: number;
+  extraPaid: number;
 }
 
 /**
