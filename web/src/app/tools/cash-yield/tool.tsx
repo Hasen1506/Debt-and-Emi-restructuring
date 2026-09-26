@@ -23,6 +23,7 @@ import { useFormErrors } from '@/lib/form-errors';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { userDefaultCurrency } from '@/lib/currency';
+import { fitColumns } from '@/lib/grid';
 
 
 // The API's field names → this form's inputs, so a rejected value's
@@ -73,7 +74,7 @@ export function CashYieldTool() {
       <Card>
         <form
           onSubmit={check}
-          style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          style={{ display: 'grid', gap: 12, gridTemplateColumns: fitColumns(2, 200) }}
         >
           <Field
             label="Idle balance"
@@ -89,11 +90,12 @@ export function CashYieldTool() {
             }
           />
           <Field
-            label="Current yield (decimal)"
+            label="Current yield (%)"
+            kind="percent"
             value={yieldNow}
             error={at('yieldNow')}
             onChange={setYieldNow}
-            hint="e.g. 0.025 for 2.5%"
+            hint="e.g. 2.5"
             info={
               <>
                 What this cash is currently earning, pre-tax. Most IN
@@ -153,7 +155,7 @@ export function CashYieldTool() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateColumns: fitColumns(3, 140),
               gap: 12,
             }}
           >

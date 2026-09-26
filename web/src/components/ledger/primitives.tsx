@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { fitColumns } from '@/lib/grid';
 
 export const L_T = {
   bg: '#fbfaf3',
@@ -195,6 +196,13 @@ export interface LKpiItem {
   tone?: string;
 }
 
+/** Up to `n` equal columns, dropping to fewer when a column would be
+ *  narrower than `minPx` (a 4-up strip on a phone gave 84 px cells, and
+ *  "₹1,05,000/MO" pushed the page sideways). */
+export function lGridColumns(n: number, minPx: number): string {
+  return fitColumns(n, minPx, 1);
+}
+
 export function LKpi({
   items,
   cols,
@@ -209,7 +217,7 @@ export function LKpi({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`,
+        gridTemplateColumns: lGridColumns(n, 140),
         gap: 1,
         background: L_T.ink,
         padding: 1,
@@ -233,6 +241,7 @@ export function LKpi({
               fontWeight: 700,
               color: m.tone ?? L_T.ink,
               letterSpacing: '-0.01em',
+              overflowWrap: 'anywhere',
             }}
           >
             {m.v}

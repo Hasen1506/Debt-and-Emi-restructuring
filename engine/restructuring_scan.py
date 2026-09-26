@@ -3,16 +3,27 @@ scan_consolidation / scan_refinance from engine.restructuring against the
 institution rate cards in engine.rate_cards, so the caller only has to pass
 a User + marginal rate.
 
-Returns a flat list of opportunities, each with an estimated annual saving
-and a one-line rationale ready to render in the UI.
+Returns a flat list of opportunities, each with a one-line rationale ready
+to render in the UI and three figures measured the same way for every kind:
+
+  • one_time_cost           the fee or switching cost paid up front
+  • breakeven_months        months of lower interest it takes to earn that back
+  • estimated_annual_saving interest saved in the first 12 months, minus the
+                            one-time cost (a balance-transfer promo shorter
+                            than a year saves only during the promo)
+
+Refinance also carries `lifetime_net_saving` (the rest of the loan, less
+costs), which is what its headline leads with.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal, Optional
 
 from engine.formulas import effective_rate, emi
+from engine.lenders import resolve as resolve_lender
 from engine.models import Country, IncomeType, Loan, LoanType, User
 from engine.rate_cards import (
     ALL_INSTITUTIONS, INDIA_TIER_A, USA_TIER_A,
@@ -86,6 +97,12 @@ class RestructuringOpportunity:
     # zeroes the listed loans and appends a new consolidated personal
     # loan.
     affected_loan_indices: list[int] = field(default_factory=list)
+    # Fee or switching cost paid up front, in the user's currency.
+    one_time_cost: Decimal = D("0")
+    # Months of lower interest needed to earn back `one_time_cost`.
+    breakeven_months: Optional[int] = None
+    # Refinance only: interest saved over the rest of the loan, less costs.
+    lifetime_net_saving: Optional[Decimal] = None
 
 
 def _country_pool(country: Country) -> list[InstitutionRateCard]:
@@ -111,10 +128,23 @@ def _known_banks(user: User) -> set[str]:
     return s
 
 
+def _same_bank(a: Optional[str], b: Optional[str], country: Country) -> bool:
+    """True when two typed names are the same bank ("HDFC" = "HDFC Bank Ltd.")."""
+    if not a or not b:
+        return False
+    la, lb = resolve_lender(a, country), resolve_lender(b, country)
+    if la is not None and lb is not None:
+        return la.id == lb.id
+    def key(x: str) -> str:
+        return x.strip().lower().removesuffix(" ltd.").removesuffix(" ltd").removesuffix(" bank")
+    return key(a) == key(b)
+
+
 def _best_bt_offer(
     country: Country,
     known: Optional[set[str]] = None,
     income_type: Optional[IncomeType] = None,
+    exclude_bank: Optional[str] = None,
 ) -> Optional[tuple[InstitutionRateCard, Decimal, int, Decimal]]:
     """Pick the bank with the lowest effective BT-APR (promo rate + amortised fee).
     Returns (card, promo_rate, promo_months, fee_pct) or None if no offers exist.
@@ -127,6 +157,9 @@ def _best_bt_offer(
     offers all banks publish identically) but business-owners are routinely
     declined or repriced at full APR — callers should surface the eligibility
     caveat in their rationale.
+
+    `exclude_bank` is the card's own issuer: banks don't take a balance
+    transfer from their own card, so it is never the target.
     """
     best = None
     best_eff = None
@@ -135,6 +168,8 @@ def _best_bt_offer(
         if cc is None or cc.bt_promo_rate is None or not cc.bt_promo_months:
             continue
         if known is not None and card.name.strip().lower() not in known:
+            continue
+        if _same_bank(card.name, exclude_bank, country):
             continue
         fee = cc.bt_fee_pct or D("0")
         eff = cc.bt_promo_rate + fee / D(cc.bt_promo_months) * D("12")
@@ -190,10 +225,28 @@ def _fmt_pct(d: Decimal) -> str:
     return f"{(d * D('100')):.2f}%"
 
 
+def _breakeven_months(one_time_cost: Decimal, yearly_gross_saving: Decimal) -> Optional[int]:
+    """Whole months of the lower rate needed to earn back the up-front cost."""
+    if yearly_gross_saving <= 0:
+        return None
+    if one_time_cost <= 0:
+        return 0
+    return max(1, math.ceil(one_time_cost * D("12") / yearly_gross_saving))
+
+
+def _first_year_saving(yearly_gross_saving: Decimal, one_time_cost: Decimal) -> Decimal:
+    return yearly_gross_saving - one_time_cost
+
+
 def _bt_saving_annualised(
     card: Loan, card_effective: Decimal, effective_bt_apr: Decimal, promo_months: int,
 ) -> Decimal:
-    """(current_effective − bt_effective) × outstanding, bounded to one year."""
+    """Saving in the first 12 months, net of the transfer fee.
+
+    `effective_bt_apr` already spreads the fee over the promo, so
+    (current − bt_effective) × outstanding × promo/12 equals the interest
+    saved during the promo minus the fee. After the promo the rate goes
+    back to roughly today's, so nothing more is saved in that year."""
     saving = (card_effective - effective_bt_apr) * card.outstanding
     return saving * D(min(promo_months, 12)) / D("12")
 
@@ -209,8 +262,8 @@ def _scan_card_balance_transfer(
     # Pick the relationship-preferred BT target first; fall back to the
     # overall winner if the user doesn't already have a card with any of
     # the BT-offering banks.
-    rel_offer = _best_bt_offer(country, known, income_type) if known else None
-    overall = _best_bt_offer(country, known=None, income_type=income_type)
+    rel_offer = _best_bt_offer(country, known, income_type, card.bank) if known else None
+    overall = _best_bt_offer(country, known=None, income_type=income_type, exclude_bank=card.bank)
     if rel_offer is None and overall is None:
         return None
     chosen = rel_offer or overall  # type: ignore[assignment]
@@ -222,8 +275,10 @@ def _scan_card_balance_transfer(
         card, card_effective, cand.effective_bt_apr, promo_months,
     )
     ccy = "₹" if country == Country.IN else "$"
+    bt_cost = fee_pct * card.outstanding
+    bt_breakeven = _breakeven_months(bt_cost, (card_effective - promo_rate) * card.outstanding)
     headline = (
-        f"Save ~{ccy}{saving_annualised:,.0f}/yr by moving the "
+        f"Save ~{ccy}{saving_annualised:,.0f} in the first year by moving the "
         f"{ccy}{card.outstanding:,.0f} on your {card.bank} card to "
         f"{target_card.name} (cheaper card, {promo_months}-month promo at "
         f"~{_fmt_pct(cand.effective_bt_apr)})"
@@ -278,6 +333,8 @@ def _scan_card_balance_transfer(
         target_is_existing_relationship=rel_offer is not None,
         target_rate_as_of=getattr(target_card, "last_verified", None),
         affected_loan_indices=[card_index],
+        one_time_cost=bt_cost,
+        breakeven_months=bt_breakeven,
     )
 
 
@@ -307,16 +364,21 @@ def _scan_consolidation_opportunity(
     if chosen is None:
         return None
     target_bank, market_low = chosen
-    # Assume a 1% processing fee amortised over 3y → 0.0033 added to rate.
+    # Assume a 1% processing fee. The scan's hurdle spreads it over a 3-year
+    # loan (0.33 points added to the rate); the saving and pay-back charge
+    # the whole fee up front.
+    fee_pct = D("0.01")
     fee_amortised = D("0.0033")
     cand = scan_consolidation(unsecured, effective_rates, market_low, fee_amortised)
     if cand is None:
         return None
     total = sum((l.outstanding for l in cand.loans), D("0"))
-    saving = (cand.blended_avg_rate - cand.consolidated_rate) * total
+    consol_cost = fee_pct * total
+    gross = (cand.blended_avg_rate - market_low) * total
+    saving = _first_year_saving(gross, consol_cost)
     ccy = "₹" if user.country == Country.IN else "$"
     headline = (
-        f"Save ~{ccy}{saving:,.0f}/yr by combining your {len(cand.loans)} "
+        f"Save ~{ccy}{saving:,.0f} in the first year by combining your {len(cand.loans)} "
         f"unsecured loans into one personal loan with {target_bank} at "
         f"~{_fmt_pct(cand.consolidated_rate)}"
     )
@@ -342,11 +404,13 @@ def _scan_consolidation_opportunity(
         and overall_market[1] < market_low
     ):
         alt_bank_raw, alt_displayed = overall_market
-        alt_rate_consolidated = alt_displayed * (D("1") + fee_amortised)
+        alt_rate_consolidated = alt_displayed + fee_amortised
         if alt_rate_consolidated < cand.consolidated_rate:
             alt_bank = alt_bank_raw
             alt_rate = alt_rate_consolidated
-            alt_saving = (cand.blended_avg_rate - alt_rate_consolidated) * total
+            alt_saving = _first_year_saving(
+                (cand.blended_avg_rate - alt_displayed) * total, consol_cost,
+            )
     return RestructuringOpportunity(
         kind="consolidation",
         headline=headline,
@@ -367,6 +431,8 @@ def _scan_consolidation_opportunity(
         alternative_annual_saving=alt_saving,
         target_is_existing_relationship=rel_market is not None,
         target_rate_as_of=_latest_verified(user.country),
+        one_time_cost=consol_cost,
+        breakeven_months=_breakeven_months(consol_cost, gross),
         affected_loan_indices=[
             # Identity check, not value-equality: two unsecured loans with the
             # same bank / type / outstanding would compare equal under the
@@ -415,14 +481,26 @@ def _scan_refi_opportunity(
     cand = scan_refinance(loan, median, interest_saved, refi_costs)
     if cand is None:
         return None
-    annual_saving = (loan.nominal_rate - new_rate) * loan.outstanding
+    gross = (loan.nominal_rate - new_rate) * loan.outstanding
+    annual_saving = _first_year_saving(gross, refi_costs)
     ccy = "₹" if country == Country.IN else "$"
     net_savings = max(D("0"), interest_saved - refi_costs)
+    kind_label = loan.loan_type.value.replace('_', ' ')
+    if _same_bank(target_bank, loan.bank, country):
+        # Moving to the same bank is a rate reset, not a switch: ask the
+        # bank to move the loan to the rate it offers new borrowers.
+        action = (
+            f"asking {loan.bank} to move your {kind_label} to the rate it "
+            f"offers new borrowers (~{_fmt_pct(new_rate)})"
+        )
+    else:
+        action = (
+            f"replacing your {loan.bank} {kind_label} with a cheaper one "
+            f"from {target_bank or 'another lender'} (~{_fmt_pct(new_rate)})"
+        )
     headline = (
-        f"Save ~{ccy}{net_savings:,.0f} over the life of the loan by replacing "
-        f"your {loan.bank} {loan.loan_type.value.replace('_', ' ')} with a "
-        f"cheaper one from {target_bank or 'market median'} "
-        f"(~{_fmt_pct(new_rate)})"
+        f"Save ~{ccy}{net_savings:,.0f} over the rest of the loan "
+        f"(~{ccy}{annual_saving:,.0f} in the first year) by {action}"
     )
     rationale = (
         f"You're paying {_fmt_pct(loan.nominal_rate)}, which is "
@@ -437,6 +515,15 @@ def _scan_refi_opportunity(
             " Self-employed underwriting widens the range — bring 3 years of "
             "ITR + business proof to argue for the lower end."
         )
+    if (
+        country == Country.IN
+        and loan.loan_type == LoanType.HOME
+        and loan.rate_type == "floating"
+    ):
+        rationale += (
+            " Run Loan Check first: part of this gap may be repo-rate cuts "
+            "the bank should already have passed on, which cost nothing to claim."
+        )
     alt_bank = alt_rate = alt_saving = None
     if (
         rel_market is not None
@@ -445,7 +532,9 @@ def _scan_refi_opportunity(
         and overall_market[1] < new_rate
     ):
         alt_bank, alt_rate = overall_market
-        alt_saving = (loan.nominal_rate - alt_rate) * loan.outstanding
+        alt_saving = _first_year_saving(
+            (loan.nominal_rate - alt_rate) * loan.outstanding, refi_costs,
+        )
     return RestructuringOpportunity(
         kind="refinance",
         headline=headline,
@@ -469,6 +558,9 @@ def _scan_refi_opportunity(
         target_is_existing_relationship=rel_market is not None,
         target_rate_as_of=_latest_verified(country),
         affected_loan_indices=[loan_index],
+        one_time_cost=refi_costs,
+        breakeven_months=_breakeven_months(refi_costs, gross),
+        lifetime_net_saving=net_savings,
     )
 
 
@@ -506,21 +598,12 @@ def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringO
     if consol is not None:
         out.append(consol)
 
-    # Refi candidates: collateral-backed (home/auto) plus unsecured personal
-    # and education loans. Credit cards use the BT pathway above; gold/BNPL
-    # don't have refi markets worth modelling.
-    #
-    # Personal loans also flow through consolidation when there are ≥2 of
-    # them. We let both opportunities surface — they're different actions
-    # (one cheaper bank vs. merge into one EMI). Estimated saving sorts the
-    # list so the bigger win lands on top.
+    # Refi candidates: home and auto loans (`scan_refinance` accepts only
+    # those). Personal loans are covered by consolidation above; cards by
+    # the balance transfer. Estimated saving sorts the list so the bigger
+    # win lands on top.
     for i, l in enumerate(user.loans):
-        if l.loan_type in (
-            LoanType.HOME,
-            LoanType.AUTO,
-            LoanType.PERSONAL,
-            LoanType.EDUCATION,
-        ):
+        if l.loan_type in (LoanType.HOME, LoanType.AUTO):
             opp = _scan_refi_opportunity(l, i, user.country, known, user.income_type)
             if opp is not None:
                 out.append(opp)

@@ -21,6 +21,7 @@
  * should be folded into user state at the right month.
  */
 
+import { localIsoDate } from './today';
 import type { LoanPayload, UserPayload } from './api';
 import { deriveMarginalRateForUser } from './deductions';
 
@@ -444,7 +445,7 @@ export function pendingArrivals(
   events: LifecycleEvent[],
   today: Date = new Date(),
 ): LifecycleEvent[] {
-  const todayIso = today.toISOString().slice(0, 10);
+  const todayIso = localIsoDate(today);
   return events.filter(
     (e) => e.status === 'planned' && e.effectiveDate <= todayIso,
   );

@@ -35,7 +35,7 @@ import { markMissedInstalments } from '@/lib/advance-tax-cookie';
 import { projectAnnualTaxSavings } from '@/lib/tax-projection';
 import { projectBracketTransitions } from '@/lib/bracket-transitions';
 import Decimal from 'decimal.js';
-import { getCountryMonth } from '@/lib/today';
+import { getCountryMonth, localIsoDate } from '@/lib/today';
 import { loadPlanStartServer, resolveStartMonth } from '@/lib/plan-start';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import {
@@ -177,7 +177,7 @@ async function loadPlan(
         // history); fall back to fresh generation when missing or stale.
         const stored = await readScheduleServer();
         const today = new Date();
-        const todayIso = today.toISOString().slice(0, 10);
+        const todayIso = localIsoDate(today);
         const storedStale =
           stored
             && stored.instalments.length > 0

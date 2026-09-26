@@ -21,6 +21,7 @@
  * "Partial mark-paid" is supported: governments accept any amount toward
  * an instalment; shortfall just rolls forward and accrues 234C / 2210.
  */
+import { localIsoDate } from './today';
 import Decimal from 'decimal.js';
 import type { Country } from './api';
 
@@ -80,7 +81,7 @@ export function buildSchedule(
 
   // Filter to upcoming (today or later). Past ones are out of scope
   // for the generator; existing cookie state owns their status.
-  const todayIso = today.toISOString().slice(0, 10);
+  const todayIso = localIsoDate(today);
   const upcoming = allInstalments.filter((i) => i.dueDate >= todayIso);
   if (upcoming.length === 0) return null;
 
@@ -156,7 +157,7 @@ export function detectMissedInstalments(
   schedule: AdvanceTaxSchedule,
   today: Date,
 ): { instalment: AdvanceTaxInstalment; shortfall: string }[] {
-  const todayIso = today.toISOString().slice(0, 10);
+  const todayIso = localIsoDate(today);
   const out: { instalment: AdvanceTaxInstalment; shortfall: string }[] = [];
   for (const inst of schedule.instalments) {
     if (inst.dueDate >= todayIso) continue;            // not yet due

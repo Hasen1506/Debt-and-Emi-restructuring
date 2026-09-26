@@ -30,6 +30,7 @@ import {
   LAllocationBar,
 } from '@/components/ledger/LToolShell';
 import { LBracket, L_T } from '@/components/ledger/primitives';
+import { fitColumns } from '@/lib/grid';
 
 export function WindfallTool() {
   const profile = useStoredProfile();
@@ -164,7 +165,7 @@ export function WindfallTool() {
           style={{
             display: 'grid',
             gap: 14,
-            gridTemplateColumns: '1fr 1fr',
+            gridTemplateColumns: fitColumns(2, 220),
           }}
         >
           <LToolField

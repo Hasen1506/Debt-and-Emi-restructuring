@@ -235,10 +235,11 @@ export default function OnboardingAssetsPage() {
               {isFD && (
                 <>
                   <Field
-                    label="FD rate (decimal)"
+                    label="FD rate (%)"
+                    kind="percent"
                     value={a.fd_rate_pct ?? ''}
                     onChange={(v) => update(i, { fd_rate_pct: v })}
-                    hint="e.g. 0.072 for 7.2%"
+                    hint="e.g. 7.2"
                   />
                   <Field
                     label="Maturity date"
@@ -247,7 +248,8 @@ export default function OnboardingAssetsPage() {
                     kind="date"
                   />
                   <Field
-                    label="Premature withdrawal penalty (decimal)"
+                    label="Premature withdrawal penalty (%)"
+                    kind="percent"
                     value={a.fd_premature_penalty_pct ?? ''}
                     onChange={(v) => update(i, { fd_premature_penalty_pct: v })}
                     hint="Default 1% if unknown. Bank-specific."

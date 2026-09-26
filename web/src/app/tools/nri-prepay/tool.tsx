@@ -24,6 +24,7 @@ import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
+import { fitColumns } from '@/lib/grid';
 
 type Currency = 'INR' | 'USD' | 'GBP' | 'EUR' | 'AUD' | 'CAD' | 'SGD' | 'AED';
 
@@ -183,7 +184,7 @@ export function NriPrepayTool() {
       <Card>
         <form
           onSubmit={check}
-          style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          style={{ display: 'grid', gap: 12, gridTemplateColumns: fitColumns(2, 200) }}
         >
           {profile.user.loans.length > 0 && (
             <Select
@@ -214,11 +215,12 @@ export function NriPrepayTool() {
             onChange={setLoanBalance}
           />
           <Field
-            label="Loan rate (decimal)"
+            label="Loan rate (%)"
+            kind="percent"
             value={loanRate}
             error={at('loanRate')}
             onChange={setLoanRate}
-            hint="e.g. 0.085 for 8.5%"
+            hint="e.g. 8.5"
           />
           <Field
             label="Tenure remaining (months)"
@@ -318,7 +320,7 @@ export function NriPrepayTool() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
+              gridTemplateColumns: fitColumns(2, 200),
               gap: 12,
               marginBottom: 12,
             }}
@@ -365,7 +367,7 @@ export function NriPrepayTool() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
+              gridTemplateColumns: fitColumns(2, 200),
               gap: 12,
             }}
           >

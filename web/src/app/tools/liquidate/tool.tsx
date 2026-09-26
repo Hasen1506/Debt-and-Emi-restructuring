@@ -26,6 +26,7 @@ import { applyToolResult } from '@/lib/apply-tool-result';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { DecisionLogControls } from '@/components/DecisionLogControls';
 import { PortfolioRanker } from './PortfolioRanker';
+import { fitColumns } from '@/lib/grid';
 
 const FINANCE_ACT_2024_CUTOFF = '2024-07-23';
 const DEFAULT_INFLATION = '0.046';
@@ -286,7 +287,7 @@ export function LiquidateTool() {
       <Card>
         <form
           onSubmit={check}
-          style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          style={{ display: 'grid', gap: 12, gridTemplateColumns: fitColumns(2, 200) }}
         >
           {/* Asset block */}
           <Field
@@ -432,11 +433,12 @@ export function LiquidateTool() {
             onChange={setDebtBalance}
           />
           <Field
-            label="Loan rate (decimal)"
+            label="Loan rate (%)"
+            kind="percent"
             value={debtRate}
             error={at('debtRate')}
             onChange={setDebtRate}
-            hint="e.g. 0.36 for 36% card APR, 0.085 for 8.5% home loan"
+            hint="e.g. 36 for a card, 8.5 for a home loan"
             info={
               <>
                 The <strong>effective</strong> interest rate you&apos;re paying
@@ -523,7 +525,8 @@ export function LiquidateTool() {
                 }
               />
               <Field
-                label="Inflation (decimal)"
+                label="Inflation (%)"
+                kind="percent"
                 value={inflation}
                 error={at('inflation')}
                 onChange={setInflation}
@@ -577,7 +580,7 @@ export function LiquidateTool() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
+              gridTemplateColumns: fitColumns(2, 200),
               gap: 12,
               marginBottom: 12,
             }}
@@ -629,7 +632,7 @@ export function LiquidateTool() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gridTemplateColumns: fitColumns(3, 140),
                   gap: 12,
                 }}
               >

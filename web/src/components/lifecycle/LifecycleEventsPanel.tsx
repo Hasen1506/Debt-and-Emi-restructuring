@@ -83,6 +83,7 @@ export function LifecycleEventsPanel({
   const [newTakeHome, setNewTakeHome] = useState('');
   const [resetLoanIdx, setResetLoanIdx] = useState(0);
   const [newRatePct, setNewRatePct] = useState('');
+  const [loanRatePct, setLoanRatePct] = useState('');
   const [loanDraft, setLoanDraft] = useState<LoanPayload>(blankLoanDraft());
 
   useEffect(() => {
@@ -109,6 +110,7 @@ export function LifecycleEventsPanel({
     setNewTakeHome('');
     setResetLoanIdx(realLoans[0]?.i ?? 0);
     setNewRatePct('');
+    setLoanRatePct('');
     setLoanDraft(blankLoanDraft());
   }
 
@@ -137,14 +139,15 @@ export function LifecycleEventsPanel({
         newRate: rate,
       };
     } else if (kind === 'property_buy') {
-      if (Number(loanDraft.outstanding) <= 0 || !loanDraft.nominal_rate)
+      if (Number(loanDraft.outstanding) <= 0 || !(Number(loanRatePct) > 0))
         return;
       draft = {
         kind: 'property_buy',
         status: 'planned',
         effectiveDate,
         note: note.trim() || undefined,
-        loanDraft,
+        // Typed as a percentage, like the rate-reset form above.
+        loanDraft: { ...loanDraft, nominal_rate: (Number(loanRatePct) / 100).toFixed(4) },
       };
     }
     if (!draft) return;
@@ -382,18 +385,13 @@ export function LifecycleEventsPanel({
                     />
                   </label>
                   <label style={labelStyle(variant)}>
-                    Nominal rate (decimal)
+                    Interest rate (%)
                     <input
                       type="number"
-                      step="0.001"
-                      value={loanDraft.nominal_rate}
-                      onChange={(e) =>
-                        setLoanDraft({
-                          ...loanDraft,
-                          nominal_rate: e.target.value,
-                        })
-                      }
-                      placeholder="e.g. 0.085"
+                      step="0.01"
+                      value={loanRatePct}
+                      onChange={(e) => setLoanRatePct(e.target.value)}
+                      placeholder="e.g. 8.5"
                       style={inputStyle(variant)}
                     />
                   </label>

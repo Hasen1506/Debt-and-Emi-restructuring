@@ -22,7 +22,7 @@
  */
 
 import type { CSSProperties, ReactNode } from 'react';
-import { LCardSoft, LCardHard, LMathBlock, L_T, L_MONO } from './primitives';
+import { LCardSoft, LCardHard, LMathBlock, L_T, L_MONO, lGridColumns } from './primitives';
 
 // ─── Header: CLI line + hero question ──────────────────────────────────
 export function LToolHeader({
@@ -178,7 +178,7 @@ export function LToolVerdict({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: `repeat(${Math.min(kpi.length, 4)}, 1fr)`,
+            gridTemplateColumns: lGridColumns(Math.min(kpi.length, 4), 140),
             gap: 1,
             background: L_T.ink,
             border: `1px solid ${L_T.ink}`,

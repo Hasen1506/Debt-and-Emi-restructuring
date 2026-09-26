@@ -6,7 +6,7 @@
  * Sections, top to bottom (matches prototype §4.5):
  *   1. CLI summary line
  *   2. 4-cell KPI: TOTAL OUTSTANDING / WEIGHTED APR / TOTAL EMI / NEXT RESET
- *   3. OPEN POSITIONS · DETAILED  (LDebtsTable with POST-TAX column)
+ *   3. OPEN POSITIONS · DETAILED  (LDebtsTable)
  *   4. HIGHLIGHTED · LOUDEST DEBT  (accent-bordered card)
  *
  * Per-loan expandable breakdown, lifecycle events panel, today card, cash
@@ -136,7 +136,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
           <LSectionHeader right={<LBracket href="/onboarding">+ ADD DEBT</LBracket>}>
             OPEN POSITIONS · DETAILED
           </LSectionHeader>
-          <LDebtsTable loans={m.loans} country={profile.user.country} showShield />
+          <LDebtsTable loans={m.loans} country={profile.user.country} />
         </section>
 
         {/* Highlighted loudest debt — only block where the border itself goes accent. */}

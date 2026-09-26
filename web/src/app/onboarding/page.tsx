@@ -1056,10 +1056,11 @@ export default function OnboardingPage() {
               />
             </div>
             <Field
-              label="Expected annual income hike (decimal)"
+              label="Expected annual income hike (%)"
+              kind="percent"
               value={annualHikeRate}
               onChange={setAnnualHikeRate}
-              hint="e.g. 0.08 for 8%. Leave 0 if uncertain."
+              hint="e.g. 8. Leave 0 if uncertain."
               info={
                 <>
                   Yearly raise you expect, as a decimal.{' '}
@@ -1110,10 +1111,11 @@ export default function OnboardingPage() {
               />
             </div>
             <Field
-              label="Your marginal tax rate (decimal)"
+              label="Your marginal tax rate (%)"
+              kind="percent"
               value={marginalRate}
               onChange={setMarginalRate}
-              hint="Drives invest-vs-prepay math. e.g. 0.30 for 30%"
+              hint="Tax on your next rupee or dollar of income, e.g. 30."
               info={
                 country === 'IN' ? (
                   <>
@@ -1259,10 +1261,11 @@ export default function OnboardingPage() {
                 />
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <Field
-                    label="Nominal rate (decimal)"
+                    label="Interest rate (%)"
+                    kind="percent"
                     value={l.nominal_rate}
                     onChange={(v) => updateLoan(i, { nominal_rate: v })}
-                    hint="e.g. 0.085 for 8.5%"
+                    hint="The rate on your statement, e.g. 8.5"
                     info={
                       <>
                         The <strong>headline interest rate</strong> your bank
@@ -1455,13 +1458,14 @@ export default function OnboardingPage() {
                   </>
                 )}
                 <Field
-                  label="Prepayment penalty (decimal)"
+                  label="Prepayment penalty (%)"
+                  kind="percent"
                   value={l.prepayment_penalty_pct ?? ''}
                   onChange={(v) =>
                     updateLoan(i, { prepayment_penalty_pct: v })
                   }
                   placeholder="0"
-                  hint="0.02 = 2% on any prepaid principal; 0 for floating retail in India"
+                  hint="2 = 2% of any amount prepaid; 0 for floating-rate home loans in India"
                   suggestion={
                     loanSuggestions[i]?.prepayment_penalty_pct != null
                       ? {

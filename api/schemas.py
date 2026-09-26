@@ -987,6 +987,12 @@ class RestructuringOpportunityOut(_Base):
     # Drives the "I took this — update terms" modal: refi/BT mutate the
     # indexed loan, consolidation rolls them up into a new loan.
     affected_loan_indices: list[int] = Field(default_factory=list)
+    # Fee or switching cost paid up front; months to earn it back; for a
+    # refinance, the saving over the rest of the loan after costs.
+    # `estimated_annual_saving` is the first 12 months after that cost.
+    one_time_cost: Decimal = Decimal("0")
+    breakeven_months: Optional[int] = None
+    lifetime_net_saving: Optional[Decimal] = None
 
 
 class RestructuringResponse(_Base):

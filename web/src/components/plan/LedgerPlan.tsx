@@ -7,7 +7,7 @@
  *   1. CLI summary line
  *   2. 4-cell KPI: CLEAR DATE / TOTAL INTEREST / MONTHS SAVED / OUTLAY
  *   3. TRAJECTORY · TOTAL DEBT OVER TIME  (LTrajectory)
- *   4. RESTRUCTURE · LAYER 1 (opportunities table)
+ *   4. CHEAPER RATES (restructure opportunities)
  *   5. AMORTISATION · NEXT 12 MO  (dense table)
  *   6. SENSITIVITY · LIVE ENGINE  (command-line sliders)
  *
@@ -16,7 +16,7 @@
  * LEDGER_MISSING.md as a separate v2 pass.
  */
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import type { PlanData } from './PlanData';
 import { formatCurrency, formatCurrencyCompact, formatPct } from '@/lib/api';
@@ -33,6 +33,11 @@ import {
   L_MONO,
 } from '@/components/ledger/primitives';
 import { LTrajectory, type LTrajPoint } from '@/components/ledger/LDebtsTable';
+import {
+  EligibilityCaveat,
+  OpportunityAlternative,
+  UpdateTermsButton,
+} from './OpportunityAlternative';
 
 export function LedgerPlan({ plan }: { plan: PlanData }) {
   const ccy = plan.displayCurrency;
@@ -152,13 +157,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
 
         {/* 3. Trajectory */}
         <section>
-          <LSectionHeader
-            right={
-              <>
-                <LBracket>CSV</LBracket> <LBracket>PRINT</LBracket>
-              </>
-            }
-          >
+          <LSectionHeader>
             TRAJECTORY · TOTAL DEBT OVER TIME
           </LSectionHeader>
           {trajPoints.length > 0 ? (
@@ -227,11 +226,11 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             <LSectionHeader
               right={
                 <span style={{ color: L_T.positive, fontWeight: 700 }}>
-                  SAVES {fc(plan.totalAnnualSaving)}/YR
+                  UP TO {fc(plan.totalAnnualSaving)} IN YEAR 1
                 </span>
               }
             >
-              RESTRUCTURE · LAYER 1 (RE-PRICE BEFORE ACCELERATE)
+              CHEAPER RATES · DO THESE BEFORE PAYING EXTRA
             </LSectionHeader>
             <RestructureTable plan={plan} fc={fc} />
           </section>
@@ -260,6 +259,17 @@ const LOAN_SHORT: Record<string, string> = {
 };
 
 // ─── Restructure table ──────────────────────────────────────────────────
+// One row per move: which loan, where to, the rate change, what it costs up
+// front, how many months until that cost is earned back, and the saving in
+// the first year after the cost. Every kind is measured the same way (the
+// engine's `estimated_annual_saving`). Under each row: the engine's
+// one-line headline, the eligibility caveat and "I did this".
+function loanLabel(plan: PlanData, idx: number): string {
+  const l = plan.user.loans[idx];
+  if (!l) return 'LOAN';
+  return `${LOAN_SHORT[l.loan_type] ?? 'LOAN'} · ${(l.bank || '—').split(' ')[0].slice(0, 8)}`.toUpperCase();
+}
+
 function RestructureTable({
   plan,
   fc,
@@ -267,73 +277,144 @@ function RestructureTable({
   plan: PlanData;
   fc: (v: string | number) => string;
 }) {
+  const heads = ['LOAN', 'MOVE TO', 'RATE', 'ONE-TIME COST', 'PAYS BACK IN', 'SAVES IN YEAR 1'];
+  const cell = { padding: '12px 12px', verticalAlign: 'top' as const };
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-      <thead>
-        <tr style={{ borderTop: `2px solid ${L_T.ink}`, borderBottom: `1px solid ${L_T.ink}` }}>
-          {['KIND', 'FROM', 'TO', 'Δ RATE', 'BREAKEVEN', 'SAVES/Y', 'STATUS'].map((h, i) => (
-            <th
-              key={i}
-              style={{
-                padding: '8px 12px',
-                textAlign: i > 2 ? 'right' : 'left',
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                fontSize: 10,
-                color: L_T.muted,
-              }}
-            >
-              {h}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {plan.opportunities.map((o, i) => {
-          const dRate = (Number(o.current_rate) - Number(o.target_rate)) * 100;
-          return (
-            <tr key={i} style={{ borderBottom: `1px dashed ${L_T.faint}` }}>
-              <td
+    <div
+      role="region"
+      aria-label="Cheaper-rate moves"
+      tabIndex={0}
+      style={{ overflowX: 'auto' }}
+    >
+      <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead>
+          <tr style={{ borderTop: `2px solid ${L_T.ink}`, borderBottom: `1px solid ${L_T.ink}` }}>
+            {heads.map((h, i) => (
+              <th
+                key={h}
+                scope="col"
                 style={{
-                  padding: '12px 12px',
+                  padding: '8px 12px',
+                  textAlign: i > 2 ? 'right' : 'left',
                   fontWeight: 700,
-                  color: L_T.accent,
+                  letterSpacing: '0.08em',
+                  fontSize: 10,
+                  color: L_T.muted,
                 }}
               >
-                {o.kind.replace('_', ' ').toUpperCase()}
-              </td>
-              <td style={{ padding: '12px 12px' }}>{formatPct(o.current_rate)}</td>
-              <td style={{ padding: '12px 12px' }}>{formatPct(o.target_rate)}</td>
-              <td
-                style={{
-                  padding: '12px 12px',
-                  textAlign: 'right',
-                  color: dRate > 0 ? L_T.positive : L_T.negative,
-                }}
-              >
-                {dRate > 0 ? '−' : '+'}
-                {Math.abs(dRate).toFixed(2)}pp
-              </td>
-              <td style={{ padding: '12px 12px', textAlign: 'right' }}>—</td>
-              <td
-                style={{
-                  padding: '12px 12px',
-                  textAlign: 'right',
-                  color: L_T.positive,
-                  fontWeight: 700,
-                }}
-              >
-                {fc(o.estimated_annual_saving)}
-              </td>
-              <td style={{ padding: '12px 12px', textAlign: 'right' }}>
-                <LBracket>EXPLORE</LBracket>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {plan.opportunities.map((o, i) => {
+            const loans = (o.affected_loan_indices ?? []).map((idx) => loanLabel(plan, idx));
+            const saving = Number(o.estimated_annual_saving);
+            const months = o.breakeven_months;
+            return (
+              <Fragment key={i}>
+                <tr>
+                  <td style={{ ...cell, fontWeight: 700, color: L_T.accent }}>
+                    {loans.length > 0 ? loans.map((l) => <div key={l}>{l}</div>) : '—'}
+                  </td>
+                  <td style={cell}>
+                    {(o.target_bank ?? '—').toUpperCase()}
+                    <div style={{ color: L_T.muted, fontSize: 10, marginTop: 2 }}>
+                      {o.kind.replace('_', ' ').toUpperCase()}
+                    </div>
+                  </td>
+                  <td style={cell}>
+                    {formatPct(o.current_rate)} → {formatPct(o.target_rate)}
+                  </td>
+                  <td style={{ ...cell, textAlign: 'right' }}>
+                    {Number(o.one_time_cost ?? 0) > 0 ? fc(o.one_time_cost ?? 0) : '—'}
+                  </td>
+                  <td style={{ ...cell, textAlign: 'right' }}>
+                    {months == null ? '—' : months <= 1 ? '1 MO' : `${months} MO`}
+                  </td>
+                  <td
+                    style={{
+                      ...cell,
+                      textAlign: 'right',
+                      color: saving > 0 ? L_T.positive : L_T.negative,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {fc(o.estimated_annual_saving)}
+                    {o.lifetime_net_saving != null && (
+                      <div style={{ color: L_T.muted, fontWeight: 400, fontSize: 10, marginTop: 2 }}>
+                        {fc(o.lifetime_net_saving)} OVER THE LOAN
+                      </div>
+                    )}
+                  </td>
+                </tr>
+                <tr style={{ borderBottom: `1px dashed ${L_T.faint}` }}>
+                  <td colSpan={heads.length} style={{ padding: '0 12px 12px', fontSize: 11, color: L_T.muted }}>
+                    {o.headline}.
+                    <EligibilityCaveat kind={o.kind} country={plan.user.country} variant="ledger" />
+                    <UpdateTermsButton
+                      opportunity={o}
+                      user={plan.user}
+                      currency={plan.displayCurrency}
+                      variant="ledger"
+                    />
+                    <OpportunityAlternative opportunity={o} variant="ledger" currency={plan.displayCurrency} />
+                  </td>
+                </tr>
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
+}
+
+type ScheduleCsvRow = {
+  mo: number;
+  date: string;
+  perLoan: Record<number, string>;
+  extra: number;
+  interest: number;
+  principal: number;
+  balance: number;
+  event: string;
+};
+
+function csvCell(v: string | number): string {
+  const t = String(v);
+  return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+}
+
+/** Every month of the schedule as a CSV file (the table may be collapsed). */
+function downloadRowsCSV(rows: ScheduleCsvRow[], banks: string[]) {
+  const header = ['month', 'date', ...banks.map((b) => `pay_${b}`), 'extra', 'interest', 'principal', 'balance', 'event'];
+  const lines = rows.map((r) =>
+    [
+      r.mo,
+      r.date,
+      ...banks.map((_, i) => Math.round(Number(r.perLoan[i] ?? 0))),
+      Math.round(r.extra),
+      Math.round(r.interest),
+      Math.round(r.principal),
+      Math.round(r.balance),
+      r.event,
+    ]
+      .map(csvCell)
+      .join(','),
+  );
+  const blob = new Blob([[header.map(csvCell).join(','), ...lines].join('\n') + '\n'], {
+    type: 'text/csv;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'debt-plan-schedule.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ─── Amortisation §4.4 ──────────────────────────────────────────────────
@@ -359,6 +440,9 @@ function AmortisationSection({
   const trajByMonth = new Map<number, number>(
     plan.trajectory.map((p) => [p.month, p.avalanche]),
   );
+  const interestByMonth = new Map<number, number | undefined>(
+    plan.trajectory.map((p) => [p.month, p.interest]),
+  );
   const scheduledTotal = plan.user.loans.reduce(
     (s, l) => s + Number(l.scheduled_emi || 0),
     0,
@@ -368,31 +452,28 @@ function AmortisationSection({
   // For now we surface ★ cleared (from trajectory) and ⊙ annual review
   // (every 12th month), which both derive purely from plan data.
 
-  type Row = {
-    mo: number;
-    date: string;
-    perLoan: Record<number, string>;
-    extra: number;
-    interest: number;
-    principal: number;
-    balance: number;
-    event: string;
-  };
+  type Row = ScheduleCsvRow;
 
   const rows: Row[] = plan.monthlyPayments.map((row) => {
     const d = monthIndexToDate(row.month, today);
     const date = `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(-2)}`;
     const bal = trajByMonth.get(row.month) ?? 0;
-    const prevBal =
-      trajByMonth.get(row.month - 1) ?? trajByMonth.get(row.month) ?? bal;
-    const drop = prevBal - bal;
     const perLoan = row.perLoan ?? {};
     const totalPay = Object.values(perLoan).reduce(
       (s, v) => s + Number(v),
       0,
     );
-    const interest = Math.max(0, totalPay - drop);
-    const principal = Math.max(0, drop);
+    // The engine's interest for the month. Deriving it from the balance
+    // drop made month 1 all interest (there is no month 0 to compare with).
+    const engineInterest = interestByMonth.get(row.month);
+    const prevBal = trajByMonth.get(row.month - 1);
+    const interest =
+      engineInterest != null
+        ? engineInterest
+        : prevBal != null
+          ? Math.max(0, totalPay - (prevBal - bal))
+          : 0;
+    const principal = Math.max(0, totalPay - interest);
     const extra = Math.max(0, totalPay - scheduledTotal);
     // Event resolution — pick the loudest event for this month.
     let event = '';
@@ -440,7 +521,10 @@ function AmortisationSection({
       <LSectionHeader
         right={
           <>
-            <LBracket>CSV</LBracket> <LBracket>PRINT</LBracket>{' '}
+            <LBracket onClick={() => downloadRowsCSV(rows, plan.user.loans.map((l) => l.bank || 'loan'))}>
+              CSV
+            </LBracket>{' '}
+            <LBracket onClick={() => window.print()}>PRINT</LBracket>{' '}
             <LBracket onClick={() => setExpanded((v) => !v)}>
               {expanded ? '↑ COLLAPSE' : `↓ EXPAND ALL ${totalCount}`}
             </LBracket>

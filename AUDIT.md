@@ -86,22 +86,60 @@ Still open (owner):
 
 ## 3 · User-view audit
 
-In progress. Found so far:
+Each page read as a user would, asking: what is this for, is it said
+twice, and does it agree with the rest of the app?
 
-- **Dead controls.** [CSV] and [PRINT] on the plan chart, the schedule and
-  the home page do nothing; [EXPLORE] in the restructure table does
-  nothing; its BREAKEVEN column is always "—".
-- **Developer text shown to users.** Home: "FULL TRAJECTORY LIVES ON /PLAN
-  — NEEDS THE SIMULATION ENGINE".
-- **Restructure table hides what to do.** It shows "BALANCE TRANSFER
-  49.56% → 3.00%" but not which loan or which bank; the headline and
-  rationale the engine writes are dropped in the ledger skin.
-- **"Saves/yr" means different things.** Refinance: first-year gross
-  saving with no fees; its headline: lifetime saving net of fees.
-  Balance transfer: saving over the promo only (6 months), labelled a year.
-- **Plan start picker** only moves when salary hikes land. The dates,
-  balances and schedule ignore it.
-- **Three places answer "should I refinance?"** with different rules:
-  the /plan restructure scan (1.5 pp above the market median, 1% assumed
-  costs), Loan Check's offer comparison (the real quote, the owed cut,
-  ₹10,000 margin), and the Right Time tool.
+### Fixed
+
+| # | What the user saw | Fix |
+|---|---|---|
+| U1 | **"Saves/yr" meant three things.** Balance transfer: the saving during the promo, after the fee. Refinance: a year's rate difference with no costs, while its headline gave a lifetime figure. Consolidation: the fee was multiplied into the rate (12% × 1.0033), so it all but vanished | One measure everywhere: **interest saved in the first 12 months, minus the one-time cost**. Each move also shows its one-time cost and the month it pays back; refinance adds "over the rest of the loan". The consolidation fee is added to the rate |
+| U2 | **The top-line "saves ₹X/yr" counted a card twice** when it could be balance-transferred or folded into a consolidation loan | The total takes the biggest saving first and skips moves that touch a loan already counted (₹1.85L → ₹1.50L in the test book) |
+| U3 | **Restructure table hid what to do**: no loan, no bank; BREAKEVEN always "—"; [EXPLORE] did nothing | Columns: loan, move to (bank + kind), rate, one-time cost, pays back in, saves in year 1. Under each: the one-line action, the eligibility note and "I took this" (all three existed in the other skins, not in ledger) |
+| U4 | Balance transfer suggested **moving an HDFC card balance to HDFC**; banks don't take transfers from their own cards | The card's own bank is never the target ("HDFC", "HDFC Bank Ltd." match) |
+| U5 | Refinance said "replace your HDFC home loan with a cheaper one from HDFC" | Same bank reads as "ask HDFC to move your home loan to the rate it offers new borrowers"; floating Indian home loans point to Loan Check first (part of the gap may be cuts already owed) |
+| U6 | The scan's comment said personal and education loans are checked for refinance; the gate only allows home and car, so the loop did nothing for them | Loop matches the gate; comment corrected |
+| U7 | **Home told an over-budget user to pay a whole loan off as "extra"** (with no surplus it fell back to the balance: "PAY ₹80,000 EXTRA") | With no surplus: "Pay the minimums · find ₹X/mo" |
+| U8 | Home's "saves ~₹X/yr" was the whole balance's interest, not what the suggested payment saves (₹65,800 extra → "₹39,648/yr") | Interest the extra avoids: ₹32,610 |
+| U9 | **Home's loan table marked the 8.5% home loan "PAY EXTRA" and the 49.6% card "AUTO"**, the opposite of the card above it (it assumed row 1 was the dearest) | The dearest loan is "PAY EXTRA", the rest "MINIMUM" |
+| U10 | Two columns, EFFECTIVE and POST-TAX, always showed the same number | POST-TAX removed |
+| U11 | Placeholders: "FULL TRAJECTORY LIVES ON /PLAN — NEEDS THE SIMULATION ENGINE", "DEBT-FREE → SEE /PLAN · NEEDS SIMULATION", a **made-up ★★★★☆ rating**, "CLEAR · BAND — P10 → P90" that never had a value | Removed; the debt-free cell says "See plan → date + monthly schedule" |
+| U12 | Dead [CSV] and [PRINT] on the home page and the /plan chart | Removed; on the schedule they now work (CSV of every month, print) |
+| U13 | "WHY?" and "SHOW MATH ↓" both went to /plan; "show formula ↓" went to /plan, where there is no formula | One "Why? See the plan →"; the rate breakdown links to /debts, where it is |
+| U14 | "Effective APR", "real rate", "post-tax", "weighted" on one screen for one idea | "Effective rate", explained once as "after fees + tax" |
+| U15 | **14 rate fields asked for decimals** ("0.30 for 30%") while others took percentages, sometimes on the same form (life events: reset rate in %, new loan rate in decimal) | Every rate field takes a percentage; the value saved is unchanged |
+| U16 | **The schedule's month 1 was all interest, no principal** (worked out from the balance change, with no month 0) | Uses the engine's interest for each month |
+| U17 | **CSV dates a month early in India**: `toISOString()` turns local midnight on the 1st into the previous day in UTC. Same slip in five "today" checks (advance-tax, life events) between midnight and 05:30 | Local dates throughout (`localIsoDate`) |
+| U18 | **Pages scrolled sideways on a 390 px phone**: /plan (the 4-up summary strip, the restructure table), home (10 tools in 7 columns), and seven tools (fixed 2- and 3-column forms) | Grids wrap to fewer columns on narrow screens (`fitColumns`); wide tables scroll inside a labelled region. All 19 pages checked fit at 390 px |
+
+### For the owner to decide
+
+1. **Three skins × three home modes is nine versions of each page.**
+   Every fix above had to be found per skin: the dead controls, the
+   duplicate column and the missing loan names were only in ledger; the
+   "Saves/yr" label was in all three. Suggest one skin as the product and
+   the others as colour themes over shared components.
+2. **Ten tools, several answering the same question.**
+   - "Prepay or invest?": Windfall, Recompute, Invest-vs-Prepay and Cash
+     Yield each run their own version.
+   - "Should I refinance?": the /plan restructure scan, Loan Check's offer
+     comparison and Right Time use three different rules (1.5 points
+     over the market median with 1% assumed costs; the real quote with a
+     ₹10,000 margin; an expected rate cut). U5 now points the scan to
+     Loan Check; merging them would remove the rest.
+   Suggest folding Recompute into /plan (it re-runs the plan), and
+   Windfall + Cash Yield into one "I have spare cash" tool.
+3. **Plan start month** moves only when salary hikes land; the dates,
+   balances and schedule ignore it. Either apply it everywhere or remove it.
+4. **Recompute and the /plan sliders** run a plainer simulation than /plan
+   (no plan start, planned resets, goals or emergency-fund split), so their
+   "before" date can differ from the one /plan shows.
+5. **Debt-free date on the home page.** It needs the same simulation /plan
+   runs; showing it means calling that loader from home (slower first
+   paint) rather than a second, simpler estimate that could disagree.
+6. **The ledger skin's command-line header** ("PLAN · STRATEGY=AVALANCHE ·
+   HORIZON=234MO · MARGINAL=21%") is styling, but reads as debug output.
+7. **Mixed-currency loan tables**: the ledger debts table formats every
+   loan in the home currency, so a $25k loan shows as ₹25,000 for an NRI.
+8. **Card minimums count as "extra"** in the ledger schedule, because a
+   card's scheduled EMI is 0.

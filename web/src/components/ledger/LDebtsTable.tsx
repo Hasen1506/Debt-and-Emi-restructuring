@@ -32,12 +32,10 @@ const LOAN_TYPE_SHORT: Record<LoanType, string> = {
 export function LDebtsTable({
   loans,
   country,
-  showShield = false,
   mobile,
 }: {
   loans: LoanWithEffective[];
   country: Country;
-  showShield?: boolean;
   mobile?: boolean;
 }) {
   if (loans.length === 0) {
@@ -54,6 +52,7 @@ export function LDebtsTable({
     (sum, d) => sum + Number(d.loan.outstanding || 0),
     0,
   );
+  const dearest = loans.reduce((best, d) => (d.effective.gt(best.effective) ? d : best), loans[0]);
   const totalEmi = loans.reduce((sum, d) => sum + Number(d.loan.scheduled_emi || 0), 0);
   const headers = [
     '#',
@@ -61,7 +60,6 @@ export function LDebtsTable({
     'TYPE',
     'RATE',
     'EFFECTIVE',
-    showShield ? 'POST-TAX' : null,
     'OUTSTANDING',
     'EMI',
     'TENURE',
@@ -101,15 +99,13 @@ export function LDebtsTable({
         </thead>
         <tbody>
           {loans.map((d, i) => {
-            const isHighest = i === 0;
+            // The loan to pay extra on is the dearest one, wherever it sits
+            // in the list (it used to be row 1, which was often the home loan).
+            const isHighest = d === dearest;
             const tenureMo = Number(d.loan.tenure_months_remaining || 0);
             const tenureLabel =
               d.loan.loan_type === 'credit_card' ? 'REV' : tenureMo > 0 ? `${tenureMo}mo` : '—';
-            const nextLabel = isHighest
-              ? 'PAY EXTRA'
-              : d.loan.rate_type === 'floating'
-                ? 'AUTO · FLT'
-                : 'AUTO';
+            const nextLabel = isHighest ? 'PAY EXTRA' : 'MINIMUM';
             return (
               <tr
                 key={i}
@@ -138,20 +134,6 @@ export function LDebtsTable({
                 >
                   {fmtPct(d.effective)}
                 </td>
-                {showShield && (
-                  <td
-                    style={{
-                      padding: '10px 12px',
-                      textAlign: 'right',
-                      color: L_T.ink,
-                    }}
-                  >
-                    {/* effective already folds the deduction shield in our
-                     *  engine, so post-tax = effective. Listed in
-                     *  LEDGER_MISSING.md as a parity gap with the prototype. */}
-                    {fmtPct(d.effective)}
-                  </td>
-                )}
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
                   {fc(d.loan.outstanding)}
                 </td>
@@ -176,7 +158,7 @@ export function LDebtsTable({
           })}
           <tr style={{ borderTop: `2px solid ${L_T.ink}` }}>
             <td
-              colSpan={showShield ? 6 : 5}
+              colSpan={5}
               style={{
                 padding: '10px 12px',
                 color: L_T.muted,

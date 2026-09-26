@@ -47,8 +47,16 @@
   launch), live rates (5, first live fetch still to check), the axe pass
   and hydration fixes (6.2), the API fuzz and input bounds (6.3), size cap,
   headers and rate limits (6.4), field errors on every tool.
-  **608 tests passing.** Still missing: US letters, cross-browser and load
+  **646 tests passing.** Still missing: US letters, cross-browser and load
   suites (6.1, 6.5), verified outcome reports, a manual screen-reader run.
+- **Bug hunt and user-view audit (26 Sep 2026): see [`AUDIT.md`](AUDIT.md).**
+  Fixed: the /plan chart and every date a month late, 10 engine bugs
+  (payoff order vs investing, runaway floating rates, card minimums, tax
+  shields, currency totals), 8 tool and slider bugs, three disagreeing tax
+  tables, and 18 user-facing problems (one "saves in year 1" measure with
+  pay-back, a home page that told over-budget users to pay a loan off,
+  placeholders and dead buttons, decimal rate inputs, sideways scrolling on
+  phones). Eight product decisions are listed there for the owner.
 
 ---
 
@@ -597,6 +605,18 @@ yes/no from the owner before it is scheduled.
       reset". Ties into "Remember the offer comparison" above.
 - [ ] **Announce results on every tool.** Only Loan Check puts its result in
       an `aria-live` region; do the same for the other tools' verdicts.
+- [ ] **One skin, not three.** Existing, editorial and ledger each render
+      every page, and the home page has three modes on top, so a bug has to
+      be found and fixed up to nine times (AUDIT.md §3, decision 1). Pick one
+      product skin; keep the others as colour themes over shared parts.
+- [ ] **Fewer, merged tools.** Four tools answer "prepay or invest?" and
+      three answer "should I refinance?" with different rules (AUDIT.md §3,
+      decision 2). Fold Recompute into /plan; merge Windfall and Cash Yield.
+- [ ] **Debt-free date on the home page** from the same loader /plan uses,
+      so the two never disagree (AUDIT.md §3, decision 5).
+- [ ] **A phone-width check in CI.** Seven tools and /plan scrolled sideways
+      at 390 px although the manual pass said none did; the parked
+      Playwright suite (6.2) should assert `scrollWidth ≤ 390` on every page.
 
 ---
 

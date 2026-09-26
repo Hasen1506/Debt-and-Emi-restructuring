@@ -45,6 +45,12 @@ export const MONTH_NAMES_SHORT = [
  * is set to midday-local to avoid DST-boundary off-by-one when this Date is
  * later passed to `toLocaleDateString` in another tz.
  */
+/** YYYY-MM-DD of a date in local time. `toISOString()` gives the UTC
+ *  date, which in India is yesterday until 05:30. */
+export function localIsoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function getCountryToday(country: Country): Date {
   const tz = COUNTRY_TZ[country];
   const now = new Date();

@@ -149,12 +149,12 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
           {opportunities.length > 0 && (
             <>
               {' '}
-              The restructures below could arrive sooner — they&apos;re worth
-              about{' '}
+              The cheaper rates below could bring that date closer. Taken
+              together they save about{' '}
               <strong style={{ color: 'var(--positive)' }}>
                 {fmt(plan.totalAnnualSaving)}
               </strong>{' '}
-              a year if you act on them.
+              in the first year, after fees.
             </>
           )}
         </p>
@@ -290,12 +290,12 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
                     <RelationshipBadge variant="editorial" />
                   )}
                   <RateAsOfBadge asOf={opp.target_rate_as_of} variant="editorial" />{' '}
-                  {opp.rationale} Saves{' '}
-                  <strong style={{ color: 'var(--positive)' }}>
-                    {fmt(opp.estimated_annual_saving)}
-                  </strong>
-                  /yr — rate {formatPct(opp.current_rate)} →{' '}
-                  {formatPct(opp.target_rate)}.
+                  {opp.rationale} Rate {formatPct(opp.current_rate)} →{' '}
+                  {formatPct(opp.target_rate)}
+                  {opp.breakeven_months != null && (
+                    <>; the fees are earned back in {opp.breakeven_months} month{opp.breakeven_months === 1 ? '' : 's'}</>
+                  )}
+                  .
                   <EligibilityCaveat
                     kind={opp.kind}
                     country={plan.user.country}

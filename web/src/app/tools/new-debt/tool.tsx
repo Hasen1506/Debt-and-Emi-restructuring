@@ -25,6 +25,7 @@ import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
+import { fitColumns } from '@/lib/grid';
 
 const VERDICT_LABEL: Record<NewDebtResponse['verdict'], string> = {
   take: 'Take the EMI',
@@ -216,7 +217,7 @@ export function NewDebtTool() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <Card>
-        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: fitColumns(2, 200) }}>
           <Select
             label="What kind of loan are you considering?"
             value={loanType}
@@ -310,7 +311,7 @@ export function NewDebtTool() {
       <Card>
         <form
           onSubmit={check}
-          style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          style={{ display: 'grid', gap: 12, gridTemplateColumns: fitColumns(2, 200) }}
         >
           <Field
             label="Processing fee at this bank"
@@ -365,7 +366,7 @@ export function NewDebtTool() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
+              gridTemplateColumns: fitColumns(4, 140),
               gap: 12,
               marginBottom: impact ? 12 : 0,
             }}
@@ -595,6 +596,7 @@ function BankRateTable({
   if (top.length === 0) return null;
   const isInstallment = loanType !== 'credit_card';
   return (
+    <div role="region" aria-label="Lender rates" tabIndex={0} style={{ overflowX: 'auto' }}>
     <table
       style={{
         width: '100%',
@@ -693,5 +695,6 @@ function BankRateTable({
         })}
       </tbody>
     </table>
+    </div>
   );
 }

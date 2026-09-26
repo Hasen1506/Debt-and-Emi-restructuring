@@ -27,6 +27,7 @@ import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
+import { fitColumns } from '@/lib/grid';
 
 
 // The API's field names → this form's inputs, so a rejected value's
@@ -140,7 +141,7 @@ export function RecomputeTool() {
       <Card>
         <form
           onSubmit={check}
-          style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          style={{ display: 'grid', gap: 12, gridTemplateColumns: fitColumns(2, 200) }}
         >
           <Field
             label="Extra payment"
@@ -193,7 +194,7 @@ export function RecomputeTool() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateColumns: fitColumns(3, 140),
               gap: 12,
             }}
           >

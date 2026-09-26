@@ -271,10 +271,11 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
                   hint="Pre-tax annual from this source alone"
                 />
                 <Field
-                  label="TDS / withholding (decimal)"
+                  label="TDS / withholding (%)"
+                  kind="percent"
                   value={s.tds_pct ?? ''}
                   onChange={(v) => updateStream(i, { tds_pct: v })}
-                  hint="0.3 = 30% withheld at source; 0 = you owe full tax yourself"
+                  hint="30 = 30% withheld at source; 0 = you owe the full tax yourself"
                   info={
                     <>
                       The fraction of this stream&apos;s tax that&apos;s

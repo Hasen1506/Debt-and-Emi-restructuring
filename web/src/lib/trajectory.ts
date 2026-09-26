@@ -14,6 +14,7 @@ interface MonthBucket {
   total: number;
   byCcy: Record<string, number>;
   byLoanIndex: Record<string, number>;
+  interest: number;
 }
 
 export function mergeTrajectories(
@@ -44,6 +45,7 @@ export function mergeTrajectories(
       // the chart compares loan-vs-loan within the chosen strategy, not
       // against the minimums baseline.
       balancesByLoanIndex: aPt?.byLoanIndex,
+      interest: aPt?.interest ?? 0,
     });
   }
   return points;
@@ -62,7 +64,12 @@ function byMonth(rows: TrajectoryPointRaw[]): Map<number, MonthBucket> {
     for (const [idx, val] of Object.entries(rawLoan)) {
       byLoanIndex[idx] = Number(val) || 0;
     }
-    out.set(r.month, { total: Number(r.balance) || 0, byCcy, byLoanIndex });
+    out.set(r.month, {
+      total: Number(r.balance) || 0,
+      byCcy,
+      byLoanIndex,
+      interest: Number(r.interest_paid) || 0,
+    });
   }
   return out;
 }

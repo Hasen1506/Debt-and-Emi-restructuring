@@ -5,9 +5,12 @@
  * narrow decision: a few inputs → one verdict + a couple of numbers.
  */
 import { ReactNode, useEffect, useId, useRef, useState } from 'react';
+import Decimal from 'decimal.js';
 import { BANKS_IN, BANKS_US } from '@/lib/banks';
 
-export type FieldKind = 'decimal' | 'integer' | 'text' | 'date';
+/** 'percent': the caller's value is a fraction ("0.085"); the field shows
+ *  and accepts a percentage ("8.5"). */
+export type FieldKind = 'decimal' | 'integer' | 'text' | 'date' | 'percent';
 
 /**
  * Tap-to-toggle info tooltip. Renders an ⓘ button inline with a label and
@@ -166,8 +169,23 @@ export function Field({
   suggestion?: { value: string; label: string };
 }) {
   const inputId = useId();
-  const isNumeric = kind === 'decimal' || kind === 'integer';
+  const isPercent = kind === 'percent';
+  const isNumeric = kind === 'decimal' || kind === 'integer' || isPercent;
   const hasSuggestion = !!suggestion && value === '';
+  // Percent fields keep the typed text ("8.", "8.5") and hand the caller
+  // the fraction; re-derived only when the value changes from outside.
+  const [pctText, setPctText] = useState(() => fractionToPercentText(value));
+  useEffect(() => {
+    if (!isPercent) return;
+    setPctText((t) => (percentTextToFraction(t) === value ? t : fractionToPercentText(value)));
+  }, [isPercent, value]);
+  const shown = isPercent ? pctText : value;
+  const handleChange = (raw: string) => {
+    if (!isPercent) return onChange(raw);
+    setPctText(raw);
+    const f = percentTextToFraction(raw);
+    onChange(f ?? raw);
+  };
   const handleFocus = () => {
     if (hasSuggestion && suggestion) onChange(suggestion.value);
   };
@@ -179,12 +197,12 @@ export function Field({
         aria-describedby={describedBy(inputId, hint, error)}
         aria-invalid={error ? true : undefined}
         className={isNumeric ? 'num' : undefined}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={shown}
+        onChange={(e) => handleChange(e.target.value)}
         onFocus={handleFocus}
         type={kind === 'date' ? 'date' : 'text'}
         inputMode={
-          kind === 'decimal' ? 'decimal' : kind === 'integer' ? 'numeric' : 'text'
+          kind === 'decimal' || isPercent ? 'decimal' : kind === 'integer' ? 'numeric' : 'text'
         }
         autoComplete={kind === 'text' ? 'off' : undefined}
         placeholder={placeholder}
@@ -227,6 +245,22 @@ export function Field({
       )}
     </div>
   );
+}
+
+/** "0.085" → "8.5"; anything that isn't a number is shown as typed. */
+export function fractionToPercentText(v: string): string {
+  const t = v.trim();
+  if (t === '' || !/^-?\d*\.?\d+$/.test(t)) return t;
+  return new Decimal(t).mul(100).toDecimalPlaces(6).toString();
+}
+
+/** "8.5" or "8.5%" → "0.085"; null when it isn't a number yet. */
+export function percentTextToFraction(v: string): string | null {
+  // A trailing "." is mid-typing ("8." on the way to "8.5").
+  const t = v.trim().replace(/%$/, '').trim().replace(/\.$/, '');
+  if (t === '') return '';
+  if (!/^-?\d*\.?\d+$/.test(t)) return null;
+  return new Decimal(t).div(100).toString();
 }
 
 function describedBy(id: string, hint?: string, error?: string | null): string | undefined {

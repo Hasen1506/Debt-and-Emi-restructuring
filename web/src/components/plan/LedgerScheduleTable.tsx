@@ -40,7 +40,9 @@ function toCSV(rows: TrajectoryPoint[], start: Date): string {
   const body = rows
     .map((r) => {
       const d = monthIndexToDate(r.month, start);
-      const date = d.toISOString().slice(0, 7);
+      // Local year-month: toISOString() is UTC, so east of UTC (India) the
+      // 1st of a month at local midnight printed as the previous month.
+      const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const delta = r.minimums - r.avalanche;
       return `${r.month},${date},${Math.round(r.avalanche)},${Math.round(r.minimums)},${Math.round(delta)}`;
     })
@@ -53,7 +55,7 @@ function downloadCSV(rows: TrajectoryPoint[], start: Date) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `finoptima-schedule-${start.toISOString().slice(0, 10)}.csv`;
+  a.download = `finoptima-schedule-${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

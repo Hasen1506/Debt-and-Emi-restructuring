@@ -695,7 +695,15 @@ export interface RestructuringOpportunity {
   kind: RestructuringKind;
   headline: string;
   rationale: string;
+  /** Interest saved in the first 12 months, minus the one-time cost. The
+   *  same measure for every kind. */
   estimated_annual_saving: string;
+  /** Fee or switching cost paid up front. */
+  one_time_cost?: string;
+  /** Months of lower interest needed to earn back `one_time_cost`. */
+  breakeven_months?: number | null;
+  /** Refinance only: saving over the rest of the loan, after costs. */
+  lifetime_net_saving?: string | null;
   affected_loan_banks: string[];
   target_bank: string | null;
   target_rate: string;

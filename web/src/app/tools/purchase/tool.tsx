@@ -37,6 +37,7 @@ import {
   totalsByGoal,
 } from '@/lib/goal-contributions';
 import { computeGoalSlip, materialSlips } from '@/lib/goal-slip';
+import { fitColumns } from '@/lib/grid';
 
 const TYPE_OPTIONS: { value: PurchaseType; label: string }[] = [
   { value: 'home', label: 'Home' },
@@ -203,7 +204,7 @@ export function PurchaseTool() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: fitColumns(3, 140),
           gap: 12,
         }}
       >
@@ -392,7 +393,7 @@ function AnalysisPanel({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: fitColumns(3, 140),
           gap: 10,
         }}
       >
@@ -444,7 +445,7 @@ function AnalysisPanel({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateColumns: fitColumns(3, 140),
               gap: 8,
               fontSize: 12,
             }}

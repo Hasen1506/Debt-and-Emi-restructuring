@@ -787,10 +787,11 @@ function GoalCard({
           ) : null}
         </div>
         <Field
-          label="Buffer % (decimal)"
+          label="Buffer (%)"
+          kind="percent"
           value={goal.bufferPct}
           onChange={(v) => onPatch({ bufferPct: v })}
-          hint="0.10 = 10% extra on top of target amount"
+          hint="10 = 10% extra on top of the target amount"
         />
       </div>
 

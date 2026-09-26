@@ -347,3 +347,19 @@ def test_baseline_applies_planned_rate_resets(client, india_user_payload):
     })
     assert with_reset.status_code == 200, with_reset.text
     assert D(with_reset.json()["total_interest_paid"]) > D(plain["total_interest_paid"])
+
+
+def test_restructuring_total_counts_each_loan_once():
+    """A card can be balance-transferred or folded into a consolidation
+    loan, not both; the total used to add both."""
+    from api.routes.restructuring import _non_overlapping_total
+    from engine.restructuring_scan import scan_all
+    from engine.tests.test_restructuring import _mixed_book
+    opps = scan_all(_mixed_book(), Decimal("0.3"))
+    naive = sum(o.estimated_annual_saving for o in opps)
+    total = _non_overlapping_total(opps)
+    assert total < naive
+    by_kind = {o.kind: o.estimated_annual_saving for o in opps}
+    # Consolidation (loans 1-3, card included) + refinance (loan 0); the
+    # card's own transfer overlaps the consolidation and is skipped.
+    assert total == by_kind["consolidation"] + by_kind["refinance"]

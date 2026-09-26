@@ -23,6 +23,7 @@ import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
+import { fitColumns } from '@/lib/grid';
 
 type Urgency = 'now' | '3m_ok' | '6m_ok';
 
@@ -187,7 +188,7 @@ export function RightTimeTool() {
       <Card>
         <form
           onSubmit={check}
-          style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}
+          style={{ display: 'grid', gap: 12, gridTemplateColumns: fitColumns(2, 200) }}
         >
           <Select
             label="Loan type"
@@ -282,14 +283,16 @@ export function RightTimeTool() {
           {showAdvanced && (
             <>
               <Field
-                label="Override current rate (decimal)"
+                label="Override current rate (%)"
+                kind="percent"
                 value={currentRateOverride}
                 error={at('currentRateOverride')}
                 onChange={setCurrentRateOverride}
                 hint={`leave blank to use ${bank || 'bank'} median`}
               />
               <Field
-                label="Override 6-mo average rate (decimal)"
+                label="Override 6-month average rate (%)"
+                kind="percent"
                 value={sixMoOverride}
                 error={at('sixMoOverride')}
                 onChange={setSixMoOverride}
@@ -311,7 +314,7 @@ export function RightTimeTool() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateColumns: fitColumns(3, 140),
               gap: 12,
             }}
           >

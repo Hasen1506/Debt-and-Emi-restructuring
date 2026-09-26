@@ -361,7 +361,7 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
             </div>
             <div style={{ textAlign: 'right' }}>
               <div className="muted" style={{ fontSize: 12 }}>
-                Estimated annual saving
+                Saved in year 1, after fees
               </div>
               <div
                 className="num"
@@ -418,7 +418,7 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
                   </div>
                   <div style={{ textAlign: 'right', minWidth: 120 }}>
                     <div className="muted" style={{ fontSize: 11 }}>
-                      Saves / yr
+                      Year 1, after fees
                     </div>
                     <div
                       className="num"
@@ -429,6 +429,11 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
                     <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
                       {formatPct(opp.current_rate)} → {formatPct(opp.target_rate)}
                     </div>
+                    {opp.breakeven_months != null && (
+                      <div className="muted" style={{ fontSize: 11 }}>
+                        Fees back in {opp.breakeven_months} mo
+                      </div>
+                    )}
                   </div>
                 </div>
                 <EligibilityCaveat
