@@ -7,7 +7,7 @@ stay thin — they parse → convert → call engine → wrap in response model.
 from __future__ import annotations
 from datetime import date
 from decimal import Decimal
-from typing import Annotated, Any, Dict, Optional
+from typing import Annotated, Any, Dict, Literal, Optional
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -678,6 +678,8 @@ class SurplusAllocationOut(_Base):
 
 
 class SimulateResponse(_Base):
+    # 1 = this month. 0 = nothing is owed now (no loans, or all at 0);
+    # None = not cleared within the horizon.
     debt_free_month: Optional[int]
     total_interest_paid: Decimal
     total_invested: Decimal
@@ -817,7 +819,7 @@ class BorrowTimingRequest(_In):
     six_month_avg: Rate
     consensus_change_bps: int = Field(..., ge=-1000, le=1000)
     months_to_decision: int = Field(..., ge=0, le=120)
-    urgency: str                      # "now" | "3m_ok" | "6m_ok"
+    urgency: Literal["now", "3m_ok", "6m_ok"]
     principal: Amount
     tenure_months: int = Field(..., ge=1, le=MAX_MONTHS)
     # Currency for the wording and the "worth waiting" threshold.

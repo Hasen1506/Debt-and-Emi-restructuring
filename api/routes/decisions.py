@@ -90,11 +90,16 @@ def recompute(req: QuickRecomputeRequest) -> QuickRecomputeResponse:
         user, strategy=req.strategy, horizon_months=req.horizon_months,
         marginal_rate=req.marginal_rate,
     )
-    # Apply the lump-sum payment to the chosen loan, then resimulate.
+    # Apply the lump-sum payment to the chosen loan, then resimulate. An
+    # index past the last loan used to "save nothing" instead of saying so.
+    if not 0 <= req.target_loan_index < len(user.loans):
+        raise HTTPException(status_code=422, detail={
+            "field": "target_loan_index",
+            "message": "Pick one of your loans.",
+        })
     scratch = deepcopy(user)
-    if 0 <= req.target_loan_index < len(scratch.loans):
-        l = scratch.loans[req.target_loan_index]
-        l.outstanding = max(D("0"), l.outstanding - req.extra_payment)
+    l = scratch.loans[req.target_loan_index]
+    l.outstanding = max(D("0"), l.outstanding - req.extra_payment)
     new = simulate_plan(
         scratch, strategy=req.strategy, horizon_months=req.horizon_months,
         marginal_rate=req.marginal_rate,

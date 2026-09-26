@@ -197,3 +197,21 @@ def test_windfall_zero_amount_is_a_named_422(client, india_user_payload):
     r = client.post("/api/windfall", json={"amount": "0", "user": india_user_payload})
     assert r.status_code == 422
     assert r.json()["detail"]["field"] == "amount"
+
+
+def test_right_time_rejects_unknown_urgency(client):
+    r = client.post("/api/right-time-to-borrow", json={
+        "current_rate": "0.09", "six_month_avg": "0.09",
+        "consensus_change_bps": -50, "months_to_decision": 3,
+        "urgency": "whenever", "principal": "500000", "tenure_months": 36,
+    })
+    assert r.status_code == 422
+
+
+def test_quick_recompute_rejects_a_loan_that_is_not_there(client, india_user_payload):
+    """Index 7 of 2 loans used to answer 'saves nothing'."""
+    r = client.post("/api/quick-recompute", json={
+        "user": india_user_payload, "extra_payment": "100000", "target_loan_index": 7,
+    })
+    assert r.status_code == 422
+    assert r.json()["detail"]["field"] == "target_loan_index"

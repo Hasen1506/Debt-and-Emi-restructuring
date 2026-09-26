@@ -195,6 +195,29 @@ def test_borrow_now_when_hike_expected():
     assert v.verdict == "borrow_now"
 
 
+def test_borrow_now_says_why_when_the_cut_is_real_but_small():
+    """A 50bps cut on ₹5L over 3 years saves ~₹4,180 — below the ₹5,000 bar.
+    It used to say 'No meaningful change expected (-50bps)'."""
+    v = right_time_to_borrow(
+        current_rate=D("0.09"), six_month_avg=D("0.09"),
+        consensus_change_bps=-50, months_to_decision=3,
+        urgency="6m_ok", principal=D("500000"), tenure_months=36,
+    )
+    assert v.verdict == "borrow_now"
+    assert "No meaningful change" not in v.detail
+    assert "save only" in v.detail and "₹4,180" in v.detail
+
+
+def test_borrow_now_says_why_when_the_cut_is_far_off():
+    v = right_time_to_borrow(
+        current_rate=D("0.09"), six_month_avg=D("0.09"),
+        consensus_change_bps=-100, months_to_decision=12,
+        urgency="6m_ok", principal=D("5000000"), tenure_months=240,
+    )
+    assert v.verdict == "borrow_now"
+    assert "12 months" in v.detail
+
+
 # ─── Phase 3 review: same bug classes as Loan Check ──────────────────────────
 
 import pytest  # noqa: E402

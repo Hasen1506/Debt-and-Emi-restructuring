@@ -419,8 +419,16 @@ def right_time_to_borrow(
             detail = "User flagged urgent — borrow now; locking the current rate is the right call."
         elif consensus_change_bps > 0:
             detail = f"Hike of {consensus_change_bps}bps expected — borrow now to lock current rate."
-        else:
+        elif consensus_change_bps > -25:
             detail = f"No meaningful change expected ({consensus_change_bps:+d}bps). Borrow now."
+        # A real cut that is too far off, or too small to matter, used to
+        # read "no meaningful change expected" as well.
+        elif months_to_decision > 6:
+            detail = (f"A {-consensus_change_bps}bps cut is expected in {months_to_decision} months — "
+                      f"too long to put the loan off for. Borrow now.")
+        else:
+            detail = (f"A {-consensus_change_bps}bps cut would save only ~{money(estimated_savings, country)} "
+                      f"over the loan — not worth waiting for. Borrow now.")
 
     return BorrowTimingVerdict(
         current_rate=current_rate, six_month_avg=six_month_avg,
