@@ -41,6 +41,12 @@
   - Ledger skin screens, plus the list of sub-features the skin dropped (`LEDGER_MISSING.md`)
 - **Not present at all:** Loan Check, lender letters, lender-outcome network,
   offer comparison, live rate feeds, Playwright / axe / fuzz / load test suites, CI.
+- **Rebuilt so far (26 Sep 2026, branch `claude/vibrant-bardeen-5bsiyj`):**
+  CI (Phase 0), Loan Check (1), India letters and escalation (2), offer
+  comparison (3), live rates (5, first live fetch still to check), the API
+  fuzz and input bounds (6.3), size cap, headers and rate limits (6.4).
+  **530 tests passing.** Still missing: the outcomes network (4), US letters,
+  cross-browser / axe / load suites (6.1, 6.2, 6.5).
 
 ---
 
@@ -103,7 +109,9 @@ fix it is a separate question, and that's where the app helps most.
   - [x] Lint found a real crash: `BudgetMonthCard` returned before its hooks,
         so the hook order changed when the budget moved between zero and
         non-zero. Fixed.
-- [ ] Later phases add their suites to CI: Playwright (3 browsers), axe, the fast fuzz slice.
+- [ ] Later phases add their suites to CI: Playwright (3 browsers), axe.
+  - [x] The fast fuzz slice runs in the normal pytest; the full 20,000-loan
+        run is weekly and on demand (`.github/workflows/fuzz.yml`).
 - [x] `ROADMAP.md` "Running locally" section kept current (§ bottom).
 - [ ] Delete the two recovery branches (`codespace-scaling-lamp-575pwg47jjrh79wv`,
       `recovered-codespace`); both are identical to `main`. **Owner to do**
@@ -286,21 +294,47 @@ under every Loan Check result):
 
 ## Phase 5 · Rates that update themselves — REBUILD
 
-- [ ] Replace the hand-edited `outcome_rate` values in
-      `api/data/central_bank_calendar.json` with fetched data, refreshed **every 6 hours**.
-- [ ] **US:** Fed funds target range from **FRED** (public API).
-- [ ] **India:** repo rate from **RBI's daily release**. The repo rate isn't
-      published on its own there; it sits exactly midway between the SDF and
-      MSF rates, so derive it as their midpoint and cross-check.
+- [x] Current rates no longer come from hand-edited JSON: the verified table
+      in `engine/policy_rates.py` plus decisions the feeds find after it
+      (`api/rates_feed.py`, fetched **every 6 hours** in a background thread).
+      The `current_rates` block is gone from `central_bank_calendar.json`; its
+      meeting list is still kept by hand (used to date new decisions and for
+      the "decision in N days" hint).
+- [x] **US:** Fed funds target range from **FRED** (DFEDTARU/DFEDTARL, the
+      keyless CSV). FRED dates a change the day it takes effect; it is moved
+      back to the FOMC meeting before it.
+- [x] **India:** repo rate from the **RBI website's policy-rate panel**, as the
+      midpoint of SDF and MSF, and it must equal the repo rate printed beside
+      them. A new rate is dated to the MPC meeting of the last 14 days.
+- [x] A fetch is used only if it agrees with the verified table where they
+      overlap, and each new decision is in order, 0–20%, a real change, and
+      at most 1 point (`policy_rates.apply_live`). Otherwise it counts as a
+      failed fetch.
 - [x] Before shipping, re-verify the current values from the official sources.
       Confirmed 26 Sep 2026: RBI **5.25%** (cut 5 Dec 2025, held Feb/Apr/Jun/Aug
       2026; SDF 5.00%, MSF 5.50%; next decision 7 Oct) and the Fed raised to
       **3.75–4.00% on 16 Sep 2026**. `central_bank_calendar.json` corrected
       (it said RBI 6.25% / Fed 4.50%).
-- [ ] `GET /api/rates/feed-health`: last successful fetch per source, age, status.
-- [ ] Uptime alerting on `feed-health` (e.g. a free external monitor).
-- [ ] Fallback: if a feed fails, keep the last good value, flag it "as of <date>", and never crash.
-- [ ] Refresh the rate cards (last verified May 2026) and show the as-of date everywhere a rate is quoted.
+- [ ] **Check the first live fetch — at deploy.** This sandbox can't reach
+      FRED or rbi.org.in (proxy 403), so the parsers were tested on FRED-format
+      CSV built from the table and a **hand-made copy** of the RBI panel
+      (`api/tests/fixtures/rbi_policy_rates.html`). After deploying, open
+      `/api/rates/feed-health`: both sources should say `ok`. Then save the real
+      RBI page over the fixture. If RBI blocks the fetch or changes the page,
+      feed health says so and the app keeps the verified table.
+- [x] `GET /api/rates/feed-health`: last good fetch per source, age, error,
+      value; **503** once a source has gone 24 hours without a good fetch.
+- [ ] Uptime alerting on `feed-health` (e.g. a free external monitor that
+      alerts on any non-200). **Owner to set up** after deploy.
+- [x] Fallback: a failed feed keeps the last good value (saved across
+      restarts in `api/data/rates_live.json`, not committed), feed health shows
+      the error and age, and nothing crashes.
+- [x] Show the as-of date everywhere a policy rate is quoted: Loan Check says
+      "RBI repo rate as of … Source: …", the central-bank hint card shows it.
+  - [x] **Found and fixed:** the rate-card "as of" badge printed
+        **"Invalid Date"** for labels like "2026-05 industry norms — confirm SoC".
+- [ ] Refresh the rate cards (last verified May 2026). Needs research against
+      each bank's published rates; not done in this batch.
 
 ---
 
@@ -340,18 +374,47 @@ All of these were run and passing before the crash; redo each one and keep it in
       recorded in the screenshots; the axe pass plus a manual VoiceOver/NVDA run should surface it).
 
 ### 6.3 Property / fuzz tests on the engine
-- [ ] 20,000 random loans through the API: no crashes, no negative "amount at
-      stake", no "you" left in any letter.
-- [ ] 300 of those cases in the normal suite (~2 s).
+- [x] **20,000 random loans through the API** (`api/tests/test_api_fuzz.py`):
+      Loan Check, the complaint letters at random stages, and the offer
+      comparison. No server error, every refusal a 422 naming the field, no
+      negative amount, no stray "you" in any letter, no leftovers like
+      "None". Passes (about 2.5 min: `FUZZ_N=20000 FUZZ_FULL=1`); weekly in CI.
+- [x] 300 of those cases in the normal suite (~2 s).
   - [x] Letters: 300 random loans at random complaint stages (`test_letters_fuzz.py`),
         plus 500 random timelines. Loan Check: 300-loan property test.
-- [ ] Input validation with clear errors, not silent acceptance: negative
-      balances, absurd rates (e.g. 950%), 500 loans in one request, and huge
-      numbers (one crashed the server last time).
+- [x] Input validation with clear errors, not silent acceptance: negative
+      balances, absurd rates (950% → "send 0.095 for 9.5%"), 500 loans in one
+      request, and huge numbers. Hostile values in every field of every POST
+      endpoint (sampled in CI, all of them in the long run).
+  - [x] **Found and fixed:** numbers like `1E+999999` or `1e30` crashed **ten
+        endpoints** with a 500 (likely the "huge number crashed the server"
+        from last time); `/baseline` crashed on a negative inflation rate and
+        `/asset-liquidation` on a 0-year hold; the offer comparison crashed
+        formatting a ₹1e30 fee (now "more than the loan itself").
+  - [x] Request bodies are bounded (`api/schemas.py` `_In`): numbers finite
+        and ≤ 1e12, whole numbers ≤ 100,000, text ≤ 200 characters, lists ≤ 100,
+        at most 50 loans, amounts not negative, rates as fractions up to 100%
+        (effective APRs up to 1000%), months up to 1,200.
+  - [x] **Every 422 has one shape**, `{"detail": {"field", "message"}}`,
+        including schema errors and invalid JSON, and the input is not
+        echoed back.
 
 ### 6.4 Security review of public endpoints
-- [ ] Outcome-report endpoints: rate limits, spoof-proof client IP, size caps (Phase 4).
-- [ ] Rate limits on every unauthenticated POST.
+- [ ] Outcome-report endpoints: rate limits, spoof-proof client IP, size caps
+      (Phase 4). The middleware below is ready for them.
+- [x] Rate limits on every unauthenticated POST (`api/security.py`): per
+      client IP, 120 writes a minute (burst 60); sign-in code 2 a minute
+      (it sends email), code check 6, admin 2. 429 with Retry-After.
+  - [x] Spoof-proof client IP: `X-Forwarded-For` read only
+        `TRUSTED_PROXY_HOPS` back from the right.
+  - [x] The Next.js server renders /plan by calling the API for every user;
+        it sends `INTERNAL_API_TOKEN` and is exempt. The token never reaches
+        the browser (checked in a production build). `render.yaml` generates it.
+  - [ ] **Confirm on Render after the first deploy** that one proxy hop is
+        right (`TRUSTED_PROXY_HOPS=1`): if Render's edge adds a second
+        address, every user behind one edge would share a limit.
+- [x] Request-size cap (256 KB → 413, with or without a Content-Length) and
+      headers: nosniff, no-referrer, `no-store` on writes, HSTS behind HTTPS.
 - [ ] **Before launch only:** Content-Security-Policy and `frame-ancestors` /
       `X-Frame-Options`. They were left off because they stop the app opening
       in VS Code's built-in preview.
@@ -447,6 +510,16 @@ yes/no from the owner before it is scheduled.
       (the engine already supports a different term).
 - [ ] **Prepayment amortisation on Windfall.** Show "EMI kept, ends N months
       sooner" vs "EMI lowered" for the windfall, like the offer comparison.
+- [ ] **Per-email limit on sign-in codes.** The per-IP limit stops one
+      machine; a count of codes sent to the same address in the last 15
+      minutes (in the database) also stops someone flooding a victim's inbox
+      from many addresses.
+- [ ] **Field errors on every tool.** All 422s now share one shape, but only
+      Loan Check, offers, Windfall and New Debt show them next to the field;
+      the other tools still print the raw error. Move them to `postWithFieldErrors`.
+- [ ] **Bank rate feeds.** Fetch SBI's and HDFC's published EBLR/RLLR the way
+      Phase 5 fetches the repo rate, so the "new borrowers pay less" finding
+      uses today's rate card instead of May 2026's.
 - [ ] **Quiet the profile-sync 404s.** In no-database trial mode the web app still
       calls `GET /api/user/state` on every page, which 404s. Skip the call when sync is off.
 
@@ -499,6 +572,19 @@ CI runs exactly these on every push (`.github/workflows/ci.yml`).
 
 Leave `DATABASE_URL` unset and set `NEXT_PUBLIC_DISABLE_AUTH=true` for
 trial mode (no login, no sync). `CORS_ORIGINS` defaults to `http://localhost:3000`.
+
+Other API settings (all optional):
+
+| Variable | Default | What it does |
+|---|---|---|
+| `RATES_FEED` | `on` | `off` stops fetching FRED/RBI (tests set it) |
+| `RATES_STORE_PATH` | `api/data/rates_live.json` | where the last good rates are kept |
+| `RATE_LIMITS` | `on` | `off` turns the per-IP limits off (tests set it) |
+| `TRUSTED_PROXY_HOPS` | `0` | proxies in front of the API; `1` on Render |
+| `INTERNAL_API_TOKEN` | unset | shared with the web server so its calls aren't limited |
+| `MAX_BODY_BYTES` | `262144` | request-size cap |
+
+The full fuzz: `FUZZ_N=20000 FUZZ_FULL=1 python -m pytest api/tests/test_api_fuzz.py -q`.
 
 **In a Codespace:** VS Code only auto-forwards ports started from its own
 terminals. If the app doesn't open, go to the **Ports** tab → **Forward a
