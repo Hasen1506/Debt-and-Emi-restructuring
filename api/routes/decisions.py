@@ -48,8 +48,14 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
         )
     except DecisionInputError as e:
         raise _bad(e)
+    index_by_id = {id(l): i for i, l in enumerate(user.loans)}
     return WindfallResponse(
         loan_label=allocation.loan_label,
+        loan_index=(
+            index_by_id.get(allocation.to_loan_id)
+            if not allocation.invest_instead and allocation.to_loan_id is not None
+            else None
+        ),
         amount=allocation.amount,
         rationale=allocation.rationale,
         interest_avoided=allocation.interest_avoided,

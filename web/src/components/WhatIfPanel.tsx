@@ -441,10 +441,10 @@ export function WhatIfPanel({
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12 }}>
         <SliderRow
-          title="One-time lump-sum payment"
+          title="Paid extra, or about to?"
           hint={
             totalOutstandingCap > 0
-              ? `A windfall — bonus, tax refund, gift — applied today against the loan chosen on the right. Capped at your total outstanding (${fmtLump(totalOutstandingCap)}).`
+              ? `A one-off payment against the loan chosen on the right. Already paid it? Log it so the plan starts from the new balance. Capped at your total outstanding (${fmtLump(totalOutstandingCap)}).`
               : 'Add your loans in setup to use this slider.'
           }
           unit=""
@@ -463,8 +463,8 @@ export function WhatIfPanel({
           extraControls={
             <LockItInButton
               disabled={lumpAmount <= 0}
-              label={`Lock in — pay ${fmtLump(lumpAmount || 0)} today to ${loanOptions[lumpTarget]?.label.split(' · ')[0] ?? 'loan'}`}
-              shortLabel="Lock it in"
+              label={`Log it — ${fmtLump(lumpAmount || 0)} paid today to ${loanOptions[lumpTarget]?.label.split(' · ')[0] ?? 'loan'}`}
+              shortLabel="I paid this — log it"
               onClick={commitLumpSum}
             />
           }

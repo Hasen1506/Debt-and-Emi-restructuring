@@ -497,6 +497,8 @@ export interface NewDebtResponse {
 
 export interface WindfallResponse {
   loan_label: string;
+  /** Position in user.loans of the loan the money goes to; null when invested. */
+  loan_index?: number | null;
   amount: string;
   rationale: string;
   /** Never negative. When investing wins, the interest given up. */

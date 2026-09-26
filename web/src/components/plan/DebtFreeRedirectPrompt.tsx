@@ -143,7 +143,7 @@ export function DebtFreeRedirectPrompt({
       >
         <PromptCta href="/goals" label="Plan a goal SIP" primary />
         <PromptCta href="/onboarding?step=4" label="Boost EF" />
-        <PromptCta href="/tools/recompute" label="Run what-if" />
+        <PromptCta href="/plan#what-if" label="Run what-if" />
       </div>
     </ThemedContainer>
   );

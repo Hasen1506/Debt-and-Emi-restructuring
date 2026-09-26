@@ -741,6 +741,9 @@ class WindfallRequest(_In):
 
 class WindfallResponse(_Base):
     loan_label: str
+    # Position in user.loans of the loan the money goes to (None when it is
+    # invested), so the client logs the payment against that loan.
+    loan_index: Optional[int] = None
     amount: Decimal
     rationale: str
     interest_avoided: Decimal               # never negative; "given up" when investing

@@ -13,6 +13,24 @@ def test_windfall_routes_to_card(client, india_user_payload):
     assert "credit_card" in body["loan_label"] or body["invest_instead"] is True
 
 
+def test_windfall_names_the_loan_it_pays(client, india_user_payload):
+    """The response carries the target loan's position, so the client logs
+    the payment against the loan the engine chose. It used to log against
+    the highest-rate loan whatever the strategy picked."""
+    for strategy, expect in (("avalanche", 1), ("snowball", 1)):
+        r = client.post("/api/windfall", json={
+            "amount": "50000", "user": india_user_payload, "marginal_rate": "0.30",
+            "strategy": strategy,
+        })
+        assert r.status_code == 200, r.text
+        body = r.json()
+        if body["invest_instead"]:
+            assert body["loan_index"] is None
+        else:
+            # Card: highest rate (avalanche) and smallest balance (snowball).
+            assert body["loan_index"] == expect
+
+
 def test_new_debt_no_cost_emi(client):
     """₹20k phone, ₹17k cash equivalent, 6×₹3333 = 'no-cost' EMI."""
     r = client.post("/api/new-debt", json={

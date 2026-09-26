@@ -1,10 +1,7 @@
-import { CashYieldTool } from './tool';
-import { LToolPageHeader } from '@/components/ledger/LToolPageHeader';
+import { redirect } from 'next/navigation';
 
+// Cash Yield is part of Spare cash now: one amount, one answer for the
+// emergency-fund share, the loan, and where to park the cash.
 export default function CashYieldPage() {
-  return (
-    <LToolPageHeader id="cash-yield">
-      <CashYieldTool />
-    </LToolPageHeader>
-  );
+  redirect('/tools/windfall');
 }

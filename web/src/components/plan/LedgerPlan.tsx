@@ -360,7 +360,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         <AmortisationSection plan={plan} fc={fc} horizon={horizon} />
 
         {/* 6. What if — real engine runs, not estimates */}
-        <section>
+        <section id="what-if" style={{ scrollMarginTop: 16 }}>
           <LSectionHeader>WHAT IF · TRY A SCENARIO</LSectionHeader>
           <div style={{ fontSize: 11, color: L_T.muted, marginBottom: 10, lineHeight: 1.5 }}>
             Each slider re-runs your plan. Nothing here changes your saved plan
