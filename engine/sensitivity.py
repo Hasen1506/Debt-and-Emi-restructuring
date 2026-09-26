@@ -11,7 +11,7 @@ Each returns a SimulationResult so the UI can diff debt_free_month and total_int
 """
 from decimal import Decimal
 from copy import deepcopy
-from engine.models import User
+from engine.models import LifecycleEvent, LifecycleEventKind, User
 from engine.simulation import simulate_plan, SimulationResult
 from engine.ordering import Strategy
 
@@ -52,22 +52,29 @@ def with_income_shock(
     marginal_rate: Decimal | None = None,
     simulation_start_month: int = 1,
 ) -> SimulationResult:
-    """Pre-amortise `shock_months` of minimums against savings, then resume.
+    """No take-home pay for the first `shock_months`, then back to today's.
 
-    Practical model: subtracts (income − fixed_expenses) × shock_months from the
-    user's savings balance before running. If savings can't cover it, the
-    simulation will still run on minimums-only via low/zero surplus.
+    Minimums are still paid in those months (from savings); nothing extra
+    goes to the debt. The old version took the lost pay out of
+    `savings_balance`, which the simulation never reads, so a six-month
+    job loss came out identical to no job loss.
     """
-    u = deepcopy(user)
-    monthly_gap = max(D("0"), u.monthly_income - u.fixed_expenses)
-    u.savings_balance -= monthly_gap * D(shock_months)
-    if u.savings_balance < 0:
-        u.savings_balance = D("0")
+    events: list[LifecycleEvent] = []
+    if shock_months > 0:
+        events.append(LifecycleEvent(
+            kind=LifecycleEventKind.SALARY_RESET, effective_month=1,
+            new_monthly_take_home=D("0"),
+        ))
+        events.append(LifecycleEvent(
+            kind=LifecycleEventKind.SALARY_RESET, effective_month=shock_months + 1,
+            new_monthly_take_home=user.monthly_income,
+        ))
     # Push horizon out by the shock window
     return simulate_plan(
-        u, strategy, horizon_months + shock_months,
+        user, strategy, horizon_months + shock_months,
         marginal_rate=marginal_rate,
         simulation_start_month=simulation_start_month,
+        lifecycle_events=events or None,
     )
 
 
@@ -82,16 +89,24 @@ def with_rate_shock(
 ) -> SimulationResult:
     """`delta_decimal` is signed (e.g. D('-0.005') for a 50bps cut).
     By default applies only to floating-rate loans.
+
+    Applied as a rate reset in month 1, so a rise raises the EMI the way
+    a bank must (no negative amortisation). Changing the rate alone kept
+    the EMI, and a +4 point shock grew a ₹30L loan to ₹7.5 crore.
     """
-    u = deepcopy(user)
-    for l in u.loans:
-        if floating_only and l.rate_type != "floating":
-            continue
-        l.nominal_rate = max(D("0"), l.nominal_rate + delta_decimal)
+    events = [
+        LifecycleEvent(
+            kind=LifecycleEventKind.FLOATING_RATE_RESET, effective_month=1,
+            loan_index=i, new_rate=max(D("0"), l.nominal_rate + delta_decimal),
+        )
+        for i, l in enumerate(user.loans)
+        if not (floating_only and l.rate_type != "floating")
+    ]
     return simulate_plan(
-        u, strategy, horizon_months,
+        user, strategy, horizon_months,
         marginal_rate=marginal_rate,
         simulation_start_month=simulation_start_month,
+        lifecycle_events=events or None,
     )
 
 

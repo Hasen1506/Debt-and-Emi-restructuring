@@ -21,6 +21,7 @@ import {
   type ScoreImpactResponse,
 } from '@/lib/api';
 import { useStoredProfile } from '@/lib/use-profile';
+import { readStrategyClient } from '@/lib/strategy';
 import { useFormErrors } from '@/lib/form-errors';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
@@ -71,7 +72,8 @@ export function RecomputeTool() {
         user: profile.user,
         extra_payment: extra,
         target_loan_index: Number(targetIdx),
-        strategy: 'avalanche',
+        // The order chosen on /plan, not always avalanche.
+        strategy: readStrategyClient(),
         horizon_months: HORIZON_MONTHS,
         marginal_rate: profile.marginalRate,
       });

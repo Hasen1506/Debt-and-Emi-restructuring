@@ -172,6 +172,7 @@ export function RightTimeTool() {
           urgency,
           principal,
           tenure_months: Number(tenure),
+          country,
         }),
       );
     } catch (e) {

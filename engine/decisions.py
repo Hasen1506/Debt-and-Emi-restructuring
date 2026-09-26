@@ -104,28 +104,43 @@ def allocate_windfall(
         )
 
     ranked = rank_loans(active, effective_rates, strategy, country=country)
-    top = ranked[0]
+
+    # Layer 3 — invest-vs-prepay gate, loan by loan: the windfall goes to
+    # the first loan in payoff order that beats the best liquid return.
+    # Checking only the first loan told snowball users to invest while a
+    # 42% card was still open, because a small cheap loan came first.
+    liquid = [o for o in investment_options
+              if o.liquidity_class == LiquidityClass.LIQUID and o.is_in_pool]
+    best_return = max((o.expected_return for o in liquid), default=D("0"))
+    best = next((o for o in liquid if o.expected_return == best_return), None)
+    worth = [
+        l for l in ranked
+        if best is None or prepay_recommended(effective_rates[id(l)], best_return, inflation)
+    ]
+
+    if not worth:
+        top = max(ranked, key=lambda l: effective_rates[id(l)])
+        top_rate = effective_rates[id(top)]
+        return WindfallAllocation(
+            to_loan_id=None, loan_label=f"{top.bank} {top.loan_type.value}", amount=amount,
+            rationale=f"Best liquid return {best_return*100:.2f}% beats your costliest loan ({top_rate*100:.2f}%) after inflation",
+            interest_avoided=interest_saved_by_prepaying(top, min(amount, top.outstanding)),
+            invest_instead=True, investment_name=best.name, investment_return=best_return,
+        )
+
+    top = worth[0]
     top_rate = effective_rates[id(top)]
     label = f"{top.bank} {top.loan_type.value}"
     to_loan = min(amount, top.outstanding)
     avoided = interest_saved_by_prepaying(top, to_loan)
 
-    # Layer 3 — invest-vs-prepay gate
-    liquid = [o for o in investment_options
-              if o.liquidity_class == LiquidityClass.LIQUID and o.is_in_pool]
-    best_return = max((o.expected_return for o in liquid), default=D("0"))
-    best = next((o for o in liquid if o.expected_return == best_return), None)
-
-    if best is not None and not prepay_recommended(top_rate, best_return, inflation):
-        return WindfallAllocation(
-            to_loan_id=None, loan_label=label, amount=amount,
-            rationale=f"Best liquid return {best_return*100:.2f}% beats loan effective {top_rate*100:.2f}% post-inflation",
-            interest_avoided=avoided,
-            invest_instead=True, investment_name=best.name, investment_return=best_return,
-        )
-
     leftover = amount - to_loan
-    rationale = f"Highest effective rate ({top_rate*100:.2f}%)"
+    if strategy == Strategy.AVALANCHE or top is max(ranked, key=lambda l: effective_rates[id(l)]):
+        rationale = f"Highest effective rate ({top_rate*100:.2f}%)"
+    elif strategy == Strategy.SNOWBALL:
+        rationale = f"Smallest balance first, your chosen order ({top_rate*100:.2f}%)"
+    else:
+        rationale = f"Next in your hybrid order ({top_rate*100:.2f}%)"
     if leftover > 0:
         rationale += f"; clears it with {money(leftover, country)} left over"
     return WindfallAllocation(
@@ -324,10 +339,15 @@ def cash_yield_check(
 
     uplift = gap * idle_balance
     beats_loan = False
-    rationale = f"Moving from {current_yield*100:.2f}% → {best_alt_yield*100:.2f}% earns +{uplift:,.0f}/yr."
+    rationale = (
+        f"Moving from {current_yield*100:.2f}% → {best_alt_yield*100:.2f}% "
+        f"earns +{money(uplift, country)}/yr."
+    )
     if top_loan_effective_rate is not None:
-        # Prepaying the loan would save `top_loan_effective_rate × idle_balance` in interest
-        prepay_uplift = top_loan_effective_rate * idle_balance
+        # Both options give up the current yield: moving the cash gains
+        # (alt − current), prepaying gains (loan rate − current). Comparing
+        # the gap with the whole loan rate always favoured prepaying.
+        prepay_uplift = (top_loan_effective_rate - current_yield) * idle_balance
         if uplift > prepay_uplift:
             beats_loan = True
             rationale += f" Beats prepaying your top loan ({top_loan_effective_rate*100:.2f}%)."
@@ -365,6 +385,7 @@ def right_time_to_borrow(
     urgency: str,
     principal: Decimal,
     tenure_months: int,
+    country: Country = Country.IN,
 ) -> BorrowTimingVerdict:
     """§8f — three inputs from market context, one from the user (urgency).
 
@@ -372,15 +393,26 @@ def right_time_to_borrow(
     (c) decision is soon enough that delay cost < expected savings.
     """
     bps_delta = D(consensus_change_bps) / D("10000")
-    tenure_years = D(tenure_months) / D("12")
-    estimated_savings = max(D("0"), -bps_delta) * principal * tenure_years
+    # Interest saved over the loan if the rate is lower by the expected cut:
+    # EMIs at both rates times the tenure. "Cut × principal × years" charged
+    # the cut on the whole principal every year, about double for a long
+    # loan, because the balance falls as it is repaid.
+    estimated_savings = D("0")
+    if bps_delta < 0 and principal > 0 and tenure_months > 0:
+        lower = max(D("0"), current_rate + bps_delta)
+        estimated_savings = max(
+            D("0"),
+            (emi(principal, current_rate, tenure_months) - emi(principal, lower, tenure_months))
+            * D(tenure_months),
+        ).quantize(D("1"), rounding=ROUND_HALF_UP)
+    worth_waiting = D("5000") if country == Country.IN else D("100")
 
     can_wait = urgency in ("3m_ok", "6m_ok")
-    if can_wait and consensus_change_bps <= -25 and months_to_decision <= 6 and estimated_savings > D("5000"):
+    if can_wait and consensus_change_bps <= -25 and months_to_decision <= 6 and estimated_savings > worth_waiting:
         verdict = "wait"
         detail = (f"Rates {current_rate*100:.2f}% now vs {six_month_avg*100:.2f}% avg. "
                   f"Cut of {-consensus_change_bps}bps expected in {months_to_decision}m → "
-                  f"save ~₹{estimated_savings:,.0f} over tenure. Defer if possible.")
+                  f"save ~{money(estimated_savings, country)} over tenure. Defer if possible.")
     else:
         verdict = "borrow_now"
         if not can_wait:
@@ -388,7 +420,7 @@ def right_time_to_borrow(
         elif consensus_change_bps > 0:
             detail = f"Hike of {consensus_change_bps}bps expected — borrow now to lock current rate."
         else:
-            detail = f"No meaningful change expected (±{consensus_change_bps}bps). Borrow now."
+            detail = f"No meaningful change expected ({consensus_change_bps:+d}bps). Borrow now."
 
     return BorrowTimingVerdict(
         current_rate=current_rate, six_month_avg=six_month_avg,

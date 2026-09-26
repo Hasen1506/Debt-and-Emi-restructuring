@@ -286,6 +286,7 @@ def simulate_plan(
     # when ef_top_up_rate=0 (legacy default).
     ef_balance = user.efund_balance
     ef_target = user.efund_target
+    efund_monthly_plan = compute_efund_monthly(user)
     best_liquid_return = _best_liquid_return(user.investment_options)
     inflation = user.inflation_rate
     debt_free_month: int | None = None
@@ -499,12 +500,16 @@ def simulate_plan(
         # money never lands anywhere and the EF target is never reached even
         # though debt prepay is suppressed every month. Capped at the gap
         # to ef_target so the EF never overshoots.
-        efund_monthly_to_credit = compute_efund_monthly(scratch_user)
-        if ef_balance + efund_monthly_to_credit > ef_target:
-            efund_monthly_to_credit = max(D("0"), ef_target - ef_balance)
+        # A fixed amount (the starting gap over 12 months) until the fund
+        # is full. Recomputing gap / 12 every month shrank the top-up as
+        # the fund grew, so it never filled: 65% after a year, still
+        # trickling years later while holding back debt payments.
+        efund_monthly_to_credit = min(
+            efund_monthly_plan, max(D("0"), ef_target - ef_balance),
+        )
         surplus = compute_available_surplus(
             scratch_user, active, matched_contribution=matched_contribution,
-            simple_mode=simple_mode,
+            simple_mode=simple_mode, efund_monthly=efund_monthly_to_credit,
         )
         if minimums_only:
             surplus = D("0")

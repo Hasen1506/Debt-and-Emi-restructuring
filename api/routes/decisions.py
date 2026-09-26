@@ -135,6 +135,7 @@ def borrow_timing(req: BorrowTimingRequest) -> BorrowTimingResponse:
         months_to_decision=req.months_to_decision,
         urgency=req.urgency, principal=req.principal,
         tenure_months=req.tenure_months,
+        country=req.country,
     )
     return BorrowTimingResponse(**verdict.__dict__)
 

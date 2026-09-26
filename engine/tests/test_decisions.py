@@ -140,10 +140,40 @@ def test_borrow_wait_when_cut_expected_and_user_flexible():
     v = right_time_to_borrow(
         current_rate=D("0.13"), six_month_avg=D("0.124"),
         consensus_change_bps=-50, months_to_decision=3,
-        urgency="3m_ok", principal=D("500000"), tenure_months=36,
+        urgency="3m_ok", principal=D("1000000"), tenure_months=36,
     )
     assert v.verdict == "wait"
     assert v.estimated_savings > D("0")
+
+
+def test_borrow_saving_is_on_the_falling_balance():
+    """₹5L over 36 months, 50bps cut: the EMIs differ by about ₹120, so
+    about ₹4,300 over the loan. The old "cut × principal × years" said
+    ₹7,500 and told the user to wait for less than the ₹5,000 bar."""
+    v = right_time_to_borrow(
+        current_rate=D("0.13"), six_month_avg=D("0.124"),
+        consensus_change_bps=-50, months_to_decision=3,
+        urgency="3m_ok", principal=D("500000"), tenure_months=36,
+    )
+    assert D("4000") < v.estimated_savings < D("4600")
+    assert v.verdict == "borrow_now"
+
+
+def test_borrow_detail_uses_the_users_currency():
+    v = right_time_to_borrow(
+        current_rate=D("0.07"), six_month_avg=D("0.07"),
+        consensus_change_bps=-50, months_to_decision=3,
+        urgency="3m_ok", principal=D("400000"), tenure_months=360,
+        country=Country.US,
+    )
+    assert v.verdict == "wait"
+    assert "$" in v.detail and "₹" not in v.detail
+    small = right_time_to_borrow(
+        current_rate=D("0.07"), six_month_avg=D("0.07"),
+        consensus_change_bps=-10, months_to_decision=3,
+        urgency="3m_ok", principal=D("400000"), tenure_months=360,
+    )
+    assert "(-10bps)" in small.detail
 
 
 def test_borrow_now_when_user_urgent():

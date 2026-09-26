@@ -817,6 +817,8 @@ class BorrowTimingRequest(_In):
     urgency: str                      # "now" | "3m_ok" | "6m_ok"
     principal: Amount
     tenure_months: int = Field(..., ge=1, le=MAX_MONTHS)
+    # Currency for the wording and the "worth waiting" threshold.
+    country: Country = Country.IN
 
 
 class BorrowTimingResponse(_Base):

@@ -222,3 +222,103 @@ def test_total_balance_is_in_the_users_currency():
     expected = row.balances_by_currency["INR"] * D("0.012") + row.balances_by_currency["USD"]
     assert row.balance_in_user_currency == expected
     assert row.balance_in_user_currency < D("60000")   # ~$48k, not 4 million
+
+
+# Tools and surplus (AUDIT.md §2b) ───────────────────────────────────────
+def test_windfall_skips_a_cheap_first_loan_under_snowball():
+    from engine.decisions import allocate_windfall
+
+    car = Loan(LoanType.AUTO, "x", D("40000"), D("0.07"), "fixed", 24, D("1800"))
+    card = Loan(LoanType.CREDIT_CARD, "HDFC Bank", D("200000"), D("0.42"), "fixed", 0, D("0"))
+    rates = {id(car): D("0.07"), id(card): D("0.4956")}
+    fund = [InvestmentOption(name="Liquid", expected_return=D("0.075"),
+                             liquidity_class=LiquidityClass.LIQUID, is_in_pool=True)]
+    a = allocate_windfall(D("100000"), [car, card], rates, fund, D("0.046"),
+                          strategy=Strategy.SNOWBALL)
+    assert a.invest_instead is False
+    assert a.to_loan_id == id(card)
+    assert "Highest effective rate" in a.rationale
+
+
+def test_windfall_invests_only_when_no_loan_beats_the_fund():
+    from engine.decisions import allocate_windfall
+
+    car = Loan(LoanType.AUTO, "x", D("40000"), D("0.07"), "fixed", 24, D("1800"))
+    fund = [InvestmentOption(name="Liquid", expected_return=D("0.075"),
+                             liquidity_class=LiquidityClass.LIQUID, is_in_pool=True)]
+    a = allocate_windfall(D("100000"), [car], {id(car): D("0.07")}, fund, D("0.046"))
+    assert a.invest_instead is True
+
+
+def test_cash_yield_compares_the_fund_with_the_loan_rate():
+    """Idle cash at 3%: a 7% fund vs prepaying a 9% loan. Prepaying wins
+    (9 > 7), but the old test compared the 4-point gap with the whole 9%.
+    At 3% vs an 8% fund and a 6% loan, the fund wins: the old test said
+    the loan (6% > 5-point gap)."""
+    from engine.decisions import cash_yield_check
+
+    fund_wins = cash_yield_check(
+        idle_balance=D("200000"), current_yield=D("0.03"), country=Country.IN,
+        top_loan_effective_rate=D("0.06"), best_alt_yield=D("0.08"), alt_name="Fund",
+    )
+    assert fund_wins.beats_top_loan is True
+    loan_wins = cash_yield_check(
+        idle_balance=D("200000"), current_yield=D("0.03"), country=Country.IN,
+        top_loan_effective_rate=D("0.09"), best_alt_yield=D("0.07"), alt_name="Fund",
+    )
+    assert loan_wins.beats_top_loan is False
+    assert "₹" in fund_wins.rationale
+
+
+def test_emergency_fund_fills_in_twelve_months():
+    """Recomputing gap/12 every month left the fund 35% short after a year."""
+    home = Loan(LoanType.HOME, "x", D("3000000"), D("0.085"), "fixed", 240, D("26035"))
+    u = _user(Country.IN, [home], income="150000", expenses="60000",
+              efund_balance=D("0"), efund_target=D("120000"))
+    r = simulate_plan(u, horizon_months=24)
+    # 10,000/month is held back for the fund in months 1-12, none after.
+    extra = [row.payments_by_loan_index[0] - D("26035") for row in r.months]
+    assert extra[11] < extra[12]
+    assert extra[12] - extra[11] == pytest.approx(D("10000"), abs=D("1"))
+
+
+def test_cash_out_never_exceeds_income_with_a_card():
+    """Payments + investment each month stay within income − expenses.
+    The surplus counted a card minimum without its interest while the
+    payment included it, so more went out than came in."""
+    card = Loan(LoanType.CREDIT_CARD, "Bank of America", D("5000"), D("0.24"), "fixed", 0, D("0"))
+    home = Loan(LoanType.HOME, "x", D("300000"), D("0.065"), "fixed", 300, D("2000"))
+    u = _user(Country.US, [card, home], income="8000", expenses="5000")
+    r = simulate_plan(u, horizon_months=36)
+    for row in r.months:
+        assert row.total_payment_nominal + row.invested_this_month <= D("3000.01")
+
+
+def _two_loan_user():
+    home = Loan(LoanType.HOME, "x", D("3000000"), D("0.085"), "floating", 240, D("26035"))
+    card = Loan(LoanType.CREDIT_CARD, "HDFC Bank", D("200000"), D("0.42"), "fixed", 0, D("0"))
+    return _user(Country.IN, [home, card], income="150000", expenses="60000")
+
+
+def test_job_loss_slider_moves_the_plan():
+    """A six-month job loss came out identical to no job loss."""
+    from engine.sensitivity import with_income_shock
+
+    u = _two_loan_user()
+    base = simulate_plan(u, horizon_months=360)
+    shock = with_income_shock(u, 6, horizon_months=360)
+    assert shock.debt_free_month > base.debt_free_month
+    assert shock.total_interest_paid > base.total_interest_paid
+    assert all(row.available_surplus == 0 for row in shock.months[:6])
+    assert shock.months[6].available_surplus > 0
+
+
+def test_rate_shock_raises_the_emi():
+    from engine.sensitivity import with_rate_shock
+
+    home = Loan(LoanType.HOME, "x", D("3000000"), D("0.085"), "floating", 240, D("26035"))
+    u = _user(Country.IN, [home], income="100000", expenses="73965")
+    r = with_rate_shock(u, D("0.04"), horizon_months=480)
+    balances = [_balance(row) for row in r.months]
+    assert all(b2 <= b1 for b1, b2 in zip(balances, balances[1:]))
+    assert r.debt_free_month is not None and r.debt_free_month <= 241

@@ -121,10 +121,16 @@ def compute_total_minimums(
     into the user's residence currency. The pure-INR or pure-USD case is
     unchanged — FX helper is a no-op when loan currency matches user
     currency."""
+    # With this month's interest, as the simulator pays it: without it the
+    # surplus counted a smaller card minimum than was actually paid.
     return sum(
         (
             to_user_currency(
-                compute_minimum_payment(l, user.country, simple_mode=simple_mode),
+                compute_minimum_payment(
+                    l, user.country,
+                    interest_accrued=l.outstanding * l.nominal_rate / D("12"),
+                    simple_mode=simple_mode,
+                ),
                 l,
                 user,
             )
@@ -163,10 +169,15 @@ def compute_available_surplus(
     matched_contribution: Decimal = D("0"),
     simple_mode: bool = False,
     months_to_efund_target: int = 12,
+    efund_monthly: Decimal | None = None,
 ) -> Decimal:
-    """Monthly surplus available for extra debt payments. Floored at zero."""
+    """Monthly surplus available for extra debt payments. Floored at zero.
+
+    `efund_monthly` overrides the emergency-fund top-up for this month
+    (the simulator passes a fixed amount so the fund actually fills)."""
     total_minimums = compute_total_minimums(user, loans, simple_mode=simple_mode)
-    efund_monthly = compute_efund_monthly(user, months_to_efund_target)
+    if efund_monthly is None:
+        efund_monthly = compute_efund_monthly(user, months_to_efund_target)
     surplus = (
         user.monthly_income
         - user.fixed_expenses

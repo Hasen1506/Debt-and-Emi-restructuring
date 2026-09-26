@@ -38,6 +38,30 @@ plus API tests in `api/tests/test_simulation.py`.
 | E9 | GST on the processing fee was ~0 (a yearly rate divided again by balance × years) | 12% + 1% fee: 13.00% instead of 13.18% | 18% of the fee rate |
 | E10 | The trajectory's total balance added ₹ and $ as plain numbers; the default (ledger) plan charts that total | ₹40L + $25k = "4,025,000" | Total is in the user's currency at that month's rate |
 
+### Tools, surplus and the /plan sliders (fixed)
+
+| # | Bug | Example | Fix |
+|---|---|---|---|
+| D1 | **Windfall had E1's bug**: under snowball it said "invest it" while a 42% card was open, because a small 7% loan came first; its reason always said "highest effective rate" | ₹1L windfall, car 7% + card 42%, snowball | First loan in order that beats the fund; reason names the order used |
+| D2 | **Windfall and Recompute always used avalanche**, even when the user picked snowball on /plan | — | Both send the order saved on /plan |
+| D3 | **Job-loss slider did nothing.** It took the lost pay out of `savings_balance`, which the simulation never reads | 6-month job loss: 42 months, ₹5.16L interest, same as no job loss | No take-home for those months, then back: 47 months, ₹6.65L |
+| D4 | **Rate-shock slider grew the loan without limit** (E2 by another route) | +4 points, no surplus: ₹30L loan to ₹7.5 crore | Applied as a rate reset, so the EMI rises |
+| D5 | **More money went out than came in** once a card was in the plan: the surplus counted the card minimum without its interest, the payment included it | $8k income, $5k costs: over $3k paid some months | The surplus uses the same minimum as the payment; a cash test checks every month |
+| D6 | **Emergency fund never filled.** The top-up was "gap ÷ 12" recalculated each month, so it shrank as the fund grew: 65% after a year, trickling for years while holding back debt payments | ₹1.2L gap: ₹10k in month 1, ₹3.5k by month 12 | A fixed ₹10k a month until full |
+| D7 | Right Time charged the expected cut on the whole principal every year, about double for a long loan, and printed ₹ for US users and "±-10bps" | ₹5L, 3 years, 0.5% cut: ₹7,500 (really ₹4,300), so it said "wait" | EMI difference × months; user's currency; "-10bps" |
+| D8 | Cash Yield's "beats prepaying" compared the fund's *gain* with the loan's *whole* rate, so prepaying always looked better; its amount had no currency sign | Cash at 3%, fund 8%, loan 6%: said "prepay" | Fund rate vs loan rate, amount in ₹/$ |
+
+Consistency gaps still open:
+
+- **Recompute and the /plan sliders run a plainer simulation than /plan
+  itself** (no plan start month, planned resets, goals, emergency-fund
+  split or inflation setting), so their "old debt-free date" can differ
+  from the one /plan shows. They should call the same simulation with
+  the same settings.
+- **Right Time ignores whether the loan is floating.** A floating loan
+  (most Indian home loans) moves with the repo rate anyway, so waiting
+  for a cut only matters for fixed-rate loans or to avoid a reset lag.
+
 ### Same formulas kept in two places (fixed)
 
 | # | Problem | Fix |

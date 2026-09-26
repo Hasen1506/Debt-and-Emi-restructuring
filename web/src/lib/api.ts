@@ -1198,6 +1198,7 @@ export const api = {
     urgency: 'now' | '3m_ok' | '6m_ok';
     principal: string;
     tenure_months: number;
+    country?: Country;
   }) => postWithFieldErrors<BorrowTimingResponse>('/api/right-time-to-borrow', req),
 
   loanCheck: (req: LoanCheckRequest) =>

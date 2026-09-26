@@ -18,6 +18,7 @@ import {
   type WindfallResponse,
 } from '@/lib/api';
 import { useStoredProfile } from '@/lib/use-profile';
+import { readStrategyClient } from '@/lib/strategy';
 import { useFormErrors } from '@/lib/form-errors';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
@@ -64,7 +65,8 @@ export function WindfallTool() {
         amount,
         user: profile.user,
         marginal_rate: profile.marginalRate,
-        strategy: 'avalanche',
+        // The order chosen on /plan, not always avalanche.
+        strategy: readStrategyClient(),
       });
       setV(result);
       if (
