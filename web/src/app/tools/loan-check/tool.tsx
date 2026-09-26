@@ -5,6 +5,8 @@ import Decimal from 'decimal.js';
 import { Card } from '@/components/Card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { ComplaintPanel } from './complaint';
+import { OfferPanel } from './offers';
+import { RateProblem } from './rate-problem';
 import {
   BankCombobox,
   Field,
@@ -24,7 +26,7 @@ import {
   type LoanCheckResponse,
 } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
-import { parsePercentInput, parseSpreadInput, type ParsedRate } from '@/lib/rate-input';
+import { parsePercentInput, parseSpreadInput } from '@/lib/rate-input';
 
 type StartMode = 'headline' | 'split';
 
@@ -42,39 +44,6 @@ function pctFromFraction(f: string | undefined): string {
   } catch {
     return '';
   }
-}
-
-/** Inline error + one-click fix under a rate field. */
-function RateProblem({
-  parsed,
-  onFix,
-}: {
-  parsed: ParsedRate;
-  onFix: (v: string) => void;
-}) {
-  if (!parsed.error) return null;
-  return (
-    <span role="alert" style={{ fontSize: 11, color: 'var(--negative)' }}>
-      {parsed.error}{' '}
-      {parsed.suggestion && (
-        <button
-          type="button"
-          onClick={() => onFix(parsed.suggestion as string)}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            padding: 0,
-            color: 'var(--accent)',
-            textDecoration: 'underline',
-            cursor: 'pointer',
-            fontSize: 11,
-          }}
-        >
-          Use {parsed.suggestion}%
-        </button>
-      )}
-    </span>
-  );
 }
 
 export function LoanCheckTool() {
@@ -369,6 +338,7 @@ export function LoanCheckTool() {
       {result && checked && result.findings.some((f) => f.claimable) && (
         <ComplaintPanel request={checked} />
       )}
+      {result && checked && <OfferPanel request={checked} />}
     </div>
   );
 }

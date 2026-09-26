@@ -436,7 +436,7 @@ function LetterBox({ label, text, filename }: { label: string; text: string; fil
   );
 }
 
-function Citations({ items }: { items: LoanCheckCitation[] }) {
+export function Citations({ items }: { items: LoanCheckCitation[] }) {
   if (!items.length) return null;
   const unverified = items.some((c) => !c.verified_against_text);
   return (
