@@ -19,6 +19,7 @@ import {
   PerLoanLegend,
 } from '@/components/PerLoanTrajectoryChart';
 import { computeBreakdown } from '@/lib/effective-apr';
+import { usItemises } from '@/lib/deductions';
 import { userDefaultCurrency } from '@/lib/currency';
 import { InfoTip } from '@/components/ToolPrimitives';
 import { api, type Strategy, type UserPayload } from '@/lib/api';
@@ -90,6 +91,7 @@ export function InsightsPerLoanTrajectorySection({
       marginalRate,
       user.country,
       taxRegime,
+      usItemises(user),
     );
     return {
       index,

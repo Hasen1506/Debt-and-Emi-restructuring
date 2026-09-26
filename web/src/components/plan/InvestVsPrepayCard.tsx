@@ -19,6 +19,7 @@
 import Decimal from 'decimal.js';
 import type { PlanData } from './PlanData';
 import { computeBreakdown } from '@/lib/effective-apr';
+import { usItemises } from '@/lib/deductions';
 import {
   compareToLoan,
   pct,
@@ -47,7 +48,7 @@ export function InvestVsPrepayCard({ plan, variant }: Props) {
   const ranked = loansWithBalance
     .map((loan) => ({
       loan,
-      breakdown: computeBreakdown(loan, plan.marginalRate, plan.user.country, taxRegime),
+      breakdown: computeBreakdown(loan, plan.marginalRate, plan.user.country, taxRegime, usItemises(plan.user)),
     }))
     .sort((a, b) => b.breakdown.effective.cmp(a.breakdown.effective));
 

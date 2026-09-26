@@ -38,22 +38,27 @@ plus API tests in `api/tests/test_simulation.py`.
 | E9 | GST on the processing fee was ~0 (a yearly rate divided again by balance × years) | 12% + 1% fee: 13.00% instead of 13.18% | 18% of the fee rate |
 | E10 | The trajectory's total balance added ₹ and $ as plain numbers; the default (ledger) plan charts that total | ₹40L + $25k = "4,025,000" | Total is in the user's currency at that month's rate |
 
-Found while fixing these, handled next:
+### Same formulas kept in two places (fixed)
 
-- **The browser has its own copy of the effective-rate formula**
-  (`web/src/lib/effective-apr.ts`) with E6, E7 and E9 in it. It drives the
-  home, debts, portfolio, insights and invest-vs-prepay screens, so they
-  disagree with /plan.
-- **The browser's tax tables are out of date** (`web/src/lib/deductions.ts`):
-  India new regime is the 2024 budget's (30% from ₹15L; the engine has
-  FY2026-27: 30% only above ₹24L); US brackets and the standard deduction
-  are 2024's ($14,600 single; the engine has 2026: $16,100). Onboarding
-  saves the marginal rate from these tables, so an ₹18L salaried user on
-  the new regime is planned at 30% instead of about 21%.
-- **Needs checking by the owner:** the SALT cap is still $10,000 in the
-  engine and the web. The 2025 US budget law raised it (about $40,000
-  for 2025–2029, phased down for high incomes). Tax figures are cited
-  law, so this waits for a pasted source.
+| # | Problem | Fix |
+|---|---|---|
+| T1 | **Three sets of tax tables that disagreed.** Engine: India FY2026-27, US 2026. `web/src/lib/tax-brackets.ts`: labelled "FY 2026-27" but held India's 2024 slabs (30% from ₹15L) and US 2025 figures. `web/src/lib/deductions.ts`: India 2024, US 2024 ($14,600 standard deduction). Onboarding saves the marginal rate from the last one, so an ₹18L salaried user on the new regime was planned at **30% instead of 20.8%** | The engine's tables are exported to `web/src/lib/tax-tables.json` (`scripts/export_tax_tables.py`); both web modules read it; `engine/tests/test_tax_tables_export.py` fails if it falls behind. Web and engine now give identical tax and marginal rates (checked at ₹10L, ₹18L, ₹30L, old and new regime, US $120k) |
+| T2 | The web's marginal rate left out surcharge and cess; its deduction saving ignored the 87A rebate (a ₹1.5L 80C claim that takes ₹6L under the ₹5L rebate line saves ₹33,800, not ₹30,000) | One tax function per country (`incomeTaxIN`, `federalTaxUS`) used everywhere |
+| T3 | US standard deduction was applied only to salaried users | Every US filer gets it |
+| T4 | **The browser's copy of the effective-rate formula** (`web/src/lib/effective-apr.ts`, used by home, debts, portfolio, insights, invest-vs-prepay) had E6, E7 and E9 | Fixed the same way; screens with a user pass `usItemises(user)`, which mirrors the API's rule |
+| T5 | Two exported functions named `deriveMarginalRate`, one unused | Unused one removed |
+
+Still open (owner):
+
+- **SALT cap** is $10,000 in the engine and the web. The 2025 US budget law
+  raised it (about $40,000 for 2025–2029, phased down for high incomes).
+  Tax figures are cited law, so this waits for a pasted source. The
+  engine's US head-of-household table is also marked "approx" in a comment.
+- **Below the 87A line the true marginal rate is 0**: a new-regime earner
+  at ₹10L pays no tax, but the engine (and now the web) report 10.4%. It
+  matters for after-tax investment returns in invest-vs-prepay.
+- Profiles saved before this fix keep their stored 30% marginal rate
+  until the user re-saves onboarding.
 
 ## 3 · User-view audit
 

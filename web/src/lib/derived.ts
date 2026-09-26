@@ -10,6 +10,7 @@ import Decimal from 'decimal.js';
 import type { LoanPayload, Country, TaxRegimeIN } from './api';
 import type { StoredProfile } from './user-store';
 import { computeBreakdown } from './effective-apr';
+import { usItemises } from './deductions';
 import { loanCurrency, userDefaultCurrency } from './currency';
 
 export interface LoanWithEffective {
@@ -38,6 +39,7 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
   const { user, marginalRate } = profile;
   const country: Country = user.country;
   const taxRegime: TaxRegimeIN | undefined = user.tax_regime;
+  const itemises = usItemises(user);
   const rawLoans = user.loans ?? [];
   const userCcy = userDefaultCurrency(country);
   const fxMap = user.fx_to_user_currency ?? {};
@@ -51,7 +53,7 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
   };
 
   const loans: LoanWithEffective[] = rawLoans.map((loan, index) => {
-    const { effective } = computeBreakdown(loan, marginalRate, country, taxRegime);
+    const { effective } = computeBreakdown(loan, marginalRate, country, taxRegime, itemises);
     return {
       loan,
       index,

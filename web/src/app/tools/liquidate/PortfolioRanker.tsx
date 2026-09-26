@@ -13,6 +13,7 @@ import {
   type UserPayload,
 } from '@/lib/api';
 import { computeBreakdown } from '@/lib/effective-apr';
+import { usItemises } from '@/lib/deductions';
 import { applyToolResult } from '@/lib/apply-tool-result';
 
 interface Props {
@@ -48,12 +49,12 @@ export function PortfolioRanker({ user, marginalRate, isLive, onDrillIn }: Props
     const out: Record<number, string> = {};
     user.loans.forEach((l, i) => {
       const { effective } = computeBreakdown(
-        l, marginalRate, user.country, user.tax_regime,
+        l, marginalRate, user.country, user.tax_regime, usItemises(user),
       );
       out[i] = effective.toFixed(4);
     });
     return out;
-  }, [user.loans, user.country, user.tax_regime, marginalRate]);
+  }, [user, marginalRate]);
 
   // Auto-fetch on mount + whenever the input shape changes.
   useEffect(() => {
