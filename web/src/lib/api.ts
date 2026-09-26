@@ -872,6 +872,66 @@ export interface ComplaintResponse {
   placeholders: ComplaintPlaceholders;
 }
 
+// ─── Offer comparison (the lender's reply) ─────────────────────────────────
+
+export interface ResetOfferIn {
+  rate: string;                     // fraction
+  fee?: string;                     // amount, or…
+  fee_percent?: string;             // …a fraction of the outstanding
+  fee_plus_gst?: boolean;
+}
+
+export interface RefinanceOfferIn {
+  rate: string;
+  lender?: string;
+  processing_fee?: string;
+  processing_fee_percent?: string;
+  fee_plus_gst?: boolean;
+  stamp_duty?: string;
+  legal_and_valuation?: string;
+  prepayment_charge?: string;
+  months?: number;
+}
+
+export type OfferMode = 'lower_emi' | 'same_emi';
+
+export interface OfferCompareRequest extends LoanCheckRequest {
+  reset?: ResetOfferIn;
+  refinance?: RefinanceOfferIn;
+  mode?: OfferMode;
+  horizon_months?: number;
+}
+
+export interface OfferOption {
+  key: 'keep' | 'keep_owed' | 'reset' | 'refinance';
+  label: string;
+  rate: string;
+  emi: string;
+  months: number;
+  last_payment: string;
+  upfront: { label: string; amount: string }[];
+  upfront_total: string;
+  interest_total: string;
+  cost_to_horizon: string;
+  saving: string;
+  break_even_month: number | null;
+  break_even_on: string | null;
+}
+
+export interface OfferCompareResponse {
+  options: OfferOption[];
+  baseline: 'keep' | 'keep_owed';
+  horizon_months: number;
+  verdict: 'keep' | 'reset' | 'refinance';
+  headline: string;
+  reason: string;
+  next_step: string;
+  warnings: string[];
+  notes: string[];
+  citations: LoanCheckCitation[];
+  entitled_rate: string | null;
+}
+
 /** A 422 from an endpoint that answers `{detail: {field, message}}`. */
 export class ApiFieldError extends Error {
   constructor(public field: string, message: string) {
@@ -1075,6 +1135,9 @@ export const api = {
 
   complaintIn: (req: ComplaintRequest) =>
     postWithFieldErrors<ComplaintResponse>('/api/complaints/in', req),
+
+  compareOffers: (req: OfferCompareRequest) =>
+    postWithFieldErrors<OfferCompareResponse>('/api/offers/compare', req),
 
   scoreImpact: (req: {
     action: ScoreAction;
