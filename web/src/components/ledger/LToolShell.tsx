@@ -31,7 +31,8 @@ export function LToolHeader({
   date,
   question,
 }: {
-  /** Section tag from `lib/tools` (`8a`, `8b`, `FX`, …). */
+  /** Section tag from `lib/tools` (`8a`, `8b`, `FX`, …). Not shown: spec
+   *  numbering meant nothing to users. */
   tag: string;
   /** Tool name in ALL CAPS, e.g. WINDFALL ROUTER. */
   name: string;
@@ -50,7 +51,7 @@ export function LToolHeader({
           marginBottom: 14,
         }}
       >
-        $ §{tag.toUpperCase()} · {name.toUpperCase()} · {date.toUpperCase()}
+        $ {name.toUpperCase()} · {date.toUpperCase()}
       </div>
       <h1
         style={{

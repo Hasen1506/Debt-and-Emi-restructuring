@@ -483,11 +483,12 @@ export function LiquidateTool() {
           {showAdvanced && (
             <>
               <Field
-                label="Asset's expected return (decimal, nominal)"
+                label="Asset's expected return (%, a year)"
+                kind="percent"
                 value={assetReturn}
                 error={at('assetReturn')}
                 onChange={setAssetReturn}
-                hint="e.g. 0.06 for 6% — what you think this asset will appreciate"
+                hint="e.g. 6 — what you think this asset will appreciate"
                 info={
                   <>
                     Nominal annual return you expect from the asset if you{' '}

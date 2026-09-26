@@ -47,7 +47,7 @@
   launch), live rates (5, first live fetch still to check), the axe pass
   and hydration fixes (6.2), the API fuzz and input bounds (6.3), size cap,
   headers and rate limits (6.4), field errors on every tool.
-  **646 tests passing.** Still missing: US letters, cross-browser and load
+  **648 tests passing.** Still missing: US letters, cross-browser and load
   suites (6.1, 6.5), verified outcome reports, a manual screen-reader run.
 - **Bug hunt and user-view audit (26 Sep 2026): see [`AUDIT.md`](AUDIT.md).**
   Fixed: the /plan chart and every date a month late, 10 engine bugs
@@ -57,6 +57,17 @@
   pay-back, a home page that told over-budget users to pay a loan off,
   placeholders and dead buttons, decimal rate inputs, sideways scrolling on
   phones). Eight product decisions are listed there for the owner.
+- **Owner decisions applied (26 Sep 2026, AUDIT.md §3):** Ledger is the only
+  skin; Recompute folded into /plan; Windfall + Cash Yield are one Spare
+  cash tool; the plan start picker is gone; home shows the plan's own
+  debt-free date and this month's move. A walk-through as a new user found
+  and fixed a crash on setup step 2 for every new user, the emergency fund
+  being topped up twice, and 9 more (W1–W11).
+- **Speed (production build, this machine):** every page answers in under
+  30 ms, paints in under 100 ms and loads in under 200 ms; 111–184 KB of
+  JavaScript per page. The engine's plan run takes 6–35 ms. The one slow
+  thing is hosting: Render's free plan sleeps after 15 min, so the first
+  visit after that waits 30–60 s.
 
 ---
 
@@ -605,18 +616,61 @@ yes/no from the owner before it is scheduled.
       reset". Ties into "Remember the offer comparison" above.
 - [ ] **Announce results on every tool.** Only Loan Check puts its result in
       an `aria-live` region; do the same for the other tools' verdicts.
-- [ ] **One skin, not three.** Existing, editorial and ledger each render
-      every page, and the home page has three modes on top, so a bug has to
-      be found and fixed up to nine times (AUDIT.md §3, decision 1). Pick one
-      product skin; keep the others as colour themes over shared parts.
-- [ ] **Fewer, merged tools.** Four tools answer "prepay or invest?" and
-      three answer "should I refinance?" with different rules (AUDIT.md §3,
-      decision 2). Fold Recompute into /plan; merge Windfall and Cash Yield.
-- [ ] **Debt-free date on the home page** from the same loader /plan uses,
-      so the two never disagree (AUDIT.md §3, decision 5).
+- [x] **One skin, not three.** Done 26 Sep: Ledger only (AUDIT.md §3).
+- [x] **Fewer, merged tools.** Done 26 Sep: Recompute → /plan what-if;
+      Windfall + Cash Yield → Spare cash. The refinance half is still open
+      (below).
+- [x] **Debt-free date on the home page** from the same loader /plan uses.
+      Done 26 Sep, streamed so home paints first.
 - [ ] **A phone-width check in CI.** Seven tools and /plan scrolled sideways
       at 390 px although the manual pass said none did; the parked
       Playwright suite (6.2) should assert `scrollWidth ≤ 390` on every page.
+
+### From using the app as a new user (26 Sep 2026)
+
+Make it quicker to start:
+- [ ] **Shorter setup.** Fold the Welcome step (name, age) into Review and
+      Income; no BACK on step 1. Loans: show only the fields the chosen type
+      needs (a card needs balance, rate, bank; today a card shows ~16 fields,
+      including lock-in and part-payment rules that apply only to term loans)
+      with the rest under "More details". Income: hike month as a dropdown,
+      hike phases and other banks under "More".
+- [ ] **Add a 60+ age bracket** so senior citizens get the ₹50,000 80D cap
+      (currently the standard cap for everyone, W8).
+- [ ] **Liquidate: start with the common case** (sell gold, an FD or funds
+      to clear a card); the real-estate form behind "property".
+- [ ] **Self-host the font** (`next/font`) so pages don't wait on Google
+      Fonts; and move Render to an always-on plan or add a keep-warm ping
+      (the free plan's 30–60 s wake-up is the only slow thing measured).
+
+Make the numbers agree everywhere:
+- [ ] **One "should I refinance?" rule** across the /plan scan, Loan Check
+      offers and Right Time (AUDIT.md §3, still to decide 1).
+- [ ] **What-if runs the same plan as /plan.** Its sensitivity call doesn't
+      send the emergency-fund split, goals or life events, so its "before"
+      can differ from the plan's date.
+- [ ] **Per-loan currency in the debts table** for NRIs, and card minimums
+      not counted as "extra" in the schedule (AUDIT.md §3, 3–4).
+
+Make it a habit (the "super app" loop):
+- [ ] **Month close.** Once a month: confirm what was paid (one tap per
+      loan, prefilled from the plan), update card balances, and see "you're
+      N months ahead / behind". The recap card exists but only for users with
+      cash accounts, on /debts.
+- [ ] **Reminders** for EMI due dates and card statement days (setup already
+      asks for the statement day), and after each RBI/Fed decision for
+      repo-linked loans.
+- [ ] **Progress view**: debt paid off so far, interest avoided vs the
+      minimums, and the date moving closer, month by month.
+- [ ] **A one-page plan to share or print** (for a partner, or to take to
+      the bank).
+
+Tidy the code:
+- [ ] **Remove the dead skin branches** still inside shared parts (the
+      activity ledger, toggles, alerts and prompts keep "inline"/"aside"/
+      "editorial" paths that nothing renders now).
+- [ ] **Merge home's simple and detailed modes** (AUDIT.md §3, still to
+      decide 2).
 
 ---
 

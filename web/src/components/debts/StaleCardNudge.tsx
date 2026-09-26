@@ -14,7 +14,7 @@
 
 import { useEffect, useState } from 'react';
 import type { UserPayload } from '@/lib/api';
-import { readActivityClient } from '@/lib/activity';
+import { BALANCES_ENTERED_KEY, readActivityClient } from '@/lib/activity';
 import { ThemedContainer, ThemedHeadline, ThemedLabel } from '@/components/themed/Themed';
 
 const STALE_DAYS = 45;
@@ -34,10 +34,18 @@ export function StaleCardNudge({
       // Entries arrive newest-first; first sighting per loan wins.
       if (!lastByLoan.has(e.loanIndex)) lastByLoan.set(e.loanIndex, e.date);
     }
+    // Balances typed into setup count as an update.
+    let entered: string | null = null;
+    try {
+      entered = window.localStorage.getItem(BALANCES_ENTERED_KEY);
+    } catch {
+      entered = null;
+    }
     const result: { bank: string; daysSince: number | null }[] = [];
     user.loans.forEach((loan, idx) => {
       if (loan.loan_type !== 'credit_card') return;
-      const last = lastByLoan.get(idx);
+      const logged = lastByLoan.get(idx);
+      const last = logged && entered ? (logged > entered ? logged : entered) : logged ?? entered ?? undefined;
       if (!last) {
         result.push({ bank: loan.bank || `Card #${idx + 1}`, daysSince: null });
         return;

@@ -28,6 +28,7 @@
  *     wins when set.
  */
 import Decimal from 'decimal.js';
+import { dec } from './safe-decimal';
 import type { AgeBracket, Country, DeductionsPayload, FilingStatusUS, IncomeType, TaxRegimeIN, UserPayload } from './api';
 import { activeSlabGrossAnnual } from './income-streams';
 import {
@@ -39,8 +40,7 @@ import {
 } from './tax-brackets';
 import TAX from './tax-tables.json';
 
-const D = (v: string | number | Decimal | null | undefined) =>
-  new Decimal(v ?? '0');
+const D = dec;
 
 // India statutory caps (FY25/AY26)
 const CAP_80C = D('150000');
@@ -65,8 +65,13 @@ const US_STD_DEDUCTION: Record<FilingStatusUS, Decimal> = {
   hoh: D(US_STD_NUM.hoh),
 };
 
-function get80DCap(ageBracket?: AgeBracket): Decimal {
-  return ageBracket === '50_plus' ? CAP_80D_SENIOR : CAP_80D_DEFAULT;
+// The higher 80D cap is for senior citizens (60+). The age brackets stop
+// at "50+", which also holds people aged 50–59, so the senior cap would
+// overstate their deduction; use the standard cap until there's a 60+
+// bracket. CAP_80D_SENIOR stays for that.
+function get80DCap(_ageBracket?: AgeBracket): Decimal {
+  void CAP_80D_SENIOR;
+  return CAP_80D_DEFAULT;
 }
 
 export interface DeductionLine {

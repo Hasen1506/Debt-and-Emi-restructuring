@@ -104,7 +104,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
               {
                 l: 'TOTAL OUTSTANDING',
                 v: fc(m.totalOutstanding.toString()),
-                s: `${m.loans.length} OPEN LINES`,
+                s: `${m.loans.length} OPEN`,
               },
               {
                 l: 'EFFECTIVE RATE',

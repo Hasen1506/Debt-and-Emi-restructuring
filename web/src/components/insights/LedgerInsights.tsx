@@ -141,7 +141,7 @@ export function LedgerInsights({
       >
         <section>
           <LCli>
-            NOTES · ENGINE OUTPUT · {notes.length} ENTRIES · LAST UPDATED{' '}
+            NOTES · {notes.length} ENTRIES · LAST UPDATED{' '}
             {getCountryToday(profile.user.country)
               .toDateString()
               .toUpperCase()}

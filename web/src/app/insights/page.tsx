@@ -8,7 +8,7 @@ export default async function InsightsPage() {
   const [profile, strategy] = await Promise.all([loadProfileServer(), loadStrategyServer()]);
   return (
     <>
-      <h1 className="sr-only">Insights</h1>
+      <h1 className="sr-only">Activity and notes</h1>
       <LedgerInsights profile={profile} strategy={strategy} />
     </>
   );

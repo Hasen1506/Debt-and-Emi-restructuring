@@ -19,6 +19,7 @@
 
 import { useMemo, useState } from 'react';
 import { Field, InfoTip, Select } from '@/components/ToolPrimitives';
+import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { formatCurrency } from '@/lib/api';
 import { useStoredProfile } from '@/lib/use-profile';
 import { userDefaultCurrency } from '@/lib/currency';
@@ -221,10 +222,12 @@ export function PurchaseTool() {
           hint="Out-the-door cost"
           kind="decimal"
         />
-        <Field
-          label="Target month (YYYY-MM)"
+        <MonthYearPicker
+          label="Target month"
           value={targetMonth}
           onChange={setTargetMonth}
+          minYear={new Date().getFullYear()}
+          maxYear={new Date().getFullYear() + 10}
           hint="When you need to buy"
         />
         <Field

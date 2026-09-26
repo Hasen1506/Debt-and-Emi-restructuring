@@ -112,34 +112,53 @@ twice, and does it agree with the rest of the app?
 | U17 | **CSV dates a month early in India**: `toISOString()` turns local midnight on the 1st into the previous day in UTC. Same slip in five "today" checks (advance-tax, life events) between midnight and 05:30 | Local dates throughout (`localIsoDate`) |
 | U18 | **Pages scrolled sideways on a 390 px phone**: /plan (the 4-up summary strip, the restructure table), home (10 tools in 7 columns), and seven tools (fixed 2- and 3-column forms) | Grids wrap to fewer columns on narrow screens (`fitColumns`); wide tables scroll inside a labelled region. All 19 pages checked fit at 390 px |
 
-### For the owner to decide
+### Owner decisions, done (26 Sep 2026)
 
-1. **Three skins × three home modes is nine versions of each page.**
-   Every fix above had to be found per skin: the dead controls, the
-   duplicate column and the missing loan names were only in ledger; the
-   "Saves/yr" label was in all three. Suggest one skin as the product and
-   the others as colour themes over shared components.
-2. **Ten tools, several answering the same question.**
-   - "Prepay or invest?": Windfall, Recompute, Invest-vs-Prepay and Cash
-     Yield each run their own version.
-   - "Should I refinance?": the /plan restructure scan, Loan Check's offer
-     comparison and Right Time use three different rules (1.5 points
-     over the market median with 1% assumed costs; the real quote with a
-     ₹10,000 margin; an expected rate cut). U5 now points the scan to
-     Loan Check; merging them would remove the rest.
-   Suggest folding Recompute into /plan (it re-runs the plan), and
-   Windfall + Cash Yield into one "I have spare cash" tool.
-3. **Plan start month** moves only when salary hikes land; the dates,
-   balances and schedule ignore it. Either apply it everywhere or remove it.
-4. **Recompute and the /plan sliders** run a plainer simulation than /plan
-   (no plan start, planned resets, goals or emergency-fund split), so their
-   "before" date can differ from the one /plan shows.
-5. **Debt-free date on the home page.** It needs the same simulation /plan
-   runs; showing it means calling that loader from home (slower first
-   paint) rather than a second, simpler estimate that could disagree.
-6. **The ledger skin's command-line header** ("PLAN · STRATEGY=AVALANCHE ·
-   HORIZON=234MO · MARGINAL=21%") is styling, but reads as debug output.
-7. **Mixed-currency loan tables**: the ledger debts table formats every
-   loan in the home currency, so a $25k loan shows as ₹25,000 for an NRI.
-8. **Card minimums count as "extra"** in the ledger schedule, because a
-   card's scheduled EMI is 0.
+1. **One skin: Ledger.** Editorial and Default are deleted. What they
+   carried that earns its place now renders in Ledger (strategy switcher,
+   plain-worded assumptions, the real what-if panel, key dates, surplus
+   split, invest-vs-prepay, advance tax, life events, per-loan rate
+   breakdown, sign-in/out); duplicates were dropped (list in
+   `LEDGER_MISSING.md`). Ledger's "live engine" sliders were made-up
+   formulas and are replaced by the engine-backed what-if.
+2. **Merged tools.** Recompute → /plan's what-if ("Paid extra, or about
+   to?"); Windfall + Cash Yield → **Spare cash** (emergency-fund share at the
+   plan's split, where to park it, the rest to the loan the engine picks).
+   Old links redirect.
+3. **Plan start picker removed.** The plan starts this month from the
+   balances entered; the picker only moved the hike month.
+4. **Debt-free date on home.** The plan run costs 6–35 ms, so home runs the
+   same loader as /plan and streams in the date and this month's move.
+
+Found while doing these (fixed):
+
+| # | Where | Problem |
+|---|---|---|
+| W1 | Engine | The emergency fund got a fixed gap/12 top-up *plus* the slider's share; at 0%, or with any goal, the slider was ignored. The split is now the only top-up when given. |
+| W2 | /plan | Monthly outlay counted the emergency-fund share as a debt payment; the surplus split's header and slices used different surpluses. |
+| W3 | Home | "This month" guessed "whole surplus to the highest-rate loan" three ways, ignoring the strategy and the split; now it is the plan's month 1. A NEXT ACTION box repeated the card under it. |
+| W4 | /debts | "VS NEXT" compared the dearest loan with list position 2 (could be itself); "BALANCE TRANSFER" offered on any loan; empty CASH MANAGEMENT header; "HDFC Bank: HDFC Bank". |
+| W5 | Spare cash | Windfall logged the payment against the highest-rate loan whatever the strategy chose; score estimate used the first card and the Indian model. |
+| W6 | Setup | **Every new user crashed on step 2** (`new Decimal('')` on a blank income stream). A blank-safe `dec()` now backs every form-value conversion. |
+| W7 | Setup | Ended on /debts (now home); cards flagged "never updated" seconds after entry; an info button inside a button; "never uploaded" wasn't true once signed in. |
+| W8 | Tax | The ₹50k senior 80D cap applied from age 50; seniors are 60+. Standard cap until there's a 60+ bracket. |
+| W9 | Inputs | Eight more fields took decimals (fees, insurance, rate drift, state tax, asset return, savings yield, growth); Purchase asked for "YYYY-MM" as text. |
+| W10 | Tools | Headers read "§8B" (spec numbering); Invest vs prepay ignored the profile (India, 11%, 30%). |
+| W11 | Chrome | Home's mode toggles showed on every page; Goals and Portfolio had no nav link; no favicon. |
+
+### Still for the owner to decide
+
+1. **"Should I refinance?" still has three rules**: the /plan restructure
+   scan (1.5 points over the market median, 1% assumed costs), Loan
+   Check's offer comparison (the real quote, ₹10,000 margin) and Right
+   Time (expected rate cut). One engine for all three would remove the
+   disagreement.
+2. **Home has three modes** (simple, detailed, calm). Detailed adds little
+   over simple; merging them leaves one home plus the calm view.
+3. **Mixed-currency loan tables**: the debts table formats every loan in
+   the home currency, so a $25k loan shows as ₹25,000 for an NRI.
+4. **Card minimums count as "extra"** in the /plan schedule when a card's
+   scheduled EMI is 0.
+5. **Hosting**: both Render services are on the free plan, which sleeps
+   after 15 minutes; the first visit after that waits 30–60 s. That is
+   the only slow thing measured (see ROADMAP §1).

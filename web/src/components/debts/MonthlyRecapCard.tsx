@@ -18,6 +18,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
+import { dec } from '@/lib/safe-decimal';
 import type { CashAccountPayload, UserPayload } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
 import { currencySymbol, userDefaultCurrency } from '@/lib/currency';
@@ -84,8 +85,8 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
 
   // Defaults for the inputs.
   const defaultIncome = user.monthly_income ?? '0';
-  const defaultExpenses = new Decimal(user.fixed_expenses ?? '0')
-    .add(new Decimal(user.variable_expenses ?? '0'))
+  const defaultExpenses = dec(user.fixed_expenses)
+    .add(dec(user.variable_expenses))
     .toFixed(2);
   const defaultEmis = (user.loans ?? [])
     .reduce(

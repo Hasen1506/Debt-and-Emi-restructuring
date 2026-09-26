@@ -294,12 +294,12 @@ export default function OnboardingAssetsPage() {
 
               {(isRE || a.asset_type === 'gold_physical') && (
                 <Field
-                  label="Projected CAGR (decimal, optional)"
+                  label="Growth a year (%, optional)"
                   value={a.appreciation_cagr ?? ''}
                   onChange={(v) => update(i, { appreciation_cagr: v })}
-                  kind="text"
-                  placeholder={country === 'IN' ? '0.07' : '0.06'}
-                  hint="Your CAGR view — overrides the country/asset default. 0.09 = 9%/yr."
+                  kind="percent"
+                  placeholder={country === 'IN' ? '7' : '6'}
+                  hint="Your view of yearly growth; overrides the default for this asset type."
                 />
               )}
 

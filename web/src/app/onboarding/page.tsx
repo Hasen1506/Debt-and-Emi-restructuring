@@ -45,8 +45,9 @@ import { ensureFxRates } from '@/lib/currency';
 import {
   FY_ANCHOR_MONTH,
   MONTH_NAMES,
-  formatCountryDateLong,
+  localIsoDate,
 } from '@/lib/today';
+import { BALANCES_ENTERED_KEY } from '@/lib/activity';
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { api, formatCurrency } from '@/lib/api';
 import { deriveTenureMonths } from '@/lib/derived';
@@ -625,7 +626,14 @@ export default function OnboardingPage() {
       marginalRate: resolvedMarginalRate,
       creditScore: Number.isFinite(score) && score >= 300 ? score : null,
     });
-    router.push('/debts');
+    // The balances were just entered, so cards aren't "never updated".
+    try {
+      window.localStorage.setItem(BALANCES_ENTERED_KEY, localIsoDate(new Date()));
+    } catch {
+      /* private mode: the stale-card nudge falls back to activity only */
+    }
+    // Land on home: this month's move and the debt-free date.
+    router.push('/');
   }
 
   const canAdvance =
@@ -642,12 +650,9 @@ export default function OnboardingPage() {
       <section>
         <h1 className="h1">Set up your profile</h1>
         <p className="muted">
-          Six short steps — about two minutes. Saved locally to your browser,
-          never uploaded. You can re-edit anytime.
-        </p>
-        <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-          Today, for projections: <strong>{formatCountryDateLong(country)}</strong>
-          . The schedule uses this as month 1.
+          Six short steps, about two minutes. Your details stay in this
+          browser (and your account, if you sign in); our engine sees them
+          only to work out the plan. You can edit them any time.
         </p>
       </section>
 
@@ -767,8 +772,8 @@ export default function OnboardingPage() {
                 className="muted"
                 style={{ fontSize: 11, marginTop: 6, lineHeight: 1.5 }}
               >
-                Helps us tune nudges later — e.g. emergency-fund-first under 25,
-                retirement check at 50+. Never used for math.
+                Used for age-based limits in tax deductions and, later, nudges
+                such as emergency-fund-first under 25.
               </div>
             </div>
           </div>
@@ -851,8 +856,8 @@ export default function OnboardingPage() {
               onChange={setMonthlyIncome}
               hint={
                 country === 'IN'
-                  ? "What actually hits your account each month — NOT your CTC. Skip bonuses; add via Tools › Windfall."
-                  : 'Take-home, post-tax, post-401(k). Add bonuses via Tools › Windfall.'
+                  ? "What actually hits your account each month — NOT your CTC. Skip bonuses; add via Tools › Spare cash."
+                  : 'Take-home, post-tax, post-401(k). Add bonuses via Tools › Spare cash.'
               }
               info={
                 country === 'IN' ? (
@@ -879,13 +884,13 @@ export default function OnboardingPage() {
                     <br />
                     <br />
                     Skip annual bonuses and one-off incentives — log them via
-                    Tools › Windfall when they actually credit.
+                    Tools › Spare cash when they actually credit.
                   </>
                 ) : (
                   <>
                     Take-home pay each month, <strong>after</strong> federal /
                     state tax withholding and 401(k) contributions. NOT your
-                    gross salary. Add bonuses separately via Tools › Windfall.
+                    gross salary. Add bonuses separately via Tools › Spare cash.
                   </>
                 )
               }
@@ -1063,8 +1068,8 @@ export default function OnboardingPage() {
               hint="e.g. 8. Leave 0 if uncertain."
               info={
                 <>
-                  Yearly raise you expect, as a decimal.{' '}
-                  <strong>0.08 = 8%</strong>. The simulation applies it once
+                  Yearly raise you expect, as a percent, e.g.{' '}
+                  <strong>8</strong>. The simulation applies it once
                   every 12 months, on the month you pick below. Use 0 if
                   uncertain — better to be conservative. You can also toggle
                   the hike off entirely on the Plan page to compare flat-income
@@ -1273,8 +1278,8 @@ export default function OnboardingPage() {
                         processing fees, or other charges.
                         <br />
                         <br />
-                        Enter as a decimal: <strong>0.085</strong> for 8.5%,{' '}
-                        <strong>0.36</strong> for 36%.
+                        Enter as a percent: <strong>8.5</strong> for 8.5%,{' '}
+                        <strong>36</strong> for 36%.
                         <br />
                         <br />
                         The Debts view will show your true <strong>effective
@@ -1428,13 +1433,14 @@ export default function OnboardingPage() {
                       }
                     />
                     <Field
-                      label="Expected rate drift (decimal/yr)"
+                      label="Expected rate change a year (%)"
+                      kind="percent"
                       value={l.rate_drift_annualized ?? ''}
                       onChange={(v) =>
                         updateLoan(i, { rate_drift_annualized: v })
                       }
                       placeholder="0"
-                      hint="+0.005 = expect +50bps/yr (hike thesis); -0.005 = cuts"
+                      hint="0.5 = rates up half a point a year; -0.5 = cuts"
                       info={
                         <>
                           Your view of where the benchmark rate is going.
@@ -1794,10 +1800,11 @@ export default function OnboardingPage() {
                   />
                 )}
                 <Field
-                  label="Processing fee / yr (decimal, optional)"
+                  label="Processing fee a year (%, optional)"
+                  kind="percent"
                   value={l.processing_fee_amortised ?? ''}
                   onChange={(v) => updateLoan(i, { processing_fee_amortised: v })}
-                  hint="Annualised. Leave blank for cards. e.g. 0.005 = 0.5%/yr"
+                  hint="Spread over the loan's life, e.g. 0.5. Leave blank for cards."
                   info={
                     <>
                       One-time processing fee, amortised across the loan's
@@ -1808,7 +1815,7 @@ export default function OnboardingPage() {
                       <br />
                       Enter the <strong>annualised</strong> value. If your
                       personal loan charges 1.5% upfront on a 3-year tenure,
-                      that's 0.5%/yr → enter <strong>0.005</strong>.
+                      that's 0.5%/yr → enter <strong>0.5</strong>.
                       <br />
                       <br />
                       Leave blank for credit cards (annual fee separately).
@@ -1816,14 +1823,15 @@ export default function OnboardingPage() {
                   }
                 />
                 <Field
-                  label="Insurance premium / yr (decimal, optional)"
+                  label="Insurance premium a year (%, optional)"
+                  kind="percent"
                   value={l.insurance_premium_pct ?? ''}
                   onChange={(v) => updateLoan(i, { insurance_premium_pct: v })}
-                  hint="e.g. 0.001 = 0.1%/yr; leave blank if none"
+                  hint="e.g. 0.1; leave blank if none"
                   info={
                     <>
                       Some lenders bundle loan-protection insurance (technically
-                      optional but often pushed). Enter as a decimal pct/yr.
+                      optional but often pushed). Enter the yearly premium as a percent of the loan.
                       Leave blank if you declined or weren't offered insurance.
                     </>
                   }
@@ -2788,14 +2796,15 @@ function AdvancedTaxDetails({
               }
             />
             <Field
-              label="State marginal rate (optional)"
+              label="State marginal rate (%, optional)"
+              kind="percent"
               value={stateMarginalRate}
               onChange={onStateMarginalRateChange}
-              hint="e.g. 0.0682 for CA top, 0 for TX/FL/WA"
+              hint="e.g. 6.82 for CA top, 0 for TX/FL/WA"
               info={
                 <>
-                  Your <strong>state income tax</strong> marginal rate as a
-                  decimal. Added on top of federal marginal_rate when computing
+                  Your <strong>state income tax</strong> marginal rate, as a
+                  percent. Added on top of federal marginal_rate when computing
                   tax savings on deductible interest. Leave blank for states
                   with no income tax (TX, FL, WA, NV, TN, AK, SD, WY, NH).
                 </>
@@ -3445,8 +3454,8 @@ function ReviewSummary(props: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div className="muted" style={{ fontSize: 12, lineHeight: 1.55, marginBottom: 2 }}>
         Quick once-over before we save. Click <strong>Edit</strong> on any card
-        to jump back. Saving writes a cookie to this browser only — no upload,
-        no account.
+        to jump back. Saving keeps your details in this browser (and your
+        account, if you sign in).
       </div>
 
       <ReviewCard title="You" onEdit={() => onJumpToStep(0)}>

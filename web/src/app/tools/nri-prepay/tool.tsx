@@ -242,7 +242,8 @@ export function NriPrepayTool() {
             options={CURRENCIES}
           />
           <Field
-            label="Your savings yield (decimal, pre-tax)"
+            label="Your savings yield (%, before tax)"
+            kind="percent"
             value={savingsYield}
             error={at('savingsYield')}
             onChange={setSavingsYield}
