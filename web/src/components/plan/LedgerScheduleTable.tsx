@@ -19,7 +19,7 @@
 import { useMemo, useState } from 'react';
 import { formatCurrency, type Country, type LoanPayload } from '@/lib/api';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
-import { getCountryToday } from '@/lib/today';
+import { getCountryToday, monthIndexToDate } from '@/lib/today';
 import type { TrajectoryPoint } from '@/lib/mock-data';
 import type { MonthlyPaymentBreakdown } from './PlanData';
 
@@ -27,7 +27,7 @@ const VISIBLE_DEFAULT = 12;
 const SCROLL_HEIGHT = 360;
 
 function monthLabel(monthIndex: number, start: Date, country: Country): string {
-  const d = new Date(start.getFullYear(), start.getMonth() + monthIndex, 1);
+  const d = monthIndexToDate(monthIndex, start);
   const locale = country === 'IN' ? 'en-IN' : 'en-US';
   return d
     .toLocaleDateString(locale, { month: 'short', year: '2-digit' })
@@ -39,7 +39,7 @@ function toCSV(rows: TrajectoryPoint[], start: Date): string {
   const header = 'month,date,avalanche_balance,minimums_balance,delta\n';
   const body = rows
     .map((r) => {
-      const d = new Date(start.getFullYear(), start.getMonth() + r.month, 1);
+      const d = monthIndexToDate(r.month, start);
       const date = d.toISOString().slice(0, 7);
       const delta = r.minimums - r.avalanche;
       return `${r.month},${date},${Math.round(r.avalanche)},${Math.round(r.minimums)},${Math.round(delta)}`;

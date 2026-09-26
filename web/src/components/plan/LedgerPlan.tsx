@@ -19,8 +19,8 @@
 import { useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import type { PlanData } from './PlanData';
-import { formatCurrency, formatPct } from '@/lib/api';
-import { monthIndexToCountryLabel, MONTH_NAMES, getCountryToday } from '@/lib/today';
+import { formatCurrency, formatCurrencyCompact, formatPct } from '@/lib/api';
+import { monthIndexToCountryLabel, monthIndexToDate, MONTH_NAMES, getCountryToday } from '@/lib/today';
 import {
   LShell,
   LSectionHeader,
@@ -50,42 +50,55 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
     Math.max(0, plan.surplus);
 
   // ─── trajectory adapter ─────────────────────────────────────────────
-  const trajPoints: LTrajPoint[] = useMemo(() => {
-    if (plan.trajectory.length === 0) return [];
-    const maxBal = Math.max(
-      ...plan.trajectory.map((p) => Math.max(p.avalanche, p.minimums)),
-    );
-    const maxMonth = plan.trajectory[plan.trajectory.length - 1].month || 1;
-    return plan.trajectory.map((p) => ({
-      t: p.month / maxMonth,
-      av: maxBal > 0 ? p.avalanche / maxBal : 0,
-      min: maxBal > 0 ? p.minimums / maxBal : 0,
-    }));
-  }, [plan.trajectory]);
-
+  // x runs from month 1 (this month) to the last month either line is
+  // still above zero; each point is the balance after that month's
+  // payment.
   const today = getCountryToday(plan.user.country);
-  const xLabels = useMemo(() => {
-    if (plan.trajectory.length === 0) return [];
-    const maxMonth = plan.trajectory[plan.trajectory.length - 1].month || 1;
-    return [0, 0.25, 0.5, 0.75, 1].map((f) => {
-      const m = Math.round(f * maxMonth);
-      const d = new Date(today.getFullYear(), today.getMonth() + m, 1);
-      return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(-2)}`;
-    });
-  }, [plan.trajectory, today]);
+  const traj = plan.trajectory;
+  const firstMonth = traj[0]?.month ?? 1;
+  const lastMonth = traj[traj.length - 1]?.month ?? 1;
+  const span = Math.max(1, lastMonth - firstMonth);
+  const tOf = (month: number) => (month - firstMonth) / span;
+  const maxBal = traj.reduce((mx, p) => Math.max(mx, p.avalanche, p.minimums), 0);
+  const shortDate = (month: number) => {
+    const d = monthIndexToDate(month, today);
+    return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(-2)}`;
+  };
 
-  const yLabels = useMemo(() => {
-    if (plan.trajectory.length === 0) return [];
-    const maxBal = Math.max(
-      ...plan.trajectory.map((p) => Math.max(p.avalanche, p.minimums)),
-    );
-    return [
-      { y: 1, l: fc(maxBal) },
-      { y: 0.5, l: fc(maxBal / 2) },
-      { y: 0, l: fc(0) },
-    ];
+  const trajPoints: LTrajPoint[] = useMemo(
+    () =>
+      traj.map((p) => ({
+        t: tOf(p.month),
+        av: maxBal > 0 ? p.avalanche / maxBal : 0,
+        min: maxBal > 0 ? p.minimums / maxBal : 0,
+      })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan.trajectory, ccy]);
+    [traj, maxBal],
+  );
+
+  const xLabels = [0, 0.25, 0.5, 0.75, 1].map((f) => {
+    const month = firstMonth + Math.round(f * span);
+    return { t: tOf(month), l: shortDate(month) };
+  });
+
+  // Compact (₹35.7L): the full figure didn't fit beside the axis on a phone.
+  const yLabels = [
+    { y: 1, l: formatCurrencyCompact(maxBal, ccy) },
+    { y: 0.5, l: formatCurrencyCompact(maxBal / 2, ccy) },
+    { y: 0, l: formatCurrencyCompact(0, ccy) },
+  ];
+
+  const baselineClear = traj.find((p) => p.month > 0 && p.minimums <= 0.5)?.month ?? null;
+  const chartTitle =
+    traj.length === 0
+      ? ''
+      : `Total debt over time. ${strategyUp.toLowerCase()} plan: ${fc(traj[0].avalanche)} after this month, ` +
+        (plan.debtFreeMonth
+          ? `cleared in ${monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)}. `
+          : 'not cleared within the plan. ') +
+        (baselineClear
+          ? `Paying only the minimums clears it in ${monthIndexToCountryLabel(baselineClear, plan.user.country)}.`
+          : 'Paying only the minimums does not clear it within the plan.');
 
   return (
     <LShell>
@@ -152,15 +165,17 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             <>
               <LTrajectory
                 points={trajPoints}
-                clearLabel={
+                clear={
                   plan.debtFreeMonth
-                    ? `${monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)
-                        .toUpperCase()
-                        .replace(/(\w+)\s/, (s) => s.slice(0, 3) + ' ')} · CLEAR`
+                    ? {
+                        t: tOf(plan.debtFreeMonth),
+                        label: `${shortDate(plan.debtFreeMonth)} · CLEAR`,
+                      }
                     : undefined
                 }
                 axisLabels={xLabels}
                 yLabels={yLabels}
+                title={chartTitle}
               />
               <div
                 style={{
@@ -233,6 +248,16 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
     </LShell>
   );
 }
+
+const LOAN_SHORT: Record<string, string> = {
+  home_loan: 'Home',
+  auto_loan: 'Car',
+  personal_loan: 'Personal',
+  credit_card: 'Card',
+  education_loan: 'Edu',
+  gold_loan: 'Gold',
+  bnpl: 'BNPL',
+};
 
 // ─── Restructure table ──────────────────────────────────────────────────
 function RestructureTable({
@@ -355,11 +380,7 @@ function AmortisationSection({
   };
 
   const rows: Row[] = plan.monthlyPayments.map((row) => {
-    const d = new Date(
-      today.getFullYear(),
-      today.getMonth() + row.month,
-      1,
-    );
+    const d = monthIndexToDate(row.month, today);
     const date = `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(-2)}`;
     const bal = trajByMonth.get(row.month) ?? 0;
     const prevBal =
@@ -381,9 +402,13 @@ function AmortisationSection({
     const balancesPrev = plan.trajectory.find(
       (p) => p.month === row.month - 1,
     )?.balancesByLoanIndex;
-    if (balancesNow && balancesPrev) {
+    // Month 1 has no earlier row: compare with today's balances, or a
+    // loan cleared in the first month never got its ★.
+    if (balancesNow) {
       for (const [idxStr, n] of Object.entries(balancesNow)) {
-        const prev = Number(balancesPrev[idxStr] ?? 0);
+        const prev = balancesPrev
+          ? Number(balancesPrev[idxStr] ?? 0)
+          : Number(plan.user.loans[Number(idxStr)]?.outstanding ?? 0);
         if (prev > 0 && Number(n) <= 0.01) {
           const lender = plan.user.loans[Number(idxStr)]?.bank ?? 'LOAN';
           event = `★ ${lender.toUpperCase()} CLEARED`;
@@ -466,8 +491,10 @@ function AmortisationSection({
                 {[
                   'MO',
                   'DATE',
+                  // Type first: two loans from one bank used to show as
+                  // two identical "HDFC BAN" columns.
                   ...loanCols.map((l) =>
-                    (l.bank || '—').slice(0, 8).toUpperCase(),
+                    `${LOAN_SHORT[l.loan_type] ?? 'LOAN'} · ${(l.bank || '—').split(' ')[0].slice(0, 6)}`.toUpperCase(),
                   ),
                   'EXTRA',
                   'INT PAID',

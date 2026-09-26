@@ -70,7 +70,8 @@ export function DebtFreeRedirectPrompt({
   if (dismissed) return null;
   if (plan.debtFreeMonth == null) return null;
 
-  const monthsAway = plan.debtFreeMonth;
+  // Month 1 is this month, so the last EMI is debtFreeMonth − 1 months away.
+  const monthsAway = plan.debtFreeMonth - 1;
   // Far-future doesn't need this nudge — only show inside the 12-month band.
   if (monthsAway > 12) return null;
 
@@ -88,7 +89,8 @@ export function DebtFreeRedirectPrompt({
     plan.displayCurrency,
   );
 
-  const headline = `In ${monthsAway} ${monthsAway === 1 ? 'month' : 'months'} (${dateLabel}), your last EMI clears. ${freedAmountLabel}/mo of cash flow comes back.`;
+  const when = monthsAway === 0 ? 'This month' : `In ${monthsAway} ${monthsAway === 1 ? 'month' : 'months'}`;
+  const headline = `${when} (${dateLabel}), your last EMI clears. ${freedAmountLabel}/mo of cash flow comes back.`;
   const sub =
     "Pre-decide where it goes now — habits set on the freed-cash moment tend to stick.";
   const mono = variant === 'ledger';

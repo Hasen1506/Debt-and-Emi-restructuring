@@ -86,17 +86,25 @@ export function formatCountryDateShort(country: Country): string {
 }
 
 /**
- * Convert a 1-based sim month index into a "Mon yy" label, anchored at the
- * country's today. Replaces the old api.ts `monthIndexToLabel` which always
- * used `new Date()` and en-IN formatting regardless of country.
+ * First day of the calendar month that sim month `monthIndex` falls in.
+ * Month 1 is the current month (the engine's `simulation_start_month`),
+ * so month N is N − 1 months from now. Adding N was a month late
+ * everywhere: debt-free dates, the schedule table, the chart axis.
+ */
+export function monthIndexToDate(monthIndex: number, start: Date): Date {
+  return new Date(start.getFullYear(), start.getMonth() + monthIndex - 1, 1);
+}
+
+/**
+ * Convert a 1-based sim month index into a "Mon yyyy" label, anchored at
+ * the country's today.
  */
 export function monthIndexToCountryLabel(
   monthIndex: number | null,
   country: Country,
 ): string {
   if (monthIndex === null) return '—';
-  const start = getCountryToday(country);
-  const d = new Date(start.getFullYear(), start.getMonth() + monthIndex, 1);
+  const d = monthIndexToDate(monthIndex, getCountryToday(country));
   const locale = country === 'IN' ? 'en-IN' : 'en-US';
   return d.toLocaleDateString(locale, { month: 'short', year: 'numeric' });
 }

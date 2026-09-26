@@ -65,7 +65,8 @@ function Chart({
     domain: [0, data.length - 1],
     range: [0, innerW],
   });
-  const maxY = Math.max(...aSeries, ...mSeries);
+  // At least 1 so an all-zero series still gives the scale a range.
+  const maxY = Math.max(1, ...aSeries, ...mSeries);
   const yScale = scaleLinear<number>({
     domain: [0, maxY * 1.05],
     range: [innerH, 0],
@@ -75,11 +76,14 @@ function Chart({
   const formatY = (v: number | { valueOf(): number }) => {
     const n = typeof v === 'number' ? v : v.valueOf();
     if (currency === 'USD') {
+      if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
       if (n >= 1000) return `$${(n / 1000).toFixed(0)}k`;
       return `$${n.toFixed(0)}`;
     }
-    if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-    return `₹${(n / 1000).toFixed(0)}k`;
+    if (n >= 10_000_000) return `₹${(n / 10_000_000).toFixed(1)}Cr`;
+    if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)}L`;
+    if (n >= 1000) return `₹${(n / 1000).toFixed(0)}k`;
+    return `₹${n.toFixed(0)}`;
   };
 
   return (

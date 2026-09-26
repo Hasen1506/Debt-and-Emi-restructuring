@@ -127,7 +127,7 @@ function Chart({
           top={innerH}
           scale={xScale}
           numTicks={6}
-          tickFormat={(v) => `M${typeof v === 'number' ? v : v.valueOf()}`}
+          tickFormat={(v) => `m${(typeof v === 'number' ? v : v.valueOf()) + 1}`}
           stroke={tokens.color.muted}
           tickStroke={tokens.color.muted}
           tickLabelProps={() => ({
