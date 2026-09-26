@@ -47,7 +47,7 @@
   launch), live rates (5, first live fetch still to check), the axe pass
   and hydration fixes (6.2), the API fuzz and input bounds (6.3), size cap,
   headers and rate limits (6.4), field errors on every tool.
-  **648 tests passing.** Still missing: US letters, cross-browser and load
+  **672 tests passing.** Still missing: US letters, cross-browser and load
   suites (6.1, 6.5), verified outcome reports, a manual screen-reader run.
 - **Bug hunt and user-view audit (26 Sep 2026): see [`AUDIT.md`](AUDIT.md).**
   Fixed: the /plan chart and every date a month late, 10 engine bugs
@@ -635,8 +635,8 @@ Make it quicker to start:
       including lock-in and part-payment rules that apply only to term loans)
       with the rest under "More details". Income: hike month as a dropdown,
       hike phases and other banks under "More".
-- [ ] **Add a 60+ age bracket** so senior citizens get the ₹50,000 80D cap
-      (currently the standard cap for everyone, W8).
+- [x] **Add a 60+ age bracket** so senior citizens get the ₹50,000 80D cap.
+      Done 26 Sep: "50+" is now 50–59 and 60+.
 - [ ] **Liquidate: start with the common case** (sell gold, an FD or funds
       to clear a card); the real-estate form behind "property".
 - [ ] **Self-host the font** (`next/font`) so pages don't wait on Google
@@ -646,11 +646,9 @@ Make it quicker to start:
 Make the numbers agree everywhere:
 - [ ] **One "should I refinance?" rule** across the /plan scan, Loan Check
       offers and Right Time (AUDIT.md §3, still to decide 1).
-- [ ] **What-if runs the same plan as /plan.** Its sensitivity call doesn't
-      send the emergency-fund split, goals or life events, so its "before"
-      can differ from the plan's date.
-- [ ] **Per-loan currency in the debts table** for NRIs, and card minimums
-      not counted as "extra" in the schedule (AUDIT.md §3, 3–4).
+- [x] **What-if runs the same plan as /plan.** Done 26 Sep (AUDIT.md §4).
+- [x] **Per-loan currency in the debts table** for NRIs, and card minimums
+      not counted as "extra" in the schedule. Done 26 Sep (AUDIT.md §4).
 
 Make it a habit (the "super app" loop):
 - [ ] **Month close.** Once a month: confirm what was paid (one tap per
@@ -671,6 +669,58 @@ Tidy the code:
       "editorial" paths that nothing renders now).
 - [ ] **Merge home's simple and detailed modes** (AUDIT.md §3, still to
       decide 2).
+
+### Big ideas (26 Sep 2026, for the owner to pick from)
+
+Bigger bets that would turn this from a calculator into the app people
+open every month. Rough order: most leverage first.
+
+- [ ] **No typing: pull the loans in.** India's Account Aggregator network
+      (RBI-licensed, consent-based) returns real balances, rates and EMIs
+      from the bank; a CIBIL/Experian report upload lists every loan and
+      card with lender and outstanding. Setup becomes "connect and check".
+      The same pull each month *is* the month close, and a rate that
+      didn't fall after a repo cut shows up without the user noticing.
+- [ ] **Loan Check on autopilot.** After each RBI/Fed decision, check every
+      repo-linked loan's next reset and send "HDFC should move you to
+      8.25% on 1 Jan; here's the letter" before the bank forgets; chase at
+      day 30, pre-fill the RBI CMS complaint at day 30+. The scorecard
+      becomes a public "which banks pass on cuts" index journalists quote.
+- [ ] **Fee traps finder.** Spot charges the rules forbid or cap:
+      foreclosure charges on floating-rate personal loans (RBI bars them),
+      bundled loan insurance, penal interest after the Jan 2024 penal-
+      charges rules, processing fees above the sanction letter. Each with
+      its letter.
+- [ ] **Payday checklist.** On salary day, one screen: pay card X ₹A, part-
+      prepay loan Y ₹B, ₹C to the fund, with UPI/AutoPay links and a tick
+      per line. Ticks feed the progress view ("3 months ahead").
+- [ ] **No-cost EMI checker at checkout.** A share-sheet / browser add-on
+      that reads the Amazon/Flipkart price and says what the EMI really
+      costs against the cash discount (the new-debt engine already does
+      the maths).
+- [ ] **Ask the plan.** A chat that answers "can I afford a ₹15L car?" or
+      "why the card first?" from the engine's own numbers, and writes the
+      phone script for calling the bank. Hindi and other languages.
+- [ ] **Couples and households.** Two incomes, joint loans, who pays what;
+      one shared plan and date.
+- [ ] **Tax season mode (Jan–Mar, India).** Old vs new regime *with* the
+      loans (home-loan interest and principal favour the old regime),
+      80C/80D against prepaying, the 87A cliff and marginal relief.
+- [ ] **Gold and idle-money arbitrage.** Gold at home → a 9% gold loan to
+      kill a 42% card; FD → overdraft against FD; the ranker already
+      knows the tax and penalties.
+- [ ] **NRI remit timing.** Alert when the rupee weakens past a line:
+      "remit now: your $ goes 3% further on the home loan".
+- [ ] **Stress test with insurance.** Job loss for 6 months, a rate spike,
+      a hospital bill: how long the fund lasts, and whether term cover
+      clears the loans if the earner dies.
+- [ ] **A phone widget and a share card.** Debt-free date on the home screen;
+      "34 → 31 months" card for WhatsApp, no amounts shown.
+- [ ] **Employer benefit (B2B).** Offer it through HR as financial
+      wellness; the user pays nothing, the employer pays per seat.
+- [ ] **Private by default.** Everything works offline on the device
+      (PWA, encrypted local store); sync is opt-in. A trust edge over
+      apps that sell leads.
 
 ---
 

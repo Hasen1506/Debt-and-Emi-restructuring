@@ -53,11 +53,8 @@ plus API tests in `api/tests/test_simulation.py`.
 
 Consistency gaps still open:
 
-- **Recompute and the /plan sliders run a plainer simulation than /plan
-  itself** (no plan start month, planned resets, goals, emergency-fund
-  split or inflation setting), so their "old debt-free date" can differ
-  from the one /plan shows. They should call the same simulation with
-  the same settings.
+- ~~Recompute and the /plan sliders run a plainer simulation than /plan~~
+  Fixed 26 Sep (§4, P1).
 - **Right Time ignores whether the loan is floating.** A floating loan
   (most Indian home loans) moves with the repo rate anyway, so waiting
   for a cut only matters for fixed-rate loans or to avoid a reset lag.
@@ -78,9 +75,8 @@ Still open (owner):
   raised it (about $40,000 for 2025–2029, phased down for high incomes).
   Tax figures are cited law, so this waits for a pasted source. The
   engine's US head-of-household table is also marked "approx" in a comment.
-- **Below the 87A line the true marginal rate is 0**: a new-regime earner
-  at ₹10L pays no tax, but the engine (and now the web) report 10.4%. It
-  matters for after-tax investment returns in invest-vs-prepay.
+- ~~Below the 87A line the true marginal rate is 0~~ Fixed 26 Sep, with
+  the missing marginal relief above the line (§4, T6–T7).
 - Profiles saved before this fix keep their stored 30% marginal rate
   until the user re-saves onboarding.
 
@@ -155,10 +151,54 @@ Found while doing these (fixed):
    disagreement.
 2. **Home has three modes** (simple, detailed, calm). Detailed adds little
    over simple; merging them leaves one home plus the calm view.
-3. **Mixed-currency loan tables**: the debts table formats every loan in
-   the home currency, so a $25k loan shows as ₹25,000 for an NRI.
-4. **Card minimums count as "extra"** in the /plan schedule when a card's
-   scheduled EMI is 0.
+3. ~~Mixed-currency loan tables~~ Done 26 Sep (§4, W14).
+4. ~~Card minimums count as "extra"~~ Done 26 Sep (§4, W15).
 5. **Hosting**: both Render services are on the free plan, which sleeps
    after 15 minutes; the first visit after that waits 30–60 s. That is
    the only slow thing measured (see ROADMAP §1).
+
+## 4 · Second sweep: untouched engines, odd inputs, odd profiles (26 Sep 2026)
+
+The five engines no earlier pass had read (goals, credit score,
+cross-border, penalties, asset sales), every decision endpoint with
+boundary inputs, and home / plan / debts / goals / insights / portfolio
+under five profiles: no loans, every loan paid off, over budget, US, and
+an Indian user with a dollar loan. Each bug reproduced with numbers
+first; each fix has a test (672 pass).
+
+### Engines
+
+| # | Bug | Example | Fix |
+|---|---|---|---|
+| A1 | **Property seller charged stamp duty + registration** (the buyer's costs in India) | ₹1 crore flat: ₹8.5L of "selling costs" instead of ₹1.5L brokerage; ~₹7L of proceeds missing | Seller pays brokerage only; the state no longer matters, so the field is gone from Liquidate and setup |
+| A2 | **Property held ≤ 24 months taxed as long-term** | Held 13 months, ₹8.5L gain: 12.5% instead of the slab rate | Short-term at the slab rate; caveat says waiting past 2 years moves it to 12.5% |
+| A3 | **Liquidate sent "2024-25" as this year's FY** | Pre-2024 flats got too little indexation, so too much tax | The API works out both FYs |
+| A4 | **Cess added twice** on debt funds, short-term gold and SGB | ₹1L gain at 31.2%: ₹32,448 instead of ₹31,200 | The profile's rate already includes cess |
+| A5 | An FD with no break penalty was charged 1% | 0% entered → ₹1,000 on ₹1L | 0 stays 0 |
+| A6 | Hold-vs-sell dropped part years | A 0.5-year horizon compared nothing | Compounds the part year |
+| S1 | **Rising card use predicted no score change** | 10% → 70% utilisation: 0 points | Mirrors the same-size drop (−52 to −32) |
+| S2 | Paying off a card with nothing on it: +5 to +10 points | — | 0 |
+| S3 | A US score of 880 was accepted (FICO tops out at 850); /score-band took any number | — | 422 |
+| X1 | Cross-border took an FX rate of 0 or below, or 300%/yr drift | EMI shown as 0 or negative | Bounded |
+| R1 | Right time: "No meaningful change expected (−50bps)" when a real cut was too small or too far off | ₹5L loan, 50bps cut: saves ₹4,180 | Says which: "saves only ~₹4,180" / "expected in 12 months" |
+| R2 | Urgency took any text ("whenever" = urgent); recompute with a loan that isn't there said "saves nothing" | — | 422 naming the field |
+| T6 | **New-regime marginal relief missing** | ₹12.1L taxable: ₹63,960 tax instead of ₹10,400 | Engine and web cap the tax at the income above ₹12L |
+| T7 | Marginal rate 10.4% (new) / 5.2% (old) below the 87A line, where no tax is due | ₹10L earner's tax shield and investment tax drag | 0 at or below the line |
+
+### Plan and pages
+
+| # | What the user saw | Fix |
+|---|---|---|
+| W12 | **Every loan paid off → home and /debts crashed** (no "dearest loan") | Paid-off loans aren't open positions; home and /debts say DEBT-FREE; /plan shows a debt-free page instead of "NOT IN LIFETIME", an outlay with no loans and an empty chart |
+| W13 | A paid-off loan's EMI was still taken out of the surplus (browser and the engine's /plan snapshot) | ₹53,300 shown as ₹43,047 while the plan itself used ₹53,300 |
+| W14 | **Mixed currencies** (was "to decide 3"): a $25k loan read ₹25,000; TOTAL EMI, monthly interest and the plan's outlay added ₹ and $ as plain numbers | Rows in each loan's currency; totals converted ("TOTAL IN INR") |
+| W15 | **Card minimums counted as extra** (was "to decide 4"), and a cleared loan's EMI kept being subtracted from "extra" | The engine reports each month's total and extra (above each loan's minimum) in the user's currency; schedule and outlay use them |
+| W16 | "₹-29,200/MO"; a blank amount made the formatter throw | "−₹29,200"; blank reads 0 |
+| P1 | **What-if ran a plainer plan than /plan** (no planned events, EF split, goals, rising costs, refunds, activity-adjusted balances), so "before" could differ from the plan's date | Compare takes the same plan fields as /simulate, built by one function; /plan passes its run settings to the panel |
+| W17 | Seniors never got the ₹50,000 80D cap ("50+" mixed 50–59 with 60+) | 50–59 and 60+ brackets; 60+ gets the senior cap |
+
+Checked and fine: the goals engine (serial fill, expiry, deferred start),
+penalties, windfall with no loans / more cash than debt, new-debt with a
+cash price above the list price, zero income, 0% EMI loans, EMI below the
+interest, a card with no EMI, a ₹100 crore balance, ten loans.
+
