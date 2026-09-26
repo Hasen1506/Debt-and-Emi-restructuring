@@ -8,7 +8,7 @@ from engine.asset_liquidation import (
 )
 from engine.country_data import india_selling_cost_pct
 from engine.decisions import (
-    allocate_windfall, evaluate_new_debt, quick_recompute,
+    DecisionInputError, allocate_windfall, evaluate_new_debt, quick_recompute,
     cash_yield_check, right_time_to_borrow,
 )
 from engine.formulas import effective_rate
@@ -27,6 +27,11 @@ D = Decimal
 router = APIRouter(tags=["decisions"])
 
 
+def _bad(e: DecisionInputError) -> HTTPException:
+    """422 in the same shape as Loan Check: {"detail": {"field", "message"}}."""
+    return HTTPException(status_code=422, detail={"field": e.field, "message": str(e)})
+
+
 @router.post("/windfall", response_model=WindfallResponse)
 def windfall(req: WindfallRequest) -> WindfallResponse:
     user = req.user.to_engine()
@@ -35,11 +40,14 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
         id(l): effective_rate(l, marg, user.country, user.tax_regime)
         for l in user.loans
     }
-    allocation = allocate_windfall(
-        req.amount, user.loans, rates,
-        user.investment_options, user.inflation_rate, strategy=req.strategy,
-        country=user.country,
-    )
+    try:
+        allocation = allocate_windfall(
+            req.amount, user.loans, rates,
+            user.investment_options, user.inflation_rate, strategy=req.strategy,
+            country=user.country,
+        )
+    except DecisionInputError as e:
+        raise _bad(e)
     return WindfallResponse(
         loan_label=allocation.loan_label,
         amount=allocation.amount,
@@ -47,19 +55,25 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
         interest_avoided=allocation.interest_avoided,
         invest_instead=allocation.invest_instead,
         investment_name=allocation.investment_name,
+        investment_return=allocation.investment_return,
+        leftover=allocation.leftover,
     )
 
 
 @router.post("/new-debt", response_model=NewDebtResponse)
 def new_debt(req: NewDebtRequest) -> NewDebtResponse:
-    verdict = evaluate_new_debt(
-        list_price=req.list_price,
-        cash_price_elsewhere=req.cash_price_elsewhere,
-        emi_offer_months=req.emi_offer_months,
-        emi_offer_monthly_payment=req.emi_offer_monthly_payment,
-        processing_fee=req.processing_fee,
-        user_savings_after_efund=req.user_savings_after_efund,
-    )
+    try:
+        verdict = evaluate_new_debt(
+            list_price=req.list_price,
+            cash_price_elsewhere=req.cash_price_elsewhere,
+            emi_offer_months=req.emi_offer_months,
+            emi_offer_monthly_payment=req.emi_offer_monthly_payment,
+            processing_fee=req.processing_fee,
+            user_savings_after_efund=req.user_savings_after_efund,
+            country=req.country,
+        )
+    except DecisionInputError as e:
+        raise _bad(e)
     return NewDebtResponse(**verdict.__dict__)
 
 

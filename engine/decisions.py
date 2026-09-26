@@ -3,11 +3,12 @@
 Each returns a single decision with the key number. Inputs are kept narrow so
 each can be wired to a focused UI screen.
 """
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from dataclasses import dataclass, field
 from datetime import date
 from engine.models import Loan, Country, LoanType, InvestmentOption, LiquidityClass
 from engine.formulas import emi, effective_rate, prepay_recommended
+from engine.loan_check import _inr
 from engine.ordering import Strategy, rank_loans
 
 D = Decimal
@@ -17,15 +18,67 @@ D = Decimal
 # §8a  Windfall Handler
 # ─────────────────────────────────────────────────────────────────────────────
 
+class DecisionInputError(ValueError):
+    """Bad input to a decision tool, naming the field the user must fix."""
+
+    def __init__(self, field: str, message: str):
+        super().__init__(message)
+        self.field = field
+
+
+def money(amount: Decimal, country: Country = Country.IN) -> str:
+    """₹12,34,567 for India, $1,234,567 for the US; whole units."""
+    if country == Country.US:
+        n = int(amount.quantize(D("1"), rounding=ROUND_HALF_UP))
+        return f"{'-' if n < 0 else ''}${abs(n):,}"
+    return _inr(amount)
+
+
+def _interest_to_clear(balance: Decimal, rate: Decimal, payment: Decimal) -> Decimal:
+    """Interest paid clearing `balance` at `payment` a month (monthly rest)."""
+    monthly = rate / D("12")
+    total = D("0")
+    for _ in range(1200):
+        if balance <= 0:
+            break
+        i = balance * monthly
+        total += i
+        balance = balance + i - payment
+    return total
+
+
+def interest_saved_by_prepaying(loan: Loan, prepay: Decimal) -> Decimal:
+    """Interest avoided by paying `prepay` off `loan` now, keeping the EMI so
+    the loan finishes sooner (the usual default after a part-payment).
+
+    Works the loan month by month. If the scheduled EMI is missing or does
+    not cover the interest (a card's minimum payment), the EMI that clears
+    the balance over the months left (at least one) is used instead.
+    """
+    balance, rate = loan.outstanding, loan.nominal_rate
+    prepay = min(prepay, balance)
+    if prepay <= 0 or rate <= 0:
+        return D("0")
+    payment = loan.scheduled_emi or D("0")
+    if payment <= balance * rate / D("12"):
+        payment = emi(balance, rate, max(loan.tenure_months_remaining or 0, 1))
+    saved = _interest_to_clear(balance, rate, payment) - _interest_to_clear(balance - prepay, rate, payment)
+    return max(D("0"), saved.quantize(D("1"), rounding=ROUND_HALF_UP))
+
+
 @dataclass
 class WindfallAllocation:
     to_loan_id: int | None
     loan_label: str
-    amount: Decimal
+    amount: Decimal                         # what goes to the loan (capped at its balance)
     rationale: str                          # e.g. "highest effective rate (38.4%)"
-    interest_avoided: Decimal               # estimated interest avoided across loan tenure
+    # Interest the prepayment avoids over the loan's remaining life. When
+    # investing wins, the interest given up by not prepaying. Never negative.
+    interest_avoided: Decimal
     invest_instead: bool = False
     investment_name: str | None = None
+    investment_return: Decimal | None = None
+    leftover: Decimal = D("0")              # windfall beyond the loan's balance
 
 
 def allocate_windfall(
@@ -41,16 +94,21 @@ def allocate_windfall(
     time), then Layer 2 ranking, then Layer 3 invest-vs-prepay gate on the top
     candidate.
     """
+    if amount <= 0:
+        raise DecisionInputError("amount", "Enter an amount above zero.")
     active = [l for l in loans if l.outstanding > 0]
-    if not active or amount <= 0:
+    if not active:
         return WindfallAllocation(
-            to_loan_id=None, loan_label="—", amount=amount,
-            rationale="No outstanding debt", interest_avoided=D("0"),
+            to_loan_id=None, loan_label="—", amount=D("0"),
+            rationale="No outstanding debt", interest_avoided=D("0"), leftover=amount,
         )
 
     ranked = rank_loans(active, effective_rates, strategy, country=country)
     top = ranked[0]
     top_rate = effective_rates[id(top)]
+    label = f"{top.bank} {top.loan_type.value}"
+    to_loan = min(amount, top.outstanding)
+    avoided = interest_saved_by_prepaying(top, to_loan)
 
     # Layer 3 — invest-vs-prepay gate
     liquid = [o for o in investment_options
@@ -59,26 +117,20 @@ def allocate_windfall(
     best = next((o for o in liquid if o.expected_return == best_return), None)
 
     if best is not None and not prepay_recommended(top_rate, best_return, inflation):
-        # Invest instead
-        years_horizon = D("3")    # short-horizon comparison
-        interest_avoided_if_paid = top_rate * amount * years_horizon
         return WindfallAllocation(
-            to_loan_id=None, loan_label=f"{top.bank} {top.loan_type.value}",
-            amount=amount,
+            to_loan_id=None, loan_label=label, amount=amount,
             rationale=f"Best liquid return {best_return*100:.2f}% beats loan effective {top_rate*100:.2f}% post-inflation",
-            interest_avoided=interest_avoided_if_paid * D("-1"),
-            invest_instead=True, investment_name=best.name,
+            interest_avoided=avoided,
+            invest_instead=True, investment_name=best.name, investment_return=best_return,
         )
 
-    # Estimate interest avoided: rate × amount × remaining-tenure-years
-    years_remaining = D(top.tenure_months_remaining) / D("12") if top.tenure_months_remaining else D("1")
-    interest_avoided = top_rate * amount * years_remaining
-    cap = min(amount, top.outstanding)
+    leftover = amount - to_loan
+    rationale = f"Highest effective rate ({top_rate*100:.2f}%)"
+    if leftover > 0:
+        rationale += f"; clears it with {money(leftover, country)} left over"
     return WindfallAllocation(
-        to_loan_id=id(top), loan_label=f"{top.bank} {top.loan_type.value}",
-        amount=cap,
-        rationale=f"Highest effective rate ({top_rate*100:.2f}%)",
-        interest_avoided=interest_avoided,
+        to_loan_id=id(top), loan_label=label, amount=to_loan,
+        rationale=rationale, interest_avoided=avoided, leftover=leftover,
     )
 
 
@@ -92,21 +144,32 @@ class NewDebtVerdict:
     cash_price: Decimal                     # net of any "EMI-only" discount
     foregone_discount: Decimal
     processing_fee: Decimal
-    total_real_cost: Decimal                # foregone_discount + processing_fee
+    # Everything paid beyond the cash price: the foregone discount, the
+    # processing fee and any interest in the EMIs. Never negative.
+    total_real_cost: Decimal
     monthly_emi: Decimal
-    effective_apr: Decimal                  # solved so NPV(payments)=cash_price
+    effective_apr: Decimal                  # solved so NPV(payments) = cash price − fee
     verdict: str                            # "take" | "pay_cash" | "delay"
     detail: str
 
 
+MAX_APR = D("10")                           # 1000%: beyond this, say "over"
+
+
 def _effective_apr_for_emi(monthly_emi: Decimal, months: int, principal: Decimal) -> Decimal:
-    """Bisect for the annual rate r where EMI matches. Principal here is the
-    true cash equivalent (cash_price), not list_price.
+    """Bisect for the annual rate r where EMI matches. Principal here is what
+    the buyer effectively borrows: the cash price less any fee paid up front.
+    Returns 0 when the payments add up to no more than the principal, and
+    MAX_APR when the rate is higher still.
     """
     if principal <= 0 or monthly_emi <= 0 or months <= 0:
         return D("0")
-    lo, hi = D("0"), D("2")        # 0% to 200% APR brackets
-    for _ in range(64):
+    if monthly_emi * months <= principal:
+        return D("0")
+    lo, hi = D("0"), MAX_APR
+    if emi(principal, hi, months) < monthly_emi:
+        return MAX_APR
+    for _ in range(80):
         mid = (lo + hi) / D("2")
         guess = emi(principal, mid, months)
         if guess > monthly_emi:
@@ -123,29 +186,56 @@ def evaluate_new_debt(
     emi_offer_monthly_payment: Decimal,
     processing_fee: Decimal = D("0"),
     user_savings_after_efund: Decimal = D("0"),
+    country: Country = Country.IN,
 ) -> NewDebtVerdict:
     """§8b — compares take-EMI vs pay-cash vs delay. Returns the dominant verdict.
 
     `cash_price_elsewhere` is the price the user *could* pay in cash (often lower
     than list_price for 0%-EMI items). If unknown, pass the same value as
     list_price (then foregone_discount=0).
+
+    A processing fee paid up front means the buyer borrows less than the
+    cash price for the same EMIs, so it raises the effective APR; a
+    "no-cost" EMI with a fee is never 0%.
     """
+    if list_price <= 0:
+        raise DecisionInputError("list_price", "Enter the price above zero.")
+    if cash_price_elsewhere <= 0:
+        raise DecisionInputError("cash_price_elsewhere", "Enter the cash price above zero.")
+    if not (1 <= emi_offer_months <= 480):
+        raise DecisionInputError("emi_offer_months", "The number of EMIs must be between 1 and 480.")
+    if emi_offer_monthly_payment <= 0:
+        raise DecisionInputError("emi_offer_monthly_payment", "Enter the EMI above zero.")
+    if processing_fee < 0:
+        raise DecisionInputError("processing_fee", "The processing fee can't be negative.")
+    if processing_fee >= cash_price_elsewhere:
+        raise DecisionInputError("processing_fee", "The processing fee is more than the price. Check the numbers.")
+    if user_savings_after_efund < 0:
+        raise DecisionInputError("user_savings_after_efund", "Savings can't be negative.")
+
     foregone = max(D("0"), list_price - cash_price_elsewhere)
-    total_real_cost = foregone + processing_fee
     cash_equivalent = cash_price_elsewhere
-    apr = _effective_apr_for_emi(emi_offer_monthly_payment, emi_offer_months, cash_equivalent)
+    paid = emi_offer_monthly_payment * emi_offer_months + processing_fee
+    total_real_cost = max(D("0"), paid - cash_equivalent).quantize(D("1"), rounding=ROUND_HALF_UP)
+    apr = _effective_apr_for_emi(emi_offer_monthly_payment, emi_offer_months, cash_equivalent - processing_fee)
+    apr_text = "over 1000%" if apr >= MAX_APR else f"≈ {apr*100:.1f}%"
+    cost = money(total_real_cost, country)
 
     can_pay_cash = user_savings_after_efund >= cash_equivalent
     if can_pay_cash and apr > D("0.10"):
         verdict = "pay_cash"
-        detail = (f"Real APR ≈ {apr*100:.1f}%. Pay cash, save ₹{total_real_cost:,.0f} "
-                  f"vs the 'no-cost' EMI.")
+        detail = f"Real APR {apr_text}. Paying cash saves {cost} over the EMI plan."
     elif apr > D("0.20"):
         verdict = "delay"
-        detail = f"APR ≈ {apr*100:.1f}% — too costly. Save up first."
+        detail = f"Real APR {apr_text}: too costly. Save up first; the EMI plan costs {cost} more than cash."
     else:
         verdict = "take"
-        detail = f"APR ≈ {apr*100:.1f}%. Acceptable; take the EMI if budget allows."
+        detail = (
+            f"Real APR {apr_text}. Acceptable; take the EMI if the budget allows. "
+            f"It costs {cost} more than paying cash."
+            if total_real_cost > 0 else
+            f"Real APR {apr_text}. The EMI plan costs no more than paying cash; take it if the budget allows."
+        )
 
     return NewDebtVerdict(
         list_price=list_price, cash_price=cash_price_elsewhere,

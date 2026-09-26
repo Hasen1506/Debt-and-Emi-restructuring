@@ -180,6 +180,7 @@ export function NewDebtTool() {
         emi_offer_monthly_payment: monthlyEmi.toFixed(2),
         processing_fee: fee,
         user_savings_after_efund: savings,
+        country,
       });
       setV(result);
 

@@ -86,3 +86,4 @@ def test_bad_input_names_the_field(client, kw, field):
     r = client.post("/api/offers/compare", json=_payload(**kw))
     assert r.status_code == 422, r.text
     assert r.json()["detail"]["field"] == field
+

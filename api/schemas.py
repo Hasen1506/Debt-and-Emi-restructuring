@@ -632,9 +632,11 @@ class WindfallResponse(_Base):
     loan_label: str
     amount: Decimal
     rationale: str
-    interest_avoided: Decimal
+    interest_avoided: Decimal               # never negative; "given up" when investing
     invest_instead: bool
     investment_name: Optional[str]
+    investment_return: Optional[Decimal] = None
+    leftover: Decimal = D("0")
 
 
 class NewDebtRequest(_Base):
@@ -644,6 +646,7 @@ class NewDebtRequest(_Base):
     emi_offer_monthly_payment: Decimal
     processing_fee: Decimal = D("0")
     user_savings_after_efund: Decimal = D("0")
+    country: Country = Country.IN           # currency in the wording
 
 
 class NewDebtResponse(_Base):

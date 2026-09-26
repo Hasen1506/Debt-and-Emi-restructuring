@@ -100,8 +100,6 @@ export function WindfallTool() {
   const loudestRate = loudest
     ? `${(Number(loudest.effective) * 100).toFixed(2)}%`
     : '—';
-  const interestAvoided = v ? Number(v.interest_avoided) : 0;
-  const amountNum = Number(amount || '0');
 
   // Allocation bar segments: §4.9.1 spec shows the four buckets the
   // engine routes between. The recommended bucket (the engine's verdict)
@@ -290,17 +288,20 @@ export function WindfallTool() {
               tone: v.invest_instead ? 'neg' : 'pos',
               note: v.invest_instead
                 ? 'this is the OPPORTUNITY COST of investing'
-                : 'over remaining tenure at current rate',
+                : 'over the loan’s remaining life, EMI kept, so it ends sooner',
             },
             {
               k: 'principal cut',
-              v: fmt(amountNum.toFixed(0)),
-              note: 'goes directly against the outstanding',
+              v: v.invest_instead ? '—' : fmt(v.amount),
+              note:
+                Number(v.leftover) > 0
+                  ? `clears the loan; ${fmt(v.leftover)} left over`
+                  : 'goes directly against the outstanding',
             },
             {
               k: 'expected return',
-              v: v.invest_instead
-                ? `${(((interestAvoided + amountNum) / Math.max(1, amountNum)) * 100 - 100).toFixed(2)}%`
+              v: v.invest_instead && v.investment_return
+                ? `${(Number(v.investment_return) * 100).toFixed(2)}%`
                 : '—',
               note: v.invest_instead
                 ? 'after-tax, vs the lender rate above'

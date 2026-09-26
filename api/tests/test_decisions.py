@@ -154,3 +154,28 @@ def test_asset_liquidation_post_2024_flat(client):
     body = r.json()
     assert body["gate_2_high_rate"] is False
     assert body["recommend_liquidation"] is False
+
+
+# ─── Bad input comes back as a named 422; wording in the user's currency ────
+
+def test_new_debt_bad_input_is_a_named_422(client):
+    r = client.post("/api/new-debt", json={
+        "list_price": "80000", "cash_price_elsewhere": "74000",
+        "emi_offer_months": 0, "emi_offer_monthly_payment": "6667",
+    })
+    assert r.status_code == 422
+    assert r.json()["detail"]["field"] == "emi_offer_months"
+
+
+def test_new_debt_us_wording(client):
+    r = client.post("/api/new-debt", json={
+        "list_price": "1200", "cash_price_elsewhere": "1000", "emi_offer_months": 12,
+        "emi_offer_monthly_payment": "100", "user_savings_after_efund": "5000", "country": "US",
+    })
+    assert r.status_code == 200 and "$200" in r.json()["detail"]
+
+
+def test_windfall_zero_amount_is_a_named_422(client, india_user_payload):
+    r = client.post("/api/windfall", json={"amount": "0", "user": india_user_payload})
+    assert r.status_code == 422
+    assert r.json()["detail"]["field"] == "amount"

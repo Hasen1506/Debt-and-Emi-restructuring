@@ -499,9 +499,13 @@ export interface WindfallResponse {
   loan_label: string;
   amount: string;
   rationale: string;
+  /** Never negative. When investing wins, the interest given up. */
   interest_avoided: string;
   invest_instead: boolean;
   investment_name: string | null;
+  investment_return: string | null;
+  /** Windfall left after clearing the loan. */
+  leftover: string;
 }
 
 export interface QuickRecomputeResponse {
@@ -1092,14 +1096,15 @@ export const api = {
     emi_offer_monthly_payment: string;
     processing_fee?: string;
     user_savings_after_efund?: string;
-  }) => post<NewDebtResponse>('/api/new-debt', req),
+    country?: 'IN' | 'US';
+  }) => postWithFieldErrors<NewDebtResponse>('/api/new-debt', req),
 
   windfall: (req: {
     amount: string;
     user: UserPayload;
     marginal_rate?: string;
     strategy?: Strategy;
-  }) => post<WindfallResponse>('/api/windfall', req),
+  }) => postWithFieldErrors<WindfallResponse>('/api/windfall', req),
 
   quickRecompute: (req: {
     user: UserPayload;
