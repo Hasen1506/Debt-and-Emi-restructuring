@@ -1131,6 +1131,9 @@ export const api = {
     user: UserPayload;
     horizon_months?: number;
     simple_mode?: boolean;
+    /** Same planned rate resets as the plan, so "saved vs minimums"
+     *  compares like with like. */
+    lifecycle_events?: LifecycleEventInput[];
   }) => post<SimulateResponse>('/api/baseline', req),
 
   sensitivity: (req: {

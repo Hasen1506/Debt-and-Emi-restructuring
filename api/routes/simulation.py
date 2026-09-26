@@ -216,7 +216,8 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
     """
     points: list[TrajectoryPoint] = []
     for row in result.months:
-        total_balance = sum(row.balances.values(), D("0"))
+        # In the user's currency: a plain sum added ₹ and $ balances.
+        total_balance = row.balance_in_user_currency
         points.append(TrajectoryPoint(
             month=row.month_index,
             balance=total_balance,
@@ -293,6 +294,9 @@ def baseline(req: BaselineRequest) -> SimulateResponse:
     user = req.user.to_engine()
     result = baseline_minimums_only(
         user, horizon_months=req.horizon_months, simple_mode=req.simple_mode,
+        lifecycle_events=(
+            _to_engine_lifecycle(req.lifecycle_events) if req.lifecycle_events else None
+        ),
     )
     return SimulateResponse(
         debt_free_month=result.debt_free_month,

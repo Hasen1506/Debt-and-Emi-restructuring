@@ -391,6 +391,32 @@ class UserIn(_In):
     deductions: Optional["DeductionsIn"] = None
     income_streams: list[IncomeStreamIn] = Field(default_factory=list)
 
+    def _itemises(self) -> bool:
+        """US only: does this person itemise? Mortgage interest lowers the
+        cost of a US home loan only for someone who itemises, and most
+        people take the standard deduction. The web app never sends
+        `itemises`, so it is worked out from the deductions entered at
+        onboarding; with none entered, mortgage interest is estimated
+        from the US home loans themselves."""
+        if self.itemises:
+            return True
+        if self.country != Country.US:
+            return False
+        from engine.tax.usa import STANDARD_DEDUCTION_2026
+
+        ded = self.deductions
+        if ded is not None and ded.mortgage_interest_annual is not None:
+            mortgage = ded.mortgage_interest_annual
+        else:
+            mortgage = sum(
+                (l.outstanding * l.nominal_rate for l in self.loans
+                 if l.loan_type == LoanType.HOME and (l.currency or "USD") == "USD"),
+                D("0"),
+            )
+        other = (ded.itemized_deductions_other if ded is not None else None) or D("0")
+        std = STANDARD_DEDUCTION_2026[self.filing_status or FilingStatusUS.SINGLE]
+        return mortgage + other > std
+
     def to_engine(self) -> User:
         return User(
             country=self.country, income_type=self.income_type,
@@ -407,7 +433,7 @@ class UserIn(_In):
             pf=self.pf.to_engine() if self.pf else None,
             filing_status=self.filing_status, state=self.state,
             state_marginal_rate=self.state_marginal_rate,
-            itemises=self.itemises,
+            itemises=self._itemises(),
             efund_balance=self.efund_balance, efund_target=self.efund_target,
             loans=[l.to_engine() for l in self.loans],
             assets=[a.to_engine() for a in self.assets],
@@ -671,6 +697,9 @@ class BaselineRequest(_In):
     user: UserIn
     horizon_months: Horizon = 360
     simple_mode: bool = False
+    # Planned rate resets, so the minimums-only comparison sees the same
+    # rates as the plan it is compared with.
+    lifecycle_events: list[LifecycleEventIn] = Field(default_factory=list, max_length=500)
 
 
 class CompareRequest(_In):

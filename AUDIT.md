@@ -22,20 +22,38 @@ for the owner.
 
 ## 2 · Engine bugs (simulation, tax shield, minimums)
 
-Found; being fixed in the next commits.
+All reproduced, fixed, and covered by `engine/tests/test_audit_fixes.py`
+plus API tests in `api/tests/test_simulation.py`.
 
-| # | Bug | Example |
-|---|---|---|
-| E1 | **Snowball / hybrid invest every spare rupee while a 42% card sits at its minimum.** The invest-vs-prepay check looked only at the first loan in the payoff order; if that loan's rate was below the investment hurdle, all surplus was invested | Car loan 7% (small) + card 42%: avalanche debt-free in 3 months, snowball 26 months with ₹1.5L interest and ₹19L "invested" |
-| E2 | **Floating-rate drift never stops and the EMI never rises**, so the loan grows forever | ₹30L home loan, +1%/yr drift: ₹82 crore of interest, never cleared. RBI's 2023 rules require the bank to raise the EMI or extend the tenure, never negative amortisation |
-| E3 | **Card minimums leave out the month's interest** for banks whose formula is "interest + x%" (BoA, AmEx, Goldman, SBI Card, Kotak, ICICI) | $5,000 at 24%: minimum $50 while interest is $100 |
-| E4 | **The minimums-only comparison keeps a balance flat when the payment doesn't cover interest**, and counts interest the user never paid | Same card: balance stays $5,000 for 24 months; "interest paid" $2,400 while only $1,200 was paid |
-| E5 | **Baseline ignores rate resets and drift** that the plan includes, so "interest saved" compares different loans | Any floating loan with a reset date |
-| E6 | **Education loan gets an 80E tax saving on the new regime**, where 80E isn't allowed | 10% loan shown as 7% at a 30% bracket |
-| E7 | **US mortgage gets a tax saving even when the user doesn't itemise** (most don't); `User.itemises` is never read | 6.5% shown as 4.94% |
-| E8 | **FX drift changes the caller's exchange rates**; a second run starts from the drifted rate | INR 0.012 → 0.01179 after one 60-month run |
-| E9 | GST on the processing fee is ~0: a yearly *rate* is divided by the balance × years as if it were an amount | 12% + 1% fee: 13.0000% instead of 13.18% |
-| E10 | The trajectory's total balance adds ₹ and $ together for NRI users; the default (ledger) plan charts that sum | Any user with loans in two currencies |
+| # | Bug | Example | Fix |
+|---|---|---|---|
+| E1 | **Snowball / hybrid invested every spare rupee while a 42% card sat at its minimum.** The invest-vs-prepay check looked only at the first loan in the payoff order | Car loan 7% (small) + card 42%: avalanche debt-free in 3 months, snowball 26 months with ₹1.5L interest and ₹19L "invested" | Extra goes to the first loan in order that beats the hurdle; invest only if none does |
+| E2 | **Floating-rate drift never stopped and the EMI never rose**, so the loan grew forever | ₹30L home loan, +1%/yr drift: ₹82 crore of interest, never cleared | A rise raises the EMI to keep the end date (RBI 2023: no negative amortisation); a cut keeps the EMI; drift stops ±3 points from the start |
+| E3 | **Card minimums left out the month's interest** for "interest + x%" formulas (BoA, AmEx, Goldman, SBI Card, Kotak, ICICI) | $5,000 at 24%: minimum $50 against $100 of interest | The month's interest is passed in: $150 |
+| E4 | **Minimums-only comparison kept a balance flat when the payment didn't cover interest**, and booked interest never paid | Balance flat at $5,000 for 24 months; "interest" $2,400 while $1,200 was paid | Unpaid interest is added to the balance; totals equal what was paid |
+| E5 | **Minimums-only comparison ignored rate resets, drift and pre-EMI** that the plan included | Any floating loan with a reset date | It now runs the plan's own month loop (`minimums_only`); /plan sends it the same planned resets |
+| E6 | **Education loan got an 80E saving on the new regime**, where 80E isn't allowed | 10% shown as 7% at a 30% bracket | No shield on the new regime (or when the regime is unknown) |
+| E7 | **US mortgage got a tax saving even for people who don't itemise**; `User.itemises` was never read and the web never sent it | 6.5% shown as 4.94% | Shield only for itemisers; the API works it out from the deductions entered (or the mortgage's own interest) against the 2026 standard deduction |
+| E8 | **FX drift changed the caller's exchange rates**; a second run started from the drifted rate | INR 0.012 → 0.01179 after one run | The simulation works on its own copy |
+| E9 | GST on the processing fee was ~0 (a yearly rate divided again by balance × years) | 12% + 1% fee: 13.00% instead of 13.18% | 18% of the fee rate |
+| E10 | The trajectory's total balance added ₹ and $ as plain numbers; the default (ledger) plan charts that total | ₹40L + $25k = "4,025,000" | Total is in the user's currency at that month's rate |
+
+Found while fixing these, handled next:
+
+- **The browser has its own copy of the effective-rate formula**
+  (`web/src/lib/effective-apr.ts`) with E6, E7 and E9 in it. It drives the
+  home, debts, portfolio, insights and invest-vs-prepay screens, so they
+  disagree with /plan.
+- **The browser's tax tables are out of date** (`web/src/lib/deductions.ts`):
+  India new regime is the 2024 budget's (30% from ₹15L; the engine has
+  FY2026-27: 30% only above ₹24L); US brackets and the standard deduction
+  are 2024's ($14,600 single; the engine has 2026: $16,100). Onboarding
+  saves the marginal rate from these tables, so an ₹18L salaried user on
+  the new regime is planned at 30% instead of about 21%.
+- **Needs checking by the owner:** the SALT cap is still $10,000 in the
+  engine and the web. The 2025 US budget law raised it (about $40,000
+  for 2025–2029, phased down for high incomes). Tax figures are cited
+  law, so this waits for a pasted source.
 
 ## 3 · User-view audit
 

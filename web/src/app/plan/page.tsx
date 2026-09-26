@@ -346,7 +346,11 @@ async function loadPlan(
   try {
     const [scenario, baseline, restructuring, ...altSims] = await Promise.all([
       api.simulate({ ...simBaseArgs, strategy }),
-      api.baseline({ user: adjustedUser, horizon_months: HORIZON_MONTHS }),
+      api.baseline({
+        user: adjustedUser,
+        horizon_months: HORIZON_MONTHS,
+        lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
+      }),
       api.restructuring({
         user: adjustedUser,
         marginal_rate: profile.marginalRate,

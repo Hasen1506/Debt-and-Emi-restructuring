@@ -37,7 +37,7 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
     user = req.user.to_engine()
     marg = req.marginal_rate if req.marginal_rate is not None else D("0")
     rates = {
-        id(l): effective_rate(l, marg, user.country, user.tax_regime)
+        id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises)
         for l in user.loans
     }
     try:
