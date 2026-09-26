@@ -395,6 +395,8 @@ export interface TrajectoryPointRaw {
   total_paid?: string;
   /** The part above each loan's minimum (extra, cascade), user's currency. */
   extra_paid?: string;
+  /** Income short of costs plus minimums this month ('0' when covered). */
+  shortfall?: string;
 }
 
 export interface GoalContributionRaw {
@@ -470,6 +472,9 @@ export interface SimulateResponse {
   total_invested: string;
   trajectory: TrajectoryPointRaw[];
   months_in_horizon: number;
+  /** This month's income short of costs plus minimum payments ('0' when
+   *  covered); above 0, the plan's date assumes money the user doesn't have. */
+  shortfall?: string;
   /** Engine-computed surplus allocation for the first sim month. The /plan
    *  SurplusWaterfall card reads this so the displayed pie matches what
    *  the engine actually applies (instead of a client-side mirror that

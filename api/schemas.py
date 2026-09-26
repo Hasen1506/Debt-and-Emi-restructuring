@@ -548,6 +548,8 @@ class TrajectoryPoint(_Base):
     # in the user's currency (per-loan payments are in each loan's own).
     total_paid: Decimal = Field(default=D("0"))
     extra_paid: Decimal = Field(default=D("0"))
+    # Income short of costs plus minimum payments this month (0 when covered).
+    shortfall: Decimal = Field(default=D("0"))
     # Per-goal contribution this month, keyed by goal id. Populated only
     # when `goals` was passed to /simulate. Lets achievability subtract
     # higher-priority goals' actual draws (which expire after their
@@ -689,6 +691,10 @@ class SimulateResponse(_Base):
     total_invested: Decimal
     trajectory: list[TrajectoryPoint]
     months_in_horizon: int
+    # This month's income short of costs plus minimum payments (0 when
+    # covered). While it's above 0 the plan's payments aren't funded, so
+    # the debt-free date assumes money the user doesn't have.
+    shortfall: Decimal = D("0")
     # Surplus allocation computed by the engine for the *first* month of
     # the simulation — the snapshot the /plan waterfall card renders.
     # Engine truth, not a client mirror.

@@ -126,7 +126,7 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
               {
                 l: 'SURPLUS',
                 v: `${fc(m.surplus.toString())}/MO`,
-                s: m.surplus.gt(0) ? 'AFTER COSTS + EMIS' : 'OVER BUDGET',
+                s: m.surplus.gt(0) ? 'AFTER COSTS + MINIMUMS' : m.surplus.lt(0) ? 'SHORT EACH MONTH' : 'NOTHING SPARE',
                 tone: surplusTone,
               },
             ]}
@@ -158,14 +158,16 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
               ? move.headline
               : hasSurplus
                 ? `PAY ${fc(extraRounded)} EXTRA → ${loudestBank} ${loudestProduct}`
-                : `PAY THE MINIMUMS · FIND ${fc(Math.round(Math.abs(Number(m.surplus.toString()))))}/MO`}
+                : m.surplus.lt(0)
+                  ? `SHORT ${fc(Math.round(Math.abs(Number(m.surplus.toString()))))}/MO · COSTS + MINIMUM PAYMENTS ARE MORE THAN INCOME`
+                  : 'PAY THE MINIMUMS · NOTHING SPARE THIS MONTH'}
           </div>
           <div style={{ fontSize: 12, color: L_T.muted, marginBottom: 14 }}>
             {move
               ? move.detail
               : hasSurplus
                 ? `HIGHEST EFFECTIVE RATE · ${fmtPct(loudest.effective)} · AVOIDS ~${fc(annualSaving)} INTEREST A YEAR`
-                : 'INCOME DOES NOT COVER COSTS AND EMIS YET · TRIM SPENDING BEFORE PAYING EXTRA'}
+                : 'CUT COSTS OR ASK THE BANK FOR A LOWER PAYMENT · NO EXTRA PAYMENTS UNTIL THE GAP CLOSES'}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {gaps.length > 0 ? (
@@ -190,6 +192,7 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
             country={profile.user.country}
             totalOutstanding={m.totalOutstanding}
             totalEmi={m.emiBurden}
+            spare={m.surplus.gt(0)}
           />
         </section>
 
@@ -294,6 +297,7 @@ function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; deb
             country={profile.user.country}
             totalOutstanding={m.totalOutstanding}
             totalEmi={m.emiBurden}
+            spare={m.surplus.gt(0)}
           />
         </section>
 

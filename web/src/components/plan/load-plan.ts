@@ -392,6 +392,7 @@ export async function loadPlan(
       },
       // Offline mock branch — engine didn't run, no real allocation.
       surplusAllocation: null,
+      shortfall: Math.max(0, -surplus),
       gaps,
     };
   };
@@ -521,6 +522,7 @@ export async function loadPlan(
             efSplit: Number(scenario.surplus_allocation.ef_split),
           }
         : null,
+      shortfall: Number(scenario.shortfall ?? 0),
       gaps: [],
     };
   } catch {

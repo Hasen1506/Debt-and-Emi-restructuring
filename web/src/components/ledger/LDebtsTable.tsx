@@ -38,6 +38,7 @@ export function LDebtsTable({
   totalOutstanding,
   totalEmi,
   mobile,
+  spare = true,
 }: {
   loans: LoanWithEffective[];
   country: Country;
@@ -45,6 +46,9 @@ export function LDebtsTable({
   totalOutstanding: Decimal;
   totalEmi: Decimal;
   mobile?: boolean;
+  /** False when nothing is spare after costs and minimums: no loan gets
+   *  "PAY EXTRA" then. */
+  spare?: boolean;
 }) {
   if (loans.length === 0) {
     return (
@@ -116,7 +120,7 @@ export function LDebtsTable({
             const tenureMo = Number(d.loan.tenure_months_remaining || 0);
             const tenureLabel =
               d.loan.loan_type === 'credit_card' ? 'REV' : tenureMo > 0 ? `${tenureMo}mo` : '—';
-            const nextLabel = isHighest ? 'PAY EXTRA' : dearest ? 'MINIMUM' : '—';
+            const nextLabel = !dearest ? '—' : isHighest && spare ? 'PAY EXTRA' : 'MINIMUM';
             // A blank rate or EMI was saved as 0: say so, not "0.00%".
             const gaps = loanGaps(d.loan);
             const missing = (
@@ -158,7 +162,9 @@ export function LDebtsTable({
                 <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                   {gaps.includes('emi')
                     ? missing
-                    : d.loan.scheduled_emi && Number(d.loan.scheduled_emi) > 0 ? fcLoan(d.loan.scheduled_emi, d) : '—'}
+                    : d.required.gt(0)
+                      ? `${fcLoan(d.required.toFixed(0), d)}${d.loan.loan_type === 'credit_card' ? ' MIN' : ''}`
+                      : '—'}
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', color: L_T.muted }}>
                   {tenureLabel}

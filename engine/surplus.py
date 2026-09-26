@@ -166,6 +166,25 @@ def compute_available_buffer(
     return max(D("0"), buffer)
 
 
+def compute_shortfall(
+    user: User,
+    loans: list[Loan],
+    simple_mode: bool = False,
+) -> Decimal:
+    """How much income falls short of costs plus the minimum payments, in
+    the user's currency; 0 when it covers them.
+
+    The available surplus is floored at 0 and the simulator pays the
+    minimums regardless, so a user short of cash still got a payoff date
+    built on payments they can't fund."""
+    need = (
+        user.fixed_expenses
+        + user.variable_expenses
+        + compute_total_minimums(user, loans, simple_mode=simple_mode)
+    )
+    return max(D("0"), need - user.monthly_income)
+
+
 def compute_available_surplus(
     user: User,
     loans: list[Loan],

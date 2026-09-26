@@ -13,12 +13,16 @@ import type { StoredProfile } from './user-store';
 import { computeBreakdown } from './effective-apr';
 import { usItemises } from './deductions';
 import { loanCurrency, userDefaultCurrency } from './currency';
+import { requiredMonthly } from './min-payment';
 
 export interface LoanWithEffective {
   loan: LoanPayload;
   nominal: Decimal;
   effective: Decimal;
   outstanding: Decimal;
+  /** What the bank requires this month, in the loan's currency: the EMI,
+   *  or a card's minimum payment. */
+  required: Decimal;
   /** Index into profile.user.loans, for callers that want positional refs. */
   index: number;
 }
@@ -27,10 +31,12 @@ export interface DerivedMetrics {
   loans: LoanWithEffective[];
   totalOutstanding: Decimal;
   blendedEffective: Decimal;
+  /** EMIs plus card minimums, in the user's currency. */
   emiBurden: Decimal;
-  /** monthly_income − fixed_expenses − variable_expenses − scheduled_emi total.
-   *  May be negative. Mirrors engine compute_available_surplus minus minimums
-   *  (which are equivalent to scheduled EMIs for the loans the user has). */
+  /** monthly_income − fixed_expenses − variable_expenses − emiBurden. May be
+   *  negative: then −surplus is how far income falls short of costs plus
+   *  minimum payments. Mirrors the engine's compute_available_surplus
+   *  (before its floor at 0 and the emergency-fund top-up). */
   surplus: Decimal;
   /** Loan with the highest effective APR (the "loudest" debt). null if no loans. */
   loudest: LoanWithEffective | null;
@@ -71,6 +77,7 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
         nominal: new Decimal(loan.nominal_rate || 0),
         effective,
         outstanding: dec(loan.outstanding),
+        required: requiredMonthly(loan, country),
       };
     })
     .filter((l) => l.outstanding.gt(0));
@@ -85,7 +92,7 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
     // Both outstanding and EMI need conversion before summing — totals
     // were silently mixing INR and USD for hybrid users before this.
     const outUser = toUserCcy(l.outstanding, l.loan);
-    const emiUser = toUserCcy(new Decimal(l.loan.scheduled_emi || 0), l.loan);
+    const emiUser = toUserCcy(l.required, l.loan);
     totalOutstanding = totalOutstanding.add(outUser);
     // Blended-APR numerator is Σ(balance × EFFECTIVE rate), not nominal.
     // Effective bakes in GST + processing fee + tax shield, so the blended
