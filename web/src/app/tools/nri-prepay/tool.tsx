@@ -1,7 +1,7 @@
 'use client';
 
 import Decimal from 'decimal.js';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/Card';
 import {
   AddLoanAction,
@@ -21,6 +21,7 @@ import {
   type LoanType,
 } from '@/lib/api';
 import { useStoredProfile } from '@/lib/use-profile';
+import { deriveTenureMonths } from '@/lib/derived';
 import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
@@ -73,16 +74,31 @@ export function NriPrepayTool() {
     profileIsNriUs ? 'USD'
       : profile.user.country === 'US' ? 'USD'
         : 'INR';
+  // The profile's own loan, not a sample: this used to open on a ₹35 lakh
+  // loan whatever the user had entered. The first open instalment loan,
+  // preferring one in a currency other than the user's (the NRI case).
+  const firstLoanIdx = useMemo(() => {
+    const open = profile.user.loans
+      .map((l, i) => ({ l, i }))
+      .filter(({ l }) => Number(l.outstanding) > 0 && l.loan_type !== 'credit_card');
+    const foreign = open.find(({ l }) => l.currency && l.currency !== profileUserCurrency);
+    return profile.isLive ? String((foreign ?? open[0])?.i ?? '') : '';
+  }, [profile.user.loans, profile.isLive, profileUserCurrency]);
   const [targetIdx, setTargetIdx] = useState<string>('');
-  const [loanBalance, setLoanBalance] = useState('3500000');
-  const [loanRate, setLoanRate] = useState('0.085');
-  const [loanTenure, setLoanTenure] = useState('180');
-  const [loanCurrency, setLoanCurrency] = useState<Currency>(
-    profileIsNriUs ? 'INR' : 'INR',
-  );
+  const [loanBalance, setLoanBalance] = useState('');
+  const [loanRate, setLoanRate] = useState('');
+  const [loanTenure, setLoanTenure] = useState('');
+  const [loanCurrency, setLoanCurrency] = useState<Currency>('INR');
   const [userCurrency, setUserCurrency] = useState<Currency>(profileUserCurrency);
-  const [savingsYield, setSavingsYield] = useState('0.05');
-  const [marginalTax, setMarginalTax] = useState('0.24');
+  // What the user's savings earn and their tax rate, from the profile.
+  const [savingsYield, setSavingsYield] = useState(() => {
+    const best = (profile.user.investment_options ?? [])
+      .filter((o) => o.liquidity_class === 'liquid')
+      .map((o) => Number(o.expected_return))
+      .filter((r) => r > 0);
+    return profile.isLive && best.length ? String(Math.max(...best)) : '';
+  });
+  const [marginalTax, setMarginalTax] = useState(profile.isLive ? profile.marginalRate ?? '' : '');
   // User-facing FX field: "1 [userCurrency] = X [loanCurrency]" — e.g. for
   // USD-earner with INR loan, X ≈ 96. Engine wants the inverse direction
   // (user_currency per 1 loan_currency), so we convert before sending.
@@ -90,7 +106,7 @@ export function NriPrepayTool() {
   const [manualDrift, setManualDrift] = useState('');
   const [v, setV] = useState<CrossBorderResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const { err, setErr, clear, fail, at } = useFormErrors();
+  const { err, setErr, clear, fail, failField, at } = useFormErrors();
   const [applied, setApplied] = useState(false);
   const [added, setAdded] = useState(false);
 
@@ -101,9 +117,12 @@ export function NriPrepayTool() {
       const loan = profile.user.loans[i];
       setLoanBalance(loan.outstanding);
       setLoanRate(loan.nominal_rate);
-      if (loan.tenure_months_remaining > 0) {
-        setLoanTenure(String(loan.tenure_months_remaining));
-      }
+      // Tenure as saved, else worked out from the balance, rate and EMI.
+      const months =
+        loan.tenure_months_remaining > 0
+          ? loan.tenure_months_remaining
+          : deriveTenureMonths(loan.outstanding, loan.nominal_rate, loan.scheduled_emi);
+      if (months) setLoanTenure(String(months));
       // Honour the loan's tagged currency when present — set in onboarding
       // by NRI-US users. Falls back to the profile's country default.
       if (loan.currency) {
@@ -115,6 +134,11 @@ export function NriPrepayTool() {
       }
     }
   }
+
+  useEffect(() => {
+    if (firstLoanIdx !== '') pickTargetLoan(firstLoanIdx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstLoanIdx]);
 
   async function fetchLiveRate() {
     try {
@@ -145,6 +169,18 @@ export function NriPrepayTool() {
 
   async function check(e: React.FormEvent) {
     e.preventDefault();
+    const required: [string, string, string][] = [
+      ['loanBalance', loanBalance, 'Enter what you still owe on the loan.'],
+      ['loanRate', loanRate, 'Enter the loan’s interest rate.'],
+      ['loanTenure', loanTenure, 'Enter the months left on the loan.'],
+      ['savingsYield', savingsYield, 'Enter what your savings earn a year.'],
+      ['marginalTax', marginalTax, 'Enter your tax rate on that interest.'],
+    ];
+    const missing = required.find(([, value]) => String(value).trim() === '');
+    if (missing) {
+      failField(missing[0], missing[2]);
+      return;
+    }
     setBusy(true);
     clear();
     setApplied(false);

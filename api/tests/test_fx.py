@@ -85,3 +85,20 @@ def test_cross_border_rejects_zero_or_negative_fx_rate(client):
     r = client.post("/api/cross-border-decision",
                     json={**base, "manual_fx_rate": "0.012", "manual_fx_drift_annual": "3"})
     assert r.status_code == 422
+
+
+def test_same_currency_needs_no_fetch(client):
+    """A rupee loan checked from rupees used to call the provider, which
+    has no INR/INR quote, and fail with a 502."""
+    with patch("api.routes.fx.httpx.AsyncClient") as never:
+        r = client.get("/api/fx-rate", params={"base": "INR", "quote": "INR"})
+        assert r.status_code == 200, r.text
+        assert D(r.json()["rate"]) == 1 and r.json()["source"] == "parity"
+        r = client.post("/api/cross-border-decision", json={
+            "loan_balance": "2600000", "loan_nominal_rate": "0.0875",
+            "loan_tenure_months": 180, "loan_currency": "INR", "user_currency": "INR",
+            "user_savings_yield": "0.068", "user_marginal_tax": "0.30",
+        })
+        assert r.status_code == 200, r.text
+        assert D(r.json()["fx_rate_used"]) == 1
+        never.assert_not_called()

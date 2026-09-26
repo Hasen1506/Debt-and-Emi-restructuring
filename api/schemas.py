@@ -774,6 +774,9 @@ class WindfallResponse(_Base):
     investment_name: Optional[str]
     investment_return: Optional[Decimal] = None
     leftover: Decimal = D("0")
+    # What interest_avoided assumes ("until the card is cleared, paying the
+    # bank's minimum each month" / "over the loan's remaining life, ...").
+    interest_basis: str = ""
 
 
 class NewDebtRequest(_In):

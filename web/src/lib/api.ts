@@ -519,6 +519,9 @@ export interface WindfallResponse {
   investment_return: string | null;
   /** Windfall left after clearing the loan. */
   leftover: string;
+  /** What interest_avoided assumes, e.g. "until the card is cleared,
+   *  paying the bank's minimum each month". */
+  interest_basis?: string;
 }
 
 export interface QuickRecomputeResponse {
