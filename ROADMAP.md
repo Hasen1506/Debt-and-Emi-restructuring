@@ -215,21 +215,45 @@ it owed you*, plus how much that costs you this year.
 
 ## Phase 3 · The lender's reply — offer comparison — REBUILD
 
-The usual reply is an offer ("current rate if you pay a fee"). The app compares:
+The usual reply is an offer ("current rate if you pay a fee"). The app compares
+(`engine/offer_compare.py`, `POST /api/offers/compare`, "Got an offer? Compare it"
+under every Loan Check result):
 
-- [ ] **Keep**: stay as is.
-- [ ] **Pay the fee to reset**: fee vs interest saved over the remaining term, break-even month.
-- [ ] **Refinance elsewhere**: new-lender rate, processing fee, stamp duty and
-      legal costs, prepayment penalty where applicable.
-- [ ] Verdict plus plain-language reason and the next step.
-- [ ] **Golden check** (was done before, redo): run 300 lender quotes. "Keep"
-      must match to the rupee; "refinance" within ₹51 of the formula, the
-      difference being standard bank rounding. Document the rounding rule used.
-- [ ] Review the smaller decision engines for the same class of bugs:
-      `allocate_windfall` (`WindfallAllocation`) and `evaluate_new_debt` in
-      `engine/decisions.py`. The lost session had reached exactly this step.
-
----
+- [x] **Keep**: stay as is.
+- [x] **Pay the fee to reset**: fee (amount or % of the loan, plus GST if quoted
+      so) vs interest saved, break-even month.
+- [x] **Refinance elsewhere**: new-lender rate, processing fee, stamp duty and
+      legal/valuation costs, any charge to close the old loan. A charge on a
+      floating-rate loan to an individual is flagged as not allowed (new
+      citation: Pre-payment Charges Directions 2025; 2012/2014 circulars).
+- [x] Verdict plus plain-language reason and the next step. Refinancing must
+      beat the next best choice by ₹10,000 (paperwork, fresh credit check).
+- [x] **NEW: owed-cut baseline.** When Loan Check finds a cut the bank owes,
+      savings are measured against the loan at that rate, so a fee that only
+      buys the owed cut is never shown as a saving ("Don't pay: press for the
+      rate cut you are owed").
+- [x] **NEW:** "years you expect to keep the loan" (break-even must fall inside
+      it) and lower-EMI vs same-EMI (finish sooner) comparison.
+- [x] **Golden check** (redone, `test_offer_golden.py`): 300 random quotes,
+      854 options, every verdict reached. Rounding rule documented in the
+      engine (EMI rounded up to the rupee, interest to the paisa, last EMI
+      clears the loan, GST rounded to the rupee). Each option is within ₹2 of
+      the closed form for the same EMI (largest seen ≈ ₹1), and within the
+      derived bound δ·(s_n − n) of the textbook formula. The old "within ₹51"
+      figure could not be reconstructed, so the bounds are now derived and
+      stated. A mutation check (GST rate, break-even off by one, interest
+      rounding, horizon ignored) fails the test each time.
+- [x] Review the smaller decision engines for the same class of bugs. Found
+      and fixed:
+      - windfall: interest avoided worked out on the whole windfall, not the
+        amount applied (and the leftover never mentioned); simple
+        rate × amount × years instead of amortised; a **negative** figure when
+        investing won, which the screen turned into a nonsense "expected
+        return"; zero/negative amounts answered as "No outstanding debt".
+      - new debt: processing fee left out of the APR (a fee-bearing "no-cost"
+        EMI showed 0%); "real cost" left out interest (a ₹5L loan at 14% showed
+        only the fee); APR silently capped at 200%; ₹ and Western digit
+        grouping hardcoded for US users; bad input silently answered "take".
 
 ## Phase 4 · Shared lender outcomes (Loan Check scorecard) — REBUILD
 
@@ -308,6 +332,10 @@ All of these were run and passing before the crash; redo each one and keep it in
 - [ ] Wide tables on phones are keyboard-scrollable (focusable region with a label).
       Loan Check's repo-rate table done.
 - [ ] Check results are announced to screen readers (`aria-live`). Loan Check done.
+- [ ] **Found:** the Windfall screen throws 8 React hydration errors with a
+      saved profile (present before the Phase 3 fixes; New Debt and Cash
+      Yield have none). Likely the profile cookie read during render. Fix
+      with the a11y pass.
 - [ ] Re-find and fix the screen-reader bug found by accident last time (not
       recorded in the screenshots; the axe pass plus a manual VoiceOver/NVDA run should surface it).
 
@@ -408,6 +436,17 @@ yes/no from the owner before it is scheduled.
       (e-Daakhil). Verify the current process and time limits first.
 - [ ] **Watch the draft 2026 interest-rate directions.** When final, update
       `engine/citations.py`, the letters and the citation fixture.
+- [ ] **Remember the offer comparison.** Keep the offer fields in the browser (like
+      the complaint tracker) and feed the chosen verdict into the Phase 4
+      outcome record ("bank offered 8.15% for ₹25,000; I paid / refused / moved").
+- [ ] **Balance-transfer checklist.** When the verdict is "move the loan": the
+      documents to ask for (foreclosure letter, list of documents, original title
+      deeds), the order to do things in, and a reminder to cancel the old ECS.
+- [ ] **Top-up and tenure traps in refinance quotes.** New lenders often bundle a
+      top-up loan or stretch the term; show the cost of the stretch separately
+      (the engine already supports a different term).
+- [ ] **Prepayment amortisation on Windfall.** Show "EMI kept, ends N months
+      sooner" vs "EMI lowered" for the windfall, like the offer comparison.
 - [ ] **Quiet the profile-sync 404s.** In no-database trial mode the web app still
       calls `GET /api/user/state` on every page, which 404s. Skip the call when sync is off.
 
