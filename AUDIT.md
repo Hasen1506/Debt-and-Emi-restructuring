@@ -202,3 +202,30 @@ penalties, windfall with no loans / more cash than debt, new-debt with a
 cash price above the list price, zero income, 0% EMI loans, EMI below the
 interest, a card with no EMI, a ₹100 crore balance, ten loans.
 
+
+---
+
+## 5 · Outside review: advice from missing or assumed data (26 Sep 2026)
+
+An outside reviewer ran six first-time-user profiles over 18 routes, the
+main tool forms, activity logging and a 375 px screen. The ordinary
+home-loan path worked; these gave confident advice from data nobody
+entered. All fixed in the PR after the first merge.
+
+| # | What the user saw | Fix |
+|---|---|---|
+| O1 | **A blank rate or EMI became a 0% loan.** A ₹1 lakh card with no rate: home said invest ₹30,000 and showed Jul 2033. A ₹20 lakh home loan with neither: 0% and "not in lifetime" | Setup asks each loan for its rate (a card's above 0) and an instalment loan's EMI, with the error under the field. Saved profiles missing them: home, /plan and the table name what to add; no projection |
+| O2 | **A cash shortfall still got a payoff date.** ₹30,000 in, ₹34,000 costs, ₹1 lakh card: "find ₹4,000/mo", debt-free Jul 2042 | The engine reports each month's shortfall (costs + minimums − income, ₹9,000 here); card minimums count in the web surplus; home and /plan say "no date yet · short ₹9,000/mo" and what it's made of |
+| O3 | **Activity's Sec 24 note ignored the regime**: a new-regime self-occupied loan "saved ₹68,250" and went "from 8.75% to 8.75%" | Uses the deduction the plan counts (none under the new regime, ₹2 lakh cap under the old) and says when there is none |
+| O4 | **"Confirm all · no changes" logged a ₹0 card payment as "paid in full"**, kept after reload | Logs only open loans with an EMI; cards are left for the user to log |
+| O5 | **Right time assumed a 50 bps cut in 3 months** (and a ₹50 lakh loan): "Wait, save ₹3,69,508" in one click | Expected change and amount start blank and are required; months come from the RBI/Fed calendar with the date shown; the verdict states the expectation |
+| O6 | Purchase Advisor suggested "price ≤ ₹20 lakh" and "down payment ≥ 20%", the values entered, and a bigger down payment when saving it was the problem | Each lever appears only when it fixes something: the highest price that fits both, the extra months, a bigger down payment only if it can be saved by the date |
+| O7 | Liquidate gave "Sell the asset, ₹9.77 lakh ahead" for a sample property the user never entered | Starts blank; debt and income from the profile; required fields; the verdict names its growth assumption |
+| O8 | New Debt Check assumed a 720 score and a ₹3 lakh loan: "Take the EMI" on the first click | Amounts blank; score from the profile or blank (no score estimate then); says when it used a typical rate |
+| O9 | Spare cash: ₹85,000 off a 34% card "avoids ₹2,408 over the loan's life", one month's interest | A card is paid down at the usual payment or the bank's minimum (₹1,07,909 at the minimum); the page says which |
+| O10 | NRI tool opened on a ₹35 lakh sample loan; ₹→₹ failed with a 502 | Opens on the profile's loan with its yield and tax rate; the same currency is 1 without a fetch |
+| O11 | An empty goal read "₹0 required" and "can't be funded" | No verdict until an amount is entered; empty goals aren't sent to the plan |
+| O12 | No debt meant no way through setup (to goals, portfolio, purchase planning); separate Savings and Credit steps | Loans can be left empty; home offers goals, a purchase, portfolio; credit score sits on the Savings step (five steps) |
+
+Not verified by the reviewer or here: sign-in and database sync, and a
+public deployment.

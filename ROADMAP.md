@@ -47,7 +47,7 @@
   launch), live rates (5, first live fetch still to check), the axe pass
   and hydration fixes (6.2), the API fuzz and input bounds (6.3), size cap,
   headers and rate limits (6.4), field errors on every tool.
-  **672 tests passing.** Still missing: US letters, cross-browser and load
+  **680 tests passing.** Still missing: US letters, cross-browser and load
   suites (6.1, 6.5), verified outcome reports, a manual screen-reader run.
 - **Bug hunt and user-view audit (26 Sep 2026): see [`AUDIT.md`](AUDIT.md).**
   Fixed: the /plan chart and every date a month late, 10 engine bugs
@@ -63,6 +63,14 @@
   debt-free date and this month's move. A walk-through as a new user found
   and fixed a crash on setup step 2 for every new user, the emergency fund
   being topped up twice, and 9 more (W1–W11).
+- **Outside review fixed (26 Sep 2026, AUDIT.md §5, O1–O12):** advice
+  from missing or assumed data. Setup asks each loan for its rate and EMI
+  and lets someone with no debt finish; a cash shortfall shows the gap
+  (costs + minimums − income) instead of a payoff date; the Sec 24 note
+  follows the regime; "confirm all" no longer logs ₹0 card payments;
+  Right time, New Debt Check, Liquidate and the NRI tool start from the
+  user's data or blanks, not samples; Purchase Advisor's levers and Spare
+  cash's card interest are corrected.
 - **Speed (production build, this machine):** every page answers in under
   30 ms, paints in under 100 ms and loads in under 200 ms; 111–184 KB of
   JavaScript per page. The engine's plan run takes 6–35 ms. The one slow
@@ -629,8 +637,9 @@ yes/no from the owner before it is scheduled.
 ### From using the app as a new user (26 Sep 2026)
 
 Make it quicker to start:
-- [ ] **Shorter setup.** Fold the Welcome step (name, age) into Review and
-      Income; no BACK on step 1. Loans: show only the fields the chosen type
+- [ ] **Shorter setup.** (26 Sep: the credit score moved onto Savings, five
+      steps now; loans can be left empty.) Fold the Welcome step (name,
+      age) into Review and Income; no BACK on step 1. Loans: show only the fields the chosen type
       needs (a card needs balance, rate, bank; today a card shows ~16 fields,
       including lock-in and part-payment rules that apply only to term loans)
       with the rest under "More details". Income: hike month as a dropdown,
