@@ -48,6 +48,7 @@ import {
 import { mergeTrajectories } from '@/lib/trajectory';
 import { mockTrajectory } from '@/lib/mock-data';
 import { deriveMetrics } from '@/lib/derived';
+import { projectionGaps } from '@/lib/loan-gaps';
 import {
   currenciesInPlay,
   derivePerCurrencyMetrics,
@@ -342,6 +343,60 @@ export async function loadPlan(
   };
   const otherStrategies = STRATEGIES.filter((s) => s !== strategy);
 
+  // Loans missing a rate or EMI can't be projected (a blank rate read as
+  // 0%), so the engine isn't run and the pages ask for the details.
+  const gaps = projectionGaps(profile.user.loans);
+  // Offline or incomplete: the pages show no engine numbers from this.
+  const fallback = (): PlanData => {
+    const ccyList = currenciesInPlay(profile.user.loans, profile.user.country);
+    return {
+      trajectory: mockTrajectory,
+      debtFreeMonth: null,
+      totalInterest: '240000',
+      baselineInterest: '410000',
+      monthsSaved: 14,
+      live: false,
+      profileIsLive: profile.isLive,
+      surplus,
+      opportunities: [],
+      totalAnnualSaving: '0',
+      user: profile.user as UserPayload,
+      marginalRate: profile.marginalRate,
+      strategy,
+      hikeModeling,
+      inflationModeling,
+      fxDrift,
+      bracketTransitions,
+      advanceTaxSchedule,
+      advanceTaxPenaltyMonthly,
+      taxReinvest,
+      taxReinvestProjection: [],
+      monthlyPayments: [],
+      firstMonthMinimums: {},
+      runArgs: null,
+      activityImpact: null,
+      currenciesInPlay: ccyList,
+      displayCurrency: userDefaultCurrency(profile.user.country),
+      byCurrency: {},
+      byCurrencyBaseline: {},
+      fxRatesUsed: {},
+      efSplit,
+      goalsActive: hasGoalsForEngine,
+      goalContributions: [],
+      goalFinals: [],
+      anyGoalShort: false,
+      strategyCompare: {
+        avalanche: { debtFreeMonth: null, totalInterest: '0' },
+        hybrid: { debtFreeMonth: null, totalInterest: '0' },
+        snowball: { debtFreeMonth: null, totalInterest: '0' },
+      },
+      // Offline mock branch — engine didn't run, no real allocation.
+      surplusAllocation: null,
+      gaps,
+    };
+  };
+  if (gaps.length > 0) return fallback();
+
   try {
     const [scenario, baseline, restructuring, ...altSims] = await Promise.all([
       api.simulate({ ...simBaseArgs, strategy }),
@@ -466,53 +521,10 @@ export async function loadPlan(
             efSplit: Number(scenario.surplus_allocation.ef_split),
           }
         : null,
+      gaps: [],
     };
   } catch {
-    const ccyList = currenciesInPlay(profile.user.loans, profile.user.country);
-    return {
-      trajectory: mockTrajectory,
-      debtFreeMonth: null,
-      totalInterest: '240000',
-      baselineInterest: '410000',
-      monthsSaved: 14,
-      live: false,
-      profileIsLive: profile.isLive,
-      surplus,
-      opportunities: [],
-      totalAnnualSaving: '0',
-      user: profile.user as UserPayload,
-      marginalRate: profile.marginalRate,
-      strategy,
-      hikeModeling,
-      inflationModeling,
-      fxDrift,
-      bracketTransitions,
-      advanceTaxSchedule,
-      advanceTaxPenaltyMonthly,
-      taxReinvest,
-      taxReinvestProjection: [],
-      monthlyPayments: [],
-      firstMonthMinimums: {},
-      runArgs: null,
-      activityImpact: null,
-      currenciesInPlay: ccyList,
-      displayCurrency: userDefaultCurrency(profile.user.country),
-      byCurrency: {},
-      byCurrencyBaseline: {},
-      fxRatesUsed: {},
-      efSplit,
-      goalsActive: hasGoalsForEngine,
-      goalContributions: [],
-      goalFinals: [],
-      anyGoalShort: false,
-      strategyCompare: {
-        avalanche: { debtFreeMonth: null, totalInterest: '0' },
-        hybrid: { debtFreeMonth: null, totalInterest: '0' },
-        snowball: { debtFreeMonth: null, totalInterest: '0' },
-      },
-      // Offline mock branch — engine didn't run, no real allocation.
-      surplusAllocation: null,
-    };
+    return fallback();
   }
 }
 

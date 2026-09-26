@@ -19,6 +19,7 @@ import { formatCurrency } from '@/lib/api';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import type { LoanWithEffective } from '@/lib/derived';
+import { loanGaps } from '@/lib/loan-gaps';
 import { L_T, L_MONO } from './primitives';
 
 const LOAN_TYPE_SHORT: Record<LoanType, string> = {
@@ -60,7 +61,10 @@ export function LDebtsTable({
   const fcLoan = (v: string | number, d: LoanWithEffective) =>
     formatCurrency(v, loanCurrency(d.loan, country));
   const mixed = loans.some((d) => loanCurrency(d.loan, country) !== ccy);
-  const dearest = loans.reduce((best, d) => (d.effective.gt(best.effective) ? d : best), loans[0]);
+  // With a rate missing the dearest loan isn't known, so none is marked.
+  const dearest = loans.some((d) => loanGaps(d.loan).length > 0)
+    ? null
+    : loans.reduce((best, d) => (d.effective.gt(best.effective) ? d : best), loans[0]);
   const headers = [
     '#',
     'LENDER',
@@ -112,7 +116,12 @@ export function LDebtsTable({
             const tenureMo = Number(d.loan.tenure_months_remaining || 0);
             const tenureLabel =
               d.loan.loan_type === 'credit_card' ? 'REV' : tenureMo > 0 ? `${tenureMo}mo` : '—';
-            const nextLabel = isHighest ? 'PAY EXTRA' : 'MINIMUM';
+            const nextLabel = isHighest ? 'PAY EXTRA' : dearest ? 'MINIMUM' : '—';
+            // A blank rate or EMI was saved as 0: say so, not "0.00%".
+            const gaps = loanGaps(d.loan);
+            const missing = (
+              <span style={{ color: L_T.negative, fontWeight: 700 }}>ADD</span>
+            );
             return (
               <tr
                 key={i}
@@ -130,7 +139,9 @@ export function LDebtsTable({
                 <td style={{ padding: '10px 12px', color: L_T.muted }}>
                   {LOAN_TYPE_SHORT[d.loan.loan_type]}
                 </td>
-                <td style={{ padding: '10px 12px', textAlign: 'right' }}>{fmtPct(d.nominal)}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                  {gaps.includes('rate') ? missing : fmtPct(d.nominal)}
+                </td>
                 <td
                   style={{
                     padding: '10px 12px',
@@ -139,13 +150,15 @@ export function LDebtsTable({
                     fontWeight: isHighest ? 700 : 500,
                   }}
                 >
-                  {fmtPct(d.effective)}
+                  {gaps.includes('rate') ? '—' : fmtPct(d.effective)}
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
                   {fcLoan(d.loan.outstanding, d)}
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                  {d.loan.scheduled_emi && Number(d.loan.scheduled_emi) > 0 ? fcLoan(d.loan.scheduled_emi, d) : '—'}
+                  {gaps.includes('emi')
+                    ? missing
+                    : d.loan.scheduled_emi && Number(d.loan.scheduled_emi) > 0 ? fcLoan(d.loan.scheduled_emi, d) : '—'}
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', color: L_T.muted }}>
                   {tenureLabel}

@@ -40,6 +40,8 @@ import {
 } from '@/components/ledger/primitives';
 import { deriveMetrics } from '@/lib/derived';
 import { dec } from '@/lib/safe-decimal';
+import { describeGap, type ProfileGap } from '@/lib/loan-gaps';
+import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import type { StoredProfile } from '@/lib/user-store';
 import { LTrajectory, type LTrajPoint } from '@/components/ledger/LDebtsTable';
 import {
@@ -120,6 +122,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   );
 
   if (debtFreeNow) return <DebtFreeNow hasLoans={plan.user.loans.length > 0} />;
+  if (plan.gaps.length > 0) return <NeedsLoanDetails gaps={plan.gaps} />;
 
   const xLabels = [0, 0.25, 0.5, 0.75, 1].map((f) => {
     const month = firstMonth + Math.round(f * span);
@@ -834,6 +837,31 @@ void Decimal;
 
 /** /plan when nothing is owed: the plan's cards (date, outlay, chart)
  *  would all be made up ("NOT IN LIFETIME", an outlay with no loans). */
+/** A loan is missing its rate or EMI: no projection until it's added. */
+function NeedsLoanDetails({ gaps }: { gaps: ProfileGap[] }) {
+  return (
+    <LShell>
+      <div style={{ padding: '40px 0', fontFamily: L_MONO }}>
+        <LCli>PLAN · NEEDS YOUR LOAN DETAILS</LCli>
+        <LRule length={200} />
+        <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
+          There&apos;s no payoff date yet: without these the plan would treat a
+          loan as interest-free or never paid down.
+          <ul style={{ margin: '10px 0 14px', paddingLeft: 18, color: L_T.ink }}>
+            {gaps.map((g) => (
+              <li key={g.index}>
+                {(g.loan.bank || 'Your').toUpperCase()} {LOAN_TYPE_NAME[g.loan.loan_type].toUpperCase()}: add{' '}
+                {describeGap(g.missing)}
+              </li>
+            ))}
+          </ul>
+          <LBracket href="/onboarding?step=loans">ADD THE DETAILS →</LBracket>
+        </div>
+      </div>
+    </LShell>
+  );
+}
+
 function DebtFreeNow({ hasLoans }: { hasLoans: boolean }) {
   return (
     <LShell>

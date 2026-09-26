@@ -16,3 +16,14 @@ export const LOAN_TYPE_SHORT: Record<LoanType, string> = {
   gold_loan: 'gold',
   bnpl: 'BNPL',
 };
+
+/** Full name for sentences: "HDFC credit card", "SBI home loan". */
+export const LOAN_TYPE_NAME: Record<LoanType, string> = {
+  home_loan: 'home loan',
+  auto_loan: 'car loan',
+  personal_loan: 'personal loan',
+  credit_card: 'credit card',
+  education_loan: 'education loan',
+  gold_loan: 'gold loan',
+  bnpl: 'BNPL',
+};
