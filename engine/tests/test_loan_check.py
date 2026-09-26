@@ -73,7 +73,9 @@ def test_last_reset_counts_further_back_month_by_month():
     f = r.findings[0]
     # Oct 2025–Mar 2026 at 0.50% over, Apr–Aug 2026 at 0.75% over.
     assert f.months_overcharged == 11
-    assert f.overcharged_so_far == D("22500")
+    # 1,666.67 a month rounds down to 1,666: 6 × 1,666 + 5 × 2,500.
+    assert f.overcharged_so_far == D("22496")
+    assert sum(x.amount for x in f.overcharge_months) == f.overcharged_so_far
 
 
 def test_cut_inside_reset_window_is_not_claimed_yet():

@@ -32,7 +32,7 @@ def test_loan_check_round_trip(client):
     assert kinds == ["missed_rate_cut", "pricing_gap"]
     missed = body["findings"][0]
     assert missed["claimable"] is True
-    assert missed["citations"][0]["rule"].startswith("RBI circular")
+    assert missed["citations"][0]["rule"].startswith("RBI (Commercial Banks")
     assert body["rates_as_of"] == "2026-09-26"
     assert body["repo_changes_since_start"][-1]["new_rate"] in ("0.0525", 0.0525)
 

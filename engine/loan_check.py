@@ -32,11 +32,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
 from enum import Enum
 from typing import Optional
 
 from engine import policy_rates
+from engine.citations import EBLR_MANDATE, EBLR_RESET, EBLR_SPREAD, Citation
 from engine.formulas import emi as emi_formula
 from engine.models import Country
 from engine.rate_cards import ALL_INSTITUTIONS, RateRange
@@ -67,40 +68,11 @@ class Benchmark(str, Enum):
 
 
 @dataclass(frozen=True)
-class Citation:
-    rule: str
-    requirement: str
-    source: str
-    # Flipped by the Phase 2 citation check once the quoted requirement
-    # has been compared with the regulation's own text.
-    verified_against_text: bool = False
-
-
-EBLR_RESET = Citation(
-    rule="RBI circular DBR.DIR.BC.No.14/13.03.00/2019-20 (4 Sep 2019), External Benchmark Based Lending",
-    requirement="The interest rate under an external benchmark must be reset at least once in three months.",
-    source="rbi.org.in, Notifications, 4 September 2019",
-)
-EBLR_SPREAD = Citation(
-    rule="RBI circular DBR.DIR.BC.No.14/13.03.00/2019-20 (4 Sep 2019), External Benchmark Based Lending",
-    requirement=(
-        "The credit risk premium may change only when the borrower's credit "
-        "assessment undergoes a substantial change; other components of the "
-        "spread, including operating cost, may change once in three years."
-    ),
-    source="rbi.org.in, Notifications, 4 September 2019",
-)
-EBLR_MANDATE = Citation(
-    rule="RBI circular DBR.DIR.BC.No.14/13.03.00/2019-20 (4 Sep 2019), External Benchmark Based Lending",
-    requirement=(
-        "From 1 October 2019, all new floating-rate personal and retail loans "
-        "from scheduled commercial banks must be linked to an external "
-        "benchmark such as the RBI repo rate. Existing MCLR / base-rate "
-        "borrowers may switch to the external benchmark on mutually "
-        "acceptable terms."
-    ),
-    source="rbi.org.in, Notifications, 4 September 2019",
-)
+class OverchargeMonth:
+    month: date                      # first day of the month
+    expected_rate: Decimal
+    charged_rate: Decimal
+    amount: Decimal                  # whole rupees, rounded down
 
 
 @dataclass
@@ -132,6 +104,9 @@ class Finding:
     months_overcharged: int
     citations: list[Citation]
     next_step: str
+    # missed_rate_cut only: the months behind overcharged_so_far, which is
+    # their exact sum, so a letter's annexure adds up to the rupee.
+    overcharge_months: list[OverchargeMonth] = field(default_factory=list)
 
 
 @dataclass
@@ -510,17 +485,21 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
                 f"expected rate last changed. Tell us the month your rate "
                 f"last changed to count further back."
             )
-        overcharged = D("0")
-        months = 0
+        # Each month is rounded down to the rupee, so the claim is never
+        # more than the working behind it.
+        monthly: list[OverchargeMonth] = []
         m = window_start
         while m < as_of_month:
             e_m = inp.start_rate + (_repo_reference(_month_end(m)) - repo_start)
             g_m = inp.current_rate - e_m
             if g_m > TOLERANCE:
-                overcharged += inp.outstanding * g_m / D("12")
-                months += 1
+                monthly.append(OverchargeMonth(
+                    month=m, expected_rate=e_m, charged_rate=inp.current_rate,
+                    amount=(inp.outstanding * g_m / D("12")).quantize(D("1"), rounding=ROUND_DOWN),
+                ))
             m = _add_months(m, 1)
-        overcharged = _round_money(max(D("0"), overcharged))
+        overcharged = sum((x.amount for x in monthly), D("0"))
+        months = len(monthly)
         this_year = _round_money(_extra_interest(
             inp.outstanding, payment, inp.current_rate, expected,
             min(12, inp.tenure_months_remaining),
@@ -559,6 +538,7 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
             amount_this_year=this_year,
             overcharged_so_far=overcharged,
             months_overcharged=months,
+            overcharge_months=monthly,
             citations=[EBLR_RESET, EBLR_SPREAD],
             next_step=(
                 f"Send {lender} a written complaint through its grievance "
