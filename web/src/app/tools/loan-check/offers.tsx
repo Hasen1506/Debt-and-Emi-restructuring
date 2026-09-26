@@ -15,7 +15,6 @@ import { Card } from '@/components/Card';
 import { Field, Select } from '@/components/ToolPrimitives';
 import {
   api,
-  ApiFieldError,
   formatCurrency,
   formatPct,
   type LoanCheckRequest,
@@ -24,6 +23,7 @@ import {
   type OfferOption,
 } from '@/lib/api';
 import { parseAmountInput, parseFeeInput, type ParsedFee } from '@/lib/fee-input';
+import { useFormErrors } from '@/lib/form-errors';
 import { parsePercentInput } from '@/lib/rate-input';
 import { Citations } from './complaint';
 import { RateProblem } from './rate-problem';
@@ -86,6 +86,22 @@ function Check({ label, checked, onChange }: { label: string; checked: boolean; 
   );
 }
 
+
+// The API's field names → this form's inputs (engine/offer_compare.py).
+const FIELDS: Record<string, string> = {
+  'reset.rate': 'resetRate',
+  'reset.fee': 'resetFee',
+  'reset.fee_percent': 'resetFee',
+  'refinance.rate': 'refiRate',
+  'refinance.lender': 'newLender',
+  'refinance.processing_fee': 'refiFee',
+  'refinance.processing_fee_percent': 'refiFee',
+  'refinance.stamp_duty': 'stamp',
+  'refinance.legal_and_valuation': 'legal',
+  'refinance.prepayment_charge': 'closing',
+  'refinance.months': 'newTerm',
+  'horizon_months': 'years',
+};
 export function OfferPanel({ request }: { request: LoanCheckRequest }) {
   const bank = request.lender?.trim() || 'your bank';
   const [resetRate, setResetRate] = useState('');
@@ -102,7 +118,7 @@ export function OfferPanel({ request }: { request: LoanCheckRequest }) {
   const [years, setYears] = useState('');
   const [mode, setMode] = useState<OfferMode>('lower_emi');
   const [res, setRes] = useState<OfferCompareResponse | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const { err, setErr, clear, fail, at } = useFormErrors();
   const [busy, setBusy] = useState(false);
 
   const pReset = parsePercentInput(resetRate);
@@ -115,7 +131,7 @@ export function OfferPanel({ request }: { request: LoanCheckRequest }) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setErr(null);
+    clear();
     const problems = [pReset, pRefi, pResetFee, pRefiFee, pStamp, pLegal, pClosing].filter((p) => p.error);
     if (problems.length) {
       setErr('Fix the highlighted fields first.');
@@ -166,7 +182,7 @@ export function OfferPanel({ request }: { request: LoanCheckRequest }) {
       setRes(r);
     } catch (e) {
       setRes(null);
-      setErr(e instanceof ApiFieldError ? e.message : (e as Error).message);
+      fail(e, FIELDS);
     } finally {
       setBusy(false);
     }
@@ -193,7 +209,7 @@ export function OfferPanel({ request }: { request: LoanCheckRequest }) {
           </legend>
           <div style={grid}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Field label="Rate offered (%)" value={resetRate} onChange={setResetRate} placeholder="8.15" />
+              <Field label="Rate offered (%)" value={resetRate} error={at('resetRate')} onChange={setResetRate} placeholder="8.15" />
               <RateProblem parsed={pReset} onFix={setResetRate} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -201,6 +217,7 @@ export function OfferPanel({ request }: { request: LoanCheckRequest }) {
                 label="Fee (₹ or % of the loan)"
                 kind="text"
                 value={resetFee}
+                error={at('resetFee')}
                 onChange={setResetFee}
                 placeholder="25000 or 0.35%"
               />
@@ -215,9 +232,9 @@ export function OfferPanel({ request }: { request: LoanCheckRequest }) {
             Another lender&apos;s quote (optional)
           </legend>
           <div style={grid}>
-            <Field label="New lender" kind="text" value={newLender} onChange={setNewLender} />
+            <Field label="New lender" kind="text" value={newLender} error={at('newLender')} onChange={setNewLender} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Field label="Rate (%)" value={refiRate} onChange={setRefiRate} placeholder="7.60" />
+              <Field label="Rate (%)" value={refiRate} error={at('refiRate')} onChange={setRefiRate} placeholder="7.60" />
               <RateProblem parsed={pRefi} onFix={setRefiRate} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -225,6 +242,7 @@ export function OfferPanel({ request }: { request: LoanCheckRequest }) {
                 label="Processing fee (₹ or %)"
                 kind="text"
                 value={refiFee}
+                error={at('refiFee')}
                 onChange={setRefiFee}
                 placeholder="10000 or 0.5%"
               />
@@ -234,13 +252,15 @@ export function OfferPanel({ request }: { request: LoanCheckRequest }) {
             <Field
               label="Stamp duty (₹)"
               value={stamp}
+              error={at('stamp')}
               onChange={setStamp}
               hint="On the new mortgage. Set by your state; ask the lender."
             />
-            <Field label="Legal and valuation (₹)" value={legal} onChange={setLegal} />
+            <Field label="Legal and valuation (₹)" value={legal} error={at('legal')} onChange={setLegal} />
             <Field
               label={`Charge from ${bank} to close (₹)`}
               value={closing}
+              error={at('closing')}
               onChange={setClosing}
               hint="Usually nil on a floating-rate home loan."
             />
@@ -248,6 +268,7 @@ export function OfferPanel({ request }: { request: LoanCheckRequest }) {
               label="New term (months, optional)"
               kind="integer"
               value={newTerm}
+              error={at('newTerm')}
               onChange={setNewTerm}
               hint="Leave blank to keep the months you have left."
             />
@@ -258,6 +279,7 @@ export function OfferPanel({ request }: { request: LoanCheckRequest }) {
           <Field
             label="Years you expect to keep this loan (optional)"
             value={years}
+            error={at('years')}
             onChange={setYears}
             hint="If you may sell or prepay early. Blank means the full term."
           />

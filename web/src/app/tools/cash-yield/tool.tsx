@@ -19,9 +19,19 @@ import {
   type Country,
 } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
+import { useFormErrors } from '@/lib/form-errors';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { userDefaultCurrency } from '@/lib/currency';
+
+
+// The API's field names → this form's inputs, so a rejected value's
+// message shows under the input it came from.
+const FIELDS: Record<string, string> = {
+  idle_balance: 'idle',
+  current_yield: 'yieldNow',
+  top_loan_effective_rate: 'topRate',
+};
 
 export function CashYieldTool() {
   const profile = useMemo(() => loadProfileClient(), []);
@@ -34,13 +44,13 @@ export function CashYieldTool() {
   );
   const [v, setV] = useState<CashYieldResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { err, setErr, clear, fail, at } = useFormErrors();
   const [applied, setApplied] = useState(false);
 
   async function check(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setErr(null);
+    clear();
     setApplied(false);
     try {
       setV(
@@ -52,7 +62,7 @@ export function CashYieldTool() {
         }),
       );
     } catch (e) {
-      setErr((e as Error).message);
+      fail(e, FIELDS);
     } finally {
       setBusy(false);
     }
@@ -68,6 +78,7 @@ export function CashYieldTool() {
           <Field
             label="Idle balance"
             value={idle}
+            error={at('idle')}
             onChange={setIdle}
             info={
               <>
@@ -80,6 +91,7 @@ export function CashYieldTool() {
           <Field
             label="Current yield (decimal)"
             value={yieldNow}
+            error={at('yieldNow')}
             onChange={setYieldNow}
             hint="e.g. 0.025 for 2.5%"
             info={
@@ -93,6 +105,7 @@ export function CashYieldTool() {
           <Select
             label="Country"
             value={country}
+            error={at('country')}
             onChange={setCountry}
             options={[
               { value: 'IN' as Country, label: 'India' },
@@ -102,6 +115,7 @@ export function CashYieldTool() {
           <Field
             label="Top loan effective rate (decimal, optional)"
             value={topRate}
+            error={at('topRate')}
             onChange={setTopRate}
             hint="Comparison against prepaying"
             info={

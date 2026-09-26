@@ -1175,7 +1175,7 @@ export const api = {
     strategy?: Strategy;
     horizon_months?: number;
     marginal_rate?: string;
-  }) => post<QuickRecomputeResponse>('/api/quick-recompute', req),
+  }) => postWithFieldErrors<QuickRecomputeResponse>('/api/quick-recompute', req),
 
   cashYield: (req: {
     idle_balance: string;
@@ -1185,7 +1185,7 @@ export const api = {
     best_alt_yield?: string;
     alt_name?: string;
     minimum_idle_threshold?: string;
-  }) => post<CashYieldResponse>('/api/cash-yield', req),
+  }) => postWithFieldErrors<CashYieldResponse>('/api/cash-yield', req),
 
   rightTime: (req: {
     current_rate: string;
@@ -1195,7 +1195,7 @@ export const api = {
     urgency: 'now' | '3m_ok' | '6m_ok';
     principal: string;
     tenure_months: number;
-  }) => post<BorrowTimingResponse>('/api/right-time-to-borrow', req),
+  }) => postWithFieldErrors<BorrowTimingResponse>('/api/right-time-to-borrow', req),
 
   loanCheck: (req: LoanCheckRequest) =>
     postWithFieldErrors<LoanCheckResponse>('/api/loan-check', req),
@@ -1222,14 +1222,14 @@ export const api = {
     utilisation_to?: string;
     is_only_instalment_loan?: boolean;
     has_thin_file?: boolean;
-  }) => post<ScoreImpactResponse>('/api/score-impact', req),
+  }) => postWithFieldErrors<ScoreImpactResponse>('/api/score-impact', req),
 
   rateOffered: (req: {
     advertised_rate: string;
     score: number;
     loan_type: string;
     country?: string;
-  }) => post<RateOfferedResponse>('/api/rate-offered', req),
+  }) => postWithFieldErrors<RateOfferedResponse>('/api/rate-offered', req),
 
   fxRate: (base: string, quote: string) =>
     get<FxRateResponse>(`/api/fx-rate?base=${base}&quote=${quote}`),
@@ -1245,7 +1245,7 @@ export const api = {
     manual_fx_rate?: string;
     manual_fx_drift_annual?: string;
     inflation_user_country?: string;
-  }) => post<CrossBorderResponse>('/api/cross-border-decision', req),
+  }) => postWithFieldErrors<CrossBorderResponse>('/api/cross-border-decision', req),
 
   restructuring: (req: {
     user: UserPayload;
@@ -1268,7 +1268,7 @@ export const api = {
     current_fy?: string;
     brokerage_rate?: string;
     surplus_reinvestment_yield?: string;
-  }) => post<AssetLiquidationResponse>('/api/asset-liquidation', req),
+  }) => postWithFieldErrors<AssetLiquidationResponse>('/api/asset-liquidation', req),
 
   liquidationRankings: (req: {
     user: UserPayload;
@@ -1281,8 +1281,7 @@ export const api = {
     horizon_years?: string;
     surplus_reinvestment_yield?: string;
     pre_filter_margin?: string;
-  }) => post<LiquidationRankingsResponse>(
-    '/api/portfolio/liquidation-rankings', req,
+  }) => postWithFieldErrors<LiquidationRankingsResponse>('/api/portfolio/liquidation-rankings', req,
   ),
 
   institutions: (country?: Country) =>

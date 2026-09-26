@@ -127,7 +127,15 @@ class LoanCheckResult:
 
 
 class LoanCheckInputError(ValueError):
-    """Input that cannot be checked. The message is shown to the user."""
+    """Input that cannot be checked. The message is shown to the user.
+
+    `field` names the input at fault, as the API calls it, so the screen
+    can show the message under it ("input" when no one field is).
+    """
+
+    def __init__(self, message: str, field: str = "input"):
+        super().__init__(message)
+        self.field = field
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -229,35 +237,36 @@ def validate(inp: LoanCheckInput) -> None:
             "Loan Check covers Indian floating-rate home loans for now. "
             "US adjustable-rate mortgages are planned."
         )
-    for label, rate in (("Starting rate", inp.start_rate), ("Current rate", inp.current_rate)):
+    for name, label, rate in (("start_rate", "Starting rate", inp.start_rate),
+                              ("current_rate", "Current rate", inp.current_rate)):
         if rate > 1:
             raise LoanCheckInputError(
                 f"{label} {rate} looks like a percentage. Send it as a fraction "
-                f"(8.55% is 0.0855)."
+                f"(8.55% is 0.0855).", name,
             )
         if not (D("0.01") <= rate <= D("0.30")):
             raise LoanCheckInputError(
                 f"{label} {_pct(rate)} is outside 1% to 30%, which no Indian "
-                f"home loan has had. Check the number."
+                f"home loan has had. Check the number.", name,
             )
     if not (D("0") < inp.outstanding <= D("10000000000")):
-        raise LoanCheckInputError("Outstanding balance must be above ₹0 and at most ₹1,000 crore.")
+        raise LoanCheckInputError("Outstanding balance must be above ₹0 and at most ₹1,000 crore.", "outstanding")
     if not (1 <= inp.tenure_months_remaining <= 480):
-        raise LoanCheckInputError("Months left must be between 1 and 480.")
+        raise LoanCheckInputError("Months left must be between 1 and 480.", "tenure_months_remaining")
     if inp.emi is not None and not (D("0") < inp.emi <= inp.outstanding):
-        raise LoanCheckInputError("EMI must be above ₹0 and not more than the outstanding balance.")
+        raise LoanCheckInputError("EMI must be above ₹0 and not more than the outstanding balance.", "emi")
     if _month_start(inp.loan_start) > _month_start(inp.as_of):
-        raise LoanCheckInputError("The loan start month is in the future.")
+        raise LoanCheckInputError("The loan start month is in the future.", "loan_start")
     if inp.last_reset is not None:
         if _month_start(inp.last_reset) > _month_start(inp.as_of):
-            raise LoanCheckInputError("The month the rate last changed is in the future.")
+            raise LoanCheckInputError("The month the rate last changed is in the future.", "last_reset")
         if _month_start(inp.last_reset) < _month_start(inp.loan_start):
-            raise LoanCheckInputError("The month the rate last changed is before the loan started.")
+            raise LoanCheckInputError("The month the rate last changed is before the loan started.", "last_reset")
     if inp.benchmark == Benchmark.REPO and _month_start(inp.loan_start) < REPO_LINKED_EARLIEST:
         raise LoanCheckInputError(
             "Repo-linked home loans started in July 2019. For an older loan "
             "that was switched to the repo-linked rate, enter the month of "
-            "the switch and the rate right after it."
+            "the switch and the rate right after it.", "loan_start",
         )
 
 
@@ -437,12 +446,13 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
     if inp.start_rate < repo_start:
         raise LoanCheckInputError(
             f"The starting rate {_pct(inp.start_rate)} is below the RBI repo "
-            f"rate at the time ({_pct(repo_start)}). Check the number and the start month."
+            f"rate at the time ({_pct(repo_start)}). Check the number and the start month.",
+            "start_rate",
         )
     if inp.current_rate < repo_today:
         raise LoanCheckInputError(
             f"The current rate {_pct(inp.current_rate)} is below today's RBI "
-            f"repo rate ({_pct(repo_today)}). Check the number."
+            f"repo rate ({_pct(repo_today)}). Check the number.", "current_rate",
         )
     expected = inp.start_rate + (repo_ref - repo_start)
     changes = policy_rates.changes_between(Country.IN, start, inp.as_of)

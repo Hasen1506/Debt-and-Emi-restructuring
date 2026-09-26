@@ -22,6 +22,7 @@ import {
   type ScoreImpactResponse,
 } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
+import { useFormErrors } from '@/lib/form-errors';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
 
@@ -98,7 +99,7 @@ export function NewDebtTool() {
   const [v, setV] = useState<NewDebtResponse | null>(null);
   const [impact, setImpact] = useState<ScoreImpactResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { err, setErr, clear, fail, at } = useFormErrors();
   const [added, setAdded] = useState(false);
 
   // Refresh sensible tenure default when the loan type changes.
@@ -160,7 +161,7 @@ export function NewDebtTool() {
   async function check(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setErr(null);
+    clear();
     setImpact(null);
     setAdded(false);
     try {
@@ -193,7 +194,17 @@ export function NewDebtTool() {
         setImpact(impactResult);
       }
     } catch (e) {
-      setErr((e as Error).message);
+      // In loan mode the price fields are the loan amount.
+      const price = loanType === 'credit_card' ? null : 'loanAmount';
+      fail(e, {
+        list_price: price ?? 'listPrice',
+        cash_price_elsewhere: price ?? 'cashPrice',
+        emi_offer_monthly_payment: price ?? 'cashPrice',
+        emi_offer_months: 'tenure',
+        processing_fee: 'fee',
+        user_savings_after_efund: 'savings',
+        current_score: 'score',
+      });
     } finally {
       setBusy(false);
     }
@@ -223,12 +234,14 @@ export function NewDebtTool() {
               <Field
                 label="Loan amount"
                 value={loanAmount}
+                error={at('loanAmount')}
                 onChange={setLoanAmount}
                 info={<>What you want to borrow, in your home currency.</>}
               />
               <Field
                 label="Tenure (months)"
                 value={tenure}
+                error={at('tenure')}
                 onChange={setTenure}
                 kind="integer"
                 hint="e.g. 60 = 5 years"
@@ -240,6 +253,7 @@ export function NewDebtTool() {
               <Field
                 label="Sticker / list price"
                 value={listPrice}
+                error={at('listPrice')}
                 onChange={setListPrice}
                 info={
                   <>
@@ -253,6 +267,7 @@ export function NewDebtTool() {
               <Field
                 label="Cash price elsewhere"
                 value={cashPrice}
+                error={at('cashPrice')}
                 onChange={setCashPrice}
                 info={
                   <>
@@ -265,6 +280,7 @@ export function NewDebtTool() {
               <Field
                 label="EMI tenure (months)"
                 value={tenure}
+                error={at('tenure')}
                 onChange={setTenure}
                 kind="integer"
               />
@@ -299,12 +315,14 @@ export function NewDebtTool() {
           <Field
             label="Processing fee at this bank"
             value={fee}
+            error={at('fee')}
             onChange={setFee}
             hint="Usually 0–2% of loan amount; leave 0 if unknown"
           />
           <Field
             label="Your liquid savings (post emergency-fund)"
             value={savings}
+            error={at('savings')}
             onChange={setSavings}
             info={
               <>
@@ -317,6 +335,7 @@ export function NewDebtTool() {
           <Field
             label="Your credit score"
             value={score}
+            error={at('score')}
             onChange={setScore}
             hint="CIBIL/Experian (IN) or FICO (US) — drives the score-impact estimate"
             info={

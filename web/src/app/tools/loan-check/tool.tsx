@@ -18,7 +18,6 @@ import {
 } from '@/components/ToolPrimitives';
 import {
   api,
-  ApiFieldError,
   formatCurrency,
   formatPct,
   type LoanBenchmark,
@@ -29,8 +28,23 @@ import {
 import { loadProfileClient } from '@/lib/user-store';
 import { parsePercentInput, parseSpreadInput } from '@/lib/rate-input';
 import { formatAsOf } from '@/lib/as-of';
+import { useFormErrors } from '@/lib/form-errors';
 
 type StartMode = 'headline' | 'split';
+
+// The API's field names → this form's inputs (api/routes/loan_check.py).
+const FIELDS: Record<string, string> = {
+  lender: 'lender',
+  loan_start: 'loanStart',
+  start_rate: 'startRate',
+  start_benchmark_rate: 'startBench',
+  start_spread: 'startSpread',
+  current_rate: 'currentRate',
+  outstanding: 'outstanding',
+  tenure_months_remaining: 'months',
+  emi: 'emi',
+  last_reset: 'lastReset',
+};
 
 const BENCHMARK_OPTIONS: { value: LoanBenchmark; label: string }[] = [
   { value: 'unknown', label: 'Not sure' },
@@ -80,7 +94,7 @@ export function LoanCheckTool() {
   // The request behind `result`, reused by the complaint panel.
   const [checked, setChecked] = useState<LoanCheckRequest | null>(null);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { err, setErr, clear, fail, at } = useFormErrors();
   const resultRef = useRef<HTMLDivElement>(null);
 
   const pStart = parsePercentInput(startRate);
@@ -117,7 +131,7 @@ export function LoanCheckTool() {
       return;
     }
     setBusy(true);
-    setErr(null);
+    clear();
     try {
       const req: LoanCheckRequest = {
         lender: lender || undefined,
@@ -142,7 +156,8 @@ export function LoanCheckTool() {
     } catch (e) {
       setResult(null);
       setChecked(null);
-      setErr(e instanceof ApiFieldError ? e.message : (e as Error).message);
+      // Given as benchmark + spread, a bad starting rate is the benchmark's.
+      fail(e, startMode === 'split' ? { ...FIELDS, start_rate: 'startBench' } : FIELDS);
     } finally {
       setBusy(false);
     }
@@ -188,6 +203,7 @@ export function LoanCheckTool() {
           <MonthYearPicker
             label="Month the loan started"
             value={loanStart}
+            error={at('loanStart')}
             onChange={setLoanStart}
             minYear={1995}
             hint="If you later switched to a repo-linked rate, use the month of the switch."
@@ -242,6 +258,7 @@ export function LoanCheckTool() {
                 <Field
                   label="Rate when the loan started (%)"
                   value={startRate}
+                  error={at('startRate')}
                   onChange={setStartRate}
                   placeholder="8.55"
                 />
@@ -259,6 +276,7 @@ export function LoanCheckTool() {
                   <Field
                     label="Bank's benchmark rate then (%)"
                     value={startBench}
+                    error={at('startBench')}
                     onChange={setStartBench}
                     placeholder="8.20"
                     info={<>The lender&apos;s RLLR / EBLR on the day the loan started, as shown in the sanction letter.</>}
@@ -269,6 +287,7 @@ export function LoanCheckTool() {
                   <Field
                     label="Your spread (%)"
                     value={startSpread}
+                    error={at('startSpread')}
                     onChange={setStartSpread}
                     placeholder="0.35"
                     info={<>The extra over the benchmark that applies to you, often called the spread, margin or credit risk premium.</>}
@@ -291,6 +310,7 @@ export function LoanCheckTool() {
             <Field
               label="Rate you pay now (%)"
               value={currentRate}
+              error={at('currentRate')}
               onChange={setCurrentRate}
               placeholder="8.90"
               hint="From your latest statement or the bank's app."
@@ -300,12 +320,14 @@ export function LoanCheckTool() {
           <Field
             label="Outstanding balance (₹)"
             value={outstanding}
+            error={at('outstanding')}
             onChange={setOutstanding}
             placeholder="40,00,000"
           />
           <Field
             label="Months left"
             value={months}
+            error={at('months')}
             onChange={setMonths}
             kind="integer"
             placeholder="200"
@@ -313,12 +335,14 @@ export function LoanCheckTool() {
           <Field
             label="EMI (₹, optional)"
             value={emi}
+            error={at('emi')}
             onChange={setEmi}
             hint="Leave blank and we work it out."
           />
           <MonthYearPicker
             label="Month your rate last changed"
             value={lastReset}
+            error={at('lastReset')}
             onChange={setLastReset}
             minYear={2019}
             optional

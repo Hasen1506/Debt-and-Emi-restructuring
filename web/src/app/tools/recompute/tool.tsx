@@ -21,10 +21,19 @@ import {
   type ScoreImpactResponse,
 } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
+import { useFormErrors } from '@/lib/form-errors';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
+
+
+// The API's field names → this form's inputs, so a rejected value's
+// message shows under the input it came from.
+const FIELDS: Record<string, string> = {
+  extra_payment: 'extra',
+  target_loan_index: 'targetIdx',
+};
 
 export function RecomputeTool() {
   const profile = useMemo(() => loadProfileClient(), []);
@@ -35,7 +44,7 @@ export function RecomputeTool() {
   const [v, setV] = useState<QuickRecomputeResponse | null>(null);
   const [impact, setImpact] = useState<ScoreImpactResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { err, setErr, clear, fail, at } = useFormErrors();
   const [applied, setApplied] = useState(false);
 
   // Format figures in the picked loan's currency — `interest saved` and
@@ -54,7 +63,7 @@ export function RecomputeTool() {
       return;
     }
     setBusy(true);
-    setErr(null);
+    clear();
     setImpact(null);
     setApplied(false);
     try {
@@ -107,7 +116,7 @@ export function RecomputeTool() {
         }
       }
     } catch (e) {
-      setErr((e as Error).message);
+      fail(e, FIELDS);
     } finally {
       setBusy(false);
     }
@@ -134,6 +143,7 @@ export function RecomputeTool() {
           <Field
             label="Extra payment"
             value={extra}
+            error={at('extra')}
             onChange={setExtra}
             hint="Lump sum you just paid"
             info={
@@ -148,6 +158,7 @@ export function RecomputeTool() {
           <Select
             label="Applied to which loan?"
             value={targetIdx}
+            error={at('targetIdx')}
             onChange={setTargetIdx}
             options={loanOptions}
             info={

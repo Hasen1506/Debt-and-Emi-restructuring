@@ -99,6 +99,23 @@ def test_bad_numbers_get_clear_errors(client, field, value, msg):
     r = client.post("/api/loan-check", json=_payload(**{field: value}))
     assert r.status_code == 422, r.text
     assert msg in r.json()["detail"]["message"]
+    assert r.json()["detail"]["field"] == field      # shown under that input
+
+
+@pytest.mark.parametrize("changes, field", [
+    ({"emi": "-5"}, "emi"),
+    ({"emi": "9000000"}, "emi"),
+    ({"last_reset": "2020-03"}, "last_reset"),         # before the loan started
+    ({"last_reset": "2030-01"}, "last_reset"),         # in the future
+    ({"loan_start": "2031-01"}, "loan_start"),
+    ({"loan_start": "2018-01"}, "loan_start"),         # repo-linked loans began in July 2019
+    ({"start_rate": "0.0300"}, "start_rate"),          # below the repo rate then
+    ({"current_rate": "0.0300"}, "current_rate"),      # below the repo rate today
+])
+def test_engine_checks_name_the_field(client, changes, field):
+    r = client.post("/api/loan-check", json=_payload(**changes))
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"]["field"] == field, r.json()
 
 
 def test_split_fraction_check(client):

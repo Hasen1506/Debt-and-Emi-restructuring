@@ -20,6 +20,7 @@ import {
   type LoanType,
 } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
+import { useFormErrors } from '@/lib/form-errors';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
 
@@ -49,6 +50,18 @@ const RATE_FIELD: Record<LoanType, keyof InstitutionPayload | null> = {
   bnpl: null,
 };
 
+
+// The API's field names → this form's inputs, so a rejected value's
+// message shows under the input it came from.
+const FIELDS: Record<string, string> = {
+  principal: 'principal',
+  tenure_months: 'tenure',
+  consensus_change_bps: 'changeBps',
+  months_to_decision: 'monthsTo',
+  current_rate: 'currentRateOverride',
+  six_month_avg: 'sixMoOverride',
+};
+
 export function RightTimeTool() {
   const profile = useMemo(() => loadProfileClient(), []);
   const country = profile.user.country as 'IN' | 'US';
@@ -71,7 +84,7 @@ export function RightTimeTool() {
 
   const [v, setV] = useState<BorrowTimingResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { err, setErr, clear, fail, at } = useFormErrors();
   const [added, setAdded] = useState(false);
 
   useEffect(() => {
@@ -147,7 +160,7 @@ export function RightTimeTool() {
       return;
     }
     setBusy(true);
-    setErr(null);
+    clear();
     setAdded(false);
     try {
       setV(
@@ -162,7 +175,7 @@ export function RightTimeTool() {
         }),
       );
     } catch (e) {
-      setErr((e as Error).message);
+      fail(e, FIELDS);
     } finally {
       setBusy(false);
     }
@@ -206,10 +219,11 @@ export function RightTimeTool() {
               (median {formatPct(bankRange.median, 2)})
             </div>
           )}
-          <Field label="Loan amount" value={principal} onChange={setPrincipal} />
+          <Field label="Loan amount" value={principal} onChange={setPrincipal} error={at('principal')} />
           <Field
             label="Tenure (months)"
             value={tenure}
+            error={at('tenure')}
             onChange={setTenure}
             kind="integer"
           />
@@ -227,6 +241,7 @@ export function RightTimeTool() {
           <Field
             label="Consensus change at next decision (bps)"
             value={changeBps}
+            error={at('changeBps')}
             onChange={setChangeBps}
             hint="−50 = 50bps cut expected; +25 = 25bps hike. 0 if unsure."
             info={
@@ -240,6 +255,7 @@ export function RightTimeTool() {
           <Field
             label="Months to next decision"
             value={monthsTo}
+            error={at('monthsTo')}
             onChange={setMonthsTo}
             kind="integer"
             hint="RBI MPC: every 2 months. Fed FOMC: every ~6 weeks."
@@ -267,12 +283,14 @@ export function RightTimeTool() {
               <Field
                 label="Override current rate (decimal)"
                 value={currentRateOverride}
+                error={at('currentRateOverride')}
                 onChange={setCurrentRateOverride}
                 hint={`leave blank to use ${bank || 'bank'} median`}
               />
               <Field
                 label="Override 6-mo average rate (decimal)"
                 value={sixMoOverride}
+                error={at('sixMoOverride')}
                 onChange={setSixMoOverride}
                 hint="leave blank to use current rate (neutral)"
               />

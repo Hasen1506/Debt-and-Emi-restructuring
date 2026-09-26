@@ -169,7 +169,7 @@ def run_loan_check(req: LoanCheckRequest) -> tuple[LoanCheckInput, LoanCheckResu
     try:
         return inp, check_loan(inp)
     except LoanCheckInputError as e:
-        raise bad("input", str(e))
+        raise bad(e.field, str(e))
 
 
 def citation_out(c) -> CitationOut:

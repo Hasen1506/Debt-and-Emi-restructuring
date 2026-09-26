@@ -9,7 +9,7 @@
  * `VerdictHeader` to the ledger primitives.
  */
 
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import {
   api,
@@ -18,6 +18,7 @@ import {
   type WindfallResponse,
 } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
+import { useFormErrors } from '@/lib/form-errors';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
@@ -45,7 +46,7 @@ export function WindfallTool() {
   const [v, setV] = useState<WindfallResponse | null>(null);
   const [impact, setImpact] = useState<ScoreImpactResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { err, setErr, clear, fail, at } = useFormErrors();
   const [applied, setApplied] = useState(false);
 
   async function check(e: React.FormEvent) {
@@ -55,7 +56,7 @@ export function WindfallTool() {
       return;
     }
     setBusy(true);
-    setErr(null);
+    clear();
     setImpact(null);
     setApplied(false);
     try {
@@ -90,7 +91,7 @@ export function WindfallTool() {
         }
       }
     } catch (e) {
-      setErr((e as Error).message);
+      fail(e, { amount: 'amount', current_score: 'score' });
     } finally {
       setBusy(false);
     }
@@ -169,12 +170,14 @@ export function WindfallTool() {
             value={amount}
             onChange={setAmount}
             hint="Net of tax — what landed in your account."
+            error={at('amount')}
           />
           <LToolField
             label="CURRENT CREDIT SCORE"
             value={score}
             onChange={setScore}
             hint="CIBIL / Experian. Blank skips the score-bump model."
+            error={at('score')}
           />
           <div
             style={{
@@ -323,14 +326,19 @@ function LToolField({
   value,
   onChange,
   hint,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   hint?: string;
+  error?: string | null;
 }) {
+  const id = useId();
+  const described = [error ? `${id}-err` : '', hint ? `${id}-hint` : ''].filter(Boolean).join(' ');
+  // The label names only the input; the hint and error describe it.
   return (
-    <label
+    <div
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -339,7 +347,8 @@ function LToolField({
           "'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace",
       }}
     >
-      <span
+      <label
+        htmlFor={id}
         style={{
           fontSize: 9,
           letterSpacing: '0.18em',
@@ -347,29 +356,36 @@ function LToolField({
         }}
       >
         {label}
-      </span>
+      </label>
       <input
+        id={id}
         type="text"
         inputMode="decimal"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={described || undefined}
         style={{
           background: 'transparent',
           border: 'none',
-          borderBottom: `1px solid ${L_T.ink}`,
+          borderBottom: `1px solid ${error ? L_T.negative : L_T.ink}`,
           padding: '6px 0',
           fontFamily: 'inherit',
           fontSize: 14,
           fontWeight: 700,
           color: L_T.ink,
-          outline: 'none',
         }}
       />
+      {error && (
+        <span id={`${id}-err`} role="alert" style={{ fontSize: 11, color: L_T.negative }}>
+          {error}
+        </span>
+      )}
       {hint && (
-        <span style={{ fontSize: 10, color: L_T.muted, lineHeight: 1.5 }}>
+        <span id={`${id}-hint`} style={{ fontSize: 10, color: L_T.muted, lineHeight: 1.5 }}>
           {hint}
         </span>
       )}
-    </label>
+    </div>
   );
 }

@@ -21,6 +21,7 @@ import {
 } from '@/lib/api';
 import { DEMO_ASSET } from '@/lib/demo-user';
 import { loadProfileClient } from '@/lib/user-store';
+import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { DecisionLogControls } from '@/components/DecisionLogControls';
@@ -50,6 +51,24 @@ function fyFromISO(iso: string): string {
 }
 
 type SaleMode = 'whole' | 'partial';
+
+
+// The API's field names → this form's inputs, so a rejected value's
+// message shows under the input it came from.
+const FIELDS: Record<string, string> = {
+  'asset.purchase_price': 'purchasePrice',
+  'asset.purchase_date': 'purchaseDate',
+  'asset.state': 'state',
+  'asset.current_market_value': 'salePrice',
+  sale_price: 'salePrice',
+  debt_balance: 'debtBalance',
+  debt_effective_rate: 'debtRate',
+  taxable_income: 'taxableIncome',
+  asset_nominal_return: 'assetReturn',
+  inflation: 'inflation',
+  expected_hold_years_post_sale: 'holdYears',
+  surplus_reinvestment_yield: 'leftoverYield',
+};
 
 export function LiquidateTool() {
   const profile = useMemo(() => loadProfileClient(), []);
@@ -100,7 +119,7 @@ export function LiquidateTool() {
 
   const [v, setV] = useState<AssetLiquidationResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { err, setErr, clear, fail, at } = useFormErrors();
   const [applied, setApplied] = useState(false);
 
   // The asset (real estate, Indian-tax mechanics) is denominated in the user's
@@ -156,7 +175,7 @@ export function LiquidateTool() {
   async function check(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setErr(null);
+    clear();
     setApplied(false);
     try {
       const isoDate = normalizePurchaseDate(purchaseDate);
@@ -186,7 +205,7 @@ export function LiquidateTool() {
       };
       setV(await api.assetLiquidation(payload));
     } catch (e) {
-      setErr((e as Error).message);
+      fail(e, FIELDS);
     } finally {
       setBusy(false);
     }
@@ -273,6 +292,7 @@ export function LiquidateTool() {
           <Field
             label="Purchase price"
             value={purchasePrice}
+            error={at('purchasePrice')}
             onChange={setPurchasePrice}
             info={
               <>
@@ -285,6 +305,7 @@ export function LiquidateTool() {
           <Field
             label="Purchase year or date"
             value={purchaseDate}
+            error={at('purchaseDate')}
             onChange={setPurchaseDate}
             kind="text"
             placeholder="e.g. 2018 or 2018-06-15"
@@ -300,6 +321,7 @@ export function LiquidateTool() {
           <Field
             label="State (for selling costs)"
             value={state}
+            error={at('state')}
             onChange={setState}
             kind="text"
             info={
@@ -331,6 +353,7 @@ export function LiquidateTool() {
             <Field
               label="Expected sale price (whole asset)"
               value={salePrice}
+              error={at('salePrice')}
               onChange={setSalePrice}
               info={<>What you realistically expect to net before tax + selling costs.</>}
             />
@@ -357,6 +380,7 @@ export function LiquidateTool() {
               <Field
                 label={`Price per ${unitLabel}`}
                 value={unitPrice}
+                error={at('salePrice')}
                 onChange={setUnitPrice}
               />
               <div
@@ -404,11 +428,13 @@ export function LiquidateTool() {
           <Field
             label="Debt balance to clear"
             value={debtBalance}
+            error={at('debtBalance')}
             onChange={setDebtBalance}
           />
           <Field
             label="Loan rate (decimal)"
             value={debtRate}
+            error={at('debtRate')}
             onChange={setDebtRate}
             hint="e.g. 0.36 for 36% card APR, 0.085 for 8.5% home loan"
             info={
@@ -423,6 +449,7 @@ export function LiquidateTool() {
           <Field
             label="Your annual taxable income"
             value={taxableIncome}
+            error={at('taxableIncome')}
             onChange={setTaxableIncome}
             hint="Drives the LTCG surcharge band"
             info={
@@ -456,6 +483,7 @@ export function LiquidateTool() {
               <Field
                 label="Asset's expected return (decimal, nominal)"
                 value={assetReturn}
+                error={at('assetReturn')}
                 onChange={setAssetReturn}
                 hint="e.g. 0.06 for 6% — what you think this asset will appreciate"
                 info={
@@ -470,6 +498,7 @@ export function LiquidateTool() {
               <Field
                 label="Years you'd hold if you don't sell"
                 value={holdYears}
+                error={at('holdYears')}
                 onChange={setHoldYears}
                 info={
                   <>
@@ -482,6 +511,7 @@ export function LiquidateTool() {
               <Field
                 label="What would the leftover cash earn?"
                 value={leftoverYield}
+                error={at('leftoverYield')}
                 onChange={setLeftoverYield}
                 hint="Default 6.8% — liquid fund / 12-mo FD (IN)"
                 info={
@@ -495,6 +525,7 @@ export function LiquidateTool() {
               <Field
                 label="Inflation (decimal)"
                 value={inflation}
+                error={at('inflation')}
                 onChange={setInflation}
                 hint="Default 4.6% — RBI's headline CPI target band"
                 info={

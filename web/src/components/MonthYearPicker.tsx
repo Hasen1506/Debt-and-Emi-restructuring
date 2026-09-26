@@ -30,6 +30,7 @@ export function MonthYearPicker({
   maxYear = new Date().getFullYear(),
   hint,
   optional = false,
+  error,
 }: {
   label: string;
   value: string;
@@ -38,6 +39,8 @@ export function MonthYearPicker({
   maxYear?: number;
   hint?: string;
   optional?: boolean;
+  /** A problem with this month (e.g. the server's 422), shown under it. */
+  error?: string | null;
 }) {
   const id = useId();
   const [month, setMonth] = useState(value ? value.slice(5, 7) : '');
@@ -72,6 +75,8 @@ export function MonthYearPicker({
         <select
           id={`${id}-m`}
           aria-label={`${label}: month`}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-err` : undefined}
           value={month}
           onChange={(e) => update(e.target.value, year)}
           style={selectStyle}
@@ -86,6 +91,8 @@ export function MonthYearPicker({
         <select
           id={`${id}-y`}
           aria-label={`${label}: year`}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-err` : undefined}
           value={year}
           onChange={(e) => update(month, e.target.value)}
           style={selectStyle}
@@ -98,6 +105,11 @@ export function MonthYearPicker({
           ))}
         </select>
       </div>
+      {error && (
+        <span id={`${id}-err`} role="alert" style={{ fontSize: 12, color: 'var(--negative)', display: 'block' }}>
+          {error}
+        </span>
+      )}
       {half && (
         <span role="status" style={{ fontSize: 11, color: 'var(--accent)' }}>
           Still needed: {month ? 'the year' : 'the month'}.
