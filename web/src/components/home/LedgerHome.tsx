@@ -74,7 +74,7 @@ function LedgerHomeSimple({ profile }: { profile: StoredProfile }) {
 
   return (
     <LShell>
-      <main
+      <div
         style={{
           flex: 1,
           padding: '4px 0 0',
@@ -192,7 +192,7 @@ function LedgerHomeSimple({ profile }: { profile: StoredProfile }) {
             ))}
           </div>
         </section>
-      </main>
+      </div>
     </LShell>
   );
 }
@@ -207,7 +207,7 @@ function LedgerHomeDetailed({ profile }: { profile: StoredProfile }) {
 
   return (
     <LShell>
-      <main style={{ flex: 1, padding: '4px 0 0', display: 'flex', flexDirection: 'column', gap: 22 }}>
+      <div style={{ flex: 1, padding: '4px 0 0', display: 'flex', flexDirection: 'column', gap: 22 }}>
         <section>
           <LSectionHeader
             right={
@@ -294,7 +294,7 @@ function LedgerHomeDetailed({ profile }: { profile: StoredProfile }) {
             <LBracket href="/plan">show formula ↓</LBracket>
           </div>
         </section>
-      </main>
+      </div>
     </LShell>
   );
 }
@@ -311,7 +311,7 @@ function LedgerHomeSoft({ profile }: { profile: StoredProfile }) {
 
   return (
     <LShell>
-      <main
+      <div
         style={{
           flex: 1,
           padding: '60px 32px 40px',
@@ -411,7 +411,7 @@ function LedgerHomeSoft({ profile }: { profile: StoredProfile }) {
           <br />
           THEY&apos;LL STILL BE HERE WHEN YOU&apos;RE READY.
         </div>
-      </main>
+      </div>
     </LShell>
   );
 }
@@ -419,13 +419,13 @@ function LedgerHomeSoft({ profile }: { profile: StoredProfile }) {
 function EmptyState() {
   return (
     <LShell>
-      <main style={{ padding: '40px 0' }}>
+      <div style={{ padding: '40px 0' }}>
         <LCli>STATUS · NO DEBTS ON FILE</LCli>
         <LRule length={200} />
         <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
           Run setup to add your debts: <LBracket href="/onboarding">SETUP →</LBracket>
         </div>
-      </main>
+      </div>
     </LShell>
   );
 }

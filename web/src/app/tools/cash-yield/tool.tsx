@@ -18,7 +18,7 @@ import {
   type CashYieldResponse,
   type Country,
 } from '@/lib/api';
-import { loadProfileClient } from '@/lib/user-store';
+import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
@@ -34,7 +34,7 @@ const FIELDS: Record<string, string> = {
 };
 
 export function CashYieldTool() {
-  const profile = useMemo(() => loadProfileClient(), []);
+  const profile = useStoredProfile();
   const loudest = useMemo(() => deriveMetrics(profile).loudest, [profile]);
   const [idle, setIdle] = useState(profile.user.savings_balance ?? '');
   const [yieldNow, setYieldNow] = useState('0.025');

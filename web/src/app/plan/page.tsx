@@ -523,6 +523,12 @@ export default async function PlanPage() {
     strategy, hikeModeling, taxReinvest, inflationModeling, fxDrift,
   );
   if (theme === 'editorial') return <EditorialPlan plan={plan} />;
-  if (theme === 'ledger') return <LedgerPlan plan={plan} />;
+  if (theme === 'ledger')
+    return (
+      <>
+        <h1 className="sr-only">Your plan</h1>
+        <LedgerPlan plan={plan} />
+      </>
+    );
   return <ExistingPlan plan={plan} />;
 }

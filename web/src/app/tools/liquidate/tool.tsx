@@ -20,7 +20,7 @@ import {
   type LiquidationRecommendation,
 } from '@/lib/api';
 import { DEMO_ASSET } from '@/lib/demo-user';
-import { loadProfileClient } from '@/lib/user-store';
+import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
@@ -71,7 +71,7 @@ const FIELDS: Record<string, string> = {
 };
 
 export function LiquidateTool() {
-  const profile = useMemo(() => loadProfileClient(), []);
+  const profile = useStoredProfile();
   const country = profile.user.country;
 
   // ─── Asset inputs ──────────────────────────────────────────────────────

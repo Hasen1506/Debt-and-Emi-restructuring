@@ -207,7 +207,7 @@ function CardLayout({ plan, top, result, vehicles, tip }: LayoutProps) {
       <div className="muted" style={{ fontSize: 11, marginTop: 10 }}>
         Variable-return options (equity, MF) involve probability and
         drawdowns →{' '}
-        <a href="/tools/invest-vs-prepay" style={{ color: 'var(--accent)' }}>
+        <a href="/tools/invest-vs-prepay" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
           deeper analysis
         </a>
         {plan.user.country === 'IN' && (
@@ -275,7 +275,7 @@ function LedgerLayout({ plan, top, result, vehicles, tip }: LayoutProps) {
       </div>
       <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>
         VARIABLE-RETURN OPTIONS →{' '}
-        <a href="/tools/invest-vs-prepay" style={{ color: 'var(--accent)' }}>
+        <a href="/tools/invest-vs-prepay" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
           /TOOLS/INVEST-VS-PREPAY
         </a>
       </div>
@@ -340,7 +340,7 @@ function EditorialLayout({ plan, top, result, vehicles, tip }: LayoutProps) {
       </div>
       <div style={{ marginTop: 10, fontSize: 12, color: 'var(--muted)' }}>
         Variable returns →{' '}
-        <a href="/tools/invest-vs-prepay" style={{ color: 'var(--accent)' }}>
+        <a href="/tools/invest-vs-prepay" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
           deeper analysis
         </a>
       </div>

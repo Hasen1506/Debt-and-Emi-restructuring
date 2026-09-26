@@ -20,7 +20,7 @@
 import { useMemo, useState } from 'react';
 import { Field, InfoTip, Select } from '@/components/ToolPrimitives';
 import { formatCurrency } from '@/lib/api';
-import { loadProfileClient } from '@/lib/user-store';
+import { useStoredProfile } from '@/lib/use-profile';
 import { userDefaultCurrency } from '@/lib/currency';
 import { deriveMetrics } from '@/lib/derived';
 import { summariseDeductions } from '@/lib/deductions';
@@ -57,7 +57,7 @@ function nextSixMonths(): string {
 }
 
 export function PurchaseTool() {
-  const profile = useMemo(() => loadProfileClient(), []);
+  const profile = useStoredProfile();
   const country = profile.user.country as 'IN' | 'US';
   const ccy = userDefaultCurrency(country);
   const fmt = (v: number) => formatCurrency(v.toFixed(0), ccy);

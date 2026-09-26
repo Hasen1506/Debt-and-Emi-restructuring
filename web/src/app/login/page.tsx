@@ -189,7 +189,6 @@ const input: React.CSSProperties = {
   borderRadius: 6,
   background: 'var(--canvas)',
   color: 'var(--ink)',
-  outline: 'none',
 };
 const primary: React.CSSProperties = {
   padding: '10px 14px',

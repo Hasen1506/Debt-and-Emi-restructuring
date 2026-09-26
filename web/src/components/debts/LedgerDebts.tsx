@@ -40,12 +40,12 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
   if (m.loans.length === 0) {
     return (
       <LShell>
-        <main style={{ padding: '40px 0' }}>
+        <div style={{ padding: '40px 0' }}>
           <LCli>DEBTS · NO OPEN POSITIONS</LCli>
           <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
             Run setup to add your debts: <LBracket href="/onboarding">SETUP →</LBracket>
           </div>
-        </main>
+        </div>
       </LShell>
     );
   }
@@ -87,7 +87,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
 
   return (
     <LShell>
-      <main
+      <div
         style={{
           flex: 1,
           padding: '4px 0 0',
@@ -236,7 +236,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
             <LBracket href="/insights#activity-ledger">MARK PAID</LBracket>
           </div>
         </section>
-      </main>
+      </div>
     </LShell>
   );
 }

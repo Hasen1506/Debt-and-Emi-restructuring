@@ -129,7 +129,7 @@ export function LedgerInsights({
 
   return (
     <LShell>
-      <main
+      <div
         style={{
           flex: 1,
           padding: '4px 0 0',
@@ -210,7 +210,7 @@ export function LedgerInsights({
           <LSectionHeader>ACTUALS · ACTIVITY LEDGER</LSectionHeader>
           <ActivityLedger user={profile.user} variant="ledger" />
         </section>
-      </main>
+      </div>
     </LShell>
   );
 }

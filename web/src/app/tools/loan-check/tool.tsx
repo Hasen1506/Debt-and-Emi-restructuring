@@ -25,7 +25,7 @@ import {
   type LoanCheckRequest,
   type LoanCheckResponse,
 } from '@/lib/api';
-import { loadProfileClient } from '@/lib/user-store';
+import { useStoredProfile } from '@/lib/use-profile';
 import { parsePercentInput, parseSpreadInput } from '@/lib/rate-input';
 import { formatAsOf } from '@/lib/as-of';
 import { useFormErrors } from '@/lib/form-errors';
@@ -63,7 +63,7 @@ function pctFromFraction(f: string | undefined): string {
 }
 
 export function LoanCheckTool() {
-  const profile = useMemo(() => loadProfileClient(), []);
+  const profile = useStoredProfile();
   const country = profile.user.country;
   // Only a real profile pre-fills; the demo profile's loan would look
   // like the visitor's own numbers.

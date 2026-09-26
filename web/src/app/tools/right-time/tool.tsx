@@ -19,7 +19,7 @@ import {
   type InstitutionPayload,
   type LoanType,
 } from '@/lib/api';
-import { loadProfileClient } from '@/lib/user-store';
+import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
@@ -63,7 +63,7 @@ const FIELDS: Record<string, string> = {
 };
 
 export function RightTimeTool() {
-  const profile = useMemo(() => loadProfileClient(), []);
+  const profile = useStoredProfile();
   const country = profile.user.country as 'IN' | 'US';
 
   const [loanType, setLoanType] = useState<LoanType>('home_loan');

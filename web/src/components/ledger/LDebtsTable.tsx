@@ -68,7 +68,8 @@ export function LDebtsTable({
   ].filter(Boolean) as string[];
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    // Scrolls sideways on phones; focusable so the keyboard can scroll it.
+    <div role="region" aria-label="Your debts" tabIndex={0} style={{ overflowX: 'auto' }}>
       <table
         style={{
           width: '100%',

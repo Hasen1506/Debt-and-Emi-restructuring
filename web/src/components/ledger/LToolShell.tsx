@@ -373,7 +373,7 @@ export function LToolMath({
 // ─── LToolShell wrapper — sets up the column gap + font for any tool ───
 export function LToolShell({ children }: { children: ReactNode }) {
   return (
-    <main
+    <div
       style={{
         flex: 1,
         padding: '4px 0 0',
@@ -384,6 +384,6 @@ export function LToolShell({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-    </main>
+    </div>
   );
 }

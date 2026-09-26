@@ -99,6 +99,7 @@ export function PlanStartPicker({
       >
         <span>PLAN START {explainer}</span>
         <select
+          aria-label="Plan start"
           value={active}
           onChange={(e) => pick(e.target.value)}
           disabled={pending}
@@ -129,6 +130,7 @@ export function PlanStartPicker({
           Plan start {explainer}
         </span>
         <select
+          aria-label="Plan start"
           value={active}
           onChange={(e) => pick(e.target.value)}
           disabled={pending}

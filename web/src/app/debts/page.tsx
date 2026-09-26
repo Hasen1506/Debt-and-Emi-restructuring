@@ -10,6 +10,12 @@ export default async function DebtsPage() {
     loadProfileServer(),
   ]);
   if (theme === 'editorial') return <EditorialDebts profile={profile} />;
-  if (theme === 'ledger') return <LedgerDebts profile={profile} />;
+  if (theme === 'ledger')
+    return (
+      <>
+        <h1 className="sr-only">Your debts</h1>
+        <LedgerDebts profile={profile} />
+      </>
+    );
   return <ExistingDebts profile={profile} />;
 }

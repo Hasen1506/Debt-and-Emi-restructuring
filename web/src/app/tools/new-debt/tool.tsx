@@ -21,7 +21,7 @@ import {
   type NewDebtResponse,
   type ScoreImpactResponse,
 } from '@/lib/api';
-import { loadProfileClient } from '@/lib/user-store';
+import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
@@ -70,7 +70,7 @@ function computeEMI(principal: number, annualRate: number, months: number): numb
 }
 
 export function NewDebtTool() {
-  const profile = useMemo(() => loadProfileClient(), []);
+  const profile = useStoredProfile();
   const country = profile.user.country as 'IN' | 'US';
   // A hypothetical new loan is denominated in the user's residence currency —
   // no per-loan override available since the loan doesn't exist yet.

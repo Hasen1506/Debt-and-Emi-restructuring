@@ -43,10 +43,12 @@
   offer comparison, live rate feeds, Playwright / axe / fuzz / load test suites, CI.
 - **Rebuilt so far (26 Sep 2026, branch `claude/vibrant-bardeen-5bsiyj`):**
   CI (Phase 0), Loan Check (1), India letters and escalation (2), offer
-  comparison (3), live rates (5, first live fetch still to check), the API
-  fuzz and input bounds (6.3), size cap, headers and rate limits (6.4).
-  **530 tests passing.** Still missing: the outcomes network (4), US letters,
-  cross-browser / axe / load suites (6.1, 6.2, 6.5).
+  comparison (3), shared lender outcomes (4, storage needs Postgres before
+  launch), live rates (5, first live fetch still to check), the axe pass
+  and hydration fixes (6.2), the API fuzz and input bounds (6.3), size cap,
+  headers and rate limits (6.4), field errors on every tool.
+  **608 tests passing.** Still missing: US letters, cross-browser and load
+  suites (6.1, 6.5), verified outcome reports, a manual screen-reader run.
 
 ---
 
@@ -265,30 +267,53 @@ under every Loan Check result):
 
 ## Phase 4 · Shared lender outcomes (Loan Check scorecard) — REBUILD
 
-- [ ] Outcome record after a letter: fixed in full / partly / refused / no
+- [x] Outcome record after a letter: fixed in full / partly / refused / no
       reply, days taken, new rate. Optional anonymous share.
-- [ ] Scorecard per lender, shown only at **≥ 5 reports**: % fixed in full,
-      median days, median rate cut.
-- [ ] Label the scorecard **"unverified"** until reports are verified (sign-in,
-      or uploading the bank's reply). **Owner decision pending:** show it
-      labelled, or hide it until verification exists.
+      (`engine/outcomes.py`, `POST /api/outcomes`; the complaint tracker asks
+      for the new rate, and a "Help the next borrower" card lists exactly what
+      would be sent before anything is.) Only bank, outcome, days and the rate
+      before and after are shared: no name, account, amount or date. "No
+      reply" is offered only after the 30-day reply window.
+- [x] Scorecard per lender, shown only at **≥ 5 reports**: % fixed in full,
+      median days, median rate cut (`GET /api/outcomes/scorecard[/lender]`).
+      Loan Check shows it under a claimable result, e.g. *"80% fixed in full ·
+      median 12 days · median rate cut 0.55%"*; below 5, how many have shared.
+- [x] Reports are matched to one bank on the rate-card list
+      (`engine/lenders.py`: "HDFC", "HDFC Bank Ltd." → HDFC Bank). A bank not
+      on the list is refused, so an invented bank can never get a record.
+- [x] Label the scorecard **"unverified"** until reports are verified. **Owner
+      decision still pending:** show it labelled (the default,
+      `SCORECARD_MODE=labelled`) or hide it (`SCORECARD_MODE=hidden` in
+      `render.yaml`) until verification exists.
+- [ ] Verified reports: signed-in reporters, or an uploaded bank reply.
 - [ ] Monthly "which banks pass on rate cuts" index (after enough data).
 
 **Abuse controls** (each was a real finding last time):
-- [ ] Rate limit **10 reports/day per client address and 2 per lender**.
-- [ ] Client IP taken from the proxy chain via **`api/client_ip.py`** with
-      **`TRUSTED_PROXY_HOPS`** in `render.yaml`. (Lost bug: the limit could be
-      bypassed with one made-up header; 36 fake reports gave a fake bank a
-      100% success record in seconds.) Raise the hop count if Render ever puts
-      more than one proxy in front of the API.
-- [ ] Request-size cap.
-- [ ] Basic security headers (3), e.g. `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`.
+- [x] Rate limit **10 reports/day per client address and 2 per lender**
+      (`api/outcomes_store.py`), on top of the per-minute write limit.
+- [x] Client IP taken from the proxy chain via **`api/client_ip.py`** with
+      **`TRUSTED_PROXY_HOPS`** in `render.yaml`, shared with the rate-limit
+      middleware. (Lost bug: the limit could be bypassed with one made-up
+      header; 36 fake reports gave a fake bank a 100% success record in
+      seconds. Test `test_the_lost_fake_bank_attack_fails` replays it.) Raise
+      the hop count if Render ever puts more than one proxy in front of the API.
+- [x] The address is kept only as a keyed hash (`OUTCOMES_IP_KEY`, generated
+      in `render.yaml`), wiped after two days once no limit needs it.
+- [x] Request-size cap (6.4).
+- [x] Basic security headers (6.4): nosniff, no-referrer, no-store on writes.
+      `Permissions-Policy` not added: the API serves no pages.
 - [ ] Known limit: someone using many addresses can still fake a record.
       The real fix is verified reports (above).
 
+**Storage**
+- [x] Postgres when `DATABASE_URL` is set, else a SQLite file
+      (`api/data/outcomes.sqlite3`). `/api/health` says which.
+- [ ] **On Render's free plan the SQLite file is wiped on every deploy.**
+      Shared reports need the Postgres add-on before launch (Phase 7).
+
 **Performance**
-- [ ] Cache the scorecard for 60 s and invalidate when a new report arrives.
-      (Lost measurement: 1.3 s per page view at 100,000 reports → ~3 ms cached.)
+- [x] Cache the scorecard for 60 s and invalidate when a new report arrives.
+      Measured at 100,000 reports: 0.5 s uncached, under a microsecond cached.
 
 ---
 
@@ -353,25 +378,48 @@ All of these were run and passing before the crash; redo each one and keep it in
       passes in all three browsers.
 
 ### 6.2 Accessibility (axe)
-- [ ] **Zero axe violations on all 24 screens at desktop and phone width.**
-- [ ] Accent orange darkened slightly for text contrast (`#c96442` is too faint as text).
-- [ ] Every slider has a label; the keyboard focus ring is never hidden.
+- [x] **Zero axe violations** (WCAG 2.1 A/AA + best practice) on all 21 pages,
+      at desktop (1200 px) and phone (390 px) width, in all three themes
+      (ledger, standard, editorial), with a saved profile. Was: colour
+      contrast on every page, two `<main>`s on 7 pages, no `<h1>` on 6,
+      unlabelled sliders and selects on /plan, content outside landmarks.
+- [x] Accent orange darkened for text contrast: `#c96442` (3.7:1) →
+      `#ab4f30` (4.5:1+ on every background, 5.4:1 under white text). Also
+      darkened: ledger green (`#137a3a`), standard-theme amber, editorial
+      muted and marginalia greys.
+- [x] Every slider has a label (and a spoken value); the keyboard focus ring
+      is never hidden: one `:focus-visible` ring everywhere, and the three
+      `outline: none` inputs fixed.
 - [x] **Found and fixed:** in the shared `Field`, `Select` and `BankCombobox`
       the ⓘ help button sat *inside* the `<label>`. A label names the first
       control it contains, so every field with a help tip had its label on
       the ⓘ button and an **unnamed input** for screen readers. Likely the
       "screen-reader bug found by accident" below. Labels now use `htmlFor`,
       hints are linked with `aria-describedby`, the bank search box is named.
-- [ ] Every page has headings and landmarks, plus a "Skip to content" link.
-- [ ] Wide tables on phones are keyboard-scrollable (focusable region with a label).
-      Loan Check's repo-rate table done.
-- [ ] Check results are announced to screen readers (`aria-live`). Loan Check done.
-- [ ] **Found:** the Windfall screen throws 8 React hydration errors with a
-      saved profile (present before the Phase 3 fixes; New Debt and Cash
-      Yield have none). Likely the profile cookie read during render. Fix
-      with the a11y pass.
+      Windfall's own field had the same kind of bug (its hint was part of the
+      input's name); fixed.
+- [x] Every page has one `<main>` (the layout's), a `<header>` with a named
+      `<nav>`, a `<footer>`, an `<h1>` (hidden on the ledger skin, which shows
+      no page title) and real `<h2>` section titles, plus a "Skip to content"
+      link.
+- [x] Wide tables on phones are keyboard-scrollable (focusable region with a
+      label): Loan Check's repo-rate table, the debts table, the plan schedule.
+- [x] Server errors are shown under the field they concern, announced, with
+      the input marked invalid (every tool).
+- [ ] Check results are announced to screen readers (`aria-live`). Loan Check
+      done; the other tools still to do.
+- [x] **Fixed:** the Windfall screen threw 8 React hydration errors with a
+      saved profile (Recompute had them too). Cause: tools read the profile
+      cookie while rendering, so the server drew the demo profile and the
+      browser the saved one. The layout now hands its server-side profile to
+      `useStoredProfile()` (`lib/use-profile.tsx`); 0 hydration errors on all
+      19 pages checked. Also stopped a 404 on every page (the session
+      hydrator asked for `/api/user/state` with sign-in switched off).
 - [ ] Re-find and fix the screen-reader bug found by accident last time (not
-      recorded in the screenshots; the axe pass plus a manual VoiceOver/NVDA run should surface it).
+      recorded in the screenshots). The axe pass is clean; a manual
+      VoiceOver/NVDA run is what's left.
+- [ ] Commit the axe and hydration checks (now scratch Playwright scripts) as
+      a CI job with the API and web running, so a regression fails the build.
 
 ### 6.3 Property / fuzz tests on the engine
 - [x] **20,000 random loans through the API** (`api/tests/test_api_fuzz.py`):
@@ -445,7 +493,9 @@ The honest status before the crash: *a working, tested demo, not ready to launch
       storage means clearing site data loses the tracker.
 - [ ] Privacy policy and terms.
 - [ ] Rate cards refreshed (Phase 5).
-- [ ] Abuse controls on the outcome network (Phase 4).
+- [x] Abuse controls on the outcome network (Phase 4).
+- [ ] Postgres for shared outcome reports (the free plan's SQLite file is
+      wiped on every deploy) and a decision on the "unverified" label.
 - [ ] Uptime alerting on `/api/rates/feed-health` (Phase 5).
 - [ ] Trademark search and domain for **RightDue**.
 - [ ] CSP + anti-framing headers switched on (Phase 6.4).
@@ -514,14 +564,25 @@ yes/no from the owner before it is scheduled.
       machine; a count of codes sent to the same address in the last 15
       minutes (in the database) also stops someone flooding a victim's inbox
       from many addresses.
-- [ ] **Field errors on every tool.** All 422s now share one shape, but only
-      Loan Check, offers, Windfall and New Debt show them next to the field;
-      the other tools still print the raw error. Move them to `postWithFieldErrors`.
+- [x] **Field errors on every tool.** Done: `lib/form-errors.ts` puts each
+      422 under its field on all nine tools and the offer form; Loan Check's
+      engine checks now name their field too.
 - [ ] **Bank rate feeds.** Fetch SBI's and HDFC's published EBLR/RLLR the way
       Phase 5 fetches the repo rate, so the "new borrowers pay less" finding
       uses today's rate card instead of May 2026's.
-- [ ] **Quiet the profile-sync 404s.** In no-database trial mode the web app still
-      calls `GET /api/user/state` on every page, which 404s. Skip the call when sync is off.
+- [x] **Quiet the profile-sync 404s.** Done: skipped when sign-in is off.
+- [ ] **Outcome reminder.** 30 days after "Date sent" with no reply recorded,
+      prompt the borrower (on their next visit) to record what the bank did.
+      Most people won't come back to share on their own; this is where the
+      outcome data will come from.
+- [ ] **Scorecard page.** A public `/banks` page listing every bank with 5+
+      reports, sortable by "fixed in full" and median days. The seed of the
+      monthly index, and a reason to share the app.
+- [ ] **Report the offer, not just the outcome.** When the bank "fixed" it for
+      a fee, record the fee too, so the scorecard can say "usually asks ₹X to
+      reset". Ties into "Remember the offer comparison" above.
+- [ ] **Announce results on every tool.** Only Loan Check puts its result in
+      an `aria-live` region; do the same for the other tools' verdicts.
 
 ---
 
@@ -583,6 +644,9 @@ Other API settings (all optional):
 | `TRUSTED_PROXY_HOPS` | `0` | proxies in front of the API; `1` on Render |
 | `INTERNAL_API_TOKEN` | unset | shared with the web server so its calls aren't limited |
 | `MAX_BODY_BYTES` | `262144` | request-size cap |
+| `OUTCOMES_DATABASE_URL` | `DATABASE_URL`, else `api/data/outcomes.sqlite3` | where shared outcome reports live |
+| `OUTCOMES_IP_KEY` | random per process | key for the hashed client address (daily report limits) |
+| `SCORECARD_MODE` | `labelled` | `hidden` keeps lender figures back until reports can be verified |
 
 The full fuzz: `FUZZ_N=20000 FUZZ_FULL=1 python -m pytest api/tests/test_api_fuzz.py -q`.
 

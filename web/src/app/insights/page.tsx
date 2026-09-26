@@ -16,6 +16,11 @@ export default async function InsightsPage() {
   if (theme === 'editorial')
     return <EditorialInsights profile={profile} strategy={strategy} />;
   if (theme === 'ledger')
-    return <LedgerInsights profile={profile} strategy={strategy} />;
+    return (
+      <>
+        <h1 className="sr-only">Insights</h1>
+        <LedgerInsights profile={profile} strategy={strategy} />
+      </>
+    );
   return <ExistingInsights profile={profile} strategy={strategy} />;
 }

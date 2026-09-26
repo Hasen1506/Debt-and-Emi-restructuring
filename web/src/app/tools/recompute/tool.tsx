@@ -20,7 +20,7 @@ import {
   type QuickRecomputeResponse,
   type ScoreImpactResponse,
 } from '@/lib/api';
-import { loadProfileClient } from '@/lib/user-store';
+import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
@@ -36,7 +36,7 @@ const FIELDS: Record<string, string> = {
 };
 
 export function RecomputeTool() {
-  const profile = useMemo(() => loadProfileClient(), []);
+  const profile = useStoredProfile();
   const country = profile.user.country;
   const loudestIdx = useMemo(() => deriveMetrics(profile).loudest?.index ?? 0, [profile]);
   const [extra, setExtra] = useState('');

@@ -17,7 +17,7 @@ import {
   type ScoreImpactResponse,
   type WindfallResponse,
 } from '@/lib/api';
-import { loadProfileClient } from '@/lib/user-store';
+import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { deriveMetrics } from '@/lib/derived';
 import { applyToolResult } from '@/lib/apply-tool-result';
@@ -31,7 +31,7 @@ import {
 import { LBracket, L_T } from '@/components/ledger/primitives';
 
 export function WindfallTool() {
-  const profile = useMemo(() => loadProfileClient(), []);
+  const profile = useStoredProfile();
   const country = profile.user.country;
   const loudest = useMemo(() => deriveMetrics(profile).loudest, [profile]);
   const ccy = loudest

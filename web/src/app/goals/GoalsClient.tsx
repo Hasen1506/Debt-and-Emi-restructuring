@@ -395,7 +395,7 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
   }
 
   return (
-    <main style={{ maxWidth: 980, margin: '24px auto', padding: '0 16px' }}>
+    <div style={{ maxWidth: 980, margin: '24px auto', padding: '0 16px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1 style={{ fontSize: 22, fontWeight: 600 }}>Goals</h1>
         <Link href="/plan" style={{ color: 'var(--accent)', fontSize: 13 }}>
@@ -520,7 +520,7 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
           </button>
         </div>
       )}
-    </main>
+    </div>
   );
 }
 

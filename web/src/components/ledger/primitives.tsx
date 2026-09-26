@@ -26,9 +26,9 @@ export const L_T = {
   faint: '#a8a8a3',
   rule: '#0a0a0a',
   ruleSoft: '#d8d6cd',
-  accent: '#c96442',
+  accent: '#ab4f30',       // 4.5:1 as text on bg and under white text (was #c96442)
   accentInk: '#8b3a1f',
-  positive: '#15803d',
+  positive: '#137a3a',     // 4.5:1 on the highlight rows too (was #15803d)
   negative: '#b91c1c',
   highlight: '#fff3a3',
   highlightSoft: '#fff8d3',
@@ -160,7 +160,10 @@ export function LSectionHeader({
         gap: 8,
       }}
     >
-      <span style={{ color: L_T.muted, fontWeight: 600 }}>$ {children}</span>
+      <h2 style={{ margin: 0, font: 'inherit', color: L_T.muted, fontWeight: 600 }}>
+        <span aria-hidden="true">$ </span>
+        {children}
+      </h2>
       {right}
     </div>
   );
@@ -297,7 +300,6 @@ export function LField({
               flex: 1,
               minWidth: 0,
               border: 'none',
-              outline: 'none',
               padding: 0,
               fontFamily: L_MONO,
               fontSize: 13,
@@ -404,6 +406,7 @@ export function LSlider({
   onChange,
   format,
   outcomes,
+  ariaLabel,
 }: {
   label: string;
   value: number;
@@ -413,6 +416,8 @@ export function LSlider({
   onChange?: (v: number) => void;
   format: (v: number) => string;
   outcomes: Array<{ label: string; value: string; tone?: 'pos' | 'neg' }>;
+  /** What a screen reader calls the slider; the visible label is terminal-speak. */
+  ariaLabel?: string;
 }) {
   const fill = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
   return (
@@ -465,6 +470,8 @@ export function LSlider({
             step={step}
             value={value}
             onChange={(e) => onChange(Number(e.target.value))}
+            aria-label={ariaLabel ?? label.replace(/^SET /, '').replace(/_/g, ' ').toLowerCase()}
+            aria-valuetext={format(value)}
             style={{
               position: 'absolute',
               inset: 0,
@@ -583,7 +590,7 @@ export function LFooter({ mobile }: { mobile?: boolean }) {
     window.location.reload();
   }
   return (
-    <div
+    <footer
       style={{
         borderTop: `1px solid ${L_T.ink}`,
         padding: mobile ? '8px 18px' : '10px 32px',
@@ -608,7 +615,7 @@ export function LFooter({ mobile }: { mobile?: boolean }) {
           DETAILED
         </LBracket>
       </span>
-    </div>
+    </footer>
   );
 }
 

@@ -80,7 +80,7 @@ export function DecisionsClient() {
   }
 
   return (
-    <main style={{ maxWidth: 880, margin: '24px auto', padding: '0 16px' }}>
+    <div style={{ maxWidth: 880, margin: '24px auto', padding: '0 16px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1 style={{ fontSize: 22, fontWeight: 600 }}>Your decisions</h1>
         <Link href="/plan" style={{ color: 'var(--accent)', fontSize: 13 }}>
@@ -185,6 +185,6 @@ export function DecisionsClient() {
           Refresh
         </button>
       )}
-    </main>
+    </div>
   );
 }

@@ -7,6 +7,7 @@ import { EditorialMasthead } from '@/components/chrome/EditorialMasthead';
 import { LMasthead } from '@/components/ledger/LMasthead';
 import { LFooter } from '@/components/ledger/primitives';
 import { SessionHydrator } from '@/lib/server-sync';
+import { ProfileProvider } from '@/lib/use-profile';
 import type { Country } from '@/lib/api';
 
 export const metadata: Metadata = {
@@ -31,16 +32,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body>
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
         <SessionHydrator />
         <Chrome theme={theme} country={profile.user.country} />
         <main
+          id="main"
+          tabIndex={-1}
           className="app-shell"
           style={{
             paddingTop: theme === 'ledger' ? 18 : 24,
             paddingBottom: theme === 'ledger' ? 32 : 80,
           }}
         >
-          {children}
+          <ProfileProvider profile={profile}>{children}</ProfileProvider>
         </main>
         {theme === 'ledger' && <LFooter />}
       </body>

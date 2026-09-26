@@ -89,7 +89,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
 
   return (
     <LShell>
-      <main
+      <div
         style={{
           flex: 1,
           padding: '4px 0 0',
@@ -229,7 +229,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         <section>
           <SensitivityCard plan={plan} fc={fc} />
         </section>
-      </main>
+      </div>
     </LShell>
   );
 }
@@ -434,6 +434,9 @@ function AmortisationSection({
         </div>
       ) : (
         <div
+          role="region"
+          aria-label="Month-by-month schedule"
+          tabIndex={0}
           style={{
             overflowX: 'auto',
             maxHeight: expanded ? 460 : undefined,
@@ -624,6 +627,7 @@ function SensitivityCard({
       </div>
       <LSlider
         label="SET SURPLUS_DELTA"
+        ariaLabel="Extra paid each month"
         value={surplusDelta}
         min={0}
         max={50000}
@@ -646,6 +650,7 @@ function SensitivityCard({
       <div style={{ borderTop: `1px dashed ${L_T.faint}` }}>
         <LSlider
           label="SET RATE_SHOCK"
+        ariaLabel="Interest rate rise"
           value={rateShockBps}
           min={0}
           max={300}
@@ -661,6 +666,7 @@ function SensitivityCard({
       <div style={{ borderTop: `1px dashed ${L_T.faint}` }}>
         <LSlider
           label="SET LUMP_SUM"
+        ariaLabel="One-off payment"
           value={lumpSum}
           min={0}
           max={500000}

@@ -10,6 +10,13 @@ export default async function HomePage() {
     loadProfileServer(),
   ]);
   if (theme === 'editorial') return <EditorialHome profile={profile} />;
-  if (theme === 'ledger') return <LedgerHome profile={profile} />;
+  // The ledger skin shows no page title; screen readers still need one.
+  if (theme === 'ledger')
+    return (
+      <>
+        <h1 className="sr-only">Home</h1>
+        <LedgerHome profile={profile} />
+      </>
+    );
   return <ExistingHome profile={profile} />;
 }

@@ -20,7 +20,7 @@ import {
   type CrossBorderResponse,
   type LoanType,
 } from '@/lib/api';
-import { loadProfileClient } from '@/lib/user-store';
+import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
@@ -63,7 +63,7 @@ const FIELDS: Record<string, string> = {
 };
 
 export function NriPrepayTool() {
-  const profile = useMemo(() => loadProfileClient(), []);
+  const profile = useStoredProfile();
   // NRI-on-US-work-visa profile flag: when set, default user_currency to USD
   // and prefer INR for any tagged Indian loan. Saves users from re-selecting
   // currencies every visit.

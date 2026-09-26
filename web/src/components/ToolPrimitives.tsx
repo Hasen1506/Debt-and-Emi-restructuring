@@ -378,7 +378,6 @@ export function BankCombobox({
               color: 'var(--ink)',
               fontFamily: 'var(--font-sans)',
               fontSize: 14,
-              outline: 'none',
             }}
           />
           <div style={{ overflowY: 'auto', flex: 1 }}>

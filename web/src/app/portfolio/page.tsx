@@ -24,12 +24,15 @@ export default async function PortfolioPage() {
 
   if (theme === 'ledger') {
     return (
-      <LedgerPortfolio
-        summary={summary}
-        country={profile.user.country}
-        user={profile.user}
-        marginalRate={profile.marginalRate}
-      />
+      <>
+        <h1 className="sr-only">Portfolio</h1>
+        <LedgerPortfolio
+          summary={summary}
+          country={profile.user.country}
+          user={profile.user}
+          marginalRate={profile.marginalRate}
+        />
+      </>
     );
   }
   if (theme === 'editorial') {

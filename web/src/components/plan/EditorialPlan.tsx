@@ -449,7 +449,7 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             borderTop: '1px solid var(--border)',
           }}
         >
-          <h3
+          <h2
             style={{
               fontFamily: 'var(--font-sans)',
               fontSize: 10,
@@ -460,7 +460,7 @@ export function EditorialPlan({ plan }: { plan: PlanData }) {
             }}
           >
             Key dates — when things clear
-          </h3>
+          </h2>
           <DebtFreeRedirectPrompt plan={plan} variant="editorial" />
           <KeyClearanceDates plan={plan} />
         </section>

@@ -13,7 +13,13 @@ import { loadThemeServer } from '@/lib/theme';
 
 export default async function ToolsPage() {
   const theme = await loadThemeServer();
-  if (theme === 'ledger') return <LedgerToolsIndex tools={TOOLS} />;
+  if (theme === 'ledger')
+    return (
+      <>
+        <h1 className="sr-only">Tools</h1>
+        <LedgerToolsIndex tools={TOOLS} />
+      </>
+    );
 
   // Existing + Editorial fall back to a simple non-ledger list while the
   // new design rolls out — same data, slightly looser typography.

@@ -491,9 +491,9 @@ export function ExistingPlan({ plan }: { plan: PlanData }) {
        *  entirely, which broke the audit trail. */}
       <Card>
         <section style={{ marginBottom: 16 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
             Key dates — when things clear
-          </h3>
+          </h2>
           <DebtFreeRedirectPrompt plan={plan} variant="existing" />
           <KeyClearanceDates plan={plan} />
         </section>

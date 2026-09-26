@@ -778,6 +778,8 @@ function SliderRow({
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
           disabled={disabled}
+          aria-label={title}
+          aria-valuetext={formatValue(value)}
           style={{ width: '100%', marginTop: 8 }}
         />
         <div className="muted" style={{ fontSize: 11, marginTop: 4, lineHeight: 1.5 }}>
@@ -884,15 +886,16 @@ function StartMonthPicker({
         alignItems: 'center',
         gap: 8,
         fontSize: 12,
-        opacity: disabled ? 0.55 : 1,
       }}
     >
       <span className="muted">Apply this cut</span>
       <select
+        aria-label="Apply this cut"
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         disabled={disabled}
         style={{
+          opacity: disabled ? 0.55 : 1,
           padding: '3px 8px',
           fontSize: 12,
           fontFamily: 'var(--font-sans)',

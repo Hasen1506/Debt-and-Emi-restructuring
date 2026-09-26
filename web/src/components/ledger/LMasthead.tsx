@@ -119,7 +119,7 @@ export function LMasthead({
   const localePin = country === 'IN' ? 'IN · ₹' : 'US · $';
 
   return (
-    <div
+    <header
       style={{
         borderTop: `6px solid ${L_T.ink}`,
         padding: '14px 32px 0',
@@ -153,7 +153,8 @@ export function LMasthead({
       <div style={{ margin: '8px 0 0' }}>
         <LRule length={300} />
       </div>
-      <div
+      <nav
+        aria-label="Main"
         style={{
           display: 'flex',
           gap: 22,
@@ -172,8 +173,8 @@ export function LMasthead({
           <LBracket>{localePin}</LBracket>
           <ThemeSwitcher initial={theme} />
         </span>
-      </div>
+      </nav>
       <LRule length={300} />
-    </div>
+    </header>
   );
 }
