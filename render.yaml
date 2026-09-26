@@ -26,6 +26,14 @@ services:
         value: .
       - key: CORS_ORIGINS
         sync: false                # Fill in the dashboard: e.g. https://finoptima-web.onrender.com
+      # Rate limits (api/security.py): the web server's own calls send this
+      # token and are not limited. Generated here, copied to the web below.
+      - key: INTERNAL_API_TOKEN
+        generateValue: true
+      # Render's proxy appends the client address to X-Forwarded-For; read
+      # one hop back. Confirm after the first deploy (ROADMAP 6.4).
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
       # Uncomment when you provision a Postgres add-on:
       # - key: DATABASE_URL
       #   fromDatabase:
@@ -45,6 +53,11 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      - key: INTERNAL_API_TOKEN
+        fromService:
+          type: web
+          name: finoptima-api
+          envVarKey: INTERNAL_API_TOKEN
       - key: NEXT_PUBLIC_API_BASE_URL
         sync: false                # Fill in the dashboard: e.g. https://finoptima-api.onrender.com
       - key: NEXT_PUBLIC_DISABLE_AUTH

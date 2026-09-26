@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 load_dotenv()
 
 from api import rates_feed  # noqa: E402
+from api.security import SecurityMiddleware  # noqa: E402
 from api.db.database import db_enabled, init_db  # noqa: E402
 from api.routes import (  # noqa: E402
     simulation,
@@ -51,6 +52,9 @@ app = FastAPI(
 _default_origins = "http://localhost:3000,http://127.0.0.1:3000"
 _origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", _default_origins).split(",") if o.strip()]
 
+# Size cap, security headers, rate limits. Added before CORS so CORS wraps
+# it and a 413 or 429 still reaches the browser readable.
+app.add_middleware(SecurityMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,

@@ -944,10 +944,21 @@ export class ApiFieldError extends Error {
   }
 }
 
+/**
+ * Calls made by the Next.js server (the /plan render calls the API for
+ * every user) identify themselves so the API does not rate-limit them
+ * together. INTERNAL_API_TOKEN is not a NEXT_PUBLIC_ variable, so it is
+ * never built into the browser bundle; in the browser this is empty.
+ */
+function serverHeaders(): Record<string, string> {
+  const token = typeof window === 'undefined' ? process.env.INTERNAL_API_TOKEN : undefined;
+  return token ? { 'X-Internal-Token': token } : {};
+}
+
 async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
     cache: 'no-store',
     credentials: 'include',
@@ -960,6 +971,12 @@ async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
     }
     throw new ApiFieldError('', 'Some of the details could not be read. Check the numbers and try again.');
   }
+  if (res.status === 429) {
+    throw new Error('Too many checks from this connection. Wait a minute and try again.');
+  }
+  if (res.status === 413) {
+    throw new Error('That is more than the app can check at once. Remove some entries and try again.');
+  }
   if (!res.ok) {
     throw new Error(`The server could not run the check (${res.status}). Try again in a minute.`);
   }
@@ -971,7 +988,7 @@ async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
     cache: 'no-store',
     credentials: 'include',
@@ -987,6 +1004,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
+    headers: serverHeaders(),
     cache: 'no-store',
     credentials: 'include',
   });
@@ -997,7 +1015,7 @@ async function get<T>(path: string): Promise<T> {
 async function putJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
     cache: 'no-store',
     credentials: 'include',
