@@ -121,7 +121,8 @@ const AGE_BRACKETS: { value: AgeBracket; label: string }[] = [
   { value: 'under_25', label: 'Under 25' },
   { value: '25_35', label: '25 to 35' },
   { value: '35_50', label: '35 to 50' },
-  { value: '50_plus', label: '50+' },
+  { value: '50_plus', label: '50–59' },
+  { value: '60_plus', label: '60+' },
 ];
 
 function parseStepParam(raw: string | null): number {

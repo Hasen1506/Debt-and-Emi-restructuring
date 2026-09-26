@@ -18,6 +18,7 @@ import {
   formatCurrency,
   type CompareResponse,
   type Strategy,
+  type PlanRunArgs,
   type UserPayload,
 } from '@/lib/api';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
@@ -55,13 +56,23 @@ export function WhatIfPanel({
   user,
   marginalRate,
   strategy = 'avalanche',
+  runArgs,
 }: {
   user: UserPayload;
   marginalRate: string;
   /** Active payoff strategy — what-if scenarios run against the same one
    *  the user has selected on the Plan page so deltas are apples-to-apples. */
   strategy?: Strategy;
+  /** The plan's own run settings (goals, EF split, planned events...).
+   *  Without them the sliders ran a plainer plan, so "before" could differ
+   *  from the date /plan shows. */
+  runArgs?: PlanRunArgs | null;
 }) {
+  // Every scenario starts from the plan's settings, then changes one thing.
+  const base = useMemo(
+    () => ({ ...(runArgs ?? { user, marginal_rate: marginalRate }), strategy }),
+    [runArgs, user, marginalRate, strategy],
+  );
   // The user's residence currency drives surplus + aggregate displays
   // (interest saved is summed across loans in the engine; for hybrid
   // NRI-US users that mixes ccy, but user-default is the least-wrong
@@ -245,9 +256,7 @@ export function WhatIfPanel({
       surplusDelta === 0
         ? null
         : api.sensitivity({
-            user,
-            marginal_rate: marginalRate,
-            strategy,
+            ...base,
             horizon_months: HORIZON_MONTHS,
             surplus_delta: String(surplusDelta),
             surplus_delta_start_month: surplusStartMonth,
@@ -261,9 +270,7 @@ export function WhatIfPanel({
       rateShockBps === 0
         ? null
         : api.sensitivity({
-            user,
-            marginal_rate: marginalRate,
-            strategy,
+            ...base,
             horizon_months: HORIZON_MONTHS,
             rate_shock_delta: (rateShockBps / 10_000).toFixed(4),
             rate_shock_floating_only: true,
@@ -277,9 +284,7 @@ export function WhatIfPanel({
       lumpAmount === 0
         ? null
         : api.sensitivity({
-            user,
-            marginal_rate: marginalRate,
-            strategy,
+            ...base,
             horizon_months: HORIZON_MONTHS,
             lump_sum_amount: String(lumpAmount),
             lump_sum_target_loan_index: lumpTarget,

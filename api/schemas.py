@@ -709,12 +709,23 @@ class BaselineRequest(_In):
 
 
 class CompareRequest(_In):
-    """For sensitivity comparisons — caller supplies the two scenarios."""
+    """For sensitivity comparisons — caller supplies the two scenarios.
+
+    The plan fields below are the same as SimulateRequest's, so both runs
+    are the plan /plan shows (the sliders used to run a plainer one and
+    their "before" date could differ from the plan's)."""
     user: UserIn
     horizon_months: Horizon = 360
     marginal_rate: Optional[Rate] = None
     strategy: Strategy = Strategy.AVALANCHE
     simulation_start_month: int = Field(default=1, ge=1, le=12)
+    matched_contribution: Amount = D("0")
+    simple_mode: bool = False
+    reinvest_events: list[ReinvestEvent] = Field(default_factory=list)
+    inflate_expenses: bool = False
+    lifecycle_events: list[LifecycleEventIn] = Field(default_factory=list)
+    ef_top_up_rate: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
+    goals: list[GoalIn] = Field(default_factory=list)
     # what-if knobs
     surplus_delta: Optional[Decimal] = None
     surplus_delta_start_month: int = Field(1, ge=1, le=MAX_MONTHS)

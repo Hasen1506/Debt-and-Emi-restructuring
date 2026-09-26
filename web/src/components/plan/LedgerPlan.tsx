@@ -378,7 +378,12 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             until you press apply.
           </div>
           <LCardHard>
-            <WhatIfPanel user={plan.user} marginalRate={plan.marginalRate} strategy={plan.strategy} />
+            <WhatIfPanel
+              user={plan.user}
+              marginalRate={plan.marginalRate}
+              strategy={plan.strategy}
+              runArgs={plan.runArgs}
+            />
           </LCardHard>
         </section>
       </div>

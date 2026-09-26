@@ -413,6 +413,7 @@ export async function loadPlan(
       // What the pay-minimums run pays in month 1: the plan's month-1
       // payment minus this is the extra it puts on each loan.
       firstMonthMinimums: baselinePayments.find((p) => p.month === 1)?.perLoan ?? {},
+      runArgs: simBaseArgs,
       activityImpact:
         application.entryCount > 0
           ? {
@@ -492,6 +493,7 @@ export async function loadPlan(
       taxReinvestProjection: [],
       monthlyPayments: [],
       firstMonthMinimums: {},
+      runArgs: null,
       activityImpact: null,
       currenciesInPlay: ccyList,
       displayCurrency: userDefaultCurrency(profile.user.country),

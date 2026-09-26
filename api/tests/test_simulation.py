@@ -363,3 +363,28 @@ def test_restructuring_total_counts_each_loan_once():
     # Consolidation (loans 1-3, card included) + refinance (loan 0); the
     # card's own transfer overlaps the consolidation and is skipped.
     assert total == by_kind["consolidation"] + by_kind["refinance"]
+
+
+def test_what_if_baseline_is_the_plan_the_user_sees(client, india_user_payload):
+    """With goals, an emergency-fund split and a planned rate reset, the
+    what-if's 'before' must be /plan's own date and interest. The compare
+    endpoint used to drop all three."""
+    u = dict(india_user_payload, efund_balance="0", efund_target="600000")
+    plan = {
+        "simulation_start_month": 9,
+        "ef_top_up_rate": "0.5",
+        "lifecycle_events": [
+            {"kind": "floating_rate_reset", "effective_month": 4,
+             "loan_index": 0, "new_rate": "0.095"},
+        ],
+        "goals": [
+            {"id": "car", "target_month_index": 18, "required_amount": "400000"},
+        ],
+    }
+    sim = client.post("/api/simulate", json={"user": u, **plan}).json()
+    cmp_ = client.post("/api/sensitivity/compare",
+                       json={"user": u, **plan, "surplus_delta": "10000"}).json()
+    assert cmp_["baseline_debt_free_month"] == sim["debt_free_month"]
+    bare = client.post("/api/simulate", json={"user": u}).json()
+    assert bare["debt_free_month"] != sim["debt_free_month"]   # the settings matter
+    assert cmp_["scenario_debt_free_month"] <= cmp_["baseline_debt_free_month"]

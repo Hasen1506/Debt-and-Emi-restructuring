@@ -59,3 +59,25 @@ def test_87a_cliff_detection():
 def test_4L_new_regime_zero_tax_pre_rebate():
     """Below first slab boundary: zero tax."""
     assert india.income_tax(D("400000"), TaxRegimeIN.NEW) == D("0")
+
+
+# ─── 87A line (26 Sep 2026) ──────────────────────────────────────────────────
+
+def test_marginal_relief_just_above_the_12_lakh_line():
+    """₹12.1L was taxed ₹63,960; relief caps the tax at the ₹10,000 above
+    the line (+4% cess)."""
+    from engine.tax.india import income_tax
+    from engine.models import TaxRegimeIN
+    assert income_tax(Decimal("1210000"), TaxRegimeIN.NEW) == Decimal("10400")
+    # Relief runs out near ₹12.71L: slab tax 70,500 vs 70,000 above the line
+    assert income_tax(Decimal("1270000"), TaxRegimeIN.NEW) == Decimal("70000") * Decimal("1.04")
+    assert income_tax(Decimal("1300000"), TaxRegimeIN.NEW) == Decimal("75000") * Decimal("1.04")
+
+
+def test_marginal_rate_is_zero_at_or_below_the_rebate_line():
+    from engine.tax.india import marginal_rate
+    from engine.models import TaxRegimeIN
+    assert marginal_rate(Decimal("1000000"), TaxRegimeIN.NEW) == 0
+    assert marginal_rate(Decimal("1200000"), TaxRegimeIN.NEW) == 0
+    assert marginal_rate(Decimal("400000"), TaxRegimeIN.OLD) == 0
+    assert marginal_rate(Decimal("1300000"), TaxRegimeIN.NEW) == Decimal("0.15") * Decimal("1.04")

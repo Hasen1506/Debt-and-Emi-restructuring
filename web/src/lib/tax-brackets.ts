@@ -211,6 +211,10 @@ export function incomeTaxIN(taxable: number, regime: TaxRegimeIN): Decimal {
   let tax = slabTax(taxable, regime === 'old' ? IN_OLD_SLABS : IN_NEW_SLABS);
   if (taxable <= t.rebate_87a.threshold) {
     tax = Decimal.max(0, tax.minus(t.rebate_87a.max));
+  } else if (regime !== 'old') {
+    // Marginal relief (new regime), as the engine: just above the ₹12L
+    // line the tax can't exceed the income above it.
+    tax = Decimal.min(tax, taxable - t.rebate_87a.threshold);
   }
   return tax.mul(1 + inSurchargeRate(taxable)).mul(1 + IN_HEALTH_EDU_CESS);
 }
@@ -222,8 +226,11 @@ export function federalTaxUS(taxable: number, filing: FilingStatusUS): Decimal {
 }
 
 /** India marginal rate as engine/tax/india.py `marginal_rate`:
- *  slab rate × (1 + surcharge) × (1 + cess). */
+ *  slab rate × (1 + surcharge) × (1 + cess), and 0 at or below the 87A
+ *  line, where the rebate cancels the tax. */
 export function marginalRateIN(taxable: number, regime: TaxRegimeIN): number {
+  const t = regime === 'old' ? TAX.in.old : TAX.in.new;
+  if (taxable <= t.rebate_87a.threshold) return 0;
   const slabs = regime === 'old' ? IN_OLD_SLABS : IN_NEW_SLABS;
   const slab = slabs.find((s) => taxable <= s.to) ?? slabs[slabs.length - 1];
   return slab.rate * (1 + inSurchargeRate(taxable)) * (1 + IN_HEALTH_EDU_CESS);

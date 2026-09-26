@@ -140,7 +140,8 @@ export interface CashAccountPayload {
 
 /** Coarse age band — used for downstream nudges (retirement check at 50+,
  *  emergency-fund-first at <25). Never use exact age; the band is enough. */
-export type AgeBracket = 'under_25' | '25_35' | '35_50' | '50_plus';
+/** '50_plus' is 50–59 (it was "50+" before 60+ had its own bracket). */
+export type AgeBracket = 'under_25' | '25_35' | '35_50' | '50_plus' | '60_plus';
 
 export interface UserPayload {
   country: Country;
@@ -1091,56 +1092,7 @@ async function putJson<T>(path: string, body: unknown): Promise<T> {
 export const api = {
   health: () => get<{ status: string }>('/api/health'),
 
-  simulate: (req: {
-    user: UserPayload;
-    strategy?: Strategy;
-    horizon_months?: number;
-    matched_contribution?: string;
-    marginal_rate?: string;
-    simple_mode?: boolean;
-    /** Calendar month (1-12) corresponding to sim month 1. Anchors hike
-     *  firing to the user's actual today. Defaults to 1 (Jan) server-side. */
-    simulation_start_month?: number;
-    /** Auto-reinvest events — month-indexed lump-sum injections in user
-     *  residence currency, routed to the highest-effective-APR active loan
-     *  at the matching month. Frontend pre-computes from projected annual
-     *  tax savings when the "Auto-reinvest tax savings" toggle is on.
-     *  Omit / empty array preserves baseline simulation behaviour. */
-    reinvest_events?: { month: number; amount: string }[];
-    /** When true, engine inflates fixed + variable expenses each month
-     *  using user.inflation_rate. Drives the /plan inflation toggle. */
-    inflate_expenses?: boolean;
-    /** Planned future lifecycle events (salary_reset / floating_rate_reset).
-     *  Each applies at its `effective_month` (1-based sim month). Confirmed
-     *  past events are already baked into the profile via L1 immediate-
-     *  apply and should NOT be included here (engine would double-apply). */
-    lifecycle_events?: LifecycleEventInput[];
-    /** Soft EF waterfall — fraction of each month's surplus diverted into
-     *  the emergency fund until `efund_target` is hit. /plan sets 0.3 when
-     *  `efund_balance < efund_target`; 0 otherwise. Default 0 preserves
-     *  legacy "100% surplus → debt" behaviour. */
-    ef_top_up_rate?: string;
-    /** True when an active preempting goal exists (e.g. wedding, medical).
-     *  The engine routes 100% surplus to the goal_slice in the allocation
-     *  response when set. Default false preserves legacy behaviour. */
-    ef_preempted?: boolean;
-    /** Per-goal payloads — when set, engine runs serial-fill per
-     *  month with goal-expiry awareness and returns per-goal slices
-     *  in `surplus_allocation.goal_contributions` plus end-of-trajectory
-     *  fill rates in `goal_finals`. */
-    goals?: {
-      id: string;
-      target_month_index: number;
-      required_amount: string;
-      saved_so_far?: string;
-      priority_bump?: boolean;
-      order_index?: number | null;
-      /** Deferred-start: engine routes 0 to this goal until this
-       *  sim-month index. Lets the UI park a goal until later in the
-       *  timeline. null = start at month 0 (legacy behavior). */
-      funding_start_month_index?: number | null;
-    }[];
-  }) => post<SimulateResponse>('/api/simulate', req),
+  simulate: (req: SimulateArgs) => post<SimulateResponse>('/api/simulate', req),
 
   baseline: (req: {
     user: UserPayload;
@@ -1151,7 +1103,9 @@ export const api = {
     lifecycle_events?: LifecycleEventInput[];
   }) => post<SimulateResponse>('/api/baseline', req),
 
-  sensitivity: (req: {
+  /** Both runs take the plan's own settings (PlanRunArgs), so the
+   *  what-if's "before" is the plan /plan shows. */
+  sensitivity: (req: Partial<PlanRunArgs> & {
     user: UserPayload;
     horizon_months?: number;
     marginal_rate?: string;
@@ -1488,6 +1442,62 @@ export function formatUSDCompact(value: string | number | Decimal): string {
     return `$${d.toFixed(2)}`;
   });
 }
+
+/** POST /api/simulate body. */
+export interface SimulateArgs {
+  user: UserPayload;
+  strategy?: Strategy;
+  horizon_months?: number;
+  matched_contribution?: string;
+  marginal_rate?: string;
+  simple_mode?: boolean;
+  /** Calendar month (1-12) corresponding to sim month 1. Anchors hike
+   *  firing to the user's actual today. Defaults to 1 (Jan) server-side. */
+  simulation_start_month?: number;
+  /** Auto-reinvest events — month-indexed lump-sum injections in user
+   *  residence currency, routed to the highest-effective-APR active loan
+   *  at the matching month. Frontend pre-computes from projected annual
+   *  tax savings when the "Auto-reinvest tax savings" toggle is on.
+   *  Omit / empty array preserves baseline simulation behaviour. */
+  reinvest_events?: { month: number; amount: string }[];
+  /** When true, engine inflates fixed + variable expenses each month
+   *  using user.inflation_rate. Drives the /plan inflation toggle. */
+  inflate_expenses?: boolean;
+  /** Planned future lifecycle events (salary_reset / floating_rate_reset).
+   *  Each applies at its `effective_month` (1-based sim month). Confirmed
+   *  past events are already baked into the profile via L1 immediate-
+   *  apply and should NOT be included here (engine would double-apply). */
+  lifecycle_events?: LifecycleEventInput[];
+  /** Soft EF waterfall — fraction of each month's surplus diverted into
+   *  the emergency fund until `efund_target` is hit. /plan sets 0.3 when
+   *  `efund_balance < efund_target`; 0 otherwise. Default 0 preserves
+   *  legacy "100% surplus → debt" behaviour. */
+  ef_top_up_rate?: string;
+  /** True when an active preempting goal exists (e.g. wedding, medical).
+   *  The engine routes 100% surplus to the goal_slice in the allocation
+   *  response when set. Default false preserves legacy behaviour. */
+  ef_preempted?: boolean;
+  /** Per-goal payloads — when set, engine runs serial-fill per
+   *  month with goal-expiry awareness and returns per-goal slices
+   *  in `surplus_allocation.goal_contributions` plus end-of-trajectory
+   *  fill rates in `goal_finals`. */
+  goals?: {
+    id: string;
+    target_month_index: number;
+    required_amount: string;
+    saved_so_far?: string;
+    priority_bump?: boolean;
+    order_index?: number | null;
+    /** Deferred-start: engine routes 0 to this goal until this
+     *  sim-month index. Lets the UI park a goal until later in the
+     *  timeline. null = start at month 0 (legacy behavior). */
+    funding_start_month_index?: number | null;
+  }[];
+}
+
+/** The plan's settings for a run (everything /plan sends to /simulate
+ *  but the strategy): handed to the what-if panel so its runs match. */
+export type PlanRunArgs = Omit<SimulateArgs, 'strategy'>;
 
 export function formatCurrency(value: string | number | Decimal, currency: string): string {
   return currency.toUpperCase() === 'USD' ? formatUSD(value) : formatINR(value);

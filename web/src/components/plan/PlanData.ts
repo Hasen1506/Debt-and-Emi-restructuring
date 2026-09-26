@@ -1,8 +1,9 @@
 /**
- * Shared shape produced by Plan page's data loader and consumed by every
- * theme variant (ExistingPlan, EditorialPlan, LedgerPlan).
+ * Shared shape produced by the Plan page's data loader (load-plan.ts) and
+ * consumed by LedgerPlan and the home page.
  */
 import type {
+  PlanRunArgs,
   RestructuringOpportunity,
   UserPayload,
 } from '@/lib/api';
@@ -102,6 +103,9 @@ export interface PlanData {
   /** Month-by-month per-loan payments for the active strategy. Empty when
    *  the engine call falls back to mock data (offline mode). */
   monthlyPayments: MonthlyPaymentBreakdown[];
+  /** The settings this plan ran with (user as adjusted for activity,
+   *  goals, EF split, planned events...), for the what-if panel. */
+  runArgs: PlanRunArgs | null;
   /** Month-1 payment per loan on the pay-minimums run (loan index → amount). */
   firstMonthMinimums: Record<number, string>;
   /** Summary of activity-ledger deltas applied to the projection. Null

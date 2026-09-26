@@ -339,6 +339,7 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
       '25_35': 30,
       '35_50': 42,
       '50_plus': 55,
+      '60_plus': 63,
     };
     const currentAge = user.age_bracket ? ageMap[user.age_bracket] : 30;
     const monthlyExpenses =

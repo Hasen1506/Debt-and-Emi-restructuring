@@ -65,13 +65,10 @@ const US_STD_DEDUCTION: Record<FilingStatusUS, Decimal> = {
   hoh: D(US_STD_NUM.hoh),
 };
 
-// The higher 80D cap is for senior citizens (60+). The age brackets stop
-// at "50+", which also holds people aged 50–59, so the senior cap would
-// overstate their deduction; use the standard cap until there's a 60+
-// bracket. CAP_80D_SENIOR stays for that.
-function get80DCap(_ageBracket?: AgeBracket): Decimal {
-  void CAP_80D_SENIOR;
-  return CAP_80D_DEFAULT;
+// The higher 80D cap is for senior citizens (60+). '50_plus' is 50–59
+// (it read "50+" before the 60+ bracket existed), so it gets the standard cap.
+function get80DCap(ageBracket?: AgeBracket): Decimal {
+  return ageBracket === '60_plus' ? CAP_80D_SENIOR : CAP_80D_DEFAULT;
 }
 
 export interface DeductionLine {
