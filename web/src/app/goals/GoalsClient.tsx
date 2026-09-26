@@ -61,7 +61,6 @@ import type { UserPayload } from '@/lib/api';
 interface Props {
   user: UserPayload;
   lowestRates: Record<string, { bank: string | null; low: string | null }>;
-  themeName: string;
 }
 
 const KIND_OPTIONS: { value: GoalKind; label: string }[] = [

@@ -16,16 +16,13 @@ import { useEffect, useState } from 'react';
 import type { UserPayload } from '@/lib/api';
 import { readActivityClient } from '@/lib/activity';
 import { ThemedContainer, ThemedHeadline, ThemedLabel } from '@/components/themed/Themed';
-import type { ThemeName } from '@/lib/theme';
 
 const STALE_DAYS = 45;
 
 export function StaleCardNudge({
   user,
-  variant,
 }: {
   user: UserPayload;
-  variant: ThemeName;
 }) {
   const [stale, setStale] = useState<{ bank: string; daysSince: number | null }[]>([]);
   const [ready, setReady] = useState(false);
@@ -58,14 +55,13 @@ export function StaleCardNudge({
 
   if (!ready || stale.length === 0) return null;
 
-  const upper = variant === 'ledger';
   return (
-    <ThemedContainer variant={variant} tone="accent" style={{ marginBottom: 14 }}>
-      <ThemedLabel variant={variant} tone="accent">
-        {upper ? 'STALE · CARD BALANCES' : 'Card balances may have drifted'}
+    <ThemedContainer tone="accent" style={{ marginBottom: 14 }}>
+      <ThemedLabel tone="accent">
+        {'STALE · CARD BALANCES'}
       </ThemedLabel>
-      <ThemedHeadline variant={variant}>
-        {stale.length === 1 ? `${stale[0].bank}: ` : `${stale.length} cards: `}
+      <ThemedHeadline>
+        {stale.length > 1 && `${stale.length} cards: `}
         {stale.map((s, i) => (
           <span key={s.bank}>
             {i > 0 && ', '}

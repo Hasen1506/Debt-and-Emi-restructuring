@@ -9,25 +9,30 @@
  *   3. TRAJECTORY · TOTAL DEBT OVER TIME  (LTrajectory)
  *   4. CHEAPER RATES (restructure opportunities)
  *   5. AMORTISATION · NEXT 12 MO  (dense table)
- *   6. SENSITIVITY · LIVE ENGINE  (command-line sliders)
+ *   6. WHAT IF  (sliders that re-run the engine)
  *
- * Modeling toggles + tax + bracket + budget + next-action + waterfall +
- * what-if + activity banner — all the prior LedgerPlan extras — live in
- * LEDGER_MISSING.md as a separate v2 pass.
+ * Ledger is the only skin, so the panels the other two skins carried
+ * (strategy, assumptions, per-loan clear dates, invest-vs-prepay, tax
+ * alerts, life-event prompts) render here too.
  */
 
 import { Fragment, useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import type { PlanData } from './PlanData';
 import { formatCurrency, formatCurrencyCompact, formatPct } from '@/lib/api';
-import { monthIndexToCountryLabel, monthIndexToDate, MONTH_NAMES, getCountryToday } from '@/lib/today';
+import {
+  monthIndexToCountryLabel,
+  monthIndexToDate,
+  MONTH_NAMES,
+  FY_ANCHOR_MONTH,
+  getCountryToday,
+} from '@/lib/today';
 import {
   LShell,
   LSectionHeader,
   LCli,
   LKpi,
   LBracket,
-  LSlider,
   LCardHard,
   L_T,
   L_MONO,
@@ -38,6 +43,23 @@ import {
   OpportunityAlternative,
   UpdateTermsButton,
 } from './OpportunityAlternative';
+import { StrategySwitcher } from '@/components/StrategySwitcher';
+import { HikeToggle } from '@/components/HikeToggle';
+import { TaxReinvestToggle } from '@/components/TaxReinvestToggle';
+import { InflationToggle } from '@/components/InflationToggle';
+import { EfSplitSlider } from '@/components/EfSplitSlider';
+import { FxDriftToggle } from '@/components/FxDriftToggle';
+import { WhatIfPanel } from '@/components/WhatIfPanel';
+import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
+import { FxCachePersister } from './FxCachePersister';
+import { ActivityImpactBanner } from './ActivityImpactBanner';
+import { BracketTransitionAlert } from './BracketTransitionAlert';
+import { AdvanceTaxPanel } from './AdvanceTaxPanel';
+import { CentralBankHint } from './CentralBankHint';
+import { KeyClearanceDates } from './KeyClearanceDates';
+import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
+import { InvestVsPrepayCard } from './InvestVsPrepayCard';
+import { SurplusWaterfall } from './SurplusWaterfall';
 
 export function LedgerPlan({ plan }: { plan: PlanData }) {
   const ccy = plan.displayCurrency;
@@ -50,9 +72,16 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   const clearLabel = plan.debtFreeMonth
     ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()
     : 'NOT IN LIFETIME';
+  // EMIs plus this month's extra to debt (not the emergency-fund or goal
+  // share of the surplus, which isn't a debt payment).
   const monthlyOutlay =
     plan.user.loans.reduce((s, l) => s + Number(l.scheduled_emi || 0), 0) +
-    Math.max(0, plan.surplus);
+    Math.max(0, plan.surplusAllocation?.debtSlice ?? plan.surplus);
+  const isHybrid = plan.currenciesInPlay.length > 1;
+  const hikeRate = Number(plan.user.annual_hike_rate ?? '0');
+  const inflRate = Number(plan.user.inflation_rate ?? '0');
+  const hikeMonthIdx = plan.user.hike_effective_month ?? FY_ANCHOR_MONTH[plan.user.country];
+  const taxReinvestTotal = plan.taxReinvestProjection.reduce((sum, e) => sum + Number(e.amount), 0);
 
   // ─── trajectory adapter ─────────────────────────────────────────────
   // x runs from month 1 (this month) to the last month either line is
@@ -120,7 +149,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {/* 1. CLI line + 2. KPI strip */}
         <section>
           <LCli>
-            PLAN · STRATEGY={strategyUp} · HORIZON={horizon}MO · MARGINAL={marginalPct}%
+            PLAN · {strategyUp} · {marginalPct}% TAX BRACKET
             {!plan.profileIsLive && ' · DEMO'}
             {!plan.live && ' · OFFLINE'}
           </LCli>
@@ -128,31 +157,96 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             cols={4}
             items={[
               {
-                l: 'CLEAR DATE',
+                l: 'DEBT-FREE',
                 v: clearLabel,
                 s: plan.debtFreeMonth
-                  ? `MONTH ${plan.debtFreeMonth} ON ${strategyUp}`
+                  ? `IN ${plan.debtFreeMonth} MONTHS`
                   : 'RAISE SURPLUS OR CUT SPEND TO CLEAR',
               },
               {
                 l: 'TOTAL INTEREST',
                 v: fc(plan.totalInterest),
-                s: `VS ${fc(plan.baselineInterest)} BASELINE`,
+                s: `VS ${fc(plan.baselineInterest)} ON MINIMUMS`,
                 tone: L_T.positive,
               },
               {
                 l: 'MONTHS SAVED',
                 v: String(plan.monthsSaved),
-                s: 'VS MINIMUMS BASELINE',
+                s: 'VS PAYING MINIMUMS',
                 tone: L_T.accent,
               },
               {
                 l: 'MONTHLY OUTLAY',
                 v: `${fc(monthlyOutlay)}/MO`,
-                s: 'SCHEDULED + ALLOC',
+                s: 'EMIS + EXTRA',
               },
             ]}
           />
+        </section>
+
+        <FxCachePersister rates={plan.fxRatesUsed} />
+        <LifecycleArrivalPrompts user={plan.user} variant="ledger" />
+        {plan.activityImpact && (
+          <ActivityImpactBanner
+            impact={plan.activityImpact}
+            loans={plan.user.loans}
+            country={plan.user.country}
+            variant="ledger"
+          />
+        )}
+        <BracketTransitionAlert
+          transitions={plan.bracketTransitions}
+          country={plan.user.country}
+          displayCurrency={plan.displayCurrency}
+          variant="ledger"
+        />
+
+        {/* How the plan is built: strategy + the assumptions behind it */}
+        <section>
+          <LSectionHeader>HOW THIS PLAN IS BUILT</LSectionHeader>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <StrategySwitcher
+              active={plan.strategy}
+              variant="ledger"
+              compare={plan.strategyCompare}
+              country={plan.user.country}
+            />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 24px' }}>
+              <HikeToggle
+                active={plan.hikeModeling}
+                hikeRatePct={hikeRate > 0 ? `${(hikeRate * 100).toFixed(0)}%` : '0%'}
+                hikeMonthLabel={MONTH_NAMES[Math.max(0, Math.min(11, hikeMonthIdx - 1))]}
+                hikePhases={plan.user.hike_schedule}
+                variant="ledger"
+              />
+              <InflationToggle
+                active={plan.inflationModeling}
+                inflationRatePct={inflRate > 0 ? `${(inflRate * 100).toFixed(1)}%` : '0%'}
+                variant="ledger"
+              />
+              <TaxReinvestToggle
+                active={plan.taxReinvest}
+                totalProjectedSaving={formatCurrency(taxReinvestTotal.toFixed(0), ccy)}
+                variant="ledger"
+              />
+              {isHybrid && (
+                <FxDriftToggle
+                  active={plan.fxDrift}
+                  driftLabel="INR +2.5%/yr (CPI differential)"
+                  variant="ledger"
+                />
+              )}
+            </div>
+            <EfSplitSlider
+              active={plan.efSplit}
+              hasGap={
+                Number(plan.user.efund_target || 0) > 0 &&
+                Number(plan.user.efund_balance || 0) < Number(plan.user.efund_target || 0)
+              }
+              ccySym={plan.user.country === 'IN' ? '₹' : '$'}
+              variant="ledger"
+            />
+          </div>
         </section>
 
         {/* 3. Trajectory */}
@@ -220,6 +314,18 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           )}
         </section>
 
+        {/* When each loan clears */}
+        <section>
+          <LSectionHeader>KEY DATES · WHEN EACH LOAN CLEARS</LSectionHeader>
+          <DebtFreeRedirectPrompt plan={plan} />
+          <KeyClearanceDates plan={plan} />
+        </section>
+
+        <CentralBankHint
+          country={plan.user.country}
+          hasFloating={plan.user.loans.some((l) => l.rate_type === 'floating')}
+        />
+
         {/* 4. Restructure */}
         {plan.opportunities.length > 0 && (
           <section>
@@ -236,12 +342,33 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           </section>
         )}
 
+        {/* Where the spare cash goes, and whether investing beats prepaying */}
+        <SurplusWaterfall plan={plan} />
+        <InvestVsPrepayCard plan={plan} variant="ledger" />
+
+        {plan.advanceTaxSchedule && (
+          <AdvanceTaxPanel
+            schedule={plan.advanceTaxSchedule}
+            country={plan.user.country}
+            displayCurrency={plan.displayCurrency}
+            monthlyPenaltyCost={plan.advanceTaxPenaltyMonthly}
+            variant="ledger"
+          />
+        )}
+
         {/* 5. Amortisation */}
         <AmortisationSection plan={plan} fc={fc} horizon={horizon} />
 
-        {/* 6. Sensitivity */}
+        {/* 6. What if — real engine runs, not estimates */}
         <section>
-          <SensitivityCard plan={plan} fc={fc} />
+          <LSectionHeader>WHAT IF · TRY A SCENARIO</LSectionHeader>
+          <div style={{ fontSize: 11, color: L_T.muted, marginBottom: 10, lineHeight: 1.5 }}>
+            Each slider re-runs your plan. Nothing here changes your saved plan
+            until you press apply.
+          </div>
+          <LCardHard>
+            <WhatIfPanel user={plan.user} marginalRate={plan.marginalRate} strategy={plan.strategy} />
+          </LCardHard>
         </section>
       </div>
     </LShell>
@@ -682,129 +809,6 @@ function AmortisationSection({
         </div>
       )}
     </section>
-  );
-}
-
-// ─── Sensitivity ────────────────────────────────────────────────────────
-function SensitivityCard({
-  plan,
-  fc,
-}: {
-  plan: PlanData;
-  fc: (v: string | number) => string;
-}) {
-  // Local-only sliders — no engine round-trip. Outcomes are linear
-  // approximations of the engine deltas; the headline number anchors to
-  // plan.monthsSaved + plan.totalInterest. Matches the prototype's
-  // "live engine" feel without paying for a real recompute on drag.
-  const [surplusDelta, setSurplusDelta] = useState(15000);
-  const [rateShockBps, setRateShockBps] = useState(0);
-  const [lumpSum, setLumpSum] = useState(0);
-
-  const surplusMoSaved = Math.round(
-    (surplusDelta / Math.max(1, plan.surplus + 1000)) * plan.monthsSaved * 0.3,
-  );
-  const surplusIntSaved = Math.round(
-    surplusMoSaved *
-      Number(plan.totalInterest) /
-      Math.max(1, plan.trajectory.length),
-  );
-  const rateExtra = Math.round(
-    (rateShockBps / 100) *
-      plan.user.loans.reduce((s, l) => s + Number(l.outstanding), 0) *
-      0.5,
-  );
-  const rateMo = Math.round(rateShockBps / 50);
-  const lumpMoSaved = Math.round(
-    (lumpSum / Math.max(1, plan.user.loans.reduce((s, l) => s + Number(l.outstanding), 0))) *
-      plan.trajectory.length *
-      0.5,
-  );
-  const lumpIntSaved = Math.round(
-    lumpSum * Number(plan.user.loans[0]?.nominal_rate ?? 0.1) * 2,
-  );
-
-  return (
-    <LCardHard>
-      <div
-        style={{
-          fontSize: 11,
-          letterSpacing: '0.18em',
-          color: L_T.muted,
-          marginBottom: 12,
-        }}
-      >
-        $ SENSITIVITY · LIVE ENGINE
-      </div>
-      <LSlider
-        label="SET SURPLUS_DELTA"
-        ariaLabel="Extra paid each month"
-        value={surplusDelta}
-        min={0}
-        max={50000}
-        step={500}
-        onChange={setSurplusDelta}
-        format={(v) => `+${fc(v)}/mo`}
-        outcomes={[
-          {
-            label: 'DEBT-FREE',
-            value: `−${surplusMoSaved} MO`,
-            tone: 'pos',
-          },
-          {
-            label: 'INTEREST',
-            value: `−${fc(surplusIntSaved)}`,
-            tone: 'pos',
-          },
-        ]}
-      />
-      <div style={{ borderTop: `1px dashed ${L_T.faint}` }}>
-        <LSlider
-          label="SET RATE_SHOCK"
-        ariaLabel="Interest rate rise"
-          value={rateShockBps}
-          min={0}
-          max={300}
-          step={25}
-          onChange={setRateShockBps}
-          format={(v) => `+${v} bps`}
-          outcomes={[
-            { label: 'DEBT-FREE', value: `+${rateMo} MO`, tone: 'neg' },
-            { label: 'INTEREST', value: `+${fc(rateExtra)}`, tone: 'neg' },
-          ]}
-        />
-      </div>
-      <div style={{ borderTop: `1px dashed ${L_T.faint}` }}>
-        <LSlider
-          label="SET LUMP_SUM"
-        ariaLabel="One-off payment"
-          value={lumpSum}
-          min={0}
-          max={500000}
-          step={5000}
-          onChange={setLumpSum}
-          format={(v) =>
-            v > 0
-              ? `${fc(v)} → ${(plan.user.loans[0]?.bank || '—').toUpperCase()}`
-              : `${fc(0)}`
-          }
-          outcomes={[
-            { label: 'DEBT-FREE', value: `−${lumpMoSaved} MO`, tone: 'pos' },
-            { label: 'INTEREST', value: `−${fc(lumpIntSaved)}`, tone: 'pos' },
-          ]}
-        />
-      </div>
-      <div
-        style={{
-          marginTop: 12,
-          fontSize: 10,
-          color: L_T.muted,
-          letterSpacing: '0.08em',
-        }}
-      >
-        APPROXIMATE · APPLY VIA <LBracket href="/tools/recompute">[/TOOLS/RECOMPUTE]</LBracket>
-      </div>
-    </LCardHard>
   );
 }
 

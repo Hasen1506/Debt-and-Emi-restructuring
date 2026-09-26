@@ -204,7 +204,7 @@ def simulate_plan(
     reinvest_events: list[tuple[int, Decimal]] | None = None,
     inflate_expenses: bool = False,
     lifecycle_events: list[LifecycleEvent] | None = None,
-    ef_top_up_rate: Decimal = D("0"),
+    ef_top_up_rate: Decimal | None = None,
     goals: list[GoalState] | None = None,
     minimums_only: bool = False,
 ) -> SimulationResult:
@@ -239,13 +239,14 @@ def simulate_plan(
     user's purchasing power erodes. False preserves legacy flat-expenses
     behaviour for callers / tests that don't opt in.
 
-    `ef_top_up_rate` (default 0) drives the soft emergency-fund waterfall:
-    when > 0 AND `user.efund_balance < user.efund_target`, that fraction of
-    each month's surplus is diverted into the EF pool before the remainder
-    flows into debt prepayment. Once the running EF balance reaches
-    `efund_target`, allocation switches back to 100% debt. Default 0
-    preserves the legacy "all surplus → debt" behaviour for tests and
-    for users who haven't set an EF target.
+    Emergency fund: one mechanism per run, never both.
+    - `ef_top_up_rate=None` (the default): a fixed monthly top-up of the
+      starting gap / 12 is held back from surplus until the fund is full.
+    - `ef_top_up_rate` given (0–1): that share of each month's surplus goes
+      to the fund until it reaches `efund_target`, and nothing else does.
+      0 means every rupee goes to debt. This is the /plan slider, so the
+      split the user picks is the split that happens (it used to be added
+      on top of the fixed top-up, and 0% still diverted gap / 12).
 
     `goals` (default None) is the engine-authoritative per-goal state
     list. When provided, the serial-fill allocator runs each month,
@@ -281,12 +282,14 @@ def simulate_plan(
     months: list[MonthRow] = []
     total_interest = D("0")
     total_invested = D("0")
-    # Soft EF waterfall state — running balance that grows by the diverted
-    # surplus each month until ef_target is hit. Frozen at 0 / no diversion
-    # when ef_top_up_rate=0 (legacy default).
+    # EF state — running balance that grows by whichever top-up applies
+    # (fixed gap / 12, or the caller's split) until ef_target is hit.
     ef_balance = user.efund_balance
     ef_target = user.efund_target
-    efund_monthly_plan = compute_efund_monthly(user)
+    efund_monthly_plan = (
+        compute_efund_monthly(user) if ef_top_up_rate is None else D("0")
+    )
+    ef_split = ef_top_up_rate if ef_top_up_rate is not None else D("0")
     best_liquid_return = _best_liquid_return(user.investment_options)
     inflation = user.inflation_rate
     debt_free_month: int | None = None
@@ -519,12 +522,8 @@ def simulate_plan(
         # for client-side achievability without back-deriving it from
         # the post-allocation `surplus` variable below.
         pre_allocation_surplus = surplus
-        # Land the baseline EF allocation. This is *separate* from the
-        # cascade ef_slice below: the baseline 1/12 path always fires
-        # (when there's a gap); the cascade ef_slice is the additional
-        # top-up driven by ef_top_up_rate. With ef_top_up_rate=0 (the
-        # legacy default), only the baseline path contributes, and the
-        # EF still fills geometrically toward target.
+        # Land the fixed EF top-up (zero when the caller gave a split;
+        # then the cascade ef_slice below is the only EF money).
         ef_balance += efund_monthly_to_credit
 
         # Multi-goal monthly outflow. `goals is not None` (not
@@ -566,7 +565,7 @@ def simulate_plan(
         )
         cascade = allocate_surplus(
             surplus=surplus,
-            ef_split=ef_top_up_rate,
+            ef_split=ef_split,
             ef_gap=ef_gap_this_month,
             ef_preempted=False,
         )

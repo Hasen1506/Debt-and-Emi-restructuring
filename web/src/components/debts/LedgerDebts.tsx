@@ -9,12 +9,11 @@
  *   3. OPEN POSITIONS · DETAILED  (LDebtsTable)
  *   4. HIGHLIGHTED · LOUDEST DEBT  (accent-bordered card)
  *
- * Per-loan expandable breakdown, lifecycle events panel, today card, cash
- * management, and stale-card nudge — all the prior LedgerDebts extras —
- * live in LEDGER_MISSING.md.
+ *   5. HOW EACH RATE IS WORKED OUT  (per-loan breakdown)
+ *   6. Stale-card nudge, cash section, life events
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrency } from '@/lib/api';
@@ -31,9 +30,14 @@ import {
   L_MONO,
 } from '@/components/ledger/primitives';
 import { LDebtsTable } from '@/components/ledger/LDebtsTable';
+import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
+import { StaleCardNudge } from '@/components/debts/StaleCardNudge';
+import { CashManagementSection } from '@/components/debts/CashManagementSection';
+import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 
 export function LedgerDebts({ profile }: { profile: StoredProfile }) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
+  const [showMath, setShowMath] = useState(false);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: string | number) => formatCurrency(v, ccy);
 
@@ -55,17 +59,13 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
     (s, d) => s + Number(d.loan.scheduled_emi || 0),
     0,
   );
-  // Floating loans surface a cycle length (months) rather than a precise
-  // next-reset date. Pick the shortest cycle as a proxy for "next thing
-  // that will requote". /plan's lifecycle events panel has the dated
-  // version — listed in LEDGER_MISSING.md as a fidelity gap.
-  const nextResetLoan = m.loans
-    .map((d) => ({
-      d,
-      cycle: Number(d.loan.rate_reset_frequency_months ?? 0),
-    }))
-    .filter((x) => x.cycle > 0 && x.d.loan.rate_type === 'floating')
-    .sort((a, b) => a.cycle - b.cycle)[0];
+  // What the debts cost each month, before any tax refund: the figure a
+  // borrower feels. (A reset-cycle length used to sit here; it said
+  // nothing about when the rate next moves.)
+  const monthlyInterest = m.loans.reduce(
+    (s, d) => s.add(new Decimal(d.loan.outstanding || 0).mul(d.loan.nominal_rate || 0).div(12)),
+    new Decimal(0),
+  );
 
   // Monthly interest on the loudest line = outstanding * (nominal / 12).
   // Use nominal not effective because that's what the bank charges; the
@@ -74,16 +74,12 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
     .mul(new Decimal(loudest.loan.nominal_rate || 0))
     .div(12)
     .toFixed(0);
-
-  // Spread vs next-loudest as a single number — same comparison the
-  // prototype uses to justify "this one is loudest".
-  const next = m.loans[1];
-  const vsNext = next
-    ? new Decimal(loudest.loan.outstanding || 0)
-        .mul(new Decimal(loudest.loan.nominal_rate || 0).sub(new Decimal(next.loan.nominal_rate || 0)))
-        .div(12)
-        .toFixed(0)
-    : '0';
+  const breakdownProps = {
+    marginalTaxRate: profile.marginalRate,
+    country: profile.user.country,
+    taxRegime: profile.user.country === 'IN' ? profile.user.tax_regime : undefined,
+    incomeType: profile.user.income_type,
+  };
 
   return (
     <LShell>
@@ -99,7 +95,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
       >
         <section>
           <LCli>
-            DEBTS · {m.loans.length} OPEN · WEIGHTED EFFECTIVE APR{' '}
+            DEBTS · {m.loans.length} OPEN · AVERAGE EFFECTIVE RATE{' '}
             {fmtPct(m.blendedEffective)}
           </LCli>
           <LKpi
@@ -111,9 +107,9 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
                 s: `${m.loans.length} OPEN LINES`,
               },
               {
-                l: 'WEIGHTED APR',
+                l: 'EFFECTIVE RATE',
                 v: fmtPct(m.blendedEffective),
-                s: 'POST-TAX',
+                s: 'AVERAGE · AFTER FEES + TAX',
               },
               {
                 l: 'TOTAL EMI',
@@ -121,12 +117,10 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
                 s: 'SCHEDULED',
               },
               {
-                l: 'RESET CYCLE',
-                v: nextResetLoan ? `${nextResetLoan.cycle} MO` : 'NONE',
-                s: nextResetLoan
-                  ? `${(nextResetLoan.d.loan.bank || '—').toUpperCase()} FLT`
-                  : 'NO FLOATING LOANS',
-                tone: nextResetLoan ? L_T.accent : L_T.muted,
+                l: 'INTEREST',
+                v: `${fc(monthlyInterest.toFixed(0))}/MO`,
+                s: 'CHARGED THIS MONTH',
+                tone: L_T.negative,
               },
             ]}
           />
@@ -184,14 +178,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
                     ? 'REVOLVING BALANCE'
                     : 'PRINCIPAL REMAINING',
                 ],
-                ['MONTHLY INT', fc(loudestMonthlyInt), 'PURE FRICTION'],
-                next
-                  ? [
-                      'VS NEXT',
-                      `+${fc(vsNext)}`,
-                      `MORE THAN ${(next.loan.bank || '—').toUpperCase()} ${next.loan.loan_type.toUpperCase().replace('_', ' ')} EACH MONTH`,
-                    ]
-                  : null,
+                ['MONTHLY INT', fc(loudestMonthlyInt), 'CHARGED EACH MONTH'],
               ].filter(Boolean) as [string, string, string, string?][]).map((r, i) => (
                 <tr key={i} style={{ borderBottom: `1px dashed ${L_T.faint}` }}>
                   <td
@@ -230,12 +217,41 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
           </table>
           <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <LBracket active href="/plan">
-              BALANCE TRANSFER →
+              {loudest.loan.loan_type === 'credit_card' ? 'CHEAPER CARD RATE →' : 'CHEAPER RATE →'}
             </LBracket>
-            <LBracket href="/plan">SHOW MATH</LBracket>
+            <LBracket onClick={() => setShowMath((v) => !v)} active={showMath}>
+              {showMath ? 'HIDE MATH' : 'SHOW MATH'}
+            </LBracket>
             <LBracket href="/insights#activity-ledger">MARK PAID</LBracket>
           </div>
+          {showMath && (
+            <div style={{ marginTop: 12 }}>
+              <EffectiveAprBreakdown loan={loudest.loan} variant="inline" {...breakdownProps} />
+            </div>
+          )}
         </section>
+
+        {/* Every loan's rate, worked out */}
+        {m.loans.length > 1 && (
+          <section>
+            <LSectionHeader>HOW EACH RATE IS WORKED OUT</LSectionHeader>
+            {m.loans.map((d, i) => (
+              <details key={i} style={{ borderBottom: `1px dashed ${L_T.faint}`, padding: '8px 0' }}>
+                <summary style={{ cursor: 'pointer', fontSize: 11, letterSpacing: '0.06em' }}>
+                  {(d.loan.bank || '—').toUpperCase()} · {d.loan.loan_type.replace('_', ' ').toUpperCase()} ·{' '}
+                  {fmtPct(d.nominal)} → <strong>{fmtPct(d.effective)}</strong>
+                </summary>
+                <div style={{ marginTop: 8 }}>
+                  <EffectiveAprBreakdown loan={d.loan} variant="inline" {...breakdownProps} />
+                </div>
+              </details>
+            ))}
+          </section>
+        )}
+
+        <StaleCardNudge user={profile.user} />
+        <CashManagementSection profile={profile} />
+        <LifecycleEventsPanel user={profile.user} variant="ledger" />
       </div>
     </LShell>
   );

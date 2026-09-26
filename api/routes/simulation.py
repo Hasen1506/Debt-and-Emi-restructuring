@@ -93,7 +93,7 @@ def _build_goal_finals(
 def _build_surplus_allocation(
     user: User,
     matched_contribution: Decimal,
-    ef_split: Decimal,
+    ef_split: Decimal | None,
     ef_preempted: bool,
     goal_states: list[GoalState] | None = None,
     simple_mode: bool = False,
@@ -108,11 +108,16 @@ def _build_surplus_allocation(
     simulate_plan's own pass (the route handler gives that function
     a fresh list).
     """
+    # Same rule as simulate_plan: a given split is the only EF top-up, so
+    # no fixed gap / 12 is held back first.
     surplus = compute_available_surplus(
         user, user.loans,
         matched_contribution=matched_contribution,
         simple_mode=simple_mode,
+        efund_monthly=D("0") if ef_split is not None else None,
     )
+    if ef_split is None:
+        ef_split = D("0")
     ef_gap = max(D("0"), user.efund_target - user.efund_balance)
 
     goal_contributions_out: list[GoalContributionOut] = []

@@ -21,15 +21,13 @@ import { CashAdvisorCard } from '@/components/debts/CashAdvisorCard';
 import { TaxSleeveCard } from '@/components/debts/TaxSleeveCard';
 import { MonthlyRecapCard } from '@/components/debts/MonthlyRecapCard';
 import { CashSummaryCard } from '@/components/debts/CashSummaryCard';
-import { THEME_TOKENS } from '@/styles/theme-tokens';
-import type { ThemeName } from '@/lib/theme';
+import { TOKENS } from '@/styles/theme-tokens';
+import { sleeveAnnualTarget } from '@/lib/tax-sleeve';
 
 export function CashManagementSection({
   profile,
-  variant,
 }: {
   profile: StoredProfile;
-  variant: ThemeName;
 }) {
   const explainer = (
     <InfoTip>
@@ -54,23 +52,28 @@ export function CashManagementSection({
     </InfoTip>
   );
 
-  const t = THEME_TOKENS[variant].label;
-  const upper = variant === 'ledger';
+  const t = TOKENS.label;
   // Section header — bigger margin top + bottom than a card-level label,
-  // and the ledger variant wraps in em-dashes to read as a divider.
+  // wrapped in em-dashes to read as a divider.
   const headerStyle: React.CSSProperties = {
-    fontSize: variant === 'existing' ? 14 : t.fontSize,
-    fontWeight: variant === 'existing' ? 600 : undefined,
+    fontSize: t.fontSize,
+    fontWeight: undefined,
     letterSpacing: t.letterSpacing,
     textTransform: t.textTransform,
-    color: variant === 'existing' ? 'var(--ink)' : 'var(--muted)',
-    fontFamily: variant === 'ledger' ? 'var(--font-mono)' : undefined,
-    margin: variant === 'existing' ? '8px 0 6px' : '20px 0 10px',
+    color: 'var(--muted)',
+    fontFamily: 'var(--font-mono)',
+    margin: '20px 0 10px',
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
   };
-  const headerText = upper ? '— CASH MANAGEMENT —' : 'Cash management';
+  const headerText = '— CASH MANAGEMENT —';
+
+  // Every card below needs either cash accounts or a tax sleeve; without
+  // both, the header would sit over an empty section.
+  if (!(profile.user.cash_accounts?.length) && !(sleeveAnnualTarget(profile.user) ?? 0)) {
+    return null;
+  }
 
   return (
     <section>
@@ -78,10 +81,10 @@ export function CashManagementSection({
         {headerText}
         {explainer}
       </div>
-      <CashAdvisorCard profile={profile} variant={variant} />
-      <TaxSleeveCard user={profile.user} variant={variant} />
-      <MonthlyRecapCard user={profile.user} variant={variant} />
-      <CashSummaryCard user={profile.user} variant={variant} />
+      <CashAdvisorCard profile={profile} />
+      <TaxSleeveCard user={profile.user} />
+      <MonthlyRecapCard user={profile.user} />
+      <CashSummaryCard user={profile.user} />
     </section>
   );
 }

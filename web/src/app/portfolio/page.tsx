@@ -1,9 +1,6 @@
 import { loadProfileServer } from '@/lib/user-store';
-import { loadThemeServer } from '@/lib/theme';
 import { summarisePortfolio } from '@/components/portfolio/portfolioSummary';
 import { LedgerPortfolio } from '@/components/portfolio/LedgerPortfolio';
-import { EditorialPortfolio } from '@/components/portfolio/EditorialPortfolio';
-import { ExistingPortfolio } from '@/components/portfolio/ExistingPortfolio';
 
 /**
  * /portfolio — top-level "what you own" tab.
@@ -16,41 +13,17 @@ import { ExistingPortfolio } from '@/components/portfolio/ExistingPortfolio';
  * mini-wizard rather than showing a wall of zeroes.
  */
 export default async function PortfolioPage() {
-  const [profile, theme] = await Promise.all([
-    loadProfileServer(),
-    loadThemeServer(),
-  ]);
+  const profile = await loadProfileServer();
   const summary = summarisePortfolio(profile.user.assets, profile.user.country);
-
-  if (theme === 'ledger') {
-    return (
-      <>
-        <h1 className="sr-only">Portfolio</h1>
-        <LedgerPortfolio
-          summary={summary}
-          country={profile.user.country}
-          user={profile.user}
-          marginalRate={profile.marginalRate}
-        />
-      </>
-    );
-  }
-  if (theme === 'editorial') {
-    return (
-      <EditorialPortfolio
+  return (
+    <>
+      <h1 className="sr-only">Portfolio</h1>
+      <LedgerPortfolio
         summary={summary}
         country={profile.user.country}
         user={profile.user}
         marginalRate={profile.marginalRate}
       />
-    );
-  }
-  return (
-    <ExistingPortfolio
-      summary={summary}
-      country={profile.user.country}
-      user={profile.user}
-      marginalRate={profile.marginalRate}
-    />
+    </>
   );
 }

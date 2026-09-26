@@ -82,6 +82,18 @@ function formatInterest(value: string, country?: Country): string {
   return `${sym}${n.toFixed(0)}`;
 }
 
+/** True when every strategy gives the same debt-free month and (near enough) interest. */
+function allSame(compare: StrategyCompare): boolean {
+  const rows = STRATEGIES.map((s) => compare[s]);
+  const first = Number(rows[0]?.totalInterest ?? 0);
+  // Within 0.1% counts as the same: the rows show ₹5.06L either way.
+  return rows.every(
+    (r) =>
+      r?.debtFreeMonth === rows[0]?.debtFreeMonth &&
+      Math.abs(Number(r?.totalInterest ?? 0) - first) <= Math.max(1, first * 0.001),
+  );
+}
+
 function CompareRow({
   strategy,
   isActive,
@@ -105,7 +117,7 @@ function CompareRow({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '90px 1fr auto',
+        gridTemplateColumns: '120px 1fr auto',
         gap: 8,
         fontFamily: mono ? 'var(--font-mono)' : undefined,
         fontSize: 12,
@@ -223,7 +235,13 @@ export function StrategySwitcher({
           {pending ? 'recomputing…' : STRATEGY_SHORT[active]}
         </span>
       </div>
-      {compare && (
+      {compare && allSame(compare) && (
+        <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+          All three clear your debt in the same month at the same cost, so the
+          choice doesn&apos;t matter for your loans.
+        </div>
+      )}
+      {compare && !allSame(compare) && (
         <div
           style={{
             paddingLeft: 6,

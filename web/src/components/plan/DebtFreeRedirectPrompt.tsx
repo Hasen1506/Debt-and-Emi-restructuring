@@ -45,10 +45,8 @@ const DISMISS_KEY = 'finoptima_debtfree_prompt_dismissed';
 
 export function DebtFreeRedirectPrompt({
   plan,
-  variant = 'existing',
 }: {
   plan: PlanData;
-  variant?: 'existing' | 'ledger' | 'editorial';
 }) {
   const [dismissed, setDismissed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -93,12 +91,9 @@ export function DebtFreeRedirectPrompt({
   const headline = `${when} (${dateLabel}), your last EMI clears. ${freedAmountLabel}/mo of cash flow comes back.`;
   const sub =
     "Pre-decide where it goes now — habits set on the freed-cash moment tend to stick.";
-  const mono = variant === 'ledger';
-  const upper = mono;
 
   return (
     <ThemedContainer
-      variant={variant}
       tone="positive"
       style={{
         margin: '10px 0 14px',
@@ -115,11 +110,11 @@ export function DebtFreeRedirectPrompt({
         }}
       >
         <div style={{ flex: 1 }}>
-          <ThemedLabel variant={variant} tone="positive">
-            {upper ? 'CASH FLOW RESTORING SOON' : 'Cash flow restoring soon'}
+          <ThemedLabel tone="positive">
+            {'CASH FLOW RESTORING SOON'}
           </ThemedLabel>
-          <ThemedHeadline variant={variant}>{headline}</ThemedHeadline>
-          <ThemedDetail variant={variant}>{sub}</ThemedDetail>
+          <ThemedHeadline>{headline}</ThemedHeadline>
+          <ThemedDetail>{sub}</ThemedDetail>
         </div>
         <button
           type="button"
@@ -146,9 +141,9 @@ export function DebtFreeRedirectPrompt({
           marginTop: 10,
         }}
       >
-        <PromptCta href="/goals" label="Plan a goal SIP" mono={mono} primary />
-        <PromptCta href="/onboarding?step=4" label="Boost EF" mono={mono} />
-        <PromptCta href="/tools/recompute" label="Run what-if" mono={mono} />
+        <PromptCta href="/goals" label="Plan a goal SIP" primary />
+        <PromptCta href="/onboarding?step=4" label="Boost EF" />
+        <PromptCta href="/tools/recompute" label="Run what-if" />
       </div>
     </ThemedContainer>
   );
@@ -157,12 +152,10 @@ export function DebtFreeRedirectPrompt({
 function PromptCta({
   href,
   label,
-  mono,
   primary,
 }: {
   href: string;
   label: string;
-  mono: boolean;
   primary?: boolean;
 }) {
   return (
@@ -173,13 +166,13 @@ function PromptCta({
         background: primary ? 'var(--positive)' : 'transparent',
         color: primary ? 'var(--canvas)' : 'var(--positive)',
         border: primary ? 'none' : '1px solid var(--positive)',
-        borderRadius: mono ? 0 : 4,
+        borderRadius: 0,
         textDecoration: 'none',
         fontSize: 12,
         fontWeight: 600,
-        fontFamily: mono ? 'var(--font-mono)' : undefined,
-        letterSpacing: mono ? '0.06em' : undefined,
-        textTransform: mono ? 'uppercase' : undefined,
+        fontFamily: 'var(--font-mono)',
+        letterSpacing: '0.06em',
+        textTransform: 'uppercase',
       }}
     >
       {label}

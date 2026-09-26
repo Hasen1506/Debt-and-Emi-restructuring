@@ -93,7 +93,7 @@ export function KeyClearanceDates({ plan }: { plan: PlanData }) {
       out.push({
         month: plan.debtFreeMonth,
         label: 'Debt-free',
-        detail: 'every loan at zero on the avalanche schedule',
+        detail: `every loan at zero on the ${plan.strategy} schedule`,
         kind: 'debt_free',
       });
     }

@@ -18,8 +18,8 @@ import {
 import { ThemedSegmentedControl } from '@/components/themed/ThemedSegmentedControl';
 
 const OPTIONS: { value: InflationModeling; label: string }[] = [
-  { value: 'on', label: 'Inflate expenses' },
-  { value: 'off', label: 'Flat expenses' },
+  { value: 'on', label: 'Include' },
+  { value: 'off', label: 'Ignore' },
 ];
 
 const HELP_ON =
@@ -41,15 +41,15 @@ export function InflationToggle({
 
   const disabledReason = noInflation
     ? variant === 'ledger'
-      ? 'no inflation set — adjust in setup to enable'
+      ? 'no inflation rate set — add one in setup'
       : 'Inflation rate is 0 in setup. Set a value to model expense growth.'
     : undefined;
 
   const helper =
     variant === 'ledger'
       ? active === 'on'
-        ? `expenses +${inflationRatePct}/yr`
-        : 'flat expenses across horizon'
+        ? `spending +${inflationRatePct} a year`
+        : 'spending stays flat'
       : active === 'on'
         ? `${HELP_ON} (${inflationRatePct} per year.)`
         : HELP_OFF;
@@ -57,7 +57,7 @@ export function InflationToggle({
   return (
     <ThemedSegmentedControl<InflationModeling>
       variant={variant}
-      label="Inflation"
+      label="Rising costs"
       options={OPTIONS}
       active={active}
       onPick={writeInflationModelingClient}

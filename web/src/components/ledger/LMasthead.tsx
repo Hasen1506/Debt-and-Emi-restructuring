@@ -18,9 +18,8 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { LRule, LBracket, L_T, L_MONO } from './primitives';
-import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 import { getCountryToday } from '@/lib/today';
-import type { ThemeName } from '@/lib/theme';
+import { SessionIndicator } from '@/components/chrome/SessionIndicator';
 import type { Country } from '@/lib/api';
 
 export type LedgerSection =
@@ -34,12 +33,16 @@ export type LedgerSection =
   | 'portfolio'
   | 'decisions';
 
+// Every top-level page is one click away. Goals and Portfolio had no
+// link here, and "LEDGER" / "NOTES" named the skin, not the page.
 const NAV: Array<[label: string, key: LedgerSection, href: string]> = [
-  ['LEDGER', 'home', '/'],
+  ['HOME', 'home', '/'],
   ['PLAN', 'plan', '/plan'],
   ['DEBTS', 'debts', '/debts'],
+  ['GOALS', 'goals', '/goals'],
+  ['PORTFOLIO', 'portfolio', '/portfolio'],
   ['TOOLS', 'tools', '/tools'],
-  ['NOTES', 'insights', '/insights'],
+  ['ACTIVITY', 'insights', '/insights'],
   ['SETUP', 'setup', '/onboarding'],
 ];
 
@@ -99,13 +102,7 @@ function timeNow(country: Country): string {
   });
 }
 
-export function LMasthead({
-  country,
-  theme,
-}: {
-  country: Country;
-  theme: ThemeName;
-}) {
+export function LMasthead({ country }: { country: Country }) {
   const path = usePathname() || '/';
   const section = sectionFromPath(path);
   const stmt = stmtFromPath(path);
@@ -171,7 +168,7 @@ export function LMasthead({
         ))}
         <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8, alignItems: 'center' }}>
           <LBracket>{localePin}</LBracket>
-          <ThemeSwitcher initial={theme} />
+          <SessionIndicator />
         </span>
       </nav>
       <LRule length={300} />

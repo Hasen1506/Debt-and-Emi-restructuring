@@ -498,11 +498,11 @@ class SimulateRequest(_In):
     # Lifecycle events (planned future salary / rate resets). See
     # LifecycleEventIn — empty / omitted preserves baseline behaviour.
     lifecycle_events: list[LifecycleEventIn] = Field(default_factory=list)
-    # Soft EF waterfall — fraction of each month's surplus diverted into
-    # the emergency fund until `user.efund_target` is reached. /plan passes
-    # 0.3 when `efund_balance < efund_target` and 0 otherwise. Default 0
-    # preserves the legacy "100% surplus → debt" behaviour.
-    ef_top_up_rate: Decimal = Field(default=D("0"), ge=D("0"), le=D("1"))
+    # Emergency-fund split — the share of each month's surplus that goes
+    # to the fund until `user.efund_target` is reached (the /plan slider).
+    # When given it is the only EF top-up; omitted, the engine holds back
+    # a fixed gap / 12 each month instead.
+    ef_top_up_rate: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
     # True when the user has an active preempting goal open (e.g. medical
     # bill, planned wedding) that takes priority over EF + debt for the
     # goal's funding window. Drives the surplus_allocation routing in the

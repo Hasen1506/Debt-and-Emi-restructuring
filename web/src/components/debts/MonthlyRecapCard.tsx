@@ -14,10 +14,6 @@
  * Reads/writes localStorage and the profile cookie via existing
  * `saveProfileClient`. Renders nothing pre-hydration (avoids SSR/CSR
  * mismatch) and nothing when there are no pending months.
- *
- * Three skin variants matching the rest of /debts (ledger / editorial
- * / existing). Themes match `StaleCardNudge` and `CashSummaryCard` so
- * the page feels coherent.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -37,15 +33,8 @@ import {
   type PaymentSource,
 } from '@/lib/cash-events';
 
-type Variant = 'ledger' | 'editorial' | 'existing';
 
-export function MonthlyRecapCard({
-  user,
-  variant,
-}: {
-  user: UserPayload;
-  variant: Variant;
-}) {
+export function MonthlyRecapCard({ user }: { user: UserPayload }) {
   const [slice, setSlice] = useState<CashEventsSlice>({ confirmations: [] });
   const [ready, setReady] = useState(false);
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
@@ -290,137 +279,15 @@ export function MonthlyRecapCard({
     </>
   );
 
-  if (variant === 'ledger') {
-    return (
-      <div
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 12,
-          lineHeight: 1.55,
-          borderLeft: '3px solid var(--accent)',
-          paddingLeft: 12,
-          marginBottom: 14,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => setIsOpen((v) => !v)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: 11,
-              color: 'var(--accent)',
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              fontFamily: 'inherit',
-              flex: 1,
-            }}
-          >
-            {chevron} $ MONTHLY RECAP · {headline}
-          </button>
-          {!isOpen && (
-            <button
-              type="button"
-              onClick={quickConfirm}
-              style={{
-                background: 'var(--accent)',
-                color: 'var(--canvas)',
-                border: 'none',
-                padding: '4px 10px',
-                fontFamily: 'inherit',
-                fontSize: 10,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-              }}
-            >
-              [Use defaults]
-            </button>
-          )}
-        </div>
-        {isOpen && <div style={{ marginTop: 8 }}>{body}</div>}
-      </div>
-    );
-  }
-
-  if (variant === 'editorial') {
-    return (
-      <div
-        style={{
-          margin: '14px 0 18px',
-          paddingLeft: 14,
-          borderLeft: '3px solid var(--accent)',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setIsOpen((v) => !v)}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            textAlign: 'left',
-            fontFamily: 'var(--font-sans)',
-            fontSize: 11,
-            letterSpacing: '0.15em',
-            textTransform: 'uppercase',
-            color: 'var(--accent)',
-          }}
-        >
-          Monthly recap
-        </button>
-        <div
-          style={{
-            marginTop: 6,
-            fontSize: 14,
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            flexWrap: 'wrap',
-          }}
-        >
-          <span style={{ flex: 1 }}>
-            {chevron} {headline}
-          </span>
-          {!isOpen && (
-            <button
-              type="button"
-              onClick={quickConfirm}
-              style={{
-                background: 'transparent',
-                color: 'var(--accent)',
-                border: '1px solid var(--accent)',
-                padding: '3px 10px',
-                borderRadius: 4,
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Use defaults →
-            </button>
-          )}
-        </div>
-        {isOpen && <div style={{ marginTop: 8 }}>{body}</div>}
-      </div>
-    );
-  }
-
   return (
     <div
       style={{
-        padding: 12,
-        marginBottom: 14,
-        background: 'var(--card)',
-        border: '1px solid var(--border)',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 12,
+        lineHeight: 1.55,
         borderLeft: '3px solid var(--accent)',
-        borderRadius: 6,
+        paddingLeft: 12,
+        marginBottom: 14,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -433,14 +300,15 @@ export function MonthlyRecapCard({
             padding: 0,
             cursor: 'pointer',
             textAlign: 'left',
-            fontSize: 13,
-            fontWeight: 600,
+            fontSize: 11,
             color: 'var(--accent)',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
             fontFamily: 'inherit',
             flex: 1,
           }}
         >
-          {chevron} Monthly recap · {headline}
+          {chevron} $ MONTHLY RECAP · {headline}
         </button>
         {!isOpen && (
           <button
@@ -450,14 +318,15 @@ export function MonthlyRecapCard({
               background: 'var(--accent)',
               color: 'var(--canvas)',
               border: 'none',
-              padding: '4px 12px',
-              borderRadius: 4,
-              fontSize: 12,
-              fontWeight: 600,
+              padding: '4px 10px',
+              fontFamily: 'inherit',
+              fontSize: 10,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
               cursor: 'pointer',
             }}
           >
-            Use defaults →
+            [Use defaults]
           </button>
         )}
       </div>

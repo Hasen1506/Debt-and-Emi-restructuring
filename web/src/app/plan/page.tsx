@@ -1,6 +1,5 @@
 import { api, type SimulateResponse, type UserPayload } from '@/lib/api';
 import { loadFxCacheServer, loadProfileServer } from '@/lib/user-store';
-import { loadThemeServer } from '@/lib/theme';
 import { loadStrategyServer, STRATEGIES, type StrategyName } from '@/lib/strategy';
 import {
   loadHikeModelingServer,
@@ -51,8 +50,6 @@ import {
   ensureFxRates,
   userDefaultCurrency,
 } from '@/lib/currency';
-import { ExistingPlan } from '@/components/plan/ExistingPlan';
-import { EditorialPlan } from '@/components/plan/EditorialPlan';
 import { LedgerPlan } from '@/components/plan/LedgerPlan';
 import type { PlanData, MonthlyPaymentBreakdown } from '@/components/plan/PlanData';
 
@@ -312,16 +309,11 @@ async function loadPlan(
     contributionTotals,
   );
   const hasGoalsForEngine = goalsForEngine.length > 0;
-  // When goals are being sent to the engine, suppress EF top-up rate
-  // — the engine handles EF cascade on the post-goal remainder, so
-  // setting top-up here would double-subtract from surplus.
-  const efTopUpRate =
-    !hasGoalsForEngine &&
-    efTarget > 0 &&
-    efBalance < efTarget &&
-    Number(efSplit) > 0
-      ? efSplit
-      : undefined;
+  // The slider's split is the only emergency-fund top-up, sent even at 0%
+  // (0 = every rupee to debt) and alongside goals (the engine splits
+  // what is left after goals). Omitting it made the engine hold back a
+  // fixed gap / 12 instead, so 0% and "has goals" both ignored the slider.
+  const efTopUpRate = efTarget > 0 && efBalance < efTarget ? efSplit : undefined;
 
   // Build the same simulate-args dict for every strategy variant so the
   // comparison table reflects "what if you flipped only the strategy".
@@ -514,9 +506,8 @@ async function loadPlan(
 }
 
 export default async function PlanPage() {
-  const [theme, strategy, hikeModeling, taxReinvest, inflationModeling, fxDrift] =
+  const [strategy, hikeModeling, taxReinvest, inflationModeling, fxDrift] =
     await Promise.all([
-      loadThemeServer(),
       loadStrategyServer(),
       loadHikeModelingServer(),
       loadTaxReinvestServer(),
@@ -526,13 +517,10 @@ export default async function PlanPage() {
   const plan = await loadPlan(
     strategy, hikeModeling, taxReinvest, inflationModeling, fxDrift,
   );
-  if (theme === 'editorial') return <EditorialPlan plan={plan} />;
-  if (theme === 'ledger')
-    return (
-      <>
-        <h1 className="sr-only">Your plan</h1>
-        <LedgerPlan plan={plan} />
-      </>
-    );
-  return <ExistingPlan plan={plan} />;
+  return (
+    <>
+      <h1 className="sr-only">Your plan</h1>
+      <LedgerPlan plan={plan} />
+    </>
+  );
 }

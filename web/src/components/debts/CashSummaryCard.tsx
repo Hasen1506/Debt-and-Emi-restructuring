@@ -22,7 +22,6 @@ import {
   ThemedDetail,
   ThemedLabel,
 } from '@/components/themed/Themed';
-import type { ThemeName } from '@/lib/theme';
 
 const CASH_TIP = (
   <>
@@ -55,10 +54,8 @@ const KIND_LABEL: Record<CashAccountPayload['kind'], string> = {
 
 export function CashSummaryCard({
   user,
-  variant,
 }: {
   user: UserPayload;
-  variant: ThemeName;
 }) {
   const accounts = user.cash_accounts ?? [];
   if (accounts.length === 0) return null;
@@ -83,21 +80,17 @@ export function CashSummaryCard({
     weightedApy = num / optimizable;
   }
 
-  const upper = variant === 'ledger';
-  const labelText = upper
-    ? `CASH · ${accounts.length} ACCOUNT${accounts.length === 1 ? '' : 'S'}`
-    : 'Cash on hand';
+  const labelText = `CASH · ${accounts.length} ACCOUNT${accounts.length === 1 ? '' : 'S'}`;
 
   return (
-    <ThemedContainer variant={variant} tone="accent" style={{ marginBottom: 14 }}>
+    <ThemedContainer tone="accent" style={{ marginBottom: 14 }}>
       <ThemedLabel
-        variant={variant}
         tone="accent"
         trailing={<InfoTip>{CASH_TIP}</InfoTip>}
       >
         {labelText}
       </ThemedLabel>
-      <div style={{ fontWeight: variant === 'ledger' ? 400 : 600 }}>
+      <div style={{ fontWeight: 400 }}>
         Total <strong>{formatCurrency(String(total), currency)}</strong>
         {' · '}optimizable{' '}
         <strong>{formatCurrency(String(optimizable), currency)}</strong>
@@ -106,7 +99,7 @@ export function CashSummaryCard({
           <> · earning ~{(weightedApy * 100).toFixed(2)}% APY</>
         )}
       </div>
-      <ThemedDetail variant={variant}>
+      <ThemedDetail>
         {accounts.map((a, i) => (
           <span key={i} style={{ marginRight: 10, display: 'inline-block' }}>
             <strong style={{ color: 'var(--ink)' }}>{a.name}</strong>{' '}

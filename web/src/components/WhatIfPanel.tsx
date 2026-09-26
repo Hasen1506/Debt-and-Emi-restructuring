@@ -439,7 +439,7 @@ export function WhatIfPanel({
         showMaxButton={false}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12 }}>
         <SliderRow
           title="One-time lump-sum payment"
           hint={
@@ -705,7 +705,7 @@ function SliderRow({
         borderRadius: 8,
         padding: 12,
         display: 'grid',
-        gridTemplateColumns: '1fr 220px',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
         gap: 16,
         alignItems: 'center',
         opacity: disabled ? 0.55 : 1,

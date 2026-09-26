@@ -18,8 +18,8 @@ import {
 import { ThemedSegmentedControl } from '@/components/themed/ThemedSegmentedControl';
 
 const OPTIONS: { value: TaxReinvestSetting; label: string }[] = [
-  { value: 'on', label: 'Auto-reinvest' },
-  { value: 'off', label: 'Off' },
+  { value: 'on', label: 'Pay debt' },
+  { value: 'off', label: 'Keep' },
 ];
 
 const HELP_ON =
@@ -39,20 +39,20 @@ export function TaxReinvestToggle({
   totalProjectedSaving: string;
   variant?: 'inline' | 'ledger';
 }) {
-  const noSavings =
-    totalProjectedSaving === '' || Number(totalProjectedSaving) <= 0;
+  // The figure arrives formatted ("₹12,400"), so read the digits.
+  const noSavings = !(Number(totalProjectedSaving.replace(/[^\d.]/g, '')) > 0);
 
   const disabledReason = noSavings
     ? variant === 'ledger'
-      ? 'no eligible deductions for your tax setup'
+      ? 'no loan tax deductions for your setup'
       : 'No eligible deductions projected for your tax setup — only home / education-loan interest qualifies, subject to regime and country rules.'
     : undefined;
 
   const helper =
     variant === 'ledger'
       ? active === 'on'
-        ? `~${totalProjectedSaving} over horizon → highest APR debt`
-        : `~${totalProjectedSaving} unrouted — toggle to apply`
+        ? `~${totalProjectedSaving} over the plan goes to the dearest debt`
+        : `~${totalProjectedSaving} over the plan stays as cash`
       : active === 'on'
         ? `${HELP_ON} (~${totalProjectedSaving} over horizon.)`
         : `${HELP_OFF} Projected reinvest if enabled: ~${totalProjectedSaving}.`;
@@ -60,7 +60,7 @@ export function TaxReinvestToggle({
   return (
     <ThemedSegmentedControl<TaxReinvestSetting>
       variant={variant}
-      label="Tax reinvest"
+      label="Tax refunds"
       options={OPTIONS}
       active={active}
       onPick={writeTaxReinvestClient}

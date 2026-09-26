@@ -595,7 +595,7 @@ function todayIso(): string {
 }
 
 function labelFor(variant: LifecycleVariant, fallback: string): string {
-  if (variant === 'ledger') return '$ LIFE EVENTS · DISCONTINUITIES';
+  if (variant === 'ledger') return '$ LIFE EVENTS';
   if (variant === 'editorial') return 'Life events · the discontinuities';
   return fallback;
 }

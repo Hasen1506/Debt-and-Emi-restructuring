@@ -1,5 +1,26 @@
 # Ledger skin — what the new design **doesn't** cover yet
 
+> **Status (26 Sep 2026): Ledger is now the only skin.** The Editorial and
+> Default skins are deleted, so the B-list below was settled:
+>
+> - **Brought into Ledger:** strategy switcher with the three-way
+>   comparison, the assumption controls (pay rises, rising costs, tax
+>   refunds, rupee weakening, emergency-fund split), the real what-if
+>   panel (it replaces the "live engine" sliders, which used made-up
+>   formulas), key dates, debt-free prompt, central-bank hint, surplus
+>   split, invest-vs-prepay, advance tax, bracket and activity alerts,
+>   life-event prompts; on /debts the per-loan rate breakdown, stale-card
+>   nudge, cash section and life-events panel; sign-in/out in the header.
+> - **Dropped as duplicates:** NextActionCard and TodayCard (home's
+>   "this month" card), BudgetMonthCard and RecentActivitySummary
+>   (/insights), TaxBreakdown (the effective rate already includes the
+>   tax shield, broken out per loan on /debts), AssumptionBadges (the
+>   controls show their state), AdvanceTaxLedger (the schedule is on
+>   /plan), InsightsSummaryStrip, per-loan charts (key dates cover them),
+>   the Plan start picker (see AUDIT.md §3).
+>
+> Sections A, C, D and G below are still open design notes.
+
 > The new "Ledger / The Statement" design (commit `3c83382` — README +
 > `ledger-skin-home.jsx` + `ledger-skin-rest.jsx`) is a snapshot from
 > ~7 days ago. Several features shipped since then are **not** in the
