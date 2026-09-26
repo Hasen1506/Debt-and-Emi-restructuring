@@ -377,6 +377,14 @@ class RatesFeed:
         return {"status": overall, "checked_at": now.isoformat(), "sources": out}
 
 
+def source_label(country: Country) -> str:
+    """Where the rate history in use comes from, for display."""
+    s = feed.sources["rbi" if country is Country.IN else "fred"]
+    if s.last_success and s.as_of == policy_rates.rates_as_of(country):
+        return s.label
+    return f"Official decisions, checked by hand on {policy_rates.LAST_VERIFIED:%d %b %Y}"
+
+
 def enabled() -> bool:
     return os.environ.get("RATES_FEED", "on").lower() not in ("off", "0", "false", "no")
 

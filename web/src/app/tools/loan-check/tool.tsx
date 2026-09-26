@@ -27,6 +27,7 @@ import {
 } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
 import { parsePercentInput, parseSpreadInput } from '@/lib/rate-input';
+import { formatAsOf } from '@/lib/as-of';
 
 type StartMode = 'headline' | 'split';
 
@@ -484,13 +485,7 @@ function LoanCheckResult({ r }: { r: LoanCheckResponse }) {
               <li key={i}>{a}</li>
             ))}
             <li>
-              RBI rates last checked{' '}
-              {new Date(r.rates_as_of).toLocaleDateString('en-IN', {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
-              })}
-              .
+              RBI repo rate as of {formatAsOf(r.rates_as_of)}. Source: {r.rates_source}.
             </li>
           </ul>
         </details>

@@ -103,18 +103,12 @@ def _upcoming_for(country: str, calendar: dict, today: date) -> tuple[list[Meeti
 def _country_entry(country: Country, cal: dict, today: date) -> CountryRateEntry:
     meetings, next_iso, days = _upcoming_for(country.value, cal, today)
     decided = [(d, r) for d, r in policy_rates.history(country) if d <= today]
-    as_of = policy_rates.rates_as_of(country)
-    src = rates_feed.feed.sources["rbi" if country is Country.IN else "fred"]
-    if src.last_success and src.as_of == as_of:
-        source = src.label
-    else:
-        source = f"Official decisions, checked by hand on {policy_rates.LAST_VERIFIED:%d %b %Y}"
     return CountryRateEntry(
         country=country.value,
         current_rate=decided[-1][1],
         updated_at=decided[-1][0].isoformat(),
-        as_of=as_of.isoformat(),
-        source=source,
+        as_of=policy_rates.rates_as_of(country).isoformat(),
+        source=rates_feed.source_label(country),
         upcoming_meetings=meetings,
         next_meeting_date=next_iso,
         days_until_next=days,

@@ -794,6 +794,7 @@ export interface LoanCheckResponse {
   amount_at_stake_this_year: string;
   assumptions: string[];
   rates_as_of: string;
+  rates_source: string;
   stale_rates_warning: string | null;
 }
 

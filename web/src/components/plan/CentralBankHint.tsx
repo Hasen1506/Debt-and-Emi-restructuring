@@ -15,6 +15,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, type CentralRatesResponse, type Country } from '@/lib/api';
+import { formatAsOf } from '@/lib/as-of';
 
 const HINT_WINDOW_DAYS = 14;
 
@@ -72,7 +73,7 @@ export function CentralBankHint({ country, hasFloating }: { country: Country; ha
       </div>
       <div className="muted" style={{ fontSize: 12 }}>
         You have at least one floating-rate loan whose price tracks the {rateLabel}.
-        Current setting: {currentRatePct}. If you&apos;re planning a refi or large
+        Current setting: {currentRatePct} (as of {formatAsOf(slice.as_of)}). If you&apos;re planning a refi or large
         prepay this week, holding off until after the meeting may give you a
         cleaner read on next reset&apos;s direction.
       </div>

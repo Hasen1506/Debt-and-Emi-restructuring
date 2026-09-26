@@ -13,10 +13,12 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException
 
+from api import rates_feed
 from api.schemas import _Base
 from engine.loan_check import (
     Benchmark, LoanCheckInput, LoanCheckInputError, LoanCheckResult, TOLERANCE, check_loan,
 )
+from engine.models import Country
 
 D = Decimal
 router = APIRouter(tags=["loan-check"])
@@ -83,6 +85,7 @@ class LoanCheckResponse(_Base):
     amount_at_stake_this_year: Decimal
     assumptions: list[str]
     rates_as_of: str
+    rates_source: str
     stale_rates_warning: Optional[str]
 
 
@@ -212,5 +215,6 @@ def loan_check(req: LoanCheckRequest) -> LoanCheckResponse:
         amount_at_stake_this_year=result.amount_at_stake_this_year,
         assumptions=result.assumptions,
         rates_as_of=result.rates_as_of.isoformat(),
+        rates_source=rates_feed.source_label(Country.IN),
         stale_rates_warning=result.stale_rates_warning,
     )
