@@ -21,6 +21,7 @@ from api.routes import (  # noqa: E402
     restructuring,
     portfolio,
     rates,
+    complaints,
     loan_check,
 )
 
@@ -62,6 +63,7 @@ app.include_router(restructuring.router, prefix="/api")
 app.include_router(portfolio.router, prefix="/api")
 app.include_router(rates.router, prefix="/api")
 app.include_router(loan_check.router, prefix="/api")
+app.include_router(complaints.router, prefix="/api")
 
 # DB-bound routers — only mounted when DATABASE_URL is configured.
 # Skipping them on the Render free tier keeps the API up without a

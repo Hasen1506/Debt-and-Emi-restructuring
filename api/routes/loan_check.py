@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException
 
 from api.schemas import _Base
 from engine.loan_check import (
-    Benchmark, LoanCheckInput, LoanCheckInputError, TOLERANCE, check_loan,
+    Benchmark, LoanCheckInput, LoanCheckInputError, LoanCheckResult, TOLERANCE, check_loan,
 )
 
 D = Decimal
@@ -86,35 +86,35 @@ class LoanCheckResponse(_Base):
     stale_rates_warning: Optional[str]
 
 
-def _bad(field: str, message: str) -> HTTPException:
+def bad(field: str, message: str) -> HTTPException:
     return HTTPException(status_code=422, detail={"field": field, "message": message})
 
 
 def _parse_month(field: str, label: str, value: str) -> date:
     m = _MONTH_RE.match(value.strip())
     if not m:
-        raise _bad(field, f"{label} must be a month like 2021-03 (year-month). Got '{value}'.")
+        raise bad(field, f"{label} must be a month like 2021-03 (year-month). Got '{value}'.")
     year = int(m.group(1))
     if year < 1990:
-        raise _bad(field, f"{label} {value} is before 1990. Check the year.")
+        raise bad(field, f"{label} {value} is before 1990. Check the year.")
     return date(year, int(m.group(2)), 1)
 
 
-def _parse_date(field: str, value: str) -> date:
+def parse_date(field: str, value: str) -> date:
     m = _DATE_RE.match(value.strip())
     try:
         if not m:
             raise ValueError
         return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
     except ValueError:
-        raise _bad(field, f"{field} must be a date like 2026-09-26. Got '{value}'.")
+        raise bad(field, f"{field} must be a date like 2026-09-26. Got '{value}'.")
 
 
 def _check_fraction(field: str, label: str, value: Decimal, low: Decimal, high: Decimal) -> None:
     if value > 1:
-        raise _bad(field, f"{label} {value} looks like a percentage. Send it as a fraction (8.55% is 0.0855).")
+        raise bad(field, f"{label} {value} looks like a percentage. Send it as a fraction (8.55% is 0.0855).")
     if not (low <= value <= high):
-        raise _bad(field, f"{label} must be between {low * 100}% and {high * 100}%. Got {value * 100}%.")
+        raise bad(field, f"{label} must be between {low * 100}% and {high * 100}%. Got {value * 100}%.")
 
 
 def _resolve_start_rate(req: LoanCheckRequest) -> Decimal:
@@ -123,48 +123,62 @@ def _resolve_start_rate(req: LoanCheckRequest) -> Decimal:
     if split_given and (bench is None or spread is None):
         missing = "start_spread" if spread is None else "start_benchmark_rate"
         label = "the spread over the benchmark" if spread is None else "the benchmark rate at the start"
-        raise _bad(missing, f"Still needed: {label}.")
+        raise bad(missing, f"Still needed: {label}.")
     if split_given:
         _check_fraction("start_benchmark_rate", "Benchmark rate", bench, D("0.01"), D("0.20"))
         _check_fraction("start_spread", "Spread", spread, D("0"), D("0.10"))
         total = bench + spread
         if req.start_rate is not None and abs(req.start_rate - total) > TOLERANCE:
-            raise _bad(
+            raise bad(
                 "start_rate",
                 f"Starting rate {req.start_rate * 100}% does not match benchmark + spread "
                 f"({total * 100}%). Enter one or the other.",
             )
         return total
     if req.start_rate is None:
-        raise _bad("start_rate", "Still needed: the starting rate (or benchmark + spread).")
+        raise bad("start_rate", "Still needed: the starting rate (or benchmark + spread).")
     return req.start_rate
 
 
-@router.post("/loan-check", response_model=LoanCheckResponse)
-def loan_check(req: LoanCheckRequest) -> LoanCheckResponse:
+def run_loan_check(req: LoanCheckRequest) -> tuple[LoanCheckInput, LoanCheckResult]:
+    """Parse and check a request; input problems raise a 422 with the field."""
     loan_start = _parse_month("loan_start", "Loan start month", req.loan_start)
     last_reset = (
         _parse_month("last_reset", "Month the rate last changed", req.last_reset)
         if req.last_reset else None
     )
-    as_of = _parse_date("as_of", req.as_of) if req.as_of else date.today()
+    as_of = parse_date("as_of", req.as_of) if req.as_of else date.today()
     start_rate = _resolve_start_rate(req)
 
+    inp = LoanCheckInput(
+        loan_start=loan_start,
+        start_rate=start_rate,
+        current_rate=req.current_rate,
+        outstanding=req.outstanding,
+        tenure_months_remaining=req.tenure_months_remaining,
+        as_of=as_of,
+        lender=req.lender,
+        emi=req.emi,
+        benchmark=req.benchmark,
+        last_reset=last_reset,
+    )
     try:
-        result = check_loan(LoanCheckInput(
-            loan_start=loan_start,
-            start_rate=start_rate,
-            current_rate=req.current_rate,
-            outstanding=req.outstanding,
-            tenure_months_remaining=req.tenure_months_remaining,
-            as_of=as_of,
-            lender=req.lender,
-            emi=req.emi,
-            benchmark=req.benchmark,
-            last_reset=last_reset,
-        ))
+        return inp, check_loan(inp)
     except LoanCheckInputError as e:
-        raise _bad("input", str(e))
+        raise bad("input", str(e))
+
+
+def citation_out(c) -> CitationOut:
+    return CitationOut(
+        rule=c.rule, requirement=c.requirement, source=c.source,
+        verified_against_text=c.verified_against_text,
+    )
+
+
+@router.post("/loan-check", response_model=LoanCheckResponse)
+def loan_check(req: LoanCheckRequest) -> LoanCheckResponse:
+    inp, result = run_loan_check(req)
+    start_rate = inp.start_rate
 
     return LoanCheckResponse(
         status=result.status,
@@ -179,13 +193,7 @@ def loan_check(req: LoanCheckRequest) -> LoanCheckResponse:
                 amount_this_year=f.amount_this_year,
                 overcharged_so_far=f.overcharged_so_far,
                 months_overcharged=f.months_overcharged,
-                citations=[
-                    CitationOut(
-                        rule=c.rule, requirement=c.requirement, source=c.source,
-                        verified_against_text=c.verified_against_text,
-                    )
-                    for c in f.citations
-                ],
+                citations=[citation_out(c) for c in f.citations],
                 next_step=f.next_step,
             )
             for f in result.findings
