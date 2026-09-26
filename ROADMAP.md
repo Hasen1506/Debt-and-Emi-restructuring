@@ -369,6 +369,16 @@ All of these were run and passing before the crash; redo each one and keep it in
 
 ### 6.1 Cross-browser (Chromium, Firefox, WebKit/Safari)
 - [ ] `npx playwright install firefox webkit` (~150 MB; only Chromium is preinstalled).
+      **Parked 26 Sep, blocked here:** the cloud sandbox's network policy refuses
+      `cdn.playwright.dev` and `playwright.download.prss.microsoft.com`, so Firefox
+      and WebKit can only run in GitHub Actions (or after the owner allows those
+      hosts under the environment's Network access). Plan when resumed:
+      `@playwright/test@1.56.1` + `@axe-core/playwright@4.13.0` as web dev
+      dependencies (1.56.1 matches the preinstalled Chromium build 1194);
+      `web/playwright.config.ts` with projects chromium / firefox / webkit and
+      two `webServer`s (API with `RATES_FEED=off` and a temp
+      `OUTCOMES_DATABASE_URL`; web built with `NEXT_PUBLIC_DISABLE_AUTH=true`);
+      a new CI job running `npx playwright install --with-deps` then the suite.
 - [ ] **Every** month field becomes Month + Year dropdowns. Firefox desktop and
       Safari render `type="month"` as a plain text box, so people typed dates the app couldn't read.
       Loan Check done. No `type="month"` is left in `main`; still to review:
@@ -408,6 +418,10 @@ All of these were run and passing before the crash; redo each one and keep it in
       the input marked invalid (every tool).
 - [ ] Check results are announced to screen readers (`aria-live`). Loan Check
       done; the other tools still to do.
+- [ ] **Parked 26 Sep:** turn the scratch axe + hydration scripts into
+      `web/e2e/pages.spec.ts` (one test per page × theme × width, soft-asserting
+      no axe violations, no hydration errors, no uncaught errors, and no
+      sideways scroll at 390 px) and run it in CI (see 6.1 for the setup).
 - [x] **Fixed:** the Windfall screen threw 8 React hydration errors with a
       saved profile (Recompute had them too). Cause: tools read the profile
       cookie while rendering, so the server drew the demo profile and the
