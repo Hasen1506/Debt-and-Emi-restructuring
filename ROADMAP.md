@@ -123,19 +123,30 @@ it owed you*, plus how much that costs you this year.
 - [ ] If only one of the two starting-rate fields is filled, show **"Still needed: …"**.
 - [ ] A rate typed as a fraction (`0.0855` meaning 8.55%) is caught in **both**
       the starting-rate and current-rate fields.
-- [ ] Server **rejects** a date it can't parse with a clear error; it must not
-      silently skip the check. (Lost bug: typing "03/2019" in Firefox made the
+- [x] Server **rejects** a date it can't parse with a clear error; it must not
+      silently skip the check (`POST /api/loan-check`, 422 with `field` + `message`). (Lost bug: typing "03/2019" in Firefox made the
       rate-cut finding quietly disappear.)
 
 **Findings**
-- [ ] **Missed rate cut**: repo/benchmark moved down since the loan's last
+- [x] **Missed rate cut**: repo/benchmark moved down since the loan's last
       reset, but the loan rate didn't follow. Reset frequency per RBI EBLR
-      rules (at least quarterly).
-- [ ] **Pricing gap**: you pay more than new borrowers at the same lender.
-      Shown as information; **not** claimed as a refund (Phase 2).
-- [ ] **Amount at stake "this year"**: floored at zero. (Lost bug: this could go
+      rules (at least quarterly). `engine/loan_check.py`; every estimate
+      leans to the smaller claim (lowest repo around the start incl. 2 months
+      of sanction lag, highest repo in the 3-month reset window, today's
+      balance, whole months only).
+- [x] **Pricing gap**: you pay more than new borrowers at the same lender.
+      Shown as information; **not** claimed as a refund (Phase 2). Measured
+      from the rate *after* the missed cut is fixed, so the two never double-count.
+- [x] **Amount at stake "this year"**: floored at zero (next 12 months, EMI held). (Lost bug: this could go
       negative and print "Refund … estimated at −₹6,952".)
-- [ ] Each finding carries its rule citation and the next step.
+- [x] Each finding carries its rule citation and the next step.
+- [x] **Old benchmark** (NEW): loans from before Oct 2019 or marked MCLR /
+      base rate get a "switch to the repo-linked rate" finding instead of a
+      bogus repo comparison.
+- [x] Repo-rate history 2018→today in `engine/policy_rates.py` (RBI + Fed),
+      re-checked 26 Sep 2026. Phase 5 replaces it with fetched data.
+- [x] Server-side checks: rate sent as a percentage, rate outside 1–30%,
+      start rate below the repo rate of the day, huge balances, future months.
 
 ---
 
@@ -219,10 +230,11 @@ The usual reply is an offer ("current rate if you pay a fee"). The app compares:
 - [ ] **India:** repo rate from **RBI's daily release**. The repo rate isn't
       published on its own there; it sits exactly midway between the SDF and
       MSF rates, so derive it as their midpoint and cross-check.
-- [ ] Before shipping, re-verify the current values from the official sources.
-      The lost session reported RBI at **5.25%** (held at all 2026 meetings,
-      next decision 7 Oct) and the Fed raised to **3.75–4.00% on 16 Sep 2026**.
-      The repo JSON still says RBI 6.25% / Fed 4.50%, which is stale.
+- [x] Before shipping, re-verify the current values from the official sources.
+      Confirmed 26 Sep 2026: RBI **5.25%** (cut 5 Dec 2025, held Feb/Apr/Jun/Aug
+      2026; SDF 5.00%, MSF 5.50%; next decision 7 Oct) and the Fed raised to
+      **3.75–4.00% on 16 Sep 2026**. `central_bank_calendar.json` corrected
+      (it said RBI 6.25% / Fed 4.50%).
 - [ ] `GET /api/rates/feed-health`: last successful fetch per source, age, status.
 - [ ] Uptime alerting on `feed-health` (e.g. a free external monitor).
 - [ ] Fallback: if a feed fails, keep the last good value, flag it "as of <date>", and never crash.
