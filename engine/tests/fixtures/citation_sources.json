@@ -38,5 +38,13 @@
     "where": ["https://www.rbi.org.in/commonman/Upload/English/FAQs/PDFs/RBIOS01072026.pdf (RB-IOS 2026 FAQ)"],
     "key_facts": ["30 lakh", "3 lakh"],
     "quoted_clause": null
+  },
+  "PREPAYMENT_NO_CHARGE": {
+    "where": [
+      "rbi.org.in, Notifications, 2 Jul 2025: RBI (Pre-payment Charges on Loans) Directions, 2025",
+      "RBI circulars of 5 Jun 2012 (home loans) and 7 May 2014 (all floating-rate term loans to individuals) on foreclosure charges"
+    ],
+    "key_facts": ["floating-rate", "individual", "non-business", "any source"],
+    "quoted_clause": null
   }
 }

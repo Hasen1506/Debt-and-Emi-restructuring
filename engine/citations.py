@@ -18,6 +18,10 @@ What is in force (26 Sep 2026):
 - Internal Ombudsman: RBI (Internal Ombudsman for Regulated Entities)
   Directions, 2023; since Jan 2026 banks must escalate every wholly or
   partly rejected complaint automatically.
+- Prepayment: RBI (Pre-payment Charges on Loans) Directions, 2025 (2 Jul
+  2025) for loans sanctioned or renewed from 1 Jan 2026; floating-rate loans
+  to individuals were already free of foreclosure charges under the 2012 and
+  2014 circulars.
 """
 from __future__ import annotations
 
@@ -43,6 +47,7 @@ EBLR_CIRCULAR_2019 = (
     "External Benchmark Based Lending"
 )
 RBIOS_2026 = "Reserve Bank – Integrated Ombudsman Scheme, 2026"
+PREPAYMENT_DIRECTIONS_2025 = "RBI (Pre-payment Charges on Loans) Directions, 2025 (2 July 2025)"
 IO_DIRECTIONS_2023 = (
     "RBI (Internal Ombudsman for Regulated Entities) Directions, 2023 "
     "(RBI/CEPD/2023-24/108, 29 December 2023)"
@@ -107,4 +112,21 @@ RBIOS_COMPENSATION = Citation(
     source="RBI RB-IOS 2026 FAQ (rbi.org.in, Common Man section) and the Scheme text",
 )
 
-ALL = (EBLR_RESET, EBLR_SPREAD, EBLR_MANDATE, IO_ESCALATION, RBIOS_ACCESS, RBIOS_COMPENSATION)
+PREPAYMENT_NO_CHARGE = Citation(
+    rule=(
+        f"{PREPAYMENT_DIRECTIONS_2025}, for loans sanctioned or renewed from "
+        "1 January 2026; RBI circulars of 2012 and 2014 for older floating-rate loans"
+    ),
+    requirement=(
+        "No pre-payment or foreclosure charge may be levied on a floating-rate "
+        "loan taken by an individual for a non-business purpose, whether it is "
+        "paid off in full or in part, from any source of funds, including a "
+        "move to another lender."
+    ),
+    source="rbi.org.in, Notifications, 2 July 2025",
+)
+
+ALL = (
+    EBLR_RESET, EBLR_SPREAD, EBLR_MANDATE, IO_ESCALATION, RBIOS_ACCESS,
+    RBIOS_COMPENSATION, PREPAYMENT_NO_CHARGE,
+)
