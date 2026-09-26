@@ -94,12 +94,20 @@ fix it is a separate question, and that's where the app helps most.
 
 ## Phase 0 · Safety net — NEW (do first, ~½ day)
 
-- [ ] GitHub Actions CI on every push/PR: `pytest engine/tests api/tests`,
-      `npm run typecheck`, `npm run lint`, `npm run build` in `web/`.
+- [x] GitHub Actions CI on every push/PR: `pytest engine/tests api/tests`,
+      `npm run typecheck`, `npm run lint`, `npm run build` in `web/`
+      (`.github/workflows/ci.yml`).
+  - [x] `next lint` had never been configured (it stopped at an interactive
+        prompt). Added `web/.eslintrc.json`; the stylistic
+        `react/no-unescaped-entities` rule is off.
+  - [x] Lint found a real crash: `BudgetMonthCard` returned before its hooks,
+        so the hook order changed when the budget moved between zero and
+        non-zero. Fixed.
 - [ ] Later phases add their suites to CI: Playwright (3 browsers), axe, the fast fuzz slice.
-- [ ] `ROADMAP.md` "Running locally" section kept current (§ bottom).
+- [x] `ROADMAP.md` "Running locally" section kept current (§ bottom).
 - [ ] Delete the two recovery branches (`codespace-scaling-lamp-575pwg47jjrh79wv`,
-      `recovered-codespace`); both are identical to `main`.
+      `recovered-codespace`); both are identical to `main`. **Owner to do**
+      (GitHub → Branches → bin icon); Claude only pushes to its own branch.
 
 ---
 
@@ -324,7 +332,7 @@ The screenshots don't capture everything. Add anything you remember here:
 
 ```bash
 # API (http://localhost:8000)
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # app deps + pytest
 uvicorn api.main:app --reload
 
 # Web (http://localhost:3000), in a second terminal
@@ -332,8 +340,10 @@ cd web && npm install && npm run dev
 
 # Tests
 python -m pytest engine/tests api/tests -q
-cd web && npm run typecheck && npm run lint
+cd web && npm run typecheck && npm run lint && npm run build
 ```
+
+CI runs exactly these on every push (`.github/workflows/ci.yml`).
 
 Leave `DATABASE_URL` unset and set `NEXT_PUBLIC_DISABLE_AUTH=true` for
 trial mode (no login, no sync). `CORS_ORIGINS` defaults to `http://localhost:3000`.

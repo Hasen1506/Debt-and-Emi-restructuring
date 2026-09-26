@@ -214,13 +214,11 @@ function migrateLegacy(g: unknown): Goal {
   };
   // priorityBump may already exist (new shape) — respect it.
   if (typeof raw.priorityBump === 'boolean') {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { priority, preemptsEf, ...rest } = raw;
     return rest as Goal;
   }
   const wasCritical = raw.priority === 'critical';
   const wasPreempt = raw.preemptsEf === true;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { priority, preemptsEf, ...rest } = raw;
   return {
     ...rest,

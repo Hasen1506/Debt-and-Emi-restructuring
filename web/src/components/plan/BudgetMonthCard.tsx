@@ -38,7 +38,6 @@ export function BudgetMonthCard({
   const fixed = new Decimal(user.fixed_expenses || 0);
   const variable = new Decimal(user.variable_expenses || 0);
   const budget = fixed.add(variable);
-  if (budget.lte(0)) return null;
 
   const today = getCountryToday(user.country);
   const monthName = MONTH_NAMES[today.getMonth()];
@@ -62,6 +61,10 @@ export function BudgetMonthCard({
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, [currentMonthIso]);
+
+  // After the hooks: returning earlier would change the hook order when
+  // the budget moves between zero and non-zero, which crashes React.
+  if (budget.lte(0)) return null;
 
   const variance = spent !== null ? spent - Number(budget.toString()) : null;
   const overBudget = variance !== null && variance > 0;
