@@ -25,7 +25,7 @@ from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import JSONResponse
 
 from api import rates_feed
-from api.schemas import _Base
+from api.schemas import _Base, _In
 from engine import policy_rates
 from engine.models import Country
 
@@ -58,7 +58,7 @@ class CentralRatesResponse(_Base):
     US: CountryRateEntry  # noqa: N815
 
 
-class RateUpdateRequest(_Base):
+class RateUpdateRequest(_In):
     country: str          # "IN" or "US"
     new_rate: Decimal     # decimal, e.g. 0.0625
     decision_date: str    # YYYY-MM-DD — which meeting this was the outcome of

@@ -8,12 +8,12 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from engine.cross_border import (
     CrossBorderInputs, evaluate_cross_border, historical_drift_default,
 )
-from api.schemas import _Base
+from api.schemas import MAX_MONTHS, Amount, Rate, SignedRate, _Base, _In
 
 D = Decimal
 router = APIRouter(tags=["fx"])
@@ -34,15 +34,15 @@ class FxRateResponse(_Base):
     as_of: Optional[str]    # YYYY-MM-DD if from upstream
 
 
-class CrossBorderRequest(_Base):
+class CrossBorderRequest(_In):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    loan_balance: Decimal
-    loan_nominal_rate: Decimal
-    loan_tenure_months: int
-    loan_currency: str            # e.g. "INR"
-    user_currency: str            # e.g. "USD"
-    user_savings_yield: Decimal
-    user_marginal_tax: Decimal = D("0")
+    loan_balance: Amount
+    loan_nominal_rate: Rate
+    loan_tenure_months: int = Field(..., ge=1, le=MAX_MONTHS)
+    loan_currency: str = Field(..., max_length=3)    # e.g. "INR"
+    user_currency: str = Field(..., max_length=3)    # e.g. "USD"
+    user_savings_yield: SignedRate
+    user_marginal_tax: Rate = D("0")
     manual_fx_rate: Optional[Decimal] = None             # user_currency per 1 loan_currency
     manual_fx_drift_annual: Optional[Decimal] = None     # overrides historical default
     inflation_user_country: Decimal = D("0.025")

@@ -12,6 +12,7 @@ from decimal import Decimal
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException
+from pydantic import Field
 
 from api import rates_feed
 from api.schemas import _Base
@@ -29,7 +30,7 @@ _DATE_RE = re.compile(r"^(\d{4})-(0[1-9]|1[0-2])-(\d{2})$")
 
 class LoanCheckRequest(_Base):
     country: Literal["IN"] = "IN"
-    lender: Optional[str] = None
+    lender: Optional[str] = Field(None, max_length=120)
     loan_start: str                        # "YYYY-MM"
     # Either the headline starting rate, or benchmark + spread. Fractions.
     start_rate: Optional[Decimal] = None

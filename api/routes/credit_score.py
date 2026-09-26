@@ -8,23 +8,24 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
+from pydantic import Field
 
 from engine.credit_score import (
     ScoreAction, ScoreBand,
     band, predict_impact, estimated_rate_offered,
 )
-from api.schemas import _Base
+from api.schemas import Rate, _Base, _In
 
 D = Decimal
 router = APIRouter(tags=["credit-score"])
 
 
-class ScoreImpactRequest(_Base):
+class ScoreImpactRequest(_In):
     action: ScoreAction
-    current_score: int
+    current_score: int = Field(..., ge=300, le=900)
     country: str = "IN"
-    utilisation_from: Optional[Decimal] = None
-    utilisation_to: Optional[Decimal] = None
+    utilisation_from: Optional[Rate] = None
+    utilisation_to: Optional[Rate] = None
     is_only_instalment_loan: bool = False
     has_thin_file: bool = False
 
@@ -50,9 +51,9 @@ class ScoreBandResponse(_Base):
     band: ScoreBand
 
 
-class RateOfferedRequest(_Base):
-    advertised_rate: Decimal
-    score: int
+class RateOfferedRequest(_In):
+    advertised_rate: Rate
+    score: int = Field(..., ge=300, le=900)
     loan_type: str
     country: str = "IN"
 

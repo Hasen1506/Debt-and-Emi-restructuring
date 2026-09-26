@@ -4,8 +4,10 @@ import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Load .env before anything reads os.environ (engine, resend, etc).
 load_dotenv()
@@ -56,6 +58,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Every 422 in one shape: {"detail": {"field", "message"}}.
+
+    The routes' own checks already answer like this (api/routes/loan_check.py
+    `bad`); schema errors now match, so the web client can show any of
+    them next to the field. The input is not echoed back.
+    """
+    errors = []
+    for e in exc.errors():
+        if e.get("type") == "json_invalid":
+            errors.append({"field": "", "message": "The request is not valid JSON."})
+            continue
+        field = ".".join(str(x) for x in e.get("loc", ()) if x != "body")
+        msg = str(e.get("msg", "Invalid value")).removeprefix("Value error, ")
+        errors.append({"field": field, "message": f"{field}: {msg}" if field else msg})
+    first = errors[0] if errors else {"field": "", "message": "The request could not be read."}
+    return JSONResponse(status_code=422, content={"detail": first, "errors": errors[:20]})
+
 
 app.include_router(simulation.router, prefix="/api")
 app.include_router(decisions.router, prefix="/api")

@@ -222,11 +222,12 @@ def _check_rate(field_name: str, label: str, rate: Decimal) -> None:
         raise OfferInputError(field_name, f"{label} must be between 1% and 30%. Got {rate * 100}%.")
 
 
-def _check_money(field_name: str, label: str, amount: Decimal) -> None:
+def _check_money(field_name: str, label: str, amount: Decimal, outstanding: Decimal) -> None:
     if amount < 0:
         raise OfferInputError(field_name, f"{label} can't be negative.")
-    if amount > MAX_OUTSTANDING:
-        raise OfferInputError(field_name, f"{label} of {_inr(amount)} is too large. Check the number.")
+    # Not printed: a mistyped figure can be too long to format.
+    if amount > outstanding:
+        raise OfferInputError(field_name, f"{label} is more than the loan itself. Check the number.")
 
 
 def _check_percent(field_name: str, label: str, value: Optional[Decimal]) -> None:
@@ -253,7 +254,7 @@ def validate(inp: OfferInput) -> None:
     r = inp.reset
     if r is not None:
         _check_rate("reset.rate", "The bank's offered rate", r.rate)
-        _check_money("reset.fee", "The bank's fee", r.fee)
+        _check_money("reset.fee", "The bank's fee", r.fee, inp.outstanding)
         _check_percent("reset.fee_percent", "The bank's fee", r.fee_percent)
         if r.fee_percent is not None and r.fee > 0:
             raise OfferInputError("reset.fee", "Enter the bank's fee as an amount or a percentage, not both.")
@@ -266,7 +267,7 @@ def validate(inp: OfferInput) -> None:
             ("legal_and_valuation", "Legal and valuation charges", f.legal_and_valuation),
             ("prepayment_charge", "Prepayment charge", f.prepayment_charge),
         ):
-            _check_money(f"refinance.{name}", label, amount)
+            _check_money(f"refinance.{name}", label, amount, inp.outstanding)
         _check_percent("refinance.processing_fee_percent", "Processing fee", f.processing_fee_percent)
         if f.processing_fee_percent is not None and f.processing_fee > 0:
             raise OfferInputError("refinance.processing_fee", "Enter the processing fee as an amount or a percentage, not both.")
