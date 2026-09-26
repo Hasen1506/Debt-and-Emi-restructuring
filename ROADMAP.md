@@ -159,26 +159,57 @@ it owed you*, plus how much that costs you this year.
 
 ## Phase 2 · Letters and escalation, per market — REBUILD
 
-- [ ] **India — grievance-channel complaint** to the bank, pre-filled with
-      loan facts, the finding and the RBI direction it relies on.
-  - [ ] The refund request claims **only the missed rate cut**. (Lost bug: it
+> **Rules changed while the work was lost** (checked 26 Sep 2026):
+> - The rate rules now live in the **RBI (Commercial Banks – Interest Rates on
+>   Advances) Directions, 2025** (28 Nov 2025), which carry forward the 2019
+>   external-benchmark circular. Letters cite both.
+> - The **Reserve Bank – Integrated Ombudsman Scheme, 2026** replaced RB-IOS 2021
+>   on **1 Jul 2026**. The window to reach the RBI Ombudsman is now **90 days**
+>   (from the end of the bank's 30-day reply period or its last reply, whichever
+>   is later), not a year. Compensation: up to ₹30 lakh plus ₹3 lakh.
+> - Since Jan 2026 banks must pass every wholly or partly rejected complaint to
+>   their Internal Ombudsman automatically, with a final answer within 30 days.
+> - A draft "Interest Rates on Loans and Advances Directions, 2026" would apply
+>   from 1 Apr 2027 at the earliest. Revisit the citations when it is final.
+
+- [x] **India — grievance-channel complaint** to the bank, pre-filled with
+      loan facts, the finding and the RBI direction it relies on
+      (`engine/complaints_in.py`, `POST /api/complaints/in`, Loan Check page).
+  - [x] The refund request claims **only the missed rate cut**. (Lost bug: it
         summed every finding, including "you pay more than new borrowers",
         which a bank isn't obliged to refund and weakened the complaint.)
-  - [ ] Step 2: bank rejects fully or partly → the bank must route it to its
-        **Internal Ombudsman**; the app says so and tracks it.
-  - [ ] Step 3: no reply in 30 days or an unsatisfactory reply → **pre-filled
-        RBI Ombudsman complaint** (CMS portal fields), free to file.
+  - [x] Month-by-month annexure; each month rounded down, so it adds up to the claim.
+  - [x] Name, account number and contact details are filled in the browser;
+        the API never receives them.
+  - [x] Step 2: bank rejects fully or partly → the bank must route it to its
+        **Internal Ombudsman**; the app says so, tracks it, and writes a
+        follow-up when the rejection skipped that review.
+  - [x] Step 3: no reply in 30 days or an unsatisfactory reply → **pre-filled
+        RBI Ombudsman complaint** (CMS portal fields, facts, relief, documents,
+        declarations), free to file.
 - [ ] **US mortgage — notice of error** (RESPA / Reg X): acknowledgement due in
       5 business days, response in 30 business days. Tracker counts both.
+  - [x] Deadlines in `engine/complaint_deadlines.py` (business days, US legal
+        public holidays, 15-day extension).
+  - [ ] The letter itself and a screen (needs the US Loan Check, see New ideas).
 - [ ] **US card — billing-error notice** (FCBA / Reg Z): must be sent within 60
       days of the statement; resolution within two billing cycles.
+  - [x] Deadlines in the engine (60-day notice limit, 30-day acknowledgement,
+        90-day outer limit for resolution).
+  - [ ] The letter itself and a screen.
 - [ ] **Regulator complaint hand-off** (RBI Ombudsman / CFPB) when the lender
-      refuses or goes quiet.
-- [ ] Letter facts are written in third person. **No stray "you" is ever left
-      in a letter**; enforced by the fuzz suite.
+      refuses or goes quiet. India done; CFPB pending with the US letters.
+- [x] Letter facts are written in third person. **No stray "you" is ever left
+      in a letter**; enforced by the fuzz suite (`test_letters_fuzz.py`).
 - [ ] **Citation check**: every rule a letter cites is checked against the
       regulation text (test fixture holding quoted clauses + source URLs).
-- [ ] Deadline tracker: sent date → acknowledgement due → response due → escalation available.
+  - [x] Fixture `engine/tests/fixtures/citation_sources.json` and
+        `test_citations.py`: sources, key facts the summary must carry, and no
+        "verified" flag without the quoted text.
+  - [ ] Paste the actual clauses. rbi.org.in can't be reached from the build
+        environment, so this needs a session with access, or the owner.
+- [x] Deadline tracker: sent date → reply due → Internal Ombudsman →
+      RBI Ombudsman opens → last day. Remembered in the browser.
 
 ---
 
@@ -284,6 +315,8 @@ All of these were run and passing before the crash; redo each one and keep it in
 - [ ] 20,000 random loans through the API: no crashes, no negative "amount at
       stake", no "you" left in any letter.
 - [ ] 300 of those cases in the normal suite (~2 s).
+  - [x] Letters: 300 random loans at random complaint stages (`test_letters_fuzz.py`),
+        plus 500 random timelines. Loan Check: 300-loan property test.
 - [ ] Input validation with clear errors, not silent acceptance: negative
       balances, absurd rates (e.g. 950%), 500 loans in one request, and huge
       numbers (one crashed the server last time).
@@ -361,6 +394,20 @@ yes/no from the owner before it is scheduled.
       rate charged, within the note's caps; errors feed the Phase 2 notice of error.
 - [ ] **Shareable result card.** A result image or link without personal details
       ("My bank owed me 0.75%"). Brings in users and outcome reports (Phase 4).
+- [ ] **Reminder before the 90-day window closes.** Since the 2026 scheme cut the
+      RBI Ombudsman window from a year to 90 days, missing it is now the biggest
+      risk. Email or push reminders at 30, 7 and 1 days left (needs sign-in and
+      the user's consent; the email goes only to the user).
+- [ ] **Switch letter for MCLR / base-rate loans.** Loan Check already finds these
+      (old benchmark). Add a letter asking to move to the repo-linked rate, with
+      the conversion fee weighed against the saving (uses Phase 3's comparison).
+- [ ] **PDF letter.** Download the letter as a PDF with a signature line, as well
+      as .txt, for borrowers who post it.
+- [ ] **Consumer commission route.** When the Ombudsman window has closed or the
+      award is unsatisfactory, explain filing with the consumer commission
+      (e-Daakhil). Verify the current process and time limits first.
+- [ ] **Watch the draft 2026 interest-rate directions.** When final, update
+      `engine/citations.py`, the letters and the citation fixture.
 - [ ] **Quiet the profile-sync 404s.** In no-database trial mode the web app still
       calls `GET /api/user/state` on every page, which 404s. Skip the call when sync is off.
 
@@ -384,7 +431,7 @@ The screenshots don't capture everything. Add anything you remember here:
 |---|---|---|
 | 1 | 0 · CI | Stops the next loss and catches regressions from day one |
 | 2 | 6.1 month fields + 1 · Loan Check | The core finding; the month-field bug hid it for Firefox/Safari users |
-| 3 | 2 · Letters | A finding is useless without the letter that forces a reply |
+| 3 | 2 · Letters | A finding is useless without the letter that forces a reply (India done; US letters wait for the US Loan Check) |
 | 4 | 6.3 fuzz | Letters and amounts must never be wrong or negative |
 | 5 | 3 · Offer comparison | What users need once the bank replies |
 | 6 | 5 · Live rates | Findings depend on current repo/Fed rates |
