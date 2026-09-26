@@ -98,6 +98,8 @@ export interface PlanData {
   /** Month-by-month per-loan payments for the active strategy. Empty when
    *  the engine call falls back to mock data (offline mode). */
   monthlyPayments: MonthlyPaymentBreakdown[];
+  /** Month-1 payment per loan on the pay-minimums run (loan index → amount). */
+  firstMonthMinimums: Record<number, string>;
   /** Summary of activity-ledger deltas applied to the projection. Null
    *  when no missed/partial events are recorded. */
   activityImpact: ActivityImpact | null;

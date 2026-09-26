@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { fitColumns } from '@/lib/grid';
 
 export const L_T = {
@@ -579,6 +580,9 @@ function writeTone(t: LTone) {
 }
 
 export function LFooter({ mobile }: { mobile?: boolean }) {
+  // The mode and calm toggles change only the home page; elsewhere they
+  // reloaded the page and nothing changed.
+  const onHome = (usePathname() || '/') === '/';
   const [mode, setMode] = useState<LMode>('SIMPLE');
   const [tone, setTone] = useState<LTone>('CALM');
   useEffect(() => {
@@ -598,6 +602,7 @@ export function LFooter({ mobile }: { mobile?: boolean }) {
     setTone(next);
     window.location.reload();
   }
+  if (!onHome) return null;
   return (
     <footer
       style={{

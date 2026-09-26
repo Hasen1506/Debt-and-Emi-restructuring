@@ -13,7 +13,7 @@
  * for it rather than showing an empty placeholder.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrency } from '@/lib/api';
@@ -39,7 +39,27 @@ import {
 } from '@/components/ledger/primitives';
 import { LDebtsTable } from '@/components/ledger/LDebtsTable';
 
-export function LedgerHome({ profile }: { profile: StoredProfile }) {
+/** The plan's debt-free date and caption, streamed in by the page. */
+export interface DebtFreeSlot {
+  v: ReactNode;
+  s: ReactNode;
+}
+
+/** This month's move from the plan's first month, streamed in by the page. */
+export interface MoveSlot {
+  headline: ReactNode;
+  detail: ReactNode;
+  /** One step only, for the calm view. */
+  oneStep: ReactNode;
+}
+
+interface HomeProps {
+  profile: StoredProfile;
+  debtFree?: DebtFreeSlot;
+  move?: MoveSlot;
+}
+
+export function LedgerHome({ profile, debtFree, move }: HomeProps) {
   const [mode, setMode] = useState<LMode>('SIMPLE');
   const [tone, setTone] = useState<LTone>('CALM');
   useEffect(() => {
@@ -47,13 +67,13 @@ export function LedgerHome({ profile }: { profile: StoredProfile }) {
     setTone(readLedgerTone());
   }, []);
 
-  if (tone === 'OVERWHELMED') return <LedgerHomeSoft profile={profile} />;
-  if (mode === 'DETAILED') return <LedgerHomeDetailed profile={profile} />;
-  return <LedgerHomeSimple profile={profile} />;
+  if (tone === 'OVERWHELMED') return <LedgerHomeSoft profile={profile} move={move} />;
+  if (mode === 'DETAILED') return <LedgerHomeDetailed profile={profile} debtFree={debtFree} />;
+  return <LedgerHomeSimple profile={profile} debtFree={debtFree} move={move} />;
 }
 
 // ─── SIMPLE × CALM ─────────────────────────────────────────────────────
-function LedgerHomeSimple({ profile }: { profile: StoredProfile }) {
+function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrency(v, ccy);
@@ -91,24 +111,18 @@ function LedgerHomeSimple({ profile }: { profile: StoredProfile }) {
         <section>
           <LSectionHeader>STATUS</LSectionHeader>
           <LKpi
-            cols={5}
+            cols={4}
             items={[
               { l: 'OUTSTANDING', v: fc(m.totalOutstanding.toString()), s: `${m.loans.length} OPEN` },
-              { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
+              debtFree
+                ? { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.positive }
+                : { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
               { l: 'EFFECTIVE RATE', v: fmtPct(m.blendedEffective), s: 'AVERAGE · AFTER FEES + TAX' },
               {
                 l: 'SURPLUS',
                 v: `${fc(m.surplus.toString())}/MO`,
-                s: m.surplus.gt(0) ? 'NET ALLOC' : 'OVER BUDGET',
+                s: m.surplus.gt(0) ? 'AFTER COSTS + EMIS' : 'OVER BUDGET',
                 tone: surplusTone,
-              },
-              {
-                l: 'NEXT ACTION',
-                v: hasSurplus ? `PAY ${fc(extraRounded)}` : 'MINIMUMS ONLY',
-                s: hasSurplus
-                  ? `→ ${loudestBank} · ${fmtPct(loudest.effective)}`
-                  : 'SPENDING IS OVER INCOME',
-                tone: L_T.accent,
               },
             ]}
           />
@@ -135,14 +149,18 @@ function LedgerHomeSimple({ profile }: { profile: StoredProfile }) {
               marginBottom: 6,
             }}
           >
-            {hasSurplus
-              ? `PAY ${fc(extraRounded)} EXTRA → ${loudestBank} ${loudestProduct}`
-              : `PAY THE MINIMUMS · FIND ${fc(Math.round(Math.abs(Number(m.surplus.toString()))))}/MO`}
+            {move
+              ? move.headline
+              : hasSurplus
+                ? `PAY ${fc(extraRounded)} EXTRA → ${loudestBank} ${loudestProduct}`
+                : `PAY THE MINIMUMS · FIND ${fc(Math.round(Math.abs(Number(m.surplus.toString()))))}/MO`}
           </div>
           <div style={{ fontSize: 12, color: L_T.muted, marginBottom: 14 }}>
-            {hasSurplus
-              ? `HIGHEST EFFECTIVE RATE · ${fmtPct(loudest.effective)} · AVOIDS ~${fc(annualSaving)} INTEREST A YEAR`
-              : 'INCOME DOES NOT COVER COSTS AND EMIS YET · TRIM SPENDING BEFORE PAYING EXTRA'}
+            {move
+              ? move.detail
+              : hasSurplus
+                ? `HIGHEST EFFECTIVE RATE · ${fmtPct(loudest.effective)} · AVOIDS ~${fc(annualSaving)} INTEREST A YEAR`
+                : 'INCOME DOES NOT COVER COSTS AND EMIS YET · TRIM SPENDING BEFORE PAYING EXTRA'}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {hasSurplus && (
@@ -210,7 +228,7 @@ function LedgerHomeSimple({ profile }: { profile: StoredProfile }) {
 }
 
 // ─── DETAILED × CALM ───────────────────────────────────────────────────
-function LedgerHomeDetailed({ profile }: { profile: StoredProfile }) {
+function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; debtFree?: DebtFreeSlot }) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrency(v, ccy);
@@ -225,7 +243,9 @@ function LedgerHomeDetailed({ profile }: { profile: StoredProfile }) {
           <LKpi
             cols={4}
             items={[
-              { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
+              debtFree
+                ? { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.positive }
+                : { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
               {
                 l: 'OUTSTANDING',
                 v: fc(m.totalOutstanding.toString()),
@@ -277,7 +297,7 @@ function LedgerHomeDetailed({ profile }: { profile: StoredProfile }) {
 }
 
 // ─── OVERWHELMED — soft view ───────────────────────────────────────────
-function LedgerHomeSoft({ profile }: { profile: StoredProfile }) {
+function LedgerHomeSoft({ profile, move }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrency(v, ccy);
@@ -335,11 +355,13 @@ function LedgerHomeSoft({ profile }: { profile: StoredProfile }) {
               letterSpacing: '-0.01em',
             }}
           >
-            {amount > 0
-              ? `PAY ${fc(amount)} TO YOUR ${lender} ${loudest.loan.loan_type
-                  .replace('_', ' ')
-                  .toUpperCase()}.`
-              : `KEEP CURRENT EMIS RUNNING.`}
+            {move
+              ? move.oneStep
+              : amount > 0
+                ? `PAY ${fc(Math.min(amount, Number(loudest.loan.outstanding)))} TO YOUR ${lender} ${loudest.loan.loan_type
+                    .replace('_', ' ')
+                    .toUpperCase()}.`
+                : `KEEP CURRENT EMIS RUNNING.`}
           </div>
           <div style={{ fontSize: 12, color: L_T.muted, marginTop: 18, lineHeight: 1.7 }}>
             THE SINGLE MOST USEFUL THING YOU CAN DO RIGHT NOW.
