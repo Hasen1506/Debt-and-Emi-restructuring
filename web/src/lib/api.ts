@@ -1282,6 +1282,8 @@ export const api = {
     current_fy?: string;
     brokerage_rate?: string;
     surplus_reinvestment_yield?: string;
+    /** Slab rate incl. cess; used when the property was held ≤ 24 months. */
+    marginal_rate?: string;
   }) => postWithFieldErrors<AssetLiquidationResponse>('/api/asset-liquidation', req),
 
   liquidationRankings: (req: {

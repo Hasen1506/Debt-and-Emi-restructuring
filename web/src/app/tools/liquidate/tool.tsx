@@ -28,7 +28,6 @@ import { DecisionLogControls } from '@/components/DecisionLogControls';
 import { PortfolioRanker } from './PortfolioRanker';
 import { fitColumns } from '@/lib/grid';
 
-const FINANCE_ACT_2024_CUTOFF = '2024-07-23';
 const DEFAULT_INFLATION = '0.046';
 const ENGINE_DEFAULT_LEFTOVER_YIELD = '0.068';
 
@@ -41,14 +40,6 @@ function normalizePurchaseDate(input: string): string | null {
   if (/^\d{4}-\d{2}$/.test(v)) return `${v}-01`;
   if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
   return null;
-}
-
-function fyFromISO(iso: string): string {
-  const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = d.getMonth() + 1;
-  return m >= 4 ? `${y}-${String((y + 1) % 100).padStart(2, '0')}`
-                : `${y - 1}-${String(y % 100).padStart(2, '0')}`;
 }
 
 type SaleMode = 'whole' | 'partial';
@@ -183,7 +174,6 @@ export function LiquidateTool() {
       if (!isoDate) {
         throw new Error('Enter purchase as a year (2018), year-month (2018-06), or full date (2018-06-15).');
       }
-      const isPre = isoDate < FINANCE_ACT_2024_CUTOFF;
       const payload = {
         asset: {
           asset_type: 'real_estate',
@@ -200,9 +190,9 @@ export function LiquidateTool() {
         inflation,
         expected_hold_years_post_sale: holdYears,
         surplus_reinvestment_yield: leftoverYield,
-        ...(isPre
-          ? { purchase_fy: fyFromISO(isoDate), current_fy: '2024-25' }
-          : {}),
+        // The API works out both financial years from the purchase date and
+        // today (this used to send a fixed "2024-25" as the current year).
+        ...(profile.marginalRate ? { marginal_rate: profile.marginalRate } : {}),
       };
       setV(await api.assetLiquidation(payload));
     } catch (e) {
@@ -316,20 +306,6 @@ export function LiquidateTool() {
                 Purchase date drives Finance Act 2024 indexation eligibility.
                 Anything before 23 Jul 2024 can use indexed cost (CII); newer
                 purchases pay flat 12.5% on the gain.
-              </>
-            }
-          />
-          <Field
-            label="State (for selling costs)"
-            value={state}
-            error={at('state')}
-            onChange={setState}
-            kind="text"
-            info={
-              <>
-                Stamp duty + registration vary by state in India. Maharashtra,
-                Karnataka and Delhi all have different rates. Brokerage is
-                assumed 1.5% on top.
               </>
             }
           />

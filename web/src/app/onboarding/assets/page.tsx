@@ -282,16 +282,6 @@ export default function OnboardingAssetsPage() {
                 </label>
               )}
 
-              {isRE && country === 'IN' && (
-                <Field
-                  label="State (for stamp duty)"
-                  value={a.state ?? ''}
-                  onChange={(v) => update(i, { state: v })}
-                  kind="text"
-                  placeholder="e.g. Maharashtra"
-                />
-              )}
-
               {(isRE || a.asset_type === 'gold_physical') && (
                 <Field
                   label="Growth a year (%, optional)"

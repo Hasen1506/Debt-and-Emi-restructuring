@@ -851,10 +851,14 @@ class AssetLiquidationRequest(_In):
     expected_hold_years_post_sale: Decimal = Field(D("5"), gt=0, le=100)
     selling_period_months: int = Field(3, ge=0, le=120)
     high_rate_threshold: Rate = D("0.20")
-    purchase_fy: Optional[str] = None        # required if purchase pre-23-Jul-2024
+    # Default to the purchase date's FY and today's FY.
+    purchase_fy: Optional[str] = None
     current_fy: Optional[str] = None
     brokerage_rate: Rate = D("0.015")
     surplus_reinvestment_yield: Optional[SignedRate] = None   # if absent, Gate 0 is skipped
+    # Slab rate incl. surcharge + cess, used when the property was held 24
+    # months or less (short-term). Derived from taxable_income if absent.
+    marginal_rate: Optional[Rate] = None
 
 
 class AssetLiquidationResponse(_Base):

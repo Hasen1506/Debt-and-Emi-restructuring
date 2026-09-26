@@ -41,6 +41,9 @@ def lookup_mab(bank: str, location_tier: str = "urban") -> Decimal:
 # ─────────────────────────────────────────────────────────────────────────────
 # India real-estate transaction costs (brainstorm §26.1)
 # Stamp duty varies by state; registration is ~1%; brokerage 1–2%.
+# Stamp duty and registration are the BUYER's costs (Indian Stamp Act
+# 1899 s.29(c): on a conveyance the grantee pays), so a seller only
+# loses the broker's fee.
 # ─────────────────────────────────────────────────────────────────────────────
 
 INDIA_STAMP_DUTY = {
@@ -68,9 +71,19 @@ def lookup_stamp_duty(state: str) -> Decimal:
     return INDIA_STAMP_DUTY.get(state, D("0.06"))
 
 
+def india_buying_cost_pct(state: str) -> Decimal:
+    """Buyer's one-time cost as a fraction of the price: stamp duty + 1% registration."""
+    return lookup_stamp_duty(state) + INDIA_REGISTRATION_FEE
+
+
 def india_selling_cost_pct(state: str, brokerage_rate: Decimal = D("0.015")) -> Decimal:
-    """Total selling cost as fraction of sale value: stamp duty + 1% reg + brokerage."""
-    return lookup_stamp_duty(state) + INDIA_REGISTRATION_FEE + brokerage_rate
+    """Seller's cost as a fraction of the sale value: the broker's fee.
+
+    Stamp duty and registration are paid by the buyer, so they don't come
+    off what the seller receives (they used to, which cut a ₹1 crore sale's
+    proceeds by ~₹7 lakh). `state` is kept so callers don't change.
+    """
+    return brokerage_rate
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -43,9 +43,11 @@ class CrossBorderRequest(_In):
     user_currency: str = Field(..., max_length=3)    # e.g. "USD"
     user_savings_yield: SignedRate
     user_marginal_tax: Rate = D("0")
-    manual_fx_rate: Optional[Decimal] = None             # user_currency per 1 loan_currency
-    manual_fx_drift_annual: Optional[Decimal] = None     # overrides historical default
-    inflation_user_country: Decimal = D("0.025")
+    # user_currency per 1 loan_currency; 0 or negative made every EMI 0 or < 0.
+    manual_fx_rate: Optional[Decimal] = Field(None, gt=0, le=D("100000"))
+    # overrides historical default; ±50%/yr is already a currency crisis.
+    manual_fx_drift_annual: Optional[Decimal] = Field(None, ge=D("-0.5"), le=D("0.5"))
+    inflation_user_country: Decimal = Field(D("0.025"), ge=D("-0.1"), le=1)
 
 
 class CrossBorderResponse(_Base):

@@ -163,6 +163,7 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
             purchase_fy=req.purchase_fy,
             current_fy=req.current_fy,
             brokerage_rate=req.brokerage_rate,
+            marginal_rate=req.marginal_rate,
         )
     except (KeyError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))

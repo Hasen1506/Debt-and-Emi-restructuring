@@ -58,3 +58,20 @@ def test_rate_offered_home_loan_excellent_score(client):
     assert r.status_code == 200
     body = r.json()
     assert D(body["spread"]) == D("0")
+
+
+def test_us_score_above_850_is_rejected(client):
+    """FICO runs 300–850; an 880 used to be accepted and 'projected' down to 850."""
+    r = client.post("/api/score-impact", json={
+        "action": "hard_inquiry", "current_score": 880, "country": "US",
+    })
+    assert r.status_code == 422
+    r = client.post("/api/score-impact", json={
+        "action": "hard_inquiry", "current_score": 880, "country": "IN",
+    })
+    assert r.status_code == 200
+
+
+def test_score_band_rejects_out_of_range(client):
+    assert client.get("/api/score-band?score=42").status_code == 422
+    assert client.get("/api/score-band?score=760").status_code == 200

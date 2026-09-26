@@ -24,7 +24,9 @@ from engine.country_data import (
     us_real_estate_selling_cost_pct,
     US_CD_EARLY_WITHDRAWAL_PENALTY_PCT,
 )
+from engine.models import TaxRegimeIN
 from engine.tax.india import surcharge_rate, CESS_RATE
+from engine.tax.india import marginal_rate as india_marginal_rate
 from engine.tax.usa import (
     us_capital_gains_tax,
     federal_marginal_rate as us_federal_marginal_rate,
@@ -69,10 +71,27 @@ SGB_LT_HOLD_DAYS = 365
 SGB_EXCHANGE_COST = D("0.005")             # 0.5% on exchange sale
 
 # ─── PPF / EPF lockup ─────────────────────────────────────────────────────────
+# ─── Property ─────────────────────────────────────────────────────────────────
+PROPERTY_LT_HOLD_MONTHS = 24               # s.2(42A): more than 24 months → long-term
+
 PPF_PARTIAL_WITHDRAWAL_YEAR = 7
 PPF_PREMATURE_CLOSURE_YEAR = 5
 PPF_PREMATURE_INTEREST_PENALTY = D("0.01")  # 1% rate reduction retrospectively
 EPF_FULL_WITHDRAWAL_SERVICE_YEARS = 5       # tax-free threshold
+
+
+def _held_long_term(purchase: date, today: date, months: int) -> bool:
+    """True when `today` is more than `months` whole months after `purchase`."""
+    y, m = divmod(purchase.month - 1 + months, 12)
+    year, month = purchase.year + y, m + 1
+    # Clamp the day for short months (a 31 Jan purchase + 1 month → 28/29 Feb).
+    for day in (purchase.day, 30, 29, 28):
+        try:
+            anniversary = date(year, month, day)
+            break
+        except ValueError:
+            continue
+    return today > anniversary
 
 
 def india_ltcg_tax(
@@ -83,17 +102,37 @@ def india_ltcg_tax(
     purchase_fy: str | None = None,
     current_fy: str | None = None,
     brokerage_rate: Decimal = D("0.015"),
+    marginal_rate: Decimal | None = None,
+    today: date | None = None,
 ) -> tuple[Decimal, Decimal]:
-    """Returns (net_proceeds, ltcg_tax) for India real-estate sale.
+    """Returns (net_proceeds, capital_gains_tax) for India real-estate sale.
 
-    Implements Finance Act 2024 split:
+    Held 24 months or less: short-term, the gain is taxed at the slab rate
+    (`marginal_rate`, which already includes surcharge and cess; derived
+    from `taxable_income` on the new regime when not given).
+
+    Otherwise the Finance Act 2024 split:
       - Post-23-Jul-2024 purchase: flat 12.5% no indexation
       - Pre-23-Jul-2024 purchase: taxpayer picks lower of (12.5% no index) vs (20% indexed)
     Surcharge on LTCG capped at 25%. Cess 4% on (tax + surcharge).
+    `purchase_fy` / `current_fy` default to the purchase date's and today's FY.
     """
+    today = today or date.today()
     selling_cost_pct = india_selling_cost_pct(state, brokerage_rate)
     gross_proceeds = sale_price * (D("1") - selling_cost_pct)
+
+    if not _held_long_term(asset.purchase_date, today, PROPERTY_LT_HOLD_MONTHS):
+        rate = (
+            marginal_rate
+            if marginal_rate is not None
+            else india_marginal_rate(taxable_income, TaxRegimeIN.NEW)
+        )
+        stcg_tax = max(D("0"), gross_proceeds - asset.purchase_price) * rate
+        return gross_proceeds - stcg_tax, stcg_tax
+
     surcharge = min(surcharge_rate(taxable_income, is_ltcg=True), LTCG_SURCHARGE_CAP)
+    purchase_fy = purchase_fy or _to_fy(asset.purchase_date)
+    current_fy = current_fy or _to_fy(today)
 
     if asset.purchase_date >= FINANCE_ACT_2024_CUTOFF:
         gain = max(D("0"), gross_proceeds - asset.purchase_price)
@@ -150,9 +189,18 @@ def hold_vs_sell_wealth(
     Edge_ratio is what Gate 0 thresholds against.
     """
     r_a_net = asset_nominal_return - holding_cost_rate
-    growth_a = (D("1") + r_a_net) ** int(horizon_years)
-    growth_d = (D("1") + debt_effective_rate) ** int(horizon_years)
-    growth_inv = (D("1") + surplus_reinvestment_yield) ** int(horizon_years)
+
+    def grow(rate: Decimal) -> Decimal:
+        # Fractional horizons (e.g. 2.5 years) compound for the part year
+        # too; int() used to drop it, so a 0.5-year horizon compared nothing.
+        base = D("1") + rate
+        if base <= 0:
+            return D("0")
+        return base ** horizon_years
+
+    growth_a = grow(r_a_net)
+    growth_d = grow(debt_effective_rate)
+    growth_inv = grow(surplus_reinvestment_yield)
 
     wealth_hold = asset_value * growth_a - debt_balance * growth_d
 
@@ -307,7 +355,13 @@ def _proceeds_fd(asset: Asset, today: date) -> ProceedsResult:
     range. User can override via asset.fd_premature_penalty_pct.
     """
     val = asset.current_market_value
-    penalty_pct = asset.fd_premature_penalty_pct or FD_DEFAULT_PENALTY_PCT
+    # `is None`, not `or`: some FDs have no premature-withdrawal penalty,
+    # and 0% must stay 0% rather than fall back to the 1% default.
+    penalty_pct = (
+        asset.fd_premature_penalty_pct
+        if asset.fd_premature_penalty_pct is not None
+        else FD_DEFAULT_PENALTY_PCT
+    )
     penalty = val * penalty_pct
 
     matures = asset.fd_maturity_date
@@ -408,7 +462,9 @@ def _proceeds_debt_mf(
     )
     gross = val - exit_load
     gain = max(D("0"), gross - asset.purchase_price)
-    tax = gain * marginal_rate * (D("1") + CESS_RATE)
+    # `marginal_rate` already includes surcharge and cess (it's the rate
+    # the profile saves from engine.tax.india.marginal_rate).
+    tax = gain * marginal_rate
 
     return ProceedsResult(
         asset_label=asset.label or "Debt mutual fund",
@@ -447,7 +503,7 @@ def _proceeds_gold(
         tax = base_tax * (D("1") + surcharge) * (D("1") + CESS_RATE)
         rate_used = "12.5% LTCG (flat, no indexation)"
     else:
-        tax = gain * marginal_rate * (D("1") + CESS_RATE)
+        tax = gain * marginal_rate      # slab rate incl. surcharge + cess
         rate_used = f"slab rate {marginal_rate*100:.1f}% (STCG)"
 
     return ProceedsResult(
@@ -502,7 +558,7 @@ def _proceeds_sgb(
         surcharge = min(surcharge_rate(taxable_income, is_ltcg=True), LTCG_SURCHARGE_CAP)
         tax = base_tax * (D("1") + surcharge) * (D("1") + CESS_RATE)
     else:
-        tax = gain * marginal_rate * (D("1") + CESS_RATE)
+        tax = gain * marginal_rate      # slab rate incl. surcharge + cess
 
     return ProceedsResult(
         asset_label=asset.label or "Sovereign Gold Bond",
@@ -525,38 +581,30 @@ def _proceeds_sgb(
 
 
 def _proceeds_real_estate(
-    asset: Asset, taxable_income: Decimal, state: Optional[str]
+    asset: Asset,
+    today: date,
+    taxable_income: Decimal,
+    marginal_rate: Decimal,
+    state: Optional[str],
 ) -> ProceedsResult:
-    """Real estate — defers to existing india_ltcg_tax for LTCG (handles the
-    Finance Act 2024 pre/post split). Holds <24mo treated at slab — we surface
-    that as a caveat but still compute the gain.
+    """Real estate — defers to india_ltcg_tax (short-term at slab when held
+    24 months or less; else the Finance Act 2024 pre/post split). The seller
+    pays only brokerage, so the state is just a label.
     """
-    if not state:
-        # Without state we can't compute stamp duty / brokerage — flag as blocked
-        return ProceedsResult(
-            asset_label=asset.label or "Real estate",
-            asset_type=asset.asset_type,
-            gross_proceeds=asset.current_market_value,
-            tax_owed=D("0"),
-            penalty=D("0"),
-            transaction_costs=D("0"),
-            net_proceeds=asset.current_market_value,
-            explanation="Real-estate proceeds need a state for stamp-duty math.",
-            is_blocked=True,
-            block_reason="Set asset.state to enable real-estate liquidation math.",
-        )
-
-    purchase_fy = _to_fy(asset.purchase_date) if asset.purchase_date else None
-    current_fy = _to_fy(date.today())
+    purchase_fy = _to_fy(asset.purchase_date)
+    current_fy = _to_fy(today)
+    is_lt = _held_long_term(asset.purchase_date, today, PROPERTY_LT_HOLD_MONTHS)
 
     try:
         net, tax = india_ltcg_tax(
             asset,
             sale_price=asset.current_market_value,
-            state=state,
+            state=state or "",
             taxable_income=taxable_income,
             purchase_fy=purchase_fy,
             current_fy=current_fy,
+            marginal_rate=marginal_rate,
+            today=today,
         )
     except (KeyError, ValueError) as e:
         return ProceedsResult(
@@ -572,20 +620,28 @@ def _proceeds_real_estate(
             block_reason=str(e),
         )
 
-    selling_pct = india_selling_cost_pct(state)
+    selling_pct = india_selling_cost_pct(state or "")
     transaction_costs = asset.current_market_value * selling_pct
 
     caveats = [
         "Property sales take 3-6 months on average — proceeds aren't immediate.",
-        "You may qualify for §54/54EC exemptions if reinvesting in property "
-        "or NHAI/REC bonds — consult a CA before paying the LTCG.",
     ]
+    if is_lt:
+        caveats.append(
+            "You may qualify for §54/54EC exemptions if reinvesting in property "
+            "or NHAI/REC bonds — consult a CA before paying the LTCG."
+        )
+    else:
+        caveats.append(
+            "Held 24 months or less, so the gain is short-term and taxed at "
+            "your slab rate. Waiting past the 2-year mark moves it to 12.5%."
+        )
     # Pre-23-Jul-2024 acquisitions index via CII. If the relevant FY is
     # provisional (CBDT notification not yet released), make that visible —
     # the LTCG estimate moves up to ~5% either way once CBDT lands.
     if (
-        purchase_fy
-        and current_fy
+        is_lt
+        and asset.purchase_date < FINANCE_ACT_2024_CUTOFF
         and (cii_is_provisional(purchase_fy) or cii_is_provisional(current_fy))
     ):
         caveats.append(
@@ -594,7 +650,7 @@ def _proceeds_real_estate(
         )
 
     return ProceedsResult(
-        asset_label=asset.label or f"Real estate ({state})",
+        asset_label=asset.label or (f"Real estate ({state})" if state else "Real estate"),
         asset_type=asset.asset_type,
         gross_proceeds=asset.current_market_value - transaction_costs,
         tax_owed=tax,
@@ -602,9 +658,11 @@ def _proceeds_real_estate(
         transaction_costs=transaction_costs,
         net_proceeds=net,
         explanation=(
-            f"Sell property at ₹{asset.current_market_value:,.0f}. Stamp duty + "
-            f"registration + brokerage ≈ {selling_pct*100:.1f}% (₹{transaction_costs:,.0f}). "
-            f"After LTCG of ₹{tax:,.0f}, you net ₹{net:,.0f}."
+            f"Sell property at ₹{asset.current_market_value:,.0f}. Brokerage ≈ "
+            f"{selling_pct*100:.1f}% (₹{transaction_costs:,.0f}); stamp duty and "
+            f"registration are the buyer's. After "
+            f"{'LTCG' if is_lt else 'short-term gains tax'} of ₹{tax:,.0f}, "
+            f"you net ₹{net:,.0f}."
         ),
         caveats=caveats,
     )
@@ -1064,7 +1122,7 @@ def compute_liquidation_proceeds(
     today: date,
     country: Country = Country.IN,
     taxable_income: Decimal = D("1200000"),
-    marginal_rate: Decimal = D("0.30"),
+    marginal_rate: Decimal = D("0.312"),     # slab incl. surcharge + cess
     state: Optional[str] = None,
     filing_status: FilingStatusUS = FilingStatusUS.SINGLE,
     state_marginal_rate: Decimal = D("0"),
@@ -1097,7 +1155,9 @@ def compute_liquidation_proceeds(
     if at == "sgb":
         return _proceeds_sgb(asset, today, taxable_income, marginal_rate)
     if at == "real_estate":
-        return _proceeds_real_estate(asset, taxable_income, state or asset.state)
+        return _proceeds_real_estate(
+            asset, today, taxable_income, marginal_rate, state or asset.state,
+        )
     if at == "ppf":
         return _proceeds_ppf(asset, today)
     if at == "epf":

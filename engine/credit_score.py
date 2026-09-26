@@ -122,23 +122,34 @@ def predict_impact(
         if utilisation_from is None or utilisation_to is None:
             raise ValueError("UTILISATION_DROP needs utilisation_from and utilisation_to")
         drop_pp = (utilisation_from - utilisation_to) * D("100")
+        # A rise (a big purchase, or a balance moved onto one card) costs
+        # points the same way a drop earns them; it used to read as 0.
+        rising = drop_pp < 0
+        hi_u, lo_u = (
+            (utilisation_to, utilisation_from) if rising
+            else (utilisation_from, utilisation_to)
+        )
+        size_pp = abs(drop_pp)
         # Brevoort & Kambara 2015: 50pp drop ≈ 30-50 points; linear-ish below that.
-        magnitude = int(drop_pp * D("0.7"))           # ~0.7 pts per 1pp utilisation drop
-        if utilisation_from >= D("0.80") and utilisation_to <= D("0.30"):
+        magnitude = int(size_pp * D("0.7"))           # ~0.7 pts per 1pp utilisation drop
+        if hi_u >= D("0.80") and lo_u <= D("0.30"):
             delta_low, delta_high = 30, 50
-        elif drop_pp >= 30:
+        elif size_pp >= 30:
             delta_low, delta_high = max(15, magnitude - 10), magnitude + 10
-        elif drop_pp >= 10:
+        elif size_pp >= 10:
             delta_low, delta_high = max(5, magnitude - 5), magnitude + 5
-        elif drop_pp >= 1:
+        elif size_pp >= 1:
             delta_low, delta_high = 1, max(3, magnitude)
         else:
             delta_low, delta_high = 0, 0
+        if rising:
+            delta_low, delta_high = -delta_high, -delta_low
         source = "Brevoort & Kambara 2015 (CFPB); FICO factor weights (30%)"
         rationale = (
-            f"Utilisation drops from {utilisation_from * 100:.0f}% to "
-            f"{utilisation_to * 100:.0f}%. Utilisation is 30% of the score "
-            f"and updates on the next bureau cycle."
+            f"Utilisation {'rises' if rising else 'drops'} from "
+            f"{utilisation_from * 100:.0f}% to {utilisation_to * 100:.0f}%. "
+            f"Utilisation is 30% of the score and updates on the next bureau "
+            f"cycle."
         )
         days = 45
 
@@ -203,7 +214,10 @@ def predict_impact(
         days = 45
 
     elif action == ScoreAction.CARD_PAID_OFF:
-        if utilisation_from is not None:
+        if utilisation_from is not None and utilisation_from <= 0:
+            # Nothing owed on the card, so nothing changes.
+            delta_low, delta_high = 0, 0
+        elif utilisation_from is not None:
             # Implies utilisation drops from `utilisation_from` to 0 on this card.
             # If it was the only card, total utilisation drops to 0 (big win).
             # Otherwise, partial effect. Use 0.6× of full-drop magnitude as proxy.
