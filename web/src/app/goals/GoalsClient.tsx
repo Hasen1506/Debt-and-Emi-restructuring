@@ -650,6 +650,9 @@ function GoalCard({
     earliestMonths !== null && earliestMonths > 0 && earliestMonths < months
       ? monthsToTargetLabel(earliestMonths, today)
       : null;
+  // No amount yet: nothing to judge. A new goal used to read "₹0 required"
+  // and "can't be funded" at once.
+  const hasAmount = required > 0;
 
   return (
     <section
@@ -687,7 +690,7 @@ function GoalCard({
               Bumped
             </span>
           )}
-          <FillRateBadge
+          {hasAmount && <FillRateBadge
             goal={goal}
             today={today}
             required={required}
@@ -696,7 +699,7 @@ function GoalCard({
               required > 0 ? Math.min(1, rec.reachable / required) : 0
             }
             projectedFunded={rec.achievable}
-          />
+          />}
           <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
             {preset.description}
           </div>
@@ -719,7 +722,7 @@ function GoalCard({
         </button>
       </div>
 
-      <FundingSchedulePanel
+      {hasAmount && <FundingSchedulePanel
         goal={goal}
         ccySym={ccySym}
         months={months}
@@ -734,7 +737,7 @@ function GoalCard({
         onStartNow={() =>
           onPatch({ autoDefer: false, fundingStartMonth: undefined })
         }
-      />
+      />}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
         <Select
@@ -762,7 +765,7 @@ function GoalCard({
             onChange={(v) => onPatch({ targetMonth: v })}
             hint={`${months} months from now`}
           />
-          {earliestMonths === null ? (
+          {!hasAmount ? null : earliestMonths === null ? (
             <span style={{ fontSize: 11, color: 'var(--warning, var(--negative))' }}>
               Forward surplus alone can&apos;t fund this — see options below.
             </span>
@@ -859,16 +862,20 @@ function GoalCard({
         </div>
       </div>
 
-      <ContributionsPanel
+      {(hasAmount || contributions.length > 0) && <ContributionsPanel
         ccySym={ccySym}
         savedSoFar={savedSoFar}
         required={required}
         contributions={contributions}
         onLog={onLogContribution}
         onUnlog={onUnlogContribution}
-      />
+      />}
 
-      <Achievability
+      {!hasAmount ? (
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+          Enter an amount to see whether and when you can fund this goal.
+        </p>
+      ) : <Achievability
         tiers={tiers}
         rec={rec}
         levers={levers}
@@ -881,7 +888,7 @@ function GoalCard({
         onCommitExpenseCut={onCommitExpenseCut}
         priorityBump={goal.priorityBump}
         onBumpPriority={() => onPatch({ priorityBump: true })}
-      />
+      />}
     </section>
   );
 }

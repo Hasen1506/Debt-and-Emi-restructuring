@@ -256,16 +256,8 @@ export function ActivityLedger({
   );
 
   function confirmNothingChanged() {
-    const month = today().slice(0, 7);
     const additions: Omit<ActivityEntry, 'id' | 'loggedAt'>[] = [];
-    user.loans.forEach((loan, idx) => {
-      // Skip loans that already have an entry this month — the user
-      // intentionally recorded something, don't overwrite it with a
-      // generic "paid_full" assumption.
-      const has = entries.some(
-        (e) => e.loanIndex === idx && e.date.slice(0, 7) === month,
-      );
-      if (has) return;
+    confirmableLoans(user.loans, entries).forEach(({ loan, idx }) => {
       additions.push({
         loanIndex: idx,
         kind: 'paid_full',
@@ -483,12 +475,27 @@ function BudgetCommitments({
   );
 }
 
+/** Loans "nothing changed" can log as paid: open, with an EMI, and no
+ *  entry this month yet. Cards are left out: what was paid on a card
+ *  varies, and with no EMI set it logged a ₹0 payment as "paid in full". */
+function confirmableLoans(loans: LoanPayload[], entries: ActivityEntry[]) {
+  const month = today().slice(0, 7);
+  return loans
+    .map((loan, idx) => ({ loan, idx }))
+    .filter(
+      ({ loan, idx }) =>
+        loan.loan_type !== 'credit_card' &&
+        Number(loan.outstanding) > 0 &&
+        Number(loan.scheduled_emi) > 0 &&
+        !entries.some((e) => e.loanIndex === idx && e.date.slice(0, 7) === month),
+    );
+}
+
 /**
  * One-tap "nothing changed this month" affordance. Shown when the user
- * has loans on file but no entries for the current calendar month yet
- * — it auto-creates `paid_full` entries at the scheduled EMI for each
- * loan that's still unlogged this month, so the ledger doesn't go
- * stale just because the user didn't open the page.
+ * has EMI loans with no entry for the current calendar month yet — it
+ * creates `paid_full` entries at the scheduled EMI for each of them, so
+ * the ledger doesn't go stale just because the user didn't open the page.
  *
  * Loans that already have any entry for the current month are skipped
  * (the user logged something deliberately and we shouldn't overwrite).
@@ -506,13 +513,14 @@ function NothingChangedBar({
   onConfirm: () => void;
 }) {
   const month = today().slice(0, 7);
-  const unlogged = loans.filter(
-    (_, idx) =>
-      !entries.some(
-        (e) => e.loanIndex === idx && e.date.slice(0, 7) === month,
-      ),
-  );
-  if (loans.length === 0 || unlogged.length === 0) return null;
+  const unlogged = confirmableLoans(loans, entries);
+  const cardsUnlogged = loans.filter(
+    (l, idx) =>
+      l.loan_type === 'credit_card' &&
+      Number(l.outstanding) > 0 &&
+      !entries.some((e) => e.loanIndex === idx && e.date.slice(0, 7) === month),
+  ).length;
+  if (unlogged.length === 0) return null;
   const monthLabel = new Date(`${month}-01T00:00:00`).toLocaleString(undefined, {
     month: 'long',
     year: 'numeric',
@@ -539,17 +547,21 @@ function NothingChangedBar({
             <span style={{ color: 'var(--muted)' }}>
               {monthLabel.toUpperCase()} ·{' '}
             </span>
-            {unlogged.length} LOAN{unlogged.length === 1 ? '' : 'S'} UNLOGGED
+            {unlogged.length} EMI{unlogged.length === 1 ? '' : 'S'} UNLOGGED
             THIS MONTH
+            {cardsUnlogged > 0 && (
+              <span style={{ color: 'var(--muted)' }}>
+                {' '}· CARDS: LOG WHAT YOU PAID BELOW
+              </span>
+            )}
           </>
         ) : (
           <>
             <strong>Nothing changed this {monthLabel}?</strong>{' '}
             <span className="muted">
-              One tap fills in &lsquo;paid in full&rsquo; at the scheduled EMI
-              for the {unlogged.length} loan{unlogged.length === 1 ? '' : 's'} you
-              haven&apos;t logged yet — keeps your audit trail current without
-              clicking through each row.
+              One tap logs the scheduled EMI as paid for the {unlogged.length}{' '}
+              loan{unlogged.length === 1 ? '' : 's'} you haven&apos;t logged yet.
+              {cardsUnlogged > 0 && ' Log card payments below: the amount varies.'}
             </span>
           </>
         )}
@@ -569,7 +581,7 @@ function NothingChangedBar({
           flexShrink: 0,
         }}
       >
-        {isLedger ? 'CONFIRM ALL · NO CHANGES' : 'Nothing changed → mark all paid'}
+        {isLedger ? 'CONFIRM EMIS PAID · NO CHANGES' : 'Nothing changed → mark EMIs paid'}
       </button>
     </div>
   );

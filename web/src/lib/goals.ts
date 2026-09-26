@@ -382,7 +382,8 @@ export async function goalsForSimulateServer(
   const raw = cookies().get(DIGEST_COOKIE)?.value;
   const rows = parseDigestCookie(raw);
   return rows
-    .filter((r) => typeof r.id === 'string' && typeof r.amount === 'string')
+    // A goal with no amount yet has nothing for the plan to fund.
+    .filter((r) => typeof r.id === 'string' && typeof r.amount === 'string' && Number(r.amount) > 0)
     .map((r) => {
       const base = Number(r.amount || '0');
       const buf = Number(r.bufferPct || '0');
