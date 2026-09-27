@@ -342,3 +342,37 @@ def test_same_bank_refinance_reads_as_a_rate_reset():
     assert refi.target_bank == "HDFC Bank"
     assert "asking HDFC to move your home loan" in refi.headline
     assert "Loan Check" in refi.rationale
+
+
+def test_nri_rupee_home_loan_refinances_with_an_indian_lender():
+    """A US resident's ₹20 lakh SBI home loan: the move is to an Indian
+    lender (it was Wells Fargo at a US rate), the headline is in rupees and
+    the money fields are in dollars at the user's rate."""
+    home = Loan(
+        loan_type=LoanType.HOME, bank="Kotak Mahindra",
+        outstanding=D("2000000"), nominal_rate=D("0.10"),
+        rate_type="floating", tenure_months_remaining=180,
+        scheduled_emi=D("21492"), currency="INR",
+    )
+    user = User(
+        country=Country.US, income_type=IncomeType.SALARIED,
+        annual_income=D("108000"), monthly_income=D("9000"),
+        fixed_expenses=D("3000"), savings_balance=D("0"),
+        primary_bank="Chase", loans=[home],
+        fx_to_user_currency={"INR": D("0.012")},
+    )
+    refi = next(o for o in scan_all(user) if o.kind == "refinance")
+    from engine.rate_cards import INDIA_TIER_A
+    in_banks = {c.name for c in INDIA_TIER_A}
+    assert refi.target_bank in in_banks
+    assert "₹" in refi.headline and "$" not in refi.headline
+    # Saving in dollars: well under the rupee figure.
+    rupee_user = User(
+        country=Country.IN, income_type=IncomeType.SALARIED,
+        annual_income=D("3000000"), monthly_income=D("250000"),
+        fixed_expenses=D("60000"), savings_balance=D("0"),
+        primary_bank="Chase", loans=[Loan(**{**home.__dict__, "currency": None})],
+    )
+    rupee_refi = next(o for o in scan_all(rupee_user) if o.kind == "refinance")
+    assert refi.estimated_annual_saving == rupee_refi.estimated_annual_saving * D("0.012")
+    assert refi.one_time_cost == rupee_refi.one_time_cost * D("0.012")

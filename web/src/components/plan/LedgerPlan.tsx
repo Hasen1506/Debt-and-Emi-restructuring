@@ -42,6 +42,7 @@ import { deriveMetrics } from '@/lib/derived';
 import { dec } from '@/lib/safe-decimal';
 import { describeGap, type ProfileGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { loanCurrency } from '@/lib/currency';
 import type { StoredProfile } from '@/lib/user-store';
 import { LTrajectory, type LTrajPoint } from '@/components/ledger/LDebtsTable';
 import {
@@ -437,6 +438,11 @@ function RestructureTable({
   fc: (v: string | number) => string;
 }) {
   const heads = ['LOAN', 'MOVE TO', 'RATE', 'ONE-TIME COST', 'PAYS BACK IN', 'SAVES IN YEAR 1'];
+  // The currency of the loans a move is about (the engine keeps them to one).
+  const oppCurrency = (o: PlanData['opportunities'][number]) => {
+    const loan = plan.user.loans[o.affected_loan_indices?.[0] ?? -1];
+    return loan ? loanCurrency(loan, plan.user.country) : plan.displayCurrency;
+  };
   const cell = { padding: '12px 12px', verticalAlign: 'top' as const };
   return (
     <div
@@ -511,11 +517,18 @@ function RestructureTable({
                 <tr style={{ borderBottom: `1px dashed ${L_T.faint}` }}>
                   <td colSpan={heads.length} style={{ padding: '0 12px 12px', fontSize: 11, color: L_T.muted }}>
                     {o.headline}.
-                    <EligibilityCaveat kind={o.kind} country={plan.user.country} variant="ledger" />
+                    {/* The loan's own market and currency: an NRI's rupee
+                        loan is refinanced in India, and its new terms are
+                        entered in rupees. */}
+                    <EligibilityCaveat
+                      kind={o.kind}
+                      country={oppCurrency(o) === 'INR' ? 'IN' : 'US'}
+                      variant="ledger"
+                    />
                     <UpdateTermsButton
                       opportunity={o}
                       user={plan.user}
-                      currency={plan.displayCurrency}
+                      currency={oppCurrency(o)}
                       variant="ledger"
                     />
                     <OpportunityAlternative opportunity={o} variant="ledger" currency={plan.displayCurrency} />
@@ -546,14 +559,35 @@ function csvCell(v: string | number): string {
   return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 }
 
-/** Every month of the schedule as a CSV file (the table may be collapsed). */
-function downloadRowsCSV(rows: ScheduleCsvRow[], banks: string[]) {
-  const header = ['month', 'date', ...banks.map((b) => `pay_${b}`), 'extra', 'interest', 'principal', 'balance', 'event'];
+/** A spreadsheet-safe column name: "pay_2_credit_card_hdfc_bank_inr". The
+ *  position keeps two unnamed loans (or two from one bank) apart. */
+function payColumn(loan: PlanData['user']['loans'][number], i: number, country: PlanData['user']['country']): string {
+  const bank = (loan.bank || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const ccy = loanCurrency(loan, country).toLowerCase();
+  return ['pay', i + 1, loan.loan_type, bank, ccy].filter(Boolean).join('_');
+}
+
+/** Every month of the schedule as a CSV file (the table may be collapsed).
+ *  Each loan's column is in that loan's currency; the totals are in the
+ *  user's, and every header says which. */
+function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData) {
+  const { loans, country } = plan.user;
+  const ccy = plan.displayCurrency.toLowerCase();
+  const header = [
+    'month',
+    'date',
+    ...loans.map((l, i) => payColumn(l, i, country)),
+    `extra_${ccy}`,
+    `interest_${ccy}`,
+    `principal_${ccy}`,
+    `balance_${ccy}`,
+    'event',
+  ];
   const lines = rows.map((r) =>
     [
       r.mo,
       r.date,
-      ...banks.map((_, i) => Math.round(Number(r.perLoan[i] ?? 0))),
+      ...loans.map((_, i) => Math.round(Number(r.perLoan[i] ?? 0))),
       Math.round(r.extra),
       Math.round(r.interest),
       Math.round(r.principal),
@@ -677,7 +711,7 @@ function AmortisationSection({
       <LSectionHeader
         right={
           <>
-            <LBracket onClick={() => downloadRowsCSV(rows, plan.user.loans.map((l) => l.bank || 'loan'))}>
+            <LBracket onClick={() => downloadRowsCSV(rows, plan)}>
               CSV
             </LBracket>{' '}
             <LBracket onClick={() => window.print()}>PRINT</LBracket>{' '}
@@ -734,7 +768,11 @@ function AmortisationSection({
                   // Type first: two loans from one bank used to show as
                   // two identical "HDFC BAN" columns.
                   ...loanCols.map((l) =>
-                    `${LOAN_SHORT[l.loan_type] ?? 'LOAN'} · ${(l.bank || '—').split(' ')[0].slice(0, 6)}`.toUpperCase(),
+                    `${LOAN_SHORT[l.loan_type] ?? 'LOAN'} · ${(l.bank || '—').split(' ')[0].slice(0, 6)}`.toUpperCase() +
+                    // A loan in another currency says so: its column is in it.
+                    (loanCurrency(l, plan.user.country) !== plan.displayCurrency
+                      ? ` (${loanCurrency(l, plan.user.country)})`
+                      : ''),
                   ),
                   'EXTRA',
                   'INT PAID',
@@ -779,7 +817,10 @@ function AmortisationSection({
                         style={{ padding: '6px 10px', textAlign: 'right' }}
                       >
                         {r.perLoan[idx]
-                          ? fc(Number(r.perLoan[idx]).toFixed(0))
+                          ? formatCurrency(
+                              Number(r.perLoan[idx]).toFixed(0),
+                              loanCurrency(loanCols[idx], plan.user.country),
+                            )
                           : '—'}
                       </td>
                     ))}

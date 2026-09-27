@@ -40,6 +40,7 @@ import {
   ThemedLabel,
 } from '@/components/themed/Themed';
 import type { PlanData } from './PlanData';
+import { loanToUser } from '@/lib/currency';
 
 const DISMISS_KEY = 'finoptima_debtfree_prompt_dismissed';
 
@@ -73,9 +74,13 @@ export function DebtFreeRedirectPrompt({
   // Far-future doesn't need this nudge — only show inside the 12-month band.
   if (monthsAway > 12) return null;
 
+  // In the user's currency: an NRI's ₹20,000 EMI frees about $240, not $20,000.
   const freedMonthlyEmi = plan.user.loans
     .filter((l) => Number(l.outstanding || 0) > 0)
-    .reduce((s, l) => s + Number(l.scheduled_emi || 0), 0);
+    .reduce(
+      (s, l) => s + (loanToUser(Number(l.scheduled_emi || 0), l, plan.user.country, plan.fxRatesUsed) ?? 0),
+      0,
+    );
   if (freedMonthlyEmi <= 0) return null;
 
   const dateLabel = monthIndexToCountryLabel(

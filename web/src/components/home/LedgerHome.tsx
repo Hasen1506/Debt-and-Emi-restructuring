@@ -92,8 +92,10 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
   // no surplus there is nothing extra to pay: it used to fall back to the
   // whole balance ("PAY ₹30,00,000 EXTRA") for someone already over budget.
   const hasSurplus = m.surplus.gt(0);
+  // In the user's currency: an NRI's ₹ balance is converted before it's
+  // compared with a $ surplus.
   const extra = hasSurplus
-    ? Decimal.min(m.surplus, loudest.outstanding)
+    ? Decimal.min(m.surplus, m.toUserCcy(loudest.outstanding, loudest.loan))
     : new Decimal(0);
   const extraRounded = Math.round(Number(extra.toString()));
   // Interest the extra avoids over a year at this loan's effective rate
@@ -389,7 +391,7 @@ function LedgerHomeSoft({ profile, move }: HomeProps) {
             {move
               ? move.oneStep
               : amount > 0
-                ? `PAY ${fc(Math.min(amount, Number(loudest.loan.outstanding)))} TO YOUR ${lender} ${loudest.loan.loan_type
+                ? `PAY ${fc(Math.min(amount, Number(m.toUserCcy(loudest.outstanding, loudest.loan))))} TO YOUR ${lender} ${loudest.loan.loan_type
                     .replace('_', ' ')
                     .toUpperCase()}.`
                 : `KEEP CURRENT EMIS RUNNING.`}

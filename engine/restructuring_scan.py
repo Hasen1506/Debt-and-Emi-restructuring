@@ -25,6 +25,7 @@ from typing import Literal, Optional
 from engine.formulas import effective_rate, emi
 from engine.lenders import resolve as resolve_lender
 from engine.models import Country, IncomeType, Loan, LoanType, User
+from engine.surplus import loan_currency_or_default, to_user_currency
 from engine.rate_cards import (
     ALL_INSTITUTIONS, INDIA_TIER_A, USA_TIER_A,
     InstitutionRateCard, RateRange, market_median,
@@ -342,23 +343,29 @@ def _scan_consolidation_opportunity(
     user: User,
     effective_rates: dict[int, Decimal],
     known: set[str],
+    currency: Optional[str] = None,
 ) -> Optional[RestructuringOpportunity]:
     """Look at unsecured high-rate loans (personal + credit card) and see if
     a single consolidated personal loan at market rate would beat the blended
-    average by ≥3pp."""
+    average by ≥3pp. Only loans in one currency (`currency`, default the
+    user's) are merged, with a lender from that currency's market: a rupee
+    card and a dollar loan can't become one loan."""
+    currency = currency or _residence_currency(user)
+    market = _market_for(currency)
     unsecured_with_idx = [
         (i, l) for i, l in enumerate(user.loans)
         if l.loan_type in (LoanType.PERSONAL, LoanType.CREDIT_CARD)
+        and loan_currency_or_default(l, user) == currency
     ]
     unsecured = [l for _, l in unsecured_with_idx]
     if len(unsecured) < 2:
         return None
     rel_market = (
-        _best_market_rate(user.country, LoanType.PERSONAL, known, user.income_type)
+        _best_market_rate(market, LoanType.PERSONAL, known, user.income_type)
         if known else None
     )
     overall_market = _best_market_rate(
-        user.country, LoanType.PERSONAL, known=None, income_type=user.income_type,
+        market, LoanType.PERSONAL, known=None, income_type=user.income_type,
     )
     chosen = rel_market or overall_market
     if chosen is None:
@@ -376,7 +383,7 @@ def _scan_consolidation_opportunity(
     consol_cost = fee_pct * total
     gross = (cand.blended_avg_rate - market_low) * total
     saving = _first_year_saving(gross, consol_cost)
-    ccy = "₹" if user.country == Country.IN else "$"
+    ccy = "₹" if market == Country.IN else "$"
     headline = (
         f"Save ~{ccy}{saving:,.0f} in the first year by combining your {len(cand.loans)} "
         f"unsecured loans into one personal loan with {target_bank} at "
@@ -430,7 +437,7 @@ def _scan_consolidation_opportunity(
         alternative_target_rate=alt_rate,
         alternative_annual_saving=alt_saving,
         target_is_existing_relationship=rel_market is not None,
-        target_rate_as_of=_latest_verified(user.country),
+        target_rate_as_of=_latest_verified(market),
         one_time_cost=consol_cost,
         breakeven_months=_breakeven_months(consol_cost, gross),
         affected_loan_indices=[
@@ -576,6 +583,32 @@ def _latest_verified(country: Country) -> Optional[str]:
     return latest or None
 
 
+def _residence_currency(user: User) -> str:
+    return "INR" if user.country == Country.IN else "USD"
+
+
+def _market_for(currency: str) -> Country:
+    """Where a loan in this currency can be moved: an NRI's rupee home loan
+    goes to an Indian lender, never to a US one."""
+    return Country.IN if currency == "INR" else Country.US
+
+
+def _in_user_currency(
+    opp: RestructuringOpportunity, loan: Loan, user: User,
+) -> RestructuringOpportunity:
+    """Money fields in the user's currency, so savings sort and add up
+    across loans. The headline keeps the loan's own currency (it names the
+    loan)."""
+    if loan_currency_or_default(loan, user) == _residence_currency(user):
+        return opp
+    fx = lambda v: None if v is None else to_user_currency(v, loan, user)  # noqa: E731
+    opp.estimated_annual_saving = fx(opp.estimated_annual_saving)
+    opp.alternative_annual_saving = fx(opp.alternative_annual_saving)
+    opp.one_time_cost = fx(opp.one_time_cost)
+    opp.lifetime_net_saving = fx(opp.lifetime_net_saving)
+    return opp
+
+
 def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringOpportunity]:
     """Run every Layer 1 scan on the user's loan book. Returns opportunities
     sorted by estimated annual saving, descending."""
@@ -586,17 +619,23 @@ def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringO
     known = _known_banks(user)
     out: list[RestructuringOpportunity] = []
 
+    # Each loan is matched with lenders in its own currency's market.
+    def market(l: Loan) -> Country:
+        return _market_for(loan_currency_or_default(l, user))
+
     for i, l in enumerate(user.loans):
         if l.loan_type == LoanType.CREDIT_CARD:
             opp = _scan_card_balance_transfer(
-                l, i, rates[id(l)], user.country, known, user.income_type,
+                l, i, rates[id(l)], market(l), known, user.income_type,
             )
             if opp is not None:
-                out.append(opp)
+                out.append(_in_user_currency(opp, l, user))
 
-    consol = _scan_consolidation_opportunity(user, rates, known)
-    if consol is not None:
-        out.append(consol)
+    for ccy in sorted({loan_currency_or_default(l, user) for l in user.loans}):
+        consol = _scan_consolidation_opportunity(user, rates, known, ccy)
+        if consol is not None:
+            first = user.loans[consol.affected_loan_indices[0]]
+            out.append(_in_user_currency(consol, first, user))
 
     # Refi candidates: home and auto loans (`scan_refinance` accepts only
     # those). Personal loans are covered by consolidation above; cards by
@@ -604,9 +643,9 @@ def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringO
     # win lands on top.
     for i, l in enumerate(user.loans):
         if l.loan_type in (LoanType.HOME, LoanType.AUTO):
-            opp = _scan_refi_opportunity(l, i, user.country, known, user.income_type)
+            opp = _scan_refi_opportunity(l, i, market(l), known, user.income_type)
             if opp is not None:
-                out.append(opp)
+                out.append(_in_user_currency(opp, l, user))
 
     out.sort(key=lambda o: o.estimated_annual_saving, reverse=True)
     return out

@@ -64,7 +64,7 @@ function buildNotes(profile: StoredProfile): Note[] {
         date: dateLabel,
         eyebrow: 'RATES',
         title: `Real ${bank} rate is ${fmtPct(loudest.effective)}`,
-        body: `Published rate ${fmtPct(loudest.nominal)} becomes ${fmtPct(loudest.effective)} once GST + processing + insurance are folded in. At a balance of ${fc(loudest.outstanding.toString())} that is the friction point — every other prepayment loses to closing this line.`,
+        body: `Published rate ${fmtPct(loudest.nominal)} becomes ${fmtPct(loudest.effective)} once GST + processing + insurance are folded in. At a balance of ${fc(m.toUserCcy(loudest.outstanding, loudest.loan).toString())} that is the friction point — every other prepayment loses to closing this line.`,
         tags: ['rates', loudest.loan.loan_type.replace('_', '-'), 'effective'],
       });
     } else {
