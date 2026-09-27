@@ -223,26 +223,28 @@ export async function loadPlan(
 
   // Pre-compute auto-reinvest events when the toggle is on. Per-year tax
   // savings = capped deductible interest × marginal_rate, applied at the
-  // post-ITR-filing month. Empty when toggle is off, regime gates all
-  // deductions (India new), or marginal_rate is zero.
+  // post-ITR-filing month. Empty when the regime gates all deductions
+  // (India new), nothing is itemised above the US standard deduction, or
+  // marginal_rate is zero. Projected whatever the toggle says: its label
+  // shows the amount ("no loan tax deductions" appeared, toggle off, next
+  // to a home loan whose rate counted a shield). The engine gets it only
+  // when the toggle is on.
   const fxMap = adjustedUser.fx_to_user_currency ?? {};
-  const reinvestEvents =
-    taxReinvest === 'on'
-      ? projectAnnualTaxSavings(adjustedUser, {
-          country: adjustedUser.country,
-          taxRegime: adjustedUser.tax_regime,
-          marginalRate: new Decimal(profile.marginalRate || 0),
-          fxToUserCcy: (amount, loanCcy) => {
-            const userCcy = adjustedUser.country === 'US' ? 'USD' : 'INR';
-            if (loanCcy === userCcy) return amount;
-            return amount.mul(new Decimal(fxMap[loanCcy] ?? '1'));
-          },
-          horizonYears: 20,
-        }).map((y) => ({
-          month: y.applyMonth,
-          amount: y.taxSaving.toFixed(2),
-        }))
-      : [];
+  const projectedTaxSavings = projectAnnualTaxSavings(adjustedUser, {
+    country: adjustedUser.country,
+    taxRegime: adjustedUser.tax_regime,
+    marginalRate: new Decimal(profile.marginalRate || 0),
+    fxToUserCcy: (amount, loanCcy) => {
+      const userCcy = adjustedUser.country === 'US' ? 'USD' : 'INR';
+      if (loanCcy === userCcy) return amount;
+      return amount.mul(new Decimal(fxMap[loanCcy] ?? '1'));
+    },
+    horizonYears: 20,
+  }).map((y) => ({
+    month: y.applyMonth,
+    amount: y.taxSaving.toFixed(2),
+  }));
+  const reinvestEvents = taxReinvest === 'on' ? projectedTaxSavings : [];
 
   // Pull planned lifecycle events (salary / rate resets with effectiveDate
   // in the future) into the engine wire format. Confirmed past events are
@@ -458,7 +460,7 @@ export async function loadPlan(
       advanceTaxSchedule,
       advanceTaxPenaltyMonthly,
       taxReinvest,
-      taxReinvestProjection: reinvestEvents,
+      taxReinvestProjection: projectedTaxSavings,
       monthlyPayments: scenarioPayments,
       // What the pay-minimums run pays in month 1: the plan's month-1
       // payment minus this is the extra it puts on each loan.

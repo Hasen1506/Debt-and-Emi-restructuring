@@ -228,7 +228,18 @@ export function summariseDeductions(
  * home loans. Always false outside the US.
  */
 export function usItemises(user: UserPayload): boolean {
-  if (user.country !== 'US') return false;
+  return usMortgageShieldShare(user).gt(0);
+}
+
+/**
+ * US: the share (0–1) of mortgage interest that lowers tax. Only itemised
+ * deductions above the standard deduction save anything: a $350k mortgage
+ * at 6.75% ($23,625 of interest, $16,100 standard) saves tax on $7,525, a
+ * share of 0.32. The shield used to switch fully on once the interest
+ * passed the standard deduction. Mirrors `UserIn._itemised` on the API.
+ */
+export function usMortgageShieldShare(user: UserPayload): Decimal {
+  if (user.country !== 'US') return D(0);
   const ded = user.deductions;
   const mortgage =
     ded?.mortgage_interest_annual != null && ded.mortgage_interest_annual !== ''
@@ -236,8 +247,13 @@ export function usItemises(user: UserPayload): boolean {
       : user.loans
           .filter((l) => l.loan_type === 'home_loan' && (l.currency ?? 'USD') === 'USD')
           .reduce((s, l) => s.plus(D(l.outstanding).mul(D(l.nominal_rate))), D(0));
-  return pickUSDeduction({ ...ded, mortgage_interest_annual: mortgage.toString() }, user.filing_status)
-    .uses === 'itemized';
+  const { standard, itemized } = pickUSDeduction(
+    { ...ded, mortgage_interest_annual: mortgage.toString() },
+    user.filing_status,
+  );
+  const above = itemized.minus(standard);
+  if (above.lte(0) || mortgage.lte(0)) return D(0);
+  return Decimal.min(mortgage, above).div(mortgage);
 }
 
 /**

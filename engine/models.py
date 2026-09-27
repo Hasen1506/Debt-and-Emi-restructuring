@@ -285,6 +285,9 @@ class User:
     state: Optional[str] = None
     state_marginal_rate: Decimal = Decimal("0")
     itemises: bool = False
+    # Share (0–1) of US mortgage interest that lowers tax: itemised
+    # deductions above the standard deduction, over the mortgage interest.
+    itemised_share: Decimal = Decimal("1")
     # Common
     efund_balance: Decimal = Decimal("0")
     efund_target: Decimal = Decimal("0")

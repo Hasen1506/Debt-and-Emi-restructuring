@@ -95,11 +95,10 @@ export interface PlanData {
    *  per-year reinvest events routed to the highest-effective-APR loan.
    *  See [[lib/tax-reinvest]] and `taxReinvestProjection` below. */
   taxReinvest: TaxReinvestSetting;
-  /** Year-by-year tax-saving events that were sent to the engine when
-   *  taxReinvest === 'on'. Empty when the toggle is off OR no loans
-   *  qualify (e.g. India new-regime user with no education loan).
-   *  Components use this to render the "reinvest schedule" summary
-   *  alongside the toggle. */
+  /** Year-by-year projected tax savings on deductible interest, projected
+   *  whether or not the toggle is on (its label shows the total); the
+   *  engine receives them only when taxReinvest === 'on'. Empty when no
+   *  interest is deductible for this user. */
   taxReinvestProjection: { month: number; amount: string }[];
   /** Month-by-month per-loan payments for the active strategy. Empty when
    *  the engine call falls back to mock data (offline mode). */

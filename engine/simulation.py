@@ -482,7 +482,7 @@ def simulate_plan(
 
         # Effective rate per loan (drives ordering + Layer 3 gate)
         rates = {
-            id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises)
+            id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises, user.itemised_share)
             for l in active
         }
 
@@ -705,7 +705,7 @@ def simulate_plan(
                 # cleared this month — those drop out automatically).
                 reinvest_ranked = rank_loans(
                     remaining_active,
-                    {id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises)
+                    {id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises, user.itemised_share)
                      for l in remaining_active},
                     strategy,
                     country=user.country,

@@ -391,17 +391,20 @@ class UserIn(_In):
     deductions: Optional["DeductionsIn"] = None
     income_streams: list[IncomeStreamIn] = Field(default_factory=list)
 
-    def _itemises(self) -> bool:
-        """US only: does this person itemise? Mortgage interest lowers the
-        cost of a US home loan only for someone who itemises, and most
-        people take the standard deduction. The web app never sends
-        `itemises`, so it is worked out from the deductions entered at
-        onboarding; with none entered, mortgage interest is estimated
-        from the US home loans themselves."""
+    def _itemised(self) -> tuple[bool, Decimal]:
+        """US only: does this person itemise, and what share of their
+        mortgage interest lowers their tax? Only itemised deductions above
+        the standard deduction save anything, so a $350k mortgage at 6.75%
+        ($23,625 of interest, $16,100 standard) saves tax on $7,525 of it:
+        a share of 0.32. The shield used to switch fully on the moment the
+        interest passed the standard deduction (6.75% effective at $230k,
+        4.73% at $240k). The web app never sends `itemises`, so it is
+        worked out from the deductions entered at onboarding; with none
+        entered, mortgage interest is estimated from the US home loans."""
         if self.itemises:
-            return True
+            return True, D("1")
         if self.country != Country.US:
-            return False
+            return False, D("0")
         from engine.tax.usa import STANDARD_DEDUCTION_2026
 
         ded = self.deductions
@@ -415,7 +418,10 @@ class UserIn(_In):
             )
         other = (ded.itemized_deductions_other if ded is not None else None) or D("0")
         std = STANDARD_DEDUCTION_2026[self.filing_status or FilingStatusUS.SINGLE]
-        return mortgage + other > std
+        above = mortgage + other - std
+        if above <= 0 or mortgage <= 0:
+            return False, D("0")
+        return True, min(mortgage, above) / mortgage
 
     def to_engine(self) -> User:
         return User(
@@ -433,7 +439,8 @@ class UserIn(_In):
             pf=self.pf.to_engine() if self.pf else None,
             filing_status=self.filing_status, state=self.state,
             state_marginal_rate=self.state_marginal_rate,
-            itemises=self._itemises(),
+            itemises=self._itemised()[0],
+            itemised_share=self._itemised()[1],
             efund_balance=self.efund_balance, efund_target=self.efund_target,
             loans=[l.to_engine() for l in self.loans],
             assets=[a.to_engine() for a in self.assets],

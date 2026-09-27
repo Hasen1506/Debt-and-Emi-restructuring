@@ -19,7 +19,7 @@ import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
 import type { StrategyName } from '@/lib/strategy';
 import { computeBreakdown, fmt as fmtPct } from '@/lib/effective-apr';
-import { usItemises } from '@/lib/deductions';
+import { usMortgageShieldShare } from '@/lib/deductions';
 import { deriveMetrics } from '@/lib/derived';
 import { formatCurrency } from '@/lib/api';
 import { userDefaultCurrency } from '@/lib/currency';
@@ -89,7 +89,7 @@ function buildNotes(profile: StoredProfile): Note[] {
       profile.marginalRate,
       'IN',
       profile.user.tax_regime,
-      usItemises(profile.user),
+      usMortgageShieldShare(profile.user),
     ).lines.find((l) => l.label === 'Tax shield');
     const shieldRate = shieldLine?.value ?? new Decimal(0);
     const shieldValue = homeLoan.outstanding.mul(shieldRate);

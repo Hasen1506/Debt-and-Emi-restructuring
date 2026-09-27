@@ -11,7 +11,7 @@ import Decimal from 'decimal.js';
 import type { LoanPayload, Country, TaxRegimeIN } from './api';
 import type { StoredProfile } from './user-store';
 import { computeBreakdown } from './effective-apr';
-import { usItemises } from './deductions';
+import { usMortgageShieldShare } from './deductions';
 import { loanCurrency, userDefaultCurrency, type CurrencyCode } from './currency';
 import { requiredMonthly } from './min-payment';
 
@@ -55,7 +55,7 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
   const { user, marginalRate } = profile;
   const country: Country = user.country;
   const taxRegime: TaxRegimeIN | undefined = user.tax_regime;
-  const itemises = usItemises(user);
+  const itemises = usMortgageShieldShare(user);
   const rawLoans = user.loans ?? [];
   const userCcy = userDefaultCurrency(country);
   const fxMap = user.fx_to_user_currency ?? {};

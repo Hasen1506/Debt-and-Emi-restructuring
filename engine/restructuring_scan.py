@@ -613,7 +613,7 @@ def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringO
     """Run every Layer 1 scan on the user's loan book. Returns opportunities
     sorted by estimated annual saving, descending."""
     rates = {
-        id(l): effective_rate(l, marginal_rate, user.country, user.tax_regime, user.itemises)
+        id(l): effective_rate(l, marginal_rate, user.country, user.tax_regime, user.itemises, user.itemised_share)
         for l in user.loans
     }
     known = _known_banks(user)
