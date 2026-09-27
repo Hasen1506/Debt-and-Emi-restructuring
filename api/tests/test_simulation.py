@@ -330,6 +330,25 @@ def test_us_itemise_is_worked_out_from_deductions():
     assert UserIn(**stated).to_engine().itemises is True
 
 
+def test_us_mortgage_shield_counts_only_interest_above_the_standard_deduction():
+    """Audit case, 6.75% at a 30% rate: $230k was 6.75% effective and $240k
+    jumped to 4.73% (the full shield). Only interest above the $16,100
+    standard deduction saves tax, so the rate eases down smoothly; $350k is
+    6.75% × (1 − 0.30 × 7,525/23,625) ≈ 6.105%."""
+    from api.schemas import UserIn
+    from engine.formulas import effective_rate
+
+    def eff(outstanding):
+        p = _us_home_payload(outstanding)
+        p["loans"][0]["nominal_rate"] = "0.0675"
+        u = UserIn(**p).to_engine()
+        return effective_rate(u.loans[0], D("0.30"), u.country, None, u.itemises, u.itemised_share)
+
+    assert eff("230000") == D("0.0675")
+    assert D("0.0670") < eff("240000") < D("0.0675")
+    assert abs(eff("350000") - D("0.06105")) < D("0.00005")
+
+
 def test_india_user_never_itemises(india_user_payload):
     from api.schemas import UserIn
 

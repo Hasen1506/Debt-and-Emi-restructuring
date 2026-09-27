@@ -19,9 +19,9 @@ import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrency } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { deriveMetrics } from '@/lib/derived';
-import { projectionGaps } from '@/lib/loan-gaps';
+import { describeGap, projectionGaps } from '@/lib/loan-gaps';
 import { userDefaultCurrency } from '@/lib/currency';
-import { TOOLS } from '@/lib/tools';
+import { toolsFor } from '@/lib/tools';
 import {
   LShell,
   LSectionHeader,
@@ -77,13 +77,15 @@ export function LedgerHome({ profile, debtFree, move }: HomeProps) {
 function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
+  // Only the tools that cover the user's country (Loan Check is India-only).
+  const tools = toolsFor(profile.user.country);
   const fc = (v: number | string) => formatCurrency(v, ccy);
 
   if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
 
   const loudest = m.loudest!;
   // A loan with no rate or EMI on file: no rates or "pay this" until it's added.
-  const gaps = projectionGaps(profile.user.loans);
+  const gaps = projectionGaps(profile.user);
   const loudestBank = (loudest.loan.bank || 'YOUR LOUDEST').toUpperCase();
   const loudestProduct = loudest.loan.loan_type.replace('_', ' ').toUpperCase();
   const surplusTone =
@@ -92,8 +94,10 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
   // no surplus there is nothing extra to pay: it used to fall back to the
   // whole balance ("PAY ₹30,00,000 EXTRA") for someone already over budget.
   const hasSurplus = m.surplus.gt(0);
+  // In the user's currency: an NRI's ₹ balance is converted before it's
+  // compared with a $ surplus.
   const extra = hasSurplus
-    ? Decimal.min(m.surplus, loudest.outstanding)
+    ? Decimal.min(m.surplus, m.toUserCcy(loudest.outstanding, loudest.loan))
     : new Decimal(0);
   const extraRounded = Math.round(Number(extra.toString()));
   // Interest the extra avoids over a year at this loan's effective rate
@@ -116,19 +120,24 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
           <LKpi
             cols={4}
             items={[
-              { l: 'OUTSTANDING', v: fc(m.totalOutstanding.toString()), s: `${m.loans.length} OPEN` },
+              // With no exchange rate the ₹ and $ can't be added up.
+              m.fxMissing.length > 0
+                ? { l: 'OUTSTANDING', v: '—', s: 'ADD THE EXCHANGE RATE' }
+                : { l: 'OUTSTANDING', v: fc(m.totalOutstanding.toString()), s: `${m.loans.length} OPEN` },
               debtFree
                 ? { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.positive }
                 : { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
               gaps.length > 0
                 ? { l: 'EFFECTIVE RATE', v: '—', s: 'ADD YOUR LOAN DETAILS' }
                 : { l: 'EFFECTIVE RATE', v: fmtPct(m.blendedEffective), s: 'AVERAGE · AFTER FEES + TAX' },
-              {
-                l: 'SURPLUS',
-                v: `${fc(m.surplus.toString())}/MO`,
-                s: m.surplus.gt(0) ? 'AFTER COSTS + MINIMUMS' : m.surplus.lt(0) ? 'SHORT EACH MONTH' : 'NOTHING SPARE',
-                tone: surplusTone,
-              },
+              m.fxMissing.length > 0
+                ? { l: 'SURPLUS', v: '—', s: 'NEEDS THE EXCHANGE RATE' }
+                : {
+                    l: 'SURPLUS',
+                    v: `${fc(m.surplus.toString())}/MO`,
+                    s: m.surplus.gt(0) ? 'AFTER COSTS + MINIMUMS' : m.surplus.lt(0) ? 'SHORT EACH MONTH' : 'NOTHING SPARE',
+                    tone: surplusTone,
+                  },
             ]}
           />
         </section>
@@ -193,21 +202,22 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
             totalOutstanding={m.totalOutstanding}
             totalEmi={m.emiBurden}
             spare={m.surplus.gt(0)}
+            fx={profile.user.fx_to_user_currency}
           />
         </section>
 
         <section>
-          <LSectionHeader>TOOLS · {TOOLS.length}</LSectionHeader>
+          <LSectionHeader>TOOLS · {tools.length}</LSectionHeader>
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: lGridColumns(Math.min(TOOLS.length, 5), 150),
+              gridTemplateColumns: lGridColumns(Math.min(tools.length, 5), 150),
               gap: 1,
               background: L_T.ink,
               padding: 1,
             }}
           >
-            {TOOLS.map((t) => (
+            {tools.map((t) => (
               <a
                 key={t.id}
                 href={t.href}
@@ -251,7 +261,7 @@ function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; deb
   const fc = (v: number | string) => formatCurrency(v, ccy);
   if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
   const loudest = m.loudest!;
-  const gaps = projectionGaps(profile.user.loans);
+  const gaps = projectionGaps(profile.user);
 
   return (
     <LShell>
@@ -264,11 +274,13 @@ function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; deb
               debtFree
                 ? { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.positive }
                 : { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
-              {
-                l: 'OUTSTANDING',
-                v: fc(m.totalOutstanding.toString()),
-                s: `${m.loans.length} OPEN`,
-              },
+              m.fxMissing.length > 0
+                ? { l: 'OUTSTANDING', v: '—', s: 'ADD THE EXCHANGE RATE' }
+                : {
+                    l: 'OUTSTANDING',
+                    v: fc(m.totalOutstanding.toString()),
+                    s: `${m.loans.length} OPEN`,
+                  },
               gaps.length > 0
                 ? { l: 'EFFECTIVE RATE', v: '—', s: 'ADD YOUR LOAN DETAILS' }
                 : {
@@ -277,7 +289,7 @@ function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; deb
                     s: 'AVERAGE · AFTER FEES + TAX',
                   },
               gaps.length > 0
-                ? { l: 'NEXT', v: 'ADD DETAILS', s: 'RATE OR EMI MISSING', tone: L_T.accent }
+                ? { l: 'NEXT', v: 'ADD DETAILS', s: `${describeGap(gaps[0].missing, gaps[0].loan).toUpperCase()} MISSING`, tone: L_T.accent }
                 : {
                     l: 'NEXT',
                     v: `${(loudest.loan.bank || '—').toUpperCase()}`,
@@ -298,6 +310,7 @@ function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; deb
             totalOutstanding={m.totalOutstanding}
             totalEmi={m.emiBurden}
             spare={m.surplus.gt(0)}
+            fx={profile.user.fx_to_user_currency}
           />
         </section>
 
@@ -333,7 +346,7 @@ function LedgerHomeSoft({ profile, move }: HomeProps) {
   const fc = (v: number | string) => formatCurrency(v, ccy);
   if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
   const loudest = m.loudest!;
-  const gaps = projectionGaps(profile.user.loans);
+  const gaps = projectionGaps(profile.user);
   const amount = m.surplus.gt(0) ? Math.round(Number(m.surplus.toString())) : 0;
   const lender = (loudest.loan.bank || 'your highest-rate lender').toUpperCase();
 
@@ -389,7 +402,7 @@ function LedgerHomeSoft({ profile, move }: HomeProps) {
             {move
               ? move.oneStep
               : amount > 0
-                ? `PAY ${fc(Math.min(amount, Number(loudest.loan.outstanding)))} TO YOUR ${lender} ${loudest.loan.loan_type
+                ? `PAY ${fc(Math.min(amount, Number(m.toUserCcy(loudest.outstanding, loudest.loan))))} TO YOUR ${lender} ${loudest.loan.loan_type
                     .replace('_', ' ')
                     .toUpperCase()}.`
                 : `KEEP CURRENT EMIS RUNNING.`}

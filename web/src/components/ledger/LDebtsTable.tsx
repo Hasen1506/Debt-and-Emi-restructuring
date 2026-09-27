@@ -39,6 +39,7 @@ export function LDebtsTable({
   totalEmi,
   mobile,
   spare = true,
+  fx,
 }: {
   loans: LoanWithEffective[];
   country: Country;
@@ -49,6 +50,9 @@ export function LDebtsTable({
   /** False when nothing is spare after costs and minimums: no loan gets
    *  "PAY EXTRA" then. */
   spare?: boolean;
+  /** The profile's exchange rates: a foreign loan without one leaves the
+   *  totals unknown. */
+  fx?: Record<string, string>;
 }) {
   if (loans.length === 0) {
     return (
@@ -66,7 +70,9 @@ export function LDebtsTable({
     formatCurrency(v, loanCurrency(d.loan, country));
   const mixed = loans.some((d) => loanCurrency(d.loan, country) !== ccy);
   // With a rate missing the dearest loan isn't known, so none is marked.
-  const dearest = loans.some((d) => loanGaps(d.loan).length > 0)
+  const gapCtx = { country, fx };
+  const noFx = loans.some((d) => loanGaps(d.loan, gapCtx).includes('fx'));
+  const dearest = loans.some((d) => loanGaps(d.loan, gapCtx).length > 0)
     ? null
     : loans.reduce((best, d) => (d.effective.gt(best.effective) ? d : best), loans[0]);
   const headers = [
@@ -194,12 +200,23 @@ export function LDebtsTable({
             >
               {mixed ? `TOTAL IN ${ccy}` : 'TOTAL'}
             </td>
-            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-              {fc(totalOutstanding.toFixed(0))}
-            </td>
-            <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-              {totalEmi.gt(0) ? fc(totalEmi.toFixed(0)) : '—'}
-            </td>
+            {noFx ? (
+              // ₹ can't be added to $ without a rate.
+              <td colSpan={2} style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
+                <a href="/onboarding?step=loans" style={{ color: L_T.negative }}>
+                  ADD THE EXCHANGE RATE
+                </a>
+              </td>
+            ) : (
+              <>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
+                  {fc(totalOutstanding.toFixed(0))}
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
+                  {totalEmi.gt(0) ? fc(totalEmi.toFixed(0)) : '—'}
+                </td>
+              </>
+            )}
             <td colSpan={2} />
           </tr>
         </tbody>

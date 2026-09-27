@@ -15,9 +15,10 @@ import {
   L_T,
   L_MONO,
 } from './primitives';
-import type { ToolMeta } from '@/lib/tools';
+import { toolCoverageLabel, toolCovers, type ToolMeta } from '@/lib/tools';
+import type { Country } from '@/lib/api';
 
-export function LedgerToolsIndex({ tools }: { tools: ToolMeta[] }) {
+export function LedgerToolsIndex({ tools, country }: { tools: ToolMeta[]; country: Country }) {
   return (
     <LShell>
       <div
@@ -64,12 +65,20 @@ export function LedgerToolsIndex({ tools }: { tools: ToolMeta[] }) {
               </tr>
             </thead>
             <tbody>
-              {tools.map((t) => (
-                <tr key={t.id} style={{ borderBottom: `1px dashed ${L_T.faint}` }}>
+              {tools.map((t) => {
+                const covered = toolCovers(t, country);
+                return (
+                <tr
+                  key={t.id}
+                  style={{
+                    borderBottom: `1px dashed ${L_T.faint}`,
+                    color: covered ? undefined : L_T.muted,
+                  }}
+                >
                   <td
                     style={{
                       padding: '14px 10px',
-                      color: L_T.accent,
+                      color: covered ? L_T.accent : L_T.muted,
                       fontWeight: 700,
                       letterSpacing: '0.08em',
                     }}
@@ -84,12 +93,19 @@ export function LedgerToolsIndex({ tools }: { tools: ToolMeta[] }) {
                     {t.sub}
                   </td>
                   <td style={{ padding: '14px 10px', textAlign: 'right' }}>
-                    <LBracket accent href={t.href}>
-                      OPEN →
-                    </LBracket>
+                    {covered ? (
+                      <LBracket accent href={t.href}>
+                        OPEN →
+                      </LBracket>
+                    ) : (
+                      <span style={{ fontSize: 10, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
+                        {toolCoverageLabel(t)}
+                      </span>
+                    )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </section>

@@ -56,11 +56,13 @@ export function computeBreakdown(
   marginalTaxRate: string | Decimal,
   country: Country,
   taxRegime: TaxRegimeIN | undefined,
-  /** US: mortgage interest only helps someone who itemises. Pass
-   *  `usItemises(user)`; the default keeps screens without a user (the
-   *  onboarding preview) showing the itemiser's figure, as labelled. */
-  itemises = true,
+  /** US: the share of mortgage interest that lowers tax (the part of
+   *  itemised deductions above the standard deduction); pass
+   *  `usMortgageShieldShare(user)`. true = all of it: screens without a
+   *  user (the onboarding preview) show the itemiser's figure, as labelled. */
+  itemises: boolean | Decimal = true,
 ): Breakdown {
+  const usShare = itemises === true ? D(1) : itemises === false ? D(0) : Decimal.min(1, Decimal.max(0, itemises));
   const nominal = D(loan.nominal_rate || '0');
   const outstanding = D(loan.outstanding || '0');
   const processingFee = D(loan.processing_fee_amortised || '0');
@@ -87,7 +89,7 @@ export function computeBreakdown(
   ) {
     // 80E is an old-regime deduction; the engine gives no shield here.
     shieldNote = 'New regime: no 80E deduction';
-  } else if (loan.loan_type === 'home_loan' && country === 'US' && !itemises) {
+  } else if (loan.loan_type === 'home_loan' && country === 'US' && usShare.lte(0)) {
     shieldNote = 'Standard deduction: mortgage interest saves no tax';
   } else if (deductible.has(loan.loan_type) && annualInterest.gt(0)) {
     let cap: Decimal;
@@ -108,7 +110,10 @@ export function computeBreakdown(
       if (loan.loan_type === 'education_loan' && country === 'IN') {
         shieldNote = 'Sec 80E: interest fully deductible';
       } else if (loan.loan_type === 'home_loan' && country === 'US') {
-        shieldNote = 'IRC §163: mortgage interest deduction (itemisers)';
+        shieldPct = marginal.mul(usShare);
+        shieldNote = usShare.lt(1)
+          ? `Only interest above the standard deduction saves tax (${usShare.mul(100).toFixed(0)}% of it)`
+          : 'IRC §163: mortgage interest deduction (itemisers)';
       }
     }
   }

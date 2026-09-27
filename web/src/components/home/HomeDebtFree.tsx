@@ -15,7 +15,7 @@ import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { loadProfileServer } from '@/lib/user-store';
 import { formatCurrency } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
-import { userDefaultCurrency } from '@/lib/currency';
+import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
 
 // One engine run per request, shared by the value and its caption.
 const loadPlanOnce = cache(loadPlanFromCookies);
@@ -75,7 +75,7 @@ const moveWords = cache(async (): Promise<{ headline: string; detail: string; on
   if (plan.gaps.length > 0) {
     const g = plan.gaps[0];
     return {
-      headline: `ADD ${describeGap(g.missing).toUpperCase()} FOR ${(g.loan.bank || 'YOUR').toUpperCase()} ${LOAN_TYPE_NAME[g.loan.loan_type].toUpperCase()}`,
+      headline: `ADD ${describeGap(g.missing, g.loan).toUpperCase()} FOR ${(g.loan.bank || 'YOUR').toUpperCase()} ${LOAN_TYPE_NAME[g.loan.loan_type].toUpperCase()}`,
       detail: plan.gaps.length > 1
         ? `${plan.gaps.length} LOANS NEED DETAILS · WITHOUT THEM THE PLAN CAN'T WORK OUT WHAT TO PAY`
         : "WITHOUT IT THE PLAN CAN'T WORK OUT WHAT TO PAY",
@@ -106,9 +106,16 @@ const moveWords = cache(async (): Promise<{ headline: string; detail: string; on
       oneStep: 'KEEP CURRENT EMIS RUNNING.',
     };
   }
+  // Each loan's extra is in that loan's currency (₹ for an NRI's Indian
+  // loan), with the user-currency cost alongside.
+  const country = profile.user.country;
+  const inLoanCcy = (v: number, index: number) => {
+    const loan = profile.user.loans[index];
+    return loan ? formatLoanAmount(v, loan, country, plan.fxRatesUsed) : fc(v);
+  };
   const parts = move.targets.slice(0, 2).map((t) => {
     const loan = profile.user.loans[t.index];
-    return `${fc(t.amount)} → ${(loan?.bank || '—').toUpperCase()} ${PRODUCT[loan?.loan_type ?? ''] ?? ''}`.trim();
+    return `${inLoanCcy(t.amount, t.index)} → ${(loan?.bank || '—').toUpperCase()} ${PRODUCT[loan?.loan_type ?? ''] ?? ''}`.trim();
   });
   if (move.ef > 0) parts.push(`${fc(move.ef)} → EMERGENCY FUND`);
   if (move.goals > 0) parts.push(`${fc(move.goals)} → GOALS`);
@@ -127,11 +134,11 @@ const moveWords = cache(async (): Promise<{ headline: string; detail: string; on
   const firstLoan = first ? profile.user.loans[first.index] : undefined;
   return {
     oneStep: first && firstLoan
-      ? `PAY ${fc(first.amount)} TO YOUR ${(firstLoan.bank || '').toUpperCase()} ${PRODUCT[firstLoan.loan_type] ?? ''}.`
+      ? `PAY ${inLoanCcy(first.amount, first.index)} TO YOUR ${(firstLoan.bank || '').toUpperCase()} ${PRODUCT[firstLoan.loan_type] ?? ''}.`
       : `PUT ${fc(move.ef)} IN YOUR EMERGENCY FUND.`,
     headline: `PAY EXTRA: ${parts.join(' · ')}`,
-    detail: target
-      ? `${WHY[plan.strategy] ?? 'YOUR PLAN'} · ${fmtPct(target.effective)} · AVOIDS ~${fc(saving)} INTEREST A YEAR`
+    detail: target && first
+      ? `${WHY[plan.strategy] ?? 'YOUR PLAN'} · ${fmtPct(target.effective)} · AVOIDS ~${inLoanCcy(saving, first.index)} INTEREST A YEAR`
       : 'BUILDING YOUR EMERGENCY FUND FIRST, AS YOUR PLAN SPLITS IT',
   };
 });

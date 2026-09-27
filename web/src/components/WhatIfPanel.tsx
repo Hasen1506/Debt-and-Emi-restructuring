@@ -24,7 +24,7 @@ import {
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import { computeBreakdown } from '@/lib/effective-apr';
-import { usItemises } from '@/lib/deductions';
+import { usMortgageShieldShare } from '@/lib/deductions';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import {
@@ -108,7 +108,7 @@ export function WhatIfPanel({
             marginalRate,
             user.country,
             user.tax_regime,
-            usItemises(user),
+            usMortgageShieldShare(user),
           );
           return { i, l, effective, outstanding: new Decimal(l.outstanding || 0) };
         })

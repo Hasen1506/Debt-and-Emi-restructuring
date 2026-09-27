@@ -8,7 +8,7 @@
  *      per-currency totals from the engine's per-loan payment trail so KPIs
  *      can render as separate INR / USD cards instead of a meaningless sum.
  */
-import type { Country, LoanPayload } from './api';
+import { formatCurrency, type Country, type LoanPayload } from './api';
 import type { MonthlyPaymentBreakdown } from '@/components/plan/PlanData';
 
 export type CurrencyCode = 'INR' | 'USD';
@@ -32,6 +32,36 @@ export function countryCurrencySymbol(country: Country): string {
 /** Each loan's display currency: explicit tag if present, else user default. */
 export function loanCurrency(loan: LoanPayload, country: Country): CurrencyCode {
   return (loan.currency as CurrencyCode | undefined) ?? userDefaultCurrency(country);
+}
+
+/** A loan-currency amount in the user's currency at the given rates
+ *  (loan-ccy → user-ccy). Null when the loan is foreign and no rate is
+ *  known: the caller must not guess parity (₹20 lakh is not $20 lakh). */
+export function loanToUser(
+  amount: number,
+  loan: LoanPayload,
+  country: Country,
+  fx: Record<string, string> | undefined,
+): number | null {
+  const lc = loanCurrency(loan, country);
+  if (lc === userDefaultCurrency(country)) return amount;
+  const r = Number(fx?.[lc]);
+  return r > 0 ? amount * r : null;
+}
+
+/** One loan's amount in that loan's own currency (the engine reports each
+ *  loan's payments and balance in it), with the user-currency figure
+ *  alongside when the two differ: "₹4,80,000 (≈ $5,760)". */
+export function formatLoanAmount(
+  amount: number,
+  loan: LoanPayload,
+  country: Country,
+  fx?: Record<string, string>,
+): string {
+  const own = formatCurrency(Math.round(amount), loanCurrency(loan, country));
+  if (loanCurrency(loan, country) === userDefaultCurrency(country)) return own;
+  const user = loanToUser(amount, loan, country, fx);
+  return user == null ? own : `${own} (≈ ${formatCurrency(Math.round(user), userDefaultCurrency(country))})`;
 }
 
 /** Distinct currencies present in the loan list, ordered with the user-default

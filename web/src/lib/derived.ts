@@ -11,8 +11,8 @@ import Decimal from 'decimal.js';
 import type { LoanPayload, Country, TaxRegimeIN } from './api';
 import type { StoredProfile } from './user-store';
 import { computeBreakdown } from './effective-apr';
-import { usItemises } from './deductions';
-import { loanCurrency, userDefaultCurrency } from './currency';
+import { usMortgageShieldShare } from './deductions';
+import { loanCurrency, userDefaultCurrency, type CurrencyCode } from './currency';
 import { requiredMonthly } from './min-payment';
 
 export interface LoanWithEffective {
@@ -45,22 +45,31 @@ export interface DerivedMetrics {
   monthlyInterest: Decimal;
   /** A loan-currency amount in the user's currency (FX map, parity if none). */
   toUserCcy: (amount: Decimal, loan: LoanPayload) => Decimal;
+  /** Currencies of open loans with no exchange rate saved. The totals and
+   *  surplus above took those loans at parity, so they mean nothing: pages
+   *  ask for the rate instead of showing them. */
+  fxMissing: CurrencyCode[];
 }
 
 export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
   const { user, marginalRate } = profile;
   const country: Country = user.country;
   const taxRegime: TaxRegimeIN | undefined = user.tax_regime;
-  const itemises = usItemises(user);
+  const itemises = usMortgageShieldShare(user);
   const rawLoans = user.loans ?? [];
   const userCcy = userDefaultCurrency(country);
   const fxMap = user.fx_to_user_currency ?? {};
   // Multiply a loan-currency amount by the right FX factor to express it
   // in the user's residence currency. Parity for matching currencies.
+  const fxMissing = new Set<CurrencyCode>();
   const toUserCcy = (amount: Decimal, loan: LoanPayload): Decimal => {
     const lc = loanCurrency(loan, country);
     if (lc === userCcy) return amount;
-    const rate = new Decimal(fxMap[lc] ?? '1');
+    const rate = dec(fxMap[lc]);
+    if (rate.lte(0)) {
+      fxMissing.add(lc);
+      return amount;
+    }
     return amount.mul(rate);
   };
 
@@ -127,6 +136,7 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
     loudest,
     monthlyInterest,
     toUserCcy,
+    fxMissing: Array.from(fxMissing),
   };
 }
 

@@ -7,13 +7,16 @@
  */
 
 import { TOOLS } from '@/lib/tools';
+import { loadProfileServer } from '@/lib/user-store';
 import { LedgerToolsIndex } from '@/components/ledger/LedgerToolsIndex';
 
-export default function ToolsPage() {
+export default async function ToolsPage() {
+  // Tools that don't cover the user's country are listed but not linked.
+  const profile = await loadProfileServer();
   return (
     <>
       <h1 className="sr-only">Tools</h1>
-      <LedgerToolsIndex tools={TOOLS} />
+      <LedgerToolsIndex tools={TOOLS} country={profile.user.country} />
     </>
   );
 }

@@ -13,7 +13,7 @@ import {
   type UserPayload,
 } from '@/lib/api';
 import { computeBreakdown } from '@/lib/effective-apr';
-import { usItemises } from '@/lib/deductions';
+import { usMortgageShieldShare } from '@/lib/deductions';
 import { applyToolResult } from '@/lib/apply-tool-result';
 
 interface Props {
@@ -49,7 +49,7 @@ export function PortfolioRanker({ user, marginalRate, isLive, onDrillIn }: Props
     const out: Record<number, string> = {};
     user.loans.forEach((l, i) => {
       const { effective } = computeBreakdown(
-        l, marginalRate, user.country, user.tax_regime, usItemises(user),
+        l, marginalRate, user.country, user.tax_regime, usMortgageShieldShare(user),
       );
       out[i] = effective.toFixed(4);
     });

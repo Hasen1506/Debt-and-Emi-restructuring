@@ -21,7 +21,8 @@
  * cards in either jurisdiction, so card rows are informational only.
  */
 import Decimal from 'decimal.js';
-import type { Country, LoanPayload, TaxRegimeIN } from './api';
+import type { Country, DeductionsPayload, FilingStatusUS, LoanPayload, TaxRegimeIN } from './api';
+import { pickUSDeduction } from './deductions';
 import { loanCurrency, type CurrencyCode } from './currency';
 
 export interface LoanYear1Interest {
@@ -230,9 +231,19 @@ function deductibleAmount(
  * straight through to the engine without filtering.
  */
 export function projectAnnualTaxSavings(
-  user: { country: Country; loans: LoanPayload[]; tax_regime?: TaxRegimeIN },
+  user: {
+    country: Country;
+    loans: LoanPayload[];
+    tax_regime?: TaxRegimeIN;
+    filing_status?: FilingStatusUS;
+    deductions?: DeductionsPayload;
+  },
   args: MultiYearArgs,
 ): YearlyTaxSaving[] {
+  // US: mortgage interest only saves tax where itemised deductions pass the
+  // standard deduction, and only on the part above it.
+  const usStandard = pickUSDeduction(undefined, user.filing_status).standard;
+  const usOther = new Decimal(user.deductions?.itemized_deductions_other || 0);
   const years = args.horizonYears ?? 30;
   if (args.marginalRate.lte(0)) return [];
 
@@ -256,6 +267,7 @@ export function projectAnnualTaxSavings(
 
   for (let y = 1; y <= years; y++) {
     let yearTotalDeductibleUserCcy = new Decimal(0);
+    let usMortgageUserCcy = new Decimal(0);
     for (const loanSeries of seriesPerLoan) {
       const row = loanSeries[y - 1];
       if (!row) continue;
@@ -267,8 +279,17 @@ export function projectAnnualTaxSavings(
       );
       if (deductibleLoanCcy.lte(0)) continue;
       const loanCcy = row.loan.currency ?? (user.country === 'US' ? 'USD' : 'INR');
+      const inUserCcy = args.fxToUserCcy(deductibleLoanCcy, loanCcy);
+      if (user.country === 'US' && row.loan.loan_type === 'home_loan') {
+        usMortgageUserCcy = usMortgageUserCcy.add(inUserCcy);
+      } else {
+        yearTotalDeductibleUserCcy = yearTotalDeductibleUserCcy.add(inUserCcy);
+      }
+    }
+    if (usMortgageUserCcy.gt(0)) {
+      const above = usMortgageUserCcy.add(usOther).sub(usStandard);
       yearTotalDeductibleUserCcy = yearTotalDeductibleUserCcy.add(
-        args.fxToUserCcy(deductibleLoanCcy, loanCcy),
+        Decimal.max(0, Decimal.min(usMortgageUserCcy, above)),
       );
     }
     const taxSaving = yearTotalDeductibleUserCcy.mul(args.marginalRate);

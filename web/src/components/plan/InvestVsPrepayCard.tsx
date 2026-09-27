@@ -19,9 +19,11 @@
 import Decimal from 'decimal.js';
 import type { PlanData } from './PlanData';
 import { computeBreakdown } from '@/lib/effective-apr';
-import { usItemises } from '@/lib/deductions';
+import { usMortgageShieldShare } from '@/lib/deductions';
 import {
+  CLOSE_CALL,
   compareToLoan,
+  formatAsOf,
   pct,
   safeBenchmarks,
   type ComparisonResult,
@@ -48,7 +50,7 @@ export function InvestVsPrepayCard({ plan, variant }: Props) {
   const ranked = loansWithBalance
     .map((loan) => ({
       loan,
-      breakdown: computeBreakdown(loan, plan.marginalRate, plan.user.country, taxRegime, usItemises(plan.user)),
+      breakdown: computeBreakdown(loan, plan.marginalRate, plan.user.country, taxRegime, usMortgageShieldShare(plan.user)),
     }))
     .sort((a, b) => b.breakdown.effective.cmp(a.breakdown.effective));
 
@@ -273,6 +275,28 @@ function LedgerLayout({ plan, top, result, vehicles, tip }: LayoutProps) {
         }}
       >
         {result.explanation}
+        {result.spreadPct.abs().lt(CLOSE_CALL) && (
+          <>
+            {' '}
+            <strong style={{ color: 'var(--ink)' }}>
+              This is within a point, so it turns on the exact yield: check
+              today&apos;s {result.bestVehicle.name} yield in the{' '}
+              <a href="/tools/invest-vs-prepay" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
+                deeper tool
+              </a>{' '}
+              before deciding.
+            </strong>
+          </>
+        )}
+      </div>
+      <div style={{ marginTop: 6, fontSize: 11, color: 'var(--muted)', lineHeight: 1.6 }}>
+        YIELDS AS OF:{' '}
+        {vehicles.map((v, i) => (
+          <span key={v.key}>
+            {i > 0 && ' · '}
+            {v.name.toUpperCase()} {formatAsOf(v.asOf).toUpperCase()} ({v.source})
+          </span>
+        ))}
       </div>
       <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>
         VARIABLE-RETURN OPTIONS →{' '}

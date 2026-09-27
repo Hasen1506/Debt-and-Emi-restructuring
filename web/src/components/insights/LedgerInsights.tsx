@@ -19,7 +19,7 @@ import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
 import type { StrategyName } from '@/lib/strategy';
 import { computeBreakdown, fmt as fmtPct } from '@/lib/effective-apr';
-import { usItemises } from '@/lib/deductions';
+import { usMortgageShieldShare } from '@/lib/deductions';
 import { deriveMetrics } from '@/lib/derived';
 import { formatCurrency } from '@/lib/api';
 import { userDefaultCurrency } from '@/lib/currency';
@@ -64,7 +64,7 @@ function buildNotes(profile: StoredProfile): Note[] {
         date: dateLabel,
         eyebrow: 'RATES',
         title: `Real ${bank} rate is ${fmtPct(loudest.effective)}`,
-        body: `Published rate ${fmtPct(loudest.nominal)} becomes ${fmtPct(loudest.effective)} once GST + processing + insurance are folded in. At a balance of ${fc(loudest.outstanding.toString())} that is the friction point — every other prepayment loses to closing this line.`,
+        body: `Published rate ${fmtPct(loudest.nominal)} becomes ${fmtPct(loudest.effective)} once GST + processing + insurance are folded in. At a balance of ${fc(m.toUserCcy(loudest.outstanding, loudest.loan).toString())} that is the friction point — every other prepayment loses to closing this line.`,
         tags: ['rates', loudest.loan.loan_type.replace('_', '-'), 'effective'],
       });
     } else {
@@ -89,7 +89,7 @@ function buildNotes(profile: StoredProfile): Note[] {
       profile.marginalRate,
       'IN',
       profile.user.tax_regime,
-      usItemises(profile.user),
+      usMortgageShieldShare(profile.user),
     ).lines.find((l) => l.label === 'Tax shield');
     const shieldRate = shieldLine?.value ?? new Decimal(0);
     const shieldValue = homeLoan.outstanding.mul(shieldRate);

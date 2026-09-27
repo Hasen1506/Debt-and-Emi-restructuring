@@ -33,6 +33,7 @@ import {
   type LifecycleStatus,
 } from '@/lib/lifecycle-events';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
+import { percentRateError } from '@/lib/loan-gaps';
 
 export type LifecycleVariant = 'ledger' | 'existing' | 'editorial';
 
@@ -114,8 +115,17 @@ export function LifecycleEventsPanel({
     setLoanDraft(blankLoanDraft());
   }
 
+  // A rate the plan engine won't take (negative, above 100%) is named here
+  // instead of breaking the plan after saving.
+  const rateError =
+    kind === 'floating_rate_reset'
+      ? percentRateError(newRatePct)
+      : kind === 'property_buy'
+        ? percentRateError(loanRatePct)
+        : null;
+
   function commit() {
-    if (!effectiveDate) return;
+    if (!effectiveDate || rateError) return;
     let draft: LifecycleDraft | null = null;
     if (kind === 'salary_reset') {
       if (Number(newGross) <= 0) return;
@@ -327,8 +337,14 @@ export function LifecycleEventsPanel({
                     value={newRatePct}
                     onChange={(e) => setNewRatePct(e.target.value)}
                     placeholder="e.g. 8.40"
+                    aria-invalid={rateError ? true : undefined}
                     style={inputStyle(variant)}
                   />
+                  {rateError && (
+                    <span role="alert" style={{ fontSize: 11, color: 'var(--negative)' }}>
+                      {rateError}
+                    </span>
+                  )}
                 </label>
               </div>
             )}
@@ -392,8 +408,14 @@ export function LifecycleEventsPanel({
                       value={loanRatePct}
                       onChange={(e) => setLoanRatePct(e.target.value)}
                       placeholder="e.g. 8.5"
+                      aria-invalid={rateError ? true : undefined}
                       style={inputStyle(variant)}
                     />
+                    {rateError && (
+                      <span role="alert" style={{ fontSize: 11, color: 'var(--negative)' }}>
+                        {rateError}
+                      </span>
+                    )}
                   </label>
                 </div>
                 <div style={fieldRowStyle()}>

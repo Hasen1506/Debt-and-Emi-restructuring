@@ -120,7 +120,8 @@ export function computeCashAdvice(
   // Don't recommend transferring more than the loan's outstanding —
   // anything beyond would be wasted (and the avalanche would naturally
   // cascade, but the user-facing "move $X" should match the obligation).
-  const transferAmount = Decimal.min(excess, loudest.outstanding);
+  // Cash is in the user's currency; so is the balance it's compared with.
+  const transferAmount = Decimal.min(excess, metrics.toUserCcy(loudest.outstanding, loudest.loan));
   const annualSaving = transferAmount.mul(spread);
 
   return {

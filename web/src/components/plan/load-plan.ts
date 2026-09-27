@@ -4,7 +4,7 @@
  * restructure scan, the other two strategies) and shapes PlanData.
  */
 import { api, type SimulateResponse, type UserPayload } from '@/lib/api';
-import { loadFxCacheServer, loadProfileServer } from '@/lib/user-store';
+import { loadProfileServer } from '@/lib/user-store';
 import { loadStrategyServer, STRATEGIES, type StrategyName } from '@/lib/strategy';
 import {
   loadHikeModelingServer,
@@ -52,7 +52,6 @@ import { projectionGaps } from '@/lib/loan-gaps';
 import {
   currenciesInPlay,
   derivePerCurrencyMetrics,
-  ensureFxRates,
   userDefaultCurrency,
 } from '@/lib/currency';
 import type { PlanData, MonthlyPaymentBreakdown } from '@/components/plan/PlanData';
@@ -104,15 +103,10 @@ export async function loadPlan(
     annual_hike_rate:
       hikeModeling === 'off' ? '0' : profile.user.annual_hike_rate ?? '0',
   };
-  // Make sure the engine receives FX rates for any non-default-currency
-  // loan so its surplus / DTI math doesn't silently fall back to parity.
-  // No-op for single-currency users (the common case). Seed from the
-  // FX-cache cookie when fresh so we skip the network call entirely on
-  // repeat /plan loads within the 24h TTL.
-  const fxCache = await loadFxCacheServer();
-  adjustedUser = await ensureFxRates(adjustedUser, api.fxRate, {
-    cached: fxCache?.rates,
-  });
+  // The exchange rates saved with the profile (setup asks for one per
+  // foreign currency). A loan without one is a gap below: the engine would
+  // take it at parity, ₹20 lakh as $20 lakh. Home, /debts and /plan all
+  // use this one rate, so they agree.
   const fxRatesUsed = adjustedUser.fx_to_user_currency ?? {};
 
   // FX drift — for each non-residence currency in play, attach the
@@ -229,26 +223,28 @@ export async function loadPlan(
 
   // Pre-compute auto-reinvest events when the toggle is on. Per-year tax
   // savings = capped deductible interest × marginal_rate, applied at the
-  // post-ITR-filing month. Empty when toggle is off, regime gates all
-  // deductions (India new), or marginal_rate is zero.
+  // post-ITR-filing month. Empty when the regime gates all deductions
+  // (India new), nothing is itemised above the US standard deduction, or
+  // marginal_rate is zero. Projected whatever the toggle says: its label
+  // shows the amount ("no loan tax deductions" appeared, toggle off, next
+  // to a home loan whose rate counted a shield). The engine gets it only
+  // when the toggle is on.
   const fxMap = adjustedUser.fx_to_user_currency ?? {};
-  const reinvestEvents =
-    taxReinvest === 'on'
-      ? projectAnnualTaxSavings(adjustedUser, {
-          country: adjustedUser.country,
-          taxRegime: adjustedUser.tax_regime,
-          marginalRate: new Decimal(profile.marginalRate || 0),
-          fxToUserCcy: (amount, loanCcy) => {
-            const userCcy = adjustedUser.country === 'US' ? 'USD' : 'INR';
-            if (loanCcy === userCcy) return amount;
-            return amount.mul(new Decimal(fxMap[loanCcy] ?? '1'));
-          },
-          horizonYears: 20,
-        }).map((y) => ({
-          month: y.applyMonth,
-          amount: y.taxSaving.toFixed(2),
-        }))
-      : [];
+  const projectedTaxSavings = projectAnnualTaxSavings(adjustedUser, {
+    country: adjustedUser.country,
+    taxRegime: adjustedUser.tax_regime,
+    marginalRate: new Decimal(profile.marginalRate || 0),
+    fxToUserCcy: (amount, loanCcy) => {
+      const userCcy = adjustedUser.country === 'US' ? 'USD' : 'INR';
+      if (loanCcy === userCcy) return amount;
+      return amount.mul(new Decimal(fxMap[loanCcy] ?? '1'));
+    },
+    horizonYears: 20,
+  }).map((y) => ({
+    month: y.applyMonth,
+    amount: y.taxSaving.toFixed(2),
+  }));
+  const reinvestEvents = taxReinvest === 'on' ? projectedTaxSavings : [];
 
   // Pull planned lifecycle events (salary / rate resets with effectiveDate
   // in the future) into the engine wire format. Confirmed past events are
@@ -345,7 +341,7 @@ export async function loadPlan(
 
   // Loans missing a rate or EMI can't be projected (a blank rate read as
   // 0%), so the engine isn't run and the pages ask for the details.
-  const gaps = projectionGaps(profile.user.loans);
+  const gaps = projectionGaps(profile.user);
   // Offline or incomplete: the pages show no engine numbers from this.
   const fallback = (): PlanData => {
     const ccyList = currenciesInPlay(profile.user.loans, profile.user.country);
@@ -464,7 +460,7 @@ export async function loadPlan(
       advanceTaxSchedule,
       advanceTaxPenaltyMonthly,
       taxReinvest,
-      taxReinvestProjection: reinvestEvents,
+      taxReinvestProjection: projectedTaxSavings,
       monthlyPayments: scenarioPayments,
       // What the pay-minimums run pays in month 1: the plan's month-1
       // payment minus this is the extra it puts on each loan.

@@ -118,6 +118,7 @@ def effective_rate(
     country: Country,
     tax_regime: TaxRegimeIN | None = None,
     itemises: bool = True,
+    itemised_share: Decimal = D("1"),
 ) -> Decimal:
     """§4.1 effective rate = nominal × [1 − shield_fraction × marginal_rate] + fees + GST.
 
@@ -127,8 +128,13 @@ def effective_rate(
 
     - India, new regime: no 80E, so an education loan gets no shield (Sec
       24(b) on a let-out home is still allowed; self-occupied is capped at 0).
-    - US: mortgage interest only helps someone who itemises. Callers pass
-      `user.itemises`; the default keeps older direct callers unchanged.
+    - US: mortgage interest only helps someone who itemises, and then only
+      the part of their itemised deductions above the standard deduction
+      does: `itemised_share` (0–1) is that part as a share of the mortgage
+      interest. A $350k loan at 6.75% ($23,625 interest, $16,100 standard
+      deduction) saves tax on $7,525 of it, not all of it. Callers pass
+      `user.itemises` and `user.itemised_share`; the defaults keep older
+      direct callers unchanged.
     """
     nominal = loan.nominal_rate
     annual_interest = loan.outstanding * nominal
@@ -151,7 +157,8 @@ def effective_rate(
         if cap == 0:
             shield_pct = D("0")
         elif cap == D("Infinity"):
-            shield_pct = marginal_tax_rate
+            share = itemised_share if country == Country.US else D("1")
+            shield_pct = marginal_tax_rate * max(D("0"), min(D("1"), share))
         else:
             deductible = min(annual_interest, cap)
             shield_pct = (deductible / annual_interest) * marginal_tax_rate

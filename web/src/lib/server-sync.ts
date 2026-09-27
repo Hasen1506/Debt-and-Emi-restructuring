@@ -20,6 +20,7 @@
  */
 
 import { useEffect } from 'react';
+import { writeProfileCookieClient } from './user-store';
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
@@ -82,7 +83,7 @@ export async function syncSliceToServer(slice: string, value: unknown): Promise<
 function hydrateLocalStores(data: Record<string, unknown>): void {
   const profile = (data as { profile?: { user?: unknown; marginalRate?: string; creditScore?: number | null } }).profile;
   if (profile && typeof profile === 'object') {
-    if (profile.user) writeCookie('finoptima_user', JSON.stringify(profile.user));
+    if (profile.user) writeProfileCookieClient(JSON.stringify(profile.user));
     if (profile.marginalRate) writeCookie('finoptima_marginal', profile.marginalRate);
     if (profile.creditScore != null) writeCookie('finoptima_score', String(profile.creditScore));
   }

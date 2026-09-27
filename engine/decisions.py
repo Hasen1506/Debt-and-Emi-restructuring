@@ -6,6 +6,7 @@ each can be wired to a focused UI screen.
 from decimal import ROUND_HALF_UP, Decimal
 from dataclasses import dataclass, field, replace
 from datetime import date
+from typing import Optional
 from engine.models import Loan, Country, LoanType, InvestmentOption, LiquidityClass
 from engine.formulas import emi, effective_rate, prepay_recommended
 from engine.minimum_payments import compute_minimum_payment
@@ -207,7 +208,7 @@ class NewDebtVerdict:
     total_real_cost: Decimal
     monthly_emi: Decimal
     effective_apr: Decimal                  # solved so NPV(payments) = cash price − fee
-    verdict: str                            # "take" | "pay_cash" | "delay"
+    verdict: str                            # "take" | "pay_cash" | "delay" | "cant_afford"
     detail: str
 
 
@@ -245,6 +246,7 @@ def evaluate_new_debt(
     processing_fee: Decimal = D("0"),
     user_savings_after_efund: Decimal = D("0"),
     country: Country = Country.IN,
+    monthly_room: Optional[Decimal] = None,
 ) -> NewDebtVerdict:
     """§8b — compares take-EMI vs pay-cash vs delay. Returns the dominant verdict.
 
@@ -255,6 +257,11 @@ def evaluate_new_debt(
     A processing fee paid up front means the buyer borrows less than the
     cash price for the same EMIs, so it raises the effective APR; a
     "no-cost" EMI with a fee is never 0%.
+
+    `monthly_room` is what's left each month after costs and the payments
+    already owed (income − expenses − EMIs and card minimums; negative when
+    short). When given, an EMI above it is never "take": a $7,294 EMI on a
+    $1,300 room read "Take the EMI … if the budget allows".
     """
     if list_price <= 0:
         raise DecisionInputError("list_price", "Enter the price above zero.")
@@ -280,19 +287,45 @@ def evaluate_new_debt(
     cost = money(total_real_cost, country)
 
     can_pay_cash = user_savings_after_efund >= cash_equivalent
+    fits = monthly_room is None or emi_offer_monthly_payment <= monthly_room
+    emi_text = money(emi_offer_monthly_payment, country)
     if can_pay_cash and apr > D("0.10"):
         verdict = "pay_cash"
         detail = f"Real APR {apr_text}. Paying cash saves {cost} over the EMI plan."
+    elif not fits:
+        room = max(D("0"), monthly_room)
+        room_text = (
+            f"only {money(room, country)} a month is left"
+            if room > 0 else "nothing is left each month"
+        )
+        if can_pay_cash:
+            verdict = "pay_cash"
+            detail = (
+                f"The {emi_text} EMI doesn't fit: {room_text} after your costs and "
+                f"current payments. Your savings cover the price, so pay cash."
+            )
+        else:
+            verdict = "cant_afford"
+            detail = (
+                f"The {emi_text} EMI doesn't fit: {room_text} after your costs and "
+                f"current payments, so it would leave you "
+                f"{money(emi_offer_monthly_payment - monthly_room, country)} a month short. "
+                f"Borrow less, over more months, or save up first."
+            )
     elif apr > D("0.20"):
         verdict = "delay"
         detail = f"Real APR {apr_text}: too costly. Save up first; the EMI plan costs {cost} more than cash."
     else:
         verdict = "take"
+        budget = (
+            "if the budget allows" if monthly_room is None else
+            f"it leaves {money(monthly_room - emi_offer_monthly_payment, country)} a month after your costs and payments"
+        )
         detail = (
-            f"Real APR {apr_text}. Acceptable; take the EMI if the budget allows. "
+            f"Real APR {apr_text}. Acceptable; take the EMI: {budget}. "
             f"It costs {cost} more than paying cash."
             if total_real_cost > 0 else
-            f"Real APR {apr_text}. The EMI plan costs no more than paying cash; take it if the budget allows."
+            f"Real APR {apr_text}. The EMI plan costs no more than paying cash; take it: {budget}."
         )
 
     return NewDebtVerdict(

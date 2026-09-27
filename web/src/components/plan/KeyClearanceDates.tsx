@@ -24,6 +24,7 @@ import { formatCurrency, type LoanType } from '@/lib/api';
 import { monthIndexToCountryLabel } from '@/lib/today';
 import { readGoalsClient, type Goal, monthsUntil } from '@/lib/goals';
 import type { PlanData } from './PlanData';
+import { formatLoanAmount } from '@/lib/currency';
 
 interface Milestone {
   /** 1-based sim month at which the milestone fires. */
@@ -84,7 +85,8 @@ export function KeyClearanceDates({ plan }: { plan: PlanData }) {
       out.push({
         month: clearM,
         label: `${LOAN_TYPE_SHORT[l.loan_type] ?? l.loan_type} — ${l.bank} clears`,
-        detail: `${formatCurrency(l.outstanding, ccy)} → 0`,
+        // In the loan's own currency: an NRI's ₹20 lakh is not $20 lakh.
+        detail: `${formatLoanAmount(Number(l.outstanding), l, plan.user.country, plan.fxRatesUsed)} → 0`,
         kind: 'loan_clear',
       });
     });

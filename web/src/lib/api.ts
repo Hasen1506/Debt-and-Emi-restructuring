@@ -502,7 +502,7 @@ export interface NewDebtResponse {
   total_real_cost: string;
   monthly_emi: string;
   effective_apr: string;
-  verdict: 'take' | 'pay_cash' | 'delay';
+  verdict: 'take' | 'pay_cash' | 'delay' | 'cant_afford';
   detail: string;
 }
 
@@ -1139,6 +1139,8 @@ export const api = {
     processing_fee?: string;
     user_savings_after_efund?: string;
     country?: 'IN' | 'US';
+    /** Income − costs − payments already owed, per month (negative when short). */
+    monthly_room?: string;
   }) => postWithFieldErrors<NewDebtResponse>('/api/new-debt', req),
 
   windfall: (req: {
