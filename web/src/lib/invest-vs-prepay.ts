@@ -15,6 +15,9 @@
  *     already the effective annual).
  *   • Slab-tax applied to vehicles whose interest is taxed at slab —
  *     FDs, HYSAs. Tax-free bonds and Treasuries get partial / no tax.
+ *
+ * The same yields and tax rules feed the deep-dive tool, so the two can't
+ * disagree. Each default yield carries the date it was true on.
  */
 import Decimal from 'decimal.js';
 import type { Country } from './api';
@@ -40,7 +43,98 @@ export interface SafeVehicle {
   /** Risk tier. "safe" = govt-backed or insured. "moderate" = AAA
    *  corporate. "high" = equity / variable. */
   risk: RiskLevel;
+  /** When the default yield was true, and where it comes from. */
+  asOf: string;
+  source: string;
 }
+
+/**
+ * How an instrument's return is taxed.
+ *   • income — at the user's marginal rate, times `share` (a US Treasury
+ *     is 0.8: state tax doesn't apply, and the one marginal-rate field
+ *     holds federal + state, of which state is taken as ~20%);
+ *   • flat — at a fixed rate whatever the user's slab (capital gains);
+ *   • none — tax-free.
+ */
+export type ReturnTax =
+  | { kind: 'income'; share: number }
+  | { kind: 'flat'; rate: number }
+  | { kind: 'none' };
+
+/** The tax rate a return pays under `tax` for a user at `marginal`. */
+export function returnTaxRate(tax: ReturnTax, marginal: Decimal | string | number): Decimal {
+  if (tax.kind === 'none') return D(0);
+  if (tax.kind === 'flat') return D(tax.rate);
+  return Decimal.max(D(0), D(marginal || 0)).mul(tax.share);
+}
+
+/** A pre-tax annual return after tax. Losses pay no tax. */
+export function afterTaxReturn(
+  preTax: Decimal,
+  tax: ReturnTax,
+  marginal: Decimal | string | number,
+): Decimal {
+  if (preTax.lte(0)) return preTax;
+  return preTax.mul(D(1).minus(returnTaxRate(tax, marginal)));
+}
+
+export interface SafeRate {
+  /** Quoted annual yield, decimal. */
+  rate: string;
+  tax: ReturnTax;
+  compounding: 'simple' | 'quarterly';
+  /** The day (or month) the yield was true on, ISO. */
+  asOf: string;
+  source: string;
+}
+
+/**
+ * Default yields for the safe vehicles, dated. The Treasury yield is the
+ * US Treasury's 1-year par yield on 25 Sep 2026. The others are typical
+ * retail quotes from May 2026. Both screens say so and ask for today's
+ * yield when the answer is close.
+ */
+export const SAFE_RATES = {
+  fd_in: {
+    rate: '0.071', tax: { kind: 'income', share: 1 }, compounding: 'quarterly',
+    asOf: '2026-05', source: 'typical 1-yr SBI / HDFC FD',
+  },
+  tax_free_bond_in: {
+    rate: '0.0525', tax: { kind: 'none' }, compounding: 'simple',
+    asOf: '2026-05', source: 'typical NHAI / REC secondary-market yield',
+  },
+  gsec_in: {
+    rate: '0.07', tax: { kind: 'income', share: 1 }, compounding: 'simple',
+    asOf: '2026-05', source: 'typical 1-yr T-bill / G-Sec yield',
+  },
+  hysa_us: {
+    rate: '0.045', tax: { kind: 'income', share: 1 }, compounding: 'simple',
+    asOf: '2026-05', source: 'typical top HYSA APY',
+  },
+  treasury_us: {
+    rate: '0.045', tax: { kind: 'income', share: 0.8 }, compounding: 'simple',
+    asOf: '2026-09-25', source: 'US Treasury 1-yr par yield',
+  },
+} satisfies Record<string, SafeRate>;
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "25 Sep 2026" for a day, "May 2026" for a month. */
+export function formatAsOf(asOf: string): string {
+  const [y, m, d] = asOf.split('-');
+  const month = MONTHS[Number(m) - 1] ?? m;
+  return d ? `${Number(d)} ${month} ${y}` : `${month} ${y}`;
+}
+
+/** Pre-tax effective annual yield of a safe rate. */
+function preTaxOf(r: SafeRate): Decimal {
+  return r.compounding === 'quarterly' ? quarterlyCompound(r.rate) : D(r.rate);
+}
+
+/** A comparison within this many points of the loan rate turns on the
+ *  exact yield, so the screens ask for today's instead of trusting a
+ *  dated default. */
+export const CLOSE_CALL = D('0.01');
 
 /**
  * Quarterly compounding: effective = (1 + r/4)^4 − 1
@@ -64,105 +158,47 @@ export function monthlyCompound(nominal: Decimal | string): Decimal {
   return r.div(12).plus(1).pow(12).minus(1);
 }
 
-/**
- * Default safe-vehicle quotes as of 2026-05.
- *
- * These are reasonable retail-investor benchmarks. They should be
- * editable per-user in a later phase (e.g. "your bank's actual FD rate"),
- * but for the v1 card these defaults match what an average user would
- * see if they shopped around for 10 minutes.
- */
+/** The safe vehicles for a country, with after-tax yields at `marginalRate`. */
 export function safeBenchmarks(
   country: Country,
   marginalRate: string | Decimal,
 ): SafeVehicle[] {
   const marginal = D(marginalRate || '0');
+  const vehicle = (
+    key: keyof typeof SAFE_RATES,
+    name: string,
+    note: string,
+  ): SafeVehicle => {
+    const r: SafeRate = SAFE_RATES[key];
+    const pre = preTaxOf(r);
+    return {
+      key,
+      name,
+      nominalRate: D(r.rate),
+      preTaxEffective: pre,
+      afterTaxEffective: afterTaxReturn(pre, r.tax, marginal),
+      note,
+      risk: 'safe',
+      asOf: r.asOf,
+      source: r.source,
+    };
+  };
 
   if (country === 'IN') {
-    // 1-yr SBI / HDFC FD ~7.1%, quarterly compounding, taxed at slab.
-    const fdNominal = D('0.071');
-    const fdEffective = quarterlyCompound(fdNominal);
-    const fdAfterTax = fdEffective.mul(D('1').minus(marginal));
-
-    // Tax-free bonds (NHAI / REC / IRFC / PFC secondary market) ~5.25%,
-    // semi-annual coupon, but the coupon is tax-free so we treat it
-    // straight — no compounding adjustment, no tax.
-    const tfbNominal = D('0.0525');
-
-    // 1-yr T-Bill / GSec ~7.0%, taxed at slab. Half-yearly coupon
-    // approximation — close enough for a comparison card.
-    const gsecNominal = D('0.07');
-    const gsecAfterTax = gsecNominal.mul(D('1').minus(marginal));
-
     return [
-      {
-        key: 'fd_in',
-        name: 'Bank FD',
-        nominalRate: fdNominal,
-        preTaxEffective: fdEffective,
-        afterTaxEffective: fdAfterTax,
-        note:
-          'Quarterly compounding · taxed at your slab',
-        risk: 'safe',
-      },
-      {
-        key: 'tax_free_bond_in',
-        name: 'Tax-free bonds (NHAI/REC)',
-        nominalRate: tfbNominal,
-        preTaxEffective: tfbNominal,
-        afterTaxEffective: tfbNominal,
-        note:
-          'Coupon is tax-free · only sensible in 30%+ slabs',
-        risk: 'safe',
-      },
-      {
-        key: 'gsec_in',
-        name: 'GoI dated security (G-Sec)',
-        nominalRate: gsecNominal,
-        preTaxEffective: gsecNominal,
-        afterTaxEffective: gsecAfterTax,
-        note: 'Govt-backed · taxed at slab · low liquidity',
-        risk: 'safe',
-      },
+      vehicle('fd_in', 'Bank FD', 'Quarterly compounding · taxed at your slab'),
+      vehicle('tax_free_bond_in', 'Tax-free bonds (NHAI/REC)',
+        'Coupon is tax-free · only sensible in 30%+ slabs'),
+      vehicle('gsec_in', 'GoI dated security (G-Sec)',
+        'Govt-backed · taxed at slab · low liquidity'),
     ];
   }
-
-  // US
-  // HYSA APY ~4.5% — already effective annual, taxed federal+state.
-  // We use the user's marginal as a stand-in for fed+state combined;
-  // it's the same field for both countries.
-  const hysaAPY = D('0.045');
-  const hysaAfterTax = hysaAPY.mul(D('1').minus(marginal));
-
-  // 1-yr Treasury ~5.0%, state-tax exempt. We can't distinguish fed
-  // from state in `marginal`, so approximate: assume ~30% of marginal
-  // is state for high-tax-state users. A conservative "state-exempt
-  // shield" of marginal × 0.2 is the closest single-knob approximation.
-  const treasNominal = D('0.05');
-  const stateExemptShield = marginal.mul(D('0.2'));
-  const treasEffectiveTax = marginal.minus(stateExemptShield);
-  const treasAfterTax = treasNominal.mul(D('1').minus(treasEffectiveTax));
-
   return [
-    {
-      key: 'hysa_us',
-      name: 'HYSA (Marcus, Ally, etc.)',
-      nominalRate: hysaAPY,
-      preTaxEffective: hysaAPY,
-      afterTaxEffective: hysaAfterTax,
-      note:
-        'APY-quoted (already compounded) · taxed federal + state',
-      risk: 'safe',
-    },
-    {
-      key: 'treasury_us',
-      name: '1-yr US Treasury',
-      nominalRate: treasNominal,
-      preTaxEffective: treasNominal,
-      afterTaxEffective: treasAfterTax,
-      note: 'Federal tax only · state-exempt',
-      risk: 'safe',
-    },
+    // The user's marginal rate stands in for federal + state combined.
+    vehicle('hysa_us', 'HYSA (Marcus, Ally, etc.)',
+      'APY-quoted (already compounded) · taxed federal + state'),
+    vehicle('treasury_us', '1-yr US Treasury',
+      'Federal tax only · state-exempt (taxed at ~80% of your rate)'),
   ];
 }
 
@@ -214,7 +250,7 @@ export function compareToLoan(
       verdict: 'prepay',
       bestVehicle: best,
       spreadPct: spread,
-      explanation: `Prepaying saves ${spreadAbs.mul(100).toFixed(2)}%/yr more than parking it in ${best.name} after tax. The loan rate is certain; the FD/bond yield is not (rates can fall).`,
+      explanation: `Prepaying saves ${spreadAbs.mul(100).toFixed(2)}%/yr more than parking it in ${best.name} after tax. The loan rate is certain; the savings yield is not (rates can fall).`,
     };
   }
 

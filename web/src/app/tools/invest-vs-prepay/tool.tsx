@@ -26,7 +26,15 @@ import { useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import { Card } from '@/components/Card';
 import { InfoTip, Stat } from '@/components/ToolPrimitives';
-import { quarterlyCompound } from '@/lib/invest-vs-prepay';
+import {
+  CLOSE_CALL,
+  SAFE_RATES,
+  afterTaxReturn,
+  formatAsOf,
+  quarterlyCompound,
+  returnTaxRate,
+  type ReturnTax,
+} from '@/lib/invest-vs-prepay';
 import { simulateMonteCarlo, toRealRate } from '@/lib/monte-carlo';
 import { useStoredProfile } from '@/lib/use-profile';
 import { deriveMetrics } from '@/lib/derived';
@@ -40,74 +48,74 @@ interface Instrument {
   defaultReturn: number;
   /** Default annualised volatility (1σ, decimal). 0 for fixed-income. */
   defaultVol: number;
-  /** What fraction of returns is taxed at slab. 1 = fully taxed,
-   *  0 = tax-free, 0.1 = LTCG on equity (10% in IN above ₹1L gain). */
-  taxFraction: number;
+  /** How the return is taxed: at the user's rate (or a share of it),
+   *  at a flat capital-gains rate, or not at all. */
+  tax: ReturnTax;
   /** Free-text note shown under the instrument selector. */
   note: string;
   /** Compounding mode for the deterministic comparison. */
   compounding: 'simple' | 'quarterly' | 'monthly';
+  /** For fixed-income defaults: the day the yield was true, and its source
+   *  (shared with the /plan card through SAFE_RATES). */
+  asOf?: string;
+  source?: string;
+}
+
+/** A fixed-income instrument from the same dated yields /plan uses. */
+function safe(key: keyof typeof SAFE_RATES, name: string, note: string): Instrument {
+  const r = SAFE_RATES[key];
+  return {
+    key,
+    name,
+    defaultReturn: Number(r.rate),
+    defaultVol: 0,
+    tax: r.tax,
+    note,
+    compounding: r.compounding,
+    asOf: r.asOf,
+    source: r.source,
+  };
 }
 
 const INSTRUMENTS_IN: Instrument[] = [
-  {
-    key: 'fd_in',
-    name: 'Bank FD',
-    defaultReturn: 0.071,
-    defaultVol: 0,
-    taxFraction: 1,
-    note: 'Quarterly compounding · taxed at slab',
-    compounding: 'quarterly',
-  },
-  {
-    key: 'tfb_in',
-    name: 'Tax-free bonds (NHAI/REC)',
-    defaultReturn: 0.0525,
-    defaultVol: 0,
-    taxFraction: 0,
-    note: 'Coupon tax-free · semi-annual payment',
-    compounding: 'simple',
-  },
+  safe('fd_in', 'Bank FD', 'Quarterly compounding · taxed at slab'),
+  safe('tax_free_bond_in', 'Tax-free bonds (NHAI/REC)', 'Coupon tax-free · semi-annual payment'),
   {
     key: 'equity_mf_in',
     name: 'Equity Mutual Fund (Nifty/Flexicap)',
     defaultReturn: 0.12,
     defaultVol: 0.18,
-    taxFraction: 0.1,
-    note: 'Historical ~12% nominal · 18% std-dev · 10% LTCG above ₹1L',
+    tax: { kind: 'flat', rate: 0.125 },
+    note: 'Historical ~12% nominal · 18% std-dev · 12.5% LTCG above ₹1.25L',
     compounding: 'simple',
   },
 ];
 
 const INSTRUMENTS_US: Instrument[] = [
-  {
-    key: 'hysa_us',
-    name: 'HYSA (Marcus, Ally)',
-    defaultReturn: 0.045,
-    defaultVol: 0,
-    taxFraction: 1,
-    note: 'APY-quoted · taxed federal + state at slab',
-    compounding: 'simple',
-  },
-  {
-    key: 'treas_us',
-    name: '1-yr US Treasury',
-    defaultReturn: 0.05,
-    defaultVol: 0,
-    taxFraction: 0.8,
-    note: 'Federal-only · state-exempt (approx ~20% shield)',
-    compounding: 'simple',
-  },
+  safe('hysa_us', 'HYSA (Marcus, Ally)', 'APY-quoted · taxed federal + state at slab'),
+  safe('treasury_us', '1-yr US Treasury',
+    'Federal tax only · state-exempt, so taxed at ~80% of your rate'),
   {
     key: 'spx_us',
     name: 'S&P 500 index fund',
     defaultReturn: 0.10,
     defaultVol: 0.16,
-    taxFraction: 0.15,
+    tax: { kind: 'flat', rate: 0.15 },
     note: 'Historical ~10% nominal · 16% std-dev · 15% LTCG',
     compounding: 'simple',
   },
 ];
+
+/** A Decimal from a text field, or null when it isn't a number. */
+function parseNum(v: string): Decimal | null {
+  if (v.trim() === '') return null;
+  try {
+    const d = D(v);
+    return d.isFinite() ? d : null;
+  } catch {
+    return null;
+  }
+}
 
 export function InvestVsPrepayDeepTool() {
   // Start from the profile: its country, its dearest loan's effective
@@ -138,31 +146,42 @@ export function InvestVsPrepayDeepTool() {
   const inst = instruments.find((i) => i.key === instKey) ?? instruments[0];
 
   const [expReturnPct, setExpReturnPct] = useState(
-    (inst.defaultReturn * 100).toFixed(1),
+    (inst.defaultReturn * 100).toFixed(2),
   );
   const [volPct, setVolPct] = useState((inst.defaultVol * 100).toFixed(1));
+  // A dated default yield is fine for a clear answer. When the answer is
+  // within a point, it turns on today's yield: the verdict waits until the
+  // user types one in, or says to use the default anyway.
+  const [yieldConfirmed, setYieldConfirmed] = useState(false);
 
   function applyInstrument(key: string) {
     const next = instruments.find((i) => i.key === key) ?? instruments[0];
     setInstKey(key);
-    setExpReturnPct((next.defaultReturn * 100).toFixed(1));
+    setExpReturnPct((next.defaultReturn * 100).toFixed(2));
     setVolPct((next.defaultVol * 100).toFixed(1));
+    setYieldConfirmed(false);
   }
 
   function applyCountry(c: 'IN' | 'US') {
     setCountry(c);
     const next = (c === 'IN' ? INSTRUMENTS_IN : INSTRUMENTS_US)[0];
     setInstKey(next.key);
-    setExpReturnPct((next.defaultReturn * 100).toFixed(1));
+    setExpReturnPct((next.defaultReturn * 100).toFixed(2));
     setVolPct((next.defaultVol * 100).toFixed(1));
     setInflationPct(c === 'IN' ? '6' : '3');
+    setYieldConfirmed(false);
   }
 
   const result = useMemo(() => {
-    const loan = D(loanRatePct).div(100);
-    const marginal = D(marginalPct).div(100);
-    const expReturn = D(expReturnPct).div(100);
-    const vol = D(volPct).div(100);
+    const loanIn = parseNum(loanRatePct);
+    const marginalIn = parseNum(marginalPct);
+    const returnIn = parseNum(expReturnPct);
+    const volIn = parseNum(volPct);
+    if (!loanIn || !marginalIn || !returnIn || !volIn) return null;
+    const loan = loanIn.div(100);
+    const marginal = Decimal.min(1, Decimal.max(0, marginalIn.div(100)));
+    const expReturn = returnIn.div(100);
+    const vol = Decimal.max(0, volIn.div(100));
 
     // Compounding
     let preTax: Decimal;
@@ -171,19 +190,9 @@ export function InvestVsPrepayDeepTool() {
       preTax = expReturn.div(12).plus(1).pow(12).minus(1);
     } else preTax = expReturn;
 
-    // After-tax: only the taxable fraction is taxed at the user's marginal.
-    // For LTCG-treated instruments the taxFraction here represents the
-    // *effective* tax rate (e.g. 0.1 = 10% LTCG flat, not 10% of marginal).
-    const isLtcg = inst.taxFraction > 0 && inst.taxFraction < 1;
-    let afterTax: Decimal;
-    if (isLtcg) {
-      // Treat taxFraction as flat LTCG rate.
-      afterTax = preTax.mul(D('1').minus(D(inst.taxFraction)));
-    } else if (inst.taxFraction === 0) {
-      afterTax = preTax;
-    } else {
-      afterTax = preTax.mul(D('1').minus(marginal));
-    }
+    // After tax, by the instrument's rule: the user's rate (a Treasury pays
+    // ~80% of it), a flat capital-gains rate, or none. /plan uses the same.
+    const afterTax = afterTaxReturn(preTax, inst.tax, marginal);
 
     // Downside scenario: expected return - 1σ. Volatility is annualized.
     // For fixed-income (vol=0) this collapses to expected return.
@@ -198,17 +207,8 @@ export function InvestVsPrepayDeepTool() {
     } else {
       downsidePreTax = downsideReturn;
     }
-    let downsideAfterTax: Decimal;
-    if (downsidePreTax.lte(0)) {
-      // No tax on negative returns
-      downsideAfterTax = downsidePreTax;
-    } else if (isLtcg) {
-      downsideAfterTax = downsidePreTax.mul(D('1').minus(D(inst.taxFraction)));
-    } else if (inst.taxFraction === 0) {
-      downsideAfterTax = downsidePreTax;
-    } else {
-      downsideAfterTax = downsidePreTax.mul(D('1').minus(marginal));
-    }
+    // No tax on negative returns.
+    const downsideAfterTax = afterTaxReturn(downsidePreTax, inst.tax, marginal);
 
     const expectedSpread = afterTax.minus(loan);
     const downsideSpread = downsideAfterTax.minus(loan);
@@ -248,11 +248,9 @@ export function InvestVsPrepayDeepTool() {
   const mc = useMemo(() => {
     const expReturn = Number(expReturnPct) / 100;
     const vol = Math.max(0, Number(volPct) / 100);
-    const taxRate = inst.taxFraction > 0 && inst.taxFraction < 1
-      ? inst.taxFraction
-      : inst.taxFraction === 1
-        ? Number(marginalPct) / 100
-        : 0;
+    const taxRate = Number(
+      returnTaxRate(inst.tax, Math.min(1, Math.max(0, Number(marginalPct) / 100 || 0))),
+    );
     const inflation = Math.max(0, Number(inflationPct) / 100);
     return simulateMonteCarlo({
       expectedReturn: expReturn,
@@ -263,6 +261,13 @@ export function InvestVsPrepayDeepTool() {
       trials: 5000,
     });
   }, [expReturnPct, volPct, marginalPct, yearsHeld, inflationPct, inst]);
+
+  // The default is dated and the answer is close: ask for today's yield.
+  const needsYield =
+    result !== null &&
+    Boolean(inst.asOf) &&
+    !yieldConfirmed &&
+    result.expectedSpread.abs().lt(CLOSE_CALL);
 
   const loanRateDecimal = Number(loanRatePct) / 100;
   const loanRealDecimal = Number(
@@ -339,11 +344,23 @@ export function InvestVsPrepayDeepTool() {
         </div>
         <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
           {inst.note}
+          {inst.asOf && inst.source && (
+            <>
+              {' '}· default {(inst.defaultReturn * 100).toFixed(2)}% is the{' '}
+              {inst.source}, {formatAsOf(inst.asOf)}
+            </>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
-          <Field label="Expected nominal return (%)">
-            <NumInput value={expReturnPct} onChange={setExpReturnPct} />
+          <Field label={inst.asOf ? "Today's yield (%)" : 'Expected nominal return (%)'}>
+            <NumInput
+              value={expReturnPct}
+              onChange={(v) => {
+                setExpReturnPct(v);
+                setYieldConfirmed(true);
+              }}
+            />
           </Field>
           <Field label="Annual volatility, 1σ (%)">
             <NumInput value={volPct} onChange={setVolPct} />
@@ -352,50 +369,87 @@ export function InvestVsPrepayDeepTool() {
       </Card>
 
       <Card>
-        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>
-          Verdict ·{' '}
-          <span
-            style={{
-              color:
-                result.verdict === 'prepay'
-                  ? 'var(--positive)'
-                  : result.verdict === 'invest'
-                    ? 'var(--accent)'
-                    : 'var(--muted-ink)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-            }}
-          >
-            {result.verdict}
-          </span>
-        </div>
-        <div style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>
-          {result.explanation}
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-            gap: 12,
-          }}
-        >
-          <Stat
-            label="Loan effective"
-            value={`${D(loanRatePct).toFixed(2)}%`}
-          />
-          <Stat
-            label="Instrument · after-tax"
-            value={`${result.afterTax.mul(100).toFixed(2)}%`}
-          />
-          <Stat
-            label="Conservative (− 1σ)"
-            value={`${result.downsideAfterTax.mul(100).toFixed(2)}%`}
-          />
-          <Stat
-            label="Expected spread"
-            value={`${result.expectedSpread.mul(100).toFixed(2)}%`}
-          />
-        </div>
+        {result === null ? (
+          <div style={{ fontSize: 13 }} role="status">
+            Enter a number for the loan rate, your tax rate, the return and
+            the volatility to see a verdict.
+          </div>
+        ) : (
+          <>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>
+              Verdict ·{' '}
+              <span
+                style={{
+                  color: needsYield
+                    ? 'var(--muted-ink)'
+                    : result.verdict === 'prepay'
+                      ? 'var(--positive)'
+                      : result.verdict === 'invest'
+                        ? 'var(--accent)'
+                        : 'var(--muted-ink)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                }}
+              >
+                {needsYield ? 'check the yield' : result.verdict}
+              </span>
+            </div>
+            <div style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>
+              {needsYield && inst.asOf ? (
+                <>
+                  {inst.name} after tax ({result.afterTax.mul(100).toFixed(2)}%)
+                  is within a point of your loan ({D(loanRatePct).toFixed(2)}%),
+                  so the answer turns on the exact yield. The{' '}
+                  {(inst.defaultReturn * 100).toFixed(2)}% default is the{' '}
+                  {inst.source}, {formatAsOf(inst.asOf)}. Enter today&apos;s
+                  yield above, or{' '}
+                  <button
+                    type="button"
+                    onClick={() => setYieldConfirmed(true)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      color: 'var(--accent)',
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      font: 'inherit',
+                    }}
+                  >
+                    use {(inst.defaultReturn * 100).toFixed(2)}% anyway
+                  </button>
+                  .
+                </>
+              ) : (
+                result.explanation
+              )}
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                gap: 12,
+              }}
+            >
+              <Stat
+                label="Loan effective"
+                value={`${D(loanRatePct).toFixed(2)}%`}
+              />
+              <Stat
+                label="Instrument · after-tax"
+                value={`${result.afterTax.mul(100).toFixed(2)}%`}
+              />
+              <Stat
+                label="Conservative (− 1σ)"
+                value={`${result.downsideAfterTax.mul(100).toFixed(2)}%`}
+              />
+              <Stat
+                label="Expected spread"
+                value={`${result.expectedSpread.mul(100).toFixed(2)}%`}
+              />
+            </div>
+          </>
+        )}
       </Card>
 
       <Card>
@@ -533,7 +587,8 @@ export function InvestVsPrepayDeepTool() {
       <div className="muted" style={{ fontSize: 11 }}>
         v2: deterministic baseline + 5,000-trial Monte Carlo + real-terms
         adjustment. Log-normal returns; tax treatment per instrument
-        (LTCG flat for equity, slab for FDs/HYSAs).
+        (LTCG flat for equity, your rate for FDs/HYSAs, ~80% of it for
+        Treasuries). Fixed-income defaults match the /plan card.
       </div>
     </div>
   );
