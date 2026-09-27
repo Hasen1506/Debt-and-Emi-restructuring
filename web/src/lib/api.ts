@@ -548,9 +548,13 @@ export interface BorrowTimingResponse {
   consensus_change_bps: number;
   months_to_decision: number;
   urgency: string;
-  verdict: 'borrow_now' | 'wait';
+  verdict: 'borrow_now' | 'wait' | 'cant_afford';
   estimated_savings: string;
   detail: string;
+  /** The EMI at today's rate. */
+  monthly_payment: string;
+  /** Left each month after costs and payments, when a profile was sent. */
+  monthly_room?: string | null;
 }
 
 export type AssetType =
@@ -1186,6 +1190,8 @@ export const api = {
     principal: string;
     tenure_months: number;
     country?: Country;
+    /** Income − costs − current payments, from the profile. */
+    monthly_room?: string;
   }) => postWithFieldErrors<BorrowTimingResponse>('/api/right-time-to-borrow', req),
 
   loanCheck: (req: LoanCheckRequest) =>

@@ -858,6 +858,9 @@ class BorrowTimingRequest(_In):
     tenure_months: int = Field(..., ge=1, le=MAX_MONTHS)
     # Currency for the wording and the "worth waiting" threshold.
     country: Country = Country.IN
+    # Left each month after costs and current payments, from the profile.
+    # Can be negative (already short). The EMI has to fit in it.
+    monthly_room: Optional[Decimal] = Field(None, ge=D("-1e12"), le=D("1e12"))
 
 
 class BorrowTimingResponse(_Base):
@@ -869,6 +872,8 @@ class BorrowTimingResponse(_Base):
     verdict: str
     estimated_savings: Decimal
     detail: str
+    monthly_payment: Decimal
+    monthly_room: Optional[Decimal] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────

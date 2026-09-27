@@ -426,3 +426,22 @@ def test_new_debt_take_says_what_is_left():
     )
     assert v.verdict == "take"
     assert "₹15,600 a month" in v.detail and "budget allows" not in v.detail
+
+
+def test_borrow_now_checks_the_emi_fits():
+    """Audit round 4: $300k at 15.99% over 60 months ($7,294 EMI) on $1,060
+    of monthly room was "Borrow now" with an add button. It's cant_afford,
+    with the timing kept as a note; a loan that fits says what it leaves."""
+    args = dict(
+        current_rate=D("0.1599"), six_month_avg=D("0.1599"),
+        consensus_change_bps=0, months_to_decision=1, urgency="now",
+        tenure_months=60, country=Country.US,
+    )
+    v = right_time_to_borrow(**args, principal=D("300000"), monthly_room=D("1060"))
+    assert v.verdict == "cant_afford"
+    assert v.monthly_payment == D("7293.82")
+    assert "$6,234 a month short" in v.detail and "On timing alone" in v.detail
+    ok = right_time_to_borrow(**args, principal=D("20000"), monthly_room=D("1060"))
+    assert ok.verdict == "borrow_now" and "leaves $574 a month" in ok.detail
+    blind = right_time_to_borrow(**args, principal=D("300000"))
+    assert blind.verdict == "borrow_now" and "judges the timing only" in blind.detail

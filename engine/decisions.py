@@ -448,9 +448,11 @@ class BorrowTimingVerdict:
     consensus_change_bps: int             # negative = cut expected; positive = hike
     months_to_decision: int
     urgency: str                          # "now" | "3m_ok" | "6m_ok"
-    verdict: str                          # "borrow_now" | "wait"
+    verdict: str                          # "borrow_now" | "wait" | "cant_afford"
     estimated_savings: Decimal            # principal × (Δr) × tenure_years
     detail: str
+    monthly_payment: Decimal = D("0")     # the EMI at today's rate
+    monthly_room: Optional[Decimal] = None
 
 
 def right_time_to_borrow(
@@ -462,11 +464,17 @@ def right_time_to_borrow(
     principal: Decimal,
     tenure_months: int,
     country: Country = Country.IN,
+    monthly_room: Optional[Decimal] = None,
 ) -> BorrowTimingVerdict:
     """§8f — three inputs from market context, one from the user (urgency).
 
     Verdict is `wait` only if: (a) user can wait AND (b) cut is meaningful AND
     (c) decision is soon enough that delay cost < expected savings.
+
+    `monthly_room` is what the user has left each month after costs and
+    current payments. An EMI above it is `cant_afford` whatever the timing:
+    "borrow now" used to go to a $7,294 EMI on $1,300 of room. Without it
+    the verdict says it only judged the timing.
     """
     bps_delta = D(consensus_change_bps) / D("10000")
     # Interest saved over the loan if the rate is lower by the expected cut:
@@ -506,9 +514,32 @@ def right_time_to_borrow(
             detail = (f"A {-consensus_change_bps}bps cut would save only ~{money(estimated_savings, country)} "
                       f"over the loan — not worth waiting for. Borrow now.")
 
+    payment = (
+        emi(principal, current_rate, tenure_months).quantize(D("0.01"), rounding=ROUND_HALF_UP)
+        if principal > 0 and tenure_months > 0 else D("0")
+    )
+    if monthly_room is None:
+        detail += " This judges the timing only: it doesn't know your income, costs or other payments."
+    elif payment > monthly_room:
+        room = max(D("0"), monthly_room)
+        room_text = f"only {money(room, country)} a month is left" if room > 0 else "nothing is left each month"
+        timing = detail
+        verdict = "cant_afford"
+        detail = (
+            f"The {money(payment, country)} EMI doesn't fit: {room_text} after your costs and "
+            f"payments, {money(payment - monthly_room, country)} a month short. Borrow less or "
+            f"over longer, or free up room first, whenever you borrow. On timing alone: {timing}"
+        )
+    else:
+        detail += (
+            f" The {money(payment, country)} EMI leaves {money(monthly_room - payment, country)} "
+            f"a month after your costs and payments."
+        )
+
     return BorrowTimingVerdict(
         current_rate=current_rate, six_month_avg=six_month_avg,
         consensus_change_bps=consensus_change_bps,
         months_to_decision=months_to_decision, urgency=urgency,
         verdict=verdict, estimated_savings=estimated_savings, detail=detail,
+        monthly_payment=payment, monthly_room=monthly_room,
     )
