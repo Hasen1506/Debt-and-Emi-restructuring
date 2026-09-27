@@ -881,6 +881,10 @@ class AssetLiquidationRequest(_In):
     debt_balance: Amount
     debt_effective_rate: EffectiveRate
     taxable_income: Amount
+    # The loan's monthly payment. With it, keeping the asset pays the loan
+    # down on schedule and invests the payment once it's cleared; without
+    # it the debt is assumed to go unpaid and compound (a stress case).
+    debt_monthly_payment: Optional[Amount] = None
     asset_nominal_return: SignedRate = D("0.06")
     inflation: Decimal = Field(D("0.046"), ge=D("-0.1"), le=1)
     holding_cost_rate: Rate = D("0.01")
@@ -919,6 +923,11 @@ class AssetLiquidationResponse(_Base):
     wealth_hold: Optional[Decimal] = None
     wealth_sell: Optional[Decimal] = None
     wealth_edge: Optional[Decimal] = None
+    # The edge selling must reach to pass Gate 0 (10% of the asset).
+    wealth_edge_needed: Optional[Decimal] = None
+    # "amortising": the loan is paid on schedule on both paths;
+    # "debt_compounds": no payment given, so the hold path lets it grow.
+    wealth_basis: Optional[str] = None
     horizon_years: Optional[Decimal] = None
     recommend_liquidation: bool
     rationale: str

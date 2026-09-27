@@ -6,7 +6,8 @@ from decimal import Decimal
 from fastapi import APIRouter, HTTPException
 
 from engine.asset_liquidation import (
-    india_ltcg_tax, true_net_benefit, gate_check, compute_liquidation_proceeds,
+    GATE_0_WEALTH_EDGE_RATIO, india_ltcg_tax, true_net_benefit, gate_check,
+    compute_liquidation_proceeds,
 )
 from engine.country_data import india_selling_cost_pct
 from engine.decisions import (
@@ -228,14 +229,24 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
         net_proceeds=net_proceeds,
         debt_balance=req.debt_balance,
         surplus_reinvestment_yield=req.surplus_reinvestment_yield,
+        debt_monthly_payment=req.debt_monthly_payment,
     )
 
     failed = []
+    years = f"{req.expected_hold_years_post_sale.normalize():f}y"
+    edge_needed = req.sale_price * GATE_0_WEALTH_EDGE_RATIO
     if gates.get("gate_0_wealth_edge") is False:
-        failed.append(
-            f"selling leaves you {abs(gates['wealth_edge']):,.0f} worse off over "
-            f"{int(req.expected_hold_years_post_sale)}y (surplus parked at low yield)"
-        )
+        edge = gates["wealth_edge"]
+        # A positive edge can still fail: it has to clear 10% of the asset.
+        # Calling that "worse off" contradicted the +edge shown beside it.
+        if edge >= 0:
+            failed.append(
+                f"selling leaves you only {edge:,.0f} better off over {years}, "
+                f"below the {edge_needed:,.0f} (10% of the asset) it should gain "
+                f"to be worth a sale"
+            )
+        else:
+            failed.append(f"selling leaves you {-edge:,.0f} worse off over {years}")
     if not gates["gate_1_net_benefit"]: failed.append("net benefit < 10% of asset")
     if not gates["gate_2_high_rate"]:   failed.append(f"debt below {req.high_rate_threshold * 100:.0f}% threshold")
     if not gates["gate_3_spread"]:      failed.append("asset return-net beats debt rate")
@@ -265,6 +276,8 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
         wealth_hold=gates.get("wealth_hold"),
         wealth_sell=gates.get("wealth_sell"),
         wealth_edge=gates.get("wealth_edge"),
+        wealth_edge_needed=edge_needed if gates.get("gate_0_wealth_edge") is not None else None,
+        wealth_basis=gates.get("wealth_basis"),
         horizon_years=req.expected_hold_years_post_sale if gates.get("gate_0_wealth_edge") is not None else None,
         recommend_liquidation=gates["recommend_liquidation"],
         rationale=rationale,

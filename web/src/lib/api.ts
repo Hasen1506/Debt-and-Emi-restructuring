@@ -614,6 +614,11 @@ export interface AssetLiquidationResponse {
   wealth_hold: string | null;
   wealth_sell: string | null;
   wealth_edge: string | null;
+  /** The edge selling must reach to pass (10% of the asset). */
+  wealth_edge_needed?: string | null;
+  /** 'amortising': the loan is paid on schedule on both paths;
+   *  'debt_compounds': no payment given, the debt grows unpaid. */
+  wealth_basis?: 'amortising' | 'debt_compounds' | null;
   horizon_years: string | null;
   recommend_liquidation: boolean;
   rationale: string;
@@ -1243,6 +1248,9 @@ export const api = {
     sale_price: string;
     debt_balance: string;
     debt_effective_rate: string;
+    /** The loan's monthly payment; without it the hold path is a stress
+     *  case where the debt goes unpaid. */
+    debt_monthly_payment?: string;
     taxable_income: string;
     asset_nominal_return?: string;
     inflation?: string;

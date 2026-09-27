@@ -267,3 +267,26 @@ def test_quick_recompute_rejects_a_loan_that_is_not_there(client, india_user_pay
     })
     assert r.status_code == 422
     assert r.json()["detail"]["field"] == "target_loan_index"
+
+
+def test_asset_liquidation_positive_edge_is_not_called_worse_off(client):
+    """Audit round 4: Keep ₹2,70,464, Sell ₹2,95,868, edge +₹25,404 read
+    "selling leaves you 25,404 worse off". A positive edge below the 10%
+    margin now says so."""
+    body = {k: v for k, v in _us_sale(False).items() if k not in ("country", "filing_status")}
+    body["taxable_income"] = "600000"
+    body["inflation"] = "0.046"
+    body["surplus_reinvestment_yield"] = "0.068"
+    r = client.post("/api/asset-liquidation", json=body)
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert Decimal(out["wealth_edge"]) > 0
+    assert Decimal(out["wealth_edge_needed"]) == Decimal("35000")
+    assert out["wealth_basis"] == "debt_compounds"
+    assert "only 25,404 better off" in out["rationale"]
+    assert "worse off" not in out["rationale"]
+
+    body["debt_monthly_payment"] = "2225"
+    out = client.post("/api/asset-liquidation", json=body).json()
+    assert out["wealth_basis"] == "amortising"
+    assert "only 7,597 better off" in out["rationale"]

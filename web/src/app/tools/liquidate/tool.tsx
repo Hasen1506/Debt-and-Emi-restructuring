@@ -18,11 +18,12 @@ import {
   formatPct,
   type AssetLiquidationResponse,
   type LiquidationRecommendation,
+  type LoanPayload,
 } from '@/lib/api';
 import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
-import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
+import { loanCurrency, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import { SAFE_RATES, formatAsOf } from '@/lib/invest-vs-prepay';
 import { DecisionLogControls } from '@/components/DecisionLogControls';
 import { PortfolioRanker } from './PortfolioRanker';
@@ -56,6 +57,7 @@ const FIELDS: Record<string, string> = {
   'asset.current_market_value': 'salePrice',
   sale_price: 'salePrice',
   debt_balance: 'debtBalance',
+  debt_monthly_payment: 'debtPayment',
   debt_effective_rate: 'debtRate',
   taxable_income: 'taxableIncome',
   asset_nominal_return: 'assetReturn',
@@ -110,6 +112,13 @@ export function LiquidateTool() {
   // From the profile's dearest loan (below) and its income, else blank.
   const [debtBalance, setDebtBalance] = useState('');
   const [debtRate, setDebtRate] = useState('');
+  // The loan's monthly payment. Keeping the asset then pays the loan down on
+  // schedule (and invests the payment once it's cleared) instead of letting
+  // the whole balance compound for five years.
+  const [debtPayment, setDebtPayment] = useState('');
+  // Set when the picked loan is in another currency: its balance and EMI
+  // were converted into the asset's currency at the profile's saved rate.
+  const [convertedFrom, setConvertedFrom] = useState<string | null>(null);
   const [taxableIncome, setTaxableIncome] = useState(() => {
     if (!profile.isLive) return '';
     const u = profile.user;
@@ -137,14 +146,34 @@ export function LiquidateTool() {
   const loanCcy = targetLoanForCcy ? loanCurrency(targetLoanForCcy, country) : userCcy;
   const fmt = (v: string | number) => formatCurrency(v, userCcy);
   const fmtLoan = (v: string | number) => formatCurrency(v, loanCcy);
+  // User-currency units per loan-currency unit (1 when they match); null
+  // when the loan is foreign and the profile has no rate for it.
+  const loanFx = (loan: LoanPayload): number | null => loanToUser(1, loan, country, profile.user.fx_to_user_currency);
 
-  // Mirror picked loan's balance + rate into the form.
+  // Mirror picked loan's balance, rate and payment into the form, in the
+  // asset's currency: the sale proceeds and the debt must be one currency.
   function pickTargetLoan(idx: string) {
     setTargetIdx(idx);
+    setConvertedFrom(null);
     const i = Number(idx);
     if (!Number.isNaN(i) && profile.user.loans[i]) {
       const loan = profile.user.loans[i];
-      setDebtBalance(loan.outstanding);
+      const fx = loanFx(loan);
+      const emi = Number(loan.scheduled_emi) > 0 ? loan.scheduled_emi : '';
+      if (fx === 1) {
+        setDebtBalance(loan.outstanding);
+        setDebtPayment(emi);
+      } else if (fx != null) {
+        setDebtBalance((Number(loan.outstanding) * fx).toFixed(2));
+        setDebtPayment(emi ? (Number(emi) * fx).toFixed(2) : '');
+        setConvertedFrom(
+          `${formatCurrency(loan.outstanding, loanCurrency(loan, country))} converted at 1 ${loanCurrency(loan, country)} = ${fx} ${userCcy}, the rate saved in Setup.`,
+        );
+      } else {
+        setDebtBalance('');
+        setDebtPayment('');
+        setConvertedFrom(`This loan is in ${loanCurrency(loan, country)}: enter its balance and payment in ${userCcy}, or save an exchange rate in Setup.`);
+      }
       setDebtRate(loan.nominal_rate);
     }
   }
@@ -221,6 +250,7 @@ export function LiquidateTool() {
         },
         sale_price: effectiveSalePrice,
         debt_balance: debtBalance,
+        ...(debtPayment.trim() ? { debt_monthly_payment: debtPayment } : {}),
         debt_effective_rate: debtRate,
         taxable_income: taxableIncome,
         asset_nominal_return: assetReturn,
@@ -279,6 +309,9 @@ export function LiquidateTool() {
     setTargetIdx(String(rec.target_loan_index));
     setDebtBalance(rec.debt_balance);
     setDebtRate(rec.debt_effective_rate);
+    const recLoan = profile.user.loans[rec.target_loan_index];
+    setDebtPayment(recLoan && Number(recLoan.scheduled_emi) > 0 ? recLoan.scheduled_emi : '');
+    setConvertedFrom(null);
     // Scroll the sandbox section into view.
     if (typeof document !== 'undefined') {
       document.getElementById('sandbox-section')?.scrollIntoView({
@@ -488,7 +521,25 @@ export function LiquidateTool() {
             label="Debt balance to clear"
             value={debtBalance}
             error={at('debtBalance')}
-            onChange={setDebtBalance}
+            onChange={(x) => {
+              setDebtBalance(x);
+              setConvertedFrom(null);
+            }}
+            hint={convertedFrom ?? undefined}
+          />
+          <Field
+            label="Monthly payment on it (optional)"
+            value={debtPayment}
+            error={at('debtPayment')}
+            onChange={setDebtPayment}
+            hint="Your EMI. Blank: nothing is paid and the debt grows (a stress case)."
+            info={
+              <>
+                With the payment, both paths spend it every month: keeping the
+                asset pays the loan down on schedule, then invests the payment
+                once it&apos;s cleared; selling invests it from the first month.
+              </>
+            }
           />
           <Field
             label="Loan rate (%)"
@@ -729,7 +780,11 @@ export function LiquidateTool() {
                 }}
               >
                 <Stat
-                  label="Keep asset, keep debt"
+                  label={
+                    v.wealth_basis === 'amortising'
+                      ? 'Keep asset, pay the loan down'
+                      : 'Keep asset, debt unpaid (stress case)'
+                  }
                   value={fmt(v.wealth_hold ?? '0')}
                 />
                 <Stat
@@ -751,11 +806,24 @@ export function LiquidateTool() {
                   }
                 />
               </div>
-              <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              <div className="muted" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.55 }}>
                 Surplus after clearing debt:{' '}
                 <span className="num" style={{ color: 'var(--ink)' }}>
                   {fmt(v.surplus ?? '0')}
                 </span>
+                {v.wealth_edge_needed != null && (
+                  <>
+                    {' '}· selling should gain at least{' '}
+                    <span className="num" style={{ color: 'var(--ink)' }}>
+                      {fmt(v.wealth_edge_needed)}
+                    </span>{' '}
+                    (10% of the asset)
+                  </>
+                )}
+                <br />
+                {v.wealth_basis === 'amortising'
+                  ? `Both paths pay ${fmt(debtPayment)} a month: to the loan until it's cleared, then into savings at ${formatPct(leftoverYield, 1)}.`
+                  : 'No monthly payment given, so keeping the asset assumes the debt goes unpaid and grows at its rate. Enter the EMI above for the usual case.'}
               </div>
             </div>
           )}
@@ -848,7 +916,7 @@ export function LiquidateTool() {
                 onApply={() => {
                   const target = profile.user.loans[Number(targetIdx)];
                   const sched = target.scheduled_emi || '0';
-                  const proceeds = new Decimal(v.net_proceeds);
+                  const proceeds = new Decimal(v.net_proceeds).div(loanFx(target) ?? 1);
                   const outstandingD = new Decimal(target.outstanding);
                   const fullyClears = proceeds.gte(outstandingD);
                   applyToolResult({
@@ -856,15 +924,15 @@ export function LiquidateTool() {
                     kind: fullyClears ? 'closed' : 'paid_extra',
                     amount: fullyClears
                       ? proceeds.toFixed(2)
-                      : String(Number(sched) + Number(v.net_proceeds)),
+                      : String(Number(sched) + proceeds.toNumber()),
                     scheduledEmi: sched,
-                    note: `Asset sold — ${fmtLoan(v.net_proceeds)} net proceeds applied to ${target.bank}`,
+                    note: `Asset sold — ${fmtLoan(proceeds.toFixed(2))} net proceeds applied to ${target.bank}`,
                     loans: profile.user.loans,
                     country: profile.user.country,
                   });
                   setApplied(true);
                 }}
-                label={`Apply this — log ${fmtLoan(v.net_proceeds)} payoff to ${profile.user.loans[Number(targetIdx)].bank} & reprice /plan`}
+                label={`Apply this — log ${fmtLoan(new Decimal(v.net_proceeds).div(loanFx(profile.user.loans[Number(targetIdx)]) ?? 1).toFixed(2))} payoff to ${profile.user.loans[Number(targetIdx)].bank} & reprice /plan`}
               />
             )}
         </Card>
