@@ -287,7 +287,7 @@ function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; deb
                     s: 'AVERAGE · AFTER FEES + TAX',
                   },
               gaps.length > 0
-                ? { l: 'NEXT', v: 'ADD DETAILS', s: `${describeGap(gaps[0].missing).toUpperCase()} MISSING`, tone: L_T.accent }
+                ? { l: 'NEXT', v: 'ADD DETAILS', s: `${describeGap(gaps[0].missing, gaps[0].loan).toUpperCase()} MISSING`, tone: L_T.accent }
                 : {
                     l: 'NEXT',
                     v: `${(loudest.loan.bank || '—').toUpperCase()}`,

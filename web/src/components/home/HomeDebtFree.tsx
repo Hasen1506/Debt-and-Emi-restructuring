@@ -75,7 +75,7 @@ const moveWords = cache(async (): Promise<{ headline: string; detail: string; on
   if (plan.gaps.length > 0) {
     const g = plan.gaps[0];
     return {
-      headline: `ADD ${describeGap(g.missing).toUpperCase()} FOR ${(g.loan.bank || 'YOUR').toUpperCase()} ${LOAN_TYPE_NAME[g.loan.loan_type].toUpperCase()}`,
+      headline: `ADD ${describeGap(g.missing, g.loan).toUpperCase()} FOR ${(g.loan.bank || 'YOUR').toUpperCase()} ${LOAN_TYPE_NAME[g.loan.loan_type].toUpperCase()}`,
       detail: plan.gaps.length > 1
         ? `${plan.gaps.length} LOANS NEED DETAILS · WITHOUT THEM THE PLAN CAN'T WORK OUT WHAT TO PAY`
         : "WITHOUT IT THE PLAN CAN'T WORK OUT WHAT TO PAY",

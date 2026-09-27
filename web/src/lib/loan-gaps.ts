@@ -37,11 +37,41 @@ export function needsEmi(type: LoanType): boolean {
   return type !== 'credit_card';
 }
 
+/** A stored rate (a fraction of 1) the plan engine won't take: not a
+ *  number, negative, or above 100% a year (the API's bounds), with what to
+ *  tell the user. Setup used to save −5% and 500%, and the plan then said
+ *  "unreachable right now" instead of pointing at the rate. */
+export function rateOutOfRange(rate: string | null | undefined): string | null {
+  const t = (rate ?? '').trim();
+  if (t === '') return null;
+  const n = Number(t);
+  if (!Number.isFinite(n)) return 'Enter the rate as a number, e.g. 8.5 for 8.5% a year.';
+  if (n < 0) return 'A rate can’t be negative. Enter the rate from your statement, e.g. 8.5.';
+  if (n > 1) {
+    return 'Rates above 100% a year aren’t accepted. Enter the yearly rate as a percent: 36 for 36% (a 3% monthly rate is 36% a year).';
+  }
+  return null;
+}
+
+/** The same check for a rate typed as a percent ("8.5" for 8.5%). */
+export function percentRateError(pct: string): string | null {
+  const t = pct.trim();
+  if (t === '') return null;
+  const n = Number(t);
+  if (!Number.isFinite(n)) return rateOutOfRange(t);
+  return rateOutOfRange(String(n / 100));
+}
+
 /** What this loan is missing, for a saved loan (blanks already stored as 0).
  *  Pass `ctx` to also check a foreign-currency loan has an exchange rate. */
 export function loanGaps(loan: LoanPayload, ctx?: GapContext): LoanGapField[] {
   const gaps: LoanGapField[] = [];
-  if (NEVER_ZERO_RATE.has(loan.loan_type) && dec(loan.nominal_rate).lte(0)) gaps.push('rate');
+  if (
+    rateOutOfRange(loan.nominal_rate) ||
+    (NEVER_ZERO_RATE.has(loan.loan_type) && dec(loan.nominal_rate).lte(0))
+  ) {
+    gaps.push('rate');
+  }
   if (needsEmi(loan.loan_type) && dec(loan.scheduled_emi).lte(0)) gaps.push('emi');
   if (ctx && loanToUser(1, loan, ctx.country, ctx.fx) == null) gaps.push('fx');
   return gaps;
@@ -52,6 +82,10 @@ export function loanGaps(loan: LoanPayload, ctx?: GapContext): LoanGapField[] {
 export function loanDraftErrors(
   loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'>,
 ): Partial<Record<LoanGapField, string>> {
+  // A typed rate the engine won't take is an error even on a row with no
+  // balance: the whole profile goes to the engine.
+  const badRate = rateOutOfRange(loan.nominal_rate);
+  if (badRate) return { rate: badRate };
   if (dec(loan.outstanding).lte(0)) return {};
   const out: Partial<Record<LoanGapField, string>> = {};
   const rateBlank = (loan.nominal_rate ?? '').trim() === '';
@@ -91,8 +125,21 @@ const GAP_WORDS: Record<LoanGapField, string> = {
   fx: 'exchange rate',
 };
 
-/** "the interest rate and EMI" / "the exchange rate". */
-export function describeGap(missing: LoanGapField[]): string {
+/** "the interest rate and EMI" / "the exchange rate". Pass the loan to
+ *  name a stored rate the engine won't take: "a valid interest rate (500%
+ *  isn't accepted)". */
+export function describeGap(
+  missing: LoanGapField[],
+  loan?: Pick<LoanPayload, 'nominal_rate'>,
+): string {
+  if (loan && missing.includes('rate') && rateOutOfRange(loan.nominal_rate)) {
+    const n = Number(loan.nominal_rate);
+    const rate = Number.isFinite(n)
+      ? `a valid interest rate (${Number((n * 100).toFixed(2))}% isn’t accepted)`
+      : 'a valid interest rate';
+    const rest = missing.filter((f) => f !== 'rate').map((f) => GAP_WORDS[f]);
+    return rest.length ? `${rate} and the ${rest.join(' and ')}` : rate;
+  }
   const words = missing.map((f) => GAP_WORDS[f]);
   return `the ${words.join(' and ')}`;
 }

@@ -28,7 +28,7 @@
  * up the change without a manual reload. Appends a `restructuring_applied`
  * decision so /insights shows the audit trail.
  */
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { readDecisionsClient, recordDecision } from '@/lib/decisions';
@@ -39,6 +39,7 @@ import type {
 } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
 import type { CurrencyCode } from '@/lib/currency';
+import { percentRateError } from '@/lib/loan-gaps';
 
 type FormState = {
   bank: string;
@@ -132,7 +133,10 @@ export function UpdateRestructureModal({
     );
   }
 
+  const rateError = percentRateError(form.rate);
+
   function handleSubmit() {
+    if (rateError) return;
     setSubmitting(true);
     const profile = loadProfileClient();
     const loans = [...profile.user.loans];
@@ -272,6 +276,7 @@ export function UpdateRestructureModal({
           label="New rate (% APR)"
           value={form.rate}
           onChange={(v) => setForm((f) => ({ ...f, rate: v }))}
+          error={rateError}
         />
         <FormField
           label="Tenure (months)"
@@ -322,7 +327,7 @@ export function UpdateRestructureModal({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={submitting}
+          disabled={submitting || rateError != null}
           style={{
             padding: '6px 14px',
             background: 'var(--accent)',
@@ -417,12 +422,15 @@ function FormField({
   value,
   onChange,
   isText,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   isText?: boolean;
+  error?: string | null;
 }) {
+  const errorId = useId();
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <span style={{ fontSize: 11, color: 'var(--muted)' }}>{label}</span>
@@ -431,16 +439,23 @@ function FormField({
         inputMode={isText ? undefined : 'decimal'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
         style={{
           padding: '6px 8px',
           background: 'var(--canvas)',
-          border: '1px solid var(--border)',
+          border: `1px solid ${error ? 'var(--negative)' : 'var(--border)'}`,
           borderRadius: 4,
           fontSize: 13,
           color: 'var(--ink)',
           width: '100%',
         }}
       />
+      {error && (
+        <span id={errorId} role="alert" style={{ fontSize: 11, color: 'var(--negative)' }}>
+          {error}
+        </span>
+      )}
     </label>
   );
 }

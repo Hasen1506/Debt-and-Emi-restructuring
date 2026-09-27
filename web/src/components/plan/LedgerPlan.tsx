@@ -933,7 +933,7 @@ function NeedsLoanDetails({ gaps }: { gaps: ProfileGap[] }) {
             {gaps.map((g) => (
               <li key={g.index}>
                 {(g.loan.bank || 'Your').toUpperCase()} {LOAN_TYPE_NAME[g.loan.loan_type].toUpperCase()}: add{' '}
-                {describeGap(g.missing)}
+                {describeGap(g.missing, g.loan)}
               </li>
             ))}
           </ul>
