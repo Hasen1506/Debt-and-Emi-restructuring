@@ -522,6 +522,12 @@ export interface WindfallResponse {
   /** What interest_avoided assumes, e.g. "until the card is cleared,
    *  paying the bank's minimum each month". */
   interest_basis?: string;
+  /** The loan's prepayment fee, taken out of `amount`. */
+  fee?: string;
+  /** interest_avoided less the fee. */
+  net_benefit?: string;
+  /** Loans passed over because their terms bar an extra payment now. */
+  blocked?: string[];
 }
 
 export interface QuickRecomputeResponse {

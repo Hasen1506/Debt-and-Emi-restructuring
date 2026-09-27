@@ -68,6 +68,9 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
         investment_return=allocation.investment_return,
         leftover=allocation.leftover,
         interest_basis=allocation.interest_basis,
+        fee=allocation.fee,
+        net_benefit=allocation.net_benefit,
+        blocked=allocation.blocked,
     )
 
 

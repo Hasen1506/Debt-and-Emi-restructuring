@@ -145,12 +145,14 @@ export function WindfallTool() {
     if (w && !w.invest_instead && w.loan_index != null) {
       const loan = profile.user.loans[w.loan_index];
       const sched = loan.scheduled_emi || '0';
+      // A prepayment fee comes out of the payment: only the rest is principal.
+      const fee = Number(w.fee ?? 0);
       applyToolResult({
         loanIndex: w.loan_index,
         kind: 'paid_extra',
-        amount: String(Number(sched) + Number(w.amount)),
+        amount: String(Number(sched) + Number(w.amount) - fee),
         scheduledEmi: sched,
-        note: `Spare cash — ${fmt(w.amount)} to ${loan.bank}`,
+        note: `Spare cash — ${fmt(w.amount)} to ${loan.bank}${fee > 0 ? ` (${fmt(fee)} of it the prepayment fee)` : ''}`,
         loans: profile.user.loans,
         country,
       });
@@ -170,15 +172,23 @@ export function WindfallTool() {
 
   const w = out?.w ?? null;
   const target = w && !w.invest_instead && w.loan_index != null ? profile.user.loans[w.loan_index] : null;
+  // No loan can take it now (a lock-in, or a fee above the saving) and
+  // investing didn't win either: the money stays put.
+  const hold = !!w && !w.invest_instead && w.loan_index == null;
+  const fee = w ? Number(w.fee ?? 0) : 0;
   const targetName = target
     ? `${target.bank} ${LOAN_WORDS[target.loan_type] ?? target.loan_type}`
     : w?.investment_name ?? '';
   const parts: string[] = [];
   if (out && w && out.rest.gt(0)) {
-    parts.push(`${fmt(w.amount)} → ${w.invest_instead ? `INVEST IN ${targetName}` : targetName}`.toUpperCase());
+    parts.push(
+      hold
+        ? `${fmt(w.leftover)} → KEEP IN SAVINGS`
+        : `${fmt(w.amount)} → ${w.invest_instead ? `INVEST IN ${targetName}` : targetName}`.toUpperCase(),
+    );
   }
   if (out && out.ef.gt(0)) parts.push(`${fmt(out.ef)} → EMERGENCY FUND`);
-  const leftover = w ? Number(w.leftover) : 0;
+  const leftover = w && !hold ? Number(w.leftover) : 0;
 
   return (
     <>
@@ -232,14 +242,20 @@ export function WindfallTool() {
       {out && (
         <LToolVerdict
           eyebrow={
-            w ? (w.invest_instead ? 'INVEST · NO LOAN BEATS IT' : 'PAY DOWN DEBT') : 'EMERGENCY FUND FIRST'
+            w
+              ? w.invest_instead
+                ? 'INVEST · NO LOAN BEATS IT'
+                : hold
+                  ? 'KEEP IT · NO LOAN CAN TAKE IT NOW'
+                  : 'PAY DOWN DEBT'
+              : 'EMERGENCY FUND FIRST'
           }
           headline={parts.join(' · ')}
           visual={
             <LAllocationBar
               segments={[
                 {
-                  label: w?.invest_instead ? 'INVEST' : 'DEBT',
+                  label: w?.invest_instead ? 'INVEST' : hold ? 'SAVINGS' : 'DEBT',
                   pct: out.total.gt(0) ? out.rest.div(out.total).toNumber() : 0,
                   tone: 'accent' as const,
                 },
@@ -253,8 +269,9 @@ export function WindfallTool() {
           }
           kpi={[
             {
-              l: w?.invest_instead ? 'INTEREST GIVEN UP' : 'INTEREST AVOIDED',
-              v: w ? fmt(w.interest_avoided) : '—',
+              l: w?.invest_instead ? 'INTEREST GIVEN UP' : fee > 0 ? 'SAVED AFTER FEE' : 'INTEREST AVOIDED',
+              v: w && !hold ? fmt(fee > 0 ? (w.net_benefit ?? w.interest_avoided) : w.interest_avoided) : '—',
+              s: fee > 0 ? `${fmt(w!.interest_avoided)} LESS ${fmt(fee)} FEE` : undefined,
               tone: w?.invest_instead ? 'neg' : 'pos',
             },
             {
@@ -278,7 +295,7 @@ export function WindfallTool() {
             },
           ]}
           actions={
-            profile.isLive ? (
+            hold && !out.ef.gt(0) ? undefined : profile.isLive ? (
               <LBracket accent onClick={logIt}>
                 {applied ? 'LOGGED ✓' : 'I DID THIS — LOG IT'}
               </LBracket>
@@ -308,7 +325,10 @@ export function WindfallTool() {
                   tone: 'pos' as const,
                 }]
               : []),
-            ...(w
+            ...(w && hold
+              ? [{ k: 'keep it', v: fmt(w.leftover), note: w.rationale }]
+              : []),
+            ...(w && !hold
               ? [
                   {
                     k: w.invest_instead ? 'invest in' : 'pay off',
@@ -325,7 +345,18 @@ export function WindfallTool() {
                       ? `what prepaying would have saved (${w.interest_basis || 'over the loan’s remaining life'}); the investment should beat it`
                       : w.interest_basis || 'over the loan’s remaining life, EMI kept, so it ends sooner',
                   },
+                  ...(fee > 0
+                    ? [{
+                        k: 'prepayment fee',
+                        v: fmt(fee),
+                        tone: 'neg' as const,
+                        note: `your loan's terms; it comes out of the payment, so ${fmt(Number(w.amount) - fee)} goes to principal and ${fmt(w.net_benefit ?? 0)} is saved`,
+                      }]
+                    : []),
                 ]
+              : []),
+            ...(w?.blocked?.length && !hold
+              ? [{ k: 'passed over', v: '—', note: `${w.blocked.join('; ')}.` }]
               : []),
             ...(leftover > 0
               ? [{ k: 'left over', v: fmt(leftover), note: 'the loan clears; keep this or run it again' }]

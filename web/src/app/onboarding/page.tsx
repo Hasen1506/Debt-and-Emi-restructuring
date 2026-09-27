@@ -1573,7 +1573,7 @@ export default function OnboardingPage() {
                   }
                 />
                 <Field
-                  label="Prepay lock-in months"
+                  label="Prepay lock-in left (months)"
                   value={String(l.prepay_lock_in_months ?? '')}
                   onChange={(v) =>
                     updateLoan(i, {
@@ -1581,7 +1581,7 @@ export default function OnboardingPage() {
                     })
                   }
                   placeholder="0"
-                  hint="Months from start before prepay is allowed (typically 6-12)"
+                  hint="Months from now before the bank takes an extra payment; 0 if the lock-in is over (typically 6-12 from the loan's start)"
                   suggestion={
                     loanSuggestions[i]?.prepay_lock_in_months != null
                       ? {

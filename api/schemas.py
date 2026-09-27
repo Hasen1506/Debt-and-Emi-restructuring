@@ -784,6 +784,12 @@ class WindfallResponse(_Base):
     # What interest_avoided assumes ("until the card is cleared, paying the
     # bank's minimum each month" / "over the loan's remaining life, ...").
     interest_basis: str = ""
+    # The loan's prepayment fee on `amount` (taken out of it) and the interest
+    # avoided less that fee.
+    fee: Decimal = D("0")
+    net_benefit: Decimal = D("0")
+    # Loans passed over because their terms bar an extra payment now.
+    blocked: list[str] = []
 
 
 class NewDebtRequest(_In):
