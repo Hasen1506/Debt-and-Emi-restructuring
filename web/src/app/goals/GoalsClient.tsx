@@ -295,6 +295,9 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
     }
   }, [deferSuggestions, goals, today]);
 
+  // /plan projects only when there's a loan to pay; a debt-free profile's
+  // goals are explained here in full.
+  const planProjects = (user.loans ?? []).some((l) => Number(l.outstanding) > 0);
   const efBalance = Number(user.efund_balance || '0');
   const efTarget = Number(user.efund_target || '0');
 
@@ -398,9 +401,17 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
     <div style={{ maxWidth: 980, margin: '24px auto', padding: '0 16px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1 style={{ fontSize: 22, fontWeight: 600 }}>Goals</h1>
-        <Link href="/plan" style={{ color: 'var(--accent)', fontSize: 13 }}>
-          Back to plan →
-        </Link>
+        {/* With no loans /plan has nothing to project: don't send the user
+            to an empty page from here. */}
+        {planProjects ? (
+          <Link href="/plan" style={{ color: 'var(--accent)', fontSize: 13 }}>
+            Back to plan →
+          </Link>
+        ) : (
+          <Link href="/" style={{ color: 'var(--accent)', fontSize: 13 }}>
+            Back to home →
+          </Link>
+        )}
       </div>
 
       <p style={{ color: 'var(--muted)', maxWidth: 720, marginTop: 8, lineHeight: 1.5 }}>
@@ -483,6 +494,7 @@ export function GoalsClient({ user: userProp, lowestRates }: Props) {
           savedSoFar={savedByGoal[g.id] ?? 0}
           priorGoalsMonthlyDraw={priorDrawByGoal[g.id] ?? 0}
           monthlySurplusSeries={deferPlan.series}
+          planProjects={planProjects}
           priorGoalsContributionsByMonth={priorContribsByGoal[g.id] ?? {}}
           contributions={contributions.filter((c) => c.goalId === g.id)}
           deferSuggestion={deferSuggestions[g.id] ?? null}
@@ -573,6 +585,7 @@ function GoalCard({
   savedSoFar,
   priorGoalsMonthlyDraw,
   monthlySurplusSeries,
+  planProjects,
   priorGoalsContributionsByMonth,
   contributions,
   deferSuggestion,
@@ -599,6 +612,7 @@ function GoalCard({
   savedSoFar: number;
   priorGoalsMonthlyDraw: number;
   monthlySurplusSeries: number[];
+  planProjects: boolean;
   priorGoalsContributionsByMonth: Record<string, number[]>;
   contributions: GoalContributionEntry[];
   deferSuggestion: GoalDeferResult | null;
@@ -630,6 +644,7 @@ function GoalCard({
     // than "projected cashflow". /plan, when it adopts this surface,
     // should pass 'live' so the description reflects engine truth.
     seriesQuality: 'flat' as const,
+    planProjects,
     liquidatableValue,
     newLoanIndicativeRate: indicativeRate,
   };
@@ -811,8 +826,7 @@ function GoalCard({
             first. Check this if this goal matters more than its date
             suggests (e.g. a medical reserve due in 18 months that should
             beat a vacation due in 6). Bumped goals are funded ahead of
-            earlier-dated ones; you can also drag a goal on the /plan
-            waterfall to toggle this.
+            earlier-dated ones{planProjects ? '; you can also drag a goal on the /plan waterfall to toggle this' : ''}.
           </InfoTip>
         </label>
         <label style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>

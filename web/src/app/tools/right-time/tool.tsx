@@ -23,6 +23,7 @@ import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
+import { deriveMetrics } from '@/lib/derived';
 import { fitColumns } from '@/lib/grid';
 
 type Urgency = 'now' | '3m_ok' | '6m_ok';
@@ -176,6 +177,15 @@ export function RightTimeTool() {
       .map((i) => ({ value: i.name, label: i.name }));
   }, [institutions, loanType]);
 
+  // What's left each month after costs and current payments, from the
+  // saved profile: a new EMI has to fit in it before timing matters.
+  // Unknown without a profile (or with a foreign loan missing its rate).
+  const monthlyRoom = useMemo(() => {
+    if (!profile.isLive) return null;
+    const m = deriveMetrics(profile);
+    return m.fxMissing.length > 0 ? null : m.surplus.toFixed(2);
+  }, [profile]);
+
   async function check(e: React.FormEvent) {
     e.preventDefault();
     if (!currentRate) {
@@ -208,6 +218,7 @@ export function RightTimeTool() {
           principal,
           tenure_months: Number(tenure),
           country,
+          ...(monthlyRoom != null ? { monthly_room: monthlyRoom } : {}),
         }),
       );
     } catch (e) {
@@ -278,7 +289,7 @@ export function RightTimeTool() {
               { value: '3m_ok' as Urgency, label: 'I can wait 3 months' },
               { value: '6m_ok' as Urgency, label: 'I can wait 6 months' },
             ]}
-            info={<>If you can&apos;t wait, the answer is always &ldquo;borrow now&rdquo; — locking today&apos;s rate is the right call.</>}
+            info={<>If you can&apos;t wait, the timing answer is always &ldquo;borrow now&rdquo;: locking today&apos;s rate. Whether the EMI fits your budget is checked separately.</>}
           />
           <Field
             label="Rate change you expect at the next decision (bps)"
@@ -353,8 +364,20 @@ export function RightTimeTool() {
       {v && (
         <Card>
           <VerdictHeader
-            label={v.verdict === 'wait' ? 'Wait' : 'Borrow now'}
-            color={v.verdict === 'wait' ? 'var(--accent)' : 'var(--positive)'}
+            label={
+              v.verdict === 'cant_afford'
+                ? 'Can’t afford the EMI'
+                : v.verdict === 'wait'
+                  ? 'Wait'
+                  : 'Borrow now'
+            }
+            color={
+              v.verdict === 'cant_afford'
+                ? 'var(--negative)'
+                : v.verdict === 'wait'
+                  ? 'var(--accent)'
+                  : 'var(--positive)'
+            }
             detail={v.detail}
           />
           <p className="muted" style={{ margin: '0 0 10px', fontSize: 12 }}>
@@ -379,9 +402,10 @@ export function RightTimeTool() {
                 <>
                   Est. savings if you wait{' '}
                   <InfoTip>
-                    Principal × expected cut × tenure. Rough — assumes the
-                    cut flows straight through to your loan rate, which most
-                    floating loans honour at the next reset.
+                    The EMI at today&apos;s rate less the EMI after the expected
+                    cut, over the whole tenure. Assumes the cut flows straight
+                    through to your loan rate, which most floating loans
+                    honour at the next reset.
                   </InfoTip>
                 </>
               }
@@ -389,7 +413,13 @@ export function RightTimeTool() {
               color={v.verdict === 'wait' ? 'var(--positive)' : 'var(--muted)'}
             />
           </div>
-          {v.verdict === 'borrow_now' && bank && currentRate && (
+          {v.monthly_room == null && (
+            <p className="muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
+              Finish <a href="/onboarding" style={{ color: 'var(--accent)' }}>Setup</a> to
+              check the EMI against your income and costs before adding it.
+            </p>
+          )}
+          {v.verdict === 'borrow_now' && v.monthly_room != null && bank && currentRate && (
             <AddLoanAction
               added={added}
               onAdd={() => {
@@ -398,7 +428,7 @@ export function RightTimeTool() {
                 const n = Number(tenure);
                 const p = Number(principal);
                 const emi = r === 0 ? p / n : (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-                addLoanToProfile({
+                const saved = addLoanToProfile({
                   loan_type: loanType,
                   bank,
                   outstanding: principal,
@@ -406,7 +436,7 @@ export function RightTimeTool() {
                   tenure_months_remaining: Number(tenure),
                   scheduled_emi: emi.toFixed(2),
                 });
-                setAdded(true);
+                if (saved != null) setAdded(true);
               }}
               label={`Add this ${loanType.replace('_', ' ')} at ${bank} to my profile${isExistingBank ? '' : ' (new bank)'}`}
             />

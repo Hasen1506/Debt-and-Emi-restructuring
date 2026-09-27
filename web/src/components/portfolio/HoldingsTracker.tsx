@@ -20,16 +20,22 @@
  */
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
 import type { AssetPayload, UserPayload } from '@/lib/api';
-import { formatCurrency } from '@/lib/api';
+import { api, formatCurrency } from '@/lib/api';
 import { saveProfileClient } from '@/lib/user-store';
+import { userDefaultCurrency } from '@/lib/currency';
 import {
   fetchQuote,
+  fxForQuote,
   holdingToAsset,
+  majorUnits,
   normalizeTicker,
+  quantityError,
   refreshAssetWithQuote,
   tickerHoldings,
+  type QuoteResult,
 } from '@/lib/holdings';
 import { Card } from '@/components/Card';
 import { InfoTip } from '@/components/ToolPrimitives';
@@ -48,6 +54,11 @@ interface Status {
 }
 
 export function HoldingsTracker({ user, marginalRate, variant }: Props) {
+  const router = useRouter();
+  const userCcy = userDefaultCurrency(user.country);
+  // A quote's rate into the profile's currency (null when it's the same).
+  const fxFor = (quote: QuoteResult) =>
+    fxForQuote(quote, userCcy, user.fx_to_user_currency, api.fxRate);
   const [assets, setAssets] = useState<AssetPayload[]>(user.assets ?? []);
   const [tickerInput, setTickerInput] = useState('');
   const [qtyInput, setQtyInput] = useState('');
@@ -83,31 +94,51 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
       user: { ...user, assets: next },
       marginalRate,
     });
+    // The page's headline (count, total, mix) is drawn on the server from
+    // the saved profile; redraw it, or it says "no holdings" beside one.
+    router.refresh();
   }
 
   async function handleAdd() {
-    if (!tickerInput.trim() || !qtyInput.trim()) {
-      setStatus({ kind: 'error', msg: 'Ticker and quantity are required.' });
+    if (!tickerInput.trim()) {
+      setStatus({ kind: 'error', msg: 'Enter a ticker.' });
+      return;
+    }
+    // "What you own": a zero or negative quantity (a short) isn't a holding,
+    // and -5 shares used to take $500 off the total.
+    const qtyErr = quantityError(qtyInput);
+    if (qtyErr) {
+      setStatus({ kind: 'error', msg: qtyErr });
+      return;
+    }
+    if (costInput.trim() && !(Number(costInput) >= 0)) {
+      setStatus({ kind: 'error', msg: 'Enter the average cost as a number (or leave it blank).' });
       return;
     }
     const ticker = normalizeTicker(tickerInput, user.country);
     setStatus({ kind: 'loading', msg: `Fetching ${ticker}…` });
     try {
       const quote = await fetchQuote(ticker);
+      const fx = await fxFor(quote);
       const asset = holdingToAsset(
         {
           ticker,
-          quantity: qtyInput,
-          avgCost: costInput || undefined,
+          quantity: qtyInput.trim(),
+          avgCost: costInput.trim() || undefined,
           assetType,
         },
         quote,
+        userCcy,
+        fx,
       );
       const next = [...assets, asset];
       persist(next);
+      const { price, currency } = majorUnits(quote);
       setStatus({
         kind: 'ok',
-        msg: `Added ${ticker} at ${quote.currency} ${quote.price.toFixed(2)}.`,
+        msg: fx
+          ? `Added ${ticker} at ${currency} ${price.toFixed(2)}, worth ${formatCurrency(asset.current_market_value, userCcy)} at 1 ${currency} = ${fx.rate} ${userCcy} (${fx.source === 'live' ? `rate of ${fx.asOf}` : 'your saved rate'}).`
+          : `Added ${ticker} at ${currency} ${price.toFixed(2)}.`,
       });
       setTickerInput('');
       setQtyInput('');
@@ -115,7 +146,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
     } catch (err) {
       setStatus({
         kind: 'error',
-        msg: `Couldn't fetch ${ticker}: ${(err as Error).message}`,
+        msg: `Couldn't add ${ticker}: ${(err as Error).message}.`,
       });
     }
   }
@@ -126,11 +157,8 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
     setStatus({ kind: 'loading', msg: `Refreshing ${asset.ticker}…` });
     try {
       const quote = await fetchQuote(asset.ticker);
-      const next = assets.map((a) =>
-        a.ticker === asset.ticker && a === asset
-          ? refreshAssetWithQuote(a, quote)
-          : a,
-      );
+      const fresh = refreshAssetWithQuote(asset, quote, userCcy, await fxFor(quote));
+      const next = assets.map((a) => (a === asset ? fresh : a));
       persist(next);
       setStatus({
         kind: 'ok',
@@ -156,7 +184,8 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
       if (!h.ticker) continue;
       try {
         const quote = await fetchQuote(h.ticker);
-        next = next.map((a) => (a === h ? refreshAssetWithQuote(a, quote) : a));
+        const fresh = refreshAssetWithQuote(h, quote, userCcy, await fxFor(quote));
+        next = next.map((a) => (a === h ? fresh : a));
         okCount += 1;
       } catch (err) {
         errs.push(`${h.ticker}: ${(err as Error).message}`);
@@ -347,7 +376,13 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
                       {h.quantity}
                     </td>
                     <td style={{ textAlign: 'right', padding: '6px 6px' }}>
-                      {last != null ? last.toFixed(2) : '—'}
+                      {last != null ? `${h.price_currency ? `${h.price_currency} ` : ''}${last.toFixed(2)}` : '—'}
+                      {h.price_currency && h.fx_to_user && (
+                        <div className="muted" style={{ fontSize: 10 }}>
+                          1 {h.price_currency} = {h.fx_to_user} {userCcy}
+                          {h.fx_as_of ? `, ${h.fx_as_of}` : ''}
+                        </div>
+                      )}
                     </td>
                     <td style={{ textAlign: 'right', padding: '6px 6px' }}>
                       {formatCurrency(value.toFixed(2), user.country === 'IN' ? 'INR' : 'USD')}
@@ -439,7 +474,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
             style={inputStyle}
           />
         </Field>
-        <Field label="Avg cost / share (optional)">
+        <Field label="Avg cost / share (optional)" hint="In the currency the stock trades in">
           <input
             type="number"
             inputMode="decimal"

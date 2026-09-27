@@ -22,6 +22,9 @@
  * The shape stays JSON-serialisable strings for Decimals so we never round
  * floats. Convert with `new Decimal(...)` at render time.
  */
+import type { LoanPayload } from './api';
+import { alignToLoans } from './loan-ids';
+import { loadProfileClient } from './user-store';
 
 export type ActivityKind =
   | 'paid_full'
@@ -33,9 +36,14 @@ export type ActivityKind =
 export interface ActivityEntry {
   /** Stable ID — `crypto.randomUUID()` in the browser, kept as string. */
   id: string;
-  /** 0-based index into the user's `loans` list. -1 = pre-onboarding entry,
-   *  filtered out before render. */
+  /** 0-based index into the user's `loans` list. -1 = pre-onboarding entry
+   *  or a loan since removed, filtered out before render. Kept pointing at
+   *  the loan's current position by `alignToLoans`; `loanId` is what
+   *  identifies the loan. */
   loanIndex: number;
+  /** The loan's stable id (LoanPayload.id). Missing on entries logged
+   *  before loans had ids until they're next aligned. */
+  loanId?: string;
   kind: ActivityKind;
   /** ISO date 'YYYY-MM-DD' of the payment event. */
   date: string;
@@ -128,6 +136,10 @@ export function readActivityClient(): ActivityEntry[] {
 
 export function writeActivityClient(entries: ActivityEntry[]): void {
   if (typeof window === 'undefined') return;
+  // Name each entry's loan by id before it's stored, against the saved
+  // loans (a page may hold a copy of the list read before ids existed).
+  const stored = loadProfileClient();
+  if (stored.isLive) entries = alignToLoans(entries, stored.user.loans);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   void import('./server-sync').then(({ syncSliceToServer }) =>
     syncSliceToServer('activity', entries),
@@ -137,7 +149,10 @@ export function writeActivityClient(entries: ActivityEntry[]): void {
 export function addActivityEntry(
   entries: ActivityEntry[],
   draft: Omit<ActivityEntry, 'id' | 'loggedAt'>,
+  loans?: Pick<LoanPayload, 'id'>[],
 ): ActivityEntry[] {
+  const loanId = draft.loanId ?? loans?.[draft.loanIndex]?.id;
+  if (loanId) draft = { ...draft, loanId };
   const id =
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()

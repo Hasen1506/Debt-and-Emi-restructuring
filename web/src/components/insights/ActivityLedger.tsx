@@ -42,6 +42,7 @@ import { decorateEntry } from '@/lib/activity-derived';
 import { estimateLateFee } from '@/lib/estimate-penalty';
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { syncActivityCookieClient } from '@/lib/activity-cookie';
+import { alignToLoans } from '@/lib/loan-ids';
 import {
   addMonthlySpend,
   readMonthlySpendClient,
@@ -210,7 +211,9 @@ export function ActivityLedger({
   // markup than the first client render. The skeleton state below shows
   // a "loading" line briefly; in practice it's one tick.
   useEffect(() => {
-    const initial = readActivityClient();
+    // Entries point at their loan by id; align them to where each loan sits
+    // now (a loan removed in Setup leaves its entries unattached).
+    const initial = alignToLoans(readActivityClient(), user.loans);
     setEntries(initial);
     setHydrated(true);
     // Also re-sync the cookie at mount so the cookie reflects whatever
@@ -224,7 +227,7 @@ export function ActivityLedger({
   useEffect(() => {
     function onStorage(e: StorageEvent) {
       if (e.key === 'finoptima_activity') {
-        const next = readActivityClient();
+        const next = alignToLoans(readActivityClient(), user.loans);
         setEntries(next);
         syncActivityCookieClient(next, user.loans, user.country);
       }
@@ -242,7 +245,7 @@ export function ActivityLedger({
   }
 
   function add(draft: Omit<ActivityEntry, 'id' | 'loggedAt'>) {
-    commit(addActivityEntry(entries, draft));
+    commit(addActivityEntry(entries, draft, user.loans));
   }
 
   function remove(id: string) {
@@ -269,7 +272,7 @@ export function ActivityLedger({
     if (additions.length === 0) return;
     let next = entries;
     for (const draft of additions) {
-      next = addActivityEntry(next, draft);
+      next = addActivityEntry(next, draft, user.loans);
     }
     commit(next);
   }
@@ -554,6 +557,13 @@ function NothingChangedBar({
                 {' '}· CARDS: LOG WHAT YOU PAID BELOW
               </span>
             )}
+            {/* The plan already counts every scheduled EMI from the balance
+                in Setup, so confirming one records it without moving the
+                projection. Said here so "paid" isn't read as a payment. */}
+            <span style={{ display: 'block', color: 'var(--muted)' }}>
+              THE PLAN ALREADY COUNTS SCHEDULED EMIS, SO THIS KEEPS A RECORD AND DOESN&apos;T MOVE IT.
+              IF YOUR SETUP BALANCE WAS FROM BEFORE THIS EMI, UPDATE IT IN SETUP.
+            </span>
           </>
         ) : (
           <>
@@ -561,7 +571,10 @@ function NothingChangedBar({
             <span className="muted">
               One tap logs the scheduled EMI as paid for the {unlogged.length}{' '}
               loan{unlogged.length === 1 ? '' : 's'} you haven&apos;t logged yet.
-              {cardsUnlogged > 0 && ' Log card payments below: the amount varies.'}
+              {cardsUnlogged > 0 && ' Log card payments below: the amount varies.'}{' '}
+              The plan already counts scheduled EMIs, so this keeps a record and
+              doesn&apos;t move it; if the balance in Setup was from before this
+              EMI, update it there.
             </span>
           </>
         )}

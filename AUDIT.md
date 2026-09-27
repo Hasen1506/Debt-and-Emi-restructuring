@@ -249,3 +249,30 @@ fixed on the PR after the second merge.
 
 The plan CSV's `pay_loan,pay_loan` headers were fixed with R1: each column now
 has a position, type, lender and currency.
+
+## 7 · Rounds 4 and 5 user audits (27 Sep 2026)
+
+Two more outside audits of `main` at 3c2ed00 (the round-2 merge), using a
+local build with sign-in disabled, seeded Activity storage and a mocked
+quote. Round 4 covered the tools, round 5 Activity, Setup edits, Portfolio
+and debt-free Goals. All twelve are fixed on the PR after the third merge.
+
+| # | What the user saw | Fix |
+|---|---|---|
+| A1 (P0) | **NRI Prepay saved a ₹20 lakh loan as $2,000,000**, with a $17,356 EMI and an $11,356 monthly shortfall on home | The added loan is tagged with its currency and the rate used goes into the profile when it has none: home shows ₹20,00,000 (≈ $20,833), EMI ₹17,356 (≈ $181). A currency the profile can't hold (GBP, EUR…) or a foreign loan with no rate is declined with a note. Each tool's add button says Added only when the profile saved |
+| A2 (P0) | **US Liquidate applied India's LTCG** ($31,817.50 on a $100k→$350k sale), Maharashtra costs, and Finance Act, surcharge, 80EEA and RBI text | A US sale goes through the engine's US path: 0/15/20% federal long-term rate, NIIT, state rate, US selling costs, and the §121 exclusion. The form asks whether it's a main home before a verdict. Its hints, defaults (HYSA yield, 2.5% inflation) and tax label are US ones. The result lists how the tax was worked out: $33,300 as a rental, $0 as a qualifying main home |
+| A3 (P0) | **Right-Time said "Borrow now"** for a $7,294 EMI on $1,060 of monthly room, and offered to add it | The page sends the profile's monthly room. An EMI above it gets "Can't afford the EMI" with the gap, keeps the timing view as a note, and has no add button. A loan that fits says what it leaves. With no profile the verdict says it judged the timing only |
+| A4 (P1) | **Spare cash sent ₹20,000 to a loan in a three-month lock-in** and ignored its 5% fee | The plan's gates apply: a locked loan (or one in pre-EMI) is passed over and named. With every loan locked, the page says keep it in savings. A fee comes out of the payment as in the plan: ₹1,000 of ₹20,000, "₹7,362 saved after fee". A fee above the saving rules the loan out, and a part-payment limit is noted. Setup's lock-in field now says it counts months from now |
+| A5 (P1) | **Liquidate's five-year "keep" compounded the whole ₹1 lakh for five years**, though the loan's EMI clears it | With the loan's monthly payment (from the picked loan, or entered), both paths spend it each month. Keeping the asset pays the loan down and then invests the payment; selling invests it from month one. Without a payment, the old sum is labelled a stress case. The ranker uses each loan's EMI. A loan in another currency is converted at the saved rate |
+| A6 (P2) | **"Selling leaves you 25,404 worse off"** beside Edge +₹25,404 | A positive edge below the 10% margin reads "only 25,404 better off, below the 35,000 it should gain"; the page shows the margin |
+| A7 (P0) | **Removing HDFC moved its ₹19,000 payment onto ICICI** (and ICICI's balance fell ₹10,000); an ICICI entry could drop out instead | Loans have stable ids, given on save and once to older profiles when the app loads (while positions still match). Entries carry the id and are pointed at the loan's current position when read, so a removed loan's entries attach to nothing. Planned rate resets use the id too |
+| A8 (P1) | **The 21st payment didn't move the plan**: the cookie kept the newest 20 entries | The cookie holds one total per loan (by id), compressed: 21 × ₹1,000 now gives −₹21,000. The plan's banner says "logged payments" and "−₹10,000", not "missed/partial" and "+−" |
+| A9 (P0) | **An INR 100 quote counted as $100**, so 10 shares showed $1,000 | A quote in another currency is converted at today's rate (else the profile's saved rate), with its currency, rate and date beside it: $10.40. With no rate it isn't added, and the page says why. Pence and cent quotes (GBp, ZAc) count in pounds and rand |
+| A10 (P2) | **A quantity of −5 was accepted** and took $500 off the total | Quantity must be a number above zero; the message says shorts aren't tracked |
+| A11 (P2) | **The Portfolio headline said "no holdings"** beside a holding until a reload | Each add, refresh or removal redraws it. It no longer rounds to whole units and prints ".00" ($10.40 read $10.00) |
+| A12 (P2) | **Debt-free Goals said "open /plan for the full projection"**; /plan shows "No debts on file" | With no loan to project, the goal says what to put aside each month, and the header links home |
+
+Also from round 5, noted but not scored: "Confirm EMIs paid" leaves the plan
+unchanged because the plan already counts scheduled EMIs. The bar now says
+so, and to update the Setup balance if it predates the EMI.
+

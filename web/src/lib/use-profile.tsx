@@ -15,6 +15,11 @@
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from 'react';
 import { DEMO_MARGINAL_RATE, DEMO_USER } from '@/lib/demo-user';
 import { loadProfileClient, profileCookieKey, type StoredProfile } from '@/lib/user-store';
+import { migrateLoanIdsClient } from '@/lib/loan-id-migration';
+
+// Before the first client render reads the profile: give a profile saved
+// before loan ids its ids, and its activity entries theirs.
+migrateLoanIdsClient();
 
 const ProfileContext = createContext<StoredProfile | null>(null);
 

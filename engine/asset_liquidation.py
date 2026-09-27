@@ -160,6 +160,32 @@ def true_net_benefit(
     return net_proceeds - debt_balance - interest_during_sale
 
 
+def _repay_and_invest(
+    balance: Decimal,
+    annual_rate: Decimal,
+    payment: Decimal,
+    months: int,
+    invest_rate: Decimal,
+) -> tuple[Decimal, Decimal]:
+    """Pay `payment` a month against `balance` for `months`; whatever of the
+    payment the debt no longer needs (the part left in the payoff month, then
+    all of it) is invested at `invest_rate`. Returns (balance left, invested).
+    Monthly steps, like the loan itself."""
+    r = annual_rate / D("12")
+    ri = invest_rate / D("12")
+    bal, pot = balance, D("0")
+    for _ in range(months):
+        pot *= D("1") + ri
+        if bal > 0:
+            owed = bal * (D("1") + r)
+            paid = min(payment, owed)
+            bal = owed - paid
+            pot += payment - paid
+        else:
+            pot += payment
+    return bal, pot
+
+
 def hold_vs_sell_wealth(
     asset_value: Decimal,
     asset_nominal_return: Decimal,
@@ -169,24 +195,30 @@ def hold_vs_sell_wealth(
     debt_effective_rate: Decimal,
     surplus_reinvestment_yield: Decimal,
     horizon_years: Decimal = DEFAULT_HOLD_VS_SELL_HORIZON_Y,
+    debt_monthly_payment: Decimal | None = None,
 ) -> dict:
     """§4.18 Gate 0 — does selling actually leave you wealthier in `horizon_years`?
 
-    Two scenarios over the same horizon:
+    With the loan's monthly payment (`debt_monthly_payment`), both paths
+    spend the same cash each month, so they compare like for like:
 
-    HOLD: keep asset (compounds at nominal_return − holding_cost) and keep paying
-          the debt (compounds at debt_effective_rate against a fixed balance —
-          worst-case: user only services interest, doesn't pay down).
-        wealth_hold = asset_value × (1 + r_a − c)^N − debt_balance × (1 + r_d)^N
+    HOLD: keep the asset (compounds at nominal_return − holding_cost) and pay
+          the loan on its schedule; once it's cleared, the freed payment is
+          invested at `surplus_reinvestment_yield`.
+        wealth_hold = asset × (1 + r_a − c)^N − balance left + freed payments
 
-    SELL: clear the debt with net_proceeds. Whatever is left (or owed) sits in
-          the user's best liquid investment for the horizon.
-        surplus = net_proceeds − debt_balance
-        wealth_sell = surplus × (1 + r_inv)^N        (if surplus ≥ 0)
-                    = −|surplus| × (1 + r_d_assumed)^N if surplus < 0 (residual debt)
+    SELL: clear the debt with the proceeds; what's left is invested. The
+          payment no longer owed is invested from month one (or, if the
+          proceeds fell short, keeps paying the rest of the debt first).
+        wealth_sell = surplus × (1 + r_inv)^N − balance left + freed payments
 
-    Returns wealth_hold, wealth_sell, edge (sell − hold), edge_ratio (edge / asset_value).
-    Edge_ratio is what Gate 0 thresholds against.
+    Without a payment (a hypothetical debt, a card with none on file) HOLD
+    falls back to a stress case: nothing is paid and the debt compounds at
+    its rate, debt × (1 + r_d)^N. `basis` says which was used, so the page
+    can label it.
+
+    Returns wealth_hold, wealth_sell, edge (sell − hold), edge_ratio
+    (edge / asset_value) and basis. Edge_ratio is what Gate 0 thresholds.
     """
     r_a_net = asset_nominal_return - holding_cost_rate
 
@@ -201,15 +233,29 @@ def hold_vs_sell_wealth(
     growth_a = grow(r_a_net)
     growth_d = grow(debt_effective_rate)
     growth_inv = grow(surplus_reinvestment_yield)
-
-    wealth_hold = asset_value * growth_a - debt_balance * growth_d
-
     surplus = net_proceeds - debt_balance
-    if surplus >= 0:
-        wealth_sell = surplus * growth_inv
+
+    if debt_monthly_payment is not None and debt_monthly_payment > 0:
+        basis = "amortising"
+        months = int((horizon_years * D("12")).to_integral_value())
+        hold_left, hold_pot = _repay_and_invest(
+            debt_balance, debt_effective_rate, debt_monthly_payment, months,
+            surplus_reinvestment_yield,
+        )
+        wealth_hold = asset_value * growth_a - hold_left + hold_pot
+        sell_left, sell_pot = _repay_and_invest(
+            max(D("0"), -surplus), debt_effective_rate, debt_monthly_payment,
+            months, surplus_reinvestment_yield,
+        )
+        wealth_sell = max(D("0"), surplus) * growth_inv - sell_left + sell_pot
     else:
-        # Residual debt compounds at debt rate.
-        wealth_sell = surplus * growth_d            # surplus is negative
+        basis = "debt_compounds"
+        wealth_hold = asset_value * growth_a - debt_balance * growth_d
+        if surplus >= 0:
+            wealth_sell = surplus * growth_inv
+        else:
+            # Residual debt compounds at debt rate.
+            wealth_sell = surplus * growth_d            # surplus is negative
 
     edge = wealth_sell - wealth_hold
     edge_ratio = edge / asset_value if asset_value > 0 else D("0")
@@ -220,6 +266,7 @@ def hold_vs_sell_wealth(
         "edge": edge,
         "edge_ratio": edge_ratio,
         "horizon_years": horizon_years,
+        "basis": basis,
     }
 
 
@@ -237,6 +284,7 @@ def gate_check(
     net_proceeds: Decimal | None = None,
     debt_balance: Decimal | None = None,
     surplus_reinvestment_yield: Decimal | None = None,
+    debt_monthly_payment: Decimal | None = None,
 ) -> dict:
     """§4.18 — Gates 0–3; Gate 4 (emotional/strategic) is UI-side.
 
@@ -278,6 +326,7 @@ def gate_check(
             debt_effective_rate=debt_effective_rate,
             surplus_reinvestment_yield=surplus_reinvestment_yield,
             horizon_years=expected_hold_years_post_sale,
+            debt_monthly_payment=debt_monthly_payment,
         )
         gate_0 = wealth["edge_ratio"] >= GATE_0_WEALTH_EDGE_RATIO
         out["gate_0_wealth_edge"] = gate_0
@@ -286,6 +335,7 @@ def gate_check(
         out["surplus"] = wealth["surplus"]
         out["wealth_edge"] = wealth["edge"]
         out["wealth_edge_ratio"] = wealth["edge_ratio"]
+        out["wealth_basis"] = wealth["basis"]
         out["recommend_liquidation"] = gate_0 and gate_1 and gate_2 and gate_3
     else:
         out["gate_0_wealth_edge"] = None
@@ -1011,14 +1061,13 @@ def _proceeds_us_real_estate(
             f"~{selling_pct*100:.1f}% (${transaction_costs:,.0f}).{s121_note} "
             f"After ~${tax:,.0f} capital-gains tax, you net ${gross - tax:,.0f}."
         ),
-        caveats=[
-            "Property sales typically take 60-90 days to close.",
-            "§1031 like-kind exchange could defer the gain entirely if reinvesting "
-            "in another investment property — consult a CPA before paying.",
-        ] + (
+        # §1031 is for investment property; a main home gets §121 instead.
+        caveats=["Property sales typically take 60-90 days to close."] + (
             ["§121 exclusion needs 2-of-last-5 years primary residence — verify "
              "you actually qualify before relying on this number."]
-            if asset.us_section_121_eligible else []
+            if asset.us_section_121_eligible else
+            ["§1031 like-kind exchange could defer the gain entirely if reinvesting "
+             "in another investment property — consult a CPA before paying."]
         ),
     )
 
@@ -1385,6 +1434,7 @@ def rank_liquidations(
                 net_proceeds=proceeds.net_proceeds,
                 debt_balance=loan.outstanding,
                 surplus_reinvestment_yield=surplus_reinvestment_yield,
+                debt_monthly_payment=loan.scheduled_emi,
             )
 
             verdict = _verdict_for(

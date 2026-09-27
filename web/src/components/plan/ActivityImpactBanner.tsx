@@ -25,8 +25,8 @@ export function ActivityImpactBanner({
 }) {
   const headline =
     impact.entryCount === 1
-      ? '1 missed/partial payment is reflected in your plan'
-      : `${impact.entryCount} missed/partial payments are reflected in your plan`;
+      ? '1 logged payment is reflected in your plan'
+      : `${impact.entryCount} logged payments are reflected in your plan`;
 
   const lines = impact.perLoanBumps
     .map((b) => {
@@ -39,7 +39,7 @@ export function ActivityImpactBanner({
       return {
         key: b.loanIndex,
         label: `${bank} · ${tag}`,
-        detail: `+${formatCurrency(b.totalBump, ccy)} · ${b.entryCount} ${events}`,
+        detail: `${Number(b.totalBump) > 0 ? '+' : ''}${formatCurrency(b.totalBump, ccy)} · ${b.entryCount} ${events}`,
       };
     })
     .filter((l): l is { key: number; label: string; detail: string } => l !== null);
@@ -122,8 +122,8 @@ export function ActivityImpactBanner({
     return (
       <PanelShell variant="inline" tone="negative" eyebrow={headline}>
         <div className="muted" style={{ marginBottom: 8 }}>
-          Your loan balances were bumped by <strong>+{totalBumpDisplay}</strong>{' '}
-          (unpaid principal + penalties) before this projection was computed.
+          Your loan balances were bumped by <strong>{Number(impact.totalBump) > 0 ? '+' : ''}{totalBumpDisplay}</strong>{' '}
+          (unpaid amounts and penalties up, extra payments down) before this projection was computed.
           Edit your <a href="/insights">activity ledger</a> to refresh.
         </div>
         <ul

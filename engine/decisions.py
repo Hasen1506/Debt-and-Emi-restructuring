@@ -121,6 +121,35 @@ class WindfallAllocation:
     # What interest_avoided assumes, e.g. "until the card is cleared, paying
     # the bank's minimum each month".
     interest_basis: str = ""
+    # The loan's prepayment fee on `amount` (taken out of it, as the plan
+    # does), and interest_avoided less that fee.
+    fee: Decimal = D("0")
+    net_benefit: Decimal = D("0")
+    # Loans passed over because their terms bar an extra payment now.
+    blocked: list[str] = field(default_factory=list)
+
+
+def prepay_block(loan: Loan) -> str | None:
+    """Why the loan can't take an extra payment this month, or None. The
+    same gates as the plan's simulator: a lock-in (months from now) and a
+    pre-EMI period. A part-payment frequency limit isn't known to be used
+    up, so it's a caveat, not a block."""
+    if loan.pre_emi_months_remaining > 0:
+        return "is still in its pre-EMI period"
+    if loan.prepay_lock_in_months > 0:
+        n = loan.prepay_lock_in_months
+        return f"is locked against prepayment for {n} more month{'' if n == 1 else 's'}"
+    return None
+
+
+def _prepay_split(loan: Loan, amount: Decimal) -> tuple[Decimal, Decimal]:
+    """(cash paid, fee) for putting up to `amount` into `loan`. The fee is a
+    share of the payment and comes out of it, so it takes a little more than
+    the balance to clear the loan."""
+    pct = loan.prepayment_penalty_pct or D("0")
+    need = loan.outstanding / (D("1") - pct) if pct < 1 else loan.outstanding
+    paid = min(amount, need)
+    return paid, (paid * pct).quantize(D("0.01"), rounding=ROUND_HALF_UP)
 
 
 def allocate_windfall(
@@ -146,6 +175,25 @@ def allocate_windfall(
         )
 
     ranked = rank_loans(active, effective_rates, strategy, country=country)
+    # A loan whose terms bar an extra payment now (a lock-in) isn't offered:
+    # Spare Cash used to send ₹20,000 to a loan the plan itself wouldn't pay.
+    blocked = [
+        f"{l.bank} {l.loan_type.value.replace('_', ' ')} {prepay_block(l)}"
+        for l in ranked if prepay_block(l)
+    ]
+    ranked = [l for l in ranked if not prepay_block(l)]
+    if not ranked:
+        return WindfallAllocation(
+            to_loan_id=None, loan_label="—", amount=D("0"),
+            rationale="None of your loans can take an extra payment yet: "
+                      + "; ".join(blocked) + ". Keep the money in savings until then.",
+            interest_avoided=D("0"), leftover=amount, blocked=blocked,
+        )
+
+    def net_of_fee(l: Loan) -> tuple[Decimal, Decimal, Decimal]:
+        paid, fee = _prepay_split(l, amount)
+        avoided = interest_saved_by_prepaying(l, paid - fee, country)
+        return paid, fee, avoided
 
     # Layer 3 — invest-vs-prepay gate, loan by loan: the windfall goes to
     # the first loan in payoff order that beats the best liquid return.
@@ -155,27 +203,35 @@ def allocate_windfall(
               if o.liquidity_class == LiquidityClass.LIQUID and o.is_in_pool]
     best_return = max((o.expected_return for o in liquid), default=D("0"))
     best = next((o for o in liquid if o.expected_return == best_return), None)
-    worth = [
+    rate_ok = [
         l for l in ranked
         if best is None or prepay_recommended(effective_rates[id(l)], best_return, inflation)
     ]
+    # A fee bigger than the interest the payment saves makes prepaying a loss.
+    worth = [l for l in rate_ok if net_of_fee(l)[2] > net_of_fee(l)[1]]
 
     if not worth:
         top = max(ranked, key=lambda l: effective_rates[id(l)])
         top_rate = effective_rates[id(top)]
+        if rate_ok:
+            return WindfallAllocation(
+                to_loan_id=None, loan_label=f"{top.bank} {top.loan_type.value}", amount=D("0"),
+                rationale="The prepayment fee is more than the interest the payment would save. "
+                          + (f"Keep the money in {best.name}." if best else "Keep the money in savings."),
+                interest_avoided=D("0"), leftover=amount, blocked=blocked,
+            )
         return WindfallAllocation(
             to_loan_id=None, loan_label=f"{top.bank} {top.loan_type.value}", amount=amount,
             rationale=f"Best liquid return {best_return*100:.2f}% beats your costliest loan ({top_rate*100:.2f}%) after inflation",
             interest_avoided=interest_saved_by_prepaying(top, min(amount, top.outstanding), country),
             invest_instead=True, investment_name=best.name, investment_return=best_return,
-            interest_basis=interest_basis(top, country),
+            interest_basis=interest_basis(top, country), blocked=blocked,
         )
 
     top = worth[0]
     top_rate = effective_rates[id(top)]
     label = f"{top.bank} {top.loan_type.value}"
-    to_loan = min(amount, top.outstanding)
-    avoided = interest_saved_by_prepaying(top, to_loan, country)
+    to_loan, fee, avoided = net_of_fee(top)
 
     leftover = amount - to_loan
     if strategy == Strategy.AVALANCHE or top is max(ranked, key=lambda l: effective_rates[id(l)]):
@@ -186,10 +242,21 @@ def allocate_windfall(
         rationale = f"Next in your hybrid order ({top_rate*100:.2f}%)"
     if leftover > 0:
         rationale += f"; clears it with {money(leftover, country)} left over"
+    if fee > 0:
+        rationale += (
+            f"; its {top.prepayment_penalty_pct * 100:.4g}% prepayment fee takes {money(fee, country)}, "
+            f"leaving {money(avoided - fee, country)} saved"
+        )
+    if top.part_payment_freq_months and top.part_payment_freq_months > 1:
+        rationale += (
+            f"; its terms allow one part-payment every {top.part_payment_freq_months} months, "
+            f"so check when you last made one"
+        )
     return WindfallAllocation(
         to_loan_id=id(top), loan_label=label, amount=to_loan,
         rationale=rationale, interest_avoided=avoided, leftover=leftover,
         interest_basis=interest_basis(top, country),
+        fee=fee, net_benefit=avoided - fee, blocked=blocked,
     )
 
 
@@ -448,9 +515,11 @@ class BorrowTimingVerdict:
     consensus_change_bps: int             # negative = cut expected; positive = hike
     months_to_decision: int
     urgency: str                          # "now" | "3m_ok" | "6m_ok"
-    verdict: str                          # "borrow_now" | "wait"
+    verdict: str                          # "borrow_now" | "wait" | "cant_afford"
     estimated_savings: Decimal            # principal × (Δr) × tenure_years
     detail: str
+    monthly_payment: Decimal = D("0")     # the EMI at today's rate
+    monthly_room: Optional[Decimal] = None
 
 
 def right_time_to_borrow(
@@ -462,11 +531,17 @@ def right_time_to_borrow(
     principal: Decimal,
     tenure_months: int,
     country: Country = Country.IN,
+    monthly_room: Optional[Decimal] = None,
 ) -> BorrowTimingVerdict:
     """§8f — three inputs from market context, one from the user (urgency).
 
     Verdict is `wait` only if: (a) user can wait AND (b) cut is meaningful AND
     (c) decision is soon enough that delay cost < expected savings.
+
+    `monthly_room` is what the user has left each month after costs and
+    current payments. An EMI above it is `cant_afford` whatever the timing:
+    "borrow now" used to go to a $7,294 EMI on $1,300 of room. Without it
+    the verdict says it only judged the timing.
     """
     bps_delta = D(consensus_change_bps) / D("10000")
     # Interest saved over the loan if the rate is lower by the expected cut:
@@ -506,9 +581,32 @@ def right_time_to_borrow(
             detail = (f"A {-consensus_change_bps}bps cut would save only ~{money(estimated_savings, country)} "
                       f"over the loan — not worth waiting for. Borrow now.")
 
+    payment = (
+        emi(principal, current_rate, tenure_months).quantize(D("0.01"), rounding=ROUND_HALF_UP)
+        if principal > 0 and tenure_months > 0 else D("0")
+    )
+    if monthly_room is None:
+        detail += " This judges the timing only: it doesn't know your income, costs or other payments."
+    elif payment > monthly_room:
+        room = max(D("0"), monthly_room)
+        room_text = f"only {money(room, country)} a month is left" if room > 0 else "nothing is left each month"
+        timing = detail
+        verdict = "cant_afford"
+        detail = (
+            f"The {money(payment, country)} EMI doesn't fit: {room_text} after your costs and "
+            f"payments, {money(payment - monthly_room, country)} a month short. Borrow less or "
+            f"over longer, or free up room first, whenever you borrow. On timing alone: {timing}"
+        )
+    else:
+        detail += (
+            f" The {money(payment, country)} EMI leaves {money(monthly_room - payment, country)} "
+            f"a month after your costs and payments."
+        )
+
     return BorrowTimingVerdict(
         current_rate=current_rate, six_month_avg=six_month_avg,
         consensus_change_bps=consensus_change_bps,
         months_to_decision=months_to_decision, urgency=urgency,
         verdict=verdict, estimated_savings=estimated_savings, detail=detail,
+        monthly_payment=payment, monthly_room=monthly_room,
     )

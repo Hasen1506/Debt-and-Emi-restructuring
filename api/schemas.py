@@ -784,6 +784,12 @@ class WindfallResponse(_Base):
     # What interest_avoided assumes ("until the card is cleared, paying the
     # bank's minimum each month" / "over the loan's remaining life, ...").
     interest_basis: str = ""
+    # The loan's prepayment fee on `amount` (taken out of it) and the interest
+    # avoided less that fee.
+    fee: Decimal = D("0")
+    net_benefit: Decimal = D("0")
+    # Loans passed over because their terms bar an extra payment now.
+    blocked: list[str] = []
 
 
 class NewDebtRequest(_In):
@@ -858,6 +864,9 @@ class BorrowTimingRequest(_In):
     tenure_months: int = Field(..., ge=1, le=MAX_MONTHS)
     # Currency for the wording and the "worth waiting" threshold.
     country: Country = Country.IN
+    # Left each month after costs and current payments, from the profile.
+    # Can be negative (already short). The EMI has to fit in it.
+    monthly_room: Optional[Decimal] = Field(None, ge=D("-1e12"), le=D("1e12"))
 
 
 class BorrowTimingResponse(_Base):
@@ -869,6 +878,8 @@ class BorrowTimingResponse(_Base):
     verdict: str
     estimated_savings: Decimal
     detail: str
+    monthly_payment: Decimal
+    monthly_room: Optional[Decimal] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -881,6 +892,10 @@ class AssetLiquidationRequest(_In):
     debt_balance: Amount
     debt_effective_rate: EffectiveRate
     taxable_income: Amount
+    # The loan's monthly payment. With it, keeping the asset pays the loan
+    # down on schedule and invests the payment once it's cleared; without
+    # it the debt is assumed to go unpaid and compound (a stress case).
+    debt_monthly_payment: Optional[Amount] = None
     asset_nominal_return: SignedRate = D("0.06")
     inflation: Decimal = Field(D("0.046"), ge=D("-0.1"), le=1)
     holding_cost_rate: Rate = D("0.01")
@@ -895,11 +910,20 @@ class AssetLiquidationRequest(_In):
     # Slab rate incl. surcharge + cess, used when the property was held 24
     # months or less (short-term). Derived from taxable_income if absent.
     marginal_rate: Optional[Rate] = None
+    # Whose tax rules apply to the sale. A US seller pays federal capital-
+    # gains tax (with the §121 main-home exclusion when `asset.
+    # us_section_121_eligible`), NIIT and state tax, not India's LTCG.
+    country: Country = Country.IN
+    filing_status: Optional[FilingStatusUS] = None
+    state_marginal_rate: Optional[Rate] = None
 
 
 class AssetLiquidationResponse(_Base):
     net_proceeds: Decimal
     ltcg_tax: Decimal
+    # How the tax was worked out, for the page to show next to the figure:
+    # the rules used, any exclusion and what the user should check.
+    tax_notes: list[str] = []
     net_benefit: Decimal
     asset_real_return_net: Decimal
     gate_1_net_benefit: bool
@@ -910,6 +934,11 @@ class AssetLiquidationResponse(_Base):
     wealth_hold: Optional[Decimal] = None
     wealth_sell: Optional[Decimal] = None
     wealth_edge: Optional[Decimal] = None
+    # The edge selling must reach to pass Gate 0 (10% of the asset).
+    wealth_edge_needed: Optional[Decimal] = None
+    # "amortising": the loan is paid on schedule on both paths;
+    # "debt_compounds": no payment given, so the hold path lets it grow.
+    wealth_basis: Optional[str] = None
     horizon_years: Optional[Decimal] = None
     recommend_liquidation: bool
     rationale: str

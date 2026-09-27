@@ -85,6 +85,19 @@
   - rates outside 0–100% a year are stopped at the field in setup, the
     restructure modal and life events;
   - Loan Check is hidden on a US home and marked India only on /tools.
+- **Rounds 4 and 5 (27 Sep 2026, AUDIT.md §7, A1–A12): all twelve fixed.**
+  - a foreign loan added from NRI Prepay keeps its currency and rate;
+  - US Liquidate uses US capital-gains rules and asks about a main home (§121);
+  - Right-Time says "can't afford" when the EMI doesn't fit the budget;
+  - Spare cash skips a loan in its lock-in and nets the prepayment fee;
+  - Liquidate's hold path pays the loan on schedule, and a positive edge below
+    the margin isn't called "worse off";
+  - loans have stable ids, so removing one in Setup can't move another's
+    Activity history, and the plan counts every logged payment (no 20 cap);
+  - Portfolio converts a foreign-priced holding, refuses a quantity of 0 or
+    less, and its headline updates on each change;
+  - Goals tells a debt-free user the monthly amount instead of pointing at an
+    empty /plan.
 - **Speed (production build, this machine):** every page answers in under
   30 ms, paints in under 100 ms and loads in under 200 ms; 111–184 KB of
   JavaScript per page. The engine's plan run takes 6–35 ms. The one slow

@@ -456,7 +456,7 @@ export function NewDebtTool() {
             <AddLoanAction
               added={added}
               onAdd={() => {
-                addLoanToProfile({
+                const saved = addLoanToProfile({
                   loan_type: loanType,
                   bank: activeBank.name,
                   outstanding: isCard ? cashPrice : loanAmount,
@@ -465,7 +465,7 @@ export function NewDebtTool() {
                   scheduled_emi: String(v.monthly_emi),
                   processing_fee_amortised: fee !== '0' ? fee : undefined,
                 });
-                setAdded(true);
+                if (saved != null) setAdded(true);
               }}
               label={`Add this ${loanType.replace('_', ' ')} at ${activeBank.name} to my profile`}
             />

@@ -426,3 +426,66 @@ def test_new_debt_take_says_what_is_left():
     )
     assert v.verdict == "take"
     assert "₹15,600 a month" in v.detail and "budget allows" not in v.detail
+
+
+def test_borrow_now_checks_the_emi_fits():
+    """Audit round 4: $300k at 15.99% over 60 months ($7,294 EMI) on $1,060
+    of monthly room was "Borrow now" with an add button. It's cant_afford,
+    with the timing kept as a note; a loan that fits says what it leaves."""
+    args = dict(
+        current_rate=D("0.1599"), six_month_avg=D("0.1599"),
+        consensus_change_bps=0, months_to_decision=1, urgency="now",
+        tenure_months=60, country=Country.US,
+    )
+    v = right_time_to_borrow(**args, principal=D("300000"), monthly_room=D("1060"))
+    assert v.verdict == "cant_afford"
+    assert v.monthly_payment == D("7293.82")
+    assert "$6,234 a month short" in v.detail and "On timing alone" in v.detail
+    ok = right_time_to_borrow(**args, principal=D("20000"), monthly_room=D("1060"))
+    assert ok.verdict == "borrow_now" and "leaves $574 a month" in ok.detail
+    blind = right_time_to_borrow(**args, principal=D("300000"))
+    assert blind.verdict == "borrow_now" and "judges the timing only" in blind.detail
+
+
+def _pl(**terms):
+    return Loan(loan_type=LoanType.PERSONAL, bank="Example Bank", outstanding=D("100000"),
+                nominal_rate=D("0.12"), rate_type="fixed", tenure_months_remaining=40,
+                scheduled_emi=D("3000"), **terms)
+
+
+def test_windfall_skips_a_locked_loan():
+    """Audit round 4: a loan in a three-month lock-in got "₹20,000 → pay
+    down". The plan won't prepay it, so Spare Cash doesn't either."""
+    pl = _pl(prepay_lock_in_months=3, prepayment_penalty_pct=D("0.05"))
+    out = allocate_windfall(D("20000"), [pl], {id(pl): D("0.12")}, [], D("0.046"))
+    assert out.to_loan_id is None and out.amount == 0 and out.leftover == D("20000")
+    assert "locked against prepayment for 3 more months" in out.rationale
+    # A second, open loan takes it instead, and the locked one is named.
+    home, card = _loans()
+    rates = {id(pl): D("0.50"), id(card): D("0.4248"), id(home): D("0.085")}
+    out = allocate_windfall(D("20000"), [pl, card, home], rates, [], D("0.046"))
+    assert out.to_loan_id == id(card)
+    assert out.blocked == ["Example Bank personal loan is locked against prepayment for 3 more months"]
+
+
+def test_windfall_nets_the_prepayment_fee():
+    """5% fee on ₹20,000 is ₹1,000, out of the payment as the plan does:
+    ₹19,000 goes to principal, and the saving is shown after the fee."""
+    pl = _pl(prepayment_penalty_pct=D("0.05"))
+    out = allocate_windfall(D("20000"), [pl], {id(pl): D("0.12")}, [], D("0.046"))
+    assert out.amount == D("20000") and out.fee == D("1000.00")
+    plain = _pl()
+    no_fee = allocate_windfall(D("19000"), [plain], {id(plain): D("0.12")}, [], D("0.046"))
+    assert out.interest_avoided == no_fee.interest_avoided
+    assert out.net_benefit == out.interest_avoided - D("1000")
+    assert "prepayment fee takes ₹1,000" in out.rationale
+
+
+def test_windfall_fee_above_the_saving_keeps_the_cash():
+    """A 1-month loan: the interest a prepayment saves is less than a 5% fee."""
+    pl = Loan(loan_type=LoanType.PERSONAL, bank="X", outstanding=D("10000"),
+              nominal_rate=D("0.12"), rate_type="fixed", tenure_months_remaining=2,
+              scheduled_emi=D("5100"), prepayment_penalty_pct=D("0.05"))
+    out = allocate_windfall(D("5000"), [pl], {id(pl): D("0.12")}, [], D("0.046"))
+    assert out.to_loan_id is None and out.leftover == D("5000")
+    assert "fee is more than the interest" in out.rationale

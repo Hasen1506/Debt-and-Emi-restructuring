@@ -927,3 +927,39 @@ def test_hold_vs_sell_compounds_fractional_years():
     )
     # 100 × 1.21^0.5 = 110; int(0.5) used to make this 100
     assert abs(half["wealth_hold"] - D("110")) < D("0.0001")
+
+
+def test_hold_vs_sell_pays_the_loan_on_schedule():
+    """Audit round 4: a ₹1 lakh loan with a ₹2,225 EMI isn't a ₹1 lakh debt
+    left to compound for five years. With the EMI both paths spend it each
+    month: hold pays the loan off (60 months at 12%), sell invests it."""
+    from engine.asset_liquidation import hold_vs_sell_wealth
+    args = dict(
+        asset_value=D("350000"), asset_nominal_return=D("0.06"), holding_cost_rate=D("0.01"),
+        net_proceeds=D("312932.5"), debt_balance=D("100000"), debt_effective_rate=D("0.12"),
+        surplus_reinvestment_yield=D("0.068"), horizon_years=D("5"),
+    )
+    stress = hold_vs_sell_wealth(**args)
+    paid = hold_vs_sell_wealth(**args, debt_monthly_payment=D("2225"))
+    assert stress["basis"] == "debt_compounds" and paid["basis"] == "amortising"
+    # Asset 350,000 × 1.05^5 with the loan just cleared at month 60.
+    assert abs(paid["wealth_hold"] - D("350000") * D("1.05") ** 5) < D("100")
+    # Selling invests the surplus and the 60 unneeded EMIs.
+    assert paid["wealth_sell"] > stress["wealth_sell"] + D("150000")
+    assert D("7000") < paid["edge"] < D("8000")
+
+
+def test_hold_vs_sell_short_proceeds_keep_paying_the_rest():
+    """Proceeds below the debt: the EMI keeps paying what's left, then is
+    invested, rather than the shortfall compounding untouched."""
+    from engine.asset_liquidation import hold_vs_sell_wealth
+    r = hold_vs_sell_wealth(
+        asset_value=D("50000"), asset_nominal_return=D("0"), holding_cost_rate=D("0"),
+        net_proceeds=D("50000"), debt_balance=D("100000"), debt_effective_rate=D("0.12"),
+        surplus_reinvestment_yield=D("0"), horizon_years=D("5"),
+        debt_monthly_payment=D("2225"),
+    )
+    # 50,000 left at 12% clears in ~26 months; the other ~34 EMIs are saved.
+    assert r["wealth_sell"] > D("70000")
+    # Hold: the asset, the loan cleared at month 60, a few rupees over.
+    assert abs(r["wealth_hold"] - D("50000")) < D("100")

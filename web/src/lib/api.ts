@@ -27,6 +27,10 @@ export type TaxRegimeIN = 'new' | 'old';
 export type FilingStatusUS = 'single' | 'mfj' | 'hoh';
 
 export interface LoanPayload {
+  /** Stable id, set when the loan is first saved (lib/loan-ids). Activity
+   *  entries name their loan by it, so removing another loan can't move
+   *  their payments. The API ignores it. */
+  id?: string;
   loan_type: LoanType;
   bank: string;
   outstanding: string;
@@ -522,6 +526,12 @@ export interface WindfallResponse {
   /** What interest_avoided assumes, e.g. "until the card is cleared,
    *  paying the bank's minimum each month". */
   interest_basis?: string;
+  /** The loan's prepayment fee, taken out of `amount`. */
+  fee?: string;
+  /** interest_avoided less the fee. */
+  net_benefit?: string;
+  /** Loans passed over because their terms bar an extra payment now. */
+  blocked?: string[];
 }
 
 export interface QuickRecomputeResponse {
@@ -548,9 +558,13 @@ export interface BorrowTimingResponse {
   consensus_change_bps: number;
   months_to_decision: number;
   urgency: string;
-  verdict: 'borrow_now' | 'wait';
+  verdict: 'borrow_now' | 'wait' | 'cant_afford';
   estimated_savings: string;
   detail: string;
+  /** The EMI at today's rate. */
+  monthly_payment: string;
+  /** Left each month after costs and payments, when a profile was sent. */
+  monthly_room?: string | null;
 }
 
 export type AssetType =
@@ -595,6 +609,12 @@ export interface AssetPayload {
   quantity?: string;
   last_price?: string;
   last_price_at?: string;
+  /** Currency of last_price when it isn't the profile's (a `.NS` stock in
+   *  a US profile). current_market_value is then converted at fx_to_user:
+   *  profile-currency units per 1 price-currency unit, dated fx_as_of. */
+  price_currency?: string;
+  fx_to_user?: string;
+  fx_as_of?: string;
   /** Per-asset projected appreciation CAGR (decimal — e.g. "0.07" = 7%/yr).
    *  Optional; when omitted the country/asset-type default is used. Most
    *  meaningful for real-estate (regional CAGRs vary wildly) and gold. */
@@ -614,9 +634,17 @@ export interface AssetLiquidationResponse {
   wealth_hold: string | null;
   wealth_sell: string | null;
   wealth_edge: string | null;
+  /** The edge selling must reach to pass (10% of the asset). */
+  wealth_edge_needed?: string | null;
+  /** 'amortising': the loan is paid on schedule on both paths;
+   *  'debt_compounds': no payment given, the debt grows unpaid. */
+  wealth_basis?: 'amortising' | 'debt_compounds' | null;
   horizon_years: string | null;
   recommend_liquidation: boolean;
   rationale: string;
+  /** How the tax was worked out (US: the rules, any §121 exclusion, what to
+   *  check). Empty for India, whose rules the form itself describes. */
+  tax_notes?: string[];
 }
 
 // ─── Portfolio liquidation advisor ──────────────────────────────────────────
@@ -1178,6 +1206,8 @@ export const api = {
     principal: string;
     tenure_months: number;
     country?: Country;
+    /** Income − costs − current payments, from the profile. */
+    monthly_room?: string;
   }) => postWithFieldErrors<BorrowTimingResponse>('/api/right-time-to-borrow', req),
 
   loanCheck: (req: LoanCheckRequest) =>
@@ -1240,6 +1270,9 @@ export const api = {
     sale_price: string;
     debt_balance: string;
     debt_effective_rate: string;
+    /** The loan's monthly payment; without it the hold path is a stress
+     *  case where the debt goes unpaid. */
+    debt_monthly_payment?: string;
     taxable_income: string;
     asset_nominal_return?: string;
     inflation?: string;
@@ -1253,6 +1286,11 @@ export const api = {
     surplus_reinvestment_yield?: string;
     /** Slab rate incl. cess; used when the property was held ≤ 24 months. */
     marginal_rate?: string;
+    /** Whose tax rules apply: US uses federal capital-gains tax, NIIT, the
+     *  state rate and the §121 exclusion instead of India's LTCG. */
+    country?: Country;
+    filing_status?: FilingStatusUS;
+    state_marginal_rate?: string;
   }) => postWithFieldErrors<AssetLiquidationResponse>('/api/asset-liquidation', req),
 
   liquidationRankings: (req: {

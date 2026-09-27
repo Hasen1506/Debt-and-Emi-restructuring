@@ -18,17 +18,21 @@ import {
   formatPct,
   type AssetLiquidationResponse,
   type LiquidationRecommendation,
+  type LoanPayload,
 } from '@/lib/api';
 import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
-import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
+import { loanCurrency, loanToUser, userDefaultCurrency } from '@/lib/currency';
+import { SAFE_RATES, formatAsOf } from '@/lib/invest-vs-prepay';
 import { DecisionLogControls } from '@/components/DecisionLogControls';
 import { PortfolioRanker } from './PortfolioRanker';
 import { fitColumns } from '@/lib/grid';
 
-const DEFAULT_INFLATION = '0.046';
-const ENGINE_DEFAULT_LEFTOVER_YIELD = '0.068';
+// Per country: India's defaults describe Indian deposits and CPI; a US
+// seller's leftover cash sits in a savings account, at US inflation.
+const DEFAULT_INFLATION = { IN: '0.046', US: '0.025' } as const;
+const DEFAULT_LEFTOVER_YIELD = { IN: '0.068', US: SAFE_RATES.hysa_us.rate } as const;
 
 /** Convert any user-typed purchase date into a full ISO date.
  *  Accepts YYYY (→ Oct 1 of that year, mid-FY), YYYY-MM (→ 1st of that month),
@@ -53,6 +57,7 @@ const FIELDS: Record<string, string> = {
   'asset.current_market_value': 'salePrice',
   sale_price: 'salePrice',
   debt_balance: 'debtBalance',
+  debt_monthly_payment: 'debtPayment',
   debt_effective_rate: 'debtRate',
   taxable_income: 'taxableIncome',
   asset_nominal_return: 'assetReturn',
@@ -64,6 +69,7 @@ const FIELDS: Record<string, string> = {
 export function LiquidateTool() {
   const profile = useStoredProfile();
   const country = profile.user.country;
+  const isUS = country === 'US';
 
   // ─── Asset inputs ──────────────────────────────────────────────────────
   // Blank until the user describes their asset (or picks one from the
@@ -74,6 +80,10 @@ export function LiquidateTool() {
   const [purchaseDate, setPurchaseDate] = useState('');
   // Not asked for (the seller pays no stamp duty); kept for assets that carry one.
   const [state, setState] = useState<string | undefined>(undefined);
+  // US only: a main home the seller lived in 2 of the last 5 years has up to
+  // $250,000 ($500,000 married filing jointly) of gain excluded (§121). The
+  // tax can be zero or tens of thousands, so it's asked, not assumed.
+  const [mainHome, setMainHome] = useState<'' | 'yes' | 'no'>('');
 
   // Sale mode: sell the whole thing, or only a piece (sq.ft, shares, etc.)
   const [saleMode, setSaleMode] = useState<SaleMode>('whole');
@@ -102,6 +112,13 @@ export function LiquidateTool() {
   // From the profile's dearest loan (below) and its income, else blank.
   const [debtBalance, setDebtBalance] = useState('');
   const [debtRate, setDebtRate] = useState('');
+  // The loan's monthly payment. Keeping the asset then pays the loan down on
+  // schedule (and invests the payment once it's cleared) instead of letting
+  // the whole balance compound for five years.
+  const [debtPayment, setDebtPayment] = useState('');
+  // Set when the picked loan is in another currency: its balance and EMI
+  // were converted into the asset's currency at the profile's saved rate.
+  const [convertedFrom, setConvertedFrom] = useState<string | null>(null);
   const [taxableIncome, setTaxableIncome] = useState(() => {
     if (!profile.isLive) return '';
     const u = profile.user;
@@ -111,8 +128,8 @@ export function LiquidateTool() {
   // ─── Advanced (asset-return, hold horizon, leftover yield, inflation) ─
   const [assetReturn, setAssetReturn] = useState('0.06');
   const [holdYears, setHoldYears] = useState('5');
-  const [leftoverYield, setLeftoverYield] = useState(ENGINE_DEFAULT_LEFTOVER_YIELD);
-  const [inflation, setInflation] = useState(DEFAULT_INFLATION);
+  const [leftoverYield, setLeftoverYield] = useState<string>(DEFAULT_LEFTOVER_YIELD[country]);
+  const [inflation, setInflation] = useState<string>(DEFAULT_INFLATION[country]);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [v, setV] = useState<AssetLiquidationResponse | null>(null);
@@ -129,14 +146,34 @@ export function LiquidateTool() {
   const loanCcy = targetLoanForCcy ? loanCurrency(targetLoanForCcy, country) : userCcy;
   const fmt = (v: string | number) => formatCurrency(v, userCcy);
   const fmtLoan = (v: string | number) => formatCurrency(v, loanCcy);
+  // User-currency units per loan-currency unit (1 when they match); null
+  // when the loan is foreign and the profile has no rate for it.
+  const loanFx = (loan: LoanPayload): number | null => loanToUser(1, loan, country, profile.user.fx_to_user_currency);
 
-  // Mirror picked loan's balance + rate into the form.
+  // Mirror picked loan's balance, rate and payment into the form, in the
+  // asset's currency: the sale proceeds and the debt must be one currency.
   function pickTargetLoan(idx: string) {
     setTargetIdx(idx);
+    setConvertedFrom(null);
     const i = Number(idx);
     if (!Number.isNaN(i) && profile.user.loans[i]) {
       const loan = profile.user.loans[i];
-      setDebtBalance(loan.outstanding);
+      const fx = loanFx(loan);
+      const emi = Number(loan.scheduled_emi) > 0 ? loan.scheduled_emi : '';
+      if (fx === 1) {
+        setDebtBalance(loan.outstanding);
+        setDebtPayment(emi);
+      } else if (fx != null) {
+        setDebtBalance((Number(loan.outstanding) * fx).toFixed(2));
+        setDebtPayment(emi ? (Number(emi) * fx).toFixed(2) : '');
+        setConvertedFrom(
+          `${formatCurrency(loan.outstanding, loanCurrency(loan, country))} converted at 1 ${loanCurrency(loan, country)} = ${fx} ${userCcy}, the rate saved in Setup.`,
+        );
+      } else {
+        setDebtBalance('');
+        setDebtPayment('');
+        setConvertedFrom(`This loan is in ${loanCurrency(loan, country)}: enter its balance and payment in ${userCcy}, or save an exchange rate in Setup.`);
+      }
       setDebtRate(loan.nominal_rate);
     }
   }
@@ -185,6 +222,9 @@ export function LiquidateTool() {
       ['debtBalance', debtBalance, 'Enter the debt this would clear.'],
       ['debtRate', debtRate, 'Enter that loan’s interest rate.'],
       ['taxableIncome', taxableIncome, 'Enter your annual taxable income (it sets the tax on the sale).'],
+      ...(isUS
+        ? [['mainHome', mainHome, 'Say whether this is your main home: it decides the tax on the sale.'] as [string, string, string]]
+        : []),
     ];
     const missing = required.find(([, value]) => value.trim() === '');
     if (missing) {
@@ -206,9 +246,11 @@ export function LiquidateTool() {
           purchase_date: isoDate,
           current_market_value: effectiveSalePrice,
           state,
+          ...(isUS ? { us_section_121_eligible: mainHome === 'yes' } : {}),
         },
         sale_price: effectiveSalePrice,
         debt_balance: debtBalance,
+        ...(debtPayment.trim() ? { debt_monthly_payment: debtPayment } : {}),
         debt_effective_rate: debtRate,
         taxable_income: taxableIncome,
         asset_nominal_return: assetReturn,
@@ -217,7 +259,16 @@ export function LiquidateTool() {
         surplus_reinvestment_yield: leftoverYield,
         // The API works out both financial years from the purchase date and
         // today (this used to send a fixed "2024-25" as the current year).
-        ...(profile.marginalRate ? { marginal_rate: profile.marginalRate } : {}),
+        ...(profile.marginalRate && !isUS ? { marginal_rate: profile.marginalRate } : {}),
+        country,
+        ...(isUS
+          ? {
+              filing_status: profile.user.filing_status ?? 'single',
+              ...(profile.user.state_marginal_rate
+                ? { state_marginal_rate: profile.user.state_marginal_rate }
+                : {}),
+            }
+          : {}),
       };
       setV(await api.assetLiquidation(payload));
     } catch (e) {
@@ -258,6 +309,9 @@ export function LiquidateTool() {
     setTargetIdx(String(rec.target_loan_index));
     setDebtBalance(rec.debt_balance);
     setDebtRate(rec.debt_effective_rate);
+    const recLoan = profile.user.loans[rec.target_loan_index];
+    setDebtPayment(recLoan && Number(recLoan.scheduled_emi) > 0 ? recLoan.scheduled_emi : '');
+    setConvertedFrom(null);
     // Scroll the sandbox section into view.
     if (typeof document !== 'undefined') {
       document.getElementById('sandbox-section')?.scrollIntoView({
@@ -326,15 +380,48 @@ export function LiquidateTool() {
             onChange={setPurchaseDate}
             kind="text"
             placeholder="e.g. 2018 or 2018-06-15"
-            hint="Year is fine; we default to Oct 1 (mid-FY) when only year is given."
+            hint={
+              isUS
+                ? 'Year is fine; we use Oct 1 when only the year is given.'
+                : 'Year is fine; we default to Oct 1 (mid-FY) when only year is given.'
+            }
             info={
-              <>
-                Purchase date drives Finance Act 2024 indexation eligibility.
-                Anything before 23 Jul 2024 can use indexed cost (CII); newer
-                purchases pay flat 12.5% on the gain.
-              </>
+              isUS ? (
+                <>
+                  Held more than a year, the gain is taxed at the long-term
+                  capital-gains rate (0, 15 or 20% federal, plus 3.8% NIIT on
+                  high incomes); a year or less, at your income-tax rate.
+                </>
+              ) : (
+                <>
+                  Purchase date drives Finance Act 2024 indexation eligibility.
+                  Anything before 23 Jul 2024 can use indexed cost (CII); newer
+                  purchases pay flat 12.5% on the gain.
+                </>
+              )
             }
           />
+          {isUS && (
+            <Select
+              label="Is this your main home?"
+              value={mainHome}
+              error={at('mainHome')}
+              onChange={(v) => setMainHome(v as '' | 'yes' | 'no')}
+              options={[
+                { value: '', label: '— choose' },
+                { value: 'yes', label: 'Yes: I owned it and lived in it 2 of the last 5 years' },
+                { value: 'no', label: 'No: a rental, second home or land' },
+              ]}
+              info={
+                <>
+                  Selling a main home you owned and lived in for 2 of the last 5
+                  years lets you exclude up to $250,000 of gain ($500,000 filing
+                  jointly) from tax, if you haven&apos;t used the exclusion in
+                  the past 2 years. IRS Publication 523 has the full tests.
+                </>
+              }
+            />
+          )}
           <Select
             label="Sale mode"
             value={saleMode}
@@ -434,7 +521,25 @@ export function LiquidateTool() {
             label="Debt balance to clear"
             value={debtBalance}
             error={at('debtBalance')}
-            onChange={setDebtBalance}
+            onChange={(x) => {
+              setDebtBalance(x);
+              setConvertedFrom(null);
+            }}
+            hint={convertedFrom ?? undefined}
+          />
+          <Field
+            label="Monthly payment on it (optional)"
+            value={debtPayment}
+            error={at('debtPayment')}
+            onChange={setDebtPayment}
+            hint="Your EMI. Blank: nothing is paid and the debt grows (a stress case)."
+            info={
+              <>
+                With the payment, both paths spend it every month: keeping the
+                asset pays the loan down on schedule, then invests the payment
+                once it&apos;s cleared; selling invests it from the first month.
+              </>
+            }
           />
           <Field
             label="Loan rate (%)"
@@ -446,9 +551,11 @@ export function LiquidateTool() {
             info={
               <>
                 The <strong>effective</strong> interest rate you&apos;re paying
-                on this debt — after any tax benefits. For a home loan with
-                Sec 80EEA, the effective rate may be 2–3pp lower than the
-                quoted rate. For credit cards, effective ≈ quoted.
+                on this debt — after any tax benefits.{' '}
+                {isUS
+                  ? 'For a mortgage whose interest you deduct, the effective rate is lower than the quoted one.'
+                  : 'For a home loan with Sec 80EEA, the effective rate may be 2–3pp lower than the quoted rate.'}{' '}
+                For credit cards, effective ≈ quoted.
               </>
             }
           />
@@ -457,12 +564,20 @@ export function LiquidateTool() {
             value={taxableIncome}
             error={at('taxableIncome')}
             onChange={setTaxableIncome}
-            hint="Drives the LTCG surcharge band"
+            hint={isUS ? 'Sets your capital-gains bracket' : 'Drives the LTCG surcharge band'}
             info={
-              <>
-                Surcharge on long-term capital gains depends on which income
-                slab you fall in. Capped at 25% under the Finance Act 2024.
-              </>
+              isUS ? (
+                <>
+                  Your federal capital-gains rate (0, 15 or 20%) and the 3.8%
+                  NIIT depend on your taxable income and filing status. State
+                  tax uses the state rate saved in Setup.
+                </>
+              ) : (
+                <>
+                  Surcharge on long-term capital gains depends on which income
+                  slab you fall in. Capped at 25% under the Finance Act 2024.
+                </>
+              )
             }
           />
 
@@ -496,9 +611,11 @@ export function LiquidateTool() {
                 info={
                   <>
                     Nominal annual return you expect from the asset if you{' '}
-                    <em>don&apos;t</em> sell. Real estate is ~5–7% nominal in
-                    India over long horizons; equity ~10–12%. Subtract
-                    inflation below to see real return.
+                    <em>don&apos;t</em> sell.{' '}
+                    {isUS
+                      ? 'Use what homes near yours have done; the verdict can flip on it.'
+                      : 'Real estate is ~5–7% nominal in India over long horizons; equity ~10–12%.'}{' '}
+                    Subtract inflation below to see real return.
                   </>
                 }
               />
@@ -520,7 +637,11 @@ export function LiquidateTool() {
                 value={leftoverYield}
                 error={at('leftoverYield')}
                 onChange={setLeftoverYield}
-                hint="Default 6.8% — liquid fund / 12-mo FD (IN)"
+                hint={
+                  isUS
+                    ? `Default ${formatPct(SAFE_RATES.hysa_us.rate, 1)}: ${SAFE_RATES.hysa_us.source}, ${formatAsOf(SAFE_RATES.hysa_us.asOf)}`
+                    : 'Default 6.8% — liquid fund / 12-mo FD (IN)'
+                }
                 info={
                   <>
                     If you sell and clear the debt, what&apos;s left over goes
@@ -535,7 +656,11 @@ export function LiquidateTool() {
                 value={inflation}
                 error={at('inflation')}
                 onChange={setInflation}
-                hint="Default 4.6% — RBI's headline CPI target band"
+                hint={
+                  isUS
+                    ? 'Default 2.5%, a little above the Fed’s 2% target'
+                    : 'Default 4.6% — RBI\'s headline CPI target band'
+                }
                 info={
                   <>
                     Subtracted from nominal return to give the asset&apos;s
@@ -562,6 +687,14 @@ export function LiquidateTool() {
             if you keep it, and leftover cash earns {formatPct(leftoverYield, 1)}. Change these under
             Advanced; the verdict can flip.
           </p>
+
+          {!!v.tax_notes?.length && (
+            <ul className="muted" style={{ margin: '0 0 12px', paddingLeft: 18, fontSize: 12, lineHeight: 1.55 }}>
+              {v.tax_notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          )}
 
           {partialSaleHint && (
             <div
@@ -600,7 +733,7 @@ export function LiquidateTool() {
               value={fmt(v.net_proceeds)}
             />
             <Stat
-              label="LTCG tax"
+              label={isUS ? 'Capital-gains tax (federal + state)' : 'LTCG tax'}
               value={fmt(v.ltcg_tax)}
               color="var(--negative)"
             />
@@ -647,7 +780,11 @@ export function LiquidateTool() {
                 }}
               >
                 <Stat
-                  label="Keep asset, keep debt"
+                  label={
+                    v.wealth_basis === 'amortising'
+                      ? 'Keep asset, pay the loan down'
+                      : 'Keep asset, debt unpaid (stress case)'
+                  }
                   value={fmt(v.wealth_hold ?? '0')}
                 />
                 <Stat
@@ -669,11 +806,24 @@ export function LiquidateTool() {
                   }
                 />
               </div>
-              <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              <div className="muted" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.55 }}>
                 Surplus after clearing debt:{' '}
                 <span className="num" style={{ color: 'var(--ink)' }}>
                   {fmt(v.surplus ?? '0')}
                 </span>
+                {v.wealth_edge_needed != null && (
+                  <>
+                    {' '}· selling should gain at least{' '}
+                    <span className="num" style={{ color: 'var(--ink)' }}>
+                      {fmt(v.wealth_edge_needed)}
+                    </span>{' '}
+                    (10% of the asset)
+                  </>
+                )}
+                <br />
+                {v.wealth_basis === 'amortising'
+                  ? `Both paths pay ${fmt(debtPayment)} a month: to the loan until it's cleared, then into savings at ${formatPct(leftoverYield, 1)}.`
+                  : 'No monthly payment given, so keeping the asset assumes the debt goes unpaid and grows at its rate. Enter the EMI above for the usual case.'}
               </div>
             </div>
           )}
@@ -766,7 +916,7 @@ export function LiquidateTool() {
                 onApply={() => {
                   const target = profile.user.loans[Number(targetIdx)];
                   const sched = target.scheduled_emi || '0';
-                  const proceeds = new Decimal(v.net_proceeds);
+                  const proceeds = new Decimal(v.net_proceeds).div(loanFx(target) ?? 1);
                   const outstandingD = new Decimal(target.outstanding);
                   const fullyClears = proceeds.gte(outstandingD);
                   applyToolResult({
@@ -774,15 +924,15 @@ export function LiquidateTool() {
                     kind: fullyClears ? 'closed' : 'paid_extra',
                     amount: fullyClears
                       ? proceeds.toFixed(2)
-                      : String(Number(sched) + Number(v.net_proceeds)),
+                      : String(Number(sched) + proceeds.toNumber()),
                     scheduledEmi: sched,
-                    note: `Asset sold — ${fmtLoan(v.net_proceeds)} net proceeds applied to ${target.bank}`,
+                    note: `Asset sold — ${fmtLoan(proceeds.toFixed(2))} net proceeds applied to ${target.bank}`,
                     loans: profile.user.loans,
                     country: profile.user.country,
                   });
                   setApplied(true);
                 }}
-                label={`Apply this — log ${fmtLoan(v.net_proceeds)} payoff to ${profile.user.loans[Number(targetIdx)].bank} & reprice /plan`}
+                label={`Apply this — log ${fmtLoan(new Decimal(v.net_proceeds).div(loanFx(profile.user.loans[Number(targetIdx)]) ?? 1).toFixed(2))} payoff to ${profile.user.loans[Number(targetIdx)].bank} & reprice /plan`}
               />
             )}
         </Card>

@@ -280,7 +280,7 @@ export async function loadPlan(
   }) as typeof adjustedUser.loans;
 
   const lifecycle_events = [
-    ...plannedEventsForEngine(lifecycleEventsRaw),
+    ...plannedEventsForEngine(lifecycleEventsRaw, undefined, adjustedUser.loans),
     ...streamTransitionsAsLifecycleEvents(
       adjustedUser.income_streams,
       HORIZON_MONTHS,

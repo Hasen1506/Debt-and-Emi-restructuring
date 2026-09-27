@@ -15,6 +15,7 @@
 import { useEffect, useState } from 'react';
 import type { UserPayload } from '@/lib/api';
 import { BALANCES_ENTERED_KEY, readActivityClient } from '@/lib/activity';
+import { alignToLoans } from '@/lib/loan-ids';
 import { ThemedContainer, ThemedHeadline, ThemedLabel } from '@/components/themed/Themed';
 
 const STALE_DAYS = 45;
@@ -28,7 +29,8 @@ export function StaleCardNudge({
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const entries = readActivityClient();
+    // Each entry at its loan's current position (by id).
+    const entries = alignToLoans(readActivityClient(), user.loans);
     const lastByLoan = new Map<number, string>();
     for (const e of entries) {
       // Entries arrive newest-first; first sighting per loan wins.
