@@ -5,6 +5,7 @@
  * Body components live alongside each route under app/tools/<slug>/tool.tsx
  * so this stays a flat metadata list. The order is the order users see.
  */
+import type { Country } from './api';
 
 export interface ToolMeta {
   /** Route slug (matches app/tools/<id>/). */
@@ -19,6 +20,9 @@ export interface ToolMeta {
   sub: string;
   /** Full deep-link href. */
   href: string;
+  /** Countries the tool works for; all when absent. Home hides a tool
+   *  that doesn't cover the user's country, and /tools marks it. */
+  countries?: readonly Country[];
 }
 
 export const TOOLS: ToolMeta[] = [
@@ -29,6 +33,8 @@ export const TOOLS: ToolMeta[] = [
     question: 'Is my bank passing on rate cuts?',
     sub: 'Compares your home-loan rate with every RBI repo move since you borrowed.',
     href: '/tools/loan-check',
+    // Indian floating-rate home loans against RBI repo moves only.
+    countries: ['IN'],
   },
   {
     id: 'windfall',
@@ -87,3 +93,20 @@ export const TOOLS: ToolMeta[] = [
     href: '/tools/invest-vs-prepay',
   },
 ];
+
+/** Whether a tool covers users in `country`. */
+export function toolCovers(tool: ToolMeta, country: Country): boolean {
+  return !tool.countries || tool.countries.includes(country);
+}
+
+/** The tools that cover users in `country`, in order. */
+export function toolsFor(country: Country): ToolMeta[] {
+  return TOOLS.filter((t) => toolCovers(t, country));
+}
+
+const COUNTRY_NAME: Record<Country, string> = { IN: 'India', US: 'US' };
+
+/** "INDIA ONLY" for a tool that covers one country. */
+export function toolCoverageLabel(tool: ToolMeta): string {
+  return `${(tool.countries ?? []).map((c) => COUNTRY_NAME[c]).join(' + ').toUpperCase()} ONLY`;
+}

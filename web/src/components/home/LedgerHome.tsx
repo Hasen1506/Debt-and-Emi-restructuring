@@ -21,7 +21,7 @@ import { fmt as fmtPct } from '@/lib/effective-apr';
 import { deriveMetrics } from '@/lib/derived';
 import { describeGap, projectionGaps } from '@/lib/loan-gaps';
 import { userDefaultCurrency } from '@/lib/currency';
-import { TOOLS } from '@/lib/tools';
+import { toolsFor } from '@/lib/tools';
 import {
   LShell,
   LSectionHeader,
@@ -77,6 +77,8 @@ export function LedgerHome({ profile, debtFree, move }: HomeProps) {
 function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
+  // Only the tools that cover the user's country (Loan Check is India-only).
+  const tools = toolsFor(profile.user.country);
   const fc = (v: number | string) => formatCurrency(v, ccy);
 
   if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
@@ -205,17 +207,17 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
         </section>
 
         <section>
-          <LSectionHeader>TOOLS · {TOOLS.length}</LSectionHeader>
+          <LSectionHeader>TOOLS · {tools.length}</LSectionHeader>
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: lGridColumns(Math.min(TOOLS.length, 5), 150),
+              gridTemplateColumns: lGridColumns(Math.min(tools.length, 5), 150),
               gap: 1,
               background: L_T.ink,
               padding: 1,
             }}
           >
-            {TOOLS.map((t) => (
+            {tools.map((t) => (
               <a
                 key={t.id}
                 href={t.href}
