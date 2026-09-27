@@ -15,6 +15,7 @@
  * forks at the top, behaviour is shared.
  */
 
+import { resolveLoanIndex } from '@/lib/loan-ids';
 import { useEffect, useMemo, useState } from 'react';
 import type { LoanPayload, LoanType, UserPayload } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
@@ -146,6 +147,7 @@ export function LifecycleEventsPanel({
         effectiveDate,
         note: note.trim() || undefined,
         loanIndex: resetLoanIdx,
+        ...(user.loans[resetLoanIdx]?.id ? { loanId: user.loans[resetLoanIdx].id } : {}),
         newRate: rate,
       };
     } else if (kind === 'property_buy') {
@@ -524,8 +526,8 @@ function EventRow({
       summary += ` · take-home ${formatCurrency(e.newMonthlyTakeHome, ccy)}/mo`;
     }
   } else if (e.kind === 'floating_rate_reset') {
-    const loan = user.loans[e.loanIndex];
-    const lender = loan ? loan.bank || loan.loan_type : `Loan #${e.loanIndex + 1}`;
+    const loan = user.loans[resolveLoanIndex(e, user.loans)];
+    const lender = loan ? loan.bank || loan.loan_type : 'a loan since removed';
     summary = `${lender} → ${(Number(e.newRate) * 100).toFixed(2)}%`;
   } else if (e.kind === 'property_buy') {
     const d = e.loanDraft;

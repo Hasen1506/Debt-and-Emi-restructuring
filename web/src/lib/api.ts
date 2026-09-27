@@ -27,6 +27,10 @@ export type TaxRegimeIN = 'new' | 'old';
 export type FilingStatusUS = 'single' | 'mfj' | 'hoh';
 
 export interface LoanPayload {
+  /** Stable id, set when the loan is first saved (lib/loan-ids). Activity
+   *  entries name their loan by it, so removing another loan can't move
+   *  their payments. The API ignores it. */
+  id?: string;
   loan_type: LoanType;
   bank: string;
   outstanding: string;

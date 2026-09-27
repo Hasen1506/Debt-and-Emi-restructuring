@@ -36,6 +36,7 @@ function hasAnyDeductions(d: DeductionsPayload | undefined): boolean {
   if (!d) return false;
   return Object.values(d).some((v) => v != null && Number(v) > 0);
 }
+import { newLoanId, withLoanIds } from '@/lib/loan-ids';
 import {
   loadProfileClient,
   saveProfileClient,
@@ -144,6 +145,8 @@ const LOAN_TYPES: { value: LoanType; label: string }[] = [
 
 function blankLoan(): LoanPayload {
   return {
+    // Its id from the start, so saving twice in one visit keeps it.
+    id: newLoanId(),
     loan_type: 'credit_card',
     bank: '',
     outstanding: '',
@@ -321,7 +324,7 @@ export default function OnboardingPage() {
       setHikeMonthTouched(true);
     }
     if (u.loans && u.loans.length > 0) {
-      setLoans(u.loans);
+      setLoans(withLoanIds(u.loans));
       // Decide auto vs manual per loan on rehydrate: if the saved tenure
       // matches what we'd derive from the current outstanding+EMI+rate,
       // the user is in auto mode — re-deriving on next submit gives the

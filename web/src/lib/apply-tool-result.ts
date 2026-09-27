@@ -48,7 +48,7 @@ export function applyToolResult(input: ApplyToolResultInput): number {
     amount: input.amount,
     scheduledEmi: input.scheduledEmi,
     note: input.note,
-  });
+  }, input.loans);
   writeActivityClient(next);
   syncActivityCookieClient(next, input.loans, input.country);
   return next.length;

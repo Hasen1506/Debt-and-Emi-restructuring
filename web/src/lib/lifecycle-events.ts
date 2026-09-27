@@ -24,6 +24,7 @@
 import { localIsoDate } from './today';
 import type { LoanPayload, UserPayload } from './api';
 import { deriveMarginalRateForUser } from './deductions';
+import { resolveLoanIndex } from './loan-ids';
 
 const COOKIE_NAME = 'finoptima_lifecycle';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -86,8 +87,11 @@ export interface SalaryResetEvent extends BaseEvent {
 
 export interface FloatingRateResetEvent extends BaseEvent {
   kind: 'floating_rate_reset';
-  /** 0-based index into user.loans. */
+  /** 0-based index into user.loans when the event was planned. */
   loanIndex: number;
+  /** The loan's stable id: wins over loanIndex, so removing another loan
+   *  in Setup doesn't move the reset onto its neighbour. */
+  loanId?: string;
   /** New nominal rate as decimal (0.084 = 8.4%). */
   newRate: string;
 }
@@ -246,6 +250,7 @@ function monthsBetween(fromIso: string, toIso: string): number {
 export function plannedEventsForEngine(
   events: LifecycleEvent[],
   today: string = new Date().toISOString().slice(0, 10),
+  loans?: Pick<LoanPayload, 'id'>[],
 ): LifecycleEventInput[] {
   const out: LifecycleEventInput[] = [];
   for (const e of events) {
@@ -259,10 +264,12 @@ export function plannedEventsForEngine(
         new_monthly_take_home: e.newMonthlyTakeHome,
       });
     } else if (e.kind === 'floating_rate_reset') {
+      const loanIndex = loans ? resolveLoanIndex(e, loans) : e.loanIndex;
+      if (loanIndex < 0) continue;              // the loan was removed
       out.push({
         kind: 'floating_rate_reset',
         effective_month: monthsBetween(today, e.effectiveDate),
-        loan_index: e.loanIndex,
+        loan_index: loanIndex,
         new_rate: e.newRate,
       });
     }
@@ -307,12 +314,13 @@ export function applyConfirmedEvent(
   }
   if (event.kind === 'floating_rate_reset') {
     const loans = user.loans.slice();
-    const target = loans[event.loanIndex];
+    const idx = resolveLoanIndex(event, loans);
+    const target = idx >= 0 ? loans[idx] : undefined;
     const snapshot: AppliedSnapshot = {
-      prevLoanIndex: event.loanIndex,
+      prevLoanIndex: idx,
       prevLoanRate: target?.nominal_rate,
     };
-    if (target) loans[event.loanIndex] = { ...target, nominal_rate: event.newRate };
+    if (target) loans[idx] = { ...target, nominal_rate: event.newRate };
     return { user: { ...user, loans }, snapshot };
   }
   if (event.kind === 'property_buy') {

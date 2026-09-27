@@ -9,6 +9,7 @@
  */
 import type { UserPayload } from './api';
 import { DEMO_USER, DEMO_MARGINAL_RATE } from './demo-user';
+import { withLoanIds } from './loan-ids';
 import {
   decodeProfileCookies,
   encodeProfileCookies,
@@ -136,6 +137,9 @@ export function saveProfileClient(profile: {
   marginalRate?: string;
   creditScore?: number | null;
 }): boolean {
+  // Every loan leaves with a stable id (a new one for a loan just added).
+  const loans = withLoanIds(profile.user.loans ?? []);
+  if (loans !== profile.user.loans) profile = { ...profile, user: { ...profile.user, loans } };
   if (!writeProfileCookieClient(JSON.stringify(profile.user))) {
     if (typeof window !== 'undefined') window.dispatchEvent(new Event(SAVE_FAILED_EVENT));
     return false;

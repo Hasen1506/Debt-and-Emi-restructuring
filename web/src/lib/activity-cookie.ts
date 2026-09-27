@@ -17,27 +17,36 @@
  * indicative defaults already carry more error than that, and freezing
  * keeps server math idempotent (same cookie → same simulation every time).
  *
- * Cookie has a hard 4KB browser limit. We cap to MAX_DELTAS most recent
- * entries to stay well under that.
+ * The cookie holds one total per loan, not one line per entry: it used to
+ * keep the 20 newest entries, so the 21st extra payment stopped moving the
+ * plan while Activity still listed it. Loans are named by id (with their
+ * position as a fallback), so removing a loan can't move another's totals.
+ * The JSON is lz-string compressed: fifty loans fit well inside 4 KB.
  */
 import Decimal from 'decimal.js';
+import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
 import type { ActivityEntry } from './activity';
 import { estimateLateFee } from './estimate-penalty';
 import { explainMinPayment } from './min-payment';
 import type { Country, LoanPayload } from './api';
 import { overdueAmount, daysLate, extraPrincipal } from './activity';
+import { alignToLoans, resolveLoanIndex } from './loan-ids';
 
 const COOKIE_NAME = 'finoptima_activity_deltas';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
-const MAX_DELTAS = 20;
-// Version 2 added `principalReduction` and `closed` so server-side parsers
-// know to ignore v1-only payloads if the shape changes. Old v1 payloads
-// (missed/partial only) are still accepted as a subset of v2.
-const CURRENT_VERSION = 2;
+// v2 (plain JSON): one delta per entry, newest 20. v3 (compressed): one
+// delta per loan, summed over every entry, with the loan's id. v1 and v2
+// cookies are still read until the next activity change rewrites them.
+const CURRENT_VERSION = 3;
+const COMPRESSED = 'z3.';
 
 export interface ActivityDelta {
-  /** 0-based index into the user's `loans`. */
+  /** 0-based index into the user's `loans` when the cookie was written. */
   loanIndex: number;
+  /** The loan's stable id; wins over `loanIndex` when the loans have ids. */
+  loanId?: string;
+  /** How many activity entries this delta sums (1 in a v1/v2 cookie). */
+  count?: number;
   /** Unpaid principal+interest for this event, decimal string.
    *  Bumps outstanding UP. */
   overdue: string;
@@ -76,64 +85,66 @@ export function syncActivityCookieClient(
   country: Country,
 ): void {
   if (typeof document === 'undefined') return;
+  const payload: CookiePayload = { v: CURRENT_VERSION, deltas: activityDeltas(entries, loans, country) };
+  const encoded = COMPRESSED + compressToEncodedURIComponent(JSON.stringify(payload));
+  document.cookie = `${COOKIE_NAME}=${encoded}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+}
 
-  // Build a per-loan map of the most-recent `newOutstanding` user input.
-  // Entries arrive newest-first, so the first sighting per loan wins.
-  const overridesByLoan = new Map<number, string>();
-  for (const e of entries) {
-    if (
-      e.newOutstanding !== undefined &&
-      e.newOutstanding.trim() !== '' &&
-      !overridesByLoan.has(e.loanIndex)
-    ) {
-      overridesByLoan.set(e.loanIndex, e.newOutstanding);
+/** Each loan's net effect from its activity entries (newest first): overdue
+ *  and penalties from missed or short payments, principal from extra
+ *  payments, whether it was closed, and the newest reported card balance.
+ *  One delta per loan with any effect, however many entries it has. */
+export function activityDeltas(
+  entries: ActivityEntry[],
+  loans: LoanPayload[],
+  country: Country,
+): ActivityDelta[] {
+  // Entries point at their loan's current position (by id), so a loan
+  // removed in Setup takes its entries with it instead of passing them on.
+  const aligned = alignToLoans(entries, loans);
+  const byLoan = new Map<
+    number,
+    { overdue: Decimal; penalty: Decimal; reduction: Decimal; closed: boolean; balanceOverride?: string; count: number }
+  >();
+  const acc = (i: number) => {
+    let cur = byLoan.get(i);
+    if (!cur) {
+      cur = { overdue: new Decimal(0), penalty: new Decimal(0), reduction: new Decimal(0), closed: false, count: 0 };
+      byLoan.set(i, cur);
     }
-  }
-  const overrideEmitted = new Set<number>();
+    return cur;
+  };
 
-  const deltas: ActivityDelta[] = [];
-  // First pass: synthetic "balance-only" deltas for loans that have an
-  // override but no other event would emit a delta for them (e.g. user
-  // only logged paid_full + newOutstanding). The server applies the
-  // override before anything else.
-  for (const [loanIndex, balanceOverride] of overridesByLoan) {
-    const loan = loans[loanIndex];
-    if (!loan || loan.loan_type !== 'credit_card') continue;
-    deltas.push({
-      loanIndex,
-      overdue: '0',
-      penalty: '0',
-      balanceOverride,
-    });
-    overrideEmitted.add(loanIndex);
-    if (deltas.length >= MAX_DELTAS) break;
-  }
-  for (const e of entries) {
-    if (e.kind === 'paid_full') continue;
+  for (const e of aligned) {
     const loan = loans[e.loanIndex];
     if (!loan) continue;
 
+    // Card only: the newest reported balance after a payment re-anchors the
+    // card's outstanding. Entries arrive newest-first, so the first wins.
+    if (
+      loan.loan_type === 'credit_card' &&
+      e.newOutstanding !== undefined &&
+      e.newOutstanding.trim() !== '' &&
+      acc(e.loanIndex).balanceOverride === undefined
+    ) {
+      acc(e.loanIndex).balanceOverride = e.newOutstanding;
+    }
+
+    if (e.kind === 'paid_full') continue;
+
     if (e.kind === 'closed') {
-      deltas.push({
-        loanIndex: e.loanIndex,
-        overdue: '0',
-        penalty: '0',
-        closed: true,
-      });
-      if (deltas.length >= MAX_DELTAS) break;
+      const cur = acc(e.loanIndex);
+      cur.closed = true;
+      cur.count += 1;
       continue;
     }
 
     if (e.kind === 'paid_extra') {
       const extra = extraPrincipal(e);
       if (Number(extra) <= 0) continue;
-      deltas.push({
-        loanIndex: e.loanIndex,
-        overdue: '0',
-        penalty: '0',
-        principalReduction: extra,
-      });
-      if (deltas.length >= MAX_DELTAS) break;
+      const cur = acc(e.loanIndex);
+      cur.reduction = cur.reduction.add(extra);
+      cur.count += 1;
       continue;
     }
 
@@ -175,13 +186,26 @@ export function syncActivityCookieClient(
       });
       penalty = est.total.toFixed(2);
     }
-    deltas.push({ loanIndex: e.loanIndex, overdue, penalty });
-    if (deltas.length >= MAX_DELTAS) break;
+    const cur = acc(e.loanIndex);
+    cur.overdue = cur.overdue.add(overdue);
+    cur.penalty = cur.penalty.add(penalty);
+    cur.count += 1;
   }
 
-  const payload: CookiePayload = { v: CURRENT_VERSION, deltas };
-  const encoded = encodeURIComponent(JSON.stringify(payload));
-  document.cookie = `${COOKIE_NAME}=${encoded}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  const deltas: ActivityDelta[] = [];
+  for (const [loanIndex, t] of byLoan) {
+    deltas.push({
+      loanIndex,
+      ...(loans[loanIndex]?.id ? { loanId: loans[loanIndex].id } : {}),
+      count: t.count,
+      overdue: t.overdue.toFixed(2),
+      penalty: t.penalty.toFixed(2),
+      ...(t.reduction.gt(0) ? { principalReduction: t.reduction.toFixed(2) } : {}),
+      ...(t.closed ? { closed: true } : {}),
+      ...(t.balanceOverride !== undefined ? { balanceOverride: t.balanceOverride } : {}),
+    });
+  }
+  return deltas;
 }
 
 export function clearActivityCookieClient(): void {
@@ -195,11 +219,19 @@ export async function loadActivityDeltasServer(): Promise<ActivityDelta[]> {
   const { cookies } = await import('next/headers');
   const raw = cookies().get(COOKIE_NAME)?.value;
   if (!raw) return [];
+  return parseActivityDeltas(raw);
+}
+
+/** The deltas in a cookie value: v3 (compressed, per loan) or the older
+ *  per-entry v1/v2 JSON. Empty when it can't be read. */
+export function parseActivityDeltas(raw: string): ActivityDelta[] {
   try {
-    const parsed: CookiePayload = JSON.parse(decodeURIComponent(raw));
+    const parsed: CookiePayload = raw.startsWith(COMPRESSED)
+      ? JSON.parse(decompressFromEncodedURIComponent(raw.slice(COMPRESSED.length)) ?? '')
+      : JSON.parse(decodeURIComponent(raw));
     // Accept v1 (missed/partial only) and v2 (adds paid_extra/closed) — older
-    // browsers may still be carrying a v1 cookie until the next mutation.
-    if (parsed?.v !== 1 && parsed?.v !== CURRENT_VERSION) return [];
+    // browsers may still be carrying one until the next mutation.
+    if (parsed?.v !== 1 && parsed?.v !== 2 && parsed?.v !== CURRENT_VERSION) return [];
     if (!Array.isArray(parsed.deltas)) return [];
     return parsed.deltas.filter(
       (d) =>
@@ -244,8 +276,13 @@ export function applyActivityDeltas(
     number,
     { bump: Decimal; count: number; closed: boolean; balanceOverride: string | null }
   >();
-  for (const d of deltas) {
-    if (d.loanIndex < 0 || d.loanIndex >= loans.length) continue;
+  let entryCount = 0;
+  for (const raw of deltas) {
+    // By id when the delta and the loans have them: a loan removed since
+    // the cookie was written matches nothing rather than its neighbour.
+    const d = { ...raw, loanIndex: resolveLoanIndex(raw, loans) };
+    if (d.loanIndex < 0) continue;
+    entryCount += d.count ?? 1;
     const overdue = new Decimal(d.overdue || 0);
     const penalty = new Decimal(d.penalty || 0);
     const reduction = new Decimal(d.principalReduction || 0);
@@ -256,7 +293,7 @@ export function applyActivityDeltas(
       balanceOverride: null as string | null,
     };
     cur.bump = cur.bump.add(overdue).add(penalty).sub(reduction);
-    cur.count += 1;
+    cur.count += d.count ?? 1;
     if (d.closed) cur.closed = true;
     // First override wins (deltas are emitted newest-first by syncActivityCookieClient).
     if (d.balanceOverride !== undefined && cur.balanceOverride === null) {
@@ -300,6 +337,6 @@ export function applyActivityDeltas(
     loans: adjusted,
     perLoanBumps,
     totalBump: totalBump.toFixed(2),
-    entryCount: deltas.length,
+    entryCount,
   };
 }

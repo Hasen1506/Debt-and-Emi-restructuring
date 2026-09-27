@@ -14,6 +14,7 @@
  * Renders nothing when there's nothing to prompt about — no empty banner.
  */
 
+import { resolveLoanIndex } from '@/lib/loan-ids';
 import { useEffect, useState } from 'react';
 import type { UserPayload } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
@@ -170,8 +171,8 @@ function Prompt({
   if (e.kind === 'salary_reset') {
     summary = `New gross ${formatCurrency(e.newAnnualGross, ccy)}/yr from ${e.effectiveDate}`;
   } else if (e.kind === 'floating_rate_reset') {
-    const loan = user.loans[e.loanIndex];
-    const lender = loan ? loan.bank || loan.loan_type : `Loan #${e.loanIndex + 1}`;
+    const loan = user.loans[resolveLoanIndex(e, user.loans)];
+    const lender = loan ? loan.bank || loan.loan_type : 'a loan since removed';
     summary = `${lender} rate → ${(Number(e.newRate) * 100).toFixed(2)}% from ${e.effectiveDate}`;
   } else if (e.kind === 'property_buy') {
     const d = e.loanDraft;
