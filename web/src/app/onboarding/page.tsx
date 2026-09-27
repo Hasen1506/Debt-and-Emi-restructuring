@@ -232,6 +232,7 @@ export default function OnboardingPage() {
   const [loans, setLoans] = useState<LoanPayload[]>([blankLoan()]);
   // Set when Continue is pressed with a loan missing its rate or EMI.
   const [showLoanErrors, setShowLoanErrors] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
   // Exchange rate per foreign loan currency ("0.012" = $ per ₹1), filled
   // from today's quote when it loads and editable. Required: without it a
   // ₹20 lakh loan was added to dollars at parity.
@@ -633,11 +634,18 @@ export default function OnboardingPage() {
     const resolvedMarginalRate = deductionDerived
       ? deductionDerived.toFixed(4)
       : (federalMarginal + stateRate).toFixed(4);
-    saveProfileClient({
+    const saved = saveProfileClient({
       user: userWithFx,
       marginalRate: resolvedMarginalRate,
       creditScore: Number.isFinite(score) && score >= 300 ? score : null,
     });
+    // The browser didn't keep it (cookies blocked, or a profile too large):
+    // say so and stay, instead of landing on home with nothing saved.
+    if (!saved) {
+      setSaveFailed(true);
+      return;
+    }
+    setSaveFailed(false);
     // The balances were just entered, so cards aren't "never updated".
     try {
       window.localStorage.setItem(BALANCES_ENTERED_KEY, localIsoDate(new Date()));
@@ -2300,6 +2308,13 @@ export default function OnboardingPage() {
           />
         )}
 
+        {saveFailed && step === STEPS.length - 1 && (
+          <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
+            Your profile wasn&apos;t saved: this browser didn&apos;t keep it. Check
+            that cookies are allowed for this site and try again. Nothing you
+            entered here is lost while this page stays open.
+          </p>
+        )}
         <div
           style={{
             display: 'flex',

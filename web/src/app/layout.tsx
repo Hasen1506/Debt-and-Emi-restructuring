@@ -5,6 +5,7 @@ import { LMasthead } from '@/components/ledger/LMasthead';
 import { LFooter } from '@/components/ledger/primitives';
 import { SessionHydrator } from '@/lib/server-sync';
 import { ProfileProvider } from '@/lib/use-profile';
+import { SaveFailedNotice } from '@/components/SaveFailedNotice';
 
 export const metadata: Metadata = {
   title: 'FinOptima — Debt & EMI Optimiser',
@@ -31,6 +32,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </a>
         <SessionHydrator />
         <LMasthead country={profile.user.country} />
+        <SaveFailedNotice />
         <main id="main" tabIndex={-1} className="app-shell" style={{ paddingTop: 18, paddingBottom: 32 }}>
           <ProfileProvider profile={profile}>{children}</ProfileProvider>
         </main>

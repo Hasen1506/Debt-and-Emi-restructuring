@@ -1,15 +1,21 @@
 /**
  * Single source of truth for the user's profile across the app.
  *
- * Persistence is a single cookie (`finoptima_user`, JSON-encoded) so both
- * server components (via next/headers) and client components (via
- * document.cookie) can read the same payload. Falls back to DEMO_USER when
- * no cookie is present — that keeps the app usable for first-time visitors.
+ * Persistence is cookies (`finoptima_user`, compressed and split into
+ * parts when large; see profile-cookie.ts) so both server components (via
+ * next/headers) and client components (via document.cookie) can read the
+ * same payload. Falls back to DEMO_USER when no cookie is present — that
+ * keeps the app usable for first-time visitors.
  */
 import type { UserPayload } from './api';
 import { DEMO_USER, DEMO_MARGINAL_RATE } from './demo-user';
+import {
+  decodeProfileCookies,
+  encodeProfileCookies,
+  MAX_PROFILE_CHUNKS,
+  profileChunkName,
+} from './profile-cookie';
 
-const COOKIE_NAME = 'finoptima_user';
 const MARGINAL_COOKIE = 'finoptima_marginal';
 const SCORE_COOKIE = 'finoptima_score';
 const FX_COOKIE = 'finoptima_fx';
@@ -47,11 +53,49 @@ function writeClientCookie(name: string, value: string) {
 
 /** The raw profile cookies, to tell when the saved profile has changed. */
 export function profileCookieKey(): string {
-  return [COOKIE_NAME, MARGINAL_COOKIE, SCORE_COOKIE].map((c) => readClientCookie(c) ?? '').join('\u0000');
+  const parts: string[] = [];
+  for (let i = 0; i < MAX_PROFILE_CHUNKS; i++) {
+    const v = readClientCookie(profileChunkName(i));
+    if (v == null) break;
+    parts.push(v);
+  }
+  return [...parts, readClientCookie(MARGINAL_COOKIE) ?? '', readClientCookie(SCORE_COOKIE) ?? ''].join('\u0000');
+}
+
+/**
+ * Store the profile's JSON in the profile cookies and read it back. False
+ * when the browser didn't keep it (too large, cookies blocked); the cookies
+ * that were there before are put back, so a failed save loses nothing.
+ */
+export function writeProfileCookieClient(json: string): boolean {
+  if (typeof document === 'undefined') return false;
+  const parts = encodeProfileCookies(json);
+  if (parts.length > MAX_PROFILE_CHUNKS) return false;
+  const before: (string | null)[] = [];
+  for (let i = 0; i < MAX_PROFILE_CHUNKS; i++) before.push(readRawClientCookie(profileChunkName(i)));
+  const put = (i: number, v: string | null) => {
+    document.cookie =
+      v == null
+        ? `${profileChunkName(i)}=; path=/; max-age=0`
+        : `${profileChunkName(i)}=${v}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  };
+  // The parts are URL-safe as they are; no further encoding.
+  parts.forEach((v, i) => put(i, v));
+  for (let i = parts.length; i < MAX_PROFILE_CHUNKS; i++) if (before[i] != null) put(i, null);
+  if (decodeProfileCookies(readClientCookie) === json) return true;
+  before.forEach((v, i) => put(i, v));
+  return false;
+}
+
+/** A cookie's value as stored (not URI-decoded), to put it back unchanged. */
+function readRawClientCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? match[1] : null;
 }
 
 export function loadProfileClient(): StoredProfile {
-  const raw = readClientCookie(COOKIE_NAME);
+  const raw = decodeProfileCookies(readClientCookie);
   if (!raw) {
     return {
       user: DEMO_USER,
@@ -80,12 +124,22 @@ export function loadProfileClient(): StoredProfile {
   }
 }
 
+/** Fired on window when a profile save didn't stick (SaveFailedNotice). */
+export const SAVE_FAILED_EVENT = 'finoptima:profile-save-failed';
+
+/**
+ * Save the profile. Returns false when the browser didn't keep it, and
+ * fires SAVE_FAILED_EVENT so the page says so.
+ */
 export function saveProfileClient(profile: {
   user: UserPayload;
   marginalRate?: string;
   creditScore?: number | null;
-}) {
-  writeClientCookie(COOKIE_NAME, JSON.stringify(profile.user));
+}): boolean {
+  if (!writeProfileCookieClient(JSON.stringify(profile.user))) {
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(SAVE_FAILED_EVENT));
+    return false;
+  }
   if (profile.marginalRate !== undefined) {
     writeClientCookie(MARGINAL_COOKIE, profile.marginalRate);
   }
@@ -106,6 +160,7 @@ export function saveProfileClient(profile: {
           })(),
     isLive: true,
   });
+  return true;
 }
 
 async function syncProfileToServer(profile: StoredProfile): Promise<void> {
@@ -128,7 +183,9 @@ async function syncProfileToServer(profile: StoredProfile): Promise<void> {
 
 export function clearProfileClient() {
   if (typeof document === 'undefined') return;
-  for (const c of [COOKIE_NAME, MARGINAL_COOKIE, SCORE_COOKIE, FX_COOKIE]) {
+  const names = [MARGINAL_COOKIE, SCORE_COOKIE, FX_COOKIE];
+  for (let i = 0; i < MAX_PROFILE_CHUNKS; i++) names.push(profileChunkName(i));
+  for (const c of names) {
     document.cookie = `${c}=; path=/; max-age=0`;
   }
 }
@@ -191,7 +248,7 @@ async function fetchUserStateServer(): Promise<Record<string, unknown> | null> {
 function _profileFromCookieStore(store: {
   get(name: string): { value: string } | undefined;
 }): StoredProfile {
-  const raw = store.get(COOKIE_NAME)?.value;
+  const raw = decodeProfileCookies((name) => store.get(name)?.value);
   if (!raw) {
     return {
       user: DEMO_USER,
