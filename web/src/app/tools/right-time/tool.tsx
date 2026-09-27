@@ -398,7 +398,7 @@ export function RightTimeTool() {
                 const n = Number(tenure);
                 const p = Number(principal);
                 const emi = r === 0 ? p / n : (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-                addLoanToProfile({
+                const saved = addLoanToProfile({
                   loan_type: loanType,
                   bank,
                   outstanding: principal,
@@ -406,7 +406,7 @@ export function RightTimeTool() {
                   tenure_months_remaining: Number(tenure),
                   scheduled_emi: emi.toFixed(2),
                 });
-                setAdded(true);
+                if (saved != null) setAdded(true);
               }}
               label={`Add this ${loanType.replace('_', ' ')} at ${bank} to my profile${isExistingBank ? '' : ' (new bank)'}`}
             />

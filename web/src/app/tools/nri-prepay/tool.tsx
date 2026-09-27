@@ -24,7 +24,8 @@ import { useStoredProfile } from '@/lib/use-profile';
 import { deriveTenureMonths } from '@/lib/derived';
 import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
-import { addLoanToProfile } from '@/lib/add-loan-to-profile';
+import { addLoanBlocker, addLoanToProfile } from '@/lib/add-loan-to-profile';
+import { userDefaultCurrency } from '@/lib/currency';
 import { fitColumns } from '@/lib/grid';
 
 type Currency = 'INR' | 'USD' | 'GBP' | 'EUR' | 'AUD' | 'CAD' | 'SGD' | 'AED';
@@ -214,6 +215,23 @@ export function NriPrepayTool() {
     if (r.isZero()) return null;
     return new Decimal(1).div(r).toFixed(2);
   }, [v]);
+
+  // Saving the loan: its amounts are in the loan's currency, so it goes in
+  // tagged with that currency and a rate into the profile's. The engine's
+  // rate is into the currency picked above, which is only usable when that
+  // is the profile's own.
+  const profileCurrency = userDefaultCurrency(profile.user.country);
+  const addInput = {
+    currency: loanCurrency,
+    fx_to_user: v && userCurrency === profileCurrency ? v.fx_rate_used : undefined,
+  };
+  const addBlocker =
+    loanCurrency !== profileCurrency &&
+    (loanCurrency === 'INR' || loanCurrency === 'USD') &&
+    userCurrency !== profileCurrency &&
+    !(Number(profile.user.fx_to_user_currency?.[loanCurrency]) > 0)
+      ? `Your profile is in ${profileCurrency}. Pick ${profileCurrency} as the currency you earn in and check again to add this loan with its exchange rate.`
+      : addLoanBlocker(addInput, profile.user);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -449,6 +467,10 @@ export function NriPrepayTool() {
                 }}
                 label={`Apply this — log payoff to ${profile.user.loans[Number(targetIdx)].bank} & reprice /plan`}
               />
+            ) : addBlocker ? (
+              <p style={{ marginTop: 14, fontSize: 13, color: 'var(--muted)', lineHeight: 1.55 }}>
+                {addBlocker}
+              </p>
             ) : (
               <AddLoanAction
                 added={added}
@@ -456,22 +478,25 @@ export function NriPrepayTool() {
                   // Add as personal_loan by default — user can tweak the
                   // type in Setup. Bank label is intentionally generic
                   // ("Foreign loan") because cross-border loans often
-                  // aren't with a bank from our IN/US lists.
+                  // aren't with a bank from our IN/US lists. The amounts
+                  // stay in the loan's currency, tagged with it, and the
+                  // rate used here goes in when the profile has none.
                   const r = Number(loanRate) / 12;
                   const n = Number(loanTenure);
                   const p = Number(loanBalance);
                   const emi = r === 0 ? p / n : (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-                  addLoanToProfile({
+                  const saved = addLoanToProfile({
                     loan_type: 'personal_loan' as LoanType,
                     bank: `Foreign loan (${loanCurrency})`,
                     outstanding: loanBalance,
                     nominal_rate: loanRate,
                     tenure_months_remaining: Number(loanTenure),
                     scheduled_emi: emi.toFixed(2),
+                    ...addInput,
                   });
-                  setAdded(true);
+                  if (saved != null) setAdded(true);
                 }}
-                label="Add this foreign loan to my profile to track it"
+                label={`Add this ${loanCurrency} loan to my profile to track it`}
               />
             )
           )}
