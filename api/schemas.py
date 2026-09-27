@@ -895,11 +895,20 @@ class AssetLiquidationRequest(_In):
     # Slab rate incl. surcharge + cess, used when the property was held 24
     # months or less (short-term). Derived from taxable_income if absent.
     marginal_rate: Optional[Rate] = None
+    # Whose tax rules apply to the sale. A US seller pays federal capital-
+    # gains tax (with the §121 main-home exclusion when `asset.
+    # us_section_121_eligible`), NIIT and state tax, not India's LTCG.
+    country: Country = Country.IN
+    filing_status: Optional[FilingStatusUS] = None
+    state_marginal_rate: Optional[Rate] = None
 
 
 class AssetLiquidationResponse(_Base):
     net_proceeds: Decimal
     ltcg_tax: Decimal
+    # How the tax was worked out, for the page to show next to the figure:
+    # the rules used, any exclusion and what the user should check.
+    tax_notes: list[str] = []
     net_benefit: Decimal
     asset_real_return_net: Decimal
     gate_1_net_benefit: bool

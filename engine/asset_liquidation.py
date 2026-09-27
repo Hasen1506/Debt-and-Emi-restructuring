@@ -1011,14 +1011,13 @@ def _proceeds_us_real_estate(
             f"~{selling_pct*100:.1f}% (${transaction_costs:,.0f}).{s121_note} "
             f"After ~${tax:,.0f} capital-gains tax, you net ${gross - tax:,.0f}."
         ),
-        caveats=[
-            "Property sales typically take 60-90 days to close.",
-            "§1031 like-kind exchange could defer the gain entirely if reinvesting "
-            "in another investment property — consult a CPA before paying.",
-        ] + (
+        # §1031 is for investment property; a main home gets §121 instead.
+        caveats=["Property sales typically take 60-90 days to close."] + (
             ["§121 exclusion needs 2-of-last-5 years primary residence — verify "
              "you actually qualify before relying on this number."]
-            if asset.us_section_121_eligible else []
+            if asset.us_section_121_eligible else
+            ["§1031 like-kind exchange could defer the gain entirely if reinvesting "
+             "in another investment property — consult a CPA before paying."]
         ),
     )
 

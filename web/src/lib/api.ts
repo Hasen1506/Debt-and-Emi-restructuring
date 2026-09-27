@@ -617,6 +617,9 @@ export interface AssetLiquidationResponse {
   horizon_years: string | null;
   recommend_liquidation: boolean;
   rationale: string;
+  /** How the tax was worked out (US: the rules, any §121 exclusion, what to
+   *  check). Empty for India, whose rules the form itself describes. */
+  tax_notes?: string[];
 }
 
 // ─── Portfolio liquidation advisor ──────────────────────────────────────────
@@ -1253,6 +1256,11 @@ export const api = {
     surplus_reinvestment_yield?: string;
     /** Slab rate incl. cess; used when the property was held ≤ 24 months. */
     marginal_rate?: string;
+    /** Whose tax rules apply: US uses federal capital-gains tax, NIIT, the
+     *  state rate and the §121 exclusion instead of India's LTCG. */
+    country?: Country;
+    filing_status?: FilingStatusUS;
+    state_marginal_rate?: string;
   }) => postWithFieldErrors<AssetLiquidationResponse>('/api/asset-liquidation', req),
 
   liquidationRankings: (req: {

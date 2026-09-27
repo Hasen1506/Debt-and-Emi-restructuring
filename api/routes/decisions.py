@@ -1,10 +1,12 @@
 """POST /api/windfall · /api/new-debt · /api/quick-recompute · /api/cash-yield · /api/right-time-to-borrow · /api/asset-liquidation"""
 from copy import deepcopy
+from dataclasses import replace
+from datetime import date
 from decimal import Decimal
 from fastapi import APIRouter, HTTPException
 
 from engine.asset_liquidation import (
-    india_ltcg_tax, true_net_benefit, gate_check,
+    india_ltcg_tax, true_net_benefit, gate_check, compute_liquidation_proceeds,
 )
 from engine.country_data import india_selling_cost_pct
 from engine.decisions import (
@@ -12,6 +14,7 @@ from engine.decisions import (
     cash_yield_check, right_time_to_borrow,
 )
 from engine.formulas import effective_rate
+from engine.models import Country, FilingStatusUS
 from engine.simulation import simulate_plan
 
 from api.schemas import (
@@ -160,20 +163,45 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
     Runs Gates 1–3 (Gate 4 is the user's emotional/strategic call, surfaced in UI).
     """
     asset = req.asset.to_engine()
-    state = asset.state or "Maharashtra"        # default for selling-cost lookup
-    try:
-        net_proceeds, ltcg_tax = india_ltcg_tax(
-            asset=asset,
-            sale_price=req.sale_price,
-            state=state,
+    tax_notes: list[str] = []
+    if req.country == Country.US:
+        # US rules: federal capital-gains tax (0/15/20% long-term, ordinary
+        # rates short-term), NIIT and the state rate, after the §121
+        # main-home exclusion when the seller says it applies. India's
+        # indexation and surcharge bands don't apply to a US sale.
+        sold = compute_liquidation_proceeds(
+            replace(asset, current_market_value=req.sale_price),
+            today=date.today(),
+            country=Country.US,
             taxable_income=req.taxable_income,
-            purchase_fy=req.purchase_fy,
-            current_fy=req.current_fy,
-            brokerage_rate=req.brokerage_rate,
-            marginal_rate=req.marginal_rate,
+            filing_status=req.filing_status or FilingStatusUS.SINGLE,
+            state_marginal_rate=req.state_marginal_rate or D("0"),
         )
-    except (KeyError, ValueError) as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        if sold.is_blocked:
+            raise HTTPException(status_code=400, detail=sold.block_reason or sold.explanation)
+        net_proceeds, ltcg_tax = sold.net_proceeds, sold.tax_owed
+        selling_cost_pct = (
+            sold.transaction_costs / req.sale_price if req.sale_price > 0 else D("0")
+        )
+        tax_notes = [sold.explanation, *sold.caveats]
+        if not req.state_marginal_rate:
+            tax_notes.append("No state income tax included: add your state rate in Setup if you pay one.")
+    else:
+        state = asset.state or "Maharashtra"        # default for selling-cost lookup
+        try:
+            net_proceeds, ltcg_tax = india_ltcg_tax(
+                asset=asset,
+                sale_price=req.sale_price,
+                state=state,
+                taxable_income=req.taxable_income,
+                purchase_fy=req.purchase_fy,
+                current_fy=req.current_fy,
+                brokerage_rate=req.brokerage_rate,
+                marginal_rate=req.marginal_rate,
+            )
+        except (KeyError, ValueError) as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        selling_cost_pct = india_selling_cost_pct(state, req.brokerage_rate)
 
     benefit = true_net_benefit(
         net_proceeds=net_proceeds,
@@ -182,8 +210,6 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
         selling_period_months=req.selling_period_months,
     )
 
-    selling_cost_pct = india_selling_cost_pct(state, req.brokerage_rate)
-    gross_sale = req.sale_price * (D("1") - selling_cost_pct) if req.sale_price else D("1")
     ltcg_effective_rate = (
         ltcg_tax / req.sale_price if req.sale_price > 0 else D("0")
     )
@@ -242,4 +268,5 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
         horizon_years=req.expected_hold_years_post_sale if gates.get("gate_0_wealth_edge") is not None else None,
         recommend_liquidation=gates["recommend_liquidation"],
         rationale=rationale,
+        tax_notes=tax_notes,
     )

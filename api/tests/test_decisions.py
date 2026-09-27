@@ -152,6 +152,58 @@ def test_asset_liquidation_pre_2024_indexed(client):
     assert body["gate_2_high_rate"] is True
 
 
+def _us_sale(main_home: bool, **extra):
+    return {
+        "asset": {
+            "asset_type": "real_estate",
+            "purchase_price": "100000",
+            "purchase_date": "2018-10-01",
+            "current_market_value": "350000",
+            "us_section_121_eligible": main_home,
+        },
+        "sale_price": "350000",
+        "debt_balance": "100000",
+        "debt_effective_rate": "0.12",
+        "taxable_income": "108000",
+        "surplus_reinvestment_yield": "0.045",
+        "country": "US",
+        "filing_status": "single",
+        **extra,
+    }
+
+
+def test_asset_liquidation_us_uses_us_capital_gains(client):
+    """A US sale isn't taxed as an Indian one: $350k less 8% selling costs
+    less $100k basis is a $222k long-term gain at 15% federal = $33,300
+    (India's rules gave $31,817.50 "LTCG" with Maharashtra costs)."""
+    r = client.post("/api/asset-liquidation", json=_us_sale(False))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert Decimal(body["ltcg_tax"]) == Decimal("33300")
+    assert Decimal(body["net_proceeds"]) == Decimal("288700")
+    assert any("No state income tax" in n for n in body["tax_notes"])
+
+
+def test_asset_liquidation_us_main_home_excludes_gain(client):
+    """§121: a qualifying single filer's first $250k of gain is excluded."""
+    r = client.post("/api/asset-liquidation", json=_us_sale(True, state_marginal_rate="0.093"))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert Decimal(body["ltcg_tax"]) == 0
+    assert Decimal(body["net_proceeds"]) == Decimal("322000")
+    assert any("§121" in n for n in body["tax_notes"])
+    assert not any("No state income tax" in n for n in body["tax_notes"])
+
+
+def test_asset_liquidation_india_has_no_us_notes(client):
+    r = client.post("/api/asset-liquidation", json={
+        **{k: v for k, v in _us_sale(False).items() if k not in ("country", "filing_status")},
+    })
+    assert r.status_code == 200, r.text
+    assert Decimal(r.json()["ltcg_tax"]) == Decimal("31817.5")
+    assert r.json()["tax_notes"] == []
+
+
 def test_asset_liquidation_post_2024_flat(client):
     """Post-23-Jul-2024 purchase: no CII inputs needed."""
     r = client.post("/api/asset-liquidation", json={
