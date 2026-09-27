@@ -233,8 +233,8 @@ public deployment.
 ## 6 · Round-2 user audit (27 Sep 2026)
 
 A second outside audit of `main` at 550f8b7, using a local build with sign-in
-disabled, a controlled FX response, reloads and a CSV export. Fixed on the PR
-after the second merge. R6–R8 are still open.
+disabled, a controlled FX response, reloads and a CSV export. All eight are
+fixed on the PR after the second merge.
 
 | # | What the user saw | Fix |
 |---|---|---|
@@ -243,9 +243,9 @@ after the second merge. R6–R8 are still open.
 | R3 (P0) | **"Take the EMI" for a $7,294 EMI** on $4,500 income, $3,200 costs and a $12k card, with "add to profile" | The tool sends the monthly room from the profile (income − costs − current payments). An EMI above it gets "Can't afford the EMI" with the gap and no add button, or "Pay cash" when savings cover the price. "Take" says what the EMI leaves each month |
 | R4 (P1) | **Nine loans didn't save**: the one-cookie profile passed ~4 KB, and a reload restarted setup | The profile cookie is compressed with lz-string: nine loans take 1.6 KB, forty take 3.6 KB. Past 3.8 KB it is split across numbered cookies (ninety loans take two). It is read back after saving; on a failed save the old cookies are restored and the user is told |
 | R5 (P1) | **The US mortgage shield jumped** from 6.75% at $230k to 4.73% at $240k, and /plan said "no loan tax deductions" | Only interest above the standard deduction is shielded, as a share of the mortgage interest: $350k gives 6.11%. Engine, API and web use the same share. The tax-refund projection is worked out with the toggle off too, so its label matches |
-| R6 (P1) | Invest vs Prepay taxed Treasury interest at 80% whatever the user's rate; the 5.00% default is undated | Open |
-| R7 (P2) | Setup saved −5% and 500% rates, which the engine rejects | Open |
-| R8 (P3) | US users were sent to Loan Check, which is India-only | Open |
+| R6 (P1) | **Invest vs Prepay taxed Treasury interest at 80%** whatever the user's rate (5.00% → 1.00% at 0% tax); the 5.00% default was undated; /plan worked it out another way | Each instrument says how it is taxed: the user's rate or a share of it (a Treasury pays ~80% of it, as state tax doesn't apply), a flat capital-gains rate, or none. The tool and /plan use one function and one set of default yields, each with its date and source. The Treasury default is the 4.50% 1-yr par yield of 25 Sep 2026. Within a point of the loan, the tool asks for today's yield (or to use the default anyway) before a verdict, and /plan says to check it. 4.80% loan, 0% tax: 4.50% → 4.50%, "check the yield" |
+| R7 (P2) | **Setup saved −5% and 500% rates**, which the engine rejects, and the plan said "unreachable" | Rates below 0 or above 100% a year (the API's bounds) get an error at the field in setup, the restructure modal and life events, and aren't saved. A profile saved earlier with one gets no projection, and home and /plan ask for "a valid interest rate (500% isn't accepted)" |
+| R8 (P3) | **US users were sent to Loan Check**, which is India-only | Each tool names the countries it covers. A US home lists seven tools; /tools shows Loan Check as "INDIA ONLY" with no link |
 
 The plan CSV's `pay_loan,pay_loan` headers were fixed with R1: each column now
 has a position, type, lender and currency.

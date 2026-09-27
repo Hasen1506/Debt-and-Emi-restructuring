@@ -71,20 +71,20 @@
   Right time, New Debt Check, Liquidate and the NRI tool start from the
   user's data or blanks, not samples; Purchase Advisor's levers and Spare
   cash's card interest are corrected.
-- **Round-2 audit (27 Sep 2026, AUDIT.md §6, R1–R8), in progress on the open
-  PR.** Five fixes are done:
+- **Round-2 audit (27 Sep 2026, AUDIT.md §6, R1–R8): all eight fixed.**
   - NRI amounts shown in each loan's own currency, with refinance offers from
     that currency's market;
   - an exchange rate required in setup, and no projection without one;
   - New Debt Check won't say "take" for an EMI the budget can't carry;
   - the profile cookie is compressed, split when large and checked after
     saving, so nine or more loans save;
-  - the US mortgage shield counts only interest above the standard deduction.
-
-  Still to fix:
-  - Invest vs Prepay's Treasury tax, and its undated 5% default;
-  - rate limits in setup;
-  - hiding Loan Check for US users.
+  - the US mortgage shield counts only interest above the standard deduction;
+  - Invest vs Prepay taxes a Treasury at ~80% of the user's rate (not a flat
+    80%), shares dated default yields with /plan, and asks for today's yield
+    when the answer is within a point;
+  - rates outside 0–100% a year are stopped at the field in setup, the
+    restructure modal and life events;
+  - Loan Check is hidden on a US home and marked India only on /tools.
 - **Speed (production build, this machine):** every page answers in under
   30 ms, paints in under 100 ms and loads in under 200 ms; 111–184 KB of
   JavaScript per page. The engine's plan run takes 6–35 ms. The one slow
