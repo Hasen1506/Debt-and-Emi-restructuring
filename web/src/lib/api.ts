@@ -609,6 +609,12 @@ export interface AssetPayload {
   quantity?: string;
   last_price?: string;
   last_price_at?: string;
+  /** Currency of last_price when it isn't the profile's (a `.NS` stock in
+   *  a US profile). current_market_value is then converted at fx_to_user:
+   *  profile-currency units per 1 price-currency unit, dated fx_as_of. */
+  price_currency?: string;
+  fx_to_user?: string;
+  fx_as_of?: string;
   /** Per-asset projected appreciation CAGR (decimal — e.g. "0.07" = 7%/yr).
    *  Optional; when omitted the country/asset-type default is used. Most
    *  meaningful for real-estate (regional CAGRs vary wildly) and gold. */

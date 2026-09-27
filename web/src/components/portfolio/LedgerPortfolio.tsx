@@ -36,7 +36,7 @@ export function LedgerPortfolio({
   marginalRate: string;
 }) {
   const ccy = country === 'IN' ? 'INR' : 'USD';
-  const fmt = (v: number) => formatCurrency(v.toFixed(0), ccy);
+  const fmt = (v: number) => formatCurrency(v.toFixed(2), ccy);
 
   if (summary.count === 0) {
     return (
