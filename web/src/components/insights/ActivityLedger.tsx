@@ -557,6 +557,13 @@ function NothingChangedBar({
                 {' '}· CARDS: LOG WHAT YOU PAID BELOW
               </span>
             )}
+            {/* The plan already counts every scheduled EMI from the balance
+                in Setup, so confirming one records it without moving the
+                projection. Said here so "paid" isn't read as a payment. */}
+            <span style={{ display: 'block', color: 'var(--muted)' }}>
+              THE PLAN ALREADY COUNTS SCHEDULED EMIS, SO THIS KEEPS A RECORD AND DOESN&apos;T MOVE IT.
+              IF YOUR SETUP BALANCE WAS FROM BEFORE THIS EMI, UPDATE IT IN SETUP.
+            </span>
           </>
         ) : (
           <>
@@ -564,7 +571,10 @@ function NothingChangedBar({
             <span className="muted">
               One tap logs the scheduled EMI as paid for the {unlogged.length}{' '}
               loan{unlogged.length === 1 ? '' : 's'} you haven&apos;t logged yet.
-              {cardsUnlogged > 0 && ' Log card payments below: the amount varies.'}
+              {cardsUnlogged > 0 && ' Log card payments below: the amount varies.'}{' '}
+              The plan already counts scheduled EMIs, so this keeps a record and
+              doesn&apos;t move it; if the balance in Setup was from before this
+              EMI, update it there.
             </span>
           </>
         )}

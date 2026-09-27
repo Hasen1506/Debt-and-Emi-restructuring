@@ -72,6 +72,10 @@ export interface AchievabilityInput {
    *  doesn't overclaim "based on projection" when it's actually a
    *  flat snapshot. */
   seriesQuality?: 'live' | 'flat';
+  /** False when /plan has no projection to show (no loans on file): the
+   *  description then says what to set aside each month instead of
+   *  sending the user to an empty plan. Default true. */
+  planProjects?: boolean;
   /** Sum of monthly run-rates for goals that rank AHEAD of `goal` in
    *  the engine's serial-fill order (bumped goals first, then by
    *  order_index / target date). These goals claim their slice of
@@ -160,11 +164,23 @@ function describeT1(
   basis: SurplusBasis,
   months: number,
   priorDrawForLabel: number,
+  toGo: number,
+  planProjects: boolean,
 ): string {
   const priorClause =
     priorDrawForLabel > 0
       ? `, after the ${currencyShort(priorDrawForLabel)}/mo your higher-priority goals take first`
       : '';
+  // Debt-free: /plan shows no projection, so say the monthly plan here.
+  if (!planProjects && basis !== 'live-series') {
+    const perMonth = months > 0 ? Math.ceil(Math.max(0, toGo) / months) : 0;
+    return (
+      `From your current monthly surplus held steady for ${months} months${priorClause}. ` +
+      (perMonth > 0
+        ? `Put aside about ${currencyShort(perMonth)} a month from now to get there.`
+        : 'Nothing more to put aside.')
+    );
+  }
   if (basis === 'live-series') {
     return (
       `From your projected monthly cashflow over the next ${months} months${priorClause}. ` +
@@ -234,7 +250,7 @@ export function analyseGoal(input: AchievabilityInput): TierResult[] {
   const t1Reachable = saved + t1Projected;
   const t1Description = composeTierDescription(
     saved,
-    describeT1(basis, months, priorDrawForLabel),
+    describeT1(basis, months, priorDrawForLabel, required - saved, input.planProjects !== false),
   );
   const t1: TierResult = {
     tier: 'T1',
