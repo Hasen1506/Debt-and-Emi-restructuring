@@ -925,8 +925,10 @@ function NeedsLoanDetails({ gaps }: { gaps: ProfileGap[] }) {
         <LCli>PLAN · NEEDS YOUR LOAN DETAILS</LCli>
         <LRule length={200} />
         <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
-          There&apos;s no payoff date yet: without these the plan would treat a
-          loan as interest-free or never paid down.
+          There&apos;s no payoff date yet.{' '}
+          {gaps.some((g) => g.missing.includes('fx'))
+            ? 'Without an exchange rate a loan in another currency would be counted one-for-one, ₹ as $.'
+            : 'Without these the plan would treat a loan as interest-free or never paid down.'}
           <ul style={{ margin: '10px 0 14px', paddingLeft: 18, color: L_T.ink }}>
             {gaps.map((g) => (
               <li key={g.index}>

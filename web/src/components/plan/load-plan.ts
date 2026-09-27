@@ -4,7 +4,7 @@
  * restructure scan, the other two strategies) and shapes PlanData.
  */
 import { api, type SimulateResponse, type UserPayload } from '@/lib/api';
-import { loadFxCacheServer, loadProfileServer } from '@/lib/user-store';
+import { loadProfileServer } from '@/lib/user-store';
 import { loadStrategyServer, STRATEGIES, type StrategyName } from '@/lib/strategy';
 import {
   loadHikeModelingServer,
@@ -52,7 +52,6 @@ import { projectionGaps } from '@/lib/loan-gaps';
 import {
   currenciesInPlay,
   derivePerCurrencyMetrics,
-  ensureFxRates,
   userDefaultCurrency,
 } from '@/lib/currency';
 import type { PlanData, MonthlyPaymentBreakdown } from '@/components/plan/PlanData';
@@ -104,15 +103,10 @@ export async function loadPlan(
     annual_hike_rate:
       hikeModeling === 'off' ? '0' : profile.user.annual_hike_rate ?? '0',
   };
-  // Make sure the engine receives FX rates for any non-default-currency
-  // loan so its surplus / DTI math doesn't silently fall back to parity.
-  // No-op for single-currency users (the common case). Seed from the
-  // FX-cache cookie when fresh so we skip the network call entirely on
-  // repeat /plan loads within the 24h TTL.
-  const fxCache = await loadFxCacheServer();
-  adjustedUser = await ensureFxRates(adjustedUser, api.fxRate, {
-    cached: fxCache?.rates,
-  });
+  // The exchange rates saved with the profile (setup asks for one per
+  // foreign currency). A loan without one is a gap below: the engine would
+  // take it at parity, ₹20 lakh as $20 lakh. Home, /debts and /plan all
+  // use this one rate, so they agree.
   const fxRatesUsed = adjustedUser.fx_to_user_currency ?? {};
 
   // FX drift — for each non-residence currency in play, attach the
@@ -345,7 +339,7 @@ export async function loadPlan(
 
   // Loans missing a rate or EMI can't be projected (a blank rate read as
   // 0%), so the engine isn't run and the pages ask for the details.
-  const gaps = projectionGaps(profile.user.loans);
+  const gaps = projectionGaps(profile.user);
   // Offline or incomplete: the pages show no engine numbers from this.
   const fallback = (): PlanData => {
     const ccyList = currenciesInPlay(profile.user.loans, profile.user.country);

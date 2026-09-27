@@ -39,9 +39,8 @@ function hasAnyDeductions(d: DeductionsPayload | undefined): boolean {
 import {
   loadProfileClient,
   saveProfileClient,
-  saveFxCacheClient,
 } from '@/lib/user-store';
-import { ensureFxRates } from '@/lib/currency';
+import { formatLoanAmount, loanCurrency, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import {
   FY_ANCHOR_MONTH,
   MONTH_NAMES,
@@ -49,7 +48,7 @@ import {
 } from '@/lib/today';
 import { BALANCES_ENTERED_KEY } from '@/lib/activity';
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
-import { api, formatCurrency } from '@/lib/api';
+import { api, formatCurrency, type FxRateResponse } from '@/lib/api';
 import { deriveTenureMonths } from '@/lib/derived';
 import { loanDraftErrors } from '@/lib/loan-gaps';
 import {
@@ -233,6 +232,11 @@ export default function OnboardingPage() {
   const [loans, setLoans] = useState<LoanPayload[]>([blankLoan()]);
   // Set when Continue is pressed with a loan missing its rate or EMI.
   const [showLoanErrors, setShowLoanErrors] = useState(false);
+  // Exchange rate per foreign loan currency ("0.012" = $ per ₹1), filled
+  // from today's quote when it loads and editable. Required: without it a
+  // ₹20 lakh loan was added to dollars at parity.
+  const [fxRates, setFxRates] = useState<Record<string, string>>({});
+  const [fxQuotes, setFxQuotes] = useState<Record<string, 'loading' | 'failed' | FxRateResponse>>({});
   // Most users don't know their exact remaining tenure — they know
   // outstanding, EMI, rate. We default to deriving tenure from those three
   // and only let the user override when they explicitly ask. This set tracks
@@ -277,6 +281,7 @@ export default function OnboardingPage() {
     if (u.age_bracket) setAgeBracket(u.age_bracket);
     setCountry(u.country);
     setIsNriUs(!!u.is_nri_us);
+    if (u.fx_to_user_currency) setFxRates(u.fx_to_user_currency);
     setIncomeType(u.income_type);
     setMonthlyIncome(u.monthly_income ?? '');
     setFixedExpenses(u.fixed_expenses ?? '');
@@ -549,6 +554,10 @@ export default function OnboardingPage() {
         .filter(([f, t, r]) => f > 0 && t > f && Number(r) >= 0),
       inflation_rate: country === 'IN' ? '0.046' : '0.025',
       is_nri_us: isNriUs,
+      // Only the currencies still in use, at the rate entered above.
+      fx_to_user_currency: Object.fromEntries(
+        foreignCcys.filter((c) => Number(fxRates[c]) > 0).map((c) => [c, String(fxRates[c]).trim()]),
+      ),
     };
   }
 
@@ -560,14 +569,9 @@ export default function OnboardingPage() {
       return;
     }
     const score = Number(creditScore);
-    // For hybrid (NRI-US) users with any foreign-currency loan, pre-populate
-    // FX rates before persisting so /plan and /debts don't fetch on first
-    // render. ensureFxRates is a no-op for single-currency users (the
-    // common case), so we don't block onboarding for them.
-    const builtUser = buildUser();
-    const userWithFx = await ensureFxRates(builtUser, api.fxRate, {
-      onFetched: (rates) => saveFxCacheClient(rates),
-    });
+    // Foreign loans carry the exchange rate entered on the Loans step
+    // (loansComplete requires one), so every page converts at the same rate.
+    const userWithFx = buildUser();
     // When the user provided gross income, derive marginal_rate from the
     // bracket they fall into — that's a sharper signal than the manual
     // marginal_rate field on Step 4. Fall back to the manual value only
@@ -647,13 +651,54 @@ export default function OnboardingPage() {
   // Loans need what the projection needs; no loans at all is fine (goals,
   // portfolio and purchase planning work without one).
   const loanErrors = loans.map((l) => loanDraftErrors(l));
-  const loansComplete = loanErrors.every((e) => Object.keys(e).length === 0);
+  // Currencies of entered loans other than the user's own.
+  const userCcy = userDefaultCurrency(country);
+  const foreignCcys = Array.from(
+    new Set(
+      loans
+        .filter((l) => Number(l.outstanding) > 0)
+        .map((l) => loanCurrency(l, country))
+        .filter((c) => c !== userCcy),
+    ),
+  );
+  const fxErrors: Record<string, string> = {};
+  for (const c of foreignCcys) {
+    const r = Number(fxRates[c]);
+    if (!(r > 0)) {
+      fxErrors[c] =
+        fxQuotes[c] === 'failed'
+          ? `Today's rate couldn't be fetched. Enter what 1 ${c} is worth in ${userCcy} (your bank's app or a currency site shows it).`
+          : `Enter what 1 ${c} is worth in ${userCcy}.`;
+    } else if (r > 100000) {
+      fxErrors[c] = `That rate looks too large. Check the direction: 1 ${c} in ${userCcy}.`;
+    }
+  }
+  const loansComplete =
+    loanErrors.every((e) => Object.keys(e).length === 0) && Object.keys(fxErrors).length === 0;
   const canAdvance =
     step === 0 ? true                                                       // 'You' is fully optional — never gate the flow
       : step === 1 ? !!country
       : step === 2 ? Number(monthlyIncome) > 0 && Number(fixedExpenses) >= 0
       : step === 4 ? Number(savingsBalance) >= 0
       : true;
+
+  // Fetch today's rate for each foreign currency once; the user can change
+  // it. A failed fetch leaves the field blank and asks for it.
+  const foreignKey = foreignCcys.join(',');
+  useEffect(() => {
+    for (const c of foreignKey ? foreignKey.split(',') : []) {
+      if (fxQuotes[c] || Number(fxRates[c]) > 0) continue;
+      setFxQuotes((q) => ({ ...q, [c]: 'loading' }));
+      api
+        .fxRate(c, userCcy)
+        .then((r) => {
+          setFxQuotes((q) => ({ ...q, [c]: r }));
+          setFxRates((cur) => (Number(cur[c]) > 0 ? cur : { ...cur, [c]: r.rate }));
+        })
+        .catch(() => setFxQuotes((q) => ({ ...q, [c]: 'failed' })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foreignKey, userCcy]);
 
   function next() {
     if (step === 3 && !loansComplete) {
@@ -1908,11 +1953,31 @@ export default function OnboardingPage() {
             >
               + Add another loan
             </button>
+            {foreignCcys.map((c) => {
+              const q = fxQuotes[c];
+              const quoted = q && typeof q === 'object' ? q : null;
+              return (
+                <Field
+                  key={c}
+                  label={`Exchange rate: 1 ${c} in ${userCcy}`}
+                  value={fxRates[c] ?? ''}
+                  onChange={(v) => setFxRates((cur) => ({ ...cur, [c]: v }))}
+                  placeholder={q === 'loading' ? 'Fetching today’s rate…' : c === 'INR' ? 'e.g. 0.012' : 'e.g. 83'}
+                  hint={
+                    quoted
+                      ? `Today's rate${quoted.as_of ? ` (${quoted.as_of})` : ''}. Change it if your bank uses a different one.`
+                      : `Your ${c} loans are added to your ${userCcy} budget at this rate.`
+                  }
+                  error={showLoanErrors || q === 'failed' ? fxErrors[c] : null}
+                />
+              );
+            })}
             {showLoanErrors && !loansComplete && (
               <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--negative)' }}>
                 Fill in the fields marked above so the plan can work out your
-                payments. Without a rate or EMI it would treat the loan as
-                interest-free or never paid down.
+                payments.
+                {loanErrors.some((e) => Object.keys(e).length > 0) &&
+                  ' Without a rate or EMI it would treat the loan as interest-free or never paid down.'}
               </p>
             )}
           </div>
@@ -2170,6 +2235,8 @@ export default function OnboardingPage() {
               onPick={(t) => setEfundTarget(t)}
               monthlyIncome={monthlyIncome}
               loans={loans}
+              country={country}
+              fxRates={fxRates}
             />
             <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
               <Field
@@ -2222,6 +2289,7 @@ export default function OnboardingPage() {
             filingStatus={filingStatus}
             stateMarginalRate={stateMarginalRate}
             loans={loans}
+            fxRates={fxRates}
             primaryBank={primaryBank}
             otherBanks={otherBanks}
             savingsBalance={savingsBalance}
@@ -2942,6 +3010,8 @@ function EfTierPicker({
   onPick,
   monthlyIncome,
   loans,
+  country,
+  fxRates,
 }: {
   monthlyExpenses: string;
   variableExpenses: string;
@@ -2951,6 +3021,8 @@ function EfTierPicker({
   onPick: (next: string) => void;
   monthlyIncome: string;
   loans: LoanPayload[];
+  country: Country;
+  fxRates: Record<string, string>;
 }) {
   const totalMonthlyExpenses =
     Number(monthlyExpenses || 0) + Number(variableExpenses || 0);
@@ -2963,8 +3035,9 @@ function EfTierPicker({
   }
 
   const income = Number(monthlyIncome || 0);
+  // Each EMI in the user's currency (an NRI's ₹20,000 is about $240).
   const emiSum = loans.reduce(
-    (s, l) => s + Number(l.scheduled_emi || 0),
+    (s, l) => s + (loanToUser(Number(l.scheduled_emi || 0), l, country, fxRates) ?? 0),
     0,
   );
   const surplus = Math.max(0, income - totalMonthlyExpenses - emiSum);
@@ -3442,6 +3515,7 @@ function ReviewSummary(props: {
   filingStatus: FilingStatusUS;
   stateMarginalRate: string;
   loans: LoanPayload[];
+  fxRates: Record<string, string>;
   primaryBank: string;
   otherBanks: string[];
   savingsBalance: string;
@@ -3454,7 +3528,7 @@ function ReviewSummary(props: {
     displayName, ageBracket, country, incomeType, monthlyIncome,
     annualGrossSalary, annualBusinessIncome, fixedExpenses, variableExpenses,
     showDetailedExpenses, annualHikeRate, hikeSchedule, taxRegime,
-    filingStatus, stateMarginalRate, loans, primaryBank, otherBanks,
+    filingStatus, stateMarginalRate, loans, fxRates, primaryBank, otherBanks,
     savingsBalance, efundBalance, efundTarget, creditScore, onJumpToStep,
   } = props;
   const currency = country === 'IN' ? 'INR' : 'USD';
@@ -3462,8 +3536,9 @@ function ReviewSummary(props: {
     ? AGE_BRACKETS.find((b) => b.value === ageBracket)?.label ?? ''
     : '';
   const realLoans = loans.filter((l) => Number(l.outstanding) > 0);
+  // In the user's currency at the rate entered on the Loans step.
   const totalOutstanding = realLoans.reduce(
-    (acc, l) => acc + Number(l.outstanding),
+    (acc, l) => acc + (loanToUser(Number(l.outstanding), l, country, fxRates) ?? 0),
     0,
   );
   const hikeRatePct = Number(annualHikeRate) > 0
@@ -3565,7 +3640,7 @@ function ReviewSummary(props: {
               {realLoans.slice(0, 5).map((l, i) => (
                 <div key={i} style={{ fontSize: 12, color: 'var(--muted)' }}>
                   {l.bank || '—'} {l.loan_type.replace('_', ' ')} ·{' '}
-                  {formatCurrency(l.outstanding, currency)} @{' '}
+                  {formatLoanAmount(Number(l.outstanding), l, country, fxRates)} @{' '}
                   {(Number(l.nominal_rate) * 100).toFixed(2)}%
                 </div>
               ))}

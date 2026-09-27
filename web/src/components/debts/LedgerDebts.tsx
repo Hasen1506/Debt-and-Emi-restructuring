@@ -101,7 +101,13 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
           </LCli>
           <LKpi
             cols={4}
-            items={[
+            items={m.fxMissing.length > 0 ? [
+              // ₹ and $ can't be totalled without a rate.
+              { l: 'TOTAL OUTSTANDING', v: '—', s: 'ADD THE EXCHANGE RATE' },
+              { l: 'EFFECTIVE RATE', v: '—', s: 'NEEDS THE EXCHANGE RATE' },
+              { l: 'TOTAL EMI', v: '—', s: 'NEEDS THE EXCHANGE RATE' },
+              { l: 'INTEREST', v: '—', s: 'NEEDS THE EXCHANGE RATE' },
+            ] : [
               {
                 l: 'TOTAL OUTSTANDING',
                 v: fc(m.totalOutstanding.toString()),
@@ -137,6 +143,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
             totalOutstanding={m.totalOutstanding}
             totalEmi={m.emiBurden}
             spare={m.surplus.gt(0)}
+            fx={profile.user.fx_to_user_currency}
           />
         </section>
 

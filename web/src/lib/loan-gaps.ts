@@ -7,10 +7,20 @@
  * paid down. Setup now asks for them; pages use this to say "add these"
  * instead of projecting from a profile saved before that.
  */
-import type { LoanPayload, LoanType } from './api';
+import type { Country, LoanPayload, LoanType, UserPayload } from './api';
 import { dec } from './safe-decimal';
+import { loanToUser } from './currency';
 
-export type LoanGapField = 'rate' | 'emi';
+/** 'fx': a loan in another currency with no exchange rate on file. Without
+ *  one, ₹20 lakh read as $20 lakh (a $14,000 monthly shortfall). */
+export type LoanGapField = 'rate' | 'emi' | 'fx';
+
+/** Where the user lives and the rates saved in their profile, to check a
+ *  foreign-currency loan has one. */
+export interface GapContext {
+  country: Country;
+  fx?: Record<string, string>;
+}
 
 /** Loan types that are never interest-free, so a 0% rate means it's
  *  missing. Personal loans, BNPL and car loans can be 0% ("no-cost EMI",
@@ -27,11 +37,13 @@ export function needsEmi(type: LoanType): boolean {
   return type !== 'credit_card';
 }
 
-/** What this loan is missing, for a saved loan (blanks already stored as 0). */
-export function loanGaps(loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi'>): LoanGapField[] {
+/** What this loan is missing, for a saved loan (blanks already stored as 0).
+ *  Pass `ctx` to also check a foreign-currency loan has an exchange rate. */
+export function loanGaps(loan: LoanPayload, ctx?: GapContext): LoanGapField[] {
   const gaps: LoanGapField[] = [];
   if (NEVER_ZERO_RATE.has(loan.loan_type) && dec(loan.nominal_rate).lte(0)) gaps.push('rate');
   if (needsEmi(loan.loan_type) && dec(loan.scheduled_emi).lte(0)) gaps.push('emi');
+  if (ctx && loanToUser(1, loan, ctx.country, ctx.fx) == null) gaps.push('fx');
   return gaps;
 }
 
@@ -64,14 +76,23 @@ export interface ProfileGap {
 }
 
 /** Open loans the plan can't project yet. */
-export function projectionGaps(loans: LoanPayload[] | undefined): ProfileGap[] {
-  return (loans ?? [])
-    .map((loan, index) => ({ index, loan, missing: loanGaps(loan) }))
+export function projectionGaps(
+  user: Pick<UserPayload, 'loans' | 'country' | 'fx_to_user_currency'>,
+): ProfileGap[] {
+  const ctx = { country: user.country, fx: user.fx_to_user_currency };
+  return (user.loans ?? [])
+    .map((loan, index) => ({ index, loan, missing: loanGaps(loan, ctx) }))
     .filter((g) => dec(g.loan.outstanding).gt(0) && g.missing.length > 0);
 }
 
-/** "the rate and EMI" / "the rate" / "the EMI". */
+const GAP_WORDS: Record<LoanGapField, string> = {
+  rate: 'interest rate',
+  emi: 'EMI',
+  fx: 'exchange rate',
+};
+
+/** "the interest rate and EMI" / "the exchange rate". */
 export function describeGap(missing: LoanGapField[]): string {
-  const words = missing.map((f) => (f === 'rate' ? 'interest rate' : 'EMI'));
+  const words = missing.map((f) => GAP_WORDS[f]);
   return `the ${words.join(' and ')}`;
 }
