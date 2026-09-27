@@ -47,7 +47,7 @@
   launch), live rates (5, first live fetch still to check), the axe pass
   and hydration fixes (6.2), the API fuzz and input bounds (6.3), size cap,
   headers and rate limits (6.4), field errors on every tool.
-  **680 tests passing.** Still missing: US letters, cross-browser and load
+  **685 tests passing.** Still missing: US letters, cross-browser and load
   suites (6.1, 6.5), verified outcome reports, a manual screen-reader run.
 - **Bug hunt and user-view audit (26 Sep 2026): see [`AUDIT.md`](AUDIT.md).**
   Fixed: the /plan chart and every date a month late, 10 engine bugs
@@ -71,6 +71,20 @@
   Right time, New Debt Check, Liquidate and the NRI tool start from the
   user's data or blanks, not samples; Purchase Advisor's levers and Spare
   cash's card interest are corrected.
+- **Round-2 audit (27 Sep 2026, AUDIT.md §6, R1–R8), in progress on the open
+  PR.** Five fixes are done:
+  - NRI amounts shown in each loan's own currency, with refinance offers from
+    that currency's market;
+  - an exchange rate required in setup, and no projection without one;
+  - New Debt Check won't say "take" for an EMI the budget can't carry;
+  - the profile cookie is compressed, split when large and checked after
+    saving, so nine or more loans save;
+  - the US mortgage shield counts only interest above the standard deduction.
+
+  Still to fix:
+  - Invest vs Prepay's Treasury tax, and its undated 5% default;
+  - rate limits in setup;
+  - hiding Loan Check for US users.
 - **Speed (production build, this machine):** every page answers in under
   30 ms, paints in under 100 ms and loads in under 200 ms; 111–184 KB of
   JavaScript per page. The engine's plan run takes 6–35 ms. The one slow
