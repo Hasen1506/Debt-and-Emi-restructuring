@@ -25,17 +25,20 @@ import { useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
+import { deriveMetrics } from '@/lib/derived';
 import { fitColumns } from '@/lib/grid';
 
 const VERDICT_LABEL: Record<NewDebtResponse['verdict'], string> = {
   take: 'Take the EMI',
   pay_cash: 'Pay cash',
   delay: 'Delay',
+  cant_afford: "Can't afford the EMI",
 };
 const VERDICT_COLOR: Record<NewDebtResponse['verdict'], string> = {
   take: 'var(--positive)',
   pay_cash: 'var(--accent)',
   delay: 'var(--negative)',
+  cant_afford: 'var(--negative)',
 };
 
 // Friction of going to a bank you don't already use is real but
@@ -163,6 +166,15 @@ export function NewDebtTool() {
     return bankComparison.existing[0] ?? bankComparison.others[0] ?? null;
   }, [bankComparison, selectedBank]);
 
+  // What's left each month after costs and the payments already owed, from
+  // the saved profile: the EMI has to fit in it. Unknown without a profile
+  // (or with a foreign loan missing its exchange rate).
+  const monthlyRoom = useMemo(() => {
+    if (!profile.isLive) return null;
+    const m = deriveMetrics(profile);
+    return m.fxMissing.length > 0 ? null : m.surplus.toFixed(2);
+  }, [profile]);
+
   async function check(e: React.FormEvent) {
     e.preventDefault();
     const card = loanType === 'credit_card';
@@ -204,6 +216,7 @@ export function NewDebtTool() {
         processing_fee: fee,
         user_savings_after_efund: savings,
         country,
+        ...(monthlyRoom != null ? { monthly_room: monthlyRoom } : {}),
       });
       setV(result);
 

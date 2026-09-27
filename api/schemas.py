@@ -787,6 +787,9 @@ class NewDebtRequest(_In):
     processing_fee: Amount = D("0")
     user_savings_after_efund: Amount = D("0")
     country: Country = Country.IN           # currency in the wording
+    # Income − costs − payments already owed, per month (negative when
+    # short). Sent from the profile; an EMI above it isn't "take".
+    monthly_room: Optional[Decimal] = Field(None, ge=D("-1e12"), le=D("1e12"))
 
 
 class NewDebtResponse(_Base):

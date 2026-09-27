@@ -78,6 +78,7 @@ def new_debt(req: NewDebtRequest) -> NewDebtResponse:
             processing_fee=req.processing_fee,
             user_savings_after_efund=req.user_savings_after_efund,
             country=req.country,
+            monthly_room=req.monthly_room,
         )
     except DecisionInputError as e:
         raise _bad(e)

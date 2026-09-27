@@ -388,3 +388,41 @@ def test_windfall_reports_what_its_interest_figure_assumes():
     rates = {id(home): D("0.085"), id(card): D("0.4248")}
     out = allocate_windfall(D("50000"), [home, card], rates, [], D("0.046"))
     assert out.interest_basis.startswith("until the card is cleared")
+
+
+# ─── §8b affordability: the EMI has to fit what's left each month ─────────
+
+def test_new_debt_emi_above_monthly_room_is_not_take():
+    """The audit case: $4,500 income, $3,200 costs, a $12,000 card (≈$240
+    minimum) leaves ~$1,060; a $300,000 personal loan at a 14% median over
+    60 months is ~$7,294/mo. It was "Take the EMI"."""
+    v = evaluate_new_debt(
+        list_price=D("300000"), cash_price_elsewhere=D("300000"),
+        emi_offer_months=60, emi_offer_monthly_payment=D("7293.82"),
+        user_savings_after_efund=D("0"), country=Country.US,
+        monthly_room=D("1060"),
+    )
+    assert v.verdict == "cant_afford"
+    assert "$6,234" in v.detail and "short" in v.detail
+
+
+def test_new_debt_unaffordable_but_savings_cover_it_says_pay_cash():
+    v = evaluate_new_debt(
+        list_price=D("50000"), cash_price_elsewhere=D("50000"),
+        emi_offer_months=12, emi_offer_monthly_payment=D("4200"),
+        user_savings_after_efund=D("60000"), country=Country.IN,
+        monthly_room=D("2000"),
+    )
+    assert v.verdict == "pay_cash"
+    assert "doesn't fit" in v.detail
+
+
+def test_new_debt_take_says_what_is_left():
+    v = evaluate_new_debt(
+        list_price=D("50000"), cash_price_elsewhere=D("50000"),
+        emi_offer_months=12, emi_offer_monthly_payment=D("4400"),
+        user_savings_after_efund=D("0"), country=Country.IN,
+        monthly_room=D("20000"),
+    )
+    assert v.verdict == "take"
+    assert "₹15,600 a month" in v.detail and "budget allows" not in v.detail
