@@ -5,7 +5,7 @@
  *
  * Per spec §3:
  *  - 6px ink top slab
- *  - row 1: FINOPTIMA / LEDGER wordmark + STMT timestamp
+ *  - row 1: RightDue / LEDGER wordmark + STMT timestamp
  *  - ASCII rule
  *  - row 2: bracketed nav, locale pin on the right
  *  - ASCII rule
@@ -140,7 +140,7 @@ export function LMasthead({ country }: { country: Country }) {
             letterSpacing: '0.18em',
           }}
         >
-          FINOPTIMA
+          RightDue
           <span style={{ color: L_T.muted, fontWeight: 400 }}> / LEDGER</span>
         </div>
         <div style={{ fontSize: 10, color: L_T.muted, letterSpacing: '0.1em' }}>

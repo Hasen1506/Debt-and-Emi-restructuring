@@ -1,4 +1,5 @@
-# Render Blueprint — declarative two-service deploy.
+# RightDue Render Blueprint — declarative two-service deploy.
+# Keep existing service names to update the current deployment in place.
 # After you click "New Blueprint" in Render and point it at this repo, Render
 # will prompt you to fill in CORS_ORIGINS and NEXT_PUBLIC_API_BASE_URL on first
 # deploy. You can grab those URLs from the service detail pages once they exist.

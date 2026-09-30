@@ -1,8 +1,12 @@
-# Deploying to Render
+# Deploying RightDue to Render
 
 This repo is configured for a two-service Render deploy via `render.yaml`
 (a Render "Blueprint"). One service runs FastAPI, the other runs Next.js,
 and they talk to each other over the public internet.
+
+The existing Blueprint services retain the infrastructure names `finoptima-web`
+and `finoptima-api`. The public app, favicon and email branding use RightDue.
+Retaining service names and storage keys preserves existing URLs and saved profiles.
 
 ## First-time deploy
 
@@ -23,9 +27,9 @@ and they talk to each other over the public internet.
 
 ## Plans / cost
 
-`render.yaml` requests `starter` ($7/mo each → $14/mo total) so both services
-stay warm. Swap `plan: starter` to `plan: free` for a zero-cost demo, at the
-price of ~30s cold starts on the first request after idle.
+`render.yaml` requests `plan: free` for both services. Free instances sleep
+when idle, and the first request can take 50 seconds or more to wake them.
+Paid instance plans can be selected in Render if always-on service is needed.
 
 ## Updating
 

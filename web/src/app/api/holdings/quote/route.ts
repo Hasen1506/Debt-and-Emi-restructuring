@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       headers: {
         // Yahoo rejects requests without a UA in some regions.
         'User-Agent':
-          'Mozilla/5.0 (compatible; FinOptimaHoldings/1.0; +https://finoptima.example)',
+          'Mozilla/5.0 (compatible; RightDueHoldings/1.0; +https://github.com/Hasen1506/Debt-and-Emi-restructuring)',
         Accept: 'application/json',
       },
       next: { revalidate: REVALIDATE_SECONDS },

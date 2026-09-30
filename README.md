@@ -1,4 +1,4 @@
-# Handoff · Debt & EMI Restructuring App (Ledger skin · V2) — rev 3
+# RightDue · Debt & EMI Restructuring App (Ledger skin · V2) — rev 3
 
 > **One-line:** A monospace, ledger-style personal-finance app that helps an individual
 > see their debts, the cost of each debt **after fees + GST + tax-shield**, and lets the

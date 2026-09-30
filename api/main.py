@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="FinOptima Debt & EMI API",
+    title="RightDue Debt & EMI API",
     version="0.1.0",
     description="HTTP gateway exposing the debt-emi engine.",
     lifespan=lifespan,
