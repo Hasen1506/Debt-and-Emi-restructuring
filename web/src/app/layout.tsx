@@ -8,7 +8,7 @@ import { ProfileProvider } from '@/lib/use-profile';
 import { SaveFailedNotice } from '@/components/SaveFailedNotice';
 
 export const metadata: Metadata = {
-  title: 'FinOptima — Debt & EMI Optimiser',
+  title: 'RightDue — Debt & EMI Optimiser',
   description:
     'Personal debt restructuring & payoff optimiser for India and USA. Refinance opportunities, an avalanche/snowball schedule that beats minimums, and invest-vs-prepay calls — in one plan.',
 };

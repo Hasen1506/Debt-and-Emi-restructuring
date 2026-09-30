@@ -13,7 +13,7 @@ import resend
 
 log = logging.getLogger(__name__)
 
-OTP_SUBJECT = "Your FinOptima sign-in code"
+OTP_SUBJECT = "Your RightDue sign-in code"
 
 
 def _is_real_key(key: str | None) -> bool:
