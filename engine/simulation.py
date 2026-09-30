@@ -14,7 +14,7 @@ Salary growth: apply `annual_hike_rate` once every 12 months.
 Real-EMI: nominal payments deflated by `inflation_rate` per §4.10.
 """
 import math
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from dataclasses import dataclass, field
 from copy import copy, deepcopy
 from engine.models import (
@@ -22,6 +22,8 @@ from engine.models import (
     Loan,
     LoanType,
     Country,
+    IncomeType,
+    FilingStatusUS,
     TaxRegimeIN,
     InvestmentOption,
     LiquidityClass,
@@ -48,6 +50,20 @@ D = Decimal
 # drift applied for 30 years took a home loan to 38%; rate cycles don't
 # run one way for decades.
 MAX_RATE_DRIFT = D("0.03")
+
+
+def estimated_take_home(user: User, gross: Decimal) -> Decimal:
+    """Income-tax-only estimate; callers can override payroll/PF withholding."""
+    if user.country == Country.IN:
+        from engine.tax.india import income_tax, STANDARD_DEDUCTION_NEW_SALARIED, STANDARD_DEDUCTION_OLD_SALARIED
+        regime = user.tax_regime or TaxRegimeIN.NEW
+        deduction = (STANDARD_DEDUCTION_NEW_SALARIED if regime == TaxRegimeIN.NEW else STANDARD_DEDUCTION_OLD_SALARIED) if user.income_type == IncomeType.SALARIED else D("0")
+        tax = income_tax(max(D("0"), gross - deduction), regime)
+    else:
+        from engine.tax.usa import federal_tax, STANDARD_DEDUCTION_2026
+        filing = user.filing_status or FilingStatusUS.SINGLE
+        tax = federal_tax(max(D("0"), gross - STANDARD_DEDUCTION_2026[filing]), filing) + gross * user.state_marginal_rate
+    return (max(D("0"), gross - tax) / D("12")).quantize(D("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _months_to_clear(balance: Decimal, rate: Decimal, payment: Decimal) -> int | None:
@@ -282,6 +298,7 @@ def simulate_plan(
     # the API can pass to the frontend without leaking Python ids.
     loan_position = {id(l): i for i, l in enumerate(loans)}
     start_rate = {id(l): l.nominal_rate for l in loans}
+    loan_start_month = {id(l): 1 for l in loans}
     income = user.monthly_income
     if income_delta != D("0") and income_delta_from_month <= 1:
         # Apply immediately — preserves the old with_surplus_delta semantics
@@ -342,7 +359,7 @@ def simulate_plan(
         """
         if loan.pre_emi_months_remaining > 0:
             return False
-        if m <= loan.prepay_lock_in_months:
+        if m - loan_start_month[id(loan)] + 1 <= loan.prepay_lock_in_months:
             return False
         freq = loan.part_payment_freq_months
         if freq:
@@ -370,6 +387,23 @@ def simulate_plan(
         if ev.effective_month and ev.effective_month >= 1:
             lifecycle_by_month.setdefault(ev.effective_month, []).append(ev)
 
+    # Reserve positions for planned loans in input order. Keep them dormant
+    # until arrival, so charts retain stable keys even through a debt-free gap.
+    upcoming: dict[int, Loan] = {}
+    for ev in lifecycle_events or []:
+        if ev.kind == LifecycleEventKind.PROPERTY_BUY and ev.loan_draft is not None and ev.effective_month >= 1:
+            draft = deepcopy(ev.loan_draft)
+            dormant = deepcopy(draft)
+            dormant.outstanding = D("0")
+            upcoming[id(ev)] = dormant
+            loan_position[id(dormant)] = len(loans)
+            start_rate[id(dormant)] = draft.nominal_rate
+            loan_start_month[id(dormant)] = ev.effective_month
+            if dormant.next_reset_month is not None:
+                dormant.next_reset_month += ev.effective_month - 1
+            loans.append(dormant)
+    last_arrival = max((ev.effective_month for ev in lifecycle_events or [] if id(ev) in upcoming), default=0)
+
     for m in range(1, horizon_months + 1):
         # Lifecycle events fire at the very start of month m, before any
         # other month-mutating logic. A salary_reset at m=12 replaces
@@ -382,10 +416,9 @@ def simulate_plan(
                 if ev.new_monthly_take_home is not None:
                     income = ev.new_monthly_take_home
                 elif ev.new_annual_gross is not None:
-                    # Rough net-from-gross: divide by 12 and trim 20% as a
-                    # tax/PF/insurance withholding placeholder. Callers
-                    # who care about exact net should set new_monthly_take_home.
-                    income = (ev.new_annual_gross / D("12")) * D("0.8")
+                    income = estimated_take_home(user, ev.new_annual_gross)
+            elif ev.kind == LifecycleEventKind.PROPERTY_BUY and id(ev) in upcoming:
+                upcoming[id(ev)].outstanding = ev.loan_draft.outstanding
             elif ev.kind == LifecycleEventKind.FLOATING_RATE_RESET:
                 if (
                     ev.loan_index is not None
@@ -403,7 +436,7 @@ def simulate_plan(
         # reset, while a 1-month-reset loan bumps by ~4bps per reset.
         # Defensive: skip when fields are missing OR rate_type != floating.
         for li, ln in enumerate(loans):
-            if ln.rate_type != "floating":
+            if ln.rate_type != "floating" or m < loan_start_month[id(ln)]:
                 continue
             if ln.next_reset_month is None or ln.rate_reset_frequency_months is None:
                 continue
@@ -453,7 +486,7 @@ def simulate_plan(
 
         # Filter out paid-off loans
         active = [l for l in loans if l.outstanding > 0]
-        if not active:
+        if not active and m > last_arrival:
             debt_free_month = m - 1
             break
 
@@ -782,7 +815,7 @@ def simulate_plan(
         total_interest += interest_paid
         total_invested += invested_this_month
 
-        if all(l.outstanding == 0 for l in loans):
+        if m >= last_arrival and all(l.outstanding == 0 for l in loans):
             debt_free_month = m
             break
 

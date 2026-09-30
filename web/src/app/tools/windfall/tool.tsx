@@ -20,12 +20,17 @@ import {
   type ScoreImpactResponse,
   type WindfallResponse,
 } from '@/lib/api';
-import { useStoredProfile } from '@/lib/use-profile';
+import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
 import { readStrategyClient } from '@/lib/strategy';
 import { readEfSplitClient } from '@/lib/ef-split';
 import { useFormErrors } from '@/lib/form-errors';
-import { applyToolResult } from '@/lib/apply-tool-result';
-import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
+import { allocateCash, type CashFunding } from '@/lib/cash-allocation';
+import { commitCashChange } from '@/lib/commit-cash-change';
+import { readCashEventsClient } from '@/lib/cash-events';
+import { addActivityEntry, readActivityClient } from '@/lib/activity';
+import { loanToUser } from '@/lib/currency';
+import { localIsoDate } from '@/lib/today';
+import { loadProfileClient } from '@/lib/user-store';
 import { userDefaultCurrency } from '@/lib/currency';
 import {
   LToolInput,
@@ -43,6 +48,9 @@ interface Outcome {
   gapAfter: Decimal;
   w: WindfallResponse | null;
   cy: CashYieldResponse | null;
+  id: string;
+  profileKey: string;
+  targetId?: string;
 }
 
 const LOAN_WORDS: Record<string, string> = {
@@ -61,14 +69,20 @@ export function WindfallTool() {
   const ccy = userDefaultCurrency(country);
   const fmt = (v: string | number | Decimal) => formatCurrency(v.toString(), ccy);
   const [amount, setAmount] = useState('');
+  const [source,setSource] = useState<CashFunding>('external');
+  const [accountName,setAccountName] = useState('');
   // Percent, as typed. Typical savings-account rates as the default.
   const [earning, setEarning] = useState(country === 'IN' ? '2.5' : '0.5');
-  const [out, setOut] = useState<Outcome | null>(null);
+  const [resultOut, setOut] = useState<Outcome | null>(null);
   const [impact, setImpact] = useState<ScoreImpactResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const { err, setErr, clear, fail, at } = useFormErrors();
   const [applied, setApplied] = useState(false);
 
+  const fingerprint = JSON.stringify([amount,earning,source,accountName]);
+  const [checked,setChecked] = useState('');
+  const out = checked === fingerprint ? resultOut : null;
+  const eligibleAccounts = (profile.user.cash_accounts ?? []).filter(a => a.kind !== 'fd' && (!a.currency || a.currency === ccy));
   async function check(e: React.FormEvent) {
     e.preventDefault();
     const n = Number(amount);
@@ -81,11 +95,14 @@ export function WindfallTool() {
       setErr('Enter what the cash earns now as a percent, e.g. 2.5.');
       return;
     }
+    setOut(null);
     setBusy(true);
     clear();
     setImpact(null);
     setApplied(false);
     try {
+      const requestProfileKey = JSON.stringify(loadProfileClient().user);
+      const requestActivityKey = document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '';
       const total = new Decimal(amount);
       const gap = Decimal.max(
         new Decimal(0),
@@ -112,7 +129,9 @@ export function WindfallTool() {
             })
           : Promise.resolve(null),
       ]);
-      setOut({ total, ef, rest, gapAfter: gap.minus(ef), w, cy });
+      setOut({ total, ef, rest, gapAfter: gap.minus(ef), w, cy, id:crypto.randomUUID(),
+        profileKey:requestProfileKey + requestActivityKey, targetId:w?.loan_index != null ? profile.user.loans[w.loan_index]?.id : undefined });
+      setChecked(fingerprint);
 
       // Paying down a card lowers utilisation: estimate the score bump
       // for the card the money actually goes to.
@@ -128,7 +147,7 @@ export function WindfallTool() {
             current_score: profile.creditScore,
             country,
             utilisation_from: bal.div(limit).toFixed(4),
-            utilisation_to: Decimal.max(bal.minus(rest), 0).div(limit).toFixed(4),
+            utilisation_to: Decimal.max(bal.minus(new Decimal(w!.amount).minus(w!.fee ?? 0).div(loanToUser(1,target,country,profile.user.fx_to_user_currency)!)), 0).div(limit).toFixed(4),
           }),
         );
       }
@@ -140,34 +159,37 @@ export function WindfallTool() {
   }
 
   function logIt() {
-    if (!out) return;
-    const w = out.w;
-    if (w && !w.invest_instead && w.loan_index != null) {
-      const loan = profile.user.loans[w.loan_index];
-      const sched = loan.scheduled_emi || '0';
-      // A prepayment fee comes out of the payment: only the rest is principal.
-      const fee = Number(w.fee ?? 0);
-      applyToolResult({
-        loanIndex: w.loan_index,
-        kind: 'paid_extra',
-        amount: String(Number(sched) + Number(w.amount) - fee),
-        scheduledEmi: sched,
-        note: `Spare cash — ${fmt(w.amount)} to ${loan.bank}${fee > 0 ? ` (${fmt(fee)} of it the prepayment fee)` : ''}`,
-        loans: profile.user.loans,
-        country,
-      });
-    }
-    if (out.ef.gt(0)) {
+    if (!out || applied || busy || checked !== fingerprint) return;
+    try {
       const stored = loadProfileClient();
-      saveProfileClient({
-        ...stored,
-        user: {
-          ...stored.user,
-          efund_balance: new Decimal(stored.user.efund_balance || 0).plus(out.ef).toFixed(2),
-        },
-      });
-    }
-    setApplied(true);
+      const cash = readCashEventsClient();
+      if (cash.transfers?.some(t => t.id === out.id)) {setApplied(true);return;}
+      const activityKey = document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '';
+      if (JSON.stringify(stored.user) + activityKey !== out.profileKey) throw new Error('Your profile or payments changed. Run the cash check again before logging it.');
+      const w = out.w;
+      const debt = w && !w.invest_instead && w.loan_index != null ? w.amount : '0';
+      const investment = w?.invest_instead ? w.amount : '0';
+      const date = localIsoDate(new Date());
+      const user = allocateCash(stored.user,{total:out.total.toFixed(2),ef:out.ef.toFixed(2),debt,investment,
+        source,accountName,investmentName:w?.investment_name ?? 'Spare cash investment',date});
+      let entries = readActivityClient();
+      if (Number(debt)>0 && w?.loan_index != null) {
+        const index = out.targetId ? stored.user.loans.findIndex(l=>l.id===out.targetId) : w.loan_index;
+        const loan = stored.user.loans[index];
+        if (!loan) throw new Error('The target loan was removed. Run the check again.');
+        const fx = loanToUser(1,loan,country,stored.user.fx_to_user_currency);
+        if (fx == null) throw new Error('Save the loan exchange rate first.');
+        const principal = new Decimal(debt).minus(w.fee ?? 0).div(fx);
+        entries = addActivityEntry(entries,{loanIndex:index,loanId:loan.id,kind:'paid_extra',date,
+          amount:principal.toFixed(2),scheduledEmi:'0',source:source === 'account' ? 'spare-cash-account' : 'spare-cash-external',
+          cashDebited:source === 'account' ? debt : '0',
+          note:`Spare cash — ${fmt(debt)} to ${loan.bank}, fee ${fmt(w.fee ?? 0)}; funded by ${source === 'account' ? accountName || 'savings' : 'new external cash'}`},stored.user.loans);
+      }
+      const next = {...cash,transfers:[...(cash.transfers ?? []),{id:out.id,date,amount:out.total.toFixed(2),source,accountName,
+        note:`Debt ${debt}; EF ${out.ef.toFixed(2)}; investment ${investment}; remaining cash ${out.total.minus(debt).minus(investment).minus(out.ef).toFixed(2)}`} ]};
+      commitCashChange(stored,user,entries,next);
+      setApplied(true);
+    } catch(e) {setErr((e as Error).message);}
   }
 
   const w = out?.w ?? null;
@@ -216,6 +238,18 @@ export function WindfallTool() {
             hint="What it earns where it sits today, e.g. 2.5 for a savings account."
             error={at('earning')}
           />
+          <label style={{fontSize:12}}>Funding source
+            <select aria-label="Funding source" value={source} onChange={e=>setSource(e.target.value as CashFunding)}>
+              <option value="external">New bonus / refund / gift (not yet in balances)</option>
+              <option value="account">Existing savings / cash account</option>
+            </select>
+          </label>
+          {source === 'account' && eligibleAccounts.length > 0 && <label style={{fontSize:12}}>Pay from
+            <select aria-label="Pay from" value={accountName} onChange={e=>setAccountName(e.target.value)}>
+              <option value="">Choose an account</option>
+              {eligibleAccounts.map(a=><option key={a.name} value={a.name}>{a.name} · {fmt(a.balance)}</option>)}
+            </select>
+          </label>}
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="submit"
@@ -295,8 +329,8 @@ export function WindfallTool() {
             },
           ]}
           actions={
-            hold && !out.ef.gt(0) ? undefined : profile.isLive ? (
-              <LBracket accent onClick={logIt}>
+            profile.isLive ? (
+              <LBracket accent onClick={logIt} disabled={applied || busy}>
                 {applied ? 'LOGGED ✓' : 'I DID THIS — LOG IT'}
               </LBracket>
             ) : (

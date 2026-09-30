@@ -12,7 +12,8 @@ export function dec(v: string | number | Decimal | null | undefined): Decimal {
   const t = typeof v === 'string' ? v.trim() : v;
   if (t === '') return new Decimal(0);
   try {
-    return new Decimal(t);
+    const parsed = new Decimal(t);
+    return parsed.isFinite() ? parsed : new Decimal(0);
   } catch {
     return new Decimal(0);
   }

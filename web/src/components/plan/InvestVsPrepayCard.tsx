@@ -40,7 +40,7 @@ interface Props {
 
 export function InvestVsPrepayCard({ plan, variant }: Props) {
   const loansWithBalance = plan.user.loans.filter(
-    (l) => Number(l.outstanding || 0) > 0,
+    (l) => Number(l.outstanding || 0) > 0 && (l.planned_effective_month ?? 1) <= 1,
   );
   if (loansWithBalance.length === 0) return null;
 

@@ -1,8 +1,8 @@
-import { loadProfileServer } from '@/lib/user-store';
+import { loadCurrentProfileServer } from '@/lib/user-store';
 import { LedgerDebts } from '@/components/debts/LedgerDebts';
 
 export default async function DebtsPage() {
-  const profile = await loadProfileServer();
+  const profile = await loadCurrentProfileServer();
   return (
     <>
       <h1 className="sr-only">Your debts</h1>

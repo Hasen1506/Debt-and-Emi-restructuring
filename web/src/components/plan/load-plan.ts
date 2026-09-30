@@ -3,7 +3,7 @@
  * the same debt-free date. Runs the engine (plan, pay-minimums comparison,
  * restructure scan, the other two strategies) and shapes PlanData.
  */
-import { api, type SimulateResponse, type UserPayload } from '@/lib/api';
+import { api, type SimulateResponse, type UserPayload, type LifecycleEventInput } from '@/lib/api';
 import { loadProfileServer } from '@/lib/user-store';
 import { loadStrategyServer, STRATEGIES, type StrategyName } from '@/lib/strategy';
 import {
@@ -39,7 +39,7 @@ import { markMissedInstalments } from '@/lib/advance-tax-cookie';
 import { projectAnnualTaxSavings } from '@/lib/tax-projection';
 import { projectBracketTransitions } from '@/lib/bracket-transitions';
 import Decimal from 'decimal.js';
-import { getCountryMonth, localIsoDate } from '@/lib/today';
+import { getCountryMonth, getCountryToday, localIsoDate } from '@/lib/today';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import {
   applyActivityDeltas,
@@ -87,7 +87,7 @@ export async function loadPlan(
   // Surplus = income − fixed expenses − scheduled EMIs. Same definition the
   // Home + Debts pages show; previously /plan computed it without subtracting
   // EMIs which made the KPI disagree across pages.
-  const surplus = Number(deriveMetrics(profile).surplus);
+  let surplus = Number(deriveMetrics(profile).surplus);
 
   // Apply activity-ledger deltas (missed/partial payments + their penalties)
   // to the user's loans BEFORE simulating. Baseline uses the same adjusted
@@ -107,6 +107,7 @@ export async function loadPlan(
   // foreign currency). A loan without one is a gap below: the engine would
   // take it at parity, ₹20 lakh as $20 lakh. Home, /debts and /plan all
   // use this one rate, so they agree.
+  surplus = Number(deriveMetrics({...profile,user:adjustedUser}).surplus);
   const fxRatesUsed = adjustedUser.fx_to_user_currency ?? {};
 
   // FX drift — for each non-residence currency in play, attach the
@@ -279,13 +280,16 @@ export async function loadPlan(
     };
   }) as typeof adjustedUser.loans;
 
-  const lifecycle_events = [
-    ...plannedEventsForEngine(lifecycleEventsRaw, undefined, adjustedUser.loans),
+  const lifecycle_events: LifecycleEventInput[] = [
+    ...plannedEventsForEngine(lifecycleEventsRaw, localIsoDate(getCountryToday(adjustedUser.country)), adjustedUser.loans, adjustedUser),
     ...streamTransitionsAsLifecycleEvents(
       adjustedUser.income_streams,
       HORIZON_MONTHS,
     ),
   ];
+
+  const displayUser: UserPayload = {...adjustedUser, loans:[...adjustedUser.loans,
+    ...lifecycle_events.filter(e => e.kind === 'property_buy' && e.loan_draft).map(e => ({...e.loan_draft!,planned_effective_month:e.effective_month}))]};
 
   // Soft EF waterfall — when the user has an EF gap, divert a user-chosen
   // fraction of monthly surplus to EF top-up until target is hit. Default
@@ -341,7 +345,7 @@ export async function loadPlan(
 
   // Loans missing a rate or EMI can't be projected (a blank rate read as
   // 0%), so the engine isn't run and the pages ask for the details.
-  const gaps = projectionGaps(profile.user);
+  const gaps = projectionGaps(displayUser);
   // Offline or incomplete: the pages show no engine numbers from this.
   const fallback = (): PlanData => {
     const ccyList = currenciesInPlay(profile.user.loans, profile.user.country);
@@ -356,7 +360,7 @@ export async function loadPlan(
       surplus,
       opportunities: [],
       totalAnnualSaving: '0',
-      user: profile.user as UserPayload,
+      user: displayUser,
       marginalRate: profile.marginalRate,
       strategy,
       hikeModeling,
@@ -428,14 +432,14 @@ export async function loadPlan(
         : 0;
     const scenarioPayments = extractMonthlyPayments(scenario);
     const baselinePayments = extractMonthlyPayments(baseline);
-    const ccyList = currenciesInPlay(adjustedUser.loans, adjustedUser.country);
+    const ccyList = currenciesInPlay(displayUser.loans, adjustedUser.country);
     const byCurrency = derivePerCurrencyMetrics(
-      adjustedUser.loans,
+      displayUser.loans,
       scenarioPayments,
       adjustedUser.country,
     );
     const byCurrencyBaseline = derivePerCurrencyMetrics(
-      adjustedUser.loans,
+      displayUser.loans,
       baselinePayments,
       adjustedUser.country,
     );
@@ -450,7 +454,7 @@ export async function loadPlan(
       surplus,
       opportunities: restructuring.opportunities,
       totalAnnualSaving: restructuring.total_annual_saving,
-      user: profile.user,
+      user: displayUser,
       marginalRate: profile.marginalRate,
       strategy,
       hikeModeling,
@@ -519,6 +523,10 @@ export async function loadPlan(
           }
         : null,
       shortfall: Number(scenario.shortfall ?? 0),
+      futureShortfall: (() => {
+        const row=scenario.trajectory.find(p=>p.month>1 && Number(p.shortfall)>0);
+        return row ? {month:row.month,amount:Number(row.shortfall)} : undefined;
+      })(),
       gaps: [],
     };
   } catch {

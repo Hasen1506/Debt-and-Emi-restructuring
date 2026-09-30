@@ -97,6 +97,7 @@ def _build_surplus_allocation(
     ef_preempted: bool,
     goal_states: list[GoalState] | None = None,
     simple_mode: bool = False,
+    surplus_override: Decimal | None = None,
 ) -> SurplusAllocationOut:
     """Compute the first-month surplus + allocation the engine will apply.
     This is the snapshot the /plan SurplusWaterfall card renders — engine
@@ -110,7 +111,7 @@ def _build_surplus_allocation(
     """
     # Same rule as simulate_plan: a given split is the only EF top-up, so
     # no fixed gap / 12 is held back first.
-    surplus = compute_available_surplus(
+    surplus = surplus_override if surplus_override is not None else compute_available_surplus(
         user, user.loans,
         matched_contribution=matched_contribution,
         simple_mode=simple_mode,
@@ -184,9 +185,7 @@ def _lookup_funding_start(
 
 
 def _to_engine_lifecycle(events: list[LifecycleEventIn]) -> list[LifecycleEvent]:
-    """Translate the wire-format lifecycle events to the engine dataclass.
-    Unknown kinds (e.g. property_buy, which is L1-only) are silently
-    dropped so the frontend can send the full set without filtering."""
+    """Translate validated planned events, including future loan drafts."""
     out: list[LifecycleEvent] = []
     for e in events:
         try:
@@ -201,6 +200,7 @@ def _to_engine_lifecycle(events: list[LifecycleEventIn]) -> list[LifecycleEvent]
                 new_monthly_take_home=e.new_monthly_take_home,
                 loan_index=e.loan_index,
                 new_rate=e.new_rate,
+                loan_draft=e.loan_draft.to_engine() if e.loan_draft else None,
             )
         )
     return out
@@ -288,6 +288,7 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
             ef_preempted=req.ef_preempted,
             goal_states=_build_goal_states(req.goals) if req.goals else None,
             simple_mode=req.simple_mode,
+            surplus_override=result.months[0].available_surplus if result.months else None,
         ),
         goal_finals=_build_goal_finals(
             goal_states,

@@ -17,6 +17,7 @@ from engine.decisions import (
 from engine.formulas import effective_rate
 from engine.models import Country, FilingStatusUS
 from engine.simulation import simulate_plan
+from engine.surplus import to_user_currency, loan_currency_or_default
 
 from api.schemas import (
     WindfallRequest, WindfallResponse,
@@ -44,15 +45,35 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
         id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises, user.itemised_share)
         for l in user.loans
     }
+    # Cash recommendations and fees are in residence currency. Normalize the
+    # ranking balances/payment maths before comparing a cash amount with a
+    # foreign loan; return the original loan's index for Activity.
+    originals = user.loans
+    own = "INR" if user.country == Country.IN else "USD"
+    normalized = []
+    normalized_rates = {}
+    for loan in originals:
+        currency = loan_currency_or_default(loan, user)
+        if loan.outstanding > 0 and currency != own and user.fx_to_user_currency.get(currency, D("0")) <= 0:
+            raise HTTPException(status_code=422, detail={"field":"user.fx_to_user_currency", "message":"Save an exchange rate for each foreign loan before allocating cash."})
+        copy = deepcopy(loan)
+        copy.outstanding = to_user_currency(loan.outstanding, loan, user)
+        copy.scheduled_emi = to_user_currency(loan.scheduled_emi, loan, user)
+        if loan.min_payment_override is not None:
+            copy.min_payment_override = to_user_currency(loan.min_payment_override, loan, user)
+        copy.expected_monthly_spend = to_user_currency(loan.expected_monthly_spend, loan, user)
+        copy.currency = own
+        normalized.append(copy)
+        normalized_rates[id(copy)] = rates[id(loan)]
     try:
         allocation = allocate_windfall(
-            req.amount, user.loans, rates,
+            req.amount, normalized, normalized_rates,
             user.investment_options, user.inflation_rate, strategy=req.strategy,
             country=user.country,
         )
     except DecisionInputError as e:
         raise _bad(e)
-    index_by_id = {id(l): i for i, l in enumerate(user.loans)}
+    index_by_id = {id(l): i for i, l in enumerate(normalized)}
     return WindfallResponse(
         loan_label=allocation.loan_label,
         loan_index=(

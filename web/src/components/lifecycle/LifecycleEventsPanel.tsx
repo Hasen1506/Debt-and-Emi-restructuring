@@ -23,17 +23,13 @@ import {
   readLifecycleClient,
   writeLifecycleClient,
   addLifecycleEvent,
-  updateLifecycleEvent,
-  removeLifecycleEvent,
-  applyConfirmedEventWithRefresh,
-  undoConfirmedEventWithRefresh,
   LIFECYCLE_KIND_LABEL,
   type LifecycleEvent,
   type LifecycleDraft,
   type LifecycleKind,
   type LifecycleStatus,
 } from '@/lib/lifecycle-events';
-import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
+import { commitLifecycle } from '@/lib/commit-lifecycle';
 import { percentRateError } from '@/lib/loan-gaps';
 
 export type LifecycleVariant = 'ledger' | 'existing' | 'editorial';
@@ -76,6 +72,7 @@ export function LifecycleEventsPanel({
   variant: LifecycleVariant;
 }) {
   const [ready, setReady] = useState(false);
+  const [error,setError] = useState('');
   const [events, setEvents] = useState<LifecycleEvent[]>([]);
   const [adding, setAdding] = useState(false);
   const [kind, setKind] = useState<LifecycleKind>('salary_reset');
@@ -129,7 +126,7 @@ export function LifecycleEventsPanel({
     if (!effectiveDate || rateError) return;
     let draft: LifecycleDraft | null = null;
     if (kind === 'salary_reset') {
-      if (Number(newGross) <= 0) return;
+      if (!Number.isFinite(Number(newGross)) || Number(newGross) <= 0 || (newTakeHome.trim() && (!Number.isFinite(Number(newTakeHome)) || Number(newTakeHome) < 0))) return;
       draft = {
         kind: 'salary_reset',
         status: 'planned',
@@ -151,7 +148,7 @@ export function LifecycleEventsPanel({
         newRate: rate,
       };
     } else if (kind === 'property_buy') {
-      if (Number(loanDraft.outstanding) <= 0 || !(Number(loanRatePct) > 0))
+      if (!(Number(loanDraft.outstanding) > 0) || !Number.isFinite(Number(loanDraft.outstanding)) || Number(loanRatePct) < 0 || !Number.isInteger(loanDraft.tenure_months_remaining) || loanDraft.tenure_months_remaining <= 0 || loanDraft.tenure_months_remaining > 480 || !(Number(loanDraft.scheduled_emi) > 0) || !Number.isFinite(Number(loanDraft.scheduled_emi)))
         return;
       draft = {
         kind: 'property_buy',
@@ -163,67 +160,22 @@ export function LifecycleEventsPanel({
       };
     }
     if (!draft) return;
-    const next = addLifecycleEvent(events, draft);
-    writeLifecycleClient(next);
-    setEvents(next);
-    resetForm();
-  }
-
-  function setStatus(id: string, status: LifecycleStatus) {
-    const target = events.find((e) => e.id === id);
-    if (!target) return;
-    // Defense in depth: future-effective events can't be confirmed.
-    if (status === 'confirmed' && target.effectiveDate > todayIso()) return;
-    // planned → confirmed: apply + snapshot (also refreshes marginalRate
-    // so a salary jump doesn't leave the bracket stale).
-    if (status === 'confirmed' && target.status !== 'confirmed') {
-      const prevMarginal = loadProfileClient().marginalRate;
-      const { user: updatedUser, marginalRate, snapshot } =
-        applyConfirmedEventWithRefresh(user, prevMarginal, target);
-      saveProfileClient({ user: updatedUser, marginalRate });
-      const next = updateLifecycleEvent(events, id, {
-        status,
-        appliedSnapshot: snapshot,
-      });
+    try {
+      const next = addLifecycleEvent(readLifecycleClient(), draft);
       writeLifecycleClient(next);
       setEvents(next);
-      return;
-    }
-    // confirmed → anything else: undo the profile mutation first
-    if (target.status === 'confirmed' && status !== 'confirmed') {
-      if (target.appliedSnapshot) {
-        const { user: restoredUser, marginalRate } =
-          undoConfirmedEventWithRefresh(user, target);
-        saveProfileClient({ user: restoredUser, marginalRate });
-      }
-      const next = updateLifecycleEvent(events, id, {
-        status,
-        appliedSnapshot: undefined,
-      });
-      writeLifecycleClient(next);
-      setEvents(next);
-      return;
-    }
-    // No-mutation transitions (planned ↔ cancelled, etc).
-    const next = updateLifecycleEvent(events, id, { status });
-    writeLifecycleClient(next);
-    setEvents(next);
+      setError('');
+      resetForm();
+    } catch(e) {setError((e as Error).message);}
+
   }
 
-  function remove(id: string) {
-    const target = events.find((e) => e.id === id);
-    // Deleting a confirmed event means the profile mutation hangs around
-    // forever otherwise. Undo before removing so the user gets a clean
-    // revert.
-    if (target?.status === 'confirmed' && target.appliedSnapshot) {
-      const { user: restoredUser, marginalRate } =
-        undoConfirmedEventWithRefresh(user, target);
-      saveProfileClient({ user: restoredUser, marginalRate });
-    }
-    const next = removeLifecycleEvent(events, id);
-    writeLifecycleClient(next);
-    setEvents(next);
+  function mutate(id: string, action: LifecycleStatus | 'delete') {
+    try {setEvents(commitLifecycle(id,action));setError('');}
+    catch(e) {setError((e as Error).message);}
   }
+  function setStatus(id: string, status: LifecycleStatus) {mutate(id,status);}
+  function remove(id: string) {mutate(id,'delete');}
 
   if (!ready) return null;
 
@@ -232,6 +184,7 @@ export function LifecycleEventsPanel({
 
   return (
     <section style={containerStyle(variant)}>
+      {error && <p role="alert" style={{color:'var(--negative)'}}>{error}</p>}
       <div style={headerStyle(variant)}>{headerLabel}</div>
       <div style={introStyle(variant)}>{introCopy}</div>
 
@@ -295,7 +248,7 @@ export function LifecycleEventsPanel({
                     type="number"
                     value={newTakeHome}
                     onChange={(e) => setNewTakeHome(e.target.value)}
-                    placeholder="leave blank to derive from gross"
+                    placeholder="blank = estimate after income tax only"
                     style={inputStyle(variant)}
                   />
                 </label>

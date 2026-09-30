@@ -67,10 +67,10 @@ export interface MonteCarloResult {
  * Simulate Monte Carlo returns.
  *
  * For each trial:
- *   1. Draw `years` annual returns from log-normal(μ, σ).
- *   2. Compound them: terminal_factor = ∏ (1 + r_t).
+ *   1. Draw the aggregate log return for the exact holding period.
+ *   2. Scale drift by years and uncertainty by sqrt(years).
  *   3. Convert terminal_factor to annualized return: (factor)^(1/years) − 1.
- *   4. Apply tax: r_after = r_pretax × (1 − tax_rate).
+ *   4. Apply tax to positive gains: r_after = r_pretax × (1 − tax_rate).
  *      (Simplification — real LTCG/STCG depends on holding period and
  *       individual lot timing. For a comparison-card tool, flat after-tax
  *       is the right scope.)
@@ -78,7 +78,13 @@ export interface MonteCarloResult {
  */
 export function simulateMonteCarlo(input: MonteCarloInput): MonteCarloResult {
   const trials = input.trials ?? 5000;
-  const years = Math.max(1, input.years);
+  const years = input.years;
+  if (![years, input.expectedReturn, input.volatility, input.taxRate, input.inflation ?? 0].every(Number.isFinite)
+      || years <= 0 || years > 100 || input.expectedReturn <= -1 || input.expectedReturn > 10
+      || input.volatility < 0 || input.volatility > 5 || input.taxRate < 0 || input.taxRate > 1
+      || (input.inflation ?? 0) <= -1 || !Number.isInteger(trials) || trials < 1 || trials > 100_000) {
+    throw new Error('Invalid simulation inputs. Use a positive holding period up to 100 years and finite rates.');
+  }
   const mu = input.expectedReturn;
   const sigma = input.volatility;
   const taxRate = input.taxRate;
@@ -94,19 +100,14 @@ export function simulateMonteCarlo(input: MonteCarloInput): MonteCarloResult {
   const trialRealReturns: number[] = new Array(trials);
 
   for (let t = 0; t < trials; t += 1) {
-    let logFactor = 0;
-    for (let y = 0; y < years; y += 1) {
-      // Sample annual log-return; convert to multiplier.
-      const z = boxMuller();
-      const logRet = lnMean + lnStd * z;
-      logFactor += logRet;
-    }
-    const totalMultiplier = Math.exp(logFactor);
-    const preTax = Math.pow(totalMultiplier, 1 / years) - 1;
-    const afterTax = preTax * (1 - taxRate);
+    // The sum of independent log returns is normal. Scale drift by the
+    // exact holding period and uncertainty by sqrt(time), including stub years.
+    const logFactor = lnMean * years + lnStd * Math.sqrt(years) * (sigma === 0 ? 0 : boxMuller());
+    const preTax = Math.exp(logFactor / years) - 1;
+    const afterTax = preTax > 0 ? preTax * (1 - taxRate) : preTax;
     trialReturns[t] = afterTax;
     trialRealReturns[t] =
-      infl > 0 ? (1 + afterTax) / (1 + infl) - 1 : afterTax;
+      (1 + afterTax) / (1 + infl) - 1;
   }
 
   const sortedNominal = trialReturns.slice().sort((a, b) => a - b);

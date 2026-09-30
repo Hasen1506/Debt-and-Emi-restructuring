@@ -1,6 +1,7 @@
 'use client';
 
 import Decimal from 'decimal.js';
+import { dec } from '@/lib/safe-decimal';
 import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/Card';
 import {
@@ -20,7 +21,8 @@ import {
   type LiquidationRecommendation,
   type LoanPayload,
 } from '@/lib/api';
-import { useStoredProfile } from '@/lib/use-profile';
+import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
+import { loadProfileClient } from '@/lib/user-store';
 import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { loanCurrency, loanToUser, userDefaultCurrency } from '@/lib/currency';
@@ -132,10 +134,11 @@ export function LiquidateTool() {
   const [inflation, setInflation] = useState<string>(DEFAULT_INFLATION[country]);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const [v, setV] = useState<AssetLiquidationResponse | null>(null);
+  const [resultValue, setV] = useState<AssetLiquidationResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const { err, setErr, clear, fail, failField, at } = useFormErrors();
   const [applied, setApplied] = useState(false);
+  const [resultProfileKey,setResultProfileKey] = useState('');
 
   // The asset (real estate, Indian-tax mechanics) is denominated in the user's
   // residence currency. The picked target loan may be in a different currency
@@ -187,8 +190,8 @@ export function LiquidateTool() {
   // Derived sale price under partial mode = qty × unit_price.
   const effectiveSalePrice = useMemo(() => {
     if (saleMode === 'partial') {
-      const q = new Decimal(qty || '0');
-      const u = new Decimal(unitPrice || '0');
+      const q = dec(qty || '0');
+      const u = dec(unitPrice || '0');
       return q.mul(u).toString();
     }
     return salePrice;
@@ -199,14 +202,17 @@ export function LiquidateTool() {
   // without total_qty. Default: scale linearly by qty / total_qty.
   const effectivePurchasePrice = useMemo(() => {
     if (saleMode === 'partial') {
-      const q = new Decimal(qty || '0');
-      const t = new Decimal(totalQty || '0');
+      const q = dec(qty || '0');
+      const t = dec(totalQty || '0');
       if (t.isZero()) return purchasePrice;
-      return new Decimal(purchasePrice).mul(q).div(t).toFixed(2);
+      return dec(purchasePrice).mul(q).div(t).toFixed(2);
     }
     return purchasePrice;
   }, [saleMode, qty, totalQty, purchasePrice]);
 
+  const fingerprint = JSON.stringify([purchasePrice,purchaseDate,state,mainHome,saleMode,salePrice,qty,unitPrice,totalQty,targetIdx,debtBalance,debtRate,debtPayment,taxableIncome,assetReturn,holdYears,leftoverYield,inflation]);
+  const [checked,setChecked] = useState('');
+  const v = checked === fingerprint ? resultValue : null;
   async function check(e: React.FormEvent) {
     e.preventDefault();
     const required: [string, string, string][] = [
@@ -231,10 +237,15 @@ export function LiquidateTool() {
       failField(missing[0], missing[2]);
       return;
     }
+    if (saleMode === 'partial' && (![qty,totalQty,unitPrice].every(v => Number.isFinite(Number(v)) && Number(v)>0) || Number(qty)>Number(totalQty))) {
+      failField('qty','Sell a positive quantity no greater than what you own, at a positive unit price.'); return;
+    }
+    setV(null);
     setBusy(true);
     clear();
     setApplied(false);
     try {
+      const requestProfileKey = JSON.stringify(loadProfileClient().user) + (document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '');
       const isoDate = normalizePurchaseDate(purchaseDate);
       if (!isoDate) {
         throw new Error('Enter purchase as a year (2018), year-month (2018-06), or full date (2018-06-15).');
@@ -271,6 +282,8 @@ export function LiquidateTool() {
           : {}),
       };
       setV(await api.assetLiquidation(payload));
+      setChecked(fingerprint);
+      setResultProfileKey(requestProfileKey);
     } catch (e) {
       fail(e, FIELDS);
     } finally {
@@ -914,6 +927,10 @@ export function LiquidateTool() {
               <ApplyAction
                 applied={applied}
                 onApply={() => {
+                  if(applied || busy || checked !== fingerprint) return;
+                  const currentKey = JSON.stringify(loadProfileClient().user) + (document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '');
+                  if(currentKey !== resultProfileKey) {setErr('Your balances changed. Run the sale check again before logging the payment.');return;}
+                  try {
                   const target = profile.user.loans[Number(targetIdx)];
                   const sched = target.scheduled_emi || '0';
                   const proceeds = new Decimal(v.net_proceeds).div(loanFx(target) ?? 1);
@@ -931,6 +948,7 @@ export function LiquidateTool() {
                     country: profile.user.country,
                   });
                   setApplied(true);
+                  } catch(e) {setErr((e as Error).message);}
                 }}
                 label={`Apply this — log ${fmtLoan(new Decimal(v.net_proceeds).div(loanFx(profile.user.loans[Number(targetIdx)]) ?? 1).toFixed(2))} payoff to ${profile.user.loans[Number(targetIdx)].bank} & reprice /plan`}
               />

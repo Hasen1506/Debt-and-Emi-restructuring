@@ -19,7 +19,7 @@ import {
   type InstitutionPayload,
   type LoanType,
 } from '@/lib/api';
-import { useStoredProfile } from '@/lib/use-profile';
+import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
@@ -88,7 +88,7 @@ export function RightTimeTool() {
   const [sixMoOverride, setSixMoOverride] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const [v, setV] = useState<BorrowTimingResponse | null>(null);
+  const [resultValue, setV] = useState<BorrowTimingResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const { err, setErr, clear, fail, failField, at } = useFormErrors();
   const [added, setAdded] = useState(false);
@@ -186,6 +186,9 @@ export function RightTimeTool() {
     return m.fxMissing.length > 0 ? null : m.surplus.toFixed(2);
   }, [profile]);
 
+  const fingerprint = JSON.stringify([loanType,principal,tenure,bank,currentRate,sixMoAvg,changeBps,monthsTo,urgency,country,monthlyRoom,profile.user]);
+  const [checked, setChecked] = useState('');
+  const v = checked === fingerprint ? resultValue : null;
   async function check(e: React.FormEvent) {
     e.preventDefault();
     if (!currentRate) {
@@ -204,6 +207,7 @@ export function RightTimeTool() {
       failField('monthsTo', 'Enter the months until the next rate decision.');
       return;
     }
+    setV(null);
     setBusy(true);
     clear();
     setAdded(false);
@@ -221,6 +225,7 @@ export function RightTimeTool() {
           ...(monthlyRoom != null ? { monthly_room: monthlyRoom } : {}),
         }),
       );
+      setChecked(fingerprint);
     } catch (e) {
       fail(e, FIELDS);
     } finally {
@@ -230,6 +235,7 @@ export function RightTimeTool() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {added && <p role="status">Loan added to your profile. <a href="/plan">See the updated plan →</a></p>}
       <Card>
         <form
           onSubmit={check}
@@ -423,6 +429,7 @@ export function RightTimeTool() {
             <AddLoanAction
               added={added}
               onAdd={() => {
+                if (added || checked !== fingerprint) return;
                 // Derive EMI from the rate we used; cheap helper.
                 const r = Number(currentRate) / 12;
                 const n = Number(tenure);
@@ -436,7 +443,7 @@ export function RightTimeTool() {
                   tenure_months_remaining: Number(tenure),
                   scheduled_emi: emi.toFixed(2),
                 });
-                if (saved != null) setAdded(true);
+                if (saved != null) setAdded(true); else setErr('The loan could not be saved. Recheck affordability against your current profile.');
               }}
               label={`Add this ${loanType.replace('_', ' ')} at ${bank} to my profile${isExistingBank ? '' : ' (new bank)'}`}
             />

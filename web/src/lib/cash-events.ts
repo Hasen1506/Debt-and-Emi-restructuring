@@ -27,6 +27,7 @@
  * re-anchors to reality.
  */
 
+import { localIsoDate } from './today';
 import { syncSliceToServer } from './server-sync';
 
 /**
@@ -91,6 +92,8 @@ export interface MonthlyConfirmation {
 
 export interface CashEventsSlice {
   confirmations: MonthlyConfirmation[];
+  /** Completed cash actions: persisted ids prevent double application. */
+  transfers?: {id: string; date: string; amount: string; source: string; accountName?: string; note: string}[];
   /** YYYY-MM-DD the user first started cash tracking. Prompts only go
    *  back to the month containing this date. Unset = never started. */
   startedAt?: string;
@@ -166,7 +169,9 @@ export function pendingMonths(
 
   // Walk from baseline month forward.
   const result: string[] = [];
-  const cursor = new Date(baseline.getFullYear(), baseline.getMonth(), 1);
+  // Entered balances are current as of the baseline date. Do not replay a
+  // whole month's income over a balance captured partway through that month.
+  const cursor = new Date(baseline.getFullYear(), baseline.getMonth() + (baseline.getDate() > 1 ? 1 : 0), 1);
   while (monthKey(cursor) <= lastMk) {
     const mk = monthKey(cursor);
     if (!confirmed.has(mk)) result.push(mk);
@@ -182,7 +187,7 @@ export function pendingMonths(
  * the first time it mounts for a user with populated cash_accounts.
  *
  * `primaryAccountName` is picked from the live cash_accounts list (first
- * non-checking, else first overall) once. Stamping it on the slice means
+ * checking, else the first liquid account) once. Stamping it on the slice means
  * later renames / reorderings of the accounts don't silently shift which
  * account absorbs the monthly net.
  */
@@ -193,7 +198,7 @@ export function ensureStarted(
   if (slice.startedAt && slice.primaryAccountName) return slice;
   const next: CashEventsSlice = {
     ...slice,
-    startedAt: slice.startedAt ?? new Date().toISOString().slice(0, 10),
+    startedAt: slice.startedAt ?? localIsoDate(new Date()),
     primaryAccountName:
       slice.primaryAccountName ?? candidatePrimaryName ?? undefined,
   };

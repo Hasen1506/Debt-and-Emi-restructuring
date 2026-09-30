@@ -1,4 +1,4 @@
-import { loadProfileServer } from '@/lib/user-store';
+import { loadCurrentProfileServer } from '@/lib/user-store';
 import { summarisePortfolio } from '@/components/portfolio/portfolioSummary';
 import { LedgerPortfolio } from '@/components/portfolio/LedgerPortfolio';
 
@@ -13,7 +13,7 @@ import { LedgerPortfolio } from '@/components/portfolio/LedgerPortfolio';
  * mini-wizard rather than showing a wall of zeroes.
  */
 export default async function PortfolioPage() {
-  const profile = await loadProfileServer();
+  const profile = await loadCurrentProfileServer();
   const summary = summarisePortfolio(profile.user.assets, profile.user.country);
   return (
     <>

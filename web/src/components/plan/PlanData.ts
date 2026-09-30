@@ -203,6 +203,8 @@ export interface PlanData {
    *  user's currency (0 when covered). Above 0 the pages show no
    *  debt-free date: the plan's payments assume money the user lacks. */
   shortfall: number;
+  /** First later month whose projected minimums cannot be funded. */
+  futureShortfall?: {month:number;amount:number};
   /** Open loans missing a rate or EMI. When any, the engine isn't run and
    *  the pages ask for the details instead of projecting. */
   gaps: ProfileGap[];

@@ -7,6 +7,9 @@
  * Callers stay responsible for any other state (activity entries, cookies
  * for projection deltas) — this only touches the profile.
  */
+import { deriveMetrics } from './derived';
+import { applyActivityDeltas, parseActivityDeltas } from './activity-cookie';
+import { loanToUser } from './currency';
 import { loadProfileClient, saveProfileClient } from './user-store';
 import type { Country, LoanPayload, LoanType } from './api';
 import { userDefaultCurrency, type CurrencyCode } from './currency';
@@ -18,6 +21,7 @@ export interface AddLoanInput {
   nominal_rate: string;
   tenure_months_remaining: number;
   scheduled_emi: string;
+  min_payment_override?: string;
   rate_type?: 'floating' | 'fixed';
   processing_fee_amortised?: string;
   /** Currency the amounts above are in. Omit for the profile's own. */
@@ -63,11 +67,22 @@ export function addLoanToProfile(input: AddLoanInput): number | null {
     rate_type: input.rate_type ?? 'fixed',
     tenure_months_remaining: input.tenure_months_remaining,
     scheduled_emi: input.scheduled_emi,
+    ...(input.min_payment_override ? {min_payment_override:input.min_payment_override} : {}),
     ...(foreign ? { currency: foreign } : {}),
     ...(input.processing_fee_amortised
       ? { processing_fee_amortised: input.processing_fee_amortised }
       : {}),
   };
+  if (!profile.isLive || ![input.outstanding,input.nominal_rate,input.scheduled_emi].every(v => Number.isFinite(Number(v)))
+    || Number(input.outstanding) <= 0 || Number(input.nominal_rate) < 0 || Number(input.nominal_rate) > 1
+    || Number(input.scheduled_emi) <= 0 || !Number.isInteger(input.tenure_months_remaining)
+    || input.tenure_months_remaining < 1 || input.tenure_months_remaining > 480 || profile.user.loans.length >= 50) return null;
+  const raw = typeof document === 'undefined' ? '' : document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '';
+  const currentLoans = applyActivityDeltas(profile.user.loans, parseActivityDeltas(raw)).loans;
+  const capacity = deriveMetrics({...profile,user:{...profile.user,loans:currentLoans}});
+  const payment = loanToUser(Number(input.scheduled_emi),newLoan,profile.user.country,
+    {...profile.user.fx_to_user_currency,...(foreign && input.fx_to_user ? {[foreign]:input.fx_to_user} : {})});
+  if (capacity.fxMissing.length || payment == null || payment > Number(capacity.surplus)) return null;
   const fx = { ...(profile.user.fx_to_user_currency ?? {}) };
   if (foreign && !(Number(fx[foreign]) > 0)) fx[foreign] = input.fx_to_user!;
   const nextUser = {

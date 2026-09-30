@@ -20,7 +20,7 @@ import {
   type CrossBorderResponse,
   type LoanType,
 } from '@/lib/api';
-import { useStoredProfile } from '@/lib/use-profile';
+import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
 import { deriveTenureMonths } from '@/lib/derived';
 import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';

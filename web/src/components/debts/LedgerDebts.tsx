@@ -51,6 +51,8 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
             {paidOff ? 'Every loan on file is at 0. ' : 'Run setup to add your debts: '}
             <LBracket href="/onboarding?step=loans">{paidOff ? 'ADD A LOAN →' : 'SETUP →'}</LBracket>
           </div>
+          <CashManagementSection profile={profile} />
+          <LifecycleEventsPanel user={profile.user} variant="ledger" />
         </div>
       </LShell>
     );
