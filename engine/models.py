@@ -149,6 +149,7 @@ class LifecycleEventKind(str, Enum):
     confirm); only salary + rate resets are wired through simulate_plan."""
     SALARY_RESET = "salary_reset"
     FLOATING_RATE_RESET = "floating_rate_reset"
+    PROPERTY_BUY = "property_buy"
 
 
 @dataclass
@@ -167,6 +168,7 @@ class LifecycleEvent:
     # FLOATING_RATE_RESET payload
     loan_index: Optional[int] = None  # 0-based index into user.loans
     new_rate: Optional[Decimal] = None  # decimal APR (e.g. 0.082)
+    loan_draft: Optional[Loan] = None
 
 
 @dataclass

@@ -31,6 +31,8 @@ export interface LoanPayload {
    *  entries name their loan by it, so removing another loan can't move
    *  their payments. The API ignores it. */
   id?: string;
+  /** Display metadata for an upcoming lifecycle loan; never persisted to the profile. */
+  planned_effective_month?: number;
   loan_type: LoanType;
   bank: string;
   outstanding: string;
@@ -1389,7 +1391,8 @@ export interface AuthUser {
 }
 
 export interface LifecycleEventInput {
-  kind: 'salary_reset' | 'floating_rate_reset';
+  kind: 'salary_reset' | 'floating_rate_reset' | 'property_buy';
+  loan_draft?: LoanPayload;
   /** 1-based sim month at which the event takes effect. */
   effective_month: number;
   /** SALARY_RESET payload. */

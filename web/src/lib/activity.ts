@@ -71,6 +71,8 @@ export interface ActivityEntry {
    *  but the UI uses it to surface "covered by X" badges and the
    *  changelog reads better. */
   source?: string;
+  /** Residence-currency cash already debited by a tool; recap must not debit it again. */
+  cashDebited?: string;
   /** Number of forward months this prepayment covers. Set when the user
    *  used the "Prepay forward N months" flow — purely informational; the
    *  principal reduction is captured by the paid_extra amount itself. */

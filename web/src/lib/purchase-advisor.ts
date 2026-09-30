@@ -71,6 +71,8 @@ export interface PurchaseInput {
   /** Available monthly surplus (₹/$ per month) — the value /plan
    *  displays after fixed + variable + EMI minimums. */
   monthlySurplus: number;
+  /** Savings explicitly available for this purchase, excluding EF and other goals. */
+  availableSavings?: number;
   /** Today's date — injectable for tests. */
   today?: Date;
 }
@@ -83,6 +85,8 @@ export interface PurchaseAnalysis {
   downPayment: {
     amount: number;
     pctOfPrice: number;
+    savingsUsed: number;
+    remainingToSave: number;
     monthlySavingRequired: number;
     /** True when the user can cover the down-payment savings with
      *  surplus before they need the loan EMI too. */
@@ -152,13 +156,25 @@ export function analyzePurchase(input: PurchaseInput): PurchaseAnalysis {
     input.downPaymentPct != null
       ? input.downPaymentPct
       : DEFAULT_DOWN_PCT[input.type];
+  const tenure = input.loanTenureYears ?? DEFAULT_TENURE_YEARS[input.type];
+  const available = input.availableSavings ?? 0;
+  if (![input.price, downPct, tenure, input.loanRateAnnual, input.monthlySurplus, available, input.marginalRate].every(Number.isFinite)
+      || input.price <= 0 || downPct < 0 || downPct > 1 || tenure <= 0 || tenure > 40
+      || !Number.isInteger(tenure * 12) || input.loanRateAnnual < 0 || input.loanRateAnnual > 1
+      || available < 0 || input.marginalRate < 0 || input.marginalRate > 1
+      || !/^\d{4}-(0[1-9]|1[0-2])$/.test(input.targetMonth)
+      || input.targetMonth < `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`) {
+    throw new Error('Enter a positive price, down payment from 0–100%, tenure up to 40 years, valid rates, and a current or future month.');
+  }
   const downAmount = round2(input.price * downPct);
+  const savingsUsed = Math.min(downAmount, available);
+  const remainingToSave = round2(downAmount - savingsUsed);
   const principal = round2(input.price - downAmount);
   const tenureYears =
     input.loanTenureYears ?? DEFAULT_TENURE_YEARS[input.type];
 
   const monthlySavingRequired =
-    monthsToTarget > 0 ? round2(downAmount / monthsToTarget) : downAmount;
+    monthsToTarget > 0 ? round2(remainingToSave / monthsToTarget) : remainingToSave;
 
   // EMI via standard amortisation. Falls back to principal/n when rate
   // is 0, which is fine for the no-cost-EMI / interest-free case.
@@ -202,10 +218,10 @@ export function analyzePurchase(input: PurchaseInput): PurchaseAnalysis {
 
   const surplusAfterEmi = round2(input.monthlySurplus - monthlyEmi);
   const emiOverSurplus =
-    input.monthlySurplus > 0 ? monthlyEmi / input.monthlySurplus : Infinity;
+    monthlyEmi === 0 ? 0 : input.monthlySurplus > 0 ? monthlyEmi / input.monthlySurplus : Infinity;
 
   const coverableBySurplus =
-    monthsToTarget > 0 && monthlySavingRequired <= input.monthlySurplus;
+    remainingToSave === 0 || (monthsToTarget > 0 && monthlySavingRequired <= Math.max(0, input.monthlySurplus));
 
   // Feasibility: tight = EMI eats most of surplus OR savings rate doesn't
   // quite fit. Unfeasible = surplus can't cover savings AND EMI together.
@@ -220,15 +236,15 @@ export function analyzePurchase(input: PurchaseInput): PurchaseAnalysis {
   const surplus = input.monthlySurplus;
   const n = tenureYears * 12;
   const comfortableEmi = surplus * 0.4;
-  const savingsFit = monthsToTarget > 0 && downAmount <= surplus * monthsToTarget;
-  const emiFits = surplus > 0 && monthlyEmi <= comfortableEmi;
+  const savingsFit = remainingToSave <= Math.max(0, surplus) * monthsToTarget;
+  const emiFits = monthlyEmi === 0 || (surplus > 0 && monthlyEmi <= comfortableEmi);
   // Largest loan whose EMI is comfortable.
   const maxPrincipal = surplus > 0 ? invertEmiForPrincipal(comfortableEmi, input.loanRateAnnual, n) : 0;
   // Clamp away from 100% down: the price lever divides by (1 − down).
-  const safeDownPct = Math.min(downPct, 0.95);
+  const safeDownPct = downPct;
   const priceForSavings =
-    monthsToTarget > 0 && downPct > 0 ? (surplus * monthsToTarget) / downPct : monthsToTarget > 0 ? Infinity : 0;
-  const priceForEmi = maxPrincipal / (1 - safeDownPct);
+    downPct > 0 ? (available + Math.max(0, surplus) * monthsToTarget) / downPct : Infinity;
+  const priceForEmi = downPct === 1 ? Infinity : maxPrincipal / (1 - safeDownPct);
   const bestPrice = Math.min(priceForSavings, priceForEmi);
   const neededDownPct = input.price > 0 ? 1 - maxPrincipal / input.price : 1;
   const levers = {
@@ -238,7 +254,7 @@ export function analyzePurchase(input: PurchaseInput): PurchaseAnalysis {
         : null,
     extendTargetByMonths:
       !savingsFit && surplus > 0
-        ? Math.max(1, Math.ceil(downAmount / surplus) - monthsToTarget)
+        ? Math.max(1, Math.ceil(remainingToSave / surplus) - monthsToTarget)
         : null,
     increaseDownPaymentToPct:
       !emiFits &&
@@ -246,7 +262,7 @@ export function analyzePurchase(input: PurchaseInput): PurchaseAnalysis {
       neededDownPct > downPct &&
       neededDownPct < 1 &&
       monthsToTarget > 0 &&
-      neededDownPct * input.price <= surplus * monthsToTarget
+      neededDownPct * input.price <= available + surplus * monthsToTarget
         ? round4(neededDownPct)
         : null,
   };
@@ -260,6 +276,8 @@ export function analyzePurchase(input: PurchaseInput): PurchaseAnalysis {
     downPayment: {
       amount: downAmount,
       pctOfPrice: downPct,
+      savingsUsed,
+      remainingToSave,
       monthlySavingRequired,
       coverableBySurplus,
     },
@@ -413,7 +431,7 @@ function computeTaxBenefit(args: {
 function buildWarnings(input: PurchaseInput, monthsToTarget: number): string[] {
   const w: string[] = [];
   if (monthsToTarget <= 0) {
-    w.push('Target date is now or in the past — set a future month.');
+    w.push('Buying this month requires the down payment to be available now.');
   }
   if (input.type === 'vehicle') {
     w.push(
@@ -464,7 +482,7 @@ function classifyFeasibility(
   coverable: boolean,
   emiRatio: number,
 ): PurchaseAnalysis['feasibility'] {
-  if (months <= 0) return 'unfeasible';
+  if (months < 0) return 'unfeasible';
   if (!coverable) return 'unfeasible';
   if (emiRatio > 0.6) return 'unfeasible';
   if (emiRatio > 0.4) return 'tight';

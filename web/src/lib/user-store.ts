@@ -149,6 +149,8 @@ export function saveProfileClient(profile: {
   }
   if (profile.creditScore != null) {
     writeClientCookie(SCORE_COOKIE, String(profile.creditScore));
+  } else if (profile.creditScore === null) {
+    document.cookie = `${SCORE_COOKIE}=; path=/; max-age=0`;
   }
   // Mirror to server if signed in. Fire-and-forget — cookie is the
   // first-paint cache so a slow/failed sync doesn't block the UI.
@@ -164,25 +166,13 @@ export function saveProfileClient(profile: {
           })(),
     isLive: true,
   });
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('finoptima:profile-changed'));
   return true;
 }
 
 async function syncProfileToServer(profile: StoredProfile): Promise<void> {
-  // Lazy import to avoid a client→client circular: api.ts imports types
-  // from this file is not a concern (only types), but we still defer to
-  // keep the module graph clean.
-  const { api } = await import('./api');
-  try {
-    // Read current server blob so we don't blow away keys this writer
-    // doesn't own (lifecycle/activity/etc come in later phases).
-    const current = await api.getUserState().catch(() => null);
-    const data = (current?.data ?? {}) as Record<string, unknown>;
-    const merged = { ...data, ...serializeProfileForServer(profile) };
-    await api.putUserState(merged);
-  } catch {
-    // Signed-out (401) or transient — cookie still has the data, retry
-    // on next save. Phase 2 deliberately uses last-write-wins.
-  }
+  const {syncSliceToServer} = await import('./server-sync');
+  await syncSliceToServer('profile',serializeProfileForServer(profile).profile);
 }
 
 export function clearProfileClient() {
@@ -285,7 +275,10 @@ export async function loadProfileServer(): Promise<StoredProfile> {
   const { cookies } = await import('next/headers');
   const store = cookies();
 
-  // Signed-in path: try server-stored profile first.
+  // Cookies reflect a local save immediately; background server sync may
+  // still be in flight. Login hydration supplies remote data on a new device.
+  const local = _profileFromCookieStore(store);
+  if (local.isLive) return local;
   if (store.get(SESSION_COOKIE)?.value) {
     const serverData = await fetchUserStateServer();
     const fromServer = profileFromServerData(serverData);
@@ -294,7 +287,17 @@ export async function loadProfileServer(): Promise<StoredProfile> {
     // /login will push up on next migration tick).
   }
 
-  return _profileFromCookieStore(store);
+  return local;
+}
+
+/** Display/advice snapshot. Setup, Activity and mutations use the stored
+ * baseline; applying the ledger here once keeps current balances consistent. */
+export async function loadCurrentProfileServer(): Promise<StoredProfile> {
+  const [profile,activity] = await Promise.all([
+    loadProfileServer(), import('./activity-cookie').then(m=>m.loadActivityDeltasServer()),
+  ]);
+  const {applyActivityDeltas} = await import('./activity-cookie');
+  return {...profile,user:{...profile.user,loans:applyActivityDeltas(profile.user.loans,activity).loans}};
 }
 
 /** Pull a StoredProfile out of the server's JSON blob, or null if absent. */

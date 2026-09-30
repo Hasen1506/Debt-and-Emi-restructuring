@@ -19,12 +19,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import { dec } from '@/lib/safe-decimal';
+import { recapNet } from '@/lib/cash-allocation';
+import { commitCashChange } from '@/lib/commit-cash-change';
+import { addActivityEntry, readActivityClient, extraPrincipal } from '@/lib/activity';
+import { applyActivityDeltas, activityDeltas } from '@/lib/activity-cookie';
+import { explainMinPayment } from '@/lib/min-payment';
+import { loanToUser } from '@/lib/currency';
 import type { CashAccountPayload, UserPayload } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
 import { currencySymbol, userDefaultCurrency } from '@/lib/currency';
-import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
+import { loadProfileClient } from '@/lib/user-store';
 import {
-  appendConfirmation,
   ensureStarted,
   monthLabel,
   pendingMonths,
@@ -42,6 +47,8 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
   // Collapsed by default — the closed state is just the headline + a
   // chevron. Reduces page-rhythm clunkiness on /debts.
   const [isOpen, setIsOpen] = useState(false);
+  const [error,setError] = useState('');
+  const [chosenAccount,setChosenAccount] = useState('');
 
   useEffect(() => {
     let next = readCashEventsClient();
@@ -52,13 +59,13 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
     // user later reorders or renames.
     if (user.cash_accounts && user.cash_accounts.length > 0) {
       const candidate =
-        user.cash_accounts.find((a) => a.kind !== 'checking') ??
-        user.cash_accounts[0];
+        user.cash_accounts.find((a) => a.kind === 'checking' && (!a.currency || a.currency === userDefaultCurrency(user.country))) ??
+        user.cash_accounts.find((a) => a.kind !== 'fd' && (!a.currency || a.currency === userDefaultCurrency(user.country)));
       next = ensureStarted(next, candidate?.name);
     }
     setSlice(next);
     setReady(true);
-  }, [user.cash_accounts]);
+  }, [user.cash_accounts,user.country]);
 
   const pending = useMemo(() => pendingMonths(slice), [slice]);
 
@@ -66,16 +73,17 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
   // (set at ensureStarted time). Fall back to live picking only for
   // legacy slices that pre-date the stamp.
   const primaryAccount: CashAccountPayload | null = useMemo(() => {
-    const accounts = user.cash_accounts ?? [];
+    const accounts = (user.cash_accounts ?? []).filter(a => a.kind !== 'fd' && (!a.currency || a.currency === userDefaultCurrency(user.country)));
     if (accounts.length === 0) return null;
+    if (chosenAccount) { const selected=accounts.find(a=>a.name===chosenAccount); if(selected) return selected; }
     if (slice.primaryAccountName) {
       const stamped = accounts.find((a) => a.name === slice.primaryAccountName);
       if (stamped) return stamped;
       // Stamp pointed at an account that no longer exists (user deleted it).
       // Fall through to the live picker.
     }
-    return accounts.find((a) => a.kind !== 'checking') ?? accounts[0];
-  }, [user.cash_accounts, slice.primaryAccountName]);
+    return accounts.find((a) => a.kind === 'checking') ?? accounts[0];
+  }, [user.cash_accounts, user.country, slice.primaryAccountName, chosenAccount]);
 
   if (!ready) return null;
   if (!primaryAccount) return null;
@@ -88,12 +96,13 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
   const defaultExpenses = dec(user.fixed_expenses)
     .add(dec(user.variable_expenses))
     .toFixed(2);
-  const defaultEmis = (user.loans ?? [])
+  const defaultEmis = (user.loans ?? []).filter(l => Number(l.outstanding)>0)
     .reduce(
-      (sum, l) =>
-        l.loan_type === 'credit_card'
-          ? sum.add(new Decimal(l.scheduled_emi || 0))
-          : sum.add(new Decimal(l.scheduled_emi || 0)),
+      (sum, l) => {
+        const payment = l.loan_type === 'credit_card' ? explainMinPayment(l,user.country)?.estimated ?? l.scheduled_emi : l.scheduled_emi;
+        const converted = loanToUser(Number(payment || 0),l,user.country,user.fx_to_user_currency);
+        return sum.add(converted ?? 0);
+      },
       new Decimal(0),
     )
     .toFixed(2);
@@ -107,99 +116,62 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
     note: string | undefined,
     overridden: boolean,
     paymentSource: PaymentSource,
+    targetLoanId?: string,
+    fundingAccountName?: string,
   ): void {
-    // Excess prepayment = anything above the scheduled minimum EMI for the
-    // month. That excess is what we attribute to the chosen payment source;
-    // the scheduled portion is always treated as regular cash flow.
-    const scheduledD = new Decimal(defaultEmis || 0);
-    const emisD = new Decimal(emis || 0);
-    const excess = Decimal.max(0, emisD.sub(scheduledD));
-
-    // Cash-account net delta:
-    //   • surplus  → income − expenses − emis + interest (full EMI counts)
-    //   • non-surplus → income − expenses − scheduled + interest (excess
-    //     comes from the tagged bucket instead of the primary account)
-    const emisChargedToPrimary = paymentSource === 'surplus' ? emisD : scheduledD;
-    const netDelta = new Decimal(income || 0)
-      .sub(new Decimal(expenses || 0))
-      .sub(emisChargedToPrimary)
-      .add(new Decimal(interest || 0));
-
-    const confirmation: MonthlyConfirmation = {
-      monthKey,
-      income: new Decimal(income || 0).toFixed(2),
-      expenses: new Decimal(expenses || 0).toFixed(2),
-      emisPaid: emisD.toFixed(2),
-      interestEarned: new Decimal(interest || 0).toFixed(2),
-      netDelta: netDelta.toFixed(2),
-      primaryAccountName: primaryAccount!.name,
-      confirmedAt: new Date().toISOString(),
-      source: overridden ? 'override' : 'confirmed',
-      note: note?.trim() ? note.trim() : undefined,
-      paymentSource,
-      excessPaid: excess.toFixed(2),
-    };
-
-    setSlice((cur) => appendConfirmation(cur, confirmation));
-
-    // Mutate the primary account's balance by netDelta. Profile is the
-    // truth for current balance — events are audit. Floor at 0 so a
-    // catastrophic month doesn't go negative and confuse downstream math.
-    const stored = loadProfileClient();
-    const accounts = stored.user.cash_accounts ?? [];
-    let nextAccounts = accounts.map((a) =>
-      a.name === primaryAccount!.name
-        ? {
-            ...a,
-            balance: Decimal.max(
-              0,
-              new Decimal(a.balance || 0).add(netDelta),
-            ).toFixed(2),
-          }
-        : a,
-    );
-    let newEfund = new Decimal(stored.user.efund_balance || 0);
-
-    if (excess.gt(0)) {
-      if (paymentSource === 'savings_drawdown') {
-        // Draw from the highest-APY non-checking account first (the one the
-        // advisor would have flagged anyway). Floor at zero per-account, but
-        // don't cascade — if the chosen account can't cover the excess we
-        // accept the partial drawdown rather than touch unrelated accounts.
-        const drawableIdx = nextAccounts
-          .map((a, i) => ({ a, i }))
-          .filter((x) => x.a.kind !== 'checking' && Number(x.a.balance || 0) > 0)
-          .sort((x, y) => Number(y.a.apy || 0) - Number(x.a.apy || 0))[0]?.i;
-        if (drawableIdx != null) {
-          const cur = new Decimal(nextAccounts[drawableIdx].balance || 0);
-          nextAccounts = nextAccounts.map((a, i) =>
-            i === drawableIdx
-              ? { ...a, balance: Decimal.max(0, cur.sub(excess)).toFixed(2) }
-              : a,
-          );
+    setError('');
+    try {
+      const cash = readCashEventsClient();
+      if (cash.confirmations.some(c=>c.monthKey===monthKey)) {setSlice(cash);return;}
+      if (!pendingMonths(cash).includes(monthKey)) throw new Error('This is not a complete, pending month. Refresh the recap before saving.');
+      const stored = loadProfileClient();
+      let entries = readActivityClient();
+      const current = applyActivityDeltas(stored.user.loans,activityDeltas(entries,stored.user.loans,stored.user.country)).loans;
+      if (current.some(l=>loanToUser(1,l,stored.user.country,stored.user.fx_to_user_currency)==null)) throw new Error('Save every loan exchange rate before confirming a month.');
+      const scheduledD = dec(defaultEmis);
+      const emisD = new Decimal(emis);
+      const excess = Decimal.max(0,emisD.minus(scheduledD));
+      const netDelta = recapNet(income,expenses,emis,interest,defaultEmis,paymentSource);
+      const accounts = (stored.user.cash_accounts ?? []).map(a=>({...a}));
+      const primaryIndex = accounts.findIndex(a=>a.name===primaryAccount!.name);
+      if (primaryIndex<0) throw new Error('The selected cash account no longer exists.');
+      if (accounts[primaryIndex].kind === 'fd' || (accounts[primaryIndex].currency && accounts[primaryIndex].currency !== currency)) throw new Error('Choose a liquid account in your residence currency.');
+      if (new Set(accounts.map(a=>a.name)).size !== accounts.length) throw new Error('Give each cash account a distinct name in Setup before confirming.');
+      if (new Decimal(accounts[primaryIndex].balance).plus(netDelta).lt(0)) throw new Error('This month would overdraw the selected cash account. Enter the actual income, expenses or funding source.');
+      accounts[primaryIndex].balance = new Decimal(accounts[primaryIndex].balance).plus(netDelta).toFixed(2);
+      let ef = new Decimal(stored.user.efund_balance ?? 0);
+      if(excess.gt(0)) {
+        const live = current.map((l,i)=>({l,i})).filter(({l})=>Number(l.outstanding)>0);
+        const target = targetLoanId ? live.find(({l,i})=>(l.id ?? String(i))===targetLoanId) : live.length===1 ? live[0] : undefined;
+        if(!target) throw new Error('Choose the loan that received the additional payment.');
+        const fx=loanToUser(1,target.l,stored.user.country,stored.user.fx_to_user_currency)!;
+        const principal=excess.div(fx);
+        if(principal.gt(target.l.outstanding)) throw new Error('Extra principal exceeds this loan balance. Split the payment between the loans that received it.');
+        if(paymentSource==='savings_drawdown') {
+          const funding=accounts.findIndex(a=>a.name===fundingAccountName && a.kind!=='fd' && (!a.currency || a.currency===currency));
+          if(funding<0) throw new Error('Choose the liquid account that funded the extra payment.');
+          if(new Decimal(accounts[funding].balance).lt(excess)) throw new Error('That account cannot cover the extra payment.');
+          accounts[funding].balance=new Decimal(accounts[funding].balance).minus(excess).toFixed(2);
+        } else if(paymentSource==='ef_drawdown') {
+          if(ef.lt(excess)) throw new Error('The emergency fund cannot cover that payment.');
+          ef=ef.minus(excess);
         }
-      } else if (paymentSource === 'ef_drawdown') {
-        newEfund = Decimal.max(0, newEfund.sub(excess));
+        entries=addActivityEntry(entries,{loanIndex:target.i,loanId:target.l.id,kind:'paid_extra',date:monthKey+'-01',
+          scheduledEmi:'0',amount:principal.toFixed(2),source:'monthly-recap',note:`${monthLabel(monthKey)} additional principal, ${paymentSource}`},stored.user.loans);
       }
-      // 'one_off' leaves balances alone — windfall paid debt, no tracked
-      // bucket should shrink.
-    }
-
-    // `savings_balance` is intentionally NOT rewritten here. It's a legacy
-    // aggregate that users may have entered independently of cash_accounts
-    // (pre-Phase 1 profiles, or accounts they don't break out per-row);
-    // silently sweeping it to the cash-accounts sum would clobber that
-    // standalone value.
-    saveProfileClient({
-      user: {
-        ...stored.user,
-        cash_accounts: nextAccounts,
-        efund_balance: newEfund.toFixed(2),
-      },
-      marginalRate: stored.marginalRate,
-      creditScore: stored.creditScore,
-    });
-    setExpandedMonth(null);
+      const totalCash=accounts.reduce((sum,a)=> {
+        const fx=!a.currency || a.currency===currency ? 1 : Number(stored.user.fx_to_user_currency?.[a.currency]);
+        if(!(fx>0)) throw new Error('Save every cash account exchange rate before confirming.');
+        return sum.plus(new Decimal(a.balance).mul(fx));
+      },new Decimal(0));
+      const confirmation: MonthlyConfirmation={monthKey,income,expenses,emisPaid:emis,interestEarned:interest,
+        netDelta:netDelta.toFixed(2),primaryAccountName:primaryAccount!.name,confirmedAt:new Date().toISOString(),
+        source:overridden?'override':'confirmed',note,paymentSource,excessPaid:excess.toFixed(2)};
+      const next={...cash,primaryAccountName:primaryAccount!.name,confirmations:[...cash.confirmations,confirmation]};
+      commitCashChange(stored,{...stored.user,cash_accounts:accounts,savings_balance:totalCash.toFixed(2),efund_balance:ef.toFixed(2)},entries,next);
+      setSlice(next);
+      setExpandedMonth(null);
+    } catch(e) {setError((e as Error).message);}
   }
 
   // Show oldest pending first — that's what the user would naturally
@@ -233,12 +205,18 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
   // Layout body (the editable form) shared across all 3 skins.
   const body = (
     <>
+      <label>Cash account for this recap
+        <select aria-label="Cash account for this recap" value={primaryAccount.name} onChange={e=>setChosenAccount(e.target.value)}>
+          {(user.cash_accounts ?? []).filter(a=>a.kind!=='fd' && (!a.currency || a.currency===currency)).map(a=><option key={a.name} value={a.name}>{a.name}</option>)}
+        </select>
+      </label>
       <ConfirmForm
         monthKey={focusMonth}
         currencyLabel={currency}
         defaultIncome={defaultIncome}
         defaultExpenses={defaultExpenses}
         defaultEmis={defaultEmis}
+        user={user}
         onConfirm={handleConfirm}
       />
       {pending.length > 1 && (
@@ -331,6 +309,7 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
           </button>
         )}
       </div>
+      {error && <p role="alert">{error}</p>}
       {isOpen && <div style={{ marginTop: 8 }}>{body}</div>}
     </div>
   );
@@ -344,6 +323,7 @@ function ConfirmForm({
   defaultIncome,
   defaultExpenses,
   defaultEmis,
+  user,
   onConfirm,
 }: {
   monthKey: string;
@@ -351,6 +331,7 @@ function ConfirmForm({
   defaultIncome: string;
   defaultExpenses: string;
   defaultEmis: string;
+  user: UserPayload;
   onConfirm: (
     monthKey: string,
     income: string,
@@ -360,6 +341,8 @@ function ConfirmForm({
     note: string | undefined,
     overridden: boolean,
     paymentSource: PaymentSource,
+    targetLoanId?: string,
+    fundingAccountName?: string,
   ) => void;
 }) {
   const [income, setIncome] = useState(defaultIncome);
@@ -368,6 +351,8 @@ function ConfirmForm({
   const [interest, setInterest] = useState('0');
   const [note, setNote] = useState('');
   const [paymentSource, setPaymentSource] = useState<PaymentSource>('surplus');
+  const [targetLoanId,setTargetLoanId]=useState('');
+  const [fundingAccount,setFundingAccount]=useState('');
 
   // Reset when month changes (user clicked a different pending month).
   useEffect(() => {
@@ -383,20 +368,19 @@ function ConfirmForm({
     income !== defaultIncome ||
     expenses !== defaultExpenses ||
     emis !== defaultEmis ||
-    new Decimal(interest || 0).gt(0) ||
+    dec(interest).gt(0) ||
     note.trim() !== '' ||
     paymentSource !== 'surplus';
 
   const excessAmount = Decimal.max(
     0,
-    new Decimal(emis || 0).sub(new Decimal(defaultEmis || 0)),
+    dec(emis).sub(dec(defaultEmis)),
   );
   const hasExcess = excessAmount.gt(0);
 
-  const net = new Decimal(income || 0)
-    .sub(new Decimal(expenses || 0))
-    .sub(new Decimal(emis || 0))
-    .add(new Decimal(interest || 0));
+  let net = new Decimal(0);
+  let valid = true;
+  try { net=recapNet(income,expenses,emis,interest,defaultEmis,paymentSource); } catch {valid=false;}
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -412,7 +396,7 @@ function ConfirmForm({
           onChange={setExpenses}
         />
         <SmallField
-          label="EMIs paid"
+          label="EMIs paid (excluding extra already logged in Activity)"
           value={emis}
           onChange={setEmis}
         />
@@ -430,6 +414,20 @@ function ConfirmForm({
           isText
         />
       </div>
+      {hasExcess && <>
+        <label>Loan receiving additional payment
+          <select aria-label="Loan receiving additional payment" value={targetLoanId} onChange={e=>setTargetLoanId(e.target.value)}>
+            <option value="">Choose a loan (automatic when only one is active)</option>
+            {user.loans.map((l,i)=>Number(l.outstanding)>0 && <option key={l.id ?? i} value={l.id ?? String(i)}>{l.bank} · {l.loan_type}</option>)}
+          </select>
+        </label>
+        {paymentSource==='savings_drawdown' && <label>Account funding the extra payment
+          <select aria-label="Account funding the extra payment" value={fundingAccount} onChange={e=>setFundingAccount(e.target.value)}>
+            <option value="">Choose an account</option>
+            {(user.cash_accounts ?? []).filter(a=>a.kind!=='fd' && (!a.currency || a.currency===currencyLabel)).map(a=><option key={a.name} value={a.name}>{a.name}</option>)}
+          </select>
+        </label>}
+      </>}
       {hasExcess && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={{ fontSize: 11, color: 'var(--muted-ink, var(--muted))' }}>
@@ -441,6 +439,7 @@ function ConfirmForm({
             above the scheduled EMI. Where did that extra come from?
           </span>
           <select
+            aria-label="Extra payment funding source"
             value={paymentSource}
             onChange={(e) => setPaymentSource(e.target.value as PaymentSource)}
             style={{
@@ -470,6 +469,7 @@ function ConfirmForm({
           </span>
         </div>
       )}
+      {!valid && <p role="alert">Enter finite, non-negative amounts in every money field.</p>}
       <div
         style={{
           display: 'flex',
@@ -497,6 +497,7 @@ function ConfirmForm({
         </div>
         <button
           type="button"
+          disabled={!valid}
           onClick={() =>
             onConfirm(
               monthKey,
@@ -507,6 +508,8 @@ function ConfirmForm({
               note,
               overridden,
               paymentSource,
+              targetLoanId,
+              fundingAccount,
             )
           }
           style={{

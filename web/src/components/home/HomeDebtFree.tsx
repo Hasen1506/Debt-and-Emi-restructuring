@@ -12,7 +12,6 @@ import { thisMonthMove } from '@/lib/this-month';
 import { deriveMetrics } from '@/lib/derived';
 import { describeGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
-import { loadProfileServer } from '@/lib/user-store';
 import { formatCurrency } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
@@ -22,7 +21,7 @@ const loadPlanOnce = cache(loadPlanFromCookies);
 
 export async function HomeDebtFreeValue() {
   const plan = await loadPlanOnce();
-  if (plan.gaps.length > 0 || plan.shortfall > 0) return <>NO DATE YET</>;
+  if (plan.gaps.length > 0 || plan.shortfall > 0 || plan.futureShortfall) return <>NO DATE YET</>;
   if (!plan.live) return <Link href="/plan">SEE PLAN →</Link>;
   // 0 = nothing owed now; null = not cleared within the horizon.
   if (plan.debtFreeMonth === 0) return <>NOW</>;
@@ -33,6 +32,7 @@ export async function HomeDebtFreeValue() {
 export async function HomeDebtFreeCaption() {
   const plan = await loadPlanOnce();
   if (plan.gaps.length > 0) return <Link href="/onboarding?step=loans">ADD LOAN DETAILS →</Link>;
+  if (plan.futureShortfall) return <Link href="/plan">FUTURE PAYMENTS NEED FUNDING · SEE PLAN →</Link>;
   if (plan.shortfall > 0) {
     return (
       <Link href="/plan">
@@ -68,7 +68,8 @@ const WHY: Record<string, string> = {
 
 /** Words for this month's move, from the plan's first month. */
 const moveWords = cache(async (): Promise<{ headline: string; detail: string; oneStep: string }> => {
-  const [plan, profile] = await Promise.all([loadPlanOnce(), loadProfileServer()]);
+  const plan = await loadPlanOnce();
+  const profile = {user:plan.user,marginalRate:plan.marginalRate,creditScore:null,isLive:plan.profileIsLive};
   const m = deriveMetrics(profile);
   const fc = (v: number) => formatCurrency(v, userDefaultCurrency(profile.user.country));
   const move = thisMonthMove(plan);

@@ -15,6 +15,7 @@
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from 'react';
 import { DEMO_MARGINAL_RATE, DEMO_USER } from '@/lib/demo-user';
 import { loadProfileClient, profileCookieKey, type StoredProfile } from '@/lib/user-store';
+import { applyActivityDeltas, parseActivityDeltas } from './activity-cookie';
 import { migrateLoanIdsClient } from '@/lib/loan-id-migration';
 
 // Before the first client render reads the profile: give a profile saved
@@ -35,11 +36,29 @@ function clientSnapshot(): StoredProfile {
   return cache.profile;
 }
 
-const noSubscription = () => () => {};
+function subscribe(callback: () => void) {
+  const events = ['finoptima:profile-changed', 'finoptima:hydrated', 'storage', 'focus'];
+  events.forEach(e => window.addEventListener(e, callback));
+  return () => events.forEach(e => window.removeEventListener(e, callback));
+}
 
 const DEMO: StoredProfile = { user: DEMO_USER, marginalRate: DEMO_MARGINAL_RATE, creditScore: null, isLive: false };
 
 export function useStoredProfile(): StoredProfile {
   const fromServer = useContext(ProfileContext);
-  return useSyncExternalStore(noSubscription, clientSnapshot, () => fromServer ?? DEMO);
+  return useSyncExternalStore(subscribe, clientSnapshot, () => fromServer ?? DEMO);
+}
+
+let currentCache: {key: string; profile: StoredProfile} | null = null;
+function currentSnapshot(): StoredProfile {
+  const profile = clientSnapshot();
+  const raw = document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '';
+  const key = profileCookieKey() + raw;
+  if (!currentCache || currentCache.key !== key) currentCache = {key, profile: {...profile, user: {...profile.user, loans: applyActivityDeltas(profile.user.loans,parseActivityDeltas(raw)).loans}}};
+  return currentCache.profile;
+}
+/** Use current balances for advice. Profile mutations always load the stored baseline. */
+export function useCurrentProfile(): StoredProfile {
+  const fromServer = useContext(ProfileContext);
+  return useSyncExternalStore(subscribe, currentSnapshot, () => fromServer ?? DEMO);
 }

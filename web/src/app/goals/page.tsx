@@ -8,14 +8,14 @@
  * suggest) so the T3 tier renders without a round-trip.
  */
 
-import { loadProfileServer } from '@/lib/user-store';
+import { loadCurrentProfileServer } from '@/lib/user-store';
 import { api } from '@/lib/api';
 import { GoalsClient } from './GoalsClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function GoalsPage() {
-  const profile = await loadProfileServer();
+  const profile = await loadCurrentProfileServer();
   const country = profile.user.country;
 
   // Pre-fetch indicative lowest rates by loan type — used to populate

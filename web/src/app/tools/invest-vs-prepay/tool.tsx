@@ -35,8 +35,8 @@ import {
   returnTaxRate,
   type ReturnTax,
 } from '@/lib/invest-vs-prepay';
-import { simulateMonteCarlo, toRealRate } from '@/lib/monte-carlo';
-import { useStoredProfile } from '@/lib/use-profile';
+import { simulateMonteCarlo } from '@/lib/monte-carlo';
+import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
 import { deriveMetrics } from '@/lib/derived';
 
 const D = (v: string | number | Decimal) => new Decimal(v);
@@ -127,7 +127,7 @@ export function InvestVsPrepayDeepTool() {
     loudest ? (Number(loudest.effective) * 100).toFixed(2) : '11',
   );
   const [marginalPct, setMarginalPct] = useState(
-    (Number(profile.marginalRate || 0.3) * 100).toFixed(0),
+    (Number(profile.marginalRate ?? 0.3) * 100).toFixed(0),
   );
   // Holding period for the Monte Carlo simulation — equity returns
   // converge over longer windows, so this knob meaningfully shifts the
@@ -177,7 +177,9 @@ export function InvestVsPrepayDeepTool() {
     const marginalIn = parseNum(marginalPct);
     const returnIn = parseNum(expReturnPct);
     const volIn = parseNum(volPct);
-    if (!loanIn || !marginalIn || !returnIn || !volIn) return null;
+    if (!loanIn || !marginalIn || !returnIn || !volIn || loanIn.lt(0) || loanIn.gt(100)
+      || marginalIn.lt(0) || marginalIn.gt(100) || returnIn.lte(-100) || returnIn.gt(1000)
+      || volIn.lt(0) || volIn.gt(500)) return null;
     const loan = loanIn.div(100);
     const marginal = Decimal.min(1, Decimal.max(0, marginalIn.div(100)));
     const expReturn = returnIn.div(100);
@@ -246,7 +248,11 @@ export function InvestVsPrepayDeepTool() {
   // result collapses to a deterministic point — we still run the sim
   // because the distribution UI degrades gracefully.
   const mc = useMemo(() => {
-    const expReturn = Number(expReturnPct) / 100;
+    if(!result) return null;
+    const years = parseNum(yearsHeld);
+    const infl = parseNum(inflationPct);
+    if(!years || years.lte(0) || years.gt(100) || !infl || infl.lt(0) || infl.gt(100)) return null;
+    const expReturn = result.preTax.toNumber();
     const vol = Math.max(0, Number(volPct) / 100);
     const taxRate = Number(
       returnTaxRate(inst.tax, Math.min(1, Math.max(0, Number(marginalPct) / 100 || 0))),
@@ -255,12 +261,12 @@ export function InvestVsPrepayDeepTool() {
     return simulateMonteCarlo({
       expectedReturn: expReturn,
       volatility: vol,
-      years: Math.max(1, Number(yearsHeld)),
+      years: years.toNumber(),
       taxRate,
       inflation,
       trials: 5000,
     });
-  }, [expReturnPct, volPct, marginalPct, yearsHeld, inflationPct, inst]);
+  }, [result, volPct, marginalPct, yearsHeld, inflationPct, inst]);
 
   // The default is dated and the answer is close: ask for today's yield.
   const needsYield =
@@ -270,11 +276,8 @@ export function InvestVsPrepayDeepTool() {
     result.expectedSpread.abs().lt(CLOSE_CALL);
 
   const loanRateDecimal = Number(loanRatePct) / 100;
-  const loanRealDecimal = Number(
-    toRealRate(loanRateDecimal, Number(inflationPct) / 100).toString(),
-  );
-  const probBeatNominal = mc.probBeatLoanNominal(loanRateDecimal);
-  const probBeatReal = mc.probBeatLoanReal(loanRealDecimal);
+  const probBeatNominal = mc?.probBeatLoanNominal(loanRateDecimal) ?? 0;
+  const probPositiveReal = mc?.probBeatLoanReal(0) ?? 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -471,12 +474,12 @@ export function InvestVsPrepayDeepTool() {
               <strong>Real vs nominal.</strong> Real-terms strips out
               inflation — useful because a 7% FD against 6% CPI is
               barely positive in actual buying power. We show both side
-              by side.
+              by side. Beating the inflation-adjusted loan has the same probability as beating its nominal rate; purchasing-power probability instead compares real returns with zero.
             </div>
           </InfoTip>
         </div>
         <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-          {Math.max(1, Number(yearsHeld))}-year holding period, 5,000 trials.
+          {yearsHeld}-year holding period, 5,000 trials.
           Inflation drag of {inflationPct}% applied for the real-terms column.
         </div>
 
@@ -489,20 +492,18 @@ export function InvestVsPrepayDeepTool() {
           </Field>
         </div>
 
+        {!mc && <p role="alert">Enter valid returns, tax (0–100%), volatility (0–500%), holding period (0–100 years) and inflation (0–100%).</p>}
+        {mc && <>
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-            gap: 12,
-          }}
+          style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))',gap:12}}
         >
           <Stat
             label="P(beat loan, nominal)"
             value={`${(probBeatNominal * 100).toFixed(0)}%`}
           />
           <Stat
-            label="P(beat loan, real)"
-            value={`${(probBeatReal * 100).toFixed(0)}%`}
+            label="P(preserve purchasing power)"
+            value={`${(probPositiveReal * 100).toFixed(0)}%`}
           />
           <Stat
             label="Median nominal after-tax"
@@ -559,11 +560,10 @@ export function InvestVsPrepayDeepTool() {
             <>
               {(probBeatNominal * 100).toFixed(0)}% of trials beat your{' '}
               {loanRatePct}% loan in nominal terms — investing wins clearly
-              in the expected case. {probBeatReal < 0.5 && (
+              in the expected case. {probPositiveReal < 0.5 && (
                 <>
-                  But real-terms says only {(probBeatReal * 100).toFixed(0)}%
-                  of trials win after inflation — inflation eats most of the
-                  edge.
+                  Only {(probPositiveReal * 100).toFixed(0)}%
+                  of trials preserve purchasing power after inflation. This is a separate cash-return hurdle.
                 </>
               )}
             </>
@@ -582,6 +582,7 @@ export function InvestVsPrepayDeepTool() {
             </>
           )}
         </div>
+        </>}
       </Card>
 
       <div className="muted" style={{ fontSize: 11 }}>

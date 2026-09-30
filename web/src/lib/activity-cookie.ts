@@ -88,6 +88,7 @@ export function syncActivityCookieClient(
   const payload: CookiePayload = { v: CURRENT_VERSION, deltas: activityDeltas(entries, loans, country) };
   const encoded = COMPRESSED + compressToEncodedURIComponent(JSON.stringify(payload));
   document.cookie = `${COOKIE_NAME}=${encoded}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  window.dispatchEvent(new Event('finoptima:profile-changed'));
 }
 
 /** Each loan's net effect from its activity entries (newest first): overdue
@@ -101,7 +102,8 @@ export function activityDeltas(
 ): ActivityDelta[] {
   // Entries point at their loan's current position (by id), so a loan
   // removed in Setup takes its entries with it instead of passing them on.
-  const aligned = alignToLoans(entries, loans);
+  const aligned = alignToLoans(entries, loans).slice().sort((a,b) => b.date.localeCompare(a.date) || b.loggedAt.localeCompare(a.loggedAt));
+  const anchored = new Set<number>();
   const byLoan = new Map<
     number,
     { overdue: Decimal; penalty: Decimal; reduction: Decimal; closed: boolean; balanceOverride?: string; count: number }
@@ -117,7 +119,7 @@ export function activityDeltas(
 
   for (const e of aligned) {
     const loan = loans[e.loanIndex];
-    if (!loan) continue;
+    if (!loan || anchored.has(e.loanIndex)) continue;
 
     // Card only: the newest reported balance after a payment re-anchors the
     // card's outstanding. Entries arrive newest-first, so the first wins.
@@ -128,6 +130,8 @@ export function activityDeltas(
       acc(e.loanIndex).balanceOverride === undefined
     ) {
       acc(e.loanIndex).balanceOverride = e.newOutstanding;
+      anchored.add(e.loanIndex);
+      continue; // This balance already includes this payment and every older entry.
     }
 
     if (e.kind === 'paid_full') continue;
@@ -312,7 +316,7 @@ export function applyActivityDeltas(
     // for credit cards. The user's reported post-payment balance is the
     // most accurate ground truth we have.
     if (entry.balanceOverride !== null) {
-      return { ...loan, outstanding: entry.balanceOverride };
+      return { ...loan, outstanding: Decimal.max(0, new Decimal(entry.balanceOverride).add(entry.bump)).toFixed(2) };
     }
     if (entry.bump.eq(0)) return loan;
     const next = new Decimal(loan.outstanding || 0).add(entry.bump);

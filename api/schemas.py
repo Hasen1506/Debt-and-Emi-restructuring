@@ -107,6 +107,29 @@ class _In(_Base):
     def _bounded(cls, v: Any) -> Any:
         return _check_bounds(v)
 
+    @model_validator(mode="after")
+    def _valid_lifecycle_loans(self):
+        user = getattr(self, "user", None)
+        events = getattr(self, "lifecycle_events", [])
+        if user is None or not events:
+            return self
+        drafts = [e.loan_draft for e in events if e.kind == "property_buy" and e.loan_draft is not None]
+        if len(user.loans) + len(drafts) > MAX_LOANS:
+            raise ValueError("Existing and planned loans together must not exceed 50")
+        own = "INR" if user.country == Country.IN else "USD"
+        for draft in drafts:
+            if draft.outstanding <= 0 or draft.scheduled_emi <= 0 or draft.tenure_months_remaining <= 0:
+                raise ValueError("Planned loans need positive principal, EMI and tenure")
+            currency = draft.currency or own
+            if currency not in ("INR", "USD"):
+                raise ValueError("Planned loan currency must be INR or USD")
+            if currency != own and user.fx_to_user_currency.get(currency, D("0")) <= 0:
+                raise ValueError("Save an exchange rate for the planned loan currency")
+        for event in events:
+            if event.kind == "floating_rate_reset" and event.loan_index is not None and event.loan_index >= len(user.loans):
+                raise ValueError("Rate reset must reference an existing loan")
+        return self
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Loan / Asset / Investment / PF
@@ -474,16 +497,25 @@ class ReinvestEvent(_In):
 class LifecycleEventIn(_In):
     """Planned future event the engine should apply at its effective month.
     Past-confirmed events don't go here — the frontend bakes them into the
-    profile via L1 immediate-apply before the simulate call. Only kind
-    ∈ {salary_reset, floating_rate_reset} is supported by the engine;
-    property_buy events stay L1-only because mid-loop dynamic loan
-    addition cascades into response shape + ranking complexity."""
-    kind: str = Field(..., pattern=r"^(salary_reset|floating_rate_reset)$")
+    profile before the simulate call. Planned loans reserve stable
+    positions after the user's existing loans."""
+    kind: str = Field(..., pattern=r"^(salary_reset|floating_rate_reset|property_buy)$")
     effective_month: int = Field(..., ge=1, le=MAX_MONTHS)
     new_annual_gross: Optional[Amount] = None
     new_monthly_take_home: Optional[Amount] = None
     loan_index: Optional[LoanIndex] = None
     new_rate: Optional[Rate] = None
+    loan_draft: Optional[LoanIn] = None
+
+    @model_validator(mode="after")
+    def complete_event(self):
+        if self.kind == "salary_reset" and self.new_annual_gross is None and self.new_monthly_take_home is None:
+            raise ValueError("Salary reset requires gross income or take-home")
+        if self.kind == "floating_rate_reset" and (self.loan_index is None or self.new_rate is None):
+            raise ValueError("Rate reset requires a loan index and new rate")
+        if self.kind == "property_buy" and self.loan_draft is None:
+            raise ValueError("Property buy requires a loan draft")
+        return self
 
 
 class SimulateRequest(_In):

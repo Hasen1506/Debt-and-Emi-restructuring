@@ -22,13 +22,12 @@ import {
   readLifecycleClient,
   writeLifecycleClient,
   updateLifecycleEvent,
-  applyConfirmedEventWithRefresh,
-  undoConfirmedEventWithRefresh,
   pendingArrivals,
   LIFECYCLE_KIND_LABEL,
   type LifecycleEvent,
 } from '@/lib/lifecycle-events';
-import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
+import { commitLifecycle } from '@/lib/commit-lifecycle';
+import { localIsoDate } from '@/lib/today';
 
 type Variant = 'ledger' | 'existing' | 'editorial';
 
@@ -40,6 +39,7 @@ export function LifecycleArrivalPrompts({
   variant: Variant;
 }) {
   const [ready, setReady] = useState(false);
+  const [error,setError] = useState('');
   const [events, setEvents] = useState<LifecycleEvent[]>([]);
   // Per-event postpone log: id → most-recent new effectiveDate. Drives
   // the inline "Postponed to YYYY-MM-DD" confirmation under each row so
@@ -59,61 +59,30 @@ export function LifecycleArrivalPrompts({
   }, []);
 
   const pending = ready ? pendingArrivals(events) : [];
-  if (pending.length === 0) return null;
+  if (pending.length === 0 && !error) return null;
 
   function setStatus(id: string, status: 'confirmed' | 'cancelled') {
-    const target = events.find((e) => e.id === id);
-    if (!target) return;
-    // planned → confirmed: apply event to profile + capture snapshot.
-    // Refresh marginalRate alongside the user mutation — a salary
-    // bump changes the bracket, and downstream tax-aware calcs lie
-    // when the stored marginal stays at the pre-event value.
-    if (status === 'confirmed' && target.status !== 'confirmed') {
-      const prevMarginal = loadProfileClient().marginalRate;
-      const { user: updatedUser, marginalRate, snapshot } =
-        applyConfirmedEventWithRefresh(user, prevMarginal, target);
-      saveProfileClient({ user: updatedUser, marginalRate });
-      const next = updateLifecycleEvent(events, id, {
-        status,
-        appliedSnapshot: snapshot,
-      });
-      writeLifecycleClient(next);
-      setEvents(next);
-      return;
-    }
-    // confirmed → cancelled: undo profile change first, then change status.
-    if (target.status === 'confirmed' && status === 'cancelled') {
-      if (target.appliedSnapshot) {
-        const { user: restoredUser, marginalRate } =
-          undoConfirmedEventWithRefresh(user, target);
-        saveProfileClient({ user: restoredUser, marginalRate });
-      }
-      const next = updateLifecycleEvent(events, id, {
-        status,
-        appliedSnapshot: undefined,
-      });
-      writeLifecycleClient(next);
-      setEvents(next);
-      return;
-    }
-    // Other transitions (planned → cancelled): no profile mutation needed.
-    const next = updateLifecycleEvent(events, id, { status });
-    writeLifecycleClient(next);
-    setEvents(next);
+    try {setEvents(commitLifecycle(id,status));setError('');}
+    catch(e) {setError((e as Error).message);}
   }
 
   function postpone(id: string, currentIso: string) {
-    const d = new Date(currentIso);
+    const d = new Date(Math.max(new Date(currentIso+'T00:00:00').getTime(), Date.now()));
     d.setDate(d.getDate() + 30);
-    const newIso = d.toISOString().slice(0, 10);
-    const next = updateLifecycleEvent(events, id, { effectiveDate: newIso });
-    writeLifecycleClient(next);
-    setEvents(next);
-    setPostponedTo((prev) => ({ ...prev, [id]: newIso }));
+    const newIso = localIsoDate(d);
+    const next = updateLifecycleEvent(readLifecycleClient(), id, { effectiveDate: newIso });
+    try {
+      writeLifecycleClient(next);
+      setEvents(next);
+      setPostponedTo((prev) => ({ ...prev, [id]: newIso }));
+      setError('');
+    } catch(e) {setError((e as Error).message);}
+
   }
 
   return (
     <section style={containerStyle(variant)}>
+      {error && <p role="alert" style={{color:'var(--negative)'}}>{error}</p>}
       <div style={labelStyle(variant)}>
         {pending.length === 1
           ? 'Arrival prompt · did this happen?'

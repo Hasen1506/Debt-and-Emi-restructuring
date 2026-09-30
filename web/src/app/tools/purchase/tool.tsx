@@ -21,7 +21,7 @@ import { useMemo, useState } from 'react';
 import { Field, InfoTip, Select } from '@/components/ToolPrimitives';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { formatCurrency } from '@/lib/api';
-import { useStoredProfile } from '@/lib/use-profile';
+import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
 import { userDefaultCurrency } from '@/lib/currency';
 import { deriveMetrics } from '@/lib/derived';
 import { summariseDeductions } from '@/lib/deductions';
@@ -120,6 +120,13 @@ export function PurchaseTool() {
 
   const [type, setType] = useState<PurchaseType>('home');
   const [price, setPrice] = useState('');
+  const [availableSavings, setAvailableSavings] = useState(() => {
+    if(!profile.isLive) return '0';
+    const accounts=profile.user.cash_accounts;
+    if(!accounts?.length) return profile.user.savings_balance ?? '0';
+    return accounts.filter(a=>a.kind!=='fd' && (!a.currency || a.currency===ccy))
+      .reduce((sum,a)=>sum+Number(a.balance),0).toFixed(2);
+  });
   const [targetMonth, setTargetMonth] = useState(nextSixMonths);
   const [downPct, setDownPct] = useState(DEFAULTS.home.downPct);
   const [tenureYears, setTenureYears] = useState(DEFAULTS.home.tenureYears);
@@ -154,12 +161,13 @@ export function PurchaseTool() {
     [],
   );
 
-  const priceNum = Number(price || '0');
-  const analysis: PurchaseAnalysis | null =
-    priceNum > 0
-      ? analyzePurchase({
+  let analysis: PurchaseAnalysis | null = null;
+  let inputError: string | null = null;
+  try {
+    if (price.trim() && deriveMetrics(profile).fxMissing.length) throw new Error('Save exchange rates for your foreign loans in Setup before checking affordability.');
+    if (price.trim()) analysis = analyzePurchase({
           type,
-          price: priceNum,
+          price: Number(price),
           targetMonth,
           downPaymentPct: Number(downPct) / 100,
           loanTenureYears: Number(tenureYears),
@@ -174,8 +182,8 @@ export function PurchaseTool() {
             profile.user.deductions?.state_marginal_rate_override,
           itemisesUS,
           monthlySurplus,
-        })
-      : null;
+          availableSavings: Number(availableSavings),
+        }); } catch(e) { inputError = (e as Error).message; }
 
   // Goal-slip: how much does each active goal's earliest feasible month
   // shift if the user takes this purchase's EMI on top of current
@@ -202,6 +210,7 @@ export function PurchaseTool() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {inputError && <p role="alert">{inputError}</p>}
       <div
         style={{
           display: 'grid',
@@ -222,6 +231,8 @@ export function PurchaseTool() {
           hint="Out-the-door cost"
           kind="decimal"
         />
+        <Field label="Savings available for this purchase" value={availableSavings} onChange={setAvailableSavings}
+          hint="Exclude your emergency fund, locked deposits, and money committed to other goals. No money is moved by this check." />
         <MonthYearPicker
           label="Target month"
           value={targetMonth}
@@ -403,7 +414,7 @@ function AnalysisPanel({
         <NumberStat
           label="Down payment"
           value={fmt(analysis.downPayment.amount)}
-          sub={`${fmt(analysis.downPayment.monthlySavingRequired)}/mo to save by date${
+          sub={`${fmt(analysis.downPayment.savingsUsed)} from savings · ${fmt(analysis.downPayment.monthlySavingRequired)}/mo to save by date${
             analysis.downPayment.coverableBySurplus ? '' : ' — exceeds surplus'
           }`}
         />

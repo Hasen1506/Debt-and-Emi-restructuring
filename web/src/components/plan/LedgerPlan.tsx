@@ -78,7 +78,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   const horizon = plan.trajectory.length;
   // Short of cash this month: the schedule below pays minimums the user
   // can't fund, so its date isn't one to plan around.
-  const short = plan.shortfall > 0;
+  const short = plan.shortfall > 0 || !!plan.futureShortfall;
   const clearLabel = short
     ? 'NO DATE YET'
     : plan.debtFreeMonth
@@ -142,12 +142,13 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
     { y: 0, l: formatCurrencyCompact(0, ccy) },
   ];
 
-  const baselineClear = traj.find((p) => p.month > 0 && p.minimums <= 0.5)?.month ?? null;
+  const lastBaselineDebt = traj.filter(p => p.minimums > 0.5).at(-1)?.month ?? 0;
+  const baselineClear = traj.find(p => p.month > lastBaselineDebt && p.minimums <= 0.5)?.month ?? null;
   const chartTitle =
     traj.length === 0
       ? ''
       : `Total debt over time. ${strategyUp.toLowerCase()} plan: ${fc(traj[0].avalanche)} after this month, ` +
-        (plan.debtFreeMonth
+        (!short && plan.debtFreeMonth
           ? `cleared in ${monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)}. `
           : 'not cleared within the plan. ') +
         (baselineClear
@@ -180,7 +181,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                 ? {
                     l: 'DEBT-FREE',
                     v: clearLabel,
-                    s: `SHORT ${fc(Math.round(plan.shortfall))}/MO`,
+                    s: plan.shortfall > 0 ? `SHORT ${fc(Math.round(plan.shortfall))}/MO` : 'FUTURE PAYMENTS NEED FUNDING',
                     tone: L_T.negative,
                   }
                 : {
@@ -211,7 +212,16 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           />
         </section>
 
-        {short && <ShortfallBanner plan={plan} />}
+        {plan.shortfall > 0 && <ShortfallBanner plan={plan} />}
+        {plan.futureShortfall && <div role="alert" style={{color:L_T.negative,fontSize:12}}>
+          FUTURE FUNDING GAP · SHORT {fc(plan.futureShortfall.amount)} IN {monthIndexToCountryLabel(plan.futureShortfall.month,plan.user.country).toUpperCase()}.
+          The forecast assumes all minimum payments are funded. Revise the planned loan, income or expenses before relying on a payoff date.
+        </div>}
+        {plan.user.loans.some(l=>l.planned_effective_month) && <div style={{fontSize:12}}>
+          Forecast includes planned loans: {plan.user.loans.filter(l=>l.planned_effective_month).map(l=>
+            `${l.bank} from ${monthIndexToCountryLabel(l.planned_effective_month!,plan.user.country)}`).join('; ')}.
+          Confirm, postpone or cancel the event when the date arrives.
+        </div>}
         <FxCachePersister rates={plan.fxRatesUsed} />
         <LifecycleArrivalPrompts user={plan.user} variant="ledger" />
         {plan.activityImpact && (
@@ -345,8 +355,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {/* When each loan clears */}
         <section>
           <LSectionHeader>KEY DATES · WHEN EACH LOAN CLEARS</LSectionHeader>
-          <DebtFreeRedirectPrompt plan={plan} />
-          <KeyClearanceDates plan={plan} />
+          {!short && <><DebtFreeRedirectPrompt plan={plan} /><KeyClearanceDates plan={plan} /></>}
+          {short && <p style={{fontSize:12}}>Resolve the funding gap to get reliable clearance milestones. The schedule below assumes every minimum payment is funded.</p>}
         </section>
 
         <CentralBankHint
@@ -396,7 +406,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           </div>
           <LCardHard>
             <WhatIfPanel
-              user={plan.user}
+              user={plan.runArgs?.user ?? {...plan.user,loans:plan.user.loans.filter(l=>!l.planned_effective_month)}}
               marginalRate={plan.marginalRate}
               strategy={plan.strategy}
               runArgs={plan.runArgs}
@@ -679,7 +689,8 @@ function AmortisationSection({
       for (const [idxStr, n] of Object.entries(balancesNow)) {
         const prev = balancesPrev
           ? Number(balancesPrev[idxStr] ?? 0)
-          : Number(plan.user.loans[Number(idxStr)]?.outstanding ?? 0);
+          : (plan.user.loans[Number(idxStr)]?.planned_effective_month ?? 1) > 1
+            ? 0 : Number(plan.user.loans[Number(idxStr)]?.outstanding ?? 0);
         if (prev > 0 && Number(n) <= 0.01) {
           const lender = plan.user.loans[Number(idxStr)]?.bank ?? 'LOAN';
           event = `★ ${lender.toUpperCase()} CLEARED`;

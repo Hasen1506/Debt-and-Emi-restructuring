@@ -15,12 +15,13 @@
  * a planned event's effectiveDate has passed, /plan banners "did this
  * happen?" with confirm / postpone / cancel actions.
  *
- * Engine integration is deferred — the simulator doesn't yet read this
- * store. For phase 1 the panel is an audit/planning surface. When the
- * engine does pick it up, *confirmed* events with past effectiveDate
- * should be folded into user state at the right month.
+ * Planned events enter the forward simulation at their effective month.
+ * Confirmed events update the saved profile and keep an undo snapshot.
  */
 
+import Decimal from 'decimal.js';
+import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
+import { computeAnnualTax } from './tax-brackets';
 import { localIsoDate } from './today';
 import type { LoanPayload, UserPayload } from './api';
 import { deriveMarginalRateForUser } from './deductions';
@@ -49,13 +50,14 @@ interface BaseEvent {
   /** Snapshot of the profile fields BEFORE applyConfirmedEvent ran.
    *  Populated when status flips planned→confirmed; consumed by
    *  undoConfirmedEvent when user reopens/cancels/deletes a previously-
-   *  confirmed event. Limitation: snapshots are independent per event,
-   *  so un-stacking out of order may restore a stale state — that's
-   *  acceptable in v1 (rare case, easy to manually correct). */
+   *  confirmed event. Undoing an older confirmation rebases the next
+   *  confirmation's snapshot, preserving the latest change. */
   appliedSnapshot?: AppliedSnapshot;
 }
 
 export interface AppliedSnapshot {
+  appliedAt?: string;
+  appliedSequence?: number;
   // salary_reset
   prevAnnualIncome?: string;
   prevMonthlyIncome?: string;
@@ -64,9 +66,10 @@ export interface AppliedSnapshot {
   // floating_rate_reset
   prevLoanRate?: string;
   prevLoanIndex?: number;
-  // property_buy — index of the loan that was appended, so we know
-  // which entry to splice out on undo.
+  // property_buy — stable identity; index retained for legacy snapshots.
   addedLoanIndex?: number;
+  addedLoanId?: string;
+  prevLoanId?: string;
   /** Pre-apply marginal rate. Captured because the post-apply user
    *  may sit in a different tax bracket — a salary jump from ₹10L to
    *  ₹25L flips the user from 20% (old regime) to 30%, and the stored
@@ -98,9 +101,7 @@ export interface FloatingRateResetEvent extends BaseEvent {
 
 export interface PropertyBuyEvent extends BaseEvent {
   kind: 'property_buy';
-  /** Full loan shape — same fields as a regular LoanPayload. On confirm,
-   *  this draft is appended to user.loans (eventually; engine wiring is
-   *  out of phase 1). */
+  /** Forecast at the effective month; append to saved loans on confirm. */
   loanDraft: LoanPayload;
 }
 
@@ -153,7 +154,7 @@ function isValid(v: unknown): v is LifecycleEvent {
 function safeParse(raw: string | null): LifecycleEvent[] {
   if (!raw) return [];
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw.startsWith('z1.') ? decompressFromEncodedURIComponent(raw.slice(3)) || '' : raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(isValid);
   } catch {
@@ -182,9 +183,17 @@ export function readLifecycleClient(): LifecycleEvent[] {
   return sortByDate(safeParse(readClientCookie()));
 }
 
-export function writeLifecycleClient(events: LifecycleEvent[]): void {
-  writeClientCookie(JSON.stringify(events));
-  void import('./server-sync').then(({ syncSliceToServer }) =>
+export function writeLifecycleClient(events: LifecycleEvent[], sync = true): void {
+  const value = 'z1.' + compressToEncodedURIComponent(JSON.stringify(events));
+  if (value.length > 3800) throw new Error('Life event details exceed browser storage. Shorten notes or remove old events, then retry.');
+  const before = readClientCookie();
+  writeClientCookie(value);
+  if (readClientCookie() !== value) {
+    if (before != null) writeClientCookie(before);
+    else if (typeof document !== 'undefined') document.cookie = `${COOKIE_NAME}=; path=/; max-age=0`;
+    throw new Error('Life events could not be saved. Your previous events are unchanged.');
+  }
+  if (sync) void import('./server-sync').then(({ syncSliceToServer }) =>
     syncSliceToServer('lifecycle', events),
   );
 }
@@ -228,40 +237,38 @@ import type { LifecycleEventInput } from './api';
 
 /** How many whole months from `from` (inclusive) to `to`. Returns at least 1. */
 function monthsBetween(fromIso: string, toIso: string): number {
-  const a = new Date(fromIso);
-  const b = new Date(toIso);
-  const years = b.getFullYear() - a.getFullYear();
-  const months = b.getMonth() - a.getMonth();
+  const years = Number(toIso.slice(0,4)) - Number(fromIso.slice(0,4));
+  const months = Number(toIso.slice(5,7)) - Number(fromIso.slice(5,7));
   return Math.max(1, years * 12 + months + 1);
 }
 
 /**
  * Translate planned lifecycle events (status === 'planned', effectiveDate
- * in the future) into the engine's wire format. Confirmed past events
+ * including overdue intentions) into the engine's wire format. Confirmed events
  * are already baked into the profile via `applyConfirmedEvent`; sending
  * them again would double-apply.
  *
  * `today` defaults to the current date — pass an explicit ISO to override
  * for deterministic tests.
  *
- * Skips kinds the engine doesn't yet handle (property_buy) — those stay
- * L1-only.
+ * Overdue intentions enter month 1 until confirmed, postponed or cancelled.
  */
 export function plannedEventsForEngine(
   events: LifecycleEvent[],
-  today: string = new Date().toISOString().slice(0, 10),
+  today: string = localIsoDate(new Date()),
   loans?: Pick<LoanPayload, 'id'>[],
+  user?: UserPayload,
 ): LifecycleEventInput[] {
   const out: LifecycleEventInput[] = [];
   for (const e of events) {
     if (e.status !== 'planned') continue;
-    if (e.effectiveDate <= today) continue;
+
     if (e.kind === 'salary_reset') {
       out.push({
         kind: 'salary_reset',
         effective_month: monthsBetween(today, e.effectiveDate),
         new_annual_gross: e.newAnnualGross,
-        new_monthly_take_home: e.newMonthlyTakeHome,
+        new_monthly_take_home: e.newMonthlyTakeHome ?? (user ? estimatedTakeHome(user, e.newAnnualGross) : undefined),
       });
     } else if (e.kind === 'floating_rate_reset') {
       const loanIndex = loans ? resolveLoanIndex(e, loans) : e.loanIndex;
@@ -273,8 +280,9 @@ export function plannedEventsForEngine(
         new_rate: e.newRate,
       });
     }
-    // property_buy: engine doesn't handle yet; affects profile only on confirm
-    // via L1 immediate-apply path.
+    if (e.kind === 'property_buy') {
+      out.push({kind: 'property_buy', effective_month: monthsBetween(today, e.effectiveDate), loan_draft: {...e.loanDraft, id: `lifecycle_${e.id}`}});
+    }
   }
   return out;
 }
@@ -285,11 +293,8 @@ export function plannedEventsForEngine(
  * Returns a new `UserPayload` with the event's effect baked in. Pure —
  * caller is responsible for persisting via `saveProfileClient`.
  *
- * Level 1 integration: the change applies "as if always true" — the
- * engine simulates the new profile from month 0. The trajectory will
- * technically show the past months at the new salary / new rate. That's
- * acceptable visually; a future level-2 pass will pipe events into the
- * engine so step-changes appear at the right month.
+ * Confirmation updates today's baseline. Planned events continue to
+ * enter the forecast at their effective month until confirmed/cancelled.
  *
  * For salary_reset we hit `annual_income` (the canonical engine field)
  * + propagate to whichever of annual_gross_salary/annual_business_income
@@ -309,7 +314,9 @@ export function applyConfirmedEvent(
     const next: UserPayload = { ...user, annual_income: event.newAnnualGross };
     if (user.annual_gross_salary) next.annual_gross_salary = event.newAnnualGross;
     if (user.annual_business_income) next.annual_business_income = event.newAnnualGross;
-    if (event.newMonthlyTakeHome) next.monthly_income = event.newMonthlyTakeHome;
+    next.monthly_income = event.newMonthlyTakeHome ?? estimatedTakeHome(user, event.newAnnualGross);
+    if (user.income_type === 'salaried') next.annual_gross_salary = event.newAnnualGross;
+    else next.annual_business_income = event.newAnnualGross;
     return { user: next, snapshot };
   }
   if (event.kind === 'floating_rate_reset') {
@@ -318,15 +325,18 @@ export function applyConfirmedEvent(
     const target = idx >= 0 ? loans[idx] : undefined;
     const snapshot: AppliedSnapshot = {
       prevLoanIndex: idx,
+      prevLoanId: target?.id,
       prevLoanRate: target?.nominal_rate,
     };
+    if (!target) throw new Error('The loan for this event no longer exists.');
     if (target) loans[idx] = { ...target, nominal_rate: event.newRate };
     return { user: { ...user, loans }, snapshot };
   }
   if (event.kind === 'property_buy') {
-    const snapshot: AppliedSnapshot = { addedLoanIndex: user.loans.length };
+    const addedLoanId = `lifecycle_${event.id}`;
+    const snapshot: AppliedSnapshot = { addedLoanIndex: user.loans.length, addedLoanId };
     return {
-      user: { ...user, loans: [...user.loans, event.loanDraft] },
+      user: { ...user, loans: [...user.loans, {...event.loanDraft, id: addedLoanId}] },
       snapshot,
     };
   }
@@ -354,7 +364,7 @@ export function applyConfirmedEventWithRefresh(
   return {
     user: updatedUser,
     marginalRate,
-    snapshot: { ...snapshot, prevMarginalRate },
+    snapshot: { ...snapshot, prevMarginalRate, appliedAt: new Date().toISOString() },
   };
 }
 
@@ -362,10 +372,8 @@ export function applyConfirmedEventWithRefresh(
  * Inverse of applyConfirmedEvent. Restores the pre-confirm profile state
  * from event.appliedSnapshot. No-op if the snapshot is missing.
  *
- * Stacked events: each event's snapshot captures the state immediately
- * before that event ran. Un-stacking out of order (reopen A → reopen B
- * when B was confirmed after A) will restore A's snapshot, which may
- * not reflect B's intermediate state. Acceptable for v1.
+ * For stacked confirmations, call undoLifecycleInStack so removing an
+ * older event preserves the latest salary/rate and rebases its undo.
  */
 export function undoConfirmedEvent(
   user: UserPayload,
@@ -391,17 +399,25 @@ export function undoConfirmedEvent(
   }
   if (event.kind === 'floating_rate_reset' && snap.prevLoanIndex !== undefined) {
     const loans = user.loans.slice();
-    const target = loans[snap.prevLoanIndex];
+    const idx = resolveLoanIndex({loanIndex: snap.prevLoanIndex, loanId: snap.prevLoanId ?? event.loanId}, loans);
+    const target = loans[idx];
     if (target && snap.prevLoanRate !== undefined) {
-      loans[snap.prevLoanIndex] = { ...target, nominal_rate: snap.prevLoanRate };
+      loans[idx] = { ...target, nominal_rate: snap.prevLoanRate };
     }
     return { ...user, loans };
   }
-  if (event.kind === 'property_buy' && snap.addedLoanIndex !== undefined) {
+  if (event.kind === 'property_buy' && (snap.addedLoanId || snap.addedLoanIndex !== undefined)) {
     const loans = user.loans.slice();
-    if (snap.addedLoanIndex < loans.length) {
-      loans.splice(snap.addedLoanIndex, 1);
+    let idx = snap.addedLoanId ? loans.findIndex(l => l.id === snap.addedLoanId) : -1;
+    if(!snap.addedLoanId) {
+      const matches=loans.map((l,i)=>({l,i})).filter(({l})=>l.bank===event.loanDraft.bank && l.loan_type===event.loanDraft.loan_type && l.currency===event.loanDraft.currency);
+      const exact=matches.filter(({l})=>l.outstanding===event.loanDraft.outstanding && l.nominal_rate===event.loanDraft.nominal_rate);
+      const candidates=exact.length ? exact : matches;
+      if(candidates.length>1) throw new Error('This older event cannot identify its loan uniquely. Check the matching loans in Setup before undoing it.');
+      idx=candidates[0]?.i ?? -1;
     }
+    // Legacy snapshots are matched by draft rather than removing an unrelated index.
+    if (idx >= 0) loans.splice(idx, 1);
     return { ...user, loans };
   }
   return user;
@@ -471,4 +487,29 @@ export function describeEvent(e: LifecycleEvent): string {
   const draft = e.loanDraft;
   const bank = draft.bank?.trim() || 'New loan';
   return `${bank} ${draft.loan_type.replace('_', ' ')} (${draft.outstanding})`;
+}
+
+/** Estimated income-tax-only net. Payroll/PF/insurance deductions require the override. */
+export function estimatedTakeHome(user: UserPayload, gross: string): string {
+  const income = new Decimal(gross);
+  const tax = computeAnnualTax(user.country, user.tax_regime, user.income_type, income.toNumber(), user.filing_status);
+  const state = user.country === 'US' ? income.mul(user.state_marginal_rate ?? 0) : new Decimal(0);
+  return Decimal.max(0, income.minus(tax).minus(state)).div(12).toFixed(2);
+}
+
+/** Remove an older event without undoing a later confirmation of the same field.
+ * Transfer the older baseline to the next event's undo snapshot. */
+export function undoLifecycleInStack(user: UserPayload, event: LifecycleEvent, events: LifecycleEvent[]): {user: UserPayload; marginalRate: string; events: LifecycleEvent[]} {
+  const sameField = (e: LifecycleEvent) => event.kind === 'salary_reset' ? e.kind === 'salary_reset'
+    : event.kind === 'floating_rate_reset' && e.kind === 'floating_rate_reset'
+      && resolveLoanIndex(event, user.loans) === resolveLoanIndex(e, user.loans);
+  const compare = (a: LifecycleEvent,b: LifecycleEvent) => a.appliedSnapshot?.appliedSequence != null && b.appliedSnapshot?.appliedSequence != null
+    ? a.appliedSnapshot.appliedSequence - b.appliedSnapshot.appliedSequence
+    : (a.appliedSnapshot?.appliedAt ?? a.loggedAt).localeCompare(b.appliedSnapshot?.appliedAt ?? b.loggedAt);
+  const later = events.filter(e => e.id !== event.id && e.status === 'confirmed' && sameField(e) && compare(e,event)>0).sort(compare)[0];
+  if (later) {
+    const snapshot = {...event.appliedSnapshot, appliedAt: later.appliedSnapshot?.appliedAt, appliedSequence:later.appliedSnapshot?.appliedSequence};
+    return {user, marginalRate: deriveMarginalRateForUser(user), events: updateLifecycleEvent(events,later.id,{appliedSnapshot:snapshot})};
+  }
+  return {...undoConfirmedEventWithRefresh(user,event), events};
 }

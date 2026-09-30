@@ -21,6 +21,7 @@
 
 import { useEffect } from 'react';
 import { writeProfileCookieClient } from './user-store';
+import { writeLifecycleClient, type LifecycleEvent } from './lifecycle-events';
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
@@ -40,6 +41,7 @@ const SLICE_TARGETS: Record<string, SliceTarget> = {
   tax_reinvest:       { kind: 'cookie',       name: 'finoptima_tax_reinvest' },
   fx_drift:           { kind: 'cookie',       name: 'finoptima_fx_drift' },
   commitments:        { kind: 'localStorage', name: 'finoptima_commitments' },
+  decision_log:       { kind: 'localStorage', name: 'finoptima_decision_log' },
   cash_events:        { kind: 'localStorage', name: 'finoptima_cash_events' },
   tax_sleeve:         { kind: 'localStorage', name: 'finoptima_tax_sleeve' },
   // Profile slice is handled separately by user-store.ts (it spans 3
@@ -57,16 +59,19 @@ function writeCookie(name: string, value: string): void {
  * Push a single slice to the server, preserving every other key in the
  * blob. Best-effort: 401 (signed out) and network failures are silent.
  */
-export async function syncSliceToServer(slice: string, value: unknown): Promise<void> {
-  const { api } = await import('./api');
-  try {
-    const current = await api.getUserState().catch(() => null);
-    const data = (current?.data ?? {}) as Record<string, unknown>;
-    const merged = { ...data, [slice]: value };
-    await api.putUserState(merged);
-  } catch {
-    // Swallow — cookie/localStorage still holds the truth locally.
-  }
+let syncQueue: Promise<void> = Promise.resolve();
+export function syncSliceToServer(slice: string, value: unknown): Promise<void> {
+  if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') return Promise.resolve();
+  const captured = JSON.parse(JSON.stringify(value));
+  syncQueue = syncQueue.catch(() => {}).then(async () => {
+    const {api} = await import('./api');
+    try {
+      const current = await api.getUserState();
+      // A failed GET is not an empty profile: never overwrite unknown state.
+      await api.putUserState({...current.data,[slice]:captured});
+    } catch { /* Local stores remain available; next action retries. */ }
+  });
+  return syncQueue;
 }
 
 /**
@@ -86,11 +91,16 @@ function hydrateLocalStores(data: Record<string, unknown>): void {
     if (profile.user) writeProfileCookieClient(JSON.stringify(profile.user));
     if (profile.marginalRate) writeCookie('finoptima_marginal', profile.marginalRate);
     if (profile.creditScore != null) writeCookie('finoptima_score', String(profile.creditScore));
+    else if (profile.creditScore === null) document.cookie = 'finoptima_score=; path=/; max-age=0';
   }
   for (const [slice, target] of Object.entries(SLICE_TARGETS)) {
     if (!(slice in data)) continue;
     const value = data[slice];
     if (value == null) continue;
+    if (slice === 'lifecycle') {
+      try {writeLifecycleClient((typeof value === 'string' ? JSON.parse(value) : value) as LifecycleEvent[],false);} catch { /* Retain local history if storage is full. */ }
+      continue;
+    }
     const serialized = typeof value === 'string' ? value : JSON.stringify(value);
     if (target.kind === 'cookie') {
       writeCookie(target.name, serialized);

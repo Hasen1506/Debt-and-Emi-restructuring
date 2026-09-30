@@ -76,6 +76,7 @@ export function LBracket({
   href,
   onClick,
   as,
+  disabled,
   style,
 }: {
   children: ReactNode;
@@ -84,6 +85,7 @@ export function LBracket({
   href?: string;
   onClick?: () => void;
   as?: 'span' | 'a' | 'button';
+  disabled?: boolean;
   style?: CSSProperties;
 }) {
   const base: CSSProperties = {
@@ -112,7 +114,7 @@ export function LBracket({
   }
   if (onClick || as === 'button') {
     return (
-      <button type="button" onClick={onClick} style={base}>
+      <button type="button" onClick={onClick} disabled={disabled} style={base}>
         {inner}
       </button>
     );

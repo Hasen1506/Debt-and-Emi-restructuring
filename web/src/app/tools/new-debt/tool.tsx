@@ -21,7 +21,7 @@ import {
   type NewDebtResponse,
   type ScoreImpactResponse,
 } from '@/lib/api';
-import { useStoredProfile } from '@/lib/use-profile';
+import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
@@ -95,6 +95,7 @@ export function NewDebtTool() {
   const [tenure, setTenure] = useState(TENURE_DEFAULT_BY_TYPE.personal_loan);
   const [listPrice, setListPrice] = useState('');
   const [cashPrice, setCashPrice] = useState('');
+  const [offerEmi, setOfferEmi] = useState('');
 
   const [selectedBank, setSelectedBank] = useState<string>('');
   const [fee, setFee] = useState('0');
@@ -104,7 +105,7 @@ export function NewDebtTool() {
     profile.isLive && profile.creditScore != null ? String(profile.creditScore) : '',
   );
 
-  const [v, setV] = useState<NewDebtResponse | null>(null);
+  const [resultValue, setV] = useState<NewDebtResponse | null>(null);
   const [impact, setImpact] = useState<ScoreImpactResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const { err, setErr, clear, fail, failField, at } = useFormErrors();
@@ -175,6 +176,10 @@ export function NewDebtTool() {
     return m.fxMissing.length > 0 ? null : m.surplus.toFixed(2);
   }, [profile]);
 
+  const fingerprint = JSON.stringify([loanType,loanAmount,listPrice,cashPrice,offerEmi,tenure,selectedBank,activeBank?.median,fee,savings,score,monthlyRoom,country,profile.user]);
+  const [checked, setChecked] = useState('');
+  const v = checked === fingerprint ? resultValue : null;
+
   async function check(e: React.FormEvent) {
     e.preventDefault();
     const card = loanType === 'credit_card';
@@ -194,6 +199,13 @@ export function NewDebtTool() {
       failField('savings', 'Enter your savings outside the emergency fund (0 if none).');
       return;
     }
+    if (card && (!(Number(offerEmi) > 0) || !Number.isFinite(Number(offerEmi)))) {
+      failField('offerEmi', 'Enter the actual monthly payment quoted on the EMI offer.'); return;
+    }
+    if (card && Number(offerEmi)*Number(tenure) < Number(listPrice)-0.05) {
+      failField('offerEmi','These payments do not cover the financed sticker price. Confirm the financed price and actual offer payment.'); return;
+    }
+    setV(null);
     setBusy(true);
     clear();
     setImpact(null);
@@ -207,7 +219,7 @@ export function NewDebtTool() {
       // resolved, fall back to a typical-rate guess: 14% for personal/card,
       // 9% for home/auto.
       const rate = activeBank?.median ?? (isCard ? 0.36 : 0.14);
-      const monthlyEmi = computeEMI(Number(cashEq), rate, months);
+      const monthlyEmi = isCard ? Number(offerEmi) : computeEMI(Number(list), rate, months);
       const result = await api.newDebt({
         list_price: list,
         cash_price_elsewhere: cashEq,
@@ -219,6 +231,7 @@ export function NewDebtTool() {
         ...(monthlyRoom != null ? { monthly_room: monthlyRoom } : {}),
       });
       setV(result);
+      setChecked(fingerprint);
 
       if (result.verdict === 'take' && score.trim() !== '' && Number(score) >= 300 && activeBank && !activeBank.isExisting) {
         const impactResult = await api.scoreImpact({
@@ -234,7 +247,7 @@ export function NewDebtTool() {
       fail(e, {
         list_price: price ?? 'listPrice',
         cash_price_elsewhere: price ?? 'cashPrice',
-        emi_offer_monthly_payment: price ?? 'cashPrice',
+        emi_offer_monthly_payment: price ?? 'offerEmi',
         emi_offer_months: 'tenure',
         processing_fee: 'fee',
         user_savings_after_efund: 'savings',
@@ -250,6 +263,7 @@ export function NewDebtTool() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {added && <p role="status">Loan added to your profile. <a href="/plan">See the updated plan →</a></p>}
       <Card>
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: fitColumns(2, 200) }}>
           <Select
@@ -286,6 +300,8 @@ export function NewDebtTool() {
           )}
           {isCard && (
             <>
+              <Field label="Actual offer monthly EMI" value={offerEmi} onChange={setOfferEmi} error={at('offerEmi')}
+                hint="Use the payment on the offer, including its recurring charges. For a truly interest-free offer: list price ÷ months." />
               <Field
                 label="Sticker / list price"
                 value={listPrice}
@@ -331,7 +347,7 @@ export function NewDebtTool() {
             Couldn&apos;t load bank rate cards: {instErr}
           </div>
         )}
-        {bankComparison && (
+        {bankComparison && !isCard && (
           <BankComparisonPanel
             comparison={bankComparison}
             loanType={loanType}
@@ -393,7 +409,7 @@ export function NewDebtTool() {
             label={VERDICT_LABEL[v.verdict]}
             color={VERDICT_COLOR[v.verdict]}
             detail={
-              activeBank
+              isCard ? `${v.detail} Based on the monthly payment you entered from the actual offer.` : activeBank
                 ? `${v.detail}  Based on ${activeBank.name}'s median rate ${formatPct(String(activeBank.median), 2)}.`
                 : `${v.detail}  No bank rate card was found, so this uses a typical ${isCard ? '36%' : '14%'} rate. Pick a bank above to use its published rate.`
             }
@@ -452,24 +468,29 @@ export function NewDebtTool() {
               rationale={impact.rationale}
             />
           )}
-          {v.verdict === 'take' && activeBank && (
+          {v.verdict === 'take' && (activeBank || isCard) && (
             <AddLoanAction
               added={added}
               onAdd={() => {
+                if (added || checked !== fingerprint) return;
+                if(isCard && !Number.isFinite(offerRate(Number(listPrice),Number(offerEmi),Number(tenure)))) {
+                  setErr('This quote implies a financed rate above the 100% annual limit the profile can track. The offer comparison is available, but this contract cannot be added.');return;
+                }
                 const saved = addLoanToProfile({
-                  loan_type: loanType,
-                  bank: activeBank.name,
-                  outstanding: isCard ? cashPrice : loanAmount,
-                  nominal_rate: String(activeBank.median),
+                  loan_type: isCard ? 'bnpl' : loanType,
+                  bank: isCard ? 'Quoted EMI offer' : activeBank!.name,
+                  outstanding: isCard ? listPrice : loanAmount,
+                  nominal_rate: isCard ? String(offerRate(Number(listPrice), Number(offerEmi), Number(tenure))) : String(activeBank!.median),
                   tenure_months_remaining: Number(tenure),
                   scheduled_emi: String(v.monthly_emi),
                   processing_fee_amortised: fee !== '0' ? fee : undefined,
                 });
-                if (saved != null) setAdded(true);
+                if (saved != null) setAdded(true); else setErr('The loan could not be saved. Recheck affordability against your current profile.');
               }}
-              label={`Add this ${loanType.replace('_', ' ')} at ${activeBank.name} to my profile`}
+              label={isCard ? 'Add this EMI offer to my profile' : `Add this ${loanType.replace('_', ' ')} at ${activeBank?.name} to my profile`}
             />
           )}
+          {isCard && <p className="muted">This offer is tracked as a separate installment loan with its quoted EMI, outside any revolving card balance.</p>}
         </Card>
       )}
     </div>
@@ -732,4 +753,13 @@ function BankRateTable({
     </table>
     </div>
   );
+}
+
+/** Reducing rate for the financed sticker principal; cash-discount APR is advisory only. */
+function offerRate(principal: number, payment: number, months: number): number {
+  if (payment * months <= principal + 0.05) return 0;
+  if(payment > computeEMI(principal,1,months)+0.01) return Infinity;
+  let low = 0, high = 1;
+  for (let i=0;i<80;i++) { const mid=(low+high)/2; if(computeEMI(principal,mid,months)>payment) high=mid; else low=mid; }
+  return (low+high)/2;
 }

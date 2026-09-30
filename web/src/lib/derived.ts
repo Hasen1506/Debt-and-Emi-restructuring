@@ -89,7 +89,7 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
         required: requiredMonthly(loan, country),
       };
     })
-    .filter((l) => l.outstanding.gt(0));
+    .filter((l) => l.outstanding.gt(0) && (l.loan.planned_effective_month ?? 1) <= 1);
 
   let totalOutstanding = new Decimal(0);
   let weightedEffSum = new Decimal(0);
