@@ -5,10 +5,10 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R0 · groundwork (owner said go on 1 Oct 2026; defaults below accepted)
-- **Last finished step:** R0 done (R0.2 baseline, R0.3 primitives, R0.4 five tabs) + R1.1 amount field
-- **Next step:** merge PR #7, then R1.2 setup step 1
-- **Open PR:** https://github.com/Hasen1506/Debt-and-Emi-restructuring/pull/7 (draft)
+- **Phase in progress:** R1 · setup in three steps (not started)
+- **Last finished step:** R0 merged to `main` (PR #7) with R1.1 amount field
+- **Next step:** R1.2–R1.4 — build `QuickSetup` per **R1 build notes** below
+- **Open PR:** none yet for R1 (open one as a draft on first push)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
 tick the boxes here, update **Resume here**, push, and ask the owner to `/compact`.
@@ -108,6 +108,14 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [ ] R1.4 Step 3 · Your plan, live preview
 - [ ] R1.5 Profile (edit mode): income · loans · what you own (holdings + cash) · privacy · payoff strategy
 - [ ] R1.6 Walkthroughs W1–W4 setup parts
+
+**R1 build notes** (decided 1 Oct 2026, before compaction):
+- New `web/src/components/setup/QuickSetup.tsx` (client) is the page at `/onboarding`. The current 3,800-line form moves to `/profile` (`git mv web/src/app/onboarding/page.tsx web/src/app/profile/page.tsx`) and stays the full editor until R1.5 restyles it. Change links `/onboarding?step=…` → `/profile?step=…`, masthead PROFILE → `/profile`; `/profile` with no saved profile → `/onboarding`.
+- QuickSetup starts from the saved profile when there is one and saves the merged object, so loan fields it doesn't show (fees, resets, card details, ids) are kept.
+- Step 1: country chips (IN · ₹ / US · $; US adds an "I also have loans in India" chip → `is_nri_us`), work chips (salaried / self-employed → `income_type`), take-home a month, spend a month without EMIs (`kind="money"`). A live "left each month" line.
+- Step 2: one block per loan. Type chips; lender (`BankCombobox`, optional); balance (money, in the loan's currency); rate (`kind="percent"`, "APR" for cards); non-cards: EMI, or "I know months left instead" → months, and EMI is worked out with the annuity formula (EMI → months uses `deriveTenureMonths`). "More terms — optional" (collapsed): currency, fixed/floating, prepayment fee, lock-in; everything else lives in Profile. "No loans — skip" button. Checks: `loanDraftErrors`; foreign currency needs an exchange rate (`api.fxRate`, editable, required if the fetch fails — same rule as today).
+- Step 3: live preview with `api.simulate({user, strategy, horizon_months: HORIZON_MONTHS, marginal_rate, simulation_start_month: getCountryMonth(country)})` and `api.baseline` → debt-free date, total interest, saved vs paying minimums, this month's first move. Save with `saveProfileClient`, set `BALANCES_ENTERED_KEY`, `router.push('/')`.
+- Marginal rate: worked out from take-home (bisection on gross with `computeAnnualTax`, then `classifyBracket(...).marginalRate`), labelled an estimate; Profile can refine it with gross pay.
 
 ### R2 · Home
 - [ ] R2.1 Context line + cash-flow trio + status KPIs
