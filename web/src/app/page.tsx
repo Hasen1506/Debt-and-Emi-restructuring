@@ -6,13 +6,12 @@ import { LedgerHome } from '@/components/home/LedgerHome';
 import {
   HomeDebtFreeCaption,
   HomeDebtFreeValue,
-  HomeMoveDetail,
-  HomeMoveHeadline,
   HomeMoveOneStep,
+  HomePayThisMonth,
 } from '@/components/home/HomeDebtFree';
 
-// Home streams the plan's date and this month's move: the page paints at
-// once and the engine's answer (~10–40 ms) fills in.
+// Home streams the plan's date and this month's payments: the page paints
+// at once and the engine's answer (~10–40 ms) fills in.
 export default async function HomePage() {
   const [profile, strategy] = await Promise.all([loadCurrentProfileServer(), loadStrategyServer()]);
   const plannedLoans=(await readLifecycleServer()).filter(e=>e.status==='planned' && e.kind==='property_buy');
@@ -36,23 +35,16 @@ export default async function HomePage() {
             </Suspense>
           ),
         }}
-        move={{
-          headline: (
-            <Suspense fallback={<span aria-busy="true">WORKING OUT THIS MONTH…</span>}>
-              <HomeMoveHeadline />
-            </Suspense>
-          ),
-          detail: (
-            <Suspense fallback={<span>&nbsp;</span>}>
-              <HomeMoveDetail />
-            </Suspense>
-          ),
-          oneStep: (
-            <Suspense fallback={<span aria-busy="true">……</span>}>
-              <HomeMoveOneStep />
-            </Suspense>
-          ),
-        }}
+        register={
+          <Suspense fallback={<p aria-busy="true" style={{ fontSize: 12 }}>WORKING OUT THIS MONTH&apos;S PAYMENTS…</p>}>
+            <HomePayThisMonth />
+          </Suspense>
+        }
+        oneStep={
+          <Suspense fallback={<span aria-busy="true">……</span>}>
+            <HomeMoveOneStep />
+          </Suspense>
+        }
       />
       {showPlannedSummary && <section style={{padding:'16px 0',fontSize:12}}>
         <p>PLANNED LOANS · {plannedLoans.map(e=>e.kind==='property_buy' ? `${e.loanDraft.bank || 'New loan'} from ${e.effectiveDate}` : '').join('; ')}</p>

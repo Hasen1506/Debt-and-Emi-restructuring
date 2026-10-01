@@ -7,12 +7,15 @@ import { cache } from 'react';
 import Link from 'next/link';
 import Decimal from 'decimal.js';
 import { loadPlanFromCookies } from '@/components/plan/load-plan';
-import { monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
+import { MONTH_NAMES, getCountryToday, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
+import { payThisMonth } from '@/lib/pay-this-month';
+import { PayNotice, PayThisMonth } from './PayThisMonth';
+import { LBracket } from '@/components/ledger/primitives';
 import { thisMonthMove } from '@/lib/this-month';
 import { deriveMetrics } from '@/lib/derived';
 import { describeGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
-import { formatCurrency } from '@/lib/api';
+import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
 
@@ -36,7 +39,7 @@ export async function HomeDebtFreeCaption() {
   if (plan.shortfall > 0) {
     return (
       <Link href="/plan">
-        SHORT {formatCurrency(Math.round(plan.shortfall), userDefaultCurrency(plan.user.country))}/MO · PLAN →
+        SHORT {formatCurrencyWhole(Math.round(plan.shortfall), userDefaultCurrency(plan.user.country))}/MO · PLAN →
       </Link>
     );
   }
@@ -61,98 +64,96 @@ const PRODUCT: Record<string, string> = {
   bnpl: 'BNPL',
 };
 
-const WHY: Record<string, string> = {
-  avalanche: 'HIGHEST EFFECTIVE RATE',
-  snowball: 'SMALLEST BALANCE FIRST',
-  hybrid: 'YOUR HYBRID ORDER',
-};
-
-/** Words for this month's move, from the plan's first month. */
-const moveWords = cache(async (): Promise<{ headline: string; detail: string; oneStep: string }> => {
+/** The calm view's one step, from the plan's first month. */
+const oneStepWords = cache(async (): Promise<string> => {
   const plan = await loadPlanOnce();
-  const profile = {user:plan.user,marginalRate:plan.marginalRate,creditScore:null,isLive:plan.profileIsLive};
+  const profile = { user: plan.user, marginalRate: plan.marginalRate, creditScore: null, isLive: plan.profileIsLive };
   const m = deriveMetrics(profile);
-  const fc = (v: number) => formatCurrency(v, userDefaultCurrency(profile.user.country));
-  const move = thisMonthMove(plan);
-  if (plan.gaps.length > 0) {
-    const g = plan.gaps[0];
-    return {
-      headline: `ADD ${describeGap(g.missing, g.loan).toUpperCase()} FOR ${(g.loan.bank || 'YOUR').toUpperCase()} ${LOAN_TYPE_NAME[g.loan.loan_type].toUpperCase()}`,
-      detail: plan.gaps.length > 1
-        ? `${plan.gaps.length} LOANS NEED DETAILS · WITHOUT THEM THE PLAN CAN'T WORK OUT WHAT TO PAY`
-        : "WITHOUT IT THE PLAN CAN'T WORK OUT WHAT TO PAY",
-      oneStep: 'ADD YOUR LOAN DETAILS IN SETUP.',
-    };
-  }
+  const fc = (v: number) => formatCurrencyWhole(v, userDefaultCurrency(profile.user.country));
+  if (plan.gaps.length > 0) return 'ADD YOUR LOAN DETAILS IN PROFILE.';
   // Short of cash: the engine's gap (costs + minimums − income) when it
   // ran, else the same sum from the profile.
   const short = plan.live ? plan.shortfall : Math.max(0, -Number(m.surplus));
-  if (short > 0) {
-    return {
-      headline: `SHORT ${fc(Math.round(short))}/MO · COSTS + MINIMUM PAYMENTS ARE MORE THAN INCOME`,
-      detail: 'CUT COSTS OR ASK THE BANK FOR A LOWER PAYMENT · NO EXTRA PAYMENTS UNTIL THE GAP CLOSES',
-      oneStep: 'PAY AT LEAST THE MINIMUMS. IF YOU CAN’T, CALL THE BANK BEFORE THE DUE DATE.',
-    };
-  }
-  if (m.surplus.lte(0)) {
-    return {
-      headline: 'PAY THE MINIMUMS · NOTHING SPARE THIS MONTH',
-      detail: 'INCOME JUST COVERS COSTS AND MINIMUM PAYMENTS',
-      oneStep: 'KEEP CURRENT EMIS RUNNING.',
-    };
-  }
-  if (!move) {
-    return {
-      headline: 'SEE YOUR PLAN FOR THIS MONTH',
-      detail: 'THE PLAN ENGINE IS UNREACHABLE RIGHT NOW',
-      oneStep: 'KEEP CURRENT EMIS RUNNING.',
-    };
-  }
-  // Each loan's extra is in that loan's currency (₹ for an NRI's Indian
-  // loan), with the user-currency cost alongside.
-  const country = profile.user.country;
-  const inLoanCcy = (v: number, index: number) => {
-    const loan = profile.user.loans[index];
-    return loan ? formatLoanAmount(v, loan, country, plan.fxRatesUsed) : fc(v);
-  };
-  const parts = move.targets.slice(0, 2).map((t) => {
-    const loan = profile.user.loans[t.index];
-    return `${inLoanCcy(t.amount, t.index)} → ${(loan?.bank || '—').toUpperCase()} ${PRODUCT[loan?.loan_type ?? ''] ?? ''}`.trim();
-  });
-  if (move.ef > 0) parts.push(`${fc(move.ef)} → EMERGENCY FUND`);
-  if (move.goals > 0) parts.push(`${fc(move.goals)} → GOALS`);
-  if (parts.length === 0) {
-    return {
-      headline: `INVEST ${fc(move.surplus)} THIS MONTH`,
-      detail: 'NO LOAN COSTS MORE THAN YOUR BEST SAFE RETURN · SEE THE PLAN',
-      oneStep: 'KEEP CURRENT EMIS RUNNING.',
-    };
-  }
+  if (short > 0) return 'PAY AT LEAST THE MINIMUMS. IF YOU CAN’T, CALL THE BANK BEFORE THE DUE DATE.';
+  const move = thisMonthMove(plan);
+  if (m.surplus.lte(0) || !move) return 'KEEP CURRENT EMIS RUNNING.';
   const first = move.targets[0];
-  const target = first ? m.loans.find((l) => l.index === first.index) : undefined;
-  const saving = target && first
-    ? Math.round(new Decimal(first.amount).times(target.effective).toNumber())
-    : 0;
-  const firstLoan = first ? profile.user.loans[first.index] : undefined;
-  return {
-    oneStep: first && firstLoan
-      ? `PAY ${inLoanCcy(first.amount, first.index)} TO YOUR ${(firstLoan.bank || '').toUpperCase()} ${PRODUCT[firstLoan.loan_type] ?? ''}.`
-      : `PUT ${fc(move.ef)} IN YOUR EMERGENCY FUND.`,
-    headline: `PAY EXTRA: ${parts.join(' · ')}`,
-    detail: target && first
-      ? `${WHY[plan.strategy] ?? 'YOUR PLAN'} · ${fmtPct(target.effective)} · AVOIDS ~${inLoanCcy(saving, first.index)} INTEREST A YEAR`
-      : 'BUILDING YOUR EMERGENCY FUND FIRST, AS YOUR PLAN SPLITS IT',
-  };
+  const loan = first ? profile.user.loans[first.index] : undefined;
+  if (first && loan) {
+    // In the loan's own currency (₹ for an NRI's Indian loan).
+    const amount = formatLoanAmount(first.amount, loan, profile.user.country, plan.fxRatesUsed);
+    return `PAY ${amount} EXTRA TO YOUR ${loan.bank ? `${loan.bank.toUpperCase()} ` : ''}${PRODUCT[loan.loan_type] ?? 'LOAN'}.`;
+  }
+  if (move.ef > 0) return `PUT ${fc(move.ef)} IN YOUR EMERGENCY FUND.`;
+  return 'KEEP CURRENT EMIS RUNNING.';
 });
 
-export async function HomeMoveHeadline() {
-  return <>{(await moveWords()).headline}</>;
-}
-
-export async function HomeMoveDetail() {
-  return <>{(await moveWords()).detail}</>;
-}
-
 export async function HomeMoveOneStep() {
-  return <>{(await moveWords()).oneStep}</>;
+  return <>{await oneStepWords()}</>;
+}
+
+/** Why the strategy puts the extra on this loan. */
+const REASON: Record<string, (rate: string) => string> = {
+  avalanche: (rate) => `it has the highest effective rate, ${rate}`,
+  snowball: (rate) => `it's the smallest balance (${rate} effective)`,
+  hybrid: (rate) => `your hybrid order puts it first (${rate} effective)`,
+};
+
+/** This month's payments, one row each, to tick off (REDESIGN R2.2). */
+export async function HomePayThisMonth() {
+  const plan = await loadPlanOnce();
+  const country = plan.user.country;
+  const today = getCountryToday(country);
+  const monthLabel = `${MONTH_NAMES[today.getMonth()]} ${today.getFullYear()}`;
+  const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(country));
+  if (plan.gaps.length > 0) {
+    const g = plan.gaps[0];
+    return (
+      <PayNotice title={`Pay this month · ${monthLabel}`}>
+        Add {describeGap(g.missing, g.loan)} for your {g.loan.bank ? `${g.loan.bank} ` : ''}
+        {LOAN_TYPE_NAME[g.loan.loan_type]}
+        {plan.gaps.length > 1 ? ` (and ${plan.gaps.length - 1} more)` : ''}. Without it the plan can&apos;t work out
+        what to pay. <LBracket active href="/profile?step=loans">ADD THE DETAILS</LBracket>
+      </PayNotice>
+    );
+  }
+  const data = payThisMonth(plan);
+  if (!data || data.rows.length === 0) {
+    return (
+      <PayNotice title={`Pay this month · ${monthLabel}`}>
+        The plan engine can&apos;t be reached right now, so this month&apos;s payments aren&apos;t worked out. Your EMIs
+        are due as usual. <LBracket href="/plan">TRY THE PLAN →</LBracket>
+      </PayNotice>
+    );
+  }
+  // Why the top extra goes where it does, and what it saves in a year.
+  const m = deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate, creditScore: null, isLive: plan.profileIsLive });
+  const top = data.rows.find((r) => r.kind === 'extra' || r.kind === 'clears');
+  const target = top ? m.loans.find((l) => l.index === top.loanIndex) : undefined;
+  const reason =
+    top && target
+      ? {
+          key: top.key,
+          text: `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(fmtPct(target.effective))}. It saves about ${formatCurrencyWhole(
+            Math.round(new Decimal(top.extra).times(target.effective).toNumber()),
+            top.currency,
+          )} of interest a year.`,
+        }
+      : undefined;
+  const alert =
+    plan.shortfall > 0
+      ? `Short ${fc(plan.shortfall)} this month: income doesn't cover spending and the minimums below. Pay what you can, and call the bank before the due date.`
+      : plan.futureShortfall
+        ? `From ${monthIndexToCountryLabel(plan.futureShortfall.month, country)}, the payments need more than you earn. See the plan.`
+        : undefined;
+  return (
+    <PayThisMonth
+      data={data}
+      loans={plan.user.loans}
+      country={country}
+      monthLabel={monthLabel}
+      reason={reason}
+      alert={alert}
+    />
+  );
 }

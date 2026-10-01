@@ -13,9 +13,8 @@
  */
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
-import { formatCurrency } from '@/lib/api';
+import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { deriveMetrics, type DerivedMetrics } from '@/lib/derived';
 import { projectionGaps } from '@/lib/loan-gaps';
@@ -43,19 +42,14 @@ export interface DebtFreeSlot {
   s: ReactNode;
 }
 
-/** This month's move from the plan's first month, streamed in by the page. */
-export interface MoveSlot {
-  headline: ReactNode;
-  detail: ReactNode;
-  /** One step only, for the calm view. */
-  oneStep: ReactNode;
-}
-
 interface HomeProps {
   profile: StoredProfile;
   strategy: StrategyName;
   debtFree?: DebtFreeSlot;
-  move?: MoveSlot;
+  /** This month's payments to tick off, streamed in by the page. */
+  register?: ReactNode;
+  /** The calm view's one step, streamed in by the page. */
+  oneStep?: ReactNode;
 }
 
 export function LedgerHome(props: HomeProps) {
@@ -63,35 +57,19 @@ export function LedgerHome(props: HomeProps) {
   useEffect(() => {
     setTone(readLedgerTone());
   }, []);
-  if (tone === 'OVERWHELMED') return <LedgerHomeSoft profile={props.profile} move={props.move} />;
+  if (tone === 'OVERWHELMED') return <LedgerHomeSoft profile={props.profile} oneStep={props.oneStep} />;
   return <LedgerHomeFull {...props} />;
 }
 
-function LedgerHomeFull({ profile, strategy, debtFree, move }: HomeProps) {
+function LedgerHomeFull({ profile, strategy, debtFree, register }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
-  const fc = (v: number | string) => formatCurrency(v, ccy);
+  const fc = (v: number | string) => formatCurrencyWhole(v, ccy);
 
   if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
 
-  const loudest = m.loudest!;
-  // A loan with no rate or EMI on file: no rates or "pay this" until it's added.
+  // A loan with no rate or EMI on file: no rates until it's added.
   const gaps = projectionGaps(profile.user);
-  const loudestBank = (loudest.loan.bank || 'YOUR LOUDEST').toUpperCase();
-  const loudestProduct = loudest.loan.loan_type.replace('_', ' ').toUpperCase();
-  // The extra this month is the surplus, never more than the balance. With
-  // no surplus there is nothing extra to pay: it used to fall back to the
-  // whole balance ("PAY ₹30,00,000 EXTRA") for someone already over budget.
-  const hasSurplus = m.surplus.gt(0);
-  // In the user's currency: an NRI's ₹ balance is converted before it's
-  // compared with a $ surplus.
-  const extra = hasSurplus
-    ? Decimal.min(m.surplus, m.toUserCcy(loudest.outstanding, loudest.loan))
-    : new Decimal(0);
-  const extraRounded = Math.round(Number(extra.toString()));
-  // Interest the extra avoids over a year at this loan's effective rate
-  // (not the whole balance's interest, which is what it showed before).
-  const annualSaving = Math.round(Number(extra.times(loudest.effective).toString()));
   const fxMissing = m.fxMissing.length > 0;
 
   return (
@@ -137,55 +115,7 @@ function LedgerHomeFull({ profile, strategy, debtFree, move }: HomeProps) {
           />
         </section>
 
-        <section style={{ border: `2px solid ${L_T.ink}`, padding: '18px 22px' }}>
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: '0.18em',
-              color: L_T.accent,
-              fontWeight: 700,
-              marginBottom: 8,
-            }}
-          >
-            $ THIS MONTH · DO THIS
-          </div>
-          <div
-            style={{
-              fontSize: 21,
-              fontWeight: 700,
-              letterSpacing: '-0.01em',
-              lineHeight: 1.3,
-              marginBottom: 6,
-            }}
-          >
-            {move
-              ? move.headline
-              : hasSurplus
-                ? `PAY ${fc(extraRounded)} EXTRA → ${loudestBank} ${loudestProduct}`
-                : m.surplus.lt(0)
-                  ? `SHORT ${fc(Math.round(Math.abs(Number(m.surplus.toString()))))}/MO · COSTS + MINIMUM PAYMENTS ARE MORE THAN INCOME`
-                  : 'PAY THE MINIMUMS · NOTHING SPARE THIS MONTH'}
-          </div>
-          <div style={{ fontSize: 12, color: L_T.muted, marginBottom: 14 }}>
-            {move
-              ? move.detail
-              : hasSurplus
-                ? `HIGHEST EFFECTIVE RATE · ${fmtPct(loudest.effective)} · AVOIDS ~${fc(annualSaving)} INTEREST A YEAR`
-                : 'CUT COSTS OR ASK THE BANK FOR A LOWER PAYMENT · NO EXTRA PAYMENTS UNTIL THE GAP CLOSES'}
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {gaps.length > 0 ? (
-              <LBracket active href="/profile?step=loans">
-                ADD THE DETAILS
-              </LBracket>
-            ) : hasSurplus && (
-              <LBracket active href="/activity#activity-ledger">
-                I PAID THIS
-              </LBracket>
-            )}
-            <LBracket href="/plan">WHY? SEE THE PLAN →</LBracket>
-          </div>
-        </section>
+        {register}
 
         <section>
           <LSectionHeader right={<LBracket href="/profile?step=loans">+ ADD DEBT</LBracket>}>
@@ -250,7 +180,7 @@ function ContextLine({ profile, strategy }: { profile: StoredProfile; strategy: 
 /** Take-home − costs = left: the three numbers the month's plan comes from. */
 function CashFlow({ profile, m }: { profile: StoredProfile; m: DerivedMetrics }) {
   const u = profile.user;
-  const fc = (v: number) => formatCurrency(Math.round(Math.abs(v)), userDefaultCurrency(u.country));
+  const fc = (v: number) => formatCurrencyWhole(Math.round(Math.abs(v)), userDefaultCurrency(u.country));
   const today = getCountryToday(u.country);
   const income = Number(u.monthly_income || 0);
   const spend = Number(u.fixed_expenses || 0) + Number(u.variable_expenses || 0);
@@ -336,10 +266,10 @@ function CashFlow({ profile, m }: { profile: StoredProfile; m: DerivedMetrics })
 }
 
 // ─── OVERWHELMED — soft view ───────────────────────────────────────────
-function LedgerHomeSoft({ profile, move }: { profile: StoredProfile; move?: MoveSlot }) {
+function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?: ReactNode }) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
-  const fc = (v: number | string) => formatCurrency(v, ccy);
+  const fc = (v: number | string) => formatCurrencyWhole(v, ccy);
   if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
   const loudest = m.loudest!;
   const gaps = projectionGaps(profile.user);
@@ -395,8 +325,8 @@ function LedgerHomeSoft({ profile, move }: { profile: StoredProfile; move?: Move
               letterSpacing: '-0.01em',
             }}
           >
-            {move
-              ? move.oneStep
+            {oneStep
+              ? oneStep
               : amount > 0
                 ? `PAY ${fc(Math.min(amount, Number(m.toUserCcy(loudest.outstanding, loudest.loan))))} TO YOUR ${lender} ${loudest.loan.loan_type
                     .replace('_', ' ')

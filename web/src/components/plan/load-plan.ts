@@ -39,7 +39,7 @@ import { markMissedInstalments } from '@/lib/advance-tax-cookie';
 import { projectAnnualTaxSavings } from '@/lib/tax-projection';
 import { projectBracketTransitions } from '@/lib/bracket-transitions';
 import Decimal from 'decimal.js';
-import { getCountryMonth, getCountryToday, localIsoDate } from '@/lib/today';
+import { countryMonthKey, getCountryMonth, getCountryToday, localIsoDate } from '@/lib/today';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import {
   applyActivityDeltas,
@@ -93,7 +93,7 @@ export async function loadPlan(
   // to the user's loans BEFORE simulating. Baseline uses the same adjusted
   // loans so the avalanche-vs-minimums diff stays apples-to-apples.
   const deltas = await loadActivityDeltasServer();
-  const application = applyActivityDeltas(profile.user.loans, deltas);
+  const application = applyActivityDeltas(profile.user.loans, deltas, countryMonthKey(profile.user.country));
   // If the hike toggle is OFF, zero out `annual_hike_rate` so the engine
   // simulates flat income. The stored profile is untouched — toggling back
   // ON next render restores the user's configured rate.

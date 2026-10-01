@@ -31,6 +31,7 @@ import { explainMinPayment } from './min-payment';
 import type { Country, LoanPayload } from './api';
 import { overdueAmount, daysLate, extraPrincipal } from './activity';
 import { alignToLoans, resolveLoanIndex } from './loan-ids';
+import { localIsoDate } from './today';
 
 const COOKIE_NAME = 'finoptima_activity_deltas';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -56,6 +57,10 @@ export interface ActivityDelta {
   /** Extra principal paid above the scheduled EMI for `paid_extra` events.
    *  Reduces outstanding. Decimal string, non-negative. */
   principalReduction?: string;
+  /** This month's planned extra, marked paid on Home: the plan's first
+   *  month already pays it, so it comes off the balance only after
+   *  `month` ("2026-10") is over. */
+  deferred?: { month: string; amount: string };
   /** Set when this delta represents a `closed` event — outstanding goes to
    *  zero regardless of the other fields. */
   closed?: boolean;
@@ -99,19 +104,36 @@ export function activityDeltas(
   entries: ActivityEntry[],
   loans: LoanPayload[],
   country: Country,
+  now: Date = new Date(),
 ): ActivityDelta[] {
+  const thisMonth = localIsoDate(now).slice(0, 7);
   // Entries point at their loan's current position (by id), so a loan
   // removed in Setup takes its entries with it instead of passing them on.
   const aligned = alignToLoans(entries, loans).slice().sort((a,b) => b.date.localeCompare(a.date) || b.loggedAt.localeCompare(a.loggedAt));
   const anchored = new Set<number>();
   const byLoan = new Map<
     number,
-    { overdue: Decimal; penalty: Decimal; reduction: Decimal; closed: boolean; balanceOverride?: string; count: number }
+    {
+      overdue: Decimal;
+      penalty: Decimal;
+      reduction: Decimal;
+      deferred: Decimal;
+      closed: boolean;
+      balanceOverride?: string;
+      count: number;
+    }
   >();
   const acc = (i: number) => {
     let cur = byLoan.get(i);
     if (!cur) {
-      cur = { overdue: new Decimal(0), penalty: new Decimal(0), reduction: new Decimal(0), closed: false, count: 0 };
+      cur = {
+        overdue: new Decimal(0),
+        penalty: new Decimal(0),
+        reduction: new Decimal(0),
+        deferred: new Decimal(0),
+        closed: false,
+        count: 0,
+      };
       byLoan.set(i, cur);
     }
     return cur;
@@ -144,10 +166,18 @@ export function activityDeltas(
     }
 
     if (e.kind === 'paid_extra') {
-      const extra = extraPrincipal(e);
-      if (Number(extra) <= 0) continue;
+      const extra = new Decimal(extraPrincipal(e));
+      if (extra.lte(0)) continue;
       const cur = acc(e.loanIndex);
-      cur.reduction = cur.reduction.add(extra);
+      // The plan's own extra this month (marked paid on Home) is already in
+      // the plan's first month; it comes off the balance next month. Any
+      // more than that was paid on top, and counts now.
+      const planned =
+        e.plannedExtra && e.date.slice(0, 7) === thisMonth
+          ? Decimal.min(extra, Decimal.max(0, new Decimal(e.plannedExtra || 0)))
+          : new Decimal(0);
+      cur.reduction = cur.reduction.add(extra.sub(planned));
+      cur.deferred = cur.deferred.add(planned);
       cur.count += 1;
       continue;
     }
@@ -205,6 +235,7 @@ export function activityDeltas(
       overdue: t.overdue.toFixed(2),
       penalty: t.penalty.toFixed(2),
       ...(t.reduction.gt(0) ? { principalReduction: t.reduction.toFixed(2) } : {}),
+      ...(t.deferred.gt(0) ? { deferred: { month: thisMonth, amount: t.deferred.toFixed(2) } } : {}),
       ...(t.closed ? { closed: true } : {}),
       ...(t.balanceOverride !== undefined ? { balanceOverride: t.balanceOverride } : {}),
     });
@@ -275,6 +306,9 @@ export interface DeltaApplication {
 export function applyActivityDeltas(
   loans: LoanPayload[],
   deltas: ActivityDelta[],
+  /** The current month, "2026-10" (the server passes the user's country's);
+   *  a deferred extra counts once this is past its month. */
+  month: string = localIsoDate(new Date()).slice(0, 7),
 ): DeltaApplication {
   const perLoan = new Map<
     number,
@@ -289,7 +323,9 @@ export function applyActivityDeltas(
     entryCount += d.count ?? 1;
     const overdue = new Decimal(d.overdue || 0);
     const penalty = new Decimal(d.penalty || 0);
-    const reduction = new Decimal(d.principalReduction || 0);
+    const deferred =
+      typeof d.deferred?.month === 'string' && d.deferred.month < month ? d.deferred.amount : 0;
+    const reduction = new Decimal(d.principalReduction || 0).add(deferred || 0);
     const cur = perLoan.get(d.loanIndex) ?? {
       bump: new Decimal(0),
       count: 0,

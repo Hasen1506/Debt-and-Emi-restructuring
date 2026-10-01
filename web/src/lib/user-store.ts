@@ -297,7 +297,8 @@ export async function loadCurrentProfileServer(): Promise<StoredProfile> {
     loadProfileServer(), import('./activity-cookie').then(m=>m.loadActivityDeltasServer()),
   ]);
   const {applyActivityDeltas} = await import('./activity-cookie');
-  return {...profile,user:{...profile.user,loans:applyActivityDeltas(profile.user.loans,activity).loans}};
+  const {countryMonthKey} = await import('./today');
+  return {...profile,user:{...profile.user,loans:applyActivityDeltas(profile.user.loans,activity,countryMonthKey(profile.user.country)).loans}};
 }
 
 /** Pull a StoredProfile out of the server's JSON blob, or null if absent. */

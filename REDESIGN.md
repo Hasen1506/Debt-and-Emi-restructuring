@@ -120,7 +120,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 
 ### R2 · Home
 - [x] R2.1 Context line (plan month, tax regime, bracket, payoff order → changed on Plan) + cash-flow trio (take-home − costs = left) + status KPIs (owed, debt-free, interest this month, effective rate). Tools grid and the SIMPLE/DETAILED switch removed; the footer keeps "Feeling overwhelmed?"
-- [ ] R2.2 Pay This Month register: Mark paid fully / Partial · other → writes to Activity
+- [x] R2.2 Pay This Month register: every payment of the plan's first month (EMI or card minimum + extra, then emergency fund and goals), MARK PAID in one tap, PARTIAL / OTHER takes the amount (or "didn't pay"), UNDO for rows marked on Home. Entries go to Activity (`via: 'home'`). A planned extra marked paid is held back until the month is over (`plannedExtra`), so marking it doesn't move the plan and it isn't counted twice
 - [ ] R2.3 Allocation bar
 - [ ] R2.4 Restructure table (top row open, rest one click away)
 - [ ] R2.5 Open positions with row expand (effective-APR breakdown) + stale-card nudge
@@ -138,6 +138,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [ ] R4.2 Log-entry dialog: payment · partial · rate update · expense · income · lifecycle, with engine preview
 - [ ] R4.3 Decision-log entries shown in the same history
 - [ ] R4.4 Walkthrough W6
+- [ ] R4.5 Balances move with the months: the plan starts from the balances as entered, so each month that passes leaves them one EMI's principal too high until the user updates them. Roll them forward from the month they were entered (scheduled payments + logged entries). Also: an extra logged in Activity this month still counts on top of the plan's own extra for the month (Home's MARK PAID doesn't)
 
 ### R5 · Goals & Tools, Windfall
 - [ ] R5.1 Goal ledger: open · edit · cancel/archive; priority accent strip

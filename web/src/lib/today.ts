@@ -65,6 +65,11 @@ export function getCountryToday(country: Country): Date {
   return new Date(get('year'), get('month') - 1, get('day'), 12, 0, 0, 0);
 }
 
+/** "2026-10": the country's current month, for comparing with entry dates. */
+export function countryMonthKey(country: Country): string {
+  return localIsoDate(getCountryToday(country)).slice(0, 7);
+}
+
 /** 1-12, suitable for sending to the engine as `simulation_start_month`. */
 export function getCountryMonth(country: Country): number {
   return getCountryToday(country).getMonth() + 1;
