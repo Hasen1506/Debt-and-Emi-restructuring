@@ -9,6 +9,7 @@ const nextConfig = {
     return [
       { source: '/insights', destination: '/activity', permanent: false },
       { source: '/insights/:path*', destination: '/activity/:path*', permanent: false },
+      { source: '/onboarding/assets', destination: '/profile/assets', permanent: false },
     ];
   },
 };

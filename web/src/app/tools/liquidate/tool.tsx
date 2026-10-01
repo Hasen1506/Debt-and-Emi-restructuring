@@ -346,8 +346,8 @@ export function LiquidateTool() {
         <Card>
           <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
             <strong>Add your assets</strong> at{' '}
-            <a href="/onboarding/assets" style={{ color: 'var(--accent)' }}>
-              /onboarding/assets
+            <a href="/profile/assets" style={{ color: 'var(--accent)' }}>
+              /profile/assets
             </a>{' '}
             to see every asset ranked against every debt — net of tax, lockups,
             and selling costs. Skip if you'd rather just compute a single

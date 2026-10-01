@@ -89,7 +89,7 @@ export function PortfolioRanker({ user, marginalRate, isLive, onDrillIn }: Props
       <Card>
         <p className="muted">
           Portfolio ranker needs both assets and debts. Add a debt at{' '}
-          <a href="/onboarding?step=loans">/onboarding</a>.
+          <a href="/profile?step=loans">Profile</a>.
         </p>
       </Card>
     );

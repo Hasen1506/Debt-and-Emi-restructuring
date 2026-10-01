@@ -147,7 +147,7 @@ export function DebtFreeRedirectPrompt({
         }}
       >
         <PromptCta href="/goals" label="Plan a goal SIP" primary />
-        <PromptCta href="/onboarding?step=4" label="Boost EF" />
+        <PromptCta href="/profile?step=4" label="Boost EF" />
         <PromptCta href="/plan#what-if" label="Run what-if" />
       </div>
     </ThemedContainer>

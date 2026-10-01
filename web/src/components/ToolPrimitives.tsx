@@ -736,7 +736,7 @@ export function SubmitBar({
 export function AddToSetupAction({ label }: { label: string }) {
   return (
     <a
-      href="/onboarding?step=loans"
+      href="/profile?step=loans"
       style={{
         display: 'inline-block',
         marginTop: 14,
@@ -788,7 +788,7 @@ export function AddLoanAction({
         Added to your profile.{' '}
         <a href="/plan" style={{ color: 'var(--accent)' }}>See the new /plan</a>
         {' '}or{' '}
-        <a href="/onboarding?step=loans" style={{ color: 'var(--accent)' }}>
+        <a href="/profile?step=loans" style={{ color: 'var(--accent)' }}>
           tweak the details in Setup
         </a>
         .

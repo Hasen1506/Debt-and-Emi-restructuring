@@ -36,7 +36,7 @@ const CASH_TIP = (
     </div>
     <div style={{ marginTop: 8 }}>
       Edit individual account balances and rates in{' '}
-      <a href="/onboarding?step=4" style={{ color: 'var(--accent)' }}>
+      <a href="/profile?step=4" style={{ color: 'var(--accent)' }}>
         Setup → Cash &amp; savings
       </a>
       .

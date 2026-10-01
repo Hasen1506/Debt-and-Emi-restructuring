@@ -60,7 +60,7 @@ const TAX_SLEEVE_TIP = (
     </div>
     <div style={{ marginTop: 8 }}>
       Not your situation? Clear the non-TDS field in{' '}
-      <a href="/onboarding?step=2" style={{ color: 'var(--accent)' }}>
+      <a href="/profile?step=2" style={{ color: 'var(--accent)' }}>
         Setup → Income
       </a>{' '}
       and the card goes away.
@@ -234,7 +234,7 @@ export function TaxSleeveCard({
             <>
               the tax on your stated <strong>annual business income</strong>.
               Edit in{' '}
-              <a href="/onboarding?step=2" style={{ color: 'var(--accent)' }}>
+              <a href="/profile?step=2" style={{ color: 'var(--accent)' }}>
                 Setup → Income
               </a>
               .
@@ -243,7 +243,7 @@ export function TaxSleeveCard({
             <>
               the <strong>&quot;tax on non-TDS income&quot;</strong> field you
               entered. Edit or clear it in{' '}
-              <a href="/onboarding?step=2" style={{ color: 'var(--accent)' }}>
+              <a href="/profile?step=2" style={{ color: 'var(--accent)' }}>
                 Setup → Income
               </a>{' '}
               to make this card go away.

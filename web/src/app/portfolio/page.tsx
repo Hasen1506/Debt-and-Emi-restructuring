@@ -7,7 +7,7 @@ import { LedgerPortfolio } from '@/components/portfolio/LedgerPortfolio';
  *
  * Summary of the user's assets (FDs, MFs, gold, real estate, retirement)
  * with a list ranked by current value and CTAs into the asset mini-wizard
- * (/onboarding/assets) and the liquidation advisor (/tools/liquidate).
+ * (/profile/assets) and the liquidation advisor (/tools/liquidate).
  *
  * Empty state when no assets are on file — pushes the user into the
  * mini-wizard rather than showing a wall of zeroes.

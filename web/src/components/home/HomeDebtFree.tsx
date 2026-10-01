@@ -31,7 +31,7 @@ export async function HomeDebtFreeValue() {
 
 export async function HomeDebtFreeCaption() {
   const plan = await loadPlanOnce();
-  if (plan.gaps.length > 0) return <Link href="/onboarding?step=loans">ADD LOAN DETAILS →</Link>;
+  if (plan.gaps.length > 0) return <Link href="/profile?step=loans">ADD LOAN DETAILS →</Link>;
   if (plan.futureShortfall) return <Link href="/plan">FUTURE PAYMENTS NEED FUNDING · SEE PLAN →</Link>;
   if (plan.shortfall > 0) {
     return (
