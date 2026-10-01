@@ -12,6 +12,10 @@
 > before and must be built again; **NEW** was planned but never started;
 > **HAVE** is already in the repo today.
 
+> **Redesign (from 1 Oct 2026):** the move to the Ledger V2 design and the
+> strategy personas is planned and tracked in [REDESIGN.md](REDESIGN.md).
+> The design files are in `design/`.
+
 ---
 
 ## 0 · Ground rules (so this never happens again)
