@@ -127,7 +127,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [x] R2.6 Walkthrough W1 marking paid (results below)
 
 ### R3 · Plan
-- [ ] R3.1 Assumption chips (the one place to edit them) + KPIs
+- [x] R3.1 Assumption chips + KPIs: the facts from Profile on one line (plan start, tax regime, bracket → EDIT IN PROFILE), then one chip per assumption (payoff order, pay rises, rising costs, and when they apply: tax refunds, emergency-fund share, rupee drift), each opening its control below the row. KPIs: debt-free, total interest (and how much less than minimums), time saved, paying this month. "This month's surplus allocation" removed (Home's register shows it; goal order is changed on Goals). The emergency-fund slider re-runs the plan once the slider stops, not on every step of a drag
 - [ ] R3.2 Trajectory chart: area, min-payment baseline, milestones, labelled axes
 - [ ] R3.3 Amortisation collapsed to event rows; rate-reset alert and central-bank note below
 - [ ] R3.4 From Notes: lifecycle events table and the top three engine notes
@@ -236,6 +236,13 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
 - Home shows one line, "PAY EXTRA: ₹24,300 → — CREDIT CARD": the extra only. The EMIs and the card minimum due this month aren't on Home.
 - **Marking two paid** (the card and the personal-loan EMI): 7 clicks, 1 amount typed, and a move to Activity (`[I PAID THIS]` → log form: loan, kind, amount, log; twice).
 - Height: 958 at 1200px, 1,395 at 390px.
+
+### Before R3 (current Plan)
+
+- Priya's Plan: 2,478 px at 1200, 3,541 at 390.
+- W3 switching strategy: 1 click (the switch sat in "How this plan is built", 290 px down).
+- The chart's x-axis runs to the minimums' payoff (Aug 2049), so Priya's plan (Mar 2031) fills the first fifth of it.
+- A US card minimum that never clears showed "MONTHS SAVED 0".
 
 ### After R2 (new Home, Priya's profile)
 

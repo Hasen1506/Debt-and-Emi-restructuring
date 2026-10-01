@@ -1,31 +1,28 @@
 'use client';
 
 /**
- * Ledger Plan — the printed amortisation statement.
+ * Plan (REDESIGN R3): when the debt clears, and what if.
  *
- * Sections (matches the prototype, top to bottom):
- *   1. CLI summary line
- *   2. 4-cell KPI: CLEAR DATE / TOTAL INTEREST / MONTHS SAVED / OUTLAY
- *   3. TRAJECTORY · TOTAL DEBT OVER TIME  (LTrajectory)
- *   4. AMORTISATION · NEXT 12 MO  (dense table)
- *   5. WHAT IF  (sliders that re-run the engine)
+ * Top to bottom:
+ *   1. "Schedule amended" when Activity has moved the plan
+ *   2. What the plan assumes: facts from Profile, then one chip per
+ *      assumption, each opening its control (PlanAssumptions)
+ *   3. KPIs: debt-free, total interest, time saved, paying this month
+ *   4. Trajectory, key dates, life events, amortisation, what-if
  *
- * Cheaper rates (restructuring) live on Home only (REDESIGN R2.4).
- *
- * Ledger is the only skin, so the panels the other two skins carried
- * (strategy, assumptions, per-loan clear dates, invest-vs-prepay, tax
- * alerts, life-event prompts) render here too.
+ * Cheaper rates (restructuring) and this month's payments live on Home
+ * (REDESIGN R2).
  */
 
 import { useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import type { PlanData } from './PlanData';
-import { formatCurrency, formatCurrencyCompact } from '@/lib/api';
+import { formatCurrencyWhole, formatCurrencyCompact } from '@/lib/api';
 import {
   monthIndexToCountryLabel,
   monthIndexToDate,
   MONTH_NAMES,
-  FY_ANCHOR_MONTH,
+  monthsSpan,
   getCountryToday,
 } from '@/lib/today';
 import {
@@ -46,12 +43,6 @@ import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { loanCurrency } from '@/lib/currency';
 import type { StoredProfile } from '@/lib/user-store';
 import { LTrajectory, type LTrajPoint } from '@/components/ledger/LTrajectory';
-import { StrategySwitcher } from '@/components/StrategySwitcher';
-import { HikeToggle } from '@/components/HikeToggle';
-import { TaxReinvestToggle } from '@/components/TaxReinvestToggle';
-import { InflationToggle } from '@/components/InflationToggle';
-import { EfSplitSlider } from '@/components/EfSplitSlider';
-import { FxDriftToggle } from '@/components/FxDriftToggle';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
@@ -63,12 +54,11 @@ import { CentralBankHint } from './CentralBankHint';
 import { KeyClearanceDates } from './KeyClearanceDates';
 import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
 import { InvestVsPrepayCard } from './InvestVsPrepayCard';
-import { SurplusWaterfall } from './SurplusWaterfall';
+import { PlanAssumptions } from './PlanAssumptions';
 
 export function LedgerPlan({ plan }: { plan: PlanData }) {
   const ccy = plan.displayCurrency;
-  const fc = (v: string | number) => formatCurrency(v, ccy);
-  const marginalPct = (Number(plan.marginalRate) * 100).toFixed(0);
+  const fc = (v: string | number) => formatCurrencyWhole(v, ccy);
   const strategyUp = plan.strategy.toUpperCase();
   const interestSaved =
     Number(plan.baselineInterest) - Number(plan.totalInterest);
@@ -91,11 +81,6 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
       Math.max(0, plan.surplusAllocation?.debtSlice ?? plan.surplus);
   // Nothing owed: every loan on file is at 0, or there are none.
   const debtFreeNow = !plan.user.loans.some((l) => dec(l.outstanding).gt(0));
-  const isHybrid = plan.currenciesInPlay.length > 1;
-  const hikeRate = Number(plan.user.annual_hike_rate ?? '0');
-  const inflRate = Number(plan.user.inflation_rate ?? '0');
-  const hikeMonthIdx = plan.user.hike_effective_month ?? FY_ANCHOR_MONTH[plan.user.country];
-  const taxReinvestTotal = plan.taxReinvestProjection.reduce((sum, e) => sum + Number(e.amount), 0);
 
   // ─── trajectory adapter ─────────────────────────────────────────────
   // x runs from month 1 (this month) to the last month either line is
@@ -164,50 +149,59 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           fontFamily: L_MONO,
         }}
       >
-        {/* 1. CLI line + 2. KPI strip */}
-        <section>
-          <LCli>
-            PLAN · {strategyUp} · {marginalPct}% TAX BRACKET
-            {!plan.profileIsLive && ' · DEMO'}
-            {!plan.live && ' · OFFLINE'}
-          </LCli>
-          <LKpi
-            cols={4}
-            items={[
-              short
-                ? {
-                    l: 'DEBT-FREE',
-                    v: clearLabel,
-                    s: plan.shortfall > 0 ? `SHORT ${fc(Math.round(plan.shortfall))}/MO` : 'FUTURE PAYMENTS NEED FUNDING',
-                    tone: L_T.negative,
-                  }
-                : {
-                    l: 'DEBT-FREE',
-                    v: clearLabel,
-                    s: plan.debtFreeMonth
-                      ? `IN ${plan.debtFreeMonth} MONTHS`
-                      : 'RAISE SURPLUS OR CUT SPEND TO CLEAR',
-                  },
-              {
-                l: 'TOTAL INTEREST',
-                v: fc(plan.totalInterest),
-                s: `VS ${fc(plan.baselineInterest)} ON MINIMUMS`,
-                tone: L_T.positive,
-              },
-              {
-                l: 'MONTHS SAVED',
-                v: String(plan.monthsSaved),
-                s: 'VS PAYING MINIMUMS',
-                tone: L_T.accent,
-              },
-              {
-                l: 'MONTHLY OUTLAY',
-                v: `${fc(monthlyOutlay)}/MO`,
-                s: 'EMIS + EXTRA',
-              },
-            ]}
+        {plan.activityImpact && (
+          <ActivityImpactBanner
+            impact={plan.activityImpact}
+            loans={plan.user.loans}
+            country={plan.user.country}
+            variant="ledger"
           />
-        </section>
+        )}
+
+        {/* What the plan assumes (editable chips), then what it comes to */}
+        <PlanAssumptions plan={plan} />
+        <LKpi
+          cols={4}
+          items={[
+            short
+              ? {
+                  l: 'DEBT-FREE',
+                  v: clearLabel,
+                  s: plan.shortfall > 0 ? `SHORT ${fc(Math.round(plan.shortfall))}/MO` : 'FUTURE PAYMENTS NEED FUNDING',
+                  tone: L_T.negative,
+                }
+              : {
+                  l: 'DEBT-FREE',
+                  v: clearLabel,
+                  s: plan.debtFreeMonth
+                    ? `IN ${monthsSpan(plan.debtFreeMonth).toUpperCase()}`
+                    : 'RAISE SURPLUS OR CUT SPEND TO CLEAR',
+                },
+            {
+              l: 'TOTAL INTEREST',
+              v: fc(plan.totalInterest),
+              s: interestSaved >= 1 ? `${fc(interestSaved)} LESS THAN MINIMUMS` : 'SAME AS PAYING MINIMUMS',
+              tone: L_T.positive,
+            },
+            {
+              l: 'TIME SAVED',
+              v: !short && plan.monthsSaved > 0 ? monthsSpan(plan.monthsSaved).toUpperCase() : '—',
+              // The minimums can run past the plan's horizon (a card whose
+              // minimum barely covers its interest): there's no date to compare.
+              s: short
+                ? 'NEEDS A PAYOFF DATE FIRST'
+                : plan.monthsSaved > 0 || baselineClear
+                  ? 'VS PAYING ONLY MINIMUMS'
+                  : 'MINIMUMS ALONE NEVER CLEAR IT',
+              tone: L_T.accent,
+            },
+            {
+              l: 'PAYING THIS MONTH',
+              v: fc(monthlyOutlay),
+              s: 'EMIS + MINIMUMS + EXTRA',
+            },
+          ]}
+        />
 
         {plan.shortfall > 0 && <ShortfallBanner plan={plan} />}
         {plan.futureShortfall && <div role="alert" style={{color:L_T.negative,fontSize:12}}>
@@ -221,68 +215,12 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         </div>}
         <FxCachePersister rates={plan.fxRatesUsed} />
         <LifecycleArrivalPrompts user={plan.user} variant="ledger" />
-        {plan.activityImpact && (
-          <ActivityImpactBanner
-            impact={plan.activityImpact}
-            loans={plan.user.loans}
-            country={plan.user.country}
-            variant="ledger"
-          />
-        )}
         <BracketTransitionAlert
           transitions={plan.bracketTransitions}
           country={plan.user.country}
           displayCurrency={plan.displayCurrency}
           variant="ledger"
         />
-
-        {/* How the plan is built: strategy + the assumptions behind it */}
-        <section>
-          <LSectionHeader>HOW THIS PLAN IS BUILT</LSectionHeader>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <StrategySwitcher
-              active={plan.strategy}
-              variant="ledger"
-              compare={plan.strategyCompare}
-              country={plan.user.country}
-            />
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 24px' }}>
-              <HikeToggle
-                active={plan.hikeModeling}
-                hikeRatePct={hikeRate > 0 ? `${(hikeRate * 100).toFixed(0)}%` : '0%'}
-                hikeMonthLabel={MONTH_NAMES[Math.max(0, Math.min(11, hikeMonthIdx - 1))]}
-                hikePhases={plan.user.hike_schedule}
-                variant="ledger"
-              />
-              <InflationToggle
-                active={plan.inflationModeling}
-                inflationRatePct={inflRate > 0 ? `${(inflRate * 100).toFixed(1)}%` : '0%'}
-                variant="ledger"
-              />
-              <TaxReinvestToggle
-                active={plan.taxReinvest}
-                totalProjectedSaving={formatCurrency(taxReinvestTotal.toFixed(0), ccy)}
-                variant="ledger"
-              />
-              {isHybrid && (
-                <FxDriftToggle
-                  active={plan.fxDrift}
-                  driftLabel="INR +2.5%/yr (CPI differential)"
-                  variant="ledger"
-                />
-              )}
-            </div>
-            <EfSplitSlider
-              active={plan.efSplit}
-              hasGap={
-                Number(plan.user.efund_target || 0) > 0 &&
-                Number(plan.user.efund_balance || 0) < Number(plan.user.efund_target || 0)
-              }
-              ccySym={plan.user.country === 'IN' ? '₹' : '$'}
-              variant="ledger"
-            />
-          </div>
-        </section>
 
         {/* 3. Trajectory */}
         <section>
@@ -367,8 +305,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           hasFloating={plan.user.loans.some((l) => l.rate_type === 'floating')}
         />
 
-        {/* Where the spare cash goes, and whether investing beats prepaying */}
-        <SurplusWaterfall plan={plan} />
+        {/* Whether investing beats prepaying */}
         <InvestVsPrepayCard plan={plan} variant="ledger" />
 
         {plan.advanceTaxSchedule && (
@@ -690,7 +627,7 @@ function AmortisationSection({
                         style={{ padding: '6px 10px', textAlign: 'right' }}
                       >
                         {r.perLoan[idx]
-                          ? formatCurrency(
+                          ? formatCurrencyWhole(
                               Number(r.perLoan[idx]).toFixed(0),
                               loanCurrency(loanCols[idx], plan.user.country),
                             )
@@ -767,7 +704,7 @@ void Decimal;
 /** Income doesn't cover costs plus minimums: say by how much and what the
  *  schedule assumes, instead of offering its date as a plan. */
 function ShortfallBanner({ plan }: { plan: PlanData }) {
-  const fc = (v: number) => formatCurrency(Math.round(v), plan.displayCurrency);
+  const fc = (v: number) => formatCurrencyWhole(Math.round(v), plan.displayCurrency);
   const income = dec(plan.user.monthly_income).toNumber();
   const costs = dec(plan.user.fixed_expenses).add(dec(plan.user.variable_expenses)).toNumber();
   // The engine's minimums, so the three figures add up to its shortfall.

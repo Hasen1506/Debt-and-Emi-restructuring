@@ -12,7 +12,7 @@
  * all surplus to EF until target is hit, then flips to debt.
  */
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { writeEfSplitClient } from '@/lib/ef-split';
 import { readDecisionsClient, recordDecision } from '@/lib/decisions';
@@ -32,15 +32,21 @@ export function EfSplitSlider({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [local, setLocal] = useState(active);
+  // The saved value, and the pending save: dragging only re-runs the plan
+  // (and records one decision) once the slider has been still for a moment.
+  const saved = useRef(active);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   if (!hasGap) return null;
 
   const pct = Math.round(Number(local) * 100);
   const debtPct = 100 - pct;
 
-  function commit(next: string) {
-    const prev = local;
-    setLocal(next);
+  function save(next: string) {
+    const prev = saved.current;
+    if (next === prev) return;
+    saved.current = next;
     writeEfSplitClient(next);
     recordDecision(readDecisionsClient(), {
       kind: 'ef_split_change',
@@ -50,6 +56,12 @@ export function EfSplitSlider({
       impactDeltaMonths: null,
     });
     startTransition(() => router.refresh());
+  }
+
+  function commit(next: string) {
+    setLocal(next);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => save(next), 400);
   }
 
   const explainer = (
@@ -97,7 +109,6 @@ export function EfSplitSlider({
           onChange={(e) =>
             commit((Number(e.target.value) / 100).toFixed(2))
           }
-          disabled={pending}
           aria-label="Emergency fund share of extra money"
           aria-valuetext={`${pct}% emergency fund, ${100 - pct}% debt`}
           style={{ width: 140 }}
@@ -132,7 +143,6 @@ export function EfSplitSlider({
           onChange={(e) =>
             commit((Number(e.target.value) / 100).toFixed(2))
           }
-          disabled={pending}
           aria-label="Emergency fund share of extra money"
           aria-valuetext={`${pct}% emergency fund, ${100 - pct}% debt`}
           style={{ width: 200 }}
