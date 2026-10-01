@@ -5,10 +5,10 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R2 · Home (not started)
-- **Last finished step:** R1 merged to `main` (PR #8): three-step setup at `/onboarding`, Profile as a summary with [EDIT] per section
-- **Next step:** R2 — first measure W1's "what do I pay, mark two paid" on the current Home (clicks, height at 1200/390) as the before, then R2.1
-- **Open PR:** #9 (draft) · `claude/vibrant-bardeen-5bsiyj`
+- **Phase in progress:** R3 · Plan (not started)
+- **Last finished step:** R2 · Home, all six steps (PR #9): context line, cash-flow trio, KPIs, Pay this month with one-tap mark paid, allocation bar, cheaper rates moved from Plan, open positions with rate breakdown; `/debts` retired
+- **Next step:** R3 — measure Plan's height at 1200/390 and W3's "switch strategy → plan changes" on the current Plan as the before, then R3.1
+- **Open PR:** #9 · `claude/vibrant-bardeen-5bsiyj` (merge when CI is green, then restart the branch from `main`)
 - **Waiting on the owner:** whether to change the US default card minimum (see the R1 walkthrough results)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
@@ -124,7 +124,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [x] R2.3 Allocation bar under the register: one segment per payment (the extra's loan in the accent, savings green, other loans grey)
 - [x] R2.4 Cheaper rates (restructure) moved from Plan to Home: one row per move (loans → lender, kind, rate change, fee, payback, year-1 saving), the top row open and the rest one click away; details hold the engine's explanation, rate date, eligibility caveat, "I took this" and the alternative lender
 - [x] R2.5 Open positions on Home: one row per loan (rate → effective, EMI or minimum, months left, balance), the dearest flagged, each opening to its effective-rate breakdown; the stale-card nudge above it (update or dismiss for a week). `/debts` → `/#positions`; its cash cards moved to `/portfolio`, its planned-events panel to Plan (`/plan#life-events`)
-- [ ] R2.6 Walkthrough W1 marking paid
+- [x] R2.6 Walkthrough W1 marking paid (results below)
 
 ### R3 · Plan
 - [ ] R3.1 Assumption chips (the one place to edit them) + KPIs
@@ -236,6 +236,18 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
 - Home shows one line, "PAY EXTRA: ₹24,300 → — CREDIT CARD": the extra only. The EMIs and the card minimum due this month aren't on Home.
 - **Marking two paid** (the card and the personal-loan EMI): 7 clicks, 1 amount typed, and a move to Activity (`[I PAID THIS]` → log form: loan, kind, amount, log; twice).
 - Height: 958 at 1200px, 1,395 at 390px.
+
+### After R2 (new Home, Priya's profile)
+
+| | Before | After |
+|---|---|---|
+| What Home says to pay | the extra only ("₹24,300 → card") | every payment this month: card ₹31,800 (₹7,500 minimum + ₹24,300 extra), home loan ₹24,500, personal loan ₹13,700, total ₹70,000 |
+| **Mark two paid** (card + personal loan) | 7 clicks, 1 typed, on Activity | **2 clicks, 0 typed, on Home** |
+| Plan after marking | (an extra logged this month moved the plan, counted twice) | unchanged: Mar 2031 on Home and Plan; the extra comes off next month |
+| Height at 1200 / 390 | 958 / 1,395 | 1,746 / 2,700 |
+
+- Home is taller because it now carries what was on Debts (open positions, each rate's breakdown) and Plan (cheaper rates); the Debts page is gone (`/debts` → `/#positions`).
+- Checked with the over-budget, US, NRI, missing-rate and missing-exchange-rate profiles: no sideways scroll at 390, each gets its own message (short this month; add the rate; add the exchange rate).
 
 ### After (R7.1)
 
