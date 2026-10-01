@@ -4,6 +4,7 @@ import { readLifecycleServer } from '@/lib/lifecycle-events';
 import { loadStrategyServer } from '@/lib/strategy';
 import { LedgerHome } from '@/components/home/LedgerHome';
 import {
+  HomeCheaperRates,
   HomeDebtFreeCaption,
   HomeDebtFreeValue,
   HomeMoveOneStep,
@@ -38,6 +39,11 @@ export default async function HomePage() {
         register={
           <Suspense fallback={<p aria-busy="true" style={{ fontSize: 12 }}>WORKING OUT THIS MONTH&apos;S PAYMENTS…</p>}>
             <HomePayThisMonth />
+          </Suspense>
+        }
+        cheaper={
+          <Suspense fallback={null}>
+            <HomeCheaperRates />
           </Suspense>
         }
         oneStep={

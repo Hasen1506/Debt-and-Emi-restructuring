@@ -48,6 +48,8 @@ interface HomeProps {
   debtFree?: DebtFreeSlot;
   /** This month's payments to tick off, streamed in by the page. */
   register?: ReactNode;
+  /** Cheaper rates for these loans, streamed in by the page. */
+  cheaper?: ReactNode;
   /** The calm view's one step, streamed in by the page. */
   oneStep?: ReactNode;
 }
@@ -61,7 +63,7 @@ export function LedgerHome(props: HomeProps) {
   return <LedgerHomeFull {...props} />;
 }
 
-function LedgerHomeFull({ profile, strategy, debtFree, register }: HomeProps) {
+function LedgerHomeFull({ profile, strategy, debtFree, register, cheaper }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrencyWhole(v, ccy);
@@ -116,6 +118,7 @@ function LedgerHomeFull({ profile, strategy, debtFree, register }: HomeProps) {
         </section>
 
         {register}
+        {cheaper}
 
         <section>
           <LSectionHeader right={<LBracket href="/profile?step=loans">+ ADD DEBT</LBracket>}>

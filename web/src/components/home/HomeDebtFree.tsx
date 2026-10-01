@@ -10,6 +10,7 @@ import { loadPlanFromCookies } from '@/components/plan/load-plan';
 import { MONTH_NAMES, getCountryToday, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { payThisMonth } from '@/lib/pay-this-month';
 import { PayNotice, PayThisMonth } from './PayThisMonth';
+import { HomeRestructure } from './HomeRestructure';
 import { LBracket } from '@/components/ledger/primitives';
 import { thisMonthMove } from '@/lib/this-month';
 import { deriveMetrics } from '@/lib/derived';
@@ -155,5 +156,14 @@ export async function HomePayThisMonth() {
       reason={reason}
       alert={alert}
     />
+  );
+}
+
+/** Cheaper rates the engine found for these loans (REDESIGN R2.4). */
+export async function HomeCheaperRates() {
+  const plan = await loadPlanOnce();
+  if (plan.gaps.length > 0 || plan.opportunities.length === 0) return null;
+  return (
+    <HomeRestructure opportunities={plan.opportunities} user={plan.user} totalAnnualSaving={plan.totalAnnualSaving} />
   );
 }
