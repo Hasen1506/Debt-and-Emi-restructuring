@@ -114,3 +114,10 @@ export function monthIndexToCountryLabel(
   const locale = country === 'IN' ? 'en-IN' : 'en-US';
   return d.toLocaleDateString(locale, { month: 'short', year: 'numeric' });
 }
+
+/** A count of months as years and months: "4 yrs 6 mo", "11 mo", "1 yr". */
+export function monthsSpan(n: number): string {
+  const y = Math.floor(n / 12);
+  const mo = n % 12;
+  return `${y > 0 ? `${y} yr${y > 1 ? 's' : ''} ` : ''}${mo > 0 || y === 0 ? `${mo} mo` : ''}`.trim();
+}

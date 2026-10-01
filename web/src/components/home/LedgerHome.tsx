@@ -1,16 +1,15 @@
 'use client';
 
 /**
- * Ledger Home — "The daily statement".
+ * Home — "what do I pay this month?" (REDESIGN R2).
  *
- * Three view modes (toggled from the global LFooter):
- *   SIMPLE   · CALM         → STATUS / ACTION / OPEN POSITIONS / TOOLS
- *   DETAILED · CALM         → adds the next loan to target and an insight
- *   ANY      · OVERWHELMED  → soft view: one card, one sentence, one button
+ * Top to bottom: one context line (the plan's settings; they're changed on
+ * Plan), this month's cash flow (take-home − costs = left), the status
+ * figures, this month's payments, and the open loans. "Feeling
+ * overwhelmed?" in the footer swaps all of it for one step.
  *
- * Data: all numbers derive from the saved profile (deriveMetrics). The
- * debt-free date needs the simulation, so the home page links to /plan
- * for it rather than showing an empty placeholder.
+ * Figures from the saved profile (deriveMetrics) render at once; the plan's
+ * date and payments are streamed in by the page.
  */
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -18,10 +17,11 @@ import Decimal from 'decimal.js';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrency } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
-import { deriveMetrics } from '@/lib/derived';
-import { describeGap, projectionGaps } from '@/lib/loan-gaps';
+import { deriveMetrics, type DerivedMetrics } from '@/lib/derived';
+import { projectionGaps } from '@/lib/loan-gaps';
 import { userDefaultCurrency } from '@/lib/currency';
-import { toolsFor } from '@/lib/tools';
+import { MONTH_NAMES, getCountryToday, monthIndexToCountryLabel } from '@/lib/today';
+import { STRATEGY_LABEL, type StrategyName } from '@/lib/strategy';
 import {
   LShell,
   LSectionHeader,
@@ -30,12 +30,9 @@ import {
   LBracket,
   LRule,
   L_T,
-  L_MONO,
   LButton,
   lGridColumns,
-  readLedgerMode,
   readLedgerTone,
-  type LMode,
   type LTone,
 } from '@/components/ledger/primitives';
 import { LDebtsTable } from '@/components/ledger/LDebtsTable';
@@ -56,29 +53,23 @@ export interface MoveSlot {
 
 interface HomeProps {
   profile: StoredProfile;
+  strategy: StrategyName;
   debtFree?: DebtFreeSlot;
   move?: MoveSlot;
 }
 
-export function LedgerHome({ profile, debtFree, move }: HomeProps) {
-  const [mode, setMode] = useState<LMode>('SIMPLE');
+export function LedgerHome(props: HomeProps) {
   const [tone, setTone] = useState<LTone>('CALM');
   useEffect(() => {
-    setMode(readLedgerMode());
     setTone(readLedgerTone());
   }, []);
-
-  if (tone === 'OVERWHELMED') return <LedgerHomeSoft profile={profile} move={move} />;
-  if (mode === 'DETAILED') return <LedgerHomeDetailed profile={profile} debtFree={debtFree} />;
-  return <LedgerHomeSimple profile={profile} debtFree={debtFree} move={move} />;
+  if (tone === 'OVERWHELMED') return <LedgerHomeSoft profile={props.profile} move={props.move} />;
+  return <LedgerHomeFull {...props} />;
 }
 
-// ─── SIMPLE × CALM ─────────────────────────────────────────────────────
-function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
+function LedgerHomeFull({ profile, strategy, debtFree, move }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
-  // Only the tools that cover the user's country (Loan Check is India-only).
-  const tools = toolsFor(profile.user.country);
   const fc = (v: number | string) => formatCurrency(v, ccy);
 
   if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
@@ -88,8 +79,6 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
   const gaps = projectionGaps(profile.user);
   const loudestBank = (loudest.loan.bank || 'YOUR LOUDEST').toUpperCase();
   const loudestProduct = loudest.loan.loan_type.replace('_', ' ').toUpperCase();
-  const surplusTone =
-    m.surplus.gt(0) ? L_T.positive : m.surplus.lt(0) ? L_T.negative : L_T.ink;
   // The extra this month is the surplus, never more than the balance. With
   // no surplus there is nothing extra to pay: it used to fall back to the
   // whole balance ("PAY ₹30,00,000 EXTRA") for someone already over budget.
@@ -103,6 +92,7 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
   // Interest the extra avoids over a year at this loan's effective rate
   // (not the whole balance's interest, which is what it showed before).
   const annualSaving = Math.round(Number(extra.times(loudest.effective).toString()));
+  const fxMissing = m.fxMissing.length > 0;
 
   return (
     <LShell>
@@ -115,29 +105,34 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
           gap: 22,
         }}
       >
-        <section>
-          <LSectionHeader>STATUS</LSectionHeader>
+        <ContextLine profile={profile} strategy={strategy} />
+        <CashFlow profile={profile} m={m} />
+
+        <section aria-labelledby="home-status">
+          <LSectionHeader>
+            <span id="home-status">Status</span>
+          </LSectionHeader>
           <LKpi
             cols={4}
             items={[
               // With no exchange rate the ₹ and $ can't be added up.
-              m.fxMissing.length > 0
+              fxMissing
                 ? { l: 'OUTSTANDING', v: '—', s: 'ADD THE EXCHANGE RATE' }
-                : { l: 'OUTSTANDING', v: fc(m.totalOutstanding.toString()), s: `${m.loans.length} OPEN` },
+                : { l: 'OUTSTANDING', v: fc(m.totalOutstanding.toFixed(0)), s: `${m.loans.length} OPEN` },
               debtFree
                 ? { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.positive }
                 : { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
+              fxMissing
+                ? { l: 'INTEREST', v: '—', s: 'NEEDS THE EXCHANGE RATE' }
+                : {
+                    l: 'INTEREST',
+                    v: `${fc(m.monthlyInterest.toFixed(0))}/MO`,
+                    s: 'CHARGED THIS MONTH',
+                    tone: L_T.negative,
+                  },
               gaps.length > 0
                 ? { l: 'EFFECTIVE RATE', v: '—', s: 'ADD YOUR LOAN DETAILS' }
                 : { l: 'EFFECTIVE RATE', v: fmtPct(m.blendedEffective), s: 'AVERAGE · AFTER FEES + TAX' },
-              m.fxMissing.length > 0
-                ? { l: 'SURPLUS', v: '—', s: 'NEEDS THE EXCHANGE RATE' }
-                : {
-                    l: 'SURPLUS',
-                    v: `${fc(m.surplus.toString())}/MO`,
-                    s: m.surplus.gt(0) ? 'AFTER COSTS + MINIMUMS' : m.surplus.lt(0) ? 'SHORT EACH MONTH' : 'NOTHING SPARE',
-                    tone: surplusTone,
-                  },
             ]}
           />
         </section>
@@ -205,142 +200,143 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
             fx={profile.user.fx_to_user_currency}
           />
         </section>
-
-        <section>
-          <LSectionHeader>TOOLS · {tools.length}</LSectionHeader>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: lGridColumns(Math.min(tools.length, 5), 150),
-              gap: 1,
-              background: L_T.ink,
-              padding: 1,
-            }}
-          >
-            {tools.map((t) => (
-              <a
-                key={t.id}
-                href={t.href}
-                style={{
-                  background: L_T.bg,
-                  padding: '12px 10px',
-                  textDecoration: 'none',
-                  color: L_T.ink,
-                  fontFamily: L_MONO,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: L_T.accent,
-                    fontWeight: 700,
-                    letterSpacing: '0.1em',
-                  }}
-                >
-                  §{t.tag}
-                </div>
-                <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4 }}>
-                  {t.name.toUpperCase()}
-                </div>
-                <div style={{ fontSize: 10, color: L_T.muted, marginTop: 4, lineHeight: 1.4 }}>
-                  {t.question}
-                </div>
-              </a>
-            ))}
-          </div>
-        </section>
       </div>
     </LShell>
   );
 }
 
-// ─── DETAILED × CALM ───────────────────────────────────────────────────
-function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; debtFree?: DebtFreeSlot }) {
-  const m = useMemo(() => deriveMetrics(profile), [profile]);
-  const ccy = userDefaultCurrency(profile.user.country);
-  const fc = (v: number | string) => formatCurrency(v, ccy);
-  if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
-  const loudest = m.loudest!;
-  const gaps = projectionGaps(profile.user);
+const FILING: Record<string, string> = { single: 'SINGLE', mfj: 'JOINTLY', hoh: 'HEAD OF HOUSEHOLD' };
 
+/** The settings the plan ran with, on one line. They're changed on Plan
+ *  (the assumption chips) and in Profile, not here. */
+function ContextLine({ profile, strategy }: { profile: StoredProfile; strategy: StrategyName }) {
+  const u = profile.user;
+  const gross = Number(u.income_type === 'salaried' ? u.annual_gross_salary : u.annual_business_income);
+  const parts = [
+    `PLAN FROM ${monthIndexToCountryLabel(1, u.country).toUpperCase()}`,
+    u.country === 'IN'
+      ? `${u.tax_regime === 'old' ? 'OLD' : 'NEW'} TAX REGIME`
+      : `FILING ${FILING[u.filing_status ?? 'single'] ?? 'SINGLE'}`,
+    // Worked out from take-home until gross pay is entered in Profile.
+    `TAX BRACKET ${Math.round(Number(profile.marginalRate || 0) * 100)}%${gross > 0 ? '' : ' (ESTIMATED)'}`,
+    `${STRATEGY_LABEL[strategy].toUpperCase()} ORDER`,
+  ];
   return (
-    <LShell>
-      <div style={{ flex: 1, padding: '4px 0 0', display: 'flex', flexDirection: 'column', gap: 22 }}>
-        <section>
-          <LSectionHeader>STATUS</LSectionHeader>
-          <LKpi
-            cols={4}
-            items={[
-              debtFree
-                ? { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.positive }
-                : { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
-              m.fxMissing.length > 0
-                ? { l: 'OUTSTANDING', v: '—', s: 'ADD THE EXCHANGE RATE' }
-                : {
-                    l: 'OUTSTANDING',
-                    v: fc(m.totalOutstanding.toString()),
-                    s: `${m.loans.length} OPEN`,
-                  },
-              gaps.length > 0
-                ? { l: 'EFFECTIVE RATE', v: '—', s: 'ADD YOUR LOAN DETAILS' }
-                : {
-                    l: 'EFFECTIVE RATE',
-                    v: fmtPct(m.blendedEffective),
-                    s: 'AVERAGE · AFTER FEES + TAX',
-                  },
-              gaps.length > 0
-                ? { l: 'NEXT', v: 'ADD DETAILS', s: `${describeGap(gaps[0].missing, gaps[0].loan).toUpperCase()} MISSING`, tone: L_T.accent }
-                : {
-                    l: 'NEXT',
-                    v: `${(loudest.loan.bank || '—').toUpperCase()}`,
-                    s: `${fmtPct(loudest.effective)} EFFECTIVE`,
-                    tone: L_T.accent,
-                  },
-            ]}
-          />
-        </section>
+    <section
+      aria-label="Plan settings"
+      style={{
+        fontSize: 11,
+        letterSpacing: '0.12em',
+        color: L_T.muted,
+        borderTop: `1px dashed ${L_T.ruleSoft}`,
+        borderBottom: `1px dashed ${L_T.ruleSoft}`,
+        padding: '8px 0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 8,
+        alignItems: 'baseline',
+      }}
+    >
+      <span>
+        <span aria-hidden="true">$ </span>
+        {parts.join(' · ')}
+      </span>
+      <LBracket href="/plan">CHANGE ON PLAN →</LBracket>
+    </section>
+  );
+}
 
-        <section>
-          <LSectionHeader right={<LBracket href="/profile?step=loans">+ ADD DEBT</LBracket>}>
-            OPEN POSITIONS · {m.loans.length}
-          </LSectionHeader>
-          <LDebtsTable
-            loans={m.loans}
-            country={profile.user.country}
-            totalOutstanding={m.totalOutstanding}
-            totalEmi={m.emiBurden}
-            spare={m.surplus.gt(0)}
-            fx={profile.user.fx_to_user_currency}
-          />
-        </section>
-
-        {gaps.length === 0 && (
-        <section style={{ border: `1px solid ${L_T.ink}`, padding: '12px 16px' }}>
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: '0.18em',
-              color: L_T.muted,
-              marginBottom: 6,
-            }}
-          >
-            $ INSIGHT · {(loudest.loan.bank || '—').toUpperCase()}
+/** Take-home − costs = left: the three numbers the month's plan comes from. */
+function CashFlow({ profile, m }: { profile: StoredProfile; m: DerivedMetrics }) {
+  const u = profile.user;
+  const fc = (v: number) => formatCurrency(Math.round(Math.abs(v)), userDefaultCurrency(u.country));
+  const today = getCountryToday(u.country);
+  const income = Number(u.monthly_income || 0);
+  const spend = Number(u.fixed_expenses || 0) + Number(u.variable_expenses || 0);
+  const debts = Number(m.emiBurden.toFixed(0));
+  const left = Number(m.surplus.toFixed(0));
+  const streams = u.income_streams?.length ?? 0;
+  // ₹ and $ minimums can't be added without the rate.
+  const noFx = m.fxMissing.length > 0;
+  const cells = [
+    {
+      label: 'TAKE-HOME',
+      sign: '+',
+      value: fc(income),
+      tone: L_T.ink,
+      note: streams > 0 ? `From ${streams} income sources, after tax` : 'A month, after tax',
+    },
+    {
+      label: 'COSTS',
+      sign: '−',
+      value: noFx ? '—' : fc(spend + debts),
+      tone: L_T.ink,
+      note: noFx
+        ? 'Add the exchange rate in Profile'
+        : `Spending ${fc(spend)} + EMIs and card minimums ${fc(debts)}`,
+    },
+    {
+      label: left < 0 ? 'SHORT' : 'LEFT',
+      sign: '=',
+      value: noFx ? '—' : fc(left),
+      tone: noFx ? L_T.ink : left > 0 ? L_T.positive : left < 0 ? L_T.negative : L_T.ink,
+      note: noFx
+        ? 'Needs the exchange rate'
+        : left > 0
+          ? 'For extra payments and savings'
+          : left < 0
+            ? 'Costs and minimums are more than income'
+            : 'Nothing spare this month',
+    },
+  ];
+  return (
+    <section aria-labelledby="home-cash">
+      <LSectionHeader>
+        <span id="home-cash">
+          Cash flow · {MONTH_NAMES[today.getMonth()]} {today.getFullYear()}
+        </span>
+      </LSectionHeader>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: lGridColumns(3, 200),
+          gap: 1,
+          background: L_T.ink,
+          padding: 1,
+        }}
+      >
+        {cells.map((c) => (
+          <div key={c.label} style={{ background: L_T.paper, padding: '14px 18px' }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.16em', color: L_T.muted, fontWeight: 600, marginBottom: 6 }}>
+              {c.label}
+            </div>
+            <div
+              style={{
+                fontSize: 'clamp(22px, 4.2vw, 30px)',
+                fontWeight: 700,
+                letterSpacing: '-0.02em',
+                color: c.tone,
+                fontVariantNumeric: 'tabular-nums',
+                lineHeight: 1.1,
+                overflowWrap: 'anywhere',
+              }}
+            >
+              <span aria-hidden="true" style={{ fontSize: '0.6em', marginRight: 4 }}>
+                {c.sign}
+              </span>
+              {c.value}
+            </div>
+            <div style={{ fontSize: 11, color: L_T.muted, marginTop: 8, lineHeight: 1.5 }}>{c.note}</div>
           </div>
-          <div style={{ fontSize: 12, color: L_T.ink }}>
-            Effective rate on {loudest.loan.bank || 'this loan'} ={' '}
-            <span style={{ color: L_T.accent, fontWeight: 700 }}>{fmtPct(loudest.effective)}</span>{' '}
-            once fees and any tax saving are counted.{' '}
-            <LBracket href="/debts">see the breakdown →</LBracket>
-          </div>
-        </section>
-        )}
+        ))}
       </div>
-    </LShell>
+    </section>
   );
 }
 
 // ─── OVERWHELMED — soft view ───────────────────────────────────────────
-function LedgerHomeSoft({ profile, move }: HomeProps) {
+function LedgerHomeSoft({ profile, move }: { profile: StoredProfile; move?: MoveSlot }) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrency(v, ccy);

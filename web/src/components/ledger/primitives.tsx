@@ -711,18 +711,10 @@ export function LButton({
   );
 }
 
-// ─── LFooter — bottom bar with Simple/Detailed + Overwhelmed toggles ───
-export type LMode = 'SIMPLE' | 'DETAILED';
+// ─── LFooter — the calm-view toggle under Home ──────────────────────────
 export type LTone = 'CALM' | 'OVERWHELMED';
 
-const FOOTER_MODE_COOKIE = 'finoptima_ledger_mode';
 const FOOTER_TONE_COOKIE = 'finoptima_ledger_tone';
-
-export function readLedgerMode(): LMode {
-  if (typeof document === 'undefined') return 'SIMPLE';
-  const m = document.cookie.match(/finoptima_ledger_mode=([^;]+)/);
-  return m && m[1] === 'DETAILED' ? 'DETAILED' : 'SIMPLE';
-}
 
 export function readLedgerTone(): LTone {
   if (typeof document === 'undefined') return 'CALM';
@@ -730,34 +722,23 @@ export function readLedgerTone(): LTone {
   return m && m[1] === 'OVERWHELMED' ? 'OVERWHELMED' : 'CALM';
 }
 
-function writeMode(m: LMode) {
-  document.cookie = `${FOOTER_MODE_COOKIE}=${m}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
-}
 function writeTone(t: LTone) {
   document.cookie = `${FOOTER_TONE_COOKIE}=${t}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
 }
 
 export function LFooter({ mobile }: { mobile?: boolean }) {
-  // The mode and calm toggles change only the home page; elsewhere they
-  // reloaded the page and nothing changed.
+  // The calm view is a Home view; elsewhere the toggle would change nothing.
+  // (A SIMPLE / DETAILED switch sat here too until R2 made Home one layout.)
   const onHome = (usePathname() || '/') === '/';
-  const [mode, setMode] = useState<LMode>('SIMPLE');
   const [tone, setTone] = useState<LTone>('CALM');
   useEffect(() => {
-    setMode(readLedgerMode());
     setTone(readLedgerTone());
   }, []);
-  function toggleMode(next: LMode) {
-    writeMode(next);
-    setMode(next);
-    // Reload so the page re-renders the variant; cookie-driven so SSR
-    // sees the new mode on the next paint without flicker.
-    window.location.reload();
-  }
   function toggleTone() {
     const next: LTone = tone === 'OVERWHELMED' ? 'CALM' : 'OVERWHELMED';
     writeTone(next);
     setTone(next);
+    // Reload so the page re-renders the view; cookie-driven so SSR sees it.
     window.location.reload();
   }
   if (!onHome) return null;
@@ -767,26 +748,16 @@ export function LFooter({ mobile }: { mobile?: boolean }) {
         borderTop: `1px solid ${L_T.ink}`,
         padding: mobile ? '8px 18px' : '10px 32px',
         display: 'flex',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-start',
         fontSize: 10,
         letterSpacing: '0.14em',
         color: L_T.muted,
-        flexWrap: 'wrap',
-        gap: 8,
         background: L_T.bg,
       }}
     >
       <LBracket accent onClick={toggleTone}>
-        {tone === 'OVERWHELMED' ? '← BACK TO CALM' : 'FEELING OVERWHELMED?'}
+        {tone === 'OVERWHELMED' ? '← BACK TO THE FULL VIEW' : 'FEELING OVERWHELMED? ONE STEP AT A TIME'}
       </LBracket>
-      <span style={{ display: 'inline-flex', gap: 4 }}>
-        <LBracket active={mode === 'SIMPLE'} onClick={() => toggleMode('SIMPLE')}>
-          SIMPLE
-        </LBracket>
-        <LBracket active={mode === 'DETAILED'} onClick={() => toggleMode('DETAILED')}>
-          DETAILED
-        </LBracket>
-      </span>
     </footer>
   );
 }

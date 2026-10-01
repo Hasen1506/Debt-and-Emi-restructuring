@@ -119,7 +119,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - Marginal rate: worked out from take-home (bisection on gross with `computeAnnualTax`, then `classifyBracket(...).marginalRate`), labelled an estimate; Profile can refine it with gross pay.
 
 ### R2 · Home
-- [ ] R2.1 Context line + cash-flow trio + status KPIs
+- [x] R2.1 Context line (plan month, tax regime, bracket, payoff order → changed on Plan) + cash-flow trio (take-home − costs = left) + status KPIs (owed, debt-free, interest this month, effective rate). Tools grid and the SIMPLE/DETAILED switch removed; the footer keeps "Feeling overwhelmed?"
 - [ ] R2.2 Pay This Month register: Mark paid fully / Partial · other → writes to Activity
 - [ ] R2.3 Allocation bar
 - [ ] R2.4 Restructure table (top row open, rest one click away)
@@ -229,6 +229,12 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
   At 24% APR, 2% a month is exactly the interest, so a card on minimums never clears, and "vs paying minimums"
   is overstated (W2: $182,870; W3: "77 yrs 6 mo sooner"). Most US issuers charge 1% of the balance plus interest
   and fees, with a $25–$41 floor. Changing it moves every US baseline, so it is listed for the owner rather than changed here.
+
+### Before R2 (current Home, Priya's profile)
+
+- Home shows one line, "PAY EXTRA: ₹24,300 → — CREDIT CARD": the extra only. The EMIs and the card minimum due this month aren't on Home.
+- **Marking two paid** (the card and the personal-loan EMI): 7 clicks, 1 amount typed, and a move to Activity (`[I PAID THIS]` → log form: loan, kind, amount, log; twice).
+- Height: 958 at 1200px, 1,395 at 390px.
 
 ### After (R7.1)
 

@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { loadCurrentProfileServer } from '@/lib/user-store';
 import { readLifecycleServer } from '@/lib/lifecycle-events';
+import { loadStrategyServer } from '@/lib/strategy';
 import { LedgerHome } from '@/components/home/LedgerHome';
 import {
   HomeDebtFreeCaption,
@@ -13,7 +14,7 @@ import {
 // Home streams the plan's date and this month's move: the page paints at
 // once and the engine's answer (~10–40 ms) fills in.
 export default async function HomePage() {
-  const profile = await loadCurrentProfileServer();
+  const [profile, strategy] = await Promise.all([loadCurrentProfileServer(), loadStrategyServer()]);
   const plannedLoans=(await readLifecycleServer()).filter(e=>e.status==='planned' && e.kind==='property_buy');
   const showPlannedSummary=plannedLoans.length>0 && !profile.user.loans.some(l=>Number(l.outstanding)>0);
   // The ledger layout shows no page title; screen readers still need one.
@@ -22,6 +23,7 @@ export default async function HomePage() {
       <h1 className="sr-only">Home</h1>
       <LedgerHome
         profile={profile}
+        strategy={strategy}
         debtFree={{
           v: (
             <Suspense fallback={<span aria-busy="true">……</span>}>

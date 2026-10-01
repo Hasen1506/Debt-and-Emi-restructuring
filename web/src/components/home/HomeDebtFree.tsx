@@ -7,7 +7,7 @@ import { cache } from 'react';
 import Link from 'next/link';
 import Decimal from 'decimal.js';
 import { loadPlanFromCookies } from '@/components/plan/load-plan';
-import { monthIndexToCountryLabel } from '@/lib/today';
+import { monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { thisMonthMove } from '@/lib/this-month';
 import { deriveMetrics } from '@/lib/derived';
 import { describeGap } from '@/lib/loan-gaps';
@@ -45,7 +45,8 @@ export async function HomeDebtFreeCaption() {
   if (!plan.debtFreeMonth) return <Link href="/plan">RAISE SURPLUS · SEE PLAN →</Link>;
   return (
     <Link href="/plan">
-      IN {plan.debtFreeMonth} MONTHS · {plan.monthsSaved > 0 ? `${plan.monthsSaved} SOONER · ` : ''}PLAN →
+      IN {monthsSpan(plan.debtFreeMonth).toUpperCase()}
+      {plan.monthsSaved > 0 ? ` · ${monthsSpan(plan.monthsSaved).toUpperCase()} SOONER THAN MINIMUMS` : ''} · PLAN →
     </Link>
   );
 }
