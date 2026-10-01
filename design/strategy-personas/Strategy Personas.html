@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FinOptima — Strategy Personas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Spectral:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
+    <link rel="stylesheet" href="strategy-personas.css" />
+  </head>
+  <body>
+
+    <!-- ═════════════ SVG SYMBOLS ═════════════ -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+
+        <!-- AVALANCHE: Sisyphus pushing UP -->
+        <symbol id="scene-avalanche" viewBox="0 0 480 320" preserveAspectRatio="xMidYMid slice">
+          <rect width="480" height="320" fill="#b8261c"/>
+
+          <!-- Greek meander border top -->
+          <g fill="none" stroke="#f4d9b7" stroke-width="1.2" opacity="0.55">
+            <path d="M10,22 h10 v6 h-6 v-3 h3 M28,22 h10 v6 h-6 v-3 h3 M46,22 h10 v6 h-6 v-3 h3 M64,22 h10 v6 h-6 v-3 h3 M82,22 h10 v6 h-6 v-3 h3 M100,22 h10 v6 h-6 v-3 h3 M118,22 h10 v6 h-6 v-3 h3 M136,22 h10 v6 h-6 v-3 h3 M154,22 h10 v6 h-6 v-3 h3 M172,22 h10 v6 h-6 v-3 h3 M190,22 h10 v6 h-6 v-3 h3 M208,22 h10 v6 h-6 v-3 h3 M226,22 h10 v6 h-6 v-3 h3 M244,22 h10 v6 h-6 v-3 h3 M262,22 h10 v6 h-6 v-3 h3 M280,22 h10 v6 h-6 v-3 h3 M298,22 h10 v6 h-6 v-3 h3 M316,22 h10 v6 h-6 v-3 h3 M334,22 h10 v6 h-6 v-3 h3 M352,22 h10 v6 h-6 v-3 h3 M370,22 h10 v6 h-6 v-3 h3 M388,22 h10 v6 h-6 v-3 h3 M406,22 h10 v6 h-6 v-3 h3 M424,22 h10 v6 h-6 v-3 h3 M442,22 h10 v6 h-6 v-3 h3 M460,22 h10 v6 h-6 v-3 h3"/>
+          </g>
+          <rect x="0" y="36" width="480" height="1" fill="#f4d9b7" opacity="0.4"/>
+
+          <!-- sun disc upper right -->
+          <circle cx="395" cy="84" r="26" fill="#f4d9b7" opacity="0.88"/>
+          <g stroke="#f4d9b7" stroke-width="1.5" opacity="0.5" fill="none">
+            <line x1="395" y1="44" x2="395" y2="54"/>
+            <line x1="355" y1="84" x2="365" y2="84"/>
+            <line x1="425" y1="84" x2="435" y2="84"/>
+            <line x1="367" y1="56" x2="374" y2="63"/>
+            <line x1="416" y1="105" x2="423" y2="112"/>
+            <line x1="367" y1="112" x2="374" y2="105"/>
+            <line x1="416" y1="63" x2="423" y2="56"/>
+          </g>
+
+          <!-- distant peaks (darker red) -->
+          <path d="M0,260 L60,210 L100,240 L160,180 L210,230 L260,200 L300,250 L350,225 L400,255 L480,230 L480,320 L0,320 Z" fill="#7d160e"/>
+          <!-- main mountain slope going up-right -->
+          <path d="M0,300 L290,80 L320,80 L480,250 L480,320 L0,320 Z" fill="#5a0f08"/>
+          <!-- slope highlight (lighter edge) -->
+          <path d="M0,300 L290,80 L296,84 L8,304 Z" fill="#7d160e" opacity="0.6"/>
+          <!-- path of climbing -->
+          <path d="M50,300 L290,90" stroke="#f4d9b7" stroke-width="0.8" opacity="0.25" stroke-dasharray="2 4"/>
+
+          <!-- the boulder, above the figure -->
+          <g transform="translate(180,170) rotate(-38)">
+            <circle r="36" fill="#f4d9b7"/>
+            <circle r="36" fill="none" stroke="#7d160e" stroke-width="1.2" opacity="0.5"/>
+            <path d="M-22,-10 Q-10,-18 6,-12" stroke="#b8261c" stroke-width="1" fill="none" opacity="0.4"/>
+            <path d="M-18,8 Q-4,2 14,10" stroke="#b8261c" stroke-width="1" fill="none" opacity="0.4"/>
+            <circle cx="-8" cy="-14" r="2" fill="#b8261c" opacity="0.4"/>
+            <circle cx="12" cy="6" r="1.8" fill="#b8261c" opacity="0.4"/>
+            <circle cx="-14" cy="14" r="2.5" fill="#b8261c" opacity="0.3"/>
+          </g>
+
+          <!-- Sisyphus — red-figure silhouette, leaning into the slope -->
+          <g transform="translate(238,212)">
+            <!-- back leg planted on slope -->
+            <path d="M16,38 L34,82 L42,82 L24,52 Z" fill="#f4d9b7"/>
+            <path d="M30,80 L46,82 L46,86 L30,84 Z" fill="#f4d9b7"/>
+            <!-- front leg striding up -->
+            <path d="M2,36 L-22,60 L-26,72 L-14,72 Z" fill="#f4d9b7"/>
+            <path d="M-22,70 L-30,80 L-22,80 L-14,72 Z" fill="#f4d9b7"/>
+            <!-- torso bent forward -->
+            <path d="M-2,38 L-30,2 L-22,-10 L10,30 Z" fill="#f4d9b7"/>
+            <!-- shoulder mass -->
+            <ellipse cx="-14" cy="6" rx="14" ry="9" transform="rotate(-40 -14 6)" fill="#f4d9b7"/>
+            <!-- pushing arms toward the boulder -->
+            <path d="M-22,0 L-58,-4 L-62,6 L-26,12 Z" fill="#f4d9b7"/>
+            <path d="M-20,4 L-56,-14 L-58,-4 L-24,14 Z" fill="#f4d9b7"/>
+            <circle cx="-60" cy="2" r="4" fill="#f4d9b7"/>
+            <circle cx="-58" cy="-12" r="3.5" fill="#f4d9b7"/>
+            <!-- head in profile -->
+            <circle cx="-26" cy="-16" r="10" fill="#f4d9b7"/>
+            <!-- hair / fillet -->
+            <path d="M-34,-22 Q-26,-30 -18,-22 L-18,-18 Q-26,-22 -34,-18 Z" fill="#7d160e"/>
+            <!-- nose hint -->
+            <path d="M-34,-16 L-36,-14 L-34,-12" stroke="#7d160e" stroke-width="0.8" fill="none"/>
+            <!-- musculature -->
+            <path d="M-10,4 Q-6,16 0,24" stroke="#b8261c" stroke-width="0.7" fill="none" opacity="0.55"/>
+            <path d="M-4,30 Q4,30 12,28" stroke="#b8261c" stroke-width="0.7" fill="none" opacity="0.45"/>
+          </g>
+
+          <!-- exertion / sweat -->
+          <g fill="#f4d9b7" opacity="0.7">
+            <ellipse cx="200" cy="155" rx="2" ry="3"/>
+            <ellipse cx="208" cy="148" rx="1.5" ry="2.5"/>
+            <ellipse cx="194" cy="160" rx="1.5" ry="2.2"/>
+          </g>
+
+          <!-- direction arrow -->
+          <g transform="translate(110,140)" fill="none" stroke="#f4d9b7" stroke-width="1.6" opacity="0.7">
+            <path d="M0,20 L16,-16"/>
+            <path d="M16,-16 L8,-10 M16,-16 L20,-6"/>
+          </g>
+
+          <!-- caption -->
+          <text x="240" y="305" text-anchor="middle"
+                font-family="Spectral" font-style="italic" font-size="13"
+                fill="#f4d9b7" opacity="0.78">
+            highest interest, first — the hard climb
+          </text>
+        </symbol>
+
+        <!-- SNOWBALL: god rolling boulder DOWN -->
+        <symbol id="scene-snowball" viewBox="0 0 480 320" preserveAspectRatio="xMidYMid slice">
+          <rect width="480" height="320" fill="#f1ece0"/>
+
+          <!-- meander border (dark on cream) -->
+          <g fill="none" stroke="#1f1c17" stroke-width="1.1" opacity="0.55">
+            <path d="M10,22 h10 v6 h-6 v-3 h3 M28,22 h10 v6 h-6 v-3 h3 M46,22 h10 v6 h-6 v-3 h3 M64,22 h10 v6 h-6 v-3 h3 M82,22 h10 v6 h-6 v-3 h3 M100,22 h10 v6 h-6 v-3 h3 M118,22 h10 v6 h-6 v-3 h3 M136,22 h10 v6 h-6 v-3 h3 M154,22 h10 v6 h-6 v-3 h3 M172,22 h10 v6 h-6 v-3 h3 M190,22 h10 v6 h-6 v-3 h3 M208,22 h10 v6 h-6 v-3 h3 M226,22 h10 v6 h-6 v-3 h3 M244,22 h10 v6 h-6 v-3 h3 M262,22 h10 v6 h-6 v-3 h3 M280,22 h10 v6 h-6 v-3 h3 M298,22 h10 v6 h-6 v-3 h3 M316,22 h10 v6 h-6 v-3 h3 M334,22 h10 v6 h-6 v-3 h3 M352,22 h10 v6 h-6 v-3 h3 M370,22 h10 v6 h-6 v-3 h3 M388,22 h10 v6 h-6 v-3 h3 M406,22 h10 v6 h-6 v-3 h3 M424,22 h10 v6 h-6 v-3 h3 M442,22 h10 v6 h-6 v-3 h3 M460,22 h10 v6 h-6 v-3 h3"/>
+          </g>
+          <rect x="0" y="36" width="480" height="1" fill="#1f1c17" opacity="0.45"/>
+
+          <!-- falling specks -->
+          <g fill="#c9d6df">
+            <circle cx="50" cy="68" r="1.5"/>
+            <circle cx="120" cy="55" r="1"/>
+            <circle cx="200" cy="60" r="1.5"/>
+            <circle cx="285" cy="58" r="1"/>
+            <circle cx="360" cy="68" r="1.5"/>
+            <circle cx="430" cy="56" r="1"/>
+            <circle cx="80" cy="96" r="1"/>
+            <circle cx="240" cy="84" r="1"/>
+            <circle cx="320" cy="98" r="1"/>
+            <circle cx="400" cy="92" r="1"/>
+            <circle cx="160" cy="80" r="1.2"/>
+            <circle cx="450" cy="112" r="1"/>
+            <circle cx="100" cy="130" r="1"/>
+            <circle cx="220" cy="115" r="1"/>
+          </g>
+
+          <!-- low background hill (icy) -->
+          <path d="M0,255 L80,215 L140,238 L210,205 L280,228 L340,210 L400,232 L480,218 L480,320 L0,320 Z" fill="#c9d6df"/>
+          <!-- main slope going DOWN to bottom-right -->
+          <path d="M0,90 L40,90 L480,290 L480,320 L0,320 Z" fill="#1f1c17"/>
+          <!-- slope highlight -->
+          <path d="M0,90 L40,90 L470,288 L0,100 Z" fill="#3a3530"/>
+          <!-- path -->
+          <path d="M44,110 L470,302" stroke="#f1ece0" stroke-width="1" opacity="0.35" stroke-dasharray="2 4"/>
+
+          <!-- god near top-left, letting the boulder go -->
+          <g transform="translate(74,70)">
+            <!-- robe / chiton -->
+            <path d="M-14,28 L-24,72 L0,76 L20,72 L10,28 Z" fill="#1f1c17"/>
+            <path d="M-14,32 L-18,52 L-8,56 Z" fill="#3a3530"/>
+            <path d="M6,32 L10,52 L0,56 Z" fill="#3a3530"/>
+            <!-- legs -->
+            <path d="M-10,72 L-14,90 L-4,90 L-2,74 Z" fill="#1f1c17"/>
+            <path d="M2,74 L4,92 L14,90 L10,72 Z" fill="#1f1c17"/>
+            <!-- arm reaching down releasing ball -->
+            <path d="M4,30 L34,46 L36,52 L6,38 Z" fill="#1f1c17"/>
+            <circle cx="36" cy="50" r="3.5" fill="#1f1c17"/>
+            <!-- back arm -->
+            <path d="M-10,30 L-26,40 L-22,46 L-8,38 Z" fill="#1f1c17"/>
+            <!-- head -->
+            <circle cx="-2" cy="18" r="11" fill="#1f1c17"/>
+            <!-- laurel -->
+            <path d="M-12,12 Q-2,4 8,12" stroke="#1f1c17" stroke-width="2" fill="none"/>
+            <circle cx="-10" cy="10" r="2" fill="#3a3530"/>
+            <circle cx="-2" cy="6" r="2" fill="#3a3530"/>
+            <circle cx="6" cy="10" r="2" fill="#3a3530"/>
+            <!-- profile nose -->
+            <path d="M-12,18 L-14,21 L-12,23" stroke="#3a3530" stroke-width="0.6" fill="none"/>
+            <!-- staff -->
+            <line x1="-24" y1="40" x2="-36" y2="98" stroke="#1f1c17" stroke-width="2.2"/>
+            <circle cx="-23" cy="35" r="2" fill="#1f1c17"/>
+          </g>
+
+          <!-- trail of boulders, growing in size -->
+          <circle cx="138" cy="125" r="9" fill="#1f1c17" opacity="0.42"/>
+          <circle cx="138" cy="125" r="9" fill="none" stroke="#1f1c17" stroke-width="0.6"/>
+
+          <circle cx="194" cy="158" r="14" fill="#1f1c17" opacity="0.58"/>
+          <circle cx="194" cy="158" r="14" fill="none" stroke="#1f1c17" stroke-width="0.7"/>
+
+          <circle cx="258" cy="195" r="20" fill="#1f1c17" opacity="0.74"/>
+          <circle cx="258" cy="195" r="20" fill="none" stroke="#1f1c17" stroke-width="0.8"/>
+
+          <circle cx="326" cy="234" r="26" fill="#1f1c17" opacity="0.88"/>
+          <circle cx="326" cy="234" r="26" fill="none" stroke="#1f1c17" stroke-width="0.9"/>
+
+          <!-- final huge snowball -->
+          <g transform="translate(408,272)">
+            <circle r="38" fill="#fff" stroke="#1f1c17" stroke-width="1.5"/>
+            <circle r="38" fill="none" stroke="#c9d6df" stroke-width="1" stroke-dasharray="2 3"/>
+            <path d="M-22,-10 Q-8,-18 10,-12" stroke="#c9d6df" stroke-width="1" fill="none"/>
+            <path d="M-16,14 Q0,4 20,14" stroke="#c9d6df" stroke-width="1" fill="none"/>
+            <circle cx="-10" cy="-16" r="2.2" fill="#c9d6df" opacity="0.7"/>
+            <circle cx="16" cy="6" r="1.8" fill="#c9d6df" opacity="0.7"/>
+            <circle cx="-18" cy="18" r="2.5" fill="#c9d6df" opacity="0.6"/>
+            <!-- motion lines -->
+            <path d="M-48,-2 L-40,0 M-48,-12 L-40,-10 M-48,8 L-40,6" stroke="#1f1c17" stroke-width="1.2" opacity="0.7"/>
+          </g>
+
+          <!-- direction arrow (down-right) -->
+          <g transform="translate(380,150)" fill="none" stroke="#1f1c17" stroke-width="1.6" opacity="0.5">
+            <path d="M0,-20 L16,18"/>
+            <path d="M16,18 L10,12 M16,18 L20,8"/>
+          </g>
+
+          <!-- caption -->
+          <text x="240" y="306" text-anchor="middle"
+                font-family="Spectral" font-style="italic" font-size="13"
+                fill="#1f1c17" opacity="0.7">
+            smallest first — momentum gathers as it rolls
+          </text>
+        </symbol>
+
+        <!-- HYBRID: god atop the ridge, both hands -->
+        <symbol id="scene-hybrid" viewBox="0 0 480 320" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <clipPath id="hy-left"><polygon points="0,0 280,0 200,320 0,320"/></clipPath>
+            <clipPath id="hy-right"><polygon points="280,0 480,0 480,320 200,320"/></clipPath>
+          </defs>
+          <g clip-path="url(#hy-left)"><rect width="480" height="320" fill="#b8261c"/></g>
+          <g clip-path="url(#hy-right)"><rect width="480" height="320" fill="#f1ece0"/></g>
+
+          <!-- meander border halves -->
+          <g fill="none" stroke-width="1.1" opacity="0.5">
+            <g stroke="#f4d9b7">
+              <path d="M10,22 h10 v6 h-6 v-3 h3 M28,22 h10 v6 h-6 v-3 h3 M46,22 h10 v6 h-6 v-3 h3 M64,22 h10 v6 h-6 v-3 h3 M82,22 h10 v6 h-6 v-3 h3 M100,22 h10 v6 h-6 v-3 h3 M118,22 h10 v6 h-6 v-3 h3 M136,22 h10 v6 h-6 v-3 h3 M154,22 h10 v6 h-6 v-3 h3 M172,22 h10 v6 h-6 v-3 h3 M190,22 h10 v6 h-6 v-3 h3 M208,22 h10 v6 h-6 v-3 h3"/>
+            </g>
+            <g stroke="#1f1c17">
+              <path d="M244,22 h10 v6 h-6 v-3 h3 M262,22 h10 v6 h-6 v-3 h3 M280,22 h10 v6 h-6 v-3 h3 M298,22 h10 v6 h-6 v-3 h3 M316,22 h10 v6 h-6 v-3 h3 M334,22 h10 v6 h-6 v-3 h3 M352,22 h10 v6 h-6 v-3 h3 M370,22 h10 v6 h-6 v-3 h3 M388,22 h10 v6 h-6 v-3 h3 M406,22 h10 v6 h-6 v-3 h3 M424,22 h10 v6 h-6 v-3 h3 M442,22 h10 v6 h-6 v-3 h3 M460,22 h10 v6 h-6 v-3 h3"/>
+            </g>
+          </g>
+
+          <!-- twin suns (mirror) -->
+          <circle cx="76" cy="80" r="22" fill="#f4d9b7" opacity="0.85"/>
+          <circle cx="400" cy="80" r="22" fill="#1f1c17" opacity="0.82"/>
+
+          <!-- V-mountain ridge -->
+          <g clip-path="url(#hy-left)">
+            <path d="M0,300 L240,72 L480,300 L480,320 L0,320 Z" fill="#5a0f08"/>
+            <path d="M240,72 L246,76 L8,300 L0,300 Z" fill="#7d160e" opacity="0.7"/>
+          </g>
+          <g clip-path="url(#hy-right)">
+            <path d="M0,300 L240,72 L480,300 L480,320 L0,320 Z" fill="#1f1c17"/>
+            <path d="M240,72 L234,76 L472,300 L480,300 Z" fill="#3a3530" opacity="0.7"/>
+          </g>
+
+          <!-- god atop, frontal -->
+          <g transform="translate(240,110)">
+            <!-- robe split -->
+            <g clip-path="url(#hy-left)"><path d="M-20,24 L-28,78 L0,84 L28,78 L20,24 Z" fill="#f4d9b7"/></g>
+            <g clip-path="url(#hy-right)"><path d="M-20,24 L-28,78 L0,84 L28,78 L20,24 Z" fill="#1f1c17"/></g>
+            <!-- robe folds -->
+            <path d="M-10,30 L-14,74" stroke="#b8261c" stroke-width="0.8" opacity="0.5" clip-path="url(#hy-left)"/>
+            <path d="M10,30 L14,74" stroke="#f1ece0" stroke-width="0.8" opacity="0.5" clip-path="url(#hy-right)"/>
+            <!-- legs -->
+            <g clip-path="url(#hy-left)"><path d="M-10,78 L-14,100 L-4,100 L-4,82 Z" fill="#f4d9b7"/></g>
+            <g clip-path="url(#hy-right)"><path d="M4,82 L4,100 L14,100 L10,78 Z" fill="#1f1c17"/></g>
+            <!-- LEFT arm UP (red side) -->
+            <path d="M-18,28 L-58,2 L-64,10 L-20,34 Z" fill="#f4d9b7"/>
+            <circle cx="-74" cy="0" r="14" fill="#f4d9b7"/>
+            <circle cx="-74" cy="0" r="14" fill="none" stroke="#7d160e" stroke-width="1"/>
+            <path d="M-82,-4 Q-74,-10 -66,-4" stroke="#7d160e" stroke-width="0.8" fill="none" opacity="0.55"/>
+            <!-- arrow up on red side -->
+            <g transform="translate(-92,-22)" stroke="#f4d9b7" stroke-width="1.2" fill="none" opacity="0.8">
+              <path d="M0,12 L8,-6"/>
+              <path d="M8,-6 L4,-2 M8,-6 L10,0"/>
+            </g>
+            <!-- RIGHT arm DOWN (snow side) -->
+            <path d="M18,28 L58,48 L64,42 L20,22 Z" fill="#1f1c17"/>
+            <circle cx="74" cy="52" r="14" fill="#fff" stroke="#1f1c17" stroke-width="1.2"/>
+            <path d="M66,48 Q74,42 82,48" stroke="#c9d6df" stroke-width="0.8" fill="none"/>
+            <circle cx="70" cy="48" r="1.2" fill="#c9d6df"/>
+            <circle cx="78" cy="54" r="1" fill="#c9d6df"/>
+            <!-- arrow down on snow side -->
+            <g transform="translate(92,68)" stroke="#1f1c17" stroke-width="1.2" fill="none" opacity="0.6">
+              <path d="M0,-8 L8,10"/>
+              <path d="M8,10 L4,6 M8,10 L10,4"/>
+            </g>
+            <!-- head split -->
+            <g clip-path="url(#hy-left)"><circle cx="0" cy="8" r="12" fill="#f4d9b7"/></g>
+            <g clip-path="url(#hy-right)"><circle cx="0" cy="8" r="12" fill="#1f1c17"/></g>
+            <!-- laurel -->
+            <path d="M-12,0 Q0,-10 12,0" stroke="#7d160e" stroke-width="1.5" fill="none" clip-path="url(#hy-left)"/>
+            <path d="M-12,0 Q0,-10 12,0" stroke="#f1ece0" stroke-width="1.5" fill="none" clip-path="url(#hy-right)"/>
+            <circle cx="-8" cy="-3" r="1.8" fill="#7d160e" clip-path="url(#hy-left)"/>
+            <circle cx="0" cy="-6" r="1.8" fill="#7d160e" clip-path="url(#hy-left)"/>
+            <circle cx="0" cy="-6" r="1.8" fill="#f1ece0" clip-path="url(#hy-right)"/>
+            <circle cx="8" cy="-3" r="1.8" fill="#f1ece0" clip-path="url(#hy-right)"/>
+          </g>
+
+          <!-- vertical axis hint -->
+          <line x1="240" y1="56" x2="240" y2="74" stroke="#fff" stroke-width="0.8" opacity="0.55" stroke-dasharray="2 3"/>
+          <line x1="240" y1="220" x2="240" y2="304" stroke="#fff" stroke-width="0.6" opacity="0.5" stroke-dasharray="2 3"/>
+
+          <!-- split caption -->
+          <text x="120" y="306" text-anchor="middle" font-family="Spectral" font-style="italic" font-size="12"
+                fill="#f4d9b7" opacity="0.85">math on the steep side</text>
+          <text x="360" y="306" text-anchor="middle" font-family="Spectral" font-style="italic" font-size="12"
+                fill="#1f1c17" opacity="0.75">momentum on the soft side</text>
+        </symbol>
+
+        <!-- ─── MINI GLYPHS (24×24 conceptual icons) ─── -->
+        <symbol id="glyph-avalanche" viewBox="0 0 24 24">
+          <path d="M2,20 L13,5 L22,20 Z" fill="currentColor" opacity="0.95"/>
+          <circle cx="9" cy="14" r="3" fill="currentColor" opacity="0.5"/>
+          <path d="M4.5,17.5 L7.5,14.5" stroke="currentColor" stroke-width="1.4" fill="none" opacity="0.95"/>
+          <path d="M6.5,12.5 L7.5,14.5 L5.5,14" stroke="currentColor" stroke-width="1.4" fill="none" opacity="0.95"/>
+        </symbol>
+        <symbol id="glyph-snowball" viewBox="0 0 24 24">
+          <path d="M2,20 L10,5 L22,20 Z" fill="currentColor" opacity="0.95"/>
+          <circle cx="17" cy="16.5" r="3.2" fill="currentColor" opacity="0.55"/>
+          <circle cx="13.5" cy="13.5" r="1.7" fill="currentColor" opacity="0.45"/>
+          <circle cx="11" cy="11" r="1.1" fill="currentColor" opacity="0.35"/>
+          <path d="M20.5,18.5 L18,16.5" stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.95"/>
+        </symbol>
+        <symbol id="glyph-hybrid" viewBox="0 0 24 24">
+          <path d="M2,20 L12,4 L22,20 Z" fill="currentColor" opacity="0.95"/>
+          <circle cx="12" cy="8" r="2.2" fill="currentColor" opacity="0.55"/>
+          <line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="0.8" stroke-dasharray="1.5 1.5" opacity="0.7"/>
+        </symbol>
+
+        <!-- ─── BANNER STRIP SCENE (Direction C horizontal art) ─── -->
+        <symbol id="scene-banner-strip" viewBox="0 0 240 38" preserveAspectRatio="xMidYMid slice">
+          <path d="M0,34 L70,10 L110,20 L240,4 L240,38 L0,38 Z" fill="currentColor"/>
+          <circle cx="200" cy="14" r="4" fill="currentColor"/>
+          <circle cx="100" cy="22" r="3" fill="currentColor" opacity="0.7"/>
+          <!-- tiny silhouette -->
+          <g transform="translate(60,18)">
+            <circle cx="0" cy="0" r="3" fill="currentColor"/>
+            <path d="M-1,3 L-2,10 L3,10 L2,3 Z" fill="currentColor"/>
+            <path d="M-6,4 L-2,2" stroke="currentColor" stroke-width="1"/>
+          </g>
+        </symbol>
+
+        <!-- ─── MEDALLION ART (40×40 mini scenes per persona) ─── -->
+        <symbol id="med-avalanche" viewBox="0 0 40 40">
+          <rect width="40" height="40" fill="#b8261c"/>
+          <path d="M0,34 L22,10 L40,34 Z" fill="#7d160e"/>
+          <path d="M0,34 L22,10 L23,11 L1,35 Z" fill="#5a0f08" opacity="0.6"/>
+          <circle cx="14" cy="22" r="4.5" fill="#f4d9b7"/>
+          <!-- mini figure -->
+          <g transform="translate(20,24)">
+            <circle cx="0" cy="-3" r="2" fill="#f4d9b7"/>
+            <path d="M-1,-1 L-3,5 L1,5 L2,-1 Z" fill="#f4d9b7"/>
+            <path d="M-6,-2 L-2,0" stroke="#f4d9b7" stroke-width="1.2"/>
+          </g>
+          <circle cx="31" cy="9" r="3" fill="#f4d9b7" opacity="0.7"/>
+        </symbol>
+        <symbol id="med-snowball" viewBox="0 0 40 40">
+          <rect width="40" height="40" fill="#f1ece0"/>
+          <path d="M0,10 L8,10 L40,34 L0,34 Z" fill="#1f1c17"/>
+          <path d="M0,10 L8,10 L40,32 L0,12 Z" fill="#3a3530"/>
+          <!-- god top-left -->
+          <g transform="translate(6,16)">
+            <circle cx="0" cy="-2" r="1.8" fill="#1f1c17"/>
+            <path d="M-1,0 L-2,5 L1,5 L2,0 Z" fill="#1f1c17"/>
+          </g>
+          <!-- rolling balls -->
+          <circle cx="14" cy="18" r="1.4" fill="#fff" stroke="#1f1c17" stroke-width="0.5"/>
+          <circle cx="20" cy="22" r="2.2" fill="#fff" stroke="#1f1c17" stroke-width="0.5"/>
+          <circle cx="28" cy="27" r="3.5" fill="#fff" stroke="#1f1c17" stroke-width="0.7"/>
+        </symbol>
+        <symbol id="med-hybrid" viewBox="0 0 40 40">
+          <defs><clipPath id="med-hy-clip"><polygon points="0,0 24,0 16,40 0,40"/></clipPath></defs>
+          <rect width="40" height="40" fill="#f1ece0"/>
+          <rect width="40" height="40" fill="#b8261c" clip-path="url(#med-hy-clip)"/>
+          <path d="M0,34 L20,10 L40,34 Z" fill="#1f1c17"/>
+          <path d="M0,34 L20,10 L40,34 Z" fill="#5a0f08" clip-path="url(#med-hy-clip)"/>
+          <!-- tiny god at peak -->
+          <g transform="translate(20,16)">
+            <circle cx="0" cy="-2" r="2" fill="#f4d9b7" clip-path="url(#med-hy-clip)"/>
+            <circle cx="0" cy="-2" r="2" fill="#1f1c17"/>
+            <rect x="-2" y="0" width="2" height="6" fill="#f4d9b7" clip-path="url(#med-hy-clip)"/>
+            <rect x="0" y="0" width="2" height="6" fill="#1f1c17"/>
+            <path d="M-6,-1 L-2,1" stroke="#f4d9b7" stroke-width="1"/>
+            <path d="M2,1 L6,3" stroke="#1f1c17" stroke-width="1"/>
+          </g>
+        </symbol>
+
+      </defs>
+    </svg>
+
+    <!-- ═════════════ DOC HEADER ═════════════ -->
+    <header class="doc-head">
+      <div class="shell">
+        <div class="doc-eyebrow">Design study · Strategy persona system</div>
+        <h1 class="doc-title">
+          Pushing it up, or rolling it down —<br>
+          <em>a Greek god on every tab.</em>
+        </h1>
+        <p class="doc-lead">
+          A small mythic identity for each payoff strategy. Avalanche is Sisyphus
+          straining uphill in deep red. Snowball is a robed figure letting the
+          boulder gather on its way down. Hybrid stands on the ridge with one
+          hand on each. The mark scales from a triptych hero down to a
+          forty-pixel medallion in the corner of a tab.
+        </p>
+        <div class="doc-meta">
+          <span><b>Three personas</b> · Avalanche · Snowball · Hybrid</span>
+          <span><b>Three contexts</b> · top-corner strip · concept hero · profile section</span>
+          <span><b>Style</b> · Greek red-figure pottery, editorial</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ═════════════ 01 · TRIPTYCH ═════════════ -->
+    <section data-screen-label="01 Concept triptych">
+      <div class="shell">
+        <div class="sec-eyebrow">01 · Concept · the three personas</div>
+        <h2 class="sec-title">Same mountain. <em>Three relationships</em> with the boulder.</h2>
+        <p class="sec-sub">
+          The personas aren't decoration — they encode the trade-off. A choice
+          between math, momentum, and balance, told in one frame each.
+        </p>
+
+        <div class="triptych">
+
+          <!-- AVALANCHE -->
+          <div class="panel p-avalanche">
+            <div>
+              <div class="panel-tag">01 · Avalanche</div>
+              <div class="panel-name">Sisyphus, <em>uphill.</em></div>
+              <div class="panel-myth">The hardest debt first — every push earns its rate.</div>
+            </div>
+            <div class="panel-art"><svg><use href="#scene-avalanche"/></svg></div>
+            <div class="panel-spec">
+              <div class="row"><span>Order by</span><b>Effective APR ↓</b></div>
+              <div class="row"><span>Debt-free</span><b>Aug 2027</b></div>
+              <div class="row"><span>Total interest</span><b>₹2.40L</b></div>
+              <div class="row"><span>Feels like</span><b>uphill, optimal</b></div>
+            </div>
+          </div>
+
+          <!-- SNOWBALL -->
+          <div class="panel p-snowball">
+            <div>
+              <div class="panel-tag">02 · Snowball</div>
+              <div class="panel-name">Letting it <em>roll.</em></div>
+              <div class="panel-myth">Smallest balance first — momentum compounds the will.</div>
+            </div>
+            <div class="panel-art"><svg><use href="#scene-snowball"/></svg></div>
+            <div class="panel-spec">
+              <div class="row"><span>Order by</span><b>Balance ↑</b></div>
+              <div class="row"><span>Debt-free</span><b>Nov 2027</b></div>
+              <div class="row"><span>Total interest</span><b>₹2.68L</b></div>
+              <div class="row"><span>Feels like</span><b>downhill, fast wins</b></div>
+            </div>
+          </div>
+
+          <!-- HYBRID -->
+          <div class="panel p-hybrid">
+            <div>
+              <div class="panel-tag">03 · Hybrid</div>
+              <div class="panel-name">Atlas at <em>the ridge.</em></div>
+              <div class="panel-myth">Avalanche above 18% APR — Snowball on everything under.</div>
+            </div>
+            <div class="panel-art"><svg><use href="#scene-hybrid"/></svg></div>
+            <div class="panel-spec">
+              <div class="row"><span>Order by</span><b>APR ↓, then Balance ↑</b></div>
+              <div class="row"><span>Debt-free</span><b>Sep 2027</b></div>
+              <div class="row"><span>Total interest</span><b>₹2.46L</b></div>
+              <div class="row"><span>Feels like</span><b>math + a quick win</b></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════════ 02 · TOP-CORNER STRIP ═════════════ -->
+    <section data-screen-label="02 Top-corner strip">
+      <div class="shell">
+        <div class="sec-eyebrow">02 · Top-corner strip · four directions</div>
+        <h2 class="sec-title">A small <em>tell</em> in the corner of every tab.</h2>
+        <p class="sec-sub">
+          The strip sits where the country chip lives now — top-right of the
+          app header. It shows the strategy in force, and lets the user swap in
+          one click without leaving the page.
+        </p>
+
+        <div class="strip-grid">
+
+          <!-- A · pill -->
+          <div class="strip-card">
+            <div class="strip-card-head">
+              <span class="lbl"><span class="dot"></span><b>Direction A</b> · segmented pill in the header</span>
+              <span>compact · visible · tap to switch</span>
+            </div>
+            <div class="fake-tab">
+              <div class="fake-tab-brand">FinOptima <small>· Debt &amp; EMI</small></div>
+              <div class="fake-tab-nav">
+                <a class="on">Home</a><a>Debts</a><a>Plan</a><a>Tools</a><a>Insights</a>
+              </div>
+              <div class="fake-tab-cta">
+                <div class="strat-strip">
+                  <span class="seg on">
+                    <span class="glyph" style="color:#fff;"><svg width="12" height="12"><use href="#glyph-avalanche"/></svg></span>
+                    Avalanche
+                  </span>
+                  <span class="seg">
+                    <span class="glyph" style="color:var(--ink);"><svg width="12" height="12"><use href="#glyph-snowball"/></svg></span>
+                    Snowball
+                  </span>
+                  <span class="seg">
+                    <span class="glyph" style="color:var(--ink);"><svg width="12" height="12"><use href="#glyph-hybrid"/></svg></span>
+                    Hybrid
+                  </span>
+                </div>
+                <span class="fake-tab-chip">IN · ₹</span>
+              </div>
+            </div>
+            <div class="fake-body">
+              <div class="fake-body-h">Plan · ordered by effective APR</div>
+              <div class="fake-body-sub">AVALANCHE · 4 debts · Aug 2027 debt-free</div>
+              <div class="fake-body-content">
+                <div class="fake-tile"><b>ICICI card</b><span>42.48% APR · next</span></div>
+                <div class="fake-tile"><b>HDFC personal</b><span>14.20% APR</span></div>
+                <div class="fake-tile"><b>HDFC home</b><span>8.50% APR</span></div>
+                <div class="fake-tile"><b>SBI gold</b><span>7.10% APR</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- B · badge -->
+          <div class="strip-card">
+            <div class="strip-card-head">
+              <span class="lbl"><span class="dot"></span><b>Direction B</b> · single badge with mini-scene</span>
+              <span>quiet · expressive · opens a popover</span>
+            </div>
+            <div class="fake-tab">
+              <div class="fake-tab-brand">FinOptima <small>· Debt &amp; EMI</small></div>
+              <div class="fake-tab-nav">
+                <a>Home</a><a>Debts</a><a class="on">Plan</a><a>Tools</a><a>Insights</a>
+              </div>
+              <div class="fake-tab-cta">
+                <div class="strat-badge">
+                  <span class="mini-scene">
+                    <svg viewBox="0 0 40 40" width="30" height="30"><use href="#med-avalanche"/></svg>
+                  </span>
+                  <small>STRATEGY</small>
+                  <span>Avalanche</span>
+                  <span class="caret"></span>
+                </div>
+                <span class="fake-tab-chip">IN · ₹</span>
+              </div>
+            </div>
+            <div class="fake-body">
+              <div class="fake-body-h">Plan · ordered by effective APR</div>
+              <div class="fake-body-sub">AVALANCHE · the badge above carries the persona — click to swap</div>
+              <div class="fake-body-content">
+                <div class="fake-tile"><b>Next action</b><span>pay ICICI ₹18,500</span></div>
+                <div class="fake-tile"><b>Saves</b><span>₹31,400 · 12 mo</span></div>
+                <div class="fake-tile"><b>Months saved</b><span>14 vs minimums</span></div>
+                <div class="fake-tile"><b>Confidence</b><span>high · math-optimal</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- C · banner -->
+          <div class="strip-card">
+            <div class="strip-card-head">
+              <span class="lbl"><span class="dot"></span><b>Direction C</b> · slim banner across the top</span>
+              <span>persistent context · cinematic · uses the persona art</span>
+            </div>
+            <div class="fake-tab">
+              <div class="fake-tab-brand">FinOptima <small>· Debt &amp; EMI</small></div>
+              <div class="fake-tab-nav">
+                <a>Home</a><a class="on">Debts</a><a>Plan</a><a>Tools</a><a>Insights</a>
+              </div>
+              <div class="fake-tab-cta"><span class="fake-tab-chip">IN · ₹</span></div>
+            </div>
+            <div class="strat-banner">
+              <div class="left">
+                <svg width="20" height="20" style="color: var(--av-flesh);"><use href="#glyph-avalanche"/></svg>
+                <span>STRATEGY · <b>AVALANCHE</b></span>
+                <span style="opacity:0.7;">Sisyphus uphill — highest rate first</span>
+              </div>
+              <svg class="bg-scene" viewBox="0 0 240 38" preserveAspectRatio="xMidYMid slice" style="color: var(--av-flesh);">
+                <use href="#scene-banner-strip"/>
+              </svg>
+              <div class="switch-row">
+                <span class="opt on">AVALANCHE</span>
+                <span class="opt">SNOWBALL</span>
+                <span class="opt">HYBRID</span>
+              </div>
+            </div>
+            <div class="fake-body">
+              <div class="fake-body-h">Debts · 4 active</div>
+              <div class="fake-body-sub">The banner persists across Home / Debts / Plan / Tools / Insights</div>
+              <div class="fake-body-content">
+                <div class="fake-tile"><b>ICICI card</b><span>₹47,500 · 42.48%</span></div>
+                <div class="fake-tile"><b>HDFC personal</b><span>₹2.10L · 14.20%</span></div>
+                <div class="fake-tile"><b>HDFC home</b><span>₹18.4L · 8.50%</span></div>
+                <div class="fake-tile"><b>SBI gold</b><span>₹62,000 · 7.10%</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- D · medallion -->
+          <div class="strip-card">
+            <div class="strip-card-head">
+              <span class="lbl"><span class="dot"></span><b>Direction D</b> · medallion card · richer label</span>
+              <span>bigger affordance · still corner-anchored · two-line label</span>
+            </div>
+            <div class="fake-tab" style="height: 68px;">
+              <div class="fake-tab-brand">FinOptima <small>· Debt &amp; EMI</small></div>
+              <div class="fake-tab-nav">
+                <a>Home</a><a>Debts</a><a>Plan</a><a class="on">Tools</a><a>Insights</a>
+              </div>
+              <div class="fake-tab-cta">
+                <div class="strat-medallion">
+                  <div class="mini-scene">
+                    <svg viewBox="0 0 40 40" width="40" height="40"><use href="#med-avalanche"/></svg>
+                  </div>
+                  <div class="label">
+                    <b>Avalanche</b>
+                    <small>UPHILL</small>
+                  </div>
+                  <div class="switch-pips">
+                    <span class="pip on"></span>
+                    <span class="pip"></span>
+                    <span class="pip"></span>
+                  </div>
+                </div>
+                <span class="fake-tab-chip">IN · ₹</span>
+              </div>
+            </div>
+            <div class="fake-body">
+              <div class="fake-body-h">Tools · 7 one-question tools</div>
+              <div class="fake-body-sub">The medallion has room for the actual mini-scene illustration</div>
+              <div class="fake-body-content">
+                <div class="fake-tile"><b>Windfall</b><span>got a bonus?</span></div>
+                <div class="fake-tile"><b>New debt</b><span>check first</span></div>
+                <div class="fake-tile"><b>Liquidate</b><span>sell asset?</span></div>
+                <div class="fake-tile"><b>Cash yield</b><span>idle savings?</span></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- per-persona matrix -->
+        <h3 style="font-family: var(--font-serif); font-size: 24px; margin-top: 56px; letter-spacing: -0.01em; font-weight: 400;">
+          Every strip, every persona
+        </h3>
+        <div class="matrix-block">
+
+          <div class="matrix-row">
+            <div class="label">A · Pill</div>
+            <div class="examples">
+              <div class="strat-strip">
+                <span class="seg on"><span class="glyph" style="color:#fff;"><svg width="12" height="12"><use href="#glyph-avalanche"/></svg></span>Avalanche</span>
+                <span class="seg"><span class="glyph"><svg width="12" height="12"><use href="#glyph-snowball"/></svg></span>Snowball</span>
+                <span class="seg"><span class="glyph"><svg width="12" height="12"><use href="#glyph-hybrid"/></svg></span>Hybrid</span>
+              </div>
+              <div class="strat-strip">
+                <span class="seg"><span class="glyph"><svg width="12" height="12"><use href="#glyph-avalanche"/></svg></span>Avalanche</span>
+                <span class="seg on snowball"><span class="glyph" style="color:#fff;"><svg width="12" height="12"><use href="#glyph-snowball"/></svg></span>Snowball</span>
+                <span class="seg"><span class="glyph"><svg width="12" height="12"><use href="#glyph-hybrid"/></svg></span>Hybrid</span>
+              </div>
+              <div class="strat-strip">
+                <span class="seg"><span class="glyph"><svg width="12" height="12"><use href="#glyph-avalanche"/></svg></span>Avalanche</span>
+                <span class="seg"><span class="glyph"><svg width="12" height="12"><use href="#glyph-snowball"/></svg></span>Snowball</span>
+                <span class="seg on hybrid"><span class="glyph"><svg width="12" height="12"><use href="#glyph-hybrid"/></svg></span>Hybrid</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="matrix-row">
+            <div class="label">B · Badge</div>
+            <div class="examples">
+              <div class="strat-badge">
+                <span class="mini-scene"><svg viewBox="0 0 40 40" width="30" height="30"><use href="#med-avalanche"/></svg></span>
+                <small>STRATEGY</small><span>Avalanche</span><span class="caret"></span>
+              </div>
+              <div class="strat-badge" style="background: var(--sn-ink); color: #f1ece0;">
+                <span class="mini-scene" style="background: #2a2620;"><svg viewBox="0 0 40 40" width="30" height="30"><use href="#med-snowball"/></svg></span>
+                <small>STRATEGY</small><span>Snowball</span><span class="caret"></span>
+              </div>
+              <div class="strat-badge" style="background: linear-gradient(135deg, var(--av-red) 0%, var(--av-red) 48%, var(--sn-snow) 52%, var(--sn-snow) 100%); color: var(--ink);">
+                <span class="mini-scene" style="background: rgba(0,0,0,0.15);"><svg viewBox="0 0 40 40" width="30" height="30"><use href="#med-hybrid"/></svg></span>
+                <small style="color:rgba(0,0,0,0.55);">STRATEGY</small><span>Hybrid</span><span class="caret"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="matrix-row">
+            <div class="label">D · Medallion</div>
+            <div class="examples">
+              <div class="strat-medallion">
+                <div class="mini-scene"><svg viewBox="0 0 40 40" width="40" height="40"><use href="#med-avalanche"/></svg></div>
+                <div class="label"><b>Avalanche</b><small>UPHILL</small></div>
+                <div class="switch-pips"><span class="pip on"></span><span class="pip"></span><span class="pip"></span></div>
+              </div>
+              <div class="strat-medallion">
+                <div class="mini-scene" style="background: var(--sn-snow);"><svg viewBox="0 0 40 40" width="40" height="40"><use href="#med-snowball"/></svg></div>
+                <div class="label"><b>Snowball</b><small>DOWNHILL</small></div>
+                <div class="switch-pips"><span class="pip"></span><span class="pip on" style="background: var(--sn-ink);"></span><span class="pip"></span></div>
+              </div>
+              <div class="strat-medallion">
+                <div class="mini-scene"><svg viewBox="0 0 40 40" width="40" height="40"><use href="#med-hybrid"/></svg></div>
+                <div class="label"><b>Hybrid</b><small>THE RIDGE</small></div>
+                <div class="switch-pips"><span class="pip"></span><span class="pip"></span><span class="pip on" style="background: linear-gradient(90deg, var(--av-red) 50%, var(--sn-ink) 50%);"></span></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ═════════════ 03 · PROFILE TAB ═════════════ -->
+    <section data-screen-label="03 Profile tab" style="background: var(--paper-deep);">
+      <div class="shell">
+        <div class="sec-eyebrow">03 · Profile tab · last section</div>
+        <h2 class="sec-title">The full triptych — <em>tucked at the bottom of Profile.</em></h2>
+        <p class="sec-sub">
+          When the user lands in Profile, the strategy picker doesn't shout from
+          the top. It sits last, as the final, considered decision about how
+          they want to pay down their debt — accompanied by the mythic art so
+          the choice feels weighted.
+        </p>
+
+        <div class="profile-mock">
+          <div class="profile-mock-head">
+            <span>FINOPTIMA · /PROFILE</span>
+            <span><b>Last updated</b> · 14 May 2026 · saved to this device</span>
+          </div>
+
+          <!-- earlier profile sections (compressed) -->
+          <div class="profile-mini">
+            <h3><span class="n">01</span>Identity &amp; income</h3>
+            <p>Country, marginal tax rate, take-home, dependents.</p>
+            <div class="profile-grid">
+              <div>
+                <div class="pf-row"><b>Country</b><span>India · ₹</span></div>
+                <div class="pf-row"><b>Marginal rate</b><span>30%</span></div>
+                <div class="pf-row"><b>Take-home / mo</b><span>₹1,84,000</span></div>
+              </div>
+              <div>
+                <div class="pf-row"><b>Dependents</b><span>2 · spouse, child</span></div>
+                <div class="pf-row"><b>Employment</b><span>Salaried · IT</span></div>
+                <div class="pf-row"><b>Bureau</b><span>CIBIL · 758</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="profile-mini">
+            <h3><span class="n">02</span>Cash &amp; emergency fund</h3>
+            <p>Liquid balances, sweep accounts, target months of cover.</p>
+            <div class="profile-grid">
+              <div>
+                <div class="pf-row"><b>Savings</b><span>₹3,00,000 · 2.7%</span></div>
+                <div class="pf-row"><b>Sweep FD</b><span>₹1,20,000 · 6.50%</span></div>
+              </div>
+              <div>
+                <div class="pf-row"><b>EF target</b><span>6 months · ₹6,60,000</span></div>
+                <div class="pf-row"><b>EF actual</b><span>₹4,20,000 · 64%</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="profile-mini">
+            <h3><span class="n">03</span>Privacy &amp; data</h3>
+            <p>Where your data lives. What we never send anywhere.</p>
+            <div class="profile-grid">
+              <div>
+                <div class="pf-row"><b>Storage</b><span>browser cookie · this device</span></div>
+                <div class="pf-row"><b>Account</b><span>none required</span></div>
+              </div>
+              <div>
+                <div class="pf-row"><b>Telemetry</b><span>off</span></div>
+                <div class="pf-row"><b>Bank linking</b><span>not used</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ────── THE STRATEGY SECTION (last) ────── -->
+          <div class="profile-strategy">
+
+            <div class="ps-head">
+              <div class="left">
+                <h3><span class="n">04</span>Payoff <em>strategy.</em></h3>
+                <p>
+                  Three doctrines, told in three frames. Pick the one that fits
+                  how you actually feel about debt — the math, the wins, or the
+                  balance between them.
+                </p>
+              </div>
+              <div class="ps-current">
+                Currently in force
+                <b>Avalanche</b>
+              </div>
+            </div>
+
+            <div class="ps-cards">
+
+              <!-- Avalanche card -->
+              <div class="ps-card on">
+                <div class="ps-scene"><svg><use href="#scene-avalanche"/></svg></div>
+                <div class="ps-inner">
+                  <div class="ps-card-name">Avalanche</div>
+                  <div class="ps-card-tag">SISYPHUS · UPHILL</div>
+                  <div class="ps-card-body">
+                    Pay the highest effective APR first. The math-optimal
+                    choice. Every push goes against the rate.
+                  </div>
+                  <div class="ps-card-stats">
+                    <div>Debt-free · <b>Aug 2027</b></div>
+                    <div>Total interest · <b>₹2.40L</b></div>
+                    <div>Months saved · <span class="pos">14</span></div>
+                  </div>
+                </div>
+                <div class="ps-card-cta">
+                  <span>IN FORCE</span>
+                  <span>✓</span>
+                </div>
+              </div>
+
+              <!-- Snowball card -->
+              <div class="ps-card">
+                <div class="ps-scene"><svg><use href="#scene-snowball"/></svg></div>
+                <div class="ps-inner">
+                  <div class="ps-card-name">Snowball</div>
+                  <div class="ps-card-tag">DOWNHILL · MOMENTUM</div>
+                  <div class="ps-card-body">
+                    Pay the smallest balance first. You'll lose to math, but
+                    win on willpower — debts close faster, then bigger.
+                  </div>
+                  <div class="ps-card-stats">
+                    <div>Debt-free · <b>Nov 2027</b></div>
+                    <div>Total interest · <b>₹2.68L</b></div>
+                    <div>Extra cost · ₹28,000</div>
+                  </div>
+                </div>
+                <div class="ps-card-cta">
+                  <span>SWITCH TO SNOWBALL</span>
+                  <span>→</span>
+                </div>
+              </div>
+
+              <!-- Hybrid card -->
+              <div class="ps-card">
+                <div class="ps-scene"><svg><use href="#scene-hybrid"/></svg></div>
+                <div class="ps-inner">
+                  <div class="ps-card-name">Hybrid</div>
+                  <div class="ps-card-tag">ATLAS · THE RIDGE</div>
+                  <div class="ps-card-body">
+                    Avalanche above an 18% APR cut-off, Snowball below. Kills
+                    the punishing debts first, then snowballs the rest.
+                  </div>
+                  <div class="ps-card-stats">
+                    <div>Debt-free · <b>Sep 2027</b></div>
+                    <div>Total interest · <b>₹2.46L</b></div>
+                    <div>Extra cost · ₹6,000</div>
+                  </div>
+                </div>
+                <div class="ps-card-cta">
+                  <span>SWITCH TO HYBRID</span>
+                  <span>→</span>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ═════════════ 04 · NOTES ═════════════ -->
+    <section data-screen-label="04 Notes" style="background: var(--cream);">
+      <div class="shell">
+        <div class="sec-eyebrow">04 · Notes for engineering / brand</div>
+        <h2 class="sec-title">Why this works, briefly.</h2>
+
+        <div class="design-notes">
+          <div class="note">
+            <div class="note-tag">PALETTE</div>
+            <h4>Red is reserved.</h4>
+            <p>
+              The deep terracotta red (#b8261c) is the Avalanche signal — used
+              nowhere else in the product. The cream (#f4d9b7) is the figure
+              color. Snowball borrows the existing ink and a pale ice blue;
+              Hybrid is a literal split of the two.
+            </p>
+          </div>
+          <div class="note">
+            <div class="note-tag">SCALING</div>
+            <h4>One mark, four scales.</h4>
+            <p>
+              The persona art is authored once at 480×320 (the hero
+              triptych), reused at 240×38 in the banner strip, 40×40 in the
+              medallion, and 24×24 as a glyph. Every scale uses the same
+              SVG <code>&lt;symbol&gt;</code>, so the visual identity is
+              consistent across surfaces.
+            </p>
+          </div>
+          <div class="note">
+            <div class="note-tag">RECOMMENDATION</div>
+            <h4>Pair D + the Profile section.</h4>
+            <p>
+              The medallion (Direction D) gives the most personality in the
+              corner without dominating the header. Keep the full triptych
+              for Profile — it's the right place to let the user really
+              consider the choice.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="shell row">
+        <span>FINOPTIMA · STRATEGY PERSONA SYSTEM · v0.1</span>
+        <span>SISYPHUS · ATLAS · ANANKE</span>
+      </div>
+    </footer>
+
+  </body>
+</html>

@@ -184,7 +184,7 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
                 ADD THE DETAILS
               </LBracket>
             ) : hasSurplus && (
-              <LBracket active href="/insights#activity-ledger">
+              <LBracket active href="/activity#activity-ledger">
                 I PAID THIS
               </LBracket>
             )}
@@ -413,7 +413,7 @@ function LedgerHomeSoft({ profile, move }: HomeProps) {
             NOTHING ELSE NEEDS TO BE DECIDED TODAY.
           </div>
           <div style={{ marginTop: 24 }}>
-            <LButton href={gaps.length > 0 ? '/onboarding?step=loans' : '/insights#activity-ledger'} full>
+            <LButton href={gaps.length > 0 ? '/onboarding?step=loans' : '/activity#activity-ledger'} full>
               I&apos;LL DO THIS
             </LButton>
           </div>

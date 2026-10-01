@@ -49,6 +49,7 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
   const active = activeStreams(streams);
   const grossActive = activeGrossAnnual(active);
   const ccySym = country === 'IN' ? '₹' : '$';
+  const ccy = country === 'IN' ? 'INR' : 'USD';
 
   function addStream() {
     onChange([...streams, blankStream()]);
@@ -270,6 +271,8 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
                 />
                 <Field
                   label={`Annual gross (${ccySym}/yr)`}
+                  kind="money"
+                  currency={ccy}
                   value={s.gross_annual}
                   onChange={(v) => updateStream(i, { gross_annual: v })}
                   hint="Pre-tax annual from this source alone"

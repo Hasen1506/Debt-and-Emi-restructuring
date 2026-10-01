@@ -78,9 +78,12 @@ export function LBracket({
   as,
   disabled,
   style,
+  current,
 }: {
   children: ReactNode;
   active?: boolean;
+  /** The link to the page being shown (nav). */
+  current?: boolean;
   accent?: boolean;
   href?: string;
   onClick?: () => void;
@@ -107,7 +110,7 @@ export function LBracket({
   const inner = <>[{children}]</>;
   if (href) {
     return (
-      <a href={href} style={base}>
+      <a href={href} style={base} aria-current={current ? 'page' : undefined}>
         {inner}
       </a>
     );
@@ -144,12 +147,17 @@ export function LShell({ children }: { children: ReactNode }) {
 }
 
 // ─── LSectionHeader ─────────────────────────────────────────────────────
+// Bold ink title over a 2px rule (design rev 3), so sections stand apart
+// from the muted labels inside them. `step` adds a numbered "01 /" lead
+// for screens that read as a sequence (input → result → the math).
 export function LSectionHeader({
   children,
   right,
+  step,
 }: {
   children: ReactNode;
   right?: ReactNode;
+  step?: number;
 }) {
   return (
     <div
@@ -157,19 +165,164 @@ export function LSectionHeader({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'baseline',
-        marginBottom: 6,
-        fontSize: 11,
-        letterSpacing: '0.18em',
+        marginBottom: 10,
+        paddingBottom: 6,
+        borderBottom: `2px solid ${L_T.ink}`,
+        fontSize: 12,
+        letterSpacing: '0.16em',
         flexWrap: 'wrap',
         gap: 8,
       }}
     >
-      <h2 style={{ margin: 0, font: 'inherit', color: L_T.muted, fontWeight: 600 }}>
-        <span aria-hidden="true">$ </span>
+      <h2
+        style={{
+          margin: 0,
+          font: 'inherit',
+          color: L_T.ink,
+          fontWeight: 700,
+          textTransform: 'uppercase',
+        }}
+      >
+        {step !== undefined ? (
+          <span style={{ color: L_T.accent }}>{String(step).padStart(2, '0')} / </span>
+        ) : (
+          <span aria-hidden="true">$ </span>
+        )}
         {children}
       </h2>
       {right}
     </div>
+  );
+}
+
+// ─── Accent strip ───────────────────────────────────────────────────────
+// Flags one row ("highest rate", "engine pick") with a 3px left strip
+// instead of a yellow background. Put it on the row's first cell.
+export function lStrip(tone: 'accent' | 'negative' | 'positive' | 'ink' = 'accent'): CSSProperties {
+  const c =
+    tone === 'negative' ? L_T.negative : tone === 'positive' ? L_T.positive : tone === 'ink' ? L_T.ink : L_T.accent;
+  return { boxShadow: `inset 3px 0 0 ${c}` };
+}
+
+// ─── LExpandRow ─────────────────────────────────────────────────────────
+// The panel that opens under a table row.
+export function LExpandRow({
+  children,
+  accent,
+  id,
+}: {
+  children: ReactNode;
+  accent?: boolean;
+  id?: string;
+}) {
+  return (
+    <tr id={id}>
+      <td
+        colSpan={99}
+        style={{
+          background: accent ? '#faf6f0' : L_T.paper,
+          padding: '12px 14px',
+          borderBottom: `1px dashed ${L_T.ruleSoft}`,
+          ...(accent ? lStrip('accent') : null),
+        }}
+      >
+        {children}
+      </td>
+    </tr>
+  );
+}
+
+// ─── LAllocationBar ─────────────────────────────────────────────────────
+// One stacked bar; every segment keeps a visible label (cut short, never
+// hidden) and the full label + amount in its tooltip and accessible name.
+export interface LAllocSegment {
+  id: string;
+  label: string;
+  value: number;
+  amount: string;
+  color: string;
+  /** Text colour on the segment; white unless the fill is light. */
+  ink?: string;
+}
+
+export function LAllocationBar({
+  segments,
+  height = 28,
+  label = 'Where the money goes',
+}: {
+  segments: LAllocSegment[];
+  height?: number;
+  label?: string;
+}) {
+  const total = segments.reduce((s, x) => s + Math.max(0, x.value), 0);
+  if (total <= 0) return null;
+  return (
+    <div
+      role="img"
+      aria-label={`${label}: ${segments.map((s) => `${s.label} ${s.amount}`).join(', ')}`}
+      style={{ display: 'flex', height, border: `1px solid ${L_T.ink}`, background: L_T.paper }}
+    >
+      {segments
+        .filter((s) => s.value > 0)
+        .map((s, i, arr) => {
+          const share = s.value / total;
+          const maxChars = Math.max(2, Math.floor(share * 95));
+          const shown = s.label.length > maxChars ? `${s.label.slice(0, maxChars).trim()}…` : s.label;
+          return (
+            <div
+              key={s.id}
+              title={`${s.label}: ${s.amount}`}
+              style={{
+                flex: share,
+                minWidth: 6,
+                background: s.color,
+                color: s.ink ?? '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                borderRight: i < arr.length - 1 ? `1px solid ${L_T.ink}` : 'none',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+                padding: '0 4px',
+              }}
+            >
+              {share >= 0.04 ? shown : ''}
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
+// ─── LProgressBar ───────────────────────────────────────────────────────
+// [█████░░░░░] 48% — block characters, so it prints and copies as text.
+export function LProgressBar({
+  pct,
+  width = 20,
+  tone,
+}: {
+  pct: number;
+  width?: number;
+  tone?: 'pos' | 'neg';
+}) {
+  const p = Math.max(0, Math.min(100, pct));
+  const filled = Math.round((p / 100) * width);
+  const color = tone === 'pos' ? L_T.positive : tone === 'neg' ? L_T.negative : L_T.ink;
+  return (
+    <span
+      role="img"
+      aria-label={`${Math.round(p)}%`}
+      style={{ fontFamily: L_MONO, fontSize: 11, letterSpacing: 0, color, whiteSpace: 'pre' }}
+    >
+      <span aria-hidden="true">
+        [{'█'.repeat(filled)}
+        <span style={{ color: L_T.faint }}>{'░'.repeat(width - filled)}</span>]{' '}
+      </span>
+      {Math.round(p)}%
+    </span>
   );
 }
 
@@ -657,8 +810,10 @@ export function LMathBlock({
       </div>
       <div style={{ fontSize: 12, color: L_T.ink, lineHeight: 1.8 }}>
         {rows.map((r, i) => (
-          <div key={i}>
-            {r.k.padEnd(18)} = <span
+          <div key={i} style={{ display: 'flex', flexWrap: 'wrap', columnGap: 8 }}>
+            <span style={{ minWidth: 'min(180px, 45%)' }}>{r.k}</span>
+            <span>
+            = <span
               style={{
                 color: r.tone === 'pos' ? L_T.positive : r.tone === 'neg' ? L_T.negative : L_T.ink,
                 fontWeight: r.tone ? 700 : 500,
@@ -666,7 +821,8 @@ export function LMathBlock({
             >
               {r.v}
             </span>
-            {r.note && <span style={{ color: L_T.muted }}>  ({r.note})</span>}
+            </span>
+            {r.note && <span style={{ color: L_T.muted }}>({r.note})</span>}
           </div>
         ))}
       </div>

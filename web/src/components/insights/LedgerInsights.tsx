@@ -11,7 +11,7 @@
  * The activity ledger (where users log "I paid X to Kotak") still lives
  * below these notes — Notes is read-only commentary, ActivityLedger is
  * the input surface. The deep-link from BudgetMonthCard
- * (/insights#activity-ledger) lands directly on it.
+ * (/activity#activity-ledger) lands directly on it.
  */
 
 import { useMemo } from 'react';
@@ -222,7 +222,7 @@ export function LedgerInsights({
         ))}
 
         {/* Activity ledger — input surface for "I actually paid X". Lives
-         *  below the notes so the deep-link /insights#activity-ledger
+         *  below the notes so the deep-link /activity#activity-ledger
          *  lands here. */}
         <section>
           <LSectionHeader>ACTUALS · ACTIVITY LEDGER</LSectionHeader>

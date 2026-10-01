@@ -26,7 +26,7 @@
  *
  * Writes through `saveProfileClient` so the next /plan render picks
  * up the change without a manual reload. Appends a `restructuring_applied`
- * decision so /insights shows the audit trail.
+ * decision so /activity shows the audit trail.
  */
 import { useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
