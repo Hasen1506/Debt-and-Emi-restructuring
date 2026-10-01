@@ -20,7 +20,7 @@ import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import type { LoanWithEffective } from '@/lib/derived';
 import { loanGaps } from '@/lib/loan-gaps';
-import { L_T, L_MONO } from './primitives';
+import { L_T, L_MONO, lStrip } from './primitives';
 
 const LOAN_TYPE_SHORT: Record<LoanType, string> = {
   credit_card: 'CARD',
@@ -135,12 +135,9 @@ export function LDebtsTable({
             return (
               <tr
                 key={i}
-                style={{
-                  borderBottom: `1px dashed ${L_T.faint}`,
-                  background: isHighest ? L_T.highlight : 'transparent',
-                }}
+                style={{ borderBottom: `1px dashed ${L_T.faint}` }}
               >
-                <td style={{ padding: '10px 12px', color: L_T.muted }}>
+                <td style={{ padding: '10px 12px', color: L_T.muted, ...(isHighest ? lStrip('negative') : null) }}>
                   {String(i + 1).padStart(2, '0')}
                 </td>
                 <td style={{ padding: '10px 12px', fontWeight: 700 }}>

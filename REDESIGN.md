@@ -98,7 +98,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 ### R0 · Groundwork
 - [x] R0.1 Design files into `design/`; this plan
 - [x] R0.2 Baseline: W1 setup and page heights recorded below (W2–W6 measured at the start of their phase)
-- [ ] R0.3 Tokens and primitives: match `L_T` tokens; section header (bold + 2px rule); accent-strip rows instead of yellow; add `LExpandPanel`, `LAllocationBar`, `LMathBlock`, `LProgressBar`
+- [x] R0.3 Primitives: section header (bold + 2px rule, optional `01 /` step), `lStrip` accent strip instead of yellow rows, `LExpandRow`, `LAllocationBar`, `LProgressBar`, `LMathBlock` restyled. Tokens kept at the app's darker accent/green (they pass 4.5:1 contrast; the design's do not)
 - [ ] R0.4 Masthead with 5 tabs; redirects from old URLs
 
 ### R1 · Setup in three steps, and Profile
