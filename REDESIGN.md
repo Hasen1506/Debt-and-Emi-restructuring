@@ -8,7 +8,7 @@ Read **Resume here** first after any compaction or new session.
 - **Phase in progress:** R0 · groundwork (not started; waiting for the owner's go on the decisions below)
 - **Last finished step:** design files committed to `design/`; this plan written
 - **Next step:** R0.2 baseline walkthroughs
-- **Open PR:** none yet
+- **Open PR:** https://github.com/Hasen1506/Debt-and-Emi-restructuring/pull/7 (draft)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
 tick the boxes here, update **Resume here**, push, and ask the owner to `/compact`.
