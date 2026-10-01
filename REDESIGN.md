@@ -5,10 +5,10 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R3 · Plan (not started)
-- **Last finished step:** R2 · Home, all six steps (PR #9): context line, cash-flow trio, KPIs, Pay this month with one-tap mark paid, allocation bar, cheaper rates moved from Plan, open positions with rate breakdown; `/debts` retired
-- **Next step:** R3 — measure Plan's height at 1200/390 and W3's "switch strategy → plan changes" on the current Plan as the before, then R3.1
-- **Open PR:** #9 · `claude/vibrant-bardeen-5bsiyj` (merge when CI is green, then restart the branch from `main`)
+- **Phase in progress:** R4 · Activity (not started)
+- **Last finished step:** R3 · Plan, all five steps (PR #10): assumption chips, KPIs, chart with milestones, month-by-month events with the rate-reset reminder and central-bank note, life events, notes, what-if and advance tax restyled
+- **Next step:** R4 — measure Activity's height at 1200/390 and W6 (log a partial EMI and a rate change) on the current page as the before, then R4.1
+- **Open PR:** #10 · `claude/vibrant-bardeen-5bsiyj` (merge when CI is green, then restart the branch from `main`)
 - **Waiting on the owner:** whether to change the US default card minimum (see the R1 walkthrough results)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
@@ -127,11 +127,11 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [x] R2.6 Walkthrough W1 marking paid (results below)
 
 ### R3 · Plan
-- [ ] R3.1 Assumption chips (the one place to edit them) + KPIs
-- [ ] R3.2 Trajectory chart: area, min-payment baseline, milestones, labelled axes
-- [ ] R3.3 Amortisation collapsed to event rows; rate-reset alert and central-bank note below
-- [ ] R3.4 From Notes: lifecycle events table and the top three engine notes
-- [ ] R3.5 What-if sliders with live impact; advance tax for self-employed
+- [x] R3.1 Assumption chips + KPIs: the facts from Profile on one line (plan start, tax regime, bracket → EDIT IN PROFILE), then one chip per assumption (payoff order, pay rises, rising costs, and when they apply: tax refunds, emergency-fund share, rupee drift), each opening its control below the row. KPIs: debt-free, total interest (and how much less than minimums), time saved, paying this month. "This month's surplus allocation" removed (Home's register shows it; goal order is changed on Goals). The emergency-fund slider re-runs the plan once the slider stops, not on every step of a drag
+- [x] R3.2 Trajectory chart: the plan shaded, paying only the minimums dashed, a marker and label where each loan is paid off (the last one reads DEBT-FREE), labelled axes. The x-axis ends a little after the plan's debt-free month instead of where the minimums clear (Priya: May 2032, not Aug 2049), with a note at the edge saying when the minimums finish, or that they never do. Labels that would overlap move up a row. The "Key dates" list (the same dates again) is gone
+- [x] R3.3 "Month by month" (the amortisation table) collapsed to the months something happens: ★ a loan paid off (★ DEBT-FREE on the last), ⊕ a rate reset or a planned new rate, ⊙ a pay change or the end of each year, + a planned loan starting. The event sits next to the date, so on a phone it's on screen without scrolling. Below it: the next floating-rate reset when it's within three months (ADD THE NEW RATE · WHAT IF RATES MOVE), and the central bank's rate, as-of date and next meeting for anyone with a floating-rate loan (within two weeks of the meeting: wait before a big prepayment or refinance). Lender names drop "Bank" ("HDFC home loan")
+- [x] R3.4 Life events as a ledger list (date · what · status · IT HAPPENED / CANCEL / REOPEN / DELETE) with a short form: chips for what changes (my pay · a loan's rate · a new loan), amount fields that take `32L`, field errors shown in place, and saving re-runs the plan (it didn't before: the chart only changed after a reload). The rate-reset reminder opens the form on that loan and its reset date. Notes (at most three, each with its working): prepay or save (the dearest loan against the best safe rate after tax), the home loan's tax saving (or why there is none), a pay rise that crosses a tax bracket. Activity's notes went: the real rate and the monthly surplus are on Home, and the no-cost-EMI tip showed for any floating-rate loan
+- [x] R3.5 What if, in ledger rows with no nested cards: spend less each month (from this month or later; DO IT saves the cut), if floating rates change (off, and says why, when no loan floats), pay a lump sum (into which loan, ★ the plan's pick; I PAID THIS logs it). Each shows → DEBT-FREE ±n MO and → INTEREST ±amount as it changes; the line that repeated them in words went (goal changes still show). Loan names read "Credit card · ₹1,50,000", not "Unnamed · credit card". Advance tax (self-employed) is a register like Home's: MARK PAID in one tap, OTHER AMOUNT takes `2.34L`, a missed instalment gets the red strip, and the penalty is in plain words
 
 ### R4 · Activity
 - [ ] R4.1 Month strip, collapsible months, prominent due date
@@ -236,6 +236,27 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
 - Home shows one line, "PAY EXTRA: ₹24,300 → — CREDIT CARD": the extra only. The EMIs and the card minimum due this month aren't on Home.
 - **Marking two paid** (the card and the personal-loan EMI): 7 clicks, 1 amount typed, and a move to Activity (`[I PAID THIS]` → log form: loan, kind, amount, log; twice).
 - Height: 958 at 1200px, 1,395 at 390px.
+
+### Before R3 (current Plan)
+
+- Priya's Plan: 2,478 px at 1200, 3,541 at 390.
+- W3 switching strategy: 1 click (the switch sat in "How this plan is built", 290 px down).
+- The chart's x-axis runs to the minimums' payoff (Aug 2049), so Priya's plan (Mar 2031) fills the first fifth of it.
+- A US card minimum that never clears showed "MONTHS SAVED 0".
+
+### After R3 (new Plan)
+
+| | Before | After |
+|---|---|---|
+| Priya's Plan, height at 1200 / 390 | 2,478 / 3,541 | **2,008 / 2,679** |
+| Assumptions | a block of toggles and a slider ("How this plan is built") | one row of chips, each opening its control |
+| Chart's x-axis (Priya) | Oct 26 → Aug 49 (the minimums' payoff); the plan filled the first fifth | Oct 26 → May 32, a marker per loan paid off, "minimums: clear Aug 49 →" at the edge |
+| Key dates, surplus allocation, invest-vs-prepay, bracket card | four separate sections | dates on the chart and in the schedule; this month's money on Home; one Notes section (at most three) |
+| W3 switch strategy | 1 click (switch sat 290 px down) | 2 clicks (chip, then the order), 149 px down; the R6 medallion makes it one |
+| Add the new rate at a reset | find "Life events", pick the kind, the loan and the date, type the rate | ADD THE NEW RATE on the reminder: loan and date filled in, type the rate; the plan re-runs on save |
+
+- A US card whose minimum never clears now reads "TIME SAVED — · MINIMUMS ALONE NEVER CLEAR IT" instead of "0".
+- Checked with the over-budget, US, NRI, US mortgage, self-employed, no-loans and paid-off profiles: no sideways scroll at 390.
 
 ### After R2 (new Home, Priya's profile)
 

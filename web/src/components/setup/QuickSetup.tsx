@@ -11,7 +11,17 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
 import { BankCombobox, Field, Select } from '@/components/ToolPrimitives';
-import { L_MONO, L_T, LBracket, LButton, LSectionHeader, LShell, lStrip } from '@/components/ledger/primitives';
+import {
+  L_MONO,
+  L_T,
+  LBracket,
+  LButton,
+  LChip as Chip,
+  LChipRow as ChipRow,
+  LSectionHeader,
+  LShell,
+  lStrip,
+} from '@/components/ledger/primitives';
 import { api, formatCurrency } from '@/lib/api';
 import type {
   Country,
@@ -645,37 +655,6 @@ function StepStrip({ step, onGo }: { step: number; onGo: (n: number) => void }) 
         })}
       </ol>
     </nav>
-  );
-}
-
-function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      onClick={onClick}
-      style={{
-        fontFamily: L_MONO,
-        fontSize: 12,
-        padding: '7px 12px',
-        border: `1px solid ${on ? L_T.ink : L_T.ruleSoft}`,
-        background: on ? L_T.ink : L_T.paper,
-        color: on ? L_T.bg : L_T.ink,
-        fontWeight: on ? 700 : 500,
-        cursor: 'pointer',
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function ChipRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div role="group" aria-label={label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <span style={{ fontSize: 12, color: L_T.muted }}>{label}</span>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{children}</div>
-    </div>
   );
 }
 
