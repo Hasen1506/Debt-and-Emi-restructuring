@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/Card';
-import { BankCombobox, Field, Select, SubmitBar } from '@/components/ToolPrimitives';
-import { L_T, L_MONO } from '@/components/ledger/primitives';
+import { BankCombobox, Field, Select } from '@/components/ToolPrimitives';
+import { LBracket, LButton, LShell, L_T } from '@/components/ledger/primitives';
+import { PROFILE_SECTIONS, ProfileSummary } from '@/components/profile/ProfileSummary';
+import { readStrategyClient } from '@/lib/strategy';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { RateRangeHint } from '@/components/RateRangeHint';
 import type {
@@ -41,7 +43,7 @@ import {
   loadProfileClient,
   saveProfileClient,
 } from '@/lib/user-store';
-import { formatLoanAmount, loanCurrency, loanToUser, userDefaultCurrency } from '@/lib/currency';
+import { loanCurrency, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import {
   FY_ANCHOR_MONTH,
   MONTH_NAMES,
@@ -89,18 +91,6 @@ const STEPS: ReadonlyArray<{ label: string; optional?: boolean }> = [
   { label: 'Loans' },
   { label: 'Savings', optional: true },
   { label: 'Review' },
-] as const;
-
-/**
- * Labels for the step rail. Step 0 (the optional "You" welcome screen)
- * is left out. ALL-CAPS short labels so the cells stay narrow on phones.
- */
-const LEDGER_RAIL_LABELS = [
-  'COUNTRY',
-  'INCOME',
-  'LOANS',
-  'SAVINGS',
-  'REVIEW',
 ] as const;
 
 // `?step=loans` (or `?step=income`, etc.) deep-links to a specific step so
@@ -159,15 +149,53 @@ function blankLoan(): LoanPayload {
   };
 }
 
-export default function OnboardingPage() {
+/**
+ * Profile (REDESIGN R1.5): the saved profile as a summary, and one section
+ * of the form at a time to change it. `?step=loans` (and the other names in
+ * STEP_ALIASES) opens that section. Cancel and Save start the form again
+ * from the saved profile, so nothing half-edited lingers.
+ */
+export default function ProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [step, setStep] = useState(() => parseStepParam(searchParams.get('step')));
-  // True iff the user deep-linked past step 1 (?step=loans, ?step=savings…)
-  // with no saved profile to back it. Used to surface a "jump to start"
-  // banner so they don't get stuck mid-flow with missing prerequisites.
-  // Hydrates on mount because loadProfileClient is browser-only.
-  const [emptyDeepLink, setEmptyDeepLink] = useState(false);
+  const [view, setView] = useState(() => ({
+    key: 0,
+    section: searchParams.get('step') ? parseStepParam(searchParams.get('step')) : (null as number | null),
+    saved: false,
+  }));
+  const done = (saved: boolean) => {
+    if (searchParams.get('step')) router.replace('/profile', { scroll: false });
+    setView((v) => ({ key: v.key + 1, section: null, saved }));
+    window.scrollTo({ top: 0 });
+  };
+  return (
+    <ProfileEditor
+      key={view.key}
+      section={view.section}
+      saved={view.saved}
+      onOpen={(n) => {
+        setView((v) => ({ ...v, section: n, saved: false }));
+        window.scrollTo({ top: 0 });
+      }}
+      onDone={done}
+    />
+  );
+}
+
+function ProfileEditor({
+  section,
+  saved: justSaved,
+  onOpen,
+  onDone,
+}: {
+  section: number | null;
+  saved: boolean;
+  onOpen: (n: number) => void;
+  onDone: (saved: boolean) => void;
+}) {
+  // -1 while the summary shows: no form section is open.
+  const step = section ?? -1;
+  const [ready, setReady] = useState(false);
 
   // ─── form state ─────────────────────────────────────────────────────────
   // Both optional. We never gate the flow on them — the "You" step is a soft
@@ -275,10 +303,7 @@ export default function OnboardingPage() {
   // isLive=false means there's no cookie — leave empty defaults in place.
   useEffect(() => {
     const stored = loadProfileClient();
-    // If the URL points past step 1 but there's no profile yet, the user
-    // is deep-linked into a step that depends on earlier inputs they
-    // never filled. Surface a banner; they keep their landing step.
-    if (!stored.isLive && step > 1) setEmptyDeepLink(true);
+    setReady(true);
     if (!stored.isLive) return;
     const u = stored.user;
     if (u.display_name) setDisplayName(u.display_name);
@@ -568,14 +593,17 @@ export default function OnboardingPage() {
   async function save() {
     // A deep link can reach Review without passing the Loans check.
     if (!loansComplete) {
-      setStep(3);
+      onOpen(3);
       setShowLoanErrors(true);
       return;
     }
     const score = Number(creditScore);
     // Foreign loans carry the exchange rate entered on the Loans step
     // (loansComplete requires one), so every page converts at the same rate.
-    const userWithFx = buildUser();
+    // Start from the saved profile, so what this form doesn't edit
+    // (holdings from /profile/assets, Plan's FX drift) is kept.
+    const stored = loadProfileClient();
+    const userWithFx = { ...(stored.isLive ? stored.user : {}), ...buildUser() } as UserPayload;
     // When the user provided gross income, derive marginal_rate from the
     // bracket they fall into — that's a sharper signal than the manual
     // marginal_rate field on Step 4. Fall back to the manual value only
@@ -655,8 +683,8 @@ export default function OnboardingPage() {
     } catch {
       /* private mode: the stale-card nudge falls back to activity only */
     }
-    // Land on home: this month's move and the debt-free date.
-    router.push('/');
+    // Back to the summary, which now shows what was saved.
+    onDone(true);
   }
 
   // Loans need what the projection needs; no loans at all is fine (goals,
@@ -711,94 +739,51 @@ export default function OnboardingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [foreignKey, userCcy]);
 
-  function next() {
-    if (step === 3 && !loansComplete) {
-      setShowLoanErrors(true);
-      return;
-    }
-    setShowLoanErrors(false);
-    setStep((s) => s + 1);
+  if (!ready) {
+    return (
+      <LShell>
+        <p style={{ color: L_T.muted }}>Loading your profile…</p>
+      </LShell>
+    );
+  }
+
+  if (section === null) {
+    const stored = loadProfileClient();
+    return (
+      <LShell>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 820 }}>
+          <ProfileHeader title="Your profile">
+            Everything the plan uses. Change a part with its [EDIT]; the rest stays as it is.
+          </ProfileHeader>
+          {justSaved && (
+            <p role="status" style={{ margin: 0, padding: '8px 12px', border: `1px solid ${L_T.positive}`, color: L_T.positive }}>
+              Saved. Home and Plan use the new numbers.
+            </p>
+          )}
+          <ProfileSummary
+            user={{ ...(stored.isLive ? stored.user : {}), ...buildUser() } as UserPayload}
+            creditScore={creditScore}
+            assets={stored.user.assets ?? []}
+            strategy={readStrategyClient()}
+            onEdit={onOpen}
+          />
+        </div>
+      </LShell>
+    );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <section>
-        <h1 className="h1">Set up your profile</h1>
-        <p className="muted">
-          Five short steps, about two minutes. Your details stay in this
-          browser (and your account, if you sign in); our engine sees them
-          only to work out the plan. You can edit them any time.
-        </p>
-      </section>
-
-      {emptyDeepLink && (
-        <div
-          style={{
-            padding: '10px 12px',
-            background: 'var(--soft-bg, rgba(220, 130, 0, 0.06))',
-            border: '1px solid var(--warning)',
-            borderRadius: 6,
-            fontSize: 13,
-            lineHeight: 1.55,
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 10,
-            alignItems: 'center',
-            flexWrap: 'wrap',
-          }}
-        >
-          <span>
-            You jumped to <strong>{STEPS[step]?.label ?? 'a later step'}</strong>{' '}
-            but haven't filled the earlier sections yet. Start at step 1 to get
-            a complete plan?
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              setStep(0);
-              setEmptyDeepLink(false);
-            }}
-            style={{
-              background: 'var(--accent)',
-              color: '#fff',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: 4,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Start at step 1 →
-          </button>
-        </div>
-      )}
-
-      {/* Step rail — five cells (Country · Income · Loans · Savings ·
-       *  Review). Step 0 ("You") is the optional welcome screen
-       *  and renders without the rail so the wizard's main spine stays
-       *  visually anchored. Tri-state colours:
-       *  current = accent fill + ink text, past = ink fill + paper text,
-       *  future = paper fill + muted text + 1px ink border. */}
-      {step >= 1 && (
-        <LedgerStepRail
-          steps={LEDGER_RAIL_LABELS}
-          currentRailIndex={step - 1}
-        />
-      )}
+    <LShell>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 820 }}>
+      <ProfileHeader title={PROFILE_SECTIONS[step] ?? 'Your profile'} editing>
+        Change what you need and save. Sections you don&apos;t open stay as they are.
+      </ProfileHeader>
 
       <Card>
         {step === 0 && (
           <div style={{ display: 'grid', gap: 14 }}>
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
-                {displayName ? `Hi, ${displayName.trim()}` : 'Welcome'}
-              </div>
-              <div className="muted" style={{ fontSize: 13, lineHeight: 1.55 }}>
-                A couple of optional details so the app feels less like a form.
-                Both are skip-able — leave blank to stay anonymous, and we&apos;ll
-                still build your plan.
-              </div>
+            <div className="muted" style={{ fontSize: 13, lineHeight: 1.55 }}>
+              Both optional. Leave them blank to stay anonymous; the plan is the same.
             </div>
             <Field
               label="Your name (optional)"
@@ -1289,8 +1274,8 @@ export default function OnboardingPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <p className="muted" style={{ margin: 0, fontSize: 13 }}>
               For each loan or card: what you owe, the interest rate and the
-              monthly EMI. No loans? Leave this blank and continue: goals,
-              portfolio and purchase planning work without one.
+              monthly EMI. No loans? Remove them and save: goals, portfolio
+              and purchase planning work without one.
             </p>
             {loans.map((l, i) => (
               <div
@@ -2215,7 +2200,7 @@ export default function OnboardingPage() {
                       sweep deposit, or a liquid mutual fund. Lock-in FDs,
                       equity, gold, and bonds <em>do not</em> belong here even
                       if you mentally label them as "backup". Park them as
-                      regular assets in the next step; the engine will treat
+                      holdings under What you own; the engine will treat
                       them as idle yield candidates instead.
                     </div>
                     <div style={{ marginTop: 6 }}>
@@ -2304,36 +2289,7 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {step === 5 && (
-          <ReviewSummary
-            displayName={displayName}
-            ageBracket={ageBracket || undefined}
-            country={country}
-            incomeType={incomeType}
-            monthlyIncome={monthlyIncome}
-            annualGrossSalary={annualGrossSalary}
-            annualBusinessIncome={annualBusinessIncome}
-            fixedExpenses={fixedExpenses}
-            variableExpenses={variableExpenses}
-            showDetailedExpenses={showDetailedExpenses}
-            annualHikeRate={annualHikeRate}
-            hikeSchedule={hikeSchedule}
-            taxRegime={taxRegime}
-            filingStatus={filingStatus}
-            stateMarginalRate={stateMarginalRate}
-            loans={loans}
-            fxRates={fxRates}
-            primaryBank={primaryBank}
-            otherBanks={otherBanks}
-            savingsBalance={savingsBalance}
-            efundBalance={efundBalance}
-            efundTarget={efundTarget}
-            creditScore={creditScore}
-            onJumpToStep={(s) => setStep(s)}
-          />
-        )}
-
-        {saveFailed && step === STEPS.length - 1 && (
+        {saveFailed && (
           <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
             Your profile wasn&apos;t saved: this browser didn&apos;t keep it. Check
             that cookies are allowed for this site and try again. Nothing you
@@ -2344,51 +2300,32 @@ export default function OnboardingPage() {
           style={{
             display: 'flex',
             justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap-reverse',
             marginTop: 20,
             gap: 12,
           }}
         >
-          <button
-            type="button"
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
-            disabled={step === 0}
-            style={{
-              padding: '8px 16px',
-              fontSize: 14,
-              background: 'transparent',
-              color: 'var(--muted)',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              cursor: step === 0 ? 'not-allowed' : 'pointer',
-              opacity: step === 0 ? 0.4 : 1,
-            }}
-          >
-            {/* Spec §4.7: Back is always `[← BACK]` (no destination name). */}
-            [← BACK]
-          </button>
-          {step < STEPS.length - 1 ? (
-            <button
-              type="button"
-              onClick={next}
-              disabled={!canAdvance}
-              className="btn btn-primary"
-              style={{ opacity: canAdvance ? 1 : 0.4, cursor: canAdvance ? 'pointer' : 'not-allowed' }}
-            >
-              {/* Spec §4.7: Continue button always names the next step. */}
-              [ CONTINUE → {STEPS[step + 1]?.label.toUpperCase() ?? 'NEXT'} ]
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={save}
-              className="btn btn-primary"
-            >
-              [ SAVE PROFILE → ]
-            </button>
-          )}
+          <LBracket onClick={() => onDone(false)}>CANCEL</LBracket>
+          <span style={{ opacity: canAdvance ? 1 : 0.4 }}>
+            <LButton onClick={canAdvance ? save : undefined}>SAVE CHANGES</LButton>
+          </span>
         </div>
       </Card>
     </div>
+    </LShell>
+  );
+}
+
+function ProfileHeader({ title, editing, children }: { title: string; editing?: boolean; children: React.ReactNode }) {
+  return (
+    <header>
+      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
+        $ PROFILE{editing ? ' · EDIT' : ''}
+      </div>
+      <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>{title}</h1>
+      <p style={{ color: L_T.muted, margin: '8px 0 0', lineHeight: 1.6 }}>{children}</p>
+    </header>
   );
 }
 
@@ -2751,7 +2688,7 @@ function GrossIncomeField({
             <br />
             <br />
             <strong>Optional.</strong> Leave blank if you only know take-home;
-            we'll use the marginal-rate field on Step 4 instead. When filled,
+            we'll use the marginal-rate field below instead. When filled,
             we'll auto-show your tax bracket and (for SE users) advance-tax
             reminders.
           </>
@@ -3073,7 +3010,7 @@ function EfTierPicker({
   if (totalMonthlyExpenses <= 0) {
     return (
       <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-        Enter your monthly expenses (step 2) to see tier recommendations.
+        Enter your monthly spending (Income and spending) to see tier recommendations.
       </div>
     );
   }
@@ -3531,344 +3468,6 @@ function MinPaymentExplainer({
             : 'Leave blank to use the formula above. Fill in only if your statement shows a different number.'
         }
       />
-    </div>
-  );
-}
-
-/**
- * Final-step review screen. Replaces the old "everything in one paragraph"
- * summary with one card per domain (You / Country / Income / Expenses /
- * Debts / Savings / Credit + banking). Each card has an Edit button that
- * jumps back to the relevant step via onJumpToStep, so a user who realises
- * they mistyped doesn't have to scroll the whole form.
- *
- * Pure render — receives every value as a prop. No business logic.
- */
-function ReviewSummary(props: {
-  displayName: string;
-  ageBracket: AgeBracket | undefined;
-  country: Country;
-  incomeType: IncomeType;
-  monthlyIncome: string;
-  annualGrossSalary: string;
-  annualBusinessIncome: string;
-  fixedExpenses: string;
-  variableExpenses: string;
-  showDetailedExpenses: boolean;
-  annualHikeRate: string;
-  hikeSchedule: { from: string; to: string; rate: string }[];
-  taxRegime: TaxRegimeIN;
-  filingStatus: FilingStatusUS;
-  stateMarginalRate: string;
-  loans: LoanPayload[];
-  fxRates: Record<string, string>;
-  primaryBank: string;
-  otherBanks: string[];
-  savingsBalance: string;
-  efundBalance: string;
-  efundTarget: string;
-  creditScore: string;
-  onJumpToStep: (step: number) => void;
-}) {
-  const {
-    displayName, ageBracket, country, incomeType, monthlyIncome,
-    annualGrossSalary, annualBusinessIncome, fixedExpenses, variableExpenses,
-    showDetailedExpenses, annualHikeRate, hikeSchedule, taxRegime,
-    filingStatus, stateMarginalRate, loans, fxRates, primaryBank, otherBanks,
-    savingsBalance, efundBalance, efundTarget, creditScore, onJumpToStep,
-  } = props;
-  const currency = country === 'IN' ? 'INR' : 'USD';
-  const ageLabel = ageBracket
-    ? AGE_BRACKETS.find((b) => b.value === ageBracket)?.label ?? ''
-    : '';
-  const realLoans = loans.filter((l) => Number(l.outstanding) > 0);
-  // In the user's currency at the rate entered on the Loans step.
-  const totalOutstanding = realLoans.reduce(
-    (acc, l) => acc + (loanToUser(Number(l.outstanding), l, country, fxRates) ?? 0),
-    0,
-  );
-  const hikeRatePct = Number(annualHikeRate) > 0
-    ? `${(Number(annualHikeRate) * 100).toFixed(0)}%`
-    : '—';
-  const hikePhaseSummary = hikeSchedule
-    .filter((p) => Number(p.from) > 0 && Number(p.to) > Number(p.from))
-    .map((p) => `Y${p.from}-${Number(p.to) - 1} @ ${(Number(p.rate) * 100).toFixed(0)}%`)
-    .join(', ');
-  const grossLabel =
-    incomeType === 'salaried' && Number(annualGrossSalary) > 0
-      ? `${formatCurrency(annualGrossSalary, currency)} gross/yr`
-      : incomeType === 'business_owner' && Number(annualBusinessIncome) > 0
-        ? `${formatCurrency(annualBusinessIncome, currency)} business income/yr`
-        : '';
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div className="muted" style={{ fontSize: 12, lineHeight: 1.55, marginBottom: 2 }}>
-        Quick once-over before we save. Click <strong>Edit</strong> on any card
-        to jump back. Saving keeps your details in this browser (and your
-        account, if you sign in).
-      </div>
-
-      <ReviewCard title="You" onEdit={() => onJumpToStep(0)}>
-        {displayName.trim() || ageLabel ? (
-          <>
-            {displayName.trim() && <strong>{displayName.trim()}</strong>}
-            {displayName.trim() && ageLabel && <span className="muted"> · </span>}
-            {ageLabel && <span>{ageLabel}</span>}
-          </>
-        ) : (
-          <span className="muted">Anonymous — no name or age provided.</span>
-        )}
-      </ReviewCard>
-
-      <ReviewCard title={'Country & residency'} onEdit={() => onJumpToStep(1)}>
-        <strong>{country === 'IN' ? 'India' : 'USA'}</strong>
-        {country === 'US' && (
-          <span className="muted"> · filing as {filingStatus.replace('_', ' ')}</span>
-        )}
-        {country === 'IN' && (
-          <span className="muted"> · {taxRegime === 'new' ? 'New regime' : 'Old regime'}</span>
-        )}
-        {country === 'US' && Number(stateMarginalRate) > 0 && (
-          <span className="muted">
-            {' '}· state marginal {(Number(stateMarginalRate) * 100).toFixed(1)}%
-          </span>
-        )}
-      </ReviewCard>
-
-      <ReviewCard title="Income" onEdit={() => onJumpToStep(2)}>
-        <strong>{formatCurrency(monthlyIncome || '0', currency)}/mo</strong>{' '}
-        take-home
-        {grossLabel && <span className="muted"> · {grossLabel}</span>}
-        <br />
-        <span className="muted" style={{ fontSize: 12 }}>
-          Hike {hikePhaseSummary || hikeRatePct}
-          {hikePhaseSummary && Number(annualHikeRate) > 0
-            ? ` · fallback ${hikeRatePct}`
-            : ''}
-        </span>
-      </ReviewCard>
-
-      <ReviewCard title="Expenses" onEdit={() => onJumpToStep(2)}>
-        {showDetailedExpenses ? (
-          <>
-            <strong>{formatCurrency(fixedExpenses || '0', currency)}/mo</strong> fixed
-            <span className="muted"> · </span>
-            <strong>{formatCurrency(variableExpenses || '0', currency)}/mo</strong>{' '}
-            <span className="muted">variable</span>
-          </>
-        ) : (
-          <>
-            <strong>{formatCurrency(fixedExpenses || '0', currency)}/mo</strong>{' '}
-            <span className="muted">combined monthly outflows</span>
-          </>
-        )}
-      </ReviewCard>
-
-      <ReviewCard
-        title={`Debts (${realLoans.length})`}
-        onEdit={() => onJumpToStep(3)}
-      >
-        {realLoans.length === 0 ? (
-          <span className="muted">No active debts entered.</span>
-        ) : (
-          <>
-            <strong>{formatCurrency(String(totalOutstanding), currency)}</strong>{' '}
-            <span className="muted">total outstanding</span>
-            <div
-              style={{
-                marginTop: 6,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4,
-              }}
-            >
-              {realLoans.slice(0, 5).map((l, i) => (
-                <div key={i} style={{ fontSize: 12, color: 'var(--muted)' }}>
-                  {l.bank || '—'} {l.loan_type.replace('_', ' ')} ·{' '}
-                  {formatLoanAmount(Number(l.outstanding), l, country, fxRates)} @{' '}
-                  {(Number(l.nominal_rate) * 100).toFixed(2)}%
-                </div>
-              ))}
-              {realLoans.length > 5 && (
-                <div className="muted" style={{ fontSize: 11 }}>
-                  + {realLoans.length - 5} more
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </ReviewCard>
-
-      <ReviewCard
-        title={'Savings & emergency fund'}
-        onEdit={() => onJumpToStep(4)}
-      >
-        <strong>{formatCurrency(savingsBalance || '0', currency)}</strong>{' '}
-        <span className="muted">savings</span>
-        {Number(efundTarget) > 0 && (
-          <span className="muted">
-            {' '}· emergency fund {formatCurrency(efundBalance || '0', currency)} of{' '}
-            {formatCurrency(efundTarget, currency)}
-          </span>
-        )}
-      </ReviewCard>
-
-      <ReviewCard title={'Banking & credit'} onEdit={() => onJumpToStep(4)}>
-        {primaryBank ? (
-          <>
-            <strong>{primaryBank}</strong>{' '}
-            <span className="muted">primary</span>
-            {otherBanks.length > 0 && (
-              <span className="muted"> · {otherBanks.length} other</span>
-            )}
-          </>
-        ) : (
-          <span className="muted">No primary bank set.</span>
-        )}
-        <span className="muted"> · CIBIL/FICO {creditScore || '—'}</span>
-      </ReviewCard>
-    </div>
-  );
-}
-
-function ReviewCard({
-  title,
-  onEdit,
-  children,
-}: {
-  title: string;
-  onEdit: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-md)',
-        padding: '12px 14px',
-        background: 'var(--card)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 6,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 8,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'var(--muted)',
-          }}
-        >
-          {title}
-        </div>
-        <button
-          type="button"
-          onClick={onEdit}
-          style={{
-            padding: '3px 10px',
-            fontSize: 11,
-            background: 'transparent',
-            border: '1px solid var(--border)',
-            borderRadius: 999,
-            color: 'var(--accent)',
-            cursor: 'pointer',
-          }}
-        >
-          Edit
-        </button>
-      </div>
-      <div style={{ fontSize: 14, lineHeight: 1.55 }}>{children}</div>
-    </div>
-  );
-}
-
-/**
- * Spec §4.7 step rail — six 1px-ink-bordered cells side-by-side.
- *
- * Cell states:
- *   • current → accent fill, ink text, 2px ink border (the heavier
- *     border makes the active cell pop against neighbours)
- *   • past    → ink fill, paper text — "this is done"
- *   • future  → paper fill, muted text — "still to come"
- *
- * Caption above the rail names the current step so non-visual users
- * (and small viewports where the rail wraps) still get the spine.
- */
-function LedgerStepRail({
-  steps,
-  currentRailIndex,
-}: {
-  steps: ReadonlyArray<string>;
-  currentRailIndex: number;
-}) {
-  return (
-    <div style={{ fontFamily: L_MONO }}>
-      <div
-        style={{
-          fontSize: 10,
-          letterSpacing: '0.18em',
-          color: L_T.muted,
-          marginBottom: 8,
-        }}
-      >
-        $ SETUP · STEP {currentRailIndex + 1}/{steps.length} ·{' '}
-        {steps[currentRailIndex]}
-      </div>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${steps.length}, 1fr)`,
-          gap: 0,
-          background: L_T.ink,
-          border: `1px solid ${L_T.ink}`,
-          fontSize: 11,
-          letterSpacing: '0.1em',
-        }}
-      >
-        {steps.map((label, i) => {
-          const isCurrent = i === currentRailIndex;
-          const isPast = i < currentRailIndex;
-          const bg = isCurrent
-            ? L_T.accent
-            : isPast
-              ? L_T.ink
-              : L_T.paper ?? '#ffffff';
-          const color = isCurrent
-            ? L_T.ink
-            : isPast
-              ? L_T.paper ?? '#ffffff'
-              : L_T.muted;
-          return (
-            <div
-              key={label}
-              style={{
-                background: bg,
-                color,
-                padding: '10px 8px',
-                textAlign: 'center',
-                fontWeight: isCurrent ? 700 : 500,
-                // The 1px gap between cells is the grid background (ink)
-                // bleeding through — same 1px-ink-grid trick used by the
-                // KPI primitive. Skip the rule on the last cell so the
-                // outer border isn't doubled.
-                marginRight: i < steps.length - 1 ? 1 : 0,
-              }}
-            >
-              {String(i + 1).padStart(2, '0')} · {label}
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }

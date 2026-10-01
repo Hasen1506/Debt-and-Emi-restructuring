@@ -6,8 +6,8 @@ Read **Resume here** first after any compaction or new session.
 ## Resume here
 
 - **Phase in progress:** R1 · setup in three steps, and Profile
-- **Last finished step:** R1.2–R1.4 — three-step setup at `/onboarding` (`components/setup/QuickSetup.tsx`); the old form is now `/profile`
-- **Next step:** R1.5 — Profile in edit mode (restyle `app/profile/page.tsx` as sections, not steps; holdings and cash; persona triptych slot), then R1.6 walkthroughs
+- **Last finished step:** R1.5 — Profile is a summary with [EDIT] per section (`components/profile/ProfileSummary.tsx` + `app/profile/page.tsx`)
+- **Next step:** R1.6 — setup parts of W2 (NRI, two currencies), W3 (US), W4 (no debts) on the new setup; record results below; then merge PR #8 when CI is green
 - **Open PR:** #8 (draft) · `claude/vibrant-bardeen-5bsiyj`
 
 Pause after each phase (or about every five steps, or when context is near 35%):
@@ -106,7 +106,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [x] R1.2 Step 1 · You and your money — country, NRI and work chips; take-home; spend; live "left each month"
 - [x] R1.3 Step 2 · What you owe — short loan row, EMI ↔ months, "More terms" collapsed; a saved loan whose numbers weren't touched keeps its months left
 - [x] R1.4 Step 3 · Your plan, live preview — same run as Plan (EF split included), so the date and interest match Plan exactly. Old form moved to `/profile`; `/onboarding?step=…` links now go to `/profile?step=…`; `/onboarding/assets` → `/profile/assets`
-- [ ] R1.5 Profile (edit mode): income · loans · what you own (holdings + cash) · privacy · payoff strategy
+- [x] R1.5 Profile (edit mode): a summary of eight sections (you · where you live and tax · income and spending · loans · savings, banks and credit score · what you own · payoff order · privacy), each with [EDIT] opening only that part of the form; `?step=loans` opens Loans directly; Cancel and Save return to the summary. Saving now starts from the saved profile, so holdings and Plan's FX drift are no longer dropped (they were, before)
 - [ ] R1.6 Walkthroughs W1–W4 setup parts
 
 **R1 build notes** (decided 1 Oct 2026, before compaction):

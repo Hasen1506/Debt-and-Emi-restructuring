@@ -79,8 +79,11 @@ export function LBracket({
   disabled,
   style,
   current,
+  label,
 }: {
   children: ReactNode;
+  /** Spoken name when the bracket text alone is ambiguous ("EDIT" × 5). */
+  label?: string;
   active?: boolean;
   /** The link to the page being shown (nav). */
   current?: boolean;
@@ -110,14 +113,14 @@ export function LBracket({
   const inner = <>[{children}]</>;
   if (href) {
     return (
-      <a href={href} style={base} aria-current={current ? 'page' : undefined}>
+      <a href={href} style={base} aria-current={current ? 'page' : undefined} aria-label={label}>
         {inner}
       </a>
     );
   }
   if (onClick || as === 'button') {
     return (
-      <button type="button" onClick={onClick} disabled={disabled} style={base}>
+      <button type="button" onClick={onClick} disabled={disabled} style={base} aria-label={label}>
         {inner}
       </button>
     );
