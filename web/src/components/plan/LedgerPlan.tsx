@@ -14,10 +14,10 @@
  * (REDESIGN R2).
  */
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import Decimal from 'decimal.js';
 import type { PlanData } from './PlanData';
-import { formatCurrencyWhole, formatCurrencyCompact } from '@/lib/api';
+import { formatCurrencyWhole } from '@/lib/api';
 import {
   monthIndexToCountryLabel,
   monthIndexToDate,
@@ -42,7 +42,7 @@ import { describeGap, type ProfileGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { loanCurrency } from '@/lib/currency';
 import type { StoredProfile } from '@/lib/user-store';
-import { LTrajectory, type LTrajPoint } from '@/components/ledger/LTrajectory';
+import { PlanTrajectory } from './PlanTrajectory';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
@@ -51,7 +51,6 @@ import { ActivityImpactBanner } from './ActivityImpactBanner';
 import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
 import { CentralBankHint } from './CentralBankHint';
-import { KeyClearanceDates } from './KeyClearanceDates';
 import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
 import { InvestVsPrepayCard } from './InvestVsPrepayCard';
 import { PlanAssumptions } from './PlanAssumptions';
@@ -59,7 +58,6 @@ import { PlanAssumptions } from './PlanAssumptions';
 export function LedgerPlan({ plan }: { plan: PlanData }) {
   const ccy = plan.displayCurrency;
   const fc = (v: string | number) => formatCurrencyWhole(v, ccy);
-  const strategyUp = plan.strategy.toUpperCase();
   const interestSaved =
     Number(plan.baselineInterest) - Number(plan.totalInterest);
   const horizon = plan.trajectory.length;
@@ -79,63 +77,14 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
     deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate } as StoredProfile)
       .emiBurden.toNumber() +
       Math.max(0, plan.surplusAllocation?.debtSlice ?? plan.surplus);
+  // When paying only the minimums clears it (null: not within the plan).
+  const lastMinOwed = plan.trajectory.filter((p) => p.minimums > 0.5).at(-1)?.month ?? 0;
+  const baselineClear = plan.trajectory.find((p) => p.month > lastMinOwed && p.minimums <= 0.5)?.month ?? null;
   // Nothing owed: every loan on file is at 0, or there are none.
   const debtFreeNow = !plan.user.loans.some((l) => dec(l.outstanding).gt(0));
 
-  // ─── trajectory adapter ─────────────────────────────────────────────
-  // x runs from month 1 (this month) to the last month either line is
-  // still above zero; each point is the balance after that month's
-  // payment.
-  const today = getCountryToday(plan.user.country);
-  const traj = plan.trajectory;
-  const firstMonth = traj[0]?.month ?? 1;
-  const lastMonth = traj[traj.length - 1]?.month ?? 1;
-  const span = Math.max(1, lastMonth - firstMonth);
-  const tOf = (month: number) => (month - firstMonth) / span;
-  const maxBal = traj.reduce((mx, p) => Math.max(mx, p.avalanche, p.minimums), 0);
-  const shortDate = (month: number) => {
-    const d = monthIndexToDate(month, today);
-    return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(-2)}`;
-  };
-
-  const trajPoints: LTrajPoint[] = useMemo(
-    () =>
-      traj.map((p) => ({
-        t: tOf(p.month),
-        av: maxBal > 0 ? p.avalanche / maxBal : 0,
-        min: maxBal > 0 ? p.minimums / maxBal : 0,
-      })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [traj, maxBal],
-  );
-
   if (debtFreeNow) return <DebtFreeNow hasLoans={plan.user.loans.length > 0} />;
   if (plan.gaps.length > 0) return <NeedsLoanDetails gaps={plan.gaps} />;
-
-  const xLabels = [0, 0.25, 0.5, 0.75, 1].map((f) => {
-    const month = firstMonth + Math.round(f * span);
-    return { t: tOf(month), l: shortDate(month) };
-  });
-
-  // Compact (₹35.7L): the full figure didn't fit beside the axis on a phone.
-  const yLabels = [
-    { y: 1, l: formatCurrencyCompact(maxBal, ccy) },
-    { y: 0.5, l: formatCurrencyCompact(maxBal / 2, ccy) },
-    { y: 0, l: formatCurrencyCompact(0, ccy) },
-  ];
-
-  const lastBaselineDebt = traj.filter(p => p.minimums > 0.5).at(-1)?.month ?? 0;
-  const baselineClear = traj.find(p => p.month > lastBaselineDebt && p.minimums <= 0.5)?.month ?? null;
-  const chartTitle =
-    traj.length === 0
-      ? ''
-      : `Total debt over time. ${strategyUp.toLowerCase()} plan: ${fc(traj[0].avalanche)} after this month, ` +
-        (!short && plan.debtFreeMonth
-          ? `cleared in ${monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country)}. `
-          : 'not cleared within the plan. ') +
-        (baselineClear
-          ? `Paying only the minimums clears it in ${monthIndexToCountryLabel(baselineClear, plan.user.country)}.`
-          : 'Paying only the minimums does not clear it within the plan.');
 
   return (
     <LShell>
@@ -222,77 +171,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           variant="ledger"
         />
 
-        {/* 3. Trajectory */}
-        <section>
-          <LSectionHeader>
-            TRAJECTORY · TOTAL DEBT OVER TIME
-          </LSectionHeader>
-          {trajPoints.length > 0 ? (
-            <>
-              <LTrajectory
-                points={trajPoints}
-                clear={
-                  plan.debtFreeMonth
-                    ? {
-                        t: tOf(plan.debtFreeMonth),
-                        label: `${shortDate(plan.debtFreeMonth)} · CLEAR`,
-                      }
-                    : undefined
-                }
-                axisLabels={xLabels}
-                yLabels={yLabels}
-                title={chartTitle}
-              />
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 18,
-                  fontSize: 10,
-                  color: L_T.muted,
-                  marginTop: 8,
-                  letterSpacing: '0.1em',
-                }}
-              >
-                <span>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: 14,
-                      height: 2,
-                      background: L_T.ink,
-                      verticalAlign: 'middle',
-                      marginRight: 6,
-                    }}
-                  />
-                  {strategyUp}
-                </span>
-                <span>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: 14,
-                      borderTop: `2px dashed ${L_T.muted}`,
-                      verticalAlign: 'middle',
-                      marginRight: 6,
-                    }}
-                  />
-                  MINIMUMS
-                </span>
-              </div>
-            </>
-          ) : (
-            <div style={{ padding: 18, fontSize: 12, color: L_T.muted }}>
-              $ NO TRAJECTORY · simulation returned no points.
-            </div>
-          )}
-        </section>
-
-        {/* When each loan clears */}
-        <section>
-          <LSectionHeader>KEY DATES · WHEN EACH LOAN CLEARS</LSectionHeader>
-          {!short && <><DebtFreeRedirectPrompt plan={plan} /><KeyClearanceDates plan={plan} /></>}
-          {short && <p style={{fontSize:12}}>Resolve the funding gap to get reliable clearance milestones. The schedule below assumes every minimum payment is funded.</p>}
-        </section>
+        <PlanTrajectory plan={plan} short={short} />
+        {!short && <DebtFreeRedirectPrompt plan={plan} />}
 
         {/* Planned salary changes, rate resets and new loans (moved here from
             the Debts page in R2; R3.4 restyles it). */}

@@ -128,7 +128,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 
 ### R3 · Plan
 - [x] R3.1 Assumption chips + KPIs: the facts from Profile on one line (plan start, tax regime, bracket → EDIT IN PROFILE), then one chip per assumption (payoff order, pay rises, rising costs, and when they apply: tax refunds, emergency-fund share, rupee drift), each opening its control below the row. KPIs: debt-free, total interest (and how much less than minimums), time saved, paying this month. "This month's surplus allocation" removed (Home's register shows it; goal order is changed on Goals). The emergency-fund slider re-runs the plan once the slider stops, not on every step of a drag
-- [ ] R3.2 Trajectory chart: area, min-payment baseline, milestones, labelled axes
+- [x] R3.2 Trajectory chart: the plan shaded, paying only the minimums dashed, a marker and label where each loan is paid off (the last one reads DEBT-FREE), labelled axes. The x-axis ends a little after the plan's debt-free month instead of where the minimums clear (Priya: May 2032, not Aug 2049), with a note at the edge saying when the minimums finish, or that they never do. Labels that would overlap move up a row. The "Key dates" list (the same dates again) is gone
 - [ ] R3.3 Amortisation collapsed to event rows; rate-reset alert and central-bank note below
 - [ ] R3.4 From Notes: lifecycle events table and the top three engine notes
 - [ ] R3.5 What-if sliders with live impact; advance tax for self-employed
