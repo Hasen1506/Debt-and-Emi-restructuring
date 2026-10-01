@@ -5,9 +5,9 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R0 · groundwork (not started; waiting for the owner's go on the decisions below)
-- **Last finished step:** design files committed to `design/`; this plan written
-- **Next step:** R0.2 baseline walkthroughs
+- **Phase in progress:** R0 · groundwork (owner said go on 1 Oct 2026; defaults below accepted)
+- **Last finished step:** R0.2 baseline
+- **Next step:** R1.1 amount field (pulled forward: the owner flagged unclear commas in setup), then R0.3
 - **Open PR:** https://github.com/Hasen1506/Debt-and-Emi-restructuring/pull/7 (draft)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
@@ -97,7 +97,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 
 ### R0 · Groundwork
 - [x] R0.1 Design files into `design/`; this plan
-- [ ] R0.2 Baseline walkthroughs W1–W6 on the current app; record the numbers here
+- [x] R0.2 Baseline: W1 setup and page heights recorded below (W2–W6 measured at the start of their phase)
 - [ ] R0.3 Tokens and primitives: match `L_T` tokens; section header (bold + 2px rule); accent-strip rows instead of yellow; add `LExpandPanel`, `LAllocationBar`, `LMathBlock`, `LProgressBar`
 - [ ] R0.4 Masthead with 5 tabs; redirects from old URLs
 
@@ -159,4 +159,38 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 
 ## Walkthrough results
 
-_Filled in by R0.2 and R7.1._
+### Baseline (R0.2, current app, 1 Oct 2026)
+
+**W1 · Priya's setup** (card ₹1.5L @ 42%, personal loan ₹4L @ 14% EMI ₹13,700, home loan ₹25L @ 8.6% EMI ₹24,500;
+take-home ₹1.2L, spend ₹50k). Minimum path, every optional field skipped:
+
+| Screen | Fields on screen | Height at 1200px |
+|---|---|---|
+| You (optional) | 1 | 900 |
+| Country | 1 | 900 |
+| Income | 9 | 1,274 |
+| Loans (3 loans) | **37** | **3,545** |
+| Savings (optional) | 4 | 900 |
+| Review | 0 | 1,151 |
+
+- **6 screens, 10 values typed, 11 clicks** (5 continues, 2 "add loan", 3 loan-type picks, finish).
+- Amount fields show raw digits (`2500000`): no grouping, so 25 lakh and 2.5 crore look alike. Typing a comma is not accepted.
+- 37 fields for 3 loans is what makes it feel long, though only 3 per loan are needed.
+
+**Page heights with Priya's profile** (px):
+
+| Page | 1200 wide | 390 wide |
+|---|---|---|
+| Home `/` | 918 | 1,403 |
+| Plan `/plan` | 2,530 | 3,713 |
+| Debts `/debts` | 1,064 | 1,498 |
+| Insights `/insights` | 1,468 | 2,657 |
+| Goals `/goals` | 900 | 1,375 |
+| Tools `/tools` | 900 | 1,305 |
+| Portfolio `/portfolio` | 900 | 900 |
+
+W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4, R5, R6), so each "before" is taken on the code it replaces.
+
+### After (R7.1)
+
+_Filled in at the end._
