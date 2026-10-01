@@ -121,7 +121,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 ### R2 · Home
 - [x] R2.1 Context line (plan month, tax regime, bracket, payoff order → changed on Plan) + cash-flow trio (take-home − costs = left) + status KPIs (owed, debt-free, interest this month, effective rate). Tools grid and the SIMPLE/DETAILED switch removed; the footer keeps "Feeling overwhelmed?"
 - [x] R2.2 Pay This Month register: every payment of the plan's first month (EMI or card minimum + extra, then emergency fund and goals), MARK PAID in one tap, PARTIAL / OTHER takes the amount (or "didn't pay"), UNDO for rows marked on Home. Entries go to Activity (`via: 'home'`). A planned extra marked paid is held back until the month is over (`plannedExtra`), so marking it doesn't move the plan and it isn't counted twice
-- [ ] R2.3 Allocation bar
+- [x] R2.3 Allocation bar under the register: one segment per payment (the extra's loan in the accent, savings green, other loans grey)
 - [ ] R2.4 Restructure table (top row open, rest one click away)
 - [ ] R2.5 Open positions with row expand (effective-APR breakdown) + stale-card nudge
 - [ ] R2.6 Walkthrough W1 marking paid

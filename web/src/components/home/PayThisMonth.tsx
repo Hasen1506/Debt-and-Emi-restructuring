@@ -27,7 +27,7 @@ import { MONTH_NAMES_SHORT, localIsoDate } from '@/lib/today';
 import { userDefaultCurrency } from '@/lib/currency';
 import type { PayRow, PayThisMonth as PayData } from '@/lib/pay-this-month';
 import { Field } from '@/components/ToolPrimitives';
-import { LBracket, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
+import { LAllocationBar, LBracket, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
 
 /** Fund and goal ticks, per month: they aren't loan payments, so they
  *  aren't Activity entries. */
@@ -357,6 +357,27 @@ export function PayThisMonth({
           <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(data.total)}</span>
         </li>
       </ol>
+      {data.rows.length > 1 && (
+        <div style={{ marginTop: 14 }}>
+          <div aria-hidden="true" style={{ fontSize: 10, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 6 }}>
+            $ WHERE THIS MONTH&apos;S MONEY GOES
+          </div>
+          <LAllocationBar
+            label="Where this month's money goes"
+            height={24}
+            segments={data.rows.map((r, i) => ({
+              id: r.key,
+              label: r.name,
+              value: r.amountUser,
+              amount: fmt(r.amount, r.currency),
+              // Dark fills only, so the white labels stay readable: the
+              // extra's loan in the accent (like its row), savings green,
+              // the other loans in greys.
+              color: r === firstExtra ? L_T.accent : r.loanIndex === null ? L_T.positive : BAR[i % BAR.length],
+            }))}
+          />
+        </div>
+      )}
       {data.leftOver > 0 && (
         <p style={{ margin: '10px 0 0', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
           {fmt(data.leftOver)} is left over: no loan costs more than a safe return, so the plan keeps it. Save or invest it.
@@ -368,6 +389,8 @@ export function PayThisMonth({
     </section>
   );
 }
+
+const BAR = ['#2a2a26', '#5e5e58', '#0a0a0a', '#76766f'];
 
 /** The section when there's nothing to tick: details missing, or no plan. */
 export function PayNotice({ title, children }: { title: string; children: ReactNode }) {
