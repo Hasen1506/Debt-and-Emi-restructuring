@@ -57,7 +57,7 @@ export function LDebtsTable({
   if (loans.length === 0) {
     return (
       <div style={{ padding: 18, fontSize: 12, color: L_T.muted }}>
-        $ NO OPEN POSITIONS · run <a href="/onboarding" style={{ color: L_T.accent }}>[SETUP]</a> to add loans.
+        $ NO OPEN POSITIONS · run <a href="/profile?step=loans" style={{ color: L_T.accent }}>[ADD LOANS]</a>.
       </div>
     );
   }
@@ -200,7 +200,7 @@ export function LDebtsTable({
             {noFx ? (
               // ₹ can't be added to $ without a rate.
               <td colSpan={2} style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>
-                <a href="/onboarding?step=loans" style={{ color: L_T.negative }}>
+                <a href="/profile?step=loans" style={{ color: L_T.negative }}>
                   ADD THE EXCHANGE RATE
                 </a>
               </td>

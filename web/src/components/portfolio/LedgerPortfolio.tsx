@@ -67,7 +67,7 @@ export function LedgerPortfolio({
             BEFORE PREPAYING DEBT.
             <div style={{ marginTop: 12 }}>
               <a
-                href="/onboarding/assets"
+                href="/profile/assets"
                 style={{
                   display: 'inline-block',
                   padding: '8px 14px',
@@ -199,7 +199,7 @@ export function LedgerPortfolio({
         <SectionLabel>$ ACTIONS</SectionLabel>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           <a
-            href="/onboarding/assets"
+            href="/profile/assets"
             style={{
               padding: '8px 14px',
               border: '1px solid var(--ink)',

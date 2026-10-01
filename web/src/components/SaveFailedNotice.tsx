@@ -12,7 +12,8 @@ import { SAVE_FAILED_EVENT } from '@/lib/user-store';
 export function SaveFailedNotice() {
   const [failed, setFailed] = useState(false);
   // Setup says it next to its Save button.
-  const onSetup = usePathname() === '/onboarding';
+  const path = usePathname();
+  const onSetup = path === '/onboarding' || path === '/profile';
   useEffect(() => {
     const on = () => setFailed(true);
     window.addEventListener(SAVE_FAILED_EVENT, on);

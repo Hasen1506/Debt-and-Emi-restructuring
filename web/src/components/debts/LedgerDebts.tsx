@@ -49,7 +49,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
           <LCli>{paidOff ? 'DEBTS · ALL PAID OFF' : 'DEBTS · NO OPEN POSITIONS'}</LCli>
           <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
             {paidOff ? 'Every loan on file is at 0. ' : 'Run setup to add your debts: '}
-            <LBracket href="/onboarding?step=loans">{paidOff ? 'ADD A LOAN →' : 'SETUP →'}</LBracket>
+            <LBracket href="/profile?step=loans">{paidOff ? 'ADD A LOAN →' : 'SETUP →'}</LBracket>
           </div>
           <CashManagementSection profile={profile} />
           <LifecycleEventsPanel user={profile.user} variant="ledger" />
@@ -136,7 +136,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
         </section>
 
         <section>
-          <LSectionHeader right={<LBracket href="/onboarding">+ ADD DEBT</LBracket>}>
+          <LSectionHeader right={<LBracket href="/profile?step=loans">+ ADD DEBT</LBracket>}>
             OPEN POSITIONS · DETAILED
           </LSectionHeader>
           <LDebtsTable

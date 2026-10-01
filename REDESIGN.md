@@ -5,10 +5,10 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R1 · setup in three steps (not started)
-- **Last finished step:** R0 merged to `main` (PR #7) with R1.1 amount field
-- **Next step:** R1.2–R1.4 — build `QuickSetup` per **R1 build notes** below
-- **Open PR:** none yet for R1 (open one as a draft on first push)
+- **Phase in progress:** R1 · setup in three steps, and Profile
+- **Last finished step:** R1.2–R1.4 — three-step setup at `/onboarding` (`components/setup/QuickSetup.tsx`); the old form is now `/profile`
+- **Next step:** R1.5 — Profile in edit mode (restyle `app/profile/page.tsx` as sections, not steps; holdings and cash; persona triptych slot), then R1.6 walkthroughs
+- **Open PR:** #8 (draft) · `claude/vibrant-bardeen-5bsiyj`
 
 Pause after each phase (or about every five steps, or when context is near 35%):
 tick the boxes here, update **Resume here**, push, and ask the owner to `/compact`.
@@ -103,9 +103,9 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 
 ### R1 · Setup in three steps, and Profile
 - [x] R1.1 Amount field (`kind="money"`, `web/src/lib/amount.ts`): groups digits as you type (25,00,000 for ₹, 2,500,000 for $), takes `50k`, `25L`, `1.5cr`, `$2.4k`, shows "= ₹25 lakh" under the box. On every setup amount; tools switch over in R5
-- [ ] R1.2 Step 1 · You and your money
-- [ ] R1.3 Step 2 · What you owe — short loan row, EMI ↔ months, "More terms" collapsed
-- [ ] R1.4 Step 3 · Your plan, live preview
+- [x] R1.2 Step 1 · You and your money — country, NRI and work chips; take-home; spend; live "left each month"
+- [x] R1.3 Step 2 · What you owe — short loan row, EMI ↔ months, "More terms" collapsed; a saved loan whose numbers weren't touched keeps its months left
+- [x] R1.4 Step 3 · Your plan, live preview — same run as Plan (EF split included), so the date and interest match Plan exactly. Old form moved to `/profile`; `/onboarding?step=…` links now go to `/profile?step=…`; `/onboarding/assets` → `/profile/assets`
 - [ ] R1.5 Profile (edit mode): income · loans · what you own (holdings + cash) · privacy · payoff strategy
 - [ ] R1.6 Walkthroughs W1–W4 setup parts
 
@@ -198,6 +198,21 @@ take-home ₹1.2L, spend ₹50k). Minimum path, every optional field skipped:
 | Portfolio `/portfolio` | 900 | 900 |
 
 W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4, R5, R6), so each "before" is taken on the code it replaces.
+
+### After R1.2–R1.4 (three-step setup)
+
+**W1 · Priya's setup**, same inputs:
+
+| Screen | Fields on screen | Height at 1200px | Height at 390px |
+|---|---|---|---|
+| You and your money | 2 | 900 | 900 |
+| What you owe (3 loans) | **11** (was 37) | **1,420** (was 3,545) | 2,153 |
+| Your plan (live preview) | 0 | 900 | — |
+
+- **3 screens (was 6), 10 values typed (the minimum for three loans), 7 clicks (was 11).**
+- Amounts group as typed (`25,00,000`) and take `1.2L`, `50k`; the scale shows under the box (`= ₹25 lakh`).
+- The preview's debt-free date and total interest match Plan to the rupee (checked on the default profile: Jul 2029, ₹4,98,974).
+- Opening setup with a saved profile and saving without changes leaves the profile as it was (only blank defaults such as `variable_expenses: "0"` are added).
 
 ### After (R7.1)
 

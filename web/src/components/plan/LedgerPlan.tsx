@@ -948,7 +948,7 @@ function NeedsLoanDetails({ gaps }: { gaps: ProfileGap[] }) {
               </li>
             ))}
           </ul>
-          <LBracket href="/onboarding?step=loans">ADD THE DETAILS →</LBracket>
+          <LBracket href="/profile?step=loans">ADD THE DETAILS →</LBracket>
         </div>
       </div>
     </LShell>
@@ -966,7 +966,7 @@ function DebtFreeNow({ hasLoans }: { hasLoans: boolean }) {
             ? 'Every loan on file is paid off, so there is nothing to plan here. '
             : 'Add a loan to see your payoff date and monthly plan. '}
           <LBracket href="/goals">GOALS →</LBracket>{' '}
-          <LBracket href="/onboarding?step=loans">{hasLoans ? 'ADD A LOAN →' : 'ADD YOUR LOANS →'}</LBracket>
+          <LBracket href="/profile?step=loans">{hasLoans ? 'ADD A LOAN →' : 'ADD YOUR LOANS →'}</LBracket>
         </div>
       </div>
     </LShell>

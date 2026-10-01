@@ -33,7 +33,7 @@ const NAV: Array<[label: string, key: LedgerSection, href: string]> = [
   ['PLAN', 'plan', '/plan'],
   ['ACTIVITY', 'activity', '/activity'],
   ['GOALS & TOOLS', 'goals', '/goals'],
-  ['PROFILE', 'profile', '/onboarding'],
+  ['PROFILE', 'profile', '/profile'],
 ];
 
 export function sectionFromPath(path: string): LedgerSection {
@@ -56,6 +56,7 @@ function stmtFromPath(path: string): string {
   if (path.startsWith('/debts')) return '#1138-DEBTS';
   if (path.startsWith('/activity')) return '#1138-ACT';
   if (path.startsWith('/onboarding')) return '#SETUP';
+  if (path.startsWith('/profile')) return '#PROFILE';
   if (path.startsWith('/tools/')) {
     const slug = path.split('/')[2]?.toUpperCase() ?? '';
     return slug ? `§${slug}` : '#TOOLS';

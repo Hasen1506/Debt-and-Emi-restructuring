@@ -83,7 +83,7 @@ export default function OnboardingAssetsPage() {
 
   function save() {
     if (!isLive) {
-      router.push('/onboarding?step=country');
+      router.push('/profile?step=country');
       return;
     }
     const stored = loadProfileClient();

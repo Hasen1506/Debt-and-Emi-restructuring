@@ -180,7 +180,7 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {gaps.length > 0 ? (
-              <LBracket active href="/onboarding?step=loans">
+              <LBracket active href="/profile?step=loans">
                 ADD THE DETAILS
               </LBracket>
             ) : hasSurplus && (
@@ -193,7 +193,7 @@ function LedgerHomeSimple({ profile, debtFree, move }: HomeProps) {
         </section>
 
         <section>
-          <LSectionHeader right={<LBracket href="/onboarding">+ ADD DEBT</LBracket>}>
+          <LSectionHeader right={<LBracket href="/profile?step=loans">+ ADD DEBT</LBracket>}>
             OPEN POSITIONS · {m.loans.length}
           </LSectionHeader>
           <LDebtsTable
@@ -301,7 +301,7 @@ function LedgerHomeDetailed({ profile, debtFree }: { profile: StoredProfile; deb
         </section>
 
         <section>
-          <LSectionHeader right={<LBracket href="/onboarding">+ ADD DEBT</LBracket>}>
+          <LSectionHeader right={<LBracket href="/profile?step=loans">+ ADD DEBT</LBracket>}>
             OPEN POSITIONS · {m.loans.length}
           </LSectionHeader>
           <LDebtsTable
@@ -413,7 +413,7 @@ function LedgerHomeSoft({ profile, move }: HomeProps) {
             NOTHING ELSE NEEDS TO BE DECIDED TODAY.
           </div>
           <div style={{ marginTop: 24 }}>
-            <LButton href={gaps.length > 0 ? '/onboarding?step=loans' : '/activity#activity-ledger'} full>
+            <LButton href={gaps.length > 0 ? '/profile?step=loans' : '/activity#activity-ledger'} full>
               I&apos;LL DO THIS
             </LButton>
           </div>
@@ -472,7 +472,7 @@ function EmptyState({ paidOff }: { paidOff: boolean }) {
               Every loan on file is paid off. Put the old EMIs to work:{' '}
               <LBracket href="/goals">GOALS →</LBracket>{' '}
               <LBracket href="/portfolio">PORTFOLIO →</LBracket>{' '}
-              <LBracket href="/onboarding?step=loans">ADD A LOAN →</LBracket>
+              <LBracket href="/profile?step=loans">ADD A LOAN →</LBracket>
             </>
           ) : (
             <>
@@ -480,7 +480,7 @@ function EmptyState({ paidOff }: { paidOff: boolean }) {
               <LBracket href="/goals">GOALS →</LBracket>{' '}
               <LBracket href="/tools/purchase">A BIG PURCHASE →</LBracket>{' '}
               <LBracket href="/portfolio">PORTFOLIO →</LBracket>{' '}
-              <LBracket href="/onboarding?step=loans">ADD A LOAN →</LBracket>
+              <LBracket href="/profile?step=loans">ADD A LOAN →</LBracket>
             </>
           )}
         </div>
