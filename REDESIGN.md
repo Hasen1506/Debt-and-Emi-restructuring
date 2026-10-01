@@ -5,9 +5,9 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R1 · setup in three steps, and Profile
-- **Last finished step:** R1.5 — Profile is a summary with [EDIT] per section (`components/profile/ProfileSummary.tsx` + `app/profile/page.tsx`)
-- **Next step:** R1.6 — setup parts of W2 (NRI, two currencies), W3 (US), W4 (no debts) on the new setup; record results below; then merge PR #8 when CI is green
+- **Phase in progress:** R1 done; merge PR #8 when CI is green, then start R2
+- **Last finished step:** R1.6 — setup walkthroughs W1–W4 (results below)
+- **Next step:** R2 · Home — measure W1's "what do I pay and mark it paid" on the current Home first, then R2.1
 - **Open PR:** #8 (draft) · `claude/vibrant-bardeen-5bsiyj`
 
 Pause after each phase (or about every five steps, or when context is near 35%):
@@ -107,7 +107,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [x] R1.3 Step 2 · What you owe — short loan row, EMI ↔ months, "More terms" collapsed; a saved loan whose numbers weren't touched keeps its months left
 - [x] R1.4 Step 3 · Your plan, live preview — same run as Plan (EF split included), so the date and interest match Plan exactly. Old form moved to `/profile`; `/onboarding?step=…` links now go to `/profile?step=…`; `/onboarding/assets` → `/profile/assets`
 - [x] R1.5 Profile (edit mode): a summary of eight sections (you · where you live and tax · income and spending · loans · savings, banks and credit score · what you own · payoff order · privacy), each with [EDIT] opening only that part of the form; `?step=loans` opens Loans directly; Cancel and Save return to the summary. Saving now starts from the saved profile, so holdings and Plan's FX drift are no longer dropped (they were, before)
-- [ ] R1.6 Walkthroughs W1–W4 setup parts
+- [x] R1.6 Walkthroughs W1–W4 setup parts (results below)
 
 **R1 build notes** (decided 1 Oct 2026, before compaction):
 - New `web/src/components/setup/QuickSetup.tsx` (client) is the page at `/onboarding`. The current 3,800-line form moves to `/profile` (`git mv web/src/app/onboarding/page.tsx web/src/app/profile/page.tsx`) and stays the full editor until R1.5 restyles it. Change links `/onboarding?step=…` → `/profile?step=…`, masthead PROFILE → `/profile`; `/profile` with no saved profile → `/onboarding`.
@@ -213,6 +213,21 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
 - Amounts group as typed (`25,00,000`) and take `1.2L`, `50k`; the scale shows under the box (`= ₹25 lakh`).
 - The preview's debt-free date and total interest match Plan to the rupee (checked on the default profile: Jul 2029, ₹4,98,974).
 - Opening setup with a saved profile and saving without changes leaves the profile as it was (only blank defaults such as `variable_expenses: "0"` are added).
+
+**W2–W4 setup parts** (new setup; no baseline was taken on the old form for these):
+
+| Walkthrough | Values typed | Clicks | Heights at 1200px (steps 1/2/3) | At 390px |
+|---|---|---|---|---|
+| W2 · Arjun, NRI in the US: ₹40L home loan + $6k card | 8 (+1 if today's rate can't be fetched) | 8 | 900 / 1,291 / 900 | 943 / 1,802 / 921 |
+| W3 · Sam, US: card + car + mortgage | 10 | 8 | 900 / 1,437 / 900 | — |
+| W4 · Meera, India, no loans | 2 | 3 | 900 / 900 / 900 | — |
+
+- W2: the ₹ EMI is converted for "left after EMIs" ($4,500 − $456). With the rates feed off, the exchange rate is asked for, and Continue stops until it's entered.
+- **Found (engine, not this phase):** the US default card minimum is "2% of the balance or $35"
+  (`engine/minimum_payments.py`, `DEFAULT_FORMULA` and the Chase/Citi/Capital One/Discover/Synchrony rows).
+  At 24% APR, 2% a month is exactly the interest, so a card on minimums never clears, and "vs paying minimums"
+  is overstated (W2: $182,870; W3: "77 yrs 6 mo sooner"). Most US issuers charge 1% of the balance plus interest
+  and fees, with a $25–$41 floor. Changing it moves every US baseline, so it is listed for the owner rather than changed here.
 
 ### After (R7.1)
 
