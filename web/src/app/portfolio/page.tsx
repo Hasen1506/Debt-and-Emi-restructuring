@@ -1,6 +1,7 @@
 import { loadCurrentProfileServer } from '@/lib/user-store';
 import { summarisePortfolio } from '@/components/portfolio/portfolioSummary';
 import { LedgerPortfolio } from '@/components/portfolio/LedgerPortfolio';
+import { CashManagementSection } from '@/components/debts/CashManagementSection';
 
 /**
  * /portfolio — top-level "what you own" tab.
@@ -24,6 +25,9 @@ export default async function PortfolioPage() {
         user={profile.user}
         marginalRate={profile.marginalRate}
       />
+      {/* Idle cash, the tax sleeve and the monthly check-in (moved here from
+          the Debts page in R2: they're about the cash you hold). */}
+      <CashManagementSection profile={profile} />
     </>
   );
 }

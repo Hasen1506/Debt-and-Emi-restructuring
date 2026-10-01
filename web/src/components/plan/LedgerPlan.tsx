@@ -45,7 +45,7 @@ import { describeGap, type ProfileGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { loanCurrency } from '@/lib/currency';
 import type { StoredProfile } from '@/lib/user-store';
-import { LTrajectory, type LTrajPoint } from '@/components/ledger/LDebtsTable';
+import { LTrajectory, type LTrajPoint } from '@/components/ledger/LTrajectory';
 import { StrategySwitcher } from '@/components/StrategySwitcher';
 import { HikeToggle } from '@/components/HikeToggle';
 import { TaxReinvestToggle } from '@/components/TaxReinvestToggle';
@@ -54,6 +54,7 @@ import { EfSplitSlider } from '@/components/EfSplitSlider';
 import { FxDriftToggle } from '@/components/FxDriftToggle';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
+import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 import { FxCachePersister } from './FxCachePersister';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
 import { BracketTransitionAlert } from './BracketTransitionAlert';
@@ -354,6 +355,12 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           {!short && <><DebtFreeRedirectPrompt plan={plan} /><KeyClearanceDates plan={plan} /></>}
           {short && <p style={{fontSize:12}}>Resolve the funding gap to get reliable clearance milestones. The schedule below assumes every minimum payment is funded.</p>}
         </section>
+
+        {/* Planned salary changes, rate resets and new loans (moved here from
+            the Debts page in R2; R3.4 restyles it). */}
+        <div id="life-events" style={{ scrollMarginTop: 16 }}>
+          <LifecycleEventsPanel user={plan.user} variant="ledger" />
+        </div>
 
         <CentralBankHint
           country={plan.user.country}

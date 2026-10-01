@@ -34,7 +34,7 @@ import {
   readLedgerTone,
   type LTone,
 } from '@/components/ledger/primitives';
-import { LDebtsTable } from '@/components/ledger/LDebtsTable';
+import { OpenPositions } from './OpenPositions';
 
 /** The plan's debt-free date and caption, streamed in by the page. */
 export interface DebtFreeSlot {
@@ -120,19 +120,7 @@ function LedgerHomeFull({ profile, strategy, debtFree, register, cheaper }: Home
         {register}
         {cheaper}
 
-        <section>
-          <LSectionHeader right={<LBracket href="/profile?step=loans">+ ADD DEBT</LBracket>}>
-            OPEN POSITIONS · {m.loans.length}
-          </LSectionHeader>
-          <LDebtsTable
-            loans={m.loans}
-            country={profile.user.country}
-            totalOutstanding={m.totalOutstanding}
-            totalEmi={m.emiBurden}
-            spare={m.surplus.gt(0)}
-            fx={profile.user.fx_to_user_currency}
-          />
-        </section>
+        <OpenPositions profile={profile} m={m} />
       </div>
     </LShell>
   );

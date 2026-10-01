@@ -104,9 +104,9 @@ export function LifecycleArrivalPrompts({
       </div>
       <div style={hintStyle(variant)}>
         Confirming logs the event as actually-happened. Postponing pushes the
-        target out by 30 days. You can manage all events on{' '}
-        <a href="/debts" style={{ color: 'var(--accent)' }}>
-          /debts
+        target out by 30 days. Every planned event is listed{' '}
+        <a href="/plan#life-events" style={{ color: 'var(--accent)' }}>
+          further down this page
         </a>
         .
       </div>

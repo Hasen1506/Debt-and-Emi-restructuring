@@ -53,7 +53,6 @@ export function sectionFromPath(path: string): LedgerSection {
 function stmtFromPath(path: string): string {
   if (path === '/' || path === '') return '#1138';
   if (path.startsWith('/plan')) return '#1138-PLAN';
-  if (path.startsWith('/debts')) return '#1138-DEBTS';
   if (path.startsWith('/activity')) return '#1138-ACT';
   if (path.startsWith('/onboarding')) return '#SETUP';
   if (path.startsWith('/profile')) return '#PROFILE';

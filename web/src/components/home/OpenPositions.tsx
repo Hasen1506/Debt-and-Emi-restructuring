@@ -1,0 +1,170 @@
+'use client';
+
+/**
+ * Open positions (REDESIGN R2.5): every open loan, one row each — rate and
+ * effective rate, EMI or card minimum, months left, balance. A row opens to
+ * how its effective rate is worked out (fees, GST, tax saving). The dearest
+ * loan is flagged. Replaces the separate Debts page.
+ */
+import { useState } from 'react';
+import type { StoredProfile } from '@/lib/user-store';
+import { formatCurrencyWhole } from '@/lib/api';
+import { fmt as fmtPct } from '@/lib/effective-apr';
+import type { DerivedMetrics } from '@/lib/derived';
+import { usMortgageShieldShare } from '@/lib/deductions';
+import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
+import { loanGaps } from '@/lib/loan-gaps';
+import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
+import { LBracket, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
+import { StaleCardNudge } from './StaleCardNudge';
+
+export function OpenPositions({ profile, m }: { profile: StoredProfile; m: DerivedMetrics }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const { user } = profile;
+  const country = user.country;
+  const userCcy = userDefaultCurrency(country);
+  const gapCtx = { country, fx: user.fx_to_user_currency };
+  // With a rate missing the dearest loan isn't known, so none is flagged.
+  const anyGap = m.loans.some((d) => loanGaps(d.loan, gapCtx).length > 0);
+  const dearest = anyGap ? null : m.loudest;
+  const itemises = usMortgageShieldShare(user);
+  const noFx = m.fxMissing.length > 0;
+
+  return (
+    <section aria-labelledby="positions-h" id="positions" style={{ scrollMarginTop: 16 }}>
+      <StaleCardNudge user={user} />
+      <LSectionHeader right={<LBracket href="/profile?step=loans">+ ADD A LOAN</LBracket>}>
+        <span id="positions-h">Open positions · {m.loans.length}</span>
+      </LSectionHeader>
+      <ol style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: `2px solid ${L_T.ink}` }}>
+        {m.loans.map((d, i) => {
+          const { loan } = d;
+          const ccy = loanCurrency(loan, country);
+          const fc = (v: string | number) => formatCurrencyWhole(v, ccy);
+          const gaps = loanGaps(loan, gapCtx);
+          const isCard = loan.loan_type === 'credit_card';
+          const months = Number(loan.tenure_months_remaining || 0);
+          const isDearest = d === dearest;
+          const isOpen = open === i;
+          const name = loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : LOAN_TYPE_NAME[loan.loan_type];
+          const missing = (what: string) => <span style={{ color: L_T.negative, fontWeight: 700 }}>ADD THE {what}</span>;
+          const parts = [
+            gaps.includes('rate') ? (
+              missing('RATE')
+            ) : d.effective.sub(d.nominal).abs().lt(0.00005) ? (
+              // No fees, GST or tax saving: one rate.
+              <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>
+            ) : (
+              <>
+                {fmtPct(d.nominal)} →{' '}
+                <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>{' '}
+                EFFECTIVE
+              </>
+            ),
+            gaps.includes('emi') ? (
+              missing('EMI')
+            ) : d.required.gt(0) ? (
+              `${isCard ? 'MINIMUM' : 'EMI'} ${fc(d.required.toFixed(0))}`
+            ) : null,
+            isCard ? 'REVOLVING' : months > 0 ? `${months} MO LEFT` : null,
+          ].filter(Boolean);
+          return (
+            <li
+              key={loan.id ?? d.index}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '28px minmax(0, 1fr) auto',
+                columnGap: 10,
+                rowGap: 6,
+                padding: '12px 10px 12px 8px',
+                borderBottom: `1px dashed ${L_T.ruleSoft}`,
+                fontSize: 12,
+                ...(isDearest ? lStrip('negative') : null),
+              }}
+            >
+              <span style={{ color: L_T.muted }}>{String(i + 1).padStart(2, '0')}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700 }}>
+                  {name.charAt(0).toUpperCase() + name.slice(1)}
+                  {isDearest && (
+                    <span style={{ marginLeft: 8, fontSize: 10, letterSpacing: '0.12em', color: L_T.negative }}>
+                      · DEAREST
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 10, letterSpacing: '0.08em', color: L_T.muted, marginTop: 3, lineHeight: 1.6 }}>
+                  {parts.map((p, k) => (
+                    <span key={k}>
+                      {k > 0 && ' · '}
+                      {p}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{fc(loan.outstanding)}</div>
+                {ccy !== userCcy && !noFx && (
+                  <div style={{ fontSize: 10, color: L_T.muted }}>
+                    ≈ {formatCurrencyWhole(m.toUserCcy(d.outstanding, loan).toFixed(0), userCcy)}
+                  </div>
+                )}
+              </div>
+              <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {!gaps.includes('rate') && (
+                  <LBracket onClick={() => setOpen(isOpen ? null : i)} label={`${isOpen ? 'Hide' : 'Show'} how the ${name} rate is worked out`}>
+                    {isOpen ? 'HIDE' : `WHY ${fmtPct(d.effective)}? ↓`}
+                  </LBracket>
+                )}
+                <LBracket href="/profile?step=loans" label={`Edit ${name}`}>
+                  EDIT
+                </LBracket>
+              </div>
+              {isOpen && (
+                <div style={{ gridColumn: '2 / -1' }}>
+                  <EffectiveAprBreakdown
+                    loan={loan}
+                    variant="inline"
+                    marginalTaxRate={profile.marginalRate}
+                    country={country}
+                    taxRegime={country === 'IN' ? user.tax_regime : undefined}
+                    incomeType={user.income_type}
+                    itemises={itemises}
+                  />
+                </div>
+              )}
+            </li>
+          );
+        })}
+        <li
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 8,
+            padding: '10px 10px 10px 46px',
+            borderTop: `2px solid ${L_T.ink}`,
+            fontSize: 12,
+          }}
+        >
+          <span style={{ color: L_T.muted, letterSpacing: '0.1em', fontSize: 10 }}>
+            TOTAL OWED{m.loans.some((d) => loanCurrency(d.loan, country) !== userCcy) ? ` IN ${userCcy}` : ''}
+          </span>
+          {noFx ? (
+            // ₹ can't be added to $ without a rate.
+            <a href="/profile?step=loans" style={{ color: L_T.negative, fontWeight: 700 }}>
+              ADD THE EXCHANGE RATE
+            </a>
+          ) : (
+            <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+              {formatCurrencyWhole(m.totalOutstanding.toFixed(0), userCcy)}
+              <span style={{ color: L_T.muted, fontWeight: 400 }}>
+                {' '}· EMIS + MINIMUMS {formatCurrencyWhole(m.emiBurden.toFixed(0), userCcy)}/MO
+              </span>
+            </span>
+          )}
+        </li>
+      </ol>
+    </section>
+  );
+}

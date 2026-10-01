@@ -123,7 +123,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [x] R2.2 Pay This Month register: every payment of the plan's first month (EMI or card minimum + extra, then emergency fund and goals), MARK PAID in one tap, PARTIAL / OTHER takes the amount (or "didn't pay"), UNDO for rows marked on Home. Entries go to Activity (`via: 'home'`). A planned extra marked paid is held back until the month is over (`plannedExtra`), so marking it doesn't move the plan and it isn't counted twice
 - [x] R2.3 Allocation bar under the register: one segment per payment (the extra's loan in the accent, savings green, other loans grey)
 - [x] R2.4 Cheaper rates (restructure) moved from Plan to Home: one row per move (loans → lender, kind, rate change, fee, payback, year-1 saving), the top row open and the rest one click away; details hold the engine's explanation, rate date, eligibility caveat, "I took this" and the alternative lender
-- [ ] R2.5 Open positions with row expand (effective-APR breakdown) + stale-card nudge
+- [x] R2.5 Open positions on Home: one row per loan (rate → effective, EMI or minimum, months left, balance), the dearest flagged, each opening to its effective-rate breakdown; the stale-card nudge above it (update or dismiss for a week). `/debts` → `/#positions`; its cash cards moved to `/portfolio`, its planned-events panel to Plan (`/plan#life-events`)
 - [ ] R2.6 Walkthrough W1 marking paid
 
 ### R3 · Plan

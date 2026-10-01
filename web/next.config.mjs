@@ -10,6 +10,8 @@ const nextConfig = {
       { source: '/insights', destination: '/activity', permanent: false },
       { source: '/insights/:path*', destination: '/activity/:path*', permanent: false },
       { source: '/onboarding/assets', destination: '/profile/assets', permanent: false },
+      // Open positions are on Home since R2.
+      { source: '/debts', destination: '/#positions', permanent: false },
     ];
   },
 };

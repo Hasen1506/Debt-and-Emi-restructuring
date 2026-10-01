@@ -1,6 +1,6 @@
 /**
  * The hairline KPI grid used at the top of every Ledger page (LedgerHome,
- * LedgerPlan, LedgerDebts, LedgerPortfolio, plus the InsightsSummaryStrip
+ * LedgerPlan, LedgerPortfolio, plus the InsightsSummaryStrip
  * ledger branch). Each cell is `LABEL / value / sub-label`; the grid has a
  * 1px ink-coloured "border" by setting the wrapper background to ink and
  * the cells to canvas with a 1px gap, so the grid lines render as
