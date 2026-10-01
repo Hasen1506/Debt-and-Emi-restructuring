@@ -42,11 +42,10 @@ import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrival
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 import { FxCachePersister } from './FxCachePersister';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
-import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
 import { PlanSchedule } from './PlanSchedule';
 import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
-import { InvestVsPrepayCard } from './InvestVsPrepayCard';
+import { PlanNotes } from './PlanNotes';
 import { PlanAssumptions } from './PlanAssumptions';
 
 export function LedgerPlan({ plan }: { plan: PlanData }) {
@@ -157,12 +156,6 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         </div>}
         <FxCachePersister rates={plan.fxRatesUsed} />
         <LifecycleArrivalPrompts user={plan.user} variant="ledger" />
-        <BracketTransitionAlert
-          transitions={plan.bracketTransitions}
-          country={plan.user.country}
-          displayCurrency={plan.displayCurrency}
-          variant="ledger"
-        />
 
         <PlanTrajectory plan={plan} short={short} />
         {!short && <DebtFreeRedirectPrompt plan={plan} />}
@@ -171,14 +164,13 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             the next rate reset and the central bank's next meeting below */}
         <PlanSchedule plan={plan} />
 
-        {/* Planned salary changes, rate resets and new loans (moved here from
-            the Debts page in R2; R3.4 restyles it). */}
+        {/* Planned pay changes, new rates and new loans */}
         <div id="life-events" style={{ scrollMarginTop: 16 }}>
-          <LifecycleEventsPanel user={plan.user} variant="ledger" />
+          <LifecycleEventsPanel user={plan.user} />
         </div>
 
-        {/* Whether investing beats prepaying */}
-        <InvestVsPrepayCard plan={plan} variant="ledger" />
+        {/* Prepay or save, the home loan's tax saving, a bracket change */}
+        <PlanNotes plan={plan} />
 
         {plan.advanceTaxSchedule && (
           <AdvanceTaxPanel

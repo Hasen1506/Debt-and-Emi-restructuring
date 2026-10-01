@@ -16,6 +16,7 @@ import { loanCurrency } from '@/lib/currency';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import { loanClears } from './plan-milestones';
+import { ADD_LIFE_EVENT } from '@/components/lifecycle/LifecycleEventsPanel';
 
 const LOAN_SHORT: Record<string, string> = {
   home_loan: 'Home',
@@ -336,7 +337,16 @@ function RateResetAlert({ plan }: { plan: PlanData }) {
         {' '}· The bank sets the new rate from {benchmark}; the plan keeps today&apos;s rate until you add the new one.
       </span>
       <span style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <LBracket href="#life-events" accent>
+        <LBracket
+          accent
+          onClick={() =>
+            window.dispatchEvent(
+              new CustomEvent(ADD_LIFE_EVENT, {
+                detail: { kind: 'floating_rate_reset', loanIndex: plan.user.loans.indexOf(next.loan) },
+              }),
+            )
+          }
+        >
           ADD THE NEW RATE →
         </LBracket>
         <LBracket href="#what-if">WHAT IF RATES MOVE →</LBracket>

@@ -803,3 +803,36 @@ export function LMathBlock({
     </LCardPaper>
   );
 }
+
+// ─── LChip / LChipRow ───────────────────────────────────────────────────
+/** A pressable choice (aria-pressed); LChipRow groups them under a label. */
+export function LChip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onClick}
+      style={{
+        fontFamily: L_MONO,
+        fontSize: 12,
+        padding: '7px 12px',
+        border: `1px solid ${on ? L_T.ink : L_T.ruleSoft}`,
+        background: on ? L_T.ink : L_T.paper,
+        color: on ? L_T.bg : L_T.ink,
+        fontWeight: on ? 700 : 500,
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function LChipRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div role="group" aria-label={label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <span style={{ fontSize: 12, color: L_T.muted }}>{label}</span>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{children}</div>
+    </div>
+  );
+}
