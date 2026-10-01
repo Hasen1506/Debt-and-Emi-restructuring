@@ -65,6 +65,11 @@ export function getCountryToday(country: Country): Date {
   return new Date(get('year'), get('month') - 1, get('day'), 12, 0, 0, 0);
 }
 
+/** "2026-10": the country's current month, for comparing with entry dates. */
+export function countryMonthKey(country: Country): string {
+  return localIsoDate(getCountryToday(country)).slice(0, 7);
+}
+
 /** 1-12, suitable for sending to the engine as `simulation_start_month`. */
 export function getCountryMonth(country: Country): number {
   return getCountryToday(country).getMonth() + 1;
@@ -113,4 +118,11 @@ export function monthIndexToCountryLabel(
   const d = monthIndexToDate(monthIndex, getCountryToday(country));
   const locale = country === 'IN' ? 'en-IN' : 'en-US';
   return d.toLocaleDateString(locale, { month: 'short', year: 'numeric' });
+}
+
+/** A count of months as years and months: "4 yrs 6 mo", "11 mo", "1 yr". */
+export function monthsSpan(n: number): string {
+  const y = Math.floor(n / 12);
+  const mo = n % 12;
+  return `${y > 0 ? `${y} yr${y > 1 ? 's' : ''} ` : ''}${mo > 0 || y === 0 ? `${mo} mo` : ''}`.trim();
 }

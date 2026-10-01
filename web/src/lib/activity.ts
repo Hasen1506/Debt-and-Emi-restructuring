@@ -77,6 +77,13 @@ export interface ActivityEntry {
    *  used the "Prepay forward N months" flow — purely informational; the
    *  principal reduction is captured by the paid_extra amount itself. */
   coversForwardMonths?: number;
+  /** Logged from Home's "Pay this month": the extra the plan itself put on
+   *  this loan that month. That much is already in the plan's first month,
+   *  so it comes off the balance only once the month is over (counting it
+   *  now would pay it twice). Decimal string. */
+  plannedExtra?: string;
+  /** 'home' when logged from Home's "Pay this month", which can undo it. */
+  via?: 'home';
   /** When the user logged this (not when it happened). Used for sort
    *  tiebreaks when multiple entries share a date. */
   loggedAt: string;

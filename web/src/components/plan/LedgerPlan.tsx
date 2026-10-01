@@ -7,19 +7,20 @@
  *   1. CLI summary line
  *   2. 4-cell KPI: CLEAR DATE / TOTAL INTEREST / MONTHS SAVED / OUTLAY
  *   3. TRAJECTORY · TOTAL DEBT OVER TIME  (LTrajectory)
- *   4. CHEAPER RATES (restructure opportunities)
- *   5. AMORTISATION · NEXT 12 MO  (dense table)
- *   6. WHAT IF  (sliders that re-run the engine)
+ *   4. AMORTISATION · NEXT 12 MO  (dense table)
+ *   5. WHAT IF  (sliders that re-run the engine)
+ *
+ * Cheaper rates (restructuring) live on Home only (REDESIGN R2.4).
  *
  * Ledger is the only skin, so the panels the other two skins carried
  * (strategy, assumptions, per-loan clear dates, invest-vs-prepay, tax
  * alerts, life-event prompts) render here too.
  */
 
-import { Fragment, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import type { PlanData } from './PlanData';
-import { formatCurrency, formatCurrencyCompact, formatPct } from '@/lib/api';
+import { formatCurrency, formatCurrencyCompact } from '@/lib/api';
 import {
   monthIndexToCountryLabel,
   monthIndexToDate,
@@ -44,12 +45,7 @@ import { describeGap, type ProfileGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { loanCurrency } from '@/lib/currency';
 import type { StoredProfile } from '@/lib/user-store';
-import { LTrajectory, type LTrajPoint } from '@/components/ledger/LDebtsTable';
-import {
-  EligibilityCaveat,
-  OpportunityAlternative,
-  UpdateTermsButton,
-} from './OpportunityAlternative';
+import { LTrajectory, type LTrajPoint } from '@/components/ledger/LTrajectory';
 import { StrategySwitcher } from '@/components/StrategySwitcher';
 import { HikeToggle } from '@/components/HikeToggle';
 import { TaxReinvestToggle } from '@/components/TaxReinvestToggle';
@@ -58,6 +54,7 @@ import { EfSplitSlider } from '@/components/EfSplitSlider';
 import { FxDriftToggle } from '@/components/FxDriftToggle';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
+import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
 import { FxCachePersister } from './FxCachePersister';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
 import { BracketTransitionAlert } from './BracketTransitionAlert';
@@ -359,26 +356,16 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           {short && <p style={{fontSize:12}}>Resolve the funding gap to get reliable clearance milestones. The schedule below assumes every minimum payment is funded.</p>}
         </section>
 
+        {/* Planned salary changes, rate resets and new loans (moved here from
+            the Debts page in R2; R3.4 restyles it). */}
+        <div id="life-events" style={{ scrollMarginTop: 16 }}>
+          <LifecycleEventsPanel user={plan.user} variant="ledger" />
+        </div>
+
         <CentralBankHint
           country={plan.user.country}
           hasFloating={plan.user.loans.some((l) => l.rate_type === 'floating')}
         />
-
-        {/* 4. Restructure */}
-        {plan.opportunities.length > 0 && (
-          <section>
-            <LSectionHeader
-              right={
-                <span style={{ color: L_T.positive, fontWeight: 700 }}>
-                  UP TO {fc(plan.totalAnnualSaving)} IN YEAR 1
-                </span>
-              }
-            >
-              CHEAPER RATES · DO THESE BEFORE PAYING EXTRA
-            </LSectionHeader>
-            <RestructureTable plan={plan} fc={fc} />
-          </section>
-        )}
 
         {/* Where the spare cash goes, and whether investing beats prepaying */}
         <SurplusWaterfall plan={plan} />
@@ -427,131 +414,6 @@ const LOAN_SHORT: Record<string, string> = {
   gold_loan: 'Gold',
   bnpl: 'BNPL',
 };
-
-// ─── Restructure table ──────────────────────────────────────────────────
-// One row per move: which loan, where to, the rate change, what it costs up
-// front, how many months until that cost is earned back, and the saving in
-// the first year after the cost. Every kind is measured the same way (the
-// engine's `estimated_annual_saving`). Under each row: the engine's
-// one-line headline, the eligibility caveat and "I did this".
-function loanLabel(plan: PlanData, idx: number): string {
-  const l = plan.user.loans[idx];
-  if (!l) return 'LOAN';
-  return `${LOAN_SHORT[l.loan_type] ?? 'LOAN'} · ${(l.bank || '—').split(' ')[0].slice(0, 8)}`.toUpperCase();
-}
-
-function RestructureTable({
-  plan,
-  fc,
-}: {
-  plan: PlanData;
-  fc: (v: string | number) => string;
-}) {
-  const heads = ['LOAN', 'MOVE TO', 'RATE', 'ONE-TIME COST', 'PAYS BACK IN', 'SAVES IN YEAR 1'];
-  // The currency of the loans a move is about (the engine keeps them to one).
-  const oppCurrency = (o: PlanData['opportunities'][number]) => {
-    const loan = plan.user.loans[o.affected_loan_indices?.[0] ?? -1];
-    return loan ? loanCurrency(loan, plan.user.country) : plan.displayCurrency;
-  };
-  const cell = { padding: '12px 12px', verticalAlign: 'top' as const };
-  return (
-    <div
-      role="region"
-      aria-label="Cheaper-rate moves"
-      tabIndex={0}
-      style={{ overflowX: 'auto' }}
-    >
-      <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', fontSize: 11 }}>
-        <thead>
-          <tr style={{ borderTop: `2px solid ${L_T.ink}`, borderBottom: `1px solid ${L_T.ink}` }}>
-            {heads.map((h, i) => (
-              <th
-                key={h}
-                scope="col"
-                style={{
-                  padding: '8px 12px',
-                  textAlign: i > 2 ? 'right' : 'left',
-                  fontWeight: 700,
-                  letterSpacing: '0.08em',
-                  fontSize: 10,
-                  color: L_T.muted,
-                }}
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {plan.opportunities.map((o, i) => {
-            const loans = (o.affected_loan_indices ?? []).map((idx) => loanLabel(plan, idx));
-            const saving = Number(o.estimated_annual_saving);
-            const months = o.breakeven_months;
-            return (
-              <Fragment key={i}>
-                <tr>
-                  <td style={{ ...cell, fontWeight: 700, color: L_T.accent }}>
-                    {loans.length > 0 ? loans.map((l) => <div key={l}>{l}</div>) : '—'}
-                  </td>
-                  <td style={cell}>
-                    {(o.target_bank ?? '—').toUpperCase()}
-                    <div style={{ color: L_T.muted, fontSize: 10, marginTop: 2 }}>
-                      {o.kind.replace('_', ' ').toUpperCase()}
-                    </div>
-                  </td>
-                  <td style={cell}>
-                    {formatPct(o.current_rate)} → {formatPct(o.target_rate)}
-                  </td>
-                  <td style={{ ...cell, textAlign: 'right' }}>
-                    {Number(o.one_time_cost ?? 0) > 0 ? fc(o.one_time_cost ?? 0) : '—'}
-                  </td>
-                  <td style={{ ...cell, textAlign: 'right' }}>
-                    {months == null ? '—' : months <= 1 ? '1 MO' : `${months} MO`}
-                  </td>
-                  <td
-                    style={{
-                      ...cell,
-                      textAlign: 'right',
-                      color: saving > 0 ? L_T.positive : L_T.negative,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {fc(o.estimated_annual_saving)}
-                    {o.lifetime_net_saving != null && (
-                      <div style={{ color: L_T.muted, fontWeight: 400, fontSize: 10, marginTop: 2 }}>
-                        {fc(o.lifetime_net_saving)} OVER THE LOAN
-                      </div>
-                    )}
-                  </td>
-                </tr>
-                <tr style={{ borderBottom: `1px dashed ${L_T.faint}` }}>
-                  <td colSpan={heads.length} style={{ padding: '0 12px 12px', fontSize: 11, color: L_T.muted }}>
-                    {o.headline}.
-                    {/* The loan's own market and currency: an NRI's rupee
-                        loan is refinanced in India, and its new terms are
-                        entered in rupees. */}
-                    <EligibilityCaveat
-                      kind={o.kind}
-                      country={oppCurrency(o) === 'INR' ? 'IN' : 'US'}
-                      variant="ledger"
-                    />
-                    <UpdateTermsButton
-                      opportunity={o}
-                      user={plan.user}
-                      currency={oppCurrency(o)}
-                      variant="ledger"
-                    />
-                    <OpportunityAlternative opportunity={o} variant="ledger" currency={plan.displayCurrency} />
-                  </td>
-                </tr>
-              </Fragment>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 type ScheduleCsvRow = {
   mo: number;

@@ -2927,7 +2927,7 @@ function AdvancedTaxDetails({
                   side-income.
                   <br />
                   <br />
-                  When &gt; 0, /debts shows a <strong>tax sleeve</strong> card
+                  When &gt; 0, What you own shows a <strong>tax sleeve</strong> card
                   with the next advance-tax installment date.
                 </>
               }

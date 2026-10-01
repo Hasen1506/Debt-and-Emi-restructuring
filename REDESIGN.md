@@ -5,10 +5,11 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R1 done; merge PR #8 when CI is green, then start R2
-- **Last finished step:** R1.6 — setup walkthroughs W1–W4 (results below)
-- **Next step:** R2 · Home — measure W1's "what do I pay and mark it paid" on the current Home first, then R2.1
-- **Open PR:** #8 (draft) · `claude/vibrant-bardeen-5bsiyj`
+- **Phase in progress:** R3 · Plan (not started)
+- **Last finished step:** R2 · Home, all six steps (PR #9): context line, cash-flow trio, KPIs, Pay this month with one-tap mark paid, allocation bar, cheaper rates moved from Plan, open positions with rate breakdown; `/debts` retired
+- **Next step:** R3 — measure Plan's height at 1200/390 and W3's "switch strategy → plan changes" on the current Plan as the before, then R3.1
+- **Open PR:** #9 · `claude/vibrant-bardeen-5bsiyj` (merge when CI is green, then restart the branch from `main`)
+- **Waiting on the owner:** whether to change the US default card minimum (see the R1 walkthrough results)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
 tick the boxes here, update **Resume here**, push, and ask the owner to `/compact`.
@@ -118,12 +119,12 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - Marginal rate: worked out from take-home (bisection on gross with `computeAnnualTax`, then `classifyBracket(...).marginalRate`), labelled an estimate; Profile can refine it with gross pay.
 
 ### R2 · Home
-- [ ] R2.1 Context line + cash-flow trio + status KPIs
-- [ ] R2.2 Pay This Month register: Mark paid fully / Partial · other → writes to Activity
-- [ ] R2.3 Allocation bar
-- [ ] R2.4 Restructure table (top row open, rest one click away)
-- [ ] R2.5 Open positions with row expand (effective-APR breakdown) + stale-card nudge
-- [ ] R2.6 Walkthrough W1 marking paid
+- [x] R2.1 Context line (plan month, tax regime, bracket, payoff order → changed on Plan) + cash-flow trio (take-home − costs = left) + status KPIs (owed, debt-free, interest this month, effective rate). Tools grid and the SIMPLE/DETAILED switch removed; the footer keeps "Feeling overwhelmed?"
+- [x] R2.2 Pay This Month register: every payment of the plan's first month (EMI or card minimum + extra, then emergency fund and goals), MARK PAID in one tap, PARTIAL / OTHER takes the amount (or "didn't pay"), UNDO for rows marked on Home. Entries go to Activity (`via: 'home'`). A planned extra marked paid is held back until the month is over (`plannedExtra`), so marking it doesn't move the plan and it isn't counted twice
+- [x] R2.3 Allocation bar under the register: one segment per payment (the extra's loan in the accent, savings green, other loans grey)
+- [x] R2.4 Cheaper rates (restructure) moved from Plan to Home: one row per move (loans → lender, kind, rate change, fee, payback, year-1 saving), the top row open and the rest one click away; details hold the engine's explanation, rate date, eligibility caveat, "I took this" and the alternative lender
+- [x] R2.5 Open positions on Home: one row per loan (rate → effective, EMI or minimum, months left, balance), the dearest flagged, each opening to its effective-rate breakdown; the stale-card nudge above it (update or dismiss for a week). `/debts` → `/#positions`; its cash cards moved to `/portfolio`, its planned-events panel to Plan (`/plan#life-events`)
+- [x] R2.6 Walkthrough W1 marking paid (results below)
 
 ### R3 · Plan
 - [ ] R3.1 Assumption chips (the one place to edit them) + KPIs
@@ -137,6 +138,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [ ] R4.2 Log-entry dialog: payment · partial · rate update · expense · income · lifecycle, with engine preview
 - [ ] R4.3 Decision-log entries shown in the same history
 - [ ] R4.4 Walkthrough W6
+- [ ] R4.5 Balances move with the months: the plan starts from the balances as entered, so each month that passes leaves them one EMI's principal too high until the user updates them. Roll them forward from the month they were entered (scheduled payments + logged entries). Also: an extra logged in Activity this month still counts on top of the plan's own extra for the month (Home's MARK PAID doesn't)
 
 ### R5 · Goals & Tools, Windfall
 - [ ] R5.1 Goal ledger: open · edit · cancel/archive; priority accent strip
@@ -228,6 +230,24 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
   At 24% APR, 2% a month is exactly the interest, so a card on minimums never clears, and "vs paying minimums"
   is overstated (W2: $182,870; W3: "77 yrs 6 mo sooner"). Most US issuers charge 1% of the balance plus interest
   and fees, with a $25–$41 floor. Changing it moves every US baseline, so it is listed for the owner rather than changed here.
+
+### Before R2 (current Home, Priya's profile)
+
+- Home shows one line, "PAY EXTRA: ₹24,300 → — CREDIT CARD": the extra only. The EMIs and the card minimum due this month aren't on Home.
+- **Marking two paid** (the card and the personal-loan EMI): 7 clicks, 1 amount typed, and a move to Activity (`[I PAID THIS]` → log form: loan, kind, amount, log; twice).
+- Height: 958 at 1200px, 1,395 at 390px.
+
+### After R2 (new Home, Priya's profile)
+
+| | Before | After |
+|---|---|---|
+| What Home says to pay | the extra only ("₹24,300 → card") | every payment this month: card ₹31,800 (₹7,500 minimum + ₹24,300 extra), home loan ₹24,500, personal loan ₹13,700, total ₹70,000 |
+| **Mark two paid** (card + personal loan) | 7 clicks, 1 typed, on Activity | **2 clicks, 0 typed, on Home** |
+| Plan after marking | (an extra logged this month moved the plan, counted twice) | unchanged: Mar 2031 on Home and Plan; the extra comes off next month |
+| Height at 1200 / 390 | 958 / 1,395 | 1,746 / 2,700 |
+
+- Home is taller because it now carries what was on Debts (open positions, each rate's breakdown) and Plan (cheaper rates); the Debts page is gone (`/debts` → `/#positions`).
+- Checked with the over-budget, US, NRI, missing-rate and missing-exchange-rate profiles: no sideways scroll at 390, each gets its own message (short this month; add the rate; add the exchange rate).
 
 ### After (R7.1)
 

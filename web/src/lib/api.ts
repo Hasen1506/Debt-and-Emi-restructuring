@@ -1554,6 +1554,14 @@ export function formatCurrency(value: string | number | Decimal, currency: strin
   return currency.toUpperCase() === 'USD' ? formatUSD(value) : formatINR(value);
 }
 
+/** Whole rupees or dollars ("$4,500", not "$4,500.00"): for amounts that
+ *  are rounded anyway, such as this month's payments. */
+export function formatCurrencyWhole(value: string | number | Decimal, currency: string): string {
+  return currency.toUpperCase() === 'USD'
+    ? signed(value, 0, (d) => `$${westernGroup(d.toFixed(0))}`)
+    : formatINR(value);
+}
+
 export function formatCurrencyCompact(value: string | number | Decimal, currency: string): string {
   return currency.toUpperCase() === 'USD' ? formatUSDCompact(value) : formatINRCompact(value);
 }

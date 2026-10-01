@@ -33,7 +33,7 @@ import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { readEfSplitClient } from '@/lib/ef-split';
 import { emiFromMonths, firstExtraPayment, marginalRateFromTakeHome } from '@/lib/quick-setup';
 import { readStrategyClient, STRATEGY_LABEL, STRATEGY_SHORT } from '@/lib/strategy';
-import { FY_ANCHOR_MONTH, getCountryMonth, localIsoDate, monthIndexToCountryLabel } from '@/lib/today';
+import { FY_ANCHOR_MONTH, getCountryMonth, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { loadProfileClient, saveProfileClient, type StoredProfile } from '@/lib/user-store';
 
 const STEPS = ['You and your money', 'What you owe', 'Your plan'] as const;
@@ -952,12 +952,8 @@ function PlanPreview({
   }
   const { plan, minimums, loans } = preview;
   const shortfall = new Decimal(plan.shortfall || 0);
-  const span = (n: number) => {
-    const y = Math.floor(n / 12);
-    const mo = n % 12;
-    return `${y > 0 ? `${y} yr${y > 1 ? 's' : ''} ` : ''}${mo > 0 ? `${mo} mo` : ''}`.trim();
-  };
-  const freeIn = (m: number) => (m <= 1 ? 'this month' : `in ${span(m - 1)}`);
+  // Month m of the plan is the m-th payment, as Home and Plan count it.
+  const freeIn = (m: number) => (m <= 1 ? 'this month' : `in ${monthsSpan(m)}`);
   const interestSaved = new Decimal(minimums.total_interest_paid || 0).sub(plan.total_interest_paid || 0);
   const monthsSaved =
     plan.debt_free_month != null && minimums.debt_free_month != null
@@ -981,7 +977,7 @@ function PlanPreview({
       minimums.debt_free_month == null
         ? 'minimums alone never clear it'
         : monthsSaved && monthsSaved > 0
-          ? `${span(monthsSaved)} sooner`
+          ? `${monthsSpan(monthsSaved)} sooner`
           : undefined,
     ],
   ];

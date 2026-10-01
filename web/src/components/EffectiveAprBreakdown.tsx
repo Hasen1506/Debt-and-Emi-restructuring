@@ -9,12 +9,13 @@
  *
  *   1. Setup Step 2 — live preview under each loan card, updates as the
  *      user types nominal rate / processing fee.
- *   2. Debts page — collapsed under each row, opens on demand.
+ *   2. Home's open positions — under each row, opened on demand.
  *
  * Both surfaces share the same component so the math is computed and
  * rendered identically — what the user sees in Setup is what they'll see
- * in Debts.
+ * on Home.
  */
+import type Decimal from 'decimal.js';
 import type { LoanPayload, Country, IncomeType, TaxRegimeIN } from '@/lib/api';
 import { computeBreakdown, fmt } from '@/lib/effective-apr';
 import { RATE_CARD_AS_OF } from '@/lib/banks';
@@ -27,6 +28,7 @@ export function EffectiveAprBreakdown({
   taxRegime,
   variant = 'card',
   incomeType,
+  itemises,
 }: {
   loan: LoanPayload;
   marginalTaxRate: string;
@@ -35,12 +37,17 @@ export function EffectiveAprBreakdown({
   /** 'card' = boxed surface for Setup; 'inline' = minimal for table-row use. */
   variant?: 'card' | 'inline';
   incomeType?: IncomeType;
+  /** US: the share of mortgage interest that lowers tax,
+   *  `usMortgageShieldShare(user)`, so the breakdown matches the rate shown
+   *  beside it. Omitted: all of it (the setup preview, as labelled there). */
+  itemises?: Decimal;
 }) {
   const { lines, effective, summary } = computeBreakdown(
     loan,
     marginalTaxRate,
     country,
     taxRegime,
+    itemises ?? true,
   );
 
   const nominal = Number(loan.nominal_rate || '0');
