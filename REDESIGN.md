@@ -6,8 +6,8 @@ Read **Resume here** first after any compaction or new session.
 ## Resume here
 
 - **Phase in progress:** R0 · groundwork (owner said go on 1 Oct 2026; defaults below accepted)
-- **Last finished step:** R1.1 amount field (pulled forward: the owner flagged unclear commas in setup)
-- **Next step:** R0.3 tokens and primitives
+- **Last finished step:** R0 done (R0.2 baseline, R0.3 primitives, R0.4 five tabs) + R1.1 amount field
+- **Next step:** merge PR #7, then R1.2 setup step 1
 - **Open PR:** https://github.com/Hasen1506/Debt-and-Emi-restructuring/pull/7 (draft)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
@@ -99,7 +99,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [x] R0.1 Design files into `design/`; this plan
 - [x] R0.2 Baseline: W1 setup and page heights recorded below (W2–W6 measured at the start of their phase)
 - [x] R0.3 Primitives: section header (bold + 2px rule, optional `01 /` step), `lStrip` accent strip instead of yellow rows, `LExpandRow`, `LAllocationBar`, `LProgressBar`, `LMathBlock` restyled. Tokens kept at the app's darker accent/green (they pass 4.5:1 contrast; the design's do not)
-- [ ] R0.4 Masthead with 5 tabs; redirects from old URLs
+- [x] R0.4 Masthead with 5 tabs (`aria-current` on the open one); `/insights` → `/activity`. `/debts`, `/portfolio`, `/decisions`, `/tools` keep working and light up their tab; each redirects in the phase that moves its content (R2, R1.5, R4, R5)
 
 ### R1 · Setup in three steps, and Profile
 - [x] R1.1 Amount field (`kind="money"`, `web/src/lib/amount.ts`): groups digits as you type (25,00,000 for ₹, 2,500,000 for $), takes `50k`, `25L`, `1.5cr`, `$2.4k`, shows "= ₹25 lakh" under the box. On every setup amount; tools switch over in R5

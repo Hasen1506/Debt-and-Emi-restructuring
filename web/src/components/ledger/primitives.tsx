@@ -77,9 +77,12 @@ export function LBracket({
   onClick,
   as,
   style,
+  current,
 }: {
   children: ReactNode;
   active?: boolean;
+  /** The link to the page being shown (nav). */
+  current?: boolean;
   accent?: boolean;
   href?: string;
   onClick?: () => void;
@@ -105,7 +108,7 @@ export function LBracket({
   const inner = <>[{children}]</>;
   if (href) {
     return (
-      <a href={href} style={base}>
+      <a href={href} style={base} aria-current={current ? 'page' : undefined}>
         {inner}
       </a>
     );

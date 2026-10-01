@@ -236,7 +236,7 @@ export function LedgerDebts({ profile }: { profile: StoredProfile }) {
             <LBracket onClick={() => setShowMath((v) => !v)} active={showMath}>
               {showMath ? 'HIDE MATH' : 'SHOW MATH'}
             </LBracket>
-            <LBracket href="/insights#activity-ledger">MARK PAID</LBracket>
+            <LBracket href="/activity#activity-ledger">MARK PAID</LBracket>
           </div>
           {showMath && (
             <div style={{ marginTop: 12 }}>

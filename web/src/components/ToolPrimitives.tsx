@@ -820,7 +820,7 @@ export function AddLoanAction({
  * The "Apply this" affordance on tool results. Bridges between the tool's
  * recommendation and the Activity ledger — clicking writes a paid_extra (or
  * other) event so /plan reprices on next render. Switches to a confirmation
- * line once applied; pointing the user at /insights to inspect the entry.
+ * line once applied; pointing the user at /activity to inspect the entry.
  */
 export function ApplyAction({
   applied,
@@ -845,7 +845,7 @@ export function ApplyAction({
           color: 'var(--ink)',
         }}
       >
-        Logged. <a href="/insights" style={{ color: 'var(--accent)' }}>Open Activity</a> to
+        Logged. <a href="/activity" style={{ color: 'var(--accent)' }}>Open Activity</a> to
         edit, or <a href="/plan" style={{ color: 'var(--accent)' }}>see the new /plan</a>.
       </div>
     );

@@ -1,5 +1,5 @@
 /**
- * Derived per-entry values used by /insights and /plan surfaces. Pulled out
+ * Derived per-entry values used by /activity and /plan surfaces. Pulled out
  * of ActivityLedger.tsx so the four call sites that need these values
  * (LedgerEntries, ExistingEntries, EditorialEntries inside ActivityLedger;
  * computeSummary inside InsightsSummaryStrip) compute them the same way.

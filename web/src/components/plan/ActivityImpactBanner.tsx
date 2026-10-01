@@ -79,8 +79,8 @@ export function ActivityImpactBanner({
           <span style={{ color: 'var(--muted)' }}>
             · The engine bumped your loan balances by these amounts before
             simulating, drawing from your{' '}
-            <a href="/insights" style={{ color: 'var(--ink)' }}>
-              /insights
+            <a href="/activity" style={{ color: 'var(--ink)' }}>
+              /activity
             </a>{' '}
             ledger. Edit there to refresh the projection.
           </span>
@@ -124,7 +124,7 @@ export function ActivityImpactBanner({
         <div className="muted" style={{ marginBottom: 8 }}>
           Your loan balances were bumped by <strong>{Number(impact.totalBump) > 0 ? '+' : ''}{totalBumpDisplay}</strong>{' '}
           (unpaid amounts and penalties up, extra payments down) before this projection was computed.
-          Edit your <a href="/insights">activity ledger</a> to refresh.
+          Edit your <a href="/activity">activity ledger</a> to refresh.
         </div>
         <ul
           style={{
@@ -170,7 +170,7 @@ export function ActivityImpactBanner({
         lifted by <strong>{totalBumpDisplay}</strong> — unpaid principal
         and accrued penalty — so what you see below reflects the path forward
         from a real present, not the optimistic one.{' '}
-        <a href="/insights" style={{ color: 'var(--accent)' }}>
+        <a href="/activity" style={{ color: 'var(--accent)' }}>
           Edit the ledger →
         </a>
       </p>

@@ -80,7 +80,7 @@ export function StaleCardNudge({
           </span>
         ))}
         .{' '}
-        <a href="/insights" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
+        <a href="/activity" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
           Log this cycle&apos;s payment
         </a>{' '}
         — entering the new outstanding keeps the /plan trajectory anchored to
