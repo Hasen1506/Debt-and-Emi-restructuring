@@ -14,16 +14,11 @@
  * (REDESIGN R2).
  */
 
-import { useState } from 'react';
-import Decimal from 'decimal.js';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole } from '@/lib/api';
 import {
   monthIndexToCountryLabel,
-  monthIndexToDate,
-  MONTH_NAMES,
   monthsSpan,
-  getCountryToday,
 } from '@/lib/today';
 import {
   LShell,
@@ -40,7 +35,6 @@ import { deriveMetrics } from '@/lib/derived';
 import { dec } from '@/lib/safe-decimal';
 import { describeGap, type ProfileGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
-import { loanCurrency } from '@/lib/currency';
 import type { StoredProfile } from '@/lib/user-store';
 import { PlanTrajectory } from './PlanTrajectory';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
@@ -50,7 +44,7 @@ import { FxCachePersister } from './FxCachePersister';
 import { ActivityImpactBanner } from './ActivityImpactBanner';
 import { BracketTransitionAlert } from './BracketTransitionAlert';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
-import { CentralBankHint } from './CentralBankHint';
+import { PlanSchedule } from './PlanSchedule';
 import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
 import { InvestVsPrepayCard } from './InvestVsPrepayCard';
 import { PlanAssumptions } from './PlanAssumptions';
@@ -60,7 +54,6 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   const fc = (v: string | number) => formatCurrencyWhole(v, ccy);
   const interestSaved =
     Number(plan.baselineInterest) - Number(plan.totalInterest);
-  const horizon = plan.trajectory.length;
   // Short of cash this month: the schedule below pays minimums the user
   // can't fund, so its date isn't one to plan around.
   const short = plan.shortfall > 0 || !!plan.futureShortfall;
@@ -174,16 +167,15 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         <PlanTrajectory plan={plan} short={short} />
         {!short && <DebtFreeRedirectPrompt plan={plan} />}
 
+        {/* Month by month, collapsed to the months something happens;
+            the next rate reset and the central bank's next meeting below */}
+        <PlanSchedule plan={plan} />
+
         {/* Planned salary changes, rate resets and new loans (moved here from
             the Debts page in R2; R3.4 restyles it). */}
         <div id="life-events" style={{ scrollMarginTop: 16 }}>
           <LifecycleEventsPanel user={plan.user} variant="ledger" />
         </div>
-
-        <CentralBankHint
-          country={plan.user.country}
-          hasFloating={plan.user.loans.some((l) => l.rate_type === 'floating')}
-        />
 
         {/* Whether investing beats prepaying */}
         <InvestVsPrepayCard plan={plan} variant="ledger" />
@@ -197,9 +189,6 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             variant="ledger"
           />
         )}
-
-        {/* 5. Amortisation */}
-        <AmortisationSection plan={plan} fc={fc} horizon={horizon} />
 
         {/* 6. What if — real engine runs, not estimates */}
         <section id="what-if" style={{ scrollMarginTop: 16 }}>
@@ -222,362 +211,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   );
 }
 
-const LOAN_SHORT: Record<string, string> = {
-  home_loan: 'Home',
-  auto_loan: 'Car',
-  personal_loan: 'Personal',
-  credit_card: 'Card',
-  education_loan: 'Edu',
-  gold_loan: 'Gold',
-  bnpl: 'BNPL',
-};
-
-type ScheduleCsvRow = {
-  mo: number;
-  date: string;
-  perLoan: Record<number, string>;
-  extra: number;
-  interest: number;
-  principal: number;
-  balance: number;
-  event: string;
-};
-
-function csvCell(v: string | number): string {
-  const t = String(v);
-  return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
-}
-
-/** A spreadsheet-safe column name: "pay_2_credit_card_hdfc_bank_inr". The
- *  position keeps two unnamed loans (or two from one bank) apart. */
-function payColumn(loan: PlanData['user']['loans'][number], i: number, country: PlanData['user']['country']): string {
-  const bank = (loan.bank || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-  const ccy = loanCurrency(loan, country).toLowerCase();
-  return ['pay', i + 1, loan.loan_type, bank, ccy].filter(Boolean).join('_');
-}
-
-/** Every month of the schedule as a CSV file (the table may be collapsed).
- *  Each loan's column is in that loan's currency; the totals are in the
- *  user's, and every header says which. */
-function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData) {
-  const { loans, country } = plan.user;
-  const ccy = plan.displayCurrency.toLowerCase();
-  const header = [
-    'month',
-    'date',
-    ...loans.map((l, i) => payColumn(l, i, country)),
-    `extra_${ccy}`,
-    `interest_${ccy}`,
-    `principal_${ccy}`,
-    `balance_${ccy}`,
-    'event',
-  ];
-  const lines = rows.map((r) =>
-    [
-      r.mo,
-      r.date,
-      ...loans.map((_, i) => Math.round(Number(r.perLoan[i] ?? 0))),
-      Math.round(r.extra),
-      Math.round(r.interest),
-      Math.round(r.principal),
-      Math.round(r.balance),
-      r.event,
-    ]
-      .map(csvCell)
-      .join(','),
-  );
-  const blob = new Blob([[header.map(csvCell).join(','), ...lines].join('\n') + '\n'], {
-    type: 'text/csv;charset=utf-8',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'debt-plan-schedule.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-// ─── Amortisation §4.4 ──────────────────────────────────────────────────
-// Spec: default state is COLLAPSED — only event-bearing rows render, each
-// with a yellow wash. The bracket flips `[↓ EXPAND ALL N]` ↔ `[↑ COLLAPSE]`.
-// Glyphs: ⊕ rate reset · ⊙ annual review · ★ debt cleared / windfall.
-function AmortisationSection({
-  plan,
-  fc,
-  horizon,
-}: {
-  plan: PlanData;
-  fc: (v: string | number) => string;
-  horizon: number;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const today = getCountryToday(plan.user.country);
-  const loanCols = plan.user.loans.slice(0, 4);
-
-  // Build all rows once with derived event + numbers, then filter at render
-  // time depending on collapse state. Keeps event-detection logic in one
-  // place and lets us count rows for the header label.
-  const trajByMonth = new Map<number, number>(
-    plan.trajectory.map((p) => [p.month, p.avalanche]),
-  );
-  const interestByMonth = new Map<number, number | undefined>(
-    plan.trajectory.map((p) => [p.month, p.interest]),
-  );
-  // ⊕ rate reset + ⊙ salary reset glyphs are gated on threading
-  // `lifecycle_events` into PlanData — see LEDGER_MISSING §G.1 follow-up.
-  // For now we surface ★ cleared (from trajectory) and ⊙ annual review
-  // (every 12th month), which both derive purely from plan data.
-
-  type Row = ScheduleCsvRow;
-
-  const rows: Row[] = plan.monthlyPayments.map((row) => {
-    const d = monthIndexToDate(row.month, today);
-    const date = `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(-2)}`;
-    const bal = trajByMonth.get(row.month) ?? 0;
-    const perLoan = row.perLoan ?? {};
-    // The engine's totals, in the user's currency: summing perLoan mixed
-    // ₹ and $, and "extra" was the total less every scheduled EMI, so a
-    // card's minimum (EMI 0) read as extra and a cleared loan's EMI kept
-    // being taken off.
-    const totalPay = row.totalPaid;
-    // The engine's interest for the month. Deriving it from the balance
-    // drop made month 1 all interest (there is no month 0 to compare with).
-    const engineInterest = interestByMonth.get(row.month);
-    const prevBal = trajByMonth.get(row.month - 1);
-    const interest =
-      engineInterest != null
-        ? engineInterest
-        : prevBal != null
-          ? Math.max(0, totalPay - (prevBal - bal))
-          : 0;
-    const principal = Math.max(0, totalPay - interest);
-    const extra = row.extraPaid;
-    // Event resolution — pick the loudest event for this month.
-    let event = '';
-    const balancesNow = plan.trajectory.find(
-      (p) => p.month === row.month,
-    )?.balancesByLoanIndex;
-    const balancesPrev = plan.trajectory.find(
-      (p) => p.month === row.month - 1,
-    )?.balancesByLoanIndex;
-    // Month 1 has no earlier row: compare with today's balances, or a
-    // loan cleared in the first month never got its ★.
-    if (balancesNow) {
-      for (const [idxStr, n] of Object.entries(balancesNow)) {
-        const prev = balancesPrev
-          ? Number(balancesPrev[idxStr] ?? 0)
-          : (plan.user.loans[Number(idxStr)]?.planned_effective_month ?? 1) > 1
-            ? 0 : Number(plan.user.loans[Number(idxStr)]?.outstanding ?? 0);
-        if (prev > 0 && Number(n) <= 0.01) {
-          const lender = plan.user.loans[Number(idxStr)]?.bank ?? 'LOAN';
-          event = `★ ${lender.toUpperCase()} CLEARED`;
-          break;
-        }
-      }
-    }
-    if (!event && row.month > 1 && row.month % 12 === 0) {
-      event = `⊙ ANNUAL REVIEW`;
-    }
-    return {
-      mo: row.month,
-      date,
-      perLoan,
-      extra,
-      interest,
-      principal,
-      balance: bal,
-      event,
-    };
-  });
-
-  const eventRows = rows.filter((r) => r.event);
-  const visibleRows = expanded ? rows : eventRows;
-  const totalCount = rows.length || horizon;
-
-  return (
-    <section>
-      <LSectionHeader
-        right={
-          <>
-            <LBracket onClick={() => downloadRowsCSV(rows, plan)}>
-              CSV
-            </LBracket>{' '}
-            <LBracket onClick={() => window.print()}>PRINT</LBracket>{' '}
-            <LBracket onClick={() => setExpanded((v) => !v)}>
-              {expanded ? '↑ COLLAPSE' : `↓ EXPAND ALL ${totalCount}`}
-            </LBracket>
-          </>
-        }
-      >
-        AMORTISATION ·{' '}
-        {expanded
-          ? `${totalCount} MO`
-          : `${eventRows.length} EVENT${eventRows.length === 1 ? '' : 'S'} · EXPAND FOR ${totalCount} MO`}
-      </LSectionHeader>
-      {visibleRows.length === 0 ? (
-        <div style={{ padding: '14px 0', fontSize: 11, color: L_T.muted }}>
-          $ NO EVENTS · the next {totalCount} months hold steady. Expand to
-          inspect every row.
-        </div>
-      ) : (
-        <div
-          role="region"
-          aria-label="Month-by-month schedule"
-          tabIndex={0}
-          style={{
-            overflowX: 'auto',
-            maxHeight: expanded ? 460 : undefined,
-            overflowY: expanded ? 'auto' : undefined,
-            borderBottom: expanded ? `1px solid ${L_T.faint}` : undefined,
-          }}
-        >
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: 11,
-              minWidth: 760,
-            }}
-          >
-            <thead>
-              <tr
-                style={{
-                  borderTop: `2px solid ${L_T.ink}`,
-                  borderBottom: `1px solid ${L_T.ink}`,
-                  background: L_T.bg,
-                  position: expanded ? 'sticky' : undefined,
-                  top: 0,
-                  zIndex: 1,
-                }}
-              >
-                {[
-                  'MO',
-                  'DATE',
-                  // Type first: two loans from one bank used to show as
-                  // two identical "HDFC BAN" columns.
-                  ...loanCols.map((l) =>
-                    `${LOAN_SHORT[l.loan_type] ?? 'LOAN'} · ${(l.bank || '—').split(' ')[0].slice(0, 6)}`.toUpperCase() +
-                    // A loan in another currency says so: its column is in it.
-                    (loanCurrency(l, plan.user.country) !== plan.displayCurrency
-                      ? ` (${loanCurrency(l, plan.user.country)})`
-                      : ''),
-                  ),
-                  'EXTRA',
-                  'INT PAID',
-                  'PRIN',
-                  'BALANCE',
-                  'EVENT',
-                ].map((h, i) => (
-                  <th
-                    key={i}
-                    style={{
-                      padding: '6px 10px',
-                      textAlign: i < 2 ? 'left' : 'right',
-                      fontWeight: 700,
-                      fontSize: 9,
-                      color: L_T.muted,
-                      letterSpacing: '0.06em',
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.map((r, i) => {
-                const highlight = !!r.event;
-                return (
-                  <tr
-                    key={i}
-                    style={{
-                      borderBottom: `1px dashed ${L_T.faint}`,
-                      background: highlight ? L_T.highlight : 'transparent',
-                    }}
-                  >
-                    <td style={{ padding: '6px 10px' }}>
-                      {String(r.mo).padStart(2, '0')}
-                    </td>
-                    <td style={{ padding: '6px 10px' }}>{r.date}</td>
-                    {loanCols.map((_, idx) => (
-                      <td
-                        key={idx}
-                        style={{ padding: '6px 10px', textAlign: 'right' }}
-                      >
-                        {r.perLoan[idx]
-                          ? formatCurrencyWhole(
-                              Number(r.perLoan[idx]).toFixed(0),
-                              loanCurrency(loanCols[idx], plan.user.country),
-                            )
-                          : '—'}
-                      </td>
-                    ))}
-                    <td
-                      style={{
-                        padding: '6px 10px',
-                        textAlign: 'right',
-                        color: L_T.accent,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {r.extra > 0 ? fc(r.extra.toFixed(0)) : '—'}
-                    </td>
-                    <td
-                      style={{
-                        padding: '6px 10px',
-                        textAlign: 'right',
-                        color: L_T.negative,
-                      }}
-                    >
-                      {fc(r.interest.toFixed(0))}
-                    </td>
-                    <td
-                      style={{
-                        padding: '6px 10px',
-                        textAlign: 'right',
-                        color: L_T.positive,
-                      }}
-                    >
-                      {fc(r.principal.toFixed(0))}
-                    </td>
-                    <td
-                      style={{
-                        padding: '6px 10px',
-                        textAlign: 'right',
-                        fontWeight: 700,
-                      }}
-                    >
-                      {fc(r.balance.toFixed(0))}
-                    </td>
-                    <td
-                      style={{
-                        padding: '6px 10px',
-                        textAlign: 'right',
-                        fontSize: 9,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {r.event}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
 // Re-export for type narrowing in the page wrapper.
 export type { PlanData };
-// (Decimal is imported above so future contributors keep precise math
-// in this file when they wire real engine deltas.)
-void Decimal;
-
 
 /** /plan when nothing is owed: the plan's cards (date, outlay, chart)
  *  would all be made up ("NOT IN LIFETIME", an outlay with no loans). */

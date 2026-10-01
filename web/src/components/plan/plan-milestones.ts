@@ -38,7 +38,7 @@ export function loanClears(plan: PlanData): LoanClear[] {
     const type = LOAN_TYPE_NAME[loan.loan_type];
     const name =
       (typeCount.get(loan.loan_type) ?? 0) > 1 && loan.bank
-        ? `${loan.bank} ${type}`
+        ? `${loan.bank.replace(/\s+bank$/i, '')} ${type}`
         : type.charAt(0).toUpperCase() + type.slice(1);
     out.push({ index, month, name });
   });
