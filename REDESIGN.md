@@ -5,10 +5,11 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R1 done; merge PR #8 when CI is green, then start R2
-- **Last finished step:** R1.6 — setup walkthroughs W1–W4 (results below)
-- **Next step:** R2 · Home — measure W1's "what do I pay and mark it paid" on the current Home first, then R2.1
-- **Open PR:** #8 (draft) · `claude/vibrant-bardeen-5bsiyj`
+- **Phase in progress:** R2 · Home (not started)
+- **Last finished step:** R1 merged to `main` (PR #8): three-step setup at `/onboarding`, Profile as a summary with [EDIT] per section
+- **Next step:** R2 — first measure W1's "what do I pay, mark two paid" on the current Home (clicks, height at 1200/390) as the before, then R2.1
+- **Open PR:** #9 (draft) · `claude/vibrant-bardeen-5bsiyj`
+- **Waiting on the owner:** whether to change the US default card minimum (see the R1 walkthrough results)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
 tick the boxes here, update **Resume here**, push, and ask the owner to `/compact`.
