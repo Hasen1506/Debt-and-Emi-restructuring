@@ -6,8 +6,8 @@ Read **Resume here** first after any compaction or new session.
 ## Resume here
 
 - **Phase in progress:** R0 · groundwork (owner said go on 1 Oct 2026; defaults below accepted)
-- **Last finished step:** R0.2 baseline
-- **Next step:** R1.1 amount field (pulled forward: the owner flagged unclear commas in setup), then R0.3
+- **Last finished step:** R1.1 amount field (pulled forward: the owner flagged unclear commas in setup)
+- **Next step:** R0.3 tokens and primitives
 - **Open PR:** https://github.com/Hasen1506/Debt-and-Emi-restructuring/pull/7 (draft)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
@@ -102,7 +102,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [ ] R0.4 Masthead with 5 tabs; redirects from old URLs
 
 ### R1 · Setup in three steps, and Profile
-- [ ] R1.1 Amount parser (`50k`, `20L`, `1.5cr`) shared by all amount fields
+- [x] R1.1 Amount field (`kind="money"`, `web/src/lib/amount.ts`): groups digits as you type (25,00,000 for ₹, 2,500,000 for $), takes `50k`, `25L`, `1.5cr`, `$2.4k`, shows "= ₹25 lakh" under the box. On every setup amount; tools switch over in R5
 - [ ] R1.2 Step 1 · You and your money
 - [ ] R1.3 Step 2 · What you owe — short loan row, EMI ↔ months, "More terms" collapsed
 - [ ] R1.4 Step 3 · Your plan, live preview

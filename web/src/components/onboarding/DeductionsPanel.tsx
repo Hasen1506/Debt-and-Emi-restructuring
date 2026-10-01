@@ -90,6 +90,7 @@ export function DeductionsPanel({
   if (!visible) return null;
 
   const ccySym = country === 'IN' ? '₹' : '$';
+  const ccy = country === 'IN' ? 'INR' : 'USD';
 
   return (
     <div
@@ -160,6 +161,8 @@ export function DeductionsPanel({
         >
           <Field
             label={`HRA exemption claimed (${ccySym}/yr)`}
+            kind="money"
+            currency={ccy}
             value={ded.hra_claim_annual ?? ''}
             onChange={(v) => update({ hra_claim_annual: v || undefined })}
             hint="Post-cap claim — what you'd enter on ITR"
@@ -174,6 +177,8 @@ export function DeductionsPanel({
           />
           <Field
             label={`Rent actually paid (${ccySym}/yr, optional)`}
+            kind="money"
+            currency={ccy}
             value={ded.rent_paid_annual ?? ''}
             onChange={(v) => update({ rent_paid_annual: v || undefined })}
             hint="Sanity check — HRA claim shouldn't exceed rent"
@@ -186,6 +191,8 @@ export function DeductionsPanel({
           />
           <Field
             label={`80C investments (${ccySym}/yr)`}
+            kind="money"
+            currency={ccy}
             value={ded.sec_80c_annual ?? ''}
             onChange={(v) => update({ sec_80c_annual: v || undefined })}
             hint="PPF, ELSS, life premium, principal repayment — capped at ₹1.5L"
@@ -200,6 +207,8 @@ export function DeductionsPanel({
           />
           <Field
             label={`80D health insurance (${ccySym}/yr)`}
+            kind="money"
+            currency={ccy}
             value={ded.sec_80d_annual ?? ''}
             onChange={(v) => update({ sec_80d_annual: v || undefined })}
             hint="₹25k cap (₹50k if you're 60+)"
@@ -213,6 +222,8 @@ export function DeductionsPanel({
           />
           <Field
             label={`80E education-loan interest (${ccySym}/yr)`}
+            kind="money"
+            currency={ccy}
             value={ded.sec_80e_annual ?? ''}
             onChange={(v) => update({ sec_80e_annual: v || undefined })}
             hint="No cap; first 8 years of repayment only"
@@ -226,6 +237,8 @@ export function DeductionsPanel({
           />
           <Field
             label={`80CCD(1B) NPS top-up (${ccySym}/yr)`}
+            kind="money"
+            currency={ccy}
             value={ded.sec_80ccd1b_annual ?? ''}
             onChange={(v) => update({ sec_80ccd1b_annual: v || undefined })}
             hint="Up to ₹50k on top of 80C"
@@ -251,6 +264,8 @@ export function DeductionsPanel({
         >
           <Field
             label={`Mortgage interest (${ccySym}/yr)`}
+            kind="money"
+            currency={ccy}
             value={ded.mortgage_interest_annual ?? ''}
             onChange={(v) =>
               update({ mortgage_interest_annual: v || undefined })
@@ -266,6 +281,8 @@ export function DeductionsPanel({
           />
           <Field
             label={`Other itemized (SALT + charity + etc., ${ccySym}/yr)`}
+            kind="money"
+            currency={ccy}
             value={ded.itemized_deductions_other ?? ''}
             onChange={(v) =>
               update({ itemized_deductions_other: v || undefined })

@@ -7,10 +7,19 @@
 import { ReactNode, useEffect, useId, useRef, useState } from 'react';
 import Decimal from 'decimal.js';
 import { BANKS_IN, BANKS_US } from '@/lib/banks';
+import {
+  amountInWords,
+  formatAmount,
+  groupDigits,
+  parseAmountText,
+  regroupWhileTyping,
+  sameAmount,
+  type AmountCurrency,
+} from '@/lib/amount';
 
 /** 'percent': the caller's value is a fraction ("0.085"); the field shows
  *  and accepts a percentage ("8.5"). */
-export type FieldKind = 'decimal' | 'integer' | 'text' | 'date' | 'percent';
+export type FieldKind = 'decimal' | 'integer' | 'text' | 'date' | 'percent' | 'money';
 
 /**
  * Tap-to-toggle info tooltip. Renders an ⓘ button inline with a label and
@@ -138,6 +147,11 @@ function LabelRow({
  * keyboards open as number pads. Text inputs render in sans with a text
  * inputMode so they don't. Date inputs use the native picker. Default kind
  * stays 'decimal' to preserve every existing call site.
+ *
+ * 'money' shows digits grouped the way the currency writes them
+ * (25,00,000 for rupees, 2,500,000 for dollars) as you type, accepts
+ * shorthand (50k, 25L, 1.5cr, $2.4k), spells out the scale under the box
+ * ("= ₹25 lakh"), and hands the caller plain digits ("2500000").
  */
 export function Field({
   label,
@@ -150,6 +164,7 @@ export function Field({
   list,
   suggestion,
   error,
+  currency = 'INR',
 }: {
   label: string;
   value: string;
@@ -157,6 +172,8 @@ export function Field({
   hint?: string;
   info?: ReactNode;
   kind?: FieldKind;
+  /** For kind 'money': how to group digits and name the scale. */
+  currency?: AmountCurrency;
   placeholder?: string;
   list?: string;
   /** A problem with this field (e.g. the server's 422 message), shown
@@ -170,7 +187,8 @@ export function Field({
 }) {
   const inputId = useId();
   const isPercent = kind === 'percent';
-  const isNumeric = kind === 'decimal' || kind === 'integer' || isPercent;
+  const isMoney = kind === 'money';
+  const isNumeric = kind === 'decimal' || kind === 'integer' || isPercent || isMoney;
   const hasSuggestion = !!suggestion && value === '';
   // Percent fields keep the typed text ("8.", "8.5") and hand the caller
   // the fraction; re-derived only when the value changes from outside.
@@ -179,8 +197,30 @@ export function Field({
     if (!isPercent) return;
     setPctText((t) => (percentTextToFraction(t) === value ? t : fractionToPercentText(value)));
   }, [isPercent, value]);
-  const shown = isPercent ? pctText : value;
-  const handleChange = (raw: string) => {
+  // Money fields keep the typed text ("25L", "25,00,0") and hand the caller
+  // plain digits; regrouped only when the value changes from outside.
+  const [moneyText, setMoneyText] = useState(() => formatAmount(value, currency));
+  const [moneyTouched, setMoneyTouched] = useState(false);
+  useEffect(() => {
+    if (!isMoney) return;
+    setMoneyText((t) => {
+      const p = parseAmountText(t, currency).value;
+      return p !== null && sameAmount(p, value) ? t : formatAmount(value, currency);
+    });
+  }, [isMoney, value, currency]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const shown = isPercent ? pctText : isMoney ? moneyText : value;
+  const handleChange = (raw: string, caret: number | null) => {
+    if (isMoney) {
+      const next = regroupWhileTyping(raw, caret ?? raw.length, currency);
+      setMoneyText(next.text);
+      // Keep the caret after the same digit once the commas move.
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (el && document.activeElement === el) el.setSelectionRange(next.caret, next.caret);
+      });
+      return onChange(parseAmountText(next.text, currency).value ?? raw);
+    }
     if (!isPercent) return onChange(raw);
     setPctText(raw);
     const f = percentTextToFraction(raw);
@@ -189,27 +229,44 @@ export function Field({
   const handleFocus = () => {
     if (hasSuggestion && suggestion) onChange(suggestion.value);
   };
+  const handleBlur = () => {
+    if (!isMoney) return;
+    setMoneyTouched(true);
+    // "25L" becomes "25,00,000" once the person moves on.
+    const p = parseAmountText(moneyText, currency).value;
+    if (p) setMoneyText(groupDigits(p, currency));
+  };
+  const moneyParsed = isMoney ? parseAmountText(moneyText, currency) : null;
+  const moneyWords = moneyParsed?.value ? amountInWords(moneyParsed.value, currency) : null;
+  const shownError =
+    error ?? (isMoney && moneyTouched && moneyParsed?.error ? moneyParsed.error : null);
+  const hintText = [moneyWords ? `= ${moneyWords}` : '', hint ?? ''].filter(Boolean).join(' · ') || undefined;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <LabelRow label={label} info={info} htmlFor={inputId} />
       <input
         id={inputId}
-        aria-describedby={describedBy(inputId, hint, error)}
-        aria-invalid={error ? true : undefined}
+        ref={inputRef}
+        aria-describedby={describedBy(inputId, hintText, shownError)}
+        aria-invalid={shownError ? true : undefined}
         className={isNumeric ? 'num' : undefined}
         value={shown}
-        onChange={(e) => handleChange(e.target.value)}
+        onChange={(e) => handleChange(e.target.value, e.target.selectionStart)}
         onFocus={handleFocus}
+        onBlur={handleBlur}
         type={kind === 'date' ? 'date' : 'text'}
         inputMode={
           kind === 'decimal' || isPercent ? 'decimal' : kind === 'integer' ? 'numeric' : 'text'
         }
-        autoComplete={kind === 'text' ? 'off' : undefined}
-        placeholder={placeholder}
+        autoComplete={kind === 'text' || isMoney ? 'off' : undefined}
+        placeholder={
+          placeholder ??
+          (isMoney ? (currency === 'INR' ? 'e.g. 25,00,000 or 25L' : 'e.g. 250,000 or 250k') : undefined)
+        }
         list={list}
         style={{
           padding: '8px 10px',
-          border: `1px solid ${error ? 'var(--negative)' : 'var(--border)'}`,
+          border: `1px solid ${shownError ? 'var(--negative)' : 'var(--border)'}`,
           borderRadius: 6,
           background: 'var(--canvas)',
           color: 'var(--ink)',
@@ -237,10 +294,10 @@ export function Field({
           ↳ {suggestion.label}
         </button>
       )}
-      <FieldError id={inputId} error={error} />
-      {hint && (
+      <FieldError id={inputId} error={shownError} />
+      {hintText && (
         <span id={`${inputId}-hint`} className="muted" style={{ fontSize: 11 }}>
-          {hint}
+          {hintText}
         </span>
       )}
     </div>

@@ -927,6 +927,8 @@ export default function OnboardingPage() {
             />
             <Field
               label={`In-hand salary (${country === 'IN' ? '₹' : '$'}/month, after TDS + PF)`}
+              kind="money"
+              currency={userCcy}
               value={monthlyIncome}
               onChange={setMonthlyIncome}
               hint={
@@ -991,6 +993,8 @@ export default function OnboardingPage() {
               <div style={{ gridColumn: '1 / -1' }}>
                 <Field
                   label="Avg. monthly expenses (excludes EMIs)"
+                  kind="money"
+                  currency={userCcy}
                   value={fixedExpenses}
                   onChange={setFixedExpenses}
                   hint="Rent, food, utilities, subscriptions — do NOT include loan EMIs here"
@@ -1042,6 +1046,8 @@ export default function OnboardingPage() {
               <>
                 <Field
                   label="Monthly fixed expenses (excludes EMIs)"
+                  kind="money"
+                  currency={userCcy}
                   value={fixedExpenses}
                   onChange={setFixedExpenses}
                   hint="Rent, utilities, school fees — locked. Do NOT include loan EMIs."
@@ -1062,6 +1068,8 @@ export default function OnboardingPage() {
                 <div>
                   <Field
                     label="Monthly variable / discretionary spending"
+                    kind="money"
+                    currency={userCcy}
                     value={variableExpenses}
                     onChange={setVariableExpenses}
                     hint="Eating out, travel, shopping — squeezable"
@@ -1327,6 +1335,8 @@ export default function OnboardingPage() {
                 />
                 <Field
                   label="Outstanding balance"
+                  kind="money"
+                  currency={loanCurrency(l, country)}
                   value={l.outstanding}
                   onChange={(v) => updateLoan(i, { outstanding: v })}
                   info={
@@ -1694,6 +1704,8 @@ export default function OnboardingPage() {
                 />
                 <Field
                   label={l.loan_type === 'credit_card' ? 'Usual monthly payment (optional)' : 'Bank-required EMI'}
+                  kind="money"
+                  currency={loanCurrency(l, country)}
                   value={l.scheduled_emi}
                   onChange={(v) => updateLoan(i, { scheduled_emi: v })}
                   error={showLoanErrors ? loanErrors[i]?.emi : null}
@@ -1728,6 +1740,8 @@ export default function OnboardingPage() {
                 {l.loan_type === 'credit_card' && (
                   <Field
                     label="Spend you'll carry (not what you'll repay in full)"
+                    kind="money"
+                    currency={loanCurrency(l, country)}
                     value={l.expected_monthly_spend ?? ''}
                     onChange={(v) =>
                       updateLoan(i, { expected_monthly_spend: v })
@@ -2000,6 +2014,8 @@ export default function OnboardingPage() {
               <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
                 <Field
                   label="Total savings balance"
+                  kind="money"
+                  currency={userCcy}
                   value={savingsBalance}
                   onChange={setSavingsBalance}
                   hint="Excludes locked retirement accounts"
@@ -2076,6 +2092,8 @@ export default function OnboardingPage() {
                       />
                       <Field
                         label={`Balance (${country === 'IN' ? '₹' : '$'})`}
+                        kind="money"
+                        currency={userCcy}
                         value={acct.balance}
                         onChange={(v) =>
                           setCashAccounts((cur) =>
@@ -2184,6 +2202,8 @@ export default function OnboardingPage() {
             <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
               <Field
                 label="Emergency fund — current"
+                kind="money"
+                currency={userCcy}
                 value={efundBalance}
                 onChange={setEfundBalance}
                 info={
@@ -2209,6 +2229,8 @@ export default function OnboardingPage() {
               />
               <Field
                 label="Emergency fund — target"
+                kind="money"
+                currency={userCcy}
                 value={efundTarget}
                 onChange={setEfundTarget}
                 hint="Pick a tier below, or enter your own number"
@@ -2679,6 +2701,8 @@ function GrossIncomeField({
     <div>
       <Field
         label={label}
+        kind="money"
+        currency={ccy}
         value={value}
         onChange={onChange}
         hint={hint}
@@ -2949,6 +2973,8 @@ function AdvancedTaxDetails({
           <div style={{ gridColumn: '1 / -1' }}>
             <Field
               label={`Tax on non-TDS income (${country === 'IN' ? '₹' : '$'}/year, optional)`}
+              kind="money"
+              currency={country === 'IN' ? 'INR' : 'USD'}
               value={extraIncomeAnnualTax}
               onChange={onExtraIncomeAnnualTaxChange}
               hint="Skip if all your income is salary. Otherwise: rough estimate of tax you owe on rental, interest, gains, or freelance."
@@ -3495,6 +3521,8 @@ function MinPaymentExplainer({
       </div>
       <Field
         label="Override minimum payment (optional)"
+        kind="money"
+        currency={loanCurrency(loan, country)}
         value={loan.min_payment_override ?? ''}
         onChange={onOverrideChange}
         hint={
