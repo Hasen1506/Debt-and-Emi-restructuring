@@ -26,6 +26,8 @@ import type { AdvanceTaxSchedule } from '@/lib/advance-tax';
 import { accruedPenalty } from '@/lib/advance-tax';
 import { markPaid, writeScheduleClient } from '@/lib/advance-tax-cookie';
 import { PanelShell } from '@/components/themed/PanelShell';
+import { Field } from '@/components/ToolPrimitives';
+import { LBracket, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
 
 export function AdvanceTaxPanel({
   schedule,
@@ -103,38 +105,37 @@ export function AdvanceTaxPanel({
 
   if (variant === 'ledger') {
     return (
-      <PanelShell
-        variant="ledger"
-        tone="warning"
-        border="dashed"
-        eyebrow={`ADVANCE TAX · ${headline.toUpperCase()}`}
-        caveat={baseCaveat}
-      >
-        {rows.map((r) => (
-          <RowLedger
-            key={r.ordinal}
-            row={r}
-            displayCurrency={displayCurrency}
-            draft={drafts[r.ordinal] ?? ''}
-            onDraft={(v) => setDrafts((d) => ({ ...d, [r.ordinal]: v }))}
-            onPay={(amount) => payOrdinal(r.ordinal, amount)}
-            pending={pending}
-          />
-        ))}
+      <section aria-labelledby="advance-tax-h">
+        <LSectionHeader right={<span style={{ fontSize: 10, letterSpacing: '0.1em', color: L_T.muted }}>{country === 'IN' ? 'SEC 208' : 'FORM 1040-ES'}</span>}>
+          <span id="advance-tax-h">Advance tax · {schedule.fiscalYearLabel}</span>
+        </LSectionHeader>
+        <ol style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: `2px solid ${L_T.ink}` }}>
+          {rows.map((r) => (
+            <RowLedger
+              key={r.ordinal}
+              row={r}
+              displayCurrency={displayCurrency}
+              draft={drafts[r.ordinal] ?? ''}
+              onDraft={(v) => setDrafts((d) => ({ ...d, [r.ordinal]: v }))}
+              onPay={(amount) => payOrdinal(r.ordinal, amount)}
+              pending={pending}
+            />
+          ))}
+        </ol>
         {totalPenalty > 0 && (
-          <div style={{ marginTop: 8, color: 'var(--negative)' }}>
-            Penalty accrued: {formatCurrency(penalty.total, displayCurrency)}{' '}
-            <span style={{ color: 'var(--muted)' }}>({penaltyLine})</span>
-          </div>
+          <p style={{ margin: '8px 0 0', fontSize: 12, color: L_T.negative }}>
+            Late-payment interest so far: {formatCurrency(penalty.total, displayCurrency)}{' '}
+            <span style={{ color: L_T.muted }}>({penaltyLine})</span>
+            {monthlyPenaltyCost > 0 &&
+              `. The plan takes ${formatCurrency(monthlyPenaltyCost.toFixed(0), displayCurrency)} a month for it, so the debt-free date moves out.`}
+          </p>
         )}
-        {monthlyPenaltyCost > 0 && (
-          <div style={{ marginTop: 4, color: 'var(--negative)', fontSize: 11 }}>
-            → reducing surplus by{' '}
-            {formatCurrency(monthlyPenaltyCost.toFixed(0), displayCurrency)}/mo
-            · pushing debt-free month out
-          </div>
-        )}
-      </PanelShell>
+        <p style={{ margin: '8px 0 0', fontSize: 11, color: L_T.muted, lineHeight: 1.6 }}>
+          {country === 'IN'
+            ? 'Paying late costs about 1% a month on what’s short (Sec 234C), and more on anything still unpaid at the year end (Sec 234B).'
+            : 'Paying late adds an underpayment penalty, about 8% a year on what’s short (Form 2210).'}
+        </p>
+      </section>
     );
   }
 
@@ -263,56 +264,65 @@ function RowLedger({
   onPay: (amount: string) => void;
   pending: boolean;
 }) {
-  const due = formatCurrency(String(row.due), displayCurrency);
+  const [other, setOther] = useState(false);
+  const owed = Math.max(0, row.shortfall || row.due);
   return (
-    <div style={{ display: 'flex', gap: 8, marginBottom: 4, alignItems: 'center' }}>
-      <span style={{ width: 28, color: 'var(--muted)' }}>Q{row.ordinal}</span>
-      <span style={{ flex: 1 }}>
-        {row.dueLabel} · {due}
-        {row.isPaid && <span style={{ color: 'var(--positive)' }}> [PAID]</span>}
-        {row.isMissed && (
-          <span style={{ color: 'var(--negative)' }}>
-            {' '}[MISSED · {formatCurrency(String(row.shortfall), displayCurrency)} short]
+    <li
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '28px minmax(0, 1fr) auto',
+        gap: '6px 10px',
+        padding: '10px 8px',
+        borderBottom: `1px dashed ${L_T.ruleSoft}`,
+        fontSize: 12,
+        ...(row.isMissed && !row.isPaid ? lStrip('negative') : null),
+      }}
+    >
+      <span style={{ color: L_T.muted }}>Q{row.ordinal}</span>
+      <span>
+        <strong>{row.dueLabel.toUpperCase()}</strong>
+        {row.isPaid && <span style={{ color: L_T.positive, fontWeight: 700, fontSize: 10, letterSpacing: '0.1em' }}> · PAID</span>}
+        {row.isMissed && !row.isPaid && (
+          <span style={{ color: L_T.negative, fontWeight: 700, fontSize: 10, letterSpacing: '0.1em' }}>
+            {' '}· MISSED · {formatCurrency(String(row.shortfall), displayCurrency)} SHORT
           </span>
         )}
       </span>
+      <span style={{ fontWeight: 700, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+        {formatCurrency(String(row.due), displayCurrency)}
+      </span>
       {!row.isPaid && (
-        <>
-          <input
-            type="text"
-            value={draft}
-            onChange={(e) => onDraft(e.target.value)}
-            placeholder={String(Math.max(0, row.shortfall || row.due))}
-            style={{
-              width: 90,
-              padding: '2px 6px',
-              fontSize: 11,
-              fontFamily: 'var(--font-mono)',
-              border: '1px solid var(--border)',
-              background: 'var(--canvas)',
-            }}
-          />
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() =>
-              onPay(draft || String(Math.max(0, row.shortfall || row.due)))
-            }
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              padding: '2px 8px',
-              fontSize: 11,
-              cursor: pending ? 'wait' : 'pointer',
-              fontFamily: 'var(--font-mono)',
-              letterSpacing: '0.04em',
-            }}
-          >
-            [MARK PAID]
-          </button>
-        </>
+        <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          {other ? (
+            <>
+              <div style={{ flex: '1 1 180px', maxWidth: 240 }}>
+                <Field
+                  label={`Paid (${displayCurrency === 'INR' ? '₹' : '$'})`}
+                  kind="money"
+                  currency={displayCurrency}
+                  value={draft}
+                  onChange={onDraft}
+                  placeholder={owed.toLocaleString(displayCurrency === 'INR' ? 'en-IN' : 'en-US')}
+                />
+              </div>
+              <span style={{ display: 'flex', gap: 12, paddingBottom: 8 }}>
+                <LBracket active onClick={() => draft && onPay(draft)} disabled={pending || !(Number(draft) > 0)}>
+                  SAVE
+                </LBracket>
+                <LBracket onClick={() => setOther(false)}>CANCEL</LBracket>
+              </span>
+            </>
+          ) : (
+            <>
+              <LBracket active onClick={() => onPay(String(owed))} disabled={pending} label={`Mark Q${row.ordinal} paid in full`}>
+                MARK PAID
+              </LBracket>
+              <LBracket onClick={() => setOther(true)}>OTHER AMOUNT</LBracket>
+            </>
+          )}
+        </div>
       )}
-    </div>
+    </li>
   );
 }
 

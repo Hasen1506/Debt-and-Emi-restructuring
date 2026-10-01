@@ -26,7 +26,6 @@ import {
   LCli,
   LKpi,
   LBracket,
-  LCardHard,
   LRule,
   L_T,
   L_MONO,
@@ -182,21 +181,18 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           />
         )}
 
-        {/* 6. What if — real engine runs, not estimates */}
+        {/* What if: real engine runs against this plan, nothing saved until asked */}
         <section id="what-if" style={{ scrollMarginTop: 16 }}>
-          <LSectionHeader>WHAT IF · TRY A SCENARIO</LSectionHeader>
-          <div style={{ fontSize: 11, color: L_T.muted, marginBottom: 10, lineHeight: 1.5 }}>
-            Each slider re-runs your plan. Nothing here changes your saved plan
-            until you press apply.
-          </div>
-          <LCardHard>
-            <WhatIfPanel
-              user={plan.runArgs?.user ?? {...plan.user,loans:plan.user.loans.filter(l=>!l.planned_effective_month)}}
-              marginalRate={plan.marginalRate}
-              strategy={plan.strategy}
-              runArgs={plan.runArgs}
-            />
-          </LCardHard>
+          <LSectionHeader>What if</LSectionHeader>
+          <p style={{ margin: '0 0 4px', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
+            Each change re-runs your plan and shows what it does. Nothing is saved until you press the button under it.
+          </p>
+          <WhatIfPanel
+            user={plan.runArgs?.user ?? { ...plan.user, loans: plan.user.loans.filter((l) => !l.planned_effective_month) }}
+            marginalRate={plan.marginalRate}
+            strategy={plan.strategy}
+            runArgs={plan.runArgs}
+          />
         </section>
       </div>
     </LShell>

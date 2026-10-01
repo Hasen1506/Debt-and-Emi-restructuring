@@ -22,12 +22,8 @@ import { InflationToggle } from '@/components/InflationToggle';
 import { EfSplitSlider } from '@/components/EfSplitSlider';
 import { FxDriftToggle } from '@/components/FxDriftToggle';
 
-const FILING: Record<string, string> = {
-  single: 'SINGLE',
-  married_joint: 'JOINTLY',
-  married_separate: 'SEPARATELY',
-  head_of_household: 'HEAD OF HOUSEHOLD',
-};
+// FilingStatusUS: 'single' | 'mfj' | 'hoh' (same as Home's context line).
+const FILING: Record<string, string> = { single: 'SINGLE', mfj: 'JOINTLY', hoh: 'HEAD OF HOUSEHOLD' };
 
 type ChipKey = 'order' | 'hike' | 'inflation' | 'tax' | 'ef' | 'fx';
 

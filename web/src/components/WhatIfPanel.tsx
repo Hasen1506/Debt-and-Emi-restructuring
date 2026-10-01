@@ -41,6 +41,8 @@ import {
   totalsByGoal,
 } from '@/lib/goal-contributions';
 import { computeGoalSlip, materialPullForwards } from '@/lib/goal-slip';
+import { LBracket, L_T } from '@/components/ledger/primitives';
+import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 
 type ScenarioKey = 'surplus' | 'rate' | 'lump';
 
@@ -117,7 +119,12 @@ export function WhatIfPanel({
       const top = ranked[0]?.i ?? 0;
       const opts = user.loans.map((l, i) => ({
         value: i,
-        label: `${l.bank || 'Unnamed'} · ${l.loan_type.replace('_', ' ')} (${formatCurrency(l.outstanding, loanCurrency(l, user.country))})`,
+        // "HDFC credit card · ₹1,50,000"; the part before " · " names the loan in the log.
+        label: `${(() => {
+          const bank = (l.bank ?? '').replace(/\s+bank$/i, '').trim();
+          const t = LOAN_TYPE_NAME[l.loan_type];
+          return bank ? `${bank} ${t}` : t.charAt(0).toUpperCase() + t.slice(1);
+        })()} · ${formatCurrency(l.outstanding, loanCurrency(l, user.country))}`,
         isTop: i === top,
       }));
       return {
@@ -342,39 +349,17 @@ export function WhatIfPanel({
     return materialPullForwards(rows);
   }, [surplusDelta, goalSlipInputs]);
 
-  const summary = (s: CompareResponse | null, positive: boolean): string | null => {
-    if (!s) return null;
-    const months = Math.round(Number(s.months_pulled_forward));
-    const interest = Number(s.interest_saved);
-    if (months === 0 && interest === 0) return 'No change';
-    const direction = (months > 0) === positive ? 'forward' : 'back';
-    const monthsTxt =
-      months !== 0
-        ? `Pulls debt-free date ${direction} by ${Math.abs(months)} month${Math.abs(months) === 1 ? '' : 's'}`
-        : '';
-    const interestTxt =
-      interest !== 0
-        ? `${interest > 0 ? 'saves' : 'adds'} ${fmtUser(Math.abs(interest))} in interest`
-        : '';
-    return [monthsTxt, interestTxt].filter(Boolean).join(' · ');
-  };
+  // A rate change only moves floating-rate loans.
+  const hasFloating = user.loans.some((l) => l.rate_type === 'floating' && Number(l.outstanding || 0) > 0);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', borderTop: `2px solid ${L_T.ink}` }}>
       <SliderRow
-        title={
-          Number(user.variable_expenses || 0) > 0
-            ? 'Trim discretionary spending'
-            : 'Cut fixed expenses'
-        }
+        title={'Spend less each month'}
         hint={
           fixedExpensesCap > 0
-            ? `Imagine trimming up to ${fmtUser(fixedExpensesCap)} from your monthly ${
-                Number(user.variable_expenses || 0) > 0
-                  ? 'discretionary spending (eating out, travel, shopping)'
-                  : 'fixed expenses'
-              } and redirecting that cash to debt. The most you can cut is what you actually spend.`
-            : 'Add your discretionary spending in setup to use this slider.'
+            ? `Up to ${fmtUser(fixedExpensesCap)}, what you spend now. The cut goes to the plan's next loan.`
+            : 'Add your monthly spending in Profile to try this.'
         }
         unit="/mo"
         currency={userCcy}
@@ -388,8 +373,7 @@ export function WhatIfPanel({
         state={surplus}
         positive
         summary={(() => {
-          const base = summary(surplus.result, true);
-          if (goalPullForward.length === 0) return base;
+          if (goalPullForward.length === 0) return null;
           const goalLine = goalPullForward
             .slice(0, 2)
             .map((r) => {
@@ -397,7 +381,7 @@ export function WhatIfPanel({
               return `${r.goalLabel} lands ${months}mo sooner`;
             })
             .join(', ');
-          return base ? `${base}. Goals: ${goalLine}.` : `Goals: ${goalLine}.`;
+          return `Goals: ${goalLine}.`;
         })()}
         disabled={fixedExpensesCap <= 0}
         extraControls={
@@ -414,7 +398,7 @@ export function WhatIfPanel({
                   ? 'discretionary spending'
                   : 'fixed expenses'
               }`}
-              shortLabel="Lock it in"
+              shortLabel="DO IT · SAVE THE CUT"
               onClick={commitSurplusCut}
             />
           </>
@@ -422,8 +406,13 @@ export function WhatIfPanel({
       />
 
       <SliderRow
-        title="If interest rates change"
-        hint="Models what happens if floating-rate loans (most home loans) reprice up or down. 100 bps = 1 percentage point. Fixed-rate loans like personal loans and cards are unaffected."
+        title={'If floating rates change'}
+        hint={
+          hasFloating
+            ? 'Floating-rate loans (most home loans) move with it; fixed-rate loans and cards don’t. 100 bps = 1 percentage point.'
+            : 'None of your loans has a floating rate, so a rate change doesn’t move the plan.'
+        }
+        disabled={!hasFloating}
         unit="bps"
         currency={userCcy}
         min={-200}
@@ -439,157 +428,122 @@ export function WhatIfPanel({
         formatInterest={fmtUser}
         state={rate}
         positive={false}
-        summary={summary(rate.result, false)}
         inputMode="bps"
         showMaxButton={false}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12 }}>
-        <SliderRow
-          title="Paid extra, or about to?"
-          hint={
-            totalOutstandingCap > 0
-              ? `A one-off payment against the loan chosen on the right. Already paid it? Log it so the plan starts from the new balance. Capped at your total outstanding (${fmtLump(totalOutstandingCap)}).`
-              : 'Add your loans in setup to use this slider.'
-          }
-          unit=""
-          currency={lumpTargetCcy}
-          min={0}
-          max={Math.max(totalOutstandingCap, 10_000)}
-          step={Math.max(lumpStep, 1_000)}
-          value={lumpAmount}
-          onChange={setLumpAmount}
-          formatValue={(v) => (v === 0 ? 'no payment' : fmtLump(v))}
-          formatInterest={fmtUser}
-          state={lump}
-          positive
-          summary={summary(lump.result, true)}
-          disabled={totalOutstandingCap <= 0}
-          extraControls={
+      <SliderRow
+        title={'Pay a lump sum'}
+        hint={
+          totalOutstandingCap > 0
+            ? `A one-off payment, up to what you owe (${fmtLump(totalOutstandingCap)}). Already paid it? Log it and the plan starts from the new balance.`
+            : 'Add your loans in Profile to try this.'
+        }
+        unit=""
+        currency={lumpTargetCcy}
+        min={0}
+        max={Math.max(totalOutstandingCap, 10_000)}
+        step={Math.max(lumpStep, 1_000)}
+        value={lumpAmount}
+        onChange={setLumpAmount}
+        formatValue={(v) => (v === 0 ? 'no payment' : fmtLump(v))}
+        formatInterest={fmtUser}
+        state={lump}
+        positive
+        disabled={totalOutstandingCap <= 0}
+        extraControls={
+          <>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
+              <span style={{ color: L_T.muted }}>Into</span>
+              <select
+                value={lumpTarget}
+                onChange={(e) => setLumpTarget(Number(e.target.value))}
+                style={{ fontFamily: 'inherit', fontSize: 12, padding: '5px 8px', border: `1px solid ${L_T.ink}`, background: L_T.paper, color: L_T.ink, maxWidth: '100%' }}
+              >
+                {loanOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.isTop ? '★ ' : ''}
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <span style={{ color: L_T.muted, fontSize: 11 }}>★ the dearest, the plan&apos;s own pick</span>
+            </label>
             <LockItInButton
               disabled={lumpAmount <= 0}
               label={`Log it — ${fmtLump(lumpAmount || 0)} paid today to ${loanOptions[lumpTarget]?.label.split(' · ')[0] ?? 'loan'}`}
-              shortLabel="I paid this — log it"
+              shortLabel="I PAID THIS · LOG IT"
               onClick={commitLumpSum}
             />
-          }
-        />
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span className="muted" style={{ fontSize: 12 }}>
-            Apply lump-sum to
-          </span>
-          <select
-            value={lumpTarget}
-            onChange={(e) => setLumpTarget(Number(e.target.value))}
-            style={{
-              padding: '8px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              background: 'var(--canvas)',
-              color: 'var(--ink)',
-              fontSize: 13,
-            }}
-          >
-            {loanOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.isTop ? '★ ' : ''}
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <span
-            className="muted"
-            style={{ fontSize: 11, marginTop: 2, lineHeight: 1.4 }}
-          >
-            ★ = highest effective APR (avalanche pick). Mathematically the
-            best target unless you need a psychological quick win.
-          </span>
-        </label>
-      </div>
+          </>
+        }
+      />
 
       {toast && (
         <div
+          role="status"
           style={{
+            marginTop: 12,
             padding: '8px 12px',
-            borderRadius: 6,
-            background: 'var(--soft-bg, rgba(34, 197, 94, 0.1))',
-            border: '1px solid var(--positive)',
-            color: 'var(--ink)',
-            fontSize: 13,
-            display: 'flex', justifyContent: 'space-between', gap: 12,
+            borderLeft: `2px solid ${L_T.positive}`,
+            background: L_T.paper,
+            fontSize: 12,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
           }}
         >
           <span>{toast}</span>
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            style={{
-              background: 'transparent', border: 0,
-              color: 'var(--muted-ink, #666)', cursor: 'pointer', fontSize: 12,
-            }}
-            aria-label="Dismiss"
-          >
-            ✕
-          </button>
+          <LBracket onClick={() => setToast(null)} label="Dismiss">
+            OK
+          </LBracket>
         </div>
       )}
 
       {commitments.length > 0 && (
-        <div style={{ marginTop: 4 }}>
-          <button
-            type="button"
-            onClick={() => setShowLog((s) => !s)}
-            style={{
-              background: 'transparent', border: 0,
-              color: 'var(--accent)', cursor: 'pointer',
-              fontSize: 12, textDecoration: 'underline', padding: 0,
-            }}
-          >
-            {showLog ? 'Hide' : 'Show'} schedule changes log ({commitments.length})
-          </button>
+        <div style={{ marginTop: 12, fontSize: 12 }}>
+          <LBracket onClick={() => setShowLog((v) => !v)}>
+            {showLog ? 'HIDE' : 'SHOW'} CHANGES MADE HERE · {commitments.length}
+          </LBracket>
           {showLog && (
-            <ul style={{
-              listStyle: 'none', padding: 0, margin: '8px 0 0',
-              display: 'flex', flexDirection: 'column', gap: 6,
-            }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0 0' }}>
               {commitments.map((c) => {
-                // Find the loan referenced by a lump-sum entry so we can
-                // show the right symbol. surplus_cut is always in user-default.
+                // A lump sum is in its loan's currency; a spending cut in the user's.
                 const entryCcy =
                   c.kind === 'lump_sum' && c.loanIndex != null
-                    ? loanCurrency(
-                        user.loans[c.loanIndex] ?? user.loans[0],
-                        user.country,
-                      )
+                    ? loanCurrency(user.loans[c.loanIndex] ?? user.loans[0], user.country)
                     : userCcy;
                 return (
-                <li
-                  key={c.id}
-                  style={{
-                    display: 'flex', justifyContent: 'space-between', gap: 12,
-                    fontSize: 12, padding: '6px 10px',
-                    border: '1px solid var(--border)', borderRadius: 6,
-                  }}
-                >
-                  <span>
-                    <span className="muted">{c.date}</span>{' · '}
-                    {c.kind === 'surplus_cut'
-                      ? <>Trimmed {formatCurrency(c.amount, entryCcy)}/mo from spending</>
-                      : <>Lump-sum {formatCurrency(c.amount, entryCcy)} → {c.loanBank ?? 'loan'}</>}
-                    {c.note && <span className="muted"> · {c.note}</span>}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => undoCommitment(c.id)}
+                  <li
+                    key={c.id}
                     style={{
-                      background: 'transparent', border: 0,
-                      color: 'var(--muted-ink, #666)', cursor: 'pointer', fontSize: 11,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      flexWrap: 'wrap',
+                      padding: '6px 0',
+                      borderBottom: `1px dashed ${L_T.ruleSoft}`,
                     }}
-                    title="Remove from log (doesn't undo the underlying change)"
                   >
-                    ✕
-                  </button>
-                </li>
+                    <span>
+                      <span style={{ color: L_T.muted }}>{c.date}</span>
+                      {' · '}
+                      {c.kind === 'surplus_cut' ? (
+                        <>Spending cut by {formatCurrency(c.amount, entryCcy)} a month</>
+                      ) : (
+                        <>
+                          Lump sum {formatCurrency(c.amount, entryCcy)} → {c.loanBank ?? 'loan'}
+                        </>
+                      )}
+                      {c.note && <span style={{ color: L_T.muted }}> · {c.note}</span>}
+                    </span>
+                    <LBracket
+                      onClick={() => undoCommitment(c.id)}
+                      label="Remove from this list (the change itself stays)"
+                    >
+                      REMOVE FROM LIST
+                    </LBracket>
+                  </li>
                 );
               })}
             </ul>
@@ -612,29 +566,13 @@ function LockItInButton({
   shortLabel: string;
   onClick: () => void;
 }) {
+  if (disabled) return null;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={disabled ? "Slide above 0 to enable" : label}
-      style={{
-        marginTop: 8,
-        padding: '4px 10px',
-        fontSize: 12,
-        border: '1px solid var(--accent)',
-        borderRadius: 4,
-        background: disabled ? 'transparent' : 'var(--accent)',
-        color: disabled ? 'var(--muted)' : 'white',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.55 : 1,
-        letterSpacing: '0.04em',
-        textTransform: 'uppercase',
-        fontWeight: 600,
-      }}
-    >
-      {shortLabel}
-    </button>
+    <span>
+      <LBracket accent onClick={onClick} label={label}>
+        {shortLabel}
+      </LBracket>
+    </span>
   );
 }
 
@@ -695,160 +633,88 @@ function SliderRow({
   const months = state.result
     ? Math.round(Number(state.result.months_pulled_forward))
     : 0;
-  const interest = state.result?.interest_saved ?? '0';
-  const monthsColor =
-    months === 0
-      ? 'var(--muted)'
-      : (months > 0) === positive
-        ? 'var(--positive)'
-        : 'var(--negative)';
+  const interest = Number(state.result?.interest_saved ?? '0');
+  const tone = (good: boolean | null) => (good == null ? L_T.muted : good ? L_T.positive : L_T.negative);
+  const small = { fontFamily: 'inherit', fontSize: 10, letterSpacing: '0.1em', padding: '3px 8px', border: `1px solid ${L_T.muted}`, background: 'transparent', color: L_T.muted, cursor: 'pointer' } as const;
 
   return (
     <div
       style={{
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-        padding: 12,
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
-        gap: 16,
-        alignItems: 'center',
-        opacity: disabled ? 0.55 : 1,
+        padding: '14px 0',
+        borderBottom: `1px dashed ${L_T.ruleSoft}`,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        opacity: disabled ? 0.6 : 1,
       }}
     >
-      <div>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            flexWrap: 'wrap',
-          }}
-        >
-          <strong style={{ fontSize: 14 }}>{title}</strong>
-          <TypableAmountInput
-            value={value}
-            onChange={onChange}
-            min={min}
-            max={max}
-            step={step}
-            disabled={disabled}
-            unit={unit}
-            mode={inputMode}
-            currency={currency}
-            placeholder={formatValue(0)}
-          />
-          {showMaxButton && !disabled && (
-            <button
-              type="button"
-              onClick={() => onChange(max)}
-              style={{
-                fontSize: 11,
-                padding: '2px 8px',
-                border: '1px solid var(--border)',
-                borderRadius: 4,
-                background: 'transparent',
-                color: 'var(--muted)',
-                cursor: 'pointer',
-                letterSpacing: '0.04em',
-              }}
-              title={`Set to maximum (${formatValue(max)}${unit})`}
-            >
-              MAX
-            </button>
-          )}
-          {value !== 0 && (
-            <button
-              type="button"
-              onClick={() => onChange(0)}
-              style={{
-                fontSize: 11,
-                padding: '2px 8px',
-                border: '1px solid var(--border)',
-                borderRadius: 4,
-                background: 'transparent',
-                color: 'var(--muted)',
-                cursor: 'pointer',
-                letterSpacing: '0.04em',
-              }}
-              title="Reset to no change"
-            >
-              CLEAR
-            </button>
-          )}
-        </div>
-        <input
-          type="range"
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <strong style={{ fontSize: 13 }}>{title}</strong>
+        <TypableAmountInput
+          value={value}
+          onChange={onChange}
           min={min}
           max={max}
           step={step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
           disabled={disabled}
-          aria-label={title}
-          aria-valuetext={formatValue(value)}
-          style={{ width: '100%', marginTop: 8 }}
+          unit={unit}
+          mode={inputMode}
+          currency={currency}
+          placeholder={inputMode === 'bps' ? '0' : formatValue(0)}
+          label={title}
         />
-        <div className="muted" style={{ fontSize: 11, marginTop: 4, lineHeight: 1.5 }}>
-          {hint}
-        </div>
-        {extraControls}
-      </div>
-      <div style={{ textAlign: 'right', minWidth: 200 }}>
-        {state.loading ? (
-          <span className="muted" style={{ fontSize: 12 }}>
-            computing…
-          </span>
-        ) : state.error ? (
-          <span style={{ color: 'var(--negative)', fontSize: 12 }}>
-            {state.error}
-          </span>
-        ) : state.result ? (
-          <>
-            <div
-              className="num"
-              style={{ fontSize: 18, fontWeight: 600, color: monthsColor }}
-            >
-              {months > 0 ? '−' : months < 0 ? '+' : ''}
-              {Math.abs(months)} mo
-            </div>
-            <div className="muted" style={{ fontSize: 12 }}>
-              interest{' '}
-              <span
-                className="num"
-                style={{
-                  color:
-                    Number(interest) > 0
-                      ? 'var(--positive)'
-                      : Number(interest) < 0
-                        ? 'var(--negative)'
-                        : 'var(--muted)',
-                }}
-              >
-                {Number(interest) >= 0 ? '−' : '+'}
-                {formatInterest(Math.abs(Number(interest)))}
-              </span>
-            </div>
-            {summary && (
-              <div
-                style={{
-                  fontSize: 11,
-                  color: 'var(--muted)',
-                  marginTop: 4,
-                  lineHeight: 1.5,
-                  fontStyle: 'italic',
-                }}
-              >
-                {summary}
-              </div>
-            )}
-          </>
-        ) : (
-          <span className="muted" style={{ fontSize: 12 }}>
-            move slider →
-          </span>
+        {showMaxButton && !disabled && (
+          <button type="button" onClick={() => onChange(max)} style={small} title={`Set to the most: ${formatValue(max)}${unit}`}>
+            MAX
+          </button>
+        )}
+        {value !== 0 && (
+          <button type="button" onClick={() => onChange(0)} style={small}>
+            CLEAR
+          </button>
         )}
       </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        disabled={disabled}
+        aria-label={title}
+        aria-valuetext={formatValue(value)}
+        style={{ width: '100%', accentColor: L_T.accent }}
+      />
+      <div style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.5 }}>{hint}</div>
+      <div aria-live="polite" style={{ fontSize: 12, lineHeight: 1.6 }}>
+        {state.loading ? (
+          <span style={{ color: L_T.muted }}>Working it out…</span>
+        ) : state.error ? (
+          <span style={{ color: L_T.negative }}>{state.error}</span>
+        ) : state.result ? (
+          <>
+            <span style={{ display: 'inline-flex', gap: 16, flexWrap: 'wrap' }}>
+              <span>
+                → DEBT-FREE{' '}
+                <strong style={{ color: tone(months === 0 ? null : (months > 0) === positive) }}>
+                  {months === 0 ? 'SAME MONTH' : `${months > 0 ? '−' : '+'}${Math.abs(months)} MO`}
+                </strong>
+              </span>
+              <span>
+                → INTEREST{' '}
+                <strong style={{ color: tone(interest === 0 ? null : interest > 0) }}>
+                  {interest === 0 ? 'SAME' : `${interest > 0 ? '−' : '+'}${formatInterest(Math.abs(interest))}`}
+                </strong>
+              </span>
+            </span>
+            {summary && <div style={{ color: L_T.muted, fontSize: 11 }}>{summary}</div>}
+          </>
+        ) : (
+          !disabled && <span style={{ color: L_T.muted }}>Move the slider or type an amount to see the change.</span>
+        )}
+      </div>
+      {extraControls}
     </div>
   );
 }
@@ -879,37 +745,35 @@ function StartMonthPicker({
   }
 
   const options = [
-    { v: 1, label: `Starting now (${labelForOffset(0)})` },
-    { v: 4, label: `Starting in 3 months (${labelForOffset(3)})` },
-    { v: 7, label: `Starting in 6 months (${labelForOffset(6)})` },
-    { v: 13, label: `Starting in 12 months (${labelForOffset(12)})` },
+    { v: 1, label: `this month` },
+    { v: 4, label: `${labelForOffset(3)} (in 3 months)` },
+    { v: 7, label: `${labelForOffset(6)} (in 6 months)` },
+    { v: 13, label: `${labelForOffset(12)} (in a year)` },
   ];
 
   return (
     <div
       style={{
-        marginTop: 8,
         display: 'flex',
         alignItems: 'center',
         gap: 8,
         fontSize: 12,
       }}
     >
-      <span className="muted">Apply this cut</span>
+      <span style={{ color: L_T.muted }}>From</span>
       <select
-        aria-label="Apply this cut"
+        aria-label="When the cut starts"
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         disabled={disabled}
         style={{
           opacity: disabled ? 0.55 : 1,
-          padding: '3px 8px',
+          padding: '5px 8px',
           fontSize: 12,
-          fontFamily: 'var(--font-sans)',
-          border: '1px solid var(--border)',
-          borderRadius: 4,
-          background: 'var(--canvas)',
-          color: 'var(--ink)',
+          fontFamily: 'inherit',
+          border: `1px solid ${L_T.ink}`,
+          background: L_T.paper,
+          color: L_T.ink,
         }}
       >
         {options.map((o) => (
@@ -941,6 +805,7 @@ function TypableAmountInput({
   mode,
   currency,
   placeholder,
+  label,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -949,6 +814,8 @@ function TypableAmountInput({
   step: number;
   unit: string;
   disabled?: boolean;
+  /** Spoken name of the box (the row's title). */
+  label: string;
   mode: 'integer' | 'bps';
   /** Drives the prefix symbol (₹/$) and the locale for the comma display. */
   currency: 'INR' | 'USD';
@@ -988,11 +855,11 @@ function TypableAmountInput({
         display: 'inline-flex',
         alignItems: 'baseline',
         gap: 2,
-        fontFamily: 'var(--font-mono)',
+        fontFamily: 'inherit',
       }}
     >
       {mode === 'integer' && (
-        <span className="muted" style={{ fontSize: 12 }}>
+        <span style={{ fontSize: 12, color: L_T.muted }}>
           {currency === 'USD' ? '$' : '₹'}
         </span>
       )}
@@ -1011,20 +878,20 @@ function TypableAmountInput({
           }
         }}
         disabled={disabled}
+        aria-label={`${label}${mode === 'bps' ? ', basis points' : ''}`}
         style={{
-          width: mode === 'bps' ? 60 : 90,
-          padding: '2px 4px',
+          width: mode === 'bps' ? 70 : 104,
+          padding: '4px 6px',
           fontSize: 13,
-          fontFamily: 'var(--font-mono)',
-          border: '1px solid var(--border)',
-          borderRadius: 4,
-          background: 'var(--canvas)',
-          color: 'var(--ink)',
+          fontFamily: 'inherit',
+          border: `1px solid ${L_T.ink}`,
+          background: L_T.paper,
+          color: L_T.ink,
           textAlign: 'right',
         }}
       />
       {unit && (
-        <span className="muted" style={{ fontSize: 12 }}>
+        <span style={{ fontSize: 12, color: L_T.muted }}>
           {unit}
         </span>
       )}
