@@ -148,7 +148,7 @@ export function LMasthead({ country, strategy }: { country: Country; strategy?: 
         aria-label="Main"
         style={{
           display: 'flex',
-          gap: 'clamp(10px, 2.4vw, 22px)',
+          gap: 'clamp(8px, 2.4vw, 22px)',
           padding: '8px 0',
           // Wraps rather than scrolls: a scrolling row clipped the
           // strategy medallion's menu.
@@ -157,7 +157,13 @@ export function LMasthead({ country, strategy }: { country: Country; strategy?: 
         }}
       >
         {NAV.map(([label, key, href]) => (
-          <LBracket key={key} active={section === key} current={section === key} href={href}>
+          <LBracket
+            key={key}
+            active={section === key}
+            current={section === key}
+            href={href}
+            style={{ letterSpacing: 'var(--nav-tracking, 0.14em)' }}
+          >
             {label}
           </LBracket>
         ))}

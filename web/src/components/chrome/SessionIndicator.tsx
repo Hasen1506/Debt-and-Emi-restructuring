@@ -28,7 +28,7 @@ export function SessionIndicator() {
   if (session.status === 'anon') {
     const next = pathname && pathname !== '/login' ? `?next=${encodeURIComponent(pathname)}` : '';
     return (
-      <a href={`/login${next}`} style={{ ...TEXT, color: 'var(--accent)', textDecoration: 'none' }}>
+      <a href={`/login${next}`} className="l-hit" style={{ ...TEXT, color: 'var(--accent)', textDecoration: 'none' }}>
         [SIGN IN]
       </a>
     );
@@ -54,6 +54,7 @@ export function SessionIndicator() {
       <button
         type="button"
         onClick={onSignOut}
+        className="l-hit"
         style={{ ...TEXT, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)' }}
       >
         [SIGN OUT]

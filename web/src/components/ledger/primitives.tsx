@@ -113,14 +113,14 @@ export function LBracket({
   const inner = <>[{children}]</>;
   if (href) {
     return (
-      <a href={href} style={base} aria-current={current ? 'page' : undefined} aria-label={label}>
+      <a href={href} className="l-hit" style={base} aria-current={current ? 'page' : undefined} aria-label={label}>
         {inner}
       </a>
     );
   }
   if (onClick || as === 'button') {
     return (
-      <button type="button" onClick={onClick} disabled={disabled} style={base} aria-label={label}>
+      <button type="button" className="l-hit" onClick={onClick} disabled={disabled} style={base} aria-label={label}>
         {inner}
       </button>
     );

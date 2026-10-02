@@ -30,7 +30,7 @@ export function ToolsList({ user }: { user: { country: Country; is_nri_us?: bool
               borderBottom: `1px dashed ${L_T.faint}`,
             }}
           >
-            <a href={t.href} style={{ flex: '1 1 260px', fontWeight: 700, color: L_T.ink, textDecoration: 'none' }}>
+            <a href={t.href} className="l-hit" style={{ flex: '1 1 260px', fontWeight: 700, color: L_T.ink, textDecoration: 'none' }}>
               {t.question}
             </a>
             <span style={{ flex: '2 1 300px', color: L_T.muted, fontSize: 11, lineHeight: 1.5 }}>{t.sub}</span>

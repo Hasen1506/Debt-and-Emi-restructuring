@@ -300,3 +300,13 @@ def test_assets_with_a_year_or_month_only_are_accepted(client):
     assert a.purchase_date.isoformat() == "2021-10-01"
     b = AssetIn(asset_type="fixed_deposit", purchase_price="1", purchase_date="2024-03", current_market_value="2")
     assert b.purchase_date.isoformat() == "2024-03-01"
+
+
+def test_an_asset_without_a_purchase_date_does_not_stop_the_plan(client, india_user_payload):
+    """The asset form could save a blank date, and then every request
+    carrying the profile, the plan included, returned 422."""
+    user = {**india_user_payload, "assets": [
+        {"asset_type": "equity_mf", "purchase_price": "0", "purchase_date": "", "current_market_value": "50000"},
+    ]}
+    r = client.post("/api/simulate", json={"user": user, "strategy": "avalanche"})
+    assert r.status_code == 200, r.text

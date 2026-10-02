@@ -178,13 +178,13 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
     <section>
       <LSectionHeader
         right={
-          <>
-            <LBracket onClick={() => downloadRowsCSV(rows, plan)}>CSV</LBracket>{' '}
-            <LBracket onClick={() => window.print()}>PRINT</LBracket>{' '}
+          <span style={{ display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '14px 12px' }}>
+            <LBracket onClick={() => downloadRowsCSV(rows, plan)}>CSV</LBracket>
+            <LBracket onClick={() => window.print()}>PRINT</LBracket>
             <LBracket onClick={() => setExpanded((v) => !v)}>
               {expanded ? '↑ EVENTS ONLY' : `↓ ALL ${totalCount} MONTHS`}
             </LBracket>
-          </>
+          </span>
         }
       >
         MONTH BY MONTH ·{' '}

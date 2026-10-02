@@ -5,10 +5,13 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R7 · Finish (not started). R6 is done.
-- **Last finished step:** R6.4, walkthrough W3: switching the payoff order is one click on the masthead pip from any page with debt; Profile's triptych shows all three with the user's numbers. R6 also carried two improvements the owner asked for: NRI prepay fetches today's exchange rate first, and Right time reads Polymarket's odds for the coming RBI/Fed decisions instead of asking what you expect
-- **Next step:** R7.1, all six walkthroughs again with the before/after table under "After (R7.1)"; then R7.2 the 390px pass on every page; then R7.3 ROADMAP and AUDIT
-- **Open PR:** #16 · `claude/vibrant-bardeen-5bsiyj` (R6; merge when CI is green). R7 goes on a new PR from the same branch
+- **Status:** the redesign is done (R0–R7). R6.5 redrew the persona art after the owner's review.
+- **Last finished step:** R7.3. ROADMAP and AUDIT are updated; AUDIT §8 has what the walkthroughs and the phone pass found (all fixed) and what's still open.
+- **Next, for the owner to pick from (AUDIT §8, still open):**
+  - refresh the saved exchange rate when today's can be fetched, and say on Plan which day's rate it used;
+  - move `/profile/assets` to Ledger fields;
+  - look at Right time's odds and NRI prepay's live rate once deployed.
+- **Open PR:** #17 · `claude/vibrant-bardeen-5bsiyj` (R6.5 + R7); merge when CI is green
 - **Can't check from this container:** Polymarket, frankfurter and open.er-api are blocked here. The odds and FX code is tested against responses shaped like theirs; look at Right time and NRI prepay once deployed. Whether Polymarket lists RBI decisions is unconfirmed; without them Right time says it has no odds and judges on today's rate. For local work, `MARKET_ODDS_FILE=<saved Gamma events>` serves odds offline
 
 Pause after each phase (or about every five steps, or when context is near 35%):
@@ -165,15 +168,21 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - Test each tool at 1200 and 390 with Priya, plus `profiles.mjs` for noloans, us, nri.
 
 ### R6 · Strategy personas
-- [x] R6.1 Persona art as SVG symbols (authored once; 40px medallion, full triptych): `public/art/personas.svg` (3 scenes, 3 medallions, 3 glyphs), drawn through `components/personas/Persona.tsx`
+- [x] R6.1 Persona art as SVG symbols (authored once; 40px medallion, full triptych): `public/art/personas.svg` (3 scenes, 3 medallions; redrawn in R6.5), drawn through `components/personas/Persona.tsx`
 - [x] R6.2 Medallion in the masthead; click → switch strategy: a pip switches in one click; the medallion opens the three with what each does. Shown only when there is debt
 - [x] R6.3 Triptych at the bottom of Profile with real numbers per strategy (debt-free date, total interest, extra cost vs Avalanche): `components/personas/StrategyCompare.tsx` runs the three orders on Plan's own inputs (`loadStrategyOutcomesFromCookies`) and streams in after the rest of Profile; a card switches. When the three come out the same (Priya, Sam) or a month is short, one line says so instead of three identical cards. The Hybrid figure's split was clipped in scene coordinates inside a translated group (in the design file too), which hid half of it; it now splits down its own middle
 - [x] R6.4 Walkthrough W3 (see After R6 below)
+- [x] R6.5 Art redrawn (owner: "looks kind of worse graphically"). The design file's scenes were 3:2 but the cards show 2:1, which cropped the figures' feet, the god and the big snowball; the bodies were loose polygons; the 40px medallions blurred; the three glyphs were the same triangle. Now: scenes drawn at 480×240, figures as pictograms (round strokes, a separate head), flat planes, one idea each (pushing the boulder up to a summit flag; balancing a boulder and a snowball on the ridge; a snowball let go at the top, growing as it rolls). The medallions are cut down to read at 32px. The unused glyphs are gone. Card figures line up across the three cards whatever the rule's length
 
 ### R7 · Finish
-- [ ] R7.1 All six walkthroughs again; before/after table here
-- [ ] R7.2 Phone width (390px) pass on every page
-- [ ] R7.3 ROADMAP and AUDIT updated
+- [x] R7.1 All six walkthroughs again; before/after table under "After (R7.1)"
+- [x] R7.2 Phone width (390px) pass on every page: all 19 routes with Priya, and the six main pages with the US, NRI, no-loans and over-budget profiles (43 page loads). None scroll sideways, none show NaN or console errors. Fixed:
+  - `/profile/assets` was 484 px wide: its two-column grid now drops to one column on a phone.
+  - Tap targets: Ledger's bracket links and buttons were 11–16 px tall. A `.l-hit` class (globals.css) reaches each to at least 26 px without moving anything, on `LBracket` and the bracket links built by hand. Sliders are 24 px tall. The "i" tips, setup's step numbers and the dismiss crosses are padded out. Rows of brackets (goal templates, the schedule's CSV/PRINT) sit 14 px apart, so neighbouring hit areas don't overlap.
+  - The five tabs fit one line on a phone (tighter tracking under 480 px, via `--nav-tracking`), which takes a row off the masthead.
+  - Home's settings line no longer repeats the payoff order shown in the masthead just above it.
+  - Left as is: the medallion's three pips are 14×10. The medallion beside them (40 px) opens the same three choices as full-width buttons, which meets WCAG 2.5.8 as an equivalent control.
+- [x] R7.3 ROADMAP and AUDIT updated (AUDIT §8 lists what R7 found and what's still open)
 
 ## Decisions (defaults, unless the owner says otherwise)
 
@@ -322,7 +331,23 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
 
 ### After (R7.1)
 
-_Filled in at the end._
+All six again on the finished app (2 Oct 2026, 1200 wide unless noted). "Before" is the first measurement of each, on the code it replaced.
+
+| Walkthrough | Before | After |
+|---|---|---|
+| **W1** · Priya's setup | 6 screens, 10 typed, 11 clicks; the loans screen had 37 fields and was 3,545 px | **3 screens, 10 typed, 7 clicks**; 11 fields, 1,444 px; amounts group as typed and take `1.2L`, `50k` |
+| **W1** · mark two paid | 7 clicks, 1 typed, on Activity | **2 clicks, 0 typed, on Home**; the plan stays at Mar 2031 |
+| **W2** · Arjun, NRI | amounts in the wrong currency (AUDIT R1); NRI prepay ran on the rate saved in the profile | setup in 8 typed, 8 clicks; each loan in its own currency; NRI prepay starts from today's rate ("as of 01 Oct 2026") and says when it falls back to the profile's |
+| **W3** · Sam switches the order | 1 click, only on Plan, 290 px down | **1 click on the masthead, from any page with debt** (y = 96; 173 at 390); with orders that differ, interest goes $1,114 → $1,250 on Plan, as Profile's cards said |
+| **W4** · Meera's house goal | 1 click, 2 typed, two different monthly figures | 3 clicks, **1 typed** (`15L`); one figure, "₹43,750 a month until Oct 2029 · ON TRACK", before saving |
+| **W5** · Priya's ₹1L bonus | URL typed, 1 typed, 2 clicks; one target only | 1 click to the tool, **1 typed**, 1 click; the split shows as you type; Home then shows ₹29,50,000 owed and Plan Dec 2030, as the preview said |
+| **W6** · half an EMI, then a rate rise | 8 clicks, 2 typed, 2 pages; no effect shown | **6 clicks, 2 typed, 1 page**; each entry previews its effect, and saving says "plan still debt-free in Mar 2031" |
+
+Fixed on the way:
+- Setup's plan preview showed US amounts with cents ("$4,044.00", "$2,783.03"). It is now whole amounts, as on every other page.
+- Setup told a user with no loans "Order: Avalanche … Change it on Plan". The line now shows only when there are loans, and it points to the switch at the top of every page.
+- The strategy one-liners on Plan and in setup ("pure psychological momentum", "then math") now use the personas' words: "Highest rate first, for the least interest", and so on. The unused long descriptions are gone.
+- Activity's save message read "plan debt-free MAR 2031 · no change". It is now "plan still debt-free in Mar 2031".
 
 ### After R5.5 (the seven tools)
 

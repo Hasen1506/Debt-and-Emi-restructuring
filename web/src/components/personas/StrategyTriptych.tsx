@@ -82,7 +82,17 @@ export function StrategyTriptych({
               <span style={{ display: 'block', width: '100%', aspectRatio: '2 / 1', borderBottom: `1px solid ${L_T.ink}` }}>
                 <PersonaScene strategy={s} height="100%" />
               </span>
-              <span style={{ display: 'grid', gap: 8, padding: '10px 12px 12px', width: '100%', boxSizing: 'border-box' }}>
+              <span
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flex: 1,
+                  gap: 8,
+                  padding: '10px 12px 12px',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
                 <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontFamily: L_MONO }}>
                   <b style={{ fontSize: 12, letterSpacing: '0.08em' }}>{p.name.toUpperCase()}</b>
                   <small style={{ fontSize: 10, letterSpacing: '0.12em', color: L_T.muted }}>{p.tag}</small>
@@ -97,7 +107,8 @@ export function StrategyTriptych({
                     {on ? 'IN USE' : 'USE THIS'}
                   </small>
                 </span>
-                <span style={{ fontSize: 13, lineHeight: 1.45, color: L_T.inkSoft }}>{p.rule}</span>
+                {/* Takes the slack, so the figures line up across the cards. */}
+                <span style={{ flex: 1, fontSize: 13, lineHeight: 1.45, color: L_T.inkSoft }}>{p.rule}</span>
                 {f && (
                   <span style={{ display: 'grid', fontFamily: L_MONO, fontSize: 12 }}>
                     <Figure label="DEBT-FREE" value={f.date} />

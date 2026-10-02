@@ -672,12 +672,12 @@ function SliderRow({
           label={title}
         />
         {showMaxButton && !disabled && (
-          <button type="button" onClick={() => onChange(max)} style={small} title={`Set to the most: ${formatValue(max)}${unit}`}>
+          <button type="button" onClick={() => onChange(max)} className="l-hit" style={small} title={`Set to the most: ${formatValue(max)}${unit}`}>
             MAX
           </button>
         )}
         {value !== 0 && (
-          <button type="button" onClick={() => onChange(0)} style={small}>
+          <button type="button" onClick={() => onChange(0)} className="l-hit" style={small}>
             CLEAR
           </button>
         )}

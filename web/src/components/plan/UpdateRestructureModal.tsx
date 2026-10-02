@@ -398,6 +398,7 @@ function ModalShell({
             type="button"
             onClick={onClose}
             aria-label="Close"
+            className="l-hit"
             style={{
               background: 'transparent',
               border: 'none',

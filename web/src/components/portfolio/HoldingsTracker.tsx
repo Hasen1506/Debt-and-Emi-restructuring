@@ -419,6 +419,8 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
                         type="button"
                         onClick={() => handleRemove(h)}
                         title="Remove holding"
+                        aria-label="Remove holding"
+                        className="l-hit"
                         style={{
                           background: 'transparent',
                           border: '1px solid var(--border)',

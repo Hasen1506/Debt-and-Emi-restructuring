@@ -372,7 +372,8 @@ export function GoalsPage({
           </div>
         )}
 
-        <div style={{ marginTop: 14, fontSize: 11, color: L_T.muted, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'baseline' }}>
+        {/* Rows 14px apart, so each bracket's hit area stays its own. */}
+        <div style={{ marginTop: 14, fontSize: 11, color: L_T.muted, display: 'flex', gap: '14px 10px', flexWrap: 'wrap', alignItems: 'baseline' }}>
           <span>Or start from a plan:</span>
           {TEMPLATE_CATALOGUE.map((t) => (
             <LBracket key={t.kind} onClick={() => applyTemplate(t.kind)} label={`${t.label}: ${t.description}`}>
