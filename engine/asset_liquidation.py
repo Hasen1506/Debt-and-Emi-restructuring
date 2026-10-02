@@ -25,6 +25,7 @@ from engine.country_data import (
     US_CD_EARLY_WITHDRAWAL_PENALTY_PCT,
 )
 from engine.models import TaxRegimeIN
+from engine.loan_check import _inr
 from engine.tax.india import surcharge_rate, CESS_RATE
 from engine.tax.india import marginal_rate as india_marginal_rate
 from engine.tax.usa import (
@@ -389,7 +390,7 @@ def _proceeds_savings(asset: Asset) -> ProceedsResult:
         transaction_costs=D("0"),
         net_proceeds=val,
         explanation=(
-            f"Just transfer the ₹{val:,.0f} from your savings — no tax, no penalty. "
+            f"Just transfer the {_inr(val)} from your savings — no tax, no penalty. "
             f"You'll lose the {lookup_asset_return('savings_balance')*100:.1f}% interest "
             f"this balance was earning."
         ),
@@ -437,7 +438,7 @@ def _proceeds_fd(asset: Asset, today: date) -> ProceedsResult:
         transaction_costs=D("0"),
         net_proceeds=val - penalty,
         explanation=(
-            f"Break the ₹{val:,.0f} FD. Penalty is ~₹{penalty:,.0f} "
+            f"Break the {_inr(val)} FD. Penalty is ~{_inr(penalty)} "
             f"({penalty_pct*100:.1f}% of balance). You give up the "
             f"{fd_rate*100:.1f}% interest this FD was earning."
         ),
@@ -489,9 +490,9 @@ def _proceeds_equity(
         transaction_costs=transaction_costs,
         net_proceeds=gross - tax,
         explanation=(
-            f"Sell ₹{val:,.0f} of {label_type}. Held {days_held // 30} months "
-            f"({period}). Capital gain ≈ ₹{gain:,.0f}, taxed at {rate_used} → "
-            f"~₹{tax:,.0f}. After STT + brokerage you net ₹{gross - tax:,.0f}."
+            f"Sell {_inr(val)} of {label_type}. Held {days_held // 30} months "
+            f"({period}). Capital gain ≈ {_inr(gain)}, taxed at {rate_used} → "
+            f"~{_inr(tax)}. After STT + brokerage you net {_inr(gross - tax)}."
         ),
         caveats=(
             ["LTCG exemption (₹1.25L/yr) may already be partially used elsewhere — "
@@ -525,10 +526,10 @@ def _proceeds_debt_mf(
         transaction_costs=D("0"),
         net_proceeds=gross - tax,
         explanation=(
-            f"Redeem ₹{val:,.0f} of debt MF. Gain ₹{gain:,.0f} taxed at your "
+            f"Redeem {_inr(val)} of debt MF. Gain {_inr(gain)} taxed at your "
             f"slab rate {marginal_rate*100:.1f}% (post-Apr-2023 units lose "
-            f"indexation) → ~₹{tax:,.0f}."
-            + (f" Plus 1% exit load (₹{exit_load:,.0f}) for <1yr hold."
+            f"indexation) → ~{_inr(tax)}."
+            + (f" Plus 1% exit load ({_inr(exit_load)}) for <1yr hold."
                if exit_load > 0 else "")
         ),
     )
@@ -565,9 +566,9 @@ def _proceeds_gold(
         transaction_costs=transaction_costs,
         net_proceeds=gross - tax,
         explanation=(
-            f"Sell ₹{val:,.0f} of gold (held {days_held // 30} months). "
-            f"~3% transaction friction (making-charge / spread), then ~₹{tax:,.0f} "
-            f"tax at {rate_used} on the ₹{gain:,.0f} gain."
+            f"Sell {_inr(val)} of gold (held {days_held // 30} months). "
+            f"~3% transaction friction (making-charge / spread), then ~{_inr(tax)} "
+            f"tax at {rate_used} on the {_inr(gain)} gain."
         ),
         caveats=[
             "Gold transaction cost varies 0.5% (digital/bullion) to 10% (jewelry "
@@ -593,7 +594,7 @@ def _proceeds_sgb(
             transaction_costs=D("0"),
             net_proceeds=val,
             explanation=(
-                f"Redeem SGB at maturity — proceeds ₹{val:,.0f} are fully "
+                f"Redeem SGB at maturity — proceeds {_inr(val)} are fully "
                 f"tax-free under §47(viic). No transaction cost from RBI redemption."
             ),
         )
@@ -620,7 +621,7 @@ def _proceeds_sgb(
         net_proceeds=gross - tax,
         explanation=(
             f"Sell SGB on exchange (not at maturity). Held {days_held // 30} months, "
-            f"~0.5% exchange spread, then ₹{tax:,.0f} tax on the ₹{gain:,.0f} gain. "
+            f"~0.5% exchange spread, then {_inr(tax)} tax on the {_inr(gain)} gain. "
             f"You give up the 2.5% semi-annual coupon."
         ),
         caveats=[
@@ -708,11 +709,11 @@ def _proceeds_real_estate(
         transaction_costs=transaction_costs,
         net_proceeds=net,
         explanation=(
-            f"Sell property at ₹{asset.current_market_value:,.0f}. Brokerage ≈ "
-            f"{selling_pct*100:.1f}% (₹{transaction_costs:,.0f}); stamp duty and "
+            f"Sell property at {_inr(asset.current_market_value)}. Brokerage ≈ "
+            f"{selling_pct*100:.1f}% ({_inr(transaction_costs)}); stamp duty and "
             f"registration are the buyer's. After "
-            f"{'LTCG' if is_lt else 'short-term gains tax'} of ₹{tax:,.0f}, "
-            f"you net ₹{net:,.0f}."
+            f"{'LTCG' if is_lt else 'short-term gains tax'} of {_inr(tax)}, "
+            f"you net {_inr(net)}."
         ),
         caveats=caveats,
     )
@@ -1339,7 +1340,10 @@ def rank_liquidations(
             if debt_eff is None:
                 continue
 
-            loan_label = f"{loan.bank} {loan.loan_type.value}"
+            # "HDFC Bank credit card", not the enum's "credit_card".
+            kind = {"auto_loan": "car loan", "bnpl": "BNPL"}.get(
+                loan.loan_type.value, loan.loan_type.value.replace("_", " "))
+            loan_label = f"{loan.bank} {kind}" if loan.bank else kind.capitalize()
 
             # ─── Pre-filter: skip if debt rate doesn't clear asset return + margin
             threshold = asset_return + pre_filter_margin

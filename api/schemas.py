@@ -233,6 +233,21 @@ class AssetIn(_In):
     last_price_at: Optional[str] = None
     appreciation_cagr: Optional[Decimal] = None
 
+    @field_validator("purchase_date", "fd_maturity_date", "ppf_opened_date", mode="before")
+    @classmethod
+    def _partial_date(cls, v: Any) -> Any:
+        # The profile's asset form saves "2019" when the user only knows the
+        # year, and the liquidate tool takes "2019-06". Both used to fail as
+        # dates, so every call carrying the profile (the plan included)
+        # returned 422. A bare year reads as 1 October, mid financial year.
+        if isinstance(v, str):
+            t = v.strip()
+            if len(t) == 4 and t.isdigit():
+                return f"{t}-10-01"
+            if len(t) == 7 and t[:4].isdigit() and t[4] == "-" and t[5:].isdigit():
+                return f"{t}-01"
+        return v
+
     def to_engine(self) -> Asset:
         return Asset(
             asset_type=self.asset_type, purchase_price=self.purchase_price,

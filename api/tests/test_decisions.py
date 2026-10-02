@@ -283,10 +283,20 @@ def test_asset_liquidation_positive_edge_is_not_called_worse_off(client):
     assert Decimal(out["wealth_edge"]) > 0
     assert Decimal(out["wealth_edge_needed"]) == Decimal("35000")
     assert out["wealth_basis"] == "debt_compounds"
-    assert "only 25,404 better off" in out["rationale"]
+    assert "only ₹25,404 better off" in out["rationale"]
     assert "worse off" not in out["rationale"]
 
     body["debt_monthly_payment"] = "2225"
     out = client.post("/api/asset-liquidation", json=body).json()
     assert out["wealth_basis"] == "amortising"
-    assert "only 7,597 better off" in out["rationale"]
+    assert "only ₹7,597 better off" in out["rationale"]
+
+
+def test_assets_with_a_year_or_month_only_are_accepted(client):
+    """The profile's asset form saves "2021" when only the year is known;
+    every call carrying that profile used to fail with 422."""
+    from api.schemas import AssetIn
+    a = AssetIn(asset_type="equity_mf", purchase_price="1", purchase_date="2021", current_market_value="2")
+    assert a.purchase_date.isoformat() == "2021-10-01"
+    b = AssetIn(asset_type="fixed_deposit", purchase_price="1", purchase_date="2024-03", current_market_value="2")
+    assert b.purchase_date.isoformat() == "2024-03-01"

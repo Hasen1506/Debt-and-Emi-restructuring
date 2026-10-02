@@ -2,7 +2,10 @@
 
 import Decimal from 'decimal.js';
 import { useEffect, useMemo, useState } from 'react';
-import { Card } from '@/components/Card';
+import type { ReactNode } from 'react';
+import { LBracket, LKpi, L_T } from '@/components/ledger/primitives';
+import { LNote, LStepSub } from '@/components/ledger/LToolSteps';
+import { loanLabel, loanName } from '@/lib/loan-types';
 import {
   api,
   formatCurrency,
@@ -25,18 +28,28 @@ interface Props {
 }
 
 const VERDICT_COLOR: Record<LiquidationVerdict, string> = {
-  clear_win:   'var(--positive)',
-  conditional: 'var(--accent)',
-  marginal:    'var(--muted)',
-  dont_sell:   'var(--negative)',
+  clear_win:   L_T.positive,
+  conditional: L_T.accent,
+  marginal:    L_T.muted,
+  dont_sell:   L_T.negative,
 };
 
 const VERDICT_LABEL: Record<LiquidationVerdict, string> = {
-  clear_win:   'Clear win',
-  conditional: 'Conditional — read the caveats',
-  marginal:    'Marginal — small edge',
+  clear_win:   'Sell',
+  conditional: 'Sell, if the notes hold',
+  marginal:    'Small gain',
   dont_sell:   "Don't sell",
 };
+
+/** The ranker's frame: a 1px box like a tool step, without a number. */
+function Box({ children }: { children: ReactNode }) {
+  return (
+    <section aria-label="Your assets, ranked" style={{ border: `1px solid ${L_T.ink}`, padding: 'clamp(14px, 2.5vw, 22px)', minWidth: 0 }}>
+      <LStepSub right="AFTER TAX AND COSTS">Your assets, ranked</LStepSub>
+      <div style={{ marginTop: 10 }}>{children}</div>
+    </section>
+  );
+}
 
 export function PortfolioRanker({ user, marginalRate, isLive, onDrillIn }: Props) {
   const [data, setData] = useState<LiquidationRankingsResponse | null>(null);
@@ -86,28 +99,29 @@ export function PortfolioRanker({ user, marginalRate, isLive, onDrillIn }: Props
   if (!user.assets || user.assets.length === 0) return null;
   if (user.loans.length === 0) {
     return (
-      <Card>
-        <p className="muted">
-          Portfolio ranker needs both assets and debts. Add a debt at{' '}
-          <a href="/profile?step=loans">Profile</a>.
-        </p>
-      </Card>
+      <Box>
+        <LNote style={{ margin: 0 }}>
+          Ranking needs a loan to clear. <a href="/profile?step=loans" style={{ color: L_T.accent }}>Add one in your profile</a>.
+        </LNote>
+      </Box>
     );
   }
 
   if (busy) {
     return (
-      <Card>
-        <p className="muted">Ranking {user.assets.length} asset(s) against {user.loans.length} debt(s)…</p>
-      </Card>
+      <Box>
+        <LNote style={{ margin: 0 }}>
+          Ranking {user.assets.length} asset{user.assets.length === 1 ? '' : 's'} against {user.loans.length} loan{user.loans.length === 1 ? '' : 's'}…
+        </LNote>
+      </Box>
     );
   }
 
   if (err) {
     return (
-      <Card>
-        <p style={{ color: 'var(--negative)' }}>Ranking failed: {err}</p>
-      </Card>
+      <Box>
+        <LNote style={{ margin: 0, color: L_T.negative }}>Couldn&apos;t rank them: {err}</LNote>
+      </Box>
     );
   }
 
@@ -117,21 +131,8 @@ export function PortfolioRanker({ user, marginalRate, isLive, onDrillIn }: Props
   const hasSkipped = data.considered_but_skipped.length > 0;
 
   return (
-    <Card>
-      <div style={{ marginBottom: 12 }}>
-        <h2 className="h2" style={{ margin: 0 }}>Portfolio rankings</h2>
-        <p className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-          Every asset paired against every debt; after-tax net annual benefit
-          ranks the list. Skipped pairings sit below.
-        </p>
-      </div>
-
-      {!hasRecs && (
-        <p className="muted" style={{ fontSize: 13 }}>
-          No pairing came back as worth doing. Expand the &quot;considered but
-          skipped&quot; section to see why.
-        </p>
-      )}
+    <Box>
+      {!hasRecs && <LNote style={{ margin: 0 }}>No sale is worth making against your loans right now.</LNote>}
 
       {hasRecs && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -150,30 +151,24 @@ export function PortfolioRanker({ user, marginalRate, isLive, onDrillIn }: Props
 
       {hasSkipped && (
         <div style={{ marginTop: 12 }}>
-          <button
-            onClick={() => setShowSkipped((s) => !s)}
-            style={{
-              background: 'transparent', border: 'none',
-              color: 'var(--accent)', cursor: 'pointer',
-              fontSize: 12, textDecoration: 'underline', padding: 0,
-            }}
-          >
-            {showSkipped ? 'Hide' : 'Show'} other moves we considered ({data.considered_but_skipped.length})
-          </button>
+          <LBracket onClick={() => setShowSkipped((s) => !s)}>
+            {showSkipped ? '− HIDE' : '+ SHOW'} {data.considered_but_skipped.length} OTHER{data.considered_but_skipped.length === 1 ? '' : 'S'} WE LOOKED AT
+          </LBracket>
           {showSkipped && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+            <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
               {data.considered_but_skipped.map((rec, idx) => (
                 <SkippedRow
                   key={`${rec.asset_index}-${rec.target_loan_index}-${idx}`}
                   rec={rec}
                   country={user.country}
+                  loan={user.loans[rec.target_loan_index]}
                 />
               ))}
-            </div>
+            </ul>
           )}
         </div>
       )}
-    </Card>
+    </Box>
   );
 }
 
@@ -190,10 +185,10 @@ function RecCard({
   const color = VERDICT_COLOR[rec.verdict];
   const label = VERDICT_LABEL[rec.verdict];
   const cur = country === 'IN' ? 'INR' : 'USD';
+  const target = loans[rec.target_loan_index];
 
   function plan() {
     // Logs the recommendation against the chosen debt as a partial/full payoff.
-    const target = loans[rec.target_loan_index];
     const sched = target?.scheduled_emi || '0';
     const proceeds = new Decimal(rec.proceeds.net_proceeds);
     const outstandingD = new Decimal(target?.outstanding || '0');
@@ -205,7 +200,7 @@ function RecCard({
         ? proceeds.toFixed(2)
         : String(Number(sched) + Number(rec.proceeds.net_proceeds)),
       scheduledEmi: sched,
-      note: `Asset sold (${rec.asset_label}) — ${formatCurrency(rec.proceeds.net_proceeds, cur)} → ${target?.bank ?? 'loan'}`,
+      note: `Asset sold (${rec.asset_label}): ${formatCurrency(rec.proceeds.net_proceeds, cur)} paid to the ${target ? loanName(target) : 'loan'}`,
       loans,
       country,
     });
@@ -213,105 +208,64 @@ function RecCard({
   }
 
   return (
-    <div
-      style={{
-        border: `1px solid ${color}`,
-        borderRadius: 8,
-        padding: 14,
-        background: 'var(--canvas)',
-        display: 'flex', flexDirection: 'column', gap: 10,
-      }}
-    >
+    <div style={{ border: `1px solid ${L_T.ruleSoft}`, borderLeft: `3px solid ${color}`, padding: 'clamp(10px, 2vw, 14px)', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ fontWeight: 600 }}>
-          {rec.asset_label} → {rec.target_loan_label}
+        <div style={{ fontWeight: 700 }}>
+          {rec.asset_label} → {target ? loanLabel(target) : rec.target_loan_label}
         </div>
-        <div style={{ color, fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
-          {label}
-        </div>
+        <div style={{ color, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</div>
       </div>
 
-      <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
-        {rec.proceeds.explanation}
-      </p>
+      <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>{rec.proceeds.explanation}</p>
 
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10,
-      }}>
-        <MiniStat label="Net proceeds"  value={formatCurrency(rec.proceeds.net_proceeds, cur)} />
-        <MiniStat label="Debt cleared"  value={formatCurrency(rec.debt_cleared_amount, cur)} />
-        <MiniStat label="Interest saved (yr 1)"
-                  value={formatCurrency(rec.interest_saved_yr1_nominal, cur)} />
-        <MiniStat label="Net annual benefit"
-                  value={formatCurrency(rec.net_annual_benefit_nominal, cur)}
-                  color={Number(rec.net_annual_benefit_nominal) > 0 ? 'var(--positive)' : 'var(--negative)'} />
-      </div>
+      <LKpi
+        items={[
+          { l: 'YOU GET', v: formatCurrency(rec.proceeds.net_proceeds, cur), s: 'after tax and costs' },
+          { l: 'CLEARS', v: formatCurrency(rec.debt_cleared_amount, cur) },
+          { l: 'INTEREST SAVED', v: formatCurrency(rec.interest_saved_yr1_nominal, cur), s: 'in the first year' },
+          {
+            l: 'GAIN A YEAR',
+            v: formatCurrency(rec.net_annual_benefit_nominal, cur),
+            tone: Number(rec.net_annual_benefit_nominal) > 0 ? L_T.positive : L_T.negative,
+          },
+        ]}
+      />
 
       {rec.proceeds.caveats.length > 0 && (
-        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--muted-ink, #666)' }}>
-          {rec.proceeds.caveats.map((c, i) => <li key={i} style={{ marginBottom: 2 }}>{c}</li>)}
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: L_T.muted }}>
+          {rec.proceeds.caveats.map((c, i) => <li key={i}>{c}</li>)}
         </ul>
       )}
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 2 }}>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
         {isLive && !applied && (
           <button
+            type="button"
             onClick={plan}
-            className="btn btn-primary"
-            style={{ padding: '6px 12px', fontSize: 13 }}
+            style={{ background: L_T.ink, color: L_T.bg, border: 'none', padding: '9px 14px', font: 'inherit', fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}
           >
-            Apply — log payoff to {loans[rec.target_loan_index]?.bank ?? 'loan'}
+            [ I sold it · log it on the {target ? loanName(target) : 'loan'} ]
           </button>
         )}
         {applied && (
-          <span className="muted" style={{ fontSize: 12, color: 'var(--positive)' }}>
-            ✓ Logged to your activity ledger
+          <span role="status" style={{ fontSize: 12, color: L_T.positive }}>
+            Logged. <a href="/activity" style={{ color: L_T.accent }}>[ACTIVITY →]</a>
           </span>
         )}
-        {onDrillIn && (
-          <button
-            onClick={() => onDrillIn(rec)}
-            style={{
-              padding: '6px 10px', borderRadius: 6,
-              border: '1px solid var(--border)', background: 'transparent',
-              color: 'var(--ink)', cursor: 'pointer', fontSize: 12,
-            }}
-          >
-            Open in sandbox
-          </button>
-        )}
+        {onDrillIn && <LBracket onClick={() => onDrillIn(rec)}>WORK IT OUT BELOW ↓</LBracket>}
       </div>
     </div>
   );
 }
 
-function SkippedRow({ rec, country }: { rec: LiquidationRecommendation; country: 'IN' | 'US' }) {
+function SkippedRow({ rec, country, loan }: { rec: LiquidationRecommendation; country: 'IN' | 'US'; loan?: UserPayload['loans'][number] }) {
   const cur = country === 'IN' ? 'INR' : 'USD';
   return (
-    <div style={{
-      border: '1px solid var(--border)', borderRadius: 6,
-      padding: '8px 12px', fontSize: 12,
-      display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
-    }}>
-      <span>
-        <strong>{rec.asset_label}</strong> → {rec.target_loan_label}
+    <li style={{ borderTop: `1px dashed ${L_T.ruleSoft}`, padding: '8px 0', fontSize: 12, lineHeight: 1.55 }}>
+      <strong>{rec.asset_label}</strong> → {loan ? loanLabel(loan) : rec.target_loan_label}
+      <span style={{ color: L_T.muted }}>
+        {' '}· {rec.skip_reason ?? 'Skipped'} · loan {formatPct(rec.debt_effective_rate)}, asset {formatPct(rec.asset_return_pct)} · {formatCurrency(rec.net_annual_benefit_nominal, cur)} a year
       </span>
-      <span className="muted" style={{ flex: '1 1 200px' }}>
-        {rec.skip_reason ?? 'Skipped'}
-        {' '}· debt {formatPct(rec.debt_effective_rate)} vs asset {formatPct(rec.asset_return_pct)}
-        {' '}· would net {formatCurrency(rec.net_annual_benefit_nominal, cur)}/yr
-      </span>
-    </div>
-  );
-}
-
-function MiniStat({ label, value, color = 'var(--ink)' }: {
-  label: string; value: string; color?: string;
-}) {
-  return (
-    <div>
-      <div className="muted" style={{ fontSize: 11 }}>{label}</div>
-      <div className="num" style={{ fontSize: 15, fontWeight: 600, color }}>{value}</div>
-    </div>
+    </li>
   );
 }
