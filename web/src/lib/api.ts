@@ -1139,9 +1139,19 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+function accountHeaders(path: string): Record<string, string> {
+  if (path === '/api/user/state' && typeof window !== 'undefined') {
+    try {
+      const account = localStorage.getItem('finoptima_account_id');
+      if (account) return { 'X-Account-Id': account };
+    } catch { /* Browser storage may be unavailable. */ }
+  }
+  return {};
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(endpoint(path), {
-    headers: serverHeaders(),
+    headers: { ...serverHeaders(), ...accountHeaders(path) },
     cache: 'no-store',
     credentials: 'include',
   });
@@ -1152,7 +1162,7 @@ async function get<T>(path: string): Promise<T> {
 async function putJson<T>(path: string, body: unknown, method: 'PUT' | 'PATCH' = 'PUT'): Promise<T> {
   const res = await fetch(endpoint(path), {
     method,
-    headers: { 'Content-Type': 'application/json', ...serverHeaders() },
+    headers: { 'Content-Type': 'application/json', ...serverHeaders(), ...accountHeaders(path) },
     body: JSON.stringify(body),
     cache: 'no-store',
     credentials: 'include',

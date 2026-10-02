@@ -24,6 +24,8 @@ async function proxy(req: NextRequest, context: { params: { path: string[] } }):
   if (req.method !== 'GET') headers.set('Content-Type', 'application/json');
   const token = req.cookies.get('finoptima_session')?.value;
   if (token) headers.set('Cookie', `finoptima_session=${token}`);
+  const expectedAccount = req.headers.get('x-account-id');
+  if (path === 'user/state' && expectedAccount) headers.set('X-Account-Id', expectedAccount);
   // Never send INTERNAL_API_TOKEN: it would bypass the OTP rate limits.
   const base = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
   try {

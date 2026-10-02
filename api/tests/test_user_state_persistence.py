@@ -77,3 +77,15 @@ def test_state_is_owned_by_signed_in_user_and_unauthenticated_writes_fail(state_
     assert state_client.get('/api/user/state', headers=a).json()['data']['profile']['name'] == 'A'
     assert state_client.patch('/api/user/state', json={'data': {'profile': {}}}).status_code == 401
     assert state_client.get('/api/user/state').status_code == 401
+
+
+@pytest.mark.parametrize('method', ['get', 'patch', 'put'])
+def test_stale_browser_account_cannot_write_to_current_cookie_account(state_client, method):
+    a = {'x-test-user': 'A'}
+    state_client.patch('/api/user/state', headers=a, json={'data': {'profile': {'name': 'A'}}})
+    response = getattr(state_client, method)(
+        '/api/user/state', headers={**a, 'x-account-id': str(uuid.uuid4())},
+        **({} if method == 'get' else {'json': {'data': {'profile': {'name': 'wrong-account'}}}}),
+    )
+    assert response.status_code == 409
+    assert state_client.get('/api/user/state', headers=a).json()['data']['profile']['name'] == 'A'

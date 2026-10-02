@@ -77,4 +77,23 @@ by these local tests or by a successful deployment.
 Exchange rates saved in Profile remain explicit plan assumptions. The NRI tool
 fetches a current quote independently; a live quote does not silently overwrite
 the user's stored plan assumptions. Concurrent edits of the same state slice still
-use last-save-wins; failed network writes currently retain browser data only.
+use last-save-wins.
+
+## Live-account follow-up
+
+- Real OTP delivery to the owner Gmail, sign-in, trial-profile migration and a
+  reload with the synthetic INR 200,000 card balance were verified on Render.
+- Session-change events refresh the header immediately after sign-in. Failed
+  sign-out leaves the account and cache intact and displays an error.
+- Failed slice writes are retained in an account-specific localStorage queue,
+  retried on reload/reconnection or with Retry save, and flushed before logout
+  or server hydration. Storage quota failure keeps an in-memory retry and warns
+  the user to keep the tab open; it cannot promise recovery after closing it.
+- Browser state requests send an expected account ID. GET, PUT and PATCH reject
+  a mismatched session identity, preventing a cookie/account-switch race.
+- Hydration also checks for edits made during deferred digest imports.
+- Restructuring cards explicitly identify current-balance estimates; paying a
+  card off sooner reduces the advertised balance-transfer saving.
+- Local tests exercise retry after module reload, interrupted saves, new edits
+  during an in-flight save, quota failure, account isolation, auth-change events
+  and unsuccessful logout. These are not a substitute for live persistence tests.

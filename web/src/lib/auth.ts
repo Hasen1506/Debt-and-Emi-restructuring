@@ -13,8 +13,9 @@
  * provider.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { api, type AuthUser } from '@/lib/api';
+import { notifySessionChanged, SESSION_CHANGED_EVENT } from './session-events';
 
 export type SessionState =
   | { status: 'loading'; user: null }
@@ -23,28 +24,38 @@ export type SessionState =
 
 export function useSession(): SessionState & { refresh: () => Promise<void>; logout: () => Promise<void> } {
   const [state, setState] = useState<SessionState>({ status: 'loading', user: null });
+  const requestVersion = useRef(0);
 
   async function refresh() {
+    const version = ++requestVersion.current;
     try {
       const user = await api.me();
-      setState({ status: 'authed', user });
+      if (version === requestVersion.current) setState({ status: 'authed', user });
     } catch {
-      setState({ status: 'anon', user: null });
+      if (version === requestVersion.current) setState({ status: 'anon', user: null });
     }
   }
 
   async function logout() {
-    try {
-      await api.logout();
-      const { clearAccountCache } = await import('./server-sync');
-      clearAccountCache();
-    } finally {
-      setState({ status: 'anon', user: null });
-    }
+    const { clearAccountCache, flushPendingState } = await import('./server-sync');
+    if (!await flushPendingState()) throw new Error('Your changes have not reached your account. Retry saving before signing out.');
+    await api.logout();
+    clearAccountCache();
+    setState({ status: 'anon', user: null });
+    notifySessionChanged();
   }
 
   useEffect(() => {
     void refresh();
+    const accountChanged = (event: StorageEvent) => {
+      if (event.key === 'finoptima_account_id') void refresh();
+    };
+    window.addEventListener(SESSION_CHANGED_EVENT, refresh);
+    window.addEventListener('storage', accountChanged);
+    return () => {
+      window.removeEventListener(SESSION_CHANGED_EVENT, refresh);
+      window.removeEventListener('storage', accountChanged);
+    };
   }, []);
 
   return { ...state, refresh, logout };

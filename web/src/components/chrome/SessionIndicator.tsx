@@ -11,6 +11,7 @@
  */
 import { useRouter, usePathname } from 'next/navigation';
 import { useSession } from '@/lib/auth';
+import { useState } from 'react';
 
 const TEXT: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
@@ -22,6 +23,8 @@ export function SessionIndicator() {
   const session = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const [error, setError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   if (session.status === 'loading') return null;
 
@@ -35,9 +38,15 @@ export function SessionIndicator() {
   }
 
   async function onSignOut() {
-    await session.logout();
-    router.push('/login');
-    router.refresh();
+    setSigningOut(true);
+    setError(null);
+    try {
+      await session.logout();
+      router.push('/login');
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign-out failed. Please try again.');
+    } finally { setSigningOut(false); }
   }
 
   const label = session.user.display_name || session.user.email;
@@ -54,11 +63,13 @@ export function SessionIndicator() {
       <button
         type="button"
         onClick={onSignOut}
+        disabled={signingOut}
         className="l-hit"
         style={{ ...TEXT, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)' }}
       >
-        [SIGN OUT]
+        {signingOut ? '[SAVING…]' : '[SIGN OUT]'}
       </button>
+      {error && <span role="alert" style={{ letterSpacing: 0, color: 'var(--negative)' }}>{error}</span>}
     </span>
   );
 }

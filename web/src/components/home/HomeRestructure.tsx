@@ -59,7 +59,8 @@ export function HomeRestructure({
         <span id="home-cheaper">Cheaper rates · {opportunities.length}</span>
       </LSectionHeader>
       <p style={{ margin: '0 0 10px', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
-        Move a loan to a lower rate before paying it off faster. Savings are after any fee.
+        Rate comparison estimates use today&apos;s outstanding balances and include fees.
+        Paying balances down reduces these savings; they are not the savings from your payoff schedule.
       </p>
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: `2px solid ${L_T.ink}` }}>
         {opportunities.map((o, i) => {
@@ -100,7 +101,7 @@ export function HomeRestructure({
                 <div style={{ fontWeight: 700, fontSize: 14, color: saving > 0 ? L_T.positive : L_T.negative }}>
                   {fc(o.estimated_annual_saving)}
                 </div>
-                <div style={{ fontSize: 10, color: L_T.muted }}>IN YEAR 1</div>
+                <div style={{ fontSize: 10, color: L_T.muted }}>YEAR 1 ESTIMATE</div>
               </div>
               <div style={{ gridColumn: '2 / -1' }}>
                 <LBracket

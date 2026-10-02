@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,7 +40,10 @@ class UserStateIn(BaseModel):
 async def get_state(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(current_user)],
+    x_account_id: Annotated[str | None, Header()] = None,
 ) -> UserStateOut:
+    if x_account_id is not None and x_account_id != str(user.id):
+        raise HTTPException(409, 'The signed-in account changed. Reload before saving.')
     res = await db.execute(select(UserState).where(UserState.user_id == user.id))
     row = res.scalar_one_or_none()
     if row is None:
@@ -56,7 +59,10 @@ async def patch_state(
     payload: UserStateIn,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(current_user)],
+    x_account_id: Annotated[str | None, Header()] = None,
 ) -> UserStateOut:
+    if x_account_id is not None and x_account_id != str(user.id):
+        raise HTTPException(409, 'The signed-in account changed. Reload before saving.')
     # Lock the user even when no state row exists yet. Two devices saving
     # different slices must merge against the latest committed state.
     await db.execute(select(User).where(User.id == user.id).with_for_update())
@@ -77,7 +83,10 @@ async def put_state(
     payload: UserStateIn,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(current_user)],
+    x_account_id: Annotated[str | None, Header()] = None,
 ) -> UserStateOut:
+    if x_account_id is not None and x_account_id != str(user.id):
+        raise HTTPException(409, 'The signed-in account changed. Reload before saving.')
     await db.execute(select(User).where(User.id == user.id).with_for_update())
     res = await db.execute(select(UserState).where(UserState.user_id == user.id))
     row = res.scalar_one_or_none()
