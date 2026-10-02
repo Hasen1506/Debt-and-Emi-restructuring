@@ -313,3 +313,17 @@ Reproduced with a new user: ₹1.5L take-home, ₹60k spending, a ₹2L personal
 | F5 | Plan takes seconds to load | Not the engine (about 50 ms for all calls) or the page (0.05–0.6 s warm): both free-plan services sleep after 15 minutes | Owner decision: an always-on plan for the API at least |
 | — | Spare cash said "emergency fund = full" with no fund set | — | Says none is set |
 
+### Walking every page as a user
+
+The owner asked for a pass as a user: does each section say what it is, and does any link strand you? Findings and fixes:
+
+| # | What was confusing | Fix |
+|---|---|---|
+| U1 | Plan's pay-rise link opened one Profile section with no way to see the rest or go back | Profile shows "← Back to Plan" (or wherever you came from), a strip of every part (edits carry across), and the link lands on the hike field. Banks moved to the Savings part, where the summary lists them |
+| U2 | "$" before every heading read as dollars on a rupee plan; "OCT 26" read as 26 October; "STMT #1138" meant nothing; "Avalanche" didn't say what it switches; "[IN · ₹]" did nothing | Prompt glyph gone; months read OCT 2026 (OCT '26 on the chart axis); STMT and "/ LEDGER" gone; the switch is labelled PAYOFF ORDER; the pin says INDIA · ₹ and opens Profile |
+| U3 | Activity listed the card at its ₹4,000 minimum while Home said to pay ₹80,500; its PAID / OTHER were small brackets | Activity takes the plan's own payment for the month (same cached run as Home) and records it as Home does; same big buttons |
+| U4 | "Open positions" is trading talk; the card-balance reminder floated between two sections and said "(never)" | Your loans and cards, with where the numbers come from; the reminder sits inside it and says "not updated since you added it" |
+| U5 | Plan's "Cash flow restoring soon" said ₹9,500 comes back "in 3 months" beside a KPI saying 4 months, and urged "pre-decide" with jargon buttons (Goal SIP, Boost EF) | "After your last payment": names the month and the whole ₹90,000 a month now going to debts; offers Save for a goal / Set an emergency fund / Try it in What if, without telling the user which |
+| U6 | Goal priority "Save for it first" read as before debts | "Against your other goals: Before the others / Soonest date first"; "start from a plan" is "start from a template" |
+| U7 | Tools hard to notice (small OPEN at the far right, a 10px "[← ALL TOOLS]") | Whole-row links on Goals with each tool's name; Home ends with "Something came up?" listing every question; each tool ends with the other tools. This brings back a tools list on Home, which the redesign had removed |
+
