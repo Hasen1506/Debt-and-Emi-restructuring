@@ -5,9 +5,9 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R5 · Goals & Tools, Windfall (R5.1–R5.4 done; R5.5 four of seven tools done; R5.6 left)
+- **Phase in progress:** R5 · Goals & Tools, Windfall (R5.1–R5.4 done; R5.5 three of seven tools done; R5.6 left)
 - **Last finished step:** R5.5 Loan check (PR #12). Before it this session: the capitals pass (one rule, see **Capitals and wording**), `components/ledger/LToolSteps`, Invest or prepay, NRI prepay, and the shared tool buttons in `ToolPrimitives` (SubmitBar, Apply, Add to profile, Stat, VerdictHeader) plus the global `.btn`
-- **Next step:** R5.5 for the last three tools: `liquidate` (prefill taxable income), `new-debt` (prefill savings, credit score), `purchase`, `right-time`. Same pattern as `invest-vs-prepay/tool.tsx`: `LSteps` › `LStep no="01"` (chips for a saved loan, a one-line summary with [EDIT], `kind="money"` amounts, extras under + MORE) › `LStep no="02" answer` (`LVerdict` sentence, `LNote`, `LKpi`) › `LMathBlock`. Test with `$S/pw/r55.mjs` (env TOOL, ACT, PROFS, WS). Then R5.6 (tool heights), tick R5.5, merge #12
+- **Next step:** R5.5 for the last four tools: `liquidate` (prefill taxable income), `new-debt` (prefill savings, credit score), `purchase`, `right-time`. Same pattern as `invest-vs-prepay/tool.tsx`: `LSteps` › `LStep no="01"` (chips for a saved loan, a one-line summary with [EDIT], `kind="money"` amounts, extras under + MORE) › `LStep no="02" answer` (`LVerdict` sentence, `LNote`, `LKpi`) › `LMathBlock`. Test with `$S/pw/r55.mjs` (env TOOL, ACT, PROFS, WS). Then R5.6 (tool heights), tick R5.5, merge #12
 - **Open PR:** #12 · `claude/vibrant-bardeen-5bsiyj` (draft; merge when R5 is done and CI is green, then restart the branch from `main`)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
