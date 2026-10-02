@@ -9,6 +9,7 @@
 import { loadCurrentProfileServer } from '@/lib/user-store';
 import { api } from '@/lib/api';
 import { GoalsPage as GoalLedger } from '@/components/goals/GoalsPage';
+import { ToolsList } from '@/components/goals/ToolsList';
 import { LShell } from '@/components/ledger/primitives';
 
 export const dynamic = 'force-dynamic';
@@ -36,7 +37,10 @@ export default async function GoalsPage() {
   return (
     <LShell>
       <h1 className="sr-only">Goals and tools</h1>
-      <GoalLedger user={profile.user} lowestRates={rates} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
+        <GoalLedger user={profile.user} lowestRates={rates} />
+        <ToolsList user={profile.user} />
+      </div>
     </LShell>
   );
 }

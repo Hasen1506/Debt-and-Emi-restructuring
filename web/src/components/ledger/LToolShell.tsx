@@ -49,9 +49,16 @@ export function LToolHeader({
           letterSpacing: '0.18em',
           color: L_T.muted,
           marginBottom: 14,
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
         }}
       >
-        $ {name.toUpperCase()} · {date.toUpperCase()}
+        <span>$ {name.toUpperCase()} · {date.toUpperCase()}</span>
+        <a href="/goals#tools" style={{ color: L_T.muted, letterSpacing: '0.14em', fontSize: 10, textDecoration: 'none' }}>
+          [← ALL TOOLS]
+        </a>
       </div>
       <h1
         style={{

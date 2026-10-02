@@ -23,90 +23,84 @@ export interface ToolMeta {
   /** Countries the tool works for; all when absent. Home hides a tool
    *  that doesn't cover the user's country, and /tools marks it. */
   countries?: readonly Country[];
+  /** Only for someone in the US with loans in India. */
+  nriOnly?: boolean;
 }
 
 export const TOOLS: ToolMeta[] = [
   {
-    id: 'loan-check',
-    tag: 'LC',
-    name: 'Loan check',
-    question: 'Is my bank passing on rate cuts?',
-    sub: 'Compares your home-loan rate with every RBI repo move since you borrowed.',
-    href: '/tools/loan-check',
-    // Indian floating-rate home loans against RBI repo moves only.
-    countries: ['IN'],
-  },
-  {
     id: 'windfall',
     tag: '8a',
     name: 'Spare cash',
-    question: 'Got a bonus, or savings sitting idle?',
-    sub: 'Splits it between your emergency fund and the right loan, and says where to park the rest.',
+    question: 'Got a bonus or spare cash?',
+    sub: 'Splits it across your loans, emergency fund and goals, the best way or your way.',
     href: '/tools/windfall',
   },
   {
     id: 'new-debt',
     tag: '8b',
     name: 'New debt check',
-    question: 'Should I take this EMI?',
-    sub: 'Tells you, before signing, if it breaks the plan.',
+    question: 'Should I take this new loan or EMI?',
+    sub: 'Checks it against your plan before you sign.',
     href: '/tools/new-debt',
+  },
+  {
+    id: 'purchase',
+    tag: '8g',
+    name: 'Big purchase',
+    question: 'Planning a big purchase?',
+    sub: 'What it really costs, and how to fit it into the plan.',
+    href: '/tools/purchase',
   },
   {
     id: 'liquidate',
     tag: '8c',
-    name: 'Liquidate',
-    question: 'Sell an asset to clear debt?',
-    sub: 'After-tax yield vs highest effective APR.',
+    name: 'Sell to repay',
+    question: 'Should I sell something to clear a loan?',
+    sub: 'What it earns after tax against what the loan costs.',
     href: '/tools/liquidate',
+  },
+  {
+    id: 'invest-vs-prepay',
+    tag: '8h',
+    name: 'Invest or prepay',
+    question: 'Invest the money, or prepay a loan?',
+    sub: 'Shares or funds in a normal and a bad year, against the loan’s rate.',
+    href: '/tools/invest-vs-prepay',
   },
   {
     id: 'right-time',
     tag: '8f',
-    name: 'Right-time',
-    question: 'Wait or borrow now?',
-    sub: 'Reads RBI / Fed path. Is your rate likely to fall?',
+    name: 'Right time',
+    question: 'Borrow now, or wait for rates to fall?',
+    sub: 'Where the central bank’s rate is heading, and what waiting costs.',
     href: '/tools/right-time',
+  },
+  {
+    id: 'loan-check',
+    tag: 'LC',
+    name: 'Loan check',
+    question: 'Is my bank passing on rate cuts?',
+    sub: 'Your home-loan rate against every RBI repo move since you borrowed.',
+    href: '/tools/loan-check',
+    // Indian floating-rate home loans against RBI repo moves only.
+    countries: ['IN'],
   },
   {
     id: 'nri-prepay',
     tag: 'FX',
     name: 'NRI prepay',
-    question: 'Loan abroad, savings here?',
-    sub: 'Adjusts for FX drift, repatriation, tax both sides.',
+    question: 'Loan in India, savings abroad?',
+    sub: 'Prepay or keep the dollars, after exchange-rate drift and tax on both sides.',
     href: '/tools/nri-prepay',
-  },
-  {
-    id: 'purchase',
-    tag: '8g',
-    name: 'Purchase advisor',
-    question: 'Planning a big buy?',
-    sub: 'TCO + 3 levers when the plan is tight.',
-    href: '/tools/purchase',
-  },
-  {
-    id: 'invest-vs-prepay',
-    tag: '8h',
-    name: 'Invest vs prepay',
-    question: 'Variable-return option?',
-    sub: 'Equity / MF deep-dive — expected vs downside.',
-    href: '/tools/invest-vs-prepay',
+    nriOnly: true,
   },
 ];
 
-/** Whether a tool covers users in `country`. */
-export function toolCovers(tool: ToolMeta, country: Country): boolean {
-  return !tool.countries || tool.countries.includes(country);
-}
-
-/** The tools that cover users in `country`, in order. */
-export function toolsFor(country: Country): ToolMeta[] {
-  return TOOLS.filter((t) => toolCovers(t, country));
-}
-
-const COUNTRY_NAME: Record<Country, string> = { IN: 'India', US: 'US' };
-
-/** "INDIA ONLY" for a tool that covers one country. */
-export function toolCoverageLabel(tool: ToolMeta): string {
-  return `${(tool.countries ?? []).map((c) => COUNTRY_NAME[c]).join(' + ').toUpperCase()} ONLY`;
+/** The tools that apply to this person, in order: a tool for one
+ *  country only, or for NRIs only, is left out for everyone else. */
+export function toolsFor(user: { country: Country; is_nri_us?: boolean }): ToolMeta[] {
+  return TOOLS.filter(
+    (t) => (!t.countries || t.countries.includes(user.country)) && (!t.nriOnly || user.is_nri_us === true),
+  );
 }
