@@ -350,7 +350,7 @@ def evaluate_new_debt(
     paid = emi_offer_monthly_payment * emi_offer_months + processing_fee
     total_real_cost = max(D("0"), paid - cash_equivalent).quantize(D("1"), rounding=ROUND_HALF_UP)
     apr = _effective_apr_for_emi(emi_offer_monthly_payment, emi_offer_months, cash_equivalent - processing_fee)
-    apr_text = "over 1000%" if apr >= MAX_APR else f"≈ {apr*100:.1f}%"
+    apr_text = "over 1000%" if apr >= MAX_APR else f"about {apr*100:.1f}%"
     cost = money(total_real_cost, country)
 
     can_pay_cash = user_savings_after_efund >= cash_equivalent
@@ -358,7 +358,7 @@ def evaluate_new_debt(
     emi_text = money(emi_offer_monthly_payment, country)
     if can_pay_cash and apr > D("0.10"):
         verdict = "pay_cash"
-        detail = f"Real APR {apr_text}. Paying cash saves {cost} over the EMI plan."
+        detail = f"Borrowing really costs {apr_text} a year. Paying cash saves {cost}."
     elif not fits:
         room = max(D("0"), monthly_room)
         room_text = (
@@ -381,18 +381,19 @@ def evaluate_new_debt(
             )
     elif apr > D("0.20"):
         verdict = "delay"
-        detail = f"Real APR {apr_text}: too costly. Save up first; the EMI plan costs {cost} more than cash."
+        detail = f"Borrowing really costs {apr_text} a year: too dear. Save up first; the loan costs {cost} more than cash."
     else:
         verdict = "take"
         budget = (
-            "if the budget allows" if monthly_room is None else
-            f"it leaves {money(monthly_room - emi_offer_monthly_payment, country)} a month after your costs and payments"
+            "Check the EMI fits your budget." if monthly_room is None else
+            f"The {emi_text} EMI leaves {money(monthly_room - emi_offer_monthly_payment, country)} "
+            f"a month after your costs and payments."
         )
         detail = (
-            f"Real APR {apr_text}. Acceptable; take the EMI: {budget}. "
+            f"Borrowing really costs {apr_text} a year, which is reasonable. {budget} "
             f"It costs {cost} more than paying cash."
             if total_real_cost > 0 else
-            f"Real APR {apr_text}. The EMI plan costs no more than paying cash; take it: {budget}."
+            f"Borrowing costs no more than paying cash. {budget}"
         )
 
     return NewDebtVerdict(
