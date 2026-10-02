@@ -12,7 +12,9 @@
  */
 import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
-import type { PlanRunArgs, UserPayload } from '@/lib/api';
+import { formatCurrencyWhole, type PlanRunArgs, type UserPayload } from '@/lib/api';
+import type { RolledLoan } from '@/lib/roll-forward';
+import { loanCurrency } from '@/lib/currency';
 import type { StrategyName } from '@/lib/strategy';
 import {
   addActivityEntry,
@@ -32,12 +34,24 @@ import {
 } from '@/lib/monthly-spend';
 import { addLifecycleEvent, readLifecycleClient, writeLifecycleClient, type LifecycleEvent } from '@/lib/lifecycle-events';
 import { commitLifecycle } from '@/lib/commit-lifecycle';
+import { readDecisionsClient as readPlanDecisions, type DecisionEntry as PlanDecision } from '@/lib/decisions';
+import { undoPlanDecision } from '@/lib/decision-undo';
+import {
+  deleteDecision,
+  readDecisionsClient as readRecommendations,
+  reconcileDecision,
+  writeDecisionsClient as writeRecommendations,
+  type DecisionEntry as Recommendation,
+} from '@/lib/decision-log';
+import { readExpenseCommits, undoExpenseCommit } from '@/lib/expense-commit';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { getCountryToday, localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
 import { useWidth } from '@/lib/use-width';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
-import { buildHistory, type HistoryRow, type MonthGroup, type Tone } from './history';
+import { buildHistory, loanLabel, monthLabel, type HistoryRow, type MonthGroup, type Tone } from './history';
 import { LogDialog, type LogInitial, type LogSave } from './LogDialog';
+
+type Act = 'paid' | 'other' | 'edit' | 'undo' | 'happened' | 'held';
 
 const TONE: Record<Tone, string> = {
   positive: L_T.positive,
@@ -51,10 +65,13 @@ export function ActivityPage({
   user,
   runArgs,
   strategy,
+  rolled = [],
 }: {
   user: UserPayload;
   runArgs: PlanRunArgs | null;
   strategy: StrategyName;
+  /** EMI loans whose entered balance the plan moved on (lib/roll-forward). */
+  rolled?: RolledLoan[];
 }) {
   const router = useRouter();
   const [refreshing, startTransition] = useTransition();
@@ -63,6 +80,8 @@ export function ActivityPage({
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [spend, setSpend] = useState<MonthlySpendEntry[]>([]);
   const [life, setLife] = useState<LifecycleEvent[]>([]);
+  const [decisions, setDecisions] = useState<PlanDecision[]>([]);
+  const [cuts, setCuts] = useState<Recommendation[]>([]);
   const [dialog, setDialog] = useState<LogInitial | null>(null);
   const [said, setSaid] = useState('');
   const [error, setError] = useState('');
@@ -75,6 +94,8 @@ export function ActivityPage({
       setEntries(alignToLoans(readActivityClient(), user.loans));
       setSpend(readMonthlySpendClient());
       setLife(readLifecycleClient());
+      setDecisions(readPlanDecisions());
+      setCuts(readExpenseCommits());
     };
     read();
     setReady(true);
@@ -99,8 +120,8 @@ export function ActivityPage({
     [entries, user.loans.length],
   );
   const months = useMemo(
-    () => buildHistory({ user, entries: valid, spend, life, today }),
-    [user, valid, spend, life, today],
+    () => buildHistory({ user, entries: valid, spend, life, decisions, cuts, today }),
+    [user, valid, spend, life, decisions, cuts, today],
   );
   // The two latest months start open; older ones folded.
   const isOpen = (m: MonthGroup, i: number) => open[m.month] ?? i < 2;
@@ -152,7 +173,7 @@ export function ActivityPage({
     }
   }
 
-  function act(row: HistoryRow, action: 'paid' | 'other' | 'edit' | 'undo' | 'happened') {
+  function act(row: HistoryRow, action: Act) {
     const r = row.ref;
     try {
       if (r.kind === 'due' && action === 'paid') {
@@ -176,6 +197,29 @@ export function ActivityPage({
         writeMonthlySpendClient(next);
         setSpend(next);
         setSaid('Spending entry removed.');
+      } else if (r.kind === 'decision') {
+        const d = decisions.find((x) => x.id === r.id);
+        if (d) {
+          setDecisions(undoPlanDecision(decisions, d));
+          rerun(`Undone: ${d.label}.`);
+        }
+      } else if (r.kind === 'cut') {
+        const c = cuts.find((x) => x.id === r.id);
+        if (!c) return;
+        if (action === 'held') {
+          const meta = c.recommendation.metadata ?? {};
+          writeRecommendations(
+            reconcileDecision(readRecommendations(), c.id, { actualDate: today, actualAmount: String(meta.monthlyDelta ?? c.recommendation.estimatedAmount) }),
+          );
+          setCuts(readExpenseCommits());
+          setSaid('Spending cut marked as held.');
+        } else {
+          // Spending goes back to what it was before the cut.
+          undoExpenseCommit(c);
+          writeRecommendations(deleteDecision(readRecommendations(), c.id));
+          setCuts(readExpenseCommits());
+          rerun('Spending cut undone; spending is back to what it was.');
+        }
       } else if (r.kind === 'life') {
         setLife(commitLifecycle(r.id, action === 'happened' ? 'confirmed' : 'planned'));
         rerun(action === 'happened' ? `${row.type.toLowerCase()} applied to your profile.` : `${row.type.toLowerCase()} undone; it’s planned again on Plan.`);
@@ -215,6 +259,23 @@ export function ActivityPage({
         <p style={{ margin: '0 0 8px', fontSize: 12, color: L_T.inkSoft, lineHeight: 1.6 }}>
           What you paid and what changed, by month. Each entry re-runs the plan from what really happened.
         </p>
+        {rolled.length > 0 && (
+          <p style={{ margin: '0 0 8px', fontSize: 11, color: L_T.muted, lineHeight: 1.6 }}>
+            Balances move on with the EMIs due since you entered them:{' '}
+            {rolled.map((r, i) => {
+              const loan = user.loans[r.index];
+              if (!loan) return null;
+              const ccy = loanCurrency(loan, user.country);
+              return (
+                <span key={r.index}>
+                  {i > 0 && '; '}
+                  {loanLabel(loan)} {formatCurrencyWhole(r.entered, ccy)} in {monthLabel(r.from)} → <strong style={{ color: L_T.ink }}>{formatCurrencyWhole(r.now, ccy)}</strong> after {r.months} EMI{r.months === 1 ? '' : 's'}
+                </span>
+              );
+            })}
+            . Update a balance in Profile if your statement says otherwise.
+          </p>
+        )}
         <p role="status" style={{ margin: 0, fontSize: 12, minHeight: said || refreshing ? undefined : 0, color: L_T.positive }}>
           {said}
           {refreshing && <span style={{ color: L_T.muted }}> Re-running the plan…</span>}
@@ -286,7 +347,7 @@ function Month({
   open: boolean;
   wide: boolean;
   onToggle: () => void;
-  onAct: (row: HistoryRow, action: 'paid' | 'other' | 'edit' | 'undo' | 'happened') => void;
+  onAct: (row: HistoryRow, action: Act) => void;
   onMarkAll: () => void;
 }) {
   const due = m.rows.filter((r) => r.pending);
@@ -365,7 +426,7 @@ function DateCell({ date, pending }: { date: string; pending?: boolean }) {
   );
 }
 
-function Actions({ r, onAct }: { r: HistoryRow; onAct: (row: HistoryRow, action: 'paid' | 'other' | 'edit' | 'undo' | 'happened') => void }) {
+function Actions({ r, onAct }: { r: HistoryRow; onAct: (row: HistoryRow, action: Act) => void }) {
   const what = `${r.target}, ${r.date}`;
   return (
     <span style={{ display: 'inline-flex', gap: 10, flexWrap: 'wrap' }}>
@@ -394,6 +455,23 @@ function Actions({ r, onAct }: { r: HistoryRow; onAct: (row: HistoryRow, action:
           UNDO
         </LBracket>
       )}
+      {r.ref.kind === 'decision' && r.ref.undoable && (
+        <LBracket onClick={() => onAct(r, 'undo')} label={`Undo ${r.target}`}>
+          UNDO
+        </LBracket>
+      )}
+      {r.ref.kind === 'cut' && (
+        <>
+          {!r.ref.held && (
+            <LBracket accent onClick={() => onAct(r, 'held')} label={`${r.target}: the cut held`}>
+              IT HELD
+            </LBracket>
+          )}
+          <LBracket onClick={() => onAct(r, 'undo')} label={`Undo the spending cut: ${r.target}`}>
+            UNDO
+          </LBracket>
+        </>
+      )}
       {r.ref.kind === 'life' &&
         (r.ref.due ? (
           <LBracket accent onClick={() => onAct(r, 'happened')} label={`${r.target}: it happened`}>
@@ -408,7 +486,7 @@ function Actions({ r, onAct }: { r: HistoryRow; onAct: (row: HistoryRow, action:
   );
 }
 
-function Row({ r, wide, onAct }: { r: HistoryRow; wide: boolean; onAct: (row: HistoryRow, action: 'paid' | 'other' | 'edit' | 'undo' | 'happened') => void }) {
+function Row({ r, wide, onAct }: { r: HistoryRow; wide: boolean; onAct: (row: HistoryRow, action: Act) => void }) {
   const rowStyle: CSSProperties = {
     padding: '9px 0',
     borderBottom: `1px dashed ${L_T.faint}`,

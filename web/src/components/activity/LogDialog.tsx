@@ -87,7 +87,12 @@ const SOURCES: { v: string; label: string }[] = [
 /** The plan's debt-free month and interest, for a run's arguments. */
 async function run(args: PlanRunArgs, strategy: StrategyName) {
   const r = await api.simulate({ ...args, strategy });
-  return { month: r.debt_free_month, interest: Number(r.total_interest_paid) };
+  return {
+    month: r.debt_free_month,
+    interest: Number(r.total_interest_paid),
+    /** What the plan pays above the minimums this month, in the user's currency. */
+    extraThisMonth: Number(r.trajectory.find((p) => p.month === 1)?.extra_paid ?? 0),
+  };
 }
 type RunResult = Awaited<ReturnType<typeof run>>;
 
@@ -172,8 +177,21 @@ export function LogDialog({
     return estimateLateFee({ loanType: loan.loan_type, country, bank: loan.bank, overdueAmount: unpaid, daysLate: days });
   }, [loan, unpaid, country, date, today]);
 
-  function paymentDraft(): Omit<ActivityEntry, 'id' | 'loggedAt'> {
+  // An extra from this month's spare cash is money the plan already pays
+  // on top of the minimums this month. That part waits until the month is
+  // over, as Home's MARK PAID does, so it isn't counted twice.
+  const fromSpareCash = status === 'extra' && source === 'surplus' && date.slice(0, 7) === today.slice(0, 7);
+  function plannedExtraFrom(base: RunResult | null): string | undefined {
+    if (!fromSpareCash || !base || !(base.extraThisMonth > 0)) return undefined;
+    const fx = Number(runArgs?.user.fx_to_user_currency?.[lccy] ?? 0);
+    const inLoanCcy = lccy === ccy ? base.extraThisMonth : fx > 0 ? base.extraThisMonth / fx : 0;
+    const held = Decimal.min(amt, new Decimal(inLoanCcy));
+    return held.gt(0) ? held.toFixed(0) : undefined;
+  }
+
+  function paymentDraft(base: RunResult | null = baseResult.current): Omit<ActivityEntry, 'id' | 'loggedAt'> {
     const kind = KIND_OF[status];
+    const plannedExtra = plannedExtraFrom(base);
     const paid = status === 'missed' ? new Decimal(0) : status === 'extra' ? planned.add(amt) : amt;
     return {
       loanIndex,
@@ -185,6 +203,7 @@ export function LogDialog({
       ...((status === 'part' || status === 'missed') && fee.trim() ? { penaltyOverride: fee.trim() } : {}),
       ...(card && newBalance.trim() ? { newOutstanding: newBalance.trim() } : {}),
       ...(status === 'extra' ? { source } : {}),
+      ...(plannedExtra ? { plannedExtra } : {}),
       ...(note.trim() ? { note: note.trim() } : {}),
     };
   }
@@ -200,50 +219,66 @@ export function LogDialog({
 
   // ── Preview ────────────────────────────────────────────────────────────
   const baseRef = useRef<Promise<RunResult> | null>(null);
-  const [preview, setPreview] = useState<{ before: RunResult; after: RunResult } | 'none' | 'loading' | 'error' | null>(null);
+  const baseResult = useRef<RunResult | null>(null);
+  const [preview, setPreview] = useState<{ before: RunResult; after: RunResult } | 'none' | 'held' | 'loading' | 'error' | null>(null);
 
-  /** The plan's arguments with this entry in them; null when it changes nothing. */
-  const changed = useMemo((): PlanRunArgs | 'same' | null => {
+  /** Builds the plan's arguments with this entry in them, given the plan as
+   *  it stands ('same' when the entry doesn't change it); null when there's
+   *  nothing to preview yet. */
+  const build = useMemo((): ((base: RunResult | null) => PlanRunArgs | 'same') | null => {
     if (!runArgs) return null;
     if (type === 'payment') {
       if (!payValid || edit) return null;
-      const draft = paymentDraft();
-      if (draft.kind === 'paid_full' && !draft.newOutstanding) return 'same';
-      const full = { ...draft, id: 'preview', loggedAt: new Date().toISOString() } as ActivityEntry;
-      const deltas = activityDeltas([full], runArgs.user.loans, country);
-      if (deltas.length === 0) return 'same';
-      const applied = applyActivityDeltas(runArgs.user.loans, deltas, countryMonthKey(country));
-      return { ...runArgs, user: { ...runArgs.user, loans: applied.loans } };
+      return (base) => {
+        const draft = paymentDraft(base);
+        if (draft.kind === 'paid_full' && !draft.newOutstanding) return 'same';
+        const full = { ...draft, id: 'preview', loggedAt: new Date().toISOString() } as ActivityEntry;
+        const deltas = activityDeltas([full], runArgs.user.loans, country);
+        const applied = applyActivityDeltas(runArgs.user.loans, deltas, countryMonthKey(country));
+        if (applied.loans.every((l, i) => l.outstanding === runArgs.user.loans[i].outstanding)) return 'same';
+        return { ...runArgs, user: { ...runArgs.user, loans: applied.loans } };
+      };
     }
     if (type === 'spending') {
       // This month's total is a record; it doesn't change the plan.
       if (spendMode === 'month' || spendProblem) return null;
-      return { ...runArgs, user: { ...runArgs.user, fixed_expenses: new Decimal(spent).toFixed(0), variable_expenses: '0' } };
+      const args = { ...runArgs, user: { ...runArgs.user, fixed_expenses: new Decimal(spent).toFixed(0), variable_expenses: '0' } };
+      return () => args;
     }
     if (!lifeDraft) return null;
     const event = { ...lifeDraft, id: 'preview', loggedAt: '' } as LifecycleEvent;
     if (lifeDraft.effectiveDate <= today) {
       try {
-        return { ...runArgs, user: applyConfirmedEvent(runArgs.user, event).user };
+        const args = { ...runArgs, user: applyConfirmedEvent(runArgs.user, event).user };
+        return () => args;
       } catch {
         return null;
       }
     }
     const planned = plannedEventsForEngine([event], today, runArgs.user.loans, runArgs.user);
-    return { ...runArgs, lifecycle_events: [...(runArgs.lifecycle_events ?? []), ...planned] };
+    const args = { ...runArgs, lifecycle_events: [...(runArgs.lifecycle_events ?? []), ...planned] };
+    return () => args;
     // paymentDraft reads the payment fields listed here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runArgs, type, payValid, edit, loanIndex, status, amount, date, newBalance, fee, source, spendMode, spent, spendProblem, lifeDraft, today, country]);
 
   useEffect(() => {
-    if (changed === null) return setPreview(null);
-    if (changed === 'same') return setPreview('none');
+    if (build === null) return setPreview(null);
+    // Without the spare-cash question, a payment the plan already counts needs no run.
+    if (!fromSpareCash && build(null) === 'same') return setPreview('none');
     setPreview('loading');
     let live = true;
     const timer = window.setTimeout(async () => {
       try {
         baseRef.current ??= run(runArgs!, strategy);
-        const [before, after] = await Promise.all([baseRef.current, run(changed, strategy)]);
+        const before = await baseRef.current;
+        baseResult.current = before;
+        const args = build(before);
+        if (args === 'same') {
+          if (live) setPreview(fromSpareCash ? 'held' : 'none');
+          return;
+        }
+        const after = await run(args, strategy);
         if (live) setPreview({ before, after });
       } catch {
         baseRef.current = null;
@@ -254,7 +289,7 @@ export function LogDialog({
       live = false;
       window.clearTimeout(timer);
     };
-  }, [changed, runArgs, strategy]);
+  }, [build, fromSpareCash, runArgs, strategy]);
 
   const when = (m: number | null) => (m ? monthIndexToCountryLabel(m, country).toUpperCase() : 'NEVER');
   const previewLine =
@@ -493,7 +528,7 @@ function Preview({
   line,
   ccy,
 }: {
-  state: { before: RunResult; after: RunResult } | 'none' | 'loading' | 'error' | null;
+  state: { before: RunResult; after: RunResult } | 'none' | 'held' | 'loading' | 'error' | null;
   line: { dm: number | null; di: number; text: string } | null;
   ccy: string;
 }) {
@@ -503,6 +538,12 @@ function Preview({
     <div aria-live="polite" style={{ padding: '10px 12px', border: `1px dashed ${L_T.ink}`, background: L_T.bg, fontSize: 11, lineHeight: 1.7 }}>
       <div style={{ fontSize: 9, letterSpacing: '0.14em', color: L_T.muted }}>WHAT IT DOES TO THE PLAN</div>
       {state === 'none' && <div>Nothing changes: the plan already counts this.</div>}
+      {state === 'held' && (
+        <div>
+          Nothing changes this month: the plan already puts this month’s spare cash on your loans. Paid to this loan, it comes off
+          its balance from next month.
+        </div>
+      )}
       {state === 'loading' && <div style={{ color: L_T.muted }}>Working it out…</div>}
       {state === 'error' && <div style={{ color: L_T.muted }}>Can’t work it out right now; saving still updates the plan.</div>}
       {typeof state === 'object' && line && (

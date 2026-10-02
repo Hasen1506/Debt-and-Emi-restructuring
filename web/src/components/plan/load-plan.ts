@@ -40,6 +40,7 @@ import { projectAnnualTaxSavings } from '@/lib/tax-projection';
 import { projectBracketTransitions } from '@/lib/bracket-transitions';
 import Decimal from 'decimal.js';
 import { countryMonthKey, getCountryMonth, getCountryToday, localIsoDate } from '@/lib/today';
+import { rollBalancesForward } from '@/lib/roll-forward';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import {
   applyActivityDeltas,
@@ -96,7 +97,9 @@ export async function loadPlanInputs(
   // to the user's loans BEFORE simulating. Baseline uses the same adjusted
   // loans so the avalanche-vs-minimums diff stays apples-to-apples.
   const deltas = await loadActivityDeltasServer();
-  const application = applyActivityDeltas(profile.user.loans, deltas, countryMonthKey(profile.user.country));
+  // Balances entered months ago move on by the EMIs due since (R4.5).
+  const { loans: rolledLoans, rolled } = rollBalancesForward(profile.user.loans, countryMonthKey(profile.user.country));
+  const application = applyActivityDeltas(rolledLoans, deltas, countryMonthKey(profile.user.country));
   // If the hike toggle is OFF, zero out `annual_hike_rate` so the engine
   // simulates flat income. The stored profile is untouched — toggling back
   // ON next render restores the user's configured rate.
@@ -346,6 +349,7 @@ export async function loadPlanInputs(
   };
   return {
     profile,
+    rolled,
     surplus,
     adjustedUser,
     application,

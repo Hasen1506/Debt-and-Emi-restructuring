@@ -6,6 +6,7 @@
 
 import type { PlanRunArgs, UserPayload } from '@/lib/api';
 import type { StrategyName } from '@/lib/strategy';
+import type { RolledLoan } from '@/lib/roll-forward';
 import { ActivityPage } from '@/components/activity/ActivityPage';
 import { LShell } from '@/components/ledger/primitives';
 
@@ -13,15 +14,17 @@ export function LedgerInsights({
   user,
   runArgs,
   strategy,
+  rolled,
 }: {
   user: UserPayload;
   runArgs: PlanRunArgs | null;
   strategy: StrategyName;
+  rolled: RolledLoan[];
 }) {
   return (
     <LShell>
       <div id="activity-ledger" style={{ flex: 1, padding: '4px 0 0', scrollMarginTop: 24 }}>
-        <ActivityPage user={user} runArgs={runArgs} strategy={strategy} />
+        <ActivityPage user={user} runArgs={runArgs} strategy={strategy} rolled={rolled} />
       </div>
     </LShell>
   );

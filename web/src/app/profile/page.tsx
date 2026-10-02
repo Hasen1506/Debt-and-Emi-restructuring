@@ -46,10 +46,12 @@ import {
 import { loanCurrency, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import {
   FY_ANCHOR_MONTH,
+  getCountryToday,
   MONTH_NAMES,
   localIsoDate,
 } from '@/lib/today';
 import { BALANCES_ENTERED_KEY } from '@/lib/activity';
+import { stampBalanceDates } from '@/lib/roll-forward';
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { api, formatCurrency, type FxRateResponse } from '@/lib/api';
 import { deriveTenureMonths } from '@/lib/derived';
@@ -665,8 +667,13 @@ function ProfileEditor({
     const resolvedMarginalRate = deductionDerived
       ? deductionDerived.toFixed(4)
       : (federalMarginal + stateRate).toFixed(4);
+    // A balance typed now is dated today; one left as it was keeps its date.
+    const stampedUser = {
+      ...userWithFx,
+      loans: stampBalanceDates(userWithFx.loans, loadProfileClient().user.loans, localIsoDate(getCountryToday(country))),
+    };
     const saved = saveProfileClient({
-      user: userWithFx,
+      user: stampedUser,
       marginalRate: resolvedMarginalRate,
       creditScore: Number.isFinite(score) && score >= 300 ? score : null,
     });

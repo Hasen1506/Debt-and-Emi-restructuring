@@ -10,10 +10,14 @@ import type { ActivityEntry } from '@/lib/activity';
 import { decorateEntry } from '@/lib/activity-derived';
 import type { LifecycleEvent } from '@/lib/lifecycle-events';
 import { latestByMonth, type MonthlySpendEntry } from '@/lib/monthly-spend';
+import { isWithinUndoWindow, type DecisionEntry as PlanDecision } from '@/lib/decisions';
+import { canUndoPlanDecision } from '@/lib/decision-undo';
+import type { DecisionEntry as Recommendation } from '@/lib/decision-log';
+import { staleExpenseCommits } from '@/lib/expense-commit';
 import { requiredMonthly } from '@/lib/min-payment';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
-import { MONTH_NAMES_SHORT } from '@/lib/today';
+import { localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
 import { LIFE_KIND_LABEL, lifeEventSummary } from '@/components/lifecycle/LifeEventForm';
 
 export type Tone = 'positive' | 'negative' | 'muted' | 'ink' | 'accent';
@@ -39,7 +43,9 @@ export interface HistoryRow {
     | { kind: 'entry'; id: string; loanIndex: number }
     | { kind: 'due'; loanIndex: number; amount: string; card: boolean }
     | { kind: 'spend'; month: string }
-    | { kind: 'life'; id: string; due: boolean };
+    | { kind: 'life'; id: string; due: boolean }
+    | { kind: 'decision'; id: string; undoable: boolean }
+    | { kind: 'cut'; id: string; held: boolean };
 }
 
 export interface MonthGroup {
@@ -129,12 +135,18 @@ export function buildHistory({
   entries,
   spend,
   life,
+  decisions = [],
+  cuts = [],
   today,
 }: {
   user: UserPayload;
   entries: ActivityEntry[];
   spend: MonthlySpendEntry[];
   life: LifecycleEvent[];
+  /** Plan choices (payoff order, emergency-fund share, goals…). */
+  decisions?: PlanDecision[];
+  /** Spending cuts committed to fund a goal (decision log, expense_commit). */
+  cuts?: Recommendation[];
   /** 'YYYY-MM-DD' in the user's country. */
   today: string;
 }): MonthGroup[] {
@@ -199,6 +211,44 @@ export function buildHistory({
       tone: confirmed ? 'positive' : 'accent',
       note: e.note,
       ref: { kind: 'life', id: e.id, due: !confirmed },
+    });
+  }
+
+  // Plan choices. Life events already have their own rows.
+  for (const d of decisions) {
+    if (d.kind === 'lifecycle_event_added' || d.kind === 'lifecycle_event_confirmed') continue;
+    const dm = d.impactDeltaMonths;
+    rows.push({
+      key: `decision-${d.id}`,
+      date: localIsoDate(new Date(d.at)),
+      type: 'PLAN',
+      target: d.label,
+      status: d.reverted ? 'UNDONE' : 'CHANGED',
+      tone: d.reverted ? 'muted' : 'ink',
+      effect:
+        dm == null || d.reverted
+          ? undefined
+          : { text: dm === 0 ? 'DEBT-FREE: NO CHANGE' : `DEBT-FREE ${dm > 0 ? '+' : '−'}${Math.abs(dm)} MO`, tone: dm > 0 ? 'negative' : dm < 0 ? 'positive' : 'muted' },
+      ref: { kind: 'decision', id: d.id, undoable: canUndoPlanDecision(d) && isWithinUndoWindow(d) },
+    });
+  }
+
+  // Spending cuts made to fund a goal: did they hold?
+  const stale = new Set(staleExpenseCommits(cuts).map((c) => c.id));
+  for (const c of cuts) {
+    if (c.kind !== 'expense_commit' || c.status === 'declined') continue;
+    const meta = c.recommendation.metadata ?? {};
+    const held = c.status === 'reconciled';
+    rows.push({
+      key: `cut-${c.id}`,
+      date: localIsoDate(new Date(c.recommendedAt)),
+      type: 'SPENDING CUT',
+      target: c.recommendation.context,
+      actual: `−${formatCurrencyWhole(Math.round(Number(meta.monthlyDelta ?? 0)), ccy)}/MO`,
+      status: held ? 'HELD' : stale.has(c.id) ? 'STILL HOLDING?' : meta.effectiveMonth ? `FROM ${monthLabel(meta.effectiveMonth)}` : 'COMMITTED',
+      tone: held ? 'positive' : stale.has(c.id) ? 'accent' : 'ink',
+      note: c.recommendation.reasoning,
+      ref: { kind: 'cut', id: c.id, held },
     });
   }
 

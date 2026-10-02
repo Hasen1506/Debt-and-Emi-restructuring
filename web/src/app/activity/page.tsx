@@ -14,7 +14,12 @@ export default async function ActivityRoute() {
   return (
     <>
       <h1 className="sr-only">Activity</h1>
-      <LedgerInsights user={profile.user} runArgs={inputs?.simBaseArgs ?? null} strategy={inputs?.strategy ?? 'avalanche'} />
+      <LedgerInsights
+        user={profile.user}
+        runArgs={inputs?.simBaseArgs ?? null}
+        strategy={inputs?.strategy ?? 'avalanche'}
+        rolled={inputs?.rolled ?? []}
+      />
     </>
   );
 }

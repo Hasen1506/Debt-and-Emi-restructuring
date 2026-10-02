@@ -12,6 +12,8 @@ const nextConfig = {
       { source: '/onboarding/assets', destination: '/profile/assets', permanent: false },
       // Open positions are on Home since R2.
       { source: '/debts', destination: '/#positions', permanent: false },
+      // Plan decisions are rows in Activity's history since R4.
+      { source: '/decisions', destination: '/activity', permanent: false },
     ];
   },
 };
