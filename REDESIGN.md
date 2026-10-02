@@ -5,9 +5,9 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R5 · Goals & Tools, Windfall (R5.1–R5.4 done; R5.5–R5.6 left)
-- **Last finished step:** R5.4 Windfall rev 3 (PR #12). Before it: R5.1–R5.2 goal ledger and form, R5.3 tools list on Goals & Tools
-- **Next step:** R5.5, the other seven tools on one layout (see **R5.5 build notes** under R5), then R5.6 (W4 and W5 are already measured below; add the R5.5 tools' heights), tick, merge #12
+- **Phase in progress:** R5 · Goals & Tools, Windfall (R5.1–R5.4 done; R5.5 four of seven tools done; R5.6 left)
+- **Last finished step:** R5.5 Loan check (PR #12). Before it this session: the capitals pass (one rule, see **Capitals and wording**), `components/ledger/LToolSteps`, Invest or prepay, NRI prepay, and the shared tool buttons in `ToolPrimitives` (SubmitBar, Apply, Add to profile, Stat, VerdictHeader) plus the global `.btn`
+- **Next step:** R5.5 for the last three tools: `liquidate` (prefill taxable income), `new-debt` (prefill savings, credit score), `purchase`, `right-time`. Same pattern as `invest-vs-prepay/tool.tsx`: `LSteps` › `LStep no="01"` (chips for a saved loan, a one-line summary with [EDIT], `kind="money"` amounts, extras under + MORE) › `LStep no="02" answer` (`LVerdict` sentence, `LNote`, `LKpi`) › `LMathBlock`. Test with `$S/pw/r55.mjs` (env TOOL, ACT, PROFS, WS). Then R5.6 (tool heights), tick R5.5, merge #12
 - **Open PR:** #12 · `claude/vibrant-bardeen-5bsiyj` (draft; merge when R5 is done and CI is green, then restart the branch from `main`)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
@@ -153,7 +153,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [x] R5.2 New-goal form: what it's for (chips, which name the goal), how much (`15L`), by when (1/2/3/5 years, or month and year), priority (★ first / in date order). Optional, folded: already saved, where it's kept, whether the date can move, buffer, backups. The monthly amount and status show before saving
 - [x] R5.3 Tools list under the goals, one row per question (question · what it does · OPEN →). `/tools` → `/goals#tools`; each tool's header links back. A tool for one country, or NRIs only (NRI prepay), shows only to them
 - [x] R5.4 Windfall rev 3: amount (`1L`) and where it comes from; 02 WHERE IT GOES with ENGINE PICK · BEST / MY SPLIT, a pool meter, one slider per target (emergency fund, loans by rate, goals), each with its effect (debt-free −n mo and interest for a debt on its own; new progress for a goal; how full the fund gets), the split bar, KPIs from one plan run with the whole split (debt-free, interest saved, to goals, kept), LOG IT, the math. Engine pick: the fund's plan share, then loan after loan in the payoff order (`api.windfall` again on what's left), then the rest of the fund, then the engine's investment. Runs as you type
-- [ ] R5.5 Other tool pages on one skeleton (01 input · 02 result · the math); start from a saved loan
+- [ ] R5.5 Other tool pages on one skeleton (01 input · 02 result · the math); start from a saved loan. Done: Invest or prepay, NRI prepay, Loan check. Left: Sell to repay (liquidate), New debt check, Big purchase, Right time
 - [ ] R5.6 Walkthroughs W4, W5
 
 **R5.5 build notes** (2 Oct 2026, before compaction):
