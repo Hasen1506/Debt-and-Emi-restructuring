@@ -32,6 +32,10 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
   const country = plan.user.country;
   const traj = plan.trajectory;
   const strategy = STRATEGY_LABEL[plan.strategy];
+  const outcomes = Object.values(plan.strategyCompare ?? {});
+  const allOrdersSame = !short && plan.live && outcomes.length === 3 && outcomes.every((o) =>
+    o.debtFreeMonth === outcomes[0].debtFreeMonth && Math.abs(Number(o.totalInterest) - Number(outcomes[0].totalInterest)) < 1,
+  );
 
   const view = useMemo(() => {
     if (traj.length === 0) return null;
@@ -130,6 +134,9 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
   return (
     <section>
       <LSectionHeader>TRAJECTORY · TOTAL DEBT OVER TIME</LSectionHeader>
+      {allOrdersSame && <p style={{ fontSize: 12, color: L_T.muted, margin: '0 0 10px' }}>
+        With these debts, all three payoff orders give the same date and interest. The graph therefore stays the same when you switch.
+      </p>}
       {view ? (
         <>
           <LTrajectory

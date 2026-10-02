@@ -97,3 +97,24 @@ use last-save-wins.
 - Local tests exercise retry after module reload, interrupted saves, new edits
   during an in-flight save, quota failure, account isolation, auth-change events
   and unsuccessful logout. These are not a substitute for live persistence tests.
+
+## Completed live persistence and strategy checks
+
+- Two independent HTTP cookie jars authenticated through real delivered Gmail
+  codes. Concurrent strategy and EF-split PATCH requests preserved both slices
+  and the profile. Synthetic preference changes were restored afterwards.
+- Logout invalidated its own session and left the second session authenticated.
+  The profile remained available from PostgreSQL after the first logout.
+- Three synthetic debts produced different trajectories: Avalanche 32 months /
+  INR 75,054.78 interest, Hybrid 32 months / INR 77,211.22, Snowball 33 months /
+  INR 90,978.35. The single-card fixture produced the same 3-month curve for all.
+- Public browser calculation/catalogue calls omit credentials. Account calls
+  retain same-origin cookies. This resolves empty tools under wildcard CORS.
+- Plan uses client navigation and streams its loading shell. Pure engine results
+  are reused in a bounded server-memory cache for 60 seconds; the exact full
+  payload and operation determine the key. New strategy, profile, goal and
+  setting inputs miss immediately. Errors are not cached, and no account data
+  reads or writes use this cache. Final Plan figures are not explicitly prefetched.
+- Cache tests cover in-flight deduplication, input/strategy isolation, TTL, bounds
+  and failure retry. Free-service cold starts still prevent an unconditional
+  instant-load guarantee.

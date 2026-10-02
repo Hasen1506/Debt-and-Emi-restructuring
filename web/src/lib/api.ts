@@ -21,6 +21,12 @@ function endpoint(path: string): string {
 
 // ─── shared types ───────────────────────────────────────────────────────────
 
+// Public calculations do not use account cookies. Wildcard CORS responses
+// cannot be read by credentialed browser requests.
+function requestCredentials(path: string): RequestCredentials {
+  return path.startsWith('/api/auth/') || path === '/api/user/state' ? 'include' : 'omit';
+}
+
 export type Country = 'IN' | 'US';
 export type Strategy = 'avalanche' | 'hybrid' | 'snowball';
 export type LoanType =
@@ -1094,7 +1100,7 @@ async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
     cache: 'no-store',
-    credentials: 'include',
+    credentials: requestCredentials(path),
   });
   if (res.status === 422) {
     const data = await res.json().catch(() => null);
@@ -1128,7 +1134,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
     cache: 'no-store',
-    credentials: 'include',
+    credentials: requestCredentials(path),
   });
   if (!res.ok) {
     const detail = await res.text();
@@ -1153,7 +1159,7 @@ async function get<T>(path: string): Promise<T> {
   const res = await fetch(endpoint(path), {
     headers: { ...serverHeaders(), ...accountHeaders(path) },
     cache: 'no-store',
-    credentials: 'include',
+    credentials: requestCredentials(path),
   });
   if (!res.ok) throw new Error(`${path} → ${res.status}`);
   return res.json() as Promise<T>;
@@ -1165,7 +1171,7 @@ async function putJson<T>(path: string, body: unknown, method: 'PUT' | 'PATCH' =
     headers: { 'Content-Type': 'application/json', ...serverHeaders(), ...accountHeaders(path) },
     body: JSON.stringify(body),
     cache: 'no-store',
-    credentials: 'include',
+    credentials: requestCredentials(path),
   });
   if (!res.ok) {
     const detail = await res.text();
