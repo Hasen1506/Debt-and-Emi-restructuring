@@ -3,11 +3,9 @@
 /**
  * "Your EMI is about to free up — where do you want it to go?" banner.
  *
- * Catches the highest-leverage moment in the user's debt journey: the
- * month where they go from servicing debt to having that cash flow back.
- * Without an active prompt, most people quietly absorb the freed money
- * into lifestyle inflation. Capturing the moment — and pre-deciding where
- * the cash routes — is what turns a debtor into an investor.
+ * Shows the month the last payment is made and what goes to debts each
+ * month now, which is free from the month after. It offers places the
+ * money could go; it doesn't tell the user which.
  *
  * Visibility rules:
  *   • Shows when `plan.debtFreeMonth` is set AND within 12 months ahead.
@@ -41,6 +39,7 @@ import {
 } from '@/components/themed/Themed';
 import type { PlanData } from './PlanData';
 import { loanToUser } from '@/lib/currency';
+import { payThisMonth } from '@/lib/pay-this-month';
 
 const DISMISS_KEY = 'finoptima_debtfree_prompt_dismissed';
 
@@ -74,13 +73,22 @@ export function DebtFreeRedirectPrompt({
   // Far-future doesn't need this nudge — only show inside the 12-month band.
   if (monthsAway > 12) return null;
 
-  // In the user's currency: an NRI's ₹20,000 EMI frees about $240, not $20,000.
-  const freedMonthlyEmi = plan.user.loans
-    .filter((l) => Number(l.outstanding || 0) > 0)
-    .reduce(
-      (s, l) => s + (loanToUser(Number(l.scheduled_emi || 0), l, plan.user.country, plan.fxRatesUsed) ?? 0),
-      0,
-    );
+  // What goes to debts each month now (EMIs, card minimums and the plan's
+  // extra) is what's free once they're paid: counting only EMIs said
+  // ₹9,500 comes back when ₹90,000 a month was going to debts. In the
+  // user's currency: an NRI's ₹20,000 EMI frees about $240, not $20,000.
+  const pay = payThisMonth(plan);
+  const toDebtsNow = pay
+    ? pay.rows.filter((r) => r.loanIndex !== null).reduce((s, r) => s + r.amountUser, 0)
+    : 0;
+  const freedMonthlyEmi = toDebtsNow > 0
+    ? toDebtsNow
+    : plan.user.loans
+      .filter((l) => Number(l.outstanding || 0) > 0)
+      .reduce(
+        (s, l) => s + (loanToUser(Number(l.scheduled_emi || 0), l, plan.user.country, plan.fxRatesUsed) ?? 0),
+        0,
+      );
   if (freedMonthlyEmi <= 0) return null;
 
   const dateLabel = monthIndexToCountryLabel(
@@ -92,10 +100,11 @@ export function DebtFreeRedirectPrompt({
     plan.displayCurrency,
   );
 
-  const when = monthsAway === 0 ? 'This month' : `In ${monthsAway} ${monthsAway === 1 ? 'month' : 'months'}`;
-  const headline = `${when} (${dateLabel}), your last EMI clears. ${freedAmountLabel}/mo of cash flow comes back.`;
+  // The month after the last payment, when the money is first free.
+  const freeFrom = monthIndexToCountryLabel(plan.debtFreeMonth + 1, plan.user.country);
+  const headline = `Your last payment is in ${dateLabel}. From ${freeFrom}, the ${freedAmountLabel} a month that goes to debts now is yours.`;
   const sub =
-    "Pre-decide where it goes now — habits set on the freed-cash moment tend to stick.";
+    'If you want, decide now where it goes. Nothing moves until you choose.';
 
   return (
     <ThemedContainer
@@ -116,7 +125,7 @@ export function DebtFreeRedirectPrompt({
       >
         <div style={{ flex: 1 }}>
           <ThemedLabel tone="positive">
-            {'CASH FLOW RESTORING SOON'}
+            {'AFTER YOUR LAST PAYMENT'}
           </ThemedLabel>
           <ThemedHeadline>{headline}</ThemedHeadline>
           <ThemedDetail>{sub}</ThemedDetail>
@@ -147,9 +156,9 @@ export function DebtFreeRedirectPrompt({
           marginTop: 10,
         }}
       >
-        <PromptCta href="/goals" label="Plan a goal SIP" primary />
-        <PromptCta href="/profile?step=4" label="Boost EF" />
-        <PromptCta href="/plan#what-if" label="Run what-if" />
+        <PromptCta href="/goals" label="Save for a goal" primary />
+        <PromptCta href="/profile?step=savings" label="Set an emergency fund" />
+        <PromptCta href="/plan#what-if" label="Try it in What if" />
       </div>
     </ThemedContainer>
   );
