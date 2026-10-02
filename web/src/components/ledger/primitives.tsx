@@ -204,6 +204,23 @@ export function LSectionHeader({
   );
 }
 
+/** The button for recording a payment (MARK PAID, OTHER AMOUNT): big
+ *  enough to read and hit, the same on Home and Activity. */
+export function lPayBtn(solid: boolean): CSSProperties {
+  return {
+    fontFamily: 'inherit',
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: '0.08em',
+    padding: '8px 14px',
+    minHeight: 36,
+    cursor: 'pointer',
+    border: `1px solid ${L_T.ink}`,
+    background: solid ? L_T.ink : 'transparent',
+    color: solid ? L_T.bg : L_T.ink,
+  };
+}
+
 // ─── Accent strip ───────────────────────────────────────────────────────
 // Flags one row ("highest rate", "engine pick") with a 3px left strip
 // instead of a yellow background. Put it on the row's first cell.

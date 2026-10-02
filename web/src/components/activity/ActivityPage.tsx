@@ -49,7 +49,7 @@ import { readExpenseCommits, undoExpenseCommit } from '@/lib/expense-commit';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { getCountryToday, localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
 import { useWidth } from '@/lib/use-width';
-import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
+import { LBracket, LSectionHeader, L_T, lPayBtn } from '@/components/ledger/primitives';
 import { buildHistory, loanLabel, monthLabel, type HistoryRow, type MonthGroup, type Tone } from './history';
 import { LogDialog, type LogInitial, type LogSave } from './LogDialog';
 
@@ -68,12 +68,15 @@ export function ActivityPage({
   runArgs,
   strategy,
   rolled = [],
+  planPay,
 }: {
   user: UserPayload;
   runArgs: PlanRunArgs | null;
   strategy: StrategyName;
   /** EMI loans whose entered balance the plan moved on (lib/roll-forward). */
   rolled?: RolledLoan[];
+  /** This month's payment per loan from the plan, as Home shows it. */
+  planPay?: Record<number, { amount: number; minimum: number; extra: number }>;
 }) {
   const router = useRouter();
   const [refreshing, startTransition] = useTransition();
@@ -122,8 +125,8 @@ export function ActivityPage({
     [entries, user.loans.length],
   );
   const months = useMemo(
-    () => buildHistory({ user, entries: valid, spend, life, decisions, cuts, today }),
-    [user, valid, spend, life, decisions, cuts, today],
+    () => buildHistory({ user, entries: valid, spend, life, decisions, cuts, today, planPay }),
+    [user, valid, spend, life, decisions, cuts, today, planPay],
   );
   // The two latest months start open; older ones folded.
   const isOpen = (m: MonthGroup, i: number) => open[m.month] ?? i < 2;
@@ -192,12 +195,12 @@ export function ActivityPage({
         const current = loadProfileClient().user;
         const original = user.loans[r.loanIndex];
         const index = currentLoanIndex({loanIndex:r.loanIndex,loanId:original?.id}, original, current.loans);
-        if (!isOpenCurrentLoan(current.loans[index]) || !requiredMonthly(current.loans[index],current.country).eq(r.amount))
+        if (!isOpenCurrentLoan(current.loans[index]) || !requiredMonthly(current.loans[index],current.country).eq(r.minimum ?? r.amount))
           throw new Error('The loan or payment changed. Reload before marking it paid.');
         saveEntries(
           addActivityEntry(
             readActivityClient(),
-            { loanIndex: index, loanId: current.loans[index].id, kind: 'paid_full', date: today, amount: r.amount, scheduledEmi: r.amount },
+            dueEntry(r, index, current.loans[index].id, today),
             current.loans,
           ),
           `${row.target}: ${row.planned} paid.`,
@@ -254,11 +257,11 @@ export function ActivityPage({
       if (row.ref.kind !== 'due' || row.ref.card) continue;
       const original = user.loans[row.ref.loanIndex];
       const index = currentLoanIndex({loanIndex:row.ref.loanIndex,loanId:original?.id},original,current.loans);
-      if (!isOpenCurrentLoan(current.loans[index]) || !requiredMonthly(current.loans[index],current.country).eq(row.ref.amount))
+      if (!isOpenCurrentLoan(current.loans[index]) || !requiredMonthly(current.loans[index],current.country).eq(row.ref.minimum ?? row.ref.amount))
         throw new Error('A loan or payment changed. Reload before marking the EMIs paid.');
       next = addActivityEntry(
         next,
-        { loanIndex: index, loanId: current.loans[index].id, kind: 'paid_full', date: today, amount: row.ref.amount, scheduledEmi: row.ref.amount },
+        dueEntry(row.ref, index, current.loans[index].id, today),
         current.loans,
       );
     }
@@ -426,7 +429,7 @@ function Month({
 const gridWide: CSSProperties = {
   display: 'grid',
   // Fixed outer columns: each row is its own grid, so they must not size to content.
-  gridTemplateColumns: '64px minmax(0, 2fr) 96px 96px 104px minmax(0, 1.4fr) 150px',
+  gridTemplateColumns: '64px minmax(0, 2fr) 96px 96px 104px minmax(0, 1.2fr) 250px',
   columnGap: 12,
   alignItems: 'baseline',
 };
@@ -453,15 +456,15 @@ function DateCell({ date, pending }: { date: string; pending?: boolean }) {
 function Actions({ r, onAct }: { r: HistoryRow; onAct: (row: HistoryRow, action: Act) => void }) {
   const what = `${r.target}, ${r.date}`;
   return (
-    <span style={{ display: 'inline-flex', gap: 10, flexWrap: 'wrap' }}>
+    <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
       {r.ref.kind === 'due' && (
         <>
-          <LBracket accent onClick={() => onAct(r, 'paid')} label={`${r.target}: paid ${r.planned}`}>
-            PAID
-          </LBracket>
-          <LBracket onClick={() => onAct(r, 'other')} label={`${r.target}: paid part, missed or more`}>
-            OTHER
-          </LBracket>
+          <button type="button" style={lPayBtn(true)} onClick={() => onAct(r, 'paid')} aria-label={`Mark paid: ${r.target}, ${r.planned}`}>
+            MARK PAID
+          </button>
+          <button type="button" style={lPayBtn(false)} onClick={() => onAct(r, 'other')} aria-label={`Other amount: ${r.target} (part, missed or more)`}>
+            OTHER AMOUNT
+          </button>
         </>
       )}
       {r.ref.kind === 'entry' && (
@@ -563,4 +566,18 @@ function Row({ r, wide, onAct }: { r: HistoryRow; wide: boolean; onAct: (row: Hi
       </span>
     </div>
   );
+}
+
+/** The entry PAID records for a due row: the EMI or minimum, plus the
+ *  plan's extra when there is one (as Home's MARK PAID does). */
+function dueEntry(
+  r: Extract<HistoryRow['ref'], { kind: 'due' }>,
+  loanIndex: number,
+  loanId: string | undefined,
+  date: string,
+) {
+  const extra = Number(r.extra ?? 0);
+  return extra > 0
+    ? { loanIndex, loanId, kind: 'paid_extra' as const, date, amount: r.amount, scheduledEmi: r.minimum ?? r.amount, plannedExtra: r.extra }
+    : { loanIndex, loanId, kind: 'paid_full' as const, date, amount: r.amount, scheduledEmi: r.amount };
 }

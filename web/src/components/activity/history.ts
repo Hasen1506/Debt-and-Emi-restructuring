@@ -41,7 +41,16 @@ export interface HistoryRow {
   /** What the row's buttons act on. */
   ref:
     | { kind: 'entry'; id: string; loanIndex: number }
-    | { kind: 'due'; loanIndex: number; amount: string; card: boolean }
+    | {
+        kind: 'due';
+        loanIndex: number;
+        /** What PAID records: the plan's payment, or the EMI or minimum. */
+        amount: string;
+        card: boolean;
+        /** The EMI or card minimum inside `amount`, and the plan's extra. */
+        minimum?: string;
+        extra?: string;
+      }
     | { kind: 'spend'; month: string }
     | { kind: 'life'; id: string; due: boolean }
     | { kind: 'decision'; id: string; undoable: boolean }
@@ -51,7 +60,7 @@ export interface HistoryRow {
 export interface MonthGroup {
   /** 'YYYY-MM' */
   month: string;
-  /** 'OCT 26' */
+  /** 'OCT 2026' */
   label: string;
   current: boolean;
   rows: HistoryRow[];
@@ -133,6 +142,7 @@ export function buildHistory({
   decisions = [],
   cuts = [],
   today,
+  planPay,
 }: {
   user: UserPayload;
   entries: ActivityEntry[];
@@ -144,6 +154,9 @@ export function buildHistory({
   cuts?: Recommendation[];
   /** 'YYYY-MM-DD' in the user's country. */
   today: string;
+  /** This month's payment per loan from the plan (Home's Pay this month),
+   *  so Activity asks for the same amount Home does. */
+  planPay?: Record<number, { amount: number; minimum: number; extra: number }>;
 }): MonthGroup[] {
   const thisMonth = today.slice(0, 7);
   const rows: HistoryRow[] = [];
@@ -161,17 +174,27 @@ export function buildHistory({
     const amount = requiredMonthly(loan, user.country);
     if (amount.lte(0)) continue;
     const day = card && loan.due_day ? String(loan.due_day).padStart(2, '0') : null;
+    const ccy = loanCurrency(loan, user.country);
+    const minimum = Math.round(amount.toNumber());
+    // The plan's own payment when it puts extra on this loan: Activity
+    // said ₹4,000 for a card Home said to pay ₹80,500 on.
+    const plan = planPay?.[index];
+    const extra = plan && plan.extra >= 1 && Math.round(plan.minimum) === minimum ? Math.round(plan.extra) : 0;
     rows.push({
       key: `due-${loan.id ?? index}`,
       date: day ? `${thisMonth}-${day}` : thisMonth,
       type: card ? 'CARD BILL' : 'EMI',
       target: loanLabel(loan),
-      planned: formatCurrencyWhole(Math.round(amount.toNumber()), loanCurrency(loan, user.country)),
+      planned: formatCurrencyWhole(minimum + extra, ccy),
       status: 'TO PAY',
       tone: 'muted',
-      note: card ? 'the minimum; the plan may pay more' : undefined,
+      note: extra > 0
+        ? `${formatCurrencyWhole(minimum, ccy)} ${card ? 'minimum' : 'EMI'} + ${formatCurrencyWhole(extra, ccy)} extra, as on Home`
+        : card ? (planPay ? 'the minimum; the plan has no extra for it this month' : 'the minimum; the plan may pay more') : undefined,
       pending: true,
-      ref: { kind: 'due', loanIndex: index, amount: amount.toFixed(2), card },
+      ref: extra > 0
+        ? { kind: 'due', loanIndex: index, amount: String(minimum + extra), card, minimum: amount.toFixed(2), extra: String(extra) }
+        : { kind: 'due', loanIndex: index, amount: amount.toFixed(2), card },
     });
   }
 

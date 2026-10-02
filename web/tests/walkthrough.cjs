@@ -52,3 +52,21 @@ test('Profile offers a way back to the page it was opened from', () => {
   assert.equal(pageName('/'), 'Home');
   assert.equal(pageName('/goals'), 'Goals and tools');
 });
+
+test("Activity asks for the plan's payment, as Home does, and records it", () => {
+  const { buildHistory } = require(path.join(root, 'components/activity/history.ts'));
+  const card = { id: 'c', loan_type: 'credit_card', bank: '', outstanding: '80000', nominal_rate: '0.42', scheduled_emi: '0' };
+  const user = { country: 'IN', loans: [card], fixed_expenses: '0' };
+  const due = (planPay) => buildHistory({ user, entries: [], spend: [], life: [], today: '2026-10-02', planPay })[0].rows[0];
+  const withPlan = due({ 0: { amount: 80500, minimum: 4000, extra: 76500 } });
+  assert.equal(withPlan.planned, '₹80,500');
+  assert.match(withPlan.note, /₹4,000 minimum \+ ₹76,500 extra/);
+  assert.deepEqual(
+    { amount: withPlan.ref.amount, minimum: withPlan.ref.minimum, extra: withPlan.ref.extra },
+    { amount: '80500', minimum: '4000.00', extra: '76500' },
+  );
+  // No plan run: the minimum, and no claim about the plan's extra.
+  const without = due(undefined);
+  assert.equal(without.planned, '₹4,000');
+  assert.equal(without.ref.extra, undefined);
+});

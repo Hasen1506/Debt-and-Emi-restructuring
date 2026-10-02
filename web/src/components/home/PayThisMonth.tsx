@@ -11,7 +11,7 @@
  * doesn't move the plan. A planned extra marked paid comes off the balance
  * once the month is over (see `plannedExtra` in lib/activity).
  */
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { Country, LoanPayload } from '@/lib/api';
 import { formatCurrencyWhole } from '@/lib/api';
 import {
@@ -27,7 +27,7 @@ import { MONTH_NAMES_SHORT, localIsoDate } from '@/lib/today';
 import { userDefaultCurrency } from '@/lib/currency';
 import type { PayRow, PayThisMonth as PayData } from '@/lib/pay-this-month';
 import { Field } from '@/components/ToolPrimitives';
-import { LAllocationBar, LBracket, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
+import { LAllocationBar, LBracket, LSectionHeader, L_T, lPayBtn, lStrip } from '@/components/ledger/primitives';
 
 /** Fund and goal ticks, per month: they aren't loan payments, so they
  *  aren't Activity entries. */
@@ -300,7 +300,7 @@ export function PayThisMonth({
                       type="button"
                       onClick={() => markPaid(row)}
                       aria-label={`Mark ${row.name} paid, ${fmt(row.amount, row.currency)}`}
-                      style={payBtn(true)}
+                      style={lPayBtn(true)}
                     >
                       {row.loanIndex === null ? `SET ASIDE ${fmt(row.amount, row.currency)}` : `MARK PAID · ${fmt(row.amount, row.currency)}`}
                     </button>
@@ -309,7 +309,7 @@ export function PayThisMonth({
                         type="button"
                         onClick={() => openOther(row)}
                         aria-label={`Paid a different amount on ${row.name}`}
-                        style={payBtn(false)}
+                        style={lPayBtn(false)}
                       >
                         OTHER AMOUNT
                       </button>
@@ -343,10 +343,10 @@ export function PayThisMonth({
                     />
                   </div>
                   <span style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', paddingBottom: 4 }}>
-                    <button type="button" onClick={() => saveOther(row)} style={payBtn(true)}>
+                    <button type="button" onClick={() => saveOther(row)} style={lPayBtn(true)}>
                       SAVE
                     </button>
-                    <button type="button" onClick={() => saveOther(row, true)} style={payBtn(false)}>
+                    <button type="button" onClick={() => saveOther(row, true)} style={lPayBtn(false)}>
                       I DIDN&apos;T PAY
                     </button>
                     <LBracket onClick={() => setOpen(null)}>CANCEL</LBracket>
@@ -418,21 +418,6 @@ const BAR = ['#2a2a26', '#5e5e58', '#0a0a0a', '#76766f'];
 
 /** MARK PAID (solid) and OTHER AMOUNT (outline): real buttons, big enough
  *  to read and hit, not 10px brackets. */
-function payBtn(solid: boolean): CSSProperties {
-  return {
-    fontFamily: 'inherit',
-    fontSize: 12,
-    fontWeight: 700,
-    letterSpacing: '0.08em',
-    padding: '8px 14px',
-    minHeight: 36,
-    cursor: 'pointer',
-    border: `1px solid ${L_T.ink}`,
-    background: solid ? L_T.ink : 'transparent',
-    color: solid ? L_T.bg : L_T.ink,
-  };
-}
-
 /** The section when there's nothing to tick: details missing, or no plan. */
 export function PayNotice({ title, children }: { title: string; children: ReactNode }) {
   return (
