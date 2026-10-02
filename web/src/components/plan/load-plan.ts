@@ -16,7 +16,9 @@ import {
   type TaxReinvestSetting,
 } from '@/lib/tax-reinvest';
 import {
+  inflationRateFor,
   loadInflationModelingServer,
+  loadInflationRateServer,
   type InflationModeling,
 } from '@/lib/inflation-modeling';
 import {
@@ -115,8 +117,12 @@ export async function loadPlanInputs(
   // If the hike toggle is OFF, zero out `annual_hike_rate` so the engine
   // simulates flat income. The stored profile is untouched — toggling back
   // ON next render restores the user's configured rate.
+  // Rising prices: the user's own rate from Plan, else the central bank's
+  // latest forecast (the profile's saved rate was only ever a default).
+  const ownInflation = await loadInflationRateServer();
   let adjustedUser: UserPayload = {
     ...profile.user,
+    inflation_rate: inflationRateFor(profile.user.country, ownInflation),
     loans: application.loans,
     annual_hike_rate:
       hikeModeling === 'off' ? '0' : profile.user.annual_hike_rate ?? '0',
@@ -381,6 +387,7 @@ export async function loadPlanInputs(
     goalsForEngine,
     hasGoalsForEngine,
     simBaseArgs,
+    ownInflation,
   };
 }
 
@@ -409,6 +416,7 @@ export async function loadPlan(
     goalsForEngine,
     hasGoalsForEngine,
     simBaseArgs,
+    ownInflation,
   } = await loadPlanInputs(hikeModeling, taxReinvest, inflationModeling, fxDrift);
   const otherStrategies = STRATEGIES.filter((s) => s !== strategy);
 
@@ -436,6 +444,7 @@ export async function loadPlan(
       strategy,
       hikeModeling,
       inflationModeling,
+      ownInflationRate: ownInflation,
       fxDrift,
       bracketTransitions,
       advanceTaxSchedule,
@@ -542,6 +551,7 @@ export async function loadPlan(
       strategy,
       hikeModeling,
       inflationModeling,
+      ownInflationRate: ownInflation,
       fxDrift,
       bracketTransitions,
       advanceTaxSchedule,

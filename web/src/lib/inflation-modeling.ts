@@ -48,18 +48,53 @@ export async function loadInflationModelingServer(): Promise<InflationModeling> 
 }
 
 /**
- * Country-default CPI rate that the toggle applies when enabled. Refreshed
- * with `as_of` so stale values are obvious in code review.
- *   • India: RBI MPC April 2026 projection, FY26-27 headline CPI ~5.5%
- *   • US: FOMC SEP March 2026 median PCE projection ~3.0%
- *
- * These are conservative central-bank projections, not historicals — a
- * defensible default for projections, easy for users to override later
- * via the manual `inflation_rate` field in setup.
+ * The forecast the plan uses for rising prices, unless the user sets their
+ * own rate on Plan. Each is a central bank's latest published forecast;
+ * refresh it (and `asOf`) when a new one comes out.
+ *   • India: RBI Monetary Policy Statement, 5 Aug 2026: CPI inflation for
+ *     2026-27 projected at 5.0% (down from 5.1% in June; 4.6% in April).
+ *   • US: FOMC Summary of Economic Projections, 16 Sep 2026: median PCE
+ *     inflation 2.3% in 2027 (3.7% in 2026), 2.0% by 2029.
  */
-export const INFLATION_DEFAULTS = {
-  IN: '0.055',
-  US: '0.030',
+export const INFLATION_FORECAST = {
+  IN: { rate: '0.050', who: 'RBI', what: 'forecast for 2026–27', asOf: '2026-08-05' },
+  US: { rate: '0.023', who: 'the Fed', what: 'median forecast for 2027 (PCE prices)', asOf: '2026-09-16' },
 } as const;
 
-export const INFLATION_DEFAULTS_AS_OF = '2026-05';
+// ─── The user's own rate ────────────────────────────────────────────────────
+
+const RATE_COOKIE = 'finoptima_inflation_rate';
+
+/** '' for "use the forecast", else a yearly rate as a decimal ('0.06'),
+ *  between 0 and 25%. */
+export function normalizeInflationRate(v: string | null | undefined): string {
+  const t = String(v ?? '').trim();
+  if (t === '') return '';
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 && n <= 0.25 ? String(Number(n.toFixed(4))) : '';
+}
+
+export function readInflationRateClient(): string {
+  if (typeof document === 'undefined') return '';
+  const match = document.cookie.match(new RegExp(`(?:^|; )${RATE_COOKIE}=([^;]*)`));
+  return normalizeInflationRate(match ? decodeURIComponent(match[1]) : null);
+}
+
+export function writeInflationRateClient(value: string) {
+  if (typeof document === 'undefined') return;
+  const v = normalizeInflationRate(value);
+  document.cookie = v
+    ? `${RATE_COOKIE}=${v}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`
+    : `${RATE_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+  void import('./server-sync').then(({ syncSliceToServer }) => syncSliceToServer('inflation_rate', v));
+}
+
+export async function loadInflationRateServer(): Promise<string> {
+  const { cookies } = await import('next/headers');
+  return normalizeInflationRate(cookies().get(RATE_COOKIE)?.value);
+}
+
+/** The rate the plan runs on: the user's own, else the forecast. */
+export function inflationRateFor(country: 'IN' | 'US', own: string): string {
+  return own || INFLATION_FORECAST[country].rate;
+}

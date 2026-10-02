@@ -38,6 +38,7 @@ const SLICE_TARGETS: Record<string, SliceTarget> = {
   activity:           { kind: 'localStorage', name: 'finoptima_activity' },
   strategy:           { kind: 'cookie',       name: 'finoptima_strategy' },
   inflation_modeling: { kind: 'cookie',       name: 'finoptima_inflation_modeling' },
+  inflation_rate:     { kind: 'cookie',       name: 'finoptima_inflation_rate' },
   hike_modeling:      { kind: 'cookie',       name: 'finoptima_hike_modeling' },
   tax_reinvest:       { kind: 'cookie',       name: 'finoptima_tax_reinvest' },
   fx_drift:           { kind: 'cookie',       name: 'finoptima_fx_drift' },

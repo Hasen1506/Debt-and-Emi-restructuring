@@ -20,6 +20,7 @@ import { StrategySwitcher } from '@/components/StrategySwitcher';
 import { HikeToggle } from '@/components/HikeToggle';
 import { TaxReinvestToggle } from '@/components/TaxReinvestToggle';
 import { InflationToggle } from '@/components/InflationToggle';
+import { InflationRateControl } from './InflationRateControl';
 import { EfSplitSlider } from '@/components/EfSplitSlider';
 import { FxDriftToggle } from '@/components/FxDriftToggle';
 import { loanToUser } from '@/lib/currency';
@@ -130,16 +131,17 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
     {
       key: 'inflation',
       label: 'RISING COSTS',
-      value: inflRate <= 0 ? 'NONE SET' : plan.inflationModeling === 'on' ? `+${pct(inflRate, 1)} A YEAR` : 'IGNORED',
+      value: plan.inflationModeling === 'on' ? `+${pct(inflRate, 1)} A YEAR` : 'IGNORED',
       about:
-        inflRate <= 0
-          ? 'No rate for rising prices is set, so the plan keeps your spending flat.'
-          : 'Whether your monthly spending grows with prices each year. Rising costs leave less for debt later on.',
-      // Profile saves a country default (4.6% / 2.5%); only an older profile has none.
-      control:
-        inflRate > 0 ? (
+        'Whether your monthly spending grows with prices each year. Rising costs leave less for debt later on.',
+      // The rate is the central bank's latest forecast unless the user sets
+      // their own; both are said with where they come from.
+      control: (
+        <>
           <InflationToggle active={plan.inflationModeling} inflationRatePct={pct(inflRate, 1)} variant="ledger" />
-        ) : null,
+          <InflationRateControl country={u.country} own={plan.ownInflationRate} active={plan.inflationModeling} />
+        </>
+      ),
     },
   ];
   if (taxSaving > 0) {
@@ -163,7 +165,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
       label: 'EMERGENCY FUND',
       value: `${efPct}% OF SPARE CASH`,
       about: 'Your emergency fund is below its target. This share of the spare cash goes to it until it is full; the rest pays debt.',
-      control: <EfSplitSlider active={plan.efSplit} hasGap ccySym={u.country === 'IN' ? '₹' : '$'} variant="ledger" />,
+      control: <EfSplitSlider active={plan.efSplit} hasGap variant="ledger" />,
     });
   }
   if (twoCurrencies) {

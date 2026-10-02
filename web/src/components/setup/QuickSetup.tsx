@@ -7,6 +7,7 @@
  * card dates, fees, holdings) lives in Profile, and is kept untouched when a
  * saved profile is edited here.
  */
+import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
@@ -307,7 +308,7 @@ export function QuickSetup() {
       ...(sameCountry
         ? {}
         : {
-            inflation_rate: country === 'IN' ? '0.046' : '0.025',
+            inflation_rate: INFLATION_FORECAST[country].rate,
             hike_effective_month: FY_ANCHOR_MONTH[country],
             state_marginal_rate: undefined,
           }),

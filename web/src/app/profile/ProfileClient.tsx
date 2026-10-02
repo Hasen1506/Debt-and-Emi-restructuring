@@ -1,5 +1,6 @@
 'use client';
 
+import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/Card';
@@ -603,7 +604,7 @@ function ProfileEditor({
           num(rate, '0'),
         ] as [number, number, string])
         .filter(([f, t, r]) => f > 0 && t > f && Number(r) >= 0),
-      inflation_rate: country === 'IN' ? '0.046' : '0.025',
+      inflation_rate: INFLATION_FORECAST[country].rate,
       is_nri_us: isNriUs,
       // Only the currencies still in use, at the rate entered above.
       fx_to_user_currency: Object.fromEntries(

@@ -79,6 +79,9 @@ export interface PlanData {
   /** Whether the projection inflates expenses month-over-month at
    *  user.inflation_rate. Set by the per-plan toggle. When 'on', surplus
    *  erodes over time → debt-free month pushes out. */
+  /** The user's own yearly rate for rising prices, '' when the plan uses
+   *  the central bank's forecast (INFLATION_FORECAST). */
+  ownInflationRate: string;
   inflationModeling: InflationModeling;
   /** Whether the projection applies FX drift to non-residence-currency
    *  loans. Set by the per-plan toggle. Only meaningful for hybrid users

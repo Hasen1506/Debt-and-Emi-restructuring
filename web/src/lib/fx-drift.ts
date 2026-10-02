@@ -57,9 +57,10 @@ export async function loadFxDriftServer(): Promise<FxDriftSetting> {
  * fx_to_user_currency. Only the single supported hybrid pair is
  * configured today; other pairs fall through to 0.
  *
- * Source: India CPI (RBI MPC Apr 2026) − US PCE (FOMC SEP Mar 2026)
- *   = 5.5% − 3.0% = 2.5%. Refresh at the same cadence as
- *   `INFLATION_DEFAULTS_AS_OF`.
+ * Source: the gap between India's and the US's inflation. The forecasts
+ *   in `INFLATION_FORECAST` (RBI 5.0% for 2026-27, the Fed 2.3% for 2027)
+ *   put it at 2.7 points next year; 2.5 is kept as the longer-run gap.
+ *   Refresh with `INFLATION_FORECAST`.
  */
 export const FX_DRIFT_DEFAULTS_AS_OF = '2026-05';
 

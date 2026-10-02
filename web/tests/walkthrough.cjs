@@ -70,3 +70,16 @@ test("Activity asks for the plan's payment, as Home does, and records it", () =>
   assert.equal(without.planned, '₹4,000');
   assert.equal(without.ref.extra, undefined);
 });
+
+test('Rising costs: the forecast unless the user sets a rate from 0 to 25%', () => {
+  const { normalizeInflationRate, inflationRateFor, INFLATION_FORECAST } = lib('inflation-modeling.ts');
+  assert.equal(INFLATION_FORECAST.IN.rate, '0.050');
+  assert.equal(inflationRateFor('IN', ''), '0.050');
+  assert.equal(inflationRateFor('US', ''), INFLATION_FORECAST.US.rate);
+  assert.equal(normalizeInflationRate('0.07'), '0.07');
+  assert.equal(inflationRateFor('IN', normalizeInflationRate('0.07')), '0.07');
+  // 0% is a choice, not "unset".
+  assert.equal(normalizeInflationRate('0'), '0');
+  assert.equal(inflationRateFor('IN', '0'), '0');
+  for (const bad of ['0.3', '-0.01', 'abc', '']) assert.equal(normalizeInflationRate(bad), '');
+});

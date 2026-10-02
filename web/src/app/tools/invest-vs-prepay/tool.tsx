@@ -22,7 +22,8 @@
  * is queued for v2 (see ROADMAP / project memory).
  */
 
-import { useMemo, useState } from 'react';
+import { INFLATION_FORECAST, readInflationRateClient } from '@/lib/inflation-modeling';
+import { useEffect, useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import { Field } from '@/components/ToolPrimitives';
 import { LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
@@ -138,11 +139,13 @@ export function InvestVsPrepayDeepTool() {
   const [marginalPct, setMarginalPct] = useState(profileMarginal);
   // Years held drives the simulation: shares even out over longer spells.
   const [yearsHeld, setYearsHeld] = useState('5');
-  const [inflationPct, setInflationPct] = useState(
-    profile.user.inflation_rate && Number(profile.user.inflation_rate) > 0
-      ? (Number(profile.user.inflation_rate) * 100).toFixed(1)
-      : country === 'US' ? '3' : '6',
-  );
+  // The same rate as Plan: the central bank's forecast, or the user's own
+  // (a cookie, so read after hydration).
+  const [inflationPct, setInflationPct] = useState((Number(INFLATION_FORECAST[country].rate) * 100).toFixed(1));
+  useEffect(() => {
+    const own = readInflationRateClient();
+    if (own) setInflationPct((Number(own) * 100).toFixed(1));
+  }, []);
 
   const instruments = country === 'IN' ? INSTRUMENTS_IN : INSTRUMENTS_US;
   const [instKey, setInstKey] = useState(instruments[0].key);
