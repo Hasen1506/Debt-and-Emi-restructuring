@@ -5,10 +5,11 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R6 · Strategy personas (not started). R5 is done.
-- **Last finished step:** R5.5 and R5.6 (PR #12): all seven tools on the numbered layout. This session also: the capitals pass (one rule, see **Capitals and wording**), `components/ledger/LToolSteps`, the shared tool buttons in `ToolPrimitives`, the "track this" control (`DecisionLogControls`), plain-word answers from the engine for Right time, New debt and Sell to repay, and an API fix: assets saved with only a year or a month no longer fail every call (422)
-- **Next step:** merge #12 when CI is green, restart the branch from `main`, then R6.1 persona art as SVG symbols
-- **Open PR:** #12 · `claude/vibrant-bardeen-5bsiyj` (merge now; then restart the branch from `main` for R6)
+- **Phase in progress:** R6 · Strategy personas. R6.1 and R6.2 done.
+- **Last finished step:** R6.2, the strategy medallion in the masthead (a pip switches in one click). Before it, two improvements the owner asked for: NRI prepay fetches today's exchange rate first (the profile's only when the fetch fails), and Right time reads Polymarket's odds for the coming RBI/Fed decisions instead of asking what you expect (`api/market_odds.py`, `GET /api/rates/odds`, `engine.decisions.right_time_from_odds`; floating rates gain nothing from waiting)
+- **Next step:** R6.3, the triptych at the bottom of Profile (`id="strategy"`, the medallion menu links there) with real numbers per strategy: debt-free date, total interest, extra cost vs Avalanche. Plan already works these out (`load-plan.ts` `strategyCompare`); Profile is a client page, so get them from the same simulation calls. Then R6.4 (W3)
+- **Open PR:** #16 · `claude/vibrant-bardeen-5bsiyj` (draft; R6 lands on it too)
+- **Can't check from this container:** Polymarket, frankfurter and open.er-api are blocked here. The odds and FX code is tested against responses shaped like theirs; look at Right time and NRI prepay once deployed. Whether Polymarket lists RBI decisions is unconfirmed; without them Right time says it has no odds and judges on today's rate. For local work, `MARKET_ODDS_FILE=<saved Gamma events>` serves odds offline
 
 Pause after each phase (or about every five steps, or when context is near 35%):
 tick the boxes here, update **Resume here**, push, and ask the owner to `/compact`.
