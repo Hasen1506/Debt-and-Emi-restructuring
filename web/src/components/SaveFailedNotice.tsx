@@ -45,7 +45,8 @@ export function SaveFailedNotice() {
         type="button"
         onClick={() => setFailed(false)}
         aria-label="Dismiss"
-        style={{ background: 'transparent', border: 0, color: 'inherit', cursor: 'pointer', fontSize: 14 }}
+        className="l-hit"
+        style={{ background: 'transparent', border: 0, color: 'inherit', cursor: 'pointer', fontSize: 14, padding: '0 6px' }}
       >
         ×
       </button>

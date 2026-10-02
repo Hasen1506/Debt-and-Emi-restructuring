@@ -577,6 +577,7 @@ function BankRateTable({
                       type="button"
                       aria-pressed={on}
                       onClick={() => onPick(row.name)}
+                      className="l-hit"
                       style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', color: L_T.ink, fontWeight: on ? 700 : 400, textAlign: 'left' }}
                     >
                       {on ? '● ' : '○ '}

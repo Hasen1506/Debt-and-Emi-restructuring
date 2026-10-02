@@ -300,15 +300,21 @@ export function LogDialog({
     };
   }, [build, fromSpareCash, runArgs, strategy]);
 
-  const when = (m: number | null) => (m ? monthIndexToCountryLabel(m, country).toUpperCase() : 'NEVER');
   const previewLine =
     preview && typeof preview === 'object'
       ? (() => {
           const { before, after } = preview;
           const dm = before.month && after.month ? after.month - before.month : null;
           const di = after.interest - before.interest;
-          const shift = dm ? ` (${dm > 0 ? '+' : '−'}${Math.abs(dm)} mo)` : dm === 0 ? ' · no change' : '';
-          return { dm, di, text: `debt-free ${when(after.month)}${shift}` };
+          const month = after.month ? monthIndexToCountryLabel(after.month, country) : null;
+          const shift = dm ? ` (${dm > 0 ? '+' : '−'}${Math.abs(dm)} mo)` : '';
+          // `value` for the preview's DEBT-FREE row; `text` ends the saved sentence.
+          return {
+            dm,
+            di,
+            value: month ? `${month}${shift}${dm === 0 ? ' · no change' : ''}` : 'Never',
+            text: !month ? 'no longer has a debt-free date' : dm === 0 ? `still debt-free in ${month}` : `debt-free in ${month}${shift}`,
+          };
         })()
       : null;
 
@@ -538,7 +544,7 @@ function Preview({
   ccy,
 }: {
   state: { before: RunResult; after: RunResult } | 'none' | 'held' | 'loading' | 'error' | null;
-  line: { dm: number | null; di: number; text: string } | null;
+  line: { dm: number | null; di: number; value: string } | null;
   ccy: string;
 }) {
   if (!state) return null;
@@ -558,7 +564,7 @@ function Preview({
       {typeof state === 'object' && line && (
         <>
           <div>
-            DEBT-FREE · <strong style={{ color: tone(line.dm ?? 0) }}>{line.text.replace('debt-free ', '')}</strong>
+            DEBT-FREE · <strong style={{ color: tone(line.dm ?? 0) }}>{line.value}</strong>
           </div>
           <div>
             INTEREST ·{' '}

@@ -1,7 +1,7 @@
 'use client';
 
 import Decimal from 'decimal.js';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadProfileClient } from '@/lib/user-store';
 import { loanCurrency as nativeLoanCurrency } from '@/lib/currency';
 import {
@@ -109,6 +109,8 @@ export function NriPrepayTool() {
   const [fxText, setFxText] = useState('');
   const [fxPer, setFxPer] = useState<'loan' | 'user'>('user');
   const [fxNote, setFxNote] = useState<string | null>(null);
+  // Where the rate in the field came from, for THE MATH.
+  const [fxFrom, setFxFrom] = useState('');
   const [manualDrift, setManualDrift] = useState('');
   // A saved loan shows as one line; EDIT opens its fields.
   const [editLoan, setEditLoan] = useState(false);
@@ -162,7 +164,7 @@ export function NriPrepayTool() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstLoanIdx, profile.user.loans]);
 
-  function showRate(userPerLoan: Decimal, from: string) {
+  function showRate(userPerLoan: Decimal, from: string, mathNote: string) {
     if (userPerLoan.gte(1)) {
       setFxPer('loan');
       setFxText(userPerLoan.toDecimalPlaces(4).toString());
@@ -171,24 +173,37 @@ export function NriPrepayTool() {
       setFxText(new Decimal(1).div(userPerLoan).toDecimalPlaces(4).toString());
     }
     setFxNote(from);
+    setFxFrom(mathNote);
   }
 
-  async function fetchLiveRate() {
+  // Today's rate first, every time: a rate saved months ago can be well
+  // off. The profile's saved rate only stands in when the fetch fails.
+  // `ask` drops an answer that lands after the currencies changed.
+  const ask = useRef(0);
+  async function fetchLiveRate(savedFallback?: number) {
+    const n = ++ask.current;
     setFxNote('Fetching today’s rate…');
     try {
       const r = await api.fxRate(loanCurrency, userCurrency);
       const d = new Decimal(r.rate);
       if (!d.isFinite() || d.lte(0)) throw new Error('no rate');
-      showRate(d, 'Today’s rate');
+      if (n !== ask.current) return;
+      const day = r.as_of
+        ? new Date(`${r.as_of}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        : null;
+      showRate(d, day ? `Today’s rate, as of ${day}` : 'Today’s rate', day ? `today’s rate, as of ${day}` : 'today’s rate');
     } catch {
-      setFxNote('Couldn’t fetch today’s rate. Type it in.');
+      if (n !== ask.current) return;
+      if (savedFallback && savedFallback > 0) showRate(new Decimal(savedFallback), 'Today’s rate couldn’t be fetched: this is your profile’s.', 'your profile’s rate');
+      else setFxNote('Couldn’t fetch today’s rate. Type it in.');
     }
   }
 
-  // Two currencies: use the profile's saved rate, else fetch today's, so
-  // nobody has to look it up. One currency: no rate needed.
+  // Two currencies: fetch today's rate, so nobody has to look it up.
+  // One currency: no rate needed.
   useEffect(() => {
     if (loanCurrency === userCurrency) {
+      ask.current++;
       setFxText('');
       setFxNote(null);
       return;
@@ -196,15 +211,10 @@ export function NriPrepayTool() {
     setFxText('');
     setFxPer(loanCurrency === 'INR' ? 'user' : userCurrency === 'INR' ? 'loan' : 'user');
     const saved = Number(profile.user.fx_to_user_currency?.[loanCurrency]);
-    if (userCurrency === userDefaultCurrency(profile.user.country) && saved > 0) {
-      showRate(new Decimal(saved), 'From your profile');
-      return;
-    }
-    void fetchLiveRate();
+    void fetchLiveRate(userCurrency === userDefaultCurrency(profile.user.country) ? saved : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loanCurrency, userCurrency]);
 
-  // What the engine wants: user currency per 1 loan currency.
   const enginefxRate = useMemo(() => {
     if (!fxText.trim()) return '';
     let v: Decimal;
@@ -356,13 +366,16 @@ export function NriPrepayTool() {
                   value={fxText}
                   error={at('fxInverse')}
                   onChange={(t) => {
+                    // A rate being typed wins over one still on its way.
+                    ask.current++;
                     setFxText(t);
                     setFxNote(null);
+                    setFxFrom('the rate you typed');
                   }}
                   hint={fxNote ?? undefined}
                 />
                 <div style={{ marginTop: 6 }}>
-                  <LBracket onClick={() => void fetchLiveRate()}>TODAY&apos;S RATE</LBracket>
+                  <LBracket onClick={() => void fetchLiveRate()}>REFRESH TODAY&apos;S RATE</LBracket>
                 </div>
               </div>
             )}
@@ -490,7 +503,7 @@ export function NriPrepayTool() {
             { k: 'the loan', v: pct(loanRate), note: `a year, in ${loanCurrency}` },
             ...(twoCurrencies
               ? [
-                  { k: 'exchange rate', v: displayedFx ?? '—' },
+                  { k: 'exchange rate', v: displayedFx ?? '—', ...(fxFrom ? { note: fxFrom } : {}) },
                   { k: `${loanCurrency} against ${userCurrency}`, v: pct(v.fx_drift_used), note: 'a year; above 0 makes the loan dearer' },
                 ]
               : []),

@@ -67,9 +67,54 @@ def test_fx_rate_live_path_mocked(mock_client, client):
     assert body["source"] == "frankfurter"
 
 
-def test_fx_rate_unsupported_pair_returns_502(client):
+@patch("api.routes.fx.httpx.AsyncClient")
+def test_fx_rate_unsupported_pair_returns_502(mock_client, client):
+    """No provider has XYZ: both answer without it, so the route says 502."""
+    mock_response = AsyncMock()
+    mock_response.raise_for_status = lambda: None
+    mock_response.json = lambda: {"result": "success", "rates": {"INR": 83.1}}
+    mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
     r = client.get("/api/fx-rate?base=XYZ&quote=USD")
     assert r.status_code == 502
+
+
+def _response(payload):
+    resp = AsyncMock()
+    resp.raise_for_status = lambda: None
+    resp.json = lambda: payload
+    return resp
+
+
+@patch("api.routes.fx.httpx.AsyncClient")
+def test_fx_rate_falls_back_to_the_second_provider(mock_client, client):
+    """Frankfurter down: today's rate still comes, from open.er-api.com,
+    dated by its last update."""
+    import httpx
+
+    async def get(url):
+        if "frankfurter" in url:
+            raise httpx.ConnectError("down")
+        return _response({"result": "success", "time_last_update_unix": 1790899200,
+                          "rates": {"INR": 88.42}})
+
+    mock_client.return_value.__aenter__.return_value.get = AsyncMock(side_effect=get)
+    r = client.get("/api/fx-rate?base=USD&quote=INR")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert D(body["rate"]) == D("88.42")
+    assert body["source"] == "open-er-api"
+    assert body["as_of"] == "2026-10-02"
+
+
+@patch("api.routes.fx.httpx.AsyncClient")
+def test_fx_rate_is_cached_for_a_few_minutes(mock_client, client):
+    """Two asks in a row: one fetch, the same number both times."""
+    get = AsyncMock(return_value=_response({"date": "2026-10-01", "rates": {"INR": 88.3}}))
+    mock_client.return_value.__aenter__.return_value.get = get
+    a = client.get("/api/fx-rate?base=USD&quote=INR").json()
+    b = client.get("/api/fx-rate?base=USD&quote=INR").json()
+    assert a == b and D(a["rate"]) == D("88.3")
+    assert get.await_count == 1
 
 
 def test_cross_border_rejects_zero_or_negative_fx_rate(client):

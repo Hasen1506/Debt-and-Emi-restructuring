@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <!-- Strategy personas: a 480x240 scene per order for the Profile cards
+       (drawn at the cards' 2:1, so nothing is cropped) and a 40x40
+       medallion for the masthead. Used as <use href="/art/personas.svg#id">.
+
+       One style throughout: flat planes, figures as pictograms (round
+       strokes, a separate head), no transforms on anything that is
+       clipped, so every clip path is in the scene's own coordinates.
+
+       Palette: red #b8261c, deep red #7d160e, darkest #5a0f08, clay #f4d9b7,
+       paper #f1ece0, ink #1f1c17, ink-soft #3a3530, ice #c9d6df. -->
+
+  <!-- AVALANCHE · uphill: the figure pushes the boulder up to the summit. -->
+  <symbol id="scene-avalanche" viewBox="0 0 480 240">
+    <rect width="480" height="240" fill="#b8261c"/>
+    <circle cx="74" cy="58" r="24" fill="#f4d9b7" opacity="0.9"/>
+    <path d="M0,178 L56,156 L104,170 L166,138 L214,160 L262,142 L300,240 L0,240 Z" fill="#9c1d14"/>
+    <!-- the slope: y = 226 - 0.4x up to the summit at (445,48) -->
+    <path d="M0,226 L445,48 L480,66 L480,240 L0,240 Z" fill="#5a0f08"/>
+    <path d="M0,226 L445,48 L445,55 L0,233 Z" fill="#7d160e"/>
+    <path d="M24,224.4 L436,59.6" stroke="#f4d9b7" stroke-width="1.5" stroke-dasharray="2 6" opacity="0.4"/>
+    <!-- summit flag: debt-free -->
+    <path d="M445,49 L445,18" stroke="#f4d9b7" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M446,18 L466,24 L446,30 Z" fill="#f4d9b7"/>
+    <!-- the boulder, resting on the slope ahead of the figure -->
+    <circle cx="283.4" cy="76" r="34" fill="#f4d9b7"/>
+    <path d="M258,62 Q272,52 288,56 M272,94 Q288,98 300,88" stroke="#c99a6e" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <circle cx="296" cy="68" r="3" fill="#c99a6e"/>
+    <!-- the figure: back heel to shoulders in one line, front knee driving -->
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M225.3,92.6 L249.5,78.4" stroke="#e2bd94" stroke-width="8"/>
+      <path d="M206.8,116.2 L176,155.6" stroke="#e2bd94" stroke-width="9.5"/>
+      <path d="M206.8,116.2 L230.5,108.3 L232,133.2" stroke="#b8261c" stroke-width="14"/>
+      <path d="M206.8,116.2 L230.5,108.3 L232,133.2" stroke="#f4d9b7" stroke-width="9.5"/>
+      <path d="M206.8,116.2 L225.3,92.6" stroke="#f4d9b7" stroke-width="14"/>
+      <path d="M225.3,92.6 L250.3,85.4" stroke="#f4d9b7" stroke-width="8"/>
+    </g>
+    <circle cx="232" cy="75.5" r="9" fill="#f4d9b7"/>
+    <!-- effort -->
+    <path d="M178,122 L166,126 M184,134 L170,140" stroke="#f4d9b7" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  </symbol>
+
+  <!-- SNOWBALL · downhill: let go at the top, it grows as it rolls. -->
+  <symbol id="scene-snowball" viewBox="0 0 480 240">
+    <rect width="480" height="240" fill="#f1ece0"/>
+    <g fill="#c9d6df">
+      <circle cx="132" cy="34" r="2"/><circle cx="198" cy="58" r="1.5"/><circle cx="252" cy="28" r="2"/>
+      <circle cx="318" cy="64" r="1.5"/><circle cx="372" cy="36" r="2"/><circle cx="440" cy="70" r="1.5"/>
+      <circle cx="286" cy="96" r="1.5"/><circle cx="410" cy="112" r="2"/><circle cx="160" cy="80" r="1.5"/>
+    </g>
+    <circle cx="412" cy="50" r="20" fill="#c9d6df"/>
+    <path d="M180,240 L250,200 L318,214 L392,186 L480,198 L480,240 Z" fill="#c9d6df"/>
+    <!-- the slope: y = 100 + 0.303(x - 44) from the ledge down -->
+    <path d="M0,100 L44,100 L480,232 L480,240 L0,240 Z" fill="#1f1c17"/>
+    <path d="M0,100 L44,100 L480,232 L480,238 L44,106 L0,106 Z" fill="#3a3530"/>
+    <!-- the figure, having just let go -->
+    <g fill="none" stroke="#1f1c17" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M26,68 L18,84 L14,99 M26,68 L33,84 L36,99" stroke-width="7"/>
+      <path d="M26,68 L28,44" stroke-width="10"/>
+      <path d="M28,46 L44,56 L56,52 M28,46 L18,58 L16,68" stroke-width="6"/>
+    </g>
+    <circle cx="30" cy="31" r="7.5" fill="#1f1c17"/>
+    <!-- the ball at each stage: it picks up what the last debt freed -->
+    <g fill="#f1ece0" stroke="#1f1c17" stroke-width="2">
+      <circle cx="92" cy="108" r="6" opacity="0.35"/>
+      <circle cx="173" cy="128" r="11" opacity="0.5"/>
+      <circle cx="267" cy="149" r="18" opacity="0.7"/>
+    </g>
+    <circle cx="409" cy="179" r="30" fill="#fff" stroke="#1f1c17" stroke-width="2.5"/>
+    <path d="M392,168 Q404,158 420,164 M396,192 Q412,198 426,188" stroke="#c9d6df" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M346,150 L366,156 M342,164 L362,170 M350,178 L366,183" stroke="#1f1c17" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+  </symbol>
+
+  <!-- HYBRID · the ridge: both kinds of debt in hand, a quick win first. -->
+  <symbol id="scene-hybrid" viewBox="0 0 480 240">
+    <defs>
+      <clipPath id="hy-left"><rect width="240" height="240"/></clipPath>
+      <clipPath id="hy-right"><rect x="240" width="240" height="240"/></clipPath>
+    </defs>
+    <rect width="240" height="240" fill="#b8261c"/>
+    <rect x="240" width="240" height="240" fill="#f1ece0"/>
+    <circle cx="70" cy="56" r="20" fill="#f4d9b7" opacity="0.9"/>
+    <circle cx="410" cy="56" r="20" fill="#c9d6df"/>
+    <!-- the ridge: peak at (240,122) -->
+    <path d="M0,232 L240,122 L240,240 L0,240 Z" fill="#5a0f08"/>
+    <path d="M0,232 L240,122 L240,129 L0,239 Z" fill="#7d160e"/>
+    <path d="M480,232 L240,122 L240,240 L480,240 Z" fill="#1f1c17"/>
+    <path d="M480,232 L240,122 L240,129 L480,239 Z" fill="#3a3530"/>
+    <!-- uphill trail on the red side, a small ball away down the snow side -->
+    <path d="M30,226 L196,150" stroke="#f4d9b7" stroke-width="1.5" stroke-dasharray="2 6" opacity="0.4"/>
+    <circle cx="342" cy="160" r="7" fill="#fff" stroke="#1f1c17" stroke-width="2"/>
+    <path d="M318,152 L330,156 M316,162 L328,166" stroke="#1f1c17" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+    <!-- the figure on the peak, split down its own middle -->
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <g stroke="#f4d9b7" clip-path="url(#hy-left)">
+        <path d="M240,92 L231,107 L229,124" stroke-width="9"/>
+        <path d="M240,92 L240,64" stroke-width="15"/>
+        <path d="M240,66 L222,58 L212,44" stroke-width="7.5"/>
+      </g>
+      <g stroke="#1f1c17" clip-path="url(#hy-right)">
+        <path d="M240,92 L249,107 L251,124" stroke-width="9"/>
+        <path d="M240,92 L240,64" stroke-width="15"/>
+        <path d="M240,66 L258,58 L268,46" stroke-width="7.5"/>
+      </g>
+    </g>
+    <circle cx="240" cy="47" r="9" fill="#f4d9b7" clip-path="url(#hy-left)"/>
+    <circle cx="240" cy="47" r="9" fill="#1f1c17" clip-path="url(#hy-right)"/>
+    <!-- the highest rate, heavy, in one hand; the smallest balance in the other -->
+    <circle cx="204" cy="25" r="20" fill="#f4d9b7"/>
+    <path d="M190,20 Q202,11 216,17" stroke="#c99a6e" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <circle cx="272" cy="34" r="11" fill="#fff" stroke="#1f1c17" stroke-width="2"/>
+  </symbol>
+
+  <!-- Medallions: the same three ideas, cut down to read at 32px. -->
+  <symbol id="med-avalanche" viewBox="0 0 40 40">
+    <rect width="40" height="40" fill="#b8261c"/>
+    <path d="M0,38 L40,18 L40,40 L0,40 Z" fill="#5a0f08"/>
+    <circle cx="26" cy="14.5" r="7" fill="#f4d9b7"/>
+    <g fill="none" stroke="#f4d9b7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M13,24 L8,33.5 M13,24 L17,23 L16,29" stroke-width="2.2"/>
+      <path d="M13,24 L17,19 L20,17" stroke-width="2.6"/>
+    </g>
+    <circle cx="16.5" cy="14.5" r="2.2" fill="#f4d9b7"/>
+  </symbol>
+  <symbol id="med-snowball" viewBox="0 0 40 40">
+    <rect width="40" height="40" fill="#f1ece0"/>
+    <path d="M0,12 L40,32 L40,40 L0,40 Z" fill="#1f1c17"/>
+    <g fill="#fff" stroke="#1f1c17" stroke-width="1.4">
+      <circle cx="9" cy="14" r="2.4"/>
+      <circle cx="17.5" cy="16" r="4"/>
+    </g>
+    <circle cx="30" cy="20" r="7" fill="#fff" stroke="#1f1c17" stroke-width="1.6"/>
+  </symbol>
+  <symbol id="med-hybrid" viewBox="0 0 40 40">
+    <rect width="20" height="40" fill="#b8261c"/>
+    <rect x="20" width="20" height="40" fill="#f1ece0"/>
+    <path d="M0,39 L20,28 L20,40 L0,40 Z" fill="#5a0f08"/>
+    <path d="M40,39 L20,28 L20,40 L40,40 Z" fill="#1f1c17"/>
+    <g fill="none" stroke-linecap="round" stroke-width="2.2">
+      <path d="M20,22 L18,28.6 M20,16 L15,12" stroke="#f4d9b7"/>
+      <path d="M20,22 L22,28.6 M20,16 L25,12" stroke="#1f1c17"/>
+    </g>
+    <path d="M18.4,15 H20 V23 H18.4 Z" fill="#f4d9b7"/>
+    <path d="M20,15 H21.6 V23 H20 Z" fill="#1f1c17"/>
+    <path d="M20,9.4 A2.3,2.3 0 0 0 20,14 Z" fill="#f4d9b7"/>
+    <path d="M20,9.4 A2.3,2.3 0 0 1 20,14 Z" fill="#1f1c17"/>
+    <circle cx="11.5" cy="8" r="5" fill="#f4d9b7"/>
+    <circle cx="28.5" cy="9" r="3.2" fill="#fff" stroke="#1f1c17" stroke-width="1.3"/>
+  </symbol>
+</svg>

@@ -276,3 +276,27 @@ Also from round 5, noted but not scored: "Confirm EMIs paid" leaves the plan
 unchanged because the plan already counts scheduled EMIs. The bar now says
 so, and to update the Setup balance if it predates the EMI.
 
+## 8 · Redesign finish: walkthroughs and the phone pass (2 Oct 2026)
+
+R7 of [REDESIGN.md](REDESIGN.md) ran all six walkthroughs on the finished
+redesign and loaded every page at 390 px with five profiles. What they turned
+up, all fixed on the R7 PR:
+
+| # | What the user saw | Fix |
+|---|---|---|
+| F1 (P0) | **One asset saved without a purchase date stopped the plan**: every request carrying the profile, /simulate included, returned 422 | The API takes a blank date and leaves that asset out of the engine's list (its sale can't be taxed without one); the rest runs. The assets form won't save without a date or year, and says so at the field. A test covers the 422 |
+| F2 (P1) | **The persona art was cropped and crude**: drawn at 3:2 for 2:1 cards, so feet, the god and the big snowball were cut off; bodies were loose polygons; the 40 px medallions blurred | Redrawn at 2:1 with pictogram figures and flat planes, one idea per scene; medallions cut down to read at 32 px; the unused glyphs removed |
+| F3 (P2) | Setup's plan preview showed **"$4,044.00", "$2,783.03"** | Whole amounts, as on every other page |
+| F4 (P2) | A user with **no loans** was told "Order: Avalanche … Change it on Plan" | The line shows only with loans, and points to the switch at the top of each page |
+| F5 (P2) | **Two wordings for the same orders**: "pure psychological momentum", "then math" beside the personas' rules | One line each, in the personas' words |
+| F6 (P2) | Activity said **"plan debt-free MAR 2031 · no change"** | "plan still debt-free in Mar 2031" |
+| F7 (P1) | **/profile/assets was 484 px wide on a phone** | Its grid drops to one column |
+| F8 (P1) | **Tap targets 11–16 px tall** across the app (every bracket link and button, the tabs, sliders, the "i" tips) | At least 24 px to a finger without moving the layout (`.l-hit`); rows of brackets spaced so their areas don't overlap |
+| F9 (P2) | On a phone the tabs ran to two lines, and Home repeated the payoff order just below the masthead that shows it | Tabs fit one line (tighter tracking under 480 px); Home's line drops the order |
+
+**Still open**
+- Plan converts foreign loans at the rate saved in setup, which goes stale. NRI prepay already starts from today's rate. Proposed: refresh the saved rate when today's can be fetched, and say on Plan which day's rate it used.
+- `/profile/assets` has its copy and capitals fixed but still uses the old form styling (rounded boxes); it should move to Ledger fields.
+- The medallion's three pips are 14×10. They pass WCAG 2.5.8 because the medallion beside them opens the same three choices as full-width buttons; on a phone the medallion is the easier tap.
+- Polymarket, frankfurter and open.er-api are blocked from the build container, so Right time's odds and the live exchange rate need a first look once deployed.
+

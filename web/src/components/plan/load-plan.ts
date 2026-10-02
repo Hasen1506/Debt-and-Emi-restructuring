@@ -615,3 +615,41 @@ export async function loadPlanInputsFromCookies() {
     ]);
   return { strategy, ...(await loadPlanInputs(hikeModeling, taxReinvest, inflationModeling, fxDrift)) };
 }
+
+/** What one payoff order comes to on the plan's own inputs. */
+export interface StrategyOutcome {
+  debtFreeMonth: number | null;
+  totalInterest: string;
+  /** Some month is short of cash, so this order has no date to plan by. */
+  short: boolean;
+}
+
+/**
+ * The three payoff orders run on the same inputs as Plan (Profile's
+ * side-by-side, REDESIGN R6.3), so each number matches what Plan shows
+ * when that order is picked. Null when there's nothing to order: no debt,
+ * or a loan missing the rate or EMI the engine needs.
+ */
+export async function loadStrategyOutcomesFromCookies(): Promise<{
+  active: StrategyName;
+  country: UserPayload['country'];
+  outcomes: Record<StrategyName, StrategyOutcome>;
+} | null> {
+  const { strategy, displayUser, simBaseArgs } = await loadPlanInputsFromCookies();
+  if (!displayUser.loans.some((l) => Number(l.outstanding) > 0)) return null;
+  if (projectionGaps(displayUser).length > 0) return null;
+  const sims = await Promise.all(STRATEGIES.map((s) => api.simulate({ ...simBaseArgs, strategy: s })));
+  const outcomes = Object.fromEntries(
+    STRATEGIES.map((s, i) => [
+      s,
+      {
+        debtFreeMonth: sims[i].debt_free_month,
+        totalInterest: sims[i].total_interest_paid,
+        short:
+          Number(sims[i].shortfall ?? 0) > 0 ||
+          sims[i].trajectory.some((p) => p.month > 1 && Number(p.shortfall) > 0),
+      },
+    ]),
+  ) as Record<StrategyName, StrategyOutcome>;
+  return { active: strategy, country: displayUser.country, outcomes };
+}

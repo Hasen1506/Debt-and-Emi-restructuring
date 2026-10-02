@@ -232,7 +232,7 @@ export function StrategySwitcher({
             fontSize: 11,
           }}
         >
-          {pending ? 'recomputing…' : STRATEGY_SHORT[active]}
+          {pending ? 'Working it out…' : STRATEGY_SHORT[active]}
         </span>
       </div>
       {compare && allSame(compare) && (
@@ -327,7 +327,7 @@ export function StrategySwitcher({
         className="muted"
         style={{ fontSize: 12, lineHeight: 1.5, maxWidth: 480 }}
       >
-        {pending ? 'Recomputing schedule…' : STRATEGY_SHORT[active]}
+        {pending ? 'Working it out…' : STRATEGY_SHORT[active]}
       </span>
       {compare && (
         <div

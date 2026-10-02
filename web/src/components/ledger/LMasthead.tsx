@@ -20,7 +20,9 @@ import { usePathname } from 'next/navigation';
 import { LRule, LBracket, L_T, L_MONO } from './primitives';
 import { getCountryToday } from '@/lib/today';
 import { SessionIndicator } from '@/components/chrome/SessionIndicator';
+import { StrategyMedallion } from '@/components/personas/StrategyMedallion';
 import type { Country } from '@/lib/api';
+import type { StrategyName } from '@/lib/strategy';
 
 export type LedgerSection = 'home' | 'plan' | 'activity' | 'goals' | 'profile';
 
@@ -92,7 +94,9 @@ function timeNow(country: Country): string {
   });
 }
 
-export function LMasthead({ country }: { country: Country }) {
+/** `strategy` shows the payoff strategy's medallion; left out when
+ *  there is no debt to order. */
+export function LMasthead({ country, strategy }: { country: Country; strategy?: StrategyName | null }) {
   const path = usePathname() || '/';
   const section = sectionFromPath(path);
   const stmt = stmtFromPath(path);
@@ -144,19 +148,27 @@ export function LMasthead({ country }: { country: Country }) {
         aria-label="Main"
         style={{
           display: 'flex',
-          gap: 'clamp(10px, 2.4vw, 22px)',
+          gap: 'clamp(8px, 2.4vw, 22px)',
           padding: '8px 0',
-          overflowX: 'auto',
+          // Wraps rather than scrolls: a scrolling row clipped the
+          // strategy medallion's menu.
           flexWrap: 'wrap',
           alignItems: 'center',
         }}
       >
         {NAV.map(([label, key, href]) => (
-          <LBracket key={key} active={section === key} current={section === key} href={href}>
+          <LBracket
+            key={key}
+            active={section === key}
+            current={section === key}
+            href={href}
+            style={{ letterSpacing: 'var(--nav-tracking, 0.14em)' }}
+          >
             {label}
           </LBracket>
         ))}
-        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 10, alignItems: 'center' }}>
+          {strategy && <StrategyMedallion strategy={strategy} />}
           <LBracket>{localePin}</LBracket>
           <SessionIndicator />
         </span>

@@ -284,7 +284,7 @@ export function DecisionLogControls({
               type="button"
               onClick={discard}
               title="Delete this entry"
-              style={discardBtnStyle}
+              className="l-hit" style={discardBtnStyle}
             >
               ×
             </button>
@@ -345,7 +345,7 @@ export function DecisionLogControls({
             type="button"
             onClick={discard}
             title="Discard this tracked recommendation"
-            style={discardBtnStyle}
+            className="l-hit" style={discardBtnStyle}
           >
             ×
           </button>

@@ -2,17 +2,17 @@
 
 /**
  * Profile at rest (REDESIGN R1.5): everything saved, one ledger section per
- * part, each with [EDIT] opening just that part of the form. The persona
- * triptych joins "Payoff order" in R6.
+ * part, each with [EDIT] opening just that part of the form. "Payoff order"
+ * holds the three orders side by side (R6.3), worked out on the server and
+ * passed in; it is left out when there's no debt to order.
  */
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import Decimal from 'decimal.js';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import { formatCurrency } from '@/lib/api';
 import type { AgeBracket, AssetPayload, UserPayload } from '@/lib/api';
 import { formatLoanAmount, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import { loanLabel } from '@/lib/loan-types';
-import { STRATEGY_LABEL, STRATEGY_SHORT, type StrategyName } from '@/lib/strategy';
 
 const AGE_LABEL: Record<AgeBracket, string> = {
   under_25: 'Under 25',
@@ -35,15 +35,20 @@ export function ProfileSummary({
   user,
   creditScore,
   assets,
-  strategy,
+  payoffOrder,
   onEdit,
 }: {
   user: UserPayload;
   creditScore: string;
   assets: AssetPayload[];
-  strategy: StrategyName;
+  payoffOrder: ReactNode;
   onEdit: (section: number) => void;
 }) {
+  // The masthead's medallion links to #strategy, which only exists once
+  // the profile has loaded in the browser, after the browser looked for it.
+  useEffect(() => {
+    if (window.location.hash === '#strategy') document.getElementById('strategy')?.scrollIntoView();
+  }, []);
   const ccy = userDefaultCurrency(user.country);
   const money = (v: string | number | Decimal | undefined) => formatCurrency(v || '0', ccy);
   const loans = user.loans.filter((l) => Number(l.outstanding) > 0);
@@ -209,15 +214,17 @@ export function ProfileSummary({
         />
       </section>
 
-      <section aria-labelledby="pf-order">
-        <LSectionHeader step={7} right={<LBracket accent href="/plan" label="Change payoff order on Plan">CHANGE ON PLAN</LBracket>}>
-          <span id="pf-order">Payoff order</span>
-        </LSectionHeader>
-        <Rows rows={[[STRATEGY_LABEL[strategy], STRATEGY_SHORT[strategy]]]} />
-      </section>
+      {payoffOrder && (
+        <section id="strategy" aria-labelledby="pf-order" style={{ scrollMarginTop: 16 }}>
+          <LSectionHeader step={7} right={<LBracket accent href="/plan" label="See the payoff order on Plan">SEE ON PLAN</LBracket>}>
+            <span id="pf-order">Payoff order</span>
+          </LSectionHeader>
+          {payoffOrder}
+        </section>
+      )}
 
       <section aria-labelledby="pf-privacy">
-        <LSectionHeader step={8}>
+        <LSectionHeader step={payoffOrder ? 8 : 7}>
           <span id="pf-privacy">Privacy</span>
         </LSectionHeader>
         <p style={{ margin: 0, color: L_T.muted, lineHeight: 1.6 }}>

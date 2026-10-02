@@ -212,3 +212,27 @@ input[type="checkbox"],
 input[type="radio"] {
   accent-color: var(--accent);
 }
+
+/* The thumb is the target; give the whole row a finger's height. */
+input[type="range"] {
+  min-height: 24px;
+}
+
+/* Ledger's bracket links and buttons are set in 10–11px type. .l-hit
+   reaches past the text so each is at least 26px tall to a finger,
+   without moving anything (WCAG 2.5.8 target size). */
+.l-hit {
+  position: relative;
+}
+.l-hit::after {
+  content: '';
+  position: absolute;
+  inset: -8px -4px;
+}
+
+/* The five tabs fit one line on a phone with tighter tracking. */
+@media (max-width: 480px) {
+  :root {
+    --nav-tracking: 0.06em;
+  }
+}

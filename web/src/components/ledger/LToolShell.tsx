@@ -56,7 +56,7 @@ export function LToolHeader({
         }}
       >
         <span>$ {name.toUpperCase()} · {date.toUpperCase()}</span>
-        <a href="/goals#tools" style={{ color: L_T.muted, letterSpacing: '0.14em', fontSize: 10, textDecoration: 'none' }}>
+        <a href="/goals#tools" className="l-hit" style={{ color: L_T.muted, letterSpacing: '0.14em', fontSize: 10, textDecoration: 'none' }}>
           [← ALL TOOLS]
         </a>
       </div>

@@ -73,7 +73,7 @@ export const TOOLS: ToolMeta[] = [
     tag: '8f',
     name: 'Right time',
     question: 'Borrow now, or wait for rates to fall?',
-    sub: 'Where the central bank’s rate is heading, and what waiting costs.',
+    sub: 'The market’s odds of a rate cut, and what waiting would save.',
     href: '/tools/right-time',
   },
   {
