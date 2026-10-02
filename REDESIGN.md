@@ -8,8 +8,8 @@ Read **Resume here** first after any compaction or new session.
 - **Phase in progress:** R4 · Activity (not started)
 - **Last finished step:** R3 · Plan, all five steps (PR #10): assumption chips, KPIs, chart with milestones, month-by-month events with the rate-reset reminder and central-bank note, life events, notes, what-if and advance tax restyled
 - **Next step:** R4 — measure Activity's height at 1200/390 and W6 (log a partial EMI and a rate change) on the current page as the before, then R4.1
-- **Open PR:** #10 · `claude/vibrant-bardeen-5bsiyj` (merge when CI is green, then restart the branch from `main`)
-- **Waiting on the owner:** whether to change the US default card minimum (see the R1 walkthrough results)
+- **Open PR:** R4 · `claude/vibrant-bardeen-5bsiyj` (merge when CI is green, then restart the branch from `main`)
+- **Done before R4:** the US card minimum is now 1% of the balance plus interest and fees (owner said yes; see the R1 walkthrough results)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
 tick the boxes here, update **Resume here**, push, and ask the owner to `/compact`.
@@ -230,6 +230,11 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
   At 24% APR, 2% a month is exactly the interest, so a card on minimums never clears, and "vs paying minimums"
   is overstated (W2: $182,870; W3: "77 yrs 6 mo sooner"). Most US issuers charge 1% of the balance plus interest
   and fees, with a $25–$41 floor. Changing it moves every US baseline, so it is listed for the owner rather than changed here.
+- **Fixed (owner approved, before R4):** the US default is now 1% of the balance plus interest and fees, or $35;
+  Chase $40, Citi $41, Capital One and Apple Card $25, Amex $40, Bank of America $35 (all 1% + interest + fees);
+  Discover the greatest of 2%, $20 + interest + fees, or $35; Synchrony the greatest of 3.5%, 1% + interest + fees, or $25.
+  No minimum asks for more than the card owes. The US test profile ($8,000 Chase card at 25%, $18,000 car loan)
+  on minimums only: never clear and $131,925 of interest in 50 years → clear in 19 yrs 8 mo, $17,496.
 
 ### Before R2 (current Home, Priya's profile)
 
