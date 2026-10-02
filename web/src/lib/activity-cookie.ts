@@ -31,14 +31,13 @@ import { explainMinPayment } from './min-payment';
 import type { Country, LoanPayload } from './api';
 import { overdueAmount, daysLate, extraPrincipal } from './activity';
 import { alignToLoans, resolveLoanIndex } from './loan-ids';
-import { localIsoDate } from './today';
+import { localIsoDate, getCountryToday } from './today';
 
 const COOKIE_NAME = 'finoptima_activity_deltas';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
-// v2 (plain JSON): one delta per entry, newest 20. v3 (compressed): one
-// delta per loan, summed over every entry, with the loan's id. v1 and v2
-// cookies are still read until the next activity change rewrites them.
-const CURRENT_VERSION = 3;
+// v4 adds the reported balance anchor. The compressed z3 envelope stays
+// readable across upgrades; v1-v3 payloads migrate on the next save.
+const CURRENT_VERSION = 4;
 const COMPRESSED = 'z3.';
 
 export interface ActivityDelta {
@@ -70,6 +69,8 @@ export interface ActivityDelta {
    *  any other deltas for the same loan. Carries the most-recent
    *  override only (older ones get filtered when this is set). */
   balanceOverride?: string;
+  /** Identity of the reported balance this aggregate was computed against. */
+  balanceAnchor?: string;
 }
 
 interface CookiePayload {
@@ -88,12 +89,15 @@ export function syncActivityCookieClient(
   entries: ActivityEntry[],
   loans: LoanPayload[],
   country: Country,
-): void {
-  if (typeof document === 'undefined') return;
+  notify = true,
+): boolean {
+  if (typeof document === 'undefined') return false;
   const payload: CookiePayload = { v: CURRENT_VERSION, deltas: activityDeltas(entries, loans, country) };
   const encoded = COMPRESSED + compressToEncodedURIComponent(JSON.stringify(payload));
   document.cookie = `${COOKIE_NAME}=${encoded}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
-  window.dispatchEvent(new Event('finoptima:profile-changed'));
+  const saved = JSON.stringify(parseActivityDeltas(document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '')) === JSON.stringify(payload.deltas);
+  if (saved && notify) window.dispatchEvent(new Event('finoptima:profile-changed'));
+  return saved;
 }
 
 /** Each loan's net effect from its activity entries (newest first): overdue
@@ -106,7 +110,7 @@ export function activityDeltas(
   country: Country,
   now: Date = new Date(),
 ): ActivityDelta[] {
-  const thisMonth = localIsoDate(now).slice(0, 7);
+  const thisMonth = localIsoDate(getCountryToday(country, now)).slice(0, 7);
   // Entries point at their loan's current position (by id), so a loan
   // removed in Setup takes its entries with it instead of passing them on.
   const aligned = alignToLoans(entries, loans).slice().sort((a,b) => b.date.localeCompare(a.date) || b.loggedAt.localeCompare(a.loggedAt));
@@ -142,6 +146,13 @@ export function activityDeltas(
   for (const e of aligned) {
     const loan = loans[e.loanIndex];
     if (!loan || anchored.has(e.loanIndex)) continue;
+    // A newly entered statement includes every earlier payment. Keep the
+    // history, but apply only activity after that statement's balance.
+    const asOf = loan.balance_as_of?.slice(0,10);
+    if (asOf && /^\d{4}-\d{2}-\d{2}$/.test(asOf)) {
+      if (e.date < asOf) continue;
+      if (e.date === asOf && loan.balance_recorded_at && Date.parse(e.loggedAt) <= Date.parse(loan.balance_recorded_at)) continue;
+    }
 
     // Card only: the newest reported balance after a payment re-anchors the
     // card's outstanding. Entries arrive newest-first, so the first wins.
@@ -198,7 +209,8 @@ export function activityDeltas(
     let shortfallForPenalty: string;
     if (loan.loan_type === 'credit_card') {
       const minHint = explainMinPayment(loan, country);
-      const minPayable = new Decimal(minHint?.estimated ?? loan.scheduled_emi);
+      const recordedMinimum = new Decimal(e.scheduledEmi || '0');
+      const minPayable = recordedMinimum.gt(0) ? recordedMinimum : new Decimal(minHint?.estimated ?? loan.scheduled_emi);
       const paid = new Decimal(e.kind === 'missed' ? '0' : e.amount || '0');
       if (paid.gte(minPayable)) continue; // paid above min: no delta
       overdue = '0';
@@ -230,6 +242,7 @@ export function activityDeltas(
   for (const [loanIndex, t] of byLoan) {
     deltas.push({
       loanIndex,
+      balanceAnchor: loanBalanceAnchor(loans[loanIndex]),
       ...(loans[loanIndex]?.id ? { loanId: loans[loanIndex].id } : {}),
       count: t.count,
       overdue: t.overdue.toFixed(2),
@@ -266,7 +279,7 @@ export function parseActivityDeltas(raw: string): ActivityDelta[] {
       : JSON.parse(decodeURIComponent(raw));
     // Accept v1 (missed/partial only) and v2 (adds paid_extra/closed) — older
     // browsers may still be carrying one until the next mutation.
-    if (parsed?.v !== 1 && parsed?.v !== 2 && parsed?.v !== CURRENT_VERSION) return [];
+    if (parsed?.v !== 1 && parsed?.v !== 2 && parsed?.v !== 3 && parsed?.v !== CURRENT_VERSION) return [];
     if (!Array.isArray(parsed.deltas)) return [];
     return parsed.deltas.filter(
       (d) =>
@@ -320,6 +333,7 @@ export function applyActivityDeltas(
     // the cookie was written matches nothing rather than its neighbour.
     const d = { ...raw, loanIndex: resolveLoanIndex(raw, loans) };
     if (d.loanIndex < 0) continue;
+    if (d.balanceAnchor !== undefined && d.balanceAnchor !== loanBalanceAnchor(loans[d.loanIndex])) continue;
     entryCount += d.count ?? 1;
     const overdue = new Decimal(d.overdue || 0);
     const penalty = new Decimal(d.penalty || 0);
@@ -379,4 +393,8 @@ export function applyActivityDeltas(
     totalBump: totalBump.toFixed(2),
     entryCount,
   };
+}
+
+function loanBalanceAnchor(loan: LoanPayload): string {
+  return JSON.stringify([loan.balance_as_of ?? null,loan.balance_recorded_at ?? null]);
 }

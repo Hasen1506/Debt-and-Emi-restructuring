@@ -22,6 +22,8 @@ import { dec } from '@/lib/safe-decimal';
 import { recapNet } from '@/lib/cash-allocation';
 import { commitCashChange } from '@/lib/commit-cash-change';
 import { addActivityEntry, readActivityClient, extraPrincipal } from '@/lib/activity';
+import { rollBalancesForward } from '@/lib/roll-forward';
+import { countryMonthKey } from '@/lib/today';
 import { applyActivityDeltas, activityDeltas } from '@/lib/activity-cookie';
 import { explainMinPayment } from '@/lib/min-payment';
 import { loanToUser } from '@/lib/currency';
@@ -126,7 +128,7 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
       if (!pendingMonths(cash).includes(monthKey)) throw new Error('This is not a complete, pending month. Refresh the recap before saving.');
       const stored = loadProfileClient();
       let entries = readActivityClient();
-      const current = applyActivityDeltas(stored.user.loans,activityDeltas(entries,stored.user.loans,stored.user.country)).loans;
+      const current = applyActivityDeltas(rollBalancesForward(stored.user.loans,countryMonthKey(stored.user.country)).loans,activityDeltas(entries,stored.user.loans,stored.user.country),countryMonthKey(stored.user.country)).loans;
       if (current.some(l=>loanToUser(1,l,stored.user.country,stored.user.fx_to_user_currency)==null)) throw new Error('Save every loan exchange rate before confirming a month.');
       const scheduledD = dec(defaultEmis);
       const emisD = new Decimal(emis);

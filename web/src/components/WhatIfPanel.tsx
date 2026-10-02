@@ -32,6 +32,7 @@ import { commitSpendingCut } from '@/lib/commit-spending-cut';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { readActivityClient } from '@/lib/activity';
 import { activityDeltas, applyActivityDeltas } from '@/lib/activity-cookie';
+import { rollBalancesForward } from '@/lib/roll-forward';
 import { countryMonthKey } from '@/lib/today';
 import {
   addCommitment,
@@ -204,7 +205,7 @@ export function WhatIfPanel({
       setToast('Finish setup first so we can write to your activity ledger.');
       return;
     }
-    const current = applyActivityDeltas(stored.user.loans,
+    const current = applyActivityDeltas(rollBalancesForward(stored.user.loans,countryMonthKey(stored.user.country)).loans,
       activityDeltas(readActivityClient(), stored.user.loans, stored.user.country), countryMonthKey(stored.user.country)).loans;
     const target = current[index];
     const expected = user.loans[lumpTarget];
