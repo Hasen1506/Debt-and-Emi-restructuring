@@ -167,7 +167,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 ### R6 · Strategy personas
 - [x] R6.1 Persona art as SVG symbols (authored once; 40px medallion, full triptych): `public/art/personas.svg` (3 scenes, 3 medallions, 3 glyphs), drawn through `components/personas/Persona.tsx`
 - [x] R6.2 Medallion in the masthead; click → switch strategy: a pip switches in one click; the medallion opens the three with what each does. Shown only when there is debt
-- [ ] R6.3 Triptych at the bottom of Profile with real numbers per strategy (debt-free date, total interest, extra cost vs Avalanche)
+- [x] R6.3 Triptych at the bottom of Profile with real numbers per strategy (debt-free date, total interest, extra cost vs Avalanche): `components/personas/StrategyCompare.tsx` runs the three orders on Plan's own inputs (`loadStrategyOutcomesFromCookies`) and streams in after the rest of Profile; a card switches. When the three come out the same (Priya, Sam) or a month is short, one line says so instead of three identical cards. The Hybrid figure's split was clipped in scene coordinates inside a translated group (in the design file too), which hid half of it; it now splits down its own middle
 - [ ] R6.4 Walkthrough W3
 
 ### R7 · Finish

@@ -167,6 +167,9 @@
           <defs>
             <clipPath id="hy-left"><polygon points="0,0 280,0 200,320 0,320"/></clipPath>
             <clipPath id="hy-right"><polygon points="280,0 480,0 480,320 200,320"/></clipPath>
+            <!-- The figure splits down its own middle; it sits in a translated group, so the scene's split would land off it. -->
+            <clipPath id="hy-fig-left"><rect x="-200" y="-200" width="200" height="400"/></clipPath>
+            <clipPath id="hy-fig-right"><rect x="0" y="-200" width="200" height="400"/></clipPath>
           </defs>
           <g clip-path="url(#hy-left)"><rect width="480" height="320" fill="#b8261c"/></g>
           <g clip-path="url(#hy-right)"><rect width="480" height="320" fill="#f1ece0"/></g>
@@ -194,14 +197,14 @@
           <!-- god atop, frontal -->
           <g transform="translate(240,110)">
             <!-- robe split -->
-            <g clip-path="url(#hy-left)"><path d="M-20,24 L-28,78 L0,84 L28,78 L20,24 Z" fill="#f4d9b7"/></g>
-            <g clip-path="url(#hy-right)"><path d="M-20,24 L-28,78 L0,84 L28,78 L20,24 Z" fill="#1f1c17"/></g>
+            <g clip-path="url(#hy-fig-left)"><path d="M-20,24 L-28,78 L0,84 L28,78 L20,24 Z" fill="#f4d9b7"/></g>
+            <g clip-path="url(#hy-fig-right)"><path d="M-20,24 L-28,78 L0,84 L28,78 L20,24 Z" fill="#1f1c17"/></g>
             <!-- robe folds -->
-            <path d="M-10,30 L-14,74" stroke="#b8261c" stroke-width="0.8" opacity="0.5" clip-path="url(#hy-left)"/>
-            <path d="M10,30 L14,74" stroke="#f1ece0" stroke-width="0.8" opacity="0.5" clip-path="url(#hy-right)"/>
+            <path d="M-10,30 L-14,74" stroke="#b8261c" stroke-width="0.8" opacity="0.5" clip-path="url(#hy-fig-left)"/>
+            <path d="M10,30 L14,74" stroke="#f1ece0" stroke-width="0.8" opacity="0.5" clip-path="url(#hy-fig-right)"/>
             <!-- legs -->
-            <g clip-path="url(#hy-left)"><path d="M-10,78 L-14,100 L-4,100 L-4,82 Z" fill="#f4d9b7"/></g>
-            <g clip-path="url(#hy-right)"><path d="M4,82 L4,100 L14,100 L10,78 Z" fill="#1f1c17"/></g>
+            <g clip-path="url(#hy-fig-left)"><path d="M-10,78 L-14,100 L-4,100 L-4,82 Z" fill="#f4d9b7"/></g>
+            <g clip-path="url(#hy-fig-right)"><path d="M4,82 L4,100 L14,100 L10,78 Z" fill="#1f1c17"/></g>
             <!-- LEFT arm UP (red side) -->
             <path d="M-18,28 L-58,2 L-64,10 L-20,34 Z" fill="#f4d9b7"/>
             <circle cx="-74" cy="0" r="14" fill="#f4d9b7"/>
@@ -224,15 +227,15 @@
               <path d="M8,10 L4,6 M8,10 L10,4"/>
             </g>
             <!-- head split -->
-            <g clip-path="url(#hy-left)"><circle cx="0" cy="8" r="12" fill="#f4d9b7"/></g>
-            <g clip-path="url(#hy-right)"><circle cx="0" cy="8" r="12" fill="#1f1c17"/></g>
+            <g clip-path="url(#hy-fig-left)"><circle cx="0" cy="8" r="12" fill="#f4d9b7"/></g>
+            <g clip-path="url(#hy-fig-right)"><circle cx="0" cy="8" r="12" fill="#1f1c17"/></g>
             <!-- laurel -->
-            <path d="M-12,0 Q0,-10 12,0" stroke="#7d160e" stroke-width="1.5" fill="none" clip-path="url(#hy-left)"/>
-            <path d="M-12,0 Q0,-10 12,0" stroke="#f1ece0" stroke-width="1.5" fill="none" clip-path="url(#hy-right)"/>
-            <circle cx="-8" cy="-3" r="1.8" fill="#7d160e" clip-path="url(#hy-left)"/>
-            <circle cx="0" cy="-6" r="1.8" fill="#7d160e" clip-path="url(#hy-left)"/>
-            <circle cx="0" cy="-6" r="1.8" fill="#f1ece0" clip-path="url(#hy-right)"/>
-            <circle cx="8" cy="-3" r="1.8" fill="#f1ece0" clip-path="url(#hy-right)"/>
+            <path d="M-12,0 Q0,-10 12,0" stroke="#7d160e" stroke-width="1.5" fill="none" clip-path="url(#hy-fig-left)"/>
+            <path d="M-12,0 Q0,-10 12,0" stroke="#f1ece0" stroke-width="1.5" fill="none" clip-path="url(#hy-fig-right)"/>
+            <circle cx="-8" cy="-3" r="1.8" fill="#7d160e" clip-path="url(#hy-fig-left)"/>
+            <circle cx="0" cy="-6" r="1.8" fill="#7d160e" clip-path="url(#hy-fig-left)"/>
+            <circle cx="0" cy="-6" r="1.8" fill="#f1ece0" clip-path="url(#hy-fig-right)"/>
+            <circle cx="8" cy="-3" r="1.8" fill="#f1ece0" clip-path="url(#hy-fig-right)"/>
           </g>
           <!-- vertical axis hint -->
           <line x1="240" y1="56" x2="240" y2="74" stroke="#fff" stroke-width="0.8" opacity="0.55" stroke-dasharray="2 3"/>
@@ -292,9 +295,10 @@
           <path d="M0,34 L20,10 L40,34 Z" fill="#5a0f08" clip-path="url(#med-hy-clip)"/>
           <!-- tiny god at peak -->
           <g transform="translate(20,16)">
-            <circle cx="0" cy="-2" r="2" fill="#f4d9b7" clip-path="url(#med-hy-clip)"/>
-            <circle cx="0" cy="-2" r="2" fill="#1f1c17"/>
-            <rect x="-2" y="0" width="2" height="6" fill="#f4d9b7" clip-path="url(#med-hy-clip)"/>
+            <!-- split down its own middle: light on the red side, dark on the snow side -->
+            <path d="M0,-4 A2,2 0 0 0 0,0 Z" fill="#f4d9b7"/>
+            <path d="M0,-4 A2,2 0 0 1 0,0 Z" fill="#1f1c17"/>
+            <rect x="-2" y="0" width="2" height="6" fill="#f4d9b7"/>
             <rect x="0" y="0" width="2" height="6" fill="#1f1c17"/>
             <path d="M-6,-1 L-2,1" stroke="#f4d9b7" stroke-width="1"/>
             <path d="M2,1 L6,3" stroke="#1f1c17" stroke-width="1"/>
