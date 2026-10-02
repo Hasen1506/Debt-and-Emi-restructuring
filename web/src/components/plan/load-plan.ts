@@ -4,6 +4,7 @@
  * restructure scan, the other two strategies) and shapes PlanData.
  */
 import { api, type SimulateResponse, type UserPayload, type LifecycleEventInput } from '@/lib/api';
+import { cachedEngineCall } from '@/lib/server-engine-cache';
 import { loadProfileServer } from '@/lib/user-store';
 import { loadStrategyServer, STRATEGIES, type StrategyName } from '@/lib/strategy';
 import {
@@ -454,17 +455,18 @@ export async function loadPlan(
 
   try {
     const [scenario, baseline, restructuring, ...altSims] = await Promise.all([
-      api.simulate({ ...simBaseArgs, strategy }),
-      api.baseline({
+      cachedEngineCall('simulate', { ...simBaseArgs, strategy }, () => api.simulate({ ...simBaseArgs, strategy })),
+      cachedEngineCall('baseline', {
         user: adjustedUser,
         horizon_months: HORIZON_MONTHS,
         lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
-      }),
-      api.restructuring({
+      }, () => api.baseline({ user: adjustedUser, horizon_months: HORIZON_MONTHS,
+        lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined })),
+      cachedEngineCall('restructuring', {
         user: adjustedUser,
         marginal_rate: profile.marginalRate,
-      }),
-      ...otherStrategies.map((s) => api.simulate({ ...simBaseArgs, strategy: s })),
+      }, () => api.restructuring({ user: adjustedUser, marginal_rate: profile.marginalRate })),
+      ...otherStrategies.map((s) => cachedEngineCall('simulate', { ...simBaseArgs, strategy: s }, () => api.simulate({ ...simBaseArgs, strategy: s }))),
     ]);
     const strategyCompare = {
       [strategy]: {
@@ -638,7 +640,7 @@ export async function loadStrategyOutcomesFromCookies(): Promise<{
   const { strategy, displayUser, simBaseArgs } = await loadPlanInputsFromCookies();
   if (!displayUser.loans.some((l) => Number(l.outstanding) > 0)) return null;
   if (projectionGaps(displayUser).length > 0) return null;
-  const sims = await Promise.all(STRATEGIES.map((s) => api.simulate({ ...simBaseArgs, strategy: s })));
+  const sims = await Promise.all(STRATEGIES.map((s) => cachedEngineCall('simulate', { ...simBaseArgs, strategy: s }, () => api.simulate({ ...simBaseArgs, strategy: s }))));
   const outcomes = Object.fromEntries(
     STRATEGIES.map((s, i) => [
       s,

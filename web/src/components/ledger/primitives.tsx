@@ -17,6 +17,7 @@
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { fitColumns } from '@/lib/grid';
 
 export const L_T = {
@@ -80,10 +81,12 @@ export function LBracket({
   style,
   current,
   label,
+  prefetch,
 }: {
   children: ReactNode;
   /** Spoken name when the bracket text alone is ambiguous ("EDIT" × 5). */
   label?: string;
+  prefetch?: boolean;
   active?: boolean;
   /** The link to the page being shown (nav). */
   current?: boolean;
@@ -112,6 +115,11 @@ export function LBracket({
   };
   const inner = <>[{children}]</>;
   if (href) {
+    if (href.startsWith('/') && !href.startsWith('//')) return (
+      <Link href={href} prefetch={prefetch} className="l-hit" style={base} aria-current={current ? 'page' : undefined} aria-label={label}>
+        {inner}
+      </Link>
+    );
     return (
       <a href={href} className="l-hit" style={base} aria-current={current ? 'page' : undefined} aria-label={label}>
         {inner}

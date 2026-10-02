@@ -32,9 +32,8 @@ export default function PlanLoading() {
           lineHeight: 1.6,
         }}
       >
-        Simulating 240 months of EMI + interest accrual, running restructuring
-        scans against the rate cards, then sorting by impact. Usually under a
-        second; cold starts can take 3–5s.
+        Checking your saved balances, payoff order and goals. Unchanged
+        calculations are reused; a sleeping test server can take longer to wake.
       </div>
       <div
         style={{
