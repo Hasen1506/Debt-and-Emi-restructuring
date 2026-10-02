@@ -60,7 +60,7 @@ export function PanelShell({
             fontFamily: 'var(--font-mono)',
           }}
         >
-          $ {eyebrow}
+          {eyebrow}
         </div>
         <div
           style={{

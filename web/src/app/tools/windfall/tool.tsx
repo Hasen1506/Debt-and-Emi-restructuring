@@ -487,7 +487,7 @@ export function WindfallTool({
     <div ref={ref} style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
       {!profile.isLive && (
         <div style={{ fontSize: 11, color: L_T.muted, letterSpacing: '0.08em' }}>
-          $ DEMO PROFILE · <a href="/onboarding">[SETUP →]</a>
+          DEMO PROFILE · <a href="/onboarding">[SETUP →]</a>
         </div>
       )}
 

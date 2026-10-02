@@ -219,7 +219,7 @@ function ShortfallBanner({ plan }: { plan: PlanData }) {
       style={{ border: `2px solid ${L_T.negative}`, padding: '14px 18px', fontSize: 12, lineHeight: 1.7 }}
     >
       <div style={{ fontWeight: 700, color: L_T.negative, letterSpacing: '0.08em', marginBottom: 6 }}>
-        $ SHORT {fc(plan.shortfall)} A MONTH · NO PAYOFF DATE YET
+        SHORT {fc(plan.shortfall)} A MONTH · NO PAYOFF DATE YET
       </div>
       Your costs ({fc(costs)}) and minimum payments ({fc(minimums)}) come to more
       than your income ({fc(income)}). The schedule below assumes the minimums get

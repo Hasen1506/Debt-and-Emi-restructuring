@@ -435,7 +435,7 @@ export function QuickSetup() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 760 }}>
         <header>
           <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
-            $ SETUP · 3 STEPS · ABOUT 2 MINUTES
+            SETUP · 3 STEPS · ABOUT 2 MINUTES
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>
             {prev ? 'Update your numbers' : 'Your loans, and a plan to clear them'}

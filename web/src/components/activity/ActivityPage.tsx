@@ -381,7 +381,7 @@ function Month({
     <section id={`month-${m.month}`} aria-labelledby={`month-${m.month}-h`} style={{ scrollMarginTop: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, borderTop: `2px solid ${L_T.ink}`, padding: '10px 0 6px' }}>
         <h3 id={`month-${m.month}-h`} style={{ margin: 0, fontSize: 12, letterSpacing: '0.18em', fontWeight: 700 }}>
-          $ {m.label}
+          {m.label}
           {m.current && <span style={{ color: L_T.accent }}> · THIS MONTH</span>}
         </h3>
         <span style={{ display: 'inline-flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>

@@ -51,7 +51,7 @@ export function LedgerPortfolio({
         }}
       >
         <section>
-          <SectionLabel>$ PORTFOLIO · WHAT YOU OWN</SectionLabel>
+          <SectionLabel>PORTFOLIO · WHAT YOU OWN</SectionLabel>
           <div
             style={{
               background: 'var(--card)',
@@ -103,7 +103,7 @@ export function LedgerPortfolio({
       <CreditCardChips user={user} marginalRate={marginalRate} />
       <section>
         <SectionLabel>
-          $ PORTFOLIO · {summary.count} HOLDINGS · {summary.byType.length} TYPES
+          PORTFOLIO · {summary.count} HOLDINGS · {summary.byType.length} TYPES
         </SectionLabel>
         <LedgerKpiGrid
           cells={[
@@ -131,7 +131,7 @@ export function LedgerPortfolio({
       </section>
 
       <section>
-        <SectionLabel>$ HOLDINGS · BY VALUE</SectionLabel>
+        <SectionLabel>HOLDINGS · BY VALUE</SectionLabel>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr
@@ -196,7 +196,7 @@ export function LedgerPortfolio({
       <HoldingsTracker user={user} marginalRate={marginalRate} variant="ledger" />
 
       <section>
-        <SectionLabel>$ ACTIONS</SectionLabel>
+        <SectionLabel>ACTIONS</SectionLabel>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           <a
             href="/profile/assets"

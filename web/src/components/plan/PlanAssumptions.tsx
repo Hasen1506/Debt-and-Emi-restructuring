@@ -202,7 +202,6 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
         }}
       >
         <span>
-          <span aria-hidden="true">$ </span>
           {facts.join(' · ')}
           {!plan.profileIsLive && ' · DEMO'}
           {!plan.live && ' · OFFLINE'}

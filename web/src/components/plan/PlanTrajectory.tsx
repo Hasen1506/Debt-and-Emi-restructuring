@@ -42,7 +42,8 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
     const today = getCountryToday(country);
     const shortDate = (month: number) => {
       const d = monthIndexToDate(month, today);
-      return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(-2)}`;
+      // "OCT ’26", not "OCT 26", which reads as a day.
+      return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ’${String(d.getFullYear()).slice(-2)}`;
     };
     const first = traj[0].month;
     const lastAll = traj[traj.length - 1].month;
@@ -168,7 +169,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
         </>
       ) : (
         <div style={{ padding: 18, fontSize: 12, color: L_T.muted }}>
-          $ NO TRAJECTORY · the plan returned no months to draw.
+          NO TRAJECTORY · the plan returned no months to draw.
         </div>
       )}
     </section>

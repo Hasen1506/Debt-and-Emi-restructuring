@@ -276,7 +276,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
             gap: 6,
           }}
         >
-          {variant === 'ledger' ? '$ HOLDINGS · STOCKS + MF' : 'Holdings tracker'}
+          {variant === 'ledger' ? 'HOLDINGS · STOCKS + MF' : 'Holdings tracker'}
           <InfoTip>{tip}</InfoTip>
         </div>
         {holdings.length > 0 && (

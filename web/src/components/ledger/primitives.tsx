@@ -194,10 +194,8 @@ export function LSectionHeader({
           textTransform: 'uppercase',
         }}
       >
-        {step !== undefined ? (
+        {step !== undefined && (
           <span style={{ color: L_T.accent }}>{String(step).padStart(2, '0')} / </span>
-        ) : (
-          <span aria-hidden="true">$ </span>
         )}
         {children}
       </h2>
@@ -373,7 +371,7 @@ export function LCli({ children }: { children: ReactNode }) {
         fontFamily: L_MONO,
       }}
     >
-      $ {children}
+      {children}
     </div>
   );
 }
@@ -632,7 +630,7 @@ export function LSlider({
           gap: 8,
         }}
       >
-        <span style={{ color: L_T.muted }}>$ {label} =</span>
+        <span style={{ color: L_T.muted }}>{label} =</span>
         <span style={{ color: L_T.ink, fontWeight: 700 }}>{format(value)}</span>
       </div>
       <div
@@ -812,7 +810,7 @@ export function LMathBlock({
           marginBottom: 8,
         }}
       >
-        $ {title}
+        {title}
       </div>
       <div style={{ fontSize: 12, color: L_T.ink, lineHeight: 1.8 }}>
         {rows.map((r, i) => (

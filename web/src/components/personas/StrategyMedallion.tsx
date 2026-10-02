@@ -113,8 +113,10 @@ export function StrategyMedallion({
       >
         <PersonaMedallion strategy={current} size={34} />
         <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
+          {/* Says what the switch is: "Avalanche" alone told no one it
+              sets the order debts are paid off in. */}
+          <small style={{ fontSize: 9, letterSpacing: '0.12em', color: L_T.muted }}>PAYOFF ORDER</small>
           <b style={{ fontSize: 11, letterSpacing: '0.08em' }}>{p.name.toUpperCase()}</b>
-          <small style={{ fontSize: 9, letterSpacing: '0.12em', color: L_T.muted }}>{p.tag}</small>
         </span>
       </button>
       <span

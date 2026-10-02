@@ -55,7 +55,7 @@ export function LToolHeader({
           flexWrap: 'wrap',
         }}
       >
-        <span>$ {name.toUpperCase()} · {date.toUpperCase()}</span>
+        <span>{name.toUpperCase()} · {date.toUpperCase()}</span>
         <a href="/goals#tools" className="l-hit" style={{ color: L_T.muted, letterSpacing: '0.14em', fontSize: 10, textDecoration: 'none' }}>
           [← ALL TOOLS]
         </a>
@@ -104,7 +104,7 @@ export function LToolInput({
           marginBottom: 12,
         }}
       >
-        $ {title.toUpperCase()}
+        {title.toUpperCase()}
       </div>
       {children}
       {asOf !== null && (
@@ -165,7 +165,7 @@ export function LToolVerdict({
           marginBottom: 10,
         }}
       >
-        $ VERDICT · {eyebrow.toUpperCase()}
+        VERDICT · {eyebrow.toUpperCase()}
       </div>
       <h2
         style={{

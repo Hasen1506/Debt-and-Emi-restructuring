@@ -289,7 +289,7 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
             flex: 1,
           }}
         >
-          {chevron} $ MONTHLY RECAP · {headline}
+          {chevron} MONTHLY RECAP · {headline}
         </button>
         {!isOpen && (
           <button

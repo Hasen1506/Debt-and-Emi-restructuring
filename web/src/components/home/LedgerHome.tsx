@@ -161,7 +161,6 @@ function ContextLine({ profile }: { profile: StoredProfile }) {
       }}
     >
       <span>
-        <span aria-hidden="true">$ </span>
         {parts.join(' · ')}
       </span>
       <LBracket href="/plan">CHANGE ON PLAN →</LBracket>

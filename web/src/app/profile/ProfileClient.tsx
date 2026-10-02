@@ -2407,7 +2407,7 @@ function ProfileHeader({ title, editing, children }: { title: string; editing?: 
   return (
     <header>
       <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
-        $ PROFILE{editing ? ' · EDIT' : ''}
+        PROFILE{editing ? ' · EDIT' : ''}
       </div>
       <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>{title}</h1>
       <p style={{ color: L_T.muted, margin: '8px 0 0', lineHeight: 1.6 }}>{children}</p>
