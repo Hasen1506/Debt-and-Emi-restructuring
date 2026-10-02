@@ -18,8 +18,10 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Field, InfoTip, Select } from '@/components/ToolPrimitives';
+import { Field } from '@/components/ToolPrimitives';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
+import { LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
+import { LFieldGrid, LNote, LStep, LStepSub, LSteps, LVerdict } from '@/components/ledger/LToolSteps';
 import { formatCurrency } from '@/lib/api';
 import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
 import { userDefaultCurrency } from '@/lib/currency';
@@ -38,12 +40,11 @@ import {
   totalsByGoal,
 } from '@/lib/goal-contributions';
 import { computeGoalSlip, materialSlips } from '@/lib/goal-slip';
-import { fitColumns } from '@/lib/grid';
 
 const TYPE_OPTIONS: { value: PurchaseType; label: string }[] = [
-  { value: 'home', label: 'Home' },
-  { value: 'vehicle', label: 'Vehicle (car / bike)' },
-  { value: 'other', label: 'Other big-ticket' },
+  { value: 'home', label: 'A home' },
+  { value: 'vehicle', label: 'A car or bike' },
+  { value: 'other', label: 'Something else' },
 ];
 
 const DEFAULTS = {
@@ -123,9 +124,9 @@ export function PurchaseTool() {
   const [availableSavings, setAvailableSavings] = useState(() => {
     if(!profile.isLive) return '0';
     const accounts=profile.user.cash_accounts;
-    if(!accounts?.length) return profile.user.savings_balance ?? '0';
+    if(!accounts?.length) return String(Math.round(Number(profile.user.savings_balance ?? 0)));
     return accounts.filter(a=>a.kind!=='fd' && (!a.currency || a.currency===ccy))
-      .reduce((sum,a)=>sum+Number(a.balance),0).toFixed(2);
+      .reduce((sum,a)=>sum+Number(a.balance),0).toFixed(0);
   });
   const [targetMonth, setTargetMonth] = useState(nextSixMonths);
   const [downPct, setDownPct] = useState(DEFAULTS.home.downPct);
@@ -208,461 +209,259 @@ export function PurchaseTool() {
     return materialSlips(rows);
   }, [analysis, goals, contributionTotals, monthlySurplus, profile.user]);
 
+  const savingsFromProfile = profile.isLive;
+  const fieldTouch = (k: keyof typeof touched, set: (v: string) => void) => (v: string) => {
+    set(v);
+    if (!touched[k]) setTouched((t) => ({ ...t, [k]: true }));
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {inputError && <p role="alert">{inputError}</p>}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: fitColumns(3, 140),
-          gap: 12,
-        }}
-      >
-        <Select
-          label="Type"
-          value={type}
-          onChange={(v) => applyTypeDefaults(v as PurchaseType)}
-          options={TYPE_OPTIONS}
-        />
-        <Field
-          label={`Price (${ccy})`}
-          value={price}
-          onChange={setPrice}
-          hint="Out-the-door cost"
-          kind="decimal"
-        />
-        <Field label="Savings available for this purchase" value={availableSavings} onChange={setAvailableSavings}
-          hint="Exclude your emergency fund, locked deposits, and money committed to other goals. No money is moved by this check." />
-        <MonthYearPicker
-          label="Target month"
-          value={targetMonth}
-          onChange={setTargetMonth}
-          minYear={new Date().getFullYear()}
-          maxYear={new Date().getFullYear() + 10}
-          hint="When you need to buy"
-        />
-        <Field
-          label="Down payment (%)"
-          value={downPct}
-          onChange={(v) => {
-            setDownPct(v);
-            if (!touched.downPct) setTouched((t) => ({ ...t, downPct: true }));
-          }}
-          hint="Cash up front, balance financed"
-          kind="decimal"
-        />
-        <Field
-          label="Loan tenure (years)"
-          value={tenureYears}
-          onChange={(v) => {
-            setTenureYears(v);
-            if (!touched.tenureYears) setTouched((t) => ({ ...t, tenureYears: true }));
-          }}
-          hint={
-            type === 'vehicle' ? 'Longer = underwater risk' : 'Longer = lower EMI, more interest'
-          }
-          kind="integer"
-        />
-        <Field
-          label="Indicative rate (% p.a.)"
-          value={rate}
-          onChange={(v) => {
-            setRate(v);
-            if (!touched.rate) setTouched((t) => ({ ...t, rate: true }));
-          }}
-          hint="Sanction-letter rate; shop around"
-          kind="decimal"
-        />
-      </div>
+    <LSteps>
+      <LStep no="01" id="pa-in" title="What you'd buy">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <LChipRow label="What is it?">
+            {TYPE_OPTIONS.map((o) => (
+              <LChip key={o.value} on={type === o.value} onClick={() => applyTypeDefaults(o.value)}>
+                {o.label}
+              </LChip>
+            ))}
+          </LChipRow>
+          <LFieldGrid min={200}>
+            <Field label="Price" kind="money" currency={ccy} value={price} onChange={setPrice} hint="All in: taxes, registration, fees" />
+            <Field
+              label="Savings you'd put in"
+              kind="money"
+              currency={ccy}
+              value={availableSavings}
+              onChange={setAvailableSavings}
+              hint={savingsFromProfile ? 'From your profile. Leave out your emergency fund.' : 'Leave out your emergency fund'}
+            />
+            <MonthYearPicker
+              label="When you'd buy"
+              value={targetMonth}
+              onChange={setTargetMonth}
+              minYear={new Date().getFullYear()}
+              maxYear={new Date().getFullYear() + 10}
+            />
+          </LFieldGrid>
 
-      {country === 'US' && type === 'home' && (
-        <label
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: 12,
-            color: 'var(--muted)',
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={itemisesUS}
-            onChange={(e) => setItemisesUS(e.target.checked)}
-          />
-          I itemise on Schedule A (Schedule A &gt; standard deduction)
-          <InfoTip>
-            Mortgage interest deduction only helps if your itemised total
-            exceeds the standard deduction. Tick this if your current return
-            itemises — otherwise the analysis treats the benefit as zero.
-          </InfoTip>
-        </label>
-      )}
+          <div>
+            <LStepSub right="TYPICAL TERMS TO START">The loan</LStepSub>
+            <div style={{ marginTop: 10 }}>
+              <LFieldGrid min={180}>
+                <Field label="Down payment (%)" value={downPct} onChange={fieldTouch('downPct', setDownPct)} hint="Paid up front" />
+                <Field
+                  label="Over how many years"
+                  kind="integer"
+                  value={tenureYears}
+                  onChange={fieldTouch('tenureYears', setTenureYears)}
+                  hint={type === 'vehicle' ? 'Longer: you owe more than it’s worth' : 'Longer: lower EMI, more interest'}
+                />
+                <Field label="Rate (%)" value={rate} onChange={fieldTouch('rate', setRate)} hint="From the lender’s offer" />
+              </LFieldGrid>
+            </div>
+          </div>
 
-      {analysis && (
-        <>
-          <AnalysisPanel
-            analysis={analysis}
-            fmt={fmt}
-            ccySym={ccy === 'INR' ? '₹' : '$'}
-            marginalRate={marginalRate}
-          />
-          {goalSlipRows.length > 0 && (
-            <GoalSlipPanel rows={goalSlipRows} />
+          {country === 'US' && type === 'home' && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: L_T.muted }}>
+              <input type="checkbox" checked={itemisesUS} onChange={(e) => setItemisesUS(e.target.checked)} />
+              I itemise deductions (Schedule A beats the standard deduction)
+            </label>
           )}
-          <DecisionLogControls
-            kind="new_loan"
-            context={`${type} purchase — ${analysis.feasibility} on current surplus`}
-            estimatedAmount={String(analysis.loan.tcoPostTax)}
-            reasoning={`Down ${ccy === 'INR' ? '₹' : '$'}${analysis.downPayment.amount.toLocaleString()}, EMI ${ccy === 'INR' ? '₹' : '$'}${Math.round(analysis.loan.monthlyEmi).toLocaleString()}/mo over ${analysis.loan.tenureYears}yr`}
-            source="tools/purchase"
-            ccySym={ccy === 'INR' ? '₹' : '$'}
-          />
-        </>
-      )}
-      {!analysis && (
-        <div
-          className="muted"
-          style={{
-            padding: 12,
-            border: '1px dashed var(--border)',
-            borderRadius: 6,
-            fontSize: 13,
-          }}
-        >
-          Enter a price to run the feasibility check.
+          {inputError && (
+            <p role="alert" style={{ margin: 0, fontSize: 12, color: L_T.negative }}>
+              {inputError}
+            </p>
+          )}
         </div>
+      </LStep>
+
+      {analysis ? (
+        <AnalysisPanel
+          analysis={analysis}
+          fmt={fmt}
+          marginalRate={marginalRate}
+          price={Number(price)}
+          rate={Number(rate)}
+          monthlySurplus={monthlySurplus}
+          goalSlipRows={goalSlipRows}
+          log={
+            <DecisionLogControls
+              kind="new_loan"
+              context={`${type} purchase — ${analysis.feasibility} on current surplus`}
+              estimatedAmount={String(analysis.loan.tcoPostTax)}
+              reasoning={`Down ${fmt(analysis.downPayment.amount)}, EMI ${fmt(analysis.loan.monthlyEmi)} a month over ${analysis.loan.tenureYears} years`}
+              source="tools/purchase"
+              ccySym={ccy === 'INR' ? '₹' : '$'}
+            />
+          }
+        />
+      ) : (
+        !inputError && <LNote style={{ margin: 0 }}>Enter a price to see whether it fits.</LNote>
       )}
-    </div>
+    </LSteps>
   );
 }
 
-// ─── Analysis panel ────────────────────────────────────────────────────────
+// ─── The answer ────────────────────────────────────────────────────────────
 
-const VERDICT_COLOR: Record<PurchaseAnalysis['feasibility'], string> = {
-  feasible: 'var(--positive)',
-  tight: 'var(--warning)',
-  unfeasible: 'var(--negative)',
-};
-
-const VERDICT_LABEL: Record<PurchaseAnalysis['feasibility'], string> = {
-  feasible: 'Feasible on current surplus',
-  tight: 'Tight — affordable but with little headroom',
-  unfeasible: 'Not feasible on the current plan',
+const VERDICT: Record<PurchaseAnalysis['feasibility'], { text: string; tone: 'pos' | 'accent' | 'neg' }> = {
+  feasible: { text: 'You can afford it.', tone: 'pos' },
+  tight: { text: 'You can afford it, just.', tone: 'accent' },
+  unfeasible: { text: 'Not on your current budget.', tone: 'neg' },
 };
 
 function AnalysisPanel({
-  analysis,
+  analysis: a,
   fmt,
-  ccySym,
   marginalRate,
+  price,
+  rate,
+  monthlySurplus,
+  goalSlipRows,
+  log,
 }: {
   analysis: PurchaseAnalysis;
   fmt: (v: number) => string;
-  ccySym: string;
-  /** Tax bracket the TCO/effective-rate math used. Surfaced inline so
-   *  the user can tell when the stored value is stale (0% or far from
-   *  their expected bracket) before trusting the verdict. */
+  /** Tax rate the after-tax math used; shown so a stale 0% is visible. */
   marginalRate: number;
+  price: number;
+  rate: number;
+  monthlySurplus: number;
+  goalSlipRows: ReturnType<typeof materialSlips>;
+  log: React.ReactNode;
 }) {
-  const showLevers = analysis.feasibility !== 'feasible';
-  const marginalPct = marginalRate > 0 ? `${Math.round(marginalRate * 100)}%` : null;
+  const v = VERDICT[a.feasibility];
+  const months = a.loan.tenureYears * 12;
+  const taxSaved = Math.max(0, a.downPayment.amount + a.loan.monthlyEmi * months - a.loan.tcoPostTax);
+  const share = a.affordability.emiOverSurplus;
+  const levers = a.levers;
+  const noLever = levers.lowerPriceTo == null && levers.extendTargetByMonths == null && levers.increaseDownPaymentToPct == null;
+  const pct = (n: number) => `${(n * 100).toFixed(2)}%`;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div
-        style={{
-          padding: 12,
-          background: 'var(--card)',
-          border: `1px solid ${VERDICT_COLOR[analysis.feasibility]}`,
-          borderRadius: 6,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 14,
-            fontWeight: 600,
-            color: VERDICT_COLOR[analysis.feasibility],
-          }}
-        >
-          {VERDICT_LABEL[analysis.feasibility]}
-        </div>
-        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-          {analysis.monthsToTarget} months until target ·{' '}
-          {analysis.affordability.emiOverSurplus === Infinity
-            ? 'no surplus on file'
-            : `EMI ${Math.round(analysis.affordability.emiOverSurplus * 100)}% of surplus`}
-          {marginalPct ? (
-            <> · at your {marginalPct} marginal bracket</>
-          ) : (
-            <>
-              {' '}·{' '}
-              <span style={{ color: 'var(--warning)' }}>
-                no marginal rate on file — tax benefit will read as zero
-              </span>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: fitColumns(3, 140),
-          gap: 10,
-        }}
-      >
-        <NumberStat
-          label="Down payment"
-          value={fmt(analysis.downPayment.amount)}
-          sub={`${fmt(analysis.downPayment.savingsUsed)} from savings · ${fmt(analysis.downPayment.monthlySavingRequired)}/mo to save by date${
-            analysis.downPayment.coverableBySurplus ? '' : ' — exceeds surplus'
-          }`}
+    <>
+      <LStep no="02" id="pa-out" title="The answer" answer>
+        <LVerdict tone={v.tone}>{v.text}</LVerdict>
+        <LNote>
+          {a.monthsToTarget === 0 ? 'You buy this month. ' : `${a.monthsToTarget} month${a.monthsToTarget === 1 ? '' : 's'} to go. `}
+          {a.loan.monthlyEmi === 0
+            ? 'No loan needed.'
+            : share === Infinity
+              ? 'Nothing is left each month after your costs and payments.'
+              : `The EMI takes ${Math.round(share * 100)}% of what's left each month; up to 40% is comfortable.`}
+          {marginalRate > 0 ? '' : ' No tax rate on file, so any tax break reads as zero.'}
+        </LNote>
+        <LKpi
+          items={[
+            {
+              l: 'DOWN PAYMENT',
+              v: fmt(a.downPayment.amount),
+              s: a.downPayment.remainingToSave > 0 ? `save ${fmt(a.downPayment.monthlySavingRequired)} a month` : 'from savings',
+              tone: a.downPayment.coverableBySurplus ? undefined : L_T.negative,
+            },
+            { l: 'EMI', v: fmt(a.loan.monthlyEmi), s: `a month for ${a.loan.tenureYears} years` },
+            { l: 'TOTAL INTEREST', v: fmt(a.loan.totalInterestOverTenure), s: `${pct(a.loan.effectiveAfterTaxRate)} after tax` },
+            {
+              l: 'LEFT EACH MONTH',
+              v: fmt(a.affordability.surplusAfterEmi),
+              s: 'after the EMI',
+              tone: a.affordability.surplusAfterEmi < 0 ? L_T.negative : L_T.positive,
+            },
+          ]}
         />
-        <NumberStat
-          label="Monthly EMI"
-          value={fmt(analysis.loan.monthlyEmi)}
-          sub={`${analysis.loan.tenureYears}yr · ${fmt(analysis.loan.principal)} financed`}
-        />
-        <NumberStat
-          label="Total interest"
-          value={fmt(analysis.loan.totalInterestOverTenure)}
-          sub={`Effective rate after tax: ${(analysis.loan.effectiveAfterTaxRate * 100).toFixed(2)}%`}
-        />
-      </div>
 
-      <div
-        style={{
-          padding: 10,
-          background: 'var(--soft-bg)',
-          borderRadius: 4,
-          fontSize: 12,
-          lineHeight: 1.55,
-        }}
-      >
-        <strong>TCO (post-tax):</strong> {fmt(analysis.loan.tcoPostTax)}{' '}
-        — down payment + EMIs over {analysis.loan.tenureYears} years, minus the
-        tax saving on deductible interest (when applicable).
-      </div>
-
-      {showLevers && (
-        <div
-          style={{
-            padding: 10,
-            background: 'var(--card)',
-            border: '1px solid var(--border)',
-            borderRadius: 4,
-          }}
-        >
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
-            What would make this comfortable?
-          </div>
-          {analysis.levers.lowerPriceTo == null &&
-          analysis.levers.extendTargetByMonths == null &&
-          analysis.levers.increaseDownPaymentToPct == null ? (
-            <div style={{ fontSize: 12, lineHeight: 1.5 }}>
-              No single change fixes this: the monthly surplus leaves no room.
-              Free up money each month first (see your plan), then check again.
-            </div>
-          ) : (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: fitColumns(3, 140),
-                gap: 8,
-                fontSize: 12,
-              }}
-            >
-              {analysis.levers.lowerPriceTo != null && (
-                <LeverCell
-                  label="Lower the price"
-                  value={`≤ ${fmt(Math.round(analysis.levers.lowerPriceTo))}`}
-                  subtle="Fits the down payment by your date and keeps the EMI within 40% of surplus."
+        {a.feasibility !== 'feasible' && (
+          <div style={{ marginTop: 18 }}>
+            <LStepSub>What would make it fit</LStepSub>
+            {noLever ? (
+              <LNote style={{ margin: '8px 0 0' }}>
+                No single change fixes it: nothing is left each month. Free up money first (see your plan), then check again.
+              </LNote>
+            ) : (
+              <div style={{ marginTop: 10 }}>
+                <LKpi
+                  items={[
+                    ...(levers.lowerPriceTo != null
+                      ? [{ l: 'A PRICE UP TO', v: fmt(Math.round(levers.lowerPriceTo)), s: 'saves in time, EMI under 40%' }]
+                      : []),
+                    ...(levers.extendTargetByMonths != null
+                      ? [{ l: 'BUY LATER BY', v: `${levers.extendTargetByMonths} month${levers.extendTargetByMonths === 1 ? '' : 's'}`, s: 'to save the down payment' }]
+                      : []),
+                    ...(levers.increaseDownPaymentToPct != null
+                      ? [{ l: 'PUT DOWN', v: `${Math.ceil(levers.increaseDownPaymentToPct * 100)}%`, s: 'so the EMI fits' }]
+                      : []),
+                  ]}
                 />
-              )}
-              {analysis.levers.extendTargetByMonths != null && (
-                <LeverCell
-                  label="Push the date out"
-                  value={`+${analysis.levers.extendTargetByMonths} months`}
-                  subtle="Time to save the down payment from your surplus."
-                />
-              )}
-              {analysis.levers.increaseDownPaymentToPct != null && (
-                <LeverCell
-                  label="More down payment"
-                  value={`${Math.ceil(analysis.levers.increaseDownPaymentToPct * 100)}%`}
-                  subtle="Shrinks the loan so the EMI fits; you can still save it by your date."
-                />
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {(analysis.warnings.length > 0 || analysis.notes.length > 0) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {analysis.warnings.map((w, i) => (
-            <div
-              key={`w${i}`}
-              style={{
-                padding: '8px 10px',
-                background: 'var(--card)',
-                borderLeft: '3px solid var(--warning)',
-                fontSize: 12,
-                lineHeight: 1.5,
-              }}
-            >
-              {w}
-            </div>
-          ))}
-          {analysis.notes.map((n, i) => (
-            <div
-              key={`n${i}`}
-              style={{
-                padding: '8px 10px',
-                background: 'var(--card)',
-                borderLeft: '3px solid var(--accent)',
-                fontSize: 12,
-                lineHeight: 1.5,
-                color: 'var(--muted)',
-              }}
-            >
-              {n}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function NumberStat({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-}) {
-  return (
-    <div
-      style={{
-        padding: 10,
-        background: 'var(--card)',
-        border: '1px solid var(--border)',
-        borderRadius: 4,
-      }}
-    >
-      <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.06em' }}>
-        {label.toUpperCase()}
-      </div>
-      <div className="num" style={{ fontSize: 16, fontWeight: 600, marginTop: 2 }}>
-        {value}
-      </div>
-      <div className="muted" style={{ fontSize: 11, marginTop: 2, lineHeight: 1.4 }}>
-        {sub}
-      </div>
-    </div>
-  );
-}
-
-function LeverCell({
-  label,
-  value,
-  subtle,
-}: {
-  label: string;
-  value: string;
-  subtle: string;
-}) {
-  return (
-    <div
-      style={{
-        padding: 8,
-        background: 'var(--soft-bg)',
-        borderRadius: 4,
-        lineHeight: 1.4,
-      }}
-    >
-      <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.04em' }}>
-        {label.toUpperCase()}
-      </div>
-      <div style={{ fontWeight: 600, marginTop: 2 }}>{value}</div>
-      <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 2 }}>{subtle}</div>
-    </div>
-  );
-}
-
-// ─── Goal-slip panel ───────────────────────────────────────────────────────
-
-function GoalSlipPanel({
-  rows,
-}: {
-  rows: ReturnType<typeof materialSlips>;
-}) {
-  const breaking = rows.filter((r) => r.breaksDeadline);
-  const slipping = rows.filter((r) => !r.breaksDeadline);
-  return (
-    <div
-      style={{
-        padding: 12,
-        background: 'var(--card)',
-        border: '1px solid var(--border)',
-        borderLeft: '3px solid var(--warning, var(--accent))',
-        borderRadius: 6,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 12,
-          fontWeight: 600,
-          color: 'var(--accent)',
-          marginBottom: 8,
-          letterSpacing: '0.04em',
-          textTransform: 'uppercase',
-        }}
-      >
-        Impact on your goals
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {breaking.map((r) => (
-          <div key={r.goalId} style={{ fontSize: 13 }}>
-            <span style={{ color: 'var(--negative)', fontWeight: 600 }}>
-              {r.goalLabel}
-            </span>{' '}
-            <span className="muted">— breaks the deadline.</span>{' '}
-            {r.baseEarliestLabel && r.postEarliestLabel && (
-              <span className="muted">
-                Was achievable by {r.baseEarliestLabel}; now earliest{' '}
-                {r.postEarliestLabel}.
-              </span>
-            )}
-            {r.postEarliest === null && (
-              <span className="muted">
-                Forward surplus can&apos;t reach it after this purchase.
-              </span>
+              </div>
             )}
           </div>
-        ))}
-        {slipping.map((r) => (
-          <div key={r.goalId} style={{ fontSize: 13 }}>
-            <span style={{ fontWeight: 600 }}>{r.goalLabel}</span>{' '}
-            <span className="muted">
-              — slips by {r.slipMonths} month{r.slipMonths === 1 ? '' : 's'}
-              {r.baseEarliestLabel && r.postEarliestLabel ? (
-                <>
-                  {' '}({r.baseEarliestLabel} → {r.postEarliestLabel})
-                </>
-              ) : null}
-              .
-            </span>
+        )}
+
+        {goalSlipRows.length > 0 && (
+          <div style={{ marginTop: 18 }}>
+            <LStepSub right="WHAT'S LEFT HELD STEADY">Your goals</LStepSub>
+            <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 13, lineHeight: 1.6 }}>
+              {goalSlipRows.map((r) => (
+                <li key={r.goalId}>
+                  <strong style={{ color: r.breaksDeadline ? L_T.negative : L_T.ink }}>{r.goalLabel}</strong>
+                  {r.breaksDeadline
+                    ? r.postEarliest === null
+                      ? ': out of reach after this.'
+                      : `: misses its date. Earliest now ${r.postEarliestLabel}${r.baseEarliestLabel ? `, was ${r.baseEarliestLabel}` : ''}.`
+                    : `: ${r.slipMonths} month${r.slipMonths === 1 ? '' : 's'} later${r.baseEarliestLabel && r.postEarliestLabel ? ` (${r.baseEarliestLabel} → ${r.postEarliestLabel})` : ''}.`}
+                </li>
+              ))}
+            </ul>
           </div>
-        ))}
-      </div>
-      <div className="muted" style={{ fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>
-        Estimated from current surplus held steady. The /plan engine runs a
-        fuller projection that includes lifecycle events and inflation.
-      </div>
-    </div>
+        )}
+
+        {(a.warnings.length > 0 || a.notes.length > 0) && (
+          <ul style={{ margin: '16px 0 0', paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: L_T.muted }}>
+            {a.warnings.map((w, i) => (
+              <li key={`w${i}`} style={{ color: L_T.accent }}>
+                {w}
+              </li>
+            ))}
+            {a.notes.map((n, i) => (
+              <li key={`n${i}`}>{n}</li>
+            ))}
+          </ul>
+        )}
+        {log}
+      </LStep>
+
+      <LMathBlock
+        rows={[
+          { k: 'price', v: fmt(price) },
+          { k: 'down payment', v: fmt(a.downPayment.amount), note: `${Math.round(a.downPayment.pctOfPrice * 100)}% of the price` },
+          ...(a.downPayment.savingsUsed > 0 ? [{ k: 'from savings', v: fmt(a.downPayment.savingsUsed) }] : []),
+          ...(a.downPayment.remainingToSave > 0
+            ? [
+                {
+                  k: 'still to save',
+                  v: fmt(a.downPayment.remainingToSave),
+                  note: a.monthsToTarget > 0 ? `${fmt(a.downPayment.monthlySavingRequired)} a month for ${a.monthsToTarget} months` : 'needed now',
+                  tone: a.downPayment.coverableBySurplus ? undefined : ('neg' as const),
+                },
+              ]
+            : []),
+          ...(a.loan.principal > 0
+            ? [
+                { k: 'borrowed', v: fmt(a.loan.principal) },
+                { k: 'EMI', v: fmt(a.loan.monthlyEmi), note: `${rate}% over ${months} months` },
+                { k: 'total interest', v: fmt(a.loan.totalInterestOverTenure) },
+              ]
+            : []),
+          ...(taxSaved >= 1 ? [{ k: 'tax saved', v: fmt(taxSaved), note: 'over the loan', tone: 'pos' as const }] : []),
+          { k: 'all in, after tax', v: fmt(a.loan.tcoPostTax), note: 'down payment + EMIs − tax saved' },
+          {
+            k: 'left each month',
+            v: fmt(a.affordability.surplusAfterEmi),
+            note: `${fmt(monthlySurplus)} now, less the EMI`,
+            tone: a.affordability.surplusAfterEmi < 0 ? ('neg' as const) : undefined,
+          },
+        ]}
+      />
+    </>
   );
 }

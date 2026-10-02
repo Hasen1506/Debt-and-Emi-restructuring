@@ -225,35 +225,24 @@ export function DecisionLogControls({
             padding: '10px 12px',
             background: 'var(--soft-bg)',
             border: '1px dashed var(--border)',
-            borderRadius: 6,
+            borderRadius: 0,
             fontSize: 12,
             color: 'var(--muted)',
             lineHeight: 1.5,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexWrap: 'wrap',
             gap: 10,
           }}
         >
-          <span>
-            Track this recommendation so the app can later compare what was
-            estimated vs. what actually happened.
-          </span>
+          <span>Track this to compare the estimate with what really happens.</span>
           <button
             type="button"
             onClick={record}
-            style={{
-              padding: '6px 12px',
-              border: '1px solid var(--ink)',
-              background: 'var(--canvas)',
-              color: 'var(--ink)',
-              borderRadius: 4,
-              cursor: 'pointer',
-              fontSize: 12,
-              flexShrink: 0,
-            }}
+            style={{ ...btnStyle('var(--ink)'), flexShrink: 0 }}
           >
-            + Track this
+            [+ Track this]
           </button>
         </div>
       </div>
@@ -266,6 +255,7 @@ export function DecisionLogControls({
     const delta = act - est;
     const deltaPct = est > 0 ? (delta / est) * 100 : 0;
     const tone = delta >= 0 ? 'var(--positive)' : 'var(--negative)';
+    const locale = ccySym === '₹' ? 'en-IN' : 'en-US';
     return (
       <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <CalibrationBadge calibration={calibration} />
@@ -274,7 +264,7 @@ export function DecisionLogControls({
           style={{
             padding: 12,
             border: '1px solid var(--border)',
-            borderRadius: 6,
+            borderRadius: 0,
             fontSize: 12,
             lineHeight: 1.6,
           }}
@@ -288,7 +278,7 @@ export function DecisionLogControls({
             }}
           >
             <div style={{ fontWeight: 600 }}>
-              Reconciled · {entry.outcome.actualDate}
+              Done · {new Date(`${entry.outcome.actualDate}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
             </div>
             <button
               type="button"
@@ -300,14 +290,14 @@ export function DecisionLogControls({
             </button>
           </div>
           <div className="muted">
-            Estimated: {ccySym}
-            {est.toLocaleString()} · Actual: {ccySym}
-            {act.toLocaleString()} ·{' '}
+            Estimated {ccySym}
+            {est.toLocaleString(locale)} · actual {ccySym}
+            {act.toLocaleString(locale)} ·{' '}
             <span style={{ color: tone, fontWeight: 600 }}>
-              {delta >= 0 ? '+' : ''}
+              {delta >= 0 ? '+' : '−'}
               {ccySym}
-              {Math.round(delta).toLocaleString()} ({deltaPct >= 0 ? '+' : ''}
-              {deltaPct.toFixed(1)}%)
+              {Math.abs(Math.round(delta)).toLocaleString(locale)} ({deltaPct >= 0 ? '+' : '−'}
+              {Math.abs(deltaPct).toFixed(1)}%)
             </span>
           </div>
           {entry.outcome.notes && (
@@ -329,7 +319,7 @@ export function DecisionLogControls({
         style={{
           padding: 12,
           border: '1px solid var(--border)',
-          borderRadius: 6,
+          borderRadius: 0,
           fontSize: 12,
           lineHeight: 1.55,
           display: 'flex',
@@ -346,10 +336,9 @@ export function DecisionLogControls({
           }}
         >
           <div>
-            <strong>Recommendation tracked.</strong>{' '}
+            <strong>Tracked{entry.status === 'accepted' ? ': you did it' : entry.status === 'declined' ? ': you didn’t' : ''}.</strong>{' '}
             <span className="muted">
-              Status: <em>{entry.status}</em>. Mark your action below; reconcile
-              when the money actually moves.
+              {entry.status === 'recommended' ? 'Say whether you did it. ' : ''}Enter the real amount once the money moves.
             </span>
           </div>
           <button
@@ -368,27 +357,27 @@ export function DecisionLogControls({
             onClick={() => decide('accepted')}
             style={btnStyle('var(--positive)')}
           >
-            ✓ Accepted
+            [✓ Did it]
           </button>
           <button
             type="button"
             onClick={() => decide('declined')}
             style={btnStyle('var(--negative)')}
           >
-            ✗ Declined
+            [✗ Didn’t]
           </button>
         </div>
       )}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr 2fr auto',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))',
           gap: 8,
           alignItems: 'end',
         }}
       >
         <label style={lblStyle}>
-          <span>Actual amount ({ccySym})</span>
+          <span>It came to ({ccySym})</span>
           <input
             type="text"
             inputMode="decimal"
@@ -398,7 +387,7 @@ export function DecisionLogControls({
           />
         </label>
         <label style={lblStyle}>
-          <span>Date (YYYY-MM-DD)</span>
+          <span>On</span>
           <input
             type="date"
             value={actualDate}
@@ -412,7 +401,7 @@ export function DecisionLogControls({
             type="text"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Why did the actual differ?"
+            placeholder="Why it differed"
             style={inputStyle}
           />
         </label>
@@ -428,7 +417,7 @@ export function DecisionLogControls({
             height: 30,
           }}
         >
-          Reconcile
+          [ Save ]
         </button>
       </div>
       </div>
@@ -463,29 +452,24 @@ function CalibrationBadge({
         : 'var(--negative)';
   const directionWord =
     signedPct > 1
-      ? 'over-shot'
+      ? 'came in higher'
       : signedPct < -1
-        ? 'under-shot'
-        : 'tracked closely';
+        ? 'came in lower'
+        : 'was close';
   return (
     <div
       style={{
         padding: '6px 10px',
         background: 'var(--card)',
         border: `1px solid ${tone}`,
-        borderRadius: 4,
+        borderRadius: 0,
         fontSize: 11,
         color: tone,
         lineHeight: 1.4,
       }}
     >
-      Calibration ·{' '}
-      <strong>
-        ±{absPct.toFixed(1)}% absolute, {signedPct >= 0 ? '+' : ''}
-        {signedPct.toFixed(1)}% signed
-      </strong>{' '}
-      over {calibration.sampleSize} past entries — actuals have{' '}
-      {directionWord} the estimate on average.
+      Over {calibration.sampleSize} past entries the estimate was off by{' '}
+      <strong>{absPct.toFixed(1)}%</strong> on average; what really happened {directionWord}.
     </div>
   );
 }
@@ -507,7 +491,7 @@ function PrunedNotice({
         padding: '6px 10px',
         background: 'var(--soft-bg)',
         borderLeft: '3px solid var(--muted)',
-        borderRadius: 4,
+        borderRadius: 0,
         fontSize: 11,
         color: 'var(--muted)',
         display: 'flex',
@@ -518,9 +502,9 @@ function PrunedNotice({
       }}
     >
       <span>
-        Cleaned up <strong>{count}</strong> tracked{' '}
-        {count === 1 ? 'recommendation' : 'recommendations'} from over 30
-        days ago that {count === 1 ? 'was' : 'were'} never decided on.
+        Removed <strong>{count}</strong> tracked{' '}
+        {count === 1 ? 'entry' : 'entries'} over 30 days old that{' '}
+        {count === 1 ? 'was' : 'were'} never marked done.
       </span>
       <button
         type="button"
@@ -532,7 +516,7 @@ function PrunedNotice({
           border: '1px solid var(--border)',
           background: 'transparent',
           color: 'var(--muted)',
-          borderRadius: 4,
+          borderRadius: 0,
           cursor: 'pointer',
           fontSize: 12,
         }}
@@ -555,7 +539,7 @@ const inputStyle: React.CSSProperties = {
   padding: '4px 8px',
   fontSize: 12,
   border: '1px solid var(--border)',
-  borderRadius: 4,
+  borderRadius: 0,
   background: 'var(--canvas)',
   color: 'var(--ink)',
 };
@@ -566,9 +550,13 @@ function btnStyle(color: string): React.CSSProperties {
     border: `1px solid ${color}`,
     background: 'transparent',
     color,
-    borderRadius: 4,
+    borderRadius: 0,
     cursor: 'pointer',
-    fontSize: 12,
+    fontFamily: 'inherit',
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
   };
 }
 
@@ -587,7 +575,7 @@ const discardBtnStyle: React.CSSProperties = {
   border: '1px solid var(--border)',
   background: 'transparent',
   color: 'var(--muted)',
-  borderRadius: 4,
+  borderRadius: 0,
   cursor: 'pointer',
   fontSize: 14,
   lineHeight: 1.4,
