@@ -16,7 +16,7 @@ import type { DecisionEntry as Recommendation } from '@/lib/decision-log';
 import { staleExpenseCommits } from '@/lib/expense-commit';
 import { requiredMonthly } from '@/lib/min-payment';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
-import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { loanLabel } from '@/lib/loan-types';
 import { localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
 import { LIFE_KIND_LABEL, lifeEventSummary } from '@/components/lifecycle/LifeEventForm';
 
@@ -57,14 +57,8 @@ export interface MonthGroup {
   rows: HistoryRow[];
 }
 
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
 /** "Personal loan", or "HDFC credit card" when the lender is on file. */
-export function loanLabel(l: Pick<LoanPayload, 'bank' | 'loan_type'>): string {
-  const t = LOAN_TYPE_NAME[l.loan_type];
-  const bank = (l.bank ?? '').replace(/\s+bank$/i, '').trim();
-  return bank ? `${bank} ${t}` : cap(t);
-}
+export { loanLabel };
 
 export function monthLabel(month: string): string {
   return `${MONTH_NAMES_SHORT[Number(month.slice(5, 7)) - 1].toUpperCase()} ${month.slice(2, 4)}`;

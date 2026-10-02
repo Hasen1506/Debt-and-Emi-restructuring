@@ -28,9 +28,9 @@ export function LToolPageHeader({
   children: React.ReactNode;
 }) {
   const meta = TOOLS.find((t) => t.id === id);
-  const today = new Date().toLocaleDateString('en-US', {
+  const today = new Date().toLocaleDateString('en-GB', {
+    day: '2-digit',
     month: 'short',
-    day: 'numeric',
     year: 'numeric',
   });
 

@@ -321,7 +321,7 @@ export function RightTimeTool() {
             kind="integer"
             hint={
               nextMeeting
-                ? `Next ${country === 'IN' ? 'RBI MPC' : 'FOMC'} decision: ${new Date(`${nextMeeting}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} (published calendar)`
+                ? `Next ${country === 'IN' ? 'RBI MPC' : 'FOMC'} decision: ${new Date(`${nextMeeting}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (published calendar)`
                 : 'RBI MPC: every 2 months. Fed FOMC: every ~6 weeks.'
             }
           />

@@ -4,8 +4,8 @@
  *
  * States:
  *   - loading → renders nothing (avoids a flash of "Sign in")
- *   - anon    → "[ SIGN IN ]" link to /login?next=<current path>
- *   - authed  → "USER@EXAMPLE.COM · [ SIGN OUT ]" (sign-out calls
+ *   - anon    → "[SIGN IN]" link to /login?next=<current path>
+ *   - authed  → "USER@EXAMPLE.COM · [SIGN OUT]" (sign-out calls
  *               /api/auth/logout, then router.refresh() so server
  *               components re-render)
  */
@@ -29,7 +29,7 @@ export function SessionIndicator() {
     const next = pathname && pathname !== '/login' ? `?next=${encodeURIComponent(pathname)}` : '';
     return (
       <a href={`/login${next}`} style={{ ...TEXT, color: 'var(--accent)', textDecoration: 'none' }}>
-        [ SIGN IN ]
+        [SIGN IN]
       </a>
     );
   }
@@ -56,7 +56,7 @@ export function SessionIndicator() {
         onClick={onSignOut}
         style={{ ...TEXT, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)' }}
       >
-        [ SIGN OUT ]
+        [SIGN OUT]
       </button>
     </span>
   );

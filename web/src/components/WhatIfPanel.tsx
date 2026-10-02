@@ -467,7 +467,7 @@ export function WhatIfPanel({
                   </option>
                 ))}
               </select>
-              <span style={{ color: L_T.muted, fontSize: 11 }}>★ the dearest, the plan&apos;s own pick</span>
+              <span style={{ color: L_T.muted, fontSize: 11 }}>★ The dearest, the plan&apos;s own pick</span>
             </label>
             <LockItInButton
               disabled={lumpAmount <= 0}

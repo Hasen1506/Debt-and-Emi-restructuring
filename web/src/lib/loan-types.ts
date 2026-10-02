@@ -27,3 +27,11 @@ export const LOAN_TYPE_NAME: Record<LoanType, string> = {
   gold_loan: 'gold loan',
   bnpl: 'BNPL',
 };
+
+/** Starts a line or fills a label: "Home loan", or "HDFC credit card"
+ *  when the lender is on file (its own capitals, " Bank" dropped). */
+export function loanLabel(l: { bank?: string | null; loan_type: LoanType }): string {
+  const t = LOAN_TYPE_NAME[l.loan_type];
+  const bank = (l.bank ?? '').replace(/\s+bank$/i, '').trim();
+  return bank ? `${bank} ${t}` : t.charAt(0).toUpperCase() + t.slice(1);
+}

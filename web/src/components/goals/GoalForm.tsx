@@ -97,7 +97,7 @@ export function GoalForm({
 
   const thisMonth = addMonths(today, 0);
   const errors = {
-    label: goal.label.trim() ? null : 'Name it, e.g. "House down-payment".',
+    label: goal.label.trim() ? null : 'Name it, e.g. "Home down payment".',
     amount: Number(goal.amount) > 0 ? null : 'Enter how much it needs, e.g. 15L.',
     targetMonth: !/^\d{4}-\d{2}$/.test(goal.targetMonth)
       ? 'Pick when you need it.'
@@ -233,7 +233,8 @@ export function GoalForm({
               `${Math.round(Number(goal.bufferPct || 0) * 100)}% buffer`,
             ]
               .filter(Boolean)
-              .join(' · ')}
+              .join(' · ')
+              .replace(/^./, (c) => c.toUpperCase())}
           </span>
         )}
       </div>

@@ -11,7 +11,7 @@ import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import { formatCurrency } from '@/lib/api';
 import type { AgeBracket, AssetPayload, UserPayload } from '@/lib/api';
 import { formatLoanAmount, loanToUser, userDefaultCurrency } from '@/lib/currency';
-import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { loanLabel } from '@/lib/loan-types';
 import { STRATEGY_LABEL, STRATEGY_SHORT, type StrategyName } from '@/lib/strategy';
 
 const AGE_LABEL: Record<AgeBracket, string> = {
@@ -144,8 +144,7 @@ export function ProfileSummary({
                 {loans.map((l, i) => (
                   <tr key={l.id ?? i} style={{ borderTop: `1px dashed ${L_T.ruleSoft}`, textAlign: 'right' }}>
                     <th scope="row" style={{ ...cell, textAlign: 'left', fontWeight: 500 }}>
-                      {l.bank ? `${l.bank} ` : ''}
-                      {LOAN_TYPE_NAME[l.loan_type]}
+                      {loanLabel(l)}
                     </th>
                     <td style={cell}>{formatLoanAmount(Number(l.outstanding), l, user.country, user.fx_to_user_currency)}</td>
                     <td style={cell}>{(Number(l.nominal_rate) * 100).toFixed(2)}%</td>

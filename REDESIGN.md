@@ -77,6 +77,15 @@ Setup today is 6 steps with ~53 labelled fields. Target: a person with two loans
 - Every tool starts from a saved loan instead of asking for balance and rate again.
 - Mark-paid on Home is one tap; only "Partial / other" asks for an amount.
 
+## Capitals and wording (one rule everywhere)
+
+- **Capitals:** buttons, chips, tabs, section headers, table headers and KPI labels. The source text is written in sentence case and the component sets `textTransform: 'uppercase'` (LChip, LSectionHeader, tool headers), so the same words never show up in two cases.
+- **Sentence case:** field labels, hints, names (goal names, tool questions in a list) and every full sentence. A full sentence is never in capitals, and a label never starts with a lowercase letter.
+- **Brackets:** a solid button has spaces inside, `[ ADD GOAL ]` (LButton). A text action has none, `[EDIT]` (LBracket).
+- **Loans** are named by `loanLabel()` in `lib/loan-types`: "Home loan", or "HDFC credit card" when the lender is on file. A car loan is a "car loan", never "auto loan".
+- **Dates:** `02 Oct 2026` (en-GB), and `Oct 2026` for a month. No US-style `Oct 2, 2026`.
+- **Shapes:** square corners on inputs, chips and buttons.
+
 ## Walkthroughs
 
 Six journeys, run on the current app first (baseline), again after each phase that touches them, and compared at the end.

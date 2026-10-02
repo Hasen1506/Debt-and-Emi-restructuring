@@ -135,7 +135,7 @@ function expandBuyHome(input: TemplateInput): TemplateOutput {
   const downpayment = homeValue * 0.2;
 
   const dp = applyPresetDefaults(blankGoal('downpayment'), 'downpayment');
-  dp.label = `Home downpayment (${Math.round(homeValue / 1e5)}L target)`;
+  dp.label = `Home down payment (${Math.round(homeValue / 1e5)}L target)`;
   dp.amount = String(Math.round(downpayment));
   dp.targetMonth = targetMonthFromNow(monthsAhead);
 

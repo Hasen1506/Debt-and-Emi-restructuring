@@ -178,7 +178,7 @@ export const GOAL_PRESETS: Record<GoalKind, PresetDefaults> = {
     deadlineKind: 'soft',
   },
   downpayment: {
-    label: 'Home downpayment',
+    label: 'Home down payment',
     bufferPct: '0.05',
     priorityBump: false,
     fundingSources: ['surplus', 'liquidation'],
