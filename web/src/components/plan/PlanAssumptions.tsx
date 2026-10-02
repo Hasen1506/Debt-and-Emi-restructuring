@@ -122,7 +122,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
             />
           )}
           <div style={{ marginTop: hasHike ? 8 : 0 }}>
-            <LBracket href="/profile?step=income">{hasHike ? 'CHANGE THE RISE' : 'ADD A PAY RISE'} IN PROFILE →</LBracket>
+            <LBracket href="/profile?step=income&focus=hike">{hasHike ? 'CHANGE THE RISE' : 'ADD A PAY RISE'} IN PROFILE →</LBracket>
           </div>
         </>
       ),

@@ -23,6 +23,7 @@ import { SessionIndicator } from '@/components/chrome/SessionIndicator';
 import { StrategyMedallion } from '@/components/personas/StrategyMedallion';
 import type { Country } from '@/lib/api';
 import type { StrategyName } from '@/lib/strategy';
+import { recordPage } from '@/lib/nav-trail';
 
 export type LedgerSection = 'home' | 'plan' | 'activity' | 'goals' | 'profile';
 
@@ -110,6 +111,10 @@ export function LMasthead({
   const section = sectionFromPath(path);
   const stmt = stmtFromPath(path);
   const [time, setTime] = useState<string>('');
+  // Remembers this page so the next one can offer a way back to it.
+  useEffect(() => {
+    recordPage(path + window.location.search);
+  }, [path]);
   useEffect(() => {
     setTime(timeNow(country));
     const t = setInterval(() => setTime(timeNow(country)), 60_000);

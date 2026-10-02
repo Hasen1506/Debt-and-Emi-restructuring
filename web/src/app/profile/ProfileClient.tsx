@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/Card';
 import { BankCombobox, Field, Select } from '@/components/ToolPrimitives';
 import { LBracket, LButton, LShell, L_T } from '@/components/ledger/primitives';
+import { previousPage } from '@/lib/nav-trail';
 import { PROFILE_SECTIONS, ProfileSummary } from '@/components/profile/ProfileSummary';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { RateRangeHint } from '@/components/RateRangeHint';
@@ -182,6 +183,7 @@ export function ProfileClient({ payoffOrder }: { payoffOrder: ReactNode }) {
       }}
       onDone={done}
       payoffOrder={payoffOrder}
+      focus={searchParams.get('focus')}
     />
   );
 }
@@ -192,16 +194,30 @@ function ProfileEditor({
   onOpen,
   onDone,
   payoffOrder,
+  focus,
 }: {
   section: number | null;
   saved: boolean;
   onOpen: (n: number) => void;
   onDone: (saved: boolean) => void;
   payoffOrder: ReactNode;
+  /** A field to scroll to and focus, from `?focus=` ("hike"). */
+  focus?: string | null;
 }) {
   // -1 while the summary shows: no form section is open.
   const step = section ?? -1;
   const [ready, setReady] = useState(false);
+  // The page the user came from ("Plan"), for a way back to it.
+  const [back, setBack] = useState<{ href: string; name: string } | null>(null);
+  useEffect(() => setBack(previousPage('/profile')), []);
+  // A link that names a field (?focus=hike) lands on it, not the top.
+  useEffect(() => {
+    if (!ready || !focus || section === null) return;
+    const box = document.getElementById(`pf-${focus}`);
+    if (!box) return;
+    box.scrollIntoView({ block: 'center' });
+    box.querySelector<HTMLElement>('input, select')?.focus({ preventScroll: true });
+  }, [ready, focus, section]);
 
   // ─── form state ─────────────────────────────────────────────────────────
   // Both optional. We never gate the flow on them — the "You" step is a soft
@@ -763,12 +779,19 @@ function ProfileEditor({
     return (
       <LShell>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 820 }}>
+          {back && <BackLink back={back} />}
           <ProfileHeader title="Your profile">
             Everything the plan uses. Change a part with its [EDIT]; the rest stays as it is.
           </ProfileHeader>
           {justSaved && (
             <p role="status" style={{ margin: 0, padding: '8px 12px', border: `1px solid ${L_T.positive}`, color: L_T.positive }}>
               Saved. Home and Plan use the new numbers.
+              {back && (
+                <>
+                  {' '}
+                  <LBracket href={back.href}>{`BACK TO ${back.name.toUpperCase()} →`}</LBracket>
+                </>
+              )}
             </p>
           )}
           <ProfileSummary
@@ -786,9 +809,12 @@ function ProfileEditor({
   return (
     <LShell>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 820 }}>
+      {back && <BackLink back={back} />}
       <ProfileHeader title={PROFILE_SECTIONS[step] ?? 'Your profile'} editing>
-        Change what you need and save. Sections you don&apos;t open stay as they are.
+        Change what you need and save. You can move between parts first;
+        Save keeps every change, Cancel drops them all.
       </ProfileHeader>
+      <SectionTabs step={step} onOpen={onOpen} onAll={() => onDone(false)} />
 
       <Card>
         {step === 0 && (
@@ -1106,39 +1132,7 @@ function ProfileEditor({
                 </div>
               </>
             )}
-            <BankCombobox
-              label="Primary bank"
-              value={primaryBank}
-              onChange={setPrimaryBank}
-              country={country}
-              info={
-                <>
-                  Your salary account. <strong>Doesn't affect the math</strong> —
-                  used by Tools › Cash-yield to suggest sweep / liquid-fund
-                  options for the bank you already use.
-                </>
-              }
-            />
-            <div style={{ gridColumn: '1 / -1' }}>
-              <OtherBanksField
-                country={country}
-                primaryBank={primaryBank}
-                value={otherBanks}
-                onAdd={(name) => {
-                  const trimmed = name.trim();
-                  if (!trimmed) return;
-                  if (trimmed === primaryBank) return;
-                  if (otherBanks.includes(trimmed)) return;
-                  setOtherBanks([...otherBanks, trimmed]);
-                  setNewOtherBank('');
-                }}
-                onRemove={(name) =>
-                  setOtherBanks(otherBanks.filter((b) => b !== name))
-                }
-                draft={newOtherBank}
-                onDraftChange={setNewOtherBank}
-              />
-            </div>
+            <div id="pf-hike">
             <Field
               label="Expected annual income hike (%)"
               kind="percent"
@@ -1156,6 +1150,7 @@ function ProfileEditor({
                 </>
               }
             />
+            </div>
             <Select
               label="Hike applies in"
               value={String(hikeEffectiveMonth)}
@@ -2006,6 +2001,41 @@ function ProfileEditor({
 
         {step === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div id="pf-banks" style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+                <BankCombobox
+                  label="Primary bank"
+                  value={primaryBank}
+                  onChange={setPrimaryBank}
+                  country={country}
+                  info={
+                    <>
+                      Your salary account. <strong>Doesn't affect the math</strong> —
+                      used by Spare cash to suggest a sweep or liquid fund at the
+                      bank you already use.
+                    </>
+                  }
+                />
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <OtherBanksField
+                    country={country}
+                    primaryBank={primaryBank}
+                    value={otherBanks}
+                    onAdd={(name) => {
+                      const trimmed = name.trim();
+                      if (!trimmed) return;
+                      if (trimmed === primaryBank) return;
+                      if (otherBanks.includes(trimmed)) return;
+                      setOtherBanks([...otherBanks, trimmed]);
+                      setNewOtherBank('');
+                    }}
+                    onRemove={(name) =>
+                      setOtherBanks(otherBanks.filter((b) => b !== name))
+                    }
+                    draft={newOtherBank}
+                    onDraftChange={setNewOtherBank}
+                  />
+                </div>
+            </div>
             {cashAccounts.length === 0 && (
               <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
                 <Field
@@ -2327,6 +2357,51 @@ function ProfileEditor({
     </LShell>
   );
 }
+
+/** "← Back to Plan": the page the user opened Profile from. */
+function BackLink({ back }: { back: { href: string; name: string } }) {
+  return (
+    <div>
+      <LBracket href={back.href} style={{ fontSize: 12 }}>{`← BACK TO ${back.name.toUpperCase()}`}</LBracket>
+    </div>
+  );
+}
+
+/** Every part of the profile, one tap away while editing; the first
+ *  shows the whole profile again. Moving between parts keeps edits. */
+function SectionTabs({ step, onOpen, onAll }: { step: number; onOpen: (n: number) => void; onAll: () => void }) {
+  const tab = (on: boolean): React.CSSProperties => ({
+    fontFamily: 'inherit',
+    fontSize: 11,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    padding: '8px 12px',
+    minHeight: 36,
+    border: `1px solid ${on ? L_T.ink : L_T.ruleSoft}`,
+    background: on ? L_T.ink : L_T.paper,
+    color: on ? L_T.bg : L_T.ink,
+    fontWeight: on ? 700 : 500,
+    cursor: 'pointer',
+    textDecoration: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+  });
+  return (
+    <nav aria-label="Parts of your profile" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      <button type="button" style={tab(false)} onClick={onAll}>
+        ← WHOLE PROFILE
+      </button>
+      {PROFILE_SECTIONS.map((name, n) => (
+        <button key={name} type="button" style={tab(n === step)} aria-current={n === step ? 'step' : undefined} onClick={() => onOpen(n)}>
+          {SECTION_TAB[n] ?? name}
+        </button>
+      ))}
+      <a href="/profile/assets" style={tab(false)}>WHAT YOU OWN</a>
+    </nav>
+  );
+}
+
+const SECTION_TAB = ['YOU', 'COUNTRY AND TAX', 'INCOME', 'LOANS', 'SAVINGS AND BANKS'];
 
 function ProfileHeader({ title, editing, children }: { title: string; editing?: boolean; children: React.ReactNode }) {
   return (
