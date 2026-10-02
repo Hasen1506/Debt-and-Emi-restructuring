@@ -10,6 +10,7 @@
  */
 import { formatCurrency, type Country, type LoanPayload } from './api';
 import type { MonthlyPaymentBreakdown } from '@/components/plan/PlanData';
+import Decimal from 'decimal.js';
 
 export type CurrencyCode = 'INR' | 'USD';
 
@@ -47,6 +48,25 @@ export function loanToUser(
   if (lc === userDefaultCurrency(country)) return amount;
   const r = Number(fx?.[lc]);
   return r > 0 ? amount * r : null;
+}
+
+/** Convert without rounding or guessing parity. Invalid FX suppresses advice. */
+export function loanToUserDecimal(
+  amount: Decimal.Value,
+  loan: LoanPayload,
+  country: Country,
+  fx: Record<string, string> | undefined,
+): Decimal | null {
+  try {
+    const value = new Decimal(amount);
+    if (!value.isFinite()) return null;
+    const lc = loanCurrency(loan, country);
+    if (lc === userDefaultCurrency(country)) return value;
+    const rate = new Decimal(fx?.[lc] ?? '0');
+    return rate.isFinite() && rate.gt(0) ? value.mul(rate) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** One loan's amount in that loan's own currency (the engine reports each

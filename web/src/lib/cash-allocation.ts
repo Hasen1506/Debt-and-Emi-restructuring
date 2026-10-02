@@ -8,6 +8,7 @@ export interface CashAllocation {
   ef: string;
   debt: string;
   investment: string;
+  goals?: string;
   source: CashFunding;
   accountName?: string;
   investmentName?: string;
@@ -16,10 +17,10 @@ export interface CashAllocation {
 
 /** All values are in residence currency. Validate before changing any balance. */
 export function allocateCash(user: UserPayload, allocation: CashAllocation): UserPayload {
-  const values = [allocation.total,allocation.ef,allocation.debt,allocation.investment].map(v => new Decimal(v));
+  const values = [allocation.total,allocation.ef,allocation.debt,allocation.investment,allocation.goals ?? '0'].map(v => new Decimal(v));
   if (values.some(v => !v.isFinite() || v.lt(0)) || values[0].lte(0)) throw new Error('Enter finite, positive cash amounts.');
-  const [total,ef,debt,investment] = values;
-  const used = ef.plus(debt).plus(investment);
+  const [total,ef,debt,investment,goals] = values;
+  const used = ef.plus(debt).plus(investment).plus(goals);
   if (used.gt(total)) throw new Error('Allocation exceeds the available cash.');
   const accounts = (user.cash_accounts ?? []).map(a => ({...a}));
   if (new Set(accounts.map(a=>a.name)).size !== accounts.length) throw new Error('Give each cash account a distinct name in Setup before moving cash.');
@@ -61,6 +62,10 @@ export function allocateCash(user: UserPayload, allocation: CashAllocation): Use
   const assets = [...(user.assets ?? [])];
   if (investment.gt(0)) assets.push({asset_type:'other', label:allocation.investmentName ?? 'Spare cash investment',
     purchase_date:allocation.date,purchase_price:investment.toFixed(2),current_market_value:investment.toFixed(2),user_marks_liquid:true});
+  // Goal money remains tracked wealth, in a separate reserve rather than
+  // spendable savings or investments offered for another allocation.
+  if (goals.gt(0)) assets.push({asset_type:'other', label:'Goal reserve',
+    purchase_date:allocation.date,purchase_price:goals.toFixed(2),current_market_value:goals.toFixed(2),user_marks_liquid:false});
   return {...user,cash_accounts:accounts,savings_balance:savings.toFixed(2),
     efund_balance:new Decimal(user.efund_balance ?? 0).plus(ef).toFixed(2),assets};
 }

@@ -14,6 +14,7 @@ import {
   isOpenGoal,
   readGoalsClient,
   writeGoalsClient,
+  goalSliceWrite,
   type Goal,
 } from '@/lib/goals';
 import {
@@ -22,6 +23,7 @@ import {
   removeContribution,
   totalsByGoal,
   writeContributionsClient,
+  contributionSliceWrite,
   type GoalContributionEntry,
 } from '@/lib/goal-contributions';
 import { GOAL_STATE_LABEL, goalContext, goalLine, goalStateTone, type GoalLine } from '@/lib/goal-line';
@@ -29,6 +31,7 @@ import { simMonthToCalendar } from '@/lib/goal-defer';
 import { readDecisionsClient, recordDecision } from '@/lib/decisions';
 import { commitExpenseReduction } from '@/lib/expense-commit';
 import { loadProfileClient } from '@/lib/user-store';
+import { persistGoalSlices } from '@/lib/persist-goal-slices';
 import { TEMPLATE_CATALOGUE, expandTemplate, type TemplateKind } from '@/lib/life-templates';
 import { localIsoDate } from '@/lib/today';
 import { useWidth } from '@/lib/use-width';
@@ -65,6 +68,7 @@ export function GoalsPage({
   const [contributions, setContributions] = useState<GoalContributionEntry[]>([]);
   const [user, setUser] = useState(userProp);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState('');
   const [form, setForm] = useState<FormState>(null);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [showClosed, setShowClosed] = useState(false);
@@ -99,8 +103,11 @@ export function GoalsPage({
   }, [goals, saved, ctx]);
 
   function updateGoals(next: Goal[]) {
-    setGoals(next);
-    writeGoalsClient(next);
+    try {
+      if (JSON.stringify(readGoalsClient()) !== JSON.stringify(goals)) throw new Error('Your goals changed elsewhere. Reload before saving.');
+      writeGoalsClient(next); setGoals(readGoalsClient()); setError(''); return true;
+    }
+    catch (e) { setError((e as Error).message); return false; }
   }
 
   // Keep each goal's saving start where the plan can read it: the last
@@ -133,7 +140,7 @@ export function GoalsPage({
   function saveDraft({ goal, alreadySaved }: GoalDraft) {
     const before = goals.find((g) => g.id === goal.id);
     if (before) {
-      updateGoals(goals.map((g) => (g.id === goal.id ? goal : g)));
+      if (!updateGoals(goals.map((g) => (g.id === goal.id ? goal : g)))) return;
       recordDecision(readDecisionsClient(), {
         kind: 'goal_edited',
         label: `Changed goal: ${goal.label}`,
@@ -143,7 +150,15 @@ export function GoalsPage({
       });
     } else {
       const g = { ...goal, createdAt: new Date().toISOString(), status: 'active' as const };
-      updateGoals([...goals, g]);
+      if (alreadySaved > 0) {
+        try {
+          if (JSON.stringify(readGoalsClient()) !== JSON.stringify(goals) || JSON.stringify(readContributionsClient()) !== JSON.stringify(contributions))
+            throw new Error('Your goals changed elsewhere. Reload before saving.');
+          const nextContributions = addContribution(contributions, {goalId:g.id,amount:String(alreadySaved),date:localIsoDate(today),source:'already saved'});
+          persistGoalSlices([goalSliceWrite([...goals,g]),contributionSliceWrite(nextContributions)]);
+          setGoals(readGoalsClient()); setContributions(nextContributions); setError('');
+        } catch (e) { setError((e as Error).message); return; }
+      } else if (!updateGoals([...goals, g])) return;
       recordDecision(readDecisionsClient(), {
         kind: 'goal_added',
         label: `Added goal: ${g.label}`,
@@ -151,11 +166,6 @@ export function GoalsPage({
         result: { goalCount: goals.length + 1, kind: g.kind, goalId: g.id },
         impactDeltaMonths: null,
       });
-      if (alreadySaved > 0) {
-        commitContributions(
-          addContribution(contributions, { goalId: g.id, amount: String(alreadySaved), date: localIsoDate(today), source: 'already saved' }),
-        );
-      }
     }
     setForm(null);
   }
@@ -165,11 +175,11 @@ export function GoalsPage({
   }
 
   function close(g: Goal, funded: boolean) {
-    updateGoals(
+    if (!updateGoals(
       goals.map((x) =>
         x.id === g.id ? { ...x, status: funded ? 'archived' : 'cancelled', closedAt: localIsoDate(today), fundingStartMonth: undefined } : x,
       ),
-    );
+    )) return;
     recordDecision(readDecisionsClient(), {
       kind: 'goal_removed',
       label: `${funded ? 'Archived' : 'Cancelled'} goal: ${g.label}`,
@@ -181,7 +191,7 @@ export function GoalsPage({
   }
 
   function remove(g: Goal) {
-    updateGoals(goals.filter((x) => x.id !== g.id));
+    if (!updateGoals(goals.filter((x) => x.id !== g.id))) return;
     recordDecision(readDecisionsClient(), {
       kind: 'goal_removed',
       label: `Deleted goal: ${g.label}`,
@@ -192,12 +202,15 @@ export function GoalsPage({
   }
 
   function commitContributions(next: GoalContributionEntry[]) {
-    setContributions(next);
-    writeContributionsClient(next);
+    try {
+      if (JSON.stringify(readContributionsClient()) !== JSON.stringify(contributions)) throw new Error('Goal contributions changed elsewhere. Reload before saving.');
+      writeContributionsClient(next); setContributions(next); setError('');
+    }
+    catch (e) { setError((e as Error).message); }
   }
 
   function cutSpending(g: Goal, monthly: number): boolean {
-    const r = commitExpenseReduction({ monthlyDelta: monthly, goalId: g.id, goalLabel: g.label });
+    const r = commitExpenseReduction({ monthlyDelta: monthly, goalId: g.id, goalLabel: g.label, effectiveMonth: localIsoDate(today).slice(0,7) });
     if (!r) return false;
     setUser(loadProfileClient().user);
     return true;
@@ -207,7 +220,7 @@ export function GoalsPage({
     const ages: Record<string, number> = { under_25: 22, '25_35': 30, '35_50': 42, '50_plus': 55, '60_plus': 63 };
     const spend = Number(user.fixed_expenses || '0') + Number(user.variable_expenses || '0');
     const t = expandTemplate({ kind, currentAge: user.age_bracket ? ages[user.age_bracket] : 30, monthlyExpenses: spend || undefined });
-    updateGoals([...goals, ...t.goals]);
+    if (!updateGoals([...goals, ...t.goals])) return;
     setTemplateNote({ summary: t.summary, caveats: t.caveats });
     setForm(null);
   }
@@ -236,6 +249,7 @@ export function GoalsPage({
 
   return (
     <div ref={ref} style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+      {error && <p role="alert" style={{ color: L_T.negative }}>{error}</p>}
       {openGoals.length > 0 && (
         <LKpi
           mobile={!wide}

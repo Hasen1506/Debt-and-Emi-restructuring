@@ -21,11 +21,13 @@ import {
   readActivityClient,
   removeActivityEntry,
   sortActivityNewestFirst,
-  writeActivityClient,
   type ActivityEntry,
 } from '@/lib/activity';
 import { syncActivityCookieClient } from '@/lib/activity-cookie';
 import { alignToLoans } from '@/lib/loan-ids';
+import { isOpenCurrentLoan, currentLoanIndex } from '@/lib/plan-controls';
+import { commitActivity } from '@/lib/commit-activity';
+import { requiredMonthly } from '@/lib/min-payment';
 import {
   addMonthlySpend,
   readMonthlySpendClient,
@@ -133,18 +135,26 @@ export function ActivityPage({
   }
 
   function saveEntries(next: ActivityEntry[], message: string) {
+    const current = loadProfileClient().user;
+    next = alignToLoans(next, current.loans);
+    commitActivity(next, current);
     setEntries(next);
-    writeActivityClient(next);
-    syncActivityCookieClient(next, user.loans, user.country);
     rerun(message);
   }
 
   function save(s: LogSave, message: string) {
     try {
       if (s.kind === 'entry') {
+        const current = loadProfileClient().user;
+        const index = currentLoanIndex(s.draft, user.loans[s.draft.loanIndex], current.loans);
+        if (current.country !== user.country || !isOpenCurrentLoan(current.loans[index]))
+          throw new Error('That loan is no longer open or changed. Reload before logging a payment.');
+        const liveEntries = alignToLoans(readActivityClient(), current.loans);
+        if (s.replaces && !liveEntries.some(e => e.id === s.replaces)) throw new Error('That entry was removed. Reload before editing.');
+        const draft = { ...s.draft, loanIndex: index, loanId: current.loans[index].id };
         const next = s.replaces
-          ? entries.map((e) => (e.id === s.replaces ? { ...s.draft, id: e.id, loggedAt: e.loggedAt } : e))
-          : addActivityEntry(entries, s.draft, user.loans);
+          ? liveEntries.map((e) => (e.id === s.replaces ? { ...draft, id: e.id, loggedAt: e.loggedAt } : e))
+          : addActivityEntry(liveEntries, draft, current.loans);
         saveEntries(next, message);
       } else if (s.kind === 'life') {
         const before = new Set(readLifecycleClient().map((e) => e.id));
@@ -156,12 +166,14 @@ export function ActivityPage({
         setLife(next);
         rerun(message);
       } else if (s.kind === 'spent') {
-        const next = addMonthlySpend(spend, { monthIso: s.month, spent: s.amount });
+        const next = addMonthlySpend(readMonthlySpendClient(), { monthIso: s.month, spent: s.amount });
         writeMonthlySpendClient(next);
         setSpend(next);
         setSaid(message);
       } else {
         const stored = loadProfileClient();
+        if (stored.user.country !== user.country || Number(stored.user.fixed_expenses) !== Number(user.fixed_expenses) || Number(stored.user.variable_expenses || 0) !== Number(user.variable_expenses || 0))
+          throw new Error('Your spending changed elsewhere. Reload before setting the new budget.');
         const ok = saveProfileClient({ ...stored, user: { ...stored.user, fixed_expenses: s.amount, variable_expenses: '0' } });
         if (!ok) throw new Error('Couldn’t save the profile in this browser.');
         rerun(message);
@@ -177,11 +189,16 @@ export function ActivityPage({
     const r = row.ref;
     try {
       if (r.kind === 'due' && action === 'paid') {
+        const current = loadProfileClient().user;
+        const original = user.loans[r.loanIndex];
+        const index = currentLoanIndex({loanIndex:r.loanIndex,loanId:original?.id}, original, current.loans);
+        if (!isOpenCurrentLoan(current.loans[index]) || !requiredMonthly(current.loans[index],current.country).eq(r.amount))
+          throw new Error('The loan or payment changed. Reload before marking it paid.');
         saveEntries(
           addActivityEntry(
-            entries,
-            { loanIndex: r.loanIndex, kind: 'paid_full', date: today, amount: r.amount, scheduledEmi: r.amount },
-            user.loans,
+            readActivityClient(),
+            { loanIndex: index, loanId: current.loans[index].id, kind: 'paid_full', date: today, amount: r.amount, scheduledEmi: r.amount },
+            current.loans,
           ),
           `${row.target}: ${row.planned} paid.`,
         );
@@ -191,7 +208,7 @@ export function ActivityPage({
         const entry = entries.find((e) => e.id === r.id);
         if (entry) setDialog({ edit: entry });
       } else if (r.kind === 'entry' && action === 'undo') {
-        saveEntries(removeActivityEntry(entries, r.id), `${row.target}: entry removed.`);
+        saveEntries(removeActivityEntry(readActivityClient(), r.id), `${row.target}: entry removed.`);
       } else if (r.kind === 'spend' && action === 'undo') {
         const next = spend.filter((e) => e.monthIso !== r.month);
         writeMonthlySpendClient(next);
@@ -215,7 +232,7 @@ export function ActivityPage({
           setSaid('Spending cut marked as held.');
         } else {
           // Spending goes back to what it was before the cut.
-          undoExpenseCommit(c);
+          if (!undoExpenseCommit(c)) throw new Error('The spending cut could not be undone. Reload before trying again.');
           writeRecommendations(deleteDecision(readRecommendations(), c.id));
           setCuts(readExpenseCommits());
           rerun('Spending cut undone; spending is back to what it was.');
@@ -230,16 +247,23 @@ export function ActivityPage({
   }
 
   function markAll(m: MonthGroup) {
-    let next = entries;
+    try {
+    const current = loadProfileClient().user;
+    let next = readActivityClient();
     for (const row of m.rows) {
       if (row.ref.kind !== 'due' || row.ref.card) continue;
+      const original = user.loans[row.ref.loanIndex];
+      const index = currentLoanIndex({loanIndex:row.ref.loanIndex,loanId:original?.id},original,current.loans);
+      if (!isOpenCurrentLoan(current.loans[index]) || !requiredMonthly(current.loans[index],current.country).eq(row.ref.amount))
+        throw new Error('A loan or payment changed. Reload before marking the EMIs paid.');
       next = addActivityEntry(
         next,
-        { loanIndex: row.ref.loanIndex, kind: 'paid_full', date: today, amount: row.ref.amount, scheduledEmi: row.ref.amount },
-        user.loans,
+        { loanIndex: index, loanId: current.loans[index].id, kind: 'paid_full', date: today, amount: row.ref.amount, scheduledEmi: row.ref.amount },
+        current.loans,
       );
     }
     saveEntries(next, 'EMIs marked paid.');
+    } catch (e) { setError((e as Error).message); }
   }
 
   function jump(m: MonthGroup, i: number) {

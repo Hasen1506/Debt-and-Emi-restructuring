@@ -21,7 +21,7 @@
  * per-goal fill rates in `goal_finals`.
  */
 
-import { syncSliceToServer } from './server-sync';
+import { persistGoalSlices, type GoalSliceWrite } from './persist-goal-slices';
 
 export type GoalKind =
   | 'birthday'
@@ -269,6 +269,10 @@ export function readGoalsClient(): Goal[] {
 
 export function writeGoalsClient(goals: Goal[]) {
   if (typeof localStorage === 'undefined') return;
+  persistGoalSlices([goalSliceWrite(goals)]);
+}
+
+export function goalSliceWrite(goals: Goal[]): GoalSliceWrite {
   // Run inputs through migrateLegacy. Most callers already work with
   // already-migrated objects (they came from readGoalsClient), but the
   // decisions-log undo path can hand us a snapshot that was logged
@@ -276,27 +280,23 @@ export function writeGoalsClient(goals: Goal[]) {
   // carry the legacy `priority`/`preemptsEf` fields forward.
   const migrated = goals.map(migrateLegacy);
   const sorted = migrated.sort(compareGoalsForOrder);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted));
   // Cookie digest carries enough per-goal info for /plan's server
   // render to build the engine payload without going through
   // localStorage. Includes `priorityBump` + `orderIndex` so the
   // engine sees the same ordering the user sees.
-  if (typeof document !== 'undefined') {
-    // Cancelled and archived goals leave the plan.
-    const digest = sorted.filter(isOpenGoal).map((g) => ({
-      id: g.id,
-      targetMonth: g.targetMonth,
-      amount: g.amount,
-      bufferPct: g.bufferPct,
-      priorityBump: g.priorityBump,
-      orderIndex: g.orderIndex,
-      fundingStartMonth: g.fundingStartMonth,
-      autoDefer: g.autoDefer,
-    }));
-    const value = btoa(JSON.stringify(digest));
-    document.cookie = `${DIGEST_COOKIE}=${value}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
-  }
-  void syncSliceToServer('goals', sorted);
+  // Cancelled and archived goals leave the plan.
+  const digest = sorted.filter(isOpenGoal).map((g) => ({
+    id: g.id,
+    targetMonth: g.targetMonth,
+    amount: g.amount,
+    bufferPct: g.bufferPct,
+    priorityBump: g.priorityBump,
+    orderIndex: g.orderIndex,
+    fundingStartMonth: g.fundingStartMonth,
+    autoDefer: g.autoDefer,
+  }));
+  const value = btoa(JSON.stringify(digest));
+  return { key: STORAGE_KEY, cookie: DIGEST_COOKIE, digest: value, value: sorted, slice: 'goals' };
 }
 
 /** Stable ordering used by both localStorage persistence and the cookie

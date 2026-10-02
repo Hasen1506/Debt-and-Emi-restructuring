@@ -11,6 +11,8 @@ import type { LoanPayload, LoanType, UserPayload } from '@/lib/api';
 import { formatCurrencyWhole } from '@/lib/api';
 import type { LifecycleDraft, LifecycleEvent, LifecycleKind } from '@/lib/lifecycle-events';
 import { resolveLoanIndex } from '@/lib/loan-ids';
+import { isOpenCurrentLoan, rateChangeLoanIndex, currentLoanIndex } from '@/lib/plan-controls';
+import { loadProfileClient } from '@/lib/user-store';
 import { rateOutOfRange } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { getCountryToday, localIsoDate, MONTH_NAMES } from '@/lib/today';
@@ -70,6 +72,7 @@ export function lifeEventSummary(e: LifecycleEvent, user: UserPayload): string {
 
 export function LifeEventForm({
   user,
+  configuredLoans = user.loans,
   kinds = ['salary_reset', 'floating_rate_reset', 'property_buy'],
   initialKind,
   initialLoanIndex,
@@ -80,6 +83,7 @@ export function LifeEventForm({
   onDraft,
 }: {
   user: UserPayload;
+  configuredLoans?: LoanPayload[];
   /** The kinds offered; with one, there's no "What changes" row. */
   kinds?: LifecycleKind[];
   initialKind?: LifecycleKind;
@@ -95,22 +99,25 @@ export function LifeEventForm({
   const today = localIsoDate(getCountryToday(user.country));
   const ccy = user.country === 'IN' ? 'INR' : 'USD';
   const openLoans = useMemo(
-    () => user.loans.map((l, i) => ({ l, i })).filter(({ l }) => Number(l.outstanding) > 0 && !l.planned_effective_month),
+    () => user.loans.map((l, i) => ({ l, i })).filter(({ l }) => isOpenCurrentLoan(l)),
     [user.loans],
   );
   const [kind, setKind] = useState<LifecycleKind>(initialKind ?? kinds[0]);
   // A rate change for a loan with its next reset on file starts on that date.
-  const resetOn = initialLoanIndex != null ? user.loans[initialLoanIndex]?.next_reset_date : undefined;
+  const resetOn = user.loans[rateChangeLoanIndex(user.loans, initialLoanIndex)]?.next_reset_date;
   const [date, setDate] = useState(kind === 'floating_rate_reset' && resetOn && resetOn >= today ? resetOn : today);
   const [note, setNote] = useState('');
   const [gross, setGross] = useState('');
   const [takeHome, setTakeHome] = useState('');
-  const [loanIdx, setLoanIdx] = useState(
-    initialLoanIndex ?? openLoans.find(({ l }) => l.rate_type === 'floating')?.i ?? openLoans[0]?.i ?? 0,
-  );
+  const [loanRef, setLoanRef] = useState(() => {
+    const index = rateChangeLoanIndex(user.loans, initialLoanIndex);
+    return { loanIndex: index, loanId: user.loans[index]?.id, legacy: configuredLoans[index] };
+  });
+  const loanIdx = resolveLoanIndex(loanRef, user.loans);
   const [newRate, setNewRate] = useState('');
   const [draft, setDraft] = useState<LoanPayload>(blankLoanDraft());
   const [tried, setTried] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   // What's missing or wrong, per field, shown once SAVE has been tried.
   const n = (v: string) => Number(v);
@@ -121,6 +128,7 @@ export function LifeEventForm({
     newRate:
       kind === 'floating_rate_reset'
         ? (openLoans.length === 0 ? 'There are no loans to change.' : null) ??
+          (!isOpenCurrentLoan(user.loans[loanIdx]) ? 'That loan is no longer open. Choose another.' : null) ??
           (newRate.trim() ? rateOutOfRange(newRate) : 'Enter the new rate.')
         : null,
     outstanding: kind === 'property_buy' && !(n(draft.outstanding) > 0) ? 'Enter the amount borrowed.' : null,
@@ -162,11 +170,23 @@ export function LifeEventForm({
   function save() {
     setTried(true);
     if (!valid) return;
-    onSave(build());
+    try {
+      const value = build();
+      if (value.kind === 'floating_rate_reset') {
+        const current = loadProfileClient().user;
+        const index = currentLoanIndex(loanRef, loanRef.legacy, current.loans);
+        if (current.country !== user.country || !isOpenCurrentLoan(current.loans[index]))
+          throw new Error('That loan is no longer open or changed. Reload and choose it again.');
+        value.loanIndex = index;
+        value.loanId = current.loans[index].id;
+      }
+      onSave(value);
+    } catch (e) { setSaveError((e as Error).message); }
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {saveError && <p role="alert" style={{ color: L_T.negative }}>{saveError}</p>}
       {kinds.length > 1 && (
         <LChipRow label="What changes">
           {kinds.map((k) => (
@@ -183,9 +203,10 @@ export function LifeEventForm({
               Loan
               <select
                 value={loanIdx}
-                onChange={(e) => setLoanIdx(Number(e.target.value))}
+                onChange={(e) => { const index = Number(e.target.value); setLoanRef({ loanIndex: index, loanId: user.loans[index]?.id, legacy: configuredLoans[index] }); setSaveError(''); }}
                 style={{ fontFamily: 'inherit', fontSize: 13, padding: '8px 10px', border: `1px solid ${L_T.ink}`, background: L_T.paper }}
               >
+                {loanIdx < 0 && <option value={-1}>Select an open loan</option>}
                 {openLoans.map(({ l, i }) => (
                   <option key={i} value={i}>
                     {lifeLoanName(l)} · {(Number(l.nominal_rate) * 100).toFixed(2)}% now

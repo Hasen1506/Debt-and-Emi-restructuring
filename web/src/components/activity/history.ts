@@ -154,7 +154,8 @@ export function buildHistory({
 
   // What's due this month and not logged yet.
   for (const { loan, index } of openLoans(user.loans)) {
-    if (entries.some((e) => e.loanIndex === index && e.date.slice(0, 7) === thisMonth)) continue;
+    if (entries.some((e) => e.loanIndex === index && e.date.slice(0, 7) === thisMonth &&
+      (e.kind !== 'paid_extra' || Number(e.scheduledEmi) > 0))) continue;
     const card = loan.loan_type === 'credit_card';
     const amount = requiredMonthly(loan, user.country);
     if (amount.lte(0)) continue;
@@ -169,7 +170,7 @@ export function buildHistory({
       tone: 'muted',
       note: card ? 'the minimum; the plan may pay more' : undefined,
       pending: true,
-      ref: { kind: 'due', loanIndex: index, amount: amount.toFixed(0), card },
+      ref: { kind: 'due', loanIndex: index, amount: amount.toFixed(2), card },
     });
   }
 
