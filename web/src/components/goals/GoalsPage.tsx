@@ -36,7 +36,7 @@ import { TEMPLATE_CATALOGUE, expandTemplate, type TemplateKind } from '@/lib/lif
 import { localIsoDate } from '@/lib/today';
 import { useWidth } from '@/lib/use-width';
 import type { AmountCurrency } from '@/lib/amount';
-import { LBracket, LKpi, LProgressBar, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
+import { LBracket, LKpi, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
 import { GoalForm, monthLabel, type GoalDraft } from './GoalForm';
 import { GoalDetail } from './GoalDetail';
 
@@ -221,6 +221,12 @@ export function GoalsPage({
   const saving = ls.filter((l) => l.startIndex === 0 && ['on_track', 'needs_backup', 'short'].includes(l.state));
   const later = ls.filter((l) => l.startIndex > 0).length;
   const monthlyNow = saving.reduce((s, l) => s + l.monthly, 0);
+  // When the first goal that waits (for the debts to clear) starts saving.
+  const firstLater = ls.filter((l) => l.startIndex > 0).reduce((m, l) => Math.min(m, l.startIndex), Infinity);
+  const firstLaterDate = Number.isFinite(firstLater) ? new Date(today.getFullYear(), today.getMonth() + firstLater, 1) : null;
+  const firstLaterLabel = firstLaterDate
+    ? monthLabel(`${firstLaterDate.getFullYear()}-${String(firstLaterDate.getMonth() + 1).padStart(2, '0')}`)
+    : '';
   const totalTarget = ls.reduce((s, l) => s + l.required, 0);
 
   const formFor = (initial?: Goal) => (
@@ -246,12 +252,21 @@ export function GoalsPage({
             { l: 'GOALS', v: String(openGoals.length), s: `${fmt(totalTarget)} IN ALL` },
             { l: 'ON TRACK', v: String(good), s: 'FROM SPARE CASH', tone: good ? L_T.positive : L_T.ink },
             { l: 'NEED A LOOK', v: String(look), s: look ? 'SHORT OR LATE' : 'NONE', tone: look ? L_T.negative : L_T.ink },
-            {
-              l: 'GOALS NEED',
-              v: `${fmt(monthlyNow)}/MO`,
-              s: `OF ${fmt(ctx.monthlySurplus)} SPARE${later ? ` · ${later} START${later === 1 ? 'S' : ''} LATER` : ''}`,
-              tone: monthlyNow > ctx.monthlySurplus ? L_T.negative : L_T.accent,
-            },
+            // What goes to goals this month. ₹0 in red read as a problem
+            // when the goals simply start once the debts are paid.
+            monthlyNow === 0 && later > 0
+              ? {
+                  l: 'TO GOALS NOW',
+                  v: 'NOT YET',
+                  s: `SAVING STARTS ${firstLaterLabel.toUpperCase()}, AFTER DEBTS`,
+                  tone: L_T.ink,
+                }
+              : {
+                  l: 'TO GOALS NOW',
+                  v: `${fmt(monthlyNow)}/MO`,
+                  s: `OF ${fmt(ctx.monthlySurplus)} SPARE${later ? ` · ${later} START${later === 1 ? 'S' : ''} LATER` : ''}`,
+                  tone: monthlyNow > ctx.monthlySurplus ? L_T.negative : L_T.ink,
+                },
           ]}
         />
       )}
@@ -281,7 +296,7 @@ export function GoalsPage({
                 <span role="columnheader">#</span>
                 <span role="columnheader">GOAL</span>
                 <span role="columnheader" style={{ textAlign: 'right' }}>TARGET</span>
-                <span role="columnheader">PUT IN</span>
+                <span role="columnheader">SAVED SO FAR</span>
                 <span role="columnheader">BY</span>
                 <span role="columnheader" style={{ textAlign: 'right' }}>A MONTH</span>
                 <span role="columnheader">STATUS</span>
@@ -453,7 +468,18 @@ function GoalRow({
       </LBracket>
     </span>
   );
-  const progress = <LProgressBar pct={line.pct} width={wide ? 8 : 12} tone={funded ? 'pos' : undefined} />;
+  const pct = Math.round(Math.max(0, Math.min(100, line.pct)));
+  // A real bar the width of its column: the 8-character text bar sat
+  // squeezed under the amount and was easy to miss.
+  const progress = (
+    <span
+      role="img"
+      aria-label={`${pct}% saved`}
+      style={{ display: 'block', height: 6, marginTop: 5, background: L_T.ruleSoft, maxWidth: wide ? undefined : 280 }}
+    >
+      <span style={{ display: 'block', height: '100%', width: `${pct}%`, background: funded ? L_T.positive : L_T.ink }} />
+    </span>
+  );
 
   if (wide) {
     return (
@@ -462,7 +488,10 @@ function GoalRow({
         <span role="cell">{name}</span>
         <span role="cell" style={{ textAlign: 'right' }}>{line.required > 0 ? fmt(line.required) : '—'}</span>
         <span role="cell">
-          <span style={{ display: 'block', fontWeight: 700 }}>{fmt(line.saved)}</span>
+          <span style={{ display: 'block' }}>
+            <b>{fmt(line.saved)}</b>
+            {line.required > 0 && <span style={{ color: L_T.muted }}> · {pct}%</span>}
+          </span>
           {line.required > 0 && progress}
         </span>
         <span role="cell">{monthLabel(goal.targetMonth)}</span>
@@ -477,9 +506,10 @@ function GoalRow({
       <span role="cell" style={{ minWidth: 0 }}>
         {name}
         <span style={{ display: 'block', fontSize: 11, color: L_T.muted, marginTop: 2 }}>
-          {fmt(line.saved)} of {line.required > 0 ? fmt(line.required) : '—'} · by {monthLabel(goal.targetMonth)}
+          {fmt(line.saved)} of {line.required > 0 ? fmt(line.required) : '—'}
+          {line.required > 0 ? ` (${pct}%)` : ''} · by {monthLabel(goal.targetMonth)}
         </span>
-        {line.required > 0 && <span style={{ display: 'block', marginTop: 2 }}>{progress}</span>}
+        {line.required > 0 && progress}
         <span style={{ display: 'block', marginTop: 6 }}>{actions}</span>
       </span>
       <span role="cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
