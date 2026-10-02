@@ -131,13 +131,15 @@ test('clearing a stored credit score also clears the local cookie',()=>{
 test('parallel slice saves serialize atomic patches and a failed save never replaces unrelated state',async()=>{
   await new Promise(resolve=>setImmediate(resolve));
   process.env.NEXT_PUBLIC_DISABLE_AUTH='false';
+  const storage = new Map([['finoptima_account_id','queue-test']]);
+  global.localStorage={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)};
   const {api}=lib('api.ts');const patch=api.patchUserState;let state={untouched:'keep'};const writes=[];let active=0,maxActive=0;
   api.patchUserState=async value=>{active++;maxActive=Math.max(maxActive,active);await new Promise(resolve=>setImmediate(resolve));state={...state,...value};writes.push(value);active--;return {data:state};};
   const {syncSliceToServer}=lib('server-sync.ts');const profile={user:{monthly_income:'100000'}};
   await Promise.all([syncSliceToServer('profile',profile),syncSliceToServer('activity',[{amount:'7000'}]),syncSliceToServer('cash_events',{confirmations:[]})]);
   assert.equal(maxActive,1);assert.equal(state.untouched,'keep');assert.equal(state.profile.user.monthly_income,'100000');assert.equal(state.activity[0].amount,'7000');assert.deepEqual(state.cash_events,{confirmations:[]});
-  api.patchUserState=async()=>{throw new Error('network unavailable');};await syncSliceToServer('profile',{user:{monthly_income:'1'}});assert.equal(writes.length,3);assert.equal(state.profile.user.monthly_income,'100000');
-  api.patchUserState=patch;delete process.env.NEXT_PUBLIC_DISABLE_AUTH;
+  const successfulWrites=writes.length;api.patchUserState=async()=>{throw new Error('network unavailable');};await syncSliceToServer('profile',{user:{monthly_income:'1'}});assert.equal(writes.length,successfulWrites);assert.equal(state.profile.user.monthly_income,'100000');
+  api.patchUserState=patch;delete process.env.NEXT_PUBLIC_DISABLE_AUTH;delete global.localStorage;
 });
 
 test('legacy property undo finds the unique matching loan after balances and positions change',()=>{

@@ -7,6 +7,7 @@ import { LFooter } from '@/components/ledger/primitives';
 import { SessionHydrator } from '@/lib/server-sync';
 import { ProfileProvider } from '@/lib/use-profile';
 import { SaveFailedNotice } from '@/components/SaveFailedNotice';
+import { AccountSyncNotice } from '@/components/AccountSyncNotice';
 
 export const metadata: Metadata = {
   title: 'RightDue — Debt & EMI Optimiser',
@@ -36,6 +37,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <SessionHydrator />
         <LMasthead country={profile.user.country} strategy={hasDebt ? strategy : null} />
         <SaveFailedNotice />
+        <AccountSyncNotice />
         <main id="main" tabIndex={-1} className="app-shell" style={{ paddingTop: 18, paddingBottom: 32 }}>
           <ProfileProvider profile={profile}>{children}</ProfileProvider>
         </main>

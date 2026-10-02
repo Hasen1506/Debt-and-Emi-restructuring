@@ -10,7 +10,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
-import { hydrateFromServer, prepareAccountCache, serializeClientState } from '@/lib/server-sync';
+import { hydrateFromServer, prepareAccountCache, serializeClientState, syncSliceToServer } from '@/lib/server-sync';
+import { notifySessionChanged } from '@/lib/session-events';
 
 type Phase = 'email' | 'code';
 
@@ -56,6 +57,7 @@ export default function LoginPage() {
       // New users (or first-time signups) have nothing on the server —
       // push their existing cookie state up if any.
       if (!hydrated) await migrateCookieStateIfNeeded();
+      notifySessionChanged();
       router.push(redirectTo);
       router.refresh();
     } catch (err) {
@@ -79,7 +81,7 @@ export default function LoginPage() {
       if (current.data && Object.keys(current.data).length > 0) return;
       const cookieProfile = loadProfileClient();
       if (!cookieProfile.isLive) return;
-      await api.patchUserState(serializeClientState(cookieProfile));
+      await Promise.all(Object.entries(serializeClientState(cookieProfile)).map(([slice, value]) => syncSliceToServer(slice, value)));
     } catch {
       // Server might be unreachable or session timing-of-cookie issues.
       // Acceptable: cookie still holds the data, next saveProfileClient

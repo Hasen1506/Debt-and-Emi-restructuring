@@ -20,6 +20,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { SESSION_CHANGED_EVENT } from './session-events';
 import { writeProfileCookieClient, clearProfileClient, serializeProfileForServer, type StoredProfile } from './user-store';
 import { writeLifecycleClient, readLifecycleClient, type LifecycleEvent } from './lifecycle-events';
 
@@ -57,17 +58,55 @@ export const HYDRATED_EVENT = 'finoptima:hydrated';
 const ACCOUNT_KEY = 'finoptima_account_id';
 let accountGeneration = 0;
 let localRevision = 0;
+let preparedAccount: string | null = null;
+export const SYNC_CHANGED_EVENT = 'finoptima:sync-changed';
+const pendingMemory = new Map<string, Record<string, unknown>>();
+let syncStatus: 'saved' | 'pending' | 'failed' = 'saved';
+
+function activeAccount(): string | null {
+  try { return localStorage.getItem(ACCOUNT_KEY); } catch { return null; }
+}
+
+function pendingState(account: string): Record<string, unknown> {
+  if (pendingMemory.has(account)) return pendingMemory.get(account)!;
+  try {
+    const saved = JSON.parse(localStorage.getItem(`finoptima_pending_sync_${account}`) ?? '{}');
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+  } catch { return {}; }
+}
+
+function storePending(account: string, data: Record<string, unknown>): void {
+  pendingMemory.set(account, data);
+  try {
+    const key = `finoptima_pending_sync_${account}`;
+    if (Object.keys(data).length) localStorage.setItem(key, JSON.stringify(data));
+    else localStorage.removeItem(key);
+    pendingMemory.delete(account);
+  } catch { /* Keep the in-memory retry even if browser storage is full. */ }
+}
+
+function reportSync(status: typeof syncStatus): void {
+  syncStatus = status;
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(SYNC_CHANGED_EVENT));
+}
+
+export function getSyncStatus(): typeof syncStatus { return syncStatus; }
 
 /** A different signed-in account must not inherit this browser's old profile. */
 export function prepareAccountCache(userId: string): void {
   const previous = localStorage.getItem(ACCOUNT_KEY);
   if (previous && previous !== userId) clearAccountCache();
   localStorage.setItem(ACCOUNT_KEY, userId);
+  preparedAccount = userId;
+  reportSync(Object.keys(pendingState(userId)).length ? 'pending' : 'saved');
 }
 
 export function clearAccountCache(): void {
   accountGeneration++;
   localRevision++;
+  localStorage.removeItem(ACCOUNT_KEY);
+  preparedAccount = null;
+  reportSync('saved');
   clearProfileClient();
   for (const target of Object.values(SLICE_TARGETS)) {
     if (target.kind === 'localStorage') localStorage.removeItem(target.name);
@@ -99,24 +138,56 @@ function writeCookie(name: string, value: string): void {
 
 /**
  * Push a single slice to the server, preserving every other key in the
- * blob across devices. Best-effort: failures retain the browser copy.
+ * blob across devices. Pending values are durable and bound to the account.
  */
 let syncQueue: Promise<void> = Promise.resolve();
 export function syncSliceToServer(slice: string, value: unknown): Promise<void> {
   if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') return Promise.resolve();
   const captured = JSON.parse(JSON.stringify(value));
   const generation = accountGeneration;
-  const account = typeof localStorage === 'undefined' ? null : localStorage.getItem(ACCOUNT_KEY);
+  const account = preparedAccount ?? activeAccount();
   localRevision++;
+  // Anonymous trial changes migrate after sign-in, never to a stale session.
+  if (!account) return Promise.resolve();
+  storePending(account, { ...pendingState(account), [slice]: captured });
+  reportSync('pending');
   syncQueue = syncQueue.catch(() => {}).then(async () => {
-    if (generation !== accountGeneration || (typeof localStorage !== 'undefined' && localStorage.getItem(ACCOUNT_KEY) !== account)) return;
-    const {api} = await import('./api');
-    if (generation !== accountGeneration || (typeof localStorage !== 'undefined' && localStorage.getItem(ACCOUNT_KEY) !== account)) return;
-    try {
-      await api.patchUserState({[slice]:captured});
-    } catch { /* Local stores remain available; next action retries. */ }
+    await sendPending(account, generation);
   });
   return syncQueue;
+}
+
+async function sendPending(account: string, generation: number): Promise<boolean> {
+  if (generation !== accountGeneration || activeAccount() !== account) return false;
+  const snapshot = { ...pendingState(account) };
+  if (!Object.keys(snapshot).length) return true;
+  const { api } = await import('./api');
+  if (generation !== accountGeneration || activeAccount() !== account) return false;
+  try {
+    await api.patchUserState(snapshot);
+    const remaining = { ...pendingState(account) };
+    for (const [slice, value] of Object.entries(snapshot)) {
+      if (JSON.stringify(remaining[slice]) === JSON.stringify(value)) delete remaining[slice];
+    }
+    storePending(account, remaining);
+    if (activeAccount() === account) reportSync(Object.keys(remaining).length ? 'pending' : 'saved');
+    return !Object.keys(remaining).length;
+  } catch {
+    if (activeAccount() === account) reportSync('failed');
+    return false;
+  }
+}
+
+/** Retry before hydration or sign-out so stale server state cannot replace edits. */
+export async function flushPendingState(): Promise<boolean> {
+  const account = activeAccount(), generation = accountGeneration;
+  if (!account) return true;
+  let success = false;
+  syncQueue = syncQueue.catch(() => {}).then(async () => {
+    success = await sendPending(account, generation);
+  });
+  await syncQueue;
+  return success;
 }
 
 /**
@@ -130,7 +201,8 @@ export function syncSliceToServer(slice: string, value: unknown): Promise<void> 
  * doesn't — long enough for the middleware to redirect them to
  * /onboarding.
  */
-export async function hydrateLocalStores(data: Record<string, unknown>): Promise<void> {
+export async function hydrateLocalStores(data: Record<string, unknown>, isCurrent: () => boolean = () => true): Promise<void> {
+  if (!isCurrent()) return;
   const profile = (data as { profile?: { user?: unknown; marginalRate?: string; creditScore?: number | null } }).profile;
   if (profile && typeof profile === 'object') {
     if (profile.user) writeProfileCookieClient(JSON.stringify(profile.user));
@@ -158,27 +230,31 @@ export async function hydrateLocalStores(data: Record<string, unknown>): Promise
   // — not synced as its own slice. Regenerate it now that both inputs
   // are present, so the next /plan render sees the user's activity in
   // the simulation on a fresh device.
-  await regenerateActivityDeltas(data);
+  await regenerateActivityDeltas(data, isCurrent);
+  if (!isCurrent()) return;
   // Rebuild the server-rendered digests without pushing the hydrated values
   // back to the server (which would turn a read into a stale write).
   if (Array.isArray(data.goals)) {
     const { goalSliceWrite } = await import('./goals');
+    if (!isCurrent()) return;
     const write = goalSliceWrite(data.goals);
     localStorage.setItem(write.key, JSON.stringify(write.value));
     document.cookie = `${write.cookie}=${write.digest}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
   }
   if (Array.isArray(data.goal_contributions)) {
     const { contributionSliceWrite } = await import('./goal-contributions');
+    if (!isCurrent()) return;
     const write = contributionSliceWrite(data.goal_contributions);
     document.cookie = `${write.cookie}=${write.digest}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
   }
   if (Array.isArray(data.monthly_spend)) {
     const { latestByMonth } = await import('./monthly-spend');
+    if (!isCurrent()) return;
     document.cookie = `finoptima_monthly_spend_digest=${btoa(JSON.stringify(latestByMonth(data.monthly_spend)))}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
   }
 }
 
-async function regenerateActivityDeltas(data: Record<string, unknown>): Promise<void> {
+async function regenerateActivityDeltas(data: Record<string, unknown>, isCurrent: () => boolean): Promise<void> {
   const activity = data.activity;
   const profile = (data as { profile?: { user?: { loans?: unknown; country?: unknown } } }).profile;
   if (!Array.isArray(activity) || !profile?.user) return;
@@ -186,6 +262,7 @@ async function regenerateActivityDeltas(data: Record<string, unknown>): Promise<
   if (!Array.isArray(loans) || (country !== 'IN' && country !== 'US')) return;
   try {
     const { syncActivityCookieClient } = await import('./activity-cookie');
+    if (!isCurrent()) return;
     syncActivityCookieClient(
       activity as Parameters<typeof syncActivityCookieClient>[0],
       loans as Parameters<typeof syncActivityCookieClient>[1],
@@ -205,10 +282,13 @@ async function regenerateActivityDeltas(data: Record<string, unknown>): Promise<
 export async function hydrateFromServer(): Promise<boolean> {
   const { api } = await import('./api');
   try {
+    if (!await flushPendingState()) return false;
+    const revision = localRevision, generation = accountGeneration;
     const res = await api.getUserState();
-    if (!res.data) return false;
-    await hydrateLocalStores(res.data);
-    return true;
+    if (!res.data || revision !== localRevision || generation !== accountGeneration) return false;
+    const isCurrent = () => revision === localRevision && generation === accountGeneration;
+    await hydrateLocalStores(res.data, isCurrent);
+    return isCurrent();
   } catch {
     return false;
   }
@@ -229,15 +309,15 @@ export function SessionHydrator(): null {
     // and asking anyway cost a 404 on every page.
     if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') return;
     let cancelled = false;
+    let attempt = 0;
     async function hydrate() {
-      const revision = localRevision;
-      const generation = accountGeneration;
+      const currentAttempt = ++attempt;
       const { api } = await import('./api');
       try {
-        const res = await api.getUserState();
-        if (cancelled || !res.data || revision !== localRevision || generation !== accountGeneration) return;
-        await hydrateLocalStores(res.data);
-        if (cancelled) return;
+        const user = await api.me();
+        if (cancelled || currentAttempt !== attempt) return;
+        prepareAccountCache(user.id);
+        if (!await hydrateFromServer() || cancelled) return;
         window.dispatchEvent(new Event(HYDRATED_EVENT));
         router.refresh();
       } catch {
@@ -245,8 +325,20 @@ export function SessionHydrator(): null {
       }
     }
     void hydrate();
+    const accountChanged = (event: StorageEvent) => {
+      if (event.key === ACCOUNT_KEY) {
+        router.refresh();
+        void hydrate();
+      }
+    };
+    window.addEventListener(SESSION_CHANGED_EVENT, hydrate);
+    window.addEventListener('online', hydrate);
+    window.addEventListener('storage', accountChanged);
     return () => {
       cancelled = true;
+      window.removeEventListener(SESSION_CHANGED_EVENT, hydrate);
+      window.removeEventListener('online', hydrate);
+      window.removeEventListener('storage', accountChanged);
     };
   }, [router]);
   return null;

@@ -291,7 +291,8 @@ def _scan_card_balance_transfer(
         f"promo ends — after that the rate snaps back to roughly "
         f"{_fmt_pct(card_effective)} again. The new-card rate already accounts "
         f"for the {_fmt_pct(fee_pct)} one-time transfer fee spread over the "
-        f"promo months."
+        f"promo months. This rate-comparison estimate holds today's balance constant; "
+        f"paying the card down during the promo reduces the saving."
     )
     if income_type == IncomeType.BUSINESS_OWNER:
         rationale += (

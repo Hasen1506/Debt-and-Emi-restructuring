@@ -9,7 +9,7 @@ test('same-origin sign-in forwards a web-host session cookie and authenticated s
  try{
   const req=new NextRequest('https://web.example.com/api/session/auth/verify-otp',{method:'POST',headers:{origin:'https://web.example.com',cookie:'finoptima_session=opaque; financial_profile=private'},body:JSON.stringify({email:'test@example.com',code:'123456'})});
   const res=await route.POST(req,{params:{path:['auth','verify-otp']}});assert.equal(res.status,200);assert.match(res.headers.get('set-cookie'),/HttpOnly/);assert.equal(res.headers.get('cache-control'),'no-store');assert.equal(seen[0].url,'https://api.example.com/api/auth/verify-otp');assert.equal(seen[0].opts.headers.get('Cookie'),'finoptima_session=opaque');assert.equal(seen[0].opts.headers.get('X-Internal-Token'),null);
-  await route.GET(new NextRequest('https://web.example.com/api/session/user/state',{headers:{cookie:'finoptima_session=opaque'}}),{params:{path:['user','state']}});assert.equal(seen[1].opts.headers.get('Cookie'),'finoptima_session=opaque');
+  await route.GET(new NextRequest('https://web.example.com/api/session/user/state',{headers:{cookie:'finoptima_session=opaque','x-account-id':'expected'}}),{params:{path:['user','state']}});assert.equal(seen[1].opts.headers.get('Cookie'),'finoptima_session=opaque');assert.equal(seen[1].opts.headers.get('X-Account-Id'),'expected');assert.equal(seen[0].opts.headers.get('X-Account-Id'),null);
  }finally{global.fetch=original;delete process.env.API_BASE_URL;delete process.env.INTERNAL_API_TOKEN;}
 });
 test('session proxy rejects cross-origin writes, arbitrary upstream paths and unsupported methods before making a request',async()=>{
