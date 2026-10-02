@@ -108,7 +108,7 @@ export function RightTimeTool() {
     setV(null);
     setAdded(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loanType]);
+  }, [loanType, country]);
 
   useEffect(() => {
     let cancelled = false;
@@ -317,7 +317,7 @@ export function RightTimeTool() {
               <LNote style={{ margin: '12px 0 0' }}>
                 {v.verdict === 'wait' && v.saving_if_cut && (
                   <>
-                    If the cut comes you save about {money(v.saving_if_cut)}; if it doesn’t, you’ve lost only the wait. Ask for a fresh quote after
+                    If the cut comes you save about {money(v.saving_if_cut)}. If rates rise instead, borrowing could cost more. Ask for a fresh quote after
                     the {bankName} decision.{' '}
                   </>
                 )}

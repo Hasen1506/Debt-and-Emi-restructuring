@@ -148,6 +148,38 @@ def test_off_means_no_fetch(monkeypatch):
     assert gamma.calls == 0
 
 
+@pytest.mark.parametrize('markets', ['bad', {'broken': True}, [None], [dict(_market('No change', 0.8), closed=True), _market('25 bps decrease', 0.2)]])
+def test_malformed_or_closed_contracts_never_become_live_odds(markets):
+    assert parse_event({**FED_OCT, 'markets': markets}, 'US', TODAY, CAL_US) is None
+
+
+def test_malformed_upstream_response_uses_the_other_search():
+    def get(path, params):
+        return {'events': [FED_OCT]} if path == '/public-search' else 'upstream maintenance'
+    assert market_odds.fetch_events('US', get) == [FED_OCT]
+
+
+def test_cached_odds_drop_past_meetings_even_when_refresh_fails(monkeypatch):
+    monkeypatch.setenv('MARKET_ODDS', 'on')
+    clock = [datetime(2026, 10, 28, 23, 50, tzinfo=timezone.utc)]
+    gamma = _Gamma([FED_OCT, FED_DEC])
+    cache = _cache(gamma, clock)
+    assert len(cache.odds('US', CAL_US).meetings) == 2
+    gamma.fail = True
+    clock[0] += timedelta(minutes=20)
+    reading = cache.odds('US', CAL_US)
+    assert [m.day for m in reading.meetings] == [date(2026, 12, 9)]
+
+
+def test_cached_last_meeting_disappears_after_its_day(monkeypatch):
+    monkeypatch.setenv('MARKET_ODDS', 'on')
+    clock = [datetime(2026, 10, 28, 23, 50, tzinfo=timezone.utc)]
+    cache = _cache(_Gamma([FED_OCT]), clock)
+    assert cache.odds('US', CAL_US)
+    clock[0] += timedelta(minutes=20)
+    assert cache.odds('US', CAL_US) is None
+
+
 @pytest.fixture()
 def live_odds(monkeypatch):
     """The API's cache answering from canned Gamma events."""

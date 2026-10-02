@@ -65,7 +65,8 @@ export async function StrategyCompare() {
     return (
       <StrategyTriptych
         active={active}
-        note="A month runs short of cash, so no order has a date yet. Plan shows which month."
+        figures={figures}
+        note="An order marked ‘No date yet’ runs short of cash in at least one month. Choose that order in Plan to see which month."
       />
     );
   }

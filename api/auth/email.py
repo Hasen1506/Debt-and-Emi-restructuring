@@ -1,8 +1,7 @@
 """Resend email delivery for OTP codes.
 
-If RESEND_API_KEY is unset or starts with the placeholder prefix, we
-fall back to printing the code to stdout — keeps local dev unblocked
-when the key hasn't been pasted in yet.
+Production requires RESEND_API_KEY. Printing a code is available only
+when local development explicitly sets OTP_DEV_MODE=true.
 """
 from __future__ import annotations
 
@@ -33,6 +32,8 @@ def _html_body(code: str) -> str:
 def send_otp_email(to: str, code: str) -> None:
     api_key = os.environ.get("RESEND_API_KEY")
     if not _is_real_key(api_key):
+        if os.environ.get("OTP_DEV_MODE") != "true":
+            raise RuntimeError("Email delivery is not configured.")
         log.warning("RESEND_API_KEY not configured — printing OTP to stdout instead.")
         print(f"\n[DEV] OTP for {to}: {code}\n", flush=True)
         return

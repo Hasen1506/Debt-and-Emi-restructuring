@@ -33,6 +33,8 @@ class Base(DeclarativeBase):
 
 
 _url = os.environ.get("DATABASE_URL")
+if _url and _url.startswith(("postgres://", "postgresql://")):
+    _url = "postgresql+asyncpg://" + _url.split("://", 1)[1]
 engine: Optional[AsyncEngine] = None
 SessionLocal: Optional[async_sessionmaker[AsyncSession]] = None
 if _url:

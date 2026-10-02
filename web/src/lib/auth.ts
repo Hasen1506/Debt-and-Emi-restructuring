@@ -36,6 +36,8 @@ export function useSession(): SessionState & { refresh: () => Promise<void>; log
   async function logout() {
     try {
       await api.logout();
+      const { clearAccountCache } = await import('./server-sync');
+      clearAccountCache();
     } finally {
       setState({ status: 'anon', user: null });
     }

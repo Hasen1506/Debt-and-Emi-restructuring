@@ -96,10 +96,10 @@ export function StrategyMedallion({ strategy }: { strategy: StrategyName }) {
         aria-label="Switch strategy"
         style={{
           display: 'flex',
-          flexDirection: 'column',
+          flexDirection: 'row',
           justifyContent: 'center',
           gap: 2,
-          padding: '0 6px',
+          padding: '0 4px',
           background: L_T.paper,
           border: `1px solid ${L_T.ink}`,
           borderLeft: `1px solid ${L_T.ruleSoft}`,
@@ -113,7 +113,7 @@ export function StrategyMedallion({ strategy }: { strategy: StrategyName }) {
             aria-label={`Switch to ${PERSONA[s].name}`}
             title={PERSONA[s].name}
             onClick={() => pick(s)}
-            style={{ padding: '3px 0', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0 }}
+            style={{ minWidth: 24, minHeight: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0 }}
           >
             <span style={{ display: 'block', width: 14, height: 4, background: s === current ? L_T.accent : L_T.ruleSoft }} />
           </button>

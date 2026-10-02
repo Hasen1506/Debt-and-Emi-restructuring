@@ -763,6 +763,8 @@ def right_time_from_odds(
         if principal > 0 and tenure_months > 0 else D("0")
     )
     verdict, detail = _fits(verdict, detail, payment, monthly_room, country)
+    if len(upto) > 1:
+        detail += " Combined odds assume the meetings are independent; decisions can affect later meetings, so this is an estimate."
     months = max(0, round((until.toordinal() - today.toordinal()) / 30.4)) if until else 0
     return BorrowTimingVerdict(
         current_rate=current_rate, six_month_avg=current_rate,

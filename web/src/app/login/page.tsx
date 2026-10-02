@@ -9,15 +9,16 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '@/lib/api';
-import { loadProfileClient, serializeProfileForServer } from '@/lib/user-store';
-import { hydrateFromServer } from '@/lib/server-sync';
+import { loadProfileClient } from '@/lib/user-store';
+import { hydrateFromServer, prepareAccountCache, serializeClientState } from '@/lib/server-sync';
 
 type Phase = 'email' | 'code';
 
 export default function LoginPage() {
   const router = useRouter();
   const params = useSearchParams();
-  const redirectTo = params.get('next') || '/';
+  const next = params.get('next');
+  const redirectTo = next?.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/';
 
   const [phase, setPhase] = useState<Phase>('email');
   const [email, setEmail] = useState('');
@@ -47,7 +48,8 @@ export default function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await api.verifyOtp(email.trim().toLowerCase(), code.trim());
+      const user = await api.verifyOtp(email.trim().toLowerCase(), code.trim());
+      prepareAccountCache(user.id);
       // Pull server state into cookies BEFORE navigating so middleware
       // doesn't redirect returning users to /onboarding.
       const hydrated = await hydrateFromServer();
@@ -77,7 +79,7 @@ export default function LoginPage() {
       if (current.data && Object.keys(current.data).length > 0) return;
       const cookieProfile = loadProfileClient();
       if (!cookieProfile.isLive) return;
-      await api.putUserState(serializeProfileForServer(cookieProfile));
+      await api.patchUserState(serializeClientState(cookieProfile));
     } catch {
       // Server might be unreachable or session timing-of-cookie issues.
       // Acceptable: cookie still holds the data, next saveProfileClient

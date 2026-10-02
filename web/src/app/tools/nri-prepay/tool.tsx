@@ -146,21 +146,19 @@ export function NriPrepayTool() {
         loan.tenure_months_remaining > 0
           ? loan.tenure_months_remaining
           : deriveTenureMonths(loan.outstanding, loan.nominal_rate, loan.scheduled_emi);
-      if (months) setLoanTenure(String(months));
+      setLoanTenure(months ? String(months) : '');
       // Honour the loan's tagged currency when present — set in onboarding
       // by NRI-US users. Falls back to the profile's country default.
       if (loan.currency) {
         setLoanCurrency(loan.currency as Currency);
-      } else if (profileIsNriUs) {
-        // No explicit tag — assume INR (the typical Indian-origin loan for
-        // an NRI-in-US). User can change if needed.
-        setLoanCurrency('INR');
-      }
+      } else setLoanCurrency(userDefaultCurrency(profile.user.country));
     }
   }
 
   useEffect(() => {
-    if (firstLoanIdx !== '') pickTargetLoan(firstLoanIdx);
+    const selected = targetIdx !== '' && profile.user.loans[Number(targetIdx)];
+    if (selected && Number(selected.outstanding) > 0 && selected.loan_type !== 'credit_card') pickTargetLoan(targetIdx);
+    else if (firstLoanIdx !== '') pickTargetLoan(firstLoanIdx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstLoanIdx, profile.user.loans]);
 
@@ -194,8 +192,8 @@ export function NriPrepayTool() {
       showRate(d, day ? `Today’s rate, as of ${day}` : 'Today’s rate', day ? `today’s rate, as of ${day}` : 'today’s rate');
     } catch {
       if (n !== ask.current) return;
-      if (savedFallback && savedFallback > 0) showRate(new Decimal(savedFallback), 'Today’s rate couldn’t be fetched: this is your profile’s.', 'your profile’s rate');
-      else setFxNote('Couldn’t fetch today’s rate. Type it in.');
+      if (savedFallback && Number.isFinite(savedFallback) && savedFallback > 0) showRate(new Decimal(savedFallback), 'Today’s rate couldn’t be fetched: this is your profile’s.', 'your profile’s rate');
+      else setFxNote(fxText.trim() ? 'Couldn’t refresh today’s rate. The rate shown has been kept; check it before calculating.' : 'Couldn’t fetch today’s rate. Type it in.');
     }
   }
 

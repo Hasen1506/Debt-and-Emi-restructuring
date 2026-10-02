@@ -101,7 +101,12 @@ async def request_otp(
     await db.commit()
 
     # Send email after commit so we don't deliver an OTP we then fail to persist.
-    send_otp_email(email, code)
+    try:
+        send_otp_email(email, code)
+    except Exception:
+        # Never claim an email was sent, expose provider credentials/errors,
+        # or publish a production sign-in code to deployment logs.
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Email sign-in is unavailable. Please try again later.") from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

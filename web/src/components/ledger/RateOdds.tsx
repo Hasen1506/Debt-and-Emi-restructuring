@@ -79,7 +79,7 @@ function MeetingRow({ m, bank }: { m: Meeting; bank: string }) {
 export function RateOdds({ odds, bank, max = 3 }: { odds: RateOddsResponse | null | 'loading'; bank: string; max?: number }) {
   const when =
     odds && odds !== 'loading' && odds.fetched_at
-      ? new Date(odds.fetched_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+      ? new Date(odds.fetched_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
       : null;
   return (
     <div>
@@ -99,6 +99,7 @@ export function RateOdds({ odds, bank, max = 3 }: { odds: RateOddsResponse | nul
           </ul>
           <p style={{ margin: '8px 0 0', fontSize: 11, lineHeight: 1.6, color: L_T.muted }}>
             The chance of each move is what people betting real money on it pay. It shifts with every bit of news.
+            {odds.fetched_at && Date.now() - Date.parse(odds.fetched_at) > 30 * 60 * 1000 && ' These are cached odds from the time shown; the latest refresh is unavailable.'}
           </p>
         </>
       )}

@@ -43,10 +43,10 @@ export function SessionIndicator() {
   const label = session.user.display_name || session.user.email;
   const shortLabel = label.length > 28 ? label.slice(0, 25) + '…' : label;
   return (
-    <span style={{ ...TEXT, display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted)' }}>
+    <span style={{ ...TEXT, display: 'inline-flex', maxWidth: '100%', alignItems: 'center', gap: 6, color: 'var(--muted)' }}>
       <span
         title={label}
-        style={{ color: 'var(--ink)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        style={{ color: 'var(--ink)', maxWidth: 'min(220px, 45vw)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
       >
         {shortLabel.toUpperCase()}
       </span>
