@@ -35,6 +35,7 @@ import {
   type LTone,
 } from '@/components/ledger/primitives';
 import { OpenPositions } from './OpenPositions';
+import { ToolStrip } from '@/components/goals/ToolsList';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 
 /** The plan's debt-free date and caption, streamed in by the page. */
@@ -122,6 +123,8 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper }: HomeProps) {
         {cheaper}
 
         <OpenPositions profile={profile} m={m} />
+
+        <ToolStrip user={profile.user} title="Something came up?" />
       </div>
     </LShell>
   );

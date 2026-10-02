@@ -55,10 +55,10 @@ export function LToolHeader({
           flexWrap: 'wrap',
         }}
       >
-        <span>{name.toUpperCase()} · {date.toUpperCase()}</span>
-        <a href="/goals#tools" className="l-hit" style={{ color: L_T.muted, letterSpacing: '0.14em', fontSize: 10, textDecoration: 'none' }}>
-          [← ALL TOOLS]
+        <a href="/goals#tools" className="l-hit" style={{ color: L_T.ink, letterSpacing: '0.1em', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+          ← ALL TOOLS
         </a>
+        <span>{name.toUpperCase()} · {date.toUpperCase()}</span>
       </div>
       <h1
         style={{
