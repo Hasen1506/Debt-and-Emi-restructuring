@@ -78,6 +78,17 @@ function extractMonthlyPayments(
 }
 
 
+/** Each loan's month-end balance under the plan, for /restructuring. */
+function planBalances(scenario: SimulateResponse, loanCount: number): Record<number, string[]> {
+  const out: Record<number, string[]> = {};
+  for (let i = 0; i < loanCount; i++) out[i] = [];
+  for (const p of scenario.trajectory.slice(0, 600)) {
+    if (p.month < 1) continue;
+    for (const [k, v] of Object.entries(p.balances_by_loan_index ?? {})) out[Number(k)]?.push(v);
+  }
+  return out;
+}
+
 /** Everything the plan runs on, read from the cookies, before the engine
  *  is called: the profile with logged activity applied, its settings, life
  *  events and goals. `simBaseArgs` is what /simulate gets (less the
@@ -418,6 +429,7 @@ export async function loadPlan(
       surplus,
       opportunities: [],
       totalAnnualSaving: '0',
+      heldBack: [],
       user: displayUser,
       configuredUser: profile.user,
       marginalRate: profile.marginalRate,
@@ -459,18 +471,26 @@ export async function loadPlan(
   if (gaps.length > 0) return fallback();
 
   try {
+    const scenarioCall = cachedEngineCall('simulate', { ...simBaseArgs, strategy }, () => api.simulate({ ...simBaseArgs, strategy }));
+    // Cheaper rates are worked out on the balances this plan leaves each
+    // month: a card the plan clears this month has little left to save.
+    const restructuringCall = scenarioCall.then((s) => {
+      const req = {
+        user: adjustedUser,
+        marginal_rate: profile.marginalRate,
+        plan_balances: planBalances(s, adjustedUser.loans.length),
+      };
+      return cachedEngineCall('restructuring', req, () => api.restructuring(req));
+    });
     const [scenario, baseline, restructuring, ...altSims] = await Promise.all([
-      cachedEngineCall('simulate', { ...simBaseArgs, strategy }, () => api.simulate({ ...simBaseArgs, strategy })),
+      scenarioCall,
       cachedEngineCall('baseline', {
         user: adjustedUser,
         horizon_months: HORIZON_MONTHS,
         lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
       }, () => api.baseline({ user: adjustedUser, horizon_months: HORIZON_MONTHS,
         lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined })),
-      cachedEngineCall('restructuring', {
-        user: adjustedUser,
-        marginal_rate: profile.marginalRate,
-      }, () => api.restructuring({ user: adjustedUser, marginal_rate: profile.marginalRate })),
+      restructuringCall,
       ...otherStrategies.map((s) => cachedEngineCall('simulate', { ...simBaseArgs, strategy: s }, () => api.simulate({ ...simBaseArgs, strategy: s }))),
     ]);
     const strategyCompare = {
@@ -515,6 +535,7 @@ export async function loadPlan(
       surplus,
       opportunities: restructuring.opportunities,
       totalAnnualSaving: restructuring.total_annual_saving,
+      heldBack: restructuring.held_back ?? [],
       user: displayUser,
       configuredUser: profile.user,
       marginalRate: profile.marginalRate,

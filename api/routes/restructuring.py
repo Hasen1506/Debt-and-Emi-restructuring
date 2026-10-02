@@ -4,9 +4,10 @@ from decimal import Decimal
 
 from fastapi import APIRouter
 
-from engine.restructuring_scan import scan_all
+from engine.restructuring_scan import scan
 from api.schemas import (
-    RestructuringRequest, RestructuringResponse, RestructuringOpportunityOut,
+    RestructuringHeldBackOut, RestructuringRequest, RestructuringResponse,
+    RestructuringOpportunityOut,
 )
 
 D = Decimal
@@ -17,10 +18,22 @@ router = APIRouter(tags=["restructuring"])
 def restructuring(req: RestructuringRequest) -> RestructuringResponse:
     user = req.user.to_engine()
     marg = req.marginal_rate if req.marginal_rate is not None else D("0")
-    opps = scan_all(user, marginal_rate=marg)
+    paths = req.plan_balances
+    if paths is not None:
+        # A path for a loan the user doesn't have is ignored.
+        paths = {i: p for i, p in paths.items() if i < len(user.loans)}
+    result = scan(user, marginal_rate=marg, plan_balances=paths)
+    opps = result.opportunities
     return RestructuringResponse(
         opportunities=[_out(o) for o in opps],
         total_annual_saving=_non_overlapping_total(opps),
+        held_back=[
+            RestructuringHeldBackOut(
+                kind=h.kind, affected_loan_indices=h.affected_loan_indices,
+                target_bank=h.target_bank, reason=h.reason, note=h.note,
+            )
+            for h in result.held_back
+        ],
     )
 
 
@@ -63,4 +76,8 @@ def _out(o) -> RestructuringOpportunityOut:
         one_time_cost=o.one_time_cost,
         breakeven_months=o.breakeven_months,
         lifetime_net_saving=o.lifetime_net_saving,
+        credit_fit=o.credit_fit,
+        score_needed=o.score_needed,
+        saving_basis=o.saving_basis,
+        plan_clears_in_months=o.plan_clears_in_months,
     )

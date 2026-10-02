@@ -223,7 +223,7 @@ def _bodies(user: dict) -> dict:
                                      "lump_sum_amount": "100000", "lump_sum_target_loan_index": 0},
         "/api/windfall": {"amount": "100000", "user": user},
         "/api/quick-recompute": {"user": user, "extra_payment": "10000", "horizon_months": 60},
-        "/api/restructuring": {"user": user},
+        "/api/restructuring": {"user": user, "plan_balances": {"0": ["100000", "90000"], "1": ["50000", "0"]}},
         "/api/portfolio/liquidation-rankings": {"user": user, "debt_effective_rates": {"0": "0.085", "1": "0.42"}},
         "/api/new-debt": {"list_price": "50000", "cash_price_elsewhere": "45000",
                           "emi_offer_months": 12, "emi_offer_monthly_payment": "4500"},

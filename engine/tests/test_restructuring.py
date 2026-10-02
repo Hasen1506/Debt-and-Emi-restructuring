@@ -376,3 +376,79 @@ def test_nri_rupee_home_loan_refinances_with_an_indian_lender():
     rupee_refi = next(o for o in scan_all(rupee_user) if o.kind == "refinance")
     assert refi.estimated_annual_saving == rupee_refi.estimated_annual_saving * D("0.012")
     assert refi.one_time_cost == rupee_refi.one_time_cost * D("0.012")
+
+
+# ── Credit score and the plan's balances (H1) ───────────────────────────────
+
+from engine.restructuring_scan import credit_fit, scan  # noqa: E402
+
+
+def test_credit_fit_bands():
+    assert credit_fit(None, Country.IN, secured=False) == "unknown"
+    assert credit_fit(780, Country.IN, secured=False) == "best"
+    assert credit_fit(720, Country.IN, secured=False) == "higher"
+    assert credit_fit(680, Country.IN, secured=False) == "unlikely"
+    # A loan against a house is judged on the asset too: 680 still fits.
+    assert credit_fit(680, Country.IN, secured=True) == "higher"
+    assert credit_fit(650, Country.US, secured=False) == "unlikely"
+    assert credit_fit(745, Country.US, secured=False) == "best"
+
+
+def test_low_score_holds_back_unsecured_moves_with_the_reason():
+    user = _mixed_book()
+    user.credit_score = 650
+    result = scan(user, D("0.3"))
+    kinds = {o.kind for o in result.opportunities}
+    assert kinds == {"refinance"}
+    held = {h.kind: h for h in result.held_back}
+    assert set(held) == {"balance_transfer", "consolidation"}
+    assert held["balance_transfer"].reason == "credit_score"
+    assert "yours is 650" in held["balance_transfer"].note
+
+
+def test_middling_score_prices_a_loan_at_the_middle_of_the_band():
+    user = _mixed_book()
+    no_score = {o.kind: o for o in scan_all(user, D("0.3"))}
+    user.credit_score = 720
+    mid = {o.kind: o for o in scan_all(user, D("0.3"))}
+    assert mid["consolidation"].target_rate > no_score["consolidation"].target_rate
+    assert mid["consolidation"].credit_fit == "higher"
+    assert no_score["consolidation"].credit_fit == "unknown"
+    assert "add yours in Profile" in no_score["consolidation"].rationale
+
+
+def test_plan_that_clears_the_card_holds_the_transfer_back():
+    """The ₹18,624 a year promised on a ₹80,000 card the plan clears in two
+    months: a transfer would not even have gone through."""
+    user = _mixed_book()
+    paths = {3: [D("70000"), D("0")]}
+    result = scan(user, D("0.3"), plan_balances=paths)
+    assert "balance_transfer" not in {o.kind for o in result.opportunities}
+    hb = next(h for h in result.held_back if h.kind == "balance_transfer")
+    assert hb.reason == "plan_clears" and "by next month" in hb.note
+
+
+def test_plan_balances_shrink_the_saving_and_rewrite_the_headline():
+    user = _mixed_book()
+    card = user.loans[3]
+    today = next(o for o in scan_all(user, D("0.3")) if o.kind == "balance_transfer")
+    # The plan pays the card down by ₹25,000 a month: cleared in month 6.
+    path = [max(D("0"), card.outstanding - D("25000") * m) for m in range(1, 7)]
+    planned = next(
+        o for o in scan_all(user, D("0.3"), plan_balances={3: path})
+        if o.kind == "balance_transfer"
+    )
+    assert planned.saving_basis == "plan"
+    assert planned.plan_clears_in_months == 6
+    gap = planned.rate_gap / D("12")
+    opening = [card.outstanding] + path[:5]
+    assert planned.estimated_annual_saving == sum(gap * b for b in opening) - planned.one_time_cost
+    assert planned.estimated_annual_saving < today.estimated_annual_saving
+    assert _inr_text(planned.estimated_annual_saving) in planned.headline
+    assert "₹1,50,000" in planned.headline  # Indian grouping
+    assert "plan leaves on the card" in planned.rationale
+
+
+def _inr_text(v):
+    from engine.loan_check import _inr
+    return _inr(v)

@@ -6,9 +6,9 @@
  * one click away. Lives on Home only (Plan used to repeat it): it's the
  * first thing to do with a loan, before paying it down faster.
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { formatCurrencyWhole, formatPct } from '@/lib/api';
-import type { RestructuringOpportunity, UserPayload } from '@/lib/api';
+import type { RestructuringHeldBack, RestructuringOpportunity, UserPayload } from '@/lib/api';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { formatAsOf } from '@/lib/as-of';
@@ -21,12 +21,63 @@ const KIND: Record<RestructuringOpportunity['kind'], string> = {
   refinance: 'REFINANCE',
 };
 
+/** Where the offer comes from and what the user's credit score means for
+ *  it: an advertised rate is not the rate a lender offers everyone. */
+function OfferSource({ o, score }: { o: RestructuringOpportunity; score: number | null }) {
+  const bank = o.target_bank ?? 'The lender';
+  const asOf = o.target_rate_as_of ? `, last checked ${formatAsOf(o.target_rate_as_of)}` : '';
+  const best = o.score_needed ?? 750;
+  let credit: ReactNode;
+  if (o.credit_fit === 'best' && score) {
+    credit = <>Your credit score of {score} is in the range for its best rates.</>;
+  } else if (o.credit_fit === 'higher' && score) {
+    credit =
+      o.kind === 'balance_transfer' ? (
+        <>At your credit score of {score} the bank may give a smaller limit or say no.</>
+      ) : (
+        <>At your credit score of {score} lenders usually quote more, so this uses the middle of the bank&apos;s range.</>
+      );
+  } else {
+    credit = (
+      <>
+        What you&apos;re offered depends on your credit score: banks keep their best rates for {best} and up.{' '}
+        <a href="/profile?step=savings&focus=credit" style={{ color: L_T.accent }}>
+          Add your score
+        </a>
+        .
+      </>
+    );
+  }
+  return (
+    <div style={{ fontSize: 11, lineHeight: 1.55, color: L_T.inkSoft, marginTop: 4 }}>
+      {bank}&apos;s advertised {o.kind === 'balance_transfer' ? 'offer' : 'rate'}
+      {asOf}. {credit}
+    </div>
+  );
+}
+
+/** "0% for 6 months + 1.5% fee": a transfer as the bank advertises it,
+ *  not the fee spread over the promo. */
+function targetText(o: RestructuringOpportunity): string {
+  const d = o.detail ?? {};
+  if (o.kind === 'balance_transfer' && d.promo_months) {
+    const fee = Number(d.fee_pct ?? 0);
+    // "0%", "1.5%": as a bank prints it.
+    const pct = (v: string | number) => formatPct(v).replace(/\.?0+%$/, '%');
+    return `${pct(d.promo_rate ?? '0')} FOR ${d.promo_months} MO${fee > 0 ? ` + ${pct(fee)} FEE` : ''}`;
+  }
+  return formatPct(o.target_rate);
+}
+
 export function HomeRestructure({
   opportunities,
+  heldBack = [],
   user,
   totalAnnualSaving,
 }: {
   opportunities: RestructuringOpportunity[];
+  /** Moves looked at and not recommended, with why. */
+  heldBack?: RestructuringHeldBack[];
   user: UserPayload;
   /** Year-one saving across every move, in the user's currency. */
   totalAnnualSaving: string;
@@ -38,12 +89,14 @@ export function HomeRestructure({
     const loan = user.loans[o.affected_loan_indices?.[0] ?? -1];
     return loan ? loanCurrency(loan, user.country) : userCcy;
   };
-  const loanNames = (o: RestructuringOpportunity) => {
+  const score = Number(user.credit_score) || null;
+  const onPlan = opportunities.length > 0 && opportunities.every((o) => o.saving_basis === 'plan');
+  const loanNames = (o: { affected_loan_indices?: number[]; affected_loan_banks?: string[] }) => {
     const names = (o.affected_loan_indices ?? [])
       .map((i) => user.loans[i])
       .filter(Boolean)
       .map((l) => (l.bank ? `${l.bank} ${LOAN_TYPE_NAME[l.loan_type]}` : LOAN_TYPE_NAME[l.loan_type]));
-    const text = names.length > 0 ? names.join(' + ') : o.affected_loan_banks.join(' + ') || 'Your loan';
+    const text = names.length > 0 ? names.join(' + ') : (o.affected_loan_banks ?? []).join(' + ') || 'Your loan';
     return text.charAt(0).toUpperCase() + text.slice(1);
   };
 
@@ -51,17 +104,23 @@ export function HomeRestructure({
     <section aria-labelledby="home-cheaper">
       <LSectionHeader
         right={
-          <span style={{ fontSize: 11, color: L_T.positive, fontWeight: 700, letterSpacing: '0.08em' }}>
-            UP TO {formatCurrencyWhole(totalAnnualSaving, userCcy)} IN YEAR 1
-          </span>
+          opportunities.length > 0 ? (
+            <span style={{ fontSize: 11, color: L_T.positive, fontWeight: 700, letterSpacing: '0.08em' }}>
+              UP TO {formatCurrencyWhole(totalAnnualSaving, userCcy)} IN YEAR 1
+            </span>
+          ) : undefined
         }
       >
         <span id="home-cheaper">Cheaper rates · {opportunities.length}</span>
       </LSectionHeader>
       <p style={{ margin: '0 0 10px', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
-        Rate comparison estimates use today&apos;s outstanding balances and include fees.
-        Paying balances down reduces these savings; they are not the savings from your payoff schedule.
+        {opportunities.length === 0
+          ? 'We checked what banks advertise against your debts. Nothing is worth moving right now:'
+          : onPlan
+            ? 'What moving a debt to a cheaper lender would save, worked out on the balance your plan leaves each month, after fees. Rates are what each bank advertises; get yours in writing before you move.'
+            : "Rate comparison estimates use today's outstanding balances and include fees. Paying balances down reduces these savings. Rates are what each bank advertises; get yours in writing before you move."}
       </p>
+      {opportunities.length > 0 && (
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: `2px solid ${L_T.ink}` }}>
         {opportunities.map((o, i) => {
           const isOpen = open === i;
@@ -92,10 +151,12 @@ export function HomeRestructure({
                 </div>
                 <div style={{ fontSize: 10, letterSpacing: '0.1em', color: L_T.muted, marginTop: 3 }}>
                   <span style={{ color: L_T.accent, fontWeight: 700 }}>{KIND[o.kind]}</span> ·{' '}
-                  {formatPct(o.current_rate)} → {formatPct(o.target_rate)}
-                  {cost > 0 ? ` · FEE ${fc(cost)}` : ' · NO FEE'}
+                  {formatPct(o.current_rate)} NOW → {targetText(o)}
+                  {o.kind === 'balance_transfer' && cost > 0 ? ` (${fc(cost)})` : cost > 0 ? ` · FEE ${fc(cost)}` : ' · NO FEE'}
                   {months != null && cost > 0 ? ` · PAYS BACK IN ${Math.max(1, months)} MO` : ''}
+                  {o.plan_clears_in_months ? ` · YOUR PLAN CLEARS IT IN ${o.plan_clears_in_months} MO` : ''}
                 </div>
+                <OfferSource o={o} score={score} />
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: saving > 0 ? L_T.positive : L_T.negative }}>
@@ -116,11 +177,10 @@ export function HomeRestructure({
                   <p style={{ margin: '0 0 6px' }}>
                     {o.headline}. {o.rationale}
                   </p>
-                  {(o.target_is_existing_relationship || o.target_rate_as_of || o.lifetime_net_saving != null) && (
+                  {(o.target_is_existing_relationship || o.lifetime_net_saving != null) && (
                     <p style={{ margin: '0 0 6px', color: L_T.muted, fontSize: 11 }}>
                       {[
                         o.target_is_existing_relationship ? `You already bank with ${o.target_bank}` : null,
-                        o.target_rate_as_of ? `Rate as of ${formatAsOf(o.target_rate_as_of)}; confirm it with the lender` : null,
                         o.lifetime_net_saving != null ? `${fc(o.lifetime_net_saving)} saved over the rest of the loan` : null,
                       ]
                         .filter(Boolean)
@@ -138,6 +198,35 @@ export function HomeRestructure({
           );
         })}
       </ol>
+      )}
+      {heldBack.length > 0 && (
+        <div style={{ marginTop: opportunities.length > 0 ? 14 : 0 }}>
+          {opportunities.length > 0 && (
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: L_T.muted, marginBottom: 6 }}>
+              LOOKED AT, NOT WORTH IT NOW
+            </div>
+          )}
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
+            {heldBack.map((h, i) => (
+              <li key={i} style={{ fontSize: 12, lineHeight: 1.55, padding: '8px 10px', border: `1px dashed ${L_T.ruleSoft}`, background: L_T.paper }}>
+                <b>
+                  {KIND[h.kind].charAt(0) + KIND[h.kind].slice(1).toLowerCase()}: {loanNames(h)} → {h.target_bank ?? 'another lender'}.
+                </b>{' '}
+                {h.note}
+                {h.reason === 'credit_score' && (
+                  <>
+                    {' '}
+                    <a href="/profile?step=savings&focus=credit" style={{ color: L_T.accent }}>
+                      Update your score
+                    </a>
+                    .
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

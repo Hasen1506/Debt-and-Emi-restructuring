@@ -822,11 +822,29 @@ export interface RestructuringOpportunity {
    *  the modal can mark them cleared and append a new consolidated
    *  personal loan. */
   affected_loan_indices?: number[];
+  /** The user's credit score against what the lender keeps its best rate
+   *  for (`score_needed`); 'unknown' when Profile has no score. */
+  credit_fit?: 'best' | 'higher' | 'unknown';
+  score_needed?: number | null;
+  /** 'plan': the saving uses the balances the plan leaves each month. */
+  saving_basis?: 'plan' | 'today';
+  /** Months until the plan clears the debt, when within the year. */
+  plan_clears_in_months?: number | null;
+}
+
+/** A move the scan found but doesn't recommend, and why. */
+export interface RestructuringHeldBack {
+  kind: RestructuringKind;
+  affected_loan_indices: number[];
+  target_bank: string | null;
+  reason: 'credit_score' | 'plan_clears' | 'costs_more';
+  note: string;
 }
 
 export interface RestructuringResponse {
   opportunities: RestructuringOpportunity[];
   total_annual_saving: string;
+  held_back?: RestructuringHeldBack[];
 }
 
 export interface CrossBorderResponse {
@@ -1366,6 +1384,8 @@ export const api = {
   restructuring: (req: {
     user: UserPayload;
     marginal_rate?: string;
+    /** Each loan's month-end balances under the plan (index → months 1, 2, …). */
+    plan_balances?: Record<number, string[]>;
   }) => post<RestructuringResponse>('/api/restructuring', req),
 
   assetLiquidation: (req: {

@@ -2297,7 +2297,7 @@ function ProfileEditor({
               country={country}
               fxRates={fxRates}
             />
-            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+            <div id="pf-credit" style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
               <Field
                 label="Current credit score (optional)"
                 value={creditScore}
@@ -2311,20 +2311,22 @@ function ProfileEditor({
                   country === 'IN' ? (
                     <>
                       <strong>India:</strong> CIBIL or Experian, range 300-900.
-                      Used only to flag which tool actions might affect your
-                      score — never to gate features. Skip if you don't know it.
+                      Used to judge which cheaper-rate offers a lender would
+                      likely give you, and to flag which actions might affect
+                      your score. Skip if you don&apos;t know it.
                     </>
                   ) : (
                     <>
                       <strong>US:</strong> FICO or VantageScore, range 300-850.
-                      Used only to flag which tool actions might affect your
-                      score — never to gate features. Skip if you don't know it.
+                      Used to judge which cheaper-rate offers a lender would
+                      likely give you, and to flag which actions might affect
+                      your score. Skip if you don&apos;t know it.
                     </>
                   )
                 }
               />
               <div className="muted" style={{ fontSize: 12, alignSelf: 'end' }}>
-                Used for the score-impact chips on each tool. Skip if you don't know it.
+                Cheaper rates on Home use it to leave out offers lenders seldom give at your score. Skip if you don&apos;t know it.
               </div>
             </div>
           </div>

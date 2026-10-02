@@ -173,7 +173,10 @@ def cash_yield(req: CashYieldRequest) -> CashYieldResponse:
 def borrow_timing(req: BorrowTimingRequest) -> BorrowTimingResponse:
     if req.consensus_change_bps is not None:
         if req.months_to_decision is None:
-            raise HTTPException(422, "months_to_decision is needed with consensus_change_bps.")
+            raise HTTPException(422, detail={
+                "field": "months_to_decision",
+                "message": "months_to_decision: needed with consensus_change_bps.",
+            })
         verdict = right_time_to_borrow(
             current_rate=req.current_rate,
             six_month_avg=req.six_month_avg if req.six_month_avg is not None else req.current_rate,

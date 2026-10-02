@@ -4,6 +4,7 @@
  */
 import type {
   PlanRunArgs,
+  RestructuringHeldBack,
   RestructuringOpportunity,
   UserPayload,
 } from '@/lib/api';
@@ -63,6 +64,9 @@ export interface PlanData {
   surplus: number;
   opportunities: RestructuringOpportunity[];
   totalAnnualSaving: string;
+  /** Moves the scan found but holds back (credit score, or the plan
+   *  clears the debt first), with why. */
+  heldBack: RestructuringHeldBack[];
   user: UserPayload;
   /** Saved configuration before simulation-only overrides (hikes, penalties). */
   configuredUser: UserPayload;

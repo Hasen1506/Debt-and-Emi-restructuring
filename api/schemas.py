@@ -1008,6 +1008,14 @@ class AssetLiquidationRequest(_In):
     filing_status: Optional[FilingStatusUS] = None
     state_marginal_rate: Optional[Rate] = None
 
+    @model_validator(mode="after")
+    def _needs_purchase_date(self):
+        # The tax on a sale turns on how long the asset was held. An empty
+        # date reads as None and used to crash the engine (500).
+        if self.asset.purchase_date is None:
+            raise ValueError("asset.purchase_date: needed to work out the tax on the sale")
+        return self
+
 
 class AssetLiquidationResponse(_Base):
     net_proceeds: Decimal
@@ -1129,6 +1137,18 @@ class LoanTermsResponse(_Base):
 class RestructuringRequest(_In):
     user: UserIn
     marginal_rate: Optional[Rate] = None
+    # Each loan's balance at the end of months 1, 2, … under the user's
+    # plan (from /simulate's balances_by_loan_index). When given, savings
+    # are worked out on these instead of today's balance held for a year,
+    # and a move the plan makes pointless is held back.
+    plan_balances: Optional[dict[LoanIndex, list[Amount]]] = Field(None, max_length=MAX_LOANS)
+
+    @field_validator("plan_balances")
+    @classmethod
+    def _plan_paths_bounded(cls, v):
+        if v is not None and any(len(path) > 600 for path in v.values()):
+            raise ValueError("plan_balances: at most 600 months per loan")
+        return v
 
 
 class RestructuringOpportunityOut(_Base):
@@ -1156,11 +1176,27 @@ class RestructuringOpportunityOut(_Base):
     one_time_cost: Decimal = Decimal("0")
     breakeven_months: Optional[int] = None
     lifetime_net_saving: Optional[Decimal] = None
+    # "best" | "higher" | "unknown": the user's credit score against what
+    # the lender keeps its best rate for (`score_needed`).
+    credit_fit: str = "unknown"
+    score_needed: Optional[int] = None
+    # "plan" when the saving uses the plan's balances, else "today".
+    saving_basis: str = "today"
+    plan_clears_in_months: Optional[int] = None
+
+
+class RestructuringHeldBackOut(_Base):
+    kind: str
+    affected_loan_indices: list[int]
+    target_bank: Optional[str] = None
+    reason: str                              # "credit_score" | "plan_clears" | "costs_more"
+    note: str
 
 
 class RestructuringResponse(_Base):
     opportunities: list[RestructuringOpportunityOut]
     total_annual_saving: Decimal
+    held_back: list[RestructuringHeldBackOut] = Field(default_factory=list)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

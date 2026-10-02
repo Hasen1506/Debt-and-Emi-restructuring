@@ -162,8 +162,13 @@ export async function HomePayThisMonth() {
 /** Cheaper rates the engine found for these loans (REDESIGN R2.4). */
 export async function HomeCheaperRates() {
   const plan = await loadPlanOnce();
-  if (plan.gaps.length > 0 || plan.opportunities.length === 0) return null;
+  if (plan.gaps.length > 0 || (plan.opportunities.length === 0 && plan.heldBack.length === 0)) return null;
   return (
-    <HomeRestructure opportunities={plan.opportunities} user={plan.user} totalAnnualSaving={plan.totalAnnualSaving} />
+    <HomeRestructure
+      opportunities={plan.opportunities}
+      heldBack={plan.heldBack}
+      user={plan.user}
+      totalAnnualSaving={plan.totalAnnualSaving}
+    />
   );
 }
