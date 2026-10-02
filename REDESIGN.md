@@ -5,10 +5,10 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R5 · Goals & Tools, Windfall (not started)
-- **Last finished step:** R4 · Activity, all five steps (PR #11): month-by-month history with due rows, one log dialog with the plan preview, plan decisions and spending cuts in the history, W6, balances rolled forward. Also in #11: US card minimums (1% + interest + fees)
-- **Next step:** R5 — measure Goals & Tools and Windfall at 1200/390 and W5 (₹1L bonus → engine pick → log it) on the current pages as the before, then R5.1
-- **Open PR:** #11 · `claude/vibrant-bardeen-5bsiyj` (merge when CI is green, then restart the branch from `main`)
+- **Phase in progress:** R5 · Goals & Tools, Windfall (R5.1–R5.4 done; R5.5–R5.6 left)
+- **Last finished step:** R5.4 Windfall rev 3 (PR #12). Before it: R5.1–R5.2 goal ledger and form, R5.3 tools list on Goals & Tools
+- **Next step:** R5.5, the other seven tools on one layout (see **R5.5 build notes** under R5), then R5.6 (W4 and W5 are already measured below; add the R5.5 tools' heights), tick, merge #12
+- **Open PR:** #12 · `claude/vibrant-bardeen-5bsiyj` (draft; merge when R5 is done and CI is green, then restart the branch from `main`)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
 tick the boxes here, update **Resume here**, push, and ask the owner to `/compact`.
@@ -140,12 +140,19 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [x] R4.5 Balances move with the months: the plan starts from the balances as entered, so each month that passes leaves them one EMI's principal too high until the user updates them. Roll them forward from the month they were entered (scheduled payments + logged entries). Also: an extra logged in Activity this month still counts on top of the plan's own extra for the month (Home's MARK PAID doesn't). **Done:** each loan carries `balance_as_of` (Setup; Profile when a balance changes; a tool's new loan; a confirmed new-loan event). `lib/roll-forward` takes off the EMIs due in the months after that one, for the plan and for Home, Goals and Portfolio, and Activity says which balances moved. An extra logged from this month's spare cash holds back the part the plan already pays this month (`plannedExtra`). Not rolled: cards, flat-rate and pre-EMI loans, and loans saved before this change (no date until their balance is next saved)
 
 ### R5 · Goals & Tools, Windfall
-- [ ] R5.1 Goal ledger: open · edit · cancel/archive; priority accent strip
-- [ ] R5.2 New-goal form: 4 required (name, amount, by when, priority) + optional (already saved, where it's kept)
-- [ ] R5.3 Tools list, one row per question
-- [ ] R5.4 Windfall rev 3: per-target sliders, engine pick vs manual, math block
+- [x] R5.1 Goal ledger: one row per goal (# · goal · target · put in with a progress bar · by · a month · status) with OPEN · EDIT · CANCEL (ARCHIVE once funded); the ★ goal has the accent strip; rows stack at phone width. KPIs: goals, on track, need a look, what the goals need a month against the spare cash. OPEN: when saving starts and how much (with debts, saving waits for the last month that still makes the date: START NOW / CLEAR DEBTS FIRST), the money put in (ADD today's amount, REMOVE), and when short, what closes it, each with one button (MOVE IT, LOWER IT, MAKE IT FIRST, CUT SPENDING), or the backups it leans on (emergency fund, selling, a loan, with WHAT TO SELL →). A note when where it's kept doesn't suit the date. Cancelled and archived goals keep the money, leave the plan (not in the goals cookie) and fold under CLOSED (REOPEN · DELETE); edits and cancels show in Activity with UNDO (restored by goal id). One calculation, `lib/goal-line`, feeds the row, the panel and the form. Templates stay as one line of brackets; their note shows on the page instead of an alert
+- [x] R5.2 New-goal form: what it's for (chips, which name the goal), how much (`15L`), by when (1/2/3/5 years, or month and year), priority (★ first / in date order). Optional, folded: already saved, where it's kept, whether the date can move, buffer, backups. The monthly amount and status show before saving
+- [x] R5.3 Tools list under the goals, one row per question (question · what it does · OPEN →). `/tools` → `/goals#tools`; each tool's header links back. A tool for one country, or NRIs only (NRI prepay), shows only to them
+- [x] R5.4 Windfall rev 3: amount (`1L`) and where it comes from; 02 WHERE IT GOES with ENGINE PICK · BEST / MY SPLIT, a pool meter, one slider per target (emergency fund, loans by rate, goals), each with its effect (debt-free −n mo and interest for a debt on its own; new progress for a goal; how full the fund gets), the split bar, KPIs from one plan run with the whole split (debt-free, interest saved, to goals, kept), LOG IT, the math. Engine pick: the fund's plan share, then loan after loan in the payoff order (`api.windfall` again on what's left), then the rest of the fund, then the engine's investment. Runs as you type
 - [ ] R5.5 Other tool pages on one skeleton (01 input · 02 result · the math); start from a saved loan
 - [ ] R5.6 Walkthroughs W4, W5
+
+**R5.5 build notes** (2 Oct 2026, before compaction):
+- Only Windfall has the numbered layout. The other seven (`new-debt`, `purchase`, `liquidate`, `invest-vs-prepay`, `right-time`, `loan-check`, `nri-prepay`, each `app/tools/<id>/tool.tsx`) use `components/Card` and `ToolPrimitives` (`Field`, `Select`), with no amount field on `kind="money"`.
+- Move Windfall's `Head` (numbered `01`, accent `02`) and `Sub` into a shared `components/ledger/LToolSteps.tsx`. Put each tool on: 01 · the inputs (bordered box) → 02 · the answer (2px box, KPIs via `LKpi`) → THE MATH (`LMathBlock`). Keep each tool's logic and API calls. Drop `components/Card` where it goes.
+- Money fields → `kind="money"`, with the currency from the profile (or the loan's currency).
+- Start from a saved loan: `loan-check` (pick a home loan → balance, months left, rate, lender, start month), `invest-vs-prepay` (pick a loan → its rate; marginal rate from the profile), `nri-prepay` (its loan picker first, not "optional"). Prefill from the profile: `liquidate` (taxable income), `new-debt` (savings, credit score). `right-time` and `purchase` are about new loans, so there's no saved loan to start from.
+- Test each tool at 1200 and 390 with Priya, plus `profiles.mjs` for noloans, us, nri.
 
 ### R6 · Strategy personas
 - [ ] R6.1 Persona art as SVG symbols (authored once; 40px medallion, full triptych)
@@ -296,3 +303,24 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
 ### After (R7.1)
 
 _Filled in at the end._
+
+### Before R5 (current Goals, Tools, Windfall)
+
+- Goals with two goals (Priya): 2,697 px at 1200; 4,901 at 390, where it also scrolled sideways (672 px wide). Tools and Windfall (empty) fit in 900 at 1200.
+- The GOALS & TOOLS tab opened `/goals`, which had no link to any tool; `/tools` could only be reached by typing it.
+- **W4 · Meera adds a house goal:** 1 click (the kind), 2 values typed (amount, `YYYY-MM`). The card then showed two different monthly amounts for the same goal: "Saving starts Mar 2028 · ₹105,000/mo for 15 months" and "put aside about 49k a month from now". With no debts there was nothing to wait for.
+- **W5 · Priya's ₹1L bonus:** typed URL, 1 value, 2 clicks (WHERE SHOULD IT GO, LOG IT). All ₹1L to the card, which is right; but one target only. A larger amount said "the loan clears; keep this or run it again", and there was no way to split it or send part to a goal.
+
+### After R5.1–R5.4
+
+| | Before | After |
+|---|---|---|
+| Goals (two goals), height at 1200 / 390 | 2,697 / 4,901 (672 wide) | **900 / 900** (390 wide) |
+| Goals & Tools with no goals, 1200 / 390 | 900 / 1,311 (goals only) | 1,009 / 1,667 (goal form and the tools) |
+| W4 · Meera, house goal | 1 click, 2 typed, two monthly figures | 3 clicks (A home, 3 years, ADD GOAL), **1 typed** (`15L`); "Put aside ₹43,750 a month until Oct 2029 · ON TRACK" before saving |
+| W5 · Priya, ₹1L bonus | URL typed, 1 typed, 2 clicks; one target | From Goals & Tools: 1 click to the tool, **1 typed** (`1L`), 1 click (LOG IT); the split shows as you type |
+
+- W5 engine pick: ₹1,00,000 to the card (42%), "debt-free −3 mo · interest −₹67,918" on its slider; KPIs Dec 2030, 3 months sooner. After LOG IT, Home shows ₹29,50,000 owed and Plan Dec 2030, as the preview said.
+- MY SPLIT (₹50,000 card, the rest to the house goal): the goal stops at what's left of the pool; Jan 2031, 2 months sooner, ₹50,000 to goals.
+- No loans (Meera, ₹1L): all of it to the emergency fund (gap ₹1.5L), not just the plan's 30% share.
+- Windfall at 390 with a result: 1,854 px, no sideways scroll. No NaN or sideways scroll on Goals or Windfall for noloans, paidoff, overbudget, us, nri.
