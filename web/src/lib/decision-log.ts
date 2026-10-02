@@ -127,7 +127,7 @@ function migrateFromLegacyKey(): void {
     // pressure. Setting the flag below either way so we don't retry
     // every read.
   }
-  localStorage.setItem(MIGRATION_FLAG, '1');
+  try { localStorage.setItem(MIGRATION_FLAG, '1'); } catch { /* A read remains usable when browser storage is full. */ }
 }
 
 function safeParse(raw: string | null): DecisionEntry[] {

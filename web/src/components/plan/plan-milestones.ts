@@ -31,10 +31,14 @@ export function loanClears(plan: PlanData): LoanClear[] {
     for (const p of traj) {
       if (Number(p.balancesByLoanIndex?.[index] ?? 0) > 0.01) lastOwed = p.month;
     }
-    const owedToday = Number(loan.outstanding || 0) > 0.01 && !(loan.planned_effective_month && loan.planned_effective_month > 1);
-    // Paid off in month 1: no month had a balance after its payment.
-    const month = lastOwed > 0 ? lastOwed + 1 : owedToday ? 1 : 0;
+    const arrival = Math.max(1, loan.planned_effective_month ?? 1);
+    const paidOnArrival = plan.monthlyPayments.some(p => p.month === arrival && Number(p.perLoan[index] ?? 0) > 0);
+    // A future loan may arrive and clear before any positive closing balance.
+    const month = lastOwed > 0 ? lastOwed + 1 : paidOnArrival ? arrival : 0;
     if (month === 0 || month > lastMonth) return;
+    // Missing balances aren't evidence of clearance (e.g. offline or truncated data).
+    const closing = traj.find(p => p.month === month)?.balancesByLoanIndex?.[index];
+    if (closing == null || Number(closing) > 0.01) return;
     const type = LOAN_TYPE_NAME[loan.loan_type];
     const name =
       (typeCount.get(loan.loan_type) ?? 0) > 1 && loan.bank

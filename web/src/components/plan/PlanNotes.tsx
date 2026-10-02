@@ -19,6 +19,7 @@ import { computeBreakdown, fmt as fmtPct } from '@/lib/effective-apr';
 import { usMortgageShieldShare } from '@/lib/deductions';
 import { compareToLoan, formatAsOf, pct, safeBenchmarks } from '@/lib/invest-vs-prepay';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { loanToUserDecimal } from '@/lib/currency';
 import { LBracket, LMathBlock, LSectionHeader, L_T } from '@/components/ledger/primitives';
 
 interface Note {
@@ -87,10 +88,11 @@ function buildNotes(plan: PlanData): Note[] {
   const home = ranked.find(({ loan }) => loan.loan_type === 'home_loan');
   if (home) {
     const shield = home.b.lines.find((l) => l.label === 'Tax shield')?.value ?? new Decimal(0);
-    const balance = Number(home.loan.outstanding);
-    const yearly = new Decimal(balance).mul(shield);
+    const yearly = loanToUserDecimal(
+      new Decimal(home.loan.outstanding).mul(shield), home.loan, user.country, user.fx_to_user_currency,
+    );
     const name = loanName(home.loan);
-    if (yearly.gt(1000)) {
+    if (yearly && yearly.gt(1000)) {
       notes.push({
         eyebrow: 'TAX',
         title:

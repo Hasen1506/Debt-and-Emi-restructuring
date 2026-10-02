@@ -183,7 +183,7 @@ export function LiquidateTool() {
   useEffect(() => {
     if (initialIdx !== '') pickTargetLoan(initialIdx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [profile.user.loans]);
 
   // Derived sale price under partial mode = qty × unit_price.
   const effectiveSalePrice = useMemo(() => {

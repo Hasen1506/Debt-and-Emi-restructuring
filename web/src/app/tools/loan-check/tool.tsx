@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Decimal from 'decimal.js';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { ComplaintPanel } from './complaint';
@@ -108,8 +108,12 @@ export function LoanCheckTool() {
     setEmi(l?.scheduled_emi ?? '');
     setEditLoan(!l);
   }
+  useEffect(() => { if (loanIdx != null) pickLoan(loanIdx); }, [profile.user.loans]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [result, setResult] = useState<LoanCheckResponse | null>(null);
+  const [resultValue, setResult] = useState<LoanCheckResponse | null>(null);
+  const fingerprint = JSON.stringify([loanIdx,lender,loanStart,benchmark,startMode,startRate,startBench,startSpread,currentRate,outstanding,months,emi,lastReset,profile.user]);
+  const [checkedKey, setCheckedKey] = useState('');
+  const result = checkedKey === fingerprint ? resultValue : null;
   // The request behind `result`, reused by the complaint panel.
   const [checked, setChecked] = useState<LoanCheckRequest | null>(null);
   const [busy, setBusy] = useState(false);
@@ -171,6 +175,7 @@ export function LoanCheckTool() {
       const res = await api.loanCheck(req);
       setResult(res);
       setChecked(req);
+      setCheckedKey(fingerprint);
       requestAnimationFrame(() => resultRef.current?.focus());
     } catch (e) {
       setResult(null);

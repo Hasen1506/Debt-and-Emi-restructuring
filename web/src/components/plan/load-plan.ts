@@ -108,6 +108,7 @@ export async function loadPlanInputs(
     loans: application.loans,
     annual_hike_rate:
       hikeModeling === 'off' ? '0' : profile.user.annual_hike_rate ?? '0',
+    hike_schedule: hikeModeling === 'off' ? [] : profile.user.hike_schedule,
   };
   // The exchange rates saved with the profile (setup asks for one per
   // foreign currency). A loan without one is a gap below: the engine would
@@ -413,6 +414,7 @@ export async function loadPlan(
       opportunities: [],
       totalAnnualSaving: '0',
       user: displayUser,
+      configuredUser: profile.user,
       marginalRate: profile.marginalRate,
       strategy,
       hikeModeling,
@@ -507,6 +509,7 @@ export async function loadPlan(
       opportunities: restructuring.opportunities,
       totalAnnualSaving: restructuring.total_annual_saving,
       user: displayUser,
+      configuredUser: profile.user,
       marginalRate: profile.marginalRate,
       strategy,
       hikeModeling,

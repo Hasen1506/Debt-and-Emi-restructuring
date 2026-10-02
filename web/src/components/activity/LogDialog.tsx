@@ -28,6 +28,7 @@ import { Field } from '@/components/ToolPrimitives';
 import { LBracket, LChip, LChipRow, L_MONO, L_T } from '@/components/ledger/primitives';
 import { LifeEventForm } from '@/components/lifecycle/LifeEventForm';
 import { loanLabel, openLoans } from './history';
+import { rateChangeLoanIndex, isOpenCurrentLoan } from '@/lib/plan-controls';
 
 export type LogType = 'payment' | 'rate' | 'pay' | 'spending' | 'loan';
 export type PayStatus = 'full' | 'part' | 'missed' | 'extra' | 'off';
@@ -124,7 +125,7 @@ export function LogDialog({
   const [type, setType] = useState<LogType>(edit ? 'payment' : initial.type ?? (loans.length ? 'payment' : 'spending'));
 
   // ── Payment ────────────────────────────────────────────────────────────
-  const [loanIndex, setLoanIndex] = useState(edit?.loanIndex ?? initial.loanIndex ?? loans[0]?.index ?? 0);
+  const [loanIndex, setLoanIndex] = useState(edit?.loanIndex ?? rateChangeLoanIndex(user.loans, initial.loanIndex));
   const loan = user.loans[loanIndex];
   const card = loan?.loan_type === 'credit_card';
   const lccy = loan ? loanCurrency(loan, country) : ccy;
@@ -135,7 +136,7 @@ export function LogDialog({
   const [status, setStatus] = useState<PayStatus>(edit ? STATUS_OF[edit.kind] : initial.status ?? 'full');
   const [amount, setAmount] = useState(() => {
     if (!edit) return '';
-    if (edit.kind === 'paid_extra') return new Decimal(edit.amount).sub(planned).toFixed(0);
+    if (edit.kind === 'paid_extra') return new Decimal(edit.amount).sub(planned).toFixed(2);
     return edit.amount;
   });
   const [date, setDate] = useState(edit?.date ?? today);
@@ -155,10 +156,12 @@ export function LogDialog({
   const usual = card ? `Minimum ${fmt(planned)}` : `EMI ${fmt(planned)}`;
 
   const payProblems: Record<string, string | null> = {
-    loan: loan ? null : 'Pick the loan.',
+    loan: isOpenCurrentLoan(loan) ? null : 'Pick an open loan.',
     amount:
       status === 'missed' ? null
-      : !amt.gt(0) ? 'Enter the amount.'
+      : !amt.isFinite() || !amt.gt(0) ? 'Enter the amount.'
+      : status === 'full' && planned.gt(0) && !amt.eq(planned) ? 'For a different amount, choose “Paid part of it” or “Paid extra”.'
+      : status === 'off' && amt.lt(new Decimal(loan?.outstanding || 0)) ? 'That does not clear the balance. Choose a partial or extra payment.'
       : status === 'part' && planned.gt(0) && amt.gte(planned) ? `That's the full ${card ? 'minimum' : 'EMI'} or more: pick “Paid in full” or “Paid extra”.`
       : null,
     date: !date ? 'Pick the date.' : date > today ? 'That’s after today. A payment you’re planning goes on Plan.' : null,
@@ -186,7 +189,7 @@ export function LogDialog({
     const fx = Number(runArgs?.user.fx_to_user_currency?.[lccy] ?? 0);
     const inLoanCcy = lccy === ccy ? base.extraThisMonth : fx > 0 ? base.extraThisMonth / fx : 0;
     const held = Decimal.min(amt, new Decimal(inLoanCcy));
-    return held.gt(0) ? held.toFixed(0) : undefined;
+    return held.gt(0) ? held.toFixed(2) : undefined;
   }
 
   function paymentDraft(base: RunResult | null = baseResult.current): Omit<ActivityEntry, 'id' | 'loggedAt'> {
@@ -198,8 +201,8 @@ export function LogDialog({
       ...(loan?.id ? { loanId: loan.id } : {}),
       kind,
       date,
-      amount: paid.toFixed(0),
-      scheduledEmi: planned.toFixed(0),
+      amount: paid.toFixed(2),
+      scheduledEmi: planned.toFixed(2),
       ...((status === 'part' || status === 'missed') && fee.trim() ? { penaltyOverride: fee.trim() } : {}),
       ...(card && newBalance.trim() ? { newOutstanding: newBalance.trim() } : {}),
       ...(status === 'extra' ? { source } : {}),
@@ -212,7 +215,7 @@ export function LogDialog({
   const budget = Number(user.fixed_expenses || 0) + Number(user.variable_expenses || 0);
   const [spendMode, setSpendMode] = useState<'month' | 'budget'>('month');
   const [spent, setSpent] = useState('');
-  const spendProblem = !(Number(spent) > 0) ? 'Enter the amount.' : null;
+  const spendProblem = !spent.trim() || !Number.isFinite(Number(spent)) || Number(spent) < 0 ? 'Enter a non-negative amount.' : null;
 
   // ── Life events (rate, pay, new loan) ──────────────────────────────────
   const [lifeDraft, setLifeDraft] = useState<LifecycleDraft | null>(null);
@@ -242,7 +245,7 @@ export function LogDialog({
     if (type === 'spending') {
       // This month's total is a record; it doesn't change the plan.
       if (spendMode === 'month' || spendProblem) return null;
-      const args = { ...runArgs, user: { ...runArgs.user, fixed_expenses: new Decimal(spent).toFixed(0), variable_expenses: '0' } };
+      const args = { ...runArgs, user: { ...runArgs.user, fixed_expenses: new Decimal(spent).toFixed(2), variable_expenses: '0' } };
       return () => args;
     }
     if (!lifeDraft) return null;
@@ -263,6 +266,11 @@ export function LogDialog({
   }, [runArgs, type, payValid, edit, loanIndex, status, amount, date, newBalance, fee, source, spendMode, spent, spendProblem, lifeDraft, today, country]);
 
   useEffect(() => {
+    baseRef.current = null;
+    baseResult.current = null;
+  }, [runArgs, strategy]);
+
+  useEffect(() => {
     if (build === null) return setPreview(null);
     // Without the spare-cash question, a payment the plan already counts needs no run.
     if (!fromSpareCash && build(null) === 'same') return setPreview('none');
@@ -272,6 +280,7 @@ export function LogDialog({
       try {
         baseRef.current ??= run(runArgs!, strategy);
         const before = await baseRef.current;
+        if (!live) return;
         baseResult.current = before;
         const args = build(before);
         if (args === 'same') {
@@ -308,7 +317,7 @@ export function LogDialog({
     setTried(true);
     const after = previewLine ? `; plan ${previewLine.text}` : '';
     if (type === 'payment') {
-      if (!payValid || !loan) return;
+      if (!payValid || !loan || (fromSpareCash && (!baseResult.current || preview === 'loading' || preview === 'error'))) return;
       const label = STATUSES.find((s) => s.s === status)!.label.toLowerCase();
       const how = status === 'missed' ? '' : ` ${fmt(amt)}`;
       onSave({ kind: 'entry', draft: paymentDraft(), replaces: edit?.id }, `${loanLabel(loan)}: ${label}${how}${after}.`);
@@ -316,7 +325,7 @@ export function LogDialog({
     }
     if (type === 'spending') {
       if (spendProblem) return;
-      const v = new Decimal(spent).toFixed(0);
+      const v = new Decimal(spent).toFixed(2);
       if (spendMode === 'month') onSave({ kind: 'spent', month: today.slice(0, 7), amount: v }, `Spent ${formatCurrencyWhole(v, ccy)} this month.`);
       else onSave({ kind: 'budget', amount: v }, `Spending is now ${formatCurrencyWhole(v, ccy)} a month${after}.`);
     }
@@ -508,7 +517,7 @@ export function LogDialog({
 
         {!lifeKind && (
           <span style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'baseline' }}>
-            <LBracket active onClick={save}>
+            <LBracket active disabled={type === 'payment' && fromSpareCash && (!baseResult.current || preview === 'loading' || preview === 'error')} onClick={save}>
               {type === 'spending' && spendMode === 'month' ? 'SAVE' : 'SAVE · RE-RUN THE PLAN'}
             </LBracket>
             <LBracket onClick={onClose}>CANCEL</LBracket>

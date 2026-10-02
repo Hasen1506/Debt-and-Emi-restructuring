@@ -43,7 +43,8 @@ export function HikeToggle({
   hikePhases?: [number, number, string][];
   variant?: 'inline' | 'ledger';
 }) {
-  const noHike = hikeRatePct === '0%' || hikeRatePct === '';
+  const hasPhases = (hikePhases ?? []).some(([f, t, r]) => f > 0 && t > f && Number(r) > 0);
+  const noHike = !hasPhases && (hikeRatePct === '0%' || hikeRatePct === '');
 
   // Render phases as a comma-separated list: "Y1-2 @ 7%, Y3-6 @ 10%".
   // year_to is exclusive in the schedule → display as inclusive (to-1).

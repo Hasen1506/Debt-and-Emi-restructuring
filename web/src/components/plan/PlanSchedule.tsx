@@ -16,6 +16,7 @@ import { loanCurrency } from '@/lib/currency';
 import { loanLabel } from '@/lib/loan-types';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import { loanClears } from './plan-milestones';
+import { isOpenCurrentLoan } from '@/lib/plan-controls';
 import { ADD_LIFE_EVENT } from '@/components/lifecycle/LifecycleEventsPanel';
 
 const LOAN_SHORT: Record<string, string> = {
@@ -113,7 +114,7 @@ function scheduleEvents(plan: PlanData, short: boolean): Map<number, string[]> {
     add(m, !short && m === plan.debtFreeMonth ? `★ DEBT-FREE · ${what}` : `★ ${what}`);
   }
   loans.forEach((l) => {
-    if (l.rate_type === 'floating' && l.next_reset_month) add(l.next_reset_month, `⊕ ${loanName(l).toUpperCase()} RATE RESETS`);
+    if (isOpenCurrentLoan(l) && l.rate_type === 'floating' && l.next_reset_month) add(l.next_reset_month, `⊕ ${loanName(l).toUpperCase()} RATE RESETS`);
     if (l.planned_effective_month && l.planned_effective_month > 1) add(l.planned_effective_month, `+ ${loanName(l).toUpperCase()} STARTS`);
   });
   for (const e of plan.runArgs?.lifecycle_events ?? []) {
@@ -300,7 +301,7 @@ function RateResetAlert({ plan }: { plan: PlanData }) {
   const today = getCountryToday(plan.user.country);
   const todayIso = localIsoDate(today);
   const next = plan.user.loans
-    .filter((l) => l.rate_type === 'floating' && l.next_reset_date && l.next_reset_date >= todayIso)
+    .filter((l) => isOpenCurrentLoan(l) && l.rate_type === 'floating' && l.next_reset_date && l.next_reset_date >= todayIso)
     .map((l) => ({ loan: l, days: daysUntil(l.next_reset_date!, today) }))
     .filter((x) => x.days <= 92)
     .sort((a, b) => a.days - b.days)[0];
@@ -356,7 +357,7 @@ function RateResetAlert({ plan }: { plan: PlanData }) {
  *  prepayment or a refinance. Hidden when the rates feed is unreachable. */
 function CentralBankNote({ plan }: { plan: PlanData }) {
   const country = plan.user.country;
-  const floating = plan.user.loans.some((l) => l.rate_type === 'floating');
+  const floating = plan.user.loans.some((l) => isOpenCurrentLoan(l) && l.rate_type === 'floating');
   const [data, setData] = useState<CentralRatesResponse | null>(null);
   useEffect(() => {
     if (!floating) return;

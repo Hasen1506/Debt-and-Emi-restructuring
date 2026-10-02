@@ -17,6 +17,8 @@ import { DEMO_MARGINAL_RATE, DEMO_USER } from '@/lib/demo-user';
 import { loadProfileClient, profileCookieKey, type StoredProfile } from '@/lib/user-store';
 import { applyActivityDeltas, parseActivityDeltas } from './activity-cookie';
 import { migrateLoanIdsClient } from '@/lib/loan-id-migration';
+import { rollBalancesForward } from './roll-forward';
+import { countryMonthKey } from './today';
 
 // Before the first client render reads the profile: give a profile saved
 // before loan ids its ids, and its activity entries theirs.
@@ -53,8 +55,12 @@ let currentCache: {key: string; profile: StoredProfile} | null = null;
 function currentSnapshot(): StoredProfile {
   const profile = clientSnapshot();
   const raw = document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '';
-  const key = profileCookieKey() + raw;
-  if (!currentCache || currentCache.key !== key) currentCache = {key, profile: {...profile, user: {...profile.user, loans: applyActivityDeltas(profile.user.loans,parseActivityDeltas(raw)).loans}}};
+  const month = countryMonthKey(profile.user.country);
+  const key = profileCookieKey() + raw + month;
+  if (!currentCache || currentCache.key !== key) {
+    const rolled = rollBalancesForward(profile.user.loans, month).loans;
+    currentCache = {key, profile: {...profile, user: {...profile.user, loans: applyActivityDeltas(rolled,parseActivityDeltas(raw),month).loans}}};
+  }
   return currentCache.profile;
 }
 /** Use current balances for advice. Profile mutations always load the stored baseline. */
