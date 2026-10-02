@@ -12,7 +12,7 @@ from engine.asset_liquidation import (
 from engine.country_data import india_selling_cost_pct
 from engine.decisions import (
     DecisionInputError, allocate_windfall, evaluate_new_debt, quick_recompute,
-    cash_yield_check, right_time_to_borrow,
+    cash_yield_check, right_time_to_borrow, money,
 )
 from engine.formulas import effective_rate
 from engine.models import Country, FilingStatusUS
@@ -257,8 +257,12 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
         debt_monthly_payment=req.debt_monthly_payment,
     )
 
+    # Plain words, in the seller's currency: the page lists each test
+    # beside this line, so it names only what decided the answer.
     failed = []
-    years = f"{req.expected_hold_years_post_sale.normalize():f}y"
+    hold = req.expected_hold_years_post_sale.normalize()
+    years = f"{hold:f} year{'' if hold == 1 else 's'}"
+    m = lambda v: money(v, req.country)
     edge_needed = req.sale_price * GATE_0_WEALTH_EDGE_RATIO
     if gates.get("gate_0_wealth_edge") is False:
         edge = gates["wealth_edge"]
@@ -266,27 +270,27 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
         # Calling that "worse off" contradicted the +edge shown beside it.
         if edge >= 0:
             failed.append(
-                f"selling leaves you only {edge:,.0f} better off over {years}, "
-                f"below the {edge_needed:,.0f} (10% of the asset) it should gain "
-                f"to be worth a sale"
+                f"selling leaves you only {m(edge)} better off over {years}, "
+                f"short of the {m(edge_needed)} (10% of its value) a sale should gain"
             )
         else:
-            failed.append(f"selling leaves you {-edge:,.0f} worse off over {years}")
-    if not gates["gate_1_net_benefit"]: failed.append("net benefit < 10% of asset")
-    if not gates["gate_2_high_rate"]:   failed.append(f"debt below {req.high_rate_threshold * 100:.0f}% threshold")
-    if not gates["gate_3_spread"]:      failed.append("asset return-net beats debt rate")
+            failed.append(f"selling leaves you {m(-edge)} worse off over {years}")
+    if not gates["gate_1_net_benefit"]: failed.append("the gain is under 10% of its value")
+    if not gates["gate_2_high_rate"]:   failed.append(f"the loan costs under {req.high_rate_threshold * 100:.0f}% a year")
+    if not gates["gate_3_spread"]:      failed.append("the asset earns about as much as the loan costs")
 
     if gates["recommend_liquidation"]:
         if gates.get("gate_0_wealth_edge") is True:
             rationale = (
-                f"All gates pass. Selling clears the debt and the surplus "
-                f"({gates['surplus']:,.0f}) earns more over "
-                f"{int(req.expected_hold_years_post_sale)}y than the asset would."
+                f"Selling clears the loan, and the {m(gates['surplus'])} left over "
+                f"earns more over {years} than the asset would."
             )
         else:
-            rationale = "All three gates pass — selling clears expensive debt and the asset is underperforming."
+            rationale = "Selling clears a dear loan, and the asset earns less than it costs."
     else:
-        rationale = "Hold the asset. Failed gates: " + "; ".join(failed) + "."
+        # The verdict above it already says "Keep it": this says why.
+        why = "; ".join(failed)
+        rationale = why[:1].upper() + why[1:] + "."
 
     return AssetLiquidationResponse(
         net_proceeds=net_proceeds,

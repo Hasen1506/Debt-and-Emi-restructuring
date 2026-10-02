@@ -503,17 +503,19 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
           onClick={handleAdd}
           disabled={status.kind === 'loading'}
           style={{
-            background: 'var(--accent)',
+            background: 'var(--ink)',
             color: 'var(--canvas)',
             border: 'none',
-            borderRadius: 4,
-            padding: '7px 14px',
+            borderRadius: 0,
+            padding: '8px 14px',
             cursor: status.kind === 'loading' ? 'wait' : 'pointer',
-            fontSize: 13,
-            fontWeight: 600,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.14em',
           }}
         >
-          Add holding
+          [ ADD HOLDING ]
         </button>
       </div>
 

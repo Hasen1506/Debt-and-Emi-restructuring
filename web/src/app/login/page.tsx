@@ -122,7 +122,7 @@ export default function LoginPage() {
             />
           </label>
           <button type="submit" disabled={submitting || !email} style={primary}>
-            {submitting ? 'Sending…' : 'Send code'}
+            [ {submitting ? 'Sending…' : 'Send code'} ]
           </button>
         </form>
       )}
@@ -146,14 +146,14 @@ export default function LoginPage() {
             />
           </label>
           <button type="submit" disabled={submitting || code.length !== 6} style={primary}>
-            {submitting ? 'Verifying…' : 'Verify & sign in'}
+            [ {submitting ? 'Verifying…' : 'Verify and sign in'} ]
           </button>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 4 }}>
             <button type="button" onClick={() => { setPhase('email'); setCode(''); setError(null); setInfo(null); }} style={ghost}>
-              ← Change email
+              [← Change email]
             </button>
             <button type="button" onClick={onResend} disabled={submitting} style={ghost}>
-              Resend code
+              [Resend code]
             </button>
           </div>
         </form>
@@ -173,9 +173,9 @@ const card: React.CSSProperties = {
   padding: 28,
   background: 'var(--card)',
   border: '1px solid var(--border)',
-  borderRadius: 8,
+  borderRadius: 0,
 };
-const title: React.CSSProperties = { margin: 0, fontSize: 22 };
+const title: React.CSSProperties = { margin: 0, fontSize: 22, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' };
 const subtitle: React.CSSProperties = { color: 'var(--muted)', marginTop: 4, marginBottom: 20, fontSize: 14 };
 const form: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14 };
 const label: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--muted)' };
@@ -189,21 +189,27 @@ const input: React.CSSProperties = {
 };
 const primary: React.CSSProperties = {
   padding: '10px 14px',
-  background: 'var(--accent)',
-  color: '#fff',
+  background: 'var(--ink)',
+  color: 'var(--canvas)',
   border: 'none',
-  borderRadius: 6,
-  fontSize: 14,
-  fontWeight: 600,
+  borderRadius: 0,
+  fontFamily: 'var(--font-mono)',
+  fontSize: 12,
+  fontWeight: 700,
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
   cursor: 'pointer',
 };
 const ghost: React.CSSProperties = {
   padding: '6px 10px',
   background: 'transparent',
   color: 'var(--muted)',
-  border: '1px solid var(--border)',
-  borderRadius: 4,
-  fontSize: 12,
+  border: 'none',
+  borderRadius: 0,
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
   cursor: 'pointer',
 };
 const infoText: React.CSSProperties = { marginTop: 14, fontSize: 13, color: 'var(--muted)' };

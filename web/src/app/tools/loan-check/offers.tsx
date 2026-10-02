@@ -11,6 +11,7 @@
  * never shows as a saving.
  */
 import { useState } from 'react';
+import { LSectionHeader } from '@/components/ledger/primitives';
 import { Card } from '@/components/Card';
 import { Field, Select } from '@/components/ToolPrimitives';
 import {
@@ -196,7 +197,7 @@ export function OfferPanel({ request }: { request: LoanCheckRequest }) {
 
   return (
     <Card>
-      <h2 style={{ fontSize: 20, margin: 0 }}>Got an offer? Compare it</h2>
+      <LSectionHeader>Got an offer? Compare it</LSectionHeader>
       <p style={{ margin: '6px 0 14px', fontSize: 14 }}>
         Banks often reply with &ldquo;our current rate, for a fee&rdquo;. Enter what{' '}
         {bank} offered, a quote from another lender, or both. You&apos;ll see what

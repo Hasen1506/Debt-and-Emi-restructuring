@@ -28,6 +28,7 @@ import {
 } from '@/lib/lifecycle-events';
 import { commitLifecycle } from '@/lib/commit-lifecycle';
 import { localIsoDate } from '@/lib/today';
+import { LOAN_TYPE_NAME, loanLabel } from '@/lib/loan-types';
 
 type Variant = 'ledger' | 'existing' | 'editorial';
 
@@ -141,11 +142,11 @@ function Prompt({
     summary = `New gross ${formatCurrency(e.newAnnualGross, ccy)}/yr from ${e.effectiveDate}`;
   } else if (e.kind === 'floating_rate_reset') {
     const loan = user.loans[resolveLoanIndex(e, user.loans)];
-    const lender = loan ? loan.bank || loan.loan_type : 'a loan since removed';
+    const lender = loan ? loanLabel(loan) : 'A loan since removed';
     summary = `${lender} rate → ${(Number(e.newRate) * 100).toFixed(2)}% from ${e.effectiveDate}`;
   } else if (e.kind === 'property_buy') {
     const d = e.loanDraft;
-    summary = `${d.bank || 'New loan'} ${d.loan_type.replace('_', ' ')} of ${formatCurrency(d.outstanding, ccy)} closing on ${e.effectiveDate}`;
+    summary = `${d.bank ? loanLabel(d) : `New ${LOAN_TYPE_NAME[d.loan_type]}`} of ${formatCurrency(d.outstanding, ccy)} closing on ${e.effectiveDate}`;
   }
 
   return (

@@ -14,6 +14,7 @@ const nextConfig = {
       { source: '/debts', destination: '/#positions', permanent: false },
       // Plan decisions are rows in Activity's history since R4.
       { source: '/decisions', destination: '/activity', permanent: false },
+      { source: '/tools', destination: '/goals#tools', permanent: false },
     ];
   },
 };

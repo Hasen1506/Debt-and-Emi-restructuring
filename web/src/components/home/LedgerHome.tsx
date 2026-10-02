@@ -35,6 +35,7 @@ import {
   type LTone,
 } from '@/components/ledger/primitives';
 import { OpenPositions } from './OpenPositions';
+import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 
 /** The plan's debt-free date and caption, streamed in by the page. */
 export interface DebtFreeSlot {
@@ -319,9 +320,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
             {oneStep
               ? oneStep
               : amount > 0
-                ? `PAY ${fc(Math.min(amount, Number(m.toUserCcy(loudest.outstanding, loudest.loan))))} TO YOUR ${lender} ${loudest.loan.loan_type
-                    .replace('_', ' ')
-                    .toUpperCase()}.`
+                ? `PAY ${fc(Math.min(amount, Number(m.toUserCcy(loudest.outstanding, loudest.loan))))} TO YOUR ${lender} ${LOAN_TYPE_NAME[loudest.loan.loan_type].toUpperCase()}.`
                 : `KEEP CURRENT EMIS RUNNING.`}
           </div>
           <div style={{ fontSize: 12, color: L_T.muted, marginTop: 18, lineHeight: 1.7 }}>

@@ -814,7 +814,9 @@ export function LChip({ on, onClick, children }: { on: boolean; onClick: () => v
       onClick={onClick}
       style={{
         fontFamily: L_MONO,
-        fontSize: 12,
+        fontSize: 11,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
         padding: '7px 12px',
         border: `1px solid ${on ? L_T.ink : L_T.ruleSoft}`,
         background: on ? L_T.ink : L_T.paper,

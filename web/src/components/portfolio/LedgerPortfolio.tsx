@@ -62,9 +62,9 @@ export function LedgerPortfolio({
               lineHeight: 1.6,
             }}
           >
-            NO HOLDINGS ON FILE YET. ADD WHAT YOU OWN — FDs, MFs, GOLD, REAL
-            ESTATE — SO TOOLS &rsaquo; LIQUIDATE CAN RANK WHICH ASSET TO SELL
-            BEFORE PREPAYING DEBT.
+            Nothing on file yet. Add what you own (FDs, funds, gold, property)
+            and the sell-to-repay tool can rank which one to sell before
+            prepaying a loan.
             <div style={{ marginTop: 12 }}>
               <a
                 href="/profile/assets"

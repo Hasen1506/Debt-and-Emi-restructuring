@@ -26,6 +26,7 @@ import { localIsoDate } from './today';
 import type { LoanPayload, UserPayload } from './api';
 import { deriveMarginalRateForUser } from './deductions';
 import { resolveLoanIndex } from './loan-ids';
+import { LOAN_TYPE_NAME, loanLabel } from './loan-types';
 
 const COOKIE_NAME = 'finoptima_lifecycle';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -486,8 +487,8 @@ export function describeEvent(e: LifecycleEvent): string {
   }
   // property_buy
   const draft = e.loanDraft;
-  const bank = draft.bank?.trim() || 'New loan';
-  return `${bank} ${draft.loan_type.replace('_', ' ')} (${draft.outstanding})`;
+  const name = draft.bank?.trim() ? loanLabel(draft) : `New ${LOAN_TYPE_NAME[draft.loan_type]}`;
+  return `${name} (${draft.outstanding})`;
 }
 
 /** Estimated income-tax-only net. Payroll/PF/insurance deductions require the override. */

@@ -2,17 +2,16 @@
 
 import Decimal from 'decimal.js';
 import { useEffect, useMemo, useState } from 'react';
-import { Card } from '@/components/Card';
 import {
   AddLoanAction,
   ApplyAction,
   Field,
-  InfoTip,
   Select,
-  Stat,
   SubmitBar,
-  VerdictHeader,
 } from '@/components/ToolPrimitives';
+import { LBracket, LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
+import { LFieldGrid, LNote, LStep, LSteps, LVerdict } from '@/components/ledger/LToolSteps';
+import { loanLabel } from '@/lib/loan-types';
 import {
   api,
   formatCurrency,
@@ -26,7 +25,6 @@ import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { addLoanBlocker, addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
-import { fitColumns } from '@/lib/grid';
 
 type Currency = 'INR' | 'USD' | 'GBP' | 'EUR' | 'AUD' | 'CAD' | 'SGD' | 'AED';
 
@@ -42,14 +40,14 @@ const CURRENCIES: { value: Currency; label: string }[] = [
 ];
 
 const VERDICT_LABEL: Record<CrossBorderResponse['verdict'], string> = {
-  prepay: 'Prepay the loan',
-  invest: 'Keep amortising — invest instead',
-  marginal: 'Within 1pp — your call',
+  prepay: 'Prepay the loan.',
+  invest: 'Keep paying the EMI, and keep your savings where they are.',
+  marginal: 'Close call: within a point either way.',
 };
-const VERDICT_COLOR: Record<CrossBorderResponse['verdict'], string> = {
-  prepay: 'var(--positive)',
-  invest: 'var(--accent)',
-  marginal: 'var(--muted)',
+const VERDICT_TONE: Record<CrossBorderResponse['verdict'], 'pos' | 'accent' | null> = {
+  prepay: 'pos',
+  invest: 'accent',
+  marginal: null,
 };
 
 
@@ -103,8 +101,16 @@ export function NriPrepayTool() {
   // User-facing FX field: "1 [userCurrency] = X [loanCurrency]" — e.g. for
   // USD-earner with INR loan, X ≈ 96. Engine wants the inverse direction
   // (user_currency per 1 loan_currency), so we convert before sending.
-  const [fxInverse, setFxInverse] = useState('');
+  // The rate as typed, in whichever direction gives a number above 1:
+  // 'loan' = one loan-currency unit in the user's currency (the engine's
+  // direction), 'user' = one user-currency unit in the loan's currency.
+  const [fxText, setFxText] = useState('');
+  const [fxPer, setFxPer] = useState<'loan' | 'user'>('user');
+  const [fxNote, setFxNote] = useState<string | null>(null);
   const [manualDrift, setManualDrift] = useState('');
+  // A saved loan shows as one line; EDIT opens its fields.
+  const [editLoan, setEditLoan] = useState(false);
+  const [more, setMore] = useState(false);
   const [v, setV] = useState<CrossBorderResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const { err, setErr, clear, fail, failField, at } = useFormErrors();
@@ -113,6 +119,15 @@ export function NriPrepayTool() {
 
   function pickTargetLoan(idx: string) {
     setTargetIdx(idx);
+    setV(null);
+    if (idx === '') {
+      setEditLoan(true);
+      setLoanBalance('');
+      setLoanRate('');
+      setLoanTenure('');
+      return;
+    }
+    setEditLoan(false);
     const i = Number(idx);
     if (!Number.isNaN(i) && profile.user.loans[i]) {
       const loan = profile.user.loans[i];
@@ -141,32 +156,60 @@ export function NriPrepayTool() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstLoanIdx]);
 
+  function showRate(userPerLoan: Decimal, from: string) {
+    if (userPerLoan.gte(1)) {
+      setFxPer('loan');
+      setFxText(userPerLoan.toDecimalPlaces(4).toString());
+    } else {
+      setFxPer('user');
+      setFxText(new Decimal(1).div(userPerLoan).toDecimalPlaces(4).toString());
+    }
+    setFxNote(from);
+  }
+
   async function fetchLiveRate() {
+    setFxNote('Fetching today’s rate…');
     try {
-      setErr(null);
-      // API returns "user_currency per 1 loan_currency". We display the
-      // inverse so the user sees "1 [user] = X [loan]".
       const r = await api.fxRate(loanCurrency, userCurrency);
-      const enginePerUnit = new Decimal(r.rate);
-      if (enginePerUnit.isZero()) {
-        setErr('FX rate came back zero — please enter manually.');
-        return;
-      }
-      // Invert: 1 user = ? loan
-      setFxInverse(new Decimal(1).div(enginePerUnit).toFixed(4));
-    } catch (e) {
-      fail(e, FIELDS);
+      const d = new Decimal(r.rate);
+      if (!d.isFinite() || d.lte(0)) throw new Error('no rate');
+      showRate(d, 'Today’s rate');
+    } catch {
+      setFxNote('Couldn’t fetch today’s rate. Type it in.');
     }
   }
 
-  // Engine direction: user_currency per 1 loan_currency. UI direction:
-  // loan_currency per 1 user_currency. So engine_value = 1 / ui_value.
+  // Two currencies: use the profile's saved rate, else fetch today's, so
+  // nobody has to look it up. One currency: no rate needed.
+  useEffect(() => {
+    if (loanCurrency === userCurrency) {
+      setFxText('');
+      setFxNote(null);
+      return;
+    }
+    setFxText('');
+    setFxPer(loanCurrency === 'INR' ? 'user' : userCurrency === 'INR' ? 'loan' : 'user');
+    const saved = Number(profile.user.fx_to_user_currency?.[loanCurrency]);
+    if (userCurrency === userDefaultCurrency(profile.user.country) && saved > 0) {
+      showRate(new Decimal(saved), 'From your profile');
+      return;
+    }
+    void fetchLiveRate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loanCurrency, userCurrency]);
+
+  // What the engine wants: user currency per 1 loan currency.
   const enginefxRate = useMemo(() => {
-    if (!fxInverse) return '';
-    const v = new Decimal(fxInverse);
-    if (v.isZero()) return '';
-    return new Decimal(1).div(v).toFixed(8);
-  }, [fxInverse]);
+    if (!fxText.trim()) return '';
+    let v: Decimal;
+    try {
+      v = new Decimal(fxText);
+    } catch {
+      return '';
+    }
+    if (!v.isFinite() || v.lte(0)) return '';
+    return (fxPer === 'loan' ? v : new Decimal(1).div(v)).toFixed(8);
+  }, [fxText, fxPer]);
 
   async function check(e: React.FormEvent) {
     e.preventDefault();
@@ -212,9 +255,11 @@ export function NriPrepayTool() {
   const displayedFx = useMemo(() => {
     if (!v) return null;
     const r = new Decimal(v.fx_rate_used);
-    if (r.isZero()) return null;
-    return new Decimal(1).div(r).toFixed(2);
-  }, [v]);
+    if (r.lte(0)) return null;
+    return r.gte(1)
+      ? `1 ${loanCurrency} = ${r.toFixed(2)} ${userCurrency}`
+      : `1 ${userCurrency} = ${new Decimal(1).div(r).toFixed(2)} ${loanCurrency}`;
+  }, [v, loanCurrency, userCurrency]);
 
   // Saving the loan: its amounts are in the loan's currency, so it goes in
   // tagged with that currency and a rate into the profile's. The engine's
@@ -233,211 +278,136 @@ export function NriPrepayTool() {
       ? `Your profile is in ${profileCurrency}. Pick ${profileCurrency} as the currency you earn in and check again to add this loan with its exchange rate.`
       : addLoanBlocker(addInput, profile.user);
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <Card>
-        <form
-          onSubmit={check}
-          style={{ display: 'grid', gap: 12, gridTemplateColumns: fitColumns(2, 200) }}
-        >
-          {profile.user.loans.length > 0 && (
-            <Select
-              label="Which of your loans is this? (optional)"
-              value={targetIdx}
-              onChange={pickTargetLoan}
-              options={[
-                { value: '', label: '— not in my profile yet' },
-                ...profile.user.loans.map((l, i) => ({
-                  value: String(i),
-                  label: `${l.bank} · ${l.loan_type.replace('_', ' ')}`,
-                })),
-              ]}
-              info={
-                <>
-                  NRI households often run hybrid loan books. Pick an
-                  existing loan to mirror its balance/rate/tenure; pick
-                  &ldquo;not in my profile&rdquo; if this loan isn&apos;t
-                  tracked yet (we&apos;ll offer one-click add at the end).
-                </>
-              }
-            />
-          )}
-          <Field
-            label="Loan balance (in loan currency)"
-            value={loanBalance}
-            error={at('loanBalance')}
-            onChange={setLoanBalance}
-          />
-          <Field
-            label="Loan rate (%)"
-            kind="percent"
-            value={loanRate}
-            error={at('loanRate')}
-            onChange={setLoanRate}
-            hint="e.g. 8.5"
-          />
-          <Field
-            label="Tenure remaining (months)"
-            value={loanTenure}
-            error={at('loanTenure')}
-            onChange={setLoanTenure}
-            kind="integer"
-          />
-          <Select
-            label="Loan currency"
-            value={loanCurrency}
-            onChange={setLoanCurrency}
-            options={CURRENCIES}
-          />
-          <Select
-            label="Your earnings / savings currency"
-            value={userCurrency}
-            onChange={setUserCurrency}
-            options={CURRENCIES}
-          />
-          <Field
-            label="Your savings yield (%, before tax)"
-            kind="percent"
-            value={savingsYield}
-            error={at('savingsYield')}
-            onChange={setSavingsYield}
-            hint="HYSA, T-bills, FD, equity etc."
-          />
-          <Field
-            label="Your marginal tax rate on yield"
-            value={marginalTax}
-            error={at('marginalTax')}
-            onChange={setMarginalTax}
-            hint="e.g. 0.24 for 24%"
-          />
-          <div>
-            <Field
-              label={`FX rate — 1 ${userCurrency} = ? ${loanCurrency}`}
-              value={fxInverse}
-              error={at('fxInverse')}
-              onChange={setFxInverse}
-              hint={
-                userCurrency === 'USD' && loanCurrency === 'INR'
-                  ? 'e.g. 96 means 1 USD = 96 INR'
-                  : `units of ${loanCurrency} you get per 1 ${userCurrency}`
-              }
-              info={
-                <>
-                  Direction matters. Type how many{' '}
-                  <strong>{loanCurrency}</strong> you get for 1{' '}
-                  <strong>{userCurrency}</strong>. We invert internally for
-                  the engine, so you don&apos;t have to think about it.
-                </>
-              }
-            />
-            <button
-              type="button"
-              onClick={fetchLiveRate}
-              style={{
-                marginTop: 6,
-                padding: '4px 10px',
-                fontSize: 12,
-                background: 'var(--accent-soft)',
-                color: 'var(--accent)',
-                border: '1px solid var(--accent)',
-                borderRadius: 4,
-                cursor: 'pointer',
-              }}
-            >
-              Fetch live rate
-            </button>
-          </div>
-          <Field
-            label="FX drift % p.a. (optional)"
-            value={manualDrift}
-            error={at('manualDrift')}
-            onChange={setManualDrift}
-            hint="Positive = loan currency strengthens. Blank = historical default."
-            info={
-              <>
-                Long-run trend in the loan-currency vs your earnings
-                currency. INR has historically drifted ~3%/yr weaker against
-                USD; if you think that&apos;s changing, override.
-              </>
-            }
-          />
-          <SubmitBar busy={busy} error={err} label="Should I prepay?" />
-        </form>
-      </Card>
+  const openLoans = profile.user.loans
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => Number(l.outstanding) > 0 && l.loan_type !== 'credit_card');
+  const picked = targetIdx !== '' ? profile.user.loans[Number(targetIdx)] : null;
+  const moneyCcy = loanCurrency === 'INR' || loanCurrency === 'USD' ? loanCurrency : null;
+  const twoCurrencies = loanCurrency !== userCurrency;
+  const pct = (x: string | number) => formatPct(x, 2);
 
-      {v && (
-        <Card>
-          <VerdictHeader
-            label={VERDICT_LABEL[v.verdict]}
-            color={VERDICT_COLOR[v.verdict]}
-            detail={v.rationale}
-          />
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: fitColumns(2, 200),
-              gap: 12,
-              marginBottom: 12,
-            }}
-          >
-            <Stat
-              label={`FX-adjusted loan cost (in ${userCurrency})`}
-              value={formatPct(v.effective_loan_cost_in_user_currency, 2)}
-              color="var(--negative)"
+  return (
+    <LSteps>
+      <LStep no="01" id="nri-in" title="The loan and your savings">
+        <form onSubmit={check} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {openLoans.length > 0 && (
+            <LChipRow label="Which loan?">
+              {openLoans.map(({ l, i }) => (
+                <LChip key={i} on={targetIdx === String(i)} onClick={() => pickTargetLoan(String(i))}>
+                  {loanLabel(l)} · {l.currency ?? userDefaultCurrency(profile.user.country)}
+                </LChip>
+              ))}
+              <LChip on={targetIdx === ''} onClick={() => pickTargetLoan('')}>
+                One not saved yet
+              </LChip>
+            </LChipRow>
+          )}
+          {picked && !editLoan ? (
+            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
+              {formatCurrency(loanBalance, loanCurrency)} left at {pct(loanRate)}, {loanTenure} months to go.{' '}
+              <LBracket onClick={() => setEditLoan(true)}>EDIT</LBracket>
+            </p>
+          ) : (
+            <LFieldGrid min={200}>
+              <Field
+                label="Still owed, in the loan's currency"
+                kind={moneyCcy ? 'money' : 'decimal'}
+                currency={moneyCcy ?? undefined}
+                value={loanBalance}
+                error={at('loanBalance')}
+                onChange={setLoanBalance}
+              />
+              <Field label="Its rate, a year" kind="percent" value={loanRate} error={at('loanRate')} onChange={setLoanRate} />
+              <Field label="Months left" kind="integer" value={loanTenure} error={at('loanTenure')} onChange={setLoanTenure} />
+              <Select label="The loan's currency" value={loanCurrency} onChange={setLoanCurrency} options={CURRENCIES} />
+            </LFieldGrid>
+          )}
+          <LFieldGrid min={200}>
+            <Select label="You earn and save in" value={userCurrency} onChange={setUserCurrency} options={CURRENCIES} />
+            <Field
+              label="Your savings earn, a year before tax"
+              kind="percent"
+              value={savingsYield}
+              error={at('savingsYield')}
+              onChange={setSavingsYield}
+              hint="A savings account, T-bills, an FD or a fund"
             />
-            <Stat
-              label="Post-tax yield on savings"
-              value={formatPct(v.user_post_tax_yield, 2)}
-              color="var(--positive)"
+            <Field
+              label="Your tax rate on that"
+              kind="percent"
+              value={marginalTax}
+              error={at('marginalTax')}
+              onChange={setMarginalTax}
+              hint={profile.isLive && marginalTax === (profile.marginalRate ?? '') ? 'From your profile' : undefined}
             />
-            <Stat
-              label={
-                <>
-                  Spread (prepay if positive){' '}
-                  <InfoTip>
-                    Loan&apos;s effective cost minus your post-tax yield.
-                    Positive ⇒ debt is more expensive than the alternative ⇒
-                    pay it down.
-                  </InfoTip>
-                </>
-              }
-              value={formatPct(v.spread, 2)}
-              color={Number(v.spread) > 0 ? 'var(--positive)' : 'var(--negative)'}
-            />
-            <Stat
-              label="FX drift used"
-              value={formatPct(v.fx_drift_used, 2)}
-            />
-          </div>
-          {displayedFx && (
-            <div
-              className="muted"
-              style={{ fontSize: 12, marginBottom: 12, paddingBottom: 8 }}
-            >
-              FX rate used: <span className="num" style={{ color: 'var(--ink)' }}>
-                1 {userCurrency} = {displayedFx} {loanCurrency}
-              </span>
+            {twoCurrencies && (
+              <div>
+                <Field
+                  label={fxPer === 'loan' ? `1 ${loanCurrency} = how many ${userCurrency}` : `1 ${userCurrency} = how many ${loanCurrency}`}
+                  value={fxText}
+                  error={at('fxInverse')}
+                  onChange={(t) => {
+                    setFxText(t);
+                    setFxNote(null);
+                  }}
+                  hint={fxNote ?? undefined}
+                />
+                <div style={{ marginTop: 6 }}>
+                  <LBracket onClick={() => void fetchLiveRate()}>TODAY&apos;S RATE</LBracket>
+                </div>
+              </div>
+            )}
+          </LFieldGrid>
+          {twoCurrencies && (
+            <div>
+              <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
+              {!more && (
+                <span style={{ fontSize: 11, color: L_T.muted, marginLeft: 8 }}>
+                  How the exchange rate moves{manualDrift ? `: ${manualDrift}% a year` : ': its long-run trend'}
+                </span>
+              )}
+              {more && (
+                <div style={{ marginTop: 10, maxWidth: 360 }}>
+                  <Field
+                    label={`${loanCurrency} against ${userCurrency}, % a year`}
+                    value={manualDrift}
+                    error={at('manualDrift')}
+                    onChange={setManualDrift}
+                    hint={`Above 0: ${loanCurrency} gets stronger. Blank: its long-run trend (INR has weakened ~3% a year against USD).`}
+                  />
+                </div>
+              )}
             </div>
           )}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: fitColumns(2, 200),
-              gap: 12,
-            }}
-          >
-            <Stat
-              label={`EMI today in ${userCurrency}`}
-              value={formatCurrency(v.loan_emi_user_currency, userCurrency)}
-            />
-            <Stat
-              label={`Projected EMI in 5y in ${userCurrency}`}
-              value={formatCurrency(v.loan_emi_user_currency_y5, userCurrency)}
-              color={
-                Number(v.loan_emi_user_currency_y5) > Number(v.loan_emi_user_currency)
-                  ? 'var(--negative)'
-                  : 'var(--positive)'
-              }
+          <SubmitBar busy={busy} error={err} label="Should I prepay?" />
+        </form>
+      </LStep>
+
+      {v && (
+        <LStep no="02" id="nri-out" title="The answer" answer>
+          <LVerdict tone={VERDICT_TONE[v.verdict]}>{VERDICT_LABEL[v.verdict]}</LVerdict>
+          <LNote>{v.rationale}</LNote>
+          <LKpi
+            items={[
+              { l: 'THE LOAN COSTS YOU', v: pct(v.effective_loan_cost_in_user_currency), s: `a year, in ${userCurrency}`, tone: L_T.negative },
+              { l: 'YOUR SAVINGS EARN', v: pct(v.user_post_tax_yield), s: 'a year, after tax', tone: L_T.positive },
+              {
+                l: Number(v.spread) > 0 ? 'PREPAYING AHEAD BY' : 'SAVING AHEAD BY',
+                v: pct(Math.abs(Number(v.spread))),
+                s: 'a year',
+              },
+            ]}
+          />
+          <div style={{ marginTop: 12 }}>
+            <LKpi
+              items={[
+                { l: `EMI TODAY, IN ${userCurrency}`, v: formatCurrency(v.loan_emi_user_currency, userCurrency) },
+                {
+                  l: `EMI IN 5 YEARS, IN ${userCurrency}`,
+                  v: formatCurrency(v.loan_emi_user_currency_y5, userCurrency),
+                  tone: Number(v.loan_emi_user_currency_y5) > Number(v.loan_emi_user_currency) ? L_T.negative : L_T.positive,
+                },
+              ]}
             />
           </div>
           {v.verdict === 'prepay' && (
@@ -465,22 +435,19 @@ export function NriPrepayTool() {
                   });
                   setApplied(true);
                 }}
-                label={`Apply this — log payoff to ${profile.user.loans[Number(targetIdx)].bank} & reprice /plan`}
+                label={`I paid it off · log it on the ${loanLabel(profile.user.loans[Number(targetIdx)])}`}
               />
             ) : addBlocker ? (
-              <p style={{ marginTop: 14, fontSize: 13, color: 'var(--muted)', lineHeight: 1.55 }}>
+              <p style={{ marginTop: 14, fontSize: 12, color: L_T.muted, lineHeight: 1.55 }}>
                 {addBlocker}
               </p>
             ) : (
               <AddLoanAction
                 added={added}
                 onAdd={() => {
-                  // Add as personal_loan by default — user can tweak the
-                  // type in Setup. Bank label is intentionally generic
-                  // ("Foreign loan") because cross-border loans often
-                  // aren't with a bank from our IN/US lists. The amounts
-                  // stay in the loan's currency, tagged with it, and the
-                  // rate used here goes in when the profile has none.
+                  // Saved as a personal loan with a generic lender name
+                  // (cross-border loans are often with lenders outside our
+                  // lists); amounts stay in the loan's currency, tagged.
                   const r = Number(loanRate) / 12;
                   const n = Number(loanTenure);
                   const p = Number(loanBalance);
@@ -496,12 +463,30 @@ export function NriPrepayTool() {
                   });
                   if (saved != null) setAdded(true);
                 }}
-                label={`Add this ${loanCurrency} loan to my profile to track it`}
+                label={`Add this ${loanCurrency} loan to my profile`}
               />
             )
           )}
-        </Card>
+        </LStep>
       )}
-    </div>
+
+      {v && (
+        <LMathBlock
+          rows={[
+            { k: 'the loan', v: pct(loanRate), note: `a year, in ${loanCurrency}` },
+            ...(twoCurrencies
+              ? [
+                  { k: 'exchange rate', v: displayedFx ?? '—' },
+                  { k: `${loanCurrency} against ${userCurrency}`, v: pct(v.fx_drift_used), note: 'a year; above 0 makes the loan dearer' },
+                ]
+              : []),
+            { k: `the loan, in ${userCurrency}`, v: pct(v.effective_loan_cost_in_user_currency), tone: 'neg' as const },
+            { k: 'savings, before tax', v: pct(savingsYield || 0) },
+            { k: 'savings, after tax', v: pct(v.user_post_tax_yield), note: `taxed at ${pct(marginalTax || 0)}`, tone: 'pos' as const },
+            { k: Number(v.spread) > 0 ? 'prepaying ahead by' : 'saving ahead by', v: pct(Math.abs(Number(v.spread))) },
+          ]}
+        />
+      )}
+    </LSteps>
   );
 }

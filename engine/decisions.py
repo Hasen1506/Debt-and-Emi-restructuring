@@ -350,7 +350,7 @@ def evaluate_new_debt(
     paid = emi_offer_monthly_payment * emi_offer_months + processing_fee
     total_real_cost = max(D("0"), paid - cash_equivalent).quantize(D("1"), rounding=ROUND_HALF_UP)
     apr = _effective_apr_for_emi(emi_offer_monthly_payment, emi_offer_months, cash_equivalent - processing_fee)
-    apr_text = "over 1000%" if apr >= MAX_APR else f"≈ {apr*100:.1f}%"
+    apr_text = "over 1000%" if apr >= MAX_APR else f"about {apr*100:.1f}%"
     cost = money(total_real_cost, country)
 
     can_pay_cash = user_savings_after_efund >= cash_equivalent
@@ -358,7 +358,7 @@ def evaluate_new_debt(
     emi_text = money(emi_offer_monthly_payment, country)
     if can_pay_cash and apr > D("0.10"):
         verdict = "pay_cash"
-        detail = f"Real APR {apr_text}. Paying cash saves {cost} over the EMI plan."
+        detail = f"Borrowing really costs {apr_text} a year. Paying cash saves {cost}."
     elif not fits:
         room = max(D("0"), monthly_room)
         room_text = (
@@ -381,18 +381,19 @@ def evaluate_new_debt(
             )
     elif apr > D("0.20"):
         verdict = "delay"
-        detail = f"Real APR {apr_text}: too costly. Save up first; the EMI plan costs {cost} more than cash."
+        detail = f"Borrowing really costs {apr_text} a year: too dear. Save up first; the loan costs {cost} more than cash."
     else:
         verdict = "take"
         budget = (
-            "if the budget allows" if monthly_room is None else
-            f"it leaves {money(monthly_room - emi_offer_monthly_payment, country)} a month after your costs and payments"
+            "Check the EMI fits your budget." if monthly_room is None else
+            f"The {emi_text} EMI leaves {money(monthly_room - emi_offer_monthly_payment, country)} "
+            f"a month after your costs and payments."
         )
         detail = (
-            f"Real APR {apr_text}. Acceptable; take the EMI: {budget}. "
+            f"Borrowing really costs {apr_text} a year, which is reasonable. {budget} "
             f"It costs {cost} more than paying cash."
             if total_real_cost > 0 else
-            f"Real APR {apr_text}. The EMI plan costs no more than paying cash; take it: {budget}."
+            f"Borrowing costs no more than paying cash. {budget}"
         )
 
     return NewDebtVerdict(
@@ -559,27 +560,30 @@ def right_time_to_borrow(
     worth_waiting = D("5000") if country == Country.IN else D("100")
 
     can_wait = urgency in ("3m_ok", "6m_ok")
+    # Moves in plain percent: "a 0.25% cut", never "25bps".
+    move = f"{D(abs(consensus_change_bps)) / D(100):.2f}%"
+    months = f"{months_to_decision} month{'' if months_to_decision == 1 else 's'}"
     if can_wait and consensus_change_bps <= -25 and months_to_decision <= 6 and estimated_savings > worth_waiting:
         verdict = "wait"
-        detail = (f"Rates {current_rate*100:.2f}% now vs {six_month_avg*100:.2f}% avg. "
-                  f"Cut of {-consensus_change_bps}bps expected in {months_to_decision}m → "
-                  f"save ~{money(estimated_savings, country)} over tenure. Defer if possible.")
+        detail = (f"A {move} cut is expected in {months}. Waiting for it saves about "
+                  f"{money(estimated_savings, country)} over the loan.")
     else:
         verdict = "borrow_now"
         if not can_wait:
-            detail = "User flagged urgent — borrow now; locking the current rate is the right call."
+            detail = "You need it now, so borrow now and lock in today's rate."
         elif consensus_change_bps > 0:
-            detail = f"Hike of {consensus_change_bps}bps expected — borrow now to lock current rate."
+            detail = f"A {move} rise is expected. Borrow now to lock in today's rate."
+        elif consensus_change_bps == 0:
+            detail = "No change is expected. Borrow now."
         elif consensus_change_bps > -25:
-            detail = f"No meaningful change expected ({consensus_change_bps:+d}bps). Borrow now."
+            detail = f"Only a {move} cut is expected, too small to wait for. Borrow now."
         # A real cut that is too far off, or too small to matter, used to
         # read "no meaningful change expected" as well.
         elif months_to_decision > 6:
-            detail = (f"A {-consensus_change_bps}bps cut is expected in {months_to_decision} months — "
-                      f"too long to put the loan off for. Borrow now.")
+            detail = f"A {move} cut is expected in {months}, too long to put the loan off. Borrow now."
         else:
-            detail = (f"A {-consensus_change_bps}bps cut would save only ~{money(estimated_savings, country)} "
-                      f"over the loan — not worth waiting for. Borrow now.")
+            detail = (f"A {move} cut would save only about {money(estimated_savings, country)} "
+                      f"over the loan, not worth waiting for. Borrow now.")
 
     payment = (
         emi(principal, current_rate, tenure_months).quantize(D("0.01"), rounding=ROUND_HALF_UP)
@@ -595,7 +599,7 @@ def right_time_to_borrow(
         detail = (
             f"The {money(payment, country)} EMI doesn't fit: {room_text} after your costs and "
             f"payments, {money(payment - monthly_room, country)} a month short. Borrow less or "
-            f"over longer, or free up room first, whenever you borrow. On timing alone: {timing}"
+            f"over longer, or free up room first. On timing alone: {timing}"
         )
     else:
         detail += (

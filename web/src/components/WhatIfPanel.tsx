@@ -35,7 +35,7 @@ import {
   writeCommitmentsClient,
   type CommitmentEntry,
 } from '@/lib/commitments';
-import { readGoalsClient } from '@/lib/goals';
+import { isOpenGoal, readGoalsClient } from '@/lib/goals';
 import {
   readContributionsClient,
   totalsByGoal,
@@ -307,7 +307,7 @@ export function WhatIfPanel({
   // surplus slider. Read once at mount; the surplus delta itself drives
   // the recompute via useMemo below.
   const goalSlipInputs = useMemo(() => {
-    const goals = readGoalsClient();
+    const goals = readGoalsClient().filter(isOpenGoal);
     const totals = totalsByGoal(readContributionsClient());
     // Baseline surplus: derive from profile rather than the slider so the
     // pull-forward we report counts from the user's actual starting
@@ -467,7 +467,7 @@ export function WhatIfPanel({
                   </option>
                 ))}
               </select>
-              <span style={{ color: L_T.muted, fontSize: 11 }}>★ the dearest, the plan&apos;s own pick</span>
+              <span style={{ color: L_T.muted, fontSize: 11 }}>★ The dearest, the plan&apos;s own pick</span>
             </label>
             <LockItInButton
               disabled={lumpAmount <= 0}

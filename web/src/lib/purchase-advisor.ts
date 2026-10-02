@@ -338,7 +338,7 @@ function computeTaxBenefit(args: {
     return {
       annualSavingPct: 0,
       totalSavingOverTenure: 0,
-      reason: `${args.type} loans don't carry a tax benefit in ${args.country === 'IN' ? 'India' : 'the US'}.`,
+      reason: `${args.type === 'vehicle' ? 'Car and bike loans' : 'Loans like this'} get no tax break in ${args.country === 'IN' ? 'India' : 'the US'}.`,
     };
   }
   // Saving for a single year's deduction. Branches: when we have the
@@ -372,7 +372,7 @@ function computeTaxBenefit(args: {
         annualSavingPct: 0,
         totalSavingOverTenure: 0,
         reason:
-          'Sec 24(b) home-loan interest deduction is not available on the new tax regime.',
+          'No tax break on home-loan interest under the new tax regime: Sec 24(b) is old regime only.',
       };
     }
     const cap = 200_000;
@@ -390,7 +390,7 @@ function computeTaxBenefit(args: {
       annualSavingPct:
         args.annualInterestY1 > 0 ? y1Benefit / args.annualInterestY1 : 0,
       totalSavingOverTenure: round2(totalSaving),
-      reason: `Sec 24(b): up to ₹${(cap / 1000).toFixed(0)}k of interest deductible each year on the old regime.`,
+      reason: `Sec 24(b): up to ₹${(cap / 100_000).toFixed(0)} lakh of interest a year comes off your taxable income (old regime).`,
     };
   }
   // US — only if itemising and within the $750k loan cap.
@@ -399,7 +399,7 @@ function computeTaxBenefit(args: {
       annualSavingPct: 0,
       totalSavingOverTenure: 0,
       reason:
-        'Mortgage interest deduction only helps if your Schedule A itemised total exceeds the standard deduction. Toggle the itemise flag if applicable.',
+        'Mortgage interest only cuts your tax if you itemise and your itemised total beats the standard deduction. Tick "I itemise" if you do.',
     };
   }
   // $750k debt-balance cap: only the portion of interest attributable
@@ -421,8 +421,8 @@ function computeTaxBenefit(args: {
     totalSavingOverTenure: round2(totalSaving),
     reason:
       args.principal > US_DEBT_CAP
-        ? `Mortgage interest deduction limited to the $750k debt cap (${Math.round(eligibleRatio * 100)}% of interest deductible).`
-        : 'Mortgage interest deduction (Schedule A) applied at your marginal rate.',
+        ? `Only interest on the first $750k is deductible: ${Math.round(eligibleRatio * 100)}% of yours.`
+        : 'Mortgage interest comes off your taxable income, at your tax rate.',
   };
 }
 
@@ -431,15 +431,15 @@ function computeTaxBenefit(args: {
 function buildWarnings(input: PurchaseInput, monthsToTarget: number): string[] {
   const w: string[] = [];
   if (monthsToTarget <= 0) {
-    w.push('Buying this month requires the down payment to be available now.');
+    w.push('Buying this month means the down payment has to be in hand now.');
   }
   if (input.type === 'vehicle') {
     w.push(
-      'Vehicles depreciate sharply: typically 15–25% in year 1, ~50% by year 5. Underwater periods are likely if you finance a long tenure.',
+      'Cars and bikes lose value fast: often 15–25% in the first year and about half by year 5. On a long loan you can owe more than it is worth.',
     );
     if ((input.loanTenureYears ?? DEFAULT_TENURE_YEARS.vehicle) > 5) {
       w.push(
-        'Tenure beyond 5 years on a vehicle loan amplifies the underwater risk — the balance can exceed market value for most of the loan.',
+        'Over 5 years, you would owe more than it is worth for most of the loan.',
       );
     }
   }
@@ -452,13 +452,13 @@ function buildWarnings(input: PurchaseInput, monthsToTarget: number): string[] {
     const homeHighThreshold = input.country === 'IN' ? 0.10 : 0.09;
     if (input.loanRateAnnual > homeHighThreshold) {
       w.push(
-        `Quoted rate is above the typical ${input.country === 'IN' ? 'India' : 'US'} home-loan range — confirm with a sanction letter or shop around before locking in.`,
+        `That rate is above the usual ${input.country === 'IN' ? 'India' : 'US'} home-loan range. Check it against ${input.country === 'IN' ? 'a sanction letter' : 'a written offer'}, or shop around.`,
       );
     }
   }
   if (input.loanRateAnnual > 0 && input.loanRateAnnual < 0.03) {
     w.push(
-      'Quoted rate is unusually low — verify it isn\'t an introductory teaser rate that resets later.',
+      'That rate is unusually low. Check it is not a teaser rate that resets later.',
     );
   }
   return w;
@@ -469,7 +469,7 @@ function buildNotes(input: PurchaseInput, tax: TaxResult): string[] {
   n.push(tax.reason);
   if (input.type === 'home') {
     n.push(
-      'Tenure choice trades EMI vs. total interest: longer tenure lowers EMI but inflates total interest. Most users default to 20–25 years to keep monthly affordability comfortable.',
+      'A longer loan lowers the EMI but adds interest. Most people pick 20 to 25 years.',
     );
   }
   return n;

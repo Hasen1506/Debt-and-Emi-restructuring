@@ -1,16 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Card } from '@/components/Card';
-import {
-  AddLoanAction,
-  Field,
-  InfoTip,
-  Select,
-  Stat,
-  SubmitBar,
-  VerdictHeader,
-} from '@/components/ToolPrimitives';
+import { AddLoanAction, Field, Select, SubmitBar } from '@/components/ToolPrimitives';
+import { LBracket, LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
+import { LFieldGrid, LNote, LStep, LStepSub, LSteps, LVerdict } from '@/components/ledger/LToolSteps';
 import {
   api,
   formatCurrency,
@@ -24,16 +17,11 @@ import { useFormErrors } from '@/lib/form-errors';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
 import { deriveMetrics } from '@/lib/derived';
-import { fitColumns } from '@/lib/grid';
+import { LOAN_TYPE_NAME, loanName } from '@/lib/loan-types';
 
 type Urgency = 'now' | '3m_ok' | '6m_ok';
 
-const LOAN_TYPE_OPTIONS: { value: LoanType; label: string }[] = [
-  { value: 'home_loan', label: 'Home loan' },
-  { value: 'auto_loan', label: 'Auto loan' },
-  { value: 'personal_loan', label: 'Personal loan' },
-  { value: 'education_loan', label: 'Education loan' },
-];
+const LOAN_TYPES: LoanType[] = ['home_loan', 'auto_loan', 'personal_loan', 'education_loan'];
 
 const TENURE_DEFAULT: Record<string, string> = {
   home_loan: '240',
@@ -52,6 +40,19 @@ const RATE_FIELD: Record<LoanType, keyof InstitutionPayload | null> = {
   bnpl: null,
 };
 
+const URGENCY: { value: Urgency; label: string }[] = [
+  { value: 'now', label: 'Now' },
+  { value: '3m_ok', label: 'Can wait 3 months' },
+  { value: '6m_ok', label: 'Can wait 6 months' },
+];
+
+// One tap for the usual expectations; anything else is typed in.
+const MOVES: { bps: string; label: string }[] = [
+  { bps: '-50', label: 'Cut 0.5%' },
+  { bps: '-25', label: 'Cut 0.25%' },
+  { bps: '0', label: 'No view' },
+  { bps: '25', label: 'Rise 0.25%' },
+];
 
 // The API's field names → this form's inputs, so a rejected value's
 // message shows under the input it came from.
@@ -61,12 +62,13 @@ const FIELDS: Record<string, string> = {
   consensus_change_bps: 'changeBps',
   months_to_decision: 'monthsTo',
   current_rate: 'currentRateOverride',
-  six_month_avg: 'sixMoOverride',
 };
 
 export function RightTimeTool() {
   const profile = useStoredProfile();
   const country = profile.user.country as 'IN' | 'US';
+  const currency = userDefaultCurrency(country);
+  const council = country === 'IN' ? 'RBI MPC' : 'FOMC';
 
   const [loanType, setLoanType] = useState<LoanType>('home_loan');
   const [institutions, setInstitutions] = useState<InstitutionPayload[] | null>(null);
@@ -83,10 +85,9 @@ export function RightTimeTool() {
   const [monthsTo, setMonthsTo] = useState('');
   const [nextMeeting, setNextMeeting] = useState<string | null>(null);
 
-  // Allow override but derive from rate-card by default.
+  // The bank's published middle rate unless the user has a real quote.
   const [currentRateOverride, setCurrentRateOverride] = useState('');
-  const [sixMoOverride, setSixMoOverride] = useState('');
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [more, setMore] = useState(false);
 
   const [resultValue, setV] = useState<BorrowTimingResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -121,19 +122,15 @@ export function RightTimeTool() {
     let cancelled = false;
     api.institutions(country)
       .then((data) => {
-        if (!cancelled) {
-          setInstitutions(data);
-          // Pre-select the user's primary bank when it has a published rate
-          // card for this loan type; otherwise leave empty so the form
-          // shows the dropdown.
-          const primary = profile.user.primary_bank;
-          if (primary) {
-            const match = data.find((i) => i.name.toLowerCase() === primary.toLowerCase());
-            const field = RATE_FIELD[loanType];
-            if (match && field && match[field]) {
-              setBank(primary);
-            }
-          }
+        if (cancelled) return;
+        setInstitutions(data);
+        // Start on the user's own bank when it publishes a rate for
+        // this kind of loan.
+        const primary = profile.user.primary_bank;
+        const field = RATE_FIELD[loanType];
+        if (primary && field) {
+          const match = data.find((i) => i.name.toLowerCase() === primary.toLowerCase());
+          if (match && match[field]) setBank(match.name);
         }
       })
       .catch(() => {});
@@ -145,19 +142,14 @@ export function RightTimeTool() {
   const bankRange = useMemo(() => {
     if (!institutions || !bank) return null;
     const inst = institutions.find((i) => i.name.toLowerCase() === bank.toLowerCase());
-    if (!inst) return null;
     const field = RATE_FIELD[loanType];
-    if (!field) return null;
-    const range = inst[field] as { low: string; high: string; median: string } | null;
-    if (!range) return null;
-    return range;
+    if (!inst || !field) return null;
+    return (inst[field] as { low: string; high: string; median: string } | null) ?? null;
   }, [institutions, bank, loanType]);
 
   const currentRate = currentRateOverride || bankRange?.median || '';
-  const sixMoAvg = sixMoOverride || currentRate;
 
-  // Knowing whether the bank is one the user already has → drives the
-  // AddLoanAction CTA later.
+  // Whether the bank is one the user already has: the add button says so.
   const isExistingBank = useMemo(() => {
     const set = new Set<string>();
     if (profile.user.primary_bank) set.add(profile.user.primary_bank.toLowerCase());
@@ -186,13 +178,13 @@ export function RightTimeTool() {
     return m.fxMissing.length > 0 ? null : m.surplus.toFixed(2);
   }, [profile]);
 
-  const fingerprint = JSON.stringify([loanType,principal,tenure,bank,currentRate,sixMoAvg,changeBps,monthsTo,urgency,country,monthlyRoom,profile.user]);
+  const fingerprint = JSON.stringify([loanType,principal,tenure,bank,currentRate,changeBps,monthsTo,urgency,country,monthlyRoom,profile.user]);
   const [checked, setChecked] = useState('');
   const v = checked === fingerprint ? resultValue : null;
   async function check(e: React.FormEvent) {
     e.preventDefault();
     if (!currentRate) {
-      setErr('Pick a bank with a published rate card, or enter a rate manually under Advanced.');
+      setErr('Pick a bank, or type the rate you were quoted under + MORE.');
       return;
     }
     if (!(Number(principal) > 0)) {
@@ -200,7 +192,7 @@ export function RightTimeTool() {
       return;
     }
     if (changeBps.trim() === '' || !Number.isFinite(Number(changeBps))) {
-      failField('changeBps', 'Enter the change you expect, e.g. −25 for a cut. 0 if you have no view.');
+      failField('changeBps', 'Pick what you expect, or type it: −25 for a cut, 0 for no view.');
       return;
     }
     if (!(Number(monthsTo) >= 1)) {
@@ -215,7 +207,8 @@ export function RightTimeTool() {
       setV(
         await api.rightTime({
           current_rate: currentRate,
-          six_month_avg: sixMoAvg,
+          // Not part of the verdict: the engine only reports it back.
+          six_month_avg: currentRate,
           consensus_change_bps: Number(changeBps),
           months_to_decision: Number(monthsTo),
           urgency,
@@ -233,223 +226,169 @@ export function RightTimeTool() {
     }
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {added && <p role="status">Loan added to your profile. <a href="/plan">See the updated plan →</a></p>}
-      <Card>
-        <form
-          onSubmit={check}
-          style={{ display: 'grid', gap: 12, gridTemplateColumns: fitColumns(2, 200) }}
-        >
-          <Select
-            label="Loan type"
-            value={loanType}
-            onChange={(v) => setLoanType(v as LoanType)}
-            options={LOAN_TYPE_OPTIONS}
-          />
-          <Select
-            label="Bank (for the current quoted rate)"
-            value={bank}
-            onChange={setBank}
-            options={[{ value: '', label: '— pick a bank —' }, ...bankOptions]}
-            info={
-              <>
-                We pull the bank&apos;s published median rate. The actual
-                offer depends on credit profile; use the advanced override if
-                you have a real quote.
-              </>
-            }
-          />
-          {bankRange && (
-            <div
-              className="muted"
-              style={{ gridColumn: '1 / -1', fontSize: 12, padding: '2px 0' }}
-            >
-              Current published range at <strong>{bank}</strong>:{' '}
-              <span className="num" style={{ color: 'var(--ink)' }}>
-                {formatPct(bankRange.low, 2)}–{formatPct(bankRange.high, 2)}
-              </span>{' '}
-              (median {formatPct(bankRange.median, 2)})
-            </div>
-          )}
-          <Field
-            label="Loan amount"
-            value={principal}
-            onChange={setPrincipal}
-            error={at('principal')}
-            placeholder={country === 'IN' ? 'e.g. 3000000' : 'e.g. 300000'}
-          />
-          <Field
-            label="Tenure (months)"
-            value={tenure}
-            error={at('tenure')}
-            onChange={setTenure}
-            kind="integer"
-          />
-          <Select
-            label="How urgent is the borrow?"
-            value={urgency}
-            onChange={setUrgency}
-            options={[
-              { value: 'now' as Urgency, label: 'I need it now' },
-              { value: '3m_ok' as Urgency, label: 'I can wait 3 months' },
-              { value: '6m_ok' as Urgency, label: 'I can wait 6 months' },
-            ]}
-            info={<>If you can&apos;t wait, the timing answer is always &ldquo;borrow now&rdquo;: locking today&apos;s rate. Whether the EMI fits your budget is checked separately.</>}
-          />
-          <Field
-            label="Rate change you expect at the next decision (bps)"
-            value={changeBps}
-            error={at('changeBps')}
-            onChange={setChangeBps}
-            placeholder="e.g. -25"
-            hint="Your view or a published forecast: −25 = a 0.25% cut, +25 = a rise, 0 = no view."
-            info={
-              <>
-                We don&apos;t guess this for you: the answer turns on it. Economists&apos;
-                polls before each {country === 'IN' ? 'RBI MPC' : 'FOMC'} meeting are
-                reported by the financial press; enter 0 if you have no view,
-                and the tool compares today&apos;s rate with the recent average.
-              </>
-            }
-          />
-          <Field
-            label="Months to next decision"
-            value={monthsTo}
-            error={at('monthsTo')}
-            onChange={setMonthsTo}
-            kind="integer"
-            hint={
-              nextMeeting
-                ? `Next ${country === 'IN' ? 'RBI MPC' : 'FOMC'} decision: ${new Date(`${nextMeeting}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} (published calendar)`
-                : 'RBI MPC: every 2 months. Fed FOMC: every ~6 weeks.'
-            }
-          />
+  const money = (s: string) => formatCurrency(s, currency);
+  const bps = Number(changeBps);
+  const meetingDate = nextMeeting
+    ? new Date(`${nextMeeting}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    : null;
+  const theLoan = loanName({ bank: bank || null, loan_type: loanType });
 
-          <div style={{ gridColumn: '1 / -1', marginTop: 4 }}>
-            <button
-              type="button"
-              onClick={() => setShowAdvanced((v) => !v)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--accent)',
-                cursor: 'pointer',
-                fontSize: 12,
-                textDecoration: 'underline',
-                padding: 0,
-              }}
-            >
-              {showAdvanced ? 'Hide' : 'Show'} advanced (override rates manually)
-            </button>
+  return (
+    <LSteps>
+      <LStep no="01" id="rt-in" title="The loan you'd take">
+        <form onSubmit={check} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <LChipRow label="What kind?">
+            {LOAN_TYPES.map((t) => (
+              <LChip key={t} on={loanType === t} onClick={() => setLoanType(t)}>
+                {LOAN_TYPE_NAME[t]}
+              </LChip>
+            ))}
+          </LChipRow>
+          <div>
+            <LFieldGrid min={200}>
+              <Select
+                label="Bank"
+                value={bank}
+                onChange={setBank}
+                options={[{ value: '', label: 'Pick a bank' }, ...bankOptions]}
+              />
+              <Field label="How much" kind="money" currency={currency} value={principal} onChange={setPrincipal} error={at('principal')} />
+              <Field label="For how many months" kind="integer" value={tenure} onChange={setTenure} error={at('tenure')} />
+            </LFieldGrid>
+            {bankRange && (
+              <LNote style={{ margin: '8px 0 0' }}>
+                {bank} lends at {formatPct(bankRange.low, 2)} to {formatPct(bankRange.high, 2)}, {formatPct(bankRange.median, 2)} in the
+                middle. Your offer depends on your credit; type a real quote under + MORE.
+              </LNote>
+            )}
           </div>
-          {showAdvanced && (
-            <>
+          <LChipRow label="When do you need it?">
+            {URGENCY.map((u) => (
+              <LChip key={u.value} on={urgency === u.value} onClick={() => setUrgency(u.value)}>
+                {u.label}
+              </LChip>
+            ))}
+          </LChipRow>
+
+          <div>
+            <LStepSub right={meetingDate ? `NEXT ${council} · ${meetingDate.toUpperCase()}` : undefined}>Where rates are heading</LStepSub>
+            <div style={{ margin: '10px 0 12px' }}>
+              <LChipRow label={`What do you expect at the next ${council} decision?`}>
+                {MOVES.map((m) => (
+                  <LChip key={m.bps} on={changeBps.trim() !== '' && Number(changeBps) === Number(m.bps)} onClick={() => setChangeBps(m.bps)}>
+                    {m.label}
+                  </LChip>
+                ))}
+              </LChipRow>
+            </div>
+            <LFieldGrid min={200}>
               <Field
-                label="Override current rate (%)"
-                kind="percent"
-                value={currentRateOverride}
-                error={at('currentRateOverride')}
-                onChange={setCurrentRateOverride}
-                hint={`leave blank to use ${bank || 'bank'} median`}
+                label="Or type it (basis points)"
+                value={changeBps}
+                onChange={setChangeBps}
+                error={at('changeBps')}
+                hint="−25 is a 0.25% cut. Your view or a published forecast."
               />
               <Field
-                label="Override 6-month average rate (%)"
-                kind="percent"
-                value={sixMoOverride}
-                error={at('sixMoOverride')}
-                onChange={setSixMoOverride}
-                hint="leave blank to use current rate (neutral)"
+                label="Months to that decision"
+                kind="integer"
+                value={monthsTo}
+                onChange={setMonthsTo}
+                error={at('monthsTo')}
+                hint={meetingDate ? 'From the published calendar' : `${council} meets every ${country === 'IN' ? '2 months' : '6 weeks or so'}`}
               />
-            </>
-          )}
+            </LFieldGrid>
+          </div>
+
+          <div>
+            <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
+            {!more && <span style={{ fontSize: 11, color: L_T.muted, marginLeft: 8 }}>A rate you were quoted</span>}
+            {more && (
+              <div style={{ marginTop: 10, maxWidth: 360 }}>
+                <Field
+                  label="Rate you were quoted (%)"
+                  kind="percent"
+                  value={currentRateOverride}
+                  onChange={setCurrentRateOverride}
+                  error={at('currentRateOverride')}
+                  hint={bank ? `Blank: ${bank}'s middle rate` : 'Blank: the bank’s middle rate'}
+                />
+              </div>
+            )}
+          </div>
+
           <SubmitBar busy={busy} error={err} label="What should I do?" />
         </form>
-      </Card>
+      </LStep>
 
       {v && (
-        <Card>
-          <VerdictHeader
-            label={
-              v.verdict === 'cant_afford'
-                ? 'Can’t afford the EMI'
+        <>
+          <LStep no="02" id="rt-out" title="The answer" answer>
+            <LVerdict tone={v.verdict === 'cant_afford' ? 'neg' : v.verdict === 'wait' ? 'accent' : 'pos'}>
+              {v.verdict === 'cant_afford'
+                ? 'The EMI doesn’t fit yet.'
                 : v.verdict === 'wait'
-                  ? 'Wait'
-                  : 'Borrow now'
-            }
-            color={
-              v.verdict === 'cant_afford'
-                ? 'var(--negative)'
-                : v.verdict === 'wait'
-                  ? 'var(--accent)'
-                  : 'var(--positive)'
-            }
-            detail={v.detail}
+                  ? 'Wait for the cut.'
+                  : 'Borrow now.'}
+            </LVerdict>
+            <LNote>{v.detail}</LNote>
+            <LKpi
+              items={[
+                { l: "TODAY'S RATE", v: formatPct(v.current_rate, 2) },
+                { l: 'EMI', v: money(v.monthly_payment), s: 'a month, at today’s rate' },
+                ...(v.monthly_room != null
+                  ? [{ l: 'ROOM EACH MONTH', v: money(v.monthly_room), s: 'after costs and payments', tone: Number(v.monthly_room) >= Number(v.monthly_payment) ? L_T.positive : L_T.negative }]
+                  : []),
+                { l: 'SAVED IF YOU WAIT', v: money(v.estimated_savings), s: 'over the whole term', tone: v.verdict === 'wait' ? L_T.positive : undefined },
+              ]}
+            />
+            {(bps < 0 || v.monthly_room == null) && (
+              <LNote style={{ margin: '12px 0 0' }}>
+                {bps < 0 && 'If the cut doesn’t come, neither does the saving. '}
+                {v.monthly_room == null && (
+                  <>
+                    Finish <a href="/onboarding" style={{ color: L_T.accent }}>setup</a> to check the EMI against your income and costs.
+                  </>
+                )}
+              </LNote>
+            )}
+            {v.verdict === 'borrow_now' && v.monthly_room != null && bank && currentRate && (
+              <AddLoanAction
+                added={added}
+                onAdd={() => {
+                  if (added || checked !== fingerprint) return;
+                  const saved = addLoanToProfile({
+                    loan_type: loanType,
+                    bank,
+                    outstanding: principal,
+                    nominal_rate: String(currentRate),
+                    tenure_months_remaining: Number(tenure),
+                    scheduled_emi: v.monthly_payment,
+                  });
+                  if (saved != null) setAdded(true);
+                  else setErr('The loan could not be saved. Recheck it fits against your current profile.');
+                }}
+                label={`Add the ${theLoan} to my profile${isExistingBank ? '' : ' · new bank'}`}
+              />
+            )}
+          </LStep>
+
+          <LMathBlock
+            rows={[
+              { k: "today's rate", v: formatPct(v.current_rate, 2), note: currentRateOverride ? 'the rate you were quoted' : `${bank}'s middle rate` },
+              { k: 'expected move', v: bps === 0 ? 'none' : `${bps > 0 ? '+' : '−'}${(Math.abs(bps) / 100).toFixed(2)}%`, note: `in ${monthsTo} month${Number(monthsTo) === 1 ? '' : 's'}` },
+              { k: 'EMI today', v: money(v.monthly_payment), note: `${money(principal)} over ${tenure} months` },
+              ...(v.monthly_room != null ? [{ k: 'room each month', v: money(v.monthly_room), note: 'income less costs and current payments' }] : []),
+              {
+                k: 'saved if you wait',
+                v: money(v.estimated_savings),
+                note: 'EMI today less EMI after the move, over the whole term',
+                tone: v.verdict === 'wait' ? ('pos' as const) : undefined,
+              },
+            ]}
           />
-          <p className="muted" style={{ margin: '0 0 10px', fontSize: 12 }}>
-            Based on your expectation of{' '}
-            {Number(changeBps) === 0
-              ? 'no change'
-              : `a ${Math.abs(Number(changeBps))} bps ${Number(changeBps) < 0 ? 'cut' : 'rise'}`}{' '}
-            in {monthsTo} month{Number(monthsTo) === 1 ? '' : 's'}. If that doesn&apos;t
-            happen, neither does the saving.
-          </p>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: fitColumns(3, 140),
-              gap: 12,
-            }}
-          >
-            <Stat label="Current rate" value={formatPct(v.current_rate, 2)} />
-            <Stat label="6-mo avg" value={formatPct(v.six_month_avg, 2)} />
-            <Stat
-              label={
-                <>
-                  Est. savings if you wait{' '}
-                  <InfoTip>
-                    The EMI at today&apos;s rate less the EMI after the expected
-                    cut, over the whole tenure. Assumes the cut flows straight
-                    through to your loan rate, which most floating loans
-                    honour at the next reset.
-                  </InfoTip>
-                </>
-              }
-              value={formatCurrency(v.estimated_savings, userDefaultCurrency(country))}
-              color={v.verdict === 'wait' ? 'var(--positive)' : 'var(--muted)'}
-            />
-          </div>
-          {v.monthly_room == null && (
-            <p className="muted" style={{ margin: '10px 0 0', fontSize: 12 }}>
-              Finish <a href="/onboarding" style={{ color: 'var(--accent)' }}>Setup</a> to
-              check the EMI against your income and costs before adding it.
-            </p>
-          )}
-          {v.verdict === 'borrow_now' && v.monthly_room != null && bank && currentRate && (
-            <AddLoanAction
-              added={added}
-              onAdd={() => {
-                if (added || checked !== fingerprint) return;
-                // Derive EMI from the rate we used; cheap helper.
-                const r = Number(currentRate) / 12;
-                const n = Number(tenure);
-                const p = Number(principal);
-                const emi = r === 0 ? p / n : (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-                const saved = addLoanToProfile({
-                  loan_type: loanType,
-                  bank,
-                  outstanding: principal,
-                  nominal_rate: String(currentRate),
-                  tenure_months_remaining: Number(tenure),
-                  scheduled_emi: emi.toFixed(2),
-                });
-                if (saved != null) setAdded(true); else setErr('The loan could not be saved. Recheck affordability against your current profile.');
-              }}
-              label={`Add this ${loanType.replace('_', ' ')} at ${bank} to my profile${isExistingBank ? '' : ' (new bank)'}`}
-            />
-          )}
-        </Card>
+        </>
       )}
-    </div>
+    </LSteps>
   );
 }

@@ -149,18 +149,17 @@ export function UpdateTermsButton({
   opportunity,
   user,
   currency,
-  variant = 'existing',
 }: {
   opportunity: RestructuringOpportunity;
   user: UserPayload;
   currency: CurrencyCode;
+  /** Ignored: one skin now. Kept so older callers still compile. */
   variant?: 'existing' | 'ledger' | 'editorial';
 }) {
   const [open, setOpen] = useState(false);
   const indices = opportunity.affected_loan_indices ?? [];
   if (indices.length === 0) return null;
 
-  const mono = variant === 'ledger';
   return (
     <>
       <button
@@ -172,13 +171,13 @@ export function UpdateTermsButton({
           background: 'transparent',
           border: '1px solid var(--accent)',
           color: 'var(--accent)',
-          borderRadius: variant === 'ledger' ? 0 : 4,
+          borderRadius: 0,
           cursor: 'pointer',
           fontSize: 11,
           fontWeight: 600,
-          fontFamily: mono ? 'var(--font-mono)' : undefined,
-          letterSpacing: mono ? '0.06em' : undefined,
-          textTransform: mono ? 'uppercase' : undefined,
+          fontFamily: 'inherit',
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
         }}
       >
         I took this — update terms

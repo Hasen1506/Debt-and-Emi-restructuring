@@ -1,16 +1,16 @@
 /**
- * Goals page — server shell that loads user/profile + indicative
- * lowest-rate data, then delegates rendering to the client component.
+ * Goals & Tools (REDESIGN R5): the goal ledger, then the tools.
  *
- * Pre-auth, the goals list itself comes from localStorage on the
- * client; the server pre-fetches the indicative new-loan rates for
- * the user's country (one per loan_type the achievability check might
- * suggest) so the T3 tier renders without a round-trip.
+ * Goals live in localStorage on the client; the server pre-fetches the
+ * indicative new-loan rate for the user's country, quoted when a goal
+ * would need a loan to make its date.
  */
 
 import { loadCurrentProfileServer } from '@/lib/user-store';
 import { api } from '@/lib/api';
-import { GoalsClient } from './GoalsClient';
+import { GoalsPage as GoalLedger } from '@/components/goals/GoalsPage';
+import { ToolsList } from '@/components/goals/ToolsList';
+import { LShell } from '@/components/ledger/primitives';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,9 +35,12 @@ export default async function GoalsPage() {
   );
 
   return (
-    <GoalsClient
-      user={profile.user}
-      lowestRates={rates}
-    />
+    <LShell>
+      <h1 className="sr-only">Goals and tools</h1>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
+        <GoalLedger user={profile.user} lowestRates={rates} />
+        <ToolsList user={profile.user} />
+      </div>
+    </LShell>
   );
 }

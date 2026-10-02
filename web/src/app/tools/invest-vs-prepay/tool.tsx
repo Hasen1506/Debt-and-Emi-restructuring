@@ -24,8 +24,9 @@
 
 import { useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
-import { Card } from '@/components/Card';
-import { InfoTip, Stat } from '@/components/ToolPrimitives';
+import { Field } from '@/components/ToolPrimitives';
+import { LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
+import { LFieldGrid, LNote, LStep, LStepSub, LSteps, LVerdict } from '@/components/ledger/LToolSteps';
 import {
   CLOSE_CALL,
   SAFE_RATES,
@@ -38,6 +39,7 @@ import {
 import { simulateMonteCarlo } from '@/lib/monte-carlo';
 import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
 import { deriveMetrics } from '@/lib/derived';
+import { loanLabel, loanName } from '@/lib/loan-types';
 
 const D = (v: string | number | Decimal) => new Decimal(v);
 
@@ -78,30 +80,30 @@ function safe(key: keyof typeof SAFE_RATES, name: string, note: string): Instrum
 }
 
 const INSTRUMENTS_IN: Instrument[] = [
-  safe('fd_in', 'Bank FD', 'Quarterly compounding · taxed at slab'),
-  safe('tax_free_bond_in', 'Tax-free bonds (NHAI/REC)', 'Coupon tax-free · semi-annual payment'),
+  safe('fd_in', 'Bank FD', 'Interest added quarterly · taxed at your rate'),
+  safe('tax_free_bond_in', 'Tax-free bonds (NHAI / REC)', 'Interest is tax-free · paid twice a year'),
   {
     key: 'equity_mf_in',
-    name: 'Equity Mutual Fund (Nifty/Flexicap)',
+    name: 'Equity fund (Nifty / flexi-cap)',
     defaultReturn: 0.12,
     defaultVol: 0.18,
     tax: { kind: 'flat', rate: 0.125 },
-    note: 'Historical ~12% nominal · 18% std-dev · 12.5% LTCG above ₹1.25L',
+    note: 'Has averaged ~12% a year, swinging ~18% · gains taxed at 12.5% above ₹1.25L',
     compounding: 'simple',
   },
 ];
 
 const INSTRUMENTS_US: Instrument[] = [
-  safe('hysa_us', 'HYSA (Marcus, Ally)', 'APY-quoted · taxed federal + state at slab'),
-  safe('treasury_us', '1-yr US Treasury',
-    'Federal tax only · state-exempt, so taxed at ~80% of your rate'),
+  safe('hysa_us', 'High-yield savings', 'Quoted as APY · taxed at your federal and state rate'),
+  safe('treasury_us', '1-year Treasury',
+    'Federal tax only (no state tax), so ~80% of your rate'),
   {
     key: 'spx_us',
     name: 'S&P 500 index fund',
     defaultReturn: 0.10,
     defaultVol: 0.16,
     tax: { kind: 'flat', rate: 0.15 },
-    note: 'Historical ~10% nominal · 16% std-dev · 15% LTCG',
+    note: 'Has averaged ~10% a year, swinging ~16% · gains taxed at 15%',
     compounding: 'simple',
   },
 ];
@@ -118,27 +120,28 @@ function parseNum(v: string): Decimal | null {
 }
 
 export function InvestVsPrepayDeepTool() {
-  // Start from the profile: its country, its dearest loan's effective
-  // rate and its tax rate (these used to default to India, 11% and 30%).
+  // Start from the profile: its dearest loan's effective rate (pick
+  // another loan to switch), its tax rate, and what its country invests in.
   const profile = useStoredProfile();
-  const loudest = useMemo(() => deriveMetrics(profile).loudest, [profile]);
-  const [country, setCountry] = useState<'IN' | 'US'>(profile.user.country);
-  const [loanRatePct, setLoanRatePct] = useState(
-    loudest ? (Number(loudest.effective) * 100).toFixed(2) : '11',
+  const country = profile.user.country;
+  const loans = useMemo(
+    () =>
+      deriveMetrics(profile)
+        .loans.filter((l) => l.outstanding.gt(0))
+        .sort((x, y) => y.effective.cmp(x.effective)),
+    [profile],
   );
-  const [marginalPct, setMarginalPct] = useState(
-    (Number(profile.marginalRate ?? 0.3) * 100).toFixed(0),
-  );
-  // Holding period for the Monte Carlo simulation — equity returns
-  // converge over longer windows, so this knob meaningfully shifts the
-  // probability of beating a fixed-rate loan.
+  const pctOf = (d: Decimal) => d.mul(100).toFixed(2);
+  const [picked, setPicked] = useState<number | null>(loans[0]?.index ?? null);
+  const [loanRatePct, setLoanRatePct] = useState(loans[0] ? pctOf(loans[0].effective) : '');
+  const profileMarginal = (Number(profile.marginalRate ?? 0.3) * 100).toFixed(0);
+  const [marginalPct, setMarginalPct] = useState(profileMarginal);
+  // Years held drives the simulation: shares even out over longer spells.
   const [yearsHeld, setYearsHeld] = useState('5');
-  // Inflation rate for the real-terms comparison. Defaults to typical
-  // CPI by country; user can edit.
   const [inflationPct, setInflationPct] = useState(
     profile.user.inflation_rate && Number(profile.user.inflation_rate) > 0
       ? (Number(profile.user.inflation_rate) * 100).toFixed(1)
-      : profile.user.country === 'US' ? '3' : '6',
+      : country === 'US' ? '3' : '6',
   );
 
   const instruments = country === 'IN' ? INSTRUMENTS_IN : INSTRUMENTS_US;
@@ -162,15 +165,9 @@ export function InvestVsPrepayDeepTool() {
     setYieldConfirmed(false);
   }
 
-  function applyCountry(c: 'IN' | 'US') {
-    setCountry(c);
-    const next = (c === 'IN' ? INSTRUMENTS_IN : INSTRUMENTS_US)[0];
-    setInstKey(next.key);
-    setExpReturnPct((next.defaultReturn * 100).toFixed(2));
-    setVolPct((next.defaultVol * 100).toFixed(1));
-    setInflationPct(c === 'IN' ? '6' : '3');
-    setYieldConfirmed(false);
-  }
+  const pickedLoan = loans.find((l) => l.index === picked)?.loan ?? null;
+  const theLoan = pickedLoan ? `the ${loanName(pickedLoan)}` : 'the loan';
+  const swings = inst.defaultVol > 0;
 
   const result = useMemo(() => {
     const loanIn = parseNum(loanRatePct);
@@ -185,7 +182,6 @@ export function InvestVsPrepayDeepTool() {
     const expReturn = returnIn.div(100);
     const vol = Decimal.max(0, volIn.div(100));
 
-    // Compounding
     let preTax: Decimal;
     if (inst.compounding === 'quarterly') preTax = quarterlyCompound(expReturn);
     else if (inst.compounding === 'monthly') {
@@ -194,79 +190,67 @@ export function InvestVsPrepayDeepTool() {
 
     // After tax, by the instrument's rule: the user's rate (a Treasury pays
     // ~80% of it), a flat capital-gains rate, or none. /plan uses the same.
+    const taxRate = returnTaxRate(inst.tax, marginal);
     const afterTax = afterTaxReturn(preTax, inst.tax, marginal);
 
-    // Downside scenario: expected return - 1σ. Volatility is annualized.
-    // For fixed-income (vol=0) this collapses to expected return.
+    // A bad year: expected return less one year's swing (1σ). For fixed
+    // income (no swing) it is the expected return.
     const downsideReturn = expReturn.minus(vol);
     let downsidePreTax: Decimal;
     if (inst.compounding === 'quarterly') {
-      // Cap at zero so quarterly comp formula doesn't blow up for very
-      // negative inputs.
       downsidePreTax = downsideReturn.lt(D('-0.99'))
         ? D('-0.99')
         : quarterlyCompound(downsideReturn);
     } else {
       downsidePreTax = downsideReturn;
     }
-    // No tax on negative returns.
     const downsideAfterTax = afterTaxReturn(downsidePreTax, inst.tax, marginal);
 
     const expectedSpread = afterTax.minus(loan);
     const downsideSpread = downsideAfterTax.minus(loan);
+    const p = (d: Decimal) => `${d.abs().mul(100).toFixed(2)}%`;
 
     let verdict: 'prepay' | 'invest' | 'borderline';
+    let headline: string;
     let explanation: string;
     if (expectedSpread.gt(D('0.005'))) {
       if (downsideSpread.gt(0)) {
         verdict = 'invest';
-        explanation = `Even in the conservative scenario (return - 1σ), ${inst.name} after-tax beats your loan. Reasonable case to invest.`;
+        headline = `Invest: ${inst.name} beats ${theLoan}, even in a bad year.`;
+        explanation = `In a bad year it still earns ${p(downsideAfterTax)} after tax, more than the loan's ${loan.mul(100).toFixed(2)}%.`;
       } else {
         verdict = 'borderline';
-        explanation = `Expected ${inst.name} after-tax beats your loan by ${expectedSpread.mul(100).toFixed(2)}%/yr, but the conservative scenario flips negative (${downsideSpread.mul(100).toFixed(2)}%/yr). You're being paid a premium for taking on volatility — prepay if you don't want that risk; invest if you do.`;
+        headline = `Close call: ${inst.name} wins on average, loses in a bad year.`;
+        explanation = `On average it beats the loan by ${p(expectedSpread)} a year after tax, but in a bad year it falls ${p(downsideSpread)} behind. Prepay if you'd rather not take that risk; invest if you can sit through a bad year.`;
       }
     } else if (expectedSpread.lt(D('-0.005'))) {
       verdict = 'prepay';
-      explanation = `Loan effective rate beats ${inst.name} after-tax by ${expectedSpread.abs().mul(100).toFixed(2)}%/yr in the expected case. Prepay.`;
+      headline = `Prepay ${theLoan}.`;
+      explanation = `It costs ${loan.mul(100).toFixed(2)}% a year; ${inst.name} earns ${p(afterTax)} after tax. Prepaying comes out ${p(expectedSpread)} a year ahead, with no risk.`;
     } else {
       verdict = 'borderline';
-      explanation = `Within 50 bps either way. Math doesn't favor either path; pick on non-financial factors (liquidity, behavioral commitment).`;
+      headline = 'Close call: they come out about even.';
+      explanation = `They're within half a point of each other. Pick on other things: whether you want the money to hand, or the loan gone.`;
     }
 
-    return {
-      preTax,
-      afterTax,
-      downsideAfterTax,
-      expectedSpread,
-      downsideSpread,
-      verdict,
-      explanation,
-    };
-  }, [loanRatePct, marginalPct, expReturnPct, volPct, inst]);
+    return { preTax, taxRate, afterTax, downsideAfterTax, expectedSpread, downsideSpread, verdict, headline, explanation };
+  }, [loanRatePct, marginalPct, expReturnPct, volPct, inst, theLoan]);
 
-  // Monte Carlo distribution. For fixed-income instruments (vol=0) the
-  // result collapses to a deterministic point — we still run the sim
-  // because the distribution UI degrades gracefully.
+  // The simulation only adds something when the return swings.
   const mc = useMemo(() => {
-    if(!result) return null;
+    if (!result || !swings) return null;
     const years = parseNum(yearsHeld);
     const infl = parseNum(inflationPct);
-    if(!years || years.lte(0) || years.gt(100) || !infl || infl.lt(0) || infl.gt(100)) return null;
-    const expReturn = result.preTax.toNumber();
-    const vol = Math.max(0, Number(volPct) / 100);
-    const taxRate = Number(
-      returnTaxRate(inst.tax, Math.min(1, Math.max(0, Number(marginalPct) / 100 || 0))),
-    );
-    const inflation = Math.max(0, Number(inflationPct) / 100);
+    if (!years || years.lte(0) || years.gt(100) || !infl || infl.lt(0) || infl.gt(100)) return null;
     return simulateMonteCarlo({
-      expectedReturn: expReturn,
-      volatility: vol,
+      expectedReturn: result.preTax.toNumber(),
+      volatility: Math.max(0, Number(volPct) / 100),
       years: years.toNumber(),
-      taxRate,
-      inflation,
+      taxRate: result.taxRate.toNumber(),
+      inflation: Math.max(0, Number(inflationPct) / 100),
       trials: 5000,
     });
-  }, [result, volPct, marginalPct, yearsHeld, inflationPct, inst]);
+  }, [result, swings, volPct, yearsHeld, inflationPct]);
 
   // The default is dated and the answer is close: ask for today's yield.
   const needsYield =
@@ -278,146 +262,98 @@ export function InvestVsPrepayDeepTool() {
   const loanRateDecimal = Number(loanRatePct) / 100;
   const probBeatNominal = mc?.probBeatLoanNominal(loanRateDecimal) ?? 0;
   const probPositiveReal = mc?.probBeatLoanReal(0) ?? 0;
+  const pc = (n: number) => `${(n * 100).toFixed(2)}%`;
+  const tone = needsYield || !result ? null : result.verdict === 'prepay' ? 'pos' : result.verdict === 'invest' ? 'accent' : null;
+  const taxNote =
+    inst.tax.kind === 'none' ? 'tax-free' : inst.tax.kind === 'flat' ? 'flat tax on gains' : inst.tax.share < 1 ? `${Math.round(inst.tax.share * 100)}% of your rate` : 'your rate';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Card>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <Field label="Country">
-            <div style={{ display: 'flex', gap: 6 }}>
-              {(['IN', 'US'] as const).map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => applyCountry(c)}
-                  className="chip"
-                  style={{
-                    background: c === country ? 'var(--accent)' : 'transparent',
-                    color: c === country ? 'var(--canvas)' : 'var(--ink)',
-                    borderColor: c === country ? 'var(--accent)' : 'var(--border)',
-                    cursor: 'pointer',
+    <LSteps>
+      <LStep no="01" id="ivp-in" title="The loan and the money">
+        {loans.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <LChipRow label="Which loan would you prepay?">
+              {loans.map((l) => (
+                <LChip
+                  key={l.index}
+                  on={picked === l.index}
+                  onClick={() => {
+                    setPicked(l.index);
+                    setLoanRatePct(pctOf(l.effective));
                   }}
                 >
-                  {c}
-                </button>
+                  {loanLabel(l.loan)} · {pctOf(l.effective)}%
+                </LChip>
               ))}
-            </div>
-          </Field>
-
-          <Field label="Loan effective APR (%)">
-            <NumInput value={loanRatePct} onChange={setLoanRatePct} />
-          </Field>
-
-          <Field label="Your marginal tax rate (%)">
-            <NumInput value={marginalPct} onChange={setMarginalPct} />
-          </Field>
-        </div>
-      </Card>
-
-      <Card>
-        <div style={{ fontWeight: 600, fontSize: 14 }}>Instrument</div>
-        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-          Pick what you&apos;d invest the surplus in instead of prepaying.
-          Defaults pre-fill; you can override expected return and volatility.
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 8,
-            marginTop: 10,
-          }}
-        >
-          {instruments.map((i) => (
-            <button
-              key={i.key}
-              type="button"
-              onClick={() => applyInstrument(i.key)}
-              className="chip"
-              style={{
-                background: i.key === instKey ? 'var(--accent)' : 'transparent',
-                color: i.key === instKey ? 'var(--canvas)' : 'var(--ink)',
-                borderColor: i.key === instKey ? 'var(--accent)' : 'var(--border)',
-                cursor: 'pointer',
-              }}
-            >
-              {i.name}
-            </button>
-          ))}
-        </div>
-        <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
-          {inst.note}
-          {inst.asOf && inst.source && (
-            <>
-              {' '}· default {(inst.defaultReturn * 100).toFixed(2)}% is the{' '}
-              {inst.source}, {formatAsOf(inst.asOf)}
-            </>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
-          <Field label={inst.asOf ? "Today's yield (%)" : 'Expected nominal return (%)'}>
-            <NumInput
-              value={expReturnPct}
-              onChange={(v) => {
-                setExpReturnPct(v);
-                setYieldConfirmed(true);
-              }}
-            />
-          </Field>
-          <Field label="Annual volatility, 1σ (%)">
-            <NumInput value={volPct} onChange={setVolPct} />
-          </Field>
-        </div>
-      </Card>
-
-      <Card>
-        {result === null ? (
-          <div style={{ fontSize: 13 }} role="status">
-            Enter a number for the loan rate, your tax rate, the return and
-            the volatility to see a verdict.
+            </LChipRow>
           </div>
+        )}
+        <LFieldGrid min={200}>
+          <Field
+            label="The loan's rate, a year (%)"
+            value={loanRatePct}
+            onChange={(v) => {
+              setLoanRatePct(v);
+              setPicked(null);
+            }}
+            hint="Its effective rate, after any tax break"
+          />
+          <Field
+            label="Your tax rate (%)"
+            value={marginalPct}
+            onChange={setMarginalPct}
+            hint={marginalPct === profileMarginal ? 'From your profile' : undefined}
+          />
+        </LFieldGrid>
+
+        <div style={{ marginTop: 16 }}>
+          <LChipRow label="Or put the money in">
+            {instruments.map((i) => (
+              <LChip key={i.key} on={i.key === instKey} onClick={() => applyInstrument(i.key)}>
+                {i.name}
+              </LChip>
+            ))}
+          </LChipRow>
+          <LNote style={{ margin: '6px 0 12px' }}>
+            {inst.note}
+            {inst.asOf && inst.source && (
+              <>
+                {' '}· {(inst.defaultReturn * 100).toFixed(2)}% is the {inst.source}, {formatAsOf(inst.asOf)}
+              </>
+            )}
+          </LNote>
+        </div>
+        <LFieldGrid min={200}>
+          <Field
+            label={inst.asOf ? "Today's rate (%)" : 'It earns a year, on average (%)'}
+            value={expReturnPct}
+            onChange={(v) => {
+              setExpReturnPct(v);
+              setYieldConfirmed(true);
+            }}
+          />
+          {swings && <Field label="How much it swings a year (%)" value={volPct} onChange={setVolPct} hint="One standard deviation" />}
+          {swings && <Field label="Years you'd hold it" kind="integer" value={yearsHeld} onChange={setYearsHeld} />}
+          {swings && <Field label="Prices rise a year (%)" value={inflationPct} onChange={setInflationPct} />}
+        </LFieldGrid>
+      </LStep>
+
+      <LStep no="02" id="ivp-out" title="The answer" answer>
+        {result === null ? (
+          <LNote style={{ margin: 0 }}>Enter the loan&apos;s rate and your tax rate to see the answer.</LNote>
         ) : (
           <>
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>
-              Verdict ·{' '}
-              <span
-                style={{
-                  color: needsYield
-                    ? 'var(--muted-ink)'
-                    : result.verdict === 'prepay'
-                      ? 'var(--positive)'
-                      : result.verdict === 'invest'
-                        ? 'var(--accent)'
-                        : 'var(--muted-ink)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                }}
-              >
-                {needsYield ? 'check the yield' : result.verdict}
-              </span>
-            </div>
-            <div style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>
+            <LVerdict tone={tone}>{needsYield ? `Close: it turns on today's ${inst.name} rate.` : result.headline}</LVerdict>
+            <LNote>
               {needsYield && inst.asOf ? (
                 <>
-                  {inst.name} after tax ({result.afterTax.mul(100).toFixed(2)}%)
-                  is within a point of your loan ({D(loanRatePct).toFixed(2)}%),
-                  so the answer turns on the exact yield. The{' '}
-                  {(inst.defaultReturn * 100).toFixed(2)}% default is the{' '}
-                  {inst.source}, {formatAsOf(inst.asOf)}. Enter today&apos;s
-                  yield above, or{' '}
+                  After tax it earns {pc(result.afterTax.toNumber())}, within a point of the loan&apos;s {Number(loanRatePct).toFixed(2)}%.
+                  The {(inst.defaultReturn * 100).toFixed(2)}% is the {inst.source}, {formatAsOf(inst.asOf)}. Enter today&apos;s rate
+                  above, or{' '}
                   <button
                     type="button"
                     onClick={() => setYieldConfirmed(true)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      padding: 0,
-                      color: 'var(--accent)',
-                      textDecoration: 'underline',
-                      cursor: 'pointer',
-                      font: 'inherit',
-                    }}
+                    style={{ background: 'none', border: 'none', padding: 0, color: L_T.accent, textDecoration: 'underline', cursor: 'pointer', font: 'inherit' }}
                   >
                     use {(inst.defaultReturn * 100).toFixed(2)}% anyway
                   </button>
@@ -426,209 +362,76 @@ export function InvestVsPrepayDeepTool() {
               ) : (
                 result.explanation
               )}
-            </div>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-                gap: 12,
-              }}
-            >
-              <Stat
-                label="Loan effective"
-                value={`${D(loanRatePct).toFixed(2)}%`}
-              />
-              <Stat
-                label="Instrument · after-tax"
-                value={`${result.afterTax.mul(100).toFixed(2)}%`}
-              />
-              <Stat
-                label="Conservative (− 1σ)"
-                value={`${result.downsideAfterTax.mul(100).toFixed(2)}%`}
-              />
-              <Stat
-                label="Expected spread"
-                value={`${result.expectedSpread.mul(100).toFixed(2)}%`}
-              />
-            </div>
+            </LNote>
+            <LKpi
+              items={[
+                { l: 'THE LOAN COSTS', v: `${Number(loanRatePct).toFixed(2)}%`, s: 'a year' },
+                { l: 'IT EARNS', v: pc(result.afterTax.toNumber()), s: 'a year, after tax' },
+                ...(swings ? [{ l: 'IN A BAD YEAR', v: pc(result.downsideAfterTax.toNumber()), s: 'after tax' }] : []),
+                {
+                  l: result.expectedSpread.gte(0) ? 'INVESTING AHEAD BY' : 'PREPAYING AHEAD BY',
+                  v: pc(result.expectedSpread.abs().toNumber()),
+                  s: 'a year',
+                  tone: result.expectedSpread.gte(0) ? L_T.accent : L_T.positive,
+                },
+              ]}
+            />
+            {mc && (
+              <div style={{ marginTop: 16 }}>
+                <LStepSub right="5,000 RUNS">Over {yearsHeld} years</LStepSub>
+                <LKpi
+                  items={[
+                    { l: 'BEATS THE LOAN', v: `${(probBeatNominal * 100).toFixed(0)}%`, s: 'of runs' },
+                    { l: 'KEEPS UP WITH PRICES', v: `${(probPositiveReal * 100).toFixed(0)}%`, s: 'of runs' },
+                    { l: 'MIDDLE RESULT', v: pc(mc.percentilesNominal[50]), s: 'a year, after tax' },
+                    { l: '1 IN 20 DOES WORSE THAN', v: pc(mc.percentilesNominal[5]), s: 'a year' },
+                  ]}
+                />
+                <LNote style={{ margin: '10px 0 0' }}>
+                  {probBeatNominal >= 0.75
+                    ? `It beat the loan in ${(probBeatNominal * 100).toFixed(0)}% of runs: investing wins clearly on these numbers.`
+                    : probBeatNominal <= 0.4
+                      ? `It beat the loan in only ${(probBeatNominal * 100).toFixed(0)}% of runs: prepaying is the safer choice.`
+                      : `It beat the loan in ${(probBeatNominal * 100).toFixed(0)}% of runs, close to a coin toss. Invest only if you can live with the 1-in-20 case of ${pc(mc.percentilesNominal[5])} a year.`}
+                  {probBeatNominal >= 0.75 && probPositiveReal < 0.5
+                    ? ` But only ${(probPositiveReal * 100).toFixed(0)}% of runs keep up with prices.`
+                    : ''}
+                </LNote>
+              </div>
+            )}
           </>
         )}
-      </Card>
+      </LStep>
 
-      <Card>
-        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          Probabilistic comparison
-          <InfoTip>
-            <strong>What this adds.</strong> The verdict above is one
-            expected case + one 1σ downside. This block runs 5,000
-            trials of annual returns drawn from a log-normal
-            distribution with your stated mean and volatility, then
-            compounds each trial over the holding period.
-            <div style={{ marginTop: 8 }}>
-              <strong>Key reads.</strong> P(beat loan) is the share of
-              trials where your after-tax annualized return tops the
-              loan rate. The 5th / 50th / 95th percentiles bracket your
-              realistic best-and-worst case.
-            </div>
-            <div style={{ marginTop: 8 }}>
-              <strong>Real vs nominal.</strong> Real-terms strips out
-              inflation — useful because a 7% FD against 6% CPI is
-              barely positive in actual buying power. We show both side
-              by side. Beating the inflation-adjusted loan has the same probability as beating its nominal rate; purchasing-power probability instead compares real returns with zero.
-            </div>
-          </InfoTip>
-        </div>
-        <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
-          {yearsHeld}-year holding period, 5,000 trials.
-          Inflation drag of {inflationPct}% applied for the real-terms column.
-        </div>
-
-        <div style={{ display: 'flex', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
-          <Field label="Years held">
-            <NumInput value={yearsHeld} onChange={setYearsHeld} />
-          </Field>
-          <Field label="Inflation (%)">
-            <NumInput value={inflationPct} onChange={setInflationPct} />
-          </Field>
-        </div>
-
-        {!mc && <p role="alert">Enter valid returns, tax (0–100%), volatility (0–500%), holding period (0–100 years) and inflation (0–100%).</p>}
-        {mc && <>
-        <div
-          style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))',gap:12}}
-        >
-          <Stat
-            label="P(beat loan, nominal)"
-            value={`${(probBeatNominal * 100).toFixed(0)}%`}
-          />
-          <Stat
-            label="P(preserve purchasing power)"
-            value={`${(probPositiveReal * 100).toFixed(0)}%`}
-          />
-          <Stat
-            label="Median nominal after-tax"
-            value={`${(mc.percentilesNominal[50] * 100).toFixed(2)}%`}
-          />
-          <Stat
-            label="Median real after-tax"
-            value={`${(mc.percentilesReal[50] * 100).toFixed(2)}%`}
-          />
-        </div>
-
-        <table
-          style={{
-            width: '100%',
-            marginTop: 14,
-            borderCollapse: 'collapse',
-            fontSize: 12,
-          }}
-        >
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>
-              <th style={{ textAlign: 'left', padding: '6px 0' }}>Percentile</th>
-              <th style={{ textAlign: 'right', padding: '6px 0' }}>Nominal after-tax</th>
-              <th style={{ textAlign: 'right', padding: '6px 0' }}>Real after-tax</th>
-            </tr>
-          </thead>
-          <tbody>
-            {([5, 25, 50, 75, 95] as const).map((p) => (
-              <tr key={p} style={{ borderBottom: '1px dashed var(--border)' }}>
-                <td style={{ padding: '4px 0' }}>p{p}</td>
-                <td style={{ textAlign: 'right', padding: '4px 0', fontVariantNumeric: 'tabular-nums' }}>
-                  {(mc.percentilesNominal[p] * 100).toFixed(2)}%
-                </td>
-                <td style={{ textAlign: 'right', padding: '4px 0', fontVariantNumeric: 'tabular-nums' }}>
-                  {(mc.percentilesReal[p] * 100).toFixed(2)}%
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <div
-          style={{
-            marginTop: 12,
-            padding: 10,
-            background: 'var(--soft-bg)',
-            borderRadius: 6,
-            fontSize: 12,
-            lineHeight: 1.55,
-          }}
-        >
-          <strong>How to read this.</strong>{' '}
-          {probBeatNominal >= 0.75 ? (
-            <>
-              {(probBeatNominal * 100).toFixed(0)}% of trials beat your{' '}
-              {loanRatePct}% loan in nominal terms — investing wins clearly
-              in the expected case. {probPositiveReal < 0.5 && (
-                <>
-                  Only {(probPositiveReal * 100).toFixed(0)}%
-                  of trials preserve purchasing power after inflation. This is a separate cash-return hurdle.
-                </>
-              )}
-            </>
-          ) : probBeatNominal <= 0.4 ? (
-            <>
-              Only {(probBeatNominal * 100).toFixed(0)}% of trials beat your
-              loan — prepaying is the safer bet, math agrees with intuition.
-            </>
-          ) : (
-            <>
-              Coin-flippy: {(probBeatNominal * 100).toFixed(0)}% of trials
-              beat the loan. You&apos;re paid a small expected premium for
-              taking on the volatility; if you can stomach the worst-case
-              p5 of {(mc.percentilesNominal[5] * 100).toFixed(2)}%/yr,
-              invest. Otherwise prepay.
-            </>
-          )}
-        </div>
-        </>}
-      </Card>
-
-      <div className="muted" style={{ fontSize: 11 }}>
-        v2: deterministic baseline + 5,000-trial Monte Carlo + real-terms
-        adjustment. Log-normal returns; tax treatment per instrument
-        (LTCG flat for equity, your rate for FDs/HYSAs, ~80% of it for
-        Treasuries). Fixed-income defaults match the /plan card.
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 140 }}>
-      <span className="muted" style={{ fontSize: 11 }}>
-        {label}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-function NumInput({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <input
-      type="number"
-      inputMode="decimal"
-      step="0.1"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      style={{
-        padding: '6px 8px',
-        border: '1px solid var(--border)',
-        borderRadius: 4,
-        background: 'var(--canvas)',
-        color: 'var(--ink)',
-        fontSize: 13,
-        width: 120,
-      }}
-    />
+      {result && (
+        <LMathBlock
+          rows={[
+            { k: 'the loan costs', v: `${Number(loanRatePct).toFixed(2)}%`, note: 'a year, after any tax break' },
+            {
+              k: 'it earns, before tax',
+              v: pc(result.preTax.toNumber()),
+              note: inst.compounding === 'quarterly' ? `${inst.name}, ${Number(expReturnPct).toFixed(2)}% added quarterly` : inst.name,
+            },
+            { k: 'tax on it', v: pc(result.taxRate.toNumber()), note: taxNote },
+            { k: 'after tax', v: pc(result.afterTax.toNumber()) },
+            ...(swings ? [{ k: 'in a bad year', v: pc(result.downsideAfterTax.toNumber()), note: `${Number(volPct).toFixed(1)}% below average, after tax` }] : []),
+            {
+              k: result.expectedSpread.gte(0) ? 'investing ahead by' : 'prepaying ahead by',
+              v: pc(result.expectedSpread.abs().toNumber()),
+              tone: result.expectedSpread.gte(0) ? undefined : ('pos' as const),
+            },
+            ...(mc
+              ? [
+                  {
+                    k: `range over ${yearsHeld} years`,
+                    v: `${pc(mc.percentilesNominal[5])} to ${pc(mc.percentilesNominal[95])}`,
+                    note: `9 in 10 runs, a year after tax; ${pc(mc.percentilesReal[50])} after prices`,
+                  },
+                ]
+              : []),
+          ]}
+        />
+      )}
+    </LSteps>
   );
 }

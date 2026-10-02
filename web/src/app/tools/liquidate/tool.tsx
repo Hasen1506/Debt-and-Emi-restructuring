@@ -3,16 +3,9 @@
 import Decimal from 'decimal.js';
 import { dec } from '@/lib/safe-decimal';
 import { useEffect, useMemo, useState } from 'react';
-import { Card } from '@/components/Card';
-import {
-  ApplyAction,
-  Field,
-  InfoTip,
-  Select,
-  Stat,
-  SubmitBar,
-  VerdictHeader,
-} from '@/components/ToolPrimitives';
+import { ApplyAction, Field, SubmitBar } from '@/components/ToolPrimitives';
+import { LBracket, LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
+import { LFieldGrid, LNote, LStep, LStepSub, LSteps, LVerdict } from '@/components/ledger/LToolSteps';
 import {
   api,
   formatCurrency,
@@ -27,9 +20,9 @@ import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { loanCurrency, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import { SAFE_RATES, formatAsOf } from '@/lib/invest-vs-prepay';
+import { loanLabel, loanName } from '@/lib/loan-types';
 import { DecisionLogControls } from '@/components/DecisionLogControls';
 import { PortfolioRanker } from './PortfolioRanker';
-import { fitColumns } from '@/lib/grid';
 
 // Per country: India's defaults describe Indian deposits and CPI; a US
 // seller's leftover cash sits in a savings account, at US inflation.
@@ -121,18 +114,17 @@ export function LiquidateTool() {
   // Set when the picked loan is in another currency: its balance and EMI
   // were converted into the asset's currency at the profile's saved rate.
   const [convertedFrom, setConvertedFrom] = useState<string | null>(null);
-  const [taxableIncome, setTaxableIncome] = useState(() => {
-    if (!profile.isLive) return '';
-    const u = profile.user;
-    return u.annual_gross_salary || u.annual_business_income || u.annual_income || '';
-  });
+  const incomeOnFile = profile.isLive
+    ? String(Math.round(Number(profile.user.annual_gross_salary || profile.user.annual_business_income || profile.user.annual_income || 0)) || '')
+    : '';
+  const [taxableIncome, setTaxableIncome] = useState(incomeOnFile);
 
   // ─── Advanced (asset-return, hold horizon, leftover yield, inflation) ─
   const [assetReturn, setAssetReturn] = useState('0.06');
   const [holdYears, setHoldYears] = useState('5');
   const [leftoverYield, setLeftoverYield] = useState<string>(DEFAULT_LEFTOVER_YIELD[country]);
   const [inflation, setInflation] = useState<string>(DEFAULT_INFLATION[country]);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [more, setMore] = useState(false);
 
   const [resultValue, setV] = useState<AssetLiquidationResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -158,6 +150,12 @@ export function LiquidateTool() {
   function pickTargetLoan(idx: string) {
     setTargetIdx(idx);
     setConvertedFrom(null);
+    if (idx === '') {
+      setDebtBalance('');
+      setDebtPayment('');
+      setDebtRate('');
+      return;
+    }
     const i = Number(idx);
     if (!Number.isNaN(i) && profile.user.loans[i]) {
       const loan = profile.user.loans[i];
@@ -227,9 +225,9 @@ export function LiquidateTool() {
           ]),
       ['debtBalance', debtBalance, 'Enter the debt this would clear.'],
       ['debtRate', debtRate, 'Enter that loan’s interest rate.'],
-      ['taxableIncome', taxableIncome, 'Enter your annual taxable income (it sets the tax on the sale).'],
+      ['taxableIncome', taxableIncome, 'Enter your taxable income for the year: it sets the tax on the sale.'],
       ...(isUS
-        ? [['mainHome', mainHome, 'Say whether this is your main home: it decides the tax on the sale.'] as [string, string, string]]
+        ? [['mainHome', mainHome, 'Say whether this is your main home: it sets the tax on the sale.'] as [string, string, string]]
         : []),
     ];
     const missing = required.find(([, value]) => value.trim() === '');
@@ -238,7 +236,7 @@ export function LiquidateTool() {
       return;
     }
     if (saleMode === 'partial' && (![qty,totalQty,unitPrice].every(v => Number.isFinite(Number(v)) && Number(v)>0) || Number(qty)>Number(totalQty))) {
-      failField('qty','Sell a positive quantity no greater than what you own, at a positive unit price.'); return;
+      failField('qty','Sell more than 0 and no more than you own, at a price above 0.'); return;
     }
     setV(null);
     setBusy(true);
@@ -248,7 +246,7 @@ export function LiquidateTool() {
       const requestProfileKey = JSON.stringify(loadProfileClient().user) + (document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '');
       const isoDate = normalizePurchaseDate(purchaseDate);
       if (!isoDate) {
-        throw new Error('Enter purchase as a year (2018), year-month (2018-06), or full date (2018-06-15).');
+        throw new Error('Enter when you bought it as a year (2018), a month (2018-06) or a date (2018-06-15).');
       }
       const payload = {
         asset: {
@@ -333,8 +331,22 @@ export function LiquidateTool() {
     }
   }
 
+  const loanChips = profile.user.loans
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => Number(l.outstanding) > 0)
+    .sort((x, y) => Number(y.l.nominal_rate) - Number(x.l.nominal_rate));
+  const target = targetIdx !== '' ? profile.user.loans[Number(targetIdx)] : undefined;
+  const pctText = (f: string) => `${(Number(f) * 100).toFixed(2)}%`;
+  const gate = (ok: boolean) => (
+    <span aria-hidden style={{ color: ok ? L_T.positive : L_T.negative, fontWeight: 700, marginRight: 8 }}>
+      {ok ? '✓' : '✗'}
+    </span>
+  );
+  const sellingCosts = v ? Number(effectiveSalePrice) - Number(v.ltcg_tax) - Number(v.net_proceeds) : 0;
+  const proceedsInLoan = v && target ? new Decimal(v.net_proceeds).div(loanFx(target) ?? 1).toFixed(2) : null;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <LSteps>
       {hasAssets ? (
         <PortfolioRanker
           user={profile.user}
@@ -343,618 +355,355 @@ export function LiquidateTool() {
           onDrillIn={drillIn}
         />
       ) : (
-        <Card>
-          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
-            <strong>Add your assets</strong> at{' '}
-            <a href="/profile/assets" style={{ color: 'var(--accent)' }}>
-              /profile/assets
-            </a>{' '}
-            to see every asset ranked against every debt — net of tax, lockups,
-            and selling costs. Skip if you'd rather just compute a single
-            scenario below.
-          </p>
-        </Card>
+        <LNote style={{ margin: 0 }}>
+          <a href="/profile/assets" style={{ color: L_T.accent }}>Add your assets</a> to rank each one against each loan, after
+          tax and costs. Or work out one sale below.
+        </LNote>
       )}
 
-      <section id="sandbox-section">
-        <h2 className="h2" style={{ marginBottom: 4 }}>
-          {hasAssets ? 'Sandbox — model a specific scenario' : 'Run a single scenario'}
-        </h2>
-        <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-          Real-estate flavoured; fine-grained controls for one (asset, debt)
-          pairing.
-        </p>
-      </section>
-
-      <Card>
-        <form
-          onSubmit={check}
-          style={{ display: 'grid', gap: 12, gridTemplateColumns: fitColumns(2, 200) }}
-        >
-          {/* Asset block */}
-          <Field
-            label="Purchase price"
-            value={purchasePrice}
-            error={at('purchasePrice')}
-            placeholder={country === 'IN' ? 'e.g. 4500000' : 'e.g. 350000'}
-            onChange={setPurchasePrice}
-            info={
-              <>
-                What you originally paid for the whole asset. If you&apos;re
-                modelling a partial sale below, we&apos;ll pro-rate this by
-                quantity automatically.
-              </>
-            }
-          />
-          <Field
-            label="Purchase year or date"
-            value={purchaseDate}
-            error={at('purchaseDate')}
-            onChange={setPurchaseDate}
-            kind="text"
-            placeholder="e.g. 2018 or 2018-06-15"
-            hint={
-              isUS
-                ? 'Year is fine; we use Oct 1 when only the year is given.'
-                : 'Year is fine; we default to Oct 1 (mid-FY) when only year is given.'
-            }
-            info={
-              isUS ? (
-                <>
-                  Held more than a year, the gain is taxed at the long-term
-                  capital-gains rate (0, 15 or 20% federal, plus 3.8% NIIT on
-                  high incomes); a year or less, at your income-tax rate.
-                </>
-              ) : (
-                <>
-                  Purchase date drives Finance Act 2024 indexation eligibility.
-                  Anything before 23 Jul 2024 can use indexed cost (CII); newer
-                  purchases pay flat 12.5% on the gain.
-                </>
-              )
-            }
-          />
-          {isUS && (
-            <Select
-              label="Is this your main home?"
-              value={mainHome}
-              error={at('mainHome')}
-              onChange={(v) => setMainHome(v as '' | 'yes' | 'no')}
-              options={[
-                { value: '', label: '— choose' },
-                { value: 'yes', label: 'Yes: I owned it and lived in it 2 of the last 5 years' },
-                { value: 'no', label: 'No: a rental, second home or land' },
-              ]}
-              info={
-                <>
-                  Selling a main home you owned and lived in for 2 of the last 5
-                  years lets you exclude up to $250,000 of gain ($500,000 filing
-                  jointly) from tax, if you haven&apos;t used the exclusion in
-                  the past 2 years. IRS Publication 523 has the full tests.
-                </>
-              }
-            />
-          )}
-          <Select
-            label="Sale mode"
-            value={saleMode}
-            onChange={(v) => setSaleMode(v as SaleMode)}
-            options={[
-              { value: 'whole', label: 'Sell the whole asset' },
-              { value: 'partial', label: 'Sell only a portion (qty × price)' },
-            ]}
-            info={
-              <>
-                <strong>Whole</strong>: a single sale price.{' '}
-                <strong>Partial</strong>: useful for land (X sq.ft of Y sq.ft
-                owned) or equity (X shares of Y owned). The tool will then
-                also tell you if a smaller sale clears your debt.
-              </>
-            }
-          />
-          {saleMode === 'whole' ? (
+      <LStep no="01" id="sandbox-section" title="What you'd sell">
+        <form onSubmit={check} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <LFieldGrid min={200}>
             <Field
-              label="Expected sale price (whole asset)"
-              value={salePrice}
-              error={at('salePrice')}
-              onChange={setSalePrice}
-              info={<>What you realistically expect to net before tax + selling costs.</>}
+              label="What you paid"
+              kind="money"
+              currency={userCcy}
+              value={purchasePrice}
+              onChange={setPurchasePrice}
+              error={at('purchasePrice')}
+              hint={saleMode === 'partial' ? 'For all of it; split by how much you sell' : undefined}
             />
-          ) : (
-            <>
-              <Field
-                label="Unit name"
-                value={unitLabel}
-                onChange={setUnitLabel}
-                kind="text"
-                placeholder="sq.ft, acres, shares, units…"
-              />
-              <Field
-                label={`Total owned (${unitLabel})`}
-                value={totalQty}
-                error={at('totalQty')}
-                onChange={setTotalQty}
-                info={<>Total quantity you own. Used to pro-rate the purchase price.</>}
-              />
-              <Field
-                label={`Quantity to sell (${unitLabel})`}
-                value={qty}
-                error={at('qty')}
-                onChange={setQty}
-              />
-              <Field
-                label={`Price per ${unitLabel}`}
-                value={unitPrice}
-                error={at('unitPrice') ?? at('salePrice')}
-                onChange={setUnitPrice}
-              />
-              <div
-                className="muted"
-                style={{ gridColumn: '1 / -1', fontSize: 12, padding: '4px 0' }}
-              >
-                Derived sale price:{' '}
-                <span className="num" style={{ color: 'var(--ink)' }}>
-                  {fmt(effectiveSalePrice)}
-                </span>{' '}
-                · pro-rated cost basis:{' '}
-                <span className="num" style={{ color: 'var(--ink)' }}>
-                  {fmt(effectivePurchasePrice)}
-                </span>
-              </div>
-            </>
-          )}
-
-          {/* Debt block */}
-          {profile.user.loans.length > 0 && (
-            <Select
-              label="Which debt would this clear?"
-              value={targetIdx}
-              onChange={pickTargetLoan}
-              options={[
-                { value: '', label: '— hypothetical / not in my profile' },
-                ...profile.user.loans
-                  .map((l, i) => ({
-                    value: String(i),
-                    label: `${l.bank} · ${l.loan_type.replace('_', ' ')} · ${formatPct(l.nominal_rate)} · ${formatCurrency(l.outstanding, loanCurrency(l, country))}`,
-                    rate: Number(l.nominal_rate),
-                  }))
-                  .sort((a, b) => b.rate - a.rate)
-                  .map(({ value, label }) => ({ value, label })),
-              ]}
-              info={
-                <>
-                  Defaults to your highest-rate loan — that&apos;s where a
-                  payoff saves the most interest. Picking the loan also wires
-                  the &ldquo;Apply&rdquo; button at the bottom.
-                </>
+            <Field
+              label="When you bought it"
+              kind="text"
+              value={purchaseDate}
+              onChange={setPurchaseDate}
+              error={at('purchaseDate')}
+              placeholder="2018 or 2018-06"
+              hint={
+                isUS
+                  ? 'A year is enough. Held over a year: a long-term gain'
+                  : 'A year is enough. Before 23 Jul 2024, indexed cost can apply'
               }
             />
-          )}
-          <Field
-            label="Debt balance to clear"
-            value={debtBalance}
-            error={at('debtBalance')}
-            onChange={(x) => {
-              setDebtBalance(x);
-              setConvertedFrom(null);
-            }}
-            hint={convertedFrom ?? undefined}
-          />
-          <Field
-            label="Monthly payment on it (optional)"
-            value={debtPayment}
-            error={at('debtPayment')}
-            onChange={setDebtPayment}
-            hint="Your EMI. Blank: nothing is paid and the debt grows (a stress case)."
-            info={
-              <>
-                With the payment, both paths spend it every month: keeping the
-                asset pays the loan down on schedule, then invests the payment
-                once it&apos;s cleared; selling invests it from the first month.
-              </>
-            }
-          />
-          <Field
-            label="Loan rate (%)"
-            kind="percent"
-            value={debtRate}
-            error={at('debtRate')}
-            onChange={setDebtRate}
-            hint="e.g. 36 for a card, 8.5 for a home loan"
-            info={
-              <>
-                The <strong>effective</strong> interest rate you&apos;re paying
-                on this debt — after any tax benefits.{' '}
-                {isUS
-                  ? 'For a mortgage whose interest you deduct, the effective rate is lower than the quoted one.'
-                  : 'For a home loan with Sec 80EEA, the effective rate may be 2–3pp lower than the quoted rate.'}{' '}
-                For credit cards, effective ≈ quoted.
-              </>
-            }
-          />
-          <Field
-            label="Your annual taxable income"
-            value={taxableIncome}
-            error={at('taxableIncome')}
-            onChange={setTaxableIncome}
-            hint={isUS ? 'Sets your capital-gains bracket' : 'Drives the LTCG surcharge band'}
-            info={
-              isUS ? (
-                <>
-                  Your federal capital-gains rate (0, 15 or 20%) and the 3.8%
-                  NIIT depend on your taxable income and filing status. State
-                  tax uses the state rate saved in Setup.
-                </>
-              ) : (
-                <>
-                  Surcharge on long-term capital gains depends on which income
-                  slab you fall in. Capped at 25% under the Finance Act 2024.
-                </>
-              )
-            }
-          />
+          </LFieldGrid>
 
-          {/* Advanced toggle */}
-          <div style={{ gridColumn: '1 / -1', marginTop: 4 }}>
-            <button
-              type="button"
-              onClick={() => setShowAdvanced((v) => !v)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--accent)',
-                cursor: 'pointer',
-                fontSize: 12,
-                textDecoration: 'underline',
-                padding: 0,
-              }}
-            >
-              {showAdvanced ? 'Hide' : 'Show'} advanced settings (return, horizon, leftover-cash yield, inflation)
-            </button>
-          </div>
-          {showAdvanced && (
-            <>
-              <Field
-                label="Asset's expected return (%, a year)"
-                kind="percent"
-                value={assetReturn}
-                error={at('assetReturn')}
-                onChange={setAssetReturn}
-                hint="e.g. 6 — what you think this asset will appreciate"
-                info={
-                  <>
-                    Nominal annual return you expect from the asset if you{' '}
-                    <em>don&apos;t</em> sell.{' '}
-                    {isUS
-                      ? 'Use what homes near yours have done; the verdict can flip on it.'
-                      : 'Real estate is ~5–7% nominal in India over long horizons; equity ~10–12%.'}{' '}
-                    Subtract inflation below to see real return.
-                  </>
-                }
-              />
-              <Field
-                label="Years you'd hold if you don't sell"
-                value={holdYears}
-                error={at('holdYears')}
-                onChange={setHoldYears}
-                info={
-                  <>
-                    Horizon for the hold-vs-sell wealth comparison. Default 5
-                    years — long enough that one-time selling costs
-                    don&apos;t dominate.
-                  </>
-                }
-              />
-              <Field
-                label="What would the leftover cash earn?"
-                value={leftoverYield}
-                error={at('leftoverYield')}
-                onChange={setLeftoverYield}
-                hint={
-                  isUS
-                    ? `Default ${formatPct(SAFE_RATES.hysa_us.rate, 1)}: ${SAFE_RATES.hysa_us.source}, ${formatAsOf(SAFE_RATES.hysa_us.asOf)}`
-                    : 'Default 6.8% — liquid fund / 12-mo FD (IN)'
-                }
-                info={
-                  <>
-                    If you sell and clear the debt, what&apos;s left over goes
-                    here — typically a liquid fund or short-term deposit.
-                    Drives the &ldquo;wealth if you sell&rdquo; figure below.
-                  </>
-                }
-              />
-              <Field
-                label="Inflation (%)"
-                kind="percent"
-                value={inflation}
-                error={at('inflation')}
-                onChange={setInflation}
-                hint={
-                  isUS
-                    ? 'Default 2.5%, a little above the Fed’s 2% target'
-                    : 'Default 4.6% — RBI\'s headline CPI target band'
-                }
-                info={
-                  <>
-                    Subtracted from nominal return to give the asset&apos;s
-                    real return. Higher inflation makes holding a low-yield
-                    asset look worse.
-                  </>
-                }
-              />
-            </>
+          {isUS && (
+            <div>
+              <LChipRow label="Is it your main home?">
+                <LChip on={mainHome === 'yes'} onClick={() => setMainHome('yes')}>
+                  Yes, lived in 2 of the last 5 years
+                </LChip>
+                <LChip on={mainHome === 'no'} onClick={() => setMainHome('no')}>
+                  No: rental, second home or land
+                </LChip>
+              </LChipRow>
+              {at('mainHome') && (
+                <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: L_T.negative }}>
+                  {at('mainHome')}
+                </p>
+              )}
+              <LNote style={{ margin: '6px 0 0' }}>A main home can leave up to $250,000 of gain untaxed ($500,000 filing jointly).</LNote>
+            </div>
           )}
+
+          <LChipRow label="How much of it?">
+            <LChip on={saleMode === 'whole'} onClick={() => setSaleMode('whole')}>
+              All of it
+            </LChip>
+            <LChip on={saleMode === 'partial'} onClick={() => setSaleMode('partial')}>
+              Part of it
+            </LChip>
+          </LChipRow>
+          {saleMode === 'whole' ? (
+            <div style={{ maxWidth: 360 }}>
+              <Field
+                label="What it would sell for"
+                kind="money"
+                currency={userCcy}
+                value={salePrice}
+                onChange={setSalePrice}
+                error={at('salePrice')}
+                hint="Before tax and selling costs"
+              />
+            </div>
+          ) : (
+            <div>
+              <LFieldGrid min={170}>
+                <Field label="Counted in" kind="text" value={unitLabel} onChange={setUnitLabel} placeholder="sq.ft, acres, shares" />
+                <Field label={`You own (${unitLabel})`} value={totalQty} onChange={setTotalQty} error={at('totalQty')} />
+                <Field label={`You'd sell (${unitLabel})`} value={qty} onChange={setQty} error={at('qty')} />
+                <Field
+                  label={`Price per ${unitLabel}`}
+                  kind="money"
+                  currency={userCcy}
+                  value={unitPrice}
+                  onChange={setUnitPrice}
+                  error={at('unitPrice') ?? at('salePrice')}
+                />
+              </LFieldGrid>
+              <LNote style={{ margin: '8px 0 0' }}>
+                Sells for {fmt(effectiveSalePrice)}; its share of what you paid is {fmt(effectivePurchasePrice)}.
+              </LNote>
+            </div>
+          )}
+
+          <div>
+            <LStepSub>The loan it would clear</LStepSub>
+            {loanChips.length > 0 && (
+              <div style={{ margin: '10px 0 12px' }}>
+                <LChipRow label="Which loan? Dearest first">
+                  {loanChips.map(({ l, i }) => (
+                    <LChip key={i} on={targetIdx === String(i)} onClick={() => pickTargetLoan(String(i))}>
+                      {loanLabel(l)} · {pctText(l.nominal_rate)}
+                    </LChip>
+                  ))}
+                  <LChip on={targetIdx === ''} onClick={() => pickTargetLoan('')}>
+                    One not saved yet
+                  </LChip>
+                </LChipRow>
+              </div>
+            )}
+            <LFieldGrid min={200}>
+              <Field
+                label="Still owed"
+                kind="money"
+                currency={userCcy}
+                value={debtBalance}
+                onChange={(x) => {
+                  setDebtBalance(x);
+                  setConvertedFrom(null);
+                }}
+                error={at('debtBalance')}
+                hint={convertedFrom ?? undefined}
+              />
+              <Field
+                label="Its rate (%)"
+                kind="percent"
+                value={debtRate}
+                onChange={setDebtRate}
+                error={at('debtRate')}
+                hint="After any tax break on it"
+              />
+              <Field
+                label="Monthly payment (optional)"
+                kind="money"
+                currency={userCcy}
+                value={debtPayment}
+                onChange={setDebtPayment}
+                error={at('debtPayment')}
+                hint="Blank: the loan grows unpaid, a stress case"
+              />
+              <Field
+                label="Your taxable income, a year"
+                kind="money"
+                currency={userCcy}
+                value={taxableIncome}
+                onChange={setTaxableIncome}
+                error={at('taxableIncome')}
+                hint={incomeOnFile !== '' && taxableIncome === incomeOnFile ? 'From your profile. Sets the tax on the gain.' : 'Sets the tax on the gain'}
+              />
+            </LFieldGrid>
+          </div>
+
+          <div>
+            <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
+            {!more && (
+              <span style={{ fontSize: 11, color: L_T.muted, marginLeft: 8 }}>
+                Grows {formatPct(assetReturn, 1)} a year · {holdYears} years · spare cash earns {formatPct(leftoverYield, 1)}
+              </span>
+            )}
+            {more && (
+              <div style={{ marginTop: 10 }}>
+                <LFieldGrid min={200}>
+                  <Field
+                    label="It grows a year if you keep it (%)"
+                    kind="percent"
+                    value={assetReturn}
+                    onChange={setAssetReturn}
+                    error={at('assetReturn')}
+                    hint={isUS ? 'What homes near yours have done' : 'Property in India: about 5–7%'}
+                  />
+                  <Field label="Years you'd keep it" value={holdYears} onChange={setHoldYears} error={at('holdYears')} />
+                  <Field
+                    label="Spare cash earns (%)"
+                    kind="percent"
+                    value={leftoverYield}
+                    onChange={setLeftoverYield}
+                    error={at('leftoverYield')}
+                    hint={
+                      isUS
+                        ? `${SAFE_RATES.hysa_us.source}, ${formatAsOf(SAFE_RATES.hysa_us.asOf)}`
+                        : 'A liquid fund or 1-year FD'
+                    }
+                  />
+                  <Field
+                    label="Prices rise a year (%)"
+                    kind="percent"
+                    value={inflation}
+                    onChange={setInflation}
+                    error={at('inflation')}
+                    hint={isUS ? 'A little above the Fed’s 2% target' : 'Near the RBI’s 4% target'}
+                  />
+                </LFieldGrid>
+              </div>
+            )}
+          </div>
+
           <SubmitBar busy={busy} error={err} label="Should I sell?" />
         </form>
-      </Card>
+      </LStep>
 
       {v && (
-        <Card>
-          <VerdictHeader
-            label={v.recommend_liquidation ? 'Sell the asset' : 'Hold the asset'}
-            color={v.recommend_liquidation ? 'var(--positive)' : 'var(--muted)'}
-            detail={v.rationale}
-          />
-          <p className="muted" style={{ margin: '0 0 12px', fontSize: 12 }}>
-            Assumes the asset grows {formatPct(assetReturn, 1)} a year over {holdYears} years
-            if you keep it, and leftover cash earns {formatPct(leftoverYield, 1)}. Change these under
-            Advanced; the verdict can flip.
-          </p>
-
-          {!!v.tax_notes?.length && (
-            <ul className="muted" style={{ margin: '0 0 12px', paddingLeft: 18, fontSize: 12, lineHeight: 1.55 }}>
-              {v.tax_notes.map((n) => (
-                <li key={n}>{n}</li>
-              ))}
-            </ul>
-          )}
-
-          {partialSaleHint && (
-            <div
-              style={{
-                padding: 12,
-                marginBottom: 12,
-                background: 'var(--soft-bg)',
-                border: '1px dashed var(--accent)',
-                borderRadius: 6,
-                fontSize: 13,
-                lineHeight: 1.55,
-              }}
-            >
-              You&apos;d be left with{' '}
-              <strong className="num" style={{ color: 'var(--positive)' }}>
-                {fmt(partialSaleHint.surplus)}
-              </strong>{' '}
-              of cash after clearing this debt. If you can split the asset,
-              selling roughly{' '}
-              <strong>{(Number(partialSaleHint.fractionNeeded) * 100).toFixed(0)}%</strong>{' '}
-              of it would clear the debt and leave the rest compounding.
-              Switch to &ldquo;partial sale&rdquo; mode above to model that.
-            </div>
-          )}
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: fitColumns(2, 200),
-              gap: 12,
-              marginBottom: 12,
-            }}
-          >
-            <Stat
-              label="Net proceeds (after tax + selling costs)"
-              value={fmt(v.net_proceeds)}
+        <>
+          <LStep no="02" id="liq-out" title="The answer" answer>
+            <LVerdict tone={v.recommend_liquidation ? 'pos' : null}>
+              {v.recommend_liquidation ? 'Sell it and clear the loan.' : 'Keep it.'}
+            </LVerdict>
+            <LNote>{v.rationale}</LNote>
+            <LKpi
+              items={[
+                { l: 'YOU GET', v: fmt(v.net_proceeds), s: 'after tax and selling costs' },
+                { l: 'TAX', v: fmt(v.ltcg_tax), s: isUS ? 'federal and state' : 'on the gain', tone: Number(v.ltcg_tax) > 0 ? L_T.negative : undefined },
+                {
+                  l: 'NET GAIN',
+                  v: fmt(v.net_benefit),
+                  s: 'after the loan and its interest while selling',
+                  tone: Number(v.net_benefit) > 0 ? L_T.positive : L_T.negative,
+                },
+                { l: 'IT REALLY EARNS', v: formatPct(v.asset_real_return_net, 2), s: 'a year, after prices and costs' },
+              ]}
             />
-            <Stat
-              label={isUS ? 'Capital-gains tax (federal + state)' : 'LTCG tax'}
-              value={fmt(v.ltcg_tax)}
-              color="var(--negative)"
-            />
-            <Stat
-              label="Net benefit after debt + interest during sale"
-              value={fmt(v.net_benefit)}
-              color={Number(v.net_benefit) > 0 ? 'var(--positive)' : 'var(--negative)'}
-            />
-            <Stat
-              label={
-                <>
-                  Asset&apos;s real return{' '}
-                  <InfoTip>
-                    Nominal return − inflation − holding cost − one-time drag
-                    (selling cost + tax amortised over horizon). If this is
-                    below your loan rate, the asset is being out-earned by
-                    your debt.
-                  </InfoTip>
-                </>
-              }
-              value={formatPct(v.asset_real_return_net, 2)}
-            />
-          </div>
 
-          {v.gate_0_wealth_edge !== null && (
-            <div
-              style={{
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 12,
-                background: 'var(--canvas)',
-              }}
-            >
-              <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
-                Hold vs sell over {v.horizon_years ?? '5'}y (leftover parked at{' '}
-                {formatPct(leftoverYield, 1)})
+            {v.wealth_edge != null && (
+              <div style={{ marginTop: 18 }}>
+                <LStepSub right={`SPARE CASH AT ${formatPct(leftoverYield, 1).toUpperCase()}`}>{`In ${v.horizon_years ?? holdYears} years`}</LStepSub>
+                <div style={{ marginTop: 10 }}>
+                  <LKpi
+                    items={[
+                      {
+                        l: 'KEEP IT',
+                        v: fmt(v.wealth_hold ?? '0'),
+                        s: v.wealth_basis === 'amortising' ? 'and pay the loan down' : 'loan left unpaid',
+                      },
+                      { l: 'SELL IT', v: fmt(v.wealth_sell ?? '0'), s: 'clear the loan, invest the rest' },
+                      {
+                        l: Number(v.wealth_edge) >= 0 ? 'SELLING AHEAD BY' : 'KEEPING AHEAD BY',
+                        v: fmt(String(Math.abs(Number(v.wealth_edge)))),
+                        s: v.wealth_edge_needed != null ? `selling needs ${fmt(v.wealth_edge_needed)}` : undefined,
+                        tone: Number(v.wealth_edge) > 0 ? L_T.positive : L_T.negative,
+                      },
+                    ]}
+                  />
+                </div>
+                <LNote style={{ margin: '10px 0 0' }}>
+                  {v.wealth_basis === 'amortising'
+                    ? `Both ways pay ${fmt(debtPayment)} a month: to the loan until it's gone, then into savings.`
+                    : 'With no monthly payment, keeping it lets the loan grow unpaid. Enter the payment for the usual case.'}
+                </LNote>
               </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: fitColumns(3, 140),
-                  gap: 12,
-                }}
-              >
-                <Stat
-                  label={
-                    v.wealth_basis === 'amortising'
-                      ? 'Keep asset, pay the loan down'
-                      : 'Keep asset, debt unpaid (stress case)'
-                  }
-                  value={fmt(v.wealth_hold ?? '0')}
-                />
-                <Stat
-                  label="Sell, clear debt, invest surplus"
-                  value={fmt(v.wealth_sell ?? '0')}
-                  color={
-                    Number(v.wealth_edge) > 0
-                      ? 'var(--positive)'
-                      : 'var(--negative)'
-                  }
-                />
-                <Stat
-                  label="Edge of selling"
-                  value={`${Number(v.wealth_edge) >= 0 ? '+' : ''}${fmt(v.wealth_edge ?? '0')}`}
-                  color={
-                    Number(v.wealth_edge) > 0
-                      ? 'var(--positive)'
-                      : 'var(--negative)'
-                  }
-                />
-              </div>
-              <div className="muted" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.55 }}>
-                Surplus after clearing debt:{' '}
-                <span className="num" style={{ color: 'var(--ink)' }}>
-                  {fmt(v.surplus ?? '0')}
-                </span>
-                {v.wealth_edge_needed != null && (
-                  <>
-                    {' '}· selling should gain at least{' '}
-                    <span className="num" style={{ color: 'var(--ink)' }}>
-                      {fmt(v.wealth_edge_needed)}
-                    </span>{' '}
-                    (10% of the asset)
-                  </>
-                )}
-                <br />
-                {v.wealth_basis === 'amortising'
-                  ? `Both paths pay ${fmt(debtPayment)} a month: to the loan until it's cleared, then into savings at ${formatPct(leftoverYield, 1)}.`
-                  : 'No monthly payment given, so keeping the asset assumes the debt goes unpaid and grows at its rate. Enter the EMI above for the usual case.'}
-              </div>
-            </div>
-          )}
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: v.gate_0_wealth_edge !== null
-                ? 'repeat(4, 1fr)'
-                : 'repeat(3, 1fr)',
-              gap: 12,
-            }}
-          >
-            {v.gate_0_wealth_edge !== null && (
-              <Stat
-                label={
-                  <>
-                    Sell beats hold{' '}
-                    <InfoTip>
-                      Selling must leave you ≥ 10% wealthier than holding,
-                      over the horizon above. Filters out cases where the
-                      math &ldquo;works&rdquo; but the leftover cash earns
-                      less than the asset would have.
-                    </InfoTip>
-                  </>
-                }
-                value={v.gate_0_wealth_edge ? 'Pass' : 'Fail'}
-                color={v.gate_0_wealth_edge ? 'var(--positive)' : 'var(--negative)'}
-              />
             )}
-            <Stat
-              label={
-                <>
-                  Benefit ≥ 10%{' '}
-                  <InfoTip>
-                    After-tax net benefit must be at least 10% of asset value
-                    — small wins aren&apos;t worth the friction.
-                  </InfoTip>
-                </>
-              }
-              value={v.gate_1_net_benefit ? 'Pass' : 'Fail'}
-              color={v.gate_1_net_benefit ? 'var(--positive)' : 'var(--negative)'}
-            />
-            <Stat
-              label={
-                <>
-                  High-rate debt{' '}
-                  <InfoTip>
-                    Loan rate must exceed 20%. Selling an appreciating asset
-                    to clear a 9% home loan is usually a bad trade.
-                  </InfoTip>
-                </>
-              }
-              value={v.gate_2_high_rate ? 'Pass' : 'Fail'}
-              color={v.gate_2_high_rate ? 'var(--positive)' : 'var(--negative)'}
-            />
-            <Stat
-              label={
-                <>
-                  Debt &gt; asset return{' '}
-                  <InfoTip>
-                    Loan rate must beat the asset&apos;s real return by 3pp.
-                    Otherwise the asset is still out-earning the debt.
-                  </InfoTip>
-                </>
-              }
-              value={v.gate_3_spread ? 'Pass' : 'Fail'}
-              color={v.gate_3_spread ? 'var(--positive)' : 'var(--negative)'}
-            />
-          </div>
 
-          <DecisionLogControls
-            kind="liquidation"
-            context={
-              v.recommend_liquidation
-                ? 'Sell asset — recommended'
-                : 'Sell asset — hold instead'
-            }
-            estimatedAmount={v.net_proceeds}
-            reasoning={v.rationale}
-            source="tools/liquidate"
-            ccySym={userCcy === 'INR' ? '₹' : '$'}
-          />
-          {v.recommend_liquidation &&
-            targetIdx !== '' &&
-            profile.isLive &&
-            profile.user.loans[Number(targetIdx)] && (
+            {partialSaleHint && (
+              <LNote style={{ margin: '14px 0 0', color: L_T.ink }}>
+                You&apos;d have {fmt(partialSaleHint.surplus)} left after clearing the loan. If it can be split, selling about{' '}
+                {(Number(partialSaleHint.fractionNeeded) * 100).toFixed(0)}% clears the loan and keeps the rest: pick PART OF IT above.
+              </LNote>
+            )}
+
+            <div style={{ marginTop: 18 }}>
+              <LStepSub right="ALL MUST PASS">The tests</LStepSub>
+              <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, fontSize: 13, lineHeight: 1.8 }}>
+                {v.gate_0_wealth_edge !== null && (
+                  <li>
+                    {gate(v.gate_0_wealth_edge)}Selling leaves you better off by 10% of its value
+                  </li>
+                )}
+                <li>
+                  {gate(v.gate_1_net_benefit)}The gain is at least 10% of its value
+                </li>
+                <li>
+                  {gate(v.gate_2_high_rate)}The loan costs over 20% a year
+                </li>
+                <li>
+                  {gate(v.gate_3_spread)}The loan costs 3 points more than the asset earns
+                </li>
+              </ul>
+            </div>
+
+            {!!v.tax_notes?.length && (
+              <ul style={{ margin: '14px 0 0', paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: L_T.muted }}>
+                {v.tax_notes.map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+            )}
+
+            <DecisionLogControls
+              kind="liquidation"
+              context={v.recommend_liquidation ? 'Sell asset — recommended' : 'Sell asset — hold instead'}
+              estimatedAmount={v.net_proceeds}
+              reasoning={v.rationale}
+              source="tools/liquidate"
+              ccySym={userCcy === 'INR' ? '₹' : '$'}
+            />
+            {v.recommend_liquidation && target && proceedsInLoan && profile.isLive && (
               <ApplyAction
                 applied={applied}
                 onApply={() => {
-                  if(applied || busy || checked !== fingerprint) return;
+                  if (applied || busy || checked !== fingerprint) return;
                   const currentKey = JSON.stringify(loadProfileClient().user) + (document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '');
-                  if(currentKey !== resultProfileKey) {setErr('Your balances changed. Run the sale check again before logging the payment.');return;}
+                  if (currentKey !== resultProfileKey) {
+                    setErr('Your balances changed. Check the sale again before logging the payment.');
+                    return;
+                  }
                   try {
-                  const target = profile.user.loans[Number(targetIdx)];
-                  const sched = target.scheduled_emi || '0';
-                  const proceeds = new Decimal(v.net_proceeds).div(loanFx(target) ?? 1);
-                  const outstandingD = new Decimal(target.outstanding);
-                  const fullyClears = proceeds.gte(outstandingD);
-                  applyToolResult({
-                    loanIndex: Number(targetIdx),
-                    kind: fullyClears ? 'closed' : 'paid_extra',
-                    amount: fullyClears
-                      ? proceeds.toFixed(2)
-                      : String(Number(sched) + proceeds.toNumber()),
-                    scheduledEmi: sched,
-                    note: `Asset sold — ${fmtLoan(proceeds.toFixed(2))} net proceeds applied to ${target.bank}`,
-                    loans: profile.user.loans,
-                    country: profile.user.country,
-                  });
-                  setApplied(true);
-                  } catch(e) {setErr((e as Error).message);}
+                    const sched = target.scheduled_emi || '0';
+                    const proceeds = new Decimal(proceedsInLoan);
+                    const fullyClears = proceeds.gte(new Decimal(target.outstanding));
+                    applyToolResult({
+                      loanIndex: Number(targetIdx),
+                      kind: fullyClears ? 'closed' : 'paid_extra',
+                      amount: fullyClears ? proceeds.toFixed(2) : String(Number(sched) + proceeds.toNumber()),
+                      scheduledEmi: sched,
+                      note: `Asset sold: ${fmtLoan(proceeds.toFixed(2))} paid to the ${loanName(target)}`,
+                      loans: profile.user.loans,
+                      country: profile.user.country,
+                    });
+                    setApplied(true);
+                  } catch (e) {
+                    setErr((e as Error).message);
+                  }
                 }}
-                label={`Apply this — log ${fmtLoan(new Decimal(v.net_proceeds).div(loanFx(profile.user.loans[Number(targetIdx)]) ?? 1).toFixed(2))} payoff to ${profile.user.loans[Number(targetIdx)].bank} & reprice /plan`}
+                label={`I sold it · log ${fmtLoan(proceedsInLoan)} paid to the ${loanName(target)}`}
               />
             )}
-        </Card>
+          </LStep>
+
+          <LMathBlock
+            rows={[
+              { k: 'it sells for', v: fmt(effectiveSalePrice) },
+              { k: 'you paid', v: fmt(effectivePurchasePrice) },
+              { k: 'tax', v: fmt(v.ltcg_tax), tone: Number(v.ltcg_tax) > 0 ? ('neg' as const) : undefined },
+              ...(sellingCosts >= 1 ? [{ k: 'selling costs', v: fmt(sellingCosts.toFixed(0)), note: 'brokerage and fees' }] : []),
+              { k: 'you get', v: fmt(v.net_proceeds), note: 'sale − tax − costs' },
+              { k: 'the loan', v: fmt(debtBalance), note: `${formatPct(debtRate, 2)} a year` },
+              ...(v.surplus != null ? [{ k: 'left over', v: fmt(v.surplus), note: 'after clearing the loan' }] : []),
+              { k: 'net gain', v: fmt(v.net_benefit), tone: Number(v.net_benefit) > 0 ? ('pos' as const) : ('neg' as const) },
+              { k: 'it really earns', v: formatPct(v.asset_real_return_net, 2), note: `${formatPct(assetReturn, 1)} less prices, upkeep and selling, a year` },
+              ...(v.wealth_edge != null
+                ? [
+                    {
+                      k: `keep vs sell, ${v.horizon_years ?? holdYears} years`,
+                      v: `${fmt(v.wealth_hold ?? '0')} vs ${fmt(v.wealth_sell ?? '0')}`,
+                      tone: Number(v.wealth_edge) > 0 ? ('pos' as const) : undefined,
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        </>
       )}
-    </div>
+    </LSteps>
   );
 }

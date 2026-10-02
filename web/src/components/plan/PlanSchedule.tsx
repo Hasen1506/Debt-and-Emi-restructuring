@@ -13,7 +13,7 @@ import { api, formatCurrencyWhole, type CentralRatesResponse, type LoanPayload }
 import { formatAsOf } from '@/lib/as-of';
 import { getCountryToday, localIsoDate, monthIndexToDate, MONTH_NAMES } from '@/lib/today';
 import { loanCurrency } from '@/lib/currency';
-import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { loanLabel } from '@/lib/loan-types';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import { loanClears } from './plan-milestones';
 import { ADD_LIFE_EVENT } from '@/components/lifecycle/LifecycleEventsPanel';
@@ -29,11 +29,7 @@ const LOAN_SHORT: Record<string, string> = {
 };
 
 /** "HDFC home loan" (not "HDFC Bank home loan"), or "Home loan" without a lender. */
-function loanName(l: LoanPayload): string {
-  const t = LOAN_TYPE_NAME[l.loan_type];
-  const bank = (l.bank ?? '').replace(/\s+bank$/i, '').trim();
-  return bank ? `${bank} ${t}` : t.charAt(0).toUpperCase() + t.slice(1);
-}
+const loanName = (l: LoanPayload): string => loanLabel(l);
 
 type ScheduleCsvRow = {
   mo: number;
