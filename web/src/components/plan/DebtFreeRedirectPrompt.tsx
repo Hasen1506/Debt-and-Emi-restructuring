@@ -125,6 +125,7 @@ export function DebtFreeRedirectPrompt({
           type="button"
           onClick={dismiss}
           aria-label="Dismiss"
+          className="l-hit"
           style={{
             background: 'transparent',
             border: 'none',
@@ -132,7 +133,7 @@ export function DebtFreeRedirectPrompt({
             fontSize: 18,
             cursor: 'pointer',
             lineHeight: 1,
-            padding: 0,
+            padding: '0 4px',
           }}
         >
           ×

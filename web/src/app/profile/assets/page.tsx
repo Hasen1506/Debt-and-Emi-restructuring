@@ -161,7 +161,8 @@ export default function OnboardingAssetsPage() {
               style={{
                 display: 'grid',
                 gap: 12,
-                gridTemplateColumns: '1fr 1fr',
+                // Two columns where they fit; one on a phone.
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))',
                 padding: 12,
                 border: '1px solid var(--border)',
                 borderRadius: 6,

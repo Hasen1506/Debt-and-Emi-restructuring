@@ -173,7 +173,12 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 
 ### R7 · Finish
 - [x] R7.1 All six walkthroughs again; before/after table under "After (R7.1)"
-- [ ] R7.2 Phone width (390px) pass on every page
+- [x] R7.2 Phone width (390px) pass on every page: all 19 routes with Priya, and the six main pages with the US, NRI, no-loans and over-budget profiles (43 page loads). None scroll sideways, none show NaN or console errors. Fixed:
+  - `/profile/assets` was 484 px wide: its two-column grid now drops to one column on a phone.
+  - Tap targets: Ledger's bracket links and buttons were 11–16 px tall. A `.l-hit` class (globals.css) reaches each to at least 26 px without moving anything, on `LBracket` and the bracket links built by hand. Sliders are 24 px tall. The "i" tips, setup's step numbers and the dismiss crosses are padded out. Rows of brackets (goal templates, the schedule's CSV/PRINT) sit 14 px apart, so neighbouring hit areas don't overlap.
+  - The five tabs fit one line on a phone (tighter tracking under 480 px, via `--nav-tracking`), which takes a row off the masthead.
+  - Home's settings line no longer repeats the payoff order shown in the masthead just above it.
+  - Left as is: the medallion's three pips are 14×10. The medallion beside them (40 px) opens the same three choices as full-width buttons, which meets WCAG 2.5.8 as an equivalent control.
 - [ ] R7.3 ROADMAP and AUDIT updated
 
 ## Decisions (defaults, unless the owner says otherwise)

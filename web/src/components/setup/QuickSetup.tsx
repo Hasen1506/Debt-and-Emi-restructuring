@@ -644,6 +644,7 @@ function StepStrip({ step, onGo }: { step: number; onGo: (n: number) => void }) 
                 onClick={() => onGo(i)}
                 aria-current={here ? 'step' : undefined}
                 aria-label={`Step ${i + 1}: ${name}${i < step ? ', done' : ''}`}
+                className="l-hit"
                 style={{
                   fontFamily: L_MONO,
                   fontSize: 11,
@@ -652,7 +653,7 @@ function StepStrip({ step, onGo }: { step: number; onGo: (n: number) => void }) 
                   borderWidth: '0 0 2px',
                   borderStyle: 'solid',
                   borderColor: here ? L_T.accent : 'transparent',
-                  padding: '0 0 1px',
+                  padding: '0 4px 1px',
                   cursor: 'pointer',
                   color: here ? L_T.ink : i < step ? L_T.positive : L_T.muted,
                   fontWeight: here ? 700 : 500,

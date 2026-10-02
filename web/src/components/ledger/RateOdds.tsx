@@ -64,6 +64,7 @@ function MeetingRow({ m, bank }: { m: Meeting; bank: string }) {
         ))}
         <a
           href={m.url}
+          className="l-hit"
           target="_blank"
           rel="noopener noreferrer"
           style={{ marginLeft: 'auto', fontFamily: L_MONO, fontSize: 10, letterSpacing: '0.14em', color: L_T.muted, whiteSpace: 'nowrap' }}

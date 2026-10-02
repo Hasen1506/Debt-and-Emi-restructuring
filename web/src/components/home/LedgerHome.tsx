@@ -20,7 +20,7 @@ import { deriveMetrics, type DerivedMetrics } from '@/lib/derived';
 import { projectionGaps } from '@/lib/loan-gaps';
 import { userDefaultCurrency } from '@/lib/currency';
 import { MONTH_NAMES, getCountryToday, monthIndexToCountryLabel } from '@/lib/today';
-import { STRATEGY_LABEL, type StrategyName } from '@/lib/strategy';
+import type { StrategyName } from '@/lib/strategy';
 import {
   LShell,
   LSectionHeader,
@@ -64,7 +64,7 @@ export function LedgerHome(props: HomeProps) {
   return <LedgerHomeFull {...props} />;
 }
 
-function LedgerHomeFull({ profile, strategy, debtFree, register, cheaper }: HomeProps) {
+function LedgerHomeFull({ profile, debtFree, register, cheaper }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrencyWhole(v, ccy);
@@ -86,7 +86,7 @@ function LedgerHomeFull({ profile, strategy, debtFree, register, cheaper }: Home
           gap: 22,
         }}
       >
-        <ContextLine profile={profile} strategy={strategy} />
+        <ContextLine profile={profile} />
         <CashFlow profile={profile} m={m} />
 
         <section aria-labelledby="home-status">
@@ -131,7 +131,7 @@ const FILING: Record<string, string> = { single: 'SINGLE', mfj: 'JOINTLY', hoh: 
 
 /** The settings the plan ran with, on one line. They're changed on Plan
  *  (the assumption chips) and in Profile, not here. */
-function ContextLine({ profile, strategy }: { profile: StoredProfile; strategy: StrategyName }) {
+function ContextLine({ profile }: { profile: StoredProfile }) {
   const u = profile.user;
   const gross = Number(u.income_type === 'salaried' ? u.annual_gross_salary : u.annual_business_income);
   const parts = [
@@ -141,7 +141,7 @@ function ContextLine({ profile, strategy }: { profile: StoredProfile; strategy: 
       : `FILING ${FILING[u.filing_status ?? 'single'] ?? 'SINGLE'}`,
     // Worked out from take-home until gross pay is entered in Profile.
     `TAX BRACKET ${Math.round(Number(profile.marginalRate || 0) * 100)}%${gross > 0 ? '' : ' (ESTIMATED)'}`,
-    `${STRATEGY_LABEL[strategy].toUpperCase()} ORDER`,
+    // The payoff order isn't repeated here: the masthead shows it and switches it.
   ];
   return (
     <section

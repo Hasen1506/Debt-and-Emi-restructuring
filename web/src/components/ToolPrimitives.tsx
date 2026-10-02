@@ -59,9 +59,10 @@ export function InfoTip({ children }: { children: ReactNode }) {
         }}
         aria-label="What does this mean?"
         aria-expanded={open}
+        className="l-hit"
         style={{
-          width: 16,
-          height: 16,
+          width: 18,
+          height: 18,
           borderRadius: '50%',
           border: '1px solid var(--border)',
           background: 'var(--card)',
@@ -790,8 +791,8 @@ export function AddLoanAction({
         }}
       >
         Added to your profile.{' '}
-        <a href="/plan" style={DONE_LINK}>[PLAN →]</a>{' '}
-        <a href="/profile?step=loans" style={DONE_LINK}>[EDIT IN PROFILE →]</a>
+        <a href="/plan" className="l-hit" style={DONE_LINK}>[PLAN →]</a>{' '}
+        <a href="/profile?step=loans" className="l-hit" style={DONE_LINK}>[EDIT IN PROFILE →]</a>
       </div>
     );
   }
@@ -836,8 +837,8 @@ export function ApplyAction({
         }}
       >
         Logged.{' '}
-        <a href="/activity" style={DONE_LINK}>[ACTIVITY →]</a>{' '}
-        <a href="/plan" style={DONE_LINK}>[PLAN →]</a>
+        <a href="/activity" className="l-hit" style={DONE_LINK}>[ACTIVITY →]</a>{' '}
+        <a href="/plan" className="l-hit" style={DONE_LINK}>[PLAN →]</a>
       </div>
     );
   }
