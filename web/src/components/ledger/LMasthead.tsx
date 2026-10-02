@@ -167,7 +167,7 @@ export function LMasthead({ country, strategy }: { country: Country; strategy?: 
             {label}
           </LBracket>
         ))}
-        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 10, alignItems: 'center' }}>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', flexWrap: 'wrap', maxWidth: '100%', gap: 10, alignItems: 'center', justifyContent: 'flex-end' }}>
           {strategy && <StrategyMedallion strategy={strategy} />}
           <LBracket>{localePin}</LBracket>
           <SessionIndicator />

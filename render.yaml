@@ -4,11 +4,10 @@
 # will prompt you to fill in CORS_ORIGINS and NEXT_PUBLIC_API_BASE_URL on first
 # deploy. You can grab those URLs from the service detail pages once they exist.
 #
-# Trial mode (no Postgres, no email): leave DATABASE_URL unset on the API and
-# set NEXT_PUBLIC_DISABLE_AUTH=true on the web. The engine routes work fully;
-# auth + cross-device sync are skipped. To enable auth later, add a Postgres
-# service (block below — uncomment), set DATABASE_URL via fromDatabase, set
-# RESEND_API_KEY, and unset NEXT_PUBLIC_DISABLE_AUTH.
+# Existing deployment: rightdue-db is provisioned separately. Set its internal
+# connection string and the sending-only Resend key in the API dashboard.
+# Authentication mode is a dashboard setting, preserved on Blueprint updates.
+# Enable it only after DATABASE_URL and RESEND_API_KEY are configured.
 
 services:
   # ─── FastAPI backend ────────────────────────────────────────────────
@@ -43,15 +42,14 @@ services:
       # keeps it back until reports can be verified (owner decision).
       - key: SCORECARD_MODE
         value: labelled
-      # Without DATABASE_URL, outcome reports go to a local SQLite file,
-      # which the free plan wipes on every deploy.
-      # Uncomment when you provision a Postgres add-on:
-      # - key: DATABASE_URL
-      #   fromDatabase:
-      #     name: finoptima-db
-      #     property: connectionString
-      # - key: RESEND_API_KEY
-      #   sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: COOKIE_SAMESITE
+        value: lax
 
   # ─── Next.js frontend ───────────────────────────────────────────────
   - type: web
@@ -72,11 +70,13 @@ services:
       - key: NEXT_PUBLIC_API_BASE_URL
         sync: false                # Fill in the dashboard: e.g. https://finoptima-api.onrender.com
       - key: NEXT_PUBLIC_DISABLE_AUTH
-        value: "true"              # Trial mode — bypasses /login until DB+email are wired up.
+        sync: false                # false for accounts, true only for an explicit local trial.
+      - key: WEB_ORIGIN
+        sync: false                # Exact frontend HTTPS origin for same-origin account writes.
 
 # Uncomment to provision a Render Postgres add-on alongside the API:
 # databases:
 #   - name: finoptima-db
-#     plan: free                   # 90-day trial then ~$7/mo; otherwise data is wiped.
+#     plan: free                   # Expires after 30 days; upgrade for permanent storage.
 #     databaseName: finoptima
 #     user: finoptima

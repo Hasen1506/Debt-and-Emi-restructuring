@@ -19,6 +19,7 @@
  */
 
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { writeProfileCookieClient, clearProfileClient, serializeProfileForServer, type StoredProfile } from './user-store';
 import { writeLifecycleClient, readLifecycleClient, type LifecycleEvent } from './lifecycle-events';
 
@@ -54,6 +55,8 @@ const SLICE_TARGETS: Record<string, SliceTarget> = {
 
 export const HYDRATED_EVENT = 'finoptima:hydrated';
 const ACCOUNT_KEY = 'finoptima_account_id';
+let accountGeneration = 0;
+let localRevision = 0;
 
 /** A different signed-in account must not inherit this browser's old profile. */
 export function prepareAccountCache(userId: string): void {
@@ -63,6 +66,8 @@ export function prepareAccountCache(userId: string): void {
 }
 
 export function clearAccountCache(): void {
+  accountGeneration++;
+  localRevision++;
   clearProfileClient();
   for (const target of Object.values(SLICE_TARGETS)) {
     if (target.kind === 'localStorage') localStorage.removeItem(target.name);
@@ -100,8 +105,13 @@ let syncQueue: Promise<void> = Promise.resolve();
 export function syncSliceToServer(slice: string, value: unknown): Promise<void> {
   if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') return Promise.resolve();
   const captured = JSON.parse(JSON.stringify(value));
+  const generation = accountGeneration;
+  const account = typeof localStorage === 'undefined' ? null : localStorage.getItem(ACCOUNT_KEY);
+  localRevision++;
   syncQueue = syncQueue.catch(() => {}).then(async () => {
+    if (generation !== accountGeneration || (typeof localStorage !== 'undefined' && localStorage.getItem(ACCOUNT_KEY) !== account)) return;
     const {api} = await import('./api');
+    if (generation !== accountGeneration || (typeof localStorage !== 'undefined' && localStorage.getItem(ACCOUNT_KEY) !== account)) return;
     try {
       await api.patchUserState({[slice]:captured});
     } catch { /* Local stores remain available; next action retries. */ }
@@ -213,19 +223,23 @@ export async function hydrateFromServer(): Promise<boolean> {
  * Renders nothing.
  */
 export function SessionHydrator(): null {
+  const router = useRouter();
   useEffect(() => {
     // Trial mode has no sign-in (and no /api/user/state): nothing to fetch,
     // and asking anyway cost a 404 on every page.
     if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') return;
     let cancelled = false;
     async function hydrate() {
+      const revision = localRevision;
+      const generation = accountGeneration;
       const { api } = await import('./api');
       try {
         const res = await api.getUserState();
-        if (cancelled || !res.data) return;
+        if (cancelled || !res.data || revision !== localRevision || generation !== accountGeneration) return;
         await hydrateLocalStores(res.data);
         if (cancelled) return;
         window.dispatchEvent(new Event(HYDRATED_EVENT));
+        router.refresh();
       } catch {
         // 401 (signed out) — nothing to hydrate.
       }
@@ -234,6 +248,6 @@ export function SessionHydrator(): null {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
   return null;
 }

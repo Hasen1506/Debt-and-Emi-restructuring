@@ -65,6 +65,7 @@ export default function OnboardingAssetsPage() {
 
   // Errors show once Save has been tried, not while typing.
   const [tried, setTried] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   // An asset's tax turns on how long it was held, so it needs a date (a year will do).
   const missingDate = (a: AssetPayload) =>
     Boolean(a.asset_type) && Number(a.current_market_value) > 0 && !String(a.purchase_date ?? '').trim();
@@ -93,6 +94,7 @@ export default function OnboardingAssetsPage() {
       return;
     }
     setTried(true);
+    setSaveError(null);
     if (assets.some(missingDate)) return;
     const stored = loadProfileClient();
     const cleaned: AssetPayload[] = assets
@@ -103,6 +105,7 @@ export default function OnboardingAssetsPage() {
         // For approximate basis: ensure purchase_date is year-only ("YYYY")
         // — engine accepts it, ranker adds a wider error band.
         const out: AssetPayload = {
+          ...a,
           asset_type: a.asset_type,
           label: a.label?.trim() || undefined,
           purchase_price: a.purchase_price || '0',
@@ -129,9 +132,13 @@ export default function OnboardingAssetsPage() {
         }
         return out;
       });
-    saveProfileClient({
+    const saved = saveProfileClient({
       user: { ...stored.user, assets: cleaned },
     });
+    if (!saved) {
+      setSaveError('Your assets could not be saved. Your previous saved assets are still available. Try again before continuing.');
+      return;
+    }
     router.push('/tools/liquidate');
   }
 
@@ -146,6 +153,7 @@ export default function OnboardingAssetsPage() {
           Optional. Liquidate uses these to rank which asset to sell for which debt, after tax and lock-ins. Skip
           this to try one asset against one loan in the tool instead.
         </p>
+        {saveError && <p role="alert" style={{ color: 'var(--negative)' }}>{saveError}</p>}
         {!isLive && (
           <p className="muted" style={{ fontSize: 12, marginTop: 8, color: 'var(--warn, #b45309)' }}>
             Finish setup first. Saving here takes you there; come back after.

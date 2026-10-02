@@ -167,8 +167,13 @@ def parse_event(event: dict, country: str, today: date, calendar: list[date]) ->
     if volume < MIN_VOLUME_USD:
         return None
     moves: dict[int, tuple[str, Decimal]] = {}
-    for m in event.get("markets") or []:
+    markets = event.get("markets")
+    if not isinstance(markets, list):
+        return None
+    for m in markets:
         if not isinstance(m, dict):
+            return None
+        if m.get("closed") or m.get("archived"):
             return None
         label = str(m.get("groupItemTitle") or m.get("question") or "")
         bps = move_bps(label)
@@ -232,8 +237,11 @@ def fetch_events(country: str, get: Callable[[str, dict[str, str]], Any] = _get)
         except (httpx.HTTPError, ValueError) as e:
             log.warning("market odds %s %s failed: %s", country, path, e)
             continue
+        candidates = body if isinstance(body, list) else body.get("events") if isinstance(body, dict) else None
+        if not isinstance(candidates, list):
+            continue
         answered = True
-        found.extend(body if isinstance(body, list) else (body or {}).get("events") or [])
+        found.extend(candidates)
     if not answered:
         raise RuntimeError("Polymarket did not answer")
     return found
@@ -263,7 +271,12 @@ class OddsCache:
 
     def _kept(self, country: str, now: datetime) -> Optional[OddsReading]:
         good = self._good.get(country)
-        return good if good and now - good.fetched_at < KEEP_FOR else None
+        if not good or now - good.fetched_at >= KEEP_FOR:
+            return None
+        upcoming = tuple(m for m in good.meetings if m.day >= now.date())
+        if not upcoming:
+            return None
+        return good if upcoming == good.meetings else OddsReading(country, upcoming, good.fetched_at)
 
     def odds(self, country: str, calendar: list[date]) -> Optional[OddsReading]:
         """None when there are no odds to be had (off, or nothing usable
