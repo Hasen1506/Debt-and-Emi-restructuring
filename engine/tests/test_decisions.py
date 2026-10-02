@@ -173,7 +173,7 @@ def test_borrow_detail_uses_the_users_currency():
         consensus_change_bps=-10, months_to_decision=3,
         urgency="3m_ok", principal=D("400000"), tenure_months=360,
     )
-    assert "(-10bps)" in small.detail
+    assert "Only a 0.10% cut" in small.detail
 
 
 def test_borrow_now_when_user_urgent():
