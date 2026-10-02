@@ -562,6 +562,9 @@ class SimulateRequest(_In):
     # When given it is the only EF top-up; omitted, the engine holds back
     # a fixed gap / 12 each month instead.
     ef_top_up_rate: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
+    # The most the user wants to put toward debts each month (EMIs,
+    # minimums and extra, in their own currency). Omitted: all spare cash.
+    debt_budget: Optional[Amount] = None
     # True when the user has an active preempting goal open (e.g. medical
     # bill, planned wedding) that takes priority over EF + debt for the
     # goal's funding window. Drives the surplus_allocation routing in the
@@ -791,6 +794,7 @@ class CompareRequest(_In):
     lifecycle_events: list[LifecycleEventIn] = Field(default_factory=list)
     ef_top_up_rate: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
     goals: list[GoalIn] = Field(default_factory=list)
+    debt_budget: Optional[Amount] = None
     # what-if knobs
     surplus_delta: Optional[Decimal] = None
     surplus_delta_start_month: int = Field(1, ge=1, le=MAX_MONTHS)

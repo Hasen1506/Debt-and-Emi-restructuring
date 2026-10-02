@@ -232,6 +232,7 @@ def simulate_plan(
     ef_top_up_rate: Decimal | None = None,
     goals: list[GoalState] | None = None,
     minimums_only: bool = False,
+    debt_budget: Decimal | None = None,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`. Returns one MonthRow per month
     until either all loans clear or horizon is reached.
@@ -280,6 +281,15 @@ def simulate_plan(
     (cascade gets the full surplus). When None, the engine skips the
     goal block entirely — the legacy "all surplus → EF/debt" behaviour
     for callers that don't model goals.
+
+    `debt_budget` (default None = every spare rupee) is the most the user
+    wants to put toward debts each month, in their own currency: EMIs and
+    minimums plus the extra. The extra is cut to fit it; what's cut stays
+    with the user (counted as invested). As loans clear, their EMIs free
+    room under the same total, so it still rolls forward. Minimums are
+    always paid, even above it. An `income_delta` that adds money (a
+    spending cut) raises it by the same amount from that month on, so
+    the cut reaches the debts as the what-if says.
 
     `minimums_only` pays each loan its minimum and nothing more: no
     surplus, no cascade when a loan clears, no reinvest events. It is the
@@ -631,6 +641,18 @@ def simulate_plan(
         if ranked and surplus > 0 and not worth_prepaying:
             invested_this_month = surplus
             extra_for_debt = D("0")
+
+        if debt_budget is not None and extra_for_debt > 0:
+            budget = debt_budget
+            if income_delta > 0 and m >= max(1, income_delta_from_month):
+                budget += income_delta
+            required = sum(
+                (to_user_currency(minimums[id(l)], l, user) for l in active), D("0"),
+            )
+            room = max(D("0"), budget - required)
+            if extra_for_debt > room:
+                invested_this_month += extra_for_debt - room
+                extra_for_debt = room
 
         # Allocate. `extra_for_debt` is in the user's residence currency;
         # convert to the target loan's currency before adding so the

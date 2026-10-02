@@ -1587,6 +1587,9 @@ export interface SimulateArgs {
    *  `efund_balance < efund_target`; 0 otherwise. Default 0 preserves
    *  legacy "100% surplus → debt" behaviour. */
   ef_top_up_rate?: string;
+  /** The user's monthly total for debts (EMIs + minimums + extra), in
+   *  their currency. Omitted: all spare cash goes to debts. */
+  debt_budget?: string;
   /** True when an active preempting goal exists (e.g. wedding, medical).
    *  The engine routes 100% surplus to the goal_slice in the allocation
    *  response when set. Default false preserves legacy behaviour. */

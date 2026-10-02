@@ -671,3 +671,39 @@ def test_shortfall_counts_costs_and_card_minimums():
 def test_no_shortfall_when_income_covers_costs_and_minimums():
     result = simulate_plan(_user_two_loans(), Strategy.AVALANCHE, horizon_months=12)
     assert all(m.shortfall == 0 for m in result.months)
+
+
+def test_debt_budget_caps_what_goes_to_debts_and_keeps_the_rest():
+    """The user picks the monthly total for debts; the plan pays no more,
+    the rest stays with them, and it still rolls freed EMIs forward."""
+    user = _user_two_loans()
+    free = simulate_plan(user, Strategy.AVALANCHE, horizon_months=360)
+    capped = simulate_plan(user, Strategy.AVALANCHE, horizon_months=360,
+                           debt_budget=D("50000"))
+    m1 = capped.months[0]
+    assert m1.total_payment_nominal <= D("50000") + D("0.01")
+    assert m1.invested_this_month > 0
+    # A smaller budget can only take as long or longer, at more interest.
+    assert capped.debt_free_month >= free.debt_free_month
+    assert capped.total_interest_paid > free.total_interest_paid
+    # Once the card clears, the same total keeps going to the home loan.
+    later = [r for r in capped.months if r.month_index > 6 and r.extra_paid > 0]
+    assert later and all(r.total_payment_nominal <= D("50000") + D("0.01") for r in later)
+
+
+def test_debt_budget_never_skips_a_minimum():
+    user = _user_two_loans()
+    res = simulate_plan(user, Strategy.AVALANCHE, horizon_months=24,
+                        debt_budget=D("1000"))
+    assert res.months[0].extra_paid == 0
+    # EMI and card minimum are still paid in full.
+    assert res.months[0].total_payment_nominal >= D("34713")
+
+
+def test_a_spending_cut_raises_the_debt_budget_by_the_same_amount():
+    user = _user_two_loans()
+    capped = simulate_plan(user, Strategy.AVALANCHE, horizon_months=360,
+                           debt_budget=D("50000"))
+    cut = simulate_plan(user, Strategy.AVALANCHE, horizon_months=360,
+                        debt_budget=D("50000"), income_delta=D("5000"))
+    assert cut.months[0].total_payment_nominal == capped.months[0].total_payment_nominal + D("5000")

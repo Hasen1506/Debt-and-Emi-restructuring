@@ -136,6 +136,8 @@ export interface PlanData {
    *  0.30 preserves the pre-slider behaviour. Read from the ef_split
    *  cookie at request time. */
   efSplit: string;
+  /** The user's monthly total for debts ('' = all spare cash). */
+  debtBudget: string;
   /** True when at least one active goal is being routed surplus by the
    *  engine, meaning EF top-up is paused for the current horizon.
    *  Drives an assumption chip + the EF slider's disabled state.

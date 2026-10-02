@@ -259,6 +259,7 @@ def _plan_kwargs(req: SimulateRequest | CompareRequest) -> dict:
         ),
         ef_top_up_rate=req.ef_top_up_rate,
         goals=_build_goal_states(req.goals) if req.goals else None,
+        debt_budget=req.debt_budget,
     )
 
 

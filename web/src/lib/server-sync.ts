@@ -50,6 +50,7 @@ const SLICE_TARGETS: Record<string, SliceTarget> = {
   monthly_spend:     { kind: 'localStorage', name: 'finoptima_monthly_spend' },
   decisions:         { kind: 'localStorage', name: 'finoptima_decisions' },
   ef_split:          { kind: 'cookie',       name: 'finoptima_ef_split' },
+  debt_budget:       { kind: 'cookie',       name: 'finoptima_debt_budget' },
   // Profile slice is handled separately by user-store.ts (it spans 3
   // cookies and predates this file).
 };

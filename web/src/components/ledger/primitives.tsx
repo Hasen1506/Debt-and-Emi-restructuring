@@ -260,14 +260,18 @@ export function LAllocationBar({
   segments,
   height = 28,
   label = 'Where the money goes',
+  legend,
 }: {
   segments: LAllocSegment[];
   height?: number;
   label?: string;
+  /** A key under the bar (name, amount, share) instead of names cut to
+   *  fit inside the segments. */
+  legend?: boolean;
 }) {
   const total = segments.reduce((s, x) => s + Math.max(0, x.value), 0);
   if (total <= 0) return null;
-  return (
+  const bar = (
     <div
       role="img"
       aria-label={`${label}: ${segments.map((s) => `${s.label} ${s.amount}`).join(', ')}`}
@@ -300,10 +304,29 @@ export function LAllocationBar({
                 padding: '0 4px',
               }}
             >
-              {share >= 0.04 ? shown : ''}
+              {!legend && share >= 0.04 ? shown : ''}
             </div>
           );
         })}
+    </div>
+  );
+  if (!legend) return bar;
+  return (
+    <div>
+      {bar}
+      <ul aria-hidden="true" style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexWrap: 'wrap', gap: '6px 18px', fontSize: 12 }}>
+        {segments
+          .filter((s) => s.value > 0)
+          .map((s) => (
+            <li key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 10, height: 10, background: s.color, border: `1px solid ${L_T.ink}`, flex: 'none' }} />
+              <span>{s.label}</span>
+              <span style={{ color: L_T.muted, fontVariantNumeric: 'tabular-nums' }}>
+                {s.amount} · {Math.round((s.value / total) * 100)}%
+              </span>
+            </li>
+          ))}
+      </ul>
     </div>
   );
 }
