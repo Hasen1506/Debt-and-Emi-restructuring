@@ -6,9 +6,8 @@
  * Architecture: each client store (lifecycle, activity, advance-tax,
  * ...) keeps writing to cookies/localStorage as before — that path is
  * the first-paint cache. After each write, it ALSO calls
- * `syncSliceToServer(slice, value)`. The helper fetches the current
- * server blob, merges the slice, and PUTs it back. Failures are
- * swallowed (last-write-wins on next save).
+ * `syncSliceToServer(slice, value)`. The helper PATCHes the slice;
+ * PostgreSQL merges it under a per-user lock. Failures retain local data.
  *
  * On app boot, <SessionHydrator/> fetches /api/user/state once. If
  * non-empty, it mirrors each known slice back into the matching
@@ -20,8 +19,8 @@
  */
 
 import { useEffect } from 'react';
-import { writeProfileCookieClient } from './user-store';
-import { writeLifecycleClient, type LifecycleEvent } from './lifecycle-events';
+import { writeProfileCookieClient, clearProfileClient, serializeProfileForServer, type StoredProfile } from './user-store';
+import { writeLifecycleClient, readLifecycleClient, type LifecycleEvent } from './lifecycle-events';
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
@@ -44,11 +43,49 @@ const SLICE_TARGETS: Record<string, SliceTarget> = {
   decision_log:       { kind: 'localStorage', name: 'finoptima_decision_log' },
   cash_events:        { kind: 'localStorage', name: 'finoptima_cash_events' },
   tax_sleeve:         { kind: 'localStorage', name: 'finoptima_tax_sleeve' },
+  goals:             { kind: 'localStorage', name: 'finoptima_goals' },
+  goal_contributions:{ kind: 'localStorage', name: 'finoptima_goal_contributions' },
+  monthly_spend:     { kind: 'localStorage', name: 'finoptima_monthly_spend' },
+  decisions:         { kind: 'localStorage', name: 'finoptima_decisions' },
+  ef_split:          { kind: 'cookie',       name: 'finoptima_ef_split' },
   // Profile slice is handled separately by user-store.ts (it spans 3
   // cookies and predates this file).
 };
 
 export const HYDRATED_EVENT = 'finoptima:hydrated';
+const ACCOUNT_KEY = 'finoptima_account_id';
+
+/** A different signed-in account must not inherit this browser's old profile. */
+export function prepareAccountCache(userId: string): void {
+  const previous = localStorage.getItem(ACCOUNT_KEY);
+  if (previous && previous !== userId) clearAccountCache();
+  localStorage.setItem(ACCOUNT_KEY, userId);
+}
+
+export function clearAccountCache(): void {
+  clearProfileClient();
+  for (const target of Object.values(SLICE_TARGETS)) {
+    if (target.kind === 'localStorage') localStorage.removeItem(target.name);
+    else document.cookie = `${target.name}=; path=/; max-age=0`;
+  }
+  for (const name of ['finoptima_activity_deltas', 'finoptima_goals_digest', 'finoptima_goal_contributions_digest', 'finoptima_monthly_spend_digest']) {
+    document.cookie = `${name}=; path=/; max-age=0`;
+  }
+}
+
+/** Preserve all trial-mode data when a user first signs in. */
+export function serializeClientState(profile: StoredProfile): Record<string, unknown> {
+  const result = serializeProfileForServer(profile);
+  for (const [slice, target] of Object.entries(SLICE_TARGETS)) {
+    if (slice === 'lifecycle') { result[slice] = readLifecycleClient(); continue; }
+    const raw = target.kind === 'localStorage' ? localStorage.getItem(target.name)
+      : document.cookie.match(new RegExp(`(?:^|; )${target.name}=([^;]*)`))?.[1];
+    if (raw == null) continue;
+    const value = target.kind === 'cookie' ? decodeURIComponent(raw) : raw;
+    try { result[slice] = JSON.parse(value); } catch { result[slice] = value; }
+  }
+  return result;
+}
 
 function writeCookie(name: string, value: string): void {
   if (typeof document === 'undefined') return;
@@ -57,7 +94,7 @@ function writeCookie(name: string, value: string): void {
 
 /**
  * Push a single slice to the server, preserving every other key in the
- * blob. Best-effort: 401 (signed out) and network failures are silent.
+ * blob across devices. Best-effort: failures retain the browser copy.
  */
 let syncQueue: Promise<void> = Promise.resolve();
 export function syncSliceToServer(slice: string, value: unknown): Promise<void> {
@@ -66,9 +103,7 @@ export function syncSliceToServer(slice: string, value: unknown): Promise<void> 
   syncQueue = syncQueue.catch(() => {}).then(async () => {
     const {api} = await import('./api');
     try {
-      const current = await api.getUserState();
-      // A failed GET is not an empty profile: never overwrite unknown state.
-      await api.putUserState({...current.data,[slice]:captured});
+      await api.patchUserState({[slice]:captured});
     } catch { /* Local stores remain available; next action retries. */ }
   });
   return syncQueue;
@@ -85,7 +120,7 @@ export function syncSliceToServer(slice: string, value: unknown): Promise<void> 
  * doesn't — long enough for the middleware to redirect them to
  * /onboarding.
  */
-function hydrateLocalStores(data: Record<string, unknown>): void {
+export async function hydrateLocalStores(data: Record<string, unknown>): Promise<void> {
   const profile = (data as { profile?: { user?: unknown; marginalRate?: string; creditScore?: number | null } }).profile;
   if (profile && typeof profile === 'object') {
     if (profile.user) writeProfileCookieClient(JSON.stringify(profile.user));
@@ -113,7 +148,24 @@ function hydrateLocalStores(data: Record<string, unknown>): void {
   // — not synced as its own slice. Regenerate it now that both inputs
   // are present, so the next /plan render sees the user's activity in
   // the simulation on a fresh device.
-  void regenerateActivityDeltas(data);
+  await regenerateActivityDeltas(data);
+  // Rebuild the server-rendered digests without pushing the hydrated values
+  // back to the server (which would turn a read into a stale write).
+  if (Array.isArray(data.goals)) {
+    const { goalSliceWrite } = await import('./goals');
+    const write = goalSliceWrite(data.goals);
+    localStorage.setItem(write.key, JSON.stringify(write.value));
+    document.cookie = `${write.cookie}=${write.digest}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  }
+  if (Array.isArray(data.goal_contributions)) {
+    const { contributionSliceWrite } = await import('./goal-contributions');
+    const write = contributionSliceWrite(data.goal_contributions);
+    document.cookie = `${write.cookie}=${write.digest}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  }
+  if (Array.isArray(data.monthly_spend)) {
+    const { latestByMonth } = await import('./monthly-spend');
+    document.cookie = `finoptima_monthly_spend_digest=${btoa(JSON.stringify(latestByMonth(data.monthly_spend)))}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  }
 }
 
 async function regenerateActivityDeltas(data: Record<string, unknown>): Promise<void> {
@@ -145,7 +197,7 @@ export async function hydrateFromServer(): Promise<boolean> {
   try {
     const res = await api.getUserState();
     if (!res.data) return false;
-    hydrateLocalStores(res.data);
+    await hydrateLocalStores(res.data);
     return true;
   } catch {
     return false;
@@ -171,7 +223,8 @@ export function SessionHydrator(): null {
       try {
         const res = await api.getUserState();
         if (cancelled || !res.data) return;
-        hydrateLocalStores(res.data);
+        await hydrateLocalStores(res.data);
+        if (cancelled) return;
         window.dispatchEvent(new Event(HYDRATED_EVENT));
       } catch {
         // 401 (signed out) — nothing to hydrate.

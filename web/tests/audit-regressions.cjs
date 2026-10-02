@@ -128,17 +128,16 @@ test('clearing a stored credit score also clears the local cookie',()=>{
   const {saveProfileClient,loadProfileClient}=lib('user-store.ts');assert.equal(saveProfileClient({...loadProfileClient(),creditScore:null}),true);assert.equal(loadProfileClient().creditScore,null);
   delete global.document;delete global.window;delete global.localStorage;
 });
-test('parallel slice saves serialize their merges and failed reads never replace unknown state',async()=>{
+test('parallel slice saves serialize atomic patches and a failed save never replaces unrelated state',async()=>{
   await new Promise(resolve=>setImmediate(resolve));
   process.env.NEXT_PUBLIC_DISABLE_AUTH='false';
-  const {api}=lib('api.ts');const get=api.getUserState,put=api.putUserState;let state={untouched:'keep'};const writes=[];let active=0,maxActive=0;
-  api.getUserState=async()=>{active++;maxActive=Math.max(maxActive,active);await new Promise(resolve=>setImmediate(resolve));return {data:structuredClone(state)};};
-  api.putUserState=async value=>{state=value;writes.push(value);active--;return {data:value};};
+  const {api}=lib('api.ts');const patch=api.patchUserState;let state={untouched:'keep'};const writes=[];let active=0,maxActive=0;
+  api.patchUserState=async value=>{active++;maxActive=Math.max(maxActive,active);await new Promise(resolve=>setImmediate(resolve));state={...state,...value};writes.push(value);active--;return {data:state};};
   const {syncSliceToServer}=lib('server-sync.ts');const profile={user:{monthly_income:'100000'}};
   await Promise.all([syncSliceToServer('profile',profile),syncSliceToServer('activity',[{amount:'7000'}]),syncSliceToServer('cash_events',{confirmations:[]})]);
   assert.equal(maxActive,1);assert.equal(state.untouched,'keep');assert.equal(state.profile.user.monthly_income,'100000');assert.equal(state.activity[0].amount,'7000');assert.deepEqual(state.cash_events,{confirmations:[]});
-  api.getUserState=async()=>{throw new Error('network unavailable');};await syncSliceToServer('profile',{user:{monthly_income:'1'}});assert.equal(writes.length,3);assert.equal(state.profile.user.monthly_income,'100000');
-  api.getUserState=get;api.putUserState=put;delete process.env.NEXT_PUBLIC_DISABLE_AUTH;
+  api.patchUserState=async()=>{throw new Error('network unavailable');};await syncSliceToServer('profile',{user:{monthly_income:'1'}});assert.equal(writes.length,3);assert.equal(state.profile.user.monthly_income,'100000');
+  api.patchUserState=patch;delete process.env.NEXT_PUBLIC_DISABLE_AUTH;
 });
 
 test('legacy property undo finds the unique matching loan after balances and positions change',()=>{

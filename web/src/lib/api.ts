@@ -9,6 +9,16 @@ import { dec } from './safe-decimal';
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 
+// Auth cookies must belong to the web host so middleware can see them.
+// Only authenticated state uses this fixed, same-origin proxy; engine calls
+// keep using the configured API host (including server component calls).
+function endpoint(path: string): string {
+  if (typeof window !== 'undefined' && (path.startsWith('/api/auth/') || path === '/api/user/state')) {
+    return `/api/session/${path.slice('/api/'.length)}`;
+  }
+  return `${BASE}${path}`;
+}
+
 // ─── shared types ───────────────────────────────────────────────────────────
 
 export type Country = 'IN' | 'US';
@@ -1055,7 +1065,7 @@ function serverHeaders(): Record<string, string> {
 }
 
 async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(endpoint(path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
@@ -1089,7 +1099,7 @@ async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
 // ─── thin fetch helper ──────────────────────────────────────────────────────
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(endpoint(path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
@@ -1106,7 +1116,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(endpoint(path), {
     headers: serverHeaders(),
     cache: 'no-store',
     credentials: 'include',
@@ -1115,9 +1125,9 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-async function putJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    method: 'PUT',
+async function putJson<T>(path: string, body: unknown, method: 'PUT' | 'PATCH' = 'PUT'): Promise<T> {
+  const res = await fetch(endpoint(path), {
+    method,
     headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
     cache: 'no-store',
@@ -1332,6 +1342,8 @@ export const api = {
   getUserState: () => get<UserStatePayload>('/api/user/state'),
   putUserState: (data: Record<string, unknown>) =>
     putJson<UserStatePayload>('/api/user/state', { data }),
+  patchUserState: (data: Record<string, unknown>) =>
+    putJson<UserStatePayload>('/api/user/state', { data }, 'PATCH'),
 
   marketLowest: (country: 'IN' | 'US', loanType: string) =>
     get<{ country: string; loan_type: string; bank: string | null; low: string | null }>(
