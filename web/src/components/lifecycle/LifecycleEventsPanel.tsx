@@ -32,7 +32,7 @@ import { dayLabel, LIFE_KIND_LABEL as KIND, LifeEventForm, lifeEventSummary } fr
  *  opens the form; detail: `{ kind?, loanIndex? }`. */
 export const ADD_LIFE_EVENT = 'finoptima:add-life-event';
 
-export function LifecycleEventsPanel({ user }: { user: UserPayload }) {
+export function LifecycleEventsPanel({ user, configuredLoans = user.loans }: { user: UserPayload; configuredLoans?: UserPayload['loans'] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const today = localIsoDate(getCountryToday(user.country));
@@ -178,7 +178,8 @@ export function LifecycleEventsPanel({ user }: { user: UserPayload }) {
         >
           <LifeEventForm
             key={adding.key}
-            user={user}
+          user={user}
+          configuredLoans={configuredLoans}
             initialKind={adding.kind}
             initialLoanIndex={adding.loanIndex}
             saveLabel="SAVE · RE-RUN THE PLAN"

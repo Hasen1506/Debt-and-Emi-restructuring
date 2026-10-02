@@ -18,7 +18,7 @@
  * engine just consumes `saved_so_far` on each GoalIn it receives.
  */
 
-import { syncSliceToServer } from './server-sync';
+import { persistGoalSlices, type GoalSliceWrite } from './persist-goal-slices';
 
 export interface GoalContributionEntry {
   id: string;
@@ -68,15 +68,11 @@ export function readContributionsClient(): GoalContributionEntry[] {
 
 export function writeContributionsClient(entries: GoalContributionEntry[]): void {
   if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  // Mirror per-goal totals to a cookie so server-rendered /plan can
-  // hand them to the engine without going through localStorage.
-  if (typeof document !== 'undefined') {
-    const totals = totalsByGoal(entries);
-    const value = btoa(JSON.stringify(totals));
-    document.cookie = `${DIGEST_COOKIE}=${value}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
-  }
-  void syncSliceToServer('goal_contributions', entries);
+  persistGoalSlices([contributionSliceWrite(entries)]);
+}
+
+export function contributionSliceWrite(entries: GoalContributionEntry[]): GoalSliceWrite {
+  return { key: STORAGE_KEY, cookie: DIGEST_COOKIE, digest: btoa(JSON.stringify(totalsByGoal(entries))), value: entries, slice: 'goal_contributions' };
 }
 
 export function newContributionId(): string {

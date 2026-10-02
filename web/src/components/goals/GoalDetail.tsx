@@ -120,7 +120,7 @@ export function GoalDetail({
       fixes.push({
         what: steep
           ? `Have ${fmt(lv.increaseSurplusBy)} more spare a month (more than cutting spending could free).`
-          : `Spend ${fmt(lv.increaseSurplusBy)} less a month from next month.`,
+          : `Spend ${fmt(lv.increaseSurplusBy)} less a month from now.`,
         action: steep
           ? undefined
           : confirmCut
@@ -213,7 +213,7 @@ export function GoalDetail({
             </div>
           )}
           {cutDone && (
-            <div style={{ color: L_T.positive }}>Spending lowered from next month. Activity has it, with UNDO.</div>
+            <div style={{ color: L_T.positive }}>Spending lowered from now. Activity has it, with UNDO.</div>
           )}
           {fixes.length === 0 && backup.length === 0 && (
             <div style={{ color: L_T.negative }}>

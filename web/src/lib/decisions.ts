@@ -98,17 +98,22 @@ export function writeDecisionsClient(entries: DecisionEntry[]) {
   void syncSliceToServer('decisions', entries);
 }
 
-export function recordDecision(
+/** Build history without writing it, so a goal and its undo record can commit together. */
+export function prepareDecision(
   entries: DecisionEntry[],
   draft: Omit<DecisionEntry, 'id' | 'at' | 'reverted'>,
 ): DecisionEntry[] {
   const entry: DecisionEntry = {
     ...draft,
-    id: `d_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `d_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`,
     at: new Date().toISOString(),
     reverted: false,
   };
-  const next = [entry, ...entries].slice(0, 200); // cap log size
+  return [entry,...entries].slice(0,200);
+}
+
+export function recordDecision(entries: DecisionEntry[], draft: Omit<DecisionEntry, 'id' | 'at' | 'reverted'>): DecisionEntry[] {
+  const next = prepareDecision(entries,draft);
   writeDecisionsClient(next);
   return next;
 }

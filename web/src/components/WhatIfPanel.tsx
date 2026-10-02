@@ -22,11 +22,18 @@ import {
   type UserPayload,
 } from '@/lib/api';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
+import { isOpenCurrentLoan } from '@/lib/plan-controls';
+import { resolveLoanIndex, type LoanRef } from '@/lib/loan-ids';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import { computeBreakdown } from '@/lib/effective-apr';
 import { usMortgageShieldShare } from '@/lib/deductions';
-import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
+import { loadProfileClient } from '@/lib/user-store';
+import { commitSpendingCut } from '@/lib/commit-spending-cut';
 import { applyToolResult } from '@/lib/apply-tool-result';
+import { readActivityClient } from '@/lib/activity';
+import { activityDeltas, applyActivityDeltas } from '@/lib/activity-cookie';
+import { rollBalancesForward } from '@/lib/roll-forward';
+import { countryMonthKey } from '@/lib/today';
 import {
   addCommitment,
   readCommitmentsClient,
@@ -56,11 +63,13 @@ const INITIAL: ScenarioState = { loading: false, result: null, error: null };
 
 export function WhatIfPanel({
   user,
+  configuredUser = user,
   marginalRate,
   strategy = 'avalanche',
   runArgs,
 }: {
   user: UserPayload;
+  configuredUser?: UserPayload;
   marginalRate: string;
   /** Active payoff strategy — what-if scenarios run against the same one
    *  the user has selected on the Plan page so deltas are apples-to-apples. */
@@ -75,6 +84,8 @@ export function WhatIfPanel({
     () => ({ ...(runArgs ?? { user, marginal_rate: marginalRate }), strategy }),
     [runArgs, user, marginalRate, strategy],
   );
+  // An assumption/profile/event change invalidates every active comparison.
+  const baseKey = JSON.stringify(base);
   // The user's residence currency drives surplus + aggregate displays
   // (interest saved is summed across loans in the engine; for hybrid
   // NRI-US users that mixes ccy, but user-default is the least-wrong
@@ -88,21 +99,15 @@ export function WhatIfPanel({
   // Derive realistic slider ceilings + the default "Applied to" loan from
   // the live profile. The user complained about a hardcoded 50k cap and a
   // random lump-sum default; both come from these.
-  const { fixedExpensesCap, totalOutstandingCap, loanOptions, defaultLoanIdx } =
+  const { fixedExpensesCap, loanOptions, defaultLoanIdx } =
     useMemo(() => {
       // Slider ceiling = variable (discretionary) expenses when present,
       // fall back to fixed_expenses for legacy profiles that pre-date the
       // split. We never let the slider eat into fixed costs — the user's
       // rent isn't a what-if knob.
-      const variable = Math.max(0, Math.round(Number(user.variable_expenses || 0)));
-      const fallbackFixed = Math.max(0, Math.round(Number(user.fixed_expenses || 0)));
+      const variable = Math.max(0, Number(configuredUser.variable_expenses || 0));
+      const fallbackFixed = Math.max(0, Number(configuredUser.fixed_expenses || 0));
       const fixed = variable > 0 ? variable : fallbackFixed;
-      const total = Math.max(
-        0,
-        Math.round(
-          user.loans.reduce((s, l) => s + Number(l.outstanding || 0), 0),
-        ),
-      );
       const ranked = user.loans
         .map((l, i) => {
           const { effective } = computeBreakdown(
@@ -114,9 +119,9 @@ export function WhatIfPanel({
           );
           return { i, l, effective, outstanding: new Decimal(l.outstanding || 0) };
         })
-        .filter((r) => r.outstanding.gt(0))
+        .filter((r) => isOpenCurrentLoan(r.l))
         .sort((a, b) => b.effective.cmp(a.effective));
-      const top = ranked[0]?.i ?? 0;
+      const top = ranked[0]?.i ?? -1;
       const opts = user.loans.map((l, i) => ({
         value: i,
         // "HDFC credit card · ₹1,50,000"; the part before " · " names the loan in the log.
@@ -126,14 +131,13 @@ export function WhatIfPanel({
           return bank ? `${bank} ${t}` : t.charAt(0).toUpperCase() + t.slice(1);
         })()} · ${formatCurrency(l.outstanding, loanCurrency(l, user.country))}`,
         isTop: i === top,
-      }));
+      })).filter(o => isOpenCurrentLoan(user.loans[o.value]));
       return {
         fixedExpensesCap: fixed,
-        totalOutstandingCap: total,
         loanOptions: opts,
         defaultLoanIdx: top,
       };
-    }, [user, marginalRate]);
+    }, [user, configuredUser, marginalRate]);
 
   // Surplus delta: ₹/month extra (positive = more cash to debts).
   const [surplusDelta, setSurplusDelta] = useState(0);
@@ -144,7 +148,14 @@ export function WhatIfPanel({
   const [rateShockBps, setRateShockBps] = useState(0);
   // Lump sum + target loan.
   const [lumpAmount, setLumpAmount] = useState(0);
-  const [lumpTarget, setLumpTarget] = useState(defaultLoanIdx);
+  const [lumpRef, setLumpRef] = useState<LoanRef>({loanIndex: defaultLoanIdx, loanId: user.loans[defaultLoanIdx]?.id});
+  const resolvedLumpTarget = resolveLoanIndex(lumpRef, user.loans);
+  const lumpTarget = isOpenCurrentLoan(user.loans[resolvedLumpTarget]) ? resolvedLumpTarget : -1;
+  // A lump sum is denominated in its selected loan's native currency.
+  const lumpTargetCap = lumpTarget >= 0 ? Number(user.loans[lumpTarget].outstanding) : 0;
+  useEffect(() => {
+    setLumpAmount(value => Math.min(value, lumpTargetCap));
+  }, [lumpTargetCap]);
 
   const [surplus, setSurplus] = useState<ScenarioState>(INITIAL);
   const [rate, setRate] = useState<ScenarioState>(INITIAL);
@@ -173,54 +184,45 @@ export function WhatIfPanel({
   }, []);
 
   function commitSurplusCut() {
-    if (surplusDelta <= 0) return;
-    const stored = loadProfileClient();
-    if (!stored.isLive) {
-      setToast('Finish setup first so we can mutate your profile.');
+    if (surplusDelta <= 0 || surplusStartMonth !== 1) return;
+    try {
+      setCommitments(commitSpendingCut(configuredUser, surplusDelta, surplusStartMonth));
+    } catch (error) {
+      setToast((error as Error).message);
       return;
     }
-    // Prefer cutting from variable spending; fall back to fixed for legacy
-    // profiles that don't have variable_expenses split out yet.
-    const currentVariable = Number(stored.user.variable_expenses || 0);
-    const currentFixed = Number(stored.user.fixed_expenses || 0);
-    const useVariable = currentVariable > 0;
-    const cutFrom = useVariable ? currentVariable : currentFixed;
-    const newAmount = Math.max(0, cutFrom - surplusDelta);
-    saveProfileClient({
-      user: useVariable
-        ? { ...stored.user, variable_expenses: String(newAmount) }
-        : { ...stored.user, fixed_expenses: String(newAmount) },
-    });
-    const bucketLabel = useVariable ? 'variable spending' : 'fixed expenses';
-    const entry: Omit<CommitmentEntry, 'id'> = {
-      date: todayISO(),
-      kind: 'surplus_cut',
-      amount: String(surplusDelta),
-      note: `Cut ${bucketLabel} ${fmtUser(cutFrom)} → ${fmtUser(newAmount)}`,
-    };
-    const next = addCommitment(readCommitmentsClient(), entry);
-    writeCommitmentsClient(next);
-    setCommitments(next);
     setSurplusDelta(0);
     setSurplusStartMonth(1);
-    setToast(`Locked in — trimming ${fmtUser(surplusDelta)}/mo from ${bucketLabel}.`);
+    setToast(`Locked in — trimming ${fmtUser(surplusDelta)}/mo from your spending.`);
     startTransition(() => router.refresh());
   }
 
   function commitLumpSum() {
-    if (lumpAmount <= 0) return;
+    if (lumpAmount <= 0 || !Number.isFinite(lumpAmount) || lumpTarget < 0) return;
     const stored = loadProfileClient();
-    if (!stored.isLive || !stored.user.loans[lumpTarget]) {
+    const index = resolveLoanIndex(lumpRef, stored.user.loans);
+    if (!stored.isLive || !isOpenCurrentLoan(stored.user.loans[index])) {
       setToast('Finish setup first so we can write to your activity ledger.');
       return;
     }
-    const target = stored.user.loans[lumpTarget];
+    const current = applyActivityDeltas(rollBalancesForward(stored.user.loans,countryMonthKey(stored.user.country)).loans,
+      activityDeltas(readActivityClient(), stored.user.loans, stored.user.country), countryMonthKey(stored.user.country)).loans;
+    const target = current[index];
+    const expected = user.loans[lumpTarget];
+    if (!isOpenCurrentLoan(target) || stored.user.country !== user.country ||
+        loanCurrency(target, stored.user.country) !== loanCurrency(expected, user.country) ||
+        Number(target.outstanding) !== Number(expected.outstanding) ||
+        target.nominal_rate !== expected.nominal_rate || target.scheduled_emi !== expected.scheduled_emi ||
+        (!lumpRef.loanId && target.bank !== expected.bank) || lumpAmount > Number(target.outstanding)) {
+      setToast('This loan changed. Refresh the plan and check the payment again.');
+      return;
+    }
     const sched = target.scheduled_emi || '0';
     const outstandingD = new Decimal(target.outstanding || '0');
     const paymentD = new Decimal(String(lumpAmount));
     const fullyClears = paymentD.gte(outstandingD);
     applyToolResult({
-      loanIndex: lumpTarget,
+      loanIndex: index,
       kind: fullyClears ? 'closed' : 'paid_extra',
       amount: fullyClears
         ? outstandingD.toFixed(2)
@@ -234,7 +236,7 @@ export function WhatIfPanel({
       date: todayISO(),
       kind: 'lump_sum',
       amount: String(lumpAmount),
-      loanIndex: lumpTarget,
+      loanIndex: index,
       loanBank: target.bank,
       note: fullyClears ? `Closed ${target.bank}` : undefined,
     };
@@ -257,7 +259,7 @@ export function WhatIfPanel({
   }
 
   useDebouncedScenario(
-    `${surplusDelta}|${surplusStartMonth}`,
+    `${baseKey}|${surplusDelta}|${surplusStartMonth}`,
     setSurplus,
     async () =>
       surplusDelta === 0
@@ -268,10 +270,11 @@ export function WhatIfPanel({
             surplus_delta: String(surplusDelta),
             surplus_delta_start_month: surplusStartMonth,
           }),
+    surplusDelta !== 0,
   );
 
   useDebouncedScenario(
-    rateShockBps,
+    `${baseKey}|${rateShockBps}`,
     setRate,
     async () =>
       rateShockBps === 0
@@ -282,13 +285,14 @@ export function WhatIfPanel({
             rate_shock_delta: (rateShockBps / 10_000).toFixed(4),
             rate_shock_floating_only: true,
           }),
+    rateShockBps !== 0,
   );
 
   useDebouncedScenario(
-    `${lumpAmount}|${lumpTarget}`,
+    `${baseKey}|${lumpAmount}|${lumpTarget}`,
     setLump,
     async () =>
-      lumpAmount === 0
+      lumpAmount === 0 || lumpTarget < 0
         ? null
         : api.sensitivity({
             ...base,
@@ -296,12 +300,13 @@ export function WhatIfPanel({
             lump_sum_amount: String(lumpAmount),
             lump_sum_target_loan_index: lumpTarget,
           }),
+    lumpAmount !== 0 && lumpTarget >= 0,
   );
 
   // Step size scales with the ceiling so the slider stays usable whether
   // fixed expenses are ₹10k or ₹2L (1% rounded to the nearest 100/500/1000).
   const surplusStep = roundStep(fixedExpensesCap / 50, 100);
-  const lumpStep = roundStep(totalOutstandingCap / 100, 1_000);
+  const lumpStep = roundStep(lumpTargetCap / 100, 1_000);
 
   // Active goals + their saved totals — for the goal-impact line on the
   // surplus slider. Read once at mount; the surplus delta itself drives
@@ -364,14 +369,13 @@ export function WhatIfPanel({
         unit="/mo"
         currency={userCcy}
         min={0}
-        max={Math.max(fixedExpensesCap, 1_000)}
+        max={fixedExpensesCap}
         step={surplusStep}
         value={surplusDelta}
         onChange={setSurplusDelta}
         formatValue={(v) => (v === 0 ? 'no change' : `+${fmtUser(v)}`)}
         formatInterest={fmtUser}
         state={surplus}
-        positive
         summary={(() => {
           if (goalPullForward.length === 0) return null;
           const goalLine = goalPullForward
@@ -392,7 +396,8 @@ export function WhatIfPanel({
               disabled={fixedExpensesCap <= 0 || surplusDelta === 0}
             />
             <LockItInButton
-              disabled={surplusDelta <= 0}
+              disabled={surplusDelta <= 0 || surplusStartMonth !== 1}
+              reason={surplusDelta > 0 && surplusStartMonth !== 1 ? 'Future cuts are previews. Choose this month to save a change to your current spending.' : undefined}
               label={`Lock in — trim ${fmtUser(surplusDelta || 0)}/mo from ${
                 Number(user.variable_expenses || 0) > 0
                   ? 'discretionary spending'
@@ -427,7 +432,6 @@ export function WhatIfPanel({
         }
         formatInterest={fmtUser}
         state={rate}
-        positive={false}
         inputMode="bps"
         showMaxButton={false}
       />
@@ -435,31 +439,35 @@ export function WhatIfPanel({
       <SliderRow
         title={'Pay a lump sum'}
         hint={
-          totalOutstandingCap > 0
-            ? `A one-off payment, up to what you owe (${fmtLump(totalOutstandingCap)}). Already paid it? Log it and the plan starts from the new balance.`
+          lumpTargetCap > 0
+            ? `A one-off payment, up to what you owe on this loan (${fmtLump(lumpTargetCap)}). Already paid it? Log it and the plan starts from the new balance.`
             : 'Add your loans in Profile to try this.'
         }
         unit=""
         currency={lumpTargetCcy}
         min={0}
-        max={Math.max(totalOutstandingCap, 10_000)}
-        step={Math.max(lumpStep, 1_000)}
+        max={lumpTargetCap}
+        step={lumpTargetCap > 0 && lumpTargetCap < 1000 ? Math.min(1, lumpTargetCap) : Math.max(lumpStep, 1_000)}
         value={lumpAmount}
         onChange={setLumpAmount}
         formatValue={(v) => (v === 0 ? 'no payment' : fmtLump(v))}
         formatInterest={fmtUser}
         state={lump}
-        positive
-        disabled={totalOutstandingCap <= 0}
+        disabled={lumpTargetCap <= 0}
         extraControls={
           <>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
               <span style={{ color: L_T.muted }}>Into</span>
               <select
                 value={lumpTarget}
-                onChange={(e) => setLumpTarget(Number(e.target.value))}
+                onChange={(e) => {
+                  const index = Number(e.target.value);
+                  setLumpRef({loanIndex:index, loanId:user.loans[index]?.id});
+                  setLumpAmount(0);
+                }}
                 style={{ fontFamily: 'inherit', fontSize: 12, padding: '5px 8px', border: `1px solid ${L_T.ink}`, background: L_T.paper, color: L_T.ink, maxWidth: '100%' }}
               >
+                {lumpTarget < 0 && <option value={-1}>Choose an open loan</option>}
                 {loanOptions.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.isTop ? '★ ' : ''}
@@ -471,7 +479,7 @@ export function WhatIfPanel({
             </label>
             <LockItInButton
               disabled={lumpAmount <= 0}
-              label={`Log it — ${fmtLump(lumpAmount || 0)} paid today to ${loanOptions[lumpTarget]?.label.split(' · ')[0] ?? 'loan'}`}
+              label={`Log it — ${fmtLump(lumpAmount || 0)} paid today to ${loanOptions.find(o => o.value === lumpTarget)?.label.split(' · ')[0] ?? 'loan'}`}
               shortLabel="I PAID THIS · LOG IT"
               onClick={commitLumpSum}
             />
@@ -559,19 +567,21 @@ export function WhatIfPanel({
  * into a real profile/ledger mutation. Disabled when value is zero.
  */
 function LockItInButton({
-  disabled, label, shortLabel, onClick,
+  disabled, label, shortLabel, onClick, reason,
 }: {
   disabled: boolean;
   label: string;
   shortLabel: string;
   onClick: () => void;
+  reason?: string;
 }) {
-  if (disabled) return null;
+  if (disabled && !reason) return null;
   return (
     <span>
-      <LBracket accent onClick={onClick} label={label}>
+      <LBracket accent onClick={onClick} label={label} disabled={disabled}>
         {shortLabel}
       </LBracket>
+      {reason && <span style={{display:'block', fontSize:11, color:L_T.muted}}>{reason}</span>}
     </span>
   );
 }
@@ -596,7 +606,6 @@ function SliderRow({
   formatValue,
   formatInterest,
   state,
-  positive,
   summary,
   disabled,
   inputMode = 'integer',
@@ -619,7 +628,6 @@ function SliderRow({
    *  currency since interest_saved is engine-summed across loans. */
   formatInterest: (v: number) => string;
   state: ScenarioState;
-  positive: boolean;
   /** Plain-language one-liner shown below the numeric result. */
   summary?: string | null;
   disabled?: boolean;
@@ -678,9 +686,9 @@ function SliderRow({
         type="range"
         min={min}
         max={max}
-        step={step}
+        step={inputMode === 'bps' ? step : 'any'}
         value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={(e) => onChange(Number(Number(e.target.value).toFixed(2)))}
         disabled={disabled}
         aria-label={title}
         aria-valuetext={formatValue(value)}
@@ -697,7 +705,7 @@ function SliderRow({
             <span style={{ display: 'inline-flex', gap: 16, flexWrap: 'wrap' }}>
               <span>
                 → DEBT-FREE{' '}
-                <strong style={{ color: tone(months === 0 ? null : (months > 0) === positive) }}>
+                <strong style={{ color: tone(months === 0 ? null : months > 0) }}>
                   {months === 0 ? 'SAME MONTH' : `${months > 0 ? '−' : '+'}${Math.abs(months)} MO`}
                 </strong>
               </span>
@@ -838,13 +846,14 @@ function TypableAmountInput({
       return;
     }
     // Strip commas / ₹ / spaces; keep optional leading '-'
-    const cleaned = raw.replace(/[^\d-]/g, '');
+    const cleaned = raw.replace(/[^\d.-]/g, '');
     const n = Number(cleaned);
     if (!Number.isFinite(n)) {
       onChange(0);
       return;
     }
-    const stepped = step > 0 ? Math.round(n / step) * step : n;
+    // The range has coarse steps; a typed money amount may be exact to cents.
+    const stepped = mode === 'bps' && step > 0 ? Math.round(n / step) * step : Number(n.toFixed(2));
     const clamped = Math.min(max, Math.max(min, stepped));
     onChange(clamped);
   }
@@ -865,7 +874,7 @@ function TypableAmountInput({
       )}
       <input
         type="text"
-        inputMode="numeric"
+        inputMode={mode === 'bps' ? 'numeric' : 'decimal'}
         value={display}
         placeholder={placeholder}
         onChange={(e) => setDraft(e.target.value)}
@@ -903,29 +912,38 @@ function useDebouncedScenario(
   key: unknown,
   setState: (s: ScenarioState) => void,
   fetcher: () => Promise<CompareResponse | null>,
+  active: boolean,
 ) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    let cancelled = false;
     if (timer.current) clearTimeout(timer.current);
+    if (!active) {
+      setState(INITIAL);
+      return;
+    }
+    setState({ loading: true, result: null, error: null });
     timer.current = setTimeout(async () => {
-      setState({ loading: true, result: null, error: null });
       try {
         const r = await fetcher();
+        if (cancelled) return;
         if (r === null) {
           setState({ loading: false, result: null, error: null });
         } else {
           setState({ loading: false, result: r, error: null });
         }
       } catch (e) {
+        if (cancelled) return;
         setState({ loading: false, result: null, error: (e as Error).message });
       }
     }, 350);
     return () => {
+      cancelled = true;
       if (timer.current) clearTimeout(timer.current);
     };
     // fetcher reference changes each render, intentionally ignore;
     // we re-debounce when `key` changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, active, setState]);
 }
 

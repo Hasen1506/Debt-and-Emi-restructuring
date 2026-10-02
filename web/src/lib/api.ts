@@ -37,6 +37,8 @@ export interface LoanPayload {
    *  loan). The plan rolls an EMI loan's balance forward by the EMIs due
    *  since (lib/roll-forward). The API ignores it. */
   balance_as_of?: string;
+  /** When the reported balance was saved. Separates payments earlier and later that day. */
+  balance_recorded_at?: string;
   loan_type: LoanType;
   bank: string;
   outstanding: string;

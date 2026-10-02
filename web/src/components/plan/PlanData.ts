@@ -64,6 +64,8 @@ export interface PlanData {
   opportunities: RestructuringOpportunity[];
   totalAnnualSaving: string;
   user: UserPayload;
+  /** Saved configuration before simulation-only overrides (hikes, penalties). */
+  configuredUser: UserPayload;
   marginalRate: string;
   /** Active payoff strategy used to compute trajectory + debtFreeMonth. */
   strategy: StrategyName;

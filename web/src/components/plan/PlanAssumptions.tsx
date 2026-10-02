@@ -39,12 +39,15 @@ interface Chip {
 export function PlanAssumptions({ plan }: { plan: PlanData }) {
   const [open, setOpen] = useState<ChipKey | null>(null);
   const u = plan.user;
+  const configured = plan.configuredUser;
   const ccy = plan.displayCurrency;
   const pct = (v: number, dp = 0) => `${(v * 100).toFixed(dp)}%`;
 
-  const hikeRate = Number(u.annual_hike_rate ?? '0');
-  const hikeMonth = MONTH_NAMES[Math.max(0, Math.min(11, (u.hike_effective_month ?? FY_ANCHOR_MONTH[u.country]) - 1))];
-  const phased = (u.hike_schedule ?? []).some(([f, t, r]) => f > 0 && t > f && Number(r) > 0);
+  const hikeRate = Number(configured.annual_hike_rate ?? '0');
+  const hikeMonth = MONTH_NAMES[Math.max(0, Math.min(11, (configured.hike_effective_month ?? FY_ANCHOR_MONTH[u.country]) - 1))];
+  const phased = (configured.hike_schedule ?? []).some(([f, t, r]) => f > 0 && t > f && Number(r) > 0);
+  const hasHike = hikeRate > 0 || phased;
+  const hikePct = pct(hikeRate, hikeRate > 0 && hikeRate < 0.01 ? 2 : 0);
   const inflRate = Number(u.inflation_rate ?? '0');
   const taxSaving = plan.taxReinvestProjection.reduce((s, e) => s + Number(e.amount), 0);
   const efGap = Number(u.efund_target || 0) > 0 && Number(u.efund_balance || 0) < Number(u.efund_target || 0);
@@ -65,31 +68,31 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
       key: 'hike',
       label: 'PAY RISES',
       value:
-        hikeRate <= 0
+        !hasHike
           ? 'NONE SET'
           : plan.hikeModeling === 'on'
             ? phased
               ? `PHASED · ${hikeMonth.slice(0, 3).toUpperCase()}`
-              : `+${pct(hikeRate)} A YEAR · ${hikeMonth.slice(0, 3).toUpperCase()}`
+              : `+${hikePct} A YEAR · ${hikeMonth.slice(0, 3).toUpperCase()}`
             : 'IGNORED',
       about:
-        hikeRate <= 0
+        !hasHike
           ? 'No pay rise is set, so the plan keeps your take-home flat.'
           : 'Whether your take-home grows each year. The rise and its month are set in Profile.',
       // With no rise set there's nothing to include: only the way to add one.
       control: (
         <>
-          {hikeRate > 0 && (
+          {hasHike && (
             <HikeToggle
               active={plan.hikeModeling}
-              hikeRatePct={pct(hikeRate)}
+              hikeRatePct={hikePct}
               hikeMonthLabel={hikeMonth}
-              hikePhases={u.hike_schedule}
+              hikePhases={configured.hike_schedule}
               variant="ledger"
             />
           )}
-          <div style={{ marginTop: hikeRate > 0 ? 8 : 0 }}>
-            <LBracket href="/profile?step=income">{hikeRate > 0 ? 'CHANGE THE RISE' : 'ADD A PAY RISE'} IN PROFILE →</LBracket>
+          <div style={{ marginTop: hasHike ? 8 : 0 }}>
+            <LBracket href="/profile?step=income">{hasHike ? 'CHANGE THE RISE' : 'ADD A PAY RISE'} IN PROFILE →</LBracket>
           </div>
         </>
       ),

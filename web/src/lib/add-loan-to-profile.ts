@@ -13,7 +13,8 @@ import { loanToUser } from './currency';
 import { loadProfileClient, saveProfileClient } from './user-store';
 import type { Country, LoanPayload, LoanType } from './api';
 import { userDefaultCurrency, type CurrencyCode } from './currency';
-import { getCountryToday, localIsoDate } from './today';
+import { rollBalancesForward } from './roll-forward';
+import { getCountryToday, localIsoDate, countryMonthKey } from './today';
 
 export interface AddLoanInput {
   loan_type: LoanType;
@@ -80,7 +81,7 @@ export function addLoanToProfile(input: AddLoanInput): number | null {
     || Number(input.scheduled_emi) <= 0 || !Number.isInteger(input.tenure_months_remaining)
     || input.tenure_months_remaining < 1 || input.tenure_months_remaining > 480 || profile.user.loans.length >= 50) return null;
   const raw = typeof document === 'undefined' ? '' : document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '';
-  const currentLoans = applyActivityDeltas(profile.user.loans, parseActivityDeltas(raw)).loans;
+  const currentLoans = applyActivityDeltas(rollBalancesForward(profile.user.loans,countryMonthKey(profile.user.country)).loans, parseActivityDeltas(raw), countryMonthKey(profile.user.country)).loans;
   const capacity = deriveMetrics({...profile,user:{...profile.user,loans:currentLoans}});
   const payment = loanToUser(Number(input.scheduled_emi),newLoan,profile.user.country,
     {...profile.user.fx_to_user_currency,...(foreign && input.fx_to_user ? {[foreign]:input.fx_to_user} : {})});

@@ -2,6 +2,8 @@
 
 import Decimal from 'decimal.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { loadProfileClient } from '@/lib/user-store';
+import { loanCurrency as nativeLoanCurrency } from '@/lib/currency';
 import {
   AddLoanAction,
   ApplyAction,
@@ -113,7 +115,11 @@ export function NriPrepayTool() {
   // A saved loan shows as one line; EDIT opens its fields.
   const [editLoan, setEditLoan] = useState(false);
   const [more, setMore] = useState(false);
-  const [v, setV] = useState<CrossBorderResponse | null>(null);
+  const [resultValue, setV] = useState<CrossBorderResponse | null>(null);
+  const fingerprint = JSON.stringify([targetIdx, loanBalance, loanRate, loanTenure, loanCurrency, userCurrency, savingsYield, marginalTax, fxText, fxPer, manualDrift, profile.user]);
+  const [checked, setChecked] = useState('');
+  const [resultProfileKey, setResultProfileKey] = useState('');
+  const v = checked === fingerprint ? resultValue : null;
   const [busy, setBusy] = useState(false);
   const { err, setErr, clear, fail, failField, at } = useFormErrors();
   const [applied, setApplied] = useState(false);
@@ -156,7 +162,7 @@ export function NriPrepayTool() {
   useEffect(() => {
     if (firstLoanIdx !== '') pickTargetLoan(firstLoanIdx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firstLoanIdx]);
+  }, [firstLoanIdx, profile.user.loans]);
 
   function showRate(userPerLoan: Decimal, from: string, mathNote: string) {
     if (userPerLoan.gte(1)) {
@@ -239,6 +245,7 @@ export function NriPrepayTool() {
     clear();
     setApplied(false);
     setAdded(false);
+    const baselineKey = JSON.stringify(loadProfileClient().user);
     try {
       setV(
         await api.crossBorder({
@@ -253,6 +260,8 @@ export function NriPrepayTool() {
           ...(manualDrift ? { manual_fx_drift_annual: manualDrift } : {}),
         }),
       );
+      setChecked(fingerprint);
+      setResultProfileKey(baselineKey);
     } catch (e) {
       fail(e, FIELDS);
     } finally {
@@ -430,7 +439,11 @@ export function NriPrepayTool() {
               <ApplyAction
                 applied={applied}
                 onApply={() => {
+                  if (applied || busy || checked !== fingerprint) return;
+                  if (JSON.stringify(loadProfileClient().user) !== resultProfileKey) { setErr('Your profile changed. Check again before logging a payment.'); return; }
                   const target = profile.user.loans[Number(targetIdx)];
+                  if (loanCurrency !== nativeLoanCurrency(target, profile.user.country)) { setErr('The loan currency was edited. Select the saved loan and check again.'); return; }
+                  try {
                   const sched = target.scheduled_emi || '0';
                   const balanceD = new Decimal(loanBalance);
                   const outstandingD = new Decimal(target.outstanding);
@@ -447,6 +460,7 @@ export function NriPrepayTool() {
                     country: profile.user.country,
                   });
                   setApplied(true);
+                  } catch (e) { setErr((e as Error).message); }
                 }}
                 label={`I paid it off · log it on the ${loanLabel(profile.user.loans[Number(targetIdx)])}`}
               />

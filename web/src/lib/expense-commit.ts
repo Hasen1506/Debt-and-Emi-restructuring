@@ -1,34 +1,12 @@
-/**
- * Expense-commit flow — the user agrees to cut their monthly expenses
- * by a fixed amount to close a goal-funding gap.
- *
- * Sequence on commit:
- *   1. Mutate `profile.user.fixed_expenses` (and `variable_expenses` if
- *      it's the larger of the two — see `applyDelta` below).
- *   2. Persist via `saveProfileClient`.
- *   3. Write a `decision_log` entry of kind `expense_commit` with the
- *      prior value stashed in `metadata` so undo is exact.
- *
- * On undo (DecisionLogControls.discard branch for `expense_commit`):
- *   1. Read `previousFixedExpenses` + `previousVariableExpenses` from
- *      the entry's metadata.
- *   2. Restore them on the profile + save.
- *   3. Delete the decision-log entry.
- *
- * The activity-ledger surfacing isn't done here — it's handled at
- * render time by mixing decision-log expense_commit entries into the
- * ledger timeline (see ActivityLedger.tsx). Keeping the storage in
- * one place avoids the two-store sync problem (where deleting one
- * leaves the other dangling).
- */
-
 import {
   logRecommendation,
   readDecisionsClient,
-  writeDecisionsClient,
   type DecisionEntry,
 } from './decision-log';
 import { loadProfileClient, saveProfileClient } from './user-store';
+import Decimal from 'decimal.js';
+import { countryMonthKey } from './today';
+import { syncSliceToServer } from './server-sync';
 
 export interface ExpenseCommitParams {
   /** Monthly expense reduction the user commits to (positive number,
@@ -43,39 +21,8 @@ export interface ExpenseCommitParams {
   goalId?: string;
   /** Short label of the source goal for human-readable context. */
   goalLabel?: string;
-  /** YYYY-MM the cut takes effect. Defaults to next month (current
-   *  month is mostly already spent; committing mid-cycle is mis-
-   *  leading). */
+  /** YYYY-MM the cut takes effect. Only the current month is supported. */
   effectiveMonth?: string;
-}
-
-/** Splits a positive delta across fixed / variable in proportion to
- *  the current split. Pure helper — does not touch storage. */
-function applyDelta(
-  fixed: number,
-  variable: number,
-  monthlyDelta: number,
-): { fixed: number; variable: number } {
-  const total = fixed + variable;
-  if (total <= 0 || monthlyDelta <= 0) {
-    return { fixed: Math.max(0, fixed), variable: Math.max(0, variable) };
-  }
-  // Cap delta at total so we don't push either bucket negative.
-  const effective = Math.min(monthlyDelta, total);
-  const variableShare = variable / total;
-  const variableCut = effective * variableShare;
-  const fixedCut = effective - variableCut;
-  return {
-    fixed: Math.max(0, fixed - fixedCut),
-    variable: Math.max(0, variable - variableCut),
-  };
-}
-
-function nextMonthIso(today: Date = new Date()): string {
-  const y = today.getFullYear();
-  const m = today.getMonth() + 1; // 0-indexed → next month = month+1
-  if (m > 11) return `${y + 1}-01`;
-  return `${y}-${String(m + 1).padStart(2, '0')}`;
 }
 
 export interface ExpenseCommitResult {
@@ -97,22 +44,21 @@ export function commitExpenseReduction(
   const profile = loadProfileClient();
   const fixed = Number(profile.user.fixed_expenses || '0');
   const variable = Number(profile.user.variable_expenses || '0');
-  if (params.monthlyDelta <= 0) return null;
+  const currentMonth = countryMonthKey(profile.user.country);
+  if (!Number.isFinite(params.monthlyDelta) || params.monthlyDelta <= 0 || params.monthlyDelta > fixed + variable) return null;
+  if (params.effectiveMonth && params.effectiveMonth !== currentMonth) return null;
 
-  const next = applyDelta(fixed, variable, params.monthlyDelta);
-  const newFixedStr = next.fixed.toFixed(0);
-  const newVariableStr = next.variable.toFixed(0);
-  const effectiveMonth = params.effectiveMonth ?? nextMonthIso();
+  const variableCut = new Decimal(params.monthlyDelta).mul(variable).div(fixed + variable).toDecimalPlaces(2);
+  const newFixedStr = new Decimal(fixed).sub(new Decimal(params.monthlyDelta).sub(variableCut)).toFixed(2);
+  const newVariableStr = new Decimal(variable).sub(variableCut).toFixed(2);
+  const effectiveMonth = currentMonth;
 
-  // Mutate + save first so the decision-log entry never references a
-  // commitment that didn't actually land. If save fails (cookie quota,
-  // etc.) the caller sees null and no entry is written.
+  // Prepare both records; roll back the decision if the profile cannot save.
   const updatedUser = {
     ...profile.user,
     fixed_expenses: newFixedStr,
     variable_expenses: newVariableStr,
   };
-  saveProfileClient({ ...profile, user: updatedUser });
 
   const ccySym = profile.user.country === 'IN' ? '₹' : '$';
   const goalLabel = params.goalLabel ?? 'a goal';
@@ -120,7 +66,7 @@ export function commitExpenseReduction(
 
   const entries = logRecommendation(readDecisionsClient(), 'expense_commit', {
     context: `Expense reduction · ${goalLabel}`,
-    estimatedAmount: String(Math.round(params.monthlyDelta)),
+    estimatedAmount: new Decimal(params.monthlyDelta).toFixed(2),
     reasoning,
     source: params.goalId ? `goals:${params.goalId}` : 'goals',
     metadata: {
@@ -128,17 +74,27 @@ export function commitExpenseReduction(
       previousVariableExpenses: String(variable),
       newFixedExpenses: newFixedStr,
       newVariableExpenses: newVariableStr,
-      monthlyDelta: String(Math.round(params.monthlyDelta)),
+      monthlyDelta: new Decimal(params.monthlyDelta).toFixed(2),
       effectiveMonth,
       goalId: params.goalId ?? '',
     },
   });
-  writeDecisionsClient(entries);
+  const before = localStorage.getItem('finoptima_decision_log');
+  try {
+    localStorage.setItem('finoptima_decision_log', JSON.stringify(entries));
+    if (!saveProfileClient({ ...profile, user: updatedUser })) throw new Error('The spending change could not be saved.');
+  } catch {
+    try {
+      if (before == null) localStorage.removeItem('finoptima_decision_log'); else localStorage.setItem('finoptima_decision_log', before);
+    } catch { /* A blocked unchanged decision key must still return a failed commit. */ }
+    return null;
+  }
+  void syncSliceToServer('decision_log', entries);
 
   return {
     entry: entries[0],
-    newFixedExpenses: next.fixed,
-    newVariableExpenses: next.variable,
+    newFixedExpenses: Number(newFixedStr),
+    newVariableExpenses: Number(newVariableStr),
   };
 }
 
@@ -160,7 +116,8 @@ export function undoExpenseCommit(entry: DecisionEntry): boolean {
   const prevVariable = meta.previousVariableExpenses;
   if (prevFixed == null) return false;
   const profile = loadProfileClient();
-  saveProfileClient({
+  if (Number(profile.user.fixed_expenses) !== Number(meta.newFixedExpenses) || Number(profile.user.variable_expenses || 0) !== Number(meta.newVariableExpenses || 0)) return false;
+  return saveProfileClient({
     ...profile,
     user: {
       ...profile.user,
@@ -168,7 +125,6 @@ export function undoExpenseCommit(entry: DecisionEntry): boolean {
       variable_expenses: prevVariable ?? '0',
     },
   });
-  return true;
 }
 
 /**

@@ -26,7 +26,10 @@ import {
   type UserPayload,
 } from '@/lib/api';
 import type { StrategyName } from '@/lib/strategy';
-import { useCurrentProfile } from '@/lib/use-profile';
+import { useCurrentProfile, useStoredProfile } from '@/lib/use-profile';
+import { rollBalancesForward } from '@/lib/roll-forward';
+import { applyActivityDeltas, activityDeltas } from '@/lib/activity-cookie';
+import { countryMonthKey } from '@/lib/today';
 import { readEfSplitClient } from '@/lib/ef-split';
 import { allocateCash, type CashFunding } from '@/lib/cash-allocation';
 import { commitCashChange } from '@/lib/commit-cash-change';
@@ -40,7 +43,6 @@ import {
   addContribution,
   readContributionsClient,
   totalsByGoal,
-  writeContributionsClient,
 } from '@/lib/goal-contributions';
 import type { AmountCurrency } from '@/lib/amount';
 import { Field } from '@/components/ToolPrimitives';
@@ -130,11 +132,12 @@ export function WindfallTool({
   strategy: StrategyName;
 }) {
   const profile = useCurrentProfile();
+  const baselineProfile = useStoredProfile();
   const country = profile.user.country;
   const ccy = userDefaultCurrency(country);
   const currency: AmountCurrency = ccy === 'USD' ? 'USD' : 'INR';
   const fmt = (v: number | string | Decimal) => formatCurrencyWhole(v.toString(), ccy);
-  const planUser: UserPayload = runArgs?.user ?? profile.user;
+  const planUser: UserPayload = profile.user;
   const [width, ref] = useWidth(900);
   const wide = width >= 640;
 
@@ -185,12 +188,14 @@ export function WindfallTool({
   // ── Engine pick: re-run once typing stops ─────────────────────────────
   const pickSeq = useRef(0);
   useEffect(() => {
-    setApplied(null);
+    const seq = ++pickSeq.current;
+    let live = true;
+    setPick(null);
+    setPicking(false);
     if (!(total > 0)) {
       setPick(null);
       return;
     }
-    const seq = ++pickSeq.current;
     const t = setTimeout(async () => {
       setPicking(true);
       setErr(null);
@@ -234,14 +239,14 @@ export function WindfallTool({
           rest -= efMore;
         }
         if (investName && rest >= 1) alloc.invest = Math.floor(rest);
-        if (seq === pickSeq.current) setPick({ alloc, fees, reasons, blocked, investName, hold });
+        if (live && seq === pickSeq.current) setPick({ alloc, fees, reasons, blocked, investName, hold });
       } catch (e) {
-        if (seq === pickSeq.current) setErr((e as Error).message);
+        if (live && seq === pickSeq.current) setErr((e as Error).message);
       } finally {
-        if (seq === pickSeq.current) setPicking(false);
+        if (live && seq === pickSeq.current) setPicking(false);
       }
     }, 450);
-    return () => clearTimeout(t);
+    return () => { live = false; clearTimeout(t); };
   }, [total, planUser, efGap, efSplit, profile.marginalRate, strategy]);
 
   const engineAlloc = pick?.alloc ?? {};
@@ -249,15 +254,14 @@ export function WindfallTool({
   const placed = Math.min(total, sum(alloc));
   const left = Math.max(0, total - placed);
   const feeOf = (t: Target, a: number) => (mode === 'engine' && pick?.fees[t.key] != null ? pick.fees[t.key] : a * (t.feePct ?? 0));
-  const step = currency === 'USD' ? 50 : 1000;
 
   function setItem(t: Target, v: number) {
     setApplied(null);
     setManual((prev) => {
       const others = sum(prev) - (prev[t.key] ?? 0);
       const cap = Math.min(t.cap, Math.max(0, total - others));
-      const nv = Math.max(0, Math.min(Math.round(v / step) * step, Math.floor(cap)));
-      return { ...prev, [t.key]: v >= cap ? Math.floor(cap) : nv };
+      const nv = Math.max(0, Math.min(Math.round(v * 100) / 100, cap));
+      return { ...prev, [t.key]: nv };
     });
   }
   function goManual() {
@@ -277,7 +281,7 @@ export function WindfallTool({
         const user = {
           ...runArgs.user,
           efund_balance: (Number(runArgs.user.efund_balance || 0) + (a.ef ?? 0)).toFixed(2),
-          loans: runArgs.user.loans.map((l, i) => {
+          loans: planUser.loans.map((l, i) => {
             const t = targets.find((x) => x.key === keyOf(l, i));
             const v = a[keyOf(l, i)] ?? 0;
             if (!t || !v || !t.fx) return l;
@@ -292,7 +296,7 @@ export function WindfallTool({
         return { ...runArgs, user, goals: g };
       },
     // feeOf reads mode and pick, both listed.
-    [runArgs, targets, mode, pick], // eslint-disable-line react-hooks/exhaustive-deps
+    [runArgs, planUser, targets, mode, pick], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const [base, setBase] = useState<Run | null>(null);
   const [after, setAfter] = useState<Run | null>(null);
@@ -300,17 +304,22 @@ export function WindfallTool({
   const [running, setRunning] = useState(false);
   useEffect(() => {
     if (!runArgs) return;
-    runPlan(runArgs, strategy).then(setBase, () => setBase(null));
+    let live = true;
+    setBase(null);
+    runPlan(runArgs, strategy).then(v => { if (live) setBase(v); }, () => { if (live) setBase(null); });
+    return () => { live = false; };
   }, [runArgs, strategy]);
   const allocKey = JSON.stringify(alloc);
   const runSeq = useRef(0);
   useEffect(() => {
+    const seq = ++runSeq.current;
+    let live = true;
+    setRunning(false);
     if (!runArgs || !(placed > 0)) {
       setAfter(null);
       setPerLoan({});
       return;
     }
-    const seq = ++runSeq.current;
     const t = setTimeout(async () => {
       setRunning(true);
       try {
@@ -319,16 +328,16 @@ export function WindfallTool({
           runPlan(argsWith(alloc)!, strategy),
           ...debtKeys.map((k) => runPlan(argsWith({ [k]: alloc[k] })!, strategy)),
         ]);
-        if (seq !== runSeq.current) return;
+        if (!live || seq !== runSeq.current) return;
         setAfter(whole);
         setPerLoan(Object.fromEntries(debtKeys.map((k, i) => [k, each[i]])));
       } catch {
-        if (seq === runSeq.current) setAfter(null);
+        if (live && seq === runSeq.current) setAfter(null);
       } finally {
-        if (seq === runSeq.current) setRunning(false);
+        if (live && seq === runSeq.current) setRunning(false);
       }
     }, 500);
-    return () => clearTimeout(t);
+    return () => { live = false; clearTimeout(t); };
   }, [allocKey, runArgs, strategy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Where to park the emergency-fund share, against what it earns now.
@@ -341,19 +350,27 @@ export function WindfallTool({
       setPark(null);
       return;
     }
+    let live = true;
     const t = setTimeout(() => {
-      api.cashYield({ idle_balance: ef.toFixed(2), current_yield: earnsNow.toFixed(4), country }).then(setPark, () => setPark(null));
+      api.cashYield({ idle_balance: ef.toFixed(2), current_yield: earnsNow.toFixed(4), country }).then(v => { if (live) setPark(v); }, () => { if (live) setPark(null); });
     }, 600);
-    return () => clearTimeout(t);
+    return () => { live = false; clearTimeout(t); };
   }, [alloc.ef, earnsNow, country]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Log it ─────────────────────────────────────────────────────────────
   function logIt() {
+    if (applied) return;
     setErr(null);
     try {
       if (!(placed > 0)) throw new Error('Place some of it first.');
       if (source === 'account' && accounts.length > 0 && !accountName) throw new Error('Choose the account it comes from.');
       const stored = loadProfileClient();
+      if (JSON.stringify(stored.user) !== JSON.stringify(baselineProfile.user)) throw new Error('Your profile changed. Reload and check the split again.');
+      if (sum(alloc) > total + 0.001) throw new Error('The split exceeds the available cash. Adjust it first.');
+      if (mode === 'engine' && (!pick || picking)) throw new Error('Wait for the current split before logging it.');
+      const currentMonth = countryMonthKey(stored.user.country);
+      const currentLoans = applyActivityDeltas(rollBalancesForward(stored.user.loans, currentMonth).loans,
+        activityDeltas(readActivityClient(), stored.user.loans, stored.user.country), currentMonth).loans;
       const date = localIsoDate(new Date());
       let entries = readActivityClient();
       let debt = 0;
@@ -365,8 +382,14 @@ export function WindfallTool({
         const index = planLoan.id ? stored.user.loans.findIndex((l) => l.id === planLoan.id) : t.index!;
         const loan = stored.user.loans[index];
         if (!loan) throw new Error(`${t.label} is no longer in your profile. Reload and try again.`);
+        if (Number(currentLoans[index].outstanding) <= 0 || block(currentLoans[index])) throw new Error(`${t.label} is no longer available for prepayment. Reload and try again.`);
+        const currentFx = loanToUser(1, currentLoans[index], country, stored.user.fx_to_user_currency);
+        if (currentFx !== t.fx || Number(currentLoans[index].prepayment_penalty_pct || 0) !== t.feePct)
+          throw new Error('The exchange rate or prepayment terms changed. Check the split again.');
         const fee = feeOf(t, v);
         const principal = new Decimal(v).minus(fee).div(t.fx!);
+        if (!principal.isFinite() || principal.lte(0) || principal.gt(new Decimal(currentLoans[index].outstanding).add('.005')))
+          throw new Error('The payment exceeds the current loan balance. Check the split again.');
         entries = addActivityEntry(
           entries,
           {
@@ -387,18 +410,28 @@ export function WindfallTool({
       }
       const ef = alloc.ef ?? 0;
       const invest = alloc.invest ?? 0;
+      const toGoals = targets.filter((t) => t.kind === 'goal' && (alloc[t.key] ?? 0) > 0);
+      const goalTotal = toGoals.reduce((s,t) => s + alloc[t.key], 0);
+      const liveGoals = readGoalsClient();
+      const liveContributions = readContributionsClient();
+      const liveSaved = totalsByGoal(liveContributions);
+      for (const t of toGoals) {
+        const g = liveGoals.find(g => g.id === t.goal!.id);
+        if (!g || !isOpenGoal(g) || alloc[t.key] > fundedAmount(g) - (liveSaved[g.id] ?? 0) + .001)
+          throw new Error('A goal changed or was funded already. Reload before logging this split.');
+      }
       const user = allocateCash(stored.user, {
         total: total.toFixed(2),
         ef: ef.toFixed(2),
         debt: debt.toFixed(2),
         investment: invest.toFixed(2),
+        goals: goalTotal.toFixed(2),
         source,
         accountName,
         investmentName: pick?.investName ?? 'Spare cash investment',
         date,
       });
       const cash = readCashEventsClient();
-      const toGoals = targets.filter((t) => t.kind === 'goal' && (alloc[t.key] ?? 0) > 0);
       const kept = total - debt - ef - invest - toGoals.reduce((s, t) => s + alloc[t.key], 0);
       const next = {
         ...cash,
@@ -414,12 +447,11 @@ export function WindfallTool({
           },
         ],
       };
-      commitCashChange(stored, user, entries, next);
+      let contributions = liveContributions;
+      for (const t of toGoals) contributions = addContribution(contributions, { goalId: t.goal!.id, amount: alloc[t.key].toFixed(2), date, source: 'spare cash' });
+      commitCashChange(stored, user, entries, next, toGoals.length ? contributions : undefined);
       if (toGoals.length) {
-        let c = readContributionsClient();
-        for (const t of toGoals) c = addContribution(c, { goalId: t.goal!.id, amount: alloc[t.key].toFixed(2), date, source: 'spare cash' });
-        writeContributionsClient(c);
-        setSaved(totalsByGoal(c));
+        setSaved(totalsByGoal(contributions));
         lines.push(...toGoals.map((t) => `${fmt(alloc[t.key])} → ${t.label}`));
       }
       if (ef > 0) lines.unshift(`${fmt(ef)} → emergency fund`);
@@ -462,7 +494,7 @@ export function WindfallTool({
       <section style={box} aria-labelledby="wf-in">
         <LStepHead no="01" id="wf-in">How much</LStepHead>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 14, alignItems: 'start' }}>
-          <Field label="Amount, after tax" kind="money" currency={currency} value={amount} onChange={setAmount} />
+          <Field label="Amount, after tax" kind="money" currency={currency} value={amount} onChange={(v) => { setAmount(v); setManual({}); setApplied(null); }} />
           <LChipRow label="Where it comes from">
             <LChip on={source === 'external'} onClick={() => setSource('external')}>
               A bonus, refund or gift
@@ -583,7 +615,7 @@ export function WindfallTool({
                       target={t}
                       value={v}
                       total={total}
-                      step={step}
+                      step={0.01}
                       disabled={mode === 'engine' || !!t.blocked}
                       onChange={(x) => setItem(t, x)}
                       badge={badge}
@@ -598,7 +630,7 @@ export function WindfallTool({
           {investTarget && (
             <div style={{ marginBottom: 16 }}>
               <LStepSub>Invest instead</LStepSub>
-              <AllocRow first target={investTarget} value={alloc.invest ?? 0} total={total} step={step} disabled onChange={() => undefined} badge="EARNS MORE THAN ANY LOAN COSTS" badgeTone={L_T.positive} fmt={fmt} />
+              <AllocRow first target={investTarget} value={alloc.invest ?? 0} total={total} step={0.01} disabled onChange={() => undefined} badge="EARNS MORE THAN ANY LOAN COSTS" badgeTone={L_T.positive} fmt={fmt} />
             </div>
           )}
           {targets.length === 0 && (

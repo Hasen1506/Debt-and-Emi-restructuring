@@ -14,6 +14,7 @@ import {
   isOpenGoal,
   readGoalsClient,
   writeGoalsClient,
+  goalSliceWrite,
   type Goal,
 } from '@/lib/goals';
 import {
@@ -22,13 +23,15 @@ import {
   removeContribution,
   totalsByGoal,
   writeContributionsClient,
+  contributionSliceWrite,
   type GoalContributionEntry,
 } from '@/lib/goal-contributions';
 import { GOAL_STATE_LABEL, goalContext, goalLine, goalStateTone, type GoalLine } from '@/lib/goal-line';
 import { simMonthToCalendar } from '@/lib/goal-defer';
-import { readDecisionsClient, recordDecision } from '@/lib/decisions';
+import { readDecisionsClient, prepareDecision, type DecisionEntry } from '@/lib/decisions';
 import { commitExpenseReduction } from '@/lib/expense-commit';
 import { loadProfileClient } from '@/lib/user-store';
+import { persistClientSlices, type ClientSliceWrite } from '@/lib/persist-client-slices';
 import { TEMPLATE_CATALOGUE, expandTemplate, type TemplateKind } from '@/lib/life-templates';
 import { localIsoDate } from '@/lib/today';
 import { useWidth } from '@/lib/use-width';
@@ -65,6 +68,7 @@ export function GoalsPage({
   const [contributions, setContributions] = useState<GoalContributionEntry[]>([]);
   const [user, setUser] = useState(userProp);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState('');
   const [form, setForm] = useState<FormState>(null);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [showClosed, setShowClosed] = useState(false);
@@ -99,8 +103,11 @@ export function GoalsPage({
   }, [goals, saved, ctx]);
 
   function updateGoals(next: Goal[]) {
-    setGoals(next);
-    writeGoalsClient(next);
+    try {
+      if (JSON.stringify(readGoalsClient()) !== JSON.stringify(goals)) throw new Error('Your goals changed elsewhere. Reload before saving.');
+      writeGoalsClient(next); setGoals(readGoalsClient()); setError(''); return true;
+    }
+    catch (e) { setError((e as Error).message); return false; }
   }
 
   // Keep each goal's saving start where the plan can read it: the last
@@ -130,74 +137,68 @@ export function GoalsPage({
     [goals, saved, user, today, indicativeRate],
   );
 
+  function saveGoalChoice(next: Goal[], draft: Omit<DecisionEntry,'id'|'at'|'reverted'>, initialContributions?: GoalContributionEntry[]): boolean {
+    try {
+      if (JSON.stringify(readGoalsClient()) !== JSON.stringify(goals) || (initialContributions && JSON.stringify(readContributionsClient()) !== JSON.stringify(contributions)))
+        throw new Error('Your goals changed elsewhere. Reload before saving.');
+      const goalWrite = goalSliceWrite(next);
+      const normalized = goalWrite.value as Goal[];
+      const resultGoal = normalized.find(g => g.id === draft.result.goalId);
+      const history = prepareDecision(readDecisionsClient(), {...draft,result:{...draft.result,...(resultGoal ? {goal:resultGoal} : {})}});
+      const writes: ClientSliceWrite[] = [goalWrite];
+      if (initialContributions) writes.push(contributionSliceWrite(initialContributions));
+      writes.push({key:'finoptima_decisions',value:history,slice:'decisions'});
+      persistClientSlices(writes);
+      setGoals(readGoalsClient());
+      if (initialContributions) setContributions(initialContributions);
+      setError('');
+      return true;
+    } catch (e) { setError((e as Error).message); return false; }
+  }
+
   function saveDraft({ goal, alreadySaved }: GoalDraft) {
-    const before = goals.find((g) => g.id === goal.id);
+    const before = goals.find(g => g.id === goal.id);
     if (before) {
-      updateGoals(goals.map((g) => (g.id === goal.id ? goal : g)));
-      recordDecision(readDecisionsClient(), {
-        kind: 'goal_edited',
-        label: `Changed goal: ${goal.label}`,
-        snapshot: { goal: before },
-        result: { goalId: goal.id },
-        impactDeltaMonths: null,
-      });
+      if (!saveGoalChoice(goals.map(g => g.id === goal.id ? goal : g), {
+        kind:'goal_edited',label:`Changed goal: ${goal.label}`,snapshot:{goal:before},result:{goalId:goal.id},impactDeltaMonths:null,
+      })) return;
     } else {
-      const g = { ...goal, createdAt: new Date().toISOString(), status: 'active' as const };
-      updateGoals([...goals, g]);
-      recordDecision(readDecisionsClient(), {
-        kind: 'goal_added',
-        label: `Added goal: ${g.label}`,
-        snapshot: { goalCount: goals.length },
-        result: { goalCount: goals.length + 1, kind: g.kind, goalId: g.id },
-        impactDeltaMonths: null,
-      });
-      if (alreadySaved > 0) {
-        commitContributions(
-          addContribution(contributions, { goalId: g.id, amount: String(alreadySaved), date: localIsoDate(today), source: 'already saved' }),
-        );
-      }
+      const g = {...goal,createdAt:new Date().toISOString(),status:'active' as const};
+      const initial = alreadySaved > 0 ? addContribution(contributions,{goalId:g.id,amount:String(alreadySaved),date:localIsoDate(today),source:'already saved'}) : undefined;
+      if (!saveGoalChoice([...goals,g], {
+        kind:'goal_added',label:`Added goal: ${g.label}`,snapshot:{goalCount:goals.length},result:{goalCount:goals.length+1,kind:g.kind,goalId:g.id},impactDeltaMonths:null,
+      },initial)) return;
     }
     setForm(null);
   }
 
   function patch(id: string, p: Partial<Goal>) {
-    updateGoals(goals.map((g) => (g.id === id ? { ...g, ...p } : g)));
+    updateGoals(goals.map(g => g.id === id ? {...g,...p} : g));
   }
 
   function close(g: Goal, funded: boolean) {
-    updateGoals(
-      goals.map((x) =>
-        x.id === g.id ? { ...x, status: funded ? 'archived' : 'cancelled', closedAt: localIsoDate(today), fundingStartMonth: undefined } : x,
-      ),
-    );
-    recordDecision(readDecisionsClient(), {
-      kind: 'goal_removed',
-      label: `${funded ? 'Archived' : 'Cancelled'} goal: ${g.label}`,
-      snapshot: { goal: g },
-      result: { goalId: g.id },
-      impactDeltaMonths: null,
-    });
-    setOpen((o) => ({ ...o, [g.id]: false }));
+    if (!saveGoalChoice(goals.map(x => x.id === g.id ? {...x,status:funded ? 'archived' : 'cancelled',closedAt:localIsoDate(today),fundingStartMonth:undefined} : x), {
+      kind:'goal_removed',label:`${funded ? 'Archived' : 'Cancelled'} goal: ${g.label}`,snapshot:{goal:g},result:{goalId:g.id},impactDeltaMonths:null,
+    })) return;
+    setOpen(o => ({...o,[g.id]:false}));
   }
 
   function remove(g: Goal) {
-    updateGoals(goals.filter((x) => x.id !== g.id));
-    recordDecision(readDecisionsClient(), {
-      kind: 'goal_removed',
-      label: `Deleted goal: ${g.label}`,
-      snapshot: { goal: g },
-      result: { goalId: g.id },
-      impactDeltaMonths: null,
+    saveGoalChoice(goals.filter(x => x.id !== g.id), {
+      kind:'goal_removed',label:`Deleted goal: ${g.label}`,snapshot:{goal:g},result:{goalId:g.id,deleted:true},impactDeltaMonths:null,
     });
   }
 
   function commitContributions(next: GoalContributionEntry[]) {
-    setContributions(next);
-    writeContributionsClient(next);
+    try {
+      if (JSON.stringify(readContributionsClient()) !== JSON.stringify(contributions)) throw new Error('Goal contributions changed elsewhere. Reload before saving.');
+      writeContributionsClient(next); setContributions(next); setError('');
+    }
+    catch (e) { setError((e as Error).message); }
   }
 
   function cutSpending(g: Goal, monthly: number): boolean {
-    const r = commitExpenseReduction({ monthlyDelta: monthly, goalId: g.id, goalLabel: g.label });
+    const r = commitExpenseReduction({ monthlyDelta: monthly, goalId: g.id, goalLabel: g.label, effectiveMonth: localIsoDate(today).slice(0,7) });
     if (!r) return false;
     setUser(loadProfileClient().user);
     return true;
@@ -207,7 +208,7 @@ export function GoalsPage({
     const ages: Record<string, number> = { under_25: 22, '25_35': 30, '35_50': 42, '50_plus': 55, '60_plus': 63 };
     const spend = Number(user.fixed_expenses || '0') + Number(user.variable_expenses || '0');
     const t = expandTemplate({ kind, currentAge: user.age_bracket ? ages[user.age_bracket] : 30, monthlyExpenses: spend || undefined });
-    updateGoals([...goals, ...t.goals]);
+    if (!updateGoals([...goals, ...t.goals])) return;
     setTemplateNote({ summary: t.summary, caveats: t.caveats });
     setForm(null);
   }
@@ -236,6 +237,7 @@ export function GoalsPage({
 
   return (
     <div ref={ref} style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+      {error && <p role="alert" style={{ color: L_T.negative }}>{error}</p>}
       {openGoals.length > 0 && (
         <LKpi
           mobile={!wide}

@@ -165,7 +165,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
 
         {/* Planned pay changes, new rates and new loans */}
         <div id="life-events" style={{ scrollMarginTop: 16 }}>
-          <LifecycleEventsPanel user={plan.user} />
+          <LifecycleEventsPanel user={plan.user} configuredLoans={plan.configuredUser.loans} />
         </div>
 
         {/* Prepay or save, the home loan's tax saving, a bracket change */}
@@ -189,6 +189,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           </p>
           <WhatIfPanel
             user={plan.runArgs?.user ?? { ...plan.user, loans: plan.user.loans.filter((l) => !l.planned_effective_month) }}
+            configuredUser={plan.configuredUser}
             marginalRate={plan.marginalRate}
             strategy={plan.strategy}
             runArgs={plan.runArgs}

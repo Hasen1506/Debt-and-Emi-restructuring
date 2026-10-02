@@ -45,6 +45,7 @@ import { emiFromMonths, firstExtraPayment, marginalRateFromTakeHome } from '@/li
 import { readStrategyClient, STRATEGY_LABEL, STRATEGY_SHORT } from '@/lib/strategy';
 import { FY_ANCHOR_MONTH, getCountryMonth, getCountryToday, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { loadProfileClient, saveProfileClient, type StoredProfile } from '@/lib/user-store';
+import { stampBalanceDates } from '@/lib/roll-forward';
 
 const STEPS = ['You and your money', 'What you owe', 'Your plan'] as const;
 
@@ -401,10 +402,11 @@ export function QuickSetup() {
 
   function save() {
     const built = buildUser();
-    // Every balance here was just typed (or confirmed), so it's dated today.
+    // Date changed balances today; preserve the anchor when only other fields changed.
     const asOf = localIsoDate(getCountryToday(built.country));
-    const user = { ...built, loans: built.loans.map((l) => ({ ...l, balance_as_of: asOf })) };
-    const ok = saveProfileClient({ user, marginalRate: marginal().rate });
+    const current = loadProfileClient();
+    const user = { ...built, loans: stampBalanceDates(built.loans, current.user.loans, asOf) };
+    const ok = saveProfileClient({ ...current, user, marginalRate: marginal().rate });
     if (!ok) {
       setSaveFailed(true);
       return;

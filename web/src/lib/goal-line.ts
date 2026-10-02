@@ -19,14 +19,12 @@ import {
   type TierResult,
 } from './achievability';
 import type { GoalDeferResult } from './goal-defer';
+import { deriveMetrics } from './derived';
 
 /** Take-home less spending and EMIs: what a month leaves for goals. */
 export function monthlySpare(user: UserPayload): number {
-  const income = new Decimal(user.monthly_income || '0');
-  const fixed = new Decimal(user.fixed_expenses || '0');
-  const variable = new Decimal(user.variable_expenses || '0');
-  const emi = (user.loans ?? []).reduce((s, l) => s.plus(new Decimal(l.scheduled_emi || '0')), new Decimal(0));
-  return Math.max(0, income.sub(fixed).sub(variable).sub(emi).toNumber());
+  const metrics = deriveMetrics({ user, marginalRate: '0', creditScore: null, isLive: true });
+  return metrics.fxMissing.length ? 0 : Math.max(0, metrics.surplus.toNumber());
 }
 
 /**

@@ -7,11 +7,13 @@
 import {
   addActivityEntry,
   readActivityClient,
-  writeActivityClient,
   type ActivityKind,
 } from './activity';
-import { syncActivityCookieClient } from './activity-cookie';
 import type { Country, LoanPayload } from './api';
+import { loadProfileClient } from './user-store';
+import { resolveLoanIndex } from './loan-ids';
+import { isOpenCurrentLoan } from './plan-controls';
+import { commitActivity } from './commit-activity';
 
 export interface ApplyToolResultInput {
   loanIndex: number;
@@ -40,16 +42,21 @@ function todayISO(): string {
  * Returns the new entry count so callers can render confirmation messaging.
  */
 export function applyToolResult(input: ApplyToolResultInput): number {
+  const profile = loadProfileClient();
+  const target = input.loans[input.loanIndex];
+  const index = resolveLoanIndex({ loanIndex: input.loanIndex, loanId: target?.id }, profile.user.loans);
+  if (profile.user.country !== input.country || !isOpenCurrentLoan(profile.user.loans[index]))
+    throw new Error('That loan is no longer open. Reload and check again.');
   const current = readActivityClient();
   const next = addActivityEntry(current, {
-    loanIndex: input.loanIndex,
+    loanIndex: index,
+    loanId: profile.user.loans[index].id,
     kind: input.kind,
     date: input.date ?? todayISO(),
     amount: input.amount,
     scheduledEmi: input.scheduledEmi,
     note: input.note,
-  }, input.loans);
-  writeActivityClient(next);
-  syncActivityCookieClient(next, input.loans, input.country);
+  }, profile.user.loans);
+  commitActivity(next, profile.user);
   return next.length;
 }
