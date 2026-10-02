@@ -12,13 +12,14 @@ from engine.asset_liquidation import (
 from engine.country_data import india_selling_cost_pct
 from engine.decisions import (
     DecisionInputError, allocate_windfall, evaluate_new_debt, quick_recompute,
-    cash_yield_check, right_time_to_borrow, money,
+    cash_yield_check, right_time_to_borrow, right_time_from_odds, MeetingMoves, money,
 )
 from engine.formulas import effective_rate
 from engine.models import Country, FilingStatusUS
 from engine.simulation import simulate_plan
 from engine.surplus import to_user_currency, loan_currency_or_default
 
+from api import market_odds
 from api.schemas import (
     WindfallRequest, WindfallResponse,
     NewDebtRequest, NewDebtResponse,
@@ -170,16 +171,38 @@ def cash_yield(req: CashYieldRequest) -> CashYieldResponse:
 
 @router.post("/right-time-to-borrow", response_model=BorrowTimingResponse)
 def borrow_timing(req: BorrowTimingRequest) -> BorrowTimingResponse:
-    verdict = right_time_to_borrow(
-        current_rate=req.current_rate, six_month_avg=req.six_month_avg,
-        consensus_change_bps=req.consensus_change_bps,
-        months_to_decision=req.months_to_decision,
-        urgency=req.urgency, principal=req.principal,
-        tenure_months=req.tenure_months,
-        country=req.country,
-        monthly_room=req.monthly_room,
+    if req.consensus_change_bps is not None:
+        if req.months_to_decision is None:
+            raise HTTPException(422, "months_to_decision is needed with consensus_change_bps.")
+        verdict = right_time_to_borrow(
+            current_rate=req.current_rate,
+            six_month_avg=req.six_month_avg if req.six_month_avg is not None else req.current_rate,
+            consensus_change_bps=req.consensus_change_bps,
+            months_to_decision=req.months_to_decision,
+            urgency=req.urgency, principal=req.principal,
+            tenure_months=req.tenure_months,
+            country=req.country,
+            monthly_room=req.monthly_room,
+        )
+        return BorrowTimingResponse(**verdict.__dict__)
+
+    # The market's odds for the coming decisions (Polymarket).
+    country = req.country.value
+    cal = market_odds.calendar(country)
+    reading = market_odds.CACHE.odds(country, cal)
+    today = date.today()
+    verdict = right_time_from_odds(
+        current_rate=req.current_rate, principal=req.principal,
+        tenure_months=req.tenure_months, urgency=req.urgency,
+        meetings=None if reading is None else [
+            MeetingMoves(m.day, tuple((o.bps, o.chance) for o in m.outcomes)) for m in reading.meetings
+        ],
+        today=today, country=req.country, monthly_room=req.monthly_room,
+        rate_floats=req.rate_type == "floating",
+        next_meeting=next((d for d in cal if d >= today), None),
     )
-    return BorrowTimingResponse(**verdict.__dict__)
+    out = {**verdict.__dict__, "wait_until": verdict.wait_until.isoformat() if verdict.wait_until else None}
+    return BorrowTimingResponse(**out, odds=market_odds.reading_out(country, reading))
 
 
 @router.post("/asset-liquidation", response_model=AssetLiquidationResponse)

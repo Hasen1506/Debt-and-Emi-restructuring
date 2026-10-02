@@ -521,6 +521,32 @@ class BorrowTimingVerdict:
     detail: str
     monthly_payment: Decimal = D("0")     # the EMI at today's rate
     monthly_room: Optional[Decimal] = None
+    # Filled when the verdict comes from market odds (right_time_from_odds).
+    cut_chance: Optional[Decimal] = None      # chance of a net cut by wait_until
+    rise_chance: Optional[Decimal] = None
+    saving_if_cut: Optional[Decimal] = None   # the saving if the cut comes
+    wait_until: Optional[date] = None         # the decision the odds run to
+    rate_floats: bool = False
+
+
+def _fits(verdict: str, detail: str, payment: Decimal, monthly_room: Optional[Decimal],
+          country: Country) -> tuple[str, str]:
+    """The EMI against what is left each month: `cant_afford` when it
+    doesn't fit, whatever the timing said."""
+    if monthly_room is None:
+        return verdict, detail + " This judges the timing only: it doesn't know your income, costs or other payments."
+    if payment > monthly_room:
+        room = max(D("0"), monthly_room)
+        room_text = f"only {money(room, country)} a month is left" if room > 0 else "nothing is left each month"
+        return "cant_afford", (
+            f"The {money(payment, country)} EMI doesn't fit: {room_text} after your costs and "
+            f"payments, {money(payment - monthly_room, country)} a month short. Borrow less or "
+            f"over longer, or free up room first. On timing alone: {detail}"
+        )
+    return verdict, detail + (
+        f" The {money(payment, country)} EMI leaves {money(monthly_room - payment, country)} "
+        f"a month after your costs and payments."
+    )
 
 
 def right_time_to_borrow(
@@ -589,23 +615,7 @@ def right_time_to_borrow(
         emi(principal, current_rate, tenure_months).quantize(D("0.01"), rounding=ROUND_HALF_UP)
         if principal > 0 and tenure_months > 0 else D("0")
     )
-    if monthly_room is None:
-        detail += " This judges the timing only: it doesn't know your income, costs or other payments."
-    elif payment > monthly_room:
-        room = max(D("0"), monthly_room)
-        room_text = f"only {money(room, country)} a month is left" if room > 0 else "nothing is left each month"
-        timing = detail
-        verdict = "cant_afford"
-        detail = (
-            f"The {money(payment, country)} EMI doesn't fit: {room_text} after your costs and "
-            f"payments, {money(payment - monthly_room, country)} a month short. Borrow less or "
-            f"over longer, or free up room first. On timing alone: {timing}"
-        )
-    else:
-        detail += (
-            f" The {money(payment, country)} EMI leaves {money(monthly_room - payment, country)} "
-            f"a month after your costs and payments."
-        )
+    verdict, detail = _fits(verdict, detail, payment, monthly_room, country)
 
     return BorrowTimingVerdict(
         current_rate=current_rate, six_month_avg=six_month_avg,
@@ -613,4 +623,156 @@ def right_time_to_borrow(
         months_to_decision=months_to_decision, urgency=urgency,
         verdict=verdict, estimated_savings=estimated_savings, detail=detail,
         monthly_payment=payment, monthly_room=monthly_room,
+    )
+
+
+@dataclass(frozen=True)
+class MeetingMoves:
+    """One upcoming rate decision and the market's chance of each move:
+    (change in basis points, chance), the chances summing to 1."""
+    day: date
+    moves: tuple[tuple[int, Decimal], ...]
+
+
+# How long each urgency can put the loan off.
+_WAIT_DAYS = {"now": 0, "3m_ok": 92, "6m_ok": 183}
+
+
+def _combined(meetings: list[MeetingMoves]) -> dict[int, Decimal]:
+    """The total move over several decisions, taking each as independent."""
+    dist = {0: D("1")}
+    for m in meetings:
+        nxt: dict[int, Decimal] = {}
+        for a, pa in dist.items():
+            for b, pb in m.moves:
+                nxt[a + b] = nxt.get(a + b, D("0")) + pa * pb
+        dist = nxt
+    return dist
+
+
+def _day(d: date) -> str:
+    return f"{d.day:02d} {d.strftime('%b %Y')}"
+
+
+def _pct(p: Decimal) -> str:
+    return f"{int((p * 100).quantize(D('1'), rounding=ROUND_HALF_UP))}%"
+
+
+def right_time_from_odds(
+    current_rate: Decimal,
+    principal: Decimal,
+    tenure_months: int,
+    urgency: str,
+    meetings: Optional[list[MeetingMoves]],
+    today: date,
+    country: Country = Country.IN,
+    monthly_room: Optional[Decimal] = None,
+    rate_floats: bool = False,
+    next_meeting: Optional[date] = None,
+) -> BorrowTimingVerdict:
+    """Borrow now or wait, on the market's odds rather than a guess.
+
+    Asking people what they expect the central bank to do asked them for
+    the answer. Prediction markets price each outcome of each decision;
+    `meetings` carries those odds (None when none could be had).
+
+    - A floating rate follows the policy rate after you borrow, cuts and
+      rises alike, so timing gains nothing: borrow when you need it.
+    - A fixed rate is set the day you borrow. Waiting pays when a cut is
+      more likely than not by a decision you can wait for, and the saving
+      on the odds (rises counted against it) is worth having.
+
+    The saving is the EMI at today's rate less the EMI after the move, over
+    the whole term, weighted by each move's chance; the decision the odds
+    run to is the first at which a cut becomes more likely than not.
+    """
+    bank = "RBI" if country == Country.IN else "Fed"
+    worth_waiting = D("5000") if country == Country.IN else D("100")
+    can_wait = urgency in ("3m_ok", "6m_ok")
+    horizon = today.toordinal() + _WAIT_DAYS.get(urgency, 0)
+    upcoming = sorted((m for m in (meetings or []) if m.day >= today), key=lambda m: m.day)
+    in_window = [m for m in upcoming if m.day.toordinal() <= horizon]
+
+    def saving(bps: int) -> Decimal:
+        """Interest saved over the loan if the rate moves by `bps` (a rise
+        saves a negative amount)."""
+        if principal <= 0 or tenure_months <= 0:
+            return D("0")
+        moved = max(D("0"), current_rate + D(bps) / D("10000"))
+        return (emi(principal, current_rate, tenure_months) - emi(principal, moved, tenure_months)) * D(tenure_months)
+
+    # Run the odds to the first decision where a cut is more likely than
+    # not; failing that, to the last one before the loan is needed.
+    upto = in_window
+    for k in range(1, len(in_window) + 1):
+        dist = _combined(in_window[:k])
+        if sum((p for b, p in dist.items() if b < 0), D("0")) >= D("0.5"):
+            upto = in_window[:k]
+            break
+    dist = _combined(upto) if upto else {0: D("1")}
+    cut = sum((p for b, p in dist.items() if b < 0), D("0"))
+    rise = sum((p for b, p in dist.items() if b > 0), D("0"))
+    expected_bps = sum((p * b for b, p in dist.items()), D("0"))
+    expected = sum((p * saving(b) for b, p in dist.items()), D("0")).quantize(D("1"), rounding=ROUND_HALF_UP)
+    if_cut = (
+        (sum((p * saving(b) for b, p in dist.items() if b < 0), D("0")) / cut).quantize(D("1"), rounding=ROUND_HALF_UP)
+        if cut > 0 else None
+    )
+    until = upto[-1].day if upto else None
+    by = f"by the {bank} decision on {_day(until)}" if until else ""
+
+    first = upcoming[0] if upcoming else None
+    first_cut = (
+        sum((p for b, p in first.moves if b < 0), D("0")) if first else D("0")
+    )
+
+    verdict = "borrow_now"
+    if meetings is None:
+        detail = (f"No market odds for the next {bank} decision right now, so this goes on "
+                  f"today's rate: borrow now. Check again in a day or two.")
+    elif rate_floats:
+        detail = (f"The rate on this loan floats with the {bank} rate, so a cut reaches it after you "
+                  f"borrow too, and so would a rise. Timing gains nothing: borrow when you need it.")
+    elif not can_wait:
+        if first and first_cut >= D("0.5"):
+            detail = (f"You need it now, so borrow now. Markets give a {_pct(first_cut)} chance of a "
+                      f"{bank} cut on {_day(first.day)}: a floating rate would follow it down, a fixed one won't.")
+        else:
+            detail = "You need it now, so borrow now and lock in today's rate."
+    elif not in_window:
+        nxt = first.day if first else next_meeting
+        detail = (f"No {bank} decision falls before you need the loan"
+                  + (f" (the next is on {_day(nxt)})" if nxt else "") + ". Borrow now.")
+    elif cut >= D("0.5") and expected > worth_waiting:
+        verdict = "wait"
+        detail = (f"Markets give a {_pct(cut)} chance of a cut {by}. On those odds, waiting until then "
+                  f"saves about {money(expected, country)} over the loan"
+                  + (f" ({money(if_cut, country)} if the cut comes)" if if_cut else "") + ".")
+    elif rise > cut:
+        detail = (f"Markets lean to a rise: a {_pct(rise)} chance {by}, against {_pct(cut)} for a cut. "
+                  f"Borrow now to lock in today's rate.")
+    elif cut < D("0.5"):
+        detail = (f"Markets give only a {_pct(cut)} chance of a cut {by}, so waiting most likely "
+                  f"gains nothing. Borrow now.")
+    else:
+        detail = (f"A cut is likely ({_pct(cut)} {by}), but on those odds it saves only about "
+                  f"{money(max(expected, D('0')), country)} over the loan, not worth waiting for. Borrow now.")
+
+    payment = (
+        emi(principal, current_rate, tenure_months).quantize(D("0.01"), rounding=ROUND_HALF_UP)
+        if principal > 0 and tenure_months > 0 else D("0")
+    )
+    verdict, detail = _fits(verdict, detail, payment, monthly_room, country)
+    months = max(0, round((until.toordinal() - today.toordinal()) / 30.4)) if until else 0
+    return BorrowTimingVerdict(
+        current_rate=current_rate, six_month_avg=current_rate,
+        consensus_change_bps=int(expected_bps.quantize(D("1"), rounding=ROUND_HALF_UP)),
+        months_to_decision=months, urgency=urgency,
+        # A floating rate gets the cut anyway, and "now" can't wait for it.
+        verdict=verdict,
+        estimated_savings=max(expected, D("0")) if can_wait and not rate_floats else D("0"),
+        detail=detail, monthly_payment=payment, monthly_room=monthly_room,
+        cut_chance=cut.quantize(D("0.0001")) if upto else None,
+        rise_chance=rise.quantize(D("0.0001")) if upto else None,
+        saving_if_cut=if_cut, wait_until=until, rate_floats=rate_floats,
     )
