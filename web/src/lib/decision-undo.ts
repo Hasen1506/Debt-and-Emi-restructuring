@@ -16,17 +16,26 @@ export function undoPlanDecision(entries: DecisionEntry[], entry: DecisionEntry)
     }
     case 'goal_added': {
       const goals = readGoalsClient();
+      const id = entry.result.goalId as string | undefined;
       const kind = entry.result.kind as string | undefined;
-      if (kind) {
-        const last = [...goals].reverse().find((g) => g.kind === kind);
-        if (last) writeGoalsClient(goals.filter((g) => g.id !== last.id));
-      }
+      // Older entries carry only the kind: drop the newest goal of it.
+      const target = id
+        ? goals.find((g) => g.id === id)
+        : kind
+          ? [...goals].reverse().find((g) => g.kind === kind)
+          : undefined;
+      if (target) writeGoalsClient(goals.filter((g) => g.id !== target.id));
       break;
     }
+    case 'goal_edited':
     case 'goal_removed': {
+      // Changed, deleted, cancelled or archived: put the goal back as it was.
       const goals = readGoalsClient();
       const g = entry.snapshot.goal as unknown;
-      if (g && typeof g === 'object') writeGoalsClient([...goals, g as (typeof goals)[0]]);
+      if (g && typeof g === 'object') {
+        const snap = g as (typeof goals)[0];
+        writeGoalsClient([...goals.filter((x) => x.id !== snap.id), snap]);
+      }
       break;
     }
     default:
@@ -37,5 +46,10 @@ export function undoPlanDecision(entries: DecisionEntry[], entry: DecisionEntry)
 
 /** Decisions whose undo restores something; the rest are a record only. */
 export function canUndoPlanDecision(entry: DecisionEntry): boolean {
-  return entry.kind === 'ef_split_change' || entry.kind === 'goal_added' || entry.kind === 'goal_removed';
+  return (
+    entry.kind === 'ef_split_change' ||
+    entry.kind === 'goal_added' ||
+    entry.kind === 'goal_edited' ||
+    entry.kind === 'goal_removed'
+  );
 }

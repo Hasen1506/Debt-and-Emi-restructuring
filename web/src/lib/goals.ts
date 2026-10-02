@@ -92,6 +92,30 @@ export interface Goal {
    *  movable; all levers apply. Optional for legacy data — undefined
    *  is treated as 'soft'. */
   deadlineKind?: 'hard' | 'soft';
+  /** Open unless cancelled (stopped short) or archived (funded and put
+   *  away). A closed goal keeps what was saved but leaves the plan. */
+  status?: GoalStatus;
+  /** ISO date the goal was cancelled or archived. */
+  closedAt?: string;
+  /** Where the money for it is kept. Informational: Goals warns when
+   *  the place doesn't suit how soon the money is needed. */
+  keptIn?: GoalKeptIn;
+}
+
+export type GoalStatus = 'active' | 'cancelled' | 'archived';
+export type GoalKeptIn = 'savings' | 'fd' | 'debt_fund' | 'equity' | 'none';
+
+export const KEPT_IN_LABEL: Record<GoalKeptIn, string> = {
+  savings: 'Savings account',
+  fd: 'Fixed deposit',
+  debt_fund: 'Debt or liquid fund',
+  equity: 'Shares or equity fund',
+  none: 'Nowhere yet',
+};
+
+/** A goal the plan still saves for. */
+export function isOpenGoal(g: Goal): boolean {
+  return !g.status || g.status === 'active';
 }
 
 // ─── Presets ───────────────────────────────────────────────────────────────
@@ -258,7 +282,8 @@ export function writeGoalsClient(goals: Goal[]) {
   // localStorage. Includes `priorityBump` + `orderIndex` so the
   // engine sees the same ordering the user sees.
   if (typeof document !== 'undefined') {
-    const digest = sorted.map((g) => ({
+    // Cancelled and archived goals leave the plan.
+    const digest = sorted.filter(isOpenGoal).map((g) => ({
       id: g.id,
       targetMonth: g.targetMonth,
       amount: g.amount,

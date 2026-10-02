@@ -32,7 +32,7 @@ import {
   type PurchaseType,
   type PurchaseAnalysis,
 } from '@/lib/purchase-advisor';
-import { readGoalsClient } from '@/lib/goals';
+import { isOpenGoal, readGoalsClient } from '@/lib/goals';
 import {
   readContributionsClient,
   totalsByGoal,
@@ -155,7 +155,7 @@ export function PurchaseTool() {
   // Active goals + their saved totals — read client-side so a user who
   // has logged a partial down-payment toward a goal sees the slip from
   // the *remaining* gap, not the full goal amount.
-  const goals = useMemo(() => readGoalsClient(), []);
+  const goals = useMemo(() => readGoalsClient().filter(isOpenGoal), []);
   const contributionTotals = useMemo(
     () => totalsByGoal(readContributionsClient()),
     [],
