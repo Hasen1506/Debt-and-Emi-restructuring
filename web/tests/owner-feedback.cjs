@@ -61,3 +61,16 @@ test('the debt budget keeps a whole positive amount, else means all spare cash',
   assert.equal(normalizeDebtBudget(''), '');
   assert.equal(normalizeDebtBudget('abc'), '');
 });
+
+test('the switch knows when all three strategies pay the debts in the same order', () => {
+  const { sharedPayoffOrder } = lib('payoff-order.ts');
+  const base = { country: 'IN', tax_regime: 'new', loans: [] };
+  const cardL = { loan_type: 'credit_card', bank: '', outstanding: '80000', nominal_rate: '0.42', scheduled_emi: '0' };
+  const personal = { loan_type: 'personal_loan', bank: '', outstanding: '200000', nominal_rate: '0.14', scheduled_emi: '9500' };
+  // The card is both the smallest and the dearest: one order for all three.
+  assert.deepEqual(sharedPayoffOrder({ ...base, loans: [personal, cardL] }, '0.2'), ['Credit card', 'Personal loan']);
+  // A small cheap loan ahead of a big dear one: snowball and avalanche differ.
+  const small = { loan_type: 'auto_loan', bank: '', outstanding: '30000', nominal_rate: '0.09', scheduled_emi: '3000' };
+  const bigCard = { ...cardL, outstanding: '300000' };
+  assert.equal(sharedPayoffOrder({ ...base, loans: [small, bigCard] }, '0.2'), null);
+});

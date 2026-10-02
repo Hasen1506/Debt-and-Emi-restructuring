@@ -16,24 +16,41 @@ import { STRATEGIES, writeStrategyClient, type StrategyName } from '@/lib/strate
 import { L_MONO, L_T } from '@/components/ledger/primitives';
 import { PERSONA, PersonaMedallion } from './Persona';
 
-export function StrategyMedallion({ strategy }: { strategy: StrategyName }) {
+/** Under the medallion, kept on screen: on a phone it isn't at the right
+ *  edge, and a right-aligned box ran off the left. */
+function place(el: HTMLElement, max: number) {
+  const r = el.getBoundingClientRect();
+  const vw = document.documentElement.clientWidth;
+  const width = Math.min(max, vw - 32);
+  return { top: r.bottom + 6, left: Math.min(Math.max(16, r.right - width), vw - 16 - width), width };
+}
+
+/** "Credit card first, then Personal loan". */
+function orderText(names: string[]): string {
+  if (names.length === 1) return `all three pay your ${names[0]}`;
+  return `all three pay ${names[0]} first, then ${names.slice(1).join(', then ')}`;
+}
+
+export function StrategyMedallion({
+  strategy,
+  sameOrder = null,
+}: {
+  strategy: StrategyName;
+  /** The loans in the one order all three strategies agree on, or null. */
+  sameOrder?: string[] | null;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   // Shown at once; the refresh brings the server's copy back in line.
   const [current, setCurrent] = useState(strategy);
   useEffect(() => setCurrent(strategy), [strategy]);
-  // Where the menu sits: under the medallion, kept on screen (on a phone
-  // the medallion isn't at the right edge, and a right-aligned menu ran
-  // off the left).
+  // Where the menu sits (see place()).
   const [open, setOpen] = useState<{ top: number; left: number; width: number } | null>(null);
   const box = useRef<HTMLDivElement>(null);
 
   function toggle() {
     if (open || !box.current) return setOpen(null);
-    const r = box.current.getBoundingClientRect();
-    const vw = document.documentElement.clientWidth;
-    const width = Math.min(320, vw - 32);
-    setOpen({ top: r.bottom + 6, left: Math.min(Math.max(16, r.right - width), vw - 16 - width), width });
+    setOpen(place(box.current, 320));
   }
 
   useEffect(() => {
@@ -53,9 +70,18 @@ export function StrategyMedallion({ strategy }: { strategy: StrategyName }) {
     };
   }, [open]);
 
+  // A switch that can't change the plan says why, for a few seconds.
+  const [note, setNote] = useState<{ top: number; left: number; width: number } | null>(null);
+  useEffect(() => {
+    if (!note) return;
+    const t = setTimeout(() => setNote(null), 7000);
+    return () => clearTimeout(t);
+  }, [note]);
+
   function pick(s: StrategyName) {
     setOpen(null);
     if (s === current) return;
+    if (sameOrder && box.current) setNote(place(box.current, 300));
     setCurrent(s);
     writeStrategyClient(s);
     startTransition(() => router.refresh());
@@ -120,6 +146,29 @@ export function StrategyMedallion({ strategy }: { strategy: StrategyName }) {
         ))}
       </span>
 
+      <div role="status" aria-live="polite">
+        {note && sameOrder && !open && (
+          <span
+            style={{
+              position: 'fixed',
+              top: note.top,
+              left: note.left,
+              zIndex: 30,
+              width: note.width,
+              padding: '8px 10px',
+              fontSize: 12,
+              lineHeight: 1.5,
+              color: L_T.ink,
+              background: L_T.highlightSoft,
+              border: `1px solid ${L_T.ink}`,
+              boxShadow: `3px 3px 0 ${L_T.ink}`,
+            }}
+          >
+            Same plan: with your debts, {orderText(sameOrder)}.
+          </span>
+        )}
+      </div>
+
       {open && (
         <div
           role="dialog"
@@ -138,6 +187,11 @@ export function StrategyMedallion({ strategy }: { strategy: StrategyName }) {
           <div style={{ padding: '8px 12px', fontSize: 10, letterSpacing: '0.14em', color: L_T.muted, borderBottom: `1px solid ${L_T.ruleSoft}` }}>
             WHICH DEBT GETS THE EXTRA FIRST
           </div>
+          {sameOrder && (
+            <p style={{ margin: 0, padding: '8px 12px', fontSize: 12, lineHeight: 1.5, color: L_T.ink, background: L_T.highlightSoft, borderBottom: `1px solid ${L_T.ruleSoft}` }}>
+              With your debts, {orderText(sameOrder)}. Your plan comes out the same whichever you pick.
+            </p>
+          )}
           {STRATEGIES.map((s) => {
             const on = s === current;
             return (

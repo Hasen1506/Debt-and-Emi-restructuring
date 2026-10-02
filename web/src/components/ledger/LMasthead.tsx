@@ -96,7 +96,16 @@ function timeNow(country: Country): string {
 
 /** `strategy` shows the payoff strategy's medallion; left out when
  *  there is no debt to order. */
-export function LMasthead({ country, strategy }: { country: Country; strategy?: StrategyName | null }) {
+export function LMasthead({
+  country,
+  strategy,
+  sameOrder,
+}: {
+  country: Country;
+  strategy?: StrategyName | null;
+  /** The one order all three strategies pay the debts in, when they agree. */
+  sameOrder?: string[] | null;
+}) {
   const path = usePathname() || '/';
   const section = sectionFromPath(path);
   const stmt = stmtFromPath(path);
@@ -168,7 +177,7 @@ export function LMasthead({ country, strategy }: { country: Country; strategy?: 
           </LBracket>
         ))}
         <span style={{ marginLeft: 'auto', display: 'inline-flex', flexWrap: 'wrap', maxWidth: '100%', gap: 10, alignItems: 'center', justifyContent: 'flex-end' }}>
-          {strategy && <StrategyMedallion strategy={strategy} />}
+          {strategy && <StrategyMedallion strategy={strategy} sameOrder={sameOrder ?? null} />}
           <LBracket>{localePin}</LBracket>
           <SessionIndicator />
         </span>
