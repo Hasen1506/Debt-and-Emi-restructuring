@@ -16,6 +16,15 @@ D = Decimal
 
 
 @pytest.fixture(autouse=True)
+def _fresh_fx_cache():
+    """A quote cached by one test must not answer the next."""
+    from api.routes import fx
+    fx._FX_CACHE.clear()
+    yield
+    fx._FX_CACHE.clear()
+
+
+@pytest.fixture(autouse=True)
 def outcome_store(tmp_path):
     """Every test gets its own empty outcome store, never api/data's."""
     s = outcomes_store.OutcomeStore(outcomes_store.sqlite_engine(tmp_path / "outcomes.sqlite3"), key=b"test-key")

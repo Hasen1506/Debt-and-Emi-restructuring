@@ -701,7 +701,7 @@ export interface FxRateResponse {
   base: string;
   quote: string;
   rate: string;
-  source: 'frankfurter' | 'manual' | 'fallback';
+  source: 'frankfurter' | 'open-er-api' | 'parity' | 'manual' | 'fallback';
   as_of: string | null;
 }
 

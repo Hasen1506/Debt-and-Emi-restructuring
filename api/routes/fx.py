@@ -1,8 +1,12 @@
 """GET /api/fx-rate · POST /api/cross-border-decision.
 
-FX rates are fetched from frankfurter.app (ECB reference rates, free, no key).
+FX rates are fetched live: frankfurter (ECB reference rates, published each
+working day), else open.er-api.com (updated daily). Both are free and need
+no key; nothing about the user is sent. A good quote is kept for 15
+minutes so a page that asks twice gets the same number.
 Manual override is always honoured — caller can pass `manual_rate` to bypass.
 """
+import time
 from decimal import Decimal
 from typing import Optional
 
@@ -30,7 +34,7 @@ class FxRateResponse(_Base):
     base: str
     quote: str
     rate: Decimal
-    source: str             # "frankfurter" | "parity" (same currency) | "fallback"
+    source: str             # "frankfurter" | "open-er-api" | "parity" (same currency) | "fallback"
     as_of: Optional[str]    # YYYY-MM-DD if from upstream
 
 
@@ -62,25 +66,57 @@ class CrossBorderResponse(_Base):
     loan_emi_user_currency_y5: Decimal
 
 
+# (base, quote) → (fetched at, rate, source, as_of)
+_FX_CACHE: dict[tuple[str, str], tuple[float, Decimal, str, Optional[str]]] = {}
+FX_CACHE_SECONDS = 15 * 60
+
+
+async def _from_frankfurter(c: httpx.AsyncClient, base: str, quote: str) -> tuple[Decimal, Optional[str]]:
+    r = await c.get(f"https://api.frankfurter.dev/v1/latest?base={base}&symbols={quote}")
+    r.raise_for_status()
+    data = r.json()
+    return D(str(data["rates"][quote])), data.get("date")
+
+
+async def _from_open_er(c: httpx.AsyncClient, base: str, quote: str) -> tuple[Decimal, Optional[str]]:
+    r = await c.get(f"https://open.er-api.com/v6/latest/{base}")
+    r.raise_for_status()
+    data = r.json()
+    if data.get("result") != "success":
+        raise ValueError("open.er-api.com did not return a rate")
+    # "time_last_update_unix" → the day the rate is for.
+    as_of = None
+    if isinstance(data.get("time_last_update_unix"), int):
+        as_of = time.strftime("%Y-%m-%d", time.gmtime(data["time_last_update_unix"]))
+    return D(str(data["rates"][quote])), as_of
+
+
 async def _fetch_fx(base: str, quote: str) -> tuple[Decimal, str, Optional[str]]:
-    """Returns (rate, source, as_of). Falls back to 1.0 if unsupported pair."""
+    """Returns (rate, source, as_of). Falls back to 1.0 if no provider answers."""
     # Same currency: 1, with nothing to fetch. It used to go to the provider,
     # which has no INR/INR quote, so a rupee loan checked from rupees
     # failed with a 502.
     if base == quote:
         return D("1"), "parity", None
-    if base not in _FRANKFURTER_SUPPORTED or quote not in _FRANKFURTER_SUPPORTED:
+    if not (len(base) == 3 and base.isalpha() and len(quote) == 3 and quote.isalpha()):
         return D("1"), "fallback", None
-    url = f"https://api.frankfurter.dev/v1/latest?base={base}&symbols={quote}"
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as c:
-            r = await c.get(url)
-            r.raise_for_status()
-            data = r.json()
-        rate = D(str(data["rates"][quote]))
-        return rate, "frankfurter", data.get("date")
-    except (httpx.HTTPError, KeyError, ValueError):
-        return D("1"), "fallback", None
+    hit = _FX_CACHE.get((base, quote))
+    if hit and time.monotonic() - hit[0] < FX_CACHE_SECONDS:
+        return hit[1], hit[2], hit[3]
+    providers = []
+    if base in _FRANKFURTER_SUPPORTED and quote in _FRANKFURTER_SUPPORTED:
+        providers.append(("frankfurter", _from_frankfurter))
+    providers.append(("open-er-api", _from_open_er))
+    async with httpx.AsyncClient(timeout=4.0) as c:
+        for source, fetch in providers:
+            try:
+                rate, as_of = await fetch(c, base, quote)
+            except (httpx.HTTPError, KeyError, ValueError, TypeError, ArithmeticError):
+                continue
+            if rate.is_finite() and rate > 0:
+                _FX_CACHE[(base, quote)] = (time.monotonic(), rate, source, as_of)
+                return rate, source, as_of
+    return D("1"), "fallback", None
 
 
 @router.get("/fx-rate", response_model=FxRateResponse)
