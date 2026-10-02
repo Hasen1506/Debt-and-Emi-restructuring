@@ -377,13 +377,14 @@ export function LKpi({
       style={{
         display: 'grid',
         gridTemplateColumns: lGridColumns(n, 140),
-        gap: 1,
-        background: L_T.ink,
-        padding: 1,
+        // Rules drawn by the cells, not an ink background showing through
+        // gaps: a short last row (5 figures in 2 columns) left a black block.
+        borderTop: `1px solid ${L_T.ink}`,
+        borderLeft: `1px solid ${L_T.ink}`,
       }}
     >
       {items.map((m, i) => (
-        <div key={i} style={{ background: L_T.bg, padding: '10px 14px' }}>
+        <div key={i} style={{ background: L_T.bg, padding: '10px 14px', borderRight: `1px solid ${L_T.ink}`, borderBottom: `1px solid ${L_T.ink}` }}>
           <div
             style={{
               fontSize: 10,

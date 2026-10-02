@@ -901,14 +901,42 @@ class CashYieldResponse(_Base):
     rationale: Optional[str] = None
 
 
+class OddsOutcomeOut(_Base):
+    bps: int                # the move: -25 is a 0.25% cut
+    label: str              # as the market words it
+    chance: Decimal         # 0–1
+
+
+class OddsMeetingOut(_Base):
+    date: str               # the decision day
+    title: str
+    url: str                # the market, to see it for yourself
+    volume: Decimal         # US dollars traded
+    cut_chance: Decimal
+    rise_chance: Decimal
+    outcomes: list[OddsOutcomeOut]
+
+
+class RateOddsResponse(_Base):
+    country: str
+    source: str             # "Polymarket"
+    fetched_at: Optional[str]
+    meetings: list[OddsMeetingOut]   # soonest first; empty when none
+
+
 class BorrowTimingRequest(_In):
     current_rate: Rate
-    six_month_avg: Rate
-    consensus_change_bps: int = Field(..., ge=-1000, le=1000)
-    months_to_decision: int = Field(..., ge=0, le=120)
+    # Reported back only. Defaults to current_rate.
+    six_month_avg: Optional[Rate] = None
+    # Left out: the verdict goes on the market's odds for the coming
+    # decisions. Given: the old path, on that expected move alone.
+    consensus_change_bps: Optional[int] = Field(None, ge=-1000, le=1000)
+    months_to_decision: Optional[int] = Field(None, ge=0, le=120)
     urgency: Literal["now", "3m_ok", "6m_ok"]
     principal: Amount
     tenure_months: int = Field(..., ge=1, le=MAX_MONTHS)
+    # A floating rate follows the policy rate after you borrow.
+    rate_type: Literal["fixed", "floating"] = "fixed"
     # Currency for the wording and the "worth waiting" threshold.
     country: Country = Country.IN
     # Left each month after costs and current payments, from the profile.
@@ -927,6 +955,13 @@ class BorrowTimingResponse(_Base):
     detail: str
     monthly_payment: Decimal
     monthly_room: Optional[Decimal] = None
+    # On the market's odds (the default path):
+    cut_chance: Optional[Decimal] = None
+    rise_chance: Optional[Decimal] = None
+    saving_if_cut: Optional[Decimal] = None
+    wait_until: Optional[str] = None
+    rate_floats: bool = False
+    odds: Optional[RateOddsResponse] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────

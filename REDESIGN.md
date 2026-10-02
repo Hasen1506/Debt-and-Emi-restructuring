@@ -5,10 +5,11 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R6 · Strategy personas (not started). R5 is done.
-- **Last finished step:** R5.5 and R5.6 (PR #12): all seven tools on the numbered layout. This session also: the capitals pass (one rule, see **Capitals and wording**), `components/ledger/LToolSteps`, the shared tool buttons in `ToolPrimitives`, the "track this" control (`DecisionLogControls`), plain-word answers from the engine for Right time, New debt and Sell to repay, and an API fix: assets saved with only a year or a month no longer fail every call (422)
-- **Next step:** merge #12 when CI is green, restart the branch from `main`, then R6.1 persona art as SVG symbols
-- **Open PR:** #12 · `claude/vibrant-bardeen-5bsiyj` (merge now; then restart the branch from `main` for R6)
+- **Phase in progress:** R7 · Finish (not started). R6 is done.
+- **Last finished step:** R6.4, walkthrough W3: switching the payoff order is one click on the masthead pip from any page with debt; Profile's triptych shows all three with the user's numbers. R6 also carried two improvements the owner asked for: NRI prepay fetches today's exchange rate first, and Right time reads Polymarket's odds for the coming RBI/Fed decisions instead of asking what you expect
+- **Next step:** R7.1, all six walkthroughs again with the before/after table under "After (R7.1)"; then R7.2 the 390px pass on every page; then R7.3 ROADMAP and AUDIT
+- **Open PR:** #16 · `claude/vibrant-bardeen-5bsiyj` (R6; merge when CI is green). R7 goes on a new PR from the same branch
+- **Can't check from this container:** Polymarket, frankfurter and open.er-api are blocked here. The odds and FX code is tested against responses shaped like theirs; look at Right time and NRI prepay once deployed. Whether Polymarket lists RBI decisions is unconfirmed; without them Right time says it has no odds and judges on today's rate. For local work, `MARKET_ODDS_FILE=<saved Gamma events>` serves odds offline
 
 Pause after each phase (or about every five steps, or when context is near 35%):
 tick the boxes here, update **Resume here**, push, and ask the owner to `/compact`.
@@ -164,10 +165,10 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - Test each tool at 1200 and 390 with Priya, plus `profiles.mjs` for noloans, us, nri.
 
 ### R6 · Strategy personas
-- [ ] R6.1 Persona art as SVG symbols (authored once; 40px medallion, full triptych)
-- [ ] R6.2 Medallion in the masthead; click → switch strategy
-- [ ] R6.3 Triptych at the bottom of Profile with real numbers per strategy (debt-free date, total interest, extra cost vs Avalanche)
-- [ ] R6.4 Walkthrough W3
+- [x] R6.1 Persona art as SVG symbols (authored once; 40px medallion, full triptych): `public/art/personas.svg` (3 scenes, 3 medallions, 3 glyphs), drawn through `components/personas/Persona.tsx`
+- [x] R6.2 Medallion in the masthead; click → switch strategy: a pip switches in one click; the medallion opens the three with what each does. Shown only when there is debt
+- [x] R6.3 Triptych at the bottom of Profile with real numbers per strategy (debt-free date, total interest, extra cost vs Avalanche): `components/personas/StrategyCompare.tsx` runs the three orders on Plan's own inputs (`loadStrategyOutcomesFromCookies`) and streams in after the rest of Profile; a card switches. When the three come out the same (Priya, Sam) or a month is short, one line says so instead of three identical cards. The Hybrid figure's split was clipped in scene coordinates inside a translated group (in the design file too), which hid half of it; it now splits down its own middle
+- [x] R6.4 Walkthrough W3 (see After R6 below)
 
 ### R7 · Finish
 - [ ] R7.1 All six walkthroughs again; before/after table here
@@ -308,6 +309,16 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
 
 - Home is taller because it now carries what was on Debts (open positions, each rate's breakdown) and Plan (cheaper rates); the Debts page is gone (`/debts` → `/#positions`).
 - Checked with the over-budget, US, NRI, missing-rate and missing-exchange-rate profiles: no sideways scroll at 390, each gets its own message (short this month; add the rate; add the exchange rate).
+
+### After R6 (strategy personas)
+
+| | Before | After |
+|---|---|---|
+| W3 · switch strategy | 2 clicks on Plan (the STRATEGY chip, then the order), 149 px down; nowhere else | **1 click** on the masthead pip, on every page with debt (y = 96 at 1200, 173 at 390) |
+| Comparing the orders | Plan's strategy panel: three rows of month and interest, behind the chip | Profile, PAYOFF ORDER: the three personas with debt-free date, total interest and the extra against Avalanche; a card switches |
+
+- W3 with Sam (card + car + mortgage): his card is both the smallest debt and the dearest, so all three orders come out the same (Feb 2030, $44,284). Profile says that in one line; Plan says it in its strategy panel.
+- With orders that differ (card $8,000 at 24.99%, store card $800, personal loan $3,000, car): one pip click takes Plan from $1,114 to $1,250 in interest and the first payoff from the Chase card to the Target card; Profile shows Hybrid +$26, Snowball +$137, the same as Plan for each.
 
 ### After (R7.1)
 

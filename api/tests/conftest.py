@@ -6,6 +6,8 @@ from fastapi.testclient import TestClient
 
 # Tests never reach FRED or the RBI website; feed tests pass their own fetcher.
 os.environ.setdefault("RATES_FEED", "off")
+# Nor Polymarket; odds tests pass their own fetcher.
+os.environ.setdefault("MARKET_ODDS", "off")
 # The fuzz sends thousands of requests from one client; limits have their own tests.
 os.environ.setdefault("RATE_LIMITS", "off")
 
@@ -13,6 +15,15 @@ from api import outcomes_store
 from api.main import app
 
 D = Decimal
+
+
+@pytest.fixture(autouse=True)
+def _fresh_fx_cache():
+    """A quote cached by one test must not answer the next."""
+    from api.routes import fx
+    fx._FX_CACHE.clear()
+    yield
+    fx._FX_CACHE.clear()
 
 
 @pytest.fixture(autouse=True)
