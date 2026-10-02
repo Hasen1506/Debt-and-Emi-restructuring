@@ -12,9 +12,9 @@
 > before and must be built again; **NEW** was planned but never started;
 > **HAVE** is already in the repo today.
 
-> **Redesign (from 1 Oct 2026):** the move to the Ledger V2 design and the
-> strategy personas is planned and tracked in [REDESIGN.md](REDESIGN.md).
-> The design files are in `design/`.
+> **Redesign (1–2 Oct 2026, done):** the move to the Ledger V2 design and the
+> strategy personas is recorded in [REDESIGN.md](REDESIGN.md), with the
+> before/after walkthroughs. The design files are in `design/`.
 
 ---
 
@@ -102,6 +102,22 @@
     less, and its headline updates on each change;
   - Goals tells a debt-free user the monthly amount instead of pointing at an
     empty /plan.
+- **Redesign done (1–2 Oct 2026, [REDESIGN.md](REDESIGN.md), R0–R7).** Five
+  tabs (Home, Plan, Activity, Goals & Tools, Profile) in the Ledger V2 style.
+  - Setup is 3 screens instead of 6, and amounts take `1.2L` or `50k`.
+  - Home lists every payment this month and marks two paid in 2 taps.
+  - Plan's chart runs to the plan's own date.
+  - Activity logs a part payment or a rate change from one page and previews
+    the effect.
+  - Goals ask for one amount, and the seven tools share one layout.
+  - The payoff order is a persona medallion in the masthead (one tap from any
+    page). Profile compares the three orders on your own numbers.
+  - NRI prepay starts from today's exchange rate. Right time reads Polymarket's
+    odds for the coming RBI/Fed decisions instead of asking what you expect.
+  - Every page was checked at 390 px: no sideways scroll, and tap targets of
+    24 px or more. The before/after table is in REDESIGN.md, and what R7
+    found is in AUDIT.md §8.
+  - **Tests:** 745 engine + API, 38 web.
 - **Speed (production build, this machine):** every page answers in under
   30 ms, paints in under 100 ms and loads in under 200 ms; 111–184 KB of
   JavaScript per page. The engine's plan run takes 6–35 ms. The one slow

@@ -210,7 +210,10 @@ class LoanIn(_In):
 class AssetIn(_In):
     asset_type: str
     purchase_price: Amount
-    purchase_date: date
+    # Blank when the form was saved without one. The asset can't be ranked
+    # for sale (its tax turns on how long it was held), so the engine
+    # doesn't see it, but the rest of the request still runs.
+    purchase_date: Optional[date] = None
     current_market_value: Amount
     rental_income_annual: Amount = D("0")
     holding_costs_annual: Amount = D("0")
@@ -242,6 +245,8 @@ class AssetIn(_In):
         # returned 422. A bare year reads as 1 October, mid financial year.
         if isinstance(v, str):
             t = v.strip()
+            if not t:
+                return None
             if len(t) == 4 and t.isdigit():
                 return f"{t}-10-01"
             if len(t) == 7 and t[:4].isdigit() and t[4] == "-" and t[5:].isdigit():
@@ -481,7 +486,7 @@ class UserIn(_In):
             itemised_share=self._itemised()[1],
             efund_balance=self.efund_balance, efund_target=self.efund_target,
             loans=[l.to_engine() for l in self.loans],
-            assets=[a.to_engine() for a in self.assets],
+            assets=[a.to_engine() for a in self.assets if a.purchase_date is not None],
             investment_options=[o.to_engine() for o in self.investment_options],
             annual_hike_rate=self.annual_hike_rate,
             hike_effective_month=self.hike_effective_month,

@@ -63,6 +63,12 @@ export default function OnboardingAssetsPage() {
     }
   }, []);
 
+  // Errors show once Save has been tried, not while typing.
+  const [tried, setTried] = useState(false);
+  // An asset's tax turns on how long it was held, so it needs a date (a year will do).
+  const missingDate = (a: AssetPayload) =>
+    Boolean(a.asset_type) && Number(a.current_market_value) > 0 && !String(a.purchase_date ?? '').trim();
+
   function update(idx: number, patch: Partial<AssetPayload>) {
     setAssets((cur) => cur.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
   }
@@ -86,6 +92,8 @@ export default function OnboardingAssetsPage() {
       router.push('/profile?step=country');
       return;
     }
+    setTried(true);
+    if (assets.some(missingDate)) return;
     const stored = loadProfileClient();
     const cleaned: AssetPayload[] = assets
       .filter(
@@ -133,17 +141,14 @@ export default function OnboardingAssetsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <section>
-        <h1 className="h1">Add your assets</h1>
+        <h1 className="h1">ADD YOUR ASSETS</h1>
         <p className="muted">
-          Optional — feeds the portfolio liquidation advisor at{' '}
-          <code>/tools/liquidate</code>. The advisor ranks which asset to sell to
-          clear which debt, with tax and lockup-aware math. Skip if you'd rather
-          just compute one pairing at a time on the tool itself.
+          Optional. Liquidate uses these to rank which asset to sell for which debt, after tax and lock-ins. Skip
+          this to try one asset against one loan in the tool instead.
         </p>
         {!isLive && (
           <p className="muted" style={{ fontSize: 12, marginTop: 8, color: 'var(--warn, #b45309)' }}>
-            You haven't completed core setup yet. Save here will redirect you
-            to start setup; come back when that's done.
+            Finish setup first. Saving here takes you there; come back after.
           </p>
         )}
       </section>
@@ -209,6 +214,7 @@ export default function OnboardingAssetsPage() {
                     kind="integer"
                     placeholder="e.g. 2019"
                     hint="Year only. The ranker will add a wider error band."
+                    error={tried && missingDate(a) ? 'Add the year you bought it.' : null}
                   />
                   <Field
                     label={`Approximate purchase price (${currencySymbol})`}
@@ -224,6 +230,7 @@ export default function OnboardingAssetsPage() {
                     value={a.purchase_date}
                     onChange={(v) => update(i, { purchase_date: v })}
                     kind="date"
+                    error={tried && missingDate(a) ? 'Add when you bought it. If you don’t know the day, tick the box above and give the year.' : null}
                   />
                   <Field
                     label={`Purchase price (${currencySymbol})`}
@@ -332,6 +339,7 @@ export default function OnboardingAssetsPage() {
                     fontSize: 12,
                   }}
                   aria-label="Remove asset"
+                  className="l-hit"
                 >
                   ✕
                 </button>
@@ -350,7 +358,7 @@ export default function OnboardingAssetsPage() {
               cursor: 'pointer', fontSize: 13,
             }}
           >
-            + Add another asset
+            + ADD ANOTHER ASSET
           </button>
         </div>
       </div>
@@ -364,14 +372,14 @@ export default function OnboardingAssetsPage() {
             color: 'var(--ink)', cursor: 'pointer',
           }}
         >
-          Skip
+          SKIP
         </button>
         <button
           onClick={save}
           className="btn btn-primary"
           style={{ padding: '8px 14px' }}
         >
-          Save &amp; open liquidate
+          SAVE · OPEN LIQUIDATE
         </button>
       </div>
     </div>

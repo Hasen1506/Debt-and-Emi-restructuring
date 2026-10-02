@@ -5,10 +5,13 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R7 · Finish (not started). R6 is done.
-- **Last finished step:** R6.4, walkthrough W3: switching the payoff order is one click on the masthead pip from any page with debt; Profile's triptych shows all three with the user's numbers. R6 also carried two improvements the owner asked for: NRI prepay fetches today's exchange rate first, and Right time reads Polymarket's odds for the coming RBI/Fed decisions instead of asking what you expect
-- **Next step:** R7.1, all six walkthroughs again with the before/after table under "After (R7.1)"; then R7.2 the 390px pass on every page; then R7.3 ROADMAP and AUDIT
-- **Open PR:** #16 · `claude/vibrant-bardeen-5bsiyj` (R6; merge when CI is green). R7 goes on a new PR from the same branch
+- **Status:** the redesign is done (R0–R7). R6.5 redrew the persona art after the owner's review.
+- **Last finished step:** R7.3. ROADMAP and AUDIT are updated; AUDIT §8 has what the walkthroughs and the phone pass found (all fixed) and what's still open.
+- **Next, for the owner to pick from (AUDIT §8, still open):**
+  - refresh the saved exchange rate when today's can be fetched, and say on Plan which day's rate it used;
+  - move `/profile/assets` to Ledger fields;
+  - look at Right time's odds and NRI prepay's live rate once deployed.
+- **Open PR:** #17 · `claude/vibrant-bardeen-5bsiyj` (R6.5 + R7); merge when CI is green
 - **Can't check from this container:** Polymarket, frankfurter and open.er-api are blocked here. The odds and FX code is tested against responses shaped like theirs; look at Right time and NRI prepay once deployed. Whether Polymarket lists RBI decisions is unconfirmed; without them Right time says it has no odds and judges on today's rate. For local work, `MARKET_ODDS_FILE=<saved Gamma events>` serves odds offline
 
 Pause after each phase (or about every five steps, or when context is near 35%):
@@ -179,7 +182,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
   - The five tabs fit one line on a phone (tighter tracking under 480 px, via `--nav-tracking`), which takes a row off the masthead.
   - Home's settings line no longer repeats the payoff order shown in the masthead just above it.
   - Left as is: the medallion's three pips are 14×10. The medallion beside them (40 px) opens the same three choices as full-width buttons, which meets WCAG 2.5.8 as an equivalent control.
-- [ ] R7.3 ROADMAP and AUDIT updated
+- [x] R7.3 ROADMAP and AUDIT updated (AUDIT §8 lists what R7 found and what's still open)
 
 ## Decisions (defaults, unless the owner says otherwise)
 
