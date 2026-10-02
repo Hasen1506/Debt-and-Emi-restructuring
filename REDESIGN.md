@@ -5,10 +5,10 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R5 · Goals & Tools, Windfall (R5.1–R5.4 done; R5.5 three of seven tools done; R5.6 left)
-- **Last finished step:** R5.5 Loan check (PR #12). Before it this session: the capitals pass (one rule, see **Capitals and wording**), `components/ledger/LToolSteps`, Invest or prepay, NRI prepay, and the shared tool buttons in `ToolPrimitives` (SubmitBar, Apply, Add to profile, Stat, VerdictHeader) plus the global `.btn`
-- **Next step:** R5.5 for the last four tools: `liquidate` (prefill taxable income), `new-debt` (prefill savings, credit score), `purchase`, `right-time`. Same pattern as `invest-vs-prepay/tool.tsx`: `LSteps` › `LStep no="01"` (chips for a saved loan, a one-line summary with [EDIT], `kind="money"` amounts, extras under + MORE) › `LStep no="02" answer` (`LVerdict` sentence, `LNote`, `LKpi`) › `LMathBlock`. Test with `$S/pw/r55.mjs` (env TOOL, ACT, PROFS, WS). Then R5.6 (tool heights), tick R5.5, merge #12
-- **Open PR:** #12 · `claude/vibrant-bardeen-5bsiyj` (draft; merge when R5 is done and CI is green, then restart the branch from `main`)
+- **Phase in progress:** R6 · Strategy personas (not started). R5 is done.
+- **Last finished step:** R5.5 and R5.6 (PR #12): all seven tools on the numbered layout. This session also: the capitals pass (one rule, see **Capitals and wording**), `components/ledger/LToolSteps`, the shared tool buttons in `ToolPrimitives`, the "track this" control (`DecisionLogControls`), plain-word answers from the engine for Right time, New debt and Sell to repay, and an API fix: assets saved with only a year or a month no longer fail every call (422)
+- **Next step:** merge #12 when CI is green, restart the branch from `main`, then R6.1 persona art as SVG symbols
+- **Open PR:** #12 · `claude/vibrant-bardeen-5bsiyj` (merge now; then restart the branch from `main` for R6)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
 tick the boxes here, update **Resume here**, push, and ask the owner to `/compact`.
@@ -153,8 +153,8 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [x] R5.2 New-goal form: what it's for (chips, which name the goal), how much (`15L`), by when (1/2/3/5 years, or month and year), priority (★ first / in date order). Optional, folded: already saved, where it's kept, whether the date can move, buffer, backups. The monthly amount and status show before saving
 - [x] R5.3 Tools list under the goals, one row per question (question · what it does · OPEN →). `/tools` → `/goals#tools`; each tool's header links back. A tool for one country, or NRIs only (NRI prepay), shows only to them
 - [x] R5.4 Windfall rev 3: amount (`1L`) and where it comes from; 02 WHERE IT GOES with ENGINE PICK · BEST / MY SPLIT, a pool meter, one slider per target (emergency fund, loans by rate, goals), each with its effect (debt-free −n mo and interest for a debt on its own; new progress for a goal; how full the fund gets), the split bar, KPIs from one plan run with the whole split (debt-free, interest saved, to goals, kept), LOG IT, the math. Engine pick: the fund's plan share, then loan after loan in the payoff order (`api.windfall` again on what's left), then the rest of the fund, then the engine's investment. Runs as you type
-- [ ] R5.5 Other tool pages on one skeleton (01 input · 02 result · the math); start from a saved loan. Done: Invest or prepay, NRI prepay, Loan check. Left: Sell to repay (liquidate), New debt check, Big purchase, Right time
-- [ ] R5.6 Walkthroughs W4, W5
+- [x] R5.5 Other tool pages on one skeleton (01 input · 02 result · the math); start from a saved loan. All seven: Invest or prepay, NRI prepay, Loan check, Sell to repay, New debt check, Big purchase, Right time
+- [x] R5.6 Walkthroughs W4, W5 (in the R5.1–R5.4 table below), plus tool heights after R5.5
 
 **R5.5 build notes** (2 Oct 2026, before compaction):
 - Only Windfall has the numbered layout. The other seven (`new-debt`, `purchase`, `liquidate`, `invest-vs-prepay`, `right-time`, `loan-check`, `nri-prepay`, each `app/tools/<id>/tool.tsx`) use `components/Card` and `ToolPrimitives` (`Field`, `Select`), with no amount field on `kind="money"`.
@@ -312,6 +312,24 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
 ### After (R7.1)
 
 _Filled in at the end._
+
+### After R5.5 (the seven tools)
+
+Each tool: 01 the inputs, 02 the answer (one sentence, then the figures that decide it), then THE MATH. Heights are with an answer showing.
+
+| Tool | Profile | Height 1200 / 390 | Typed to get an answer | Starts from |
+|---|---|---|---|---|
+| Invest or prepay | Priya | 1,081 / 1,624 | 0 | her dearest loan's rate, her tax rate, her country's choices |
+| NRI prepay | NRI | 1,250 / 1,933 | 0 | the saved loan; the exchange rate from the profile |
+| Loan check | Priya | 3,487 / 5,990 | 2 (start month, start rate) | her home loan: lender, balance, months, rate |
+| Right time | Priya | 1,353 / 2,174 | 1 (`30L`) + 1 chip (the expected cut) | her bank's published rate; the next RBI date |
+| Big purchase | no loans | 1,407 / 2,219 | 1 (the price) | savings from the profile; typical terms per kind |
+| New debt | Priya | 1,603 / 2,270 | 1 (`3L`) | the cheapest bank, savings and credit score from the profile |
+| Sell to repay | with assets | 2,717 / 4,910 | 3 (paid, year, sale price) | the dearest loan, taxable income from the profile; the ranker above |
+
+- No NaN or sideways scroll at 390 on any of them, for Priya, no loans, US and NRI.
+- Engine answers now read in plain words: "A 0.25% cut is expected in 1 month", not "25bps in 1m"; "Borrowing really costs about 12.6% a year", not "Real APR ≈ 12.6%. Acceptable"; "Selling leaves you only ₹42,887 better off over 5 years", not "Failed gates: …".
+- Found on the way: an asset saved with only a year (`2021`), as the asset form does when the price is approximate, made every call carrying the profile fail with 422, the plan included. Fixed in `api/schemas.py`.
 
 ### Before R5 (current Goals, Tools, Windfall)
 
