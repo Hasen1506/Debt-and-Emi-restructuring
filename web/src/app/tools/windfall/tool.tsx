@@ -729,7 +729,9 @@ export function WindfallTool({
                         : `the plan sends ${Math.round(efSplit * 100)}% here until it's full; ${fmt(efGap)} to go`,
                   },
                 ]
-              : [{ k: 'emergency fund', v: 'full', note: 'nothing needed' }]),
+              : Number(planUser.efund_target || 0) > 0
+                ? [{ k: 'emergency fund', v: 'full', note: 'nothing needed' }]
+                : [{ k: 'emergency fund', v: 'none set', note: 'add one in Profile if you want a share kept back' }]),
             ...(park?.alert && park.best_alt_yield
               ? [{ k: '   park it at', v: park.alt_name ?? '—', note: `${(Number(park.best_alt_yield) * 100).toFixed(1)}%: ${fmt(park.annual_uplift ?? 0)} a year more than ${(earnsNow * 100).toFixed(1)}%`, tone: 'pos' as const }]
               : []),
