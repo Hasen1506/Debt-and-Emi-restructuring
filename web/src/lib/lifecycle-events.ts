@@ -336,7 +336,8 @@ export function applyConfirmedEvent(
     const addedLoanId = `lifecycle_${event.id}`;
     const snapshot: AppliedSnapshot = { addedLoanIndex: user.loans.length, addedLoanId };
     return {
-      user: { ...user, loans: [...user.loans, {...event.loanDraft, id: addedLoanId}] },
+      // Borrowed on the event's date: the plan rolls it forward from there.
+      user: { ...user, loans: [...user.loans, {...event.loanDraft, id: addedLoanId, balance_as_of: event.effectiveDate}] },
       snapshot,
     };
   }

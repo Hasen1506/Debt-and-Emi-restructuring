@@ -40,6 +40,7 @@ import { projectAnnualTaxSavings } from '@/lib/tax-projection';
 import { projectBracketTransitions } from '@/lib/bracket-transitions';
 import Decimal from 'decimal.js';
 import { countryMonthKey, getCountryMonth, getCountryToday, localIsoDate } from '@/lib/today';
+import { rollBalancesForward } from '@/lib/roll-forward';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import {
   applyActivityDeltas,
@@ -76,13 +77,16 @@ function extractMonthlyPayments(
 }
 
 
-export async function loadPlan(
-  strategy: StrategyName,
+/** Everything the plan runs on, read from the cookies, before the engine
+ *  is called: the profile with logged activity applied, its settings, life
+ *  events and goals. `simBaseArgs` is what /simulate gets (less the
+ *  strategy). Activity uses it to preview an entry against the plan. */
+export async function loadPlanInputs(
   hikeModeling: HikeModeling,
   taxReinvest: TaxReinvestSetting,
   inflationModeling: InflationModeling,
   fxDrift: FxDriftSetting,
-): Promise<PlanData> {
+) {
   const profile = await loadProfileServer();
   // Surplus = income − fixed expenses − scheduled EMIs. Same definition the
   // Home + Debts pages show; previously /plan computed it without subtracting
@@ -93,7 +97,9 @@ export async function loadPlan(
   // to the user's loans BEFORE simulating. Baseline uses the same adjusted
   // loans so the avalanche-vs-minimums diff stays apples-to-apples.
   const deltas = await loadActivityDeltasServer();
-  const application = applyActivityDeltas(profile.user.loans, deltas, countryMonthKey(profile.user.country));
+  // Balances entered months ago move on by the EMIs due since (R4.5).
+  const { loans: rolledLoans, rolled } = rollBalancesForward(profile.user.loans, countryMonthKey(profile.user.country));
+  const application = applyActivityDeltas(rolledLoans, deltas, countryMonthKey(profile.user.country));
   // If the hike toggle is OFF, zero out `annual_hike_rate` so the engine
   // simulates flat income. The stored profile is untouched — toggling back
   // ON next render restores the user's configured rate.
@@ -341,6 +347,52 @@ export async function loadPlan(
     // and returns per-goal slices + end-of-trajectory fill rates.
     goals: hasGoalsForEngine ? goalsForEngine : undefined,
   };
+  return {
+    profile,
+    rolled,
+    surplus,
+    adjustedUser,
+    application,
+    fxRatesUsed,
+    simulation_start_month,
+    bracketTransitions,
+    advanceTaxSchedule,
+    advanceTaxPenaltyMonthly,
+    projectedTaxSavings,
+    lifecycle_events,
+    displayUser,
+    efSplit,
+    goalsForEngine,
+    hasGoalsForEngine,
+    simBaseArgs,
+  };
+}
+
+export async function loadPlan(
+  strategy: StrategyName,
+  hikeModeling: HikeModeling,
+  taxReinvest: TaxReinvestSetting,
+  inflationModeling: InflationModeling,
+  fxDrift: FxDriftSetting,
+): Promise<PlanData> {
+  const {
+    profile,
+    surplus,
+    adjustedUser,
+    application,
+    fxRatesUsed,
+    simulation_start_month,
+    bracketTransitions,
+    advanceTaxSchedule,
+    advanceTaxPenaltyMonthly,
+    projectedTaxSavings,
+    lifecycle_events,
+    displayUser,
+    efSplit,
+    goalsForEngine,
+    hasGoalsForEngine,
+    simBaseArgs,
+  } = await loadPlanInputs(hikeModeling, taxReinvest, inflationModeling, fxDrift);
   const otherStrategies = STRATEGIES.filter((s) => s !== strategy);
 
   // Loans missing a rate or EMI can't be projected (a blank rate read as
@@ -546,4 +598,17 @@ export async function loadPlanFromCookies(): Promise<PlanData> {
       loadFxDriftServer(),
     ]);
   return loadPlan(strategy, hikeModeling, taxReinvest, inflationModeling, fxDrift);
+}
+
+/** The plan's inputs and strategy from the cookies, without running it. */
+export async function loadPlanInputsFromCookies() {
+  const [strategy, hikeModeling, taxReinvest, inflationModeling, fxDrift] =
+    await Promise.all([
+      loadStrategyServer(),
+      loadHikeModelingServer(),
+      loadTaxReinvestServer(),
+      loadInflationModelingServer(),
+      loadFxDriftServer(),
+    ]);
+  return { strategy, ...(await loadPlanInputs(hikeModeling, taxReinvest, inflationModeling, fxDrift)) };
 }

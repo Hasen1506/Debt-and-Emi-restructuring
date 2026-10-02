@@ -13,6 +13,7 @@ import { loanToUser } from './currency';
 import { loadProfileClient, saveProfileClient } from './user-store';
 import type { Country, LoanPayload, LoanType } from './api';
 import { userDefaultCurrency, type CurrencyCode } from './currency';
+import { getCountryToday, localIsoDate } from './today';
 
 export interface AddLoanInput {
   loan_type: LoanType;
@@ -60,6 +61,7 @@ export function addLoanToProfile(input: AddLoanInput): number | null {
   const own = userDefaultCurrency(profile.user.country);
   const foreign = input.currency && input.currency !== own ? (input.currency as CurrencyCode) : null;
   const newLoan: LoanPayload = {
+    balance_as_of: localIsoDate(getCountryToday(profile.user.country)),
     loan_type: input.loan_type,
     bank: input.bank,
     outstanding: input.outstanding,

@@ -43,7 +43,7 @@ import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { readEfSplitClient } from '@/lib/ef-split';
 import { emiFromMonths, firstExtraPayment, marginalRateFromTakeHome } from '@/lib/quick-setup';
 import { readStrategyClient, STRATEGY_LABEL, STRATEGY_SHORT } from '@/lib/strategy';
-import { FY_ANCHOR_MONTH, getCountryMonth, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
+import { FY_ANCHOR_MONTH, getCountryMonth, getCountryToday, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { loadProfileClient, saveProfileClient, type StoredProfile } from '@/lib/user-store';
 
 const STEPS = ['You and your money', 'What you owe', 'Your plan'] as const;
@@ -400,7 +400,10 @@ export function QuickSetup() {
   }
 
   function save() {
-    const user = buildUser();
+    const built = buildUser();
+    // Every balance here was just typed (or confirmed), so it's dated today.
+    const asOf = localIsoDate(getCountryToday(built.country));
+    const user = { ...built, loans: built.loans.map((l) => ({ ...l, balance_as_of: asOf })) };
     const ok = saveProfileClient({ user, marginalRate: marginal().rate });
     if (!ok) {
       setSaveFailed(true);

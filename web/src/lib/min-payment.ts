@@ -71,38 +71,27 @@ const INDIA: Record<string, BankFormula> = {
   },
 };
 
+/** 1% of the balance plus the month's interest, or `floor` if that's more:
+ *  how most large US issuers set the minimum. */
+const onePctPlusInterest = (floor: number): BankFormula => ({
+  description: `1% of outstanding plus interest and fees, or $${floor}, whichever is higher`,
+  compute: (o, i) => Decimal.max(i.add(o.mul('0.01')), new Decimal(floor)),
+});
+
 const USA: Record<string, BankFormula> = {
-  Chase: {
-    description: '2% of outstanding or $35, whichever is higher',
-    compute: (o) => Decimal.max(o.mul('0.02'), new Decimal('35')),
-  },
-  'Bank of America': {
-    description: '1% of outstanding plus interest and fees, floor $35',
-    compute: (o, i) => Decimal.max(i.add(o.mul('0.01')), new Decimal('35')),
-  },
-  Citibank: {
-    description: '2% of outstanding or $25, whichever is higher',
-    compute: (o) => Decimal.max(o.mul('0.02'), new Decimal('25')),
-  },
-  'Capital One': {
-    description: '2% of outstanding or $25, whichever is higher',
-    compute: (o) => Decimal.max(o.mul('0.02'), new Decimal('25')),
-  },
+  Chase: onePctPlusInterest(40),
+  'Bank of America': onePctPlusInterest(35),
+  Citibank: onePctPlusInterest(41),
+  'Capital One': onePctPlusInterest(25),
   Discover: {
-    description: '2% of outstanding or $35, whichever is higher',
-    compute: (o) => Decimal.max(o.mul('0.02'), new Decimal('35')),
+    description: '2% of outstanding, $20 plus interest and fees, or $35, whichever is highest',
+    compute: (o, i) => Decimal.max(o.mul('0.02'), i.add(20), new Decimal('35')),
   },
-  'American Express': {
-    description: '1% of outstanding plus interest and fees, floor $35',
-    compute: (o, i) => Decimal.max(i.add(o.mul('0.01')), new Decimal('35')),
-  },
-  'Goldman Sachs': {
-    description: '1% of outstanding plus interest and fees, floor $35',
-    compute: (o, i) => Decimal.max(i.add(o.mul('0.01')), new Decimal('35')),
-  },
+  'American Express': onePctPlusInterest(40),
+  'Goldman Sachs': onePctPlusInterest(25),
   Synchrony: {
-    description: '2% of outstanding or $25, whichever is higher',
-    compute: (o) => Decimal.max(o.mul('0.02'), new Decimal('25')),
+    description: '3.5% of outstanding, 1% plus interest and fees, or $25, whichever is highest',
+    compute: (o, i) => Decimal.max(o.mul('0.035'), i.add(o.mul('0.01')), new Decimal('25')),
   },
 };
 
@@ -112,8 +101,8 @@ const DEFAULTS: Record<Country, BankFormula> = {
     compute: (o) => Decimal.max(o.mul('0.05'), new Decimal('200')),
   },
   US: {
-    description: '2% of outstanding or $35, whichever is higher (country default)',
-    compute: (o) => Decimal.max(o.mul('0.02'), new Decimal('35')),
+    description: '1% of outstanding plus interest and fees, or $35, whichever is higher (country default)',
+    compute: (o, i) => Decimal.max(i.add(o.mul('0.01')), new Decimal('35')),
   },
 };
 
@@ -168,9 +157,11 @@ export function explainMinPayment(
   const formula = hit ?? DEFAULTS[country];
   const outstanding = dec(loan.outstanding);
   const interest = outstanding.mul(dec(loan.nominal_rate)).div(12);
+  // The floor never asks for more than the card owes.
+  const minimum = Decimal.min(formula.compute(outstanding, interest), Decimal.max(outstanding.add(interest), 0));
   return {
     formula: formula.description,
-    estimated: formula.compute(outstanding, interest).toFixed(0),
+    estimated: minimum.toFixed(0),
     source: hit ? 'bank' : 'default',
     bank: loan.bank || '(unspecified bank)',
   };

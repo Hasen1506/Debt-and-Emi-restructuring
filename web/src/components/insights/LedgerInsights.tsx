@@ -1,39 +1,30 @@
-'use client';
-
 /**
- * Activity: the ledger of what was actually paid. The engine's notes that
- * used to sit above it moved to Plan (REDESIGN R3.4); R4 rebuilds this page.
- * The deep link /activity#activity-ledger lands on the ledger.
+ * Activity (REDESIGN R4): the month-by-month ledger of what was paid and
+ * what changed. `/activity#activity-ledger` lands on it; `?log=payment&loan=2`
+ * opens the log dialog for that loan.
  */
 
-import type { StoredProfile } from '@/lib/user-store';
+import type { PlanRunArgs, UserPayload } from '@/lib/api';
 import type { StrategyName } from '@/lib/strategy';
-import { ActivityLedger } from './ActivityLedger';
-import { LShell, LSectionHeader, L_MONO } from '@/components/ledger/primitives';
+import type { RolledLoan } from '@/lib/roll-forward';
+import { ActivityPage } from '@/components/activity/ActivityPage';
+import { LShell } from '@/components/ledger/primitives';
 
 export function LedgerInsights({
-  profile,
-  strategy: _strategy,
+  user,
+  runArgs,
+  strategy,
+  rolled,
 }: {
-  profile: StoredProfile;
+  user: UserPayload;
+  runArgs: PlanRunArgs | null;
   strategy: StrategyName;
+  rolled: RolledLoan[];
 }) {
   return (
     <LShell>
-      <div
-        style={{
-          flex: 1,
-          padding: '4px 0 0',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 22,
-          fontFamily: L_MONO,
-        }}
-      >
-        <section>
-          <LSectionHeader>ACTUALS · ACTIVITY LEDGER</LSectionHeader>
-          <ActivityLedger user={profile.user} variant="ledger" />
-        </section>
+      <div id="activity-ledger" style={{ flex: 1, padding: '4px 0 0', scrollMarginTop: 24 }}>
+        <ActivityPage user={user} runArgs={runArgs} strategy={strategy} rolled={rolled} />
       </div>
     </LShell>
   );

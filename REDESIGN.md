@@ -5,11 +5,10 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Phase in progress:** R4 · Activity (not started)
-- **Last finished step:** R3 · Plan, all five steps (PR #10): assumption chips, KPIs, chart with milestones, month-by-month events with the rate-reset reminder and central-bank note, life events, notes, what-if and advance tax restyled
-- **Next step:** R4 — measure Activity's height at 1200/390 and W6 (log a partial EMI and a rate change) on the current page as the before, then R4.1
-- **Open PR:** #10 · `claude/vibrant-bardeen-5bsiyj` (merge when CI is green, then restart the branch from `main`)
-- **Waiting on the owner:** whether to change the US default card minimum (see the R1 walkthrough results)
+- **Phase in progress:** R5 · Goals & Tools, Windfall (not started)
+- **Last finished step:** R4 · Activity, all five steps (PR #11): month-by-month history with due rows, one log dialog with the plan preview, plan decisions and spending cuts in the history, W6, balances rolled forward. Also in #11: US card minimums (1% + interest + fees)
+- **Next step:** R5 — measure Goals & Tools and Windfall at 1200/390 and W5 (₹1L bonus → engine pick → log it) on the current pages as the before, then R5.1
+- **Open PR:** #11 · `claude/vibrant-bardeen-5bsiyj` (merge when CI is green, then restart the branch from `main`)
 
 Pause after each phase (or about every five steps, or when context is near 35%):
 tick the boxes here, update **Resume here**, push, and ask the owner to `/compact`.
@@ -134,11 +133,11 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [x] R3.5 What if, in ledger rows with no nested cards: spend less each month (from this month or later; DO IT saves the cut), if floating rates change (off, and says why, when no loan floats), pay a lump sum (into which loan, ★ the plan's pick; I PAID THIS logs it). Each shows → DEBT-FREE ±n MO and → INTEREST ±amount as it changes; the line that repeated them in words went (goal changes still show). Loan names read "Credit card · ₹1,50,000", not "Unnamed · credit card". Advance tax (self-employed) is a register like Home's: MARK PAID in one tap, OTHER AMOUNT takes `2.34L`, a missed instalment gets the red strip, and the penalty is in plain words
 
 ### R4 · Activity
-- [ ] R4.1 Month strip, collapsible months, prominent due date
-- [ ] R4.2 Log-entry dialog: payment · partial · rate update · expense · income · lifecycle, with engine preview
-- [ ] R4.3 Decision-log entries shown in the same history
-- [ ] R4.4 Walkthrough W6
-- [ ] R4.5 Balances move with the months: the plan starts from the balances as entered, so each month that passes leaves them one EMI's principal too high until the user updates them. Roll them forward from the month they were entered (scheduled payments + logged entries). Also: an extra logged in Activity this month still counts on top of the plan's own extra for the month (Home's MARK PAID doesn't)
+- [x] R4.1 Month strip, collapsible months, prominent due date: entries by month, newest first, a JUMP strip, the two latest months open. The current month lists each EMI or card minimum due and not logged (PAID in one tap, MARK n EMIS PAID, OTHER for part/missed/more); this replaced the "nothing changed" bar. Rows: date · what · planned · paid · status · effect, with EDIT and UNDO; stacked at phone width
+- [x] R4.2 Log-entry dialog: payment (in full, part, missed, extra with where it came from, paid off; a card's balance now), rate change, pay change, spending (this month's total, or a new monthly amount), new loan. A preview shows the debt-free month and interest before saving, from the plan's inputs (`loadPlanInputs`, split out of `loadPlan`). A rate or pay change dated today or earlier goes into the profile; a later one waits on Plan. The life-event form is shared with Plan (`LifeEventForm`); the old 2,139-line `ActivityLedger` is gone
+- [x] R4.3 Decision-log entries shown in the same history: plan choices (payoff order, emergency-fund share, goals) with their effect on the debt-free date, and spending cuts made for a goal (IT HELD / UNDO, "STILL HOLDING?" after 30 days). UNDO only where it restores something (the old page offered it on every decision and restored nothing for most). `/decisions` → `/activity`
+- [x] R4.4 Walkthrough W6 (results below)
+- [x] R4.5 Balances move with the months: the plan starts from the balances as entered, so each month that passes leaves them one EMI's principal too high until the user updates them. Roll them forward from the month they were entered (scheduled payments + logged entries). Also: an extra logged in Activity this month still counts on top of the plan's own extra for the month (Home's MARK PAID doesn't). **Done:** each loan carries `balance_as_of` (Setup; Profile when a balance changes; a tool's new loan; a confirmed new-loan event). `lib/roll-forward` takes off the EMIs due in the months after that one, for the plan and for Home, Goals and Portfolio, and Activity says which balances moved. An extra logged from this month's spare cash holds back the part the plan already pays this month (`plannedExtra`). Not rolled: cards, flat-rate and pre-EMI loans, and loans saved before this change (no date until their balance is next saved)
 
 ### R5 · Goals & Tools, Windfall
 - [ ] R5.1 Goal ledger: open · edit · cancel/archive; priority accent strip
@@ -230,6 +229,11 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
   At 24% APR, 2% a month is exactly the interest, so a card on minimums never clears, and "vs paying minimums"
   is overstated (W2: $182,870; W3: "77 yrs 6 mo sooner"). Most US issuers charge 1% of the balance plus interest
   and fees, with a $25–$41 floor. Changing it moves every US baseline, so it is listed for the owner rather than changed here.
+- **Fixed (owner approved, before R4):** the US default is now 1% of the balance plus interest and fees, or $35;
+  Chase $40, Citi $41, Capital One and Apple Card $25, Amex $40, Bank of America $35 (all 1% + interest + fees);
+  Discover the greatest of 2%, $20 + interest + fees, or $35; Synchrony the greatest of 3.5%, 1% + interest + fees, or $25.
+  No minimum asks for more than the card owes. The US test profile ($8,000 Chase card at 25%, $18,000 car loan)
+  on minimums only: never clear and $131,925 of interest in 50 years → clear in 19 yrs 8 mo, $17,496.
 
 ### Before R2 (current Home, Priya's profile)
 
@@ -257,6 +261,25 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
 
 - A US card whose minimum never clears now reads "TIME SAVED — · MINIMUMS ALONE NEVER CLEAR IT" instead of "0".
 - Checked with the over-budget, US, NRI, US mortgage, self-employed, no-loans and paid-off profiles: no sideways scroll at 390.
+
+### Before R4 (current Activity, Priya's profile, three months of entries)
+
+- Height: 1,289 at 1200px; 2,235 at 390px, and 427px wide at 390 (sideways scroll).
+- Loans with no lender read "Unnamed · card"; a card's "Paid in full" defaulted to ₹0; dates were "2026-10-01".
+- **W6** (half the personal-loan EMI, then the home-loan rate up to 9.1%): 8 clicks, 2 values typed, 2 pages (the partial in Activity's form, the rate in Plan's life events). Neither showed what it did to the plan.
+
+### After R4 (new Activity)
+
+| | Before | After |
+|---|---|---|
+| Height (1200 / 390) | 1,289 / 2,235, sideways scroll at 390 | 900 / 1,096, none |
+| W6 | 8 clicks, 2 typed, 2 pages, no effect shown | 6 clicks, 2 typed, 1 page: OTHER on the personal loan's due row (loan and "part" filled in), the amount, SAVE; LOG AN ENTRY → RATE CHANGE → home loan → rate → SAVE. Each previews its effect: interest +₹4,208 (₹595 fee estimate shown), then +₹45,833 |
+| This month's EMIs | "CONFIRM EMIS PAID · NO CHANGES" bar | a due row per loan, PAID in one tap |
+| A balance entered in July, in October | still July's (one EMI's principal too high per month) | rolled forward: ₹35,00,000 → ₹34,79,110 after 2 EMIs, said on Activity; Home shows the same |
+| An extra logged from this month's spare cash | counted on top of the plan's own extra for the month | the plan's share waits for the month to end, as Home's MARK PAID does; the preview says so |
+| Plan decisions | a separate /decisions page | rows in the same history |
+
+- Checked with the no-loans, paid-off, over-budget, US, NRI and default profiles: no sideways scroll at 390, no NaN.
 
 ### After R2 (new Home, Priya's profile)
 

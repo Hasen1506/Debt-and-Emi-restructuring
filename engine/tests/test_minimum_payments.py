@@ -56,10 +56,45 @@ def test_hdfc_compound_includes_emi_overlimit_pastdue():
     assert mp == D("8500")
 
 
-def test_chase_2pct_floor_35():
-    """Chase US: max(2% balance, $35). $1000 → $35 (floor). $5000 → $100."""
-    assert compute_minimum_payment(_card("Chase", D("1000")), Country.US) == D("35")
-    assert compute_minimum_payment(_card("Chase", D("5000")), Country.US) == D("100")
+def test_chase_1pct_plus_interest_floor_40():
+    """Chase US: max(1% + interest + fees, $40). $1,000 with $20 interest → $40
+    (floor). $5,000 with $100 interest → $150."""
+    assert compute_minimum_payment(_card("Chase", D("1000")), Country.US, interest_accrued=D("20")) == D("40")
+    assert compute_minimum_payment(_card("Chase", D("5000")), Country.US, interest_accrued=D("100")) == D("150")
+
+
+def test_us_default_pays_principal_at_high_apr():
+    """Unknown US bank: 1% + interest + fees, floor $35. At 29.99% the old
+    "2% of the balance" ($160 on $8,000) was below the $200 of interest, so
+    the card grew forever on minimums; now $80 of principal is paid."""
+    card = _card("Some Credit Union", D("8000"))
+    interest = D("8000") * D("0.2999") / 12
+    mp = compute_minimum_payment(card, Country.US, interest_accrued=interest)
+    assert mp == interest + D("80")
+
+
+def test_discover_greatest_of_three():
+    """Discover: max(2% balance, $20 + interest + fees, $35)."""
+    # $5,000, $100 interest → max(100, 120, 35) = 120
+    assert compute_minimum_payment(_card("Discover", D("5000")), Country.US, interest_accrued=D("100")) == D("120")
+    # $5,000, no interest (0% promo) → max(100, 20, 35) = 100
+    assert compute_minimum_payment(_card("Discover", D("5000")), Country.US) == D("100")
+    # $500, $10 interest → max(10, 30, 35) = 35
+    assert compute_minimum_payment(_card("Discover", D("500")), Country.US, interest_accrued=D("10")) == D("35")
+
+
+def test_synchrony_greatest_of_three():
+    """Synchrony: max(3.5% balance, 1% + interest + fees, $25)."""
+    # $2,000, $50 interest → max(70, 70, 25) = 70
+    assert compute_minimum_payment(_card("Synchrony", D("2000")), Country.US, interest_accrued=D("50")) == D("70")
+    # $2,000, $80 interest → max(70, 100, 25) = 100
+    assert compute_minimum_payment(_card("Synchrony", D("2000")), Country.US, interest_accrued=D("80")) == D("100")
+
+
+def test_floor_never_exceeds_what_is_owed():
+    """A $35 floor on a $20 balance is a bill for the $20 and its interest."""
+    assert compute_minimum_payment(_card("Chase", D("20")), Country.US, interest_accrued=D("0.40")) == D("20.40")
+    assert compute_minimum_payment(_card("Axis Bank", D("150")), Country.IN) == D("150")
 
 
 def test_simple_mode_uses_country_default():

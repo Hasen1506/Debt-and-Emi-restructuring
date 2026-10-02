@@ -39,19 +39,27 @@ INDIA_MIN_PAYMENT_FORMULAS = {
 }
 
 USA_MIN_PAYMENT_FORMULAS = {
-    "Chase":            {"type": "greater_of_pct_floor", "pct": D("0.02"), "floor": D("35")},
+    # Large US issuers charge 1% of the balance plus the month's interest
+    # and fees, so a card on minimums always pays some principal; a flat
+    # "2% of the balance" left a card at 24% APR or more never clearing.
+    "Chase":            {"type": "interest_plus_pct_plus_fees_floor", "pct": D("0.01"), "floor": D("40")},
     "Bank of America":  {"type": "interest_plus_pct_plus_fees_floor", "pct": D("0.01"), "floor": D("35")},
-    "Citibank":         {"type": "greater_of_pct_floor", "pct": D("0.02"), "floor": D("25")},
-    "Capital One":      {"type": "greater_of_pct_floor", "pct": D("0.02"), "floor": D("25")},
-    "Discover":         {"type": "greater_of_pct_floor", "pct": D("0.02"), "floor": D("35")},
-    "American Express": {"type": "interest_plus_pct_plus_fees_floor", "pct": D("0.01"), "floor": D("35")},
-    "Goldman Sachs":    {"type": "interest_plus_pct_plus_fees_floor", "pct": D("0.01"), "floor": D("35")},
-    "Synchrony":        {"type": "greater_of_pct_floor", "pct": D("0.02"), "floor": D("25")},
+    "Citibank":         {"type": "interest_plus_pct_plus_fees_floor", "pct": D("0.01"), "floor": D("41")},
+    "Capital One":      {"type": "interest_plus_pct_plus_fees_floor", "pct": D("0.01"), "floor": D("25")},
+    # Discover: the greatest of 2% of the balance, $20 + interest + fees, or $35.
+    "Discover":         {"type": "greatest_of", "balance_pct": D("0.02"),
+                         "fixed_plus_interest": D("20"), "floor": D("35")},
+    "American Express": {"type": "interest_plus_pct_plus_fees_floor", "pct": D("0.01"), "floor": D("40")},
+    # Apple Card: 1% of the balance plus interest, or $25.
+    "Goldman Sachs":    {"type": "interest_plus_pct_plus_fees_floor", "pct": D("0.01"), "floor": D("25")},
+    # Synchrony: the greatest of 3.5% of the balance, 1% + interest + fees, or $25.
+    "Synchrony":        {"type": "greatest_of", "balance_pct": D("0.035"),
+                         "principal_pct": D("0.01"), "floor": D("25")},
 }
 
 DEFAULT_FORMULA = {
     Country.IN: {"type": "greater_of_pct_floor", "pct": D("0.05"), "floor": D("200")},
-    Country.US: {"type": "greater_of_pct_floor", "pct": D("0.02"), "floor": D("35")},
+    Country.US: {"type": "interest_plus_pct_plus_fees_floor", "pct": D("0.01"), "floor": D("35")},
 }
 
 
@@ -76,6 +84,15 @@ def _evaluate(formula: dict, outstanding: Decimal, interest: Decimal, fees: Deci
         return max(a, b, formula["floor"])
     if t == "interest_plus_pct_plus_fees_floor":
         return max(interest + outstanding * formula["pct"] + fees, formula["floor"])
+    if t == "greatest_of":
+        arms = [formula["floor"]]
+        if "balance_pct" in formula:
+            arms.append(outstanding * formula["balance_pct"])
+        if "principal_pct" in formula:
+            arms.append(outstanding * formula["principal_pct"] + interest + fees)
+        if "fixed_plus_interest" in formula:
+            arms.append(formula["fixed_plus_interest"] + interest + fees)
+        return max(arms)
     raise ValueError(f"Unknown formula type: {t}")
 
 
@@ -91,8 +108,9 @@ def compute_minimum_payment(
 ) -> Decimal:
     """Spec §4.22. For non-credit-card loans returns the scheduled EMI (no ambiguity).
 
-    Simple Mode uses the country default (5%/₹200 India, 2%/$35 US). Detailed Mode
-    uses the bank-specific formula from the registry. Hard floor — never violated.
+    Simple Mode uses the country default (5%/₹200 India; 1% + interest + fees
+    or $35 US). Detailed Mode uses the bank-specific formula from the registry.
+    The floor holds unless the card owes less: then the minimum is the lot.
     """
     if loan.loan_type != LoanType.CREDIT_CARD:
         return loan.scheduled_emi
@@ -108,5 +126,8 @@ def compute_minimum_payment(
         registry = INDIA_MIN_PAYMENT_FORMULAS if country == Country.IN else USA_MIN_PAYMENT_FORMULAS
         formula = registry.get(loan.bank, DEFAULT_FORMULA[country])
 
-    return _evaluate(formula, loan.outstanding, interest_accrued, fees,
-                     current_emi, over_limit, past_due)
+    minimum = _evaluate(formula, loan.outstanding, interest_accrued, fees,
+                        current_emi, over_limit, past_due)
+    # A $35 floor on a $20 balance is a $20 bill (plus its interest and fees).
+    owed = loan.outstanding + interest_accrued + fees + current_emi + over_limit + past_due
+    return min(minimum, max(owed, D("0")))

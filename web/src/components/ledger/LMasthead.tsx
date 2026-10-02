@@ -38,7 +38,7 @@ const NAV: Array<[label: string, key: LedgerSection, href: string]> = [
 
 export function sectionFromPath(path: string): LedgerSection {
   if (path.startsWith('/plan')) return 'plan';
-  if (path.startsWith('/activity') || path.startsWith('/decisions')) return 'activity';
+  if (path.startsWith('/activity')) return 'activity';
   if (path.startsWith('/goals') || path.startsWith('/tools')) return 'goals';
   if (
     path.startsWith('/onboarding') ||
@@ -63,7 +63,6 @@ function stmtFromPath(path: string): string {
   if (path.startsWith('/tools')) return '#TOOLS';
   if (path.startsWith('/goals')) return '#1138-GOALS';
   if (path.startsWith('/portfolio')) return '#1138-HOLD';
-  if (path.startsWith('/decisions')) return '#1138-DEC';
   return '#1138';
 }
 

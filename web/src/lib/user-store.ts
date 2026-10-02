@@ -298,7 +298,11 @@ export async function loadCurrentProfileServer(): Promise<StoredProfile> {
   ]);
   const {applyActivityDeltas} = await import('./activity-cookie');
   const {countryMonthKey} = await import('./today');
-  return {...profile,user:{...profile.user,loans:applyActivityDeltas(profile.user.loans,activity,countryMonthKey(profile.user.country)).loans}};
+  const {rollBalancesForward} = await import('./roll-forward');
+  // Balances move on by the EMIs due since they were entered, then by what was logged.
+  const month = countryMonthKey(profile.user.country);
+  const rolled = rollBalancesForward(profile.user.loans, month).loans;
+  return {...profile,user:{...profile.user,loans:applyActivityDeltas(rolled,activity,month).loans}};
 }
 
 /** Pull a StoredProfile out of the server's JSON blob, or null if absent. */
