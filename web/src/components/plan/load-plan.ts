@@ -76,13 +76,16 @@ function extractMonthlyPayments(
 }
 
 
-export async function loadPlan(
-  strategy: StrategyName,
+/** Everything the plan runs on, read from the cookies, before the engine
+ *  is called: the profile with logged activity applied, its settings, life
+ *  events and goals. `simBaseArgs` is what /simulate gets (less the
+ *  strategy). Activity uses it to preview an entry against the plan. */
+export async function loadPlanInputs(
   hikeModeling: HikeModeling,
   taxReinvest: TaxReinvestSetting,
   inflationModeling: InflationModeling,
   fxDrift: FxDriftSetting,
-): Promise<PlanData> {
+) {
   const profile = await loadProfileServer();
   // Surplus = income − fixed expenses − scheduled EMIs. Same definition the
   // Home + Debts pages show; previously /plan computed it without subtracting
@@ -341,6 +344,51 @@ export async function loadPlan(
     // and returns per-goal slices + end-of-trajectory fill rates.
     goals: hasGoalsForEngine ? goalsForEngine : undefined,
   };
+  return {
+    profile,
+    surplus,
+    adjustedUser,
+    application,
+    fxRatesUsed,
+    simulation_start_month,
+    bracketTransitions,
+    advanceTaxSchedule,
+    advanceTaxPenaltyMonthly,
+    projectedTaxSavings,
+    lifecycle_events,
+    displayUser,
+    efSplit,
+    goalsForEngine,
+    hasGoalsForEngine,
+    simBaseArgs,
+  };
+}
+
+export async function loadPlan(
+  strategy: StrategyName,
+  hikeModeling: HikeModeling,
+  taxReinvest: TaxReinvestSetting,
+  inflationModeling: InflationModeling,
+  fxDrift: FxDriftSetting,
+): Promise<PlanData> {
+  const {
+    profile,
+    surplus,
+    adjustedUser,
+    application,
+    fxRatesUsed,
+    simulation_start_month,
+    bracketTransitions,
+    advanceTaxSchedule,
+    advanceTaxPenaltyMonthly,
+    projectedTaxSavings,
+    lifecycle_events,
+    displayUser,
+    efSplit,
+    goalsForEngine,
+    hasGoalsForEngine,
+    simBaseArgs,
+  } = await loadPlanInputs(hikeModeling, taxReinvest, inflationModeling, fxDrift);
   const otherStrategies = STRATEGIES.filter((s) => s !== strategy);
 
   // Loans missing a rate or EMI can't be projected (a blank rate read as
@@ -546,4 +594,17 @@ export async function loadPlanFromCookies(): Promise<PlanData> {
       loadFxDriftServer(),
     ]);
   return loadPlan(strategy, hikeModeling, taxReinvest, inflationModeling, fxDrift);
+}
+
+/** The plan's inputs and strategy from the cookies, without running it. */
+export async function loadPlanInputsFromCookies() {
+  const [strategy, hikeModeling, taxReinvest, inflationModeling, fxDrift] =
+    await Promise.all([
+      loadStrategyServer(),
+      loadHikeModelingServer(),
+      loadTaxReinvestServer(),
+      loadInflationModelingServer(),
+      loadFxDriftServer(),
+    ]);
+  return { strategy, ...(await loadPlanInputs(hikeModeling, taxReinvest, inflationModeling, fxDrift)) };
 }
