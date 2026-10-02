@@ -10,6 +10,7 @@
  * browser so the tracker picks up on the next visit.
  */
 import { useEffect, useState } from 'react';
+import { LSectionHeader } from '@/components/ledger/primitives';
 import { Card } from '@/components/Card';
 import { Field, Select } from '@/components/ToolPrimitives';
 import {
@@ -175,7 +176,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Card>
-        <h2 style={{ fontSize: 20, margin: 0 }}>Write the complaint</h2>
+        <LSectionHeader>Write the complaint</LSectionHeader>
         <p style={{ margin: '6px 0 14px', fontSize: 14 }}>
           The letter asks the bank to reset your rate and refund{' '}
           {formatCurrency(res.letter.claim_amount, 'INR')}, the missed rate cut only.
@@ -230,7 +231,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
       </Card>
 
       <Card>
-        <h2 style={{ fontSize: 20, margin: 0 }}>Track it</h2>
+        <LSectionHeader>Track it</LSectionHeader>
         <p className="muted" style={{ fontSize: 13, margin: '6px 0 12px' }}>
           Once it&apos;s sent, add the dates. The deadlines are counted from when the
           bank got it, and the next step appears here.
@@ -330,7 +331,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
 
       {res.io_followup && (
         <Card>
-          <h2 style={{ fontSize: 20, margin: 0 }}>Ask for the Internal Ombudsman&apos;s review</h2>
+          <LSectionHeader>Ask for the Internal Ombudsman&apos;s review</LSectionHeader>
           <p style={{ margin: '6px 0 0', fontSize: 14 }}>
             A bank that rejects a complaint, even in part, must pass it to its Internal
             Ombudsman before giving a final answer. Send this follow-up the same way as
@@ -346,7 +347,7 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
 
       {res.ombudsman && t && (
         <Card>
-          <h2 style={{ fontSize: 20, margin: 0 }}>RBI Ombudsman complaint</h2>
+          <LSectionHeader>RBI Ombudsman complaint</LSectionHeader>
           <p style={{ margin: '6px 0 0', fontSize: 14 }}>
             {res.ombudsman.opens && res.ombudsman.deadline && (
               <>
@@ -384,13 +385,13 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
           </div>
           <LetterBox label="Facts of the complaint" text={fill(res.ombudsman.facts)} />
           <LetterBox label="Relief sought" text={res.ombudsman.relief} />
-          <h3 style={{ fontSize: 15, margin: '14px 0 4px' }}>Upload</h3>
+          <h3 style={{ fontSize: 12, margin: '14px 0 4px', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Upload</h3>
           <ul style={{ fontSize: 14, margin: 0, paddingLeft: 18 }}>
             {res.ombudsman.documents.map((d) => (
               <li key={d}>{d}</li>
             ))}
           </ul>
-          <h3 style={{ fontSize: 15, margin: '14px 0 4px' }}>Confirm on the portal, only if true</h3>
+          <h3 style={{ fontSize: 12, margin: '14px 0 4px', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Confirm on the portal, only if true</h3>
           <ul style={{ fontSize: 14, margin: 0, paddingLeft: 18 }}>
             {res.ombudsman.declarations.map((d) => (
               <li key={d}>{d}</li>
@@ -427,7 +428,7 @@ function LetterBox({ label, text, filename }: { label: string; text: string; fil
   return (
     <div style={{ marginTop: 14 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
-        <h3 style={{ fontSize: 15, margin: 0, flex: '1 1 auto' }}>{label}</h3>
+        <h3 style={{ fontSize: 12, margin: 0, flex: '1 1 auto', letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</h3>
         <button type="button" className="btn" onClick={copy}>
           Copy
         </button>

@@ -11,6 +11,7 @@
  *   Nothing is sent unless the borrower presses the button.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { LSectionHeader } from '@/components/ledger/primitives';
 import Decimal from 'decimal.js';
 import { Card } from '@/components/Card';
 import { Select } from '@/components/ToolPrimitives';
@@ -64,7 +65,7 @@ export function LenderRecord({ lender }: { lender?: string }) {
   if (!s || !s.known) return null;
   return (
     <Card>
-      <h3 style={{ fontSize: 15, margin: 0 }}>What borrowers report about {s.lender}</h3>
+      <h3 style={{ fontSize: 12, margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase' }}>What borrowers report about {s.lender}</h3>
       {s.shown && s.headline ? (
         <>
           <p style={{ fontSize: 16, margin: '8px 0 4px', fontWeight: 600 }}>
@@ -228,7 +229,7 @@ export function ShareOutcome({
   if ('waiting' in draft) {
     return (
       <Card>
-        <h2 style={{ fontSize: 20, margin: 0 }}>Help the next borrower</h2>
+        <LSectionHeader>Help the next borrower</LSectionHeader>
         <p className="muted" style={{ fontSize: 14, margin: '6px 0 0' }}>
           {draft.waiting}
         </p>
@@ -269,7 +270,7 @@ export function ShareOutcome({
 
   return (
     <Card>
-      <h2 style={{ fontSize: 20, margin: 0 }}>Help the next borrower</h2>
+      <LSectionHeader>Help the next borrower</LSectionHeader>
       <p style={{ fontSize: 14, margin: '6px 0 12px' }}>
         Share what the bank did, anonymously. Once 5 borrowers have shared a report about a
         bank, Loan Check shows others how often it fixes the rate and how long it takes.

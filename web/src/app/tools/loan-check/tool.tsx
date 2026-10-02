@@ -2,7 +2,6 @@
 
 import { useMemo, useRef, useState } from 'react';
 import Decimal from 'decimal.js';
-import { Card } from '@/components/Card';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { ComplaintPanel } from './complaint';
 import { OfferPanel } from './offers';
@@ -13,9 +12,11 @@ import {
   Field,
   InfoTip,
   Select,
-  Stat,
   SubmitBar,
 } from '@/components/ToolPrimitives';
+import { LBracket, LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
+import { LFieldGrid, LNote, LStep, LStepSub, LSteps, LVerdict } from '@/components/ledger/LToolSteps';
+import { loanLabel } from '@/lib/loan-types';
 import {
   api,
   formatCurrency,
@@ -67,13 +68,20 @@ export function LoanCheckTool() {
   const country = profile.user.country;
   // Only a real profile pre-fills; the demo profile's loan would look
   // like the visitor's own numbers.
-  const homeLoan = useMemo(
+  const homeLoans = useMemo(
     () =>
       profile.isLive
-        ? (profile.user.loans ?? []).find((l) => l.loan_type === 'home_loan')
-        : undefined,
+        ? (profile.user.loans ?? [])
+            .map((l, i) => ({ l, i }))
+            .filter(({ l }) => l.loan_type === 'home_loan' && Number(l.outstanding) > 0)
+        : [],
     [profile.isLive, profile.user.loans],
   );
+  const homeLoan = homeLoans[0]?.l;
+  const [loanIdx, setLoanIdx] = useState<number | null>(homeLoans[0]?.i ?? null);
+  // A saved loan shows as one line; EDIT opens its fields.
+  const [editLoan, setEditLoan] = useState(!homeLoan);
+  const [more, setMore] = useState(false);
 
   const [lender, setLender] = useState(homeLoan?.bank ?? '');
   const [loanStart, setLoanStart] = useState('');
@@ -89,6 +97,17 @@ export function LoanCheckTool() {
   );
   const [emi, setEmi] = useState(homeLoan?.scheduled_emi ?? '');
   const [lastReset, setLastReset] = useState('');
+
+  function pickLoan(i: number | null) {
+    setLoanIdx(i);
+    const l = i === null ? undefined : profile.user.loans[i];
+    setLender(l?.bank ?? '');
+    setCurrentRate(pctFromFraction(l?.nominal_rate));
+    setOutstanding(l?.outstanding ?? '');
+    setMonths(l ? String(l.tenure_months_remaining) : '');
+    setEmi(l?.scheduled_emi ?? '');
+    setEditLoan(!l);
+  }
 
   const [result, setResult] = useState<LoanCheckResponse | null>(null);
   // The request behind `result`, reused by the complaint panel.
@@ -165,198 +184,160 @@ export function LoanCheckTool() {
 
   if (country !== 'IN') {
     return (
-      <Card>
-        <p style={{ margin: 0 }}>
-          Loan Check covers Indian floating-rate home loans for now. The US
-          version (adjustable-rate mortgages and card billing errors) is on
-          the way.
-        </p>
-      </Card>
+      <LNote style={{ margin: 0, fontSize: 13, color: L_T.ink }}>
+        Loan check covers Indian floating-rate home loans for now. The US
+        version (adjustable-rate mortgages and card billing errors) is on
+        the way.
+      </LNote>
     );
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <Card>
-        <form
-          onSubmit={check}
-          noValidate
-          style={{
-            display: 'grid',
-            gap: 14,
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          }}
-        >
-          {homeLoan && (
-            <div className="muted" style={{ gridColumn: '1 / -1', fontSize: 12 }}>
-              Filled from the home loan in your profile. Change anything that
-              is out of date.
-            </div>
-          )}
-          <BankCombobox
-            label="Lender"
-            value={lender}
-            onChange={setLender}
-            country="IN"
-            hint="Used to compare with the rates it gives new borrowers."
-          />
-          <MonthYearPicker
-            label="Month the loan started"
-            value={loanStart}
-            error={at('loanStart')}
-            onChange={setLoanStart}
-            minYear={1995}
-            hint="If you later switched to a repo-linked rate, use the month of the switch."
-          />
-          <Select
-            label="What is the rate linked to?"
-            value={benchmark}
-            onChange={setBenchmark}
-            options={BENCHMARK_OPTIONS}
-            info={
-              <>
-                Your sanction letter or loan statement names it: &ldquo;RLLR&rdquo;,
-                &ldquo;EBLR&rdquo; or &ldquo;repo-linked&rdquo; all mean the RBI
-                repo rate. Loans from October 2019 on are almost always
-                repo-linked.
-              </>
-            }
-          />
+  const picked = loanIdx !== null ? profile.user.loans[loanIdx] : null;
+  const loanSummary = (
+    <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
+      {formatCurrency(outstanding || '0', 'INR')} left at {currentRate || '—'}%, {months || '—'} months to go
+      {lender ? ` · ${lender}` : ''}.{' '}
+      <LBracket onClick={() => setEditLoan(true)}>EDIT</LBracket>
+    </p>
+  );
 
-          <fieldset
-            style={{ gridColumn: '1 / -1', border: 0, padding: 0, margin: 0, minWidth: 0 }}
-          >
-            <legend className="muted" style={{ fontSize: 12, padding: 0, marginBottom: 6 }}>
-              Starting rate
-            </legend>
-            <div
-              role="radiogroup"
-              aria-label="How do you know the starting rate?"
-              style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, marginBottom: 8 }}
-            >
-              <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                <input
-                  type="radio"
-                  name="start-mode"
-                  checked={startMode === 'headline'}
-                  onChange={() => setStartMode('headline')}
-                />
-                One rate (e.g. 8.55%)
-              </label>
-              <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                <input
-                  type="radio"
-                  name="start-mode"
-                  checked={startMode === 'split'}
-                  onChange={() => setStartMode('split')}
-                />
-                Benchmark + spread (e.g. 8.20% + 0.35%)
-              </label>
-            </div>
-            {startMode === 'headline' ? (
-              <div style={{ maxWidth: 320 }}>
+  return (
+    <LSteps>
+      <LStep no="01" id="lc-in" title="Your home loan">
+        <form onSubmit={check} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {homeLoans.length > 0 && (
+            <LChipRow label="Which loan?">
+              {homeLoans.map(({ l, i }) => (
+                <LChip key={i} on={loanIdx === i} onClick={() => pickLoan(i)}>
+                  {loanLabel(l)}
+                </LChip>
+              ))}
+              <LChip on={loanIdx === null} onClick={() => pickLoan(null)}>
+                Another loan
+              </LChip>
+            </LChipRow>
+          )}
+          {picked && !editLoan ? (
+            loanSummary
+          ) : (
+            <LFieldGrid>
+              <BankCombobox label="Lender" value={lender} onChange={setLender} country="IN" hint="To compare with what it charges new borrowers" />
+              <div>
                 <Field
-                  label="Rate when the loan started (%)"
-                  value={startRate}
-                  error={at('startRate')}
-                  onChange={setStartRate}
-                  placeholder="8.55"
+                  label="Rate you pay now (%)"
+                  value={currentRate}
+                  error={at('currentRate')}
+                  onChange={setCurrentRate}
+                  placeholder="8.90"
+                  hint="From your latest statement or the bank's app"
                 />
-                <RateProblem parsed={pStart} onFix={setStartRate} />
+                <RateProblem parsed={pCurrent} onFix={setCurrentRate} />
               </div>
-            ) : (
-              <div
-                style={{
-                  display: 'grid',
-                  gap: 12,
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                }}
-              >
-                <div>
-                  <Field
-                    label="Bank's benchmark rate then (%)"
-                    value={startBench}
-                    error={at('startBench')}
-                    onChange={setStartBench}
-                    placeholder="8.20"
-                    info={<>The lender&apos;s RLLR / EBLR on the day the loan started, as shown in the sanction letter.</>}
-                  />
-                  <RateProblem parsed={pBench} onFix={setStartBench} />
+              <Field label="Still owed" kind="money" currency="INR" value={outstanding} error={at('outstanding')} onChange={setOutstanding} />
+              <Field label="Months left" value={months} error={at('months')} onChange={setMonths} kind="integer" placeholder="200" />
+              <Field label="EMI (optional)" kind="money" currency="INR" value={emi} error={at('emi')} onChange={setEmi} hint="Blank: worked out for you" />
+            </LFieldGrid>
+          )}
+
+          <LStepSub>How it started</LStepSub>
+          <LFieldGrid>
+            <MonthYearPicker
+              label="Month the loan started"
+              value={loanStart}
+              error={at('loanStart')}
+              onChange={setLoanStart}
+              minYear={1995}
+              hint="If you later moved to a repo-linked rate, the month you moved"
+            />
+            <Select
+              label="What is the rate linked to?"
+              value={benchmark}
+              onChange={setBenchmark}
+              options={BENCHMARK_OPTIONS}
+              info={
+                <>
+                  Your sanction letter or loan statement names it: &ldquo;RLLR&rdquo;,
+                  &ldquo;EBLR&rdquo; or &ldquo;repo-linked&rdquo; all mean the RBI
+                  repo rate. Loans from October 2019 on are almost always
+                  repo-linked.
+                </>
+              }
+            />
+          </LFieldGrid>
+          <div>
+            <LChipRow label="The rate it started at">
+              <LChip on={startMode === 'headline'} onClick={() => setStartMode('headline')}>
+                One rate
+              </LChip>
+              <LChip on={startMode === 'split'} onClick={() => setStartMode('split')}>
+                Benchmark + spread
+              </LChip>
+            </LChipRow>
+            <div style={{ marginTop: 10 }}>
+              {startMode === 'headline' ? (
+                <div style={{ maxWidth: 320 }}>
+                  <Field label="Rate when the loan started (%)" value={startRate} error={at('startRate')} onChange={setStartRate} placeholder="8.55" />
+                  <RateProblem parsed={pStart} onFix={setStartRate} />
                 </div>
-                <div>
-                  <Field
-                    label="Your spread (%)"
-                    value={startSpread}
-                    error={at('startSpread')}
-                    onChange={setStartSpread}
-                    placeholder="0.35"
-                    info={<>The extra over the benchmark that applies to you, often called the spread, margin or credit risk premium.</>}
-                  />
-                  <RateProblem parsed={pSpread} onFix={setStartSpread} />
-                </div>
-                {(startBench === '') !== (startSpread === '') && (
-                  <span
-                    role="status"
-                    style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--accent)' }}
-                  >
-                    Still needed: {startBench ? 'your spread' : "the bank's benchmark rate then"}.
-                  </span>
-                )}
-              </div>
-            )}
-          </fieldset>
+              ) : (
+                <LFieldGrid min={200}>
+                  <div>
+                    <Field
+                      label="Bank's benchmark rate then (%)"
+                      value={startBench}
+                      error={at('startBench')}
+                      onChange={setStartBench}
+                      placeholder="8.20"
+                      info={<>The lender&apos;s RLLR / EBLR on the day the loan started, as shown in the sanction letter.</>}
+                    />
+                    <RateProblem parsed={pBench} onFix={setStartBench} />
+                  </div>
+                  <div>
+                    <Field
+                      label="Your spread (%)"
+                      value={startSpread}
+                      error={at('startSpread')}
+                      onChange={setStartSpread}
+                      placeholder="0.35"
+                      info={<>The extra over the benchmark that applies to you, often called the spread, margin or credit risk premium.</>}
+                    />
+                    <RateProblem parsed={pSpread} onFix={setStartSpread} />
+                  </div>
+                </LFieldGrid>
+              )}
+            </div>
+          </div>
 
           <div>
-            <Field
-              label="Rate you pay now (%)"
-              value={currentRate}
-              error={at('currentRate')}
-              onChange={setCurrentRate}
-              placeholder="8.90"
-              hint="From your latest statement or the bank's app."
-            />
-            <RateProblem parsed={pCurrent} onFix={setCurrentRate} />
+            <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
+            {!more && (
+              <span style={{ fontSize: 11, color: L_T.muted, marginLeft: 8 }}>
+                {lastReset ? `Rate last changed ${lastReset}` : 'When your rate last changed'}
+              </span>
+            )}
+            {more && (
+              <div style={{ marginTop: 10, maxWidth: 360 }}>
+                <MonthYearPicker
+                  label="Month your rate last changed"
+                  value={lastReset}
+                  error={at('lastReset')}
+                  onChange={setLastReset}
+                  minYear={2019}
+                  optional
+                  hint="Counts the overcharge further back. Skip if unsure."
+                />
+              </div>
+            )}
           </div>
-          <Field
-            label="Outstanding balance (₹)"
-            value={outstanding}
-            error={at('outstanding')}
-            onChange={setOutstanding}
-            placeholder="40,00,000"
-          />
-          <Field
-            label="Months left"
-            value={months}
-            error={at('months')}
-            onChange={setMonths}
-            kind="integer"
-            placeholder="200"
-          />
-          <Field
-            label="EMI (₹, optional)"
-            value={emi}
-            error={at('emi')}
-            onChange={setEmi}
-            hint="Leave blank and we work it out."
-          />
-          <MonthYearPicker
-            label="Month your rate last changed"
-            value={lastReset}
-            error={at('lastReset')}
-            onChange={setLastReset}
-            minYear={2019}
-            optional
-            hint="Lets us count the overcharge further back. Skip if unsure."
-          />
 
-          <SubmitBar busy={busy} error={err} label="Check my loan" />
-          {!err && stillNeeded.length > 0 && (
-            <div className="muted" style={{ gridColumn: '1 / -1', fontSize: 12 }}>
-              Still needed: {stillNeeded.join(', ')}.
-            </div>
-          )}
+          <div>
+            <SubmitBar busy={busy} error={err} label="Check my loan" />
+            {!err && stillNeeded.length > 0 && (
+              <div style={{ marginTop: 8, fontSize: 12, color: L_T.muted }}>Still needed: {stillNeeded.join(', ')}.</div>
+            )}
+          </div>
         </form>
-      </Card>
+      </LStep>
 
       <div aria-live="polite" ref={resultRef} tabIndex={-1} style={{ outline: 'none' }}>
         {result && <LoanCheckResult r={result} />}
@@ -368,157 +349,117 @@ export function LoanCheckTool() {
         </>
       )}
       {result && checked && <OfferPanel request={checked} />}
-    </div>
+    </LSteps>
   );
-}
-
-function statusColor(status: LoanCheckResponse['status']): string {
-  if (status === 'no_issue') return 'var(--positive)';
-  return 'var(--accent)';
 }
 
 function LoanCheckResult({ r }: { r: LoanCheckResponse }) {
   const inr = (v: string) => formatCurrency(v, 'INR');
   const claimable = r.findings.some((f) => f.claimable);
+  const gap = r.expected_rate ? new Decimal(r.current_rate).minus(r.expected_rate) : null;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Card>
-        <h2 style={{ fontSize: 20, margin: 0, color: statusColor(r.status) }}>
+    <LSteps>
+      <LStep no="02" id="lc-out" title="The answer" answer>
+        <LVerdict tone={r.status === 'no_issue' ? 'pos' : 'accent'}>
           {r.status === 'no_issue'
-            ? 'No missed rate cut'
+            ? 'No missed rate cut.'
             : r.status === 'not_applicable'
-              ? 'Old benchmark'
+              ? 'Your loan is on an old benchmark.'
               : claimable
-                ? 'Your bank owes you a rate cut'
-                : 'Worth a conversation with your bank'}
-        </h2>
-        <p style={{ margin: '6px 0 14px', fontSize: 14 }}>{r.summary}</p>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-            gap: 12,
-          }}
-        >
-          <Stat label="You pay" value={formatPct(r.current_rate, 2)} />
-          {r.expected_rate && (
-            <Stat
-              label={
-                <>
-                  Should be about{' '}
-                  <InfoTip>
-                    Your starting rate moved by exactly as much as the RBI
-                    repo rate has since, allowing the bank up to three months
-                    to reset.
-                  </InfoTip>
-                </>
-              }
-              value={formatPct(r.expected_rate, 2)}
-              color="var(--positive)"
-            />
-          )}
-          {claimable && (
-            <>
-              <Stat
-                label="At stake over the next 12 months"
-                value={inr(r.amount_at_stake_this_year)}
-                color="var(--negative)"
-              />
-              <Stat
-                label={
-                  <>
-                    Overcharged so far{' '}
-                    <InfoTip>
-                      A cautious estimate: counted at today&apos;s balance
-                      (lower than it was), whole months only. This is the
-                      refund your complaint can ask for.
-                    </InfoTip>
-                  </>
-                }
-                value={inr(r.claim_amount)}
-                color="var(--negative)"
-              />
-            </>
-          )}
-        </div>
+                ? 'Your bank owes you a rate cut.'
+                : 'Worth a conversation with your bank.'}
+        </LVerdict>
+        <LNote>{r.summary}</LNote>
+        <LKpi
+          items={[
+            { l: 'YOU PAY', v: formatPct(r.current_rate, 2) },
+            ...(r.expected_rate ? [{ l: 'SHOULD BE ABOUT', v: formatPct(r.expected_rate, 2), tone: L_T.positive }] : []),
+            ...(claimable
+              ? [
+                  { l: 'AT STAKE, NEXT 12 MONTHS', v: inr(r.amount_at_stake_this_year), tone: L_T.negative },
+                  { l: 'OVERCHARGED SO FAR', v: inr(r.claim_amount), s: 'what a complaint can ask back', tone: L_T.negative },
+                ]
+              : []),
+          ]}
+        />
         {r.stale_rates_warning && (
-          <p role="note" style={{ fontSize: 12, color: 'var(--accent)', margin: '12px 0 0' }}>
+          <p role="note" style={{ fontSize: 12, color: L_T.accent, margin: '12px 0 0' }}>
             {r.stale_rates_warning}
           </p>
         )}
-      </Card>
+        {r.findings.map((f, i) => (
+          <FindingCard key={i} f={f} />
+        ))}
+      </LStep>
 
-      {r.findings.map((f, i) => (
-        <FindingCard key={i} f={f} />
-      ))}
+      <LMathBlock
+        rows={[
+          { k: 'you pay', v: formatPct(r.current_rate, 2) },
+          ...(r.expected_rate
+            ? [
+                {
+                  k: 'should be about',
+                  v: formatPct(r.expected_rate, 2),
+                  note: 'your starting rate, moved as much as the repo rate has, with up to 3 months to reset',
+                },
+              ]
+            : []),
+          ...(gap ? [{ k: 'gap', v: formatPct(gap.toString(), 2), tone: gap.gt(0) ? ('neg' as const) : undefined }] : []),
+          ...(claimable
+            ? [
+                { k: 'at stake, next 12 months', v: inr(r.amount_at_stake_this_year) },
+                { k: 'overcharged so far', v: inr(r.claim_amount), note: "at today's balance, whole months only: a cautious figure" },
+              ]
+            : []),
+          { k: 'repo rate', v: formatAsOf(r.rates_as_of), note: r.rates_source },
+        ]}
+      />
 
-      {r.repo_changes_since_start.length > 0 && (
-        <Card>
-          <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>
-            RBI repo rate changes since your loan started
-          </h3>
-          <div
-            role="region"
-            aria-label="RBI repo rate changes"
-            tabIndex={0}
-            style={{ overflowX: 'auto' }}
-          >
-            <table style={{ borderCollapse: 'collapse', fontSize: 13, minWidth: 320 }}>
-              <thead>
-                <tr>
-                  <th scope="col" style={th}>Date</th>
-                  <th scope="col" style={th}>From</th>
-                  <th scope="col" style={th}>To</th>
-                  <th scope="col" style={th}>Move</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.repo_changes_since_start.map((c) => {
-                  const move = new Decimal(c.new_rate).minus(c.old_rate);
-                  return (
-                    <tr key={c.date}>
-                      <td style={td}>
-                        {new Date(c.date).toLocaleDateString('en-IN', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </td>
-                      <td className="num" style={td}>{formatPct(c.old_rate, 2)}</td>
-                      <td className="num" style={td}>{formatPct(c.new_rate, 2)}</td>
-                      <td
-                        className="num"
-                        style={{
-                          ...td,
-                          color: move.lt(0) ? 'var(--positive)' : 'var(--negative)',
-                        }}
-                      >
-                        {move.lt(0) ? 'cut ' : 'hike '}
-                        {formatPct(move.abs().toString(), 2)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      <Card>
-        <details>
-          <summary style={{ cursor: 'pointer', fontSize: 14 }}>How this was worked out</summary>
-          <ul style={{ fontSize: 13, lineHeight: 1.6, margin: '10px 0 0', paddingLeft: 18 }}>
+      {(r.repo_changes_since_start.length > 0 || r.assumptions.length > 0) && (
+        <details style={{ border: `1px solid ${L_T.ruleSoft}`, padding: '12px 16px', fontSize: 12 }}>
+          <summary style={{ cursor: 'pointer', letterSpacing: '0.12em', fontSize: 11 }}>
+            REPO RATE MOVES AND ASSUMPTIONS
+          </summary>
+          {r.repo_changes_since_start.length > 0 && (
+            <div role="region" aria-label="RBI repo rate changes" tabIndex={0} style={{ overflowX: 'auto', marginTop: 10 }}>
+              <table style={{ borderCollapse: 'collapse', fontSize: 12, minWidth: 300 }}>
+                <thead>
+                  <tr>
+                    <th scope="col" style={th}>DATE</th>
+                    <th scope="col" style={th}>FROM</th>
+                    <th scope="col" style={th}>TO</th>
+                    <th scope="col" style={th}>MOVE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {r.repo_changes_since_start.map((c) => {
+                    const move = new Decimal(c.new_rate).minus(c.old_rate);
+                    return (
+                      <tr key={c.date}>
+                        <td style={td}>
+                          {new Date(c.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className="num" style={td}>{formatPct(c.old_rate, 2)}</td>
+                        <td className="num" style={td}>{formatPct(c.new_rate, 2)}</td>
+                        <td className="num" style={{ ...td, color: move.lt(0) ? L_T.positive : L_T.negative }}>
+                          {move.lt(0) ? 'cut ' : 'rise '}
+                          {formatPct(move.abs().toString(), 2)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <ul style={{ lineHeight: 1.6, margin: '10px 0 0', paddingLeft: 18 }}>
             {r.assumptions.map((a, i) => (
               <li key={i}>{a}</li>
             ))}
-            <li>
-              RBI repo rate as of {formatAsOf(r.rates_as_of)}. Source: {r.rates_source}.
-            </li>
           </ul>
         </details>
-      </Card>
-    </div>
+      )}
+    </LSteps>
   );
 }
 
@@ -526,7 +467,10 @@ const th: React.CSSProperties = {
   textAlign: 'left',
   padding: '6px 12px 6px 0',
   borderBottom: '1px solid var(--border)',
-  fontWeight: 600,
+  fontWeight: 500,
+  fontSize: 10,
+  letterSpacing: '0.12em',
+  color: 'var(--muted)',
 };
 const td: React.CSSProperties = { padding: '6px 12px 6px 0' };
 
@@ -535,34 +479,22 @@ function FindingCard({ f }: { f: LoanCheckFinding }) {
     f.kind === 'missed_rate_cut'
       ? 'Refund claim'
       : f.kind === 'pricing_gap'
-        ? 'Information, not a refund claim'
-        : 'Switch, not a refund claim';
+        ? 'For information, not a refund claim'
+        : 'A switch, not a refund claim';
   return (
-    <Card>
-      <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        {tag}
-      </div>
-      <h3 style={{ fontSize: 17, margin: '4px 0 8px' }}>{f.headline}</h3>
-      <p style={{ fontSize: 14, lineHeight: 1.6, margin: 0 }}>{f.detail}</p>
+    <div style={{ marginTop: 18 }}>
+      <LStepSub>{tag}</LStepSub>
+      <p style={{ fontSize: 13, fontWeight: 700, margin: '8px 0 6px' }}>{f.headline}</p>
+      <p style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>{f.detail}</p>
       {f.citations.map((c, i) => (
-        <blockquote
-          key={i}
-          style={{
-            margin: '12px 0 0',
-            padding: '8px 12px',
-            borderLeft: '3px solid var(--border)',
-            fontSize: 13,
-          }}
-        >
+        <blockquote key={i} style={{ margin: '10px 0 0', padding: '6px 12px', borderLeft: `3px solid ${L_T.ruleSoft}`, fontSize: 12 }}>
           <div>{c.requirement}</div>
-          <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-            {c.rule}
-          </div>
+          <div style={{ fontSize: 11, marginTop: 4, color: L_T.muted }}>{c.rule}</div>
         </blockquote>
       ))}
-      <p style={{ fontSize: 14, margin: '12px 0 0' }}>
+      <p style={{ fontSize: 12, margin: '10px 0 0' }}>
         <strong>Next step:</strong> {f.next_step}
       </p>
-    </Card>
+    </div>
   );
 }
