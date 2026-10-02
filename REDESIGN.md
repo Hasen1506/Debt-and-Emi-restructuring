@@ -165,10 +165,11 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - Test each tool at 1200 and 390 with Priya, plus `profiles.mjs` for noloans, us, nri.
 
 ### R6 · Strategy personas
-- [x] R6.1 Persona art as SVG symbols (authored once; 40px medallion, full triptych): `public/art/personas.svg` (3 scenes, 3 medallions, 3 glyphs), drawn through `components/personas/Persona.tsx`
+- [x] R6.1 Persona art as SVG symbols (authored once; 40px medallion, full triptych): `public/art/personas.svg` (3 scenes, 3 medallions; redrawn in R6.5), drawn through `components/personas/Persona.tsx`
 - [x] R6.2 Medallion in the masthead; click → switch strategy: a pip switches in one click; the medallion opens the three with what each does. Shown only when there is debt
 - [x] R6.3 Triptych at the bottom of Profile with real numbers per strategy (debt-free date, total interest, extra cost vs Avalanche): `components/personas/StrategyCompare.tsx` runs the three orders on Plan's own inputs (`loadStrategyOutcomesFromCookies`) and streams in after the rest of Profile; a card switches. When the three come out the same (Priya, Sam) or a month is short, one line says so instead of three identical cards. The Hybrid figure's split was clipped in scene coordinates inside a translated group (in the design file too), which hid half of it; it now splits down its own middle
 - [x] R6.4 Walkthrough W3 (see After R6 below)
+- [x] R6.5 Art redrawn (owner: "looks kind of worse graphically"). The design file's scenes were 3:2 but the cards show 2:1, which cropped the figures' feet, the god and the big snowball; the bodies were loose polygons; the 40px medallions blurred; the three glyphs were the same triangle. Now: scenes drawn at 480×240, figures as pictograms (round strokes, a separate head), flat planes, one idea each (pushing the boulder up to a summit flag; balancing a boulder and a snowball on the ridge; a snowball let go at the top, growing as it rolls). The medallions are cut down to read at 32px. The unused glyphs are gone. Card figures line up across the three cards whatever the rule's length
 
 ### R7 · Finish
 - [ ] R7.1 All six walkthroughs again; before/after table here

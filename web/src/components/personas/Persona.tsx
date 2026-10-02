@@ -1,10 +1,10 @@
 /**
  * The three payoff strategies as personas (design/strategy-personas).
  *
- * The art is authored once, in public/art/personas.svg: a 480×320 scene
- * per strategy (the Profile triptych), a 40×40 medallion (the masthead)
- * and a 24×24 glyph. Each piece here points into that file, so the
- * browser fetches it once and every size draws the same picture.
+ * The art is authored once, in public/art/personas.svg: a 480×240 scene
+ * per strategy (the Profile cards, drawn at their 2:1) and a 40×40
+ * medallion (the masthead). Each piece here points into that file, so
+ * the browser fetches it once.
  *
  * Persona colours stay inside the art; the rest of the app stays Ledger.
  */
@@ -28,37 +28,37 @@ export const PERSONA: Record<StrategyName, PersonaInfo> = {
   avalanche: {
     name: 'Avalanche',
     tag: 'UPHILL',
-    figure: 'Sisyphus, pushing uphill',
+    figure: 'Sisyphus pushing a boulder up to the summit',
     rule: 'Highest rate first.',
     feel: 'The hard climb, and the least interest.',
   },
   hybrid: {
     name: 'Hybrid',
     tag: 'THE RIDGE',
-    figure: 'Atlas at the ridge',
+    figure: 'Atlas on the ridge, a boulder in one hand and a snowball in the other',
     rule: 'Small balances first for a quick win, then the highest rate.',
     feel: 'A win early, then the maths.',
   },
   snowball: {
     name: 'Snowball',
     tag: 'DOWNHILL',
-    figure: 'A boulder rolling downhill',
+    figure: 'A snowball let go at the top, growing as it rolls downhill',
     rule: 'Smallest balance first.',
     feel: 'Debts close sooner; it costs more interest.',
   },
 };
 
-/** The full scene, cropped to fill its box. */
+/** The full scene; a box that isn't 2:1 crops it rather than letterboxing. */
 export function PersonaScene({ strategy, height = 160 }: { strategy: StrategyName; height?: number | string }) {
   return (
     <svg
-      viewBox="0 0 480 320"
+      viewBox="0 0 480 240"
       preserveAspectRatio="xMidYMid slice"
       role="img"
       aria-label={PERSONA[strategy].figure}
       style={{ display: 'block', width: '100%', height }}
     >
-      <use href={`${ART}#scene-${strategy}`} width="480" height="320" />
+      <use href={`${ART}#scene-${strategy}`} width="480" height="240" />
     </svg>
   );
 }
@@ -68,15 +68,6 @@ export function PersonaMedallion({ strategy, size = 40 }: { strategy: StrategyNa
   return (
     <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden style={{ display: 'block', flex: 'none' }}>
       <use href={`${ART}#med-${strategy}`} width="40" height="40" />
-    </svg>
-  );
-}
-
-/** A one-colour icon (takes the text colour). */
-export function PersonaGlyph({ strategy, size = 24 }: { strategy: StrategyName; size?: number }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden style={{ display: 'block', flex: 'none' }}>
-      <use href={`${ART}#glyph-${strategy}`} width="24" height="24" />
     </svg>
   );
 }
