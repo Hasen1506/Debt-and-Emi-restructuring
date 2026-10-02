@@ -172,7 +172,7 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - [x] R6.5 Art redrawn (owner: "looks kind of worse graphically"). The design file's scenes were 3:2 but the cards show 2:1, which cropped the figures' feet, the god and the big snowball; the bodies were loose polygons; the 40px medallions blurred; the three glyphs were the same triangle. Now: scenes drawn at 480×240, figures as pictograms (round strokes, a separate head), flat planes, one idea each (pushing the boulder up to a summit flag; balancing a boulder and a snowball on the ridge; a snowball let go at the top, growing as it rolls). The medallions are cut down to read at 32px. The unused glyphs are gone. Card figures line up across the three cards whatever the rule's length
 
 ### R7 · Finish
-- [ ] R7.1 All six walkthroughs again; before/after table here
+- [x] R7.1 All six walkthroughs again; before/after table under "After (R7.1)"
 - [ ] R7.2 Phone width (390px) pass on every page
 - [ ] R7.3 ROADMAP and AUDIT updated
 
@@ -323,7 +323,23 @@ W2–W6 are measured at the start of the phase that rebuilds their page (R1, R4,
 
 ### After (R7.1)
 
-_Filled in at the end._
+All six again on the finished app (2 Oct 2026, 1200 wide unless noted). "Before" is the first measurement of each, on the code it replaced.
+
+| Walkthrough | Before | After |
+|---|---|---|
+| **W1** · Priya's setup | 6 screens, 10 typed, 11 clicks; the loans screen had 37 fields and was 3,545 px | **3 screens, 10 typed, 7 clicks**; 11 fields, 1,444 px; amounts group as typed and take `1.2L`, `50k` |
+| **W1** · mark two paid | 7 clicks, 1 typed, on Activity | **2 clicks, 0 typed, on Home**; the plan stays at Mar 2031 |
+| **W2** · Arjun, NRI | amounts in the wrong currency (AUDIT R1); NRI prepay ran on the rate saved in the profile | setup in 8 typed, 8 clicks; each loan in its own currency; NRI prepay starts from today's rate ("as of 01 Oct 2026") and says when it falls back to the profile's |
+| **W3** · Sam switches the order | 1 click, only on Plan, 290 px down | **1 click on the masthead, from any page with debt** (y = 96; 173 at 390); with orders that differ, interest goes $1,114 → $1,250 on Plan, as Profile's cards said |
+| **W4** · Meera's house goal | 1 click, 2 typed, two different monthly figures | 3 clicks, **1 typed** (`15L`); one figure, "₹43,750 a month until Oct 2029 · ON TRACK", before saving |
+| **W5** · Priya's ₹1L bonus | URL typed, 1 typed, 2 clicks; one target only | 1 click to the tool, **1 typed**, 1 click; the split shows as you type; Home then shows ₹29,50,000 owed and Plan Dec 2030, as the preview said |
+| **W6** · half an EMI, then a rate rise | 8 clicks, 2 typed, 2 pages; no effect shown | **6 clicks, 2 typed, 1 page**; each entry previews its effect, and saving says "plan still debt-free in Mar 2031" |
+
+Fixed on the way:
+- Setup's plan preview showed US amounts with cents ("$4,044.00", "$2,783.03"). It is now whole amounts, as on every other page.
+- Setup told a user with no loans "Order: Avalanche … Change it on Plan". The line now shows only when there are loans, and it points to the switch at the top of every page.
+- The strategy one-liners on Plan and in setup ("pure psychological momentum", "then math") now use the personas' words: "Highest rate first, for the least interest", and so on. The unused long descriptions are gone.
+- Activity's save message read "plan debt-free MAR 2031 · no change". It is now "plan still debt-free in Mar 2031".
 
 ### After R5.5 (the seven tools)
 

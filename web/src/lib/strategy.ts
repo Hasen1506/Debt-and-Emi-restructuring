@@ -52,19 +52,9 @@ export const STRATEGY_LABEL: Record<StrategyName, string> = {
   snowball: 'Snowball',
 };
 
-/** One-liner shown next to the active strategy chip. */
+/** One line on the order: the personas' rule, then what it costs or buys. */
 export const STRATEGY_SHORT: Record<StrategyName, string> = {
-  avalanche: 'Highest effective APR first — fastest payoff.',
-  hybrid: 'Small balances first, then highest APR — a quick win, then math.',
-  snowball: 'Smallest balance first — pure psychological momentum.',
-};
-
-/** Long-form description shown in the picker. */
-export const STRATEGY_DESCRIPTION: Record<StrategyName, string> = {
-  avalanche:
-    'Pay every minimum, throw all surplus at the loan with the highest effective APR. Mathematically the fastest payoff and the lowest total interest. Best when you want the most efficient outcome and can stick with it.',
-  hybrid:
-    'Clear any loan under ₹50,000 (₹/IN) or $1,000 (US) first to bank a quick win, then switch to avalanche order. Costs a little more interest than pure avalanche, but you get one or two cleared accounts early to keep motivation up.',
-  snowball:
-    'Pay the smallest balance first regardless of APR. Slowest payoff and highest total interest, but the psychological hit of clearing accounts in sequence keeps some people on the plan.',
+  avalanche: 'Highest rate first, for the least interest.',
+  hybrid: 'Small balances first for a quick win, then the highest rate.',
+  snowball: 'Smallest balance first. Debts close sooner, for more interest.',
 };

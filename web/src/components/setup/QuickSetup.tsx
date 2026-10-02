@@ -22,7 +22,7 @@ import {
   LShell,
   lStrip,
 } from '@/components/ledger/primitives';
-import { api, formatCurrency } from '@/lib/api';
+import { api, formatCurrencyWhole } from '@/lib/api';
 import type {
   Country,
   FxRateResponse,
@@ -427,7 +427,8 @@ export function QuickSetup() {
     );
   }
 
-  const money = (v: Decimal | string, ccy: CurrencyCode = userCcy) => formatCurrency(v, ccy);
+  // Whole amounts, as on every other page.
+  const money = (v: Decimal | string, ccy: CurrencyCode = userCcy) => formatCurrencyWhole(v, ccy);
 
   return (
     <LShell>
@@ -598,7 +599,12 @@ export function QuickSetup() {
                 country={country}
                 money={money}
               />
-              <PlanFootnotes country={country} estimated={marginal().estimated} rate={marginal().rate} />
+              <PlanFootnotes
+                country={country}
+                estimated={marginal().estimated}
+                rate={marginal().rate}
+                noLoans={activeLoans.length === 0}
+              />
               {saveFailed && (
                 <p role="alert" style={{ color: L_T.negative, margin: 0 }}>
                   This browser didn&apos;t keep your profile (cookies blocked, or it&apos;s too large). Allow cookies for this
@@ -817,7 +823,7 @@ function LoanBlock({
             kind="integer"
             value={ui.months}
             onChange={(v) => onUi({ months: v })}
-            hint={computedEmi ? `EMI works out to ${formatCurrency(computedEmi, ccy)} a month` : 'We work out the EMI'}
+            hint={computedEmi ? `EMI works out to ${formatCurrencyWhole(computedEmi, ccy)} a month` : 'We work out the EMI'}
             error={issues.months}
           />
         )}
@@ -1007,13 +1013,26 @@ function PlanPreview({
   );
 }
 
-function PlanFootnotes({ country, estimated, rate }: { country: Country; estimated: boolean; rate: string }) {
+function PlanFootnotes({
+  country,
+  estimated,
+  rate,
+  noLoans,
+}: {
+  country: Country;
+  estimated: boolean;
+  rate: string;
+  noLoans: boolean;
+}) {
   const strategy = readStrategyClient();
   return (
     <ul style={{ margin: 0, paddingLeft: 18, color: L_T.muted, fontSize: 11, lineHeight: 1.7 }}>
-      <li>
-        Order: <strong style={{ color: L_T.ink }}>{STRATEGY_LABEL[strategy]}</strong>. {STRATEGY_SHORT[strategy]} Change it on Plan.
-      </li>
+      {!noLoans && (
+        <li>
+          Order: <strong style={{ color: L_T.ink }}>{STRATEGY_LABEL[strategy]}</strong>. {STRATEGY_SHORT[strategy]} Switch
+          it at the top of any page.
+        </li>
+      )}
       <li>
         Tax bracket {(Number(rate) * 100).toFixed(0)}%
         {estimated
