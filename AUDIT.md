@@ -327,3 +327,16 @@ The owner asked for a pass as a user: does each section say what it is, and does
 | U6 | Goal priority "Save for it first" read as before debts | "Against your other goals: Before the others / Soonest date first"; "start from a plan" is "start from a template" |
 | U7 | Tools hard to notice (small OPEN at the far right, a 10px "[← ALL TOOLS]") | Whole-row links on Goals with each tool's name; Home ends with "Something came up?" listing every question; each tool ends with the other tools. This brings back a tools list on Home, which the redesign had removed |
 
+### Honest numbers and clearer pictures (H1, D1)
+
+| # | What was wrong | Fix |
+|---|---|---|
+| H1a | Cheaper rates promised ₹18,624 a year for moving an ₹80,000 card the plan pays off this month, with no word on whose rate it was or whether the user would get it | Savings use the balances the plan leaves each month; a move the plan makes pointless is listed under "looked at, not worth it now" with why. Each offer names the bank, says it is the advertised rate and when it was last checked, and what the user's credit score means. The Profile score now counts: below what lenders usually take (CIBIL 700 / FICO 670 unsecured) the move is held back; a middling score prices a loan at the middle of the bank's range. Engine text uses Indian grouping |
+| H1b | "Rising costs +4.6%" gave no source, and could not be changed; a second set of defaults (5.5% / 3.0%) in the code disagreed | One source: RBI's forecast for 2026–27 (5.0%, 5 Aug 2026) or the Fed's median for 2027 (2.3%, 16 Sep 2026), said on the chip. "Your own rate" sets it; saving a rate turns rising costs on. Invest-vs-prepay uses the same rate |
+| H1c | Plan note: "So spare cash goes to the loan, after an emergency fund" read as an instruction; the emergency-fund split's help showed engine variable names and a file path | The note says why the plan pays the loan and where to keep cash aside if you'd rather; the help is in plain words and says the amount is your call |
+| D1a | What if showed "→ DEBT-FREE −1 MO → INTEREST −₹17,420" and nothing to judge the size by | "Debt-free 1 month sooner · ₹17,420 less interest", then two pairs of bars: the debt-free date and the interest paid, on your plan and with the change |
+| D1b | Goals' progress was an 8-character text bar squeezed under the amount; "GOALS NEED ₹0/MO" showed in red when every goal was on track and just starts after the debts | A real bar the width of the SAVED SO FAR column; "TO GOALS NOW · NOT YET · SAVING STARTS JAN 2027, AFTER DEBTS" |
+| F6 | Found by the full fuzz run: an asset sale with an empty purchase date crashed (500); Right time's 422 had no field/message | Both return a 422 naming the field |
+
+Still to check: HDFC's "0% for 6 months + 1.5% fee" balance transfer and the other rate cards are as noted in May 2026; they need checking against the banks' current pages (part of the tool accuracy pass).
+
