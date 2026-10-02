@@ -300,3 +300,16 @@ up, all fixed on the R7 PR:
 - The medallion's three pips are 14×10. They pass WCAG 2.5.8 because the medallion beside them opens the same three choices as full-width buttons; on a phone the medallion is the easier tap.
 - Polymarket, frankfurter and open.er-api are blocked from the build container, so Right time's odds and the live exchange rate need a first look once deployed.
 
+## 9 · Owner feedback (2 Oct 2026)
+
+Reproduced with a new user: ₹1.5L take-home, ₹60k spending, a ₹2L personal loan at 14% and an ₹80k card at 42%.
+
+| # | What the owner saw | Cause | Fix |
+|---|---|---|---|
+| F1 | A payment bigger than what's owed | Home called ₹80,500 on an ₹80,000 card PAYS IT OFF, judged against the opening balance; the month's interest left ₹2,300 owing | The label reads the engine's balance after the month; extra rows say what's still owed |
+| F2 | "Total to pay" didn't match Plan's amount; who decides the emergency fund? | The plan put every rupee of spare cash on debts and offered no choice | `debt_budget` in the engine (EMIs + minimums + extra a month, the rest stays with the user, freed EMIs still roll forward). TO DEBTS chip on Plan; Home says how much is extra and links to it; the emergency fund is offered, not imposed |
+| F3 | Changing strategy changes nothing | With the card both the smallest and the dearest debt, all three orders are the same | The switch says "Same plan: all three pay Credit card first, then Personal loan" |
+| F4 | The bonus tool said "Failed to fetch" | Free-plan API asleep: the host answers 502/503 without CORS headers while it wakes | Browser calculations retry for about 30 seconds, then say so in words; sign-in and reports aren't retried |
+| F5 | Plan takes seconds to load | Not the engine (about 50 ms for all calls) or the page (0.05–0.6 s warm): both free-plan services sleep after 15 minutes | Owner decision: an always-on plan for the API at least |
+| — | Spare cash said "emergency fund = full" with no fund set | — | Says none is set |
+

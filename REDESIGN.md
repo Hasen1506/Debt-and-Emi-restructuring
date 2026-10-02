@@ -5,13 +5,10 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Status:** the redesign is done (R0–R7). R6.5 redrew the persona art after the owner's review.
-- **Last finished step:** R7.3. ROADMAP and AUDIT are updated; AUDIT §8 has what the walkthroughs and the phone pass found (all fixed) and what's still open.
-- **Next, for the owner to pick from (AUDIT §8, still open):**
-  - refresh the saved exchange rate when today's can be fetched, and say on Plan which day's rate it used;
-  - move `/profile/assets` to Ledger fields;
-  - look at Right time's odds and NRI prepay's live rate once deployed.
-- **Open PR:** #17 · `claude/vibrant-bardeen-5bsiyj` (R6.5 + R7); merge when CI is green
+- **Status:** the redesign is done (R0–R7). Now working through the owner's feedback of 2 Oct 2026 (AUDIT §9).
+- **Done (§9 F1–F5):** Pay this month no longer calls a payment a payoff while interest leaves some owing, and its buttons are readable; the user sets the monthly total for debts (TO DEBTS chip on Plan, `debt_budget` in the engine); the strategy switch says when all three orders give the same plan; browser calculations retry while the free-plan API wakes; Plan load measured (fast once warm; the wait is the free plan waking).
+- **Next (§9, open):** cheaper rates say who advertises the rate and that the offer depends on the credit score; rising costs say where 4.6% comes from and can be edited; open positions say the figures are the user's own; the what-if section's look; Goals' bar placement; the tools list easier to see; then a pass over every tool's numbers and claims.
+- **Open PR:** #21 · `claude/vibrant-bardeen-5bsiyj`; merge when CI is green and §9 is done
 - **Can't check from this container:** Polymarket, frankfurter and open.er-api are blocked here. The odds and FX code is tested against responses shaped like theirs; look at Right time and NRI prepay once deployed. Whether Polymarket lists RBI decisions is unconfirmed; without them Right time says it has no odds and judges on today's rate. For local work, `MARKET_ODDS_FILE=<saved Gamma events>` serves odds offline
 
 Pause after each phase (or about every five steps, or when context is near 35%):
