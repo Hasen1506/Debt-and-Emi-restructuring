@@ -1,0 +1,303 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <!-- Strategy personas (design/strategy-personas): scenes 480x320 for the
+       Profile triptych, 40x40 medallions for the masthead, 24x24 glyphs.
+       Used as <use href="/art/personas.svg#id">. -->
+  <symbol id="scene-avalanche" viewBox="0 0 480 320" preserveAspectRatio="xMidYMid slice">
+          <rect width="480" height="320" fill="#b8261c"/>
+          <!-- Greek meander border top -->
+          <g fill="none" stroke="#f4d9b7" stroke-width="1.2" opacity="0.55">
+            <path d="M10,22 h10 v6 h-6 v-3 h3 M28,22 h10 v6 h-6 v-3 h3 M46,22 h10 v6 h-6 v-3 h3 M64,22 h10 v6 h-6 v-3 h3 M82,22 h10 v6 h-6 v-3 h3 M100,22 h10 v6 h-6 v-3 h3 M118,22 h10 v6 h-6 v-3 h3 M136,22 h10 v6 h-6 v-3 h3 M154,22 h10 v6 h-6 v-3 h3 M172,22 h10 v6 h-6 v-3 h3 M190,22 h10 v6 h-6 v-3 h3 M208,22 h10 v6 h-6 v-3 h3 M226,22 h10 v6 h-6 v-3 h3 M244,22 h10 v6 h-6 v-3 h3 M262,22 h10 v6 h-6 v-3 h3 M280,22 h10 v6 h-6 v-3 h3 M298,22 h10 v6 h-6 v-3 h3 M316,22 h10 v6 h-6 v-3 h3 M334,22 h10 v6 h-6 v-3 h3 M352,22 h10 v6 h-6 v-3 h3 M370,22 h10 v6 h-6 v-3 h3 M388,22 h10 v6 h-6 v-3 h3 M406,22 h10 v6 h-6 v-3 h3 M424,22 h10 v6 h-6 v-3 h3 M442,22 h10 v6 h-6 v-3 h3 M460,22 h10 v6 h-6 v-3 h3"/>
+          </g>
+          <rect x="0" y="36" width="480" height="1" fill="#f4d9b7" opacity="0.4"/>
+          <!-- sun disc upper right -->
+          <circle cx="395" cy="84" r="26" fill="#f4d9b7" opacity="0.88"/>
+          <g stroke="#f4d9b7" stroke-width="1.5" opacity="0.5" fill="none">
+            <line x1="395" y1="44" x2="395" y2="54"/>
+            <line x1="355" y1="84" x2="365" y2="84"/>
+            <line x1="425" y1="84" x2="435" y2="84"/>
+            <line x1="367" y1="56" x2="374" y2="63"/>
+            <line x1="416" y1="105" x2="423" y2="112"/>
+            <line x1="367" y1="112" x2="374" y2="105"/>
+            <line x1="416" y1="63" x2="423" y2="56"/>
+          </g>
+          <!-- distant peaks (darker red) -->
+          <path d="M0,260 L60,210 L100,240 L160,180 L210,230 L260,200 L300,250 L350,225 L400,255 L480,230 L480,320 L0,320 Z" fill="#7d160e"/>
+          <!-- main mountain slope going up-right -->
+          <path d="M0,300 L290,80 L320,80 L480,250 L480,320 L0,320 Z" fill="#5a0f08"/>
+          <!-- slope highlight (lighter edge) -->
+          <path d="M0,300 L290,80 L296,84 L8,304 Z" fill="#7d160e" opacity="0.6"/>
+          <!-- path of climbing -->
+          <path d="M50,300 L290,90" stroke="#f4d9b7" stroke-width="0.8" opacity="0.25" stroke-dasharray="2 4"/>
+          <!-- the boulder, above the figure -->
+          <g transform="translate(180,170) rotate(-38)">
+            <circle r="36" fill="#f4d9b7"/>
+            <circle r="36" fill="none" stroke="#7d160e" stroke-width="1.2" opacity="0.5"/>
+            <path d="M-22,-10 Q-10,-18 6,-12" stroke="#b8261c" stroke-width="1" fill="none" opacity="0.4"/>
+            <path d="M-18,8 Q-4,2 14,10" stroke="#b8261c" stroke-width="1" fill="none" opacity="0.4"/>
+            <circle cx="-8" cy="-14" r="2" fill="#b8261c" opacity="0.4"/>
+            <circle cx="12" cy="6" r="1.8" fill="#b8261c" opacity="0.4"/>
+            <circle cx="-14" cy="14" r="2.5" fill="#b8261c" opacity="0.3"/>
+          </g>
+          <!-- Sisyphus — red-figure silhouette, leaning into the slope -->
+          <g transform="translate(238,212)">
+            <!-- back leg planted on slope -->
+            <path d="M16,38 L34,82 L42,82 L24,52 Z" fill="#f4d9b7"/>
+            <path d="M30,80 L46,82 L46,86 L30,84 Z" fill="#f4d9b7"/>
+            <!-- front leg striding up -->
+            <path d="M2,36 L-22,60 L-26,72 L-14,72 Z" fill="#f4d9b7"/>
+            <path d="M-22,70 L-30,80 L-22,80 L-14,72 Z" fill="#f4d9b7"/>
+            <!-- torso bent forward -->
+            <path d="M-2,38 L-30,2 L-22,-10 L10,30 Z" fill="#f4d9b7"/>
+            <!-- shoulder mass -->
+            <ellipse cx="-14" cy="6" rx="14" ry="9" transform="rotate(-40 -14 6)" fill="#f4d9b7"/>
+            <!-- pushing arms toward the boulder -->
+            <path d="M-22,0 L-58,-4 L-62,6 L-26,12 Z" fill="#f4d9b7"/>
+            <path d="M-20,4 L-56,-14 L-58,-4 L-24,14 Z" fill="#f4d9b7"/>
+            <circle cx="-60" cy="2" r="4" fill="#f4d9b7"/>
+            <circle cx="-58" cy="-12" r="3.5" fill="#f4d9b7"/>
+            <!-- head in profile -->
+            <circle cx="-26" cy="-16" r="10" fill="#f4d9b7"/>
+            <!-- hair / fillet -->
+            <path d="M-34,-22 Q-26,-30 -18,-22 L-18,-18 Q-26,-22 -34,-18 Z" fill="#7d160e"/>
+            <!-- nose hint -->
+            <path d="M-34,-16 L-36,-14 L-34,-12" stroke="#7d160e" stroke-width="0.8" fill="none"/>
+            <!-- musculature -->
+            <path d="M-10,4 Q-6,16 0,24" stroke="#b8261c" stroke-width="0.7" fill="none" opacity="0.55"/>
+            <path d="M-4,30 Q4,30 12,28" stroke="#b8261c" stroke-width="0.7" fill="none" opacity="0.45"/>
+          </g>
+          <!-- exertion / sweat -->
+          <g fill="#f4d9b7" opacity="0.7">
+            <ellipse cx="200" cy="155" rx="2" ry="3"/>
+            <ellipse cx="208" cy="148" rx="1.5" ry="2.5"/>
+            <ellipse cx="194" cy="160" rx="1.5" ry="2.2"/>
+          </g>
+          <!-- direction arrow -->
+          <g transform="translate(110,140)" fill="none" stroke="#f4d9b7" stroke-width="1.6" opacity="0.7">
+            <path d="M0,20 L16,-16"/>
+            <path d="M16,-16 L8,-10 M16,-16 L20,-6"/>
+          </g>
+        </symbol>
+  <symbol id="scene-snowball" viewBox="0 0 480 320" preserveAspectRatio="xMidYMid slice">
+          <rect width="480" height="320" fill="#f1ece0"/>
+          <!-- meander border (dark on cream) -->
+          <g fill="none" stroke="#1f1c17" stroke-width="1.1" opacity="0.55">
+            <path d="M10,22 h10 v6 h-6 v-3 h3 M28,22 h10 v6 h-6 v-3 h3 M46,22 h10 v6 h-6 v-3 h3 M64,22 h10 v6 h-6 v-3 h3 M82,22 h10 v6 h-6 v-3 h3 M100,22 h10 v6 h-6 v-3 h3 M118,22 h10 v6 h-6 v-3 h3 M136,22 h10 v6 h-6 v-3 h3 M154,22 h10 v6 h-6 v-3 h3 M172,22 h10 v6 h-6 v-3 h3 M190,22 h10 v6 h-6 v-3 h3 M208,22 h10 v6 h-6 v-3 h3 M226,22 h10 v6 h-6 v-3 h3 M244,22 h10 v6 h-6 v-3 h3 M262,22 h10 v6 h-6 v-3 h3 M280,22 h10 v6 h-6 v-3 h3 M298,22 h10 v6 h-6 v-3 h3 M316,22 h10 v6 h-6 v-3 h3 M334,22 h10 v6 h-6 v-3 h3 M352,22 h10 v6 h-6 v-3 h3 M370,22 h10 v6 h-6 v-3 h3 M388,22 h10 v6 h-6 v-3 h3 M406,22 h10 v6 h-6 v-3 h3 M424,22 h10 v6 h-6 v-3 h3 M442,22 h10 v6 h-6 v-3 h3 M460,22 h10 v6 h-6 v-3 h3"/>
+          </g>
+          <rect x="0" y="36" width="480" height="1" fill="#1f1c17" opacity="0.45"/>
+          <!-- falling specks -->
+          <g fill="#c9d6df">
+            <circle cx="50" cy="68" r="1.5"/>
+            <circle cx="120" cy="55" r="1"/>
+            <circle cx="200" cy="60" r="1.5"/>
+            <circle cx="285" cy="58" r="1"/>
+            <circle cx="360" cy="68" r="1.5"/>
+            <circle cx="430" cy="56" r="1"/>
+            <circle cx="80" cy="96" r="1"/>
+            <circle cx="240" cy="84" r="1"/>
+            <circle cx="320" cy="98" r="1"/>
+            <circle cx="400" cy="92" r="1"/>
+            <circle cx="160" cy="80" r="1.2"/>
+            <circle cx="450" cy="112" r="1"/>
+            <circle cx="100" cy="130" r="1"/>
+            <circle cx="220" cy="115" r="1"/>
+          </g>
+          <!-- low background hill (icy) -->
+          <path d="M0,255 L80,215 L140,238 L210,205 L280,228 L340,210 L400,232 L480,218 L480,320 L0,320 Z" fill="#c9d6df"/>
+          <!-- main slope going DOWN to bottom-right -->
+          <path d="M0,90 L40,90 L480,290 L480,320 L0,320 Z" fill="#1f1c17"/>
+          <!-- slope highlight -->
+          <path d="M0,90 L40,90 L470,288 L0,100 Z" fill="#3a3530"/>
+          <!-- path -->
+          <path d="M44,110 L470,302" stroke="#f1ece0" stroke-width="1" opacity="0.35" stroke-dasharray="2 4"/>
+          <!-- god near top-left, letting the boulder go -->
+          <g transform="translate(74,70)">
+            <!-- robe / chiton -->
+            <path d="M-14,28 L-24,72 L0,76 L20,72 L10,28 Z" fill="#1f1c17"/>
+            <path d="M-14,32 L-18,52 L-8,56 Z" fill="#3a3530"/>
+            <path d="M6,32 L10,52 L0,56 Z" fill="#3a3530"/>
+            <!-- legs -->
+            <path d="M-10,72 L-14,90 L-4,90 L-2,74 Z" fill="#1f1c17"/>
+            <path d="M2,74 L4,92 L14,90 L10,72 Z" fill="#1f1c17"/>
+            <!-- arm reaching down releasing ball -->
+            <path d="M4,30 L34,46 L36,52 L6,38 Z" fill="#1f1c17"/>
+            <circle cx="36" cy="50" r="3.5" fill="#1f1c17"/>
+            <!-- back arm -->
+            <path d="M-10,30 L-26,40 L-22,46 L-8,38 Z" fill="#1f1c17"/>
+            <!-- head -->
+            <circle cx="-2" cy="18" r="11" fill="#1f1c17"/>
+            <!-- laurel -->
+            <path d="M-12,12 Q-2,4 8,12" stroke="#1f1c17" stroke-width="2" fill="none"/>
+            <circle cx="-10" cy="10" r="2" fill="#3a3530"/>
+            <circle cx="-2" cy="6" r="2" fill="#3a3530"/>
+            <circle cx="6" cy="10" r="2" fill="#3a3530"/>
+            <!-- profile nose -->
+            <path d="M-12,18 L-14,21 L-12,23" stroke="#3a3530" stroke-width="0.6" fill="none"/>
+            <!-- staff -->
+            <line x1="-24" y1="40" x2="-36" y2="98" stroke="#1f1c17" stroke-width="2.2"/>
+            <circle cx="-23" cy="35" r="2" fill="#1f1c17"/>
+          </g>
+          <!-- trail of boulders, growing in size -->
+          <circle cx="138" cy="125" r="9" fill="#1f1c17" opacity="0.42"/>
+          <circle cx="138" cy="125" r="9" fill="none" stroke="#1f1c17" stroke-width="0.6"/>
+          <circle cx="194" cy="158" r="14" fill="#1f1c17" opacity="0.58"/>
+          <circle cx="194" cy="158" r="14" fill="none" stroke="#1f1c17" stroke-width="0.7"/>
+          <circle cx="258" cy="195" r="20" fill="#1f1c17" opacity="0.74"/>
+          <circle cx="258" cy="195" r="20" fill="none" stroke="#1f1c17" stroke-width="0.8"/>
+          <circle cx="326" cy="234" r="26" fill="#1f1c17" opacity="0.88"/>
+          <circle cx="326" cy="234" r="26" fill="none" stroke="#1f1c17" stroke-width="0.9"/>
+          <!-- final huge snowball -->
+          <g transform="translate(408,272)">
+            <circle r="38" fill="#fff" stroke="#1f1c17" stroke-width="1.5"/>
+            <circle r="38" fill="none" stroke="#c9d6df" stroke-width="1" stroke-dasharray="2 3"/>
+            <path d="M-22,-10 Q-8,-18 10,-12" stroke="#c9d6df" stroke-width="1" fill="none"/>
+            <path d="M-16,14 Q0,4 20,14" stroke="#c9d6df" stroke-width="1" fill="none"/>
+            <circle cx="-10" cy="-16" r="2.2" fill="#c9d6df" opacity="0.7"/>
+            <circle cx="16" cy="6" r="1.8" fill="#c9d6df" opacity="0.7"/>
+            <circle cx="-18" cy="18" r="2.5" fill="#c9d6df" opacity="0.6"/>
+            <!-- motion lines -->
+            <path d="M-48,-2 L-40,0 M-48,-12 L-40,-10 M-48,8 L-40,6" stroke="#1f1c17" stroke-width="1.2" opacity="0.7"/>
+          </g>
+          <!-- direction arrow (down-right) -->
+          <g transform="translate(380,150)" fill="none" stroke="#1f1c17" stroke-width="1.6" opacity="0.5">
+            <path d="M0,-20 L16,18"/>
+            <path d="M16,18 L10,12 M16,18 L20,8"/>
+          </g>
+        </symbol>
+  <symbol id="scene-hybrid" viewBox="0 0 480 320" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <clipPath id="hy-left"><polygon points="0,0 280,0 200,320 0,320"/></clipPath>
+            <clipPath id="hy-right"><polygon points="280,0 480,0 480,320 200,320"/></clipPath>
+          </defs>
+          <g clip-path="url(#hy-left)"><rect width="480" height="320" fill="#b8261c"/></g>
+          <g clip-path="url(#hy-right)"><rect width="480" height="320" fill="#f1ece0"/></g>
+          <!-- meander border halves -->
+          <g fill="none" stroke-width="1.1" opacity="0.5">
+            <g stroke="#f4d9b7">
+              <path d="M10,22 h10 v6 h-6 v-3 h3 M28,22 h10 v6 h-6 v-3 h3 M46,22 h10 v6 h-6 v-3 h3 M64,22 h10 v6 h-6 v-3 h3 M82,22 h10 v6 h-6 v-3 h3 M100,22 h10 v6 h-6 v-3 h3 M118,22 h10 v6 h-6 v-3 h3 M136,22 h10 v6 h-6 v-3 h3 M154,22 h10 v6 h-6 v-3 h3 M172,22 h10 v6 h-6 v-3 h3 M190,22 h10 v6 h-6 v-3 h3 M208,22 h10 v6 h-6 v-3 h3"/>
+            </g>
+            <g stroke="#1f1c17">
+              <path d="M244,22 h10 v6 h-6 v-3 h3 M262,22 h10 v6 h-6 v-3 h3 M280,22 h10 v6 h-6 v-3 h3 M298,22 h10 v6 h-6 v-3 h3 M316,22 h10 v6 h-6 v-3 h3 M334,22 h10 v6 h-6 v-3 h3 M352,22 h10 v6 h-6 v-3 h3 M370,22 h10 v6 h-6 v-3 h3 M388,22 h10 v6 h-6 v-3 h3 M406,22 h10 v6 h-6 v-3 h3 M424,22 h10 v6 h-6 v-3 h3 M442,22 h10 v6 h-6 v-3 h3 M460,22 h10 v6 h-6 v-3 h3"/>
+            </g>
+          </g>
+          <!-- twin suns (mirror) -->
+          <circle cx="76" cy="80" r="22" fill="#f4d9b7" opacity="0.85"/>
+          <circle cx="400" cy="80" r="22" fill="#1f1c17" opacity="0.82"/>
+          <!-- V-mountain ridge -->
+          <g clip-path="url(#hy-left)">
+            <path d="M0,300 L240,72 L480,300 L480,320 L0,320 Z" fill="#5a0f08"/>
+            <path d="M240,72 L246,76 L8,300 L0,300 Z" fill="#7d160e" opacity="0.7"/>
+          </g>
+          <g clip-path="url(#hy-right)">
+            <path d="M0,300 L240,72 L480,300 L480,320 L0,320 Z" fill="#1f1c17"/>
+            <path d="M240,72 L234,76 L472,300 L480,300 Z" fill="#3a3530" opacity="0.7"/>
+          </g>
+          <!-- god atop, frontal -->
+          <g transform="translate(240,110)">
+            <!-- robe split -->
+            <g clip-path="url(#hy-left)"><path d="M-20,24 L-28,78 L0,84 L28,78 L20,24 Z" fill="#f4d9b7"/></g>
+            <g clip-path="url(#hy-right)"><path d="M-20,24 L-28,78 L0,84 L28,78 L20,24 Z" fill="#1f1c17"/></g>
+            <!-- robe folds -->
+            <path d="M-10,30 L-14,74" stroke="#b8261c" stroke-width="0.8" opacity="0.5" clip-path="url(#hy-left)"/>
+            <path d="M10,30 L14,74" stroke="#f1ece0" stroke-width="0.8" opacity="0.5" clip-path="url(#hy-right)"/>
+            <!-- legs -->
+            <g clip-path="url(#hy-left)"><path d="M-10,78 L-14,100 L-4,100 L-4,82 Z" fill="#f4d9b7"/></g>
+            <g clip-path="url(#hy-right)"><path d="M4,82 L4,100 L14,100 L10,78 Z" fill="#1f1c17"/></g>
+            <!-- LEFT arm UP (red side) -->
+            <path d="M-18,28 L-58,2 L-64,10 L-20,34 Z" fill="#f4d9b7"/>
+            <circle cx="-74" cy="0" r="14" fill="#f4d9b7"/>
+            <circle cx="-74" cy="0" r="14" fill="none" stroke="#7d160e" stroke-width="1"/>
+            <path d="M-82,-4 Q-74,-10 -66,-4" stroke="#7d160e" stroke-width="0.8" fill="none" opacity="0.55"/>
+            <!-- arrow up on red side -->
+            <g transform="translate(-92,-22)" stroke="#f4d9b7" stroke-width="1.2" fill="none" opacity="0.8">
+              <path d="M0,12 L8,-6"/>
+              <path d="M8,-6 L4,-2 M8,-6 L10,0"/>
+            </g>
+            <!-- RIGHT arm DOWN (snow side) -->
+            <path d="M18,28 L58,48 L64,42 L20,22 Z" fill="#1f1c17"/>
+            <circle cx="74" cy="52" r="14" fill="#fff" stroke="#1f1c17" stroke-width="1.2"/>
+            <path d="M66,48 Q74,42 82,48" stroke="#c9d6df" stroke-width="0.8" fill="none"/>
+            <circle cx="70" cy="48" r="1.2" fill="#c9d6df"/>
+            <circle cx="78" cy="54" r="1" fill="#c9d6df"/>
+            <!-- arrow down on snow side -->
+            <g transform="translate(92,68)" stroke="#1f1c17" stroke-width="1.2" fill="none" opacity="0.6">
+              <path d="M0,-8 L8,10"/>
+              <path d="M8,10 L4,6 M8,10 L10,4"/>
+            </g>
+            <!-- head split -->
+            <g clip-path="url(#hy-left)"><circle cx="0" cy="8" r="12" fill="#f4d9b7"/></g>
+            <g clip-path="url(#hy-right)"><circle cx="0" cy="8" r="12" fill="#1f1c17"/></g>
+            <!-- laurel -->
+            <path d="M-12,0 Q0,-10 12,0" stroke="#7d160e" stroke-width="1.5" fill="none" clip-path="url(#hy-left)"/>
+            <path d="M-12,0 Q0,-10 12,0" stroke="#f1ece0" stroke-width="1.5" fill="none" clip-path="url(#hy-right)"/>
+            <circle cx="-8" cy="-3" r="1.8" fill="#7d160e" clip-path="url(#hy-left)"/>
+            <circle cx="0" cy="-6" r="1.8" fill="#7d160e" clip-path="url(#hy-left)"/>
+            <circle cx="0" cy="-6" r="1.8" fill="#f1ece0" clip-path="url(#hy-right)"/>
+            <circle cx="8" cy="-3" r="1.8" fill="#f1ece0" clip-path="url(#hy-right)"/>
+          </g>
+          <!-- vertical axis hint -->
+          <line x1="240" y1="56" x2="240" y2="74" stroke="#fff" stroke-width="0.8" opacity="0.55" stroke-dasharray="2 3"/>
+          <line x1="240" y1="220" x2="240" y2="304" stroke="#fff" stroke-width="0.6" opacity="0.5" stroke-dasharray="2 3"/>
+          <!-- split caption -->
+        </symbol>
+  <symbol id="glyph-avalanche" viewBox="0 0 24 24">
+          <path d="M2,20 L13,5 L22,20 Z" fill="currentColor" opacity="0.95"/>
+          <circle cx="9" cy="14" r="3" fill="currentColor" opacity="0.5"/>
+          <path d="M4.5,17.5 L7.5,14.5" stroke="currentColor" stroke-width="1.4" fill="none" opacity="0.95"/>
+          <path d="M6.5,12.5 L7.5,14.5 L5.5,14" stroke="currentColor" stroke-width="1.4" fill="none" opacity="0.95"/>
+        </symbol>
+  <symbol id="glyph-snowball" viewBox="0 0 24 24">
+          <path d="M2,20 L10,5 L22,20 Z" fill="currentColor" opacity="0.95"/>
+          <circle cx="17" cy="16.5" r="3.2" fill="currentColor" opacity="0.55"/>
+          <circle cx="13.5" cy="13.5" r="1.7" fill="currentColor" opacity="0.45"/>
+          <circle cx="11" cy="11" r="1.1" fill="currentColor" opacity="0.35"/>
+          <path d="M20.5,18.5 L18,16.5" stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.95"/>
+        </symbol>
+  <symbol id="glyph-hybrid" viewBox="0 0 24 24">
+          <path d="M2,20 L12,4 L22,20 Z" fill="currentColor" opacity="0.95"/>
+          <circle cx="12" cy="8" r="2.2" fill="currentColor" opacity="0.55"/>
+          <line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="0.8" stroke-dasharray="1.5 1.5" opacity="0.7"/>
+        </symbol>
+  <symbol id="med-avalanche" viewBox="0 0 40 40">
+          <rect width="40" height="40" fill="#b8261c"/>
+          <path d="M0,34 L22,10 L40,34 Z" fill="#7d160e"/>
+          <path d="M0,34 L22,10 L23,11 L1,35 Z" fill="#5a0f08" opacity="0.6"/>
+          <circle cx="14" cy="22" r="4.5" fill="#f4d9b7"/>
+          <!-- mini figure -->
+          <g transform="translate(20,24)">
+            <circle cx="0" cy="-3" r="2" fill="#f4d9b7"/>
+            <path d="M-1,-1 L-3,5 L1,5 L2,-1 Z" fill="#f4d9b7"/>
+            <path d="M-6,-2 L-2,0" stroke="#f4d9b7" stroke-width="1.2"/>
+          </g>
+          <circle cx="31" cy="9" r="3" fill="#f4d9b7" opacity="0.7"/>
+        </symbol>
+  <symbol id="med-snowball" viewBox="0 0 40 40">
+          <rect width="40" height="40" fill="#f1ece0"/>
+          <path d="M0,10 L8,10 L40,34 L0,34 Z" fill="#1f1c17"/>
+          <path d="M0,10 L8,10 L40,32 L0,12 Z" fill="#3a3530"/>
+          <!-- god top-left -->
+          <g transform="translate(6,16)">
+            <circle cx="0" cy="-2" r="1.8" fill="#1f1c17"/>
+            <path d="M-1,0 L-2,5 L1,5 L2,0 Z" fill="#1f1c17"/>
+          </g>
+          <!-- rolling balls -->
+          <circle cx="14" cy="18" r="1.4" fill="#fff" stroke="#1f1c17" stroke-width="0.5"/>
+          <circle cx="20" cy="22" r="2.2" fill="#fff" stroke="#1f1c17" stroke-width="0.5"/>
+          <circle cx="28" cy="27" r="3.5" fill="#fff" stroke="#1f1c17" stroke-width="0.7"/>
+        </symbol>
+  <symbol id="med-hybrid" viewBox="0 0 40 40">
+          <defs><clipPath id="med-hy-clip"><polygon points="0,0 24,0 16,40 0,40"/></clipPath></defs>
+          <rect width="40" height="40" fill="#f1ece0"/>
+          <rect width="40" height="40" fill="#b8261c" clip-path="url(#med-hy-clip)"/>
+          <path d="M0,34 L20,10 L40,34 Z" fill="#1f1c17"/>
+          <path d="M0,34 L20,10 L40,34 Z" fill="#5a0f08" clip-path="url(#med-hy-clip)"/>
+          <!-- tiny god at peak -->
+          <g transform="translate(20,16)">
+            <circle cx="0" cy="-2" r="2" fill="#f4d9b7" clip-path="url(#med-hy-clip)"/>
+            <circle cx="0" cy="-2" r="2" fill="#1f1c17"/>
+            <rect x="-2" y="0" width="2" height="6" fill="#f4d9b7" clip-path="url(#med-hy-clip)"/>
+            <rect x="0" y="0" width="2" height="6" fill="#1f1c17"/>
+            <path d="M-6,-1 L-2,1" stroke="#f4d9b7" stroke-width="1"/>
+            <path d="M2,1 L6,3" stroke="#1f1c17" stroke-width="1"/>
+          </g>
+        </symbol>
+</svg>

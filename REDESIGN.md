@@ -164,8 +164,8 @@ Each phase is one PR, merged into `main` when CI is green, so every phase starts
 - Test each tool at 1200 and 390 with Priya, plus `profiles.mjs` for noloans, us, nri.
 
 ### R6 · Strategy personas
-- [ ] R6.1 Persona art as SVG symbols (authored once; 40px medallion, full triptych)
-- [ ] R6.2 Medallion in the masthead; click → switch strategy
+- [x] R6.1 Persona art as SVG symbols (authored once; 40px medallion, full triptych): `public/art/personas.svg` (3 scenes, 3 medallions, 3 glyphs), drawn through `components/personas/Persona.tsx`
+- [x] R6.2 Medallion in the masthead; click → switch strategy: a pip switches in one click; the medallion opens the three with what each does. Shown only when there is debt
 - [ ] R6.3 Triptych at the bottom of Profile with real numbers per strategy (debt-free date, total interest, extra cost vs Avalanche)
 - [ ] R6.4 Walkthrough W3
 
