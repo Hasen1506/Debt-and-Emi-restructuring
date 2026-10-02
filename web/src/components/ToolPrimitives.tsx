@@ -4,7 +4,7 @@
  * Shared form / result primitives for /tools/* screens. Each tool is a
  * narrow decision: a few inputs → one verdict + a couple of numbers.
  */
-import { ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { CSSProperties, ReactNode, useEffect, useId, useRef, useState } from 'react';
 import Decimal from 'decimal.js';
 import { BANKS_IN, BANKS_US } from '@/lib/banks';
 import {
@@ -593,10 +593,10 @@ export function Stat({
 }) {
   return (
     <div>
-      <div className="muted" style={{ fontSize: 12 }}>
+      <div className="muted" style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
         {label}
       </div>
-      <div className="num" style={{ fontSize: 18, fontWeight: 600, color }}>
+      <div className="num" style={{ fontSize: 18, fontWeight: 700, color, marginTop: 2 }}>
         {value}
       </div>
     </div>
@@ -614,11 +614,8 @@ export function VerdictHeader({
 }) {
   return (
     <>
-      <div className="muted" style={{ fontSize: 12 }}>
-        Verdict
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 600, color }}>{label}</div>
-      <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+      <div role="status" style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.4, color }}>{label}</div>
+      <div className="muted" style={{ fontSize: 12, lineHeight: 1.6, marginTop: 6 }}>
         {detail}
       </div>
       <hr
@@ -701,6 +698,25 @@ export function ScoreChip({
   );
 }
 
+/** The solid button every tool action uses: `[ CHECK THIS LOAN ]`. */
+const ACTION_BUTTON: CSSProperties = {
+  marginTop: 14,
+  padding: '10px 16px',
+  background: 'var(--ink)',
+  color: 'var(--canvas)',
+  border: 'none',
+  borderRadius: 0,
+  cursor: 'pointer',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 12,
+  fontWeight: 700,
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  lineHeight: 1.5,
+  textAlign: 'left',
+};
+const DONE_LINK: CSSProperties = { color: 'var(--accent)', fontSize: 11, letterSpacing: '0.12em', textDecoration: 'none' };
+
 export function SubmitBar({
   busy,
   error,
@@ -712,13 +728,13 @@ export function SubmitBar({
 }) {
   return (
     <div style={{ gridColumn: '1 / -1', marginTop: 4 }}>
-      <button type="submit" className="btn btn-primary" disabled={busy}>
-        {busy ? 'Checking…' : label}
+      <button type="submit" disabled={busy} style={{ ...ACTION_BUTTON, marginTop: 0, opacity: busy ? 0.6 : 1 }}>
+        [ {busy ? 'Checking…' : label} ]
       </button>
       {error && (
         <span
-          className="muted"
-          style={{ marginLeft: 12, color: 'var(--negative)' }}
+          role="alert"
+          style={{ display: 'block', marginTop: 8, fontSize: 12, color: 'var(--negative)' }}
         >
           {error}
         </span>
@@ -737,21 +753,9 @@ export function AddToSetupAction({ label }: { label: string }) {
   return (
     <a
       href="/profile?step=loans"
-      style={{
-        display: 'inline-block',
-        marginTop: 14,
-        padding: '8px 14px',
-        background: 'var(--accent)',
-        color: 'white',
-        border: 'none',
-        borderRadius: 0,
-        cursor: 'pointer',
-        fontSize: 13,
-        fontWeight: 600,
-        textDecoration: 'none',
-      }}
+      style={{ ...ACTION_BUTTON, display: 'inline-block', textDecoration: 'none' }}
     >
-      {label}
+      [ {label} ]
     </a>
   );
 }
@@ -786,12 +790,8 @@ export function AddLoanAction({
         }}
       >
         Added to your profile.{' '}
-        <a href="/plan" style={{ color: 'var(--accent)' }}>See the new /plan</a>
-        {' '}or{' '}
-        <a href="/profile?step=loans" style={{ color: 'var(--accent)' }}>
-          tweak the details in Setup
-        </a>
-        .
+        <a href="/plan" style={DONE_LINK}>[PLAN →]</a>{' '}
+        <a href="/profile?step=loans" style={DONE_LINK}>[EDIT IN PROFILE →]</a>
       </div>
     );
   }
@@ -799,19 +799,9 @@ export function AddLoanAction({
     <button
       type="button"
       onClick={onAdd}
-      style={{
-        marginTop: 14,
-        padding: '8px 14px',
-        background: 'var(--accent)',
-        color: 'white',
-        border: 'none',
-        borderRadius: 0,
-        cursor: 'pointer',
-        fontSize: 13,
-        fontWeight: 600,
-      }}
+      style={ACTION_BUTTON}
     >
-      {label}
+      [ {label} ]
     </button>
   );
 }
@@ -845,8 +835,9 @@ export function ApplyAction({
           color: 'var(--ink)',
         }}
       >
-        Logged. <a href="/activity" style={{ color: 'var(--accent)' }}>Open Activity</a> to
-        edit, or <a href="/plan" style={{ color: 'var(--accent)' }}>see the new /plan</a>.
+        Logged.{' '}
+        <a href="/activity" style={DONE_LINK}>[ACTIVITY →]</a>{' '}
+        <a href="/plan" style={DONE_LINK}>[PLAN →]</a>
       </div>
     );
   }
@@ -854,19 +845,9 @@ export function ApplyAction({
     <button
       type="button"
       onClick={onApply}
-      style={{
-        marginTop: 14,
-        padding: '8px 14px',
-        background: 'var(--accent)',
-        color: 'white',
-        border: 'none',
-        borderRadius: 0,
-        cursor: 'pointer',
-        fontSize: 13,
-        fontWeight: 600,
-      }}
+      style={ACTION_BUTTON}
     >
-      {label}
+      [ {label} ]
     </button>
   );
 }
