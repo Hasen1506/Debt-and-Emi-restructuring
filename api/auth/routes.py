@@ -12,7 +12,7 @@ import os
 from datetime import timedelta
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -118,7 +118,9 @@ async def verify_otp(
 ) -> UserOut:
     email = payload.email.lower().strip()
 
-    res = await db.execute(select(User).where(User.email == email))
+    # Serialize verification attempts so one code cannot mint two sessions
+    # or lose failed-attempt increments during concurrent requests.
+    res = await db.execute(select(User).where(User.email == email).with_for_update())
     user = res.scalar_one_or_none()
     if user is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "No code requested for this email.")
@@ -161,19 +163,19 @@ async def logout(
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[Optional[User], Depends(current_user_optional)],
+    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> Response:
-    if user is not None:
-        # Revoke all active sessions for this user. Cheap and reliable;
-        # we don't know which token the browser is holding without extra
-        # plumbing, and global logout is the user's mental model anyway.
+    if user is not None and session_cookie:
+        # Sign out this browser only; other devices retain their sessions.
         res = await db.execute(
-            select(Session).where(Session.user_id == user.id).where(Session.revoked_at.is_(None))
+            select(Session).where(Session.user_id == user.id).where(Session.token == session_cookie).where(Session.revoked_at.is_(None))
         )
         for sess in res.scalars():
             sess.revoked_at = utc_now()
         await db.commit()
     _clear_session_cookie(response)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
 
 
 @router.get("/me")
