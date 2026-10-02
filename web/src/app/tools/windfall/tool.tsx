@@ -1,57 +1,61 @@
 'use client';
 
 /**
- * Spare cash — one answer for "I have money I could use": a bonus, a tax
- * refund, or savings sitting idle. (Windfall and Cash Yield used to answer
- * halves of this with different rules.)
+ * Spare cash (REDESIGN R5.4, Windfall rev 3): a bonus, a refund, or
+ * savings sitting idle, split across the emergency fund, the loans and
+ * the goals with one slider each.
  *
- *   1. The emergency fund gets the same share the plan gives it (the /plan
- *      split slider), up to the gap, and we say where to park that share.
- *   2. The rest goes where the engine says: the next loan in the plan's
- *      payoff order, or an investment when that beats every loan.
+ *   ENGINE PICK: the emergency fund gets the plan's share (the /plan
+ *   split) up to its gap; the rest goes where the engine says, loan after
+ *   loan in the plan's payoff order, or to an investment when that beats
+ *   every loan. Goals get nothing here: paying debt first is the plan.
+ *   MY SPLIT: every slider moves; the pool caps them.
+ *
+ * Each debt slider shows what its amount alone does to the debt-free
+ * date; the KPIs run the plan once with the whole split.
  */
 
-import { useId, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import Decimal from 'decimal.js';
 import {
   api,
-  formatCurrency,
+  formatCurrencyWhole,
   type CashYieldResponse,
-  type ScoreImpactResponse,
-  type WindfallResponse,
+  type LoanPayload,
+  type PlanRunArgs,
+  type UserPayload,
 } from '@/lib/api';
-import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
-import { readStrategyClient } from '@/lib/strategy';
+import type { StrategyName } from '@/lib/strategy';
+import { useCurrentProfile } from '@/lib/use-profile';
 import { readEfSplitClient } from '@/lib/ef-split';
-import { useFormErrors } from '@/lib/form-errors';
 import { allocateCash, type CashFunding } from '@/lib/cash-allocation';
 import { commitCashChange } from '@/lib/commit-cash-change';
 import { readCashEventsClient } from '@/lib/cash-events';
 import { addActivityEntry, readActivityClient } from '@/lib/activity';
-import { loanToUser } from '@/lib/currency';
-import { localIsoDate } from '@/lib/today';
+import { loanToUser, userDefaultCurrency } from '@/lib/currency';
+import { localIsoDate, monthIndexToCountryLabel } from '@/lib/today';
 import { loadProfileClient } from '@/lib/user-store';
-import { userDefaultCurrency } from '@/lib/currency';
+import { fundedAmount, isOpenGoal, readGoalsClient, type Goal } from '@/lib/goals';
 import {
-  LToolInput,
-  LToolVerdict,
-  LToolMath,
+  addContribution,
+  readContributionsClient,
+  totalsByGoal,
+  writeContributionsClient,
+} from '@/lib/goal-contributions';
+import type { AmountCurrency } from '@/lib/amount';
+import { Field } from '@/components/ToolPrimitives';
+import {
   LAllocationBar,
-} from '@/components/ledger/LToolShell';
-import { LBracket, L_T } from '@/components/ledger/primitives';
-import { fitColumns } from '@/lib/grid';
-
-interface Outcome {
-  total: Decimal;
-  ef: Decimal;
-  rest: Decimal;
-  gapAfter: Decimal;
-  w: WindfallResponse | null;
-  cy: CashYieldResponse | null;
-  id: string;
-  profileKey: string;
-  targetId?: string;
-}
+  type LAllocSegment,
+  LBracket,
+  LChip,
+  LChipRow,
+  LKpi,
+  LMathBlock,
+  L_MONO,
+  L_T,
+} from '@/components/ledger/primitives';
+import { useWidth } from '@/lib/use-width';
 
 const LOAN_WORDS: Record<string, string> = {
   credit_card: 'credit card',
@@ -63,414 +67,766 @@ const LOAN_WORDS: Record<string, string> = {
   bnpl: 'BNPL',
 };
 
-export function WindfallTool() {
-  const profile = useStoredProfile();
+type Kind = 'ef' | 'loan' | 'goal' | 'invest';
+interface Target {
+  key: string;
+  kind: Kind;
+  label: string;
+  /** Most it can take, in the user's currency. */
+  cap: number;
+  rate?: number;
+  /** Loan: its place in the plan's loans, how many of the user's currency
+   *  one unit of the loan's currency is, its fee share, why it's closed. */
+  index?: number;
+  fx?: number;
+  feePct?: number;
+  blocked?: string;
+  goal?: Goal;
+  saved?: number;
+  required?: number;
+}
+type Alloc = Record<string, number>;
+
+interface Pick {
+  alloc: Alloc;
+  fees: Record<string, number>;
+  reasons: { what: string; why: string }[];
+  blocked: string[];
+  investName: string | null;
+  hold: string | null;
+}
+
+interface Run {
+  month: number | null;
+  interest: number;
+}
+
+const keyOf = (l: LoanPayload, i: number) => `loan:${l.id ?? `#${i}`}`;
+const loanName = (l: LoanPayload) => {
+  const s = `${l.bank ? l.bank.replace(/\s+Bank$/i, '') + ' ' : ''}${LOAN_WORDS[l.loan_type] ?? l.loan_type}`;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+const sum = (a: Alloc) => Object.values(a).reduce((s, v) => s + v, 0);
+
+async function runPlan(args: PlanRunArgs, strategy: StrategyName): Promise<Run> {
+  const r = await api.simulate({ ...args, strategy });
+  return { month: r.debt_free_month, interest: Number(r.total_interest_paid) };
+}
+
+function block(l: LoanPayload): string | undefined {
+  if ((l.pre_emi_months_remaining ?? 0) > 0) return 'still in its pre-EMI period';
+  const n = l.prepay_lock_in_months ?? 0;
+  if (n > 0) return `locked for ${n} more month${n === 1 ? '' : 's'}`;
+  return undefined;
+}
+
+export function WindfallTool({
+  runArgs,
+  strategy,
+}: {
+  /** The plan's inputs; null when there's no plan to run (no loans). */
+  runArgs: PlanRunArgs | null;
+  strategy: StrategyName;
+}) {
+  const profile = useCurrentProfile();
   const country = profile.user.country;
   const ccy = userDefaultCurrency(country);
-  const fmt = (v: string | number | Decimal) => formatCurrency(v.toString(), ccy);
+  const currency: AmountCurrency = ccy === 'USD' ? 'USD' : 'INR';
+  const fmt = (v: number | string | Decimal) => formatCurrencyWhole(v.toString(), ccy);
+  const planUser: UserPayload = runArgs?.user ?? profile.user;
+  const [width, ref] = useWidth(900);
+  const wide = width >= 640;
+
   const [amount, setAmount] = useState('');
-  const [source,setSource] = useState<CashFunding>('external');
-  const [accountName,setAccountName] = useState('');
-  // Percent, as typed. Typical savings-account rates as the default.
-  const [earning, setEarning] = useState(country === 'IN' ? '2.5' : '0.5');
-  const [resultOut, setOut] = useState<Outcome | null>(null);
-  const [impact, setImpact] = useState<ScoreImpactResponse | null>(null);
-  const [busy, setBusy] = useState(false);
-  const { err, setErr, clear, fail, at } = useFormErrors();
-  const [applied, setApplied] = useState(false);
+  const [source, setSource] = useState<CashFunding>('external');
+  const [accountName, setAccountName] = useState('');
+  const [mode, setMode] = useState<'engine' | 'manual'>('engine');
+  const [manual, setManual] = useState<Alloc>({});
+  const [pick, setPick] = useState<Pick | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [applied, setApplied] = useState<string | null>(null);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [saved, setSaved] = useState<Record<string, number>>({});
+  useEffect(() => {
+    setGoals(readGoalsClient().filter(isOpenGoal));
+    setSaved(totalsByGoal(readContributionsClient()));
+  }, []);
 
-  const fingerprint = JSON.stringify([amount,earning,source,accountName]);
-  const [checked,setChecked] = useState('');
-  const out = checked === fingerprint ? resultOut : null;
-  const eligibleAccounts = (profile.user.cash_accounts ?? []).filter(a => a.kind !== 'fd' && (!a.currency || a.currency === ccy));
-  async function check(e: React.FormEvent) {
-    e.preventDefault();
-    const n = Number(amount);
-    if (!amount.trim() || !(n > 0)) {
-      setErr('Enter how much spare cash you have.');
+  const total = Number(amount) > 0 ? Number(amount) : 0;
+  const accounts = (profile.user.cash_accounts ?? []).filter((a) => a.kind !== 'fd' && (!a.currency || a.currency === ccy));
+  const efGap = Math.max(0, Number(planUser.efund_target || 0) - Number(planUser.efund_balance || 0));
+  const efSplit = Number(readEfSplitClient());
+
+  // ── Targets: the fund, each open loan (dearest first), each goal ──────
+  const targets = useMemo<Target[]>(() => {
+    const out: Target[] = [];
+    if (efGap > 0) out.push({ key: 'ef', kind: 'ef', label: 'Emergency fund', cap: efGap });
+    const loans = planUser.loans
+      .map((l, i) => ({ l, i }))
+      .filter(({ l }) => Number(l.outstanding) > 0)
+      .sort((a, b) => Number(b.l.nominal_rate) - Number(a.l.nominal_rate));
+    for (const { l, i } of loans) {
+      const fx = loanToUser(1, l, country, planUser.fx_to_user_currency);
+      if (fx == null) continue;
+      const feePct = Number(l.prepayment_penalty_pct || 0);
+      const cap = (Number(l.outstanding) * fx) / (feePct < 1 ? 1 - feePct : 1);
+      out.push({ key: keyOf(l, i), kind: 'loan', label: loanName(l), cap, rate: Number(l.nominal_rate), index: i, fx, feePct, blocked: block(l) });
+    }
+    for (const g of goals) {
+      const required = fundedAmount(g);
+      const s = saved[g.id] ?? 0;
+      if (required - s > 0) out.push({ key: `goal:${g.id}`, kind: 'goal', label: g.label, cap: required - s, goal: g, saved: s, required });
+    }
+    return out;
+  }, [planUser, efGap, goals, saved, country]);
+
+  // ── Engine pick: re-run once typing stops ─────────────────────────────
+  const pickSeq = useRef(0);
+  useEffect(() => {
+    setApplied(null);
+    if (!(total > 0)) {
+      setPick(null);
       return;
     }
-    const earningPct = Number(earning.replace('%', '') || '0');
-    if (!(earningPct >= 0 && earningPct < 100)) {
-      setErr('Enter what the cash earns now as a percent, e.g. 2.5.');
-      return;
-    }
-    setOut(null);
-    setBusy(true);
-    clear();
-    setImpact(null);
-    setApplied(false);
-    try {
-      const requestProfileKey = JSON.stringify(loadProfileClient().user);
-      const requestActivityKey = document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '';
-      const total = new Decimal(amount);
-      const gap = Decimal.max(
-        new Decimal(0),
-        new Decimal(profile.user.efund_target || 0).minus(profile.user.efund_balance || 0),
-      );
-      const split = new Decimal(readEfSplitClient());
-      const ef = gap.gt(0) ? Decimal.min(gap, total.mul(split)) : new Decimal(0);
-      const rest = total.minus(ef);
-      const [w, cy] = await Promise.all([
-        rest.gt(0)
-          ? api.windfall({
-              amount: rest.toFixed(2),
-              user: profile.user,
-              marginal_rate: profile.marginalRate,
-              // The payoff order chosen on /plan, not always avalanche.
-              strategy: readStrategyClient(),
-            })
-          : Promise.resolve(null),
-        ef.gt(0)
-          ? api.cashYield({
-              idle_balance: ef.toFixed(2),
-              current_yield: (earningPct / 100).toFixed(4),
-              country,
-            })
-          : Promise.resolve(null),
-      ]);
-      setOut({ total, ef, rest, gapAfter: gap.minus(ef), w, cy, id:crypto.randomUUID(),
-        profileKey:requestProfileKey + requestActivityKey, targetId:w?.loan_index != null ? profile.user.loans[w.loan_index]?.id : undefined });
-      setChecked(fingerprint);
+    const seq = ++pickSeq.current;
+    const t = setTimeout(async () => {
+      setPicking(true);
+      setErr(null);
+      try {
+        const alloc: Alloc = {};
+        const fees: Record<string, number> = {};
+        const reasons: Pick['reasons'] = [];
+        let blocked: string[] = [];
+        let investName: string | null = null;
+        let hold: string | null = null;
+        const ef = efGap > 0 ? Math.min(efGap, total * efSplit) : 0;
+        if (ef > 0) alloc.ef = Math.round(ef);
+        let rest = total - (alloc.ef ?? 0);
+        let u: UserPayload = { ...planUser, loans: planUser.loans.map((l) => ({ ...l })) };
+        for (let n = 0; n <= u.loans.length && rest >= 1; n++) {
+          if (!u.loans.some((l) => Number(l.outstanding) > 0)) break;
+          const w = await api.windfall({ amount: rest.toFixed(2), user: u, marginal_rate: profile.marginalRate, strategy });
+          if (w.blocked?.length) blocked = w.blocked;
+          if (w.invest_instead) {
+            investName = w.investment_name;
+            reasons.push({ what: w.investment_name ?? 'invest', why: w.rationale });
+            break;
+          }
+          if (w.loan_index == null) {
+            hold = w.rationale;
+            break;
+          }
+          const l = u.loans[w.loan_index];
+          const k = keyOf(planUser.loans[w.loan_index], w.loan_index);
+          alloc[k] = Number(w.amount);
+          fees[k] = Number(w.fee ?? 0);
+          reasons.push({ what: loanName(l), why: w.rationale });
+          rest = Number(w.leftover);
+          u = { ...u, loans: u.loans.map((x, j) => (j === w.loan_index ? { ...x, outstanding: '0' } : x)) };
+        }
+        // What no loan takes fills the rest of the emergency fund first,
+        // then goes to the investment the engine named, else stays put.
+        const efMore = Math.min(Math.max(0, efGap - (alloc.ef ?? 0)), Math.floor(rest));
+        if (efMore > 0) {
+          alloc.ef = (alloc.ef ?? 0) + efMore;
+          rest -= efMore;
+        }
+        if (investName && rest >= 1) alloc.invest = Math.floor(rest);
+        if (seq === pickSeq.current) setPick({ alloc, fees, reasons, blocked, investName, hold });
+      } catch (e) {
+        if (seq === pickSeq.current) setErr((e as Error).message);
+      } finally {
+        if (seq === pickSeq.current) setPicking(false);
+      }
+    }, 450);
+    return () => clearTimeout(t);
+  }, [total, planUser, efGap, efSplit, profile.marginalRate, strategy]);
 
-      // Paying down a card lowers utilisation: estimate the score bump
-      // for the card the money actually goes to.
-      const target = w && !w.invest_instead && w.loan_index != null
-        ? profile.user.loans[w.loan_index]
-        : null;
-      if (target?.loan_type === 'credit_card' && profile.creditScore != null) {
-        const bal = new Decimal(target.outstanding);
-        const limit = bal.div('0.7');
-        setImpact(
-          await api.scoreImpact({
-            action: 'utilisation_drop',
-            current_score: profile.creditScore,
-            country,
-            utilisation_from: bal.div(limit).toFixed(4),
-            utilisation_to: Decimal.max(bal.minus(new Decimal(w!.amount).minus(w!.fee ?? 0).div(loanToUser(1,target,country,profile.user.fx_to_user_currency)!)), 0).div(limit).toFixed(4),
+  const engineAlloc = pick?.alloc ?? {};
+  const alloc: Alloc = mode === 'engine' ? engineAlloc : manual;
+  const placed = Math.min(total, sum(alloc));
+  const left = Math.max(0, total - placed);
+  const feeOf = (t: Target, a: number) => (mode === 'engine' && pick?.fees[t.key] != null ? pick.fees[t.key] : a * (t.feePct ?? 0));
+  const step = currency === 'USD' ? 50 : 1000;
+
+  function setItem(t: Target, v: number) {
+    setApplied(null);
+    setManual((prev) => {
+      const others = sum(prev) - (prev[t.key] ?? 0);
+      const cap = Math.min(t.cap, Math.max(0, total - others));
+      const nv = Math.max(0, Math.min(Math.round(v / step) * step, Math.floor(cap)));
+      return { ...prev, [t.key]: v >= cap ? Math.floor(cap) : nv };
+    });
+  }
+  function goManual() {
+    setManual({ ...engineAlloc });
+    setMode('manual');
+  }
+  function resetEngine() {
+    setMode('engine');
+    setApplied(null);
+  }
+
+  // ── The plan with this split, and each debt slider on its own ─────────
+  const argsWith = useMemo(
+    () =>
+      (a: Alloc): PlanRunArgs | null => {
+        if (!runArgs) return null;
+        const user = {
+          ...runArgs.user,
+          efund_balance: (Number(runArgs.user.efund_balance || 0) + (a.ef ?? 0)).toFixed(2),
+          loans: runArgs.user.loans.map((l, i) => {
+            const t = targets.find((x) => x.key === keyOf(l, i));
+            const v = a[keyOf(l, i)] ?? 0;
+            if (!t || !v || !t.fx) return l;
+            const principal = (v - feeOf(t, v)) / t.fx;
+            return { ...l, outstanding: Math.max(0, Number(l.outstanding) - principal).toFixed(2) };
           }),
-        );
+        };
+        const g = runArgs.goals?.map((x) => {
+          const v = a[`goal:${x.id}`] ?? 0;
+          return v ? { ...x, saved_so_far: (Number(x.saved_so_far) + v).toFixed(2) } : x;
+        });
+        return { ...runArgs, user, goals: g };
+      },
+    // feeOf reads mode and pick, both listed.
+    [runArgs, targets, mode, pick], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const [base, setBase] = useState<Run | null>(null);
+  const [after, setAfter] = useState<Run | null>(null);
+  const [perLoan, setPerLoan] = useState<Record<string, Run>>({});
+  const [running, setRunning] = useState(false);
+  useEffect(() => {
+    if (!runArgs) return;
+    runPlan(runArgs, strategy).then(setBase, () => setBase(null));
+  }, [runArgs, strategy]);
+  const allocKey = JSON.stringify(alloc);
+  const runSeq = useRef(0);
+  useEffect(() => {
+    if (!runArgs || !(placed > 0)) {
+      setAfter(null);
+      setPerLoan({});
+      return;
+    }
+    const seq = ++runSeq.current;
+    const t = setTimeout(async () => {
+      setRunning(true);
+      try {
+        const debtKeys = Object.keys(alloc).filter((k) => k.startsWith('loan:') && alloc[k] > 0);
+        const [whole, ...each] = await Promise.all([
+          runPlan(argsWith(alloc)!, strategy),
+          ...debtKeys.map((k) => runPlan(argsWith({ [k]: alloc[k] })!, strategy)),
+        ]);
+        if (seq !== runSeq.current) return;
+        setAfter(whole);
+        setPerLoan(Object.fromEntries(debtKeys.map((k, i) => [k, each[i]])));
+      } catch {
+        if (seq === runSeq.current) setAfter(null);
+      } finally {
+        if (seq === runSeq.current) setRunning(false);
       }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [allocKey, runArgs, strategy]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Where to park the emergency-fund share, against what it earns now.
+  const [park, setPark] = useState<CashYieldResponse | null>(null);
+  const earnsNow =
+    source === 'account' ? Number(accounts.find((a) => a.name === accountName)?.apy ?? 0) || (country === 'IN' ? 0.025 : 0.005) : country === 'IN' ? 0.025 : 0.005;
+  useEffect(() => {
+    const ef = alloc.ef ?? 0;
+    if (!(ef > 0)) {
+      setPark(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      api.cashYield({ idle_balance: ef.toFixed(2), current_yield: earnsNow.toFixed(4), country }).then(setPark, () => setPark(null));
+    }, 600);
+    return () => clearTimeout(t);
+  }, [alloc.ef, earnsNow, country]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Log it ─────────────────────────────────────────────────────────────
+  function logIt() {
+    setErr(null);
+    try {
+      if (!(placed > 0)) throw new Error('Place some of it first.');
+      if (source === 'account' && accounts.length > 0 && !accountName) throw new Error('Choose the account it comes from.');
+      const stored = loadProfileClient();
+      const date = localIsoDate(new Date());
+      let entries = readActivityClient();
+      let debt = 0;
+      const lines: string[] = [];
+      for (const t of targets) {
+        const v = alloc[t.key] ?? 0;
+        if (!(v > 0) || t.kind !== 'loan') continue;
+        const planLoan = planUser.loans[t.index!];
+        const index = planLoan.id ? stored.user.loans.findIndex((l) => l.id === planLoan.id) : t.index!;
+        const loan = stored.user.loans[index];
+        if (!loan) throw new Error(`${t.label} is no longer in your profile. Reload and try again.`);
+        const fee = feeOf(t, v);
+        const principal = new Decimal(v).minus(fee).div(t.fx!);
+        entries = addActivityEntry(
+          entries,
+          {
+            loanIndex: index,
+            loanId: loan.id,
+            kind: 'paid_extra',
+            date,
+            amount: principal.toFixed(2),
+            scheduledEmi: '0',
+            source: source === 'account' ? 'spare-cash-account' : 'spare-cash-external',
+            cashDebited: source === 'account' ? v.toFixed(2) : '0',
+            note: `Spare cash: ${fmt(v)} to ${t.label}${fee > 0 ? `, fee ${fmt(fee)}` : ''}; from ${source === 'account' ? accountName || 'savings' : 'new cash'}`,
+          },
+          stored.user.loans,
+        );
+        debt += v;
+        lines.push(`${fmt(v)} → ${t.label}`);
+      }
+      const ef = alloc.ef ?? 0;
+      const invest = alloc.invest ?? 0;
+      const user = allocateCash(stored.user, {
+        total: total.toFixed(2),
+        ef: ef.toFixed(2),
+        debt: debt.toFixed(2),
+        investment: invest.toFixed(2),
+        source,
+        accountName,
+        investmentName: pick?.investName ?? 'Spare cash investment',
+        date,
+      });
+      const cash = readCashEventsClient();
+      const toGoals = targets.filter((t) => t.kind === 'goal' && (alloc[t.key] ?? 0) > 0);
+      const kept = total - debt - ef - invest - toGoals.reduce((s, t) => s + alloc[t.key], 0);
+      const next = {
+        ...cash,
+        transfers: [
+          ...(cash.transfers ?? []),
+          {
+            id: crypto.randomUUID(),
+            date,
+            amount: total.toFixed(2),
+            source,
+            accountName,
+            note: `Debt ${debt.toFixed(2)}; EF ${ef.toFixed(2)}; goals ${(total - debt - ef - invest - kept).toFixed(2)}; investment ${invest.toFixed(2)}; kept ${kept.toFixed(2)}`,
+          },
+        ],
+      };
+      commitCashChange(stored, user, entries, next);
+      if (toGoals.length) {
+        let c = readContributionsClient();
+        for (const t of toGoals) c = addContribution(c, { goalId: t.goal!.id, amount: alloc[t.key].toFixed(2), date, source: 'spare cash' });
+        writeContributionsClient(c);
+        setSaved(totalsByGoal(c));
+        lines.push(...toGoals.map((t) => `${fmt(alloc[t.key])} → ${t.label}`));
+      }
+      if (ef > 0) lines.unshift(`${fmt(ef)} → emergency fund`);
+      if (invest > 0) lines.push(`${fmt(invest)} → ${pick?.investName ?? 'investment'}`);
+      setApplied(`Logged: ${lines.join(', ')}.${kept >= 1 ? ` ${fmt(kept)} stays in savings.` : ''} Home and Plan use the new balances.`);
     } catch (e) {
-      fail(e, { amount: 'amount', idle_balance: 'amount', current_yield: 'earning' });
-    } finally {
-      setBusy(false);
+      setErr((e as Error).message);
     }
   }
 
-  function logIt() {
-    if (!out || applied || busy || checked !== fingerprint) return;
-    try {
-      const stored = loadProfileClient();
-      const cash = readCashEventsClient();
-      if (cash.transfers?.some(t => t.id === out.id)) {setApplied(true);return;}
-      const activityKey = document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '';
-      if (JSON.stringify(stored.user) + activityKey !== out.profileKey) throw new Error('Your profile or payments changed. Run the cash check again before logging it.');
-      const w = out.w;
-      const debt = w && !w.invest_instead && w.loan_index != null ? w.amount : '0';
-      const investment = w?.invest_instead ? w.amount : '0';
-      const date = localIsoDate(new Date());
-      const user = allocateCash(stored.user,{total:out.total.toFixed(2),ef:out.ef.toFixed(2),debt,investment,
-        source,accountName,investmentName:w?.investment_name ?? 'Spare cash investment',date});
-      let entries = readActivityClient();
-      if (Number(debt)>0 && w?.loan_index != null) {
-        const index = out.targetId ? stored.user.loans.findIndex(l=>l.id===out.targetId) : w.loan_index;
-        const loan = stored.user.loans[index];
-        if (!loan) throw new Error('The target loan was removed. Run the check again.');
-        const fx = loanToUser(1,loan,country,stored.user.fx_to_user_currency);
-        if (fx == null) throw new Error('Save the loan exchange rate first.');
-        const principal = new Decimal(debt).minus(w.fee ?? 0).div(fx);
-        entries = addActivityEntry(entries,{loanIndex:index,loanId:loan.id,kind:'paid_extra',date,
-          amount:principal.toFixed(2),scheduledEmi:'0',source:source === 'account' ? 'spare-cash-account' : 'spare-cash-external',
-          cashDebited:source === 'account' ? debt : '0',
-          note:`Spare cash — ${fmt(debt)} to ${loan.bank}, fee ${fmt(w.fee ?? 0)}; funded by ${source === 'account' ? accountName || 'savings' : 'new external cash'}`},stored.user.loans);
-      }
-      const next = {...cash,transfers:[...(cash.transfers ?? []),{id:out.id,date,amount:out.total.toFixed(2),source,accountName,
-        note:`Debt ${debt}; EF ${out.ef.toFixed(2)}; investment ${investment}; remaining cash ${out.total.minus(debt).minus(investment).minus(out.ef).toFixed(2)}`} ]};
-      commitCashChange(stored,user,entries,next);
-      setApplied(true);
-    } catch(e) {setErr((e as Error).message);}
-  }
+  // ── Render ─────────────────────────────────────────────────────────────
+  const dm = base?.month != null && after?.month != null ? after.month - base.month : null;
+  const saving = base && after ? base.interest - after.interest : null;
+  const toGoals = targets.filter((t) => t.kind === 'goal').reduce((s, t) => s + (alloc[t.key] ?? 0), 0);
+  const groups: { title: string; right?: string; kinds: Kind[] }[] = [
+    { title: 'Emergency fund', right: `THE PLAN SENDS ${Math.round(efSplit * 100)}% HERE UNTIL IT'S FULL`, kinds: ['ef'] },
+    { title: 'Debts · highest rate first', right: mode === 'engine' ? `ENGINE: ${strategy.toUpperCase()} ORDER` : undefined, kinds: ['loan'] },
+    { title: 'Goals', right: '★ = SAVED FOR FIRST', kinds: ['goal'] },
+  ];
+  const investTarget: Target | null = pick?.investName && (alloc.invest ?? 0) > 0
+    ? { key: 'invest', kind: 'invest', label: `Invest: ${pick.investName}`, cap: total }
+    : null;
+  const segColor = (t: Target) =>
+    t.kind === 'loan' ? L_T.negative : t.kind === 'ef' ? L_T.positive : t.kind === 'invest' ? L_T.ink : t.goal?.priorityBump ? L_T.accent : '#8a8a83';
+  const segments: LAllocSegment[] = [...targets, ...(investTarget ? [investTarget] : [])]
+    .filter((t) => (alloc[t.key] ?? 0) > 0)
+    .map((t): LAllocSegment => ({ id: t.key, label: t.label.toUpperCase(), value: alloc[t.key], amount: fmt(alloc[t.key]), color: segColor(t) }));
+  if (left >= 1) segments.push({ id: 'left', label: 'KEPT', value: left, amount: fmt(left), color: L_T.ruleSoft, ink: L_T.ink });
 
-  const w = out?.w ?? null;
-  const target = w && !w.invest_instead && w.loan_index != null ? profile.user.loans[w.loan_index] : null;
-  // No loan can take it now (a lock-in, or a fee above the saving) and
-  // investing didn't win either: the money stays put.
-  const hold = !!w && !w.invest_instead && w.loan_index == null;
-  const fee = w ? Number(w.fee ?? 0) : 0;
-  const targetName = target
-    ? `${target.bank} ${LOAN_WORDS[target.loan_type] ?? target.loan_type}`
-    : w?.investment_name ?? '';
-  const parts: string[] = [];
-  if (out && w && out.rest.gt(0)) {
-    parts.push(
-      hold
-        ? `${fmt(w.leftover)} → KEEP IN SAVINGS`
-        : `${fmt(w.amount)} → ${w.invest_instead ? `INVEST IN ${targetName}` : targetName}`.toUpperCase(),
-    );
-  }
-  if (out && out.ef.gt(0)) parts.push(`${fmt(out.ef)} → EMERGENCY FUND`);
-  const leftover = w && !hold ? Number(w.leftover) : 0;
+  const box: CSSProperties = { border: `1px solid ${L_T.ink}`, padding: wide ? '18px 22px' : '14px 14px' };
 
   return (
-    <>
+    <div ref={ref} style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
       {!profile.isLive && (
-        <div style={{ fontSize: 11, color: L_T.muted, letterSpacing: '0.08em', padding: '6px 0' }}>
+        <div style={{ fontSize: 11, color: L_T.muted, letterSpacing: '0.08em' }}>
           $ DEMO PROFILE · <a href="/onboarding">[SETUP →]</a>
         </div>
       )}
-      <LToolInput>
-        <form
-          onSubmit={check}
-          style={{ display: 'grid', gap: 14, gridTemplateColumns: fitColumns(2, 220) }}
-        >
-          <LToolField
-            label="SPARE CASH"
-            value={amount}
-            onChange={setAmount}
-            hint="A bonus, refund, or savings beyond your emergency fund. After tax."
-            error={at('amount')}
-          />
-          <LToolField
-            label="EARNING NOW (%)"
-            value={earning}
-            onChange={setEarning}
-            hint="What it earns where it sits today, e.g. 2.5 for a savings account."
-            error={at('earning')}
-          />
-          <label style={{fontSize:12}}>Funding source
-            <select aria-label="Funding source" value={source} onChange={e=>setSource(e.target.value as CashFunding)}>
-              <option value="external">New bonus / refund / gift (not yet in balances)</option>
-              <option value="account">Existing savings / cash account</option>
-            </select>
-          </label>
-          {source === 'account' && eligibleAccounts.length > 0 && <label style={{fontSize:12}}>Pay from
-            <select aria-label="Pay from" value={accountName} onChange={e=>setAccountName(e.target.value)}>
-              <option value="">Choose an account</option>
-              {eligibleAccounts.map(a=><option key={a.name} value={a.name}>{a.name} · {fmt(a.balance)}</option>)}
-            </select>
-          </label>}
-          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+
+      <section style={box} aria-labelledby="wf-in">
+        <Head no="01" id="wf-in">How much</Head>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 14, alignItems: 'start' }}>
+          <Field label="Amount, after tax" kind="money" currency={currency} value={amount} onChange={setAmount} />
+          <LChipRow label="Where it comes from">
+            <LChip on={source === 'external'} onClick={() => setSource('external')}>
+              A bonus, refund or gift
+            </LChip>
+            <LChip on={source === 'account'} onClick={() => setSource('account')}>
+              My savings
+            </LChip>
+          </LChipRow>
+          {source === 'account' && accounts.length > 0 && (
+            <label style={{ fontSize: 12, color: L_T.muted, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              From the account
+              <select
+                value={accountName}
+                onChange={(e) => setAccountName(e.target.value)}
+                style={{ fontFamily: L_MONO, fontSize: 13, padding: '7px 8px', border: `1px solid ${L_T.ruleSoft}`, background: L_T.paper, color: L_T.ink }}
+              >
+                <option value="">Choose an account</option>
+                {accounts.map((a) => (
+                  <option key={a.name} value={a.name}>
+                    {a.name} · {fmt(a.balance)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      </section>
+
+      {total > 0 && (
+        <section style={{ ...box, border: `2px solid ${L_T.ink}` }} aria-labelledby="wf-out">
+          <Head no="02" id="wf-out" accent>
+            Where it goes
+          </Head>
+          <div role="group" aria-label="Who splits it" style={{ display: 'inline-flex', border: `1px solid ${L_T.ink}`, marginBottom: 10, flexWrap: 'wrap' }}>
+            {(
+              [
+                ['engine', 'ENGINE PICK · BEST'],
+                ['manual', 'MY SPLIT'],
+              ] as const
+            ).map(([k, label], i) => (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={mode === k}
+                onClick={k === 'engine' ? resetEngine : goManual}
+                style={{
+                  fontFamily: L_MONO,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.12em',
+                  padding: '9px 14px',
+                  border: 'none',
+                  borderLeft: i ? `1px solid ${L_T.ink}` : 'none',
+                  background: mode === k ? L_T.ink : 'transparent',
+                  color: mode === k ? L_T.bg : L_T.muted,
+                  cursor: 'pointer',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p style={{ margin: '0 0 14px', fontSize: 11, color: L_T.muted, lineHeight: 1.6 }}>
+            {mode === 'engine'
+              ? 'The engine sets each slider: the emergency fund its share, the loans in your payoff order, then the rest of the fund. Choose MY SPLIT to move any of them.'
+              : `Move any slider. Together they stop at ${fmt(total)}. ENGINE PICK puts the best split back.`}
+          </p>
+
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, fontSize: 11, marginBottom: 6 }}>
+              <strong>{fmt(total)} TO PLACE</strong>
+              <span>
+                <strong>{fmt(placed)}</strong> <span style={{ color: L_T.muted }}>PLACED · </span>
+                <strong style={{ color: left >= 1 ? L_T.accent : L_T.positive }}>{fmt(left)}</strong>{' '}
+                <span style={{ color: L_T.muted }}>{mode === 'engine' && pick?.hold ? 'KEPT' : 'LEFT'}</span>
+              </span>
+            </div>
+            <div style={{ height: 8, border: `1px solid ${L_T.ink}` }}>
+              <div style={{ width: `${total ? (placed / total) * 100 : 0}%`, height: '100%', background: L_T.ink }} />
+            </div>
+          </div>
+
+          {picking && !pick && <div style={{ fontSize: 11, color: L_T.muted }}>Working out the best split…</div>}
+
+          {groups.map((g) => {
+            const rows = targets.filter((t) => g.kinds.includes(t.kind));
+            if (!rows.length) return null;
+            return (
+              <div key={g.title} style={{ marginBottom: 16 }}>
+                <Sub right={g.right}>{g.title}</Sub>
+                {rows.map((t, i) => {
+                  const v = Math.round(alloc[t.key] ?? 0);
+                  const run = perLoan[t.key];
+                  let badge = '';
+                  let tone: string = L_T.faint;
+                  if (t.kind === 'loan') {
+                    if (t.blocked) badge = `CAN'T TAKE IT: ${t.blocked.toUpperCase()}`;
+                    else if (v > 0 && base && run) {
+                      const m = base.month != null && run.month != null ? base.month - run.month : null;
+                      badge = `DEBT-FREE ${m ? `−${m} MO` : 'SAME MONTH'} · INTEREST −${fmt(Math.max(0, base.interest - run.interest))}`;
+                      tone = L_T.positive;
+                    } else if (v > 0) badge = running ? 'WORKING…' : '';
+                    if (v > 0 && feeOf(t, v) > 0) badge += `${badge ? ' · ' : ''}FEE ${fmt(feeOf(t, v))}`;
+                  } else if (t.kind === 'goal') {
+                    const now = ((t.saved! + v) / t.required!) * 100;
+                    badge = `${v > 0 ? `+${Math.round((v / t.required!) * 100)}% · ` : ''}NOW ${Math.round(now)}% OF ${fmt(t.required!)}`;
+                    tone = v > 0 ? L_T.accent : L_T.muted;
+                  } else if (t.kind === 'ef') {
+                    const bal = Number(planUser.efund_balance || 0) + v;
+                    const target = Number(planUser.efund_target || 0);
+                    badge = `FUND ${Math.round(Math.min(100, (bal / target) * 100))}% FULL`;
+                    tone = v > 0 ? L_T.positive : L_T.muted;
+                  }
+                  return (
+                    <AllocRow
+                      key={t.key}
+                      first={i === 0}
+                      target={t}
+                      value={v}
+                      total={total}
+                      step={step}
+                      disabled={mode === 'engine' || !!t.blocked}
+                      onChange={(x) => setItem(t, x)}
+                      badge={badge}
+                      badgeTone={tone}
+                      fmt={fmt}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
+          {investTarget && (
+            <div style={{ marginBottom: 16 }}>
+              <Sub>Invest instead</Sub>
+              <AllocRow first target={investTarget} value={alloc.invest ?? 0} total={total} step={step} disabled onChange={() => undefined} badge="EARNS MORE THAN ANY LOAN COSTS" badgeTone={L_T.positive} fmt={fmt} />
+            </div>
+          )}
+          {targets.length === 0 && (
+            <p style={{ fontSize: 12, color: L_T.muted }}>
+              No loans to pay, the emergency fund is full and no goal is waiting. Keep it, or add a goal on Goals & Tools.
+            </p>
+          )}
+
+          {segments.length > 0 && (
+            <div style={{ marginTop: 6 }}>
+              <Sub>The split</Sub>
+              <LAllocationBar segments={segments} label="Where the spare cash goes" />
+            </div>
+          )}
+
+          <div style={{ marginTop: 16 }}>
+            <LKpi
+              mobile={!wide}
+              cols={wide ? 4 : 2}
+              items={[
+                {
+                  l: 'DEBT-FREE',
+                  v: after?.month != null ? monthIndexToCountryLabel(after.month, country).toUpperCase() : runArgs ? '—' : 'NO LOANS',
+                  s: dm != null ? (dm < 0 ? `${-dm} MO SOONER` : dm === 0 ? 'SAME MONTH' : `${dm} MO LATER`) : running ? 'WORKING…' : '',
+                  tone: dm != null && dm < 0 ? L_T.positive : L_T.ink,
+                },
+                {
+                  l: 'INTEREST SAVED',
+                  v: saving != null ? fmt(Math.max(0, saving)) : '—',
+                  s: 'OVER THE PLAN',
+                  tone: saving && saving > 0 ? L_T.positive : L_T.ink,
+                },
+                { l: 'TO GOALS', v: fmt(toGoals), s: toGoals > 0 ? 'ADDED TO SAVED' : 'NONE', tone: toGoals > 0 ? L_T.accent : L_T.ink },
+                {
+                  l: 'KEPT',
+                  v: fmt(left),
+                  s: left < 1 ? 'ALL PLACED' : mode === 'engine' && targets.some((t) => t.kind === 'goal') ? 'MY SPLIT SENDS IT TO A GOAL' : 'STAYS IN SAVINGS',
+                  tone: L_T.ink,
+                },
+              ]}
+            />
+          </div>
+        </section>
+      )}
+
+      {total > 0 && (
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+          {profile.isLive ? (
             <button
-              type="submit"
-              disabled={busy}
+              type="button"
+              onClick={logIt}
+              disabled={!!applied || !(placed > 0)}
               style={{
-                fontFamily: 'var(--font-mono)',
+                fontFamily: L_MONO,
                 fontSize: 11,
                 fontWeight: 700,
-                letterSpacing: '0.08em',
-                padding: '8px 14px',
-                background: L_T.ink,
-                color: L_T.paper,
-                border: `1px solid ${L_T.ink}`,
-                cursor: busy ? 'wait' : 'pointer',
+                letterSpacing: '0.12em',
+                padding: '10px 16px',
+                background: applied ? L_T.positive : L_T.ink,
+                color: L_T.bg,
+                border: 'none',
+                cursor: applied ? 'default' : 'pointer',
               }}
             >
-              {busy ? '[ WORKING… ]' : '[ WHERE SHOULD IT GO? → ]'}
+              {applied ? '[ LOGGED ✓ ]' : '[ I DID THIS · LOG IT ]'}
             </button>
-            {err && <span role="alert" style={{ color: L_T.negative, fontSize: 11 }}>{err}</span>}
-          </div>
-        </form>
-      </LToolInput>
-
-      {out && (
-        <LToolVerdict
-          eyebrow={
-            w
-              ? w.invest_instead
-                ? 'INVEST · NO LOAN BEATS IT'
-                : hold
-                  ? 'KEEP IT · NO LOAN CAN TAKE IT NOW'
-                  : 'PAY DOWN DEBT'
-              : 'EMERGENCY FUND FIRST'
-          }
-          headline={parts.join(' · ')}
-          visual={
-            <LAllocationBar
-              segments={[
-                {
-                  label: w?.invest_instead ? 'INVEST' : hold ? 'SAVINGS' : 'DEBT',
-                  pct: out.total.gt(0) ? out.rest.div(out.total).toNumber() : 0,
-                  tone: 'accent' as const,
-                },
-                {
-                  label: 'EMERGENCY FUND',
-                  pct: out.total.gt(0) ? out.ef.div(out.total).toNumber() : 0,
-                  tone: 'pos' as const,
-                },
-              ].filter((sgm) => sgm.pct > 0)}
-            />
-          }
-          kpi={[
-            {
-              l: w?.invest_instead ? 'INTEREST GIVEN UP' : fee > 0 ? 'SAVED AFTER FEE' : 'INTEREST AVOIDED',
-              v: w && !hold ? fmt(fee > 0 ? (w.net_benefit ?? w.interest_avoided) : w.interest_avoided) : '—',
-              s: fee > 0 ? `${fmt(w!.interest_avoided)} LESS ${fmt(fee)} FEE` : undefined,
-              tone: w?.invest_instead ? 'neg' : 'pos',
-            },
-            {
-              l: 'EMERGENCY FUND',
-              v: out.ef.gt(0) ? `+${fmt(out.ef)}` : '—',
-              s: out.gapAfter.gt(0) ? `${fmt(out.gapAfter)} STILL TO GO` : 'FULL',
-            },
-            {
-              l: 'PARK IT AT',
-              v: out.cy?.alert && out.cy.best_alt_yield
-                ? `${(Number(out.cy.best_alt_yield) * 100).toFixed(1)}%`
-                : '—',
-              s: out.cy?.alert ? (out.cy.alt_name ?? '').toUpperCase() : out.ef.gt(0) ? 'WHERE IT IS IS FINE' : '',
-              tone: 'accent',
-            },
-            {
-              l: 'SCORE BUMP',
-              v: impact ? `+${impact.delta_low}–${impact.delta_high}` : '—',
-              s: impact ? 'CARD UTILISATION DROPS' : '',
-              tone: 'pos',
-            },
-          ]}
-          actions={
-            profile.isLive ? (
-              <LBracket accent onClick={logIt} disabled={applied || busy}>
-                {applied ? 'LOGGED ✓' : 'I DID THIS — LOG IT'}
-              </LBracket>
-            ) : (
-              <LBracket href="/onboarding">SET UP YOUR PROFILE TO LOG IT</LBracket>
-            )
-          }
-        />
+          ) : (
+            <LBracket href="/onboarding">SET UP YOUR PROFILE TO LOG IT</LBracket>
+          )}
+          {mode === 'manual' && <LBracket onClick={resetEngine}>BACK TO ENGINE PICK</LBracket>}
+          {err && (
+            <span role="alert" style={{ color: L_T.negative, fontSize: 11 }}>
+              {err}
+            </span>
+          )}
+          {applied && (
+            <span role="status" style={{ fontSize: 11, flexBasis: '100%' }}>
+              {applied} <LBracket href="/">HOME →</LBracket> <LBracket href="/activity">ACTIVITY →</LBracket>
+            </span>
+          )}
+        </div>
       )}
 
-      {out && (
-        <LToolMath
+      {total > 0 && (
+        <LMathBlock
           rows={[
-            { k: 'spare cash', v: fmt(out.total) },
-            {
-              k: 'emergency fund',
-              v: fmt(out.ef),
-              note: out.ef.gt(0)
-                ? `your plan's split sends ${(Number(readEfSplitClient()) * 100).toFixed(0)}% here until the fund is full`
-                : 'the fund is already full',
-            },
-            ...(out.cy?.alert
-              ? [{
-                  k: 'park it at',
-                  v: `${out.cy.alt_name ?? '—'}`,
-                  note: `earns ${fmt(out.cy.annual_uplift ?? 0)} a year more than ${earning}% and stays within reach`,
-                  tone: 'pos' as const,
-                }]
-              : []),
-            ...(w && hold
-              ? [{ k: 'keep it', v: fmt(w.leftover), note: w.rationale }]
-              : []),
-            ...(w && !hold
+            { k: 'spare cash', v: fmt(total) },
+            ...(efGap > 0
               ? [
                   {
-                    k: w.invest_instead ? 'invest in' : 'pay off',
-                    v: `${fmt(w.amount)} → ${targetName}`,
-                    note: w.rationale,
+                    k: '→ emergency fund',
+                    v: fmt(alloc.ef ?? 0),
+                    note:
+                      mode === 'engine' && (alloc.ef ?? 0) > Math.ceil(total * efSplit)
+                        ? `the plan's ${Math.round(efSplit * 100)}% share, plus what no loan takes; ${fmt(efGap)} was missing`
+                        : `the plan sends ${Math.round(efSplit * 100)}% here until it's full; ${fmt(efGap)} to go`,
                   },
-                  {
-                    k: w.invest_instead ? 'interest given up' : 'interest avoided',
-                    v: fmt(w.interest_avoided),
-                    tone: (w.invest_instead ? 'neg' : 'pos') as 'neg' | 'pos',
-                    // A card has no tenure: its figure runs until the card is
-                    // cleared at the usual or minimum payment, and says so.
-                    note: w.invest_instead
-                      ? `what prepaying would have saved (${w.interest_basis || 'over the loan’s remaining life'}); the investment should beat it`
-                      : w.interest_basis || 'over the loan’s remaining life, EMI kept, so it ends sooner',
-                  },
-                  ...(fee > 0
-                    ? [{
-                        k: 'prepayment fee',
-                        v: fmt(fee),
-                        tone: 'neg' as const,
-                        note: `your loan's terms; it comes out of the payment, so ${fmt(Number(w.amount) - fee)} goes to principal and ${fmt(w.net_benefit ?? 0)} is saved`,
-                      }]
-                    : []),
                 ]
+              : [{ k: 'emergency fund', v: 'full', note: 'nothing needed' }]),
+            ...(park?.alert && park.best_alt_yield
+              ? [{ k: '   park it at', v: park.alt_name ?? '—', note: `${(Number(park.best_alt_yield) * 100).toFixed(1)}%: ${fmt(park.annual_uplift ?? 0)} a year more than ${(earnsNow * 100).toFixed(1)}%`, tone: 'pos' as const }]
               : []),
-            ...(w?.blocked?.length && !hold
-              ? [{ k: 'passed over', v: '—', note: `${w.blocked.join('; ')}.` }]
-              : []),
-            ...(leftover > 0
-              ? [{ k: 'left over', v: fmt(leftover), note: 'the loan clears; keep this or run it again' }]
-              : []),
+            ...targets
+              .filter((t) => t.kind === 'loan' && (alloc[t.key] ?? 0) > 0)
+              .map((t) => ({
+                k: `→ ${t.label}`,
+                v: fmt(alloc[t.key]),
+                note: `${((t.rate ?? 0) * 100).toFixed(2)}% a year${feeOf(t, alloc[t.key]) > 0 ? `; ${fmt(feeOf(t, alloc[t.key]))} prepayment fee comes out of it` : ''}`,
+              })),
+            ...(toGoals > 0 ? [{ k: '→ goals', v: fmt(toGoals) }] : []),
+            ...((alloc.invest ?? 0) > 0 ? [{ k: `→ ${pick?.investName ?? 'investment'}`, v: fmt(alloc.invest) }] : []),
+            { k: 'kept', v: fmt(left), note: left >= 1 && mode === 'engine' && pick?.hold ? pick.hold : undefined },
+            ...(saving != null ? [{ k: 'interest saved', v: fmt(Math.max(0, saving)), tone: 'pos' as const, note: 'the whole plan, this split against none' }] : []),
+            ...(mode === 'engine' ? (pick?.reasons ?? []).map((r) => ({ k: 'why this one', v: r.what, note: r.why })) : []),
+            ...(pick?.blocked.length ? [{ k: 'passed over', v: '—', note: pick.blocked.join('; ') }] : []),
           ]}
         />
       )}
-    </>
+    </div>
   );
 }
 
-// ─── inline LField-shaped input that doesn't pull in the heavy
-//     `Field` component from `ToolPrimitives` (which carries its own
-//     non-ledger styling). Plain monospace input + dashed underline
-//     matches the prototype. ──────────────────────────────────────────
-function LToolField({
-  label,
-  value,
-  onChange,
-  hint,
-  error,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  hint?: string;
-  error?: string | null;
-}) {
-  const id = useId();
-  const described = [error ? `${id}-err` : '', hint ? `${id}-hint` : ''].filter(Boolean).join(' ');
-  // The label names only the input; the hint and error describe it.
+function Head({ no, id, accent, children }: { no: string; id: string; accent?: boolean; children: React.ReactNode }) {
+  return (
+    <h2
+      id={id}
+      style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 14px', paddingBottom: 8, borderBottom: `2px solid ${L_T.ink}`, font: 'inherit' }}
+    >
+      <span
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.08em',
+          color: accent ? '#fff' : L_T.ink,
+          background: accent ? L_T.accent : 'transparent',
+          border: `1.5px solid ${accent ? L_T.accent : L_T.ink}`,
+          padding: '2px 7px',
+        }}
+      >
+        {no}
+      </span>
+      <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{children}</span>
+    </h2>
+  );
+}
+
+function Sub({ right, children }: { right?: string; children: React.ReactNode }) {
   return (
     <div
       style={{
         display: 'flex',
-        flexDirection: 'column',
-        gap: 4,
-        fontFamily:
-          "'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace",
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        gap: 8,
+        flexWrap: 'wrap',
+        paddingBottom: 5,
+        marginBottom: 4,
+        borderBottom: `1px solid ${L_T.faint}`,
       }}
     >
-      <label
-        htmlFor={id}
-        style={{
-          fontSize: 9,
-          letterSpacing: '0.18em',
-          color: L_T.muted,
-        }}
-      >
-        {label}
-      </label>
-      <input
-        id={id}
-        type="text"
-        inputMode="decimal"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={described || undefined}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          borderBottom: `1px solid ${error ? L_T.negative : L_T.ink}`,
-          padding: '6px 0',
-          fontFamily: 'inherit',
-          fontSize: 14,
-          fontWeight: 700,
-          color: L_T.ink,
-        }}
-      />
-      {error && (
-        <span id={`${id}-err`} role="alert" style={{ fontSize: 11, color: L_T.negative }}>
-          {error}
+      <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{children}</span>
+      {right && <span style={{ fontSize: 9, color: L_T.muted, letterSpacing: '0.12em' }}>{right}</span>}
+    </div>
+  );
+}
+
+function AllocRow({
+  target,
+  value,
+  total,
+  step,
+  disabled,
+  onChange,
+  badge,
+  badgeTone,
+  first,
+  fmt,
+}: {
+  target: Target;
+  value: number;
+  total: number;
+  step: number;
+  disabled: boolean;
+  onChange: (v: number) => void;
+  badge: string;
+  badgeTone: string;
+  first: boolean;
+  fmt: (v: number) => string;
+}) {
+  const pct = total > 0 ? Math.min(100, (value / total) * 100) : 0;
+  const fill = value === 0 ? L_T.ruleSoft : target.kind === 'loan' ? L_T.negative : target.kind === 'ef' ? L_T.positive : target.kind === 'invest' ? L_T.ink : L_T.accent;
+  return (
+    <div style={{ padding: '12px 0', borderTop: first ? 'none' : `1px dashed ${L_T.faint}`, opacity: target.blocked ? 0.6 : 1 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8, fontSize: 13, fontWeight: 700, flexWrap: 'wrap' }}>
+          {target.kind === 'loan' && (
+            <span style={{ fontSize: 9, color: L_T.negative, border: `1px solid ${L_T.negative}`, padding: '1px 5px', letterSpacing: '0.06em' }}>
+              {((target.rate ?? 0) * 100).toFixed(2)}%
+            </span>
+          )}
+          {target.goal?.priorityBump && <span style={{ color: L_T.accent }}>★</span>}
+          {target.label}
+          {target.kind !== 'invest' && <span style={{ fontSize: 10, color: L_T.muted, fontWeight: 500 }}>up to {fmt(target.cap)}</span>}
         </span>
-      )}
-      {hint && (
-        <span id={`${id}-hint`} style={{ fontSize: 10, color: L_T.muted, lineHeight: 1.5 }}>
-          {hint}
-        </span>
-      )}
+        <span style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: value > 0 ? L_T.ink : L_T.faint }}>{fmt(value)}</span>
+      </div>
+      <div style={{ position: 'relative', height: 10, background: L_T.ruleSoft }}>
+        <div style={{ position: 'absolute', height: '100%', width: `${pct}%`, background: fill }} />
+        <input
+          type="range"
+          min={0}
+          max={total}
+          step={step}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(Number(e.target.value))}
+          aria-label={`${target.label}: amount`}
+          aria-valuetext={fmt(value)}
+          style={{ position: 'absolute', top: -7, left: 0, width: '100%', height: 24, margin: 0, opacity: 0, cursor: disabled ? 'not-allowed' : 'pointer' }}
+        />
+        <div
+          aria-hidden="true"
+          style={{ position: 'absolute', top: '50%', left: `${pct}%`, width: 12, height: 16, background: disabled ? L_T.muted : L_T.ink, transform: 'translate(-50%, -50%)', pointerEvents: 'none' }}
+        />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 9, color: L_T.muted, letterSpacing: '0.1em' }}>{Math.round(pct)}% OF IT</span>
+        {badge && <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: badgeTone }}>▸ {badge}</span>}
+      </div>
     </div>
   );
 }
