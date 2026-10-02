@@ -381,4 +381,6 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
         months_pulled_forward=diff["months_pulled_forward"],
         interest_saved=diff["interest_saved"],
         extra_invested=diff["extra_invested"],
+        baseline_total_interest=base.total_interest_paid,
+        scenario_total_interest=scenario_result.total_interest_paid,
     )

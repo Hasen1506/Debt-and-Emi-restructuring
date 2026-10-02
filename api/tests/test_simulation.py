@@ -118,6 +118,9 @@ def test_sensitivity_surplus_delta(client, india_user_payload):
     # Extra ₹10k/mo of surplus → either more interest saved, or no change if
     # the loan already clears within horizon. interest_saved must be ≥ 0.
     assert D(body["interest_saved"]) >= 0
+    # Both totals come back for What if's before/after bars, and agree with
+    # the saving.
+    assert D(body["baseline_total_interest"]) - D(body["scenario_total_interest"]) == D(body["interest_saved"])
 
 
 def test_sensitivity_rate_shock(client, india_user_payload):

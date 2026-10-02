@@ -33,7 +33,7 @@ import { applyToolResult } from '@/lib/apply-tool-result';
 import { readActivityClient } from '@/lib/activity';
 import { activityDeltas, applyActivityDeltas } from '@/lib/activity-cookie';
 import { rollBalancesForward } from '@/lib/roll-forward';
-import { countryMonthKey } from '@/lib/today';
+import { countryMonthKey, monthIndexToCountryLabel } from '@/lib/today';
 import {
   addCommitment,
   readCommitmentsClient,
@@ -360,6 +360,7 @@ export function WhatIfPanel({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', borderTop: `2px solid ${L_T.ink}` }}>
       <SliderRow
+        country={user.country}
         title={'Spend less each month'}
         hint={
           fixedExpensesCap > 0
@@ -411,6 +412,7 @@ export function WhatIfPanel({
       />
 
       <SliderRow
+        country={user.country}
         title={'If floating rates change'}
         hint={
           hasFloating
@@ -437,6 +439,7 @@ export function WhatIfPanel({
       />
 
       <SliderRow
+        country={user.country}
         title={'Pay a lump sum'}
         hint={
           lumpTargetCap > 0
@@ -593,7 +596,86 @@ function roundStep(value: number, base: number): number {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * The change as a picture: when the debts are gone, and the interest paid,
+ * on the plan as it is and with the change, as two bars each. The numbers
+ * alone ("−3 MO") didn't show how big a change is against the whole.
+ */
+function BeforeAfter({
+  result,
+  country,
+  formatInterest,
+}: {
+  result: CompareResponse;
+  country: 'IN' | 'US';
+  formatInterest: (v: number) => string;
+}) {
+  const base = result.baseline_debt_free_month;
+  const next = result.scenario_debt_free_month;
+  const baseInt = Number(result.baseline_total_interest ?? NaN);
+  const nextInt = Number(result.scenario_total_interest ?? NaN);
+  const rows: { label: string; a: number; b: number; aText: string; bText: string; lowerIsBetter: true }[] = [];
+  if (base != null && next != null) {
+    rows.push({
+      label: 'DEBT-FREE',
+      a: base,
+      b: next,
+      aText: monthIndexToCountryLabel(base, country),
+      bText: monthIndexToCountryLabel(next, country),
+      lowerIsBetter: true,
+    });
+  }
+  if (Number.isFinite(baseInt) && Number.isFinite(nextInt)) {
+    rows.push({
+      label: 'INTEREST PAID',
+      a: baseInt,
+      b: nextInt,
+      aText: formatInterest(baseInt),
+      bText: formatInterest(nextInt),
+      lowerIsBetter: true,
+    });
+  }
+  if (rows.length === 0) return null;
+  return (
+    <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
+      {rows.map((r) => {
+        const max = Math.max(r.a, r.b, 1);
+        const better = r.b < r.a;
+        const same = Math.abs(r.b - r.a) < 0.5;
+        const bar = (v: number, color: string, filled: boolean) => (
+          <span
+            aria-hidden="true"
+            style={{
+              display: 'block',
+              height: 10,
+              width: `${Math.max(2, (v / max) * 100)}%`,
+              background: filled ? color : 'transparent',
+              border: `1px solid ${color}`,
+            }}
+          />
+        );
+        return (
+          <div key={r.label} role="img" aria-label={`${r.label.toLowerCase()}: ${r.aText} on your plan, ${r.bText} with this change`}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>{r.label}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr) auto', columnGap: 8, rowGap: 4, alignItems: 'center', fontSize: 11 }}>
+              <span style={{ color: L_T.muted }}>Your plan</span>
+              {bar(r.a, L_T.inkSoft, false)}
+              <span style={{ color: L_T.inkSoft, whiteSpace: 'nowrap' }}>{r.aText}</span>
+              <span style={{ color: L_T.ink, fontWeight: 600 }}>With this</span>
+              {bar(r.b, same ? L_T.inkSoft : better ? L_T.positive : L_T.negative, true)}
+              <span style={{ fontWeight: 700, whiteSpace: 'nowrap', color: same ? L_T.ink : better ? L_T.positive : L_T.negative }}>
+                {r.bText}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function SliderRow({
+  country,
   title,
   hint,
   unit,
@@ -612,6 +694,7 @@ function SliderRow({
   showMaxButton = true,
   extraControls,
 }: {
+  country: 'IN' | 'US';
   title: string;
   hint: string;
   unit: string;
@@ -702,21 +785,21 @@ function SliderRow({
           <span style={{ color: L_T.negative }}>{state.error}</span>
         ) : state.result ? (
           <>
-            <span style={{ display: 'inline-flex', gap: 16, flexWrap: 'wrap' }}>
-              <span>
-                → DEBT-FREE{' '}
-                <strong style={{ color: tone(months === 0 ? null : months > 0) }}>
-                  {months === 0 ? 'SAME MONTH' : `${months > 0 ? '−' : '+'}${Math.abs(months)} MO`}
-                </strong>
-              </span>
-              <span>
-                → INTEREST{' '}
-                <strong style={{ color: tone(interest === 0 ? null : interest > 0) }}>
-                  {interest === 0 ? 'SAME' : `${interest > 0 ? '−' : '+'}${formatInterest(Math.abs(interest))}`}
-                </strong>
-              </span>
+            <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+              <strong style={{ color: tone(months === 0 ? null : months > 0) }}>
+                {months === 0
+                  ? 'Same debt-free month'
+                  : `Debt-free ${Math.abs(months)} month${Math.abs(months) === 1 ? '' : 's'} ${months > 0 ? 'sooner' : 'later'}`}
+              </strong>
+              <span style={{ color: L_T.muted }}>·</span>
+              <strong style={{ color: tone(interest === 0 ? null : interest > 0) }}>
+                {interest === 0
+                  ? 'the same interest'
+                  : `${formatInterest(Math.abs(interest))} ${interest > 0 ? 'less' : 'more'} interest`}
+              </strong>
             </span>
             {summary && <div style={{ color: L_T.muted, fontSize: 11 }}>{summary}</div>}
+            {value !== 0 && <BeforeAfter result={state.result} country={country} formatInterest={formatInterest} />}
           </>
         ) : (
           !disabled && <span style={{ color: L_T.muted }}>Move the slider or type an amount to see the change.</span>

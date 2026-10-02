@@ -812,6 +812,9 @@ class CompareResponse(_Base):
     months_pulled_forward: Decimal
     interest_saved: Decimal
     extra_invested: Decimal
+    # Total interest on each side, for a before/after picture.
+    baseline_total_interest: Optional[Decimal] = None
+    scenario_total_interest: Optional[Decimal] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────

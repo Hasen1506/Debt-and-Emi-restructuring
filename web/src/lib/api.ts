@@ -520,6 +520,9 @@ export interface CompareResponse {
   months_pulled_forward: string;
   interest_saved: string;
   extra_invested: string;
+  /** Total interest on each side (plan, and plan with the change). */
+  baseline_total_interest?: string | null;
+  scenario_total_interest?: string | null;
 }
 
 export interface NewDebtResponse {
