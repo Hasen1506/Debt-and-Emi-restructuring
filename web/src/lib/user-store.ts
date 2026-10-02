@@ -9,6 +9,8 @@
  */
 import type { UserPayload } from './api';
 import { DEMO_USER, DEMO_MARGINAL_RATE } from './demo-user';
+import { readActivityClient } from './activity';
+import { syncActivityCookieClient } from './activity-cookie';
 import { withLoanIds } from './loan-ids';
 import {
   decodeProfileCookies,
@@ -140,7 +142,19 @@ export function saveProfileClient(profile: {
   // Every loan leaves with a stable id (a new one for a loan just added).
   const loans = withLoanIds(profile.user.loans ?? []);
   if (loans !== profile.user.loans) profile = { ...profile, user: { ...profile.user, loans } };
+  const previousProfile = decodeProfileCookies(readClientCookie);
+  const previousActivity = readRawClientCookie('finoptima_activity_deltas');
   if (!writeProfileCookieClient(JSON.stringify(profile.user))) {
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(SAVE_FAILED_EVENT));
+    return false;
+  }
+  try {
+    if (!syncActivityCookieClient(readActivityClient(),profile.user.loans,profile.user.country,false))
+      throw new Error('The payment projection could not be saved.');
+  } catch {
+    if (previousProfile !== null) writeProfileCookieClient(previousProfile);
+    else for (let i=0;i<MAX_PROFILE_CHUNKS;i++) document.cookie = `${profileChunkName(i)}=; path=/; max-age=0`;
+    document.cookie = previousActivity === null ? 'finoptima_activity_deltas=; path=/; max-age=0' : `finoptima_activity_deltas=${previousActivity}; path=/; SameSite=Lax`;
     if (typeof window !== 'undefined') window.dispatchEvent(new Event(SAVE_FAILED_EVENT));
     return false;
   }

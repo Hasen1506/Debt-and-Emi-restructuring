@@ -77,10 +77,11 @@ export function rollBalancesForward(
 /** Date each loan's balance: today for a new loan or a changed balance,
  *  else the date it already had. `prev` is the saved list (matched by id,
  *  else position). */
-export function stampBalanceDates(next: LoanPayload[], prev: LoanPayload[], today: string): LoanPayload[] {
+export function stampBalanceDates(next: LoanPayload[], prev: LoanPayload[], today: string, recordedAt: string = new Date().toISOString()): LoanPayload[] {
   return next.map((loan, i) => {
     const before = loan.id ? prev.find((p) => p.id === loan.id) : prev[i];
     const same = before && Number(before.outstanding) === Number(loan.outstanding);
-    return { ...loan, balance_as_of: same ? before.balance_as_of ?? loan.balance_as_of : today };
+    return { ...loan, balance_as_of: same ? before.balance_as_of ?? loan.balance_as_of : today,
+      balance_recorded_at: same ? before.balance_recorded_at ?? loan.balance_recorded_at : recordedAt };
   });
 }

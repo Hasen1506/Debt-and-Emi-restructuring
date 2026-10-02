@@ -28,10 +28,10 @@ import {
 } from '@/lib/goal-contributions';
 import { GOAL_STATE_LABEL, goalContext, goalLine, goalStateTone, type GoalLine } from '@/lib/goal-line';
 import { simMonthToCalendar } from '@/lib/goal-defer';
-import { readDecisionsClient, recordDecision } from '@/lib/decisions';
+import { readDecisionsClient, prepareDecision, type DecisionEntry } from '@/lib/decisions';
 import { commitExpenseReduction } from '@/lib/expense-commit';
 import { loadProfileClient } from '@/lib/user-store';
-import { persistGoalSlices } from '@/lib/persist-goal-slices';
+import { persistClientSlices, type ClientSliceWrite } from '@/lib/persist-client-slices';
 import { TEMPLATE_CATALOGUE, expandTemplate, type TemplateKind } from '@/lib/life-templates';
 import { localIsoDate } from '@/lib/today';
 import { useWidth } from '@/lib/use-width';
@@ -137,67 +137,55 @@ export function GoalsPage({
     [goals, saved, user, today, indicativeRate],
   );
 
+  function saveGoalChoice(next: Goal[], draft: Omit<DecisionEntry,'id'|'at'|'reverted'>, initialContributions?: GoalContributionEntry[]): boolean {
+    try {
+      if (JSON.stringify(readGoalsClient()) !== JSON.stringify(goals) || (initialContributions && JSON.stringify(readContributionsClient()) !== JSON.stringify(contributions)))
+        throw new Error('Your goals changed elsewhere. Reload before saving.');
+      const goalWrite = goalSliceWrite(next);
+      const normalized = goalWrite.value as Goal[];
+      const resultGoal = normalized.find(g => g.id === draft.result.goalId);
+      const history = prepareDecision(readDecisionsClient(), {...draft,result:{...draft.result,...(resultGoal ? {goal:resultGoal} : {})}});
+      const writes: ClientSliceWrite[] = [goalWrite];
+      if (initialContributions) writes.push(contributionSliceWrite(initialContributions));
+      writes.push({key:'finoptima_decisions',value:history,slice:'decisions'});
+      persistClientSlices(writes);
+      setGoals(readGoalsClient());
+      if (initialContributions) setContributions(initialContributions);
+      setError('');
+      return true;
+    } catch (e) { setError((e as Error).message); return false; }
+  }
+
   function saveDraft({ goal, alreadySaved }: GoalDraft) {
-    const before = goals.find((g) => g.id === goal.id);
+    const before = goals.find(g => g.id === goal.id);
     if (before) {
-      if (!updateGoals(goals.map((g) => (g.id === goal.id ? goal : g)))) return;
-      recordDecision(readDecisionsClient(), {
-        kind: 'goal_edited',
-        label: `Changed goal: ${goal.label}`,
-        snapshot: { goal: before },
-        result: { goalId: goal.id },
-        impactDeltaMonths: null,
-      });
+      if (!saveGoalChoice(goals.map(g => g.id === goal.id ? goal : g), {
+        kind:'goal_edited',label:`Changed goal: ${goal.label}`,snapshot:{goal:before},result:{goalId:goal.id},impactDeltaMonths:null,
+      })) return;
     } else {
-      const g = { ...goal, createdAt: new Date().toISOString(), status: 'active' as const };
-      if (alreadySaved > 0) {
-        try {
-          if (JSON.stringify(readGoalsClient()) !== JSON.stringify(goals) || JSON.stringify(readContributionsClient()) !== JSON.stringify(contributions))
-            throw new Error('Your goals changed elsewhere. Reload before saving.');
-          const nextContributions = addContribution(contributions, {goalId:g.id,amount:String(alreadySaved),date:localIsoDate(today),source:'already saved'});
-          persistGoalSlices([goalSliceWrite([...goals,g]),contributionSliceWrite(nextContributions)]);
-          setGoals(readGoalsClient()); setContributions(nextContributions); setError('');
-        } catch (e) { setError((e as Error).message); return; }
-      } else if (!updateGoals([...goals, g])) return;
-      recordDecision(readDecisionsClient(), {
-        kind: 'goal_added',
-        label: `Added goal: ${g.label}`,
-        snapshot: { goalCount: goals.length },
-        result: { goalCount: goals.length + 1, kind: g.kind, goalId: g.id },
-        impactDeltaMonths: null,
-      });
+      const g = {...goal,createdAt:new Date().toISOString(),status:'active' as const};
+      const initial = alreadySaved > 0 ? addContribution(contributions,{goalId:g.id,amount:String(alreadySaved),date:localIsoDate(today),source:'already saved'}) : undefined;
+      if (!saveGoalChoice([...goals,g], {
+        kind:'goal_added',label:`Added goal: ${g.label}`,snapshot:{goalCount:goals.length},result:{goalCount:goals.length+1,kind:g.kind,goalId:g.id},impactDeltaMonths:null,
+      },initial)) return;
     }
     setForm(null);
   }
 
   function patch(id: string, p: Partial<Goal>) {
-    updateGoals(goals.map((g) => (g.id === id ? { ...g, ...p } : g)));
+    updateGoals(goals.map(g => g.id === id ? {...g,...p} : g));
   }
 
   function close(g: Goal, funded: boolean) {
-    if (!updateGoals(
-      goals.map((x) =>
-        x.id === g.id ? { ...x, status: funded ? 'archived' : 'cancelled', closedAt: localIsoDate(today), fundingStartMonth: undefined } : x,
-      ),
-    )) return;
-    recordDecision(readDecisionsClient(), {
-      kind: 'goal_removed',
-      label: `${funded ? 'Archived' : 'Cancelled'} goal: ${g.label}`,
-      snapshot: { goal: g },
-      result: { goalId: g.id },
-      impactDeltaMonths: null,
-    });
-    setOpen((o) => ({ ...o, [g.id]: false }));
+    if (!saveGoalChoice(goals.map(x => x.id === g.id ? {...x,status:funded ? 'archived' : 'cancelled',closedAt:localIsoDate(today),fundingStartMonth:undefined} : x), {
+      kind:'goal_removed',label:`${funded ? 'Archived' : 'Cancelled'} goal: ${g.label}`,snapshot:{goal:g},result:{goalId:g.id},impactDeltaMonths:null,
+    })) return;
+    setOpen(o => ({...o,[g.id]:false}));
   }
 
   function remove(g: Goal) {
-    if (!updateGoals(goals.filter((x) => x.id !== g.id))) return;
-    recordDecision(readDecisionsClient(), {
-      kind: 'goal_removed',
-      label: `Deleted goal: ${g.label}`,
-      snapshot: { goal: g },
-      result: { goalId: g.id },
-      impactDeltaMonths: null,
+    saveGoalChoice(goals.filter(x => x.id !== g.id), {
+      kind:'goal_removed',label:`Deleted goal: ${g.label}`,snapshot:{goal:g},result:{goalId:g.id,deleted:true},impactDeltaMonths:null,
     });
   }
 
