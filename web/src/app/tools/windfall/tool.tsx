@@ -55,6 +55,7 @@ import {
   L_MONO,
   L_T,
 } from '@/components/ledger/primitives';
+import { LStepHead, LStepSub } from '@/components/ledger/LToolSteps';
 import { useWidth } from '@/lib/use-width';
 
 const LOAN_WORDS: Record<string, string> = {
@@ -459,7 +460,7 @@ export function WindfallTool({
       )}
 
       <section style={box} aria-labelledby="wf-in">
-        <Head no="01" id="wf-in">How much</Head>
+        <LStepHead no="01" id="wf-in">How much</LStepHead>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 14, alignItems: 'start' }}>
           <Field label="Amount, after tax" kind="money" currency={currency} value={amount} onChange={setAmount} />
           <LChipRow label="Where it comes from">
@@ -492,9 +493,9 @@ export function WindfallTool({
 
       {total > 0 && (
         <section style={{ ...box, border: `2px solid ${L_T.ink}` }} aria-labelledby="wf-out">
-          <Head no="02" id="wf-out" accent>
+          <LStepHead no="02" id="wf-out" accent>
             Where it goes
-          </Head>
+          </LStepHead>
           <div role="group" aria-label="Who splits it" style={{ display: 'inline-flex', border: `1px solid ${L_T.ink}`, marginBottom: 10, flexWrap: 'wrap' }}>
             {(
               [
@@ -551,7 +552,7 @@ export function WindfallTool({
             if (!rows.length) return null;
             return (
               <div key={g.title} style={{ marginBottom: 16 }}>
-                <Sub right={g.right}>{g.title}</Sub>
+                <LStepSub right={g.right}>{g.title}</LStepSub>
                 {rows.map((t, i) => {
                   const v = Math.round(alloc[t.key] ?? 0);
                   const run = perLoan[t.key];
@@ -596,7 +597,7 @@ export function WindfallTool({
           })}
           {investTarget && (
             <div style={{ marginBottom: 16 }}>
-              <Sub>Invest instead</Sub>
+              <LStepSub>Invest instead</LStepSub>
               <AllocRow first target={investTarget} value={alloc.invest ?? 0} total={total} step={step} disabled onChange={() => undefined} badge="EARNS MORE THAN ANY LOAN COSTS" badgeTone={L_T.positive} fmt={fmt} />
             </div>
           )}
@@ -608,7 +609,7 @@ export function WindfallTool({
 
           {segments.length > 0 && (
             <div style={{ marginTop: 6 }}>
-              <Sub>The split</Sub>
+              <LStepSub>The split</LStepSub>
               <LAllocationBar segments={segments} label="Where the spare cash goes" />
             </div>
           )}
@@ -716,50 +717,6 @@ export function WindfallTool({
           ]}
         />
       )}
-    </div>
-  );
-}
-
-function Head({ no, id, accent, children }: { no: string; id: string; accent?: boolean; children: React.ReactNode }) {
-  return (
-    <h2
-      id={id}
-      style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 14px', paddingBottom: 8, borderBottom: `2px solid ${L_T.ink}`, font: 'inherit' }}
-    >
-      <span
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: '0.08em',
-          color: accent ? '#fff' : L_T.ink,
-          background: accent ? L_T.accent : 'transparent',
-          border: `1.5px solid ${accent ? L_T.accent : L_T.ink}`,
-          padding: '2px 7px',
-        }}
-      >
-        {no}
-      </span>
-      <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{children}</span>
-    </h2>
-  );
-}
-
-function Sub({ right, children }: { right?: string; children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'baseline',
-        gap: 8,
-        flexWrap: 'wrap',
-        paddingBottom: 5,
-        marginBottom: 4,
-        borderBottom: `1px solid ${L_T.faint}`,
-      }}
-    >
-      <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{children}</span>
-      {right && <span style={{ fontSize: 9, color: L_T.muted, letterSpacing: '0.12em' }}>{right}</span>}
     </div>
   );
 }

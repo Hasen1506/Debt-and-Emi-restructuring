@@ -35,3 +35,9 @@ export function loanLabel(l: { bank?: string | null; loan_type: LoanType }): str
   const bank = (l.bank ?? '').replace(/\s+bank$/i, '').trim();
   return bank ? `${bank} ${t}` : t.charAt(0).toUpperCase() + t.slice(1);
 }
+
+/** Mid-sentence: "home loan", or "HDFC credit card" with a lender. */
+export function loanName(l: { bank?: string | null; loan_type: LoanType }): string {
+  const bank = (l.bank ?? '').replace(/\s+bank$/i, '').trim();
+  return bank ? `${bank} ${LOAN_TYPE_NAME[l.loan_type]}` : LOAN_TYPE_NAME[l.loan_type];
+}
