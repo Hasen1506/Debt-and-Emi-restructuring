@@ -1433,10 +1433,15 @@ export const api = {
   }) => postWithFieldErrors<LiquidationRankingsResponse>('/api/portfolio/liquidation-rankings', req,
   ),
 
-  institutions: (country?: Country) =>
-    get<InstitutionPayload[]>(
-      `/api/institutions${country ? `?country=${country}` : ''}`,
-    ),
+  /** Bank rate cards. Tier A are the big banks whose advertised ranges
+   *  were checked; B and C were estimated from those peers. */
+  institutions: (country?: Country, tier?: 'A' | 'B' | 'C') => {
+    const q = new URLSearchParams();
+    if (country) q.set('country', country);
+    if (tier) q.set('tier', tier);
+    const qs = q.toString();
+    return get<InstitutionPayload[]>(`/api/institutions${qs ? `?${qs}` : ''}`);
+  },
   /** Middle of the big banks' published rates for one kind of loan. */
   marketMedian: (country: Country, loanType: 'home_loan' | 'auto_loan' | 'personal_loan') =>
     get<{ country: Country; loan_type: string; median: string | null }>(

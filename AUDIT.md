@@ -340,3 +340,22 @@ The owner asked for a pass as a user: does each section say what it is, and does
 
 Still to check: HDFC's "0% for 6 months + 1.5% fee" balance transfer and the other rate cards are as noted in May 2026; they need checking against the banks' current pages (part of the tool accuracy pass).
 
+### Tool results and their numbers (U1 tools, A1 part 1, 3 Oct 2026)
+
+Each tool run as the ₹1.5 lakh take-home user (₹2 lakh personal loan at 14%, ₹80,000 card at 42%).
+
+| # | What was wrong | Fix |
+|---|---|---|
+| A1a | Liquidate: picking the card left its monthly payment blank, so "keep it" assumed the card went unpaid for five years at 42%. Selling a ₹40 lakh flat to clear ₹80,000 came out "Sell it" | The EMI, or the card's minimum, fills the payment; the same case now reads "Keep it". When the loan is a small part of what a sale raises, the answer says the rest is the asset against spare cash |
+| A1b | Liquidate: shares, funds or gold opened from the ranker were taxed as property (24 months, indexation, stamp-duty costs). The hint said "a year is enough", which is wrong for Indian property | The API taxes each asset by its own rules (shares: 12.5% above ₹1.25 lakh after a year, plus cess); the page says it works out a property sale unless opened from your assets, and gives 2 years for Indian property. "Net gain" was the cash left after the loan and is named so |
+| A1c | CII for 2025-26 and 2026-27 were provisional guesses (380, 397). CBDT notified 376 (1 Jul 2025) and 384 (15 Jul 2026): the guesses overstated indexed cost and understated tax on pre-2024 property | Table updated; 2027-28 is the only provisional year |
+| A1d | Safe rates were May 2026 guesses from before RBI's cuts: FD 7.10%, T-bill 7.0%, liquid fund 6.8%, US savings 4.5% | Dated September quotes: 1-year FD 6.25% (SBI, HDFC Bank), 364-day T-bill 5.91% (RBI auction 9 Sep 2026), liquid fund about 6.5%, top US savings about 4.25%. Setup, Profile, Liquidate and the idle-cash check read the same numbers |
+| A1e | Quick setup's tax rate was the bare slab: 20% at ₹1.5 lakh take-home where Profile said 20.8% (with cess), and 10% inside the 87A rebate where Profile said 0 | One calculation for both |
+| A1f | Purchase started loans at hard-coded rates: a car at 10.5% (banks' middle about 9.0%), "something else" at 11% (personal loans about 15.5%), and Indian rates for US users | Starts at the middle of the big banks' advertised rates for that loan and country, and says so |
+| A1g | Prices rose at an old 4.6% in Liquidate (and the API default) | The central bank's forecast or the user's own rate |
+| A1h | Bank lists in New debt and Right time showed 28 Indian banks as "published rates"; 22 of them were estimated from their peers, not read off the bank | Only the 6 banks whose advertised ranges were noted are listed, with the date (14 May 2026) and "check before you apply". New debt takes a rate you were quoted, as Right time does |
+| U1a | New debt said "fees included" with no fee entered, and its bank list wasn't cheapest first before an amount was typed | "No fee entered" and how to add one; sorted by rate |
+| U1b | Purchase said "10.50% after tax" for a car loan with no tax break; future years listed 2036 first | "At 9.00%, no tax break"; this year first |
+
+**Rate cards: not yet re-verified.** Spot checks on 3 Oct 2026 (rate-comparison sites; the banks' own pages are blocked from this container) found the May figures out of date. SBI home loans now 7.25–8.55% (card: 7.50–8.70%); SBI Xpress Credit 11.15–14.30% (card: 10.30–14.85%); HDFC personal loans 9.99–24% with a ₹6,500 fee (card: 10.50–24%, 0.5%); SBI's home loan fee 0.35% capped at ₹10,000 (card: 0.5%). The comparison sites also disagree with each other (HDFC home loans 7.75–13.20% on one, 8.70–9.10% on another), so the cards were not rewritten from them. Needed: the banks' rate pages allowed in this environment's network settings, then one pass over all six Indian and six US cards (and US "personal loan" ranges for banks that don't offer them: Chase, Bank of America).
+
