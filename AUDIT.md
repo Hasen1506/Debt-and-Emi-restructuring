@@ -426,3 +426,29 @@ Setup (three steps, 390px) needed nothing: the tax bracket (16% on ₹1.2 lakh t
 | A1o | The US rate cards gave personal-loan rates for Chase and Bank of America (neither makes personal loans; Chase lends only against a card's limit), Goldman Sachs (stopped in 2023) and Ally (sold its lending arm in 2024), and a mortgage range for Ally (no applications since 31 Jan 2025). The cheapest US consolidation target, the one Plan's refinance suggestion names, was Chase at 6.99%: a loan the user can't get | Those ranges removed (a test keeps them out); Discover, which still lends under Capital One, starts at 6.99%. The cheapest target is now Wells Fargo at 7.49% |
 
 **Rate cards: not yet re-verified.** Spot checks on 3 Oct 2026 (rate-comparison sites; the banks' own pages are blocked from this container) found the May figures out of date. SBI home loans now 7.25–8.55% (card: 7.50–8.70%); SBI Xpress Credit 11.15–14.30% (card: 10.30–14.85%); HDFC personal loans 9.99–24% with a ₹6,500 fee (card: 10.50–24%, 0.5%); SBI's home loan fee 0.35% capped at ₹10,000 (card: 0.5%). The comparison sites also disagree with each other (HDFC home loans 7.75–13.20% on one, 8.70–9.10% on another), so the cards were not rewritten from them. Needed: the banks' rate pages allowed in this environment's network settings, then one pass over all six Indian and six US cards. (Products a lender no longer offers are already gone: A1o.)
+
+## 10 · What the app assumes, and the month after payday (3 Oct 2026)
+
+The owner's questions: spending isn't the same every month; someone opening the app after payday has paid some EMIs and not others, and doesn't know which month or balance the app means; most people can't say whether a loan is fixed or floating (let alone RLLR or MCLR), and then wonder whether to wait for a rate decision; where should modelling (pay rises, the debt-free date) sit; and what else is made up, and how is it corrected.
+
+### Where things go
+
+- **Home (first page) is this month:** what to pay, what's already paid, what's owed now, and the debt-free date with what it rests on ("at ₹70,000/mo to debts, rates as today").
+- **Plan (second page) is the modelling:** the choices (payoff order, total to debts, pay rises, rising costs), what the plan takes as given (below), life events, what if.
+
+### Fixed
+
+| # | What was wrong | Fix |
+|---|---|---|
+| M1 | A balance typed in an earlier month was taken as already having that month's EMI off; one typed this month as still owing it. At the turn of the month one of the two was wrong: an EMI paid before setup was asked for again on Home and the plan ran a month ahead, or an EMI still to come was never taken off (a ₹2,40,000 loan stayed at ₹2,40,000 in November) | Setup and Profile ask "Has October's EMI gone out?" (PAID ALREADY / NOT YET) for each EMI loan whose balance is new or changed, and save the answer with the balance. The roll-forward counts the EMI once either way; balances saved before keep the old reading. Paid already: recorded in Activity, so Home shows it paid |
+| M1b | Home's loan list showed the start-of-month balance whatever had been paid, and Pay this month said ALL DONE once the EMI was in though the plan's ₹60,000 extra wasn't | Each loan says whether this month's EMI is paid (AFTER OCT EMI / OCT EMI TO PAY / PART-PAID / NOT PAID) and shows what's owed now; the totals follow. EMI paid without the extra reads EMI PAID with MARK EXTRA PAID |
+| M1c | Setup's preview (₹8,940 interest) and Plan (₹9,310) disagreed | The preview uses Plan's balances |
+| M1d | Plan's Activity note: "The engine bumped your loan balances… from your /activity ledger", shown even when nothing changed a balance; "$ AFTER YOUR LAST PAYMENT" on a rupee plan | Plain words, only when the log changed a balance; the leftover "$" label prefix is gone |
+| M2 | Every new loan started as fixed, under setup's optional terms. Most Indian bank home loans are floating (repo-linked since Oct 2019), so What if's rate rise passed them by and Plan showed no reset dates | "Fixed or floating rate" with Not sure (taken as the usual: Indian bank home and education loans floating; personal, car, gold, pay-later and US mortgages fixed) and how to tell (the loan letter's "Type of interest", or an EMI or tenure that changed without asking). Loans saved before keep their type; Profile and Plan flag one that differs from the usual |
+| M3 | The plan's data and guesses weren't said anywhere: balance dates, rates held at today's, card new spending of ₹0, the card minimum rule, spending flat, no new loans | Plan: "What this plan takes as given", each row YOU SAID / ASSUMED / CHECK with where to change it; a stale balance (a card over 45 days, a loan over 120) or an old "fixed" home loan opens the list |
+
+### Next
+
+- **M4 Spending that varies.** What moves the date is what reaches the debts, not the spending figure. Activity and Plan compare what actually went to debts each month with the plan, offer the last months' average as the TO DEBTS total, and show the date at the pace actually kept.
+- **M5 Rate decisions.** For each floating loan: the next RBI / Fed decision, what a 0.25% move would do to its EMI or months and from when (a repo-linked loan resets at least every three months; MCLR loans lag), and that it needs no action. Fixed loans: the decision doesn't change them. Today the plan holds every rate where it is (said in M3).
+- Also seen: a loan added from New debt is dated today and pays an EMI in the plan's first month though its first EMI is usually next month; a floating loan's reset frequency defaults to "not tracking".
