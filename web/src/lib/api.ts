@@ -60,6 +60,11 @@ export interface LoanPayload {
    *  come. Unset on balances saved before setup asked (lib/roll-forward
    *  keeps the old reading for those). The API ignores it. */
   balance_after_emi?: boolean;
+  /** True when `rate_type` is the usual one for this kind of loan because
+   *  the borrower wasn't sure (lib/rate-type); false when they picked it.
+   *  Unset on loans saved before the choice had "Not sure". The API
+   *  ignores it. */
+  rate_type_assumed?: boolean;
   loan_type: LoanType;
   bank: string;
   outstanding: string;

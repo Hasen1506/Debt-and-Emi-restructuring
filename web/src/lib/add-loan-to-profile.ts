@@ -8,6 +8,7 @@
  * for projection deltas) — this only touches the profile.
  */
 import { deriveMetrics } from './derived';
+import { likelyRateType } from './rate-type';
 import { applyActivityDeltas, parseActivityDeltas } from './activity-cookie';
 import { loanToUser } from './currency';
 import { loadProfileClient, saveProfileClient } from './user-store';
@@ -67,7 +68,9 @@ export function addLoanToProfile(input: AddLoanInput): number | null {
     bank: input.bank,
     outstanding: input.outstanding,
     nominal_rate: input.nominal_rate,
-    rate_type: input.rate_type ?? 'fixed',
+    // Not given: the usual for the kind of loan, marked as assumed.
+    rate_type: input.rate_type ?? likelyRateType(input.loan_type, profile.user.country),
+    rate_type_assumed: !input.rate_type,
     tenure_months_remaining: input.tenure_months_remaining,
     scheduled_emi: input.scheduled_emi,
     ...(input.min_payment_override ? {min_payment_override:input.min_payment_override} : {}),

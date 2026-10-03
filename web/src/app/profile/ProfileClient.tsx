@@ -56,6 +56,28 @@ import { BALANCES_ENTERED_KEY } from '@/lib/activity';
 import { asksEmiPaid, stampBalanceDates } from '@/lib/roll-forward';
 import { recordEmisPaidAtEntry } from '@/lib/paid-at-entry';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
+import {
+  applyRateTypeChoice,
+  assumedRateTypeNote,
+  HOW_TO_TELL,
+  likelyRateType,
+  patchLoanKeepingRateType,
+  rateTypeChoice,
+  type RateType,
+} from '@/lib/rate-type';
+
+/** Under the fixed-or-floating choice: what "Not sure" took it as, or a
+ *  saved choice that differs from the usual for this kind of loan. */
+function rateTypeHint(l: LoanPayload, country: Country): string {
+  const usual = likelyRateType(l.loan_type, country);
+  if (l.rate_type_assumed === undefined) {
+    // Saved before "Not sure" existed: new loans started as fixed.
+    return l.rate_type !== usual
+      ? `Saved as ${l.rate_type}, the old starting choice. Loans like this are usually ${usual}. ${HOW_TO_TELL}`
+      : HOW_TO_TELL;
+  }
+  return l.rate_type_assumed ? `${assumedRateTypeNote(l.loan_type, country)} ${HOW_TO_TELL}` : HOW_TO_TELL;
+}
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { api, formatCurrency, type FxRateResponse } from '@/lib/api';
 import { deriveTenureMonths } from '@/lib/derived';
@@ -147,7 +169,9 @@ function blankLoan(): LoanPayload {
     bank: '',
     outstanding: '',
     nominal_rate: '',
+    // Not sure until picked: the usual type for the kind of loan (lib/rate-type).
     rate_type: 'fixed',
+    rate_type_assumed: true,
     tenure_months_remaining: 0,
     scheduled_emi: '',
     processing_fee_amortised: '',
@@ -447,7 +471,7 @@ function ProfileEditor({
   }, [triplets, country]);
 
   function updateLoan(idx: number, patch: Partial<LoanPayload>) {
-    setLoans((cur) => cur.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+    setLoans((cur) => cur.map((l, i) => (i === idx ? patchLoanKeepingRateType(l, patch, country) : l)));
   }
 
   function addLoan() {
@@ -1410,14 +1434,16 @@ function ProfileEditor({
                   />
                 </div>
                 {l.loan_type !== 'credit_card' && (
-                <Select
-                  label="Rate type"
-                  value={l.rate_type}
-                  onChange={(v) => updateLoan(i, { rate_type: v })}
+                <Select<RateType | 'unsure'>
+                  label="Fixed or floating rate"
+                  value={rateTypeChoice(l)}
+                  onChange={(v) => updateLoan(i, applyRateTypeChoice(v, l.loan_type, country))}
                   options={[
-                    { value: 'floating' as const, label: 'Floating' },
-                    { value: 'fixed' as const, label: 'Fixed' },
+                    { value: 'unsure', label: `Not sure (taken as ${l.rate_type_assumed === undefined ? l.rate_type : likelyRateType(l.loan_type, country)})` },
+                    { value: 'floating', label: 'Floating' },
+                    { value: 'fixed', label: 'Fixed' },
                   ]}
+                  hint={rateTypeHint(l, country)}
                   info={
                     <>
                       <strong>Fixed</strong> — your interest rate is{' '}

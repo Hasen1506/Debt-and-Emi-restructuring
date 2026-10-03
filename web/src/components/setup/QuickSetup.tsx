@@ -50,6 +50,15 @@ import { loadProfileClient, saveProfileClient, type StoredProfile } from '@/lib/
 import { asksEmiPaid, rollBalancesForward, stampBalanceDates } from '@/lib/roll-forward';
 import { recordEmisPaidAtEntry } from '@/lib/paid-at-entry';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
+import {
+  applyRateTypeChoice,
+  assumedRateTypeNote,
+  HOW_TO_TELL,
+  likelyRateType,
+  patchLoanKeepingRateType,
+  rateTypeChoice,
+  type RateType,
+} from '@/lib/rate-type';
 
 const STEPS = ['You and your money', 'What you owe', 'Your plan'] as const;
 
@@ -88,7 +97,9 @@ function blankLoan(): LoanPayload {
     bank: '',
     outstanding: '',
     nominal_rate: '',
+    // Not sure until picked: the usual type for the kind of loan (lib/rate-type).
     rate_type: 'fixed',
+    rate_type_assumed: true,
     tenure_months_remaining: 0,
     scheduled_emi: '',
   };
@@ -162,7 +173,7 @@ export function QuickSetup() {
   const setUiOf = (id: string | undefined, patch: Partial<LoanUi>) =>
     setUi((cur) => ({ ...cur, [id ?? '']: { ...uiOf(id), ...patch } }));
   const patchLoan = (i: number, patch: Partial<LoanPayload>) =>
-    setLoans((cur) => cur.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+    setLoans((cur) => cur.map((l, j) => (j === i ? patchLoanKeepingRateType(l, patch, country) : l)));
 
   // ── Step 1 checks ──
   const incomeOk = Number(income) > 0 && isAmount(income);
@@ -899,14 +910,20 @@ function LoanBlock({
             />
           )}
           {!card && (
-            <Select<'fixed' | 'floating'>
-              label="Rate type"
-              value={loan.rate_type}
-              onChange={(v) => onPatch({ rate_type: v })}
+            <Select<RateType | 'unsure'>
+              label="Fixed or floating rate"
+              value={rateTypeChoice(loan)}
+              onChange={(v) => onPatch(applyRateTypeChoice(v, loan.loan_type, country))}
               options={[
+                { value: 'unsure', label: `Not sure (taken as ${loan.rate_type_assumed === undefined ? loan.rate_type : likelyRateType(loan.loan_type, country)})` },
                 { value: 'fixed', label: 'Fixed' },
                 { value: 'floating', label: 'Floating' },
               ]}
+              hint={
+                rateTypeChoice(loan) === 'unsure'
+                  ? `${assumedRateTypeNote(loan.loan_type, country)} ${HOW_TO_TELL}`
+                  : HOW_TO_TELL
+              }
             />
           )}
           {!card && (
