@@ -1437,6 +1437,11 @@ export const api = {
     get<InstitutionPayload[]>(
       `/api/institutions${country ? `?country=${country}` : ''}`,
     ),
+  /** Middle of the big banks' published rates for one kind of loan. */
+  marketMedian: (country: Country, loanType: 'home_loan' | 'auto_loan' | 'personal_loan') =>
+    get<{ country: Country; loan_type: string; median: string | null }>(
+      `/api/market-median?country=${country}&loan_type=${loanType}`,
+    ),
 
   // ─── auth ─────────────────────────────────────────────────────────────────
   requestOtp: (email: string) =>

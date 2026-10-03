@@ -23,10 +23,13 @@ import { SAFE_RATES, formatAsOf } from '@/lib/invest-vs-prepay';
 import { loanLabel, loanName } from '@/lib/loan-types';
 import { DecisionLogControls } from '@/components/DecisionLogControls';
 import { PortfolioRanker } from './PortfolioRanker';
+import { assetTypeLabel } from '@/components/portfolio/portfolioSummary';
+import { requiredMonthly } from '@/lib/min-payment';
+import { INFLATION_FORECAST, inflationRateFor, readInflationRateClient } from '@/lib/inflation-modeling';
 
-// Per country: India's defaults describe Indian deposits and CPI; a US
-// seller's leftover cash sits in a savings account, at US inflation.
-const DEFAULT_INFLATION = { IN: '0.046', US: '0.025' } as const;
+// Per country: India's default describes Indian deposits; a US seller's
+// leftover cash sits in a savings account. Prices rise at the central
+// bank's forecast, or the user's own rate from Plan.
 const DEFAULT_LEFTOVER_YIELD = { IN: '0.068', US: SAFE_RATES.hysa_us.rate } as const;
 
 /** Convert any user-typed purchase date into a full ISO date.
@@ -79,6 +82,11 @@ export function LiquidateTool() {
   // $250,000 ($500,000 married filing jointly) of gain excluded (§121). The
   // tax can be zero or tens of thousands, so it's asked, not assumed.
   const [mainHome, setMainHome] = useState<'' | 'yes' | 'no'>('');
+  // What is being sold. A sale worked out here is a property unless it was
+  // opened from the ranker, where shares, funds or gold keep their own tax.
+  const [assetType, setAssetType] = useState('real_estate');
+  const [assetName, setAssetName] = useState('');
+  const isProperty = assetType === 'real_estate';
 
   // Sale mode: sell the whole thing, or only a piece (sq.ft, shares, etc.)
   const [saleMode, setSaleMode] = useState<SaleMode>('whole');
@@ -123,7 +131,16 @@ export function LiquidateTool() {
   const [assetReturn, setAssetReturn] = useState('0.06');
   const [holdYears, setHoldYears] = useState('5');
   const [leftoverYield, setLeftoverYield] = useState<string>(DEFAULT_LEFTOVER_YIELD[country]);
-  const [inflation, setInflation] = useState<string>(DEFAULT_INFLATION[country]);
+  const [inflation, setInflation] = useState<string>(INFLATION_FORECAST[country].rate);
+  const [ownInflation, setOwnInflation] = useState('');
+  // The user's own rate lives in a cookie: read after hydration.
+  useEffect(() => {
+    const own = readInflationRateClient();
+    if (own) {
+      setOwnInflation(own);
+      setInflation((cur) => (cur === INFLATION_FORECAST[country].rate ? inflationRateFor(country, own) : cur));
+    }
+  }, [country]);
   const [more, setMore] = useState(false);
 
   const [resultValue, setV] = useState<AssetLiquidationResponse | null>(null);
@@ -147,6 +164,13 @@ export function LiquidateTool() {
 
   // Mirror picked loan's balance, rate and payment into the form, in the
   // asset's currency: the sale proceeds and the debt must be one currency.
+  // The EMI, or a card's minimum: a card has no EMI, and a blank payment
+  // made "keep it" assume the card went unpaid for years.
+  const monthlyDue = (loan: (typeof profile.user.loans)[number]) => {
+    const due = requiredMonthly(loan, country);
+    return due.gt(0) ? due.toFixed(0) : '';
+  };
+
   function pickTargetLoan(idx: string) {
     setTargetIdx(idx);
     setConvertedFrom(null);
@@ -160,7 +184,7 @@ export function LiquidateTool() {
     if (!Number.isNaN(i) && profile.user.loans[i]) {
       const loan = profile.user.loans[i];
       const fx = loanFx(loan);
-      const emi = Number(loan.scheduled_emi) > 0 ? loan.scheduled_emi : '';
+      const emi = monthlyDue(loan);
       if (fx === 1) {
         setDebtBalance(loan.outstanding);
         setDebtPayment(emi);
@@ -208,7 +232,7 @@ export function LiquidateTool() {
     return purchasePrice;
   }, [saleMode, qty, totalQty, purchasePrice]);
 
-  const fingerprint = JSON.stringify([purchasePrice,purchaseDate,state,mainHome,saleMode,salePrice,qty,unitPrice,totalQty,targetIdx,debtBalance,debtRate,debtPayment,taxableIncome,assetReturn,holdYears,leftoverYield,inflation]);
+  const fingerprint = JSON.stringify([assetType,purchasePrice,purchaseDate,state,mainHome,saleMode,salePrice,qty,unitPrice,totalQty,targetIdx,debtBalance,debtRate,debtPayment,taxableIncome,assetReturn,holdYears,leftoverYield,inflation]);
   const [checked,setChecked] = useState('');
   const v = checked === fingerprint ? resultValue : null;
   async function check(e: React.FormEvent) {
@@ -226,7 +250,7 @@ export function LiquidateTool() {
       ['debtBalance', debtBalance, 'Enter the debt this would clear.'],
       ['debtRate', debtRate, 'Enter that loan’s interest rate.'],
       ['taxableIncome', taxableIncome, 'Enter your taxable income for the year: it sets the tax on the sale.'],
-      ...(isUS
+      ...(isUS && isProperty
         ? [['mainHome', mainHome, 'Say whether this is your main home: it sets the tax on the sale.'] as [string, string, string]]
         : []),
     ];
@@ -250,17 +274,20 @@ export function LiquidateTool() {
       }
       const payload = {
         asset: {
-          asset_type: 'real_estate',
+          asset_type: assetType,
+          ...(assetName ? { label: assetName } : {}),
           purchase_price: effectivePurchasePrice,
           purchase_date: isoDate,
           current_market_value: effectiveSalePrice,
           state,
-          ...(isUS ? { us_section_121_eligible: mainHome === 'yes' } : {}),
+          ...(isUS && isProperty ? { us_section_121_eligible: mainHome === 'yes' } : {}),
         },
         sale_price: effectiveSalePrice,
         debt_balance: debtBalance,
         ...(debtPayment.trim() ? { debt_monthly_payment: debtPayment } : {}),
         debt_effective_rate: debtRate,
+        // A property takes months to sell; shares, funds and gold sell in days.
+        ...(isProperty ? {} : { selling_period_months: 0 }),
         taxable_income: taxableIncome,
         asset_nominal_return: assetReturn,
         inflation,
@@ -310,6 +337,8 @@ export function LiquidateTool() {
     if (!profile.user.assets) return;
     const asset = profile.user.assets[rec.asset_index];
     if (!asset) return;
+    setAssetType(asset.asset_type);
+    setAssetName(asset.label ?? '');
     if (asset.purchase_price) setPurchasePrice(asset.purchase_price);
     if (asset.purchase_date) {
       // Normalise to YYYY-only acceptance the form already supports.
@@ -321,7 +350,7 @@ export function LiquidateTool() {
     setDebtBalance(rec.debt_balance);
     setDebtRate(rec.debt_effective_rate);
     const recLoan = profile.user.loans[rec.target_loan_index];
-    setDebtPayment(recLoan && Number(recLoan.scheduled_emi) > 0 ? recLoan.scheduled_emi : '');
+    setDebtPayment(recLoan ? monthlyDue(recLoan) : '');
     setConvertedFrom(null);
     // Scroll the sandbox section into view.
     if (typeof document !== 'undefined') {
@@ -336,6 +365,9 @@ export function LiquidateTool() {
     .filter(({ l }) => Number(l.outstanding) > 0)
     .sort((x, y) => Number(y.l.nominal_rate) - Number(x.l.nominal_rate));
   const target = targetIdx !== '' ? profile.user.loans[Number(targetIdx)] : undefined;
+  // How much of what the sale raises goes to the loan: a small share means
+  // the answer is about the asset, not the loan.
+  const loanShare = v && Number(v.net_proceeds) > 0 ? Number(debtBalance || 0) / Number(v.net_proceeds) : 1;
   const pctText = (f: string) => `${(Number(f) * 100).toFixed(2)}%`;
   const gate = (ok: boolean) => (
     <span aria-hidden style={{ color: ok ? L_T.positive : L_T.negative, fontWeight: 700, marginRight: 8 }}>
@@ -356,13 +388,29 @@ export function LiquidateTool() {
         />
       ) : (
         <LNote style={{ margin: 0 }}>
-          <a href="/profile/assets" style={{ color: L_T.accent }}>Add your assets</a> to rank each one against each loan, after
-          tax and costs. Or work out one sale below.
+          <a href="/profile/assets" style={{ color: L_T.accent }}>Add your assets</a> (shares, funds, gold, property) to rank
+          each one against each loan, after tax and costs. Or work out a property sale below.
         </LNote>
       )}
 
-      <LStep no="01" id="sandbox-section" title="What you'd sell">
+      <LStep no="01" id="sandbox-section" title={isProperty ? "The property you'd sell" : "What you'd sell"}>
         <form onSubmit={check} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {!isProperty && (
+            <LNote style={{ margin: 0 }}>
+              {assetName || assetTypeLabel(country, assetType)}, from your assets: taxed as{' '}
+              {assetTypeLabel(country, assetType).toLowerCase()}, not as property.{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setAssetType('real_estate');
+                  setAssetName('');
+                }}
+                style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: L_T.accent, textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                Work out a property instead
+              </button>
+            </LNote>
+          )}
           <LFieldGrid min={200}>
             <Field
               label="What you paid"
@@ -381,14 +429,16 @@ export function LiquidateTool() {
               error={at('purchaseDate')}
               placeholder="2018 or 2018-06"
               hint={
-                isUS
-                  ? 'A year is enough. Held over a year: a long-term gain'
-                  : 'A year is enough. Before 23 Jul 2024, indexed cost can apply'
+                !isProperty
+                  ? 'Just the year is fine'
+                  : isUS
+                    ? 'Just the year is fine. Held over a year: a long-term gain'
+                    : 'Just the year is fine. Held over 2 years: a long-term gain; bought before 23 Jul 2024, indexed cost can apply'
               }
             />
           </LFieldGrid>
 
-          {isUS && (
+          {isUS && isProperty && (
             <div>
               <LChipRow label="Is it your main home?">
                 <LChip on={mainHome === 'yes'} onClick={() => setMainHome('yes')}>
@@ -543,7 +593,13 @@ export function LiquidateTool() {
                     value={inflation}
                     onChange={setInflation}
                     error={at('inflation')}
-                    hint={isUS ? 'A little above the Fed’s 2% target' : 'Near the RBI’s 4% target'}
+                    hint={
+                      ownInflation && inflation === ownInflation
+                        ? 'Your own rate, set on Plan'
+                        : inflation === INFLATION_FORECAST[country].rate
+                          ? `${INFLATION_FORECAST[country].who}’s ${INFLATION_FORECAST[country].what}`
+                          : undefined
+                    }
                   />
                 </LFieldGrid>
               </div>
@@ -558,17 +614,29 @@ export function LiquidateTool() {
         <>
           <LStep no="02" id="liq-out" title="The answer" answer>
             <LVerdict tone={v.recommend_liquidation ? 'pos' : null}>
-              {v.recommend_liquidation ? 'Sell it and clear the loan.' : 'Keep it.'}
+              {v.recommend_liquidation
+                ? loanShare < 0.25
+                  ? 'Selling pays, but mostly not because of the loan.'
+                  : 'Sell it and clear the loan.'
+                : 'Keep it.'}
             </LVerdict>
-            <LNote>{v.rationale}</LNote>
+            <LNote>
+              {v.rationale}
+              {v.recommend_liquidation && loanShare < 0.25 && (
+                <>
+                  {' '}The loan is {Math.max(1, Math.round(loanShare * 100))}% of what the sale raises: the rest of the answer is
+                  this asset against spare cash at {formatPct(leftoverYield, 1)}.
+                </>
+              )}
+            </LNote>
             <LKpi
               items={[
                 { l: 'YOU GET', v: fmt(v.net_proceeds), s: 'after tax and selling costs' },
                 { l: 'TAX', v: fmt(v.ltcg_tax), s: isUS ? 'federal and state' : 'on the gain', tone: Number(v.ltcg_tax) > 0 ? L_T.negative : undefined },
                 {
-                  l: 'NET GAIN',
+                  l: 'LEFT AFTER THE LOAN',
                   v: fmt(v.net_benefit),
-                  s: 'after the loan and its interest while selling',
+                  s: 'and its interest while selling',
                   tone: Number(v.net_benefit) > 0 ? L_T.positive : L_T.negative,
                 },
                 { l: 'IT REALLY EARNS', v: formatPct(v.asset_real_return_net, 2), s: 'a year, after prices and costs' },
@@ -620,7 +688,7 @@ export function LiquidateTool() {
                   </li>
                 )}
                 <li>
-                  {gate(v.gate_1_net_benefit)}The gain is at least 10% of its value
+                  {gate(v.gate_1_net_benefit)}What&apos;s left after the loan is at least 10% of its value
                 </li>
                 <li>
                   {gate(v.gate_2_high_rate)}The loan costs over 20% a year
@@ -689,7 +757,12 @@ export function LiquidateTool() {
               { k: 'you get', v: fmt(v.net_proceeds), note: 'sale − tax − costs' },
               { k: 'the loan', v: fmt(debtBalance), note: `${formatPct(debtRate, 2)} a year` },
               ...(v.surplus != null ? [{ k: 'left over', v: fmt(v.surplus), note: 'after clearing the loan' }] : []),
-              { k: 'net gain', v: fmt(v.net_benefit), tone: Number(v.net_benefit) > 0 ? ('pos' as const) : ('neg' as const) },
+              {
+                k: 'left after the loan',
+                v: fmt(v.net_benefit),
+                note: 'less its interest while selling',
+                tone: Number(v.net_benefit) > 0 ? ('pos' as const) : ('neg' as const),
+              },
               { k: 'it really earns', v: formatPct(v.asset_real_return_net, 2), note: `${formatPct(assetReturn, 1)} less prices, upkeep and selling, a year` },
               ...(v.wealth_edge != null
                 ? [

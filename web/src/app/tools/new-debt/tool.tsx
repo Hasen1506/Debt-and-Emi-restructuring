@@ -363,15 +363,16 @@ export function NewDebtTool() {
                 : activeBank
                   ? `At ${activeBank.name}'s middle rate of ${formatPct(String(activeBank.median), 2)}.`
                   : 'No published rate for this loan, so a typical 14% is used.'}
+              {!isCard && !(Number(fee) > 0) && ' No fee is included; add the bank\'s processing fee under MORE to count it.'}
             </LNote>
             <LKpi
               items={[
-                { l: 'IT REALLY COSTS', v: formatPct(v.effective_apr, 1), s: 'a year, fees included' },
+                { l: 'IT REALLY COSTS', v: formatPct(v.effective_apr, 1), s: Number(fee) > 0 ? 'a year, fee included' : 'a year · no fee entered' },
                 { l: 'EMI', v: fmt(v.monthly_emi), s: `a month for ${tenure} months` },
                 {
                   l: 'MORE THAN CASH',
                   v: fmt(v.total_real_cost),
-                  s: Number(v.foregone_discount) > 0 ? `${fmt(v.foregone_discount)} of it a lost discount` : 'interest and fees',
+                  s: Number(v.foregone_discount) > 0 ? `${fmt(v.foregone_discount)} of it a lost discount` : Number(fee) > 0 ? 'interest and fee' : 'interest',
                   tone: Number(v.total_real_cost) > 0 ? L_T.negative : L_T.positive,
                 },
                 ...(!isCard && activeBank
@@ -515,10 +516,11 @@ function rankBanksForLoanType(
       totalInterest,
     });
   }
-  // Sort by total interest paid over the tenure — the one number the user
-  // actually compares between banks. Existing-relationship flag is shown
-  // separately so the user can weigh friction on their own.
-  rows.sort((a, b) => a.totalInterest - b.totalInterest);
+  // Cheapest first. At one amount and term the interest follows the middle
+  // rate, so sorting on the rate also holds before an amount is typed (when
+  // every interest is 0). Existing-relationship flag is shown separately so
+  // the user can weigh friction on their own.
+  rows.sort((a, b) => a.median - b.median || a.totalInterest - b.totalInterest);
   return {
     existing: rows.filter((r) => r.isExisting),
     others: rows.filter((r) => !r.isExisting),

@@ -115,10 +115,13 @@ CII_TABLE = {
     "2022-23": 331,
     "2023-24": 348,
     "2024-25": 363,    # CBDT notification Aug 2024
+    "2025-26": 376,    # CBDT Notification 70/2025, 1 Jul 2025
+    "2026-27": 384,    # CBDT notification, gazette 15 Jul 2026
 }
 
 # Provisional CII values for FYs whose CBDT notification hasn't landed yet.
-# Extrapolated using the most recent 5y CAGR (~4.3%); flagged via
+# Extrapolated at the last five years' average rise (317 → 384, ~3.9% a
+# year); flagged via
 # `cii_is_provisional()` so callers render an "estimate, awaiting CBDT
 # notification" caveat next to any tax math that relies on them. The
 # alternative — raising on missing FY — leaves the portfolio-liquidation
@@ -126,8 +129,7 @@ CII_TABLE = {
 # notification lags, which is exactly when users are most likely to be
 # planning a sale.
 PROVISIONAL_CII_TABLE = {
-    "2025-26": 380,    # 363 × 1.046 (FY26-27 CPI 4.6%). Pending CBDT.
-    "2026-27": 397,    # 380 × 1.046. Pending CBDT.
+    "2027-28": 399,    # 384 × 1.039. Pending CBDT (usually notified in July).
 }
 
 

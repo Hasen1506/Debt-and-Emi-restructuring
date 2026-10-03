@@ -61,8 +61,11 @@ export function MonthYearPicker({
     onChange(m && y ? `${y}-${m}` : '');
   }
 
+  // Past dates (a loan's start) list the latest year first; a picker that
+  // only looks ahead (a purchase) lists this year first.
   const years: number[] = [];
   for (let y = maxYear; y >= minYear; y--) years.push(y);
+  if (minYear >= new Date().getFullYear()) years.reverse();
   const half = (month && !year) || (!month && year);
 
   return (

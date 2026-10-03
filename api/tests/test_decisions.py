@@ -226,6 +226,36 @@ def test_asset_liquidation_post_2024_flat(client):
     assert body["recommend_liquidation"] is False
 
 
+def test_asset_liquidation_india_shares_taxed_as_shares(client):
+    """A share sale opened from the ranker used to be taxed as property
+    (24 months, stamp-duty selling costs). Listed shares held over a year
+    pay 12.5% on the gain above the ₹1.25 lakh exemption, plus 4% cess."""
+    body = {
+        "asset": {
+            "asset_type": "equity_stocks",
+            "purchase_price": "200000",
+            "purchase_date": "2023-01-15",
+            "current_market_value": "500000",
+        },
+        "sale_price": "500000",
+        "debt_balance": "80000",
+        "debt_effective_rate": "0.42",
+        "taxable_income": "1800000",
+        "selling_period_months": 0,
+    }
+    r = client.post("/api/asset-liquidation", json=body)
+    assert r.status_code == 200, r.text
+    out = r.json()
+    # Gain ₹2,99,000 after ₹1,000 costs; (2,99,000 − 1,25,000) × 12.5% × 1.04.
+    assert Decimal(out["ltcg_tax"]) == Decimal("22620")
+    assert any("equity" in n for n in out["tax_notes"])
+
+    as_property = client.post("/api/asset-liquidation", json={
+        **body, "asset": {**body["asset"], "asset_type": "real_estate"},
+    }).json()
+    assert Decimal(as_property["ltcg_tax"]) != Decimal(out["ltcg_tax"])
+
+
 # ─── Bad input comes back as a named 422; wording in the user's currency ────
 
 def test_new_debt_bad_input_is_a_named_422(client):
