@@ -276,7 +276,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
             gap: 6,
           }}
         >
-          {variant === 'ledger' ? 'HOLDINGS · STOCKS + MF' : 'Holdings tracker'}
+          {variant === 'ledger' ? 'SHARES AND FUNDS · BY TICKER' : 'Holdings tracker'}
           <InfoTip>{tip}</InfoTip>
         </div>
         {holdings.length > 0 && (
@@ -294,15 +294,15 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
               color: 'var(--accent)',
             }}
           >
-            ↻ Refresh all
+            ↻ REFRESH ALL
           </button>
         )}
       </div>
 
       {holdings.length === 0 ? (
         <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>
-          No holdings yet. Add a ticker below — we&apos;ll fetch the latest
-          price from Yahoo Finance and value the position as quantity × price.
+          No shares or funds tracked yet. Add a ticker below: its latest
+          price comes from Yahoo Finance, and the value is quantity × price.
         </div>
       ) : (
         <>

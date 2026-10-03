@@ -62,9 +62,10 @@ export function LedgerPortfolio({
               lineHeight: 1.6,
             }}
           >
-            Nothing on file yet. Add what you own (FDs, funds, gold, property)
-            and the sell-to-repay tool can rank which one to sell before
-            prepaying a loan.
+            Nothing on file yet. Add what you own at its value (FDs, funds,
+            gold, property, PF), or track shares and funds by ticker below,
+            priced for you. Then &ldquo;Should I sell something to clear a
+            loan?&rdquo; can weigh selling one against what the loan costs.
             <div style={{ marginTop: 12 }}>
               <a
                 href="/profile/assets"
@@ -79,7 +80,7 @@ export function LedgerPortfolio({
                   letterSpacing: '0.12em',
                 }}
               >
-                + ADD A HOLDING
+                + ADD WHAT YOU OWN
               </a>
             </div>
           </div>
@@ -100,7 +101,6 @@ export function LedgerPortfolio({
         lineHeight: 1.55,
       }}
     >
-      <CreditCardChips user={user} marginalRate={marginalRate} />
       <section>
         <SectionLabel>
           PORTFOLIO · {summary.count} HOLDINGS · {summary.byType.length} TYPES
@@ -224,10 +224,12 @@ export function LedgerPortfolio({
               letterSpacing: '0.12em',
             }}
           >
-            FIND WHAT TO LIQUIDATE &rsaquo;
+            SHOULD I SELL ONE TO CLEAR A LOAN? &rsaquo;
           </a>
         </div>
       </section>
+
+      <CreditCardChips user={user} marginalRate={marginalRate} />
     </div>
   );
 }

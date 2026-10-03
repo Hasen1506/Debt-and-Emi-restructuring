@@ -32,41 +32,41 @@ interface BankFormula {
 
 const INDIA: Record<string, BankFormula> = {
   'SBI Card': {
-    description: '5% of outstanding or ₹200, whichever is higher, plus interest + fees',
+    description: '5% of the balance or ₹200, whichever is higher, plus interest + fees',
     compute: (o, i) => Decimal.max(o.mul('0.05'), new Decimal('200')).add(i),
   },
   'Axis Bank': {
-    description: '5% of outstanding or ₹200, whichever is higher',
+    description: '5% of the balance or ₹200, whichever is higher',
     compute: (o) => Decimal.max(o.mul('0.05'), new Decimal('200')),
   },
   'Yes Bank': {
-    description: '5% of outstanding or ₹200, whichever is higher',
+    description: '5% of the balance or ₹200, whichever is higher',
     compute: (o) => Decimal.max(o.mul('0.05'), new Decimal('200')),
   },
   'IndusInd Bank': {
-    description: '5% of outstanding or ₹200, whichever is higher',
+    description: '5% of the balance or ₹200, whichever is higher',
     compute: (o) => Decimal.max(o.mul('0.05'), new Decimal('200')),
   },
   'RBL Bank': {
-    description: '5% of outstanding or ₹100, whichever is higher',
+    description: '5% of the balance or ₹100, whichever is higher',
     compute: (o) => Decimal.max(o.mul('0.05'), new Decimal('100')),
   },
   'AmEx India': {
-    description: '2% of outstanding or ₹100, whichever is higher',
+    description: '2% of the balance or ₹100, whichever is higher',
     compute: (o) => Decimal.max(o.mul('0.02'), new Decimal('100')),
   },
   'HDFC Bank': {
     description:
-      "5% of outstanding (or ₹200) plus the month's EMIs, over-limit and past-due amounts",
+      "5% of the balance (or ₹200) plus the month's EMIs, over-limit and past-due amounts",
     compute: (o) => Decimal.max(o.mul('0.05'), new Decimal('200')),
   },
   'Kotak Mahindra': {
-    description: '5% of outstanding (or ₹200) plus interest and fees',
+    description: '5% of the balance (or ₹200) plus interest and fees',
     compute: (o, i) => Decimal.max(o.mul('0.05'), new Decimal('200')).add(i),
   },
   'ICICI Bank': {
     description:
-      'Higher of (interest + fees + 1% principal) or 5% of outstanding, floored at ₹100',
+      'interest and fees plus 1% of the balance, or 5% of the balance, whichever is higher, and at least ₹100',
     compute: (o, i) => Decimal.max(i.add(o.mul('0.01')), o.mul('0.05'), new Decimal('100')),
   },
 };
@@ -74,7 +74,7 @@ const INDIA: Record<string, BankFormula> = {
 /** 1% of the balance plus the month's interest, or `floor` if that's more:
  *  how most large US issuers set the minimum. */
 const onePctPlusInterest = (floor: number): BankFormula => ({
-  description: `1% of outstanding plus interest and fees, or $${floor}, whichever is higher`,
+  description: `1% of the balance plus interest and fees, or $${floor}, whichever is higher`,
   compute: (o, i) => Decimal.max(i.add(o.mul('0.01')), new Decimal(floor)),
 });
 
@@ -84,24 +84,24 @@ const USA: Record<string, BankFormula> = {
   Citibank: onePctPlusInterest(41),
   'Capital One': onePctPlusInterest(25),
   Discover: {
-    description: '2% of outstanding, $20 plus interest and fees, or $35, whichever is highest',
+    description: '2% of the balance, $20 plus interest and fees, or $35, whichever is highest',
     compute: (o, i) => Decimal.max(o.mul('0.02'), i.add(20), new Decimal('35')),
   },
   'American Express': onePctPlusInterest(40),
   'Goldman Sachs': onePctPlusInterest(25),
   Synchrony: {
-    description: '3.5% of outstanding, 1% plus interest and fees, or $25, whichever is highest',
+    description: '3.5% of the balance, 1% plus interest and fees, or $25, whichever is highest',
     compute: (o, i) => Decimal.max(o.mul('0.035'), i.add(o.mul('0.01')), new Decimal('25')),
   },
 };
 
 const DEFAULTS: Record<Country, BankFormula> = {
   IN: {
-    description: '5% of outstanding or ₹200, whichever is higher (country default)',
+    description: '5% of the balance or ₹200, whichever is higher',
     compute: (o) => Decimal.max(o.mul('0.05'), new Decimal('200')),
   },
   US: {
-    description: '1% of outstanding plus interest and fees, or $35, whichever is higher (country default)',
+    description: '1% of the balance plus interest and fees, or $35, whichever is higher',
     compute: (o, i) => Decimal.max(i.add(o.mul('0.01')), new Decimal('35')),
   },
 };
@@ -163,7 +163,7 @@ export function explainMinPayment(
     formula: formula.description,
     estimated: minimum.toFixed(0),
     source: hit ? 'bank' : 'default',
-    bank: loan.bank || '(unspecified bank)',
+    bank: loan.bank || '',
   };
 }
 

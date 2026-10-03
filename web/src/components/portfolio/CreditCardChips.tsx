@@ -40,7 +40,7 @@ export function CreditCardChips({
   const marg = new Decimal(marginalRate || '0');
 
   return (
-    <section style={{ marginBottom: 24 }}>
+    <section>
       <h3
         style={{
           fontSize: 13,
@@ -51,7 +51,7 @@ export function CreditCardChips({
           marginBottom: 10,
         }}
       >
-        Credit cards on file
+        Your cards · what you owe on them
       </h3>
       <div
         style={{

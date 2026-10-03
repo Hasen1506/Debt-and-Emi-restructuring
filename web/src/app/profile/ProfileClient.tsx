@@ -880,7 +880,7 @@ function ProfileEditor({
 
         {step === 1 && (
           <div style={{ display: 'grid', gap: 12 }}>
-            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
               <Select
                 label="Country"
                 value={country}
@@ -930,7 +930,7 @@ function ProfileEditor({
         )}
 
         {step === 2 && (
-          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
             <Select
               label="Income type"
               value={incomeType}
@@ -1291,7 +1291,7 @@ function ProfileEditor({
                 style={{
                   display: 'grid',
                   gap: 12,
-                  gridTemplateColumns: '1fr 1fr',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))',
                   padding: 12,
                   border: '1px solid var(--border)',
                   borderRadius: 6,
@@ -1386,6 +1386,7 @@ function ProfileEditor({
                     }
                   />
                 </div>
+                {l.loan_type !== 'credit_card' && (
                 <Select
                   label="Rate type"
                   value={l.rate_type}
@@ -1422,6 +1423,7 @@ function ProfileEditor({
                     </>
                   }
                 />
+                )}
                 {(l.loan_type === 'personal_loan' ||
                   l.loan_type === 'auto_loan' ||
                   l.loan_type === 'gold_loan' ||
@@ -1547,6 +1549,8 @@ function ProfileEditor({
                     />
                   </>
                 )}
+                {l.loan_type !== 'credit_card' && (
+                  <>
                 <Field
                   label="Prepayment penalty (%)"
                   kind="percent"
@@ -1641,6 +1645,8 @@ function ProfileEditor({
                     </>
                   }
                 />
+                  </>
+                )}
                 {l.loan_type === 'home_loan' && (
                   <Field
                     label="Pre-EMI months remaining"
@@ -1732,7 +1738,7 @@ function ProfileEditor({
                 )}
                 {l.loan_type === 'credit_card' && (
                   <Field
-                    label="Spend you'll carry (not what you'll repay in full)"
+                    label="New spending you won't clear each month"
                     kind="money"
                     currency={loanCurrency(l, country)}
                     value={l.expected_monthly_spend ?? ''}
@@ -1740,7 +1746,7 @@ function ProfileEditor({
                       updateLoan(i, { expected_monthly_spend: v })
                     }
                     placeholder="0"
-                    hint="Set 0 if you pay the statement in full each month — most users with surplus do."
+                    hint="0 if you pay each statement in full"
                     info={
                       <>
                         <strong>What this is.</strong> Only the slice of new
@@ -1798,7 +1804,7 @@ function ProfileEditor({
                       });
                     }}
                     placeholder="e.g. 5"
-                    hint="Day-of-month your statement is generated"
+                    hint="The day of the month it's made"
                     info={
                       <>
                         The day each month your bank generates the bill for
@@ -1816,14 +1822,14 @@ function ProfileEditor({
                 )}
                 {l.loan_type === 'credit_card' && (
                   <Field
-                    label="Last 6 digits (optional)"
+                    label="Last digits of the card (optional)"
                     value={l.card_last_6 ?? ''}
                     onChange={(v) => {
                       const digits = v.replace(/\D/g, '').slice(0, 6);
                       updateLoan(i, { card_last_6: digits || undefined });
                     }}
-                    placeholder="e.g. 654657"
-                    hint="Helps you tell two cards apart on /portfolio"
+                    placeholder="e.g. 4657"
+                    hint="Tells two cards apart in your lists"
                     info={
                       <>
                         Optional — purely a UI label. We mask the rest of the
@@ -1842,7 +1848,7 @@ function ProfileEditor({
                       updateLoan(i, { cardholder_name: v || undefined })
                     }
                     placeholder="As printed on card"
-                    hint="Disambiguates personal vs joint cards"
+                    hint="Tells a joint card from your own"
                   />
                 )}
                 {l.loan_type === 'credit_card' && l.statement_day != null && (
@@ -1888,12 +1894,14 @@ function ProfileEditor({
                     }
                   />
                 )}
+                {l.loan_type !== 'credit_card' && (
+                  <>
                 <Field
                   label="Processing fee a year (%, optional)"
                   kind="percent"
                   value={l.processing_fee_amortised ?? ''}
                   onChange={(v) => updateLoan(i, { processing_fee_amortised: v })}
-                  hint="Spread over the loan's life, e.g. 0.5. Leave blank for cards."
+                  hint="Spread over the loan's life, e.g. 0.5"
                   info={
                     <>
                       One-time processing fee, amortised across the loan's
@@ -1925,6 +1933,8 @@ function ProfileEditor({
                     </>
                   }
                 />
+                  </>
+                )}
                 <div style={{ gridColumn: '1 / -1' }}>
                   <EffectiveAprBreakdown
                     loan={l}
@@ -2039,7 +2049,7 @@ function ProfileEditor({
                 </div>
             </div>
             {cashAccounts.length === 0 && (
-              <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+              <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
                 <Field
                   label="Total savings balance"
                   kind="money"
@@ -2227,7 +2237,7 @@ function ProfileEditor({
               </div>
             )}
 
-            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
               <Field
                 label="Emergency fund — current"
                 kind="money"
@@ -2299,7 +2309,7 @@ function ProfileEditor({
               country={country}
               fxRates={fxRates}
             />
-            <div id="pf-credit" style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+            <div id="pf-credit" style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
               <Field
                 label="Current credit score (optional)"
                 value={creditScore}
@@ -2929,7 +2939,7 @@ function AdvancedTaxDetails({
         style={{
           display: 'grid',
           gap: 12,
-          gridTemplateColumns: '1fr 1fr',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))',
           marginTop: 10,
           padding: '10px 12px',
           border: '1px dashed var(--border)',
@@ -3238,9 +3248,8 @@ function TenureField({
             background: 'var(--soft-bg)',
           }}
         >
-          Credit cards don&apos;t have a fixed tenure — they revolve until
-          cleared. The bank&apos;s min-payment formula drives the trajectory;
-          /plan will show how many months you&apos;d need to clear.
+          A card has no end date: it runs until it&apos;s cleared. Plan
+          shows how many months that takes at what you pay.
         </div>
       </div>
     );
@@ -3327,15 +3336,13 @@ function TenureField({
           <>
             ≈ <strong>{derived}</strong> months at this EMI
             <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-              Computed from outstanding + rate + EMI. Most people don&apos;t
-              know their tenure off the top of their head — only banks do —
-              so we work it out from the three numbers above.
+              Worked out from the balance, rate and EMI above.
             </div>
           </>
         ) : (
           <>
-            <em>Fill outstanding, rate, and EMI above</em> — we&apos;ll
-            compute remaining months for you. No need to know it.
+            <em>Fill in the balance, rate and EMI above</em> and the months
+            left are worked out for you.
           </>
         )}
       </div>
@@ -3530,32 +3537,40 @@ function MinPaymentExplainer({
         <div>
           {explanation.source === 'bank' ? (
             <>
-              <strong>{explanation.bank}</strong> uses{' '}
-              <em>{explanation.formula}</em>. At your current outstanding that
-              works out to roughly <strong>{estimatedLabel}</strong>/month — and
-              that&apos;s what we treat as the floor when projecting your plan.
+              <strong>{explanation.bank}</strong> asks for{' '}
+              <em>{explanation.formula}</em>: about{' '}
+              <strong>{estimatedLabel}</strong> a month at today&apos;s
+              balance. The plan always pays at least this.
             </>
           ) : (
             <>
-              We don&apos;t have a formula specific to{' '}
-              <strong>{explanation.bank}</strong>, so we fall back to the
-              country default: <em>{explanation.formula}</em>. That&apos;s about{' '}
-              <strong>{estimatedLabel}</strong>/month at your current
-              outstanding — used as the floor unless you override it below.
+              {explanation.bank ? (
+                <>
+                  No rule on file for <strong>{explanation.bank}</strong>, so
+                  the usual one:{' '}
+                </>
+              ) : (
+                <>With no bank picked, the usual rule: </>
+              )}
+              <em>{explanation.formula}</em>. That&apos;s about{' '}
+              <strong>{estimatedLabel}</strong> a month at today&apos;s
+              balance; the plan pays at least this unless you enter your
+              statement&apos;s figure below.
             </>
           )}
         </div>
       </div>
       <Field
-        label="Override minimum payment (optional)"
+        label="Minimum on your statement (optional)"
         kind="money"
         currency={loanCurrency(loan, country)}
+        placeholder={estimatedLabel}
         value={loan.min_payment_override ?? ''}
         onChange={onOverrideChange}
         hint={
           loan.min_payment_override
             ? `Replaces the ${estimatedLabel} estimate above.`
-            : 'Leave blank to use the formula above. Fill in only if your statement shows a different number.'
+            : 'Blank: the rule above'
         }
       />
     </div>

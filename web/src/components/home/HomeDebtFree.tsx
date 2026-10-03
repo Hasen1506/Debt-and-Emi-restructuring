@@ -146,7 +146,7 @@ export async function HomePayThisMonth() {
     top && target
       ? {
           key: top.key,
-          text: `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(rateWords(target, country))}. It saves about ${formatCurrencyWhole(
+          text: `${m.loans.filter((l) => l.outstanding.gt(0)).length > 1 ? `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(rateWords(target, country))}` : `The extra goes on your only loan, at ${rateWords(target, country)}`}. It saves about ${formatCurrencyWhole(
             Math.round(new Decimal(top.extra).times(target.effective).toNumber()),
             top.currency,
           )} of interest a year.`,

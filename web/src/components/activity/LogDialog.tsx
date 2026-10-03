@@ -511,7 +511,7 @@ export function LogDialog({
             kinds={[lifeKind]}
             initialKind={lifeKind}
             initialLoanIndex={type === 'rate' ? initial.loanIndex : undefined}
-            dateLabel={type === 'loan' ? 'Taken on' : 'From'}
+            dateLabel={type === 'loan' ? 'Taken on' : 'Starting from'}
             saveLabel="SAVE · RE-RUN THE PLAN"
             onSave={saveLife}
             onCancel={onClose}
