@@ -20,6 +20,7 @@ const TONE: Record<GivenSource, string> = {
 export function PlanGivens({ plan }: { plan: PlanData }) {
   const u = plan.configuredUser;
   const givens = planGivens(u, {
+    runArgs: plan.runArgs,
     today: localIsoDate(getCountryToday(u.country)),
     inflation: { on: plan.inflationModeling === 'on', rate: Number(plan.user.inflation_rate ?? 0) },
     hike: {

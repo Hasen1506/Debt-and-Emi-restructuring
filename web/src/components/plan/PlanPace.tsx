@@ -56,6 +56,20 @@ export function PlanPace({ plan }: { plan: PlanData }) {
       </>
     );
     actions = <LBracket href="/activity">LOG A PAYMENT IN ACTIVITY →</LBracket>;
+  } else if (pace.projectionUnavailable) {
+    says = (
+      <>
+        You&apos;ve averaged {fc(avg)} a month over {pace.counted} months.
+        {pace.projectionUnavailable === 'below_minimums'
+          ? ` That is below this month's EMIs and minimums (${fc(required)}). The simulator pays those minimums, so it cannot give a payoff date at your lower payments.`
+          : pace.projectionUnavailable === 'future_minimums'
+            ? ' Future EMIs and minimums exceed that monthly total. The simulator pays them, so it cannot give a payoff date at your lower payments.'
+          : pace.projectionUnavailable === 'unaffordable'
+            ? ' The saved income, spending and other allocations do not support that monthly total. Update them before projecting or adopting this pace.'
+            : ' The pace projection could not be calculated. Try refreshing the plan.'}
+      </>
+    );
+    actions = <LBracket href="/profile?step=income">UPDATE SPENDING AND TAKE-HOME →</LBracket>;
   } else if (!pace.differs) {
     says = (
       <>

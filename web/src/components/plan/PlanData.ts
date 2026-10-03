@@ -226,6 +226,7 @@ export interface PlanData {
 }
 
 export interface PlanPace extends PaceSummary {
+  projectionUnavailable?: 'below_minimums' | 'future_minimums' | 'unaffordable' | 'failed';
   /** What the plan puts on debts in its first month, user's currency. */
   planTotal: number;
   /** The average is more than 5% away from `planTotal`. */

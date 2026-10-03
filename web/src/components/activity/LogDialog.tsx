@@ -133,6 +133,7 @@ export function LogDialog({
   const lccy = loan ? loanCurrency(loan, country) : ccy;
   const [date, setDate] = useState(edit?.date ?? today);
   const planned = useMemo(() => {
+    if (loan?.first_emi_month && date.slice(0, 7) < loan.first_emi_month) return new Decimal(0);
     if (edit && Number(edit.scheduledEmi) > 0) return new Decimal(edit.scheduledEmi);
     const minimum = planPay?.[loanIndex]?.minimum;
     if (date.slice(0, 7) === today.slice(0, 7) && minimum != null && Number.isFinite(minimum) && minimum >= 0) {
@@ -162,6 +163,7 @@ export function LogDialog({
   const usual = card ? `Minimum ${fmt(planned)}` : `EMI ${fmt(planned)}`;
 
   const payProblems: Record<string, string | null> = {
+    timing: loan?.first_emi_month && date.slice(0, 7) < loan.first_emi_month && ['full', 'part', 'missed'].includes(status) ? 'The first EMI is not due yet. Choose “Paid extra” for an early prepayment.' : null,
     loan: isOpenCurrentLoan(loan) ? null : 'Pick an open loan.',
     amount:
       status === 'missed' ? null
@@ -415,6 +417,7 @@ export function LogDialog({
                 </LChip>
               ))}
             </LChipRow>
+            {tried && payProblems.timing && <p role="alert" style={{ color: L_T.negative }}>{payProblems.timing}</p>}
             <Row>
               {status !== 'missed' && (
                 <div style={{ flex: '1 1 200px' }}>

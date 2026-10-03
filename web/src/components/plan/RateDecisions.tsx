@@ -9,9 +9,9 @@
  */
 import { useEffect, useState } from 'react';
 import type { PlanData } from './PlanData';
-import { api, formatCurrencyWhole, type CentralRatesResponse, type LoanPayload } from '@/lib/api';
+import { api, formatCurrencyWhole, type CentralRatesResponse, type LoanPayload, type Country } from '@/lib/api';
 import { formatAsOf } from '@/lib/as-of';
-import { loanCurrency } from '@/lib/currency';
+import { loanCurrency, loanMarket } from '@/lib/currency';
 import { loanLabel, loanName } from '@/lib/loan-types';
 import { isOpenCurrentLoan } from '@/lib/plan-controls';
 import { RATE_STEP, dayLabel, followsCentralBank, rateMove, whenItApplies, type RateMove } from '@/lib/rate-decision';
@@ -38,6 +38,14 @@ export function RateDecisions({ plan }: { plan: PlanData }) {
   }, []);
   if (loans.length === 0) return null;
 
+  const markets = [...new Set(loans.map(l => loanMarket(l, country)))];
+  return <div id="rate-decisions">{markets.map(market => (
+    <RateDecisionMarket key={market} country={market} loans={loans.filter(l => loanMarket(l, country) === market)} data={data} />
+  ))}</div>;
+}
+
+function RateDecisionMarket({ country, loans, data }: { country: Country; loans: LoanPayload[]; data: CentralRatesResponse | null }) {
+
   const slice = data?.[country];
   const bank = country === 'IN' ? 'RBI' : 'THE FED';
   const rateName = country === 'IN' ? 'REPO' : 'FED FUNDS';
@@ -48,8 +56,8 @@ export function RateDecisions({ plan }: { plan: PlanData }) {
   const fc = (v: number, l: LoanPayload) => formatCurrencyWhole(String(Math.round(v)), loanCurrency(l, country));
 
   return (
-    <section id="rate-decisions" aria-labelledby="rate-decisions-h" style={{ fontSize: 12, lineHeight: 1.6, scrollMarginTop: 16 }}>
-      <div id="rate-decisions-h" style={{ fontWeight: 700, letterSpacing: '0.1em', fontSize: 11 }}>
+    <section aria-labelledby={`rate-decisions-${country}-h`} style={{ fontSize: 12, lineHeight: 1.6, scrollMarginTop: 16 }}>
+      <div id={`rate-decisions-${country}-h`} style={{ fontWeight: 700, letterSpacing: '0.1em', fontSize: 11 }}>
         IF {bank} MOVES RATES
         <span style={{ fontWeight: 400, color: L_T.muted }}>
           {slice && ` · ${rateName} ${(Number(slice.current_rate) * 100).toFixed(2)}% (AS OF ${formatAsOf(slice.as_of).toUpperCase()})`}
@@ -87,8 +95,8 @@ export function RateDecisions({ plan }: { plan: PlanData }) {
       <p style={{ margin: '8px 0 0', color: L_T.inkSoft }}>
         <b>Do you need to wait?</b>{' '}
         {country === 'IN'
-          ? "Not for the loans you have: the bank passes a change on at the reset by itself. Not for a prepayment either: it saves interest from the day it's paid, and banks can't charge you for prepaying a floating-rate loan. A decision matters when you take a new loan or switch one: a fixed rate is set on the day you sign, a floating one follows later decisions anyway."
-          : "Not for the loans you have: fixed ones don't move, and a variable one follows on its own. Paying a card down is the right move either way. A decision matters for a new loan or a refinance, and mortgage rates follow 10-year Treasury yields more than the Fed: an expected cut is usually priced in, so refinance when the numbers work today."}
+          ? "Not for the loans you have: the bank passes a benchmark change on at the reset. A prepayment reduces the balance charged interest; check its fees in your loan terms. A decision matters when you take a new loan or switch one: a fixed rate is set on the day you sign, a floating one follows later decisions."
+          : "Not for the loans you have: fixed ones don't move, and a variable one follows its benchmark. Paying a card down reduces the balance charged interest. A decision matters for a new loan or a refinance; mortgage rates also follow Treasury yields and expected decisions may already be priced in."}
       </p>
     </section>
   );

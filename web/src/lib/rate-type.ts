@@ -13,10 +13,12 @@
  *     student loans are fixed.
  */
 import type { Country, LoanPayload, LoanType } from './api';
+import { loanMarket } from './currency';
 
 export type RateType = 'fixed' | 'floating';
 
-export function likelyRateType(loanType: LoanType, country: Country): RateType {
+export function likelyRateType(loanType: LoanType, country: Country, currency?: LoanPayload['currency']): RateType {
+  country = loanMarket({ currency }, country);
   if (country === 'IN' && (loanType === 'home_loan' || loanType === 'education_loan')) return 'floating';
   return 'fixed';
 }
@@ -26,7 +28,8 @@ export const HOW_TO_TELL =
   "Your loan letter's \"Type of interest\" line says. Or: if your EMI or months left have changed without you asking, it's floating.";
 
 /** Why "Not sure" landed where it did, said under the choice. */
-export function assumedRateTypeNote(loanType: LoanType, country: Country): string {
+export function assumedRateTypeNote(loanType: LoanType, country: Country, currency?: LoanPayload['currency']): string {
+  country = loanMarket({ currency }, country);
   const t = likelyRateType(loanType, country);
   if (country === 'IN' && t === 'floating') {
     return 'Taken as floating: most bank home and education loans are, linked to the repo rate.';
@@ -39,21 +42,22 @@ export function assumedRateTypeNote(loanType: LoanType, country: Country): strin
  *  type with it, unless the borrower picked one themselves. */
 export function patchLoanKeepingRateType(loan: LoanPayload, patch: Partial<LoanPayload>, country: Country): LoanPayload {
   const next = { ...loan, ...patch };
-  if (patch.loan_type && patch.loan_type !== loan.loan_type && loan.rate_type_assumed !== false && !('rate_type' in patch)) {
-    next.rate_type = likelyRateType(patch.loan_type, country);
+  if (((patch.loan_type && patch.loan_type !== loan.loan_type) || ('currency' in patch && patch.currency !== loan.currency)) &&
+      loan.rate_type_assumed === true && !('rate_type' in patch)) {
+    next.rate_type = likelyRateType(next.loan_type, country, next.currency);
     next.rate_type_assumed = true;
   }
   return next;
 }
 
-/** The choice as the form shows it: "unsure" unless the borrower picked. */
+/** Keep legacy saved values; show "unsure" only for a marked assumption. */
 export function rateTypeChoice(loan: Pick<LoanPayload, 'rate_type' | 'rate_type_assumed'>): RateType | 'unsure' {
-  return loan.rate_type_assumed === false ? loan.rate_type : 'unsure';
+  return loan.rate_type_assumed === true ? 'unsure' : loan.rate_type;
 }
 
 /** What a choice sets on the loan. */
-export function applyRateTypeChoice(choice: RateType | 'unsure', loanType: LoanType, country: Country): Pick<LoanPayload, 'rate_type' | 'rate_type_assumed'> {
+export function applyRateTypeChoice(choice: RateType | 'unsure', loanType: LoanType, country: Country, currency?: LoanPayload['currency']): Pick<LoanPayload, 'rate_type' | 'rate_type_assumed'> {
   return choice === 'unsure'
-    ? { rate_type: likelyRateType(loanType, country), rate_type_assumed: true }
+    ? { rate_type: likelyRateType(loanType, country, currency), rate_type_assumed: true }
     : { rate_type: choice, rate_type_assumed: false };
 }

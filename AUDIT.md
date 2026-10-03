@@ -456,3 +456,29 @@ The owner's questions: spending isn't the same every month; someone opening the 
 - "What you've paid" knows a loan from when its balance was entered or first logged. A loan whose balance was re-entered later isn't expected in earlier months, so a month with it unlogged can still count. One-offs are told apart by their source tag (Windfall, Liquidate) or a loan closed.
 - The pace needs two fully logged months, so a new user sees "Once two months have every loan's payment logged…" for the first two months.
 - Rate cards still need the banks' sites allowed in the environment's network settings (§9).
+
+
+## 11 · PR #23 follow-up audit (3 Oct 2026)
+
+PR #22 was merged before PR #23 and all its fixes are in this base. The earlier 40 browser scenarios and 9 dedicated PR #21 regressions pass. This pass reviewed PR #23's 40 changed files, tracing setup/profile persistence, payment status, Activity, Plan, engine inputs and rate advice.
+
+| # | Defect | Fix |
+|---|---|---|
+| P1 | A November first EMI was requested in October by Activity; Home treated an empty payment month as offline; setup preview ignored the deferral and confirmed new-loan events lost it | Share calendar payment timing, retain empty months, defer automatic dues, prevent premature regular/missed logs while allowing early prepayments, and preserve timing on confirmation |
+| P2 | Principal-only bonuses counted as paid EMIs; partial/missed payments could say ALL DONE; current balances could subtract an EMI or old extra incorrectly | Separate regular-payment coverage from principal extras, retain unpaid status, respect statement anchors, and avoid reducing-balance arithmetic for flat/pre-EMI loans |
+| P3 | Paid-at-entry profile saves were non-atomic; an existing bonus or partial entry suppressed the paid EMI | Verify and stage the profile and missing regular payment together, roll back failed writes, and publish the account slices together; repeated saves remain idempotent |
+| P4 | Bonus-only or closure-only months manufactured a repayment average; recurring surplus extras were excluded | Require regular-payment evidence for completeness, stop expecting closed loans, and distinguish recurring surplus from windfalls |
+| P5 | A ₹4,000 pace could display a payoff based on ₹9,000 minimums; a pace above saved capacity was silently capped, including after later cost increases | Check actual payments throughout the simulated run, except the final payoff; explain unsupported minimums/capacity and withhold misleading dates/adoption |
+| P6 | INR/USD rate defaults, resets and benchmark advice followed residence rather than the loan market | Resolve market by currency, preserve legacy saved rate choices, and render separate RBI/Fed sections for mixed portfolios |
+| P7 | Assumptions said rates stayed unchanged and no pay rise despite saved drift/resets/phased raises | Describe modeled rates, salary phases and life events; update Home's caption and remove blanket fee/prepayment claims |
+| P8 | Home could claim payment success after failed writes, overwrite a newer ledger, or pay a deleted loan; empty-delta cookies were not fully verified | Commit before displaying success, verify the whole activity cookie, restore failed writes, and reject stale profile/ledger saves |
+
+Validation: **791 Python tests with full fuzzing; 109 web tests (15 new); 66 browser scenarios (17 new); TypeScript, lint and production build pass**. Existing lint warnings concern the global font and deduction-panel hook dependencies. Browser checks use local auth bypass, external feeds off, and an API CORS origin matching the web instance; production OTP delivery is outside this run. Live bank-rate re-verification remains open (§9), as do the historical-membership limits of the pace calculation (§10).
+
+The durable new regressions are `web/tests/pr23-audit-fixes.cjs` and `scripts/pr23-regressions.cjs`. Run browser checks against a local web/API pair:
+
+```sh
+BASE_URL=http://127.0.0.1:3001 AUDIT_BLOCK_EXTERNAL=1 node scripts/pr23-regressions.cjs
+```
+
+Optional `PLAYWRIGHT_MODULE`, `CHROME_PATH` and `AUDIT_OUTPUT` configure the installed browser and evidence path. No merge or production deployment is part of this follow-up.

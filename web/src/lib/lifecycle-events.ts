@@ -27,6 +27,7 @@ import type { LoanPayload, UserPayload } from './api';
 import { deriveMarginalRateForUser } from './deductions';
 import { resolveLoanIndex } from './loan-ids';
 import { LOAN_TYPE_NAME, loanLabel } from './loan-types';
+import { nextMonth } from './roll-forward';
 
 const COOKIE_NAME = 'finoptima_lifecycle';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -338,7 +339,12 @@ export function applyConfirmedEvent(
     const snapshot: AppliedSnapshot = { addedLoanIndex: user.loans.length, addedLoanId };
     return {
       // Borrowed on the event's date: the plan rolls it forward from there.
-      user: { ...user, loans: [...user.loans, {...event.loanDraft, id: addedLoanId, balance_as_of: event.effectiveDate}] },
+      user: { ...user, loans: [...user.loans, {...event.loanDraft, id: addedLoanId, balance_as_of: event.effectiveDate,
+        ...(event.loanDraft.loan_type !== 'credit_card' ? {
+          first_emi_month: event.loanDraft.first_emi_month ?? nextMonth(event.effectiveDate.slice(0, 7)),
+          balance_after_emi: false,
+        } : {}),
+      }] },
       snapshot,
     };
   }

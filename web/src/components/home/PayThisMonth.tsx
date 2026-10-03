@@ -11,19 +11,20 @@
  * doesn't move the plan. A planned extra marked paid comes off the balance
  * once the month is over (see `plannedExtra` in lib/activity).
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Country, LoanPayload } from '@/lib/api';
 import { formatCurrencyWhole } from '@/lib/api';
 import {
   addActivityEntry,
   readActivityClient,
-  writeActivityClient,
   type ActivityEntry,
   type ActivityKind,
 } from '@/lib/activity';
-import { syncActivityCookieClient } from '@/lib/activity-cookie';
+import { commitActivity } from '@/lib/commit-activity';
+import { paymentState } from '@/lib/payment-state';
+import { loadProfileClient, profileCookieKey } from '@/lib/user-store';
 import { alignToLoans } from '@/lib/loan-ids';
-import { MONTH_NAMES_SHORT, localIsoDate } from '@/lib/today';
+import { MONTH_NAMES_SHORT, localIsoDate, getCountryToday } from '@/lib/today';
 import { userDefaultCurrency } from '@/lib/currency';
 import type { PayRow, PayThisMonth as PayData } from '@/lib/pay-this-month';
 import { Field } from '@/components/ToolPrimitives';
@@ -62,12 +63,14 @@ export function PayThisMonth({
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [said, setSaid] = useState('');
-  const today = localIsoDate(new Date());
+  const profileAtRead = useRef('');
+  const today = localIsoDate(getCountryToday(country));
   const month = today.slice(0, 7);
   const userCcy = userDefaultCurrency(country);
   const fmt = (v: number, ccy = userCcy) => formatCurrencyWhole(Math.round(v), ccy);
 
   useEffect(() => {
+    profileAtRead.current = profileCookieKey();
     const read = () => {
       setEntries(alignToLoans(readActivityClient(), loans));
       try {
@@ -84,14 +87,20 @@ export function PayThisMonth({
       if (e.key === 'finoptima_activity' || e.key === SET_ASIDE_KEY) read();
     };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    window.addEventListener('finoptima:profile-changed', read);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('finoptima:profile-changed', read);
+    };
+  }, [loans, month]);
 
   function commit(next: ActivityEntry[]) {
+    if (profileCookieKey() !== profileAtRead.current)
+      throw new Error('Your profile changed. Refresh Home before logging a payment.');
+    if (JSON.stringify(alignToLoans(readActivityClient(), loans)) !== JSON.stringify(entries))
+      throw new Error('Activity changed. Refresh Home before logging a payment.');
+    commitActivity(next, loadProfileClient().user);
     setEntries(next);
-    writeActivityClient(next);
-    syncActivityCookieClient(next, loans, country);
   }
 
   function statusOf(row: PayRow): Status | null {
@@ -99,17 +108,18 @@ export function PayThisMonth({
       return ticked.includes(row.key) ? { tag: 'PAID', amount: row.amount, date: today, undoable: true } : null;
     }
     const mine = entries.filter((e) => e.loanIndex === row.loanIndex && e.date.slice(0, 7) === month);
-    if (mine.length === 0) return null;
+    const state = paymentState(mine, row.minimum, row.amount);
+    if (state === 'due') return null;
     const amount = mine.reduce((s, e) => s + Number(e.amount || 0), 0);
     const date = mine.map((e) => e.date).sort().slice(-1)[0];
     const undoable = mine.every((e) => e.via === 'home');
-    if (mine.some((e) => e.kind === 'missed') && amount === 0) return { tag: 'MISSED', amount, date, undoable };
+    if (state === 'missed') return { tag: 'MISSED', amount, date, undoable };
     // Short of the EMI or card minimum: what was sent still counts, but
     // the rest is overdue.
-    if (mine.some((e) => e.kind === 'paid_partial' || e.kind === 'missed') && amount < row.minimum) {
+    if (state === 'part') {
       return { tag: 'PARTIAL', amount, date, undoable };
     }
-    if (row.extra > 0 && amount < row.amount) return { tag: 'EMI PAID', amount, date, undoable };
+    if (state === 'emi_paid') return { tag: 'EMI PAID', amount, date, undoable };
     return { tag: 'PAID', amount, date, undoable };
   }
 
@@ -201,6 +211,10 @@ export function PayThisMonth({
     setError(null);
   }
 
+  function attempt(action: () => void) {
+    try { action(); } catch (e) { setError((e as Error).message); setSaid(''); }
+  }
+
   function saveOther(row: PayRow, missed = false) {
     if (missed) {
       log(row, 'missed', 0);
@@ -238,7 +252,7 @@ export function PayThisMonth({
     const st = statuses[i];
     return st ? s + (r.amount > 0 ? (st.amount / r.amount) * r.amountUser : 0) : s;
   }, 0);
-  const toGo = statuses.filter((s) => !s || s.tag === 'EMI PAID').length;
+  const toGo = statuses.filter((s) => !s || s.tag !== 'PAID').length;
   const firstExtra = data.rows.find((r) => r.kind === 'extra' || r.kind === 'clears');
 
   return (
@@ -271,6 +285,7 @@ export function PayThisMonth({
       <p role="status" aria-live="polite" style={{ margin: 0, fontSize: 12, color: L_T.positive, minHeight: said ? 18 : 0 }}>
         {said}
       </p>
+      {error && <p role="alert" style={{ color: L_T.negative }}>{error}</p>}
 
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: `2px solid ${L_T.ink}` }}>
         {data.rows.map((row, i) => {
@@ -329,7 +344,7 @@ export function PayThisMonth({
               <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 {!ready ? null : st && st.tag !== 'EMI PAID' ? (
                   st.undoable ? (
-                    <LBracket onClick={() => undo(row)} label={`Undo: ${row.name} not paid`}>
+                    <LBracket onClick={() => attempt(() => undo(row))} label={`Undo: ${row.name} not paid`}>
                       UNDO
                     </LBracket>
                   ) : (
@@ -339,7 +354,7 @@ export function PayThisMonth({
                   <>
                     <button
                       type="button"
-                      onClick={() => markPaid(row)}
+                      onClick={() => attempt(() => markPaid(row))}
                       aria-label={
                         st
                           ? `Mark the extra on ${row.name} paid, ${fmt(row.amount - st.amount, row.currency)}`
@@ -392,11 +407,11 @@ export function PayThisMonth({
                     />
                   </div>
                   <span style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', paddingBottom: 4 }}>
-                    <button type="button" onClick={() => saveOther(row)} style={lPayBtn(true)}>
+                    <button type="button" onClick={() => attempt(() => saveOther(row))} style={lPayBtn(true)}>
                       SAVE
                     </button>
                     {st?.tag !== 'EMI PAID' && (
-                      <button type="button" onClick={() => saveOther(row, true)} style={lPayBtn(false)}>
+                      <button type="button" onClick={() => attempt(() => saveOther(row, true))} style={lPayBtn(false)}>
                         I DIDN&apos;T PAY
                       </button>
                     )}

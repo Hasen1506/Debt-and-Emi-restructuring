@@ -21,6 +21,7 @@ import type { ActivityEntry } from './activity';
 import type { Country, LoanPayload } from './api';
 import { loanToUser } from './currency';
 import { alignToLoans, resolveLoanIndex } from './loan-ids';
+import { isRegularPayment } from './payment-state';
 
 /** Months looked back over, before this one. */
 export const PACE_MONTHS = 3;
@@ -47,7 +48,7 @@ export interface PaceMonth {
 /** A lump sum rather than a month's payment: tagged with where the money
  *  came from, paying months ahead, or clearing the loan. */
 export function isOneOff(e: ActivityEntry): boolean {
-  return e.kind === 'closed' || !!e.source || (e.coversForwardMonths ?? 0) > 0;
+  return e.kind === 'closed' || (!!e.source && e.source !== 'surplus') || (e.coversForwardMonths ?? 0) > 0;
 }
 
 export function monthsBefore(month: string, n: number): string[] {
@@ -96,11 +97,11 @@ export function paceMonths(entries: ActivityEntry[], loans: LoanPayload[], thisM
       byLoan.set(e.loanIndex, cur);
     }
     const complete =
-      inMonth.length > 0 &&
+      inMonth.some(isRegularPayment) &&
       loans.every((loan, i) => {
-        if (!isEmiLoan(loan) || byLoan.has(i)) return true;
+        if (!isEmiLoan(loan) || inMonth.some(e => e.loanIndex === i && isRegularPayment(e))) return true;
         const { from, closedOn } = span[i];
-        const running = from !== null && from <= month && (closedOn === null || month <= closedOn);
+        const running = from !== null && from <= month && (closedOn === null || month < closedOn);
         return !running;
       });
     return {

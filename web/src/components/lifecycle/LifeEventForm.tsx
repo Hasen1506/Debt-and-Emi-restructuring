@@ -166,7 +166,7 @@ export function LifeEventForm({
       loanDraft: {
         ...draft,
         nominal_rate: Number(draft.nominal_rate).toFixed(4),
-        rate_type: likelyRateType(draft.loan_type, user.country),
+        rate_type: likelyRateType(draft.loan_type, user.country, draft.currency),
         rate_type_assumed: true,
       },
     };

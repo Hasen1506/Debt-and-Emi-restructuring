@@ -49,6 +49,9 @@ export async function HomeDebtFreeCaption() {
   if (!plan.debtFreeMonth) return <Link href="/plan">RAISE SURPLUS · SEE PLAN →</Link>;
   // The date rests on what goes to debts each month and on rates staying
   // where they are; said with it (the rest is on Plan's "takes as given").
+  const savedRates = plan.runArgs?.user.loans.some(l => l.rate_type === 'floating' && Number(l.rate_drift_annualized)) ||
+    plan.runArgs?.lifecycle_events?.some(e => e.kind === 'floating_rate_reset');
+  const rateWords = savedRates ? 'WITH YOUR SAVED RATE CHANGES' : 'RATES AS TODAY';
   const toDebts = plan.monthlyPayments.find((p) => p.month === 1)?.totalPaid;
   const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country));
   // What's actually been paid lately, when it moves the date (lib/pace).
@@ -60,7 +63,7 @@ export async function HomeDebtFreeCaption() {
   return (
     <Link href="/plan">
       IN {monthsSpan(plan.debtFreeMonth).toUpperCase()}
-      {toDebts ? ` · AT ${fc(toDebts)}/MO TO DEBTS, RATES AS TODAY` : ''}
+      {toDebts ? ` · AT ${fc(toDebts)}/MO TO DEBTS, ${rateWords}` : ''}
       {atPace} · PLAN →
     </Link>
   );
@@ -142,6 +145,13 @@ export async function HomePayThisMonth() {
   }
   const data = payThisMonth(plan);
   if (!data || data.rows.length === 0) {
+    if (plan.live) {
+      return (
+        <PayNotice title={`Pay this month · ${monthLabel}`}>
+          No loan payment is due this month. Check each loan&apos;s first EMI date below.
+        </PayNotice>
+      );
+    }
     return (
       <PayNotice title={`Pay this month · ${monthLabel}`}>
         The plan engine can&apos;t be reached right now, so this month&apos;s payments aren&apos;t worked out. Your EMIs

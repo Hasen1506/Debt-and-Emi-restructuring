@@ -71,7 +71,7 @@ export function addLoanToProfile(input: AddLoanInput): number | null {
     outstanding: input.outstanding,
     nominal_rate: input.nominal_rate,
     // Not given: the usual for the kind of loan, marked as assumed.
-    rate_type: input.rate_type ?? likelyRateType(input.loan_type, profile.user.country),
+    rate_type: input.rate_type ?? likelyRateType(input.loan_type, profile.user.country, foreign ?? undefined),
     rate_type_assumed: !input.rate_type,
     tenure_months_remaining: input.tenure_months_remaining,
     scheduled_emi: input.scheduled_emi,

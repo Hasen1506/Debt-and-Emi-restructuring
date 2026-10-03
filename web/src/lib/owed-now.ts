@@ -18,6 +18,7 @@ import { readActivityClient, type ActivityEntry } from './activity';
 import { refreshActivityCookieClient } from './activity-cookie';
 import { alignToLoans } from './loan-ids';
 import { afterOneEmi } from './roll-forward';
+import { paymentState } from './payment-state';
 import { getCountryToday, localIsoDate } from './today';
 
 export type EmiStatus = 'paid' | 'part' | 'missed' | 'due' | 'first';
@@ -36,16 +37,18 @@ export function owedNow(loans: LoanPayload[], entries: ActivityEntry[], month: s
     // Taken this month: nothing due until its first EMI.
     if (loan.first_emi_month && loan.first_emi_month > month) return { status: 'first', owed };
     const mine = entries.filter((e) => e.loanIndex === i && e.date.slice(0, 7) === month);
-    if (mine.length === 0) return { status: 'due', owed };
-    const paid = mine.reduce((s, e) => s + Number(e.amount || 0), 0);
-    if (mine.some((e) => e.kind === 'missed') && paid === 0) return { status: 'missed', owed };
-    if (mine.some((e) => e.kind === 'paid_partial' || e.kind === 'missed') && paid < emi) {
-      return { status: 'part', owed };
-    }
+    const state = paymentState(mine, Math.min(emi, owed.mul(new Decimal(loan.nominal_rate || '0').div(12).add(1)).toNumber()), emi);
+    if (state === 'due' || state === 'missed' || state === 'part') return { status: state, owed };
     // The plan's own extra marked paid comes off once the month is over
     // (lib/activity-cookie); any other extra is off the balance already.
-    const planned = mine.reduce((s, e) => s + Number(e.plannedExtra || 0), 0);
-    return { status: 'paid', owed: Decimal.max(0, afterOneEmi(loan).sub(planned)) };
+    const planned = mine.reduce((s, e) => {
+      const asOf = loan.balance_as_of?.slice(0, 10);
+      if (asOf && (e.date < asOf || (e.date === asOf && loan.balance_recorded_at &&
+        Date.parse(e.loggedAt) <= Date.parse(loan.balance_recorded_at)))) return s;
+      return s + Number(e.plannedExtra || 0);
+    }, 0);
+    const after = loan.rate_basis === 'flat' || Number(loan.pre_emi_months_remaining || 0) > 0 ? owed : afterOneEmi(loan);
+    return { status: 'paid', owed: Decimal.max(0, after.sub(planned)) };
   });
 }
 
