@@ -416,6 +416,9 @@ def simulate_plan(
             loan_position[id(dormant)] = len(loans)
             start_rate[id(dormant)] = draft.nominal_rate
             loan_start_month[id(dormant)] = ev.effective_month
+            # Disbursed in its arrival month; the first EMI is the month
+            # after (unless the draft says later).
+            dormant.first_payment_month = max(draft.first_payment_month, ev.effective_month + 1)
             if dormant.next_reset_month is not None:
                 dormant.next_reset_month += ev.effective_month - 1
             loans.append(dormant)

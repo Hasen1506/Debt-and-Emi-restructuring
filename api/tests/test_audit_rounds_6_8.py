@@ -16,7 +16,9 @@ def test_api_includes_future_property_in_trajectory(client,india_user_payload,en
     rows=response.json()['trajectory']
     assert D(rows[1]['balances_by_loan_index']['0']) == 0
     assert D(rows[2]['balances_by_loan_index']['0']) > 0
-    assert D(rows[2]['payments_by_loan_index']['0']) > 0
+    # Disbursed in month 3, first EMI in month 4.
+    assert D(rows[2]['payments_by_loan_index'].get('0', '0')) == 0
+    assert D(rows[3]['payments_by_loan_index']['0']) > 0
     assert D(response.json()['total_interest_paid']) > 0
 
 
