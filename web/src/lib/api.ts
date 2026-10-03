@@ -1132,7 +1132,10 @@ async function apiFetch(path: string, init: RequestInit): Promise<Response> {
   for (let i = 0; ; i++) {
     try {
       const res = await fetch(endpoint(path), init);
-      if (i < tries - 1 && [502, 503, 504].includes(res.status)) throw new Error(String(res.status));
+      // The API's own 502 (a rate provider down) comes as JSON and is an
+      // answer; only the host's page while it wakes is worth waiting out.
+      const ours = (res.headers.get('content-type') ?? '').includes('application/json');
+      if (i < tries - 1 && !ours && [502, 503, 504].includes(res.status)) throw new Error(String(res.status));
       return res;
     } catch (e) {
       if (i >= tries - 1) {

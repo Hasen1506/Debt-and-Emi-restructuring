@@ -222,7 +222,7 @@ def allocate_windfall(
             )
         return WindfallAllocation(
             to_loan_id=None, loan_label=f"{top.bank} {top.loan_type.value}", amount=amount,
-            rationale=f"Best liquid return {best_return*100:.2f}% beats your costliest loan ({top_rate*100:.2f}%) after inflation",
+            rationale=f"{best.name} at {best_return*100:.2f}% beats your dearest loan ({top_rate*100:.2f}%) once inflation is counted",
             interest_avoided=interest_saved_by_prepaying(top, min(amount, top.outstanding), country),
             invest_instead=True, investment_name=best.name, investment_return=best_return,
             interest_basis=interest_basis(top, country), blocked=blocked,
@@ -234,12 +234,21 @@ def allocate_windfall(
     to_loan, fee, avoided = net_of_fee(top)
 
     leftover = amount - to_loan
+    nominal = f"{top.nominal_rate*100:.2f}% a year"
     if strategy == Strategy.AVALANCHE or top is max(ranked, key=lambda l: effective_rates[id(l)]):
-        rationale = f"Highest effective rate ({top_rate*100:.2f}%)"
+        if top_rate - top.nominal_rate >= D("0.005"):
+            extra = (
+                "GST on the interest"
+                if country == Country.IN and top.loan_type == LoanType.CREDIT_CARD
+                else "its fees and insurance"
+            )
+            rationale = f"The dearest debt left: {nominal}, {top_rate*100:.2f}% counting {extra}"
+        else:
+            rationale = f"The dearest debt left, at {nominal}"
     elif strategy == Strategy.SNOWBALL:
-        rationale = f"Smallest balance first, your chosen order ({top_rate*100:.2f}%)"
+        rationale = f"The smallest balance, first in the snowball order you chose ({nominal})"
     else:
-        rationale = f"Next in your hybrid order ({top_rate*100:.2f}%)"
+        rationale = f"Next in the hybrid order you chose ({nominal})"
     if leftover > 0:
         rationale += f"; clears it with {money(leftover, country)} left over"
     if fee > 0:

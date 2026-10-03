@@ -416,7 +416,13 @@ function LoanCheckResult({ r }: { r: LoanCheckResponse }) {
                 { k: 'overcharged so far', v: inr(r.claim_amount), note: "at today's balance, whole months only: a cautious figure" },
               ]
             : []),
-          { k: 'repo rate', v: formatAsOf(r.rates_as_of), note: r.rates_source },
+          {
+            k: 'repo rate today',
+            v: formatPct(r.repo_today, 2),
+            note: r.rates_source.includes(formatAsOf(r.rates_as_of))
+              ? r.rates_source
+              : `${r.rates_source}, ${formatAsOf(r.rates_as_of)}`,
+          },
         ]}
       />
 

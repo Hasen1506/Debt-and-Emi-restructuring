@@ -31,7 +31,7 @@ def test_windfall_routes_to_highest_rate_loan():
     )
     assert out.to_loan_id == id(card)
     assert out.invest_instead is False
-    assert "Highest effective rate" in out.rationale
+    assert "The dearest debt" in out.rationale
 
 
 def test_windfall_invests_when_loan_rate_too_low():

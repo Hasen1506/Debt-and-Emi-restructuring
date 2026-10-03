@@ -289,7 +289,7 @@ def _old_benchmark_finding(inp: LoanCheckInput, card) -> Finding:
         detail += (
             f" {lender} quotes new repo-linked home loans at "
             f"{_pct(card.home_loan.low)} to {_pct(card.home_loan.high)} "
-            f"(rate card checked {card.last_verified})."
+            f"(rate card checked {date.fromisoformat(card.last_verified):%d %b %Y})."
         )
         if inp.current_rate > ref + TOLERANCE:
             gap = inp.current_rate - ref
@@ -327,7 +327,7 @@ def _pricing_gap_finding(inp: LoanCheckInput, card, base_rate: Decimal) -> Optio
     rng: RateRange = card.home_loan
     payment = inp.emi or emi_formula(inp.outstanding, inp.current_rate, inp.tenure_months_remaining)
     months = min(12, inp.tenure_months_remaining)
-    as_of = f"rate card checked {card.last_verified}"
+    as_of = f"rate card checked {date.fromisoformat(card.last_verified):%d %b %Y}"
     fixed_note = (
         " This is measured after the missed rate cut is fixed, so it does not "
         "double-count it." if base_rate < inp.current_rate else ""
@@ -527,9 +527,19 @@ def check_loan(inp: LoanCheckInput) -> LoanCheckResult:
             headline = (
                 f"Your rate has risen {_pct(gap)} more than the RBI repo rate"
             )
+        window = policy_rates.rates_between(
+            Country.IN, _add_months(_month_start(start), -SANCTION_LAG_MONTHS), _month_end(start)
+        )
+        then = (
+            f"when the repo rate was {_pct(repo_start)}"
+            if len(set(window)) == 1
+            else f"when the repo rate was {_pct(repo_start)} at its lowest "
+            f"(counting the {SANCTION_LAG_MONTHS} months before, in case the "
+            f"rate was fixed at sanction)"
+        )
         detail = (
-            f"The loan started at {_pct(inp.start_rate)} when the repo rate "
-            f"was {_pct(repo_start)}. The repo rate is now {_pct(repo_ref)} "
+            f"The loan started at {_pct(inp.start_rate)} in {start:%B %Y}, "
+            f"{then}. The repo rate is now {_pct(repo_ref)} "
             f"(allowing for the three-month reset window), so the rate should "
             f"be about {_pct(expected)}. You pay {_pct(inp.current_rate)}. "
             f"That costs about {_inr(this_year)} over the next 12 months"
