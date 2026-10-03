@@ -138,7 +138,7 @@ export function saveProfileClient(profile: {
   user: UserPayload;
   marginalRate?: string;
   creditScore?: number | null;
-}): boolean {
+}, additionalSlices: Record<string, unknown> = {}): boolean {
   // Every loan leaves with a stable id (a new one for a loan just added).
   const loans = withLoanIds(profile.user.loans ?? []);
   if (loans !== profile.user.loans) profile = { ...profile, user: { ...profile.user, loans } };
@@ -179,14 +179,14 @@ export function saveProfileClient(profile: {
             return raw ? Number(raw) : null;
           })(),
     isLive: true,
-  });
+  }, additionalSlices);
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('finoptima:profile-changed'));
   return true;
 }
 
-async function syncProfileToServer(profile: StoredProfile): Promise<void> {
-  const {syncSliceToServer} = await import('./server-sync');
-  await syncSliceToServer('profile',serializeProfileForServer(profile).profile);
+async function syncProfileToServer(profile: StoredProfile, additionalSlices: Record<string, unknown>): Promise<void> {
+  const {syncSlicesToServer} = await import('./server-sync');
+  await syncSlicesToServer({ ...additionalSlices, ...serializeProfileForServer(profile) });
 }
 
 export function clearProfileClient() {

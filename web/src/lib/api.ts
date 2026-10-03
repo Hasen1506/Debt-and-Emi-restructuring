@@ -1272,6 +1272,7 @@ export const api = {
     marginal_rate?: string;
     strategy?: Strategy;
     surplus_delta?: string;
+    spending_cut?: boolean;
     /** 1-based month from which `surplus_delta` applies (default 1 = now). */
     surplus_delta_start_month?: number;
     income_shock_months?: number;
@@ -1390,6 +1391,8 @@ export const api = {
   restructuring: (req: {
     user: UserPayload;
     marginal_rate?: string;
+    /** The same run as Plan, for before/after repayment comparisons. */
+    plan?: SimulateArgs;
     /** Each loan's month-end balances under the plan (index → months 1, 2, …). */
     plan_balances?: Record<number, string[]>;
   }) => post<RestructuringResponse>('/api/restructuring', req),

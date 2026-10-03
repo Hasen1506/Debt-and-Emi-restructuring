@@ -5,6 +5,7 @@ from decimal import Decimal
 from fastapi import APIRouter
 
 from engine.restructuring_scan import scan
+from api.routes.simulation import _plan_kwargs
 from api.schemas import (
     RestructuringHeldBackOut, RestructuringRequest, RestructuringResponse,
     RestructuringOpportunityOut,
@@ -17,12 +18,20 @@ router = APIRouter(tags=["restructuring"])
 @router.post("/restructuring", response_model=RestructuringResponse)
 def restructuring(req: RestructuringRequest) -> RestructuringResponse:
     user = req.user.to_engine()
-    marg = req.marginal_rate if req.marginal_rate is not None else D("0")
+    marg = req.marginal_rate if req.marginal_rate is not None else (
+        req.plan.marginal_rate if req.plan and req.plan.marginal_rate is not None else D("0")
+    )
     paths = req.plan_balances
     if paths is not None:
         # A path for a loan the user doesn't have is ignored.
         paths = {i: p for i, p in paths.items() if i < len(user.loans)}
-    result = scan(user, marginal_rate=marg, plan_balances=paths)
+    options = None
+    if req.plan is not None:
+        options = dict(
+            **_plan_kwargs(req.plan), strategy=req.plan.strategy,
+            horizon_months=req.plan.horizon_months, marginal_rate=marg,
+        )
+    result = scan(user, marginal_rate=marg, plan_balances=paths, plan_options=options)
     opps = result.opportunities
     return RestructuringResponse(
         opportunities=[_out(o) for o in opps],

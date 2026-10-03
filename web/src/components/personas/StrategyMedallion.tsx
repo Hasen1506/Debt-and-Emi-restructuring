@@ -70,7 +70,7 @@ export function StrategyMedallion({
     };
   }, [open]);
 
-  // A switch that can't change the plan says why, for a few seconds.
+  // Describe the starting order without promising identical outcomes.
   const [note, setNote] = useState<{ top: number; left: number; width: number } | null>(null);
   useEffect(() => {
     if (!note) return;
@@ -166,7 +166,7 @@ export function StrategyMedallion({
               boxShadow: `3px 3px 0 ${L_T.ink}`,
             }}
           >
-            Same plan: with your debts, {orderText(sameOrder)}.
+            Same starting order: {orderText(sameOrder)} today. Later payments and interest can differ.
           </span>
         )}
       </div>
@@ -191,7 +191,7 @@ export function StrategyMedallion({
           </div>
           {sameOrder && (
             <p style={{ margin: 0, padding: '8px 12px', fontSize: 12, lineHeight: 1.5, color: L_T.ink, background: L_T.highlightSoft, borderBottom: `1px solid ${L_T.ruleSoft}` }}>
-              With your debts, {orderText(sameOrder)}. Your plan comes out the same whichever you pick.
+              With today&apos;s balances and rates, {orderText(sameOrder)}. Later balances, rate changes and new loans can change the order, date and interest.
             </p>
           )}
           {STRATEGIES.map((s) => {

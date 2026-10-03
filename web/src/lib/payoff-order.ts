@@ -2,9 +2,8 @@
  * The order each strategy puts the open loans in, by the engine's rules
  * (engine/ordering.py rank_loans): avalanche by effective rate, snowball
  * by balance, hybrid small balances first then by rate. When all three
- * agree (a credit card that is both the smallest and the dearest debt is
- * common), switching strategy can't change the plan, and the switch says
- * so instead of seeming to do nothing.
+ * agree, they share today's starting order. Balances, floating-rate
+ * resets and future loans can still change the later order and outcome.
  */
 import type { UserPayload } from './api';
 import { computeBreakdown } from './effective-apr';

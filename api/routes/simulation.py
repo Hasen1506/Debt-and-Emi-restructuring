@@ -345,6 +345,7 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
             scenario_user, req.surplus_delta, strategy=req.strategy,
             horizon_months=req.horizon_months, marginal_rate=req.marginal_rate,
             start_month=req.surplus_delta_start_month,
+            spending_cut=req.spending_cut,
             simulation_start_month=sm, plan=plan,
         )
     elif req.income_shock_months is not None:

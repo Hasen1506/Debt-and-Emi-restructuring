@@ -103,6 +103,7 @@ export function LogDialog({
   runArgs,
   strategy,
   initial,
+  planPay,
   onSave,
   onClose,
 }: {
@@ -115,6 +116,7 @@ export function LogDialog({
   runArgs: PlanRunArgs | null;
   strategy: StrategyName;
   initial: LogInitial;
+  planPay?: Record<number, { amount: number; minimum: number; extra: number }>;
   onSave: (save: LogSave, said: string) => void;
   onClose: () => void;
 }) {
@@ -129,17 +131,21 @@ export function LogDialog({
   const loan = user.loans[loanIndex];
   const card = loan?.loan_type === 'credit_card';
   const lccy = loan ? loanCurrency(loan, country) : ccy;
+  const [date, setDate] = useState(edit?.date ?? today);
   const planned = useMemo(() => {
     if (edit && Number(edit.scheduledEmi) > 0) return new Decimal(edit.scheduledEmi);
+    const minimum = planPay?.[loanIndex]?.minimum;
+    if (date.slice(0, 7) === today.slice(0, 7) && minimum != null && Number.isFinite(minimum) && minimum >= 0) {
+      return new Decimal(minimum);
+    }
     return loan ? requiredMonthly(loan, country) : new Decimal(0);
-  }, [edit, loan, country]);
+  }, [edit, loan, country, planPay, loanIndex, date, today]);
   const [status, setStatus] = useState<PayStatus>(edit ? STATUS_OF[edit.kind] : initial.status ?? 'full');
   const [amount, setAmount] = useState(() => {
     if (!edit) return '';
     if (edit.kind === 'paid_extra') return new Decimal(edit.amount).sub(planned).toFixed(2);
     return edit.amount;
   });
-  const [date, setDate] = useState(edit?.date ?? today);
   const [newBalance, setNewBalance] = useState(edit?.newOutstanding ?? '');
   const [fee, setFee] = useState(edit?.penaltyOverride ?? '');
   const [source, setSource] = useState(edit?.source ?? 'surplus');

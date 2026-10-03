@@ -59,17 +59,23 @@ def with_surplus_delta(
     start_month: int = 1,
     simulation_start_month: int = 1,
     plan: dict | None = None,
+    spending_cut: bool = False,
 ) -> SimulationResult:
-    """`delta` adds to monthly_income (positive or negative).
+    """`delta` adds to monthly_income (positive or negative), or reduces
+    expenses when `spending_cut=True`. A cut then follows the saved
+    expense bucket through inflation and leaves future salary resets intact.
 
     If `start_month > 1`, the delta is deferred — useful for "I'll cut my
     fixed expenses by ₹5k from month 6 onwards" what-if scenarios. Defaults
     to month 1 (apply from start) so existing callers behave unchanged.
     """
+    delta_args = (
+        dict(expense_delta=delta, expense_delta_from_month=max(1, start_month))
+        if spending_cut else dict(income_delta=delta, income_delta_from_month=max(1, start_month))
+    )
     return _run(
         user, strategy, horizon_months, marginal_rate, simulation_start_month, plan,
-        income_delta=delta,
-        income_delta_from_month=max(1, start_month),
+        **delta_args,
     )
 
 

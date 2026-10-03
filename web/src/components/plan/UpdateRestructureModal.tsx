@@ -68,8 +68,8 @@ function seedForm(
 }
 
 /**
- * For consolidation, derive the merged balance + a sensible default tenure
- * (5 years for personal loans is the typical wrap). Single source of truth
+ * For consolidation, derive the merged balance and the scan's assumed tenure.
+ * Older opportunities fall back to five years. Single source of truth
  * for the modal's pre-fill so the form preview matches what gets saved.
  */
 function consolidationPreview(
@@ -81,8 +81,8 @@ function consolidationPreview(
     .map((i) => loans[i])
     .filter((l): l is LoanPayload => l != null);
   const total = merged.reduce((s, l) => s + Number(l.outstanding || 0), 0);
-  // 60 months is the Indian PL norm; US personal-loan tenures cluster at 36-60.
-  return { totalOutstanding: total, defaultTenure: 60, mergedLoans: merged };
+  const assumedTenure = Number(opp.detail?.tenure_months);
+  return { totalOutstanding: total, defaultTenure: assumedTenure > 0 ? assumedTenure : 60, mergedLoans: merged };
 }
 
 export function UpdateRestructureModal({

@@ -195,7 +195,7 @@ export function ActivityPage({
         const current = loadProfileClient().user;
         const original = user.loans[r.loanIndex];
         const index = currentLoanIndex({loanIndex:r.loanIndex,loanId:original?.id}, original, current.loans);
-        if (!isOpenCurrentLoan(current.loans[index]) || !requiredMonthly(current.loans[index],current.country).eq(r.minimum ?? r.amount))
+        if (!isOpenCurrentLoan(current.loans[index]) || !requiredMonthly(current.loans[index],current.country).eq(r.configuredMinimum ?? r.minimum ?? r.amount))
           throw new Error('The loan or payment changed. Reload before marking it paid.');
         saveEntries(
           addActivityEntry(
@@ -257,7 +257,7 @@ export function ActivityPage({
       if (row.ref.kind !== 'due' || row.ref.card) continue;
       const original = user.loans[row.ref.loanIndex];
       const index = currentLoanIndex({loanIndex:row.ref.loanIndex,loanId:original?.id},original,current.loans);
-      if (!isOpenCurrentLoan(current.loans[index]) || !requiredMonthly(current.loans[index],current.country).eq(row.ref.minimum ?? row.ref.amount))
+      if (!isOpenCurrentLoan(current.loans[index]) || !requiredMonthly(current.loans[index],current.country).eq(row.ref.configuredMinimum ?? row.ref.minimum ?? row.ref.amount))
         throw new Error('A loan or payment changed. Reload before marking the EMIs paid.');
       next = addActivityEntry(
         next,
@@ -354,6 +354,7 @@ export function ActivityPage({
           runArgs={runArgs}
           strategy={strategy}
           initial={dialog}
+          planPay={planPay}
           onSave={save}
           onClose={() => setDialog(null)}
         />

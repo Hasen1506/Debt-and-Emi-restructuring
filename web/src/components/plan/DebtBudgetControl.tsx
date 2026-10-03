@@ -36,7 +36,12 @@ export function DebtBudgetControl({
   const fmt = (v: number) => formatCurrencyWhole(String(Math.round(v)), currency);
 
   function save(next: string) {
-    writeDebtBudgetClient(next);
+    try {
+      writeDebtBudgetClient(next);
+    } catch (error) {
+      setError((error as Error).message);
+      return;
+    }
     startTransition(() => router.refresh());
   }
 
@@ -67,6 +72,7 @@ export function DebtBudgetControl({
           A set total a month
         </LChip>
       </div>
+      {error && mode === 'all' && <p role="alert" style={{ margin: 0, color: L_T.negative }}>{error}</p>}
       {mode === 'set' && (
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 200px', maxWidth: 260 }}>
