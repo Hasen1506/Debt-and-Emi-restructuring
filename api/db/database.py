@@ -21,9 +21,9 @@ from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
-    create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
+from api.db.connection import database_engine
 
 log = logging.getLogger(__name__)
 
@@ -33,12 +33,10 @@ class Base(DeclarativeBase):
 
 
 _url = os.environ.get("DATABASE_URL")
-if _url and _url.startswith(("postgres://", "postgresql://")):
-    _url = "postgresql+asyncpg://" + _url.split("://", 1)[1]
 engine: Optional[AsyncEngine] = None
 SessionLocal: Optional[async_sessionmaker[AsyncSession]] = None
 if _url:
-    engine = create_async_engine(_url, pool_pre_ping=True)
+    engine = database_engine(_url)
     SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 else:
     log.warning(

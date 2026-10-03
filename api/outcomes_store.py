@@ -185,7 +185,8 @@ def default_store() -> OutcomeStore:
 
     url = os.environ.get("OUTCOMES_DATABASE_URL")
     if url:
-        engine = create_async_engine(url)
+        from api.db.connection import database_engine
+        engine = database_engine(url)
     elif db_engine is not None:
         engine = db_engine
     else:

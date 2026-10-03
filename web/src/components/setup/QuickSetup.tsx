@@ -49,6 +49,7 @@ import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIs
 import { loadProfileClient, type StoredProfile } from '@/lib/user-store';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward, stampBalanceDates, prepareLoanPaymentTiming } from '@/lib/roll-forward';
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
+import { HYDRATED_EVENT } from '@/lib/server-sync';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
 import {
   applyRateTypeChoice,
@@ -132,26 +133,33 @@ export function QuickSetup() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const stepRef = useRef<HTMLElement>(null);
   const firstRender = useRef(true);
+  const edited = useRef(false);
 
   // Start from the saved profile when there is one (browser-only).
   useEffect(() => {
-    const stored = loadProfileClient();
-    if (stored.isLive) {
-      // Ids from the start, so each loan can be matched to its saved self.
-      const loansWithIds = stored.user.loans.map((l) => ({ ...l, id: l.id ?? newLoanId() }));
-      const u = { ...stored.user, loans: loansWithIds };
-      setSaved({ ...stored, user: u });
-      setCountry(u.country);
-      setIsNriUs(!!u.is_nri_us);
-      setIncomeType(u.income_type);
-      setTakeHome(u.monthly_income ?? '');
-      const s = new Decimal(num(u.fixed_expenses)).add(num(u.variable_expenses)).toString();
-      setSpend(s);
-      setSpendAtStart(s);
-      setLoans(loansWithIds.length > 0 ? loansWithIds : [blankLoan()]);
-      setFxRates(u.fx_to_user_currency ?? {});
+    function restore() {
+      if (edited.current) return;
+      const stored = loadProfileClient();
+      if (stored.isLive) {
+        // Ids from the start, so each loan can be matched to its saved self.
+        const loansWithIds = stored.user.loans.map((l) => ({ ...l, id: l.id ?? newLoanId() }));
+        const u = { ...stored.user, loans: loansWithIds };
+        setSaved({ ...stored, user: u });
+        setCountry(u.country);
+        setIsNriUs(!!u.is_nri_us);
+        setIncomeType(u.income_type);
+        setTakeHome(u.monthly_income ?? '');
+        const s = new Decimal(num(u.fixed_expenses)).add(num(u.variable_expenses)).toString();
+        setSpend(s);
+        setSpendAtStart(s);
+        setLoans(loansWithIds.length > 0 ? loansWithIds : [blankLoan()]);
+        setFxRates(u.fx_to_user_currency ?? {});
+      }
+      setReady(true);
     }
-    setReady(true);
+    restore();
+    window.addEventListener(HYDRATED_EVENT, restore);
+    return () => window.removeEventListener(HYDRATED_EVENT, restore);
   }, []);
 
   // Move focus to the new step's heading so keyboard and screen-reader
@@ -463,7 +471,7 @@ export function QuickSetup() {
 
   return (
     <LShell>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 760 }}>
+      <div onInputCapture={() => { edited.current = true; }} onClickCapture={() => { edited.current = true; }} style={{ display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 760 }}>
         <header>
           <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
             SETUP · 3 STEPS · ABOUT 2 MINUTES
