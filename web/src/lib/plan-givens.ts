@@ -6,7 +6,7 @@
  * The chips above hold the choices (payoff order, total to debts, pay
  * rises, rising costs); this list holds the data and the guesses.
  */
-import type { Country, LoanPayload, UserPayload } from './api';
+import type { Country, LoanPayload, PlanRunArgs, UserPayload } from './api';
 import { formatCurrencyWhole } from './api';
 import { loanCurrency } from './currency';
 import { LOAN_TYPE_NAME } from './loan-types';
@@ -46,7 +46,7 @@ function worst(sources: GivenSource[]): GivenSource {
 
 export function planGivens(
   user: UserPayload,
-  opts: { today: string; inflation: { on: boolean; rate: number }; hike: { on: boolean; rate: number; month: number } },
+  opts: { today: string; inflation: { on: boolean; rate: number }; hike: { on: boolean; rate: number; month: number }; runArgs?: PlanRunArgs | null },
 ): Given[] {
   const country: Country = user.country;
   const loans = (user.loans ?? []).filter((l) => Number(l.outstanding) > 0);
@@ -91,7 +91,7 @@ export function planGivens(
   if (emiLoans.length > 0) {
     const src: GivenSource[] = [];
     const lines = emiLoans.map((l) => {
-      const usual = likelyRateType(l.loan_type, country);
+      const usual = likelyRateType(l.loan_type, country, l.currency);
       if (l.rate_type_assumed === true) {
         src.push('ASSUMED');
         return `${loanName(l)}: ${l.rate_type}, the usual for this kind of loan (you weren't sure)`;
@@ -114,17 +114,20 @@ export function planGivens(
 
   // ── Interest rates over time ──
   if (loans.length > 0) {
-    const floating = emiLoans.filter((l) => l.rate_type === 'floating');
+    const modeledLoans = opts.runArgs?.user.loans ?? loans;
+    const drifts = modeledLoans.filter(l => l.rate_type === 'floating' && Number(l.rate_drift_annualized));
+    const resets = opts.runArgs?.lifecycle_events?.filter(e => e.kind === 'floating_rate_reset') ?? [];
+    const modeled = drifts.length > 0 || resets.length > 0;
     out.push({
-      key: 'rates',
-      label: 'Interest rates',
+      key: 'rates', label: 'Interest rates',
       lines: [
-        'Every loan keeps today\'s rate to the end.',
-        floating.length > 0
-          ? `${floating.map(loanName).join(', ')} ${floating.length === 1 ? 'is' : 'are'} floating: the rate moves when ${country === 'IN' ? 'RBI' : 'the Fed'} moves, and the plan doesn't guess which way.`
-          : 'Fixed loans keep their rate; a card\'s rate can still change.',
+        modeled ? 'The plan includes your saved rate changes; other rate moves are not guessed.' : "Every loan keeps today's rate to the end.",
+        ...emiLoans.filter(l => l.rate_type === 'floating').map(l => `${loanName(l)} is floating: its benchmark can change, but the plan only applies saved rate changes.`),
+        ...drifts.map(l => `${loanName(l)}: rate changes by ${(Number(l.rate_drift_annualized) * 100).toFixed(2)} percentage points a year, at its reset dates.`),
+        ...resets.map(e => `${modeledLoans[e.loan_index ?? -1] ? loanName(modeledLoans[e.loan_index!]) : 'Loan'}: rate set to ${(Number(e.new_rate) * 100).toFixed(2)}% in plan month ${e.effective_month}.`),
+        ...(emiLoans.some(l => l.rate_type === 'floating') ? [] : ["Fixed loans keep their rate; a card's rate can still change."]),
       ],
-      source: 'ASSUMED',
+      source: modeled ? 'YOU SAID' : 'ASSUMED',
       fix: { href: '#rate-decisions', text: 'SEE WHAT THE NEXT DECISION DOES' },
     });
   }
@@ -170,11 +173,15 @@ export function planGivens(
     fix: { href: '/profile?step=income', text: 'CHANGE IT' },
   });
   const hikeMonth = MONTH_NAMES[Math.max(0, Math.min(11, opts.hike.month - 1))];
+  const phases = opts.hike.on ? (opts.runArgs?.user.hike_schedule ?? user.hike_schedule ?? []) : [];
+  const salaries = opts.runArgs?.lifecycle_events?.filter(e => e.kind === 'salary_reset') ?? [];
   out.push({
     key: 'income',
     label: 'Take-home',
     lines: [
-      `${money(user.monthly_income)} a month${opts.hike.on && opts.hike.rate > 0 ? `, rising ${(opts.hike.rate * 100).toFixed(0)}% each ${hikeMonth}` : ', with no pay rise'}.`,
+      `${money(user.monthly_income)} a month${opts.hike.on && opts.hike.rate > 0 ? `, rising ${(opts.hike.rate * 100).toFixed(0)}% each ${hikeMonth}` : phases.length || salaries.length ? '' : ', with no pay rise'}.`,
+      ...phases.map(([start, end, rate]) => `Saved pay-rise phase: ${(Number(rate) * 100).toFixed(1)}% a year in years ${start}–${end}.`),
+      ...salaries.map(e => `Saved salary change in plan month ${e.effective_month}${e.new_monthly_take_home ? `: ${money(e.new_monthly_take_home)} take-home a month` : ''}.`),
     ],
     source: 'YOU SAID',
     fix: { href: '/profile?step=income', text: 'CHANGE IT' },
@@ -183,8 +190,8 @@ export function planGivens(
   // ── Nothing else happens ──
   out.push({
     key: 'events',
-    label: 'Nothing new',
-    lines: [`No new loans, big costs or windfalls after ${thisMonth}, unless added as life events.`],
+    label: 'Life events',
+    lines: [(opts.runArgs?.lifecycle_events?.length || opts.runArgs?.reinvest_events?.length) ? 'Your saved life events are included. No other new loans, big costs or windfalls are assumed.' : `No new loans, big costs or windfalls after ${thisMonth}, unless added as life events.`],
     source: 'ASSUMED',
     fix: { href: '#life-events', text: 'ADD AN EVENT' },
   });

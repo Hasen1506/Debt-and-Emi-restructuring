@@ -48,6 +48,13 @@ export function nextMonth(month: string): string {
   return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
 }
 
+/** Resolve calendar first-EMI dates for each fresh simulation and its preview. */
+export function prepareLoanPaymentTiming(loans: LoanPayload[], currentMonth: string): LoanPayload[] {
+  return loans.map(loan => loan.first_emi_month && /^\d{4}-(0[1-9]|1[0-2])$/.test(loan.first_emi_month)
+    ? { ...loan, first_payment_month: Math.max(1, monthsBetween(currentMonth, loan.first_emi_month) + 1) }
+    : loan);
+}
+
 /** The answer to "has this month's EMI gone out?": paid, still to pay, or
  *  none yet (a new loan whose first EMI is next month). */
 export type EmiAnswer = 'paid' | 'due' | 'first';

@@ -17,6 +17,7 @@
  */
 import type { Country, LoanPayload } from './api';
 import { MONTH_NAMES_SHORT } from './today';
+import { loanMarket } from './currency';
 
 /** One step of a central bank move: a quarter point. */
 export const RATE_STEP = 0.0025;
@@ -57,6 +58,7 @@ export interface RateMove {
 /** Whether a decision moves this loan's rate: a floating EMI loan, or in
  *  the US a credit card (variable APR on the prime rate). */
 export function followsCentralBank(loan: LoanPayload, country: Country): RateFollow | null {
+  country = loanMarket(loan, country);
   if (!(Number(loan.outstanding) > 0)) return null;
   if (loan.loan_type === 'credit_card') return country === 'US' ? 'card' : null;
   return loan.rate_type === 'floating' && Number(loan.scheduled_emi) > 0 ? 'floating' : null;
@@ -117,6 +119,7 @@ export function firstResetAfter(loan: LoanPayload, decision: string): string | n
 
 /** When a decision on `decision` reaches this loan, in a phrase. */
 export function whenItApplies(move: RateMove, country: Country, decision: string | null): string {
+  country = loanMarket(move.loan, country);
   if (move.follows === 'card') return 'from your next statement or the one after';
   const reset = decision ? firstResetAfter(move.loan, decision) : null;
   if (reset) return `from its reset on ${dayLabel(reset)}`;

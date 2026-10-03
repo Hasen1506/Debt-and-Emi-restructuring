@@ -46,9 +46,9 @@ import { readEfSplitClient } from '@/lib/ef-split';
 import { emiFromMonths, firstExtraPayment, marginalRateFromTakeHome } from '@/lib/quick-setup';
 import { readStrategyClient, STRATEGY_LABEL, STRATEGY_SHORT } from '@/lib/strategy';
 import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
-import { loadProfileClient, saveProfileClient, type StoredProfile } from '@/lib/user-store';
-import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward, stampBalanceDates } from '@/lib/roll-forward';
-import { recordEmisPaidAtEntry } from '@/lib/paid-at-entry';
+import { loadProfileClient, type StoredProfile } from '@/lib/user-store';
+import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward, stampBalanceDates, prepareLoanPaymentTiming } from '@/lib/roll-forward';
+import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
 import {
   applyRateTypeChoice,
@@ -382,7 +382,7 @@ export function QuickSetup() {
     // where it has already gone out (lib/roll-forward).
     const asOf = localIsoDate(getCountryToday(built.country));
     const stamped = stampBalanceDates(built.loans, prev?.loans ?? [], asOf);
-    const user: UserPayload = { ...built, loans: rollBalancesForward(stamped, asOf.slice(0, 7)).loans };
+    const user: UserPayload = { ...built, loans: prepareLoanPaymentTiming(rollBalancesForward(stamped, asOf.slice(0, 7)).loans, asOf.slice(0, 7)) };
     let live = true;
     setPreview(null);
     setPreviewError(null);
@@ -437,12 +437,11 @@ export function QuickSetup() {
     const asOf = localIsoDate(getCountryToday(built.country));
     const current = loadProfileClient();
     const user = { ...built, loans: stampBalanceDates(built.loans, current.user.loans, asOf) };
-    const ok = saveProfileClient({ ...current, user, marginalRate: marginal().rate });
+    const ok = saveProfileWithPaidEmis({ ...current, user, marginalRate: marginal().rate }, asOf);
     if (!ok) {
       setSaveFailed(true);
       return;
     }
-    recordEmisPaidAtEntry(asOf);
     try {
       window.localStorage.setItem(BALANCES_ENTERED_KEY, localIsoDate(new Date()));
     } catch {
@@ -923,15 +922,15 @@ function LoanBlock({
             <Select<RateType | 'unsure'>
               label="Fixed or floating rate"
               value={rateTypeChoice(loan)}
-              onChange={(v) => onPatch(applyRateTypeChoice(v, loan.loan_type, country))}
+              onChange={(v) => onPatch(applyRateTypeChoice(v, loan.loan_type, country, loan.currency))}
               options={[
-                { value: 'unsure', label: `Not sure (taken as ${loan.rate_type_assumed === undefined ? loan.rate_type : likelyRateType(loan.loan_type, country)})` },
+                { value: 'unsure', label: `Not sure (taken as ${loan.rate_type_assumed === undefined ? loan.rate_type : likelyRateType(loan.loan_type, country, loan.currency)})` },
                 { value: 'fixed', label: 'Fixed' },
                 { value: 'floating', label: 'Floating' },
               ]}
               hint={
                 rateTypeChoice(loan) === 'unsure'
-                  ? `${assumedRateTypeNote(loan.loan_type, country)} ${HOW_TO_TELL}`
+                  ? `${assumedRateTypeNote(loan.loan_type, country, loan.currency)} ${HOW_TO_TELL}`
                   : HOW_TO_TELL
               }
             />

@@ -43,9 +43,8 @@ function hasAnyDeductions(d: DeductionsPayload | undefined): boolean {
 import { newLoanId, withLoanIds } from '@/lib/loan-ids';
 import {
   loadProfileClient,
-  saveProfileClient,
 } from '@/lib/user-store';
-import { loanCurrency, loanToUser, userDefaultCurrency } from '@/lib/currency';
+import { loanCurrency, loanMarket, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import {
   FY_ANCHOR_MONTH,
   getCountryToday,
@@ -54,7 +53,7 @@ import {
 } from '@/lib/today';
 import { BALANCES_ENTERED_KEY } from '@/lib/activity';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, stampBalanceDates } from '@/lib/roll-forward';
-import { recordEmisPaidAtEntry } from '@/lib/paid-at-entry';
+import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
 import {
   applyRateTypeChoice,
@@ -69,14 +68,14 @@ import {
 /** Under the fixed-or-floating choice: what "Not sure" took it as, or a
  *  saved choice that differs from the usual for this kind of loan. */
 function rateTypeHint(l: LoanPayload, country: Country): string {
-  const usual = likelyRateType(l.loan_type, country);
+  const usual = likelyRateType(l.loan_type, country, l.currency);
   if (l.rate_type_assumed === undefined) {
     // Saved before "Not sure" existed: new loans started as fixed.
     return l.rate_type !== usual
       ? `Saved as ${l.rate_type}, the old starting choice. Loans like this are usually ${usual}. ${HOW_TO_TELL}`
       : HOW_TO_TELL;
   }
-  return l.rate_type_assumed ? `${assumedRateTypeNote(l.loan_type, country)} ${HOW_TO_TELL}` : HOW_TO_TELL;
+  return l.rate_type_assumed ? `${assumedRateTypeNote(l.loan_type, country, l.currency)} ${HOW_TO_TELL}` : HOW_TO_TELL;
 }
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { api, formatCurrency, type FxRateResponse } from '@/lib/api';
@@ -723,18 +722,17 @@ function ProfileEditor({
       ...userWithFx,
       loans: stampBalanceDates(userWithFx.loans, loadProfileClient().user.loans, localIsoDate(getCountryToday(country))),
     };
-    const saved = saveProfileClient({
+    const saved = saveProfileWithPaidEmis({
       user: stampedUser,
       marginalRate: resolvedMarginalRate,
       creditScore: Number.isFinite(score) && score >= 300 ? score : null,
-    });
+    }, localIsoDate(getCountryToday(country)));
     // The browser didn't keep it (cookies blocked, or a profile too large):
     // say so and stay, instead of landing on home with nothing saved.
     if (!saved) {
       setSaveFailed(true);
       return;
     }
-    recordEmisPaidAtEntry(localIsoDate(getCountryToday(country)));
     setSaveFailed(false);
     // The balances were just entered, so cards aren't "never updated".
     try {
@@ -1440,9 +1438,9 @@ function ProfileEditor({
                 <Select<RateType | 'unsure'>
                   label="Fixed or floating rate"
                   value={rateTypeChoice(l)}
-                  onChange={(v) => updateLoan(i, applyRateTypeChoice(v, l.loan_type, country))}
+                  onChange={(v) => updateLoan(i, applyRateTypeChoice(v, l.loan_type, country, l.currency))}
                   options={[
-                    { value: 'unsure', label: `Not sure (taken as ${l.rate_type_assumed === undefined ? l.rate_type : likelyRateType(l.loan_type, country)})` },
+                    { value: 'unsure', label: `Not sure (taken as ${l.rate_type_assumed === undefined ? l.rate_type : likelyRateType(l.loan_type, country, l.currency)})` },
                     { value: 'floating', label: 'Floating' },
                     { value: 'fixed', label: 'Fixed' },
                   ]}
@@ -1554,7 +1552,7 @@ function ProfileEditor({
                           The plan keeps today&apos;s rate either way, unless
                           you set an expected change below. Then a change
                           reaches this loan at its resets (not sure: taken as{' '}
-                          {country === 'IN' ? 'every three months' : 'yearly'}).
+                          {loanMarket(l, country) === 'IN' ? 'every three months' : 'yearly'}).
                         </>
                       }
                     />

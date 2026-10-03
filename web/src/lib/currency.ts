@@ -35,6 +35,11 @@ export function loanCurrency(loan: LoanPayload, country: Country): CurrencyCode 
   return (loan.currency as CurrencyCode | undefined) ?? userDefaultCurrency(country);
 }
 
+/** The supported loan market follows its currency, independently of residence. */
+export function loanMarket(loan: Pick<LoanPayload, 'currency'>, country: Country): Country {
+  return loan.currency === 'INR' ? 'IN' : loan.currency === 'USD' ? 'US' : country;
+}
+
 /** A loan-currency amount in the user's currency at the given rates
  *  (loan-ccy → user-ccy). Null when the loan is foreign and no rate is
  *  known: the caller must not guess parity (₹20 lakh is not $20 lakh). */
