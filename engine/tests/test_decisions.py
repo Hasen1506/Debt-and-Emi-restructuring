@@ -96,13 +96,13 @@ def test_quick_recompute_diff():
 # ─── §8e Cash Yield Check ─────────────────────────────────────────────────────
 
 def test_cash_yield_alerts_on_idle_cash():
-    """₹2L sitting at 0.5% with HYSA at 7% → ~₹13k uplift."""
+    """₹2L sitting at 0.5% with a liquid fund at 6.5% → ₹12,000 a year more."""
     alert = cash_yield_check(
         idle_balance=D("200000"), current_yield=D("0.005"),
         country=Country.IN, top_loan_effective_rate=D("0.085"),
     )
     assert alert is not None
-    assert alert.annual_uplift > D("12000")
+    assert alert.annual_uplift == D("12000")
 
 
 def test_cash_yield_skips_small_balances():

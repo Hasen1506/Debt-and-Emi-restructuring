@@ -8,6 +8,7 @@
  * saved profile is edited here.
  */
 import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
+import { SAFE_RATES } from '@/lib/invest-vs-prepay';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
@@ -295,7 +296,7 @@ export function QuickSetup() {
       investment_options: [
         {
           name: country === 'IN' ? 'Liquid fund' : 'HYSA',
-          expected_return: country === 'IN' ? '0.068' : '0.045',
+          expected_return: country === 'IN' ? SAFE_RATES.liquid_in.rate : SAFE_RATES.hysa_us.rate,
           liquidity_class: 'liquid',
           is_in_pool: true,
         },

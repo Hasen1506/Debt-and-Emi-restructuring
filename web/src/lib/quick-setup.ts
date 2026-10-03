@@ -5,7 +5,8 @@
  */
 import Decimal from 'decimal.js';
 import type { Country, FilingStatusUS, IncomeType, TaxRegimeIN } from '@/lib/api';
-import { classifyBracket, computeAnnualTax } from '@/lib/tax-brackets';
+import { computeAnnualTax } from '@/lib/tax-brackets';
+import { deriveMarginalRate } from '@/lib/deductions';
 
 /**
  * The monthly payment that clears `outstanding` in `months` at `annualRate`
@@ -30,8 +31,8 @@ export function emiFromMonths(
 }
 
 /**
- * The tax bracket for someone who takes home `monthlyTakeHome` a month:
- * finds the yearly gross whose tax leaves that much, then reads its slab.
+ * The tax rate for someone who takes home `monthlyTakeHome` a month:
+ * finds the yearly gross whose tax leaves that much, then its marginal rate.
  * An estimate (it ignores PF, insurance and other deductions); Profile
  * replaces it once gross pay is entered. Null when there's no income.
  */
@@ -55,8 +56,11 @@ export function marginalRateFromTakeHome(
     else hi = mid;
   }
   const gross = Math.round(hi);
-  const bracket = classifyBracket(country, regime, incomeType, gross, filing);
-  return bracket ? { gross, rate: bracket.marginalRate } : { gross, rate: 0 };
+  // The same rate Profile works out from gross pay: in India the slab with
+  // surcharge and 4% cess, and 0 within the 87A rebate (the bare slab read
+  // 20% where Profile said 20.8%).
+  const rate = deriveMarginalRate({ grossAnnual: gross, country, taxRegime: regime, filingStatus: filing, incomeType });
+  return { gross, rate: rate ? rate.toNumber() : 0 };
 }
 
 /**

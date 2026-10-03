@@ -163,7 +163,7 @@ def cii_is_provisional(fy_string: str) -> bool:
 
 ASSET_DEFAULT_RETURNS_IN = {
     "savings_balance": D("0.035"),
-    "fixed_deposit":   D("0.07"),     # bank-FD blended; overridden by fd_rate_pct
+    "fixed_deposit":   D("0.0625"),   # 1-yr FD at SBI and HDFC Bank, Sep 2026; overridden by fd_rate_pct
     "equity_stocks":   D("0.12"),     # 10-yr Nifty CAGR ballpark
     "equity_mf":       D("0.11"),
     "debt_mf":         D("0.07"),

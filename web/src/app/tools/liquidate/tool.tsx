@@ -30,7 +30,7 @@ import { INFLATION_FORECAST, inflationRateFor, readInflationRateClient } from '@
 // Per country: India's default describes Indian deposits; a US seller's
 // leftover cash sits in a savings account. Prices rise at the central
 // bank's forecast, or the user's own rate from Plan.
-const DEFAULT_LEFTOVER_YIELD = { IN: '0.068', US: SAFE_RATES.hysa_us.rate } as const;
+const DEFAULT_LEFTOVER_YIELD = { IN: SAFE_RATES.liquid_in.rate, US: SAFE_RATES.hysa_us.rate } as const;
 
 /** Convert any user-typed purchase date into a full ISO date.
  *  Accepts YYYY (→ Oct 1 of that year, mid-FY), YYYY-MM (→ 1st of that month),
@@ -584,7 +584,7 @@ export function LiquidateTool() {
                     hint={
                       isUS
                         ? `${SAFE_RATES.hysa_us.source}, ${formatAsOf(SAFE_RATES.hysa_us.asOf)}`
-                        : 'A liquid fund or 1-year FD'
+                        : `${SAFE_RATES.liquid_in.source}, ${formatAsOf(SAFE_RATES.liquid_in.asOf)}`
                     }
                   />
                   <Field

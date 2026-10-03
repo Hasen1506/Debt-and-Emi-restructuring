@@ -50,7 +50,7 @@ export const DEMO_USER: UserPayload = {
   investment_options: [
     {
       name: 'Liquid fund',
-      expected_return: '0.068',
+      expected_return: '0.065',
       liquidity_class: 'liquid',
       is_in_pool: true,
     },

@@ -83,3 +83,25 @@ test('Rising costs: the forecast unless the user sets a rate from 0 to 25%', () 
   assert.equal(inflationRateFor('IN', '0'), '0');
   for (const bad of ['0.3', '-0.01', 'abc', '']) assert.equal(normalizeInflationRate(bad), '');
 });
+
+test('Setup estimates the same tax rate Profile works out (slab, surcharge, cess, 87A)', () => {
+  const { marginalRateFromTakeHome } = lib('quick-setup.ts');
+  const { deriveMarginalRate } = lib('deductions.ts');
+  for (const takeHome of ['60000', '150000', '400000']) {
+    const est = marginalRateFromTakeHome(takeHome, 'IN', 'salaried', 'new', undefined);
+    const profile = deriveMarginalRate({ grossAnnual: est.gross, country: 'IN', taxRegime: 'new', incomeType: 'salaried' });
+    assert.equal(est.rate, profile.toNumber(), `take-home ${takeHome}`);
+  }
+  // ₹1.5 lakh a month: the 20% slab plus 4% cess, not a bare 20%.
+  assert.equal(marginalRateFromTakeHome('150000', 'IN', 'salaried', 'new', undefined).rate, 0.208);
+  // ₹60,000 a month is within the 87A rebate: no tax on the next rupee.
+  assert.equal(marginalRateFromTakeHome('60000', 'IN', 'salaried', 'new', undefined).rate, 0);
+});
+
+test('Safe rates are dated September 2026 quotes', () => {
+  const { SAFE_RATES } = lib('invest-vs-prepay.ts');
+  assert.equal(SAFE_RATES.fd_in.rate, '0.0625');
+  assert.equal(SAFE_RATES.gsec_in.rate, '0.0591');
+  assert.equal(SAFE_RATES.liquid_in.rate, '0.065');
+  for (const r of Object.values(SAFE_RATES)) assert.match(r.asOf, /^2026-/);
+});

@@ -447,15 +447,17 @@ class CashYieldAlert:
     idle_balance: Decimal
     current_yield: Decimal
     best_alt_yield: Decimal
-    alt_name: str                       # "HYSA at 4.5%" / "Liquid fund at 6.8%"
+    alt_name: str                       # "HYSA at 4.25%" / "Liquid fund at 6.5%"
     annual_uplift: Decimal              # (best − current) × idle_balance
     beats_top_loan: bool                # uplift > prepaying highest-rate loan on same $$
     rationale: str
 
 
-# Country defaults (May 2026, verified) — caller can override
+# Country defaults (Sep 2026) — caller can override. A liquid fund's yield
+# to maturity was about 6.5% in early Sep 2026 (repo 5.25%); top online
+# savings accounts paid about 4.25%.
 DEFAULT_BEST_LIQUID = {
-    Country.IN: (D("0.068"), "Liquid mutual fund ~6.8%"),    # short-duration liquid fund
+    Country.IN: (D("0.065"), "Liquid mutual fund ~6.5%"),    # short-duration liquid fund
     Country.US: (D("0.0425"), "HYSA top-tier ~4.25%"),
 }
 
