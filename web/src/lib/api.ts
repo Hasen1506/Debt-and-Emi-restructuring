@@ -5,6 +5,7 @@
  */
 import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
+import { authErrorMessage } from './auth-error';
 
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
@@ -1215,7 +1216,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     const detail = await res.text();
     // Sign-in screens show the server's own words (after the prefix);
     // a calculation says what went wrong in plain terms.
-    if (path.startsWith('/api/auth/')) throw new Error(`${path} → ${res.status}: ${detail}`);
+    if (path.startsWith('/api/auth/')) throw new Error(authErrorMessage(res.status, detail, res.headers.get('retry-after')));
     throw new Error(
       res.status === 429
         ? 'Too many checks from this connection. Wait a minute and try again.'
