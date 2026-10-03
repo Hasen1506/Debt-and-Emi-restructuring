@@ -47,10 +47,21 @@ export async function HomeDebtFreeCaption() {
   if (!plan.live) return <>DATE + MONTHLY SCHEDULE</>;
   if (plan.debtFreeMonth === 0) return <>NOTHING OWED</>;
   if (!plan.debtFreeMonth) return <Link href="/plan">RAISE SURPLUS · SEE PLAN →</Link>;
+  // The date rests on what goes to debts each month and on rates staying
+  // where they are; said with it (the rest is on Plan's "takes as given").
+  const toDebts = plan.monthlyPayments.find((p) => p.month === 1)?.totalPaid;
+  const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country));
+  // What's actually been paid lately, when it moves the date (lib/pace).
+  const pace = plan.pace;
+  const atPace =
+    pace?.differs && pace.average && pace.debtFreeMonth && pace.debtFreeMonth !== plan.debtFreeMonth
+      ? ` · AT THE ${fc(pace.average)}/MO YOU'VE PAID: ${monthIndexToCountryLabel(pace.debtFreeMonth, plan.user.country).toUpperCase()}`
+      : '';
   return (
     <Link href="/plan">
       IN {monthsSpan(plan.debtFreeMonth).toUpperCase()}
-      {plan.monthsSaved > 0 ? ` · ${monthsSpan(plan.monthsSaved).toUpperCase()} SOONER THAN MINIMUMS` : ''} · PLAN →
+      {toDebts ? ` · AT ${fc(toDebts)}/MO TO DEBTS, RATES AS TODAY` : ''}
+      {atPace} · PLAN →
     </Link>
   );
 }

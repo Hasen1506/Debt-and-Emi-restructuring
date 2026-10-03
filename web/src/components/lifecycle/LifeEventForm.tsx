@@ -7,6 +7,7 @@
  * planned, Activity as happened when the date has passed).
  */
 import { useEffect, useMemo, useState } from 'react';
+import { likelyRateType } from '@/lib/rate-type';
 import type { LoanPayload, LoanType, UserPayload } from '@/lib/api';
 import { formatCurrencyWhole } from '@/lib/api';
 import type { LifecycleDraft, LifecycleEvent, LifecycleKind } from '@/lib/lifecycle-events';
@@ -157,7 +158,18 @@ export function LifeEventForm({
         newRate: Number(newRate).toFixed(4),
       };
     }
-    return { ...base, kind, loanDraft: { ...draft, nominal_rate: Number(draft.nominal_rate).toFixed(4) } };
+    // Fixed or floating isn't asked here: the usual for the kind of loan,
+    // marked as assumed (lib/rate-type).
+    return {
+      ...base,
+      kind,
+      loanDraft: {
+        ...draft,
+        nominal_rate: Number(draft.nominal_rate).toFixed(4),
+        rate_type: likelyRateType(draft.loan_type, user.country),
+        rate_type_assumed: true,
+      },
+    };
   }
 
   const key = JSON.stringify([kind, date, gross, takeHome, loanIdx, newRate, draft]);

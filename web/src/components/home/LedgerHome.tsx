@@ -35,6 +35,7 @@ import {
   type LTone,
 } from '@/components/ledger/primitives';
 import { OpenPositions } from './OpenPositions';
+import { useOwedNow } from '@/lib/owed-now';
 import { ToolStrip } from '@/components/goals/ToolsList';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 
@@ -69,12 +70,15 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrencyWhole(v, ccy);
+  // Owed now: after the EMIs already marked paid this month (lib/owed-now).
+  const owedRows = useOwedNow(profile.user.loans, profile.user.country).rows;
 
   if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
 
   // A loan with no rate or EMI on file: no rates until it's added.
   const gaps = projectionGaps(profile.user);
   const fxMissing = m.fxMissing.length > 0;
+  const totalNow = m.loans.reduce((s, d) => s.add(m.toUserCcy(owedRows[d.index]?.owed ?? d.outstanding, d.loan)), m.totalOutstanding.mul(0));
 
   return (
     <LShell>
@@ -100,7 +104,7 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper }: HomeProps) {
               // With no exchange rate the ₹ and $ can't be added up.
               fxMissing
                 ? { l: 'OUTSTANDING', v: '—', s: 'ADD THE EXCHANGE RATE' }
-                : { l: 'OUTSTANDING', v: fc(m.totalOutstanding.toFixed(0)), s: `${m.loans.length} OPEN` },
+                : { l: 'OUTSTANDING', v: fc(totalNow.toFixed(0)), s: `${m.loans.length} OPEN` },
               debtFree
                 ? { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.positive }
                 : { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },

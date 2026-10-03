@@ -18,6 +18,17 @@ import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { LBracket, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
 import { StaleCardNudge } from './StaleCardNudge';
+import { useOwedNow, type EmiStatus } from '@/lib/owed-now';
+import { getCountryToday, localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
+
+/** This month's EMI, by loan: said under its balance. */
+const STATUS_WORDS: Record<EmiStatus, (mon: string, next: string) => string> = {
+  first: (_mon, next) => `FIRST EMI IN ${next}`,
+  paid: (mon) => `AFTER ${mon} EMI`,
+  due: (mon) => `${mon} EMI TO PAY`,
+  part: (mon) => `${mon} EMI PART-PAID`,
+  missed: (mon) => `${mon} EMI NOT PAID`,
+};
 
 export function OpenPositions({ profile, m }: { profile: StoredProfile; m: DerivedMetrics }) {
   const [open, setOpen] = useState<number | null>(null);
@@ -30,6 +41,13 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
   const dearest = anyGap ? null : m.loudest;
   const itemises = usMortgageShieldShare(user);
   const noFx = m.fxMissing.length > 0;
+  // What's owed now: a loan whose EMI has gone out this month shows the
+  // balance after it (lib/owed-now).
+  const now = useOwedNow(user.loans, country);
+  const monthIdx = Number(localIsoDate(getCountryToday(country)).slice(5, 7)) - 1;
+  const mon = MONTH_NAMES_SHORT[monthIdx].toUpperCase();
+  const nextMon = MONTH_NAMES_SHORT[(monthIdx + 1) % 12].toUpperCase();
+  const totalNow = m.loans.reduce((s, d) => s.add(m.toUserCcy(now.rows[d.index]?.owed ?? d.outstanding, d.loan)), m.totalOutstanding.mul(0));
 
   return (
     <section aria-labelledby="positions-h" id="positions" style={{ scrollMarginTop: 16 }}>
@@ -38,9 +56,10 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
       </LSectionHeader>
       {/* Where these numbers come from: the user, not the bank. */}
       <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
-        As you entered them in Profile. Loans move on by one EMI a month; card
-        balances stay as entered until you update them. Not linked to your bank,
-        so check them against a statement now and then.
+        As you entered them in Profile. A loan moves on by its EMI once you mark
+        it paid (or the month ends); card balances stay as entered until you
+        update them. Not linked to your bank, so check them against a statement
+        now and then.
       </p>
       <StaleCardNudge user={user} />
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: `2px solid ${L_T.ink}` }}>
@@ -53,6 +72,8 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
           const months = Number(loan.tenure_months_remaining || 0);
           const isDearest = d === dearest;
           const isOpen = open === i;
+          const owed = now.rows[d.index]?.owed ?? d.outstanding;
+          const status = now.rows[d.index]?.status ?? null;
           const name = loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : LOAN_TYPE_NAME[loan.loan_type];
           const missing = (what: string) => <span style={{ color: L_T.negative, fontWeight: 700 }}>ADD THE {what}</span>;
           const parts = [
@@ -73,7 +94,8 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
             ) : d.required.gt(0) ? (
               `${isCard ? 'MINIMUM' : 'EMI'} ${fc(d.required.toFixed(0))}`
             ) : null,
-            isCard ? 'REVOLVING' : months > 0 ? `${months} MO LEFT` : null,
+            // Once this month's EMI is paid it's no longer one of the months left.
+            isCard ? 'REVOLVING' : months > 0 ? `${now.rows[d.index]?.status === 'paid' ? months - 1 : months} MO LEFT` : null,
           ].filter(Boolean);
           return (
             <li
@@ -109,10 +131,21 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                 </div>
               </div>
               <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{fc(loan.outstanding)}</div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{fc(owed.toFixed(0))}</div>
+                {status && (
+                  <div
+                    style={{
+                      fontSize: 10,
+                      letterSpacing: '0.08em',
+                      color: status === 'paid' ? L_T.positive : status === 'due' ? L_T.muted : L_T.negative,
+                    }}
+                  >
+                    {STATUS_WORDS[status](mon, nextMon)}
+                  </div>
+                )}
                 {ccy !== userCcy && !noFx && (
                   <div style={{ fontSize: 10, color: L_T.muted }}>
-                    ≈ {formatCurrencyWhole(m.toUserCcy(d.outstanding, loan).toFixed(0), userCcy)}
+                    ≈ {formatCurrencyWhole(m.toUserCcy(owed, loan).toFixed(0), userCcy)}
                   </div>
                 )}
               </div>
@@ -163,7 +196,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
             </a>
           ) : (
             <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-              {formatCurrencyWhole(m.totalOutstanding.toFixed(0), userCcy)}
+              {formatCurrencyWhole(totalNow.toFixed(0), userCcy)}
               <span style={{ color: L_T.muted, fontWeight: 400 }}>
                 {' '}· EMIS + MINIMUMS {formatCurrencyWhole(m.emiBurden.toFixed(0), userCcy)}/MO
               </span>

@@ -43,12 +43,14 @@ import { projectAnnualTaxSavings } from '@/lib/tax-projection';
 import { projectBracketTransitions } from '@/lib/bracket-transitions';
 import Decimal from 'decimal.js';
 import { countryMonthKey, getCountryMonth, getCountryToday, localIsoDate } from '@/lib/today';
-import { rollBalancesForward } from '@/lib/roll-forward';
+import { monthsBetween, rollBalancesForward } from '@/lib/roll-forward';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import {
   applyActivityDeltas,
   loadActivityDeltasServer,
+  loadActivityPaceServer,
 } from '@/lib/activity-cookie';
+import { PACE_MONTHS, monthsBefore, paceDiffers, paceSummary } from '@/lib/pace';
 import { mergeTrajectories } from '@/lib/trajectory';
 import { mockTrajectory } from '@/lib/mock-data';
 import { deriveMetrics } from '@/lib/derived';
@@ -56,6 +58,7 @@ import { projectionGaps } from '@/lib/loan-gaps';
 import {
   currenciesInPlay,
   derivePerCurrencyMetrics,
+  loanToUser,
   userDefaultCurrency,
 } from '@/lib/currency';
 import type { PlanData, MonthlyPaymentBreakdown } from '@/components/plan/PlanData';
@@ -285,11 +288,29 @@ export async function loadPlanInputs(
       1;
     return diff > 0 ? diff : undefined;
   }
+  // A loan taken this month: the engine starts its EMIs at the first EMI
+  // month (lib/roll-forward).
+  const planMonth = countryMonthKey(adjustedUser.country);
+  adjustedUser.loans = adjustedUser.loans.map((l) =>
+    l.first_emi_month && l.first_emi_month > planMonth
+      ? { ...l, first_payment_month: monthsBetween(planMonth, l.first_emi_month) + 1 }
+      : l,
+  );
   adjustedUser.loans = adjustedUser.loans.map((l) => {
     if (l.rate_type !== 'floating') return l;
     const computed = nextResetSimMonth(l.next_reset_date);
-    if (!computed && !l.rate_reset_frequency_months) return l;
-    return { ...l, next_reset_month: computed } as typeof l & {
+    // An expected rate change with no reset on file used to be dropped
+    // silently. Not sure how often it resets: a repo-linked loan resets at
+    // least every three months (a US adjustable one yearly), so the change
+    // reaches it one period in. Without a change, nothing is assumed.
+    const drift = Number(l.rate_drift_annualized || 0) !== 0;
+    const freq = l.rate_reset_frequency_months ?? (drift ? (adjustedUser.country === 'IN' ? 3 : 12) : undefined);
+    if (!computed && !freq) return l;
+    return {
+      ...l,
+      rate_reset_frequency_months: freq,
+      next_reset_month: computed ?? (drift ? freq : undefined),
+    } as typeof l & {
       next_reset_month?: number;
     };
   }) as typeof adjustedUser.loans;
@@ -444,6 +465,7 @@ export async function loadPlan(
       firstMonthMinimums: {},
       runArgs: null,
       activityImpact: null,
+      pace: null,
       currenciesInPlay: ccyList,
       displayCurrency: userDefaultCurrency(profile.user.country),
       byCurrency: {},
@@ -470,6 +492,21 @@ export async function loadPlan(
 
   try {
     const scenarioCall = cachedEngineCall('simulate', { ...simBaseArgs, strategy }, () => api.simulate({ ...simBaseArgs, strategy }));
+    // What reached the debts in the last three months as logged (lib/pace),
+    // and the same plan at that average: one more run, beside the others.
+    const paceWindow = monthsBefore(countryMonthKey(adjustedUser.country), PACE_MONTHS);
+    const logged = paceSummary(
+      (await loadActivityPaceServer()).filter((m) => paceWindow.includes(m.month)),
+      profile.user.loans,
+      adjustedUser.country,
+      fxRatesUsed,
+    );
+    const paceArgs = logged?.average && String(logged.average) !== debtBudget
+      ? { ...simBaseArgs, strategy, debt_budget: String(logged.average) }
+      : null;
+    const paceCall = paceArgs
+      ? cachedEngineCall('simulate', paceArgs, () => api.simulate(paceArgs)).catch(() => null)
+      : Promise.resolve(null);
     // The server compares repayment schedules using this plan's settings.
     // It derives balance paths there, keeping large plans within the request limit.
     const restructuringCall = scenarioCall.then(() => {
@@ -511,6 +548,14 @@ export async function loadPlan(
         : 0;
     const scenarioPayments = extractMonthlyPayments(scenario);
     const baselinePayments = extractMonthlyPayments(baseline);
+    const planTotal = Math.round(
+      Object.entries(scenarioPayments.find((p) => p.month === 1)?.perLoan ?? {}).reduce((sum, [i, v]) => {
+        const loan = displayUser.loans[Number(i)];
+        return loan ? sum + (loanToUser(Number(v), loan, adjustedUser.country, fxRatesUsed) ?? 0) : sum;
+      }, 0),
+    );
+    const paceSim = await paceCall;
+    const paceOff = logged?.average != null && paceDiffers(logged.average, planTotal);
     const ccyList = currenciesInPlay(displayUser.loans, adjustedUser.country);
     const byCurrency = derivePerCurrencyMetrics(
       displayUser.loans,
@@ -552,14 +597,24 @@ export async function loadPlan(
       // payment minus this is the extra it puts on each loan.
       firstMonthMinimums: baselinePayments.find((p) => p.month === 1)?.perLoan ?? {},
       runArgs: simBaseArgs,
+      // Only when the log changed a balance: an extra the plan already
+      // pays this month changes nothing until the month is over.
       activityImpact:
-        application.entryCount > 0
+        application.entryCount > 0 && application.perLoanBumps.some((b) => Number(b.totalBump) !== 0)
           ? {
               perLoanBumps: application.perLoanBumps,
               totalBump: application.totalBump,
               entryCount: application.entryCount,
             }
           : null,
+      pace: logged
+        ? {
+            ...logged,
+            planTotal,
+            differs: paceOff,
+            debtFreeMonth: paceOff && paceSim ? paceSim.debt_free_month : null,
+          }
+        : null,
       currenciesInPlay: ccyList,
       displayCurrency: userDefaultCurrency(adjustedUser.country),
       byCurrency,

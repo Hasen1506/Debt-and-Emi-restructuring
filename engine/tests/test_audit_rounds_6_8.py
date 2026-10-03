@@ -26,7 +26,9 @@ def test_planned_property_arrives_after_debt_free_gap_with_stable_indices(strate
     assert len(result.months) >= 4
     assert result.months[2].balances_by_loan_index[idx] == 0
     assert result.months[3].balances_by_loan_index[idx] > 0
-    assert result.months[3].payments_by_loan_index[idx] > 0
+    # Disbursed in month 4, first EMI in month 5.
+    assert result.months[3].payments_by_loan_index.get(idx, 0) == 0
+    assert result.months[4].payments_by_loan_index[idx] > 0
     assert result.debt_free_month is not None and result.debt_free_month > 4
     assert draft.outstanding == D('500000')
     assert u.loans == original
@@ -45,7 +47,10 @@ def test_future_loan_lock_in_starts_on_arrival_not_simulation_start():
     draft = loan(prepay_lock_in_months=3)
     event = LifecycleEvent(LifecycleEventKind.PROPERTY_BUY, 5, loan_draft=draft)
     result = simulate_plan(user([]), horizon_months=12, lifecycle_events=[event])
-    for row in result.months[4:7]:
+    # Arrives in month 5 (no EMI yet); months 6 and 7 are still locked in,
+    # so they pay the EMI only; month 8 can pay more.
+    assert result.months[4].payments_by_loan_index.get(0, 0) == 0
+    for row in result.months[5:7]:
         assert row.payments_by_loan_index[0] == D('6350')
     assert result.months[7].payments_by_loan_index[0] > D('6350')
 

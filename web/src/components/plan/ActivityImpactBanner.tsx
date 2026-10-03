@@ -72,17 +72,17 @@ export function ActivityImpactBanner({
         variant="ledger"
         tone="negative"
         border="dashed"
-        eyebrow={`ACTIVITY · ${impact.entryCount} ENTR${impact.entryCount === 1 ? 'Y' : 'IES'} · BUMP ${totalBumpDisplay}`}
+        eyebrow={`FROM ACTIVITY · ${impact.entryCount} ENTR${impact.entryCount === 1 ? 'Y' : 'IES'} · ${totalBumpDisplay}`}
       >
         <div style={{ marginBottom: 6 }}>
-          <strong style={{ color: 'var(--negative)' }}>NOTE</strong>{' '}
           <span style={{ color: 'var(--muted)' }}>
-            · The engine bumped your loan balances by these amounts before
-            simulating, drawing from your{' '}
+            The plan starts from your balances after what you&apos;ve logged: a
+            missed or short payment adds what&apos;s overdue (and its fee), an
+            extra payment takes it off. Change an entry in{' '}
             <a href="/activity" style={{ color: 'var(--ink)' }}>
-              /activity
+              Activity
             </a>{' '}
-            ledger. Edit there to refresh the projection.
+            and the plan follows.
           </span>
         </div>
         <table

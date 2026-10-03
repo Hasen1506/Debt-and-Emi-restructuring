@@ -36,6 +36,8 @@ import { describeGap, type ProfileGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import type { StoredProfile } from '@/lib/user-store';
 import { PlanTrajectory } from './PlanTrajectory';
+import { PlanPace } from './PlanPace';
+import { RateDecisions } from './RateDecisions';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
@@ -46,6 +48,7 @@ import { PlanSchedule } from './PlanSchedule';
 import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
 import { PlanNotes } from './PlanNotes';
 import { PlanAssumptions } from './PlanAssumptions';
+import { PlanGivens } from './PlanGivens';
 
 export function LedgerPlan({ plan }: { plan: PlanData }) {
   const ccy = plan.displayCurrency;
@@ -98,8 +101,10 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           />
         )}
 
-        {/* What the plan assumes (editable chips), then what it comes to */}
+        {/* What the plan assumes (editable chips), the data and guesses it
+            rests on, then what it comes to */}
         <PlanAssumptions plan={plan} />
+        <PlanGivens plan={plan} />
         <LKpi
           cols={4}
           items={[
@@ -142,6 +147,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             },
           ]}
         />
+        {/* What actually reached the debts, beside what the plan puts in */}
+        {!short && <PlanPace plan={plan} />}
 
         {plan.shortfall > 0 && <ShortfallBanner plan={plan} />}
         {plan.futureShortfall && <div role="alert" style={{color:L_T.negative,fontSize:12}}>
@@ -160,8 +167,11 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {!short && <DebtFreeRedirectPrompt plan={plan} />}
 
         {/* Month by month, collapsed to the months something happens;
-            the next rate reset and the central bank's next meeting below */}
+            the next rate reset below */}
         <PlanSchedule plan={plan} />
+
+        {/* The next RBI / Fed decision, loan by loan, and whether to wait */}
+        <RateDecisions plan={plan} />
 
         {/* Planned pay changes, new rates and new loans */}
         <div id="life-events" style={{ scrollMarginTop: 16 }}>

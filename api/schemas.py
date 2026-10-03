@@ -167,6 +167,9 @@ class LoanIn(_In):
     prepay_lock_in_months: Months = 0
     part_payment_freq_months: Optional[int] = Field(None, ge=1, le=MAX_MONTHS)
     pre_emi_months_remaining: Months = 0
+    # Sim month of the first EMI (a loan taken this month: 2). The web
+    # derives it from the loan's calendar first EMI month.
+    first_payment_month: int = Field(1, ge=1, le=MAX_MONTHS)
     # Quoted rate basis — "flat" (consumer-durable / NBFC quote) or
     # "reducing" (bank quote). Converted to reducing at to_engine().
     rate_basis: str = "reducing"
@@ -203,6 +206,7 @@ class LoanIn(_In):
             prepay_lock_in_months=self.prepay_lock_in_months,
             part_payment_freq_months=self.part_payment_freq_months,
             pre_emi_months_remaining=self.pre_emi_months_remaining,
+            first_payment_month=self.first_payment_month,
             rate_basis=self.rate_basis,
         )
 

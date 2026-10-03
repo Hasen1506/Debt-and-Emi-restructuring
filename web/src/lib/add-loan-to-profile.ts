@@ -8,12 +8,13 @@
  * for projection deltas) — this only touches the profile.
  */
 import { deriveMetrics } from './derived';
+import { likelyRateType } from './rate-type';
 import { applyActivityDeltas, parseActivityDeltas } from './activity-cookie';
 import { loanToUser } from './currency';
 import { loadProfileClient, saveProfileClient } from './user-store';
 import type { Country, LoanPayload, LoanType } from './api';
 import { userDefaultCurrency, type CurrencyCode } from './currency';
-import { rollBalancesForward } from './roll-forward';
+import { nextMonth, rollBalancesForward } from './roll-forward';
 import { getCountryToday, localIsoDate, countryMonthKey } from './today';
 
 export interface AddLoanInput {
@@ -63,11 +64,15 @@ export function addLoanToProfile(input: AddLoanInput): number | null {
   const foreign = input.currency && input.currency !== own ? (input.currency as CurrencyCode) : null;
   const newLoan: LoanPayload = {
     balance_as_of: localIsoDate(getCountryToday(profile.user.country)),
+    // Taken now: the first EMI is next month (lib/roll-forward).
+    first_emi_month: nextMonth(countryMonthKey(profile.user.country)),
     loan_type: input.loan_type,
     bank: input.bank,
     outstanding: input.outstanding,
     nominal_rate: input.nominal_rate,
-    rate_type: input.rate_type ?? 'fixed',
+    // Not given: the usual for the kind of loan, marked as assumed.
+    rate_type: input.rate_type ?? likelyRateType(input.loan_type, profile.user.country),
+    rate_type_assumed: !input.rate_type,
     tenure_months_remaining: input.tenure_months_remaining,
     scheduled_emi: input.scheduled_emi,
     ...(input.min_payment_override ? {min_payment_override:input.min_payment_override} : {}),

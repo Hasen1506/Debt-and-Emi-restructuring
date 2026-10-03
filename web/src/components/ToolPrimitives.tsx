@@ -544,6 +544,7 @@ export function Select<T extends string>({
   onChange,
   options,
   info,
+  hint,
   error,
 }: {
   label: string;
@@ -551,6 +552,8 @@ export function Select<T extends string>({
   onChange: (v: T) => void;
   options: { value: T; label: string }[];
   info?: ReactNode;
+  /** A line under the choice, like a field's hint. */
+  hint?: string;
   error?: string | null;
 }) {
   const selectId = useId();
@@ -561,7 +564,7 @@ export function Select<T extends string>({
         id={selectId}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
-        aria-describedby={describedBy(selectId, undefined, error)}
+        aria-describedby={describedBy(selectId, hint, error)}
         aria-invalid={error ? true : undefined}
         style={{
           padding: '8px 10px',
@@ -579,6 +582,11 @@ export function Select<T extends string>({
         ))}
       </select>
       <FieldError id={selectId} error={error} />
+      {hint && (
+        <span id={`${selectId}-hint`} className="muted" style={{ fontSize: 11 }}>
+          {hint}
+        </span>
+      )}
     </div>
   );
 }

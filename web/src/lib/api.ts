@@ -55,6 +55,23 @@ export interface LoanPayload {
   balance_as_of?: string;
   /** When the reported balance was saved. Separates payments earlier and later that day. */
   balance_recorded_at?: string;
+  /** Whether that month's EMI had already gone out when the balance was
+   *  entered: true, the balance has it taken off; false, it's still to
+   *  come. Unset on balances saved before setup asked (lib/roll-forward
+   *  keeps the old reading for those). The API ignores it. */
+  balance_after_emi?: boolean;
+  /** 'YYYY-MM' of the first EMI, for a loan taken this month (its first
+   *  EMI is usually next month). Until then the plan neither charges nor
+   *  pays it (sent to the engine as `first_payment_month`). */
+  first_emi_month?: string;
+  /** Sim month of the first EMI, worked out from `first_emi_month` on the
+   *  request path; not authored by the user. */
+  first_payment_month?: number;
+  /** True when `rate_type` is the usual one for this kind of loan because
+   *  the borrower wasn't sure (lib/rate-type); false when they picked it.
+   *  Unset on loans saved before the choice had "Not sure". The API
+   *  ignores it. */
+  rate_type_assumed?: boolean;
   loan_type: LoanType;
   bank: string;
   outstanding: string;

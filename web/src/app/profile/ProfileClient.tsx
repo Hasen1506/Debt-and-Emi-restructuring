@@ -2,7 +2,7 @@
 
 import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { SAFE_RATES } from '@/lib/invest-vs-prepay';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/Card';
 import { BankCombobox, Field, Select } from '@/components/ToolPrimitives';
@@ -53,11 +53,35 @@ import {
   localIsoDate,
 } from '@/lib/today';
 import { BALANCES_ENTERED_KEY } from '@/lib/activity';
-import { stampBalanceDates } from '@/lib/roll-forward';
+import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, stampBalanceDates } from '@/lib/roll-forward';
+import { recordEmisPaidAtEntry } from '@/lib/paid-at-entry';
+import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
+import {
+  applyRateTypeChoice,
+  assumedRateTypeNote,
+  HOW_TO_TELL,
+  likelyRateType,
+  patchLoanKeepingRateType,
+  rateTypeChoice,
+  type RateType,
+} from '@/lib/rate-type';
+
+/** Under the fixed-or-floating choice: what "Not sure" took it as, or a
+ *  saved choice that differs from the usual for this kind of loan. */
+function rateTypeHint(l: LoanPayload, country: Country): string {
+  const usual = likelyRateType(l.loan_type, country);
+  if (l.rate_type_assumed === undefined) {
+    // Saved before "Not sure" existed: new loans started as fixed.
+    return l.rate_type !== usual
+      ? `Saved as ${l.rate_type}, the old starting choice. Loans like this are usually ${usual}. ${HOW_TO_TELL}`
+      : HOW_TO_TELL;
+  }
+  return l.rate_type_assumed ? `${assumedRateTypeNote(l.loan_type, country)} ${HOW_TO_TELL}` : HOW_TO_TELL;
+}
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { api, formatCurrency, type FxRateResponse } from '@/lib/api';
 import { deriveTenureMonths } from '@/lib/derived';
-import { loanDraftErrors } from '@/lib/loan-gaps';
+import { loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
 import {
   classifyBracket,
   computeAnnualTax,
@@ -145,7 +169,9 @@ function blankLoan(): LoanPayload {
     bank: '',
     outstanding: '',
     nominal_rate: '',
+    // Not sure until picked: the usual type for the kind of loan (lib/rate-type).
     rate_type: 'fixed',
+    rate_type_assumed: true,
     tenure_months_remaining: 0,
     scheduled_emi: '',
     processing_fee_amortised: '',
@@ -285,6 +311,8 @@ function ProfileEditor({
   }, [country, hikeMonthTouched]);
 
   const [loans, setLoans] = useState<LoanPayload[]>([blankLoan()]);
+  // The loans as saved, to tell a changed balance from one left alone.
+  const savedLoansRef = useRef<LoanPayload[]>([]);
   // Set when Continue is pressed with a loan missing its rate or EMI.
   const [showLoanErrors, setShowLoanErrors] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -373,6 +401,7 @@ function ProfileEditor({
       setHikeMonthTouched(true);
     }
     if (u.loans && u.loans.length > 0) {
+      savedLoansRef.current = withLoanIds(u.loans);
       setLoans(withLoanIds(u.loans));
       // Decide auto vs manual per loan on rehydrate: if the saved tenure
       // matches what we'd derive from the current outstanding+EMI+rate,
@@ -442,7 +471,7 @@ function ProfileEditor({
   }, [triplets, country]);
 
   function updateLoan(idx: number, patch: Partial<LoanPayload>) {
-    setLoans((cur) => cur.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+    setLoans((cur) => cur.map((l, i) => (i === idx ? patchLoanKeepingRateType(l, patch, country) : l)));
   }
 
   function addLoan() {
@@ -705,6 +734,7 @@ function ProfileEditor({
       setSaveFailed(true);
       return;
     }
+    recordEmisPaidAtEntry(localIsoDate(getCountryToday(country)));
     setSaveFailed(false);
     // The balances were just entered, so cards aren't "never updated".
     try {
@@ -719,6 +749,15 @@ function ProfileEditor({
   // Loans need what the projection needs; no loans at all is fine (goals,
   // portfolio and purchase planning work without one).
   const loanErrors = loans.map((l) => loanDraftErrors(l));
+  // A new or changed balance on an EMI loan says whether this month's EMI
+  // is already off it (lib/roll-forward).
+  const thisMonth = localIsoDate(getCountryToday(country)).slice(0, 7);
+  const thisMonthName = MONTH_NAMES[Number(thisMonth.slice(5, 7)) - 1];
+  const nextMonthName = MONTH_NAMES[Number(nextMonth(thisMonth).slice(5, 7)) - 1];
+  const savedLoans = savedLoansRef.current;
+  const askPaid = (l: LoanPayload) =>
+    needsEmi(l.loan_type) && asksEmiPaid(l, savedLoans.find((p) => p.id === l.id));
+  const paidErrors = loans.map((l) => (askPaid(l) && emiAnswer(l, thisMonth) === undefined ? emiPaidError(thisMonthName) : null));
   // Currencies of entered loans other than the user's own.
   const userCcy = userDefaultCurrency(country);
   const foreignCcys = Array.from(
@@ -742,7 +781,9 @@ function ProfileEditor({
     }
   }
   const loansComplete =
-    loanErrors.every((e) => Object.keys(e).length === 0) && Object.keys(fxErrors).length === 0;
+    loanErrors.every((e) => Object.keys(e).length === 0) &&
+    paidErrors.every((e) => !e) &&
+    Object.keys(fxErrors).length === 0;
   const canAdvance =
     step === 0 ? true                                                       // 'You' is fully optional — never gate the flow
       : step === 1 ? !!country
@@ -1347,6 +1388,15 @@ function ProfileEditor({
                     </>
                   }
                 />
+                {askPaid(l) && (
+                  <EmiPaidQuestion
+                    monthName={thisMonthName}
+                    nextMonthName={nextMonthName}
+                    value={emiAnswer(l, thisMonth)}
+                    onChange={(a) => updateLoan(i, emiAnswerPatch(a, thisMonth))}
+                    error={showLoanErrors ? paidErrors[i] : null}
+                  />
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <Field
                     label="Interest rate (%)"
@@ -1387,14 +1437,16 @@ function ProfileEditor({
                   />
                 </div>
                 {l.loan_type !== 'credit_card' && (
-                <Select
-                  label="Rate type"
-                  value={l.rate_type}
-                  onChange={(v) => updateLoan(i, { rate_type: v })}
+                <Select<RateType | 'unsure'>
+                  label="Fixed or floating rate"
+                  value={rateTypeChoice(l)}
+                  onChange={(v) => updateLoan(i, applyRateTypeChoice(v, l.loan_type, country))}
                   options={[
-                    { value: 'floating' as const, label: 'Floating' },
-                    { value: 'fixed' as const, label: 'Fixed' },
+                    { value: 'unsure', label: `Not sure (taken as ${l.rate_type_assumed === undefined ? l.rate_type : likelyRateType(l.loan_type, country)})` },
+                    { value: 'floating', label: 'Floating' },
+                    { value: 'fixed', label: 'Fixed' },
                   ]}
+                  hint={rateTypeHint(l, country)}
                   info={
                     <>
                       <strong>Fixed</strong> — your interest rate is{' '}
@@ -1474,49 +1526,46 @@ function ProfileEditor({
                             v === '' ? undefined : Number(v),
                         })
                       }
-                      options={[
-                        { value: '', label: 'Not sure / not tracking' },
-                        { value: '1', label: 'Monthly (RLLR / EBLR)' },
-                        { value: '3', label: 'Quarterly' },
-                        { value: '6', label: 'Half-yearly (older MCLR)' },
-                        { value: '12', label: 'Yearly (legacy MCLR)' },
-                      ]}
+                      options={
+                        country === 'IN'
+                          ? [
+                              { value: '', label: 'Not sure' },
+                              { value: '1', label: 'Every month' },
+                              { value: '3', label: 'Every three months (most repo-linked loans)' },
+                              { value: '6', label: 'Every six months (MCLR)' },
+                              { value: '12', label: 'Every year (MCLR)' },
+                            ]
+                          : [
+                              { value: '', label: 'Not sure' },
+                              { value: '1', label: 'Every month (HELOC, card)' },
+                              { value: '6', label: 'Every six months' },
+                              { value: '12', label: 'Every year (most adjustable mortgages)' },
+                            ]
+                      }
                       info={
                         <>
                           <strong>How often the bank re-prices this loan.</strong>{' '}
-                          Post-Oct-2019 IN home loans are typically RLLR /
-                          EBLR (1-month reset) — your bank applies the new
-                          rate automatically from the next billing cycle, no
-                          refi needed.
+                          {country === 'IN'
+                            ? 'Bank home loans since October 2019 are mostly linked to the repo rate and reset at least every three months; older MCLR loans every six or twelve. The bank applies the new rate itself.'
+                            : 'An adjustable mortgage adjusts on its schedule after the fixed period, usually yearly; a HELOC follows the prime rate monthly.'}{' '}
+                          Your loan letter&apos;s reset clause says which.
                           <br />
                           <br />
-                          Older MCLR loans reset 6 or 12 months. Check your
-                          sanction letter (&quot;reset frequency&quot; or
-                          &quot;reset clause&quot;) if you&apos;re unsure.
-                          <br />
-                          <br />
-                          Leave at &quot;Not sure&quot; and the engine
-                          assumes no auto-reset — your floating rate stays
-                          at today&apos;s value across the horizon.
+                          The plan keeps today&apos;s rate either way, unless
+                          you set an expected change below. Then a change
+                          reaches this loan at its resets (not sure: taken as{' '}
+                          {country === 'IN' ? 'every three months' : 'yearly'}).
                         </>
                       }
                     />
                     <Field
-                      label="Next reset date (YYYY-MM, optional)"
-                      value={l.next_reset_date ?? ''}
+                      label="Next reset (optional)"
+                      kind="date"
+                      value={l.next_reset_date?.length === 7 ? `${l.next_reset_date}-01` : (l.next_reset_date ?? '')}
                       onChange={(v) =>
                         updateLoan(i, { next_reset_date: v || undefined })
                       }
-                      hint="Leave blank to skip auto-reset modelling"
-                      info={
-                        <>
-                          When the next rate adjustment fires. /plan uses
-                          this to schedule the auto-reset inside the
-                          simulation. From that month onwards, the loan
-                          re-prices every <em>{l.rate_reset_frequency_months ?? '?'}</em>{' '}
-                          months at the drift you specify below.
-                        </>
-                      }
+                      hint="On your loan statement or the bank's app. Plan shows a reset within three months, and the next RBI or Fed decision's effect from it."
                     />
                     <Field
                       label="Expected rate change a year (%)"
