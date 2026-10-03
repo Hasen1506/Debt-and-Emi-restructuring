@@ -357,5 +357,22 @@ Each tool run as the ₹1.5 lakh take-home user (₹2 lakh personal loan at 14%,
 | U1a | New debt said "fees included" with no fee entered, and its bank list wasn't cheapest first before an amount was typed | "No fee entered" and how to add one; sorted by rate |
 | U1b | Purchase said "10.50% after tax" for a car loan with no tax break; future years listed 2036 first | "At 9.00%, no tax break"; this year first |
 
+### Remaining tools and pages (U1 pages, A1 part 2, 3 Oct 2026)
+
+Loan check with an SBI loan from June 2022 (7.55%, now 8.90%); NRI prepay as a US earner with a ₹40 lakh SBI loan; Spare cash with ₹1.5 lakh; then Profile's loans, setup, Activity's log and Portfolio at 390px.
+
+| # | What was wrong | Fix |
+|---|---|---|
+| A1i | Loan check said the loan "started at 7.55% when the repo rate was 4.00%": the repo was 4.40–4.90% in June 2022. The engine takes the lowest of the two months before, in case the rate was fixed at sanction (the cautious figure), but didn't say so. THE MATH showed "repo rate = 26 Sep 2026", a date under a rate's name; rate cards were dated "2026-05-14" | The finding names the start month and why the lowest rate is used; THE MATH shows today's repo rate (5.25%) with its source; dates read 14 May 2026. The rate history itself checks out: RBI 5.25% since 5 Dec 2025, next decision 7 Oct; Fed 3.75–4.00% after the 16 Sep 2026 rise |
+| A1j | NRI prepay took the rupee as flat against every currency but the dollar, so a Dubai or London earner's loan looked dearer than history suggests (nudging to prepay) | The rupee's 20-year slide for each currency offered, rounded: AED and USD 3%, EUR 3%, AUD 3%, GBP 2%, CAD 2.5%, SGD 4.5% a year (the dirham is pegged to the dollar). The help says the trend depends on the currency |
+| A1k | A missing exchange rate kept NRI prepay on "Fetching today's rate…" for 30 seconds: the browser retried the API's own "provider unavailable" answer as if the host were waking | Only a non-JSON 502/503/504 (the host's page) is retried; the profile's rate fills in at once |
+| A1l | Spare cash and Home showed the card at 42.00% and the reason as "Highest effective rate (49.56%)"; NRI prepay's reason read "every unit clears debt at the higher rate" | "The dearest debt left: 42.00% a year, 49.56% counting GST on the interest"; plain reasons in NRI prepay; one loan is "your only loan" |
+| U1c | Profile's loan and card boxes were 583px wide on a 390px phone, cutting off the right column | Columns fold to one on a phone |
+| U1d | A card showed loan-only fields (rate type, prepayment fee, lock-in, part-payment gap, processing fee, insurance), and its help said "/plan", "/portfolio", "drives the trajectory" and "(unspecified bank)… (country default)" | Hidden for cards; help in plain words; the minimum is "the usual rule" with today's estimate as the placeholder |
+| U1e | Activity's log: "Rate" and "New rate" had no unit; the date was a bare "From" | "% a year"; "Starting from" |
+| U1f | Portfolio opened with the credit card (a debt) above what you own; two "add" paths (by value, by ticker) weren't told apart; "the sell-to-repay tool" and "Find what to liquidate" named a tool that doesn't exist under that name | Cards move to the end under "Your cards · what you owe on them"; the empty state says which path is which; the action asks the tool's own question |
+
+Setup (three steps, 390px) needed nothing: the tax bracket (16% on ₹1.2 lakh take-home, new regime), the debt-free date and the first month's numbers all check out.
+
 **Rate cards: not yet re-verified.** Spot checks on 3 Oct 2026 (rate-comparison sites; the banks' own pages are blocked from this container) found the May figures out of date. SBI home loans now 7.25–8.55% (card: 7.50–8.70%); SBI Xpress Credit 11.15–14.30% (card: 10.30–14.85%); HDFC personal loans 9.99–24% with a ₹6,500 fee (card: 10.50–24%, 0.5%); SBI's home loan fee 0.35% capped at ₹10,000 (card: 0.5%). The comparison sites also disagree with each other (HDFC home loans 7.75–13.20% on one, 8.70–9.10% on another), so the cards were not rewritten from them. Needed: the banks' rate pages allowed in this environment's network settings, then one pass over all six Indian and six US cards (and US "personal loan" ranges for banks that don't offer them: Chase, Bank of America).
 
