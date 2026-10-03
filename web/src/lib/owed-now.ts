@@ -20,7 +20,7 @@ import { alignToLoans } from './loan-ids';
 import { afterOneEmi } from './roll-forward';
 import { getCountryToday, localIsoDate } from './today';
 
-export type EmiStatus = 'paid' | 'part' | 'missed' | 'due';
+export type EmiStatus = 'paid' | 'part' | 'missed' | 'due' | 'first';
 
 export interface OwedNow {
   /** This month's EMI, for EMI loans; null for cards and loans without one. */
@@ -33,6 +33,8 @@ export function owedNow(loans: LoanPayload[], entries: ActivityEntry[], month: s
     const owed = new Decimal(Number(loan.outstanding) || 0);
     const emi = Number(loan.scheduled_emi) || 0;
     if (loan.loan_type === 'credit_card' || !(emi > 0) || !owed.gt(0)) return { status: null, owed };
+    // Taken this month: nothing due until its first EMI.
+    if (loan.first_emi_month && loan.first_emi_month > month) return { status: 'first', owed };
     const mine = entries.filter((e) => e.loanIndex === i && e.date.slice(0, 7) === month);
     if (mine.length === 0) return { status: 'due', owed };
     const paid = mine.reduce((s, e) => s + Number(e.amount || 0), 0);

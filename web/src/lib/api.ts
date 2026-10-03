@@ -60,6 +60,13 @@ export interface LoanPayload {
    *  come. Unset on balances saved before setup asked (lib/roll-forward
    *  keeps the old reading for those). The API ignores it. */
   balance_after_emi?: boolean;
+  /** 'YYYY-MM' of the first EMI, for a loan taken this month (its first
+   *  EMI is usually next month). Until then the plan neither charges nor
+   *  pays it (sent to the engine as `first_payment_month`). */
+  first_emi_month?: string;
+  /** Sim month of the first EMI, worked out from `first_emi_month` on the
+   *  request path; not authored by the user. */
+  first_payment_month?: number;
   /** True when `rate_type` is the usual one for this kind of loan because
    *  the borrower wasn't sure (lib/rate-type); false when they picked it.
    *  Unset on loans saved before the choice had "Not sure". The API

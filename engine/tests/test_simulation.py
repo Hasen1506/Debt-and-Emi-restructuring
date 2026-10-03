@@ -707,3 +707,28 @@ def test_a_spending_cut_raises_the_debt_budget_by_the_same_amount():
     cut = simulate_plan(user, Strategy.AVALANCHE, horizon_months=360,
                         debt_budget=D("50000"), income_delta=D("5000"))
     assert cut.months[0].total_payment_nominal == capped.months[0].total_payment_nominal + D("5000")
+
+
+def test_loan_waiting_for_its_first_emi_is_owed_but_neither_accrues_nor_pays():
+    """A loan taken this month pays its first EMI next month (AUDIT §10):
+    month 1 leaves it as borrowed, with no EMI taken from the month's cash,
+    and month 2 pays the EMI as for any loan."""
+    user = _user_two_loans()
+    user.loans = [user.loans[1]]  # just the card, so the plan has spare cash
+    car = Loan(loan_type=LoanType.AUTO, bank="SBI",
+               outstanding=D("600000"), nominal_rate=D("0.09"),
+               rate_type="fixed", tenure_months_remaining=60,
+               scheduled_emi=D("12455"), first_payment_month=2)
+    user.loans.append(car)
+    result = simulate_plan(user, Strategy.AVALANCHE, horizon_months=24)
+    first, second = result.months[0], result.months[1]
+    assert first.payments_by_loan_index.get(1, D("0")) == 0
+    assert first.balances_by_loan_index[1] == D("600000")
+    assert second.payments_by_loan_index[1] >= D("12455")
+    # Still owed in month 1, so the plan isn't debt-free when the card clears.
+    assert result.debt_free_month is None or result.debt_free_month > 2
+    # The same loan paying from month 1 is one EMI ahead after month 1.
+    now = _user_two_loans()
+    now.loans = [now.loans[1], Loan(**{**car.__dict__, "first_payment_month": 1})]
+    ahead = simulate_plan(now, Strategy.AVALANCHE, horizon_months=24)
+    assert ahead.months[0].balances_by_loan_index[1] < D("600000")

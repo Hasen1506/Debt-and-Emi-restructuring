@@ -128,6 +128,10 @@ class Loan:
     # no principal reduction, decrement counter. Default 0 → no pre-EMI
     # period (post-possession or non-construction loan).
     pre_emi_months_remaining: int = 0
+    # Sim month of the loan's first EMI. A loan taken this month usually
+    # pays its first EMI next month (2): until then it's owed but neither
+    # accrues nor pays (the first EMI covers its first month's interest).
+    first_payment_month: int = 1
     # Quoted rate basis. Most bank loans are quoted reducing-balance — the
     # interest each month is computed against the *outstanding* (the rate
     # the engine math expects). Consumer-durable + NBFC loans frequently

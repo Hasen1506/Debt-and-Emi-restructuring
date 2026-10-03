@@ -22,7 +22,8 @@ import { useOwedNow, type EmiStatus } from '@/lib/owed-now';
 import { getCountryToday, localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
 
 /** This month's EMI, by loan: said under its balance. */
-const STATUS_WORDS: Record<EmiStatus, (mon: string) => string> = {
+const STATUS_WORDS: Record<EmiStatus, (mon: string, next: string) => string> = {
+  first: (_mon, next) => `FIRST EMI IN ${next}`,
   paid: (mon) => `AFTER ${mon} EMI`,
   due: (mon) => `${mon} EMI TO PAY`,
   part: (mon) => `${mon} EMI PART-PAID`,
@@ -43,7 +44,9 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
   // What's owed now: a loan whose EMI has gone out this month shows the
   // balance after it (lib/owed-now).
   const now = useOwedNow(user.loans, country);
-  const mon = MONTH_NAMES_SHORT[Number(localIsoDate(getCountryToday(country)).slice(5, 7)) - 1].toUpperCase();
+  const monthIdx = Number(localIsoDate(getCountryToday(country)).slice(5, 7)) - 1;
+  const mon = MONTH_NAMES_SHORT[monthIdx].toUpperCase();
+  const nextMon = MONTH_NAMES_SHORT[(monthIdx + 1) % 12].toUpperCase();
   const totalNow = m.loans.reduce((s, d) => s.add(m.toUserCcy(now.rows[d.index]?.owed ?? d.outstanding, d.loan)), m.totalOutstanding.mul(0));
 
   return (
@@ -137,7 +140,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                       color: status === 'paid' ? L_T.positive : status === 'due' ? L_T.muted : L_T.negative,
                     }}
                   >
-                    {STATUS_WORDS[status](mon)}
+                    {STATUS_WORDS[status](mon, nextMon)}
                   </div>
                 )}
                 {ccy !== userCcy && !noFx && (

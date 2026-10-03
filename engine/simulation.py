@@ -443,7 +443,7 @@ def simulate_plan(
                     and ev.new_rate is not None
                 ):
                     ln = loans[ev.loan_index]
-                    _reset_rate(ln, ev.new_rate, ln.tenure_months_remaining - (m - 1))
+                    _reset_rate(ln, ev.new_rate, ln.tenure_months_remaining - max(0, m - ln.first_payment_month))
 
         # Auto floating-rate resets — for any floating loan with a
         # next_reset_month + rate_reset_frequency_months pair, fire a
@@ -462,7 +462,7 @@ def simulate_plan(
                 step = ln.rate_drift_annualized * D(str(freq)) / D("12")
                 base = start_rate[id(ln)]
                 new_rate = min(max(ln.nominal_rate + step, base - MAX_RATE_DRIFT), base + MAX_RATE_DRIFT)
-                _reset_rate(ln, new_rate, ln.tenure_months_remaining - (m - 1))
+                _reset_rate(ln, new_rate, ln.tenure_months_remaining - max(0, m - ln.first_payment_month))
                 ln.next_reset_month = m + freq
 
         # FX drift — update user.fx_to_user_currency at month m to reflect
@@ -501,11 +501,13 @@ def simulate_plan(
         if income_delta != D("0") and m == income_delta_from_month and m > 1:
             income = income + income_delta
 
-        # Filter out paid-off loans
-        active = [l for l in loans if l.outstanding > 0]
-        if not active and m > last_arrival:
+        # Filter out paid-off loans, and loans whose first EMI is later
+        # (still owed, so not debt-free).
+        owing = [l for l in loans if l.outstanding > 0]
+        if not owing and m > last_arrival:
             debt_free_month = m - 1
             break
+        active = [l for l in owing if m >= l.first_payment_month]
 
         # Card spend: for any active credit card with expected_monthly_spend
         # set, bump outstanding before computing minimum payments. Models
@@ -768,7 +770,7 @@ def simulate_plan(
         # again if it clears the target.
         if m in reinvest_by_month and not minimums_only:
             reinvest_amount = reinvest_by_month[m]
-            remaining_active = [l for l in loans if l.outstanding > 0]
+            remaining_active = [l for l in loans if l.outstanding > 0 and m >= l.first_payment_month]
             if remaining_active:
                 # Re-rank by current effective APR (some loans may have
                 # cleared this month — those drop out automatically).

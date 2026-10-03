@@ -14,7 +14,7 @@ import { loanToUser } from './currency';
 import { loadProfileClient, saveProfileClient } from './user-store';
 import type { Country, LoanPayload, LoanType } from './api';
 import { userDefaultCurrency, type CurrencyCode } from './currency';
-import { rollBalancesForward } from './roll-forward';
+import { nextMonth, rollBalancesForward } from './roll-forward';
 import { getCountryToday, localIsoDate, countryMonthKey } from './today';
 
 export interface AddLoanInput {
@@ -64,6 +64,8 @@ export function addLoanToProfile(input: AddLoanInput): number | null {
   const foreign = input.currency && input.currency !== own ? (input.currency as CurrencyCode) : null;
   const newLoan: LoanPayload = {
     balance_as_of: localIsoDate(getCountryToday(profile.user.country)),
+    // Taken now: the first EMI is next month (lib/roll-forward).
+    first_emi_month: nextMonth(countryMonthKey(profile.user.country)),
     loan_type: input.loan_type,
     bank: input.bank,
     outstanding: input.outstanding,

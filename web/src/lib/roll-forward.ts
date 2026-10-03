@@ -14,6 +14,8 @@
  *   • not asked (balances saved before the question): the old reading,
  *     after for earlier months and before for this one. It counted an EMI
  *     twice, or skipped one, at the turn of the month.
+ * A loan taken this month (`first_emi_month` next month) pays nothing this
+ * month: its EMIs come off from that month on.
  * A missed or part-paid EMI in a rolled month is added back by its
  * Activity entry (lib/activity-cookie), as before.
  *
@@ -34,10 +36,31 @@ export interface RolledLoan {
   now: string;
 }
 
-function monthsBetween(from: string, to: string): number {
+export function monthsBetween(from: string, to: string): number {
   const [fy, fm] = from.split('-').map(Number);
   const [ty, tm] = to.split('-').map(Number);
   return (ty - fy) * 12 + (tm - fm);
+}
+
+/** The month after 'YYYY-MM'. */
+export function nextMonth(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+}
+
+/** The answer to "has this month's EMI gone out?": paid, still to pay, or
+ *  none yet (a new loan whose first EMI is next month). */
+export type EmiAnswer = 'paid' | 'due' | 'first';
+
+export function emiAnswer(loan: Pick<LoanPayload, 'balance_after_emi' | 'first_emi_month'>, currentMonth: string): EmiAnswer | undefined {
+  if (loan.first_emi_month && loan.first_emi_month > currentMonth) return 'first';
+  return loan.balance_after_emi === true ? 'paid' : loan.balance_after_emi === false ? 'due' : undefined;
+}
+
+export function emiAnswerPatch(answer: EmiAnswer, currentMonth: string): Pick<LoanPayload, 'balance_after_emi' | 'first_emi_month'> {
+  return answer === 'first'
+    ? { balance_after_emi: undefined, first_emi_month: nextMonth(currentMonth) }
+    : { balance_after_emi: answer === 'paid', first_emi_month: undefined };
 }
 
 /** Loans whose balance follows the reducing-balance formula month by month. */
@@ -83,8 +106,10 @@ export function rollBalancesForward(
         tenure_months_remaining: (loan.tenure_months_remaining || 0) + 1,
       };
     }
+    // A new loan: EMIs from its first EMI month to last month.
+    const first = loan.first_emi_month && loan.first_emi_month > asOf ? loan.first_emi_month : null;
     const due = Math.min(
-      loan.balance_after_emi === false ? since : since - 1,
+      first ? Math.max(0, monthsBetween(first, currentMonth)) : loan.balance_after_emi === false ? since : since - 1,
       loan.tenure_months_remaining || Infinity,
     );
     if (!(due > 0)) return loan;

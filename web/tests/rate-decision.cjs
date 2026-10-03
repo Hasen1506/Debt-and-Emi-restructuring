@@ -54,3 +54,10 @@ test('the change applies from the first reset on or after the decision', () => {
   assert.match(whenItApplies(rateMove(quarterly, 'IN'), 'IN', '2026-10-07'), /1 Nov 2026/);
   assert.match(whenItApplies(rateMove(home(), 'IN'), 'IN', '2026-10-07'), /within three months/);
 });
+
+test('a reset saved as a month alone reads as its first day', () => {
+  const { resetDate } = lib('rate-decision.ts');
+  assert.equal(resetDate({ next_reset_date: '2026-11' }), '2026-11-01');
+  assert.equal(firstResetAfter(home({ next_reset_date: '2026-11' }), '2026-10-07'), '2026-11-01');
+  assert.equal(resetDate({ next_reset_date: 'soon' }), null);
+});

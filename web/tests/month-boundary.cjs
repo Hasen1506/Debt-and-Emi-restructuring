@@ -82,3 +82,19 @@ test('Home shows a loan after its EMI once it is marked paid, and which EMIs are
   const extra = owedNow(loans, [entry(0, 'paid_extra', '31000', { plannedExtra: '10000' })], '2026-10')[0];
   assert.equal(extra.owed.toFixed(0), '211400');
 });
+
+test('a loan taken this month pays nothing until its first EMI next month, then rolls from there', () => {
+  const { emiAnswer, emiAnswerPatch } = lib('roll-forward.ts');
+  const l = loan({ balance_as_of: '2026-10-03', ...emiAnswerPatch('first', '2026-10') });
+  assert.equal(l.first_emi_month, '2026-11');
+  assert.equal(emiAnswer(l, '2026-10'), 'first');
+  // October and November: the balance as borrowed (November's EMI is the plan's first month then).
+  assert.equal(roll(l, '2026-10').outstanding, '240000');
+  assert.equal(roll(l, '2026-11').outstanding, '240000');
+  // December: November's EMI is off.
+  assert.equal(roll(l, '2026-12').outstanding, '221400.00');
+  // Home says the first EMI is next month, not that October's is due.
+  assert.equal(owedNow([l], [], '2026-10')[0].status, 'first');
+  // Answering "not yet" instead clears the first EMI month.
+  assert.equal(emiAnswer({ ...l, ...emiAnswerPatch('due', '2026-10') }, '2026-10'), 'due');
+});

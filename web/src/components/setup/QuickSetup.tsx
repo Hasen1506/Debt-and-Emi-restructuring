@@ -47,7 +47,7 @@ import { emiFromMonths, firstExtraPayment, marginalRateFromTakeHome } from '@/li
 import { readStrategyClient, STRATEGY_LABEL, STRATEGY_SHORT } from '@/lib/strategy';
 import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { loadProfileClient, saveProfileClient, type StoredProfile } from '@/lib/user-store';
-import { asksEmiPaid, rollBalancesForward, stampBalanceDates } from '@/lib/roll-forward';
+import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward, stampBalanceDates } from '@/lib/roll-forward';
 import { recordEmisPaidAtEntry } from '@/lib/paid-at-entry';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
 import {
@@ -189,7 +189,9 @@ export function QuickSetup() {
     return emiFromMonths(l.outstanding, l.nominal_rate, Number(u.months), loanCurrency(l, country)) ?? '';
   }
   // This month, by name, for "has its EMI gone out?".
-  const thisMonthName = MONTH_NAMES[Number(localIsoDate(getCountryToday(country)).slice(5, 7)) - 1];
+  const thisMonth = localIsoDate(getCountryToday(country)).slice(0, 7);
+  const thisMonthName = MONTH_NAMES[Number(thisMonth.slice(5, 7)) - 1];
+  const nextMonthName = MONTH_NAMES[Number(nextMonth(thisMonth).slice(5, 7)) - 1];
   // A loan whose balance is new or changed is asked whether this month's
   // EMI is already off it (lib/roll-forward); one left as saved isn't.
   const askPaid = (l: LoanPayload) =>
@@ -202,7 +204,7 @@ export function QuickSetup() {
     const fee = (l.prepayment_penalty_pct ?? '').trim();
     if (fee && !(/^\d*\.?\d+$/.test(fee) && Number(fee) < 1)) out.fee = 'Enter the fee as a percent, e.g. 2, or leave it blank.';
     if (Number(l.outstanding) <= 0) return out;
-    if (askPaid(l) && l.balance_after_emi === undefined) {
+    if (askPaid(l) && emiAnswer(l, thisMonth) === undefined) {
       out.paid = emiPaidError(thisMonthName);
     }
     const draft = loanDraftErrors({ ...l, scheduled_emi: emiOf(l) });
@@ -565,6 +567,8 @@ export function QuickSetup() {
                   computedEmi={uiOf(l.id).byMonths ? emiOf(l) : ''}
                   askPaid={askPaid(l)}
                   monthName={thisMonthName}
+                  nextMonthName={nextMonthName}
+                  thisMonth={thisMonth}
                   onPatch={(p) => patchLoan(i, p)}
                   onUi={(p) => setUiOf(l.id, p)}
                   onRemove={() => setLoans((cur) => cur.filter((_, j) => j !== i))}
@@ -765,6 +769,8 @@ function LoanBlock({
   computedEmi,
   askPaid,
   monthName,
+  nextMonthName,
+  thisMonth,
   onPatch,
   onUi,
   onRemove,
@@ -780,6 +786,9 @@ function LoanBlock({
   askPaid: boolean;
   /** This month's name, e.g. "October". */
   monthName: string;
+  nextMonthName: string;
+  /** 'YYYY-MM'. */
+  thisMonth: string;
   onPatch: (p: Partial<LoanPayload>) => void;
   onUi: (p: Partial<LoanUi>) => void;
   onRemove: () => void;
@@ -870,8 +879,9 @@ function LoanBlock({
       {askPaid && (
         <EmiPaidQuestion
           monthName={monthName}
-          value={loan.balance_after_emi}
-          onChange={(paid) => onPatch({ balance_after_emi: paid })}
+          nextMonthName={nextMonthName}
+          value={emiAnswer(loan, thisMonth)}
+          onChange={(a) => onPatch(emiAnswerPatch(a, thisMonth))}
           error={issues.paid}
         />
       )}

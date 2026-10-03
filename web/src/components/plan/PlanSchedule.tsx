@@ -16,6 +16,7 @@ import { loanLabel } from '@/lib/loan-types';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import { loanClears } from './plan-milestones';
 import { isOpenCurrentLoan } from '@/lib/plan-controls';
+import { resetDate } from '@/lib/rate-decision';
 import { ADD_LIFE_EVENT } from '@/components/lifecycle/LifecycleEventsPanel';
 
 const LOAN_SHORT: Record<string, string> = {
@@ -299,12 +300,13 @@ function RateResetAlert({ plan }: { plan: PlanData }) {
   const today = getCountryToday(plan.user.country);
   const todayIso = localIsoDate(today);
   const next = plan.user.loans
-    .filter((l) => isOpenCurrentLoan(l) && l.rate_type === 'floating' && l.next_reset_date && l.next_reset_date >= todayIso)
-    .map((l) => ({ loan: l, days: daysUntil(l.next_reset_date!, today) }))
+    .map((l) => ({ loan: l, on: resetDate(l) }))
+    .filter((x): x is { loan: LoanPayload; on: string } => isOpenCurrentLoan(x.loan) && x.loan.rate_type === 'floating' && !!x.on && x.on >= todayIso)
+    .map((x) => ({ loan: x.loan, on: x.on, days: daysUntil(x.on, today) }))
     .filter((x) => x.days <= 92)
     .sort((a, b) => a.days - b.days)[0];
   if (!next) return null;
-  const [y, m, d] = next.loan.next_reset_date!.split('-').map(Number);
+  const [y, m, d] = next.on.split('-').map(Number);
   const when = `${d} ${MONTH_NAMES[m - 1].slice(0, 3).toUpperCase()} ${y}`;
   const benchmark = plan.user.country === 'IN' ? 'the RBI repo rate' : 'its index (usually SOFR)';
   return (

@@ -75,7 +75,9 @@ export function paceMonths(entries: ActivityEntry[], loans: LoanPayload[], thisM
     const mine = aligned.filter((e) => e.loanIndex === i);
     const firstEntry = mine.reduce<string | null>((min, e) => (min === null || e.date < min ? e.date : min), null);
     const asOf = loan.balance_as_of?.slice(0, 7) ?? null;
-    const from = [firstEntry?.slice(0, 7), asOf].filter(Boolean).sort()[0] ?? null;
+    const earliest = [firstEntry?.slice(0, 7), asOf].filter(Boolean).sort()[0] ?? null;
+    // A loan taken new isn't due until its first EMI.
+    const from = earliest && loan.first_emi_month && loan.first_emi_month > earliest ? loan.first_emi_month : earliest;
     // Cleared: by a "closed" entry, or (nothing owed now) by its last entry.
     const lastEntry = mine.reduce<string>((max, e) => (e.date > max ? e.date : max), '0000-00');
     const closedOn =

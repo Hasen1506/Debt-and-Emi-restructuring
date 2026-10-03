@@ -53,7 +53,7 @@ import {
   localIsoDate,
 } from '@/lib/today';
 import { BALANCES_ENTERED_KEY } from '@/lib/activity';
-import { asksEmiPaid, stampBalanceDates } from '@/lib/roll-forward';
+import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, stampBalanceDates } from '@/lib/roll-forward';
 import { recordEmisPaidAtEntry } from '@/lib/paid-at-entry';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
 import {
@@ -751,11 +751,13 @@ function ProfileEditor({
   const loanErrors = loans.map((l) => loanDraftErrors(l));
   // A new or changed balance on an EMI loan says whether this month's EMI
   // is already off it (lib/roll-forward).
-  const thisMonthName = MONTH_NAMES[Number(localIsoDate(getCountryToday(country)).slice(5, 7)) - 1];
+  const thisMonth = localIsoDate(getCountryToday(country)).slice(0, 7);
+  const thisMonthName = MONTH_NAMES[Number(thisMonth.slice(5, 7)) - 1];
+  const nextMonthName = MONTH_NAMES[Number(nextMonth(thisMonth).slice(5, 7)) - 1];
   const savedLoans = savedLoansRef.current;
   const askPaid = (l: LoanPayload) =>
     needsEmi(l.loan_type) && asksEmiPaid(l, savedLoans.find((p) => p.id === l.id));
-  const paidErrors = loans.map((l) => (askPaid(l) && l.balance_after_emi === undefined ? emiPaidError(thisMonthName) : null));
+  const paidErrors = loans.map((l) => (askPaid(l) && emiAnswer(l, thisMonth) === undefined ? emiPaidError(thisMonthName) : null));
   // Currencies of entered loans other than the user's own.
   const userCcy = userDefaultCurrency(country);
   const foreignCcys = Array.from(
@@ -1389,8 +1391,9 @@ function ProfileEditor({
                 {askPaid(l) && (
                   <EmiPaidQuestion
                     monthName={thisMonthName}
-                    value={l.balance_after_emi}
-                    onChange={(paid) => updateLoan(i, { balance_after_emi: paid })}
+                    nextMonthName={nextMonthName}
+                    value={emiAnswer(l, thisMonth)}
+                    onChange={(a) => updateLoan(i, emiAnswerPatch(a, thisMonth))}
                     error={showLoanErrors ? paidErrors[i] : null}
                   />
                 )}
@@ -1523,49 +1526,46 @@ function ProfileEditor({
                             v === '' ? undefined : Number(v),
                         })
                       }
-                      options={[
-                        { value: '', label: 'Not sure / not tracking' },
-                        { value: '1', label: 'Monthly (RLLR / EBLR)' },
-                        { value: '3', label: 'Quarterly' },
-                        { value: '6', label: 'Half-yearly (older MCLR)' },
-                        { value: '12', label: 'Yearly (legacy MCLR)' },
-                      ]}
+                      options={
+                        country === 'IN'
+                          ? [
+                              { value: '', label: 'Not sure' },
+                              { value: '1', label: 'Every month' },
+                              { value: '3', label: 'Every three months (most repo-linked loans)' },
+                              { value: '6', label: 'Every six months (MCLR)' },
+                              { value: '12', label: 'Every year (MCLR)' },
+                            ]
+                          : [
+                              { value: '', label: 'Not sure' },
+                              { value: '1', label: 'Every month (HELOC, card)' },
+                              { value: '6', label: 'Every six months' },
+                              { value: '12', label: 'Every year (most adjustable mortgages)' },
+                            ]
+                      }
                       info={
                         <>
                           <strong>How often the bank re-prices this loan.</strong>{' '}
-                          Post-Oct-2019 IN home loans are typically RLLR /
-                          EBLR (1-month reset) — your bank applies the new
-                          rate automatically from the next billing cycle, no
-                          refi needed.
+                          {country === 'IN'
+                            ? 'Bank home loans since October 2019 are mostly linked to the repo rate and reset at least every three months; older MCLR loans every six or twelve. The bank applies the new rate itself.'
+                            : 'An adjustable mortgage adjusts on its schedule after the fixed period, usually yearly; a HELOC follows the prime rate monthly.'}{' '}
+                          Your loan letter&apos;s reset clause says which.
                           <br />
                           <br />
-                          Older MCLR loans reset 6 or 12 months. Check your
-                          sanction letter (&quot;reset frequency&quot; or
-                          &quot;reset clause&quot;) if you&apos;re unsure.
-                          <br />
-                          <br />
-                          Leave at &quot;Not sure&quot; and the engine
-                          assumes no auto-reset — your floating rate stays
-                          at today&apos;s value across the horizon.
+                          The plan keeps today&apos;s rate either way, unless
+                          you set an expected change below. Then a change
+                          reaches this loan at its resets (not sure: taken as{' '}
+                          {country === 'IN' ? 'every three months' : 'yearly'}).
                         </>
                       }
                     />
                     <Field
-                      label="Next reset date (YYYY-MM, optional)"
-                      value={l.next_reset_date ?? ''}
+                      label="Next reset (optional)"
+                      kind="date"
+                      value={l.next_reset_date?.length === 7 ? `${l.next_reset_date}-01` : (l.next_reset_date ?? '')}
                       onChange={(v) =>
                         updateLoan(i, { next_reset_date: v || undefined })
                       }
-                      hint="Leave blank to skip auto-reset modelling"
-                      info={
-                        <>
-                          When the next rate adjustment fires. /plan uses
-                          this to schedule the auto-reset inside the
-                          simulation. From that month onwards, the loan
-                          re-prices every <em>{l.rate_reset_frequency_months ?? '?'}</em>{' '}
-                          months at the drift you specify below.
-                        </>
-                      }
+                      hint="On your loan statement or the bank's app. Plan shows a reset within three months, and the next RBI or Fed decision's effect from it."
                     />
                     <Field
                       label="Expected rate change a year (%)"

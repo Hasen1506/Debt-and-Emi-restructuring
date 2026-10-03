@@ -43,7 +43,7 @@ import { projectAnnualTaxSavings } from '@/lib/tax-projection';
 import { projectBracketTransitions } from '@/lib/bracket-transitions';
 import Decimal from 'decimal.js';
 import { countryMonthKey, getCountryMonth, getCountryToday, localIsoDate } from '@/lib/today';
-import { rollBalancesForward } from '@/lib/roll-forward';
+import { monthsBetween, rollBalancesForward } from '@/lib/roll-forward';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import {
   applyActivityDeltas,
@@ -288,11 +288,29 @@ export async function loadPlanInputs(
       1;
     return diff > 0 ? diff : undefined;
   }
+  // A loan taken this month: the engine starts its EMIs at the first EMI
+  // month (lib/roll-forward).
+  const planMonth = countryMonthKey(adjustedUser.country);
+  adjustedUser.loans = adjustedUser.loans.map((l) =>
+    l.first_emi_month && l.first_emi_month > planMonth
+      ? { ...l, first_payment_month: monthsBetween(planMonth, l.first_emi_month) + 1 }
+      : l,
+  );
   adjustedUser.loans = adjustedUser.loans.map((l) => {
     if (l.rate_type !== 'floating') return l;
     const computed = nextResetSimMonth(l.next_reset_date);
-    if (!computed && !l.rate_reset_frequency_months) return l;
-    return { ...l, next_reset_month: computed } as typeof l & {
+    // An expected rate change with no reset on file used to be dropped
+    // silently. Not sure how often it resets: a repo-linked loan resets at
+    // least every three months (a US adjustable one yearly), so the change
+    // reaches it one period in. Without a change, nothing is assumed.
+    const drift = Number(l.rate_drift_annualized || 0) !== 0;
+    const freq = l.rate_reset_frequency_months ?? (drift ? (adjustedUser.country === 'IN' ? 3 : 12) : undefined);
+    if (!computed && !freq) return l;
+    return {
+      ...l,
+      rate_reset_frequency_months: freq,
+      next_reset_month: computed ?? (drift ? freq : undefined),
+    } as typeof l & {
       next_reset_month?: number;
     };
   }) as typeof adjustedUser.loans;

@@ -92,11 +92,19 @@ export function dayLabel(iso: string): string {
   return `${d} ${MONTH_NAMES_SHORT[m - 1]} ${y}`;
 }
 
+/** The next reset on file as 'YYYY-MM-DD' (an older 'YYYY-MM' is the
+ *  1st), or null. */
+export function resetDate(loan: Pick<LoanPayload, 'next_reset_date'>): string | null {
+  const raw = loan.next_reset_date?.slice(0, 10) ?? '';
+  const iso = /^\d{4}-\d{2}$/.test(raw) ? `${raw}-01` : raw;
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : null;
+}
+
 /** The loan's first reset on or after the decision, when its reset date
  *  is on file (stepping on by its reset frequency); null when it isn't. */
 export function firstResetAfter(loan: LoanPayload, decision: string): string | null {
-  const next = loan.next_reset_date?.slice(0, 10);
-  if (!next || !/^\d{4}-\d{2}-\d{2}$/.test(next)) return null;
+  const next = resetDate(loan);
+  if (!next) return null;
   if (next >= decision) return next;
   const freq = Number(loan.rate_reset_frequency_months) || 0;
   if (freq <= 0) return null;
