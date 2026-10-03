@@ -74,7 +74,7 @@ export function PlanPace({ plan }: { plan: PlanData }) {
     says = (
       <>
         You&apos;ve averaged {fc(avg)} a month over {pace.counted} months, in line with the {fc(pace.planTotal)} this plan
-        puts in. The date holds at your pace.
+        puts in. The displayed date uses that planned total.
       </>
     );
   } else if (avg < pace.planTotal) {

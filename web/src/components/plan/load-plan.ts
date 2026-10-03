@@ -552,9 +552,9 @@ export async function loadPlan(
     }, 0);
     let projectionUnavailable: NonNullable<PlanData['pace']>['projectionUnavailable'];
     let paceSim: SimulateResponse | null = null;
-    if (paceOff && logged?.average != null) {
+    if (logged?.average != null) {
       if (logged.average < firstMinimums - 0.5) projectionUnavailable = 'below_minimums';
-      else {
+      else if (paceOff) {
         const paceArgs = { ...simBaseArgs, strategy, debt_budget: String(logged.average) };
         paceSim = String(logged.average) === debtBudget ? scenario
           : await cachedEngineCall('simulate', paceArgs, () => api.simulate(paceArgs)).catch(() => null);

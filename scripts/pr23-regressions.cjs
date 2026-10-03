@@ -167,6 +167,12 @@ const regularMonths=(amount)=>[date(-2),date(-1)].map((d,i)=>payment({id:'pace'+
     await mark.click();assert.equal((await store(p,'finoptima_activity')).length,0);
     assert.match(await p.locator('main').getByRole('alert').innerText(),/profile changed/);
   });
+  await run('P17 A pace within five percent still cannot fall below the required EMI',user({monthly_income:'49000',annual_income:'588000',annual_gross_salary:'588000',loans:[emi({outstanding:'500000'})]}),async p=>{
+    const section=await paceView(p);assert.match(await section.innerText(),/averaged ₹8,600/);
+    assert.match(await section.innerText(),/cannot give a payoff date/);
+    assert.doesNotMatch(await section.innerText(),/date holds|you.d be debt-free/);
+    assert.equal(await section.getByRole('button').count(),0);
+  },{finoptima_activity:regularMonths(8600)});
   await browser.close();console.log(JSON.stringify({passed:results.filter(x=>x.status==='passed').length,total:results.length,output}));
   if(results.some(x=>x.status==='failed'))process.exitCode=1;
 })().catch(e=>{console.error(e);process.exitCode=1});
