@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    typedRoutes: false,
-  },
+  typedRoutes: false,
   // Old addresses keep working after the five-tab redesign (REDESIGN.md).
   async redirects() {
     return [

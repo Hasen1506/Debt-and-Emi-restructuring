@@ -44,6 +44,22 @@ function cleanup(){delete global.document;delete global.localStorage;delete glob
 const emiLoan = (extra={}) => loan('a', {outstanding:'100000', nominal_rate:'.12', scheduled_emi:'9000', balance_as_of:'2026-06-01', currency:'INR', ...extra});
 const payment = (extra={}) => ({id:'e', loanId:'a', loanIndex:0, kind:'paid_extra', amount:'10000', scheduledEmi:'0', date:'2026-10-02', loggedAt:'2026-10-02T10:00:00Z', ...extra});
 const {paymentState, regularPaid}=lib('payment-state.ts');
+test('a payment short by less than fifty cents remains partially paid',()=>{
+  assert.equal(paymentState([payment({kind:'paid_partial',amount:'1499.51'})],1500,1500),'part');
+  assert.equal(paymentState([payment({kind:'paid_full',amount:'1500'})],1500,1500.49),'emi_paid');
+});
+
+test('Home cash flow defers a new loan EMI until its first calendar payment month',()=>{
+  const {deriveMetrics,cashFlowForMonth}=lib('derived.ts');
+  const profile={user:user({monthly_income:'100000',fixed_expenses:'40000',variable_expenses:'0',
+    loans:[emiLoan({first_emi_month:'2026-11'})]}),marginalRate:'0',creditScore:null,isLive:true};
+  const metrics=deriveMetrics(profile);
+  const october=cashFlowForMonth(profile,metrics,'2026-10');
+  assert.equal(october.emiBurden.toFixed(2),'0.00');assert.equal(october.surplus.toFixed(2),'60000.00');
+  const november=cashFlowForMonth(profile,metrics,'2026-11');
+  assert.equal(november.emiBurden.toFixed(2),'9000.00');assert.equal(november.surplus.toFixed(2),'51000.00');
+  assert.equal(metrics.emiBurden.toFixed(2),'9000.00','Recurring commitments remain visible to other planning tools');
+});
 test('a principal-only bonus never pays the regular EMI, including when it exceeds the EMI',()=>{
   assert.equal(paymentState([payment()],9000,9000),'due');
   assert.equal(regularPaid([payment()]).toNumber(),0);

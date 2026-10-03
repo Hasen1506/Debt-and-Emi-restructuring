@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
         Accept: 'application/json',
       },
       next: { revalidate: REVALIDATE_SECONDS },
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!res.ok) {
@@ -78,17 +79,21 @@ export async function GET(req: NextRequest) {
         { status: 404 },
       );
     }
+    if (typeof meta.regularMarketPrice !== 'number' || !Number.isFinite(meta.regularMarketPrice) ||
+        meta.regularMarketPrice < 0 || typeof meta.currency !== 'string' || !/^[A-Za-z]{3}$/.test(meta.currency)) {
+      return NextResponse.json({ error: 'invalid quote from provider' }, { status: 502 });
+    }
     return NextResponse.json({
       ticker,
       price: meta.regularMarketPrice,
-      currency: meta.currency ?? 'USD',
+      currency: meta.currency,
       name: meta.longName ?? meta.shortName ?? ticker,
       exchange: meta.exchangeName ?? null,
       ts: new Date().toISOString(),
     });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
-      { error: `fetch failed: ${(err as Error).message}` },
+      { error: 'quote provider is temporarily unavailable' },
       { status: 502 },
     );
   }

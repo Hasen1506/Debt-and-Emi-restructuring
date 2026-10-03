@@ -11,6 +11,17 @@ function setup(account='A') {
 }
 function cleanup(){delete global.window;delete global.localStorage}
 
+test('a response fetched for one account cannot hydrate after another tab changes accounts',async()=>{
+ const original=global.fetch,{sync,data}=setup('A');let entered,release;
+ const started=new Promise(r=>entered=r);
+ try {
+  global.fetch=async()=>{entered();await new Promise(r=>release=r);return Response.json({data:{strategy:'private-A'}})};
+  const hydration=sync.hydrateFromServer();await started;
+  data.set('finoptima_account_id','B');release();
+  assert.equal(await hydration,false);
+ }finally{global.fetch=original;cleanup()}
+});
+
 test('failed writes survive a module reload and retry before stale server hydration',async()=>{
  const fetch=global.fetch,{data,sync,reload}=setup();
  try {

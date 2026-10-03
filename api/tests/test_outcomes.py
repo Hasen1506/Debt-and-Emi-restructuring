@@ -1,12 +1,14 @@
 """POST /api/outcomes and the scorecard: checks, limits, privacy, caching."""
 import asyncio
+from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import select
 
 from api import client_ip
-from api.outcomes_store import outcomes
+from api.outcomes_store import LimitReached, OutcomeStore, outcomes
+from engine.outcomes import Outcome, OutcomeReport
 
 FIXED = {"lender": "HDFC Bank", "outcome": "fixed_full", "days_taken": 12,
          "rate_before": "0.0925", "rate_after": "0.0870"}
@@ -75,6 +77,17 @@ def test_bad_reports_are_refused_with_the_field(client, outcome_store, changes, 
 
 
 # ── limits ──────────────────────────────────────────────────────────────────
+
+def test_independent_sqlite_stores_share_one_report_budget(outcome_store):
+    async def run():
+        stores = [OutcomeStore(outcome_store.engine, key=b'test-key') for _ in range(8)]
+        for store in stores:
+            await store.init()
+        report = OutcomeReport('hdfc', Outcome.REFUSED, 10, Decimal('.09'), None)
+        results = await asyncio.gather(*(store.add(report, '192.0.2.1') for store in stores), return_exceptions=True)
+        assert sum(isinstance(result, int) for result in results) == 2
+        assert sum(isinstance(result, LimitReached) for result in results) == 6
+    asyncio.run(run())
 
 def test_ten_a_day_per_address_and_two_per_bank(client, outcome_store):
     clock = Clock()

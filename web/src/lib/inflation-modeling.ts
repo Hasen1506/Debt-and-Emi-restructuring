@@ -43,7 +43,7 @@ export function writeInflationModelingClient(value: InflationModeling) {
 
 export async function loadInflationModelingServer(): Promise<InflationModeling> {
   const { cookies } = await import('next/headers');
-  const v = cookies().get(COOKIE_NAME)?.value;
+  const v = (await cookies()).get(COOKIE_NAME)?.value;
   return isInflationModeling(v) ? v : DEFAULT_INFLATION_MODELING;
 }
 
@@ -91,7 +91,7 @@ export function writeInflationRateClient(value: string) {
 
 export async function loadInflationRateServer(): Promise<string> {
   const { cookies } = await import('next/headers');
-  return normalizeInflationRate(cookies().get(RATE_COOKIE)?.value);
+  return normalizeInflationRate((await cookies()).get(RATE_COOKIE)?.value);
 }
 
 /** The rate the plan runs on: the user's own, else the forecast. */

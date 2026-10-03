@@ -452,7 +452,7 @@ export function undoConfirmedEventWithRefresh(
 
 export async function readLifecycleServer(): Promise<LifecycleEvent[]> {
   const { cookies } = await import('next/headers');
-  const raw = cookies().get(COOKIE_NAME)?.value;
+  const raw = (await cookies()).get(COOKIE_NAME)?.value;
   return sortByDate(safeParse(raw ?? null));
 }
 

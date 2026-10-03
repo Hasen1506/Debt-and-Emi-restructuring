@@ -128,7 +128,7 @@ export function totalSavedForGoal(
  *  saved_so_far to 0 (full required amount remaining). */
 export async function readContributionTotalsServer(): Promise<Record<string, number>> {
   const { cookies } = await import('next/headers');
-  const raw = cookies().get(DIGEST_COOKIE)?.value;
+  const raw = (await cookies()).get(DIGEST_COOKIE)?.value;
   if (!raw) return {};
   try {
     const parsed = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));

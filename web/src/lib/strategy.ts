@@ -42,7 +42,7 @@ export function writeStrategyClient(strategy: StrategyName) {
 
 export async function loadStrategyServer(): Promise<StrategyName> {
   const { cookies } = await import('next/headers');
-  const v = cookies().get(COOKIE_NAME)?.value;
+  const v = (await cookies()).get(COOKIE_NAME)?.value;
   return isStrategy(v) ? v : DEFAULT_STRATEGY;
 }
 

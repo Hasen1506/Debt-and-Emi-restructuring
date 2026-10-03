@@ -38,6 +38,14 @@ def _app(**kw) -> tuple[TestClient, Clock]:
 
 # ── headers and size ────────────────────────────────────────────────────────
 
+def test_account_reads_cannot_be_cached():
+    app = FastAPI()
+    app.add_middleware(SecurityMiddleware, rate_limits=False)
+    with TestClient(app) as client:
+        for path in ('/api/auth/me', '/api/user/state'):
+            assert client.get(path).headers['cache-control'] == 'no-store'
+
+
 def test_headers_on_the_real_app(client):
     r = client.get("/api/health")
     assert r.headers["x-content-type-options"] == "nosniff"

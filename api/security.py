@@ -117,6 +117,7 @@ class SecurityMiddleware:
         headers = dict(scope.get("headers") or [])
         method = scope.get("method", "GET")
         write = method in WRITE_METHODS
+        private = scope.get("path", "").startswith(("/api/auth/", "/api/user/"))
         https = scope.get("scheme") == "https" or (
             self.proxy_hops > 0 and headers.get(b"x-forwarded-proto", b"").split(b",")[-1].strip() == b"https"
         )
@@ -126,7 +127,7 @@ class SecurityMiddleware:
                 h = list(message.get("headers", []))
                 names = {k.lower() for k, _ in h}
                 extra = [(b"x-content-type-options", b"nosniff"), (b"referrer-policy", b"no-referrer")]
-                if write and b"cache-control" not in names:
+                if (write or private) and b"cache-control" not in names:
                     extra.append((b"cache-control", b"no-store"))
                 if https:
                     extra.append((b"strict-transport-security", b"max-age=15552000"))

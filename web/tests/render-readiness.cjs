@@ -3,6 +3,17 @@ const root=path.resolve(__dirname,'../src'),resolve=Module._resolveFilename;
 Module._resolveFilename=function(request,parent,...rest){return resolve.call(this,request.startsWith('@/')?path.join(root,request.slice(2)):request,parent,...rest)};
 for(const ext of ['.ts','.tsx'])require.extensions[ext]=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,f);
 const {NextRequest}=require('next/server'),route=require(path.join(root,'app/api/session/[...path]/route.ts'));
+test('session proxy bounds the body before buffering or contacting the API',async()=>{
+ const original=global.fetch;let calls=0;global.fetch=async()=>{calls++;return Response.json({})};
+ try{
+  for(const headers of [{},{'content-length':'262145'}]){
+   const req=new NextRequest('https://web.example.com/api/session/user/state',{method:'PATCH',headers:{...headers,origin:'https://web.example.com'},body:'x'.repeat(262145)});
+   const res=await route.PATCH(req,{params:Promise.resolve({path:['user','state']})});
+   assert.equal(res.status,413);
+  }
+  assert.equal(calls,0);
+ }finally{global.fetch=original}
+});
 test('same-origin sign-in forwards a web-host session cookie and authenticated state, without leaking other cookies or bypassing rate limits',async()=>{
  const original=global.fetch;process.env.API_BASE_URL='https://api.example.com/';process.env.INTERNAL_API_TOKEN='private';
  const seen=[];global.fetch=async(url,opts)=>{seen.push({url,opts});return new Response(JSON.stringify({id:'test'}),{headers:{'set-cookie':'finoptima_session=opaque; Path=/; HttpOnly; Secure; SameSite=Lax','content-type':'application/json'}})};

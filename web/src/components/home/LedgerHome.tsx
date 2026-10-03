@@ -16,7 +16,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
-import { deriveMetrics, type DerivedMetrics } from '@/lib/derived';
+import { cashFlowForMonth, deriveMetrics, type DerivedMetrics } from '@/lib/derived';
 import { projectionGaps } from '@/lib/loan-gaps';
 import { userDefaultCurrency } from '@/lib/currency';
 import { MONTH_NAMES, getCountryToday, monthIndexToCountryLabel } from '@/lib/today';
@@ -182,8 +182,9 @@ function CashFlow({ profile, m }: { profile: StoredProfile; m: DerivedMetrics })
   const today = getCountryToday(u.country);
   const income = Number(u.monthly_income || 0);
   const spend = Number(u.fixed_expenses || 0) + Number(u.variable_expenses || 0);
-  const debts = Number(m.emiBurden.toFixed(0));
-  const left = Number(m.surplus.toFixed(0));
+  const current = cashFlowForMonth(profile, m);
+  const debts = Number(current.emiBurden.toFixed(0));
+  const left = Number(current.surplus.toFixed(0));
   const streams = u.income_streams?.length ?? 0;
   // ₹ and $ minimums can't be added without the rate.
   const noFx = m.fxMissing.length > 0;

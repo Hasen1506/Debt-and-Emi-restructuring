@@ -37,7 +37,9 @@ async function visit(p, path) {
   await p.goto(base + path, { waitUntil: 'domcontentloaded' });
   await p.waitForFunction(() => {
     const e = document.querySelector('main input,main button,main select');
-    return document.querySelector('main') && (!e || Object.keys(e).some(k => k.startsWith('__reactProps$')));
+    const main = document.querySelector('main');
+    return main && main.textContent.trim() && !/COMPUTING YOUR PLAN|WORKING OUT YOUR DATE|WORKING OUT THIS MONTH'S PAYMENTS/i.test(main.textContent) &&
+      (!e || Object.keys(e).some(k => k.startsWith('__reactProps$')));
   });
   assert.ok(!p.url().includes('/login'), 'Use a local auth-bypassed test instance');
 }
@@ -75,7 +77,9 @@ async function run(name, u, fn, settings = {}) {
     await p.getByRole('button', { name: /SHOW CHANGES MADE HERE/ }).waitFor();
     assert.equal((await profile(c)).fixed_expenses, '50000');
     assert.equal((await cookies(c)).finoptima_debt_budget, '60000');
-    await visit(p, '/plan'); assert.match(await body(p), /52,367/);
+    await visit(p, '/plan');
+    await p.waitForFunction(() => document.querySelector('main').textContent.includes('52,367'));
+    assert.match(await body(p), /52,367/);
     await p.getByRole('button', { name: /SHOW CHANGES MADE HERE/ }).click();
     await p.getByRole('button', { name: 'Undo this spending cut and its debt-budget change', exact: true }).click();
     await p.waitForFunction(() => JSON.parse(localStorage.getItem('finoptima_commitments') || '[]').length === 0);

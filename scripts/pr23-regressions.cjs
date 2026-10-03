@@ -70,7 +70,8 @@ const regularMonths=(amount)=>[date(-2),date(-1)].map((d,i)=>payment({id:'pace'+
 (async()=>{
   browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH});
   await run('P01 Deferred first EMI agrees on Home and Activity',user({loans:[emi({first_emi_month:next})]}),async p=>{
-    await p.goto(base+'/');assert.match(await body(p),/No loan payment is due this month/);
+    await p.goto(base+'/');await p.getByText(/No loan payment is due this month/).waitFor();
+    assert.match(await body(p),/No loan payment is due this month/);
     assert.doesNotMatch(await body(p),/engine can.t be reached/i);
     await p.goto(base+'/activity');assert.doesNotMatch(await body(p),/TO PAY/);
     const d=await logDialog(p);await d.getByRole('button',{name:/SAVE/}).click();assert.equal((await store(p,'finoptima_activity')).length,0);
@@ -116,7 +117,8 @@ const regularMonths=(amount)=>[date(-2),date(-1)].map((d,i)=>payment({id:'pace'+
     assert.match(await fed.innerText(),/Chase.*VARIABLE APR/s);assert.doesNotMatch(await fed.innerText(),/ICICI/);
   });
   await run('P10 Assumptions and Home caption describe saved rate and pay-rise changes',user({annual_hike_rate:'0',hike_schedule:[[1,3,'.10']],loans:[emi({rate_type:'floating',rate_drift_annualized:'.01'})]}),async p=>{
-    await p.goto(base+'/');assert.match(await body(p),/WITH YOUR SAVED RATE CHANGES/);
+    await p.goto(base+'/');await p.getByText(/WITH YOUR SAVED RATE CHANGES/).waitFor();
+    assert.match(await body(p),/WITH YOUR SAVED RATE CHANGES/);
     await p.goto(base+'/plan');const show=p.getByRole('button',{name:'Show what the plan takes as given'});if(await show.count())await show.click();
     const section=p.locator('section[aria-labelledby="plan-givens-h"]');const text=await section.innerText();
     assert.match(text,/saved rate changes/);assert.match(text,/Saved pay-rise phase: 10.0%/);assert.doesNotMatch(text,/Every loan keeps|with no pay rise/);
@@ -146,7 +148,9 @@ const regularMonths=(amount)=>[date(-2),date(-1)].map((d,i)=>payment({id:'pace'+
     const result=await r.json();assert.equal(Number(result.trajectory.find(t=>t.month===1).total_paid),0);
     await p.getByRole('button',{name:/SAVE.*OPEN MY PLAN/}).click();
     await p.waitForURL(base+'/',{waitUntil:'domcontentloaded'});assert.equal((await profile(c)).loans[0].first_emi_month,next);
-    await p.goto(base+'/');assert.match(await body(p),/No loan payment is due this month/);
+    await p.goto(base+'/');await p.getByText(/No loan payment is due this month/).waitFor();
+    assert.match(await p.locator('section[aria-labelledby="home-cash"]').innerText(),/Spending ₹40,000 \+ EMIs and card minimums ₹0/);
+    assert.match(await body(p),/No loan payment is due this month/);
   });
   await run('P14 Pace must stay affordable after modeled costs rise',user({inflation_rate:'.25',loans:[emi({outstanding:'500000'})]}),async(p,c)=>{
     await c.addCookies([{name:'finoptima_inflation_modeling',value:'on',url:base},{name:'finoptima_inflation_rate',value:'.25',url:base}]);

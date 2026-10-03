@@ -47,7 +47,7 @@ export function writeFxDriftClient(value: FxDriftSetting) {
 
 export async function loadFxDriftServer(): Promise<FxDriftSetting> {
   const { cookies } = await import('next/headers');
-  const v = cookies().get(COOKIE_NAME)?.value;
+  const v = (await cookies()).get(COOKIE_NAME)?.value;
   return isFxDrift(v) ? v : DEFAULT_FX_DRIFT;
 }
 

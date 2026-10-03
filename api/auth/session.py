@@ -1,11 +1,11 @@
 """Session + OTP token utilities — pure stdlib, no external crypto deps.
 
-OTP codes are 6-digit numeric. We store SHA-256(code) so the plaintext
-isn't recoverable from the DB; the real protection against guessing is
-short expiry + capped attempts (enforced in the route).
+OTP codes are 6-digit numeric. We store SHA-256(code), but this small
+code space can be enumerated from a database dump. Short expiry and
+capped requests/attempts are the protection against online guessing.
 
-Session tokens are 32 random bytes, urlsafe-encoded. They're the cookie
-value the browser sends on each request; we look them up directly.
+Session tokens are 32 random bytes, urlsafe-encoded. Only their SHA-256
+digest is stored, so database reads do not expose usable session cookies.
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 OTP_TTL = timedelta(minutes=10)
 OTP_MAX_ATTEMPTS = 5
+OTP_MAX_REQUESTS = 5
 SESSION_TTL = timedelta(days=30)
 SESSION_COOKIE_NAME = "finoptima_session"
 
@@ -30,6 +31,11 @@ def hash_otp(code: str) -> str:
 
 def generate_session_token() -> str:
     return secrets.token_urlsafe(32)
+
+
+def hash_session_token(token: str) -> str:
+    # The prefix distinguishes new digests from legacy plaintext sessions.
+    return "sha256:" + hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def utc_now() -> datetime:

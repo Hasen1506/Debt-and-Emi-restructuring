@@ -62,8 +62,8 @@ class OtpCode(Base):
 class Session(Base):
     __tablename__ = "sessions"
 
-    # Token IS the primary key — it's the opaque random string the browser
-    # holds in a cookie. We look up by exact match per request.
+    # New sessions store a prefixed digest of the opaque cookie token.
+    # Legacy plaintext rows remain readable until their existing expiry.
     token: Mapped[str] = mapped_column(String(128), primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True

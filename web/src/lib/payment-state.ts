@@ -21,7 +21,8 @@ export function paymentState(entries: ActivityEntry[], minimum: number, total: n
   if (regular.length === 0) return 'due';
   const covered = regularPaid(regular);
   if (covered.lte(0)) return 'missed';
-  if (covered.lt(Math.max(0, minimum - 0.5))) return 'part';
+  // Ignore only sub-cent arithmetic noise, not a real payment shortfall.
+  if (covered.lt(Decimal.max(0, new Decimal(minimum).sub('0.005')))) return 'part';
   const paid = entries.reduce((sum, e) => sum.add(e.amount || '0'), new Decimal(0));
-  return paid.lt(Math.max(0, total - 0.5)) ? 'emi_paid' : 'paid';
+  return paid.lt(Decimal.max(0, new Decimal(total).sub('0.005'))) ? 'emi_paid' : 'paid';
 }

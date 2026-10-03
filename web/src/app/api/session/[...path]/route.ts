@@ -8,10 +8,33 @@ const METHODS: Record<string, string[]> = {
   'auth/me': ['GET'],
   'user/state': ['GET', 'PUT', 'PATCH'],
 };
+const MAX_BODY_BYTES = 256 * 1024;
+
+class BodyTooLarge extends Error {}
+
+/** The API's cap must also apply before the frontend buffers a request. */
+async function readBody(req: NextRequest): Promise<string> {
+  if (!req.body) return '';
+  const reader = req.body.getReader(), decoder = new TextDecoder();
+  let bytes = 0, body = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_BODY_BYTES) {
+        await reader.cancel();
+        throw new BodyTooLarge();
+      }
+      body += decoder.decode(value, { stream: true });
+    }
+    return body + decoder.decode();
+  } finally { reader.releaseLock(); }
+}
 
 /** Fixed upstream and path allowlist: never a general-purpose proxy. */
-async function proxy(req: NextRequest, context: { params: { path: string[] } }): Promise<Response> {
-  const path = context.params.path.join('/');
+async function proxy(req: NextRequest, context: { params: Promise<{ path: string[] }> }): Promise<Response> {
+  const path = (await context.params).path.join('/');
   const methods = METHODS[path];
   if (!methods) return new Response(null, { status: 404 });
   if (!methods.includes(req.method)) return new Response(null, { status: 405 });
@@ -19,6 +42,15 @@ async function proxy(req: NextRequest, context: { params: { path: string[] } }):
   const webOrigin = process.env.WEB_ORIGIN ?? `${req.nextUrl.protocol}//${req.headers.get('host') ?? req.nextUrl.host}`;
   if (req.method !== 'GET' && req.headers.get('origin') !== webOrigin) {
     return new Response('This request must come from RightDue.', { status: 403 });
+  }
+  if (req.method !== 'GET') {
+    const length = req.headers.get('content-length');
+    if (length !== null && (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)))) {
+      return Response.json({ detail: 'Invalid request length.' }, { status: 400 });
+    }
+    if (length !== null && Number(length) > MAX_BODY_BYTES) {
+      return Response.json({ detail: 'The request is too large.' }, { status: 413 });
+    }
   }
   const headers = new Headers();
   if (req.method !== 'GET') headers.set('Content-Type', 'application/json');
@@ -32,7 +64,7 @@ async function proxy(req: NextRequest, context: { params: { path: string[] } }):
     const upstream = await fetch(`${base.replace(/\/$/, '')}/api/${path}`, {
       method: req.method,
       headers,
-      body: req.method === 'GET' ? undefined : await req.text(),
+      body: req.method === 'GET' ? undefined : await readBody(req),
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(60000),
@@ -48,7 +80,10 @@ async function proxy(req: NextRequest, context: { params: { path: string[] } }):
       status: upstream.status,
       headers: responseHeaders,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof BodyTooLarge) {
+      return Response.json({ detail: 'The request is too large.' }, { status: 413 });
+    }
     return Response.json({ detail: 'Sign-in service is temporarily unavailable. Try again shortly.' }, { status: 502 });
   }
 }

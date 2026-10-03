@@ -44,5 +44,5 @@ export function writeEfSplitClient(value: string) {
 
 export async function loadEfSplitServer(): Promise<string> {
   const { cookies } = await import('next/headers');
-  return normalize(cookies().get(COOKIE_NAME)?.value);
+  return normalize((await cookies()).get(COOKIE_NAME)?.value);
 }

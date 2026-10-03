@@ -36,5 +36,5 @@ export function writeDebtBudgetClient(value: string, sync = true) {
 
 export async function loadDebtBudgetServer(): Promise<string> {
   const { cookies } = await import('next/headers');
-  return normalizeDebtBudget(cookies().get(COOKIE_NAME)?.value);
+  return normalizeDebtBudget((await cookies()).get(COOKIE_NAME)?.value);
 }

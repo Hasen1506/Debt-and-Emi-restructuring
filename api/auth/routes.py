@@ -9,23 +9,29 @@ Flow:
 from __future__ import annotations
 
 import os
+import hmac
 from datetime import timedelta
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
-from api.auth.dependencies import current_user, current_user_optional
+from api.auth.dependencies import current_user, current_user_optional, session_token_condition
 from api.auth.email import send_otp_email
 from api.auth.session import (
     OTP_MAX_ATTEMPTS,
+    OTP_MAX_REQUESTS,
+    OTP_TTL,
     SESSION_COOKIE_NAME,
     SESSION_TTL,
     generate_otp,
     generate_session_token,
     hash_otp,
+    hash_session_token,
     otp_expiry,
     session_expiry,
     utc_now,
@@ -82,28 +88,53 @@ async def request_otp(
 ) -> Response:
     email = payload.email.lower().strip()
 
-    # Upsert user.
-    res = await db.execute(select(User).where(User.email == email))
+    # Use the same user lock as verification. Issuing a replacement and
+    # consuming a code must not leave multiple usable challenges.
+    res = await db.execute(select(User).where(User.email == email).with_for_update())
     user = res.scalar_one_or_none()
     if user is None:
-        user = User(email=email)
-        db.add(user)
-        await db.flush()
+        try:
+            async with db.begin_nested():
+                user = User(email=email)
+                db.add(user)
+                await db.flush()
+        except IntegrityError:
+            # A concurrent first request may have created this email while
+            # we waited. Roll back only the insert, then lock that user.
+            res = await db.execute(select(User).where(User.email == email).with_for_update())
+            user = res.scalar_one()
 
-    code = generate_otp()
-    db.add(
-        OtpCode(
-            user_id=user.id,
-            code_hash=hash_otp(code),
-            expires_at=otp_expiry(),
+    now = utc_now()
+    recent_requests = (await db.execute(
+        select(func.count()).select_from(OtpCode)
+        .where(OtpCode.user_id == user.id).where(OtpCode.created_at > now - OTP_TTL)
+    )).scalar_one()
+    if recent_requests >= OTP_MAX_REQUESTS:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many codes requested for this email. Try again in ten minutes.",
+            headers={"Retry-After": str(int(OTP_TTL.total_seconds()))},
         )
+    await db.execute(
+        update(OtpCode).where(OtpCode.user_id == user.id).where(OtpCode.used_at.is_(None)).values(used_at=now)
     )
+    code = generate_otp()
+    otp = OtpCode(
+        user_id=user.id,
+        code_hash=hash_otp(code),
+        expires_at=otp_expiry(),
+        created_at=now,
+    )
+    db.add(otp)
     await db.commit()
 
     # Send email after commit so we don't deliver an OTP we then fail to persist.
     try:
-        send_otp_email(email, code)
+        await run_in_threadpool(send_otp_email, email, code)
     except Exception:
+        # Invalidate only this issuance; a newer request may already exist.
+        await db.execute(update(OtpCode).where(OtpCode.id == otp.id).values(used_at=utc_now()))
+        await db.commit()
         # Never claim an email was sent, expose provider credentials/errors,
         # or publish a production sign-in code to deployment logs.
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Email sign-in is unavailable. Please try again later.") from None
@@ -142,7 +173,7 @@ async def verify_otp(
     if otp.attempts >= OTP_MAX_ATTEMPTS:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many attempts — request a new code.")
 
-    if otp.code_hash != hash_otp(payload.code):
+    if not hmac.compare_digest(otp.code_hash, hash_otp(payload.code)):
         otp.attempts += 1
         await db.commit()
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Incorrect code.")
@@ -151,7 +182,7 @@ async def verify_otp(
     otp.used_at = now
     user.last_login_at = now
     token = generate_session_token()
-    db.add(Session(token=token, user_id=user.id, expires_at=session_expiry()))
+    db.add(Session(token=hash_session_token(token), user_id=user.id, expires_at=session_expiry()))
     await db.commit()
 
     _set_session_cookie(response, token)
@@ -168,7 +199,7 @@ async def logout(
     if user is not None and session_cookie:
         # Sign out this browser only; other devices retain their sessions.
         res = await db.execute(
-            select(Session).where(Session.user_id == user.id).where(Session.token == session_cookie).where(Session.revoked_at.is_(None))
+            select(Session).where(Session.user_id == user.id).where(session_token_condition(session_cookie)).where(Session.revoked_at.is_(None))
         )
         for sess in res.scalars():
             sess.revoked_at = utc_now()

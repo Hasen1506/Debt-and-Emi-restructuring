@@ -56,7 +56,7 @@ export function writeScheduleClient(schedule: AdvanceTaxSchedule | null) {
 
 export async function readScheduleServer(): Promise<AdvanceTaxSchedule | null> {
   const { cookies } = await import('next/headers');
-  const raw = cookies().get(COOKIE_NAME)?.value;
+  const raw = (await cookies()).get(COOKIE_NAME)?.value;
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as AdvanceTaxSchedule;

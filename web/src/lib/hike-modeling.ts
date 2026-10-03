@@ -41,6 +41,6 @@ export function writeHikeModelingClient(value: HikeModeling) {
 
 export async function loadHikeModelingServer(): Promise<HikeModeling> {
   const { cookies } = await import('next/headers');
-  const v = cookies().get(COOKIE_NAME)?.value;
+  const v = (await cookies()).get(COOKIE_NAME)?.value;
   return isHikeModeling(v) ? v : DEFAULT_HIKE_MODELING;
 }

@@ -53,6 +53,6 @@ export function writeTaxReinvestClient(value: TaxReinvestSetting) {
 
 export async function loadTaxReinvestServer(): Promise<TaxReinvestSetting> {
   const { cookies } = await import('next/headers');
-  const v = cookies().get(COOKIE_NAME)?.value;
+  const v = (await cookies()).get(COOKIE_NAME)?.value;
   return isTaxReinvest(v) ? v : DEFAULT_TAX_REINVEST;
 }

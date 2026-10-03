@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, Integer, MetaData, Numeric, String, Table, and_, func, select, update,
+    Boolean, Column, DateTime, Integer, MetaData, Numeric, String, Table, and_, func, select, text, update,
 )
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -104,6 +104,13 @@ class OutcomeStore:
         now = self.now()
         since = now - timedelta(days=1)
         async with self._lock, self.engine.begin() as conn:
+            # The in-process lock cannot coordinate independent workers.
+            # Serialize this client's count-and-insert in the database too.
+            if self.kind == "postgresql":
+                key = int.from_bytes(bytes.fromhex(client)[:8], "big", signed=True)
+                await conn.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
+            elif self.kind == "sqlite":
+                await conn.exec_driver_sql("BEGIN IMMEDIATE")
             today = (await conn.execute(
                 select(func.count()).select_from(outcomes)
                 .where(and_(outcomes.c.client == client, outcomes.c.created_at >= since))

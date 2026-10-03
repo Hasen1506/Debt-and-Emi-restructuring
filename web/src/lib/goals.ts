@@ -404,7 +404,7 @@ export async function goalsForSimulateServer(
   currentlySaved: Record<string, number> = {},
 ): Promise<GoalSimulateInput[]> {
   const { cookies } = await import('next/headers');
-  const raw = cookies().get(DIGEST_COOKIE)?.value;
+  const raw = (await cookies()).get(DIGEST_COOKIE)?.value;
   const rows = parseDigestCookie(raw);
   return rows
     // A goal with no amount yet has nothing for the plan to fund.

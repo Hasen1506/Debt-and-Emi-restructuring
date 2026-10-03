@@ -4,12 +4,21 @@ from __future__ import annotations
 from typing import Annotated, Optional
 
 from fastapi import Cookie, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.auth.session import SESSION_COOKIE_NAME, utc_now
+from api.auth.session import SESSION_COOKIE_NAME, hash_session_token, utc_now
 from api.db.database import get_db
 from api.db.models import Session, User
+
+
+def session_token_condition(token: str):
+    # Existing sessions expire normally. A stored digest must never itself
+    # be accepted as a legacy cookie (otherwise hashing buys no protection).
+    return or_(
+        Session.token == hash_session_token(token),
+        and_(Session.token == token, ~Session.token.like("sha256:%")),
+    )
 
 
 async def _load_user_from_cookie(
@@ -17,11 +26,11 @@ async def _load_user_from_cookie(
 ) -> Optional[User]:
     if not token:
         return None
-    res = await db.execute(select(Session).where(Session.token == token))
+    res = await db.execute(select(Session).where(session_token_condition(token)))
     sess = res.scalar_one_or_none()
     if sess is None or sess.revoked_at is not None:
         return None
-    if sess.expires_at < utc_now():
+    if sess.expires_at <= utc_now():
         return None
     res = await db.execute(select(User).where(User.id == sess.user_id))
     return res.scalar_one_or_none()

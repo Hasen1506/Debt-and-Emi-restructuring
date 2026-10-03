@@ -291,9 +291,12 @@ export async function hydrateFromServer(): Promise<boolean> {
   try {
     if (!await flushPendingState()) return false;
     const revision = localRevision, generation = accountGeneration;
+    const account = activeAccount();
     const res = await api.getUserState();
-    if (!res.data || revision !== localRevision || generation !== accountGeneration) return false;
-    const isCurrent = () => revision === localRevision && generation === accountGeneration;
+    // A different tab can change shared storage before its storage event
+    // reaches this tab. Check the identity itself, including after imports.
+    const isCurrent = () => revision === localRevision && generation === accountGeneration && account === activeAccount();
+    if (!res.data || !isCurrent()) return false;
     await hydrateLocalStores(res.data, isCurrent);
     return isCurrent();
   } catch {

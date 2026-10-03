@@ -236,7 +236,7 @@ const SESSION_COOKIE = 'finoptima_session';
  */
 async function fetchUserStateServer(): Promise<Record<string, unknown> | null> {
   const { cookies } = await import('next/headers');
-  const session = cookies().get(SESSION_COOKIE)?.value;
+  const session = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!session) return null;
   const base =
     process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
@@ -287,7 +287,7 @@ function _profileFromCookieStore(store: {
 
 export async function loadProfileServer(): Promise<StoredProfile> {
   const { cookies } = await import('next/headers');
-  const store = cookies();
+  const store = (await cookies());
 
   // Cookies reflect a local save immediately; background server sync may
   // still be in flight. Login hydration supplies remote data on a new device.
@@ -365,7 +365,7 @@ export function serializeProfileForServer(profile: StoredProfile): Record<string
  */
 export async function loadFxCacheServer(): Promise<FxCacheEntry | null> {
   const { cookies } = await import('next/headers');
-  const raw = cookies().get(FX_COOKIE)?.value;
+  const raw = (await cookies()).get(FX_COOKIE)?.value;
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as FxCacheEntry;

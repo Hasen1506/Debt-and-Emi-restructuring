@@ -14,6 +14,8 @@ import { computeBreakdown } from './effective-apr';
 import { usMortgageShieldShare } from './deductions';
 import { loanCurrency, userDefaultCurrency, type CurrencyCode } from './currency';
 import { requiredMonthly } from './min-payment';
+import { prepareLoanPaymentTiming } from './roll-forward';
+import { countryMonthKey } from './today';
 
 export interface LoanWithEffective {
   loan: LoanPayload;
@@ -137,6 +139,23 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
     monthlyInterest,
     toUserCcy,
     fxMissing: Array.from(fxMissing),
+  };
+}
+
+/** Home's current-month cash flow, separate from recurring commitments.
+ * A newly borrowed loan is still owed, but its EMI starts next month. */
+export function cashFlowForMonth(
+  profile: StoredProfile, metrics: DerivedMetrics, month = countryMonthKey(profile.user.country),
+): { emiBurden: Decimal; surplus: Decimal } {
+  const loans = prepareLoanPaymentTiming(profile.user.loans ?? [], month);
+  const emiBurden = metrics.loans.reduce((sum, row) => {
+    if ((loans[row.index]?.first_payment_month ?? 1) > 1) return sum;
+    return sum.add(metrics.toUserCcy(row.required, row.loan));
+  }, new Decimal(0));
+  return {
+    emiBurden,
+    surplus: dec(profile.user.monthly_income).sub(dec(profile.user.fixed_expenses))
+      .sub(dec(profile.user.variable_expenses)).sub(emiBurden),
   };
 }
 

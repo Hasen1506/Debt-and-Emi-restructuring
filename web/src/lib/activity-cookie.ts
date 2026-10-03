@@ -290,7 +290,7 @@ export function clearActivityCookieClient(): void {
 
 export async function loadActivityDeltasServer(): Promise<ActivityDelta[]> {
   const { cookies } = await import('next/headers');
-  const raw = cookies().get(COOKIE_NAME)?.value;
+  const raw = (await cookies()).get(COOKIE_NAME)?.value;
   if (!raw) return [];
   return parseActivityDeltas(raw);
 }
@@ -298,7 +298,7 @@ export async function loadActivityDeltasServer(): Promise<ActivityDelta[]> {
 /** The last three months as logged (lib/pace), for the plan's pace. */
 export async function loadActivityPaceServer(): Promise<PaceMonth[]> {
   const { cookies } = await import('next/headers');
-  const raw = cookies().get(COOKIE_NAME)?.value;
+  const raw = (await cookies()).get(COOKIE_NAME)?.value;
   return raw ? parseActivityPace(raw) : [];
 }
 
