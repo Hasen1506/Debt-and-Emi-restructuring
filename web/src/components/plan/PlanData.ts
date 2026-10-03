@@ -9,6 +9,7 @@ import type {
   UserPayload,
 } from '@/lib/api';
 import type { TrajectoryPoint } from '@/lib/mock-data';
+import type { PaceSummary } from '@/lib/pace';
 import type { StrategyName } from '@/lib/strategy';
 import type { HikeModeling } from '@/lib/hike-modeling';
 import type { TaxReinvestSetting } from '@/lib/tax-reinvest';
@@ -120,6 +121,9 @@ export interface PlanData {
   /** Summary of activity-ledger deltas applied to the projection. Null
    *  when no missed/partial events are recorded. */
   activityImpact: ActivityImpact | null;
+  /** What reached the debts in the last three months as logged, against
+   *  what this plan puts in (lib/pace). Null when nothing's logged. */
+  pace: PlanPace | null;
   /** Currencies represented in the loan list, user-default first. Usually
    *  a single element; length > 1 only for NRI-US users with hybrid debts. */
   currenciesInPlay: CurrencyCode[];
@@ -219,4 +223,14 @@ export interface PlanData {
   /** Open loans missing a rate or EMI. When any, the engine isn't run and
    *  the pages ask for the details instead of projecting. */
   gaps: ProfileGap[];
+}
+
+export interface PlanPace extends PaceSummary {
+  /** What the plan puts on debts in its first month, user's currency. */
+  planTotal: number;
+  /** The average is more than 5% away from `planTotal`. */
+  differs: boolean;
+  /** The debt-free month with `average` a month to debts; null when not
+   *  worked out (no average, or it's close to the plan's) or not cleared. */
+  debtFreeMonth: number | null;
 }

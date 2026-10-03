@@ -36,6 +36,7 @@ import { describeGap, type ProfileGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import type { StoredProfile } from '@/lib/user-store';
 import { PlanTrajectory } from './PlanTrajectory';
+import { PlanPace } from './PlanPace';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
@@ -145,6 +146,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             },
           ]}
         />
+        {/* What actually reached the debts, beside what the plan puts in */}
+        {!short && <PlanPace plan={plan} />}
 
         {plan.shortfall > 0 && <ShortfallBanner plan={plan} />}
         {plan.futureShortfall && <div role="alert" style={{color:L_T.negative,fontSize:12}}>

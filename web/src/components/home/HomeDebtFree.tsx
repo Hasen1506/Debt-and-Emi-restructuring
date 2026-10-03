@@ -50,10 +50,18 @@ export async function HomeDebtFreeCaption() {
   // The date rests on what goes to debts each month and on rates staying
   // where they are; said with it (the rest is on Plan's "takes as given").
   const toDebts = plan.monthlyPayments.find((p) => p.month === 1)?.totalPaid;
+  const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country));
+  // What's actually been paid lately, when it moves the date (lib/pace).
+  const pace = plan.pace;
+  const atPace =
+    pace?.differs && pace.average && pace.debtFreeMonth && pace.debtFreeMonth !== plan.debtFreeMonth
+      ? ` · AT THE ${fc(pace.average)}/MO YOU'VE PAID: ${monthIndexToCountryLabel(pace.debtFreeMonth, plan.user.country).toUpperCase()}`
+      : '';
   return (
     <Link href="/plan">
       IN {monthsSpan(plan.debtFreeMonth).toUpperCase()}
-      {toDebts ? ` · AT ${formatCurrencyWhole(Math.round(toDebts), userDefaultCurrency(plan.user.country))}/MO TO DEBTS, RATES AS TODAY` : ''} · PLAN →
+      {toDebts ? ` · AT ${fc(toDebts)}/MO TO DEBTS, RATES AS TODAY` : ''}
+      {atPace} · PLAN →
     </Link>
   );
 }

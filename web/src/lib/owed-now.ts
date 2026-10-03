@@ -11,9 +11,11 @@
  * the plan has it: Activity already adds what's overdue.
  */
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
 import type { Country, LoanPayload } from './api';
 import { readActivityClient, type ActivityEntry } from './activity';
+import { refreshActivityCookieClient } from './activity-cookie';
 import { alignToLoans } from './loan-ids';
 import { afterOneEmi } from './roll-forward';
 import { getCountryToday, localIsoDate } from './today';
@@ -50,15 +52,23 @@ export function owedNow(loans: LoanPayload[], entries: ActivityEntry[], month: s
  *  known. */
 export function useOwedNow(loans: LoanPayload[], country: Country): { rows: OwedNow[]; ready: boolean } {
   const [entries, setEntries] = useState<ActivityEntry[] | null>(null);
+  const router = useRouter();
   useEffect(() => {
     const read = () => setEntries(readActivityClient());
     read();
+    // First visit after the month turns: the plan's pace (lib/pace) moves
+    // on to the months just gone, and the page is fetched again once it has
+    // streamed in. Not cancelled with the effect: the cookie is already
+    // rewritten, so a remount wouldn't ask again.
+    if (refreshActivityCookieClient(loans, country)) window.setTimeout(() => router.refresh(), 1500);
     window.addEventListener('finoptima:profile-changed', read);
     window.addEventListener('storage', read);
     return () => {
       window.removeEventListener('finoptima:profile-changed', read);
       window.removeEventListener('storage', read);
     };
+    // Once, on mount: the loans are the page's.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (entries === null) {
     return { rows: loans.map((l) => ({ status: null, owed: new Decimal(Number(l.outstanding) || 0) })), ready: false };

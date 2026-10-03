@@ -164,7 +164,7 @@ export function planGivens(
     label: 'Spending',
     lines: [
       `${money(spend)} a month${opts.inflation.on ? `, rising ${(opts.inflation.rate * 100).toFixed(1)}% a year` : ', the same every month'}.`,
-      'Real months vary. What moves the date is what reaches your debts: set TO DEBTS above to a total you can keep up, and log what you actually pay.',
+      'Real months vary. What moves the date is what reaches your debts: log what you pay, and "What you\'ve paid" under the date sets your last three months beside the plan.',
     ],
     source: 'YOU SAID',
     fix: { href: '/profile?step=income', text: 'CHANGE IT' },

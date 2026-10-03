@@ -29,9 +29,10 @@ import type { ActivityEntry } from './activity';
 import { estimateLateFee } from './estimate-penalty';
 import { explainMinPayment } from './min-payment';
 import type { Country, LoanPayload } from './api';
-import { overdueAmount, daysLate, extraPrincipal } from './activity';
+import { overdueAmount, daysLate, extraPrincipal, readActivityClient } from './activity';
 import { alignToLoans, resolveLoanIndex } from './loan-ids';
 import { localIsoDate, getCountryToday } from './today';
+import { monthsBefore, paceMonths, type PaceMonth } from './pace';
 
 const COOKIE_NAME = 'finoptima_activity_deltas';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -76,6 +77,8 @@ export interface ActivityDelta {
 interface CookiePayload {
   v: number;
   deltas: ActivityDelta[];
+  /** What was logged on each loan in the last three months (lib/pace). */
+  pace?: PaceMonth[];
 }
 
 // ─── Client write ──────────────────────────────────────────────────────────
@@ -92,7 +95,13 @@ export function syncActivityCookieClient(
   notify = true,
 ): boolean {
   if (typeof document === 'undefined') return false;
-  const payload: CookiePayload = { v: CURRENT_VERSION, deltas: activityDeltas(entries, loans, country) };
+  const thisMonth = localIsoDate(getCountryToday(country)).slice(0, 7);
+  const pace = paceMonths(entries, loans, thisMonth);
+  const payload: CookiePayload = {
+    v: CURRENT_VERSION,
+    deltas: activityDeltas(entries, loans, country),
+    ...(pace.some((m) => m.paid.length > 0) ? { pace } : {}),
+  };
   const encoded = COMPRESSED + compressToEncodedURIComponent(JSON.stringify(payload));
   document.cookie = `${COOKIE_NAME}=${encoded}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
   const saved = JSON.stringify(parseActivityDeltas(document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '')) === JSON.stringify(payload.deltas);
@@ -256,6 +265,22 @@ export function activityDeltas(
   return deltas;
 }
 
+/** Re-writes the cookie when the month has turned since it was written,
+ *  so the plan's pace covers the months just gone (or when it was written
+ *  before it carried them). True when it changed. */
+export function refreshActivityCookieClient(loans: LoanPayload[], country: Country): boolean {
+  if (typeof document === 'undefined') return false;
+  const entries = readActivityClient();
+  if (entries.length === 0) return false;
+  const raw = document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '';
+  const pace = raw ? parseActivityPace(raw) : [];
+  const lastMonth = monthsBefore(localIsoDate(getCountryToday(country)).slice(0, 7), 1)[0];
+  if (pace.length > 0 && pace[pace.length - 1].month === lastMonth) return false;
+  const before = raw;
+  syncActivityCookieClient(alignToLoans(entries, loans), loans, country, false);
+  return (document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '') !== before;
+}
+
 export function clearActivityCookieClient(): void {
   if (typeof document === 'undefined') return;
   document.cookie = `${COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`;
@@ -268,6 +293,26 @@ export async function loadActivityDeltasServer(): Promise<ActivityDelta[]> {
   const raw = cookies().get(COOKIE_NAME)?.value;
   if (!raw) return [];
   return parseActivityDeltas(raw);
+}
+
+/** The last three months as logged (lib/pace), for the plan's pace. */
+export async function loadActivityPaceServer(): Promise<PaceMonth[]> {
+  const { cookies } = await import('next/headers');
+  const raw = cookies().get(COOKIE_NAME)?.value;
+  return raw ? parseActivityPace(raw) : [];
+}
+
+export function parseActivityPace(raw: string): PaceMonth[] {
+  try {
+    if (!raw.startsWith(COMPRESSED)) return [];
+    const parsed: CookiePayload = JSON.parse(decompressFromEncodedURIComponent(raw.slice(COMPRESSED.length)) ?? '');
+    if (!Array.isArray(parsed?.pace)) return [];
+    return parsed.pace.filter(
+      (m) => typeof m?.month === 'string' && typeof m?.complete === 'boolean' && Array.isArray(m?.paid),
+    );
+  } catch {
+    return [];
+  }
 }
 
 /** The deltas in a cookie value: v3 (compressed, per loan) or the older
