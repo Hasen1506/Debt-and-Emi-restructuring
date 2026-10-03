@@ -46,6 +46,7 @@ import { PlanSchedule } from './PlanSchedule';
 import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
 import { PlanNotes } from './PlanNotes';
 import { PlanAssumptions } from './PlanAssumptions';
+import { PlanGivens } from './PlanGivens';
 
 export function LedgerPlan({ plan }: { plan: PlanData }) {
   const ccy = plan.displayCurrency;
@@ -98,8 +99,10 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           />
         )}
 
-        {/* What the plan assumes (editable chips), then what it comes to */}
+        {/* What the plan assumes (editable chips), the data and guesses it
+            rests on, then what it comes to */}
         <PlanAssumptions plan={plan} />
+        <PlanGivens plan={plan} />
         <LKpi
           cols={4}
           items={[
