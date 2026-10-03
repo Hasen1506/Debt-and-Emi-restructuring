@@ -28,7 +28,7 @@ import { HORIZON_MONTHS } from '@/lib/horizon';
 import { computeBreakdown } from '@/lib/effective-apr';
 import { usMortgageShieldShare } from '@/lib/deductions';
 import { loadProfileClient } from '@/lib/user-store';
-import { commitSpendingCut } from '@/lib/commit-spending-cut';
+import { commitSpendingCut, undoSpendingCut } from '@/lib/commit-spending-cut';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { readActivityClient } from '@/lib/activity';
 import { activityDeltas, applyActivityDeltas } from '@/lib/activity-cookie';
@@ -186,7 +186,7 @@ export function WhatIfPanel({
   function commitSurplusCut() {
     if (surplusDelta <= 0 || surplusStartMonth !== 1) return;
     try {
-      setCommitments(commitSpendingCut(configuredUser, surplusDelta, surplusStartMonth));
+      setCommitments(commitSpendingCut(configuredUser, surplusDelta, surplusStartMonth, runArgs?.debt_budget ?? ''));
     } catch (error) {
       setToast((error as Error).message);
       return;
@@ -249,6 +249,16 @@ export function WhatIfPanel({
   }
 
   function undoCommitment(id: string) {
+    if (commitments.find((c) => c.id === id)?.spendingSnapshot) {
+      try {
+        setCommitments(undoSpendingCut(id));
+        setToast('Spending cut undone; spending and the monthly debt budget are restored.');
+        startTransition(() => router.refresh());
+      } catch (error) {
+        setToast((error as Error).message);
+      }
+      return;
+    }
     // Note: this only removes the log entry. The underlying profile edit /
     // activity entry has already shaped /plan and isn't reverted from here.
     // The user can edit profile / delete the activity entry directly if they
@@ -268,6 +278,7 @@ export function WhatIfPanel({
             ...base,
             horizon_months: HORIZON_MONTHS,
             surplus_delta: String(surplusDelta),
+            spending_cut: true,
             surplus_delta_start_month: surplusStartMonth,
           }),
     surplusDelta !== 0,
@@ -550,9 +561,9 @@ export function WhatIfPanel({
                     </span>
                     <LBracket
                       onClick={() => undoCommitment(c.id)}
-                      label="Remove from this list (the change itself stays)"
+                      label={c.spendingSnapshot ? 'Undo this spending cut and its debt-budget change' : 'Remove from this list (the change itself stays)'}
                     >
-                      REMOVE FROM LIST
+                      {c.spendingSnapshot ? 'UNDO CUT' : 'REMOVE FROM LIST'}
                     </LBracket>
                   </li>
                 );
@@ -1029,4 +1040,3 @@ function useDebouncedScenario(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, active, setState]);
 }
-

@@ -144,14 +144,19 @@ function writeCookie(name: string, value: string): void {
  */
 let syncQueue: Promise<void> = Promise.resolve();
 export function syncSliceToServer(slice: string, value: unknown): Promise<void> {
+  return syncSlicesToServer({ [slice]: value });
+}
+
+/** Related local changes reach the account in one atomic state patch. */
+export function syncSlicesToServer(slices: Record<string, unknown>): Promise<void> {
   if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') return Promise.resolve();
-  const captured = JSON.parse(JSON.stringify(value));
+  const captured = JSON.parse(JSON.stringify(slices));
   const generation = accountGeneration;
   const account = preparedAccount ?? activeAccount();
   localRevision++;
   // Anonymous trial changes migrate after sign-in, never to a stale session.
   if (!account) return Promise.resolve();
-  storePending(account, { ...pendingState(account), [slice]: captured });
+  storePending(account, { ...pendingState(account), ...captured });
   reportSync('pending');
   syncQueue = syncQueue.catch(() => {}).then(async () => {
     await sendPending(account, generation);

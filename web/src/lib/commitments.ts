@@ -29,6 +29,15 @@ export interface CommitmentEntry {
   loanBank?: string;
   /** Optional human note. */
   note?: string;
+  /** Enables a safe undo of cuts saved together with a debt-budget change. */
+  spendingSnapshot?: {
+    country: 'IN' | 'US';
+    key: 'fixed_expenses' | 'variable_expenses';
+    before: string;
+    after: string;
+    debtBudgetBefore: string;
+    debtBudgetAfter: string;
+  };
 }
 
 const STORAGE_KEY = 'finoptima_commitments';

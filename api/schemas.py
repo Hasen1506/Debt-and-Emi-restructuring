@@ -797,6 +797,8 @@ class CompareRequest(_In):
     debt_budget: Optional[Amount] = None
     # what-if knobs
     surplus_delta: Optional[Decimal] = None
+    # A saved expense change, rather than an increase in take-home pay.
+    spending_cut: bool = False
     surplus_delta_start_month: int = Field(1, ge=1, le=MAX_MONTHS)
     income_shock_months: Optional[Months] = None
     rate_shock_delta: Optional[SignedRate] = None
@@ -804,6 +806,14 @@ class CompareRequest(_In):
     alt_strategy: Optional[Strategy] = None
     lump_sum_amount: Optional[Amount] = None
     lump_sum_target_loan_index: Optional[LoanIndex] = None
+
+    @model_validator(mode="after")
+    def _valid_spending_cut(self) -> "CompareRequest":
+        if self.spending_cut:
+            limit = self.user.variable_expenses if self.user.variable_expenses > 0 else self.user.fixed_expenses
+            if self.surplus_delta is None or not (D("0") <= self.surplus_delta <= limit):
+                raise ValueError("spending_cut requires surplus_delta between zero and the current spending bucket")
+        return self
 
 
 class CompareResponse(_Base):
@@ -1140,11 +1150,23 @@ class LoanTermsResponse(_Base):
 class RestructuringRequest(_In):
     user: UserIn
     marginal_rate: Optional[Rate] = None
+    # The same inputs as /simulate: compare actual repayment schedules,
+    # including the user's debt budget, goals and emergency-fund share.
+    plan: Optional[SimulateRequest] = None
     # Each loan's balance at the end of months 1, 2, … under the user's
     # plan (from /simulate's balances_by_loan_index). When given, savings
     # are worked out on these instead of today's balance held for a year,
     # and a move the plan makes pointless is held back.
     plan_balances: Optional[dict[LoanIndex, list[Amount]]] = Field(None, max_length=MAX_LOANS)
+
+    @model_validator(mode="after")
+    def _matching_plan(self) -> "RestructuringRequest":
+        if self.plan is not None:
+            if self.plan.user != self.user:
+                raise ValueError("plan.user must match user")
+            if self.marginal_rate is not None and self.plan.marginal_rate != self.marginal_rate:
+                raise ValueError("plan.marginal_rate must match marginal_rate")
+        return self
 
     @field_validator("plan_balances")
     @classmethod

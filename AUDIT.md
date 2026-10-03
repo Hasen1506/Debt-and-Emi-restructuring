@@ -1,5 +1,48 @@
 # Bug hunt and user-view audit (26 Sep 2026)
 
+## PR 21 follow-up · 3 Oct 2026
+
+The merged PR was reviewed through the engine, API and browser. This
+follow-up fixes five reproduced findings and the related save/payment gaps:
+
+| Finding | Corrected behavior |
+|---|---|
+| Consolidation kept the expensive card's opening share after the plan cleared it | Compare the original and replacement repayment schedules with the same strategy, debt budget, emergency fund, goals and life events. The audited 720-score case is held back as costing about ₹7,135 more in the first year. Older path-only clients use each loan's own balance and rate |
+| Saving a spending cut left the debt budget unchanged | Reduce expenses and raise an existing debt budget together, preserving cents. Preview reduces the same expense bucket, follows expense inflation, and leaves salary rises/resets intact |
+| Activity used the original ₹9,500 EMI for a ₹1,012 final payment | Use the plan's capped payment in due rows, Mark paid, and Other amount; keep the original minimum only to detect stale profile edits |
+| The strategy picker promised equal outcomes from today's ordering | Describe the shared starting order and explain that future balances, rates and loans can change the result. The rate-reset regression changes interest from ₹32,580 to ₹34,638 |
+| Refinance explanation retained an old tenure-based saving | Rebuild headline, explanation and detail from the same repayment comparison; omit lifetime claims when the horizon does not reach payoff |
+
+Related safeguards: failed expense/profile/budget/log writes roll back the
+entire spending cut; profile, budget and commitment reach account storage
+in one atomic patch; undo restores both values and refuses to overwrite
+later edits. Closed loans are excluded, known closing penalties are included,
+and consolidation uses a nominal quoted rate plus a separate up-front fee
+with the same 36-month term prefilled in its update dialog. Full-plan API
+requests validate matching profiles and derive authoritative balance paths
+on the server, avoiding oversized duplicate trajectory payloads.
+
+Validation: 790 Python tests with `FUZZ_FULL=1`, 73 web regression tests,
+TypeScript, lint and production build; 40 existing browser scenarios and
+9 new audit regressions. The existing four lint warnings remain. Browser
+checks use a local auth-bypassed web/API pair with rate feeds disabled;
+production OTP delivery and live lender-rate accuracy are outside this
+verification. Current lender pages were retried: HDFC returned 403 and the
+SBI personal-loan URL returned 404. The rate-card verification item below
+remains open; these fixes do not relabel May rates as current quotes.
+
+To rerun the new browser regressions, start the API with `RATES_FEED=off
+MARKET_ODDS=off RATE_LIMITS=off` and the web with
+`NEXT_PUBLIC_DISABLE_AUTH=true NEXT_PUBLIC_API_BASE_URL=http://localhost:8000`.
+With Playwright and Chromium installed, run:
+
+```sh
+BASE_URL=http://127.0.0.1:3000 node scripts/pr21-regressions.cjs
+```
+
+`PLAYWRIGHT_MODULE`, `CHROME_PATH` and `AUDIT_OUTPUT` optionally select an
+external Playwright installation, Chromium executable and JSON report path.
+
 What was checked, what was wrong, and what was done about it. Each bug
 was reproduced with real numbers before it was fixed. "Fixed" items name
 the commit area; "Proposed" items need a product decision and are listed
@@ -383,4 +426,3 @@ Setup (three steps, 390px) needed nothing: the tax bracket (16% on ₹1.2 lakh t
 | A1o | The US rate cards gave personal-loan rates for Chase and Bank of America (neither makes personal loans; Chase lends only against a card's limit), Goldman Sachs (stopped in 2023) and Ally (sold its lending arm in 2024), and a mortgage range for Ally (no applications since 31 Jan 2025). The cheapest US consolidation target, the one Plan's refinance suggestion names, was Chase at 6.99%: a loan the user can't get | Those ranges removed (a test keeps them out); Discover, which still lends under Capital One, starts at 6.99%. The cheapest target is now Wells Fargo at 7.49% |
 
 **Rate cards: not yet re-verified.** Spot checks on 3 Oct 2026 (rate-comparison sites; the banks' own pages are blocked from this container) found the May figures out of date. SBI home loans now 7.25–8.55% (card: 7.50–8.70%); SBI Xpress Credit 11.15–14.30% (card: 10.30–14.85%); HDFC personal loans 9.99–24% with a ₹6,500 fee (card: 10.50–24%, 0.5%); SBI's home loan fee 0.35% capped at ₹10,000 (card: 0.5%). The comparison sites also disagree with each other (HDFC home loans 7.75–13.20% on one, 8.70–9.10% on another), so the cards were not rewritten from them. Needed: the banks' rate pages allowed in this environment's network settings, then one pass over all six Indian and six US cards. (Products a lender no longer offers are already gone: A1o.)
-

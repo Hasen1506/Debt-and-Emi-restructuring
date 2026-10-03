@@ -50,6 +50,8 @@ export interface HistoryRow {
         /** The EMI or card minimum inside `amount`, and the plan's extra. */
         minimum?: string;
         extra?: string;
+        /** Raw profile minimum at render, used only to detect stale edits. */
+        configuredMinimum?: string;
       }
     | { kind: 'spend'; month: string }
     | { kind: 'life'; id: string; due: boolean }
@@ -175,25 +177,30 @@ export function buildHistory({
     if (amount.lte(0)) continue;
     const day = card && loan.due_day ? String(loan.due_day).padStart(2, '0') : null;
     const ccy = loanCurrency(loan, user.country);
-    const minimum = Math.round(amount.toNumber());
+    const plan = planPay?.[index];
+    const hasPlan = plan && Number.isFinite(plan.amount) && plan.amount > 0 &&
+      Number.isFinite(plan.minimum) && plan.minimum >= 0;
+    const payment = hasPlan ? Math.round(plan.amount) : Math.round(amount.toNumber());
+    const minimum = hasPlan ? Math.min(payment, Math.round(plan.minimum)) : Math.round(amount.toNumber());
     // The plan's own payment when it puts extra on this loan: Activity
     // said ₹4,000 for a card Home said to pay ₹80,500 on.
-    const plan = planPay?.[index];
-    const extra = plan && plan.extra >= 1 && Math.round(plan.minimum) === minimum ? Math.round(plan.extra) : 0;
+    const extra = Math.max(0, payment - minimum);
     rows.push({
       key: `due-${loan.id ?? index}`,
       date: day ? `${thisMonth}-${day}` : thisMonth,
       type: card ? 'CARD BILL' : 'EMI',
       target: loanLabel(loan),
-      planned: formatCurrencyWhole(minimum + extra, ccy),
+      planned: formatCurrencyWhole(payment, ccy),
       status: 'TO PAY',
       tone: 'muted',
       note: extra > 0
         ? `${formatCurrencyWhole(minimum, ccy)} ${card ? 'minimum' : 'EMI'} + ${formatCurrencyWhole(extra, ccy)} extra, as on Home`
         : card ? (planPay ? 'the minimum; the plan has no extra for it this month' : 'the minimum; the plan may pay more') : undefined,
       pending: true,
-      ref: extra > 0
-        ? { kind: 'due', loanIndex: index, amount: String(minimum + extra), card, minimum: amount.toFixed(2), extra: String(extra) }
+      ref: hasPlan
+        ? { kind: 'due', loanIndex: index, amount: String(payment), card,
+            minimum: minimum.toFixed(2), configuredMinimum: amount.toFixed(2),
+            ...(extra > 0 ? { extra: String(extra) } : {}) }
         : { kind: 'due', loanIndex: index, amount: amount.toFixed(2), card },
     });
   }

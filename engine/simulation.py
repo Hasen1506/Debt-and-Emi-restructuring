@@ -233,6 +233,8 @@ def simulate_plan(
     goals: list[GoalState] | None = None,
     minimums_only: bool = False,
     debt_budget: Decimal | None = None,
+    expense_delta: Decimal = D("0"),
+    expense_delta_from_month: int = 1,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`. Returns one MonthRow per month
     until either all loans clear or horizon is reached.
@@ -282,13 +284,18 @@ def simulate_plan(
     goal block entirely — the legacy "all surplus → EF/debt" behaviour
     for callers that don't model goals.
 
+    `expense_delta` models a spending cut in the variable bucket (or fixed
+    expenses when there is no variable bucket), starting at
+    `expense_delta_from_month`. It follows expense inflation, never salary
+    growth or salary resets, so saving the cut gives the same projection.
+
     `debt_budget` (default None = every spare rupee) is the most the user
     wants to put toward debts each month, in their own currency: EMIs and
     minimums plus the extra. The extra is cut to fit it; what's cut stays
     with the user (counted as invested). As loans clear, their EMIs free
     room under the same total, so it still rolls forward. Minimums are
-    always paid, even above it. An `income_delta` that adds money (a
-    spending cut) raises it by the same amount from that month on, so
+    always paid, even above it. A positive `income_delta` or `expense_delta`
+    raises it by the same amount from that month on, so
     the cut reaches the debts as the what-if says.
 
     `minimums_only` pays each loan its minimum and nothing more: no
@@ -533,6 +540,11 @@ def simulate_plan(
         scratch_user = deepcopy(user)
         scratch_user.monthly_income = income
         scratch_user.loans = active
+        if expense_delta != 0 and m >= max(1, expense_delta_from_month):
+            # Spending cuts reduce the same bucket as the saved profile.
+            # They do not become salary or compound with future pay rises.
+            key = "variable_expenses" if user.variable_expenses > 0 else "fixed_expenses"
+            setattr(scratch_user, key, getattr(scratch_user, key) - expense_delta)
         # Inflation modeling: scale expenses by monthly_inflation_factor^m
         # so surplus erodes at the country-default CPI rate. Compounds
         # monthly with annual rate semantics — at m=12 expenses equal
@@ -541,8 +553,8 @@ def simulate_plan(
         # so this block is a no-op for legacy callers.
         if inflate_expenses and inflation > 0:
             growth = monthly_inflation_factor ** m
-            scratch_user.fixed_expenses = user.fixed_expenses * growth
-            scratch_user.variable_expenses = user.variable_expenses * growth
+            scratch_user.fixed_expenses *= growth
+            scratch_user.variable_expenses *= growth
         # Sync the EF state into scratch_user BEFORE computing surplus.
         # compute_available_surplus internally calls compute_efund_monthly
         # against user.efund_balance — without this sync it'd see the
@@ -646,6 +658,8 @@ def simulate_plan(
             budget = debt_budget
             if income_delta > 0 and m >= max(1, income_delta_from_month):
                 budget += income_delta
+            if expense_delta > 0 and m >= max(1, expense_delta_from_month):
+                budget += expense_delta
             required = sum(
                 (to_user_currency(minimums[id(l)], l, user) for l in active), D("0"),
             )

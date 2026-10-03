@@ -5,13 +5,17 @@
  * stays with the user. Minimums are paid even when they're above it.
  */
 
+import Decimal from 'decimal.js';
+
 const COOKIE_NAME = 'finoptima_debt_budget';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
-/** '' for all spare cash, else a whole amount like '50000'. */
+/** '' for all spare cash, else a positive amount with at most two decimals. */
 export function normalizeDebtBudget(v: string | null | undefined): string {
-  const n = Number(String(v ?? '').replace(/[^\d.]/g, ''));
-  return Number.isFinite(n) && n > 0 ? String(Math.round(n)) : '';
+  const raw = String(v ?? '').replace(/[,₹$\s]/g, '');
+  if (!/^\d+(?:\.\d*)?$/.test(raw)) return '';
+  const n = new Decimal(raw).toDecimalPlaces(2);
+  return n.isFinite() && n.gt(0) ? n.toString() : '';
 }
 
 export function readDebtBudgetClient(): string {
@@ -20,13 +24,14 @@ export function readDebtBudgetClient(): string {
   return normalizeDebtBudget(match ? decodeURIComponent(match[1]) : null);
 }
 
-export function writeDebtBudgetClient(value: string) {
+export function writeDebtBudgetClient(value: string, sync = true) {
   if (typeof document === 'undefined') return;
   const v = normalizeDebtBudget(value);
   document.cookie = v
     ? `${COOKIE_NAME}=${v}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`
     : `${COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`;
-  void import('./server-sync').then(({ syncSliceToServer }) => syncSliceToServer('debt_budget', v));
+  if (readDebtBudgetClient() !== v) throw new Error('The monthly debt budget could not be saved.');
+  if (sync) void import('./server-sync').then(({ syncSliceToServer }) => syncSliceToServer('debt_budget', v));
 }
 
 export async function loadDebtBudgetServer(): Promise<string> {
