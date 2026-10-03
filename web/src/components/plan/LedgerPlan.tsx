@@ -37,6 +37,7 @@ import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import type { StoredProfile } from '@/lib/user-store';
 import { PlanTrajectory } from './PlanTrajectory';
 import { PlanPace } from './PlanPace';
+import { RateDecisions } from './RateDecisions';
 import { WhatIfPanel } from '@/components/WhatIfPanel';
 import { LifecycleArrivalPrompts } from '@/components/lifecycle/LifecycleArrivalPrompts';
 import { LifecycleEventsPanel } from '@/components/lifecycle/LifecycleEventsPanel';
@@ -166,8 +167,11 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {!short && <DebtFreeRedirectPrompt plan={plan} />}
 
         {/* Month by month, collapsed to the months something happens;
-            the next rate reset and the central bank's next meeting below */}
+            the next rate reset below */}
         <PlanSchedule plan={plan} />
+
+        {/* The next RBI / Fed decision, loan by loan, and whether to wait */}
+        <RateDecisions plan={plan} />
 
         {/* Planned pay changes, new rates and new loans */}
         <div id="life-events" style={{ scrollMarginTop: 16 }}>

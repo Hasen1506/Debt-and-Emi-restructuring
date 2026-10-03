@@ -4,13 +4,12 @@
  * Plan's schedule (REDESIGN R3.3): every month of the plan, collapsed to
  * the months something happens — a loan paid off, a rate reset, a pay
  * change, a new loan starting, the end of each year. Below the table, the
- * next floating-rate reset (when it's within three months) and the
- * central bank's rate and next meeting, for a floating-rate loan.
+ * next floating-rate reset (when it's within three months). The central
+ * bank's next decision has its own section (RateDecisions).
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { PlanData } from './PlanData';
-import { api, formatCurrencyWhole, type CentralRatesResponse, type LoanPayload } from '@/lib/api';
-import { formatAsOf } from '@/lib/as-of';
+import { formatCurrencyWhole, type LoanPayload } from '@/lib/api';
 import { getCountryToday, localIsoDate, monthIndexToDate, MONTH_NAMES } from '@/lib/today';
 import { loanCurrency } from '@/lib/currency';
 import { loanLabel } from '@/lib/loan-types';
@@ -284,7 +283,6 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
         </div>
       )}
       <RateResetAlert plan={plan} />
-      <CentralBankNote plan={plan} />
     </section>
   );
 }
@@ -347,63 +345,6 @@ function RateResetAlert({ plan }: { plan: PlanData }) {
           ADD THE NEW RATE →
         </LBracket>
         <LBracket href="#what-if">WHAT IF RATES MOVE →</LBracket>
-      </span>
-    </div>
-  );
-}
-
-/** The central bank's rate and next meeting, when a loan's rate follows
- *  it. Within two weeks of the meeting it says to wait on a big
- *  prepayment or a refinance. Hidden when the rates feed is unreachable. */
-function CentralBankNote({ plan }: { plan: PlanData }) {
-  const country = plan.user.country;
-  const floating = plan.user.loans.some((l) => isOpenCurrentLoan(l) && l.rate_type === 'floating');
-  const [data, setData] = useState<CentralRatesResponse | null>(null);
-  useEffect(() => {
-    if (!floating) return;
-    let cancelled = false;
-    api
-      .centralRates()
-      .then((res) => !cancelled && setData(res))
-      .catch(() => {
-        /* the note just stays hidden */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [floating]);
-  const slice = data?.[country];
-  if (!floating || !slice) return null;
-  const bank = country === 'IN' ? 'RBI' : 'FED';
-  const rateName = country === 'IN' ? 'REPO RATE' : 'FED FUNDS RATE';
-  const days = slice.days_until_next;
-  const meeting =
-    slice.next_meeting_date && days != null && days >= 0
-      ? `NEXT MEETING ${new Date(slice.next_meeting_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toUpperCase()}${days <= 14 ? ` · IN ${days} DAY${days === 1 ? '' : 'S'}` : ''}`
-      : null;
-  return (
-    <div
-      style={{
-        marginTop: 10,
-        padding: '10px 0',
-        borderTop: `1px dashed ${L_T.faint}`,
-        borderBottom: `1px dashed ${L_T.faint}`,
-        fontSize: 11,
-        lineHeight: 1.6,
-        display: 'flex',
-        justifyContent: 'space-between',
-        gap: '4px 12px',
-        flexWrap: 'wrap',
-      }}
-    >
-      <span style={{ color: L_T.muted, letterSpacing: '0.1em' }}>
-        $ CENTRAL BANK · {bank} {rateName} {(Number(slice.current_rate) * 100).toFixed(2)}% (AS OF {formatAsOf(slice.as_of).toUpperCase()})
-        {meeting && ` · ${meeting}`}
-      </span>
-      <span>
-        {days != null && days >= 0 && days <= 14
-          ? 'Planning a big prepayment or a refinance? Waiting until after the meeting shows which way rates are going.'
-          : 'Your floating-rate loan follows it at its next reset.'}
       </span>
     </div>
   );

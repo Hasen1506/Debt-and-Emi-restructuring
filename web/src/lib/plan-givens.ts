@@ -125,7 +125,7 @@ export function planGivens(
           : 'Fixed loans keep their rate; a card\'s rate can still change.',
       ],
       source: 'ASSUMED',
-      fix: { href: '#what-if', text: 'TRY A RATE CHANGE IN WHAT IF' },
+      fix: { href: '#rate-decisions', text: 'SEE WHAT THE NEXT DECISION DOES' },
     });
   }
 
