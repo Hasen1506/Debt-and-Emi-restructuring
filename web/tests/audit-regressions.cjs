@@ -32,6 +32,13 @@ test('purchase uses existing savings and covers current-month cash purchases',()
   const gap=analyzePurchase({...input,availableSavings:300000});assert.equal(gap.downPayment.remainingToSave,100000);assert.equal(gap.downPayment.monthlySavingRequired,100000);
   for(const patch of [{downPaymentPct:1.5},{loanTenureYears:0},{loanRateAnnual:-1},{price:Infinity},{targetMonth:'2026-13'},{availableSavings:-1}]) assert.throws(()=>analyzePurchase({...input,...patch}));
 });
+test('car loan warns of owing more than the car is worth only when the published value table says so',()=>{
+  const car=(country,down,years)=>analyzePurchase({type:'vehicle',price:1000000,targetMonth:'2026-12',downPaymentPct:down,loanTenureYears:years,loanRateAnnual:.09,country,marginalRate:.2,monthlySurplus:60000,availableSavings:200000,today:new Date(2026,9,3)}).warnings.filter(w=>/owe more/.test(w));
+  // 15% down on a 7-year loan stays above water on IRDAI's table: the old flat "most of the loan" line was wrong.
+  assert.deepEqual(car('IN',.15,7),[]);
+  assert.match(car('IN',0,7)[0],/first 19 months/);
+  assert.match(car('US',0,6)[0],/first 2\d months/);
+});
 test('Monte Carlo zero volatility matches deterministic return for every fractional period and loss',()=>{
   for(const years of [.1,1,1.01,1.5,2.75,40,100]) for(const expectedReturn of [-.2,0,.12]) {
     const r=simulateMonteCarlo({years,expectedReturn,volatility:0,taxRate:.125,trials:100,inflation:.4});

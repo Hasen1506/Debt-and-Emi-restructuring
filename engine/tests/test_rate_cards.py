@@ -94,3 +94,18 @@ def test_market_median_usa_mortgage():
     m = market_median(Country.US, LoanType.HOME)
     assert m is not None
     assert m > D("0.060") and m < D("0.075")
+
+
+def test_no_us_personal_loan_or_mortgage_from_lenders_that_stopped_offering_them():
+    """Chase and Bank of America make no personal loans, Goldman stopped in
+    2023, Ally sold its lending arm in 2024 and stopped mortgages in 2025: a
+    refinance suggestion naming one would send the user to a dead end."""
+    for bank in ("JPMorgan Chase", "Bank of America", "Goldman Sachs", "Ally Financial"):
+        assert lookup_rate(bank, LoanType.PERSONAL) is None, bank
+    assert lookup_rate("Ally Financial", LoanType.HOME) is None
+
+
+def test_us_consolidation_target_is_a_lender_that_makes_personal_loans():
+    from engine.restructuring_scan import _best_market_rate
+    bank, _ = _best_market_rate(Country.US, LoanType.PERSONAL)
+    assert bank not in ("JPMorgan Chase", "Bank of America", "Goldman Sachs", "Ally Financial")

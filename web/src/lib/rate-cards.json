@@ -984,10 +984,7 @@
         "low": "0.0650",
         "high": "0.0700"
       },
-      "personal_loan": {
-        "low": "0.0699",
-        "high": "0.2499"
-      },
+      "personal_loan": null,
       "auto_loan": {
         "low": "0.0569",
         "high": "0.1369"
@@ -1018,10 +1015,7 @@
         "low": "0.0655",
         "high": "0.0705"
       },
-      "personal_loan": {
-        "low": "0.0749",
-        "high": "0.2499"
-      },
+      "personal_loan": null,
       "auto_loan": {
         "low": "0.0549",
         "high": "0.1074"
@@ -1205,7 +1199,7 @@
       "scrape_tier": "B",
       "home_loan": null,
       "personal_loan": {
-        "low": "0.0799",
+        "low": "0.0699",
         "high": "0.2499"
       },
       "auto_loan": null,
@@ -1232,10 +1226,7 @@
       "name": "Goldman Sachs",
       "scrape_tier": "B",
       "home_loan": null,
-      "personal_loan": {
-        "low": "0.0999",
-        "high": "0.2999"
-      },
+      "personal_loan": null,
       "auto_loan": null,
       "education_loan": null,
       "credit_card": {
@@ -1259,14 +1250,8 @@
       "country": "US",
       "name": "Ally Financial",
       "scrape_tier": "B",
-      "home_loan": {
-        "low": "0.0645",
-        "high": "0.0695"
-      },
-      "personal_loan": {
-        "low": "0.0999",
-        "high": "0.2599"
-      },
+      "home_loan": null,
+      "personal_loan": null,
       "auto_loan": {
         "low": "0.0539",
         "high": "0.1349"

@@ -95,7 +95,7 @@ export interface SafeRate {
  *   • T-bill: RBI's 364-day auction of 9 Sep 2026 cut off at 5.909%.
  *   • Liquid fund: yield to maturity about 6.5% in early Sep 2026.
  *   • HYSA: top online savings accounts about 4.25% APY, late Sep 2026.
- *   • Treasury: the US Treasury's 1-year par yield on 25 Sep 2026.
+ *   • Treasury: the 1-year Treasury yield closed at 4.54% on 30 Sep 2026.
  *   • Tax-free bonds: typical secondary-market yield, May 2026.
  * Both screens say so and ask for today's yield when the answer is close.
  */
@@ -121,8 +121,8 @@ export const SAFE_RATES = {
     asOf: '2026-09', source: 'APY at a top online savings account',
   },
   treasury_us: {
-    rate: '0.045', tax: { kind: 'income', share: 0.8 }, compounding: 'simple',
-    asOf: '2026-09-25', source: 'US Treasury 1-yr par yield',
+    rate: '0.0454', tax: { kind: 'income', share: 0.8 }, compounding: 'simple',
+    asOf: '2026-09-30', source: 'US Treasury 1-yr yield',
   },
 } satisfies Record<string, SafeRate>;
 
