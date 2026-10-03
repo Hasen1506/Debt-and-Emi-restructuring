@@ -55,6 +55,11 @@ export interface LoanPayload {
   balance_as_of?: string;
   /** When the reported balance was saved. Separates payments earlier and later that day. */
   balance_recorded_at?: string;
+  /** Whether that month's EMI had already gone out when the balance was
+   *  entered: true, the balance has it taken off; false, it's still to
+   *  come. Unset on balances saved before setup asked (lib/roll-forward
+   *  keeps the old reading for those). The API ignores it. */
+  balance_after_emi?: boolean;
   loan_type: LoanType;
   bank: string;
   outstanding: string;

@@ -2,7 +2,7 @@
 
 import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { SAFE_RATES } from '@/lib/invest-vs-prepay';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/Card';
 import { BankCombobox, Field, Select } from '@/components/ToolPrimitives';
@@ -53,11 +53,13 @@ import {
   localIsoDate,
 } from '@/lib/today';
 import { BALANCES_ENTERED_KEY } from '@/lib/activity';
-import { stampBalanceDates } from '@/lib/roll-forward';
+import { asksEmiPaid, stampBalanceDates } from '@/lib/roll-forward';
+import { recordEmisPaidAtEntry } from '@/lib/paid-at-entry';
+import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { api, formatCurrency, type FxRateResponse } from '@/lib/api';
 import { deriveTenureMonths } from '@/lib/derived';
-import { loanDraftErrors } from '@/lib/loan-gaps';
+import { loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
 import {
   classifyBracket,
   computeAnnualTax,
@@ -285,6 +287,8 @@ function ProfileEditor({
   }, [country, hikeMonthTouched]);
 
   const [loans, setLoans] = useState<LoanPayload[]>([blankLoan()]);
+  // The loans as saved, to tell a changed balance from one left alone.
+  const savedLoansRef = useRef<LoanPayload[]>([]);
   // Set when Continue is pressed with a loan missing its rate or EMI.
   const [showLoanErrors, setShowLoanErrors] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -373,6 +377,7 @@ function ProfileEditor({
       setHikeMonthTouched(true);
     }
     if (u.loans && u.loans.length > 0) {
+      savedLoansRef.current = withLoanIds(u.loans);
       setLoans(withLoanIds(u.loans));
       // Decide auto vs manual per loan on rehydrate: if the saved tenure
       // matches what we'd derive from the current outstanding+EMI+rate,
@@ -705,6 +710,7 @@ function ProfileEditor({
       setSaveFailed(true);
       return;
     }
+    recordEmisPaidAtEntry(localIsoDate(getCountryToday(country)));
     setSaveFailed(false);
     // The balances were just entered, so cards aren't "never updated".
     try {
@@ -719,6 +725,13 @@ function ProfileEditor({
   // Loans need what the projection needs; no loans at all is fine (goals,
   // portfolio and purchase planning work without one).
   const loanErrors = loans.map((l) => loanDraftErrors(l));
+  // A new or changed balance on an EMI loan says whether this month's EMI
+  // is already off it (lib/roll-forward).
+  const thisMonthName = MONTH_NAMES[Number(localIsoDate(getCountryToday(country)).slice(5, 7)) - 1];
+  const savedLoans = savedLoansRef.current;
+  const askPaid = (l: LoanPayload) =>
+    needsEmi(l.loan_type) && asksEmiPaid(l, savedLoans.find((p) => p.id === l.id));
+  const paidErrors = loans.map((l) => (askPaid(l) && l.balance_after_emi === undefined ? emiPaidError(thisMonthName) : null));
   // Currencies of entered loans other than the user's own.
   const userCcy = userDefaultCurrency(country);
   const foreignCcys = Array.from(
@@ -742,7 +755,9 @@ function ProfileEditor({
     }
   }
   const loansComplete =
-    loanErrors.every((e) => Object.keys(e).length === 0) && Object.keys(fxErrors).length === 0;
+    loanErrors.every((e) => Object.keys(e).length === 0) &&
+    paidErrors.every((e) => !e) &&
+    Object.keys(fxErrors).length === 0;
   const canAdvance =
     step === 0 ? true                                                       // 'You' is fully optional — never gate the flow
       : step === 1 ? !!country
@@ -1347,6 +1362,14 @@ function ProfileEditor({
                     </>
                   }
                 />
+                {askPaid(l) && (
+                  <EmiPaidQuestion
+                    monthName={thisMonthName}
+                    value={l.balance_after_emi}
+                    onChange={(paid) => updateLoan(i, { balance_after_emi: paid })}
+                    error={showLoanErrors ? paidErrors[i] : null}
+                  />
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <Field
                     label="Interest rate (%)"

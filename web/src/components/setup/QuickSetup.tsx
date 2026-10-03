@@ -45,9 +45,11 @@ import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { readEfSplitClient } from '@/lib/ef-split';
 import { emiFromMonths, firstExtraPayment, marginalRateFromTakeHome } from '@/lib/quick-setup';
 import { readStrategyClient, STRATEGY_LABEL, STRATEGY_SHORT } from '@/lib/strategy';
-import { FY_ANCHOR_MONTH, getCountryMonth, getCountryToday, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
+import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { loadProfileClient, saveProfileClient, type StoredProfile } from '@/lib/user-store';
-import { stampBalanceDates } from '@/lib/roll-forward';
+import { asksEmiPaid, rollBalancesForward, stampBalanceDates } from '@/lib/roll-forward';
+import { recordEmisPaidAtEntry } from '@/lib/paid-at-entry';
+import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
 
 const STEPS = ['You and your money', 'What you owe', 'Your plan'] as const;
 
@@ -61,7 +63,7 @@ const TYPE_CHIPS: Array<[LoanType, string]> = [
   ['bnpl', 'Pay later'],
 ];
 
-type Issues = Partial<Record<'balance' | 'rate' | 'emi' | 'months' | 'fee', string>>;
+type Issues = Partial<Record<'balance' | 'rate' | 'emi' | 'months' | 'fee' | 'paid', string>>;
 
 /** Per-loan form state that isn't part of the saved loan. */
 interface LoanUi {
@@ -175,6 +177,12 @@ export function QuickSetup() {
     if (!needsEmi(l.loan_type) || !u.byMonths) return l.scheduled_emi;
     return emiFromMonths(l.outstanding, l.nominal_rate, Number(u.months), loanCurrency(l, country)) ?? '';
   }
+  // This month, by name, for "has its EMI gone out?".
+  const thisMonthName = MONTH_NAMES[Number(localIsoDate(getCountryToday(country)).slice(5, 7)) - 1];
+  // A loan whose balance is new or changed is asked whether this month's
+  // EMI is already off it (lib/roll-forward); one left as saved isn't.
+  const askPaid = (l: LoanPayload) =>
+    needsEmi(l.loan_type) && asksEmiPaid(l, prev?.loans.find((p) => p.id === l.id));
   function issuesOf(l: LoanPayload): Issues {
     const u = uiOf(l.id);
     const out: Issues = {};
@@ -183,6 +191,9 @@ export function QuickSetup() {
     const fee = (l.prepayment_penalty_pct ?? '').trim();
     if (fee && !(/^\d*\.?\d+$/.test(fee) && Number(fee) < 1)) out.fee = 'Enter the fee as a percent, e.g. 2, or leave it blank.';
     if (Number(l.outstanding) <= 0) return out;
+    if (askPaid(l) && l.balance_after_emi === undefined) {
+      out.paid = emiPaidError(thisMonthName);
+    }
     const draft = loanDraftErrors({ ...l, scheduled_emi: emiOf(l) });
     if (draft.rate) out.rate = draft.rate;
     if (needsEmi(l.loan_type)) {
@@ -353,7 +364,12 @@ export function QuickSetup() {
   const runKey = step === 2 ? JSON.stringify([buildUser(), marginal().rate]) : '';
   useEffect(() => {
     if (!runKey) return;
-    const [user, marginalRate] = JSON.parse(runKey) as [UserPayload, string];
+    const [built, marginalRate] = JSON.parse(runKey) as [UserPayload, string];
+    // As Plan will see them: dated today, with this month's EMI added back
+    // where it has already gone out (lib/roll-forward).
+    const asOf = localIsoDate(getCountryToday(built.country));
+    const stamped = stampBalanceDates(built.loans, prev?.loans ?? [], asOf);
+    const user: UserPayload = { ...built, loans: rollBalancesForward(stamped, asOf.slice(0, 7)).loans };
     let live = true;
     setPreview(null);
     setPreviewError(null);
@@ -413,6 +429,7 @@ export function QuickSetup() {
       setSaveFailed(true);
       return;
     }
+    recordEmisPaidAtEntry(asOf);
     try {
       window.localStorage.setItem(BALANCES_ENTERED_KEY, localIsoDate(new Date()));
     } catch {
@@ -535,6 +552,8 @@ export function QuickSetup() {
                   ui={uiOf(l.id)}
                   issues={showErrors ? issuesOf(l) : {}}
                   computedEmi={uiOf(l.id).byMonths ? emiOf(l) : ''}
+                  askPaid={askPaid(l)}
+                  monthName={thisMonthName}
                   onPatch={(p) => patchLoan(i, p)}
                   onUi={(p) => setUiOf(l.id, p)}
                   onRemove={() => setLoans((cur) => cur.filter((_, j) => j !== i))}
@@ -733,6 +752,8 @@ function LoanBlock({
   ui,
   issues,
   computedEmi,
+  askPaid,
+  monthName,
   onPatch,
   onUi,
   onRemove,
@@ -744,6 +765,10 @@ function LoanBlock({
   ui: LoanUi;
   issues: Issues;
   computedEmi: string;
+  /** Ask whether this month's EMI is already off the balance. */
+  askPaid: boolean;
+  /** This month's name, e.g. "October". */
+  monthName: string;
   onPatch: (p: Partial<LoanPayload>) => void;
   onUi: (p: Partial<LoanUi>) => void;
   onRemove: () => void;
@@ -831,6 +856,14 @@ function LoanBlock({
           />
         )}
       </div>
+      {askPaid && (
+        <EmiPaidQuestion
+          monthName={monthName}
+          value={loan.balance_after_emi}
+          onChange={(paid) => onPatch({ balance_after_emi: paid })}
+          error={issues.paid}
+        />
+      )}
       <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
         {!card && (
           <LBracket

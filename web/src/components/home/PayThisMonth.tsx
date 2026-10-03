@@ -33,7 +33,8 @@ import { LAllocationBar, LBracket, LSectionHeader, L_T, lPayBtn, lStrip } from '
  *  aren't Activity entries. */
 const SET_ASIDE_KEY = 'finoptima_set_aside';
 
-type Status = { tag: 'PAID' | 'PARTIAL' | 'MISSED'; amount: number; date: string; undoable: boolean };
+// EMI PAID: the EMI or minimum has gone out, the plan's extra on it hasn't.
+type Status = { tag: 'PAID' | 'EMI PAID' | 'PARTIAL' | 'MISSED'; amount: number; date: string; undoable: boolean };
 
 export function PayThisMonth({
   data,
@@ -108,6 +109,7 @@ export function PayThisMonth({
     if (mine.some((e) => e.kind === 'paid_partial' || e.kind === 'missed') && amount < row.minimum) {
       return { tag: 'PARTIAL', amount, date, undoable };
     }
+    if (row.extra > 0 && amount < row.amount) return { tag: 'EMI PAID', amount, date, undoable };
     return { tag: 'PAID', amount, date, undoable };
   }
 
@@ -132,6 +134,28 @@ export function PayThisMonth({
     );
   }
 
+  /** The extra on a row whose EMI is already recorded: an entry of its own,
+   *  all of it principal. As much as the plan put on this loan this month
+   *  is already in the plan's first month (`plannedExtra`). */
+  function logExtra(row: PayRow, extra: number, paidSoFar: number) {
+    const plannedLeft = Math.max(0, row.extra - Math.max(0, paidSoFar - row.minimum));
+    commit(
+      addActivityEntry(
+        entries,
+        {
+          loanIndex: row.loanIndex!,
+          kind: 'paid_extra',
+          date: today,
+          amount: String(extra),
+          scheduledEmi: '0',
+          ...(plannedLeft > 0 ? { plannedExtra: String(Math.min(extra, plannedLeft)) } : {}),
+          via: 'home',
+        },
+        loans,
+      ),
+    );
+  }
+
   function markPaid(row: PayRow) {
     if (row.loanIndex === null) {
       const next = [...ticked, row.key];
@@ -142,6 +166,12 @@ export function PayThisMonth({
         /* the tick lasts this visit */
       }
       setSaid(`${row.name}: ${fmt(row.amount)} set aside.`);
+      return;
+    }
+    const already = statusOf(row);
+    if (already?.tag === 'EMI PAID') {
+      logExtra(row, row.amount - already.amount, already.amount);
+      setSaid(`${row.name}: extra marked paid, ${fmt(row.amount - already.amount, row.currency)}. Recorded in Activity.`);
       return;
     }
     log(row, row.extra > 0 ? 'paid_extra' : 'paid_full', row.amount);
@@ -179,6 +209,17 @@ export function PayThisMonth({
       return;
     }
     const paid = Math.round(Number(amount));
+    const already = statusOf(row);
+    if (already?.tag === 'EMI PAID') {
+      if (!(paid > 0)) {
+        setError(`Enter the extra you paid, for example ${fmt(row.amount - already.amount, row.currency)}.`);
+        return;
+      }
+      logExtra(row, paid, already.amount);
+      setSaid(`${row.name}: ${fmt(paid, row.currency)} extra recorded.`);
+      setOpen(null);
+      return;
+    }
     if (!(paid > 0)) {
       setError(`Enter what you paid, for example ${fmt(row.minimum || row.amount, row.currency)}.`);
       return;
@@ -197,7 +238,7 @@ export function PayThisMonth({
     const st = statuses[i];
     return st ? s + (r.amount > 0 ? (st.amount / r.amount) * r.amountUser : 0) : s;
   }, 0);
-  const toGo = statuses.filter((s) => !s).length;
+  const toGo = statuses.filter((s) => !s || s.tag === 'EMI PAID').length;
   const firstExtra = data.rows.find((r) => r.kind === 'extra' || r.kind === 'clears');
 
   return (
@@ -262,7 +303,7 @@ export function PayThisMonth({
                         marginLeft: 8,
                         fontSize: 11,
                         letterSpacing: '0.1em',
-                        color: st.tag === 'PAID' ? L_T.positive : L_T.negative,
+                        color: st.tag === 'PAID' || st.tag === 'EMI PAID' ? L_T.positive : L_T.negative,
                       }}
                     >
                       · {st.tag === 'MISSED' ? 'NOT PAID' : st.tag}
@@ -286,7 +327,7 @@ export function PayThisMonth({
                 {foreign && <div style={{ fontSize: 11, color: L_T.muted }}>≈ {fmt(row.amountUser)}</div>}
               </div>
               <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                {!ready ? null : st ? (
+                {!ready ? null : st && st.tag !== 'EMI PAID' ? (
                   st.undoable ? (
                     <LBracket onClick={() => undo(row)} label={`Undo: ${row.name} not paid`}>
                       UNDO
@@ -299,10 +340,18 @@ export function PayThisMonth({
                     <button
                       type="button"
                       onClick={() => markPaid(row)}
-                      aria-label={`Mark ${row.name} paid, ${fmt(row.amount, row.currency)}`}
+                      aria-label={
+                        st
+                          ? `Mark the extra on ${row.name} paid, ${fmt(row.amount - st.amount, row.currency)}`
+                          : `Mark ${row.name} paid, ${fmt(row.amount, row.currency)}`
+                      }
                       style={lPayBtn(true)}
                     >
-                      {row.loanIndex === null ? `SET ASIDE ${fmt(row.amount, row.currency)}` : `MARK PAID · ${fmt(row.amount, row.currency)}`}
+                      {row.loanIndex === null
+                        ? `SET ASIDE ${fmt(row.amount, row.currency)}`
+                        : st
+                          ? `MARK EXTRA PAID · ${fmt(row.amount - st.amount, row.currency)}`
+                          : `MARK PAID · ${fmt(row.amount, row.currency)}`}
                     </button>
                     {row.loanIndex !== null && (
                       <button
@@ -330,7 +379,7 @@ export function PayThisMonth({
                 >
                   <div style={{ flex: '1 1 200px', maxWidth: 260 }}>
                     <Field
-                      label={`Paid this month (${row.currency === 'INR' ? '₹' : '$'})`}
+                      label={`${st?.tag === 'EMI PAID' ? 'Extra paid' : 'Paid this month'} (${row.currency === 'INR' ? '₹' : '$'})`}
                       kind="money"
                       currency={row.currency}
                       value={amount}
@@ -338,7 +387,7 @@ export function PayThisMonth({
                         setAmount(v);
                         setError(null);
                       }}
-                      placeholder={row.amount.toLocaleString(row.currency === 'INR' ? 'en-IN' : 'en-US')}
+                      placeholder={(st?.tag === 'EMI PAID' ? row.amount - st.amount : row.amount).toLocaleString(row.currency === 'INR' ? 'en-IN' : 'en-US')}
                       error={error}
                     />
                   </div>
@@ -346,9 +395,11 @@ export function PayThisMonth({
                     <button type="button" onClick={() => saveOther(row)} style={lPayBtn(true)}>
                       SAVE
                     </button>
-                    <button type="button" onClick={() => saveOther(row, true)} style={lPayBtn(false)}>
-                      I DIDN&apos;T PAY
-                    </button>
+                    {st?.tag !== 'EMI PAID' && (
+                      <button type="button" onClick={() => saveOther(row, true)} style={lPayBtn(false)}>
+                        I DIDN&apos;T PAY
+                      </button>
+                    )}
                     <LBracket onClick={() => setOpen(null)}>CANCEL</LBracket>
                   </span>
                   <div style={{ flexBasis: '100%', fontSize: 11, color: L_T.muted }}>

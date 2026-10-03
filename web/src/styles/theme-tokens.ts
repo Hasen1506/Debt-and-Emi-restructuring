@@ -38,8 +38,8 @@ export interface ThemeTokens {
     letterSpacing: string;
     textTransform: 'uppercase' | 'none';
     color: string;
-    /** Optional Ledger-style "$" or Editorial-style centred header
-     *  prefix the caller can splice in. */
+    /** Optional text before the label. None now: a "$" here read as
+     *  dollars on rupee plans. */
     prefix?: string;
   };
   /** Big-number value style used in KPI cells. */
@@ -76,7 +76,6 @@ export const TOKENS: ThemeTokens = {
     letterSpacing: '0.18em',
     textTransform: 'uppercase',
     color: 'var(--muted)',
-    prefix: '$ ',
   },
   value: { fontSize: 18, fontWeight: 700 },
   detail: { fontSize: 11, color: 'var(--muted)' },

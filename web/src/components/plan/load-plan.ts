@@ -552,8 +552,10 @@ export async function loadPlan(
       // payment minus this is the extra it puts on each loan.
       firstMonthMinimums: baselinePayments.find((p) => p.month === 1)?.perLoan ?? {},
       runArgs: simBaseArgs,
+      // Only when the log changed a balance: an extra the plan already
+      // pays this month changes nothing until the month is over.
       activityImpact:
-        application.entryCount > 0
+        application.entryCount > 0 && application.perLoanBumps.some((b) => Number(b.totalBump) !== 0)
           ? {
               perLoanBumps: application.perLoanBumps,
               totalBump: application.totalBump,
