@@ -62,3 +62,12 @@ def test_historical_drift_inr_usd_pair():
     assert historical_drift_default("INR", "USD") == D("-0.030")
     assert historical_drift_default("USD", "INR") == D("0.030")
     assert historical_drift_default("EUR", "GBP") == D("0")     # unknown pair → 0
+
+
+def test_drift_default_covers_every_currency_the_tool_offers():
+    # The dirham is pegged to the dollar, so it slides with it; the others
+    # have their own trend, and none of them is flat against the rupee.
+    assert historical_drift_default("INR", "AED") == historical_drift_default("INR", "USD")
+    for cur in ("EUR", "GBP", "AUD", "CAD", "SGD"):
+        assert historical_drift_default("INR", cur) < 0
+        assert historical_drift_default(cur, "INR") == -historical_drift_default("INR", cur)

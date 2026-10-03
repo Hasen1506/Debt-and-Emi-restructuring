@@ -19,6 +19,7 @@ import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
 import { deriveMetrics } from '@/lib/derived';
 import { LOAN_TYPE_NAME, loanName } from '@/lib/loan-types';
+import { formatAsOf } from '@/lib/invest-vs-prepay';
 
 const VERDICT: Record<NewDebtResponse['verdict'], { text: string; tone: 'pos' | 'accent' | 'neg' }> = {
   take: { text: 'Take the loan.', tone: 'pos' },
@@ -85,6 +86,9 @@ export function NewDebtTool() {
 
   const [selectedBank, setSelectedBank] = useState<string>('');
   const [fee, setFee] = useState('0');
+  // A rate the bank actually quoted beats the middle of its advertised range.
+  const [quoted, setQuoted] = useState('');
+  const quotedRate = Number(quoted) > 0 ? Number(quoted) : null;
   const savingsOnFile = profile.isLive && profile.user.savings_balance != null ? String(Math.round(Number(profile.user.savings_balance))) : '';
   const [savings, setSavings] = useState(savingsOnFile);
   const scoreOnFile = profile.isLive && profile.creditScore != null ? String(profile.creditScore) : '';
@@ -110,7 +114,9 @@ export function NewDebtTool() {
   useEffect(() => {
     let cancelled = false;
     api
-      .institutions(country)
+      // Only the banks whose advertised rates were checked: the others'
+      // ranges were estimated from their peers, not read off the bank.
+      .institutions(country, 'A')
       .then((data) => {
         if (!cancelled) setInstitutions(data);
       })
@@ -121,6 +127,12 @@ export function NewDebtTool() {
       cancelled = true;
     };
   }, [country]);
+
+  // When the banks' ranges were last noted: the newest date on the cards.
+  const ratesNoted = useMemo(() => {
+    const dates = (institutions ?? []).map((i) => i.last_verified).filter((d): d is string => !!d && /^\d{4}-\d{2}-\d{2}/.test(d));
+    return dates.length ? formatAsOf(dates.sort().at(-1)!.slice(0, 10)) : null;
+  }, [institutions]);
 
   const knownBanks = useMemo(() => {
     const set = new Set<string>();
@@ -163,7 +175,7 @@ export function NewDebtTool() {
     return m.fxMissing.length > 0 ? null : m.surplus.toFixed(2);
   }, [profile]);
 
-  const fingerprint = JSON.stringify([loanType,loanAmount,listPrice,cashPrice,offerEmi,tenure,selectedBank,activeBank?.median,fee,savings,score,monthlyRoom,country,profile.user]);
+  const fingerprint = JSON.stringify([loanType,loanAmount,listPrice,cashPrice,offerEmi,tenure,selectedBank,activeBank?.median,quoted,fee,savings,score,monthlyRoom,country,profile.user]);
   const [checked, setChecked] = useState('');
   const v = checked === fingerprint ? resultValue : null;
 
@@ -205,7 +217,7 @@ export function NewDebtTool() {
       // Derive monthly EMI from the chosen bank's median rate. If none
       // resolved, fall back to a typical-rate guess: 14% for personal/card,
       // 9% for home/auto.
-      const rate = activeBank?.median ?? (isCard ? 0.36 : 0.14);
+      const rate = quotedRate ?? activeBank?.median ?? (isCard ? 0.36 : 0.14);
       const monthlyEmi = isCard ? Number(offerEmi) : computeEMI(Number(list), rate, months);
       const result = await api.newDebt({
         list_price: list,
@@ -247,7 +259,7 @@ export function NewDebtTool() {
 
   const isCard = loanType === 'credit_card';
   const isNewBank = !!(activeBank && !activeBank.isExisting);
-  const usedRate = isCard ? null : activeBank?.median ?? 0.14;
+  const usedRate = isCard ? null : quotedRate ?? activeBank?.median ?? 0.14;
 
   return (
     <LSteps>
@@ -289,11 +301,12 @@ export function NewDebtTool() {
 
           {!isCard && (
             <div>
-              <LStepSub right="PUBLISHED RATES">Which bank</LStepSub>
+              <LStepSub right={ratesNoted ? `ADVERTISED · ${ratesNoted.toUpperCase()}` : 'ADVERTISED RATES'}>Which bank</LStepSub>
               {instErr ? (
                 <LNote style={{ margin: '8px 0 0', color: L_T.negative }}>Couldn&apos;t load bank rates: {instErr}</LNote>
               ) : bankComparison ? (
                 <BankRateTable
+                  noted={ratesNoted}
                   comparison={bankComparison}
                   loanType={loanType}
                   selectedBank={activeBank?.name ?? ''}
@@ -337,11 +350,23 @@ export function NewDebtTool() {
             {!more && (
               <span style={{ fontSize: 11, color: L_T.muted, marginLeft: 8 }}>
                 {Number(fee) > 0 ? `Processing fee ${fmt(fee)}` : 'Processing fee'}
+                {!isCard && (quotedRate != null ? ` · quoted ${formatPct(String(quotedRate), 2)}` : ' · a rate you were quoted')}
               </span>
             )}
             {more && (
-              <div style={{ marginTop: 10, maxWidth: 360 }}>
-                <Field label="Processing fee" kind="money" currency={ccy} value={fee} onChange={setFee} error={at('fee')} hint="Often 0–2% of the loan. 0 if you don't know." />
+              <div style={{ marginTop: 10 }}>
+                <LFieldGrid min={200}>
+                  <Field label="Processing fee" kind="money" currency={ccy} value={fee} onChange={setFee} error={at('fee')} hint="Often 0–2% of the loan. 0 if you don't know." />
+                  {!isCard && (
+                    <Field
+                      label="A rate you were quoted (%)"
+                      kind="percent"
+                      value={quoted}
+                      onChange={setQuoted}
+                      hint="Blank: the bank's middle rate"
+                    />
+                  )}
+                </LFieldGrid>
               </div>
             )}
           </div>
@@ -360,18 +385,21 @@ export function NewDebtTool() {
               {v.detail}{' '}
               {isCard
                 ? 'From the payment on the offer.'
-                : activeBank
+                : quotedRate != null
+                  ? `At the ${formatPct(String(quotedRate), 2)} you were quoted.`
+                  : activeBank
                   ? `At ${activeBank.name}'s middle rate of ${formatPct(String(activeBank.median), 2)}.`
                   : 'No published rate for this loan, so a typical 14% is used.'}
+              {!isCard && !(Number(fee) > 0) && ' No fee is included; add the bank\'s processing fee under MORE to count it.'}
             </LNote>
             <LKpi
               items={[
-                { l: 'IT REALLY COSTS', v: formatPct(v.effective_apr, 1), s: 'a year, fees included' },
+                { l: 'IT REALLY COSTS', v: formatPct(v.effective_apr, 1), s: Number(fee) > 0 ? 'a year, fee included' : 'a year · no fee entered' },
                 { l: 'EMI', v: fmt(v.monthly_emi), s: `a month for ${tenure} months` },
                 {
                   l: 'MORE THAN CASH',
                   v: fmt(v.total_real_cost),
-                  s: Number(v.foregone_discount) > 0 ? `${fmt(v.foregone_discount)} of it a lost discount` : 'interest and fees',
+                  s: Number(v.foregone_discount) > 0 ? `${fmt(v.foregone_discount)} of it a lost discount` : Number(fee) > 0 ? 'interest and fee' : 'interest',
                   tone: Number(v.total_real_cost) > 0 ? L_T.negative : L_T.positive,
                 },
                 ...(!isCard && activeBank
@@ -412,7 +440,7 @@ export function NewDebtTool() {
                     loan_type: isCard ? 'bnpl' : loanType,
                     bank: isCard ? 'Quoted EMI offer' : activeBank!.name,
                     outstanding: isCard ? listPrice : loanAmount,
-                    nominal_rate: isCard ? String(offerRate(Number(listPrice), Number(offerEmi), Number(tenure))) : String(activeBank!.median),
+                    nominal_rate: isCard ? String(offerRate(Number(listPrice), Number(offerEmi), Number(tenure))) : String(quotedRate ?? activeBank!.median),
                     tenure_months_remaining: Number(tenure),
                     scheduled_emi: String(v.monthly_emi),
                     processing_fee_amortised: fee !== '0' ? fee : undefined,
@@ -432,7 +460,7 @@ export function NewDebtTool() {
             rows={[
               { k: isCard ? 'price on the offer' : 'borrowed', v: fmt(v.list_price) },
               ...(isCard ? [{ k: 'price in cash', v: fmt(v.cash_price) }] : []),
-              ...(usedRate != null ? [{ k: 'rate', v: formatPct(String(usedRate), 2), note: activeBank ? `${activeBank.name}, middle of its range` : 'typical, no published rate' }] : []),
+              ...(usedRate != null ? [{ k: 'rate', v: formatPct(String(usedRate), 2), note: quotedRate != null ? 'the rate you were quoted' : activeBank ? `${activeBank.name}, middle of its range` : 'typical, no published rate' }] : []),
               { k: 'EMI', v: fmt(v.monthly_emi), note: `× ${tenure} months = ${fmt((Number(v.monthly_emi) * Number(tenure)).toFixed(0))}` },
               ...(Number(v.processing_fee) > 0 ? [{ k: 'processing fee', v: fmt(v.processing_fee) }] : []),
               {
@@ -515,10 +543,11 @@ function rankBanksForLoanType(
       totalInterest,
     });
   }
-  // Sort by total interest paid over the tenure — the one number the user
-  // actually compares between banks. Existing-relationship flag is shown
-  // separately so the user can weigh friction on their own.
-  rows.sort((a, b) => a.totalInterest - b.totalInterest);
+  // Cheapest first. At one amount and term the interest follows the middle
+  // rate, so sorting on the rate also holds before an amount is typed (when
+  // every interest is 0). Existing-relationship flag is shown separately so
+  // the user can weigh friction on their own.
+  rows.sort((a, b) => a.median - b.median || a.totalInterest - b.totalInterest);
   return {
     existing: rows.filter((r) => r.isExisting),
     others: rows.filter((r) => !r.isExisting),
@@ -526,6 +555,7 @@ function rankBanksForLoanType(
 }
 
 function BankRateTable({
+  noted,
   comparison,
   loanType,
   selectedBank,
@@ -533,6 +563,8 @@ function BankRateTable({
   fmt,
   showMoney,
 }: {
+  /** When the advertised ranges were noted, "14 May 2026". */
+  noted: string | null;
   comparison: BankComparison;
   loanType: LoanType;
   selectedBank: string;
@@ -601,7 +633,8 @@ function BankRateTable({
         </table>
       </div>
       <LNote style={{ margin: '8px 0 0' }}>
-        Cheapest first, at the middle of each range. Your offer depends on your credit.
+        The big banks&apos; advertised ranges{noted ? `, noted ${noted}` : ''}. Banks change them, so check before you apply. Cheapest
+        first, at the middle of each range; your offer depends on your credit.
       </LNote>
     </>
   );

@@ -72,15 +72,15 @@ def test_institution_tier_usa_a_has_six():
 
 
 def test_cii_provisional_returns_extrapolated_value():
-    """FY 2026-27 isn't in the verified CBDT table yet — lookup should return
+    """FY 2027-28 isn't in the verified CBDT table yet — lookup should return
     an extrapolated provisional value instead of raising, so LTCG math keeps
     running while we wait for the annual notification."""
     from engine.country_data import lookup_cii, cii_is_provisional
 
-    val = lookup_cii("2026-27")
-    assert val > 363  # Must exceed FY24-25's verified 363
+    val = lookup_cii("2027-28")
+    assert val > 384  # Must exceed FY26-27's verified 384
     assert val < 500  # Sanity bound
-    assert cii_is_provisional("2026-27")
+    assert cii_is_provisional("2027-28")
 
 
 def test_cii_provisional_can_be_disabled():
@@ -90,7 +90,7 @@ def test_cii_provisional_can_be_disabled():
     import pytest
 
     with pytest.raises(KeyError):
-        lookup_cii("2026-27", allow_provisional=False)
+        lookup_cii("2027-28", allow_provisional=False)
 
 
 def test_cii_verified_not_provisional():
@@ -98,4 +98,9 @@ def test_cii_verified_not_provisional():
     from engine.country_data import cii_is_provisional
 
     assert not cii_is_provisional("2024-25")
+    # Notified by CBDT: 376 (1 Jul 2025) and 384 (15 Jul 2026).
+    assert not cii_is_provisional("2026-27")
+    from engine.country_data import lookup_cii
+    assert lookup_cii("2025-26") == 376
+    assert lookup_cii("2026-27") == 384
     assert not cii_is_provisional("2001-02")

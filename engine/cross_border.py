@@ -60,24 +60,27 @@ def evaluate_cross_border(inp: CrossBorderInputs) -> CrossBorderVerdict:
     post_tax_yield = inp.user_savings_yield * (D("1") - inp.user_marginal_tax)
     spread = loan_cost - post_tax_yield
 
+    cost = (
+        f"Counting how the exchange rate tends to move, the loan costs you "
+        f"{loan_cost * 100:.2f}% a year in your currency"
+    )
+    earn = f"your savings earn {post_tax_yield * 100:.2f}% after tax"
     if spread > D("0.01"):
         verdict = "prepay"
         rationale = (
-            f"Loan costs {loan_cost * 100:.2f}% in your currency after FX drift, "
-            f"vs {post_tax_yield * 100:.2f}% post-tax yield on savings. "
-            f"Prepay — every unit clears debt at the higher rate."
+            f"{cost}; {earn}. Each amount prepaid saves more than it would earn."
         )
     elif spread < D("-0.01"):
         verdict = "invest"
         rationale = (
-            f"Post-tax yield {post_tax_yield * 100:.2f}% beats the FX-adjusted loan cost "
-            f"{loan_cost * 100:.2f}%. Keep amortising; deploy savings into the yield."
+            f"{cost}; {earn}. Keep paying the EMI and leave the savings where "
+            f"they earn more."
         )
     else:
         verdict = "marginal"
         rationale = (
-            f"Within 1pp ({spread * 100:.2f}pp). Optionality and liquidity should drive — "
-            f"keep some buffer, prepay only what you wouldn't miss."
+            f"{cost}; {earn}: less than a point apart. Keep enough savings to "
+            f"fall back on, and prepay only what you wouldn't miss."
         )
 
     monthly_rate = inp.loan_nominal_rate / D("12")
@@ -98,16 +101,33 @@ def evaluate_cross_border(inp: CrossBorderInputs) -> CrossBorderVerdict:
     )
 
 
+# How fast the rupee has lost value against each currency, a year, over
+# the 20 years to September 2026, rounded to half a point. Rupees per unit
+# rose roughly: USD 46 → 88-94, EUR 58 → ~110, GBP 86 → ~130, AUD 35 → ~68,
+# CAD 41 → ~68, SGD 29 → ~74 (RBI reference rates; FRED DEXINUS; the
+# Nepal rupee's fixed 1.6 peg for the September 2026 cross rates). The
+# dirham is pegged to the dollar (3.6725 since 1997), so it moves with it.
+INR_SLIDE_A_YEAR: dict[str, Decimal] = {
+    "USD": D("0.030"),
+    "AED": D("0.030"),
+    "EUR": D("0.030"),
+    "GBP": D("0.020"),
+    "AUD": D("0.030"),
+    "CAD": D("0.025"),
+    "SGD": D("0.045"),
+}
+
+
 def historical_drift_default(loan_currency: str, user_currency: str) -> Decimal:
     """Historical annualised drift of (loan_currency / user_currency).
     Positive = loan-currency *strengthens* (loan gets more expensive in user terms).
-    Negative = loan-currency *weakens* (good for the NRI prepaying from USD).
+    Negative = loan-currency *weakens* (good for the NRI prepaying from abroad).
 
-    Sources: RBI monthly FX reference rates 2004-2024; Fed FRED DEXINUS series.
+    Only pairs with the rupee have a default; any other pair is taken as flat.
     """
-    pair = (loan_currency.upper(), user_currency.upper())
-    # INR has steadily depreciated vs USD ~3%/yr over 20y → INR loan held by USD earner
-    # gets *cheaper* over time → drift is *negative* in our sign convention.
-    if pair == ("INR", "USD"): return D("-0.030")
-    if pair == ("USD", "INR"): return D("0.030")
+    loan, user = loan_currency.upper(), user_currency.upper()
+    if loan == "INR" and user in INR_SLIDE_A_YEAR:
+        return -INR_SLIDE_A_YEAR[user]
+    if user == "INR" and loan in INR_SLIDE_A_YEAR:
+        return INR_SLIDE_A_YEAR[loan]
     return D("0")

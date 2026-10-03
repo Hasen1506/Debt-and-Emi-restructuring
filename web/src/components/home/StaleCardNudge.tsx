@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * One line above Open positions when a credit card's balance hasn't been
+ * One line at the top of Your loans and cards when a credit card's balance hasn't been
  * updated in STALE_DAYS days (or ever): a card's balance moves with every
  * purchase, so the plan drifts from the statement without it. UPDATE goes
  * to Activity, where a payment can carry the card's new balance; DISMISS
@@ -101,15 +101,15 @@ export function StaleCardNudge({ user }: { user: UserPayload }) {
       }}
     >
       <span>
-        <strong style={{ letterSpacing: '0.12em', color: L_T.accent }}>UPDATE · </strong>
+        <strong style={{ letterSpacing: '0.12em', color: L_T.accent }}>CHECK YOUR CARD BALANCE · </strong>
         {stale.map((s, i) => (
           <span key={s.bank}>
-            {i > 0 && ', '}
+            {i > 0 && '; '}
             {s.bank}
-            {s.daysSince ? ` (${s.daysSince} days)` : ' (never)'}
+            {s.daysSince ? `, last updated ${s.daysSince} days ago` : ', not updated since you added it'}
           </span>
         ))}
-        : {stale.length > 1 ? 'these card balances haven’t' : 'this card balance hasn’t'} been updated, so the plan may be off.
+        . A card balance moves with every purchase, so the plan may be working from an old number.
       </span>
       <span style={{ display: 'flex', gap: 12 }}>
         <LBracket accent href="/activity#activity-ledger">

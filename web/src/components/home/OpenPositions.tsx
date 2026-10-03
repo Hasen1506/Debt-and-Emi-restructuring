@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Open positions (REDESIGN R2.5): every open loan, one row each — rate and
+ * Your loans and cards (REDESIGN R2.5, was Open positions): every open loan, one row each — rate and
  * effective rate, EMI or card minimum, months left, balance. A row opens to
  * how its effective rate is worked out (fees, GST, tax saving). The dearest
  * loan is flagged. Replaces the separate Debts page.
@@ -33,10 +33,16 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
 
   return (
     <section aria-labelledby="positions-h" id="positions" style={{ scrollMarginTop: 16 }}>
-      <StaleCardNudge user={user} />
       <LSectionHeader right={<LBracket href="/profile?step=loans">+ ADD A LOAN</LBracket>}>
-        <span id="positions-h">Open positions · {m.loans.length}</span>
+        <span id="positions-h">Your loans and cards · {m.loans.length}</span>
       </LSectionHeader>
+      {/* Where these numbers come from: the user, not the bank. */}
+      <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
+        As you entered them in Profile. Loans move on by one EMI a month; card
+        balances stay as entered until you update them. Not linked to your bank,
+        so check them against a statement now and then.
+      </p>
+      <StaleCardNudge user={user} />
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: `2px solid ${L_T.ink}` }}>
         {m.loans.map((d, i) => {
           const { loan } = d;

@@ -15,6 +15,8 @@
  */
 
 import { TOOLS } from '@/lib/tools';
+import { useStoredProfile } from '@/lib/use-profile';
+import { ToolStrip } from '@/components/goals/ToolsList';
 import { LToolHeader } from './LToolShell';
 import { LShell } from './primitives';
 
@@ -28,6 +30,7 @@ export function LToolPageHeader({
   children: React.ReactNode;
 }) {
   const meta = TOOLS.find((t) => t.id === id);
+  const { user } = useStoredProfile();
   const today = new Date().toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
@@ -55,6 +58,9 @@ export function LToolPageHeader({
           question={question}
         />
         {children}
+        <div style={{ marginTop: 18 }}>
+          <ToolStrip user={user} title="Other tools" except={id} />
+        </div>
       </div>
     </LShell>
   );

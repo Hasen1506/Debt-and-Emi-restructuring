@@ -145,7 +145,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
 
   const rows: ScheduleCsvRow[] = plan.monthlyPayments.map((row) => {
     const d = monthIndexToDate(row.month, today);
-    const date = `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${String(d.getFullYear()).slice(-2)}`;
+    const date = `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${d.getFullYear()}`;
     const bal = trajByMonth.get(row.month) ?? 0;
     // The engine's totals, in the user's currency: summing perLoan mixed
     // ₹ and $, and "extra" was the total less every scheduled EMI, so a
@@ -192,7 +192,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
       </LSectionHeader>
       {visibleRows.length === 0 ? (
         <div style={{ padding: '14px 0', fontSize: 11, color: L_T.muted }}>
-          $ NO EVENTS · the next {totalCount} months hold steady. Show all months to see each one.
+          NO EVENTS · the next {totalCount} months hold steady. Show all months to see each one.
         </div>
       ) : (
         <div

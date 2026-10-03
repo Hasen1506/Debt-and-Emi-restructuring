@@ -89,31 +89,40 @@ export interface SafeRate {
 }
 
 /**
- * Default yields for the safe vehicles, dated. The Treasury yield is the
- * US Treasury's 1-year par yield on 25 Sep 2026. The others are typical
- * retail quotes from May 2026. Both screens say so and ask for today's
- * yield when the answer is close.
+ * Default yields for the safe vehicles, dated, each from a published quote:
+ *   • FD: SBI 6.25% for 1 year (from 15 Dec 2025) and HDFC Bank 6.25% for
+ *     1 year to 15 months (from 6 Mar 2026), still current in Sep 2026.
+ *   • T-bill: RBI's 364-day auction of 9 Sep 2026 cut off at 5.909%.
+ *   • Liquid fund: yield to maturity about 6.5% in early Sep 2026.
+ *   • HYSA: top online savings accounts about 4.25% APY, late Sep 2026.
+ *   • Treasury: the 1-year Treasury yield closed at 4.54% on 30 Sep 2026.
+ *   • Tax-free bonds: typical secondary-market yield, May 2026.
+ * Both screens say so and ask for today's yield when the answer is close.
  */
 export const SAFE_RATES = {
   fd_in: {
-    rate: '0.071', tax: { kind: 'income', share: 1 }, compounding: 'quarterly',
-    asOf: '2026-05', source: 'typical 1-yr SBI / HDFC FD',
+    rate: '0.0625', tax: { kind: 'income', share: 1 }, compounding: 'quarterly',
+    asOf: '2026-09', source: '1-yr FD rate at SBI and HDFC Bank',
   },
   tax_free_bond_in: {
     rate: '0.0525', tax: { kind: 'none' }, compounding: 'simple',
     asOf: '2026-05', source: 'typical NHAI / REC secondary-market yield',
   },
   gsec_in: {
-    rate: '0.07', tax: { kind: 'income', share: 1 }, compounding: 'simple',
-    asOf: '2026-05', source: 'typical 1-yr T-bill / G-Sec yield',
+    rate: '0.0591', tax: { kind: 'income', share: 1 }, compounding: 'simple',
+    asOf: '2026-09-09', source: 'yield at RBI’s 364-day T-bill auction',
+  },
+  liquid_in: {
+    rate: '0.065', tax: { kind: 'income', share: 1 }, compounding: 'simple',
+    asOf: '2026-09', source: 'yield to maturity of a liquid fund',
   },
   hysa_us: {
-    rate: '0.045', tax: { kind: 'income', share: 1 }, compounding: 'simple',
-    asOf: '2026-05', source: 'typical top HYSA APY',
+    rate: '0.0425', tax: { kind: 'income', share: 1 }, compounding: 'simple',
+    asOf: '2026-09', source: 'APY at a top online savings account',
   },
   treasury_us: {
-    rate: '0.045', tax: { kind: 'income', share: 0.8 }, compounding: 'simple',
-    asOf: '2026-09-25', source: 'US Treasury 1-yr par yield',
+    rate: '0.0454', tax: { kind: 'income', share: 0.8 }, compounding: 'simple',
+    asOf: '2026-09-30', source: 'US Treasury 1-yr yield',
   },
 } satisfies Record<string, SafeRate>;
 

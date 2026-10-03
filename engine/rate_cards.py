@@ -489,11 +489,13 @@ INDIA_FINTECH: list[InstitutionRateCard] = [
 # USA — Tier A (6 institutions, indicative May 2026, Fed 3.50-3.75%)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Chase and Bank of America make no personal loans (Chase lends only
+# against a card's limit, as "My Chase Loan"), so they have no
+# personal_loan range: a refinance suggestion must not point at one.
 USA_TIER_A: list[InstitutionRateCard] = [
     InstitutionRateCard(
         institution_id="US_CHASE", country=Country.US, name="JPMorgan Chase", scrape_tier="A",
         home_loan=RateRange(D("0.0650"), D("0.0700")),       # 30yr fixed
-        personal_loan=RateRange(D("0.0699"), D("0.2499")),
         auto_loan=RateRange(D("0.0569"), D("0.1369")),
         credit_card=CreditCardCard(
             apr_low=D("0.2024"), apr_high=D("0.2924"),
@@ -503,7 +505,6 @@ USA_TIER_A: list[InstitutionRateCard] = [
     InstitutionRateCard(
         institution_id="US_BOFA", country=Country.US, name="Bank of America", scrape_tier="A",
         home_loan=RateRange(D("0.0655"), D("0.0705")),
-        personal_loan=RateRange(D("0.0749"), D("0.2499")),
         auto_loan=RateRange(D("0.0549"), D("0.1074")),
         credit_card=CreditCardCard(
             apr_low=D("0.1799"), apr_high=D("0.2899"),
@@ -547,6 +548,10 @@ USA_TIER_A: list[InstitutionRateCard] = [
 # ─────────────────────────────────────────────────────────────────────────────
 # USA — Tier B (6): card networks + neobanks + regional majors (indicative)
 # Amex/Discover/GS are card-first (no home/auto); Ally is auto-focused;
+# Goldman stopped making personal loans in 2023 and Ally sold its lending
+# arm to Synchrony in 2024, so neither has a personal_loan range, and Ally
+# took its last mortgage applications on 31 Jan 2025. Discover's personal
+# loans carry on under Capital One (6.99–24.99%, 2026);
 # Truist/PNC are full-service regionals priced near Tier-A.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -563,7 +568,7 @@ USA_TIER_B: list[InstitutionRateCard] = [
     InstitutionRateCard(
         institution_id="US_DISCOVER", country=Country.US, name="Discover", scrape_tier="B",
         is_indicative=True,
-        personal_loan=RateRange(D("0.0799"), D("0.2499")),
+        personal_loan=RateRange(D("0.0699"), D("0.2499")),
         credit_card=CreditCardCard(
             apr_low=D("0.1824"), apr_high=D("0.2824"),
             bt_promo_rate=D("0"), bt_promo_months=18, bt_fee_pct=D("0.03"),
@@ -572,14 +577,11 @@ USA_TIER_B: list[InstitutionRateCard] = [
     InstitutionRateCard(
         institution_id="US_GS", country=Country.US, name="Goldman Sachs", scrape_tier="B",
         is_indicative=True,
-        personal_loan=RateRange(D("0.0999"), D("0.2999")),
         credit_card=CreditCardCard(apr_low=D("0.1924"), apr_high=D("0.2924")),  # Apple Card
     ),
     InstitutionRateCard(
         institution_id="US_ALLY", country=Country.US, name="Ally Financial", scrape_tier="B",
         is_indicative=True,
-        home_loan=RateRange(D("0.0645"), D("0.0695")),
-        personal_loan=RateRange(D("0.0999"), D("0.2599")),
         auto_loan=RateRange(D("0.0539"), D("0.1349")),
     ),
     InstitutionRateCard(

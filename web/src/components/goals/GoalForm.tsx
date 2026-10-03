@@ -213,12 +213,12 @@ export function GoalForm({
         )}
       </div>
 
-      <LChipRow label="4 · Priority">
+      <LChipRow label="4 · Against your other goals">
         <LChip on={goal.priorityBump} onClick={() => patch({ priorityBump: true })}>
-          ★ Save for it first
+          ★ Before the others
         </LChip>
         <LChip on={!goal.priorityBump} onClick={() => patch({ priorityBump: false })}>
-          In date order
+          Soonest date first
         </LChip>
       </LChipRow>
 

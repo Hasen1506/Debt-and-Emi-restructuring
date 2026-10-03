@@ -2,14 +2,15 @@
 
 /**
  * Plan's assumptions (REDESIGN R3.1): one row of chips, each saying what
- * the plan assumes (payoff order, pay rises, rising costs, tax refunds,
+ * the plan assumes (payoff order, how much goes to debts, pay rises,
+ * rising costs, tax refunds,
  * emergency fund share, rupee drift). A chip opens its control below the
  * row; changing it re-runs the plan. This is the one place they're edited:
  * Home's context line links here. Chips that can't change anything for
  * this profile (no tax saving, no gap in the emergency fund, one currency)
  * aren't shown.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole } from '@/lib/api';
 import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
@@ -19,13 +20,16 @@ import { StrategySwitcher } from '@/components/StrategySwitcher';
 import { HikeToggle } from '@/components/HikeToggle';
 import { TaxReinvestToggle } from '@/components/TaxReinvestToggle';
 import { InflationToggle } from '@/components/InflationToggle';
+import { InflationRateControl } from './InflationRateControl';
 import { EfSplitSlider } from '@/components/EfSplitSlider';
 import { FxDriftToggle } from '@/components/FxDriftToggle';
+import { loanToUser } from '@/lib/currency';
+import { DebtBudgetControl } from './DebtBudgetControl';
 
 // FilingStatusUS: 'single' | 'mfj' | 'hoh' (same as Home's context line).
 const FILING: Record<string, string> = { single: 'SINGLE', mfj: 'JOINTLY', hoh: 'HEAD OF HOUSEHOLD' };
 
-type ChipKey = 'order' | 'hike' | 'inflation' | 'tax' | 'ef' | 'fx';
+type ChipKey = 'order' | 'budget' | 'hike' | 'inflation' | 'tax' | 'ef' | 'fx';
 
 interface Chip {
   key: ChipKey;
@@ -38,6 +42,10 @@ interface Chip {
 
 export function PlanAssumptions({ plan }: { plan: PlanData }) {
   const [open, setOpen] = useState<ChipKey | null>(null);
+  // Home's "set your own total" lands here with that chip open.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('set') === 'budget') setOpen('budget');
+  }, []);
   const u = plan.user;
   const configured = plan.configuredUser;
   const ccy = plan.displayCurrency;
@@ -53,6 +61,13 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
   const efGap = Number(u.efund_target || 0) > 0 && Number(u.efund_balance || 0) < Number(u.efund_target || 0);
   const efPct = Math.round(Number(plan.efSplit) * 100);
   const twoCurrencies = plan.currenciesInPlay.length > 1;
+  // This month's EMIs and minimums, and the most the plan could pay.
+  const required = Object.entries(plan.firstMonthMinimums ?? {}).reduce((sum, [i, v]) => {
+    const loan = u.loans[Number(i)];
+    return loan ? sum + (loanToUser(Number(v), loan, u.country, plan.fxRatesUsed) ?? Number(v)) : sum;
+  }, 0);
+  const allSpare = required + Math.max(0, plan.surplus || 0);
+  const budget = Number(plan.debtBudget || 0);
 
   const chips: Chip[] = [
     {
@@ -62,6 +77,22 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
       about: 'Which loan gets the money left after EMIs and minimums.',
       control: (
         <StrategySwitcher active={plan.strategy} variant="ledger" compare={plan.strategyCompare} country={u.country} />
+      ),
+    },
+    {
+      key: 'budget',
+      label: 'TO DEBTS',
+      value: budget > 0 ? `${formatCurrencyWhole(String(budget), ccy)} A MONTH` : 'ALL SPARE CASH',
+      about:
+        'How much you put toward debts each month, EMIs and minimums included. All your spare cash makes you debt-free soonest; a smaller total keeps the rest with you. Your call.',
+      control: (
+        <DebtBudgetControl
+          budget={plan.debtBudget ?? ''}
+          required={required}
+          allSpare={allSpare}
+          currency={ccy}
+          hasFundTarget={Number(u.efund_target || 0) > 0}
+        />
       ),
     },
     {
@@ -92,7 +123,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
             />
           )}
           <div style={{ marginTop: hasHike ? 8 : 0 }}>
-            <LBracket href="/profile?step=income">{hasHike ? 'CHANGE THE RISE' : 'ADD A PAY RISE'} IN PROFILE →</LBracket>
+            <LBracket href="/profile?step=income&focus=hike">{hasHike ? 'CHANGE THE RISE' : 'ADD A PAY RISE'} IN PROFILE →</LBracket>
           </div>
         </>
       ),
@@ -100,16 +131,17 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
     {
       key: 'inflation',
       label: 'RISING COSTS',
-      value: inflRate <= 0 ? 'NONE SET' : plan.inflationModeling === 'on' ? `+${pct(inflRate, 1)} A YEAR` : 'IGNORED',
+      value: plan.inflationModeling === 'on' ? `+${pct(inflRate, 1)} A YEAR` : 'IGNORED',
       about:
-        inflRate <= 0
-          ? 'No rate for rising prices is set, so the plan keeps your spending flat.'
-          : 'Whether your monthly spending grows with prices each year. Rising costs leave less for debt later on.',
-      // Profile saves a country default (4.6% / 2.5%); only an older profile has none.
-      control:
-        inflRate > 0 ? (
+        'Whether your monthly spending grows with prices each year. Rising costs leave less for debt later on.',
+      // The rate is the central bank's latest forecast unless the user sets
+      // their own; both are said with where they come from.
+      control: (
+        <>
           <InflationToggle active={plan.inflationModeling} inflationRatePct={pct(inflRate, 1)} variant="ledger" />
-        ) : null,
+          <InflationRateControl country={u.country} own={plan.ownInflationRate} active={plan.inflationModeling} />
+        </>
+      ),
     },
   ];
   if (taxSaving > 0) {
@@ -133,7 +165,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
       label: 'EMERGENCY FUND',
       value: `${efPct}% OF SPARE CASH`,
       about: 'Your emergency fund is below its target. This share of the spare cash goes to it until it is full; the rest pays debt.',
-      control: <EfSplitSlider active={plan.efSplit} hasGap ccySym={u.country === 'IN' ? '₹' : '$'} variant="ledger" />,
+      control: <EfSplitSlider active={plan.efSplit} hasGap variant="ledger" />,
     });
   }
   if (twoCurrencies) {
@@ -172,7 +204,6 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
         }}
       >
         <span>
-          <span aria-hidden="true">$ </span>
           {facts.join(' · ')}
           {!plan.profileIsLive && ' · DEMO'}
           {!plan.live && ' · OFFLINE'}

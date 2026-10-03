@@ -5,13 +5,15 @@ Read **Resume here** first after any compaction or new session.
 
 ## Resume here
 
-- **Status:** the redesign is done (R0–R7). R6.5 redrew the persona art after the owner's review.
-- **Last finished step:** R7.3. ROADMAP and AUDIT are updated; AUDIT §8 has what the walkthroughs and the phone pass found (all fixed) and what's still open.
-- **Next, for the owner to pick from (AUDIT §8, still open):**
-  - refresh the saved exchange rate when today's can be fetched, and say on Plan which day's rate it used;
-  - move `/profile/assets` to Ledger fields;
-  - look at Right time's odds and NRI prepay's live rate once deployed.
-- **Open PR:** #17 · `claude/vibrant-bardeen-5bsiyj` (R6.5 + R7); merge when CI is green
+- **Status:** the redesign is done (R0–R7). Now working through the owner's feedback of 2 Oct 2026 (AUDIT §9).
+- **Done (§9 F1–F5):** Pay this month no longer calls a payment a payoff while interest leaves some owing, and its buttons are readable; the user sets the monthly total for debts (TO DEBTS chip on Plan, `debt_budget` in the engine); the strategy switch says when all three orders give the same plan; browser calculations retry while the free-plan API wakes; Plan load measured (fast once warm; the wait is the free plan waking).
+- **Done (§9 walk-through U1–U7):** Profile has a way back and every part one tap away; headings without "$", months with their year, a masthead that says what it is; Activity asks for the plan's payment like Home; Your loans and cards; After your last payment; goal order wording; tools findable from Home, Goals and every tool.
+- **Done (§9 H1, D1):** Cheaper rates use the plan's balances, name whose rate it is and when it was checked, and use the credit score (moves not worth it, or unlikely at the score, are listed with why); rising costs use RBI's / the Fed's latest forecast with the source on the chip, or your own rate; Plan's note and the emergency fund help no longer prescribe; What if shows before/after bars; Goals has a real progress bar and "not yet" instead of a red ₹0. The full fuzz run found two API error cases, fixed.
+- **Done (§9 tools, A1 part 1):** New debt, Purchase, Liquidate, Invest-vs-prepay and Right time run as a user. Liquidate uses the card's minimum and taxes each asset by its own rules; CII 376/384 as notified; safe rates are dated September quotes; setup's tax rate matches Profile's; Purchase starts at the banks' advertised rates; bank lists show only the 6 checked banks, dated, and New debt takes a quoted rate.
+- **Done (§9 pages, A1 part 2):** Loan check names why the starting repo rate is the lowest of the months before, shows today's repo rate in THE MATH and dates cards 14 May 2026; NRI prepay has the rupee's 20-year slide for every currency offered and no longer spins 30 s on a missing rate (the API's own 502 isn't retried); Spare cash and Home explain 42% vs 49.56% (GST); Profile's loan boxes fit a phone and cards drop loan-only fields; log-dialog units; Portfolio puts cards after what you own and tells its two add paths apart. Setup checked, nothing to fix.
+- **Done (§9, A1 part 3):** Purchase's car-value warning cites IRDAI's value table (India) and Carfax (US), and works out from the user's own loan whether, and for how many months, they'd owe more than the car is worth; the 1-year Treasury default is 4.54% (30 Sep 2026); the US cards no longer list personal loans from Chase, Bank of America, Goldman Sachs or Ally, or Ally mortgages.
+- **Next:** mark PR #21 ready and merge once CI is green. Still open after the merge, and needing the owner: re-verifying the rate cards needs the banks' sites allowed in the network settings (AUDIT §9).
+- **Open PR:** #21 · `claude/vibrant-bardeen-5bsiyj`; merge when CI is green and §9 is done
 - **Can't check from this container:** Polymarket, frankfurter and open.er-api are blocked here. The odds and FX code is tested against responses shaped like theirs; look at Right time and NRI prepay once deployed. Whether Polymarket lists RBI decisions is unconfirmed; without them Right time says it has no odds and judges on today's rate. For local work, `MARKET_ODDS_FILE=<saved Gamma events>` serves odds offline
 
 Pause after each phase (or about every five steps, or when context is near 35%):

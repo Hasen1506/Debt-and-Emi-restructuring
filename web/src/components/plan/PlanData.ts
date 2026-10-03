@@ -4,6 +4,7 @@
  */
 import type {
   PlanRunArgs,
+  RestructuringHeldBack,
   RestructuringOpportunity,
   UserPayload,
 } from '@/lib/api';
@@ -63,6 +64,9 @@ export interface PlanData {
   surplus: number;
   opportunities: RestructuringOpportunity[];
   totalAnnualSaving: string;
+  /** Moves the scan found but holds back (credit score, or the plan
+   *  clears the debt first), with why. */
+  heldBack: RestructuringHeldBack[];
   user: UserPayload;
   /** Saved configuration before simulation-only overrides (hikes, penalties). */
   configuredUser: UserPayload;
@@ -75,6 +79,9 @@ export interface PlanData {
   /** Whether the projection inflates expenses month-over-month at
    *  user.inflation_rate. Set by the per-plan toggle. When 'on', surplus
    *  erodes over time → debt-free month pushes out. */
+  /** The user's own yearly rate for rising prices, '' when the plan uses
+   *  the central bank's forecast (INFLATION_FORECAST). */
+  ownInflationRate: string;
   inflationModeling: InflationModeling;
   /** Whether the projection applies FX drift to non-residence-currency
    *  loans. Set by the per-plan toggle. Only meaningful for hybrid users
@@ -136,6 +143,8 @@ export interface PlanData {
    *  0.30 preserves the pre-slider behaviour. Read from the ef_split
    *  cookie at request time. */
   efSplit: string;
+  /** The user's monthly total for debts ('' = all spare cash). */
+  debtBudget: string;
   /** True when at least one active goal is being routed surplus by the
    *  engine, meaning EF top-up is paused for the current horizon.
    *  Drives an assumption chip + the EF slider's disabled state.

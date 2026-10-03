@@ -562,6 +562,9 @@ class SimulateRequest(_In):
     # When given it is the only EF top-up; omitted, the engine holds back
     # a fixed gap / 12 each month instead.
     ef_top_up_rate: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
+    # The most the user wants to put toward debts each month (EMIs,
+    # minimums and extra, in their own currency). Omitted: all spare cash.
+    debt_budget: Optional[Amount] = None
     # True when the user has an active preempting goal open (e.g. medical
     # bill, planned wedding) that takes priority over EF + debt for the
     # goal's funding window. Drives the surplus_allocation routing in the
@@ -791,6 +794,7 @@ class CompareRequest(_In):
     lifecycle_events: list[LifecycleEventIn] = Field(default_factory=list)
     ef_top_up_rate: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
     goals: list[GoalIn] = Field(default_factory=list)
+    debt_budget: Optional[Amount] = None
     # what-if knobs
     surplus_delta: Optional[Decimal] = None
     surplus_delta_start_month: int = Field(1, ge=1, le=MAX_MONTHS)
@@ -808,6 +812,9 @@ class CompareResponse(_Base):
     months_pulled_forward: Decimal
     interest_saved: Decimal
     extra_invested: Decimal
+    # Total interest on each side, for a before/after picture.
+    baseline_total_interest: Optional[Decimal] = None
+    scenario_total_interest: Optional[Decimal] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1004,6 +1011,14 @@ class AssetLiquidationRequest(_In):
     filing_status: Optional[FilingStatusUS] = None
     state_marginal_rate: Optional[Rate] = None
 
+    @model_validator(mode="after")
+    def _needs_purchase_date(self):
+        # The tax on a sale turns on how long the asset was held. An empty
+        # date reads as None and used to crash the engine (500).
+        if self.asset.purchase_date is None:
+            raise ValueError("asset.purchase_date: needed to work out the tax on the sale")
+        return self
+
 
 class AssetLiquidationResponse(_Base):
     net_proceeds: Decimal
@@ -1125,6 +1140,18 @@ class LoanTermsResponse(_Base):
 class RestructuringRequest(_In):
     user: UserIn
     marginal_rate: Optional[Rate] = None
+    # Each loan's balance at the end of months 1, 2, … under the user's
+    # plan (from /simulate's balances_by_loan_index). When given, savings
+    # are worked out on these instead of today's balance held for a year,
+    # and a move the plan makes pointless is held back.
+    plan_balances: Optional[dict[LoanIndex, list[Amount]]] = Field(None, max_length=MAX_LOANS)
+
+    @field_validator("plan_balances")
+    @classmethod
+    def _plan_paths_bounded(cls, v):
+        if v is not None and any(len(path) > 600 for path in v.values()):
+            raise ValueError("plan_balances: at most 600 months per loan")
+        return v
 
 
 class RestructuringOpportunityOut(_Base):
@@ -1152,11 +1179,27 @@ class RestructuringOpportunityOut(_Base):
     one_time_cost: Decimal = Decimal("0")
     breakeven_months: Optional[int] = None
     lifetime_net_saving: Optional[Decimal] = None
+    # "best" | "higher" | "unknown": the user's credit score against what
+    # the lender keeps its best rate for (`score_needed`).
+    credit_fit: str = "unknown"
+    score_needed: Optional[int] = None
+    # "plan" when the saving uses the plan's balances, else "today".
+    saving_basis: str = "today"
+    plan_clears_in_months: Optional[int] = None
+
+
+class RestructuringHeldBackOut(_Base):
+    kind: str
+    affected_loan_indices: list[int]
+    target_bank: Optional[str] = None
+    reason: str                              # "credit_score" | "plan_clears" | "costs_more"
+    note: str
 
 
 class RestructuringResponse(_Base):
     opportunities: list[RestructuringOpportunityOut]
     total_annual_saving: Decimal
+    held_back: list[RestructuringHeldBackOut] = Field(default_factory=list)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ import { PayNotice, PayThisMonth } from './PayThisMonth';
 import { HomeRestructure } from './HomeRestructure';
 import { LBracket } from '@/components/ledger/primitives';
 import { thisMonthMove } from '@/lib/this-month';
-import { deriveMetrics } from '@/lib/derived';
+import { deriveMetrics, type LoanWithEffective } from '@/lib/derived';
 import { describeGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { formatCurrencyWhole } from '@/lib/api';
@@ -95,10 +95,21 @@ export async function HomeMoveOneStep() {
 
 /** Why the strategy puts the extra on this loan. */
 const REASON: Record<string, (rate: string) => string> = {
-  avalanche: (rate) => `it has the highest effective rate, ${rate}`,
-  snowball: (rate) => `it's the smallest balance (${rate} effective)`,
-  hybrid: (rate) => `your hybrid order puts it first (${rate} effective)`,
+  avalanche: (rate) => `it costs the most, ${rate}`,
+  snowball: (rate) => `it's the smallest balance (${rate})`,
+  hybrid: (rate) => `your hybrid order puts it first (${rate})`,
 };
+
+/** The loan's rate as its statement shows it, then what it really costs
+ *  when that differs: a card's GST, a loan's fees, or a tax break. */
+function rateWords(l: LoanWithEffective, country: string): string {
+  const nominal = `${fmtPct(l.nominal)} a year`;
+  const gap = l.effective.minus(l.nominal);
+  if (gap.abs().lt(0.005)) return nominal;
+  if (gap.lt(0)) return `${nominal}, ${fmtPct(l.effective)} after the tax break`;
+  const extra = country === 'IN' && l.loan.loan_type === 'credit_card' ? 'GST on the interest' : 'its fees';
+  return `${nominal}, ${fmtPct(l.effective)} counting ${extra}`;
+}
 
 /** This month's payments, one row each, to tick off (REDESIGN R2.2). */
 export async function HomePayThisMonth() {
@@ -135,7 +146,7 @@ export async function HomePayThisMonth() {
     top && target
       ? {
           key: top.key,
-          text: `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(fmtPct(target.effective))}. It saves about ${formatCurrencyWhole(
+          text: `${m.loans.filter((l) => l.outstanding.gt(0)).length > 1 ? `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(rateWords(target, country))}` : `The extra goes on your only loan, at ${rateWords(target, country)}`}. It saves about ${formatCurrencyWhole(
             Math.round(new Decimal(top.extra).times(target.effective).toNumber()),
             top.currency,
           )} of interest a year.`,
@@ -162,8 +173,13 @@ export async function HomePayThisMonth() {
 /** Cheaper rates the engine found for these loans (REDESIGN R2.4). */
 export async function HomeCheaperRates() {
   const plan = await loadPlanOnce();
-  if (plan.gaps.length > 0 || plan.opportunities.length === 0) return null;
+  if (plan.gaps.length > 0 || (plan.opportunities.length === 0 && plan.heldBack.length === 0)) return null;
   return (
-    <HomeRestructure opportunities={plan.opportunities} user={plan.user} totalAnnualSaving={plan.totalAnnualSaving} />
+    <HomeRestructure
+      opportunities={plan.opportunities}
+      heldBack={plan.heldBack}
+      user={plan.user}
+      totalAnnualSaving={plan.totalAnnualSaving}
+    />
   );
 }

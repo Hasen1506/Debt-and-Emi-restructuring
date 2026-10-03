@@ -17,12 +17,12 @@
  * isn't sold a deduction they can't claim.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Field } from '@/components/ToolPrimitives';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
 import { LFieldGrid, LNote, LStep, LStepSub, LSteps, LVerdict } from '@/components/ledger/LToolSteps';
-import { formatCurrency } from '@/lib/api';
+import { api, formatCurrency } from '@/lib/api';
 import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
 import { userDefaultCurrency } from '@/lib/currency';
 import { deriveMetrics } from '@/lib/derived';
@@ -48,9 +48,20 @@ const TYPE_OPTIONS: { value: PurchaseType; label: string }[] = [
 ];
 
 const DEFAULTS = {
-  home: { downPct: '20', tenureYears: '20', rate: '8.5' },
-  vehicle: { downPct: '15', tenureYears: '5', rate: '10.5' },
-  other: { downPct: '25', tenureYears: '5', rate: '11.0' },
+  home: { downPct: '20', tenureYears: '20' },
+  vehicle: { downPct: '15', tenureYears: '5' },
+  other: { downPct: '25', tenureYears: '5' },
+};
+
+/** Which published rate starts each kind of purchase: something else is
+ *  usually a personal loan. */
+const RATE_SOURCE = { home: 'home_loan', vehicle: 'auto_loan', other: 'personal_loan' } as const;
+
+/** Used until the bank rates load (or if they don't): the middle of the
+ *  big banks' published rates in May 2026, the same cards the API serves. */
+const RATE_FALLBACK: Record<'IN' | 'US', Record<PurchaseType, string>> = {
+  IN: { home: '8.3', vehicle: '9.0', other: '15.5' },
+  US: { home: '6.8', vehicle: '8.7', other: '16.0' },
 };
 
 function nextSixMonths(): string {
@@ -131,7 +142,10 @@ export function PurchaseTool() {
   const [targetMonth, setTargetMonth] = useState(nextSixMonths);
   const [downPct, setDownPct] = useState(DEFAULTS.home.downPct);
   const [tenureYears, setTenureYears] = useState(DEFAULTS.home.tenureYears);
-  const [rate, setRate] = useState(DEFAULTS.home.rate);
+  // Starts at the middle of the big banks' published rates for this kind
+  // of loan, until the user types their lender's offer.
+  const [marketRates, setMarketRates] = useState<Record<PurchaseType, string>>(RATE_FALLBACK[country]);
+  const [rate, setRate] = useState(RATE_FALLBACK[country].home);
   const [itemisesUS, setItemisesUS] = useState(false);
   // Per-field "user touched this" flags. Without these, the prior
   // heuristic ("only reset when current value matches the prior
@@ -149,9 +163,31 @@ export function PurchaseTool() {
     const next = DEFAULTS[t];
     if (!touched.downPct) setDownPct(next.downPct);
     if (!touched.tenureYears) setTenureYears(next.tenureYears);
-    if (!touched.rate) setRate(next.rate);
+    if (!touched.rate) setRate(marketRates[t]);
     setType(t);
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    const types = Object.keys(RATE_SOURCE) as PurchaseType[];
+    Promise.all(types.map((t) => api.marketMedian(country, RATE_SOURCE[t]).catch(() => null))).then((rows) => {
+      if (cancelled) return;
+      const next = { ...RATE_FALLBACK[country] };
+      rows.forEach((r, i) => {
+        if (r?.median != null) next[types[i]] = String(Math.round(Number(r.median) * 1000) / 10);
+      });
+      setMarketRates(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [country]);
+
+  // A rate the user hasn't typed follows the published one as it loads.
+  useEffect(() => {
+    if (!touched.rate) setRate(marketRates[type]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marketRates]);
 
   // Active goals + their saved totals — read client-side so a user who
   // has logged a partial down-payment toward a goal sees the slip from
@@ -257,7 +293,16 @@ export function PurchaseTool() {
                   onChange={fieldTouch('tenureYears', setTenureYears)}
                   hint={type === 'vehicle' ? 'Longer: you owe more than it’s worth' : 'Longer: lower EMI, more interest'}
                 />
-                <Field label="Rate (%)" value={rate} onChange={fieldTouch('rate', setRate)} hint="From the lender’s offer" />
+                <Field
+                  label="Rate (%)"
+                  value={rate}
+                  onChange={fieldTouch('rate', setRate)}
+                  hint={
+                    !touched.rate && rate === marketRates[type]
+                      ? 'Middle of the big banks’ published rates (May 2026). Use your lender’s offer.'
+                      : 'From the lender’s offer'
+                  }
+                />
               </LFieldGrid>
             </div>
           </div>
@@ -360,7 +405,11 @@ function AnalysisPanel({
               tone: a.downPayment.coverableBySurplus ? undefined : L_T.negative,
             },
             { l: 'EMI', v: fmt(a.loan.monthlyEmi), s: `a month for ${a.loan.tenureYears} years` },
-            { l: 'TOTAL INTEREST', v: fmt(a.loan.totalInterestOverTenure), s: `${pct(a.loan.effectiveAfterTaxRate)} after tax` },
+            {
+              l: 'TOTAL INTEREST',
+              v: fmt(a.loan.totalInterestOverTenure),
+              s: taxSaved >= 1 ? `${pct(a.loan.effectiveAfterTaxRate)} after tax` : `at ${pct(rate / 100)}, no tax break`,
+            },
             {
               l: 'LEFT EACH MONTH',
               v: fmt(a.affordability.surplusAfterEmi),
@@ -453,7 +502,9 @@ function AnalysisPanel({
               ]
             : []),
           ...(taxSaved >= 1 ? [{ k: 'tax saved', v: fmt(taxSaved), note: 'over the loan', tone: 'pos' as const }] : []),
-          { k: 'all in, after tax', v: fmt(a.loan.tcoPostTax), note: 'down payment + EMIs − tax saved' },
+          taxSaved >= 1
+            ? { k: 'all in, after tax', v: fmt(a.loan.tcoPostTax), note: 'down payment + EMIs − tax saved' }
+            : { k: 'all in', v: fmt(a.loan.tcoPostTax), note: 'down payment + EMIs' },
           {
             k: 'left each month',
             v: fmt(a.affordability.surplusAfterEmi),

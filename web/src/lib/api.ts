@@ -520,6 +520,9 @@ export interface CompareResponse {
   months_pulled_forward: string;
   interest_saved: string;
   extra_invested: string;
+  /** Total interest on each side (plan, and plan with the change). */
+  baseline_total_interest?: string | null;
+  scenario_total_interest?: string | null;
 }
 
 export interface NewDebtResponse {
@@ -822,11 +825,29 @@ export interface RestructuringOpportunity {
    *  the modal can mark them cleared and append a new consolidated
    *  personal loan. */
   affected_loan_indices?: number[];
+  /** The user's credit score against what the lender keeps its best rate
+   *  for (`score_needed`); 'unknown' when Profile has no score. */
+  credit_fit?: 'best' | 'higher' | 'unknown';
+  score_needed?: number | null;
+  /** 'plan': the saving uses the balances the plan leaves each month. */
+  saving_basis?: 'plan' | 'today';
+  /** Months until the plan clears the debt, when within the year. */
+  plan_clears_in_months?: number | null;
+}
+
+/** A move the scan found but doesn't recommend, and why. */
+export interface RestructuringHeldBack {
+  kind: RestructuringKind;
+  affected_loan_indices: number[];
+  target_bank: string | null;
+  reason: 'credit_score' | 'plan_clears' | 'costs_more';
+  note: string;
 }
 
 export interface RestructuringResponse {
   opportunities: RestructuringOpportunity[];
   total_annual_saving: string;
+  held_back?: RestructuringHeldBack[];
 }
 
 export interface CrossBorderResponse {
@@ -1089,13 +1110,50 @@ export class ApiFieldError extends Error {
  * together. INTERNAL_API_TOKEN is not a NEXT_PUBLIC_ variable, so it is
  * never built into the browser bundle; in the browser this is empty.
  */
+/** Pure calculations, safe to send twice. Sign-in, account state and
+ *  outcome reports change something and are never retried. */
+function retryable(path: string, method: string): boolean {
+  return (method === 'GET' || !path.startsWith('/api/outcomes')) &&
+    !path.startsWith('/api/auth/') && path !== '/api/user/state';
+}
+
+export const WAKING_MESSAGE =
+  "Couldn't reach the calculator. On the free plan it sleeps when nobody has used it for a while and takes up to a minute to wake. Try again in a moment.";
+
+/**
+ * fetch, but a calculation made from the browser rides out the API waking
+ * up: the hosting answers 502/503 (with no CORS headers, so the browser
+ * says only "Failed to fetch") until it's up. Retries after 2, 4, 8 and
+ * 16 seconds, then says what happened in words.
+ */
+async function apiFetch(path: string, init: RequestInit): Promise<Response> {
+  const method = init.method ?? 'GET';
+  const tries = typeof window !== 'undefined' && retryable(path, method) ? 5 : 1;
+  for (let i = 0; ; i++) {
+    try {
+      const res = await fetch(endpoint(path), init);
+      // The API's own 502 (a rate provider down) comes as JSON and is an
+      // answer; only the host's page while it wakes is worth waiting out.
+      const ours = (res.headers.get('content-type') ?? '').includes('application/json');
+      if (i < tries - 1 && !ours && [502, 503, 504].includes(res.status)) throw new Error(String(res.status));
+      return res;
+    } catch (e) {
+      if (i >= tries - 1) {
+        if (e instanceof TypeError || /^50[234]$/.test((e as Error).message)) throw new Error(WAKING_MESSAGE);
+        throw e;
+      }
+      await new Promise((r) => setTimeout(r, 2000 * 2 ** i));
+    }
+  }
+}
+
 function serverHeaders(): Record<string, string> {
   const token = typeof window === 'undefined' ? process.env.INTERNAL_API_TOKEN : undefined;
   return token ? { 'X-Internal-Token': token } : {};
 }
 
 async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(endpoint(path), {
+  const res = await apiFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
@@ -1129,7 +1187,7 @@ async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
 // ─── thin fetch helper ──────────────────────────────────────────────────────
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(endpoint(path), {
+  const res = await apiFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
@@ -1138,7 +1196,16 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   });
   if (!res.ok) {
     const detail = await res.text();
-    throw new Error(`${path} → ${res.status}: ${detail}`);
+    // Sign-in screens show the server's own words (after the prefix);
+    // a calculation says what went wrong in plain terms.
+    if (path.startsWith('/api/auth/')) throw new Error(`${path} → ${res.status}: ${detail}`);
+    throw new Error(
+      res.status === 429
+        ? 'Too many checks from this connection. Wait a minute and try again.'
+        : res.status === 422
+          ? 'Some of the details could not be read. Check the numbers and try again.'
+          : `The server could not run the check (${res.status}). Try again in a minute.`,
+    );
   }
   // 204 No Content has an empty body — return undefined cast to T.
   if (res.status === 204) return undefined as unknown as T;
@@ -1156,7 +1223,7 @@ function accountHeaders(path: string): Record<string, string> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(endpoint(path), {
+  const res = await apiFetch(path, {
     headers: { ...serverHeaders(), ...accountHeaders(path) },
     cache: 'no-store',
     credentials: requestCredentials(path),
@@ -1166,7 +1233,7 @@ async function get<T>(path: string): Promise<T> {
 }
 
 async function putJson<T>(path: string, body: unknown, method: 'PUT' | 'PATCH' = 'PUT'): Promise<T> {
-  const res = await fetch(endpoint(path), {
+  const res = await apiFetch(path, {
     method,
     headers: { 'Content-Type': 'application/json', ...serverHeaders(), ...accountHeaders(path) },
     body: JSON.stringify(body),
@@ -1323,6 +1390,8 @@ export const api = {
   restructuring: (req: {
     user: UserPayload;
     marginal_rate?: string;
+    /** Each loan's month-end balances under the plan (index → months 1, 2, …). */
+    plan_balances?: Record<number, string[]>;
   }) => post<RestructuringResponse>('/api/restructuring', req),
 
   assetLiquidation: (req: {
@@ -1367,9 +1436,19 @@ export const api = {
   }) => postWithFieldErrors<LiquidationRankingsResponse>('/api/portfolio/liquidation-rankings', req,
   ),
 
-  institutions: (country?: Country) =>
-    get<InstitutionPayload[]>(
-      `/api/institutions${country ? `?country=${country}` : ''}`,
+  /** Bank rate cards. Tier A are the big banks whose advertised ranges
+   *  were checked; B and C were estimated from those peers. */
+  institutions: (country?: Country, tier?: 'A' | 'B' | 'C') => {
+    const q = new URLSearchParams();
+    if (country) q.set('country', country);
+    if (tier) q.set('tier', tier);
+    const qs = q.toString();
+    return get<InstitutionPayload[]>(`/api/institutions${qs ? `?${qs}` : ''}`);
+  },
+  /** Middle of the big banks' published rates for one kind of loan. */
+  marketMedian: (country: Country, loanType: 'home_loan' | 'auto_loan' | 'personal_loan') =>
+    get<{ country: Country; loan_type: string; median: string | null }>(
+      `/api/market-median?country=${country}&loan_type=${loanType}`,
     ),
 
   // ─── auth ─────────────────────────────────────────────────────────────────
@@ -1587,6 +1666,9 @@ export interface SimulateArgs {
    *  `efund_balance < efund_target`; 0 otherwise. Default 0 preserves
    *  legacy "100% surplus → debt" behaviour. */
   ef_top_up_rate?: string;
+  /** The user's monthly total for debts (EMIs + minimums + extra), in
+   *  their currency. Omitted: all spare cash goes to debts. */
+  debt_budget?: string;
   /** True when an active preempting goal exists (e.g. wedding, medical).
    *  The engine routes 100% surplus to the goal_slice in the allocation
    *  response when set. Default false preserves legacy behaviour. */

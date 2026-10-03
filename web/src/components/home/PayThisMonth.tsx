@@ -3,7 +3,7 @@
 /**
  * Home's "Pay this month" register (REDESIGN R2.2): the plan's payments for
  * this month, ticked off where they're shown. MARK PAID records the row in
- * Activity as paid in full; PARTIAL / OTHER takes the amount actually sent
+ * Activity as paid in full; OTHER AMOUNT takes the amount actually sent
  * (or "didn't pay"). A row marked here can be undone here; one logged in
  * Activity is shown as logged and left alone.
  *
@@ -27,7 +27,7 @@ import { MONTH_NAMES_SHORT, localIsoDate } from '@/lib/today';
 import { userDefaultCurrency } from '@/lib/currency';
 import type { PayRow, PayThisMonth as PayData } from '@/lib/pay-this-month';
 import { Field } from '@/components/ToolPrimitives';
-import { LAllocationBar, LBracket, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
+import { LAllocationBar, LBracket, LSectionHeader, L_T, lPayBtn, lStrip } from '@/components/ledger/primitives';
 
 /** Fund and goal ticks, per month: they aren't loan payments, so they
  *  aren't Activity entries. */
@@ -214,6 +214,14 @@ export function PayThisMonth({
       <p style={{ margin: '0 0 10px', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
         What the plan pays this month. Mark each one once it has gone out; it&apos;s recorded in Activity.
       </p>
+      {(data.extraUser > 0 || data.budget > 0) && (
+        <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6 }}>
+          {data.budget > 0
+            ? `Your own total for debts: ${fmt(data.budget)} a month.`
+            : `${fmt(data.extraUser)} of it is extra, from your spare cash: all of it. You choose how much goes to debts.`}{' '}
+          <LBracket href="/plan?set=budget">{data.budget > 0 ? 'CHANGE IT' : 'SET YOUR OWN TOTAL'} →</LBracket>
+        </p>
+      )}
       {alert && (
         <p style={{ margin: '0 0 12px', padding: '8px 12px', fontSize: 12, lineHeight: 1.6, ...lStrip('negative') }}>
           {alert}
@@ -246,14 +254,14 @@ export function PayThisMonth({
                 {String(i + 1).padStart(2, '0')}
               </span>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 700 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>
                   {row.name}
                   {st && (
                     <span
                       style={{
                         marginLeft: 8,
-                        fontSize: 10,
-                        letterSpacing: '0.12em',
+                        fontSize: 11,
+                        letterSpacing: '0.1em',
                         color: st.tag === 'PAID' ? L_T.positive : L_T.negative,
                       }}
                     >
@@ -263,21 +271,21 @@ export function PayThisMonth({
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 10, letterSpacing: '0.1em', color: L_T.muted, marginTop: 3 }}>
+                <div style={{ fontSize: 12, letterSpacing: '0.04em', color: L_T.inkSoft, marginTop: 4, lineHeight: 1.5 }}>
                   {kindLine(row, fmt)}
                   {row.dueDay ? ` · DUE ${row.dueDay} ${MONTH_NAMES_SHORT[Number(month.slice(5)) - 1].toUpperCase()}` : ''}
                 </div>
                 {reason && reason.key === row.key && !st && (
-                  <div style={{ fontSize: 11, color: L_T.muted, marginTop: 4, lineHeight: 1.5 }}>{reason.text}</div>
+                  <div style={{ fontSize: 12, color: L_T.muted, marginTop: 4, lineHeight: 1.5 }}>{reason.text}</div>
                 )}
               </div>
               <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                <div style={{ fontWeight: 700, fontSize: 14, textDecoration: done ? 'line-through' : 'none', color: done ? L_T.muted : L_T.ink }}>
+                <div style={{ fontWeight: 700, fontSize: 18, textDecoration: done ? 'line-through' : 'none', color: done ? L_T.muted : L_T.ink }}>
                   {fmt(row.amount, row.currency)}
                 </div>
-                {foreign && <div style={{ fontSize: 10, color: L_T.muted }}>≈ {fmt(row.amountUser)}</div>}
+                {foreign && <div style={{ fontSize: 11, color: L_T.muted }}>≈ {fmt(row.amountUser)}</div>}
               </div>
-              <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'baseline' }}>
+              <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 {!ready ? null : st ? (
                   st.undoable ? (
                     <LBracket onClick={() => undo(row)} label={`Undo: ${row.name} not paid`}>
@@ -288,13 +296,23 @@ export function PayThisMonth({
                   )
                 ) : open === row.key ? null : (
                   <>
-                    <LBracket active onClick={() => markPaid(row)} label={`Mark ${row.name} paid, ${fmt(row.amount, row.currency)}`}>
-                      {row.loanIndex === null ? 'SET ASIDE' : 'MARK PAID'}
-                    </LBracket>
+                    <button
+                      type="button"
+                      onClick={() => markPaid(row)}
+                      aria-label={`Mark ${row.name} paid, ${fmt(row.amount, row.currency)}`}
+                      style={lPayBtn(true)}
+                    >
+                      {row.loanIndex === null ? `SET ASIDE ${fmt(row.amount, row.currency)}` : `MARK PAID · ${fmt(row.amount, row.currency)}`}
+                    </button>
                     {row.loanIndex !== null && (
-                      <LBracket onClick={() => openOther(row)} label={`Paid a different amount on ${row.name}`}>
-                        PARTIAL / OTHER
-                      </LBracket>
+                      <button
+                        type="button"
+                        onClick={() => openOther(row)}
+                        aria-label={`Paid a different amount on ${row.name}`}
+                        style={lPayBtn(false)}
+                      >
+                        OTHER AMOUNT
+                      </button>
                     )}
                   </>
                 )}
@@ -324,11 +342,13 @@ export function PayThisMonth({
                       error={error}
                     />
                   </div>
-                  <span style={{ display: 'flex', gap: 12, flexWrap: 'wrap', paddingBottom: 8 }}>
-                    <LBracket active onClick={() => saveOther(row)}>
+                  <span style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', paddingBottom: 4 }}>
+                    <button type="button" onClick={() => saveOther(row)} style={lPayBtn(true)}>
                       SAVE
-                    </LBracket>
-                    <LBracket onClick={() => saveOther(row, true)}>I DIDN&apos;T PAY</LBracket>
+                    </button>
+                    <button type="button" onClick={() => saveOther(row, true)} style={lPayBtn(false)}>
+                      I DIDN&apos;T PAY
+                    </button>
                     <LBracket onClick={() => setOpen(null)}>CANCEL</LBracket>
                   </span>
                   <div style={{ flexBasis: '100%', fontSize: 11, color: L_T.muted }}>
@@ -347,24 +367,26 @@ export function PayThisMonth({
           style={{
             display: 'flex',
             justifyContent: 'space-between',
-            padding: '10px 10px 10px 46px',
+            alignItems: 'baseline',
+            padding: '12px 10px 12px 46px',
             borderTop: `2px solid ${L_T.ink}`,
             fontWeight: 700,
             fontSize: 12,
           }}
         >
-          <span style={{ color: L_T.muted, letterSpacing: '0.1em', fontSize: 10, fontWeight: 400 }}>TOTAL THIS MONTH</span>
-          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(data.total)}</span>
+          <span style={{ color: L_T.muted, letterSpacing: '0.1em', fontSize: 11, fontWeight: 400 }}>TOTAL THIS MONTH</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 18 }}>{fmt(data.total)}</span>
         </li>
       </ol>
       {data.rows.length > 1 && (
         <div style={{ marginTop: 14 }}>
-          <div aria-hidden="true" style={{ fontSize: 10, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 6 }}>
-            $ WHERE THIS MONTH&apos;S MONEY GOES
+          <div aria-hidden="true" style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 6 }}>
+            WHERE THIS MONTH&apos;S MONEY GOES
           </div>
           <LAllocationBar
             label="Where this month's money goes"
-            height={24}
+            height={14}
+            legend
             segments={data.rows.map((r, i) => ({
               id: r.key,
               label: r.name,
@@ -380,7 +402,9 @@ export function PayThisMonth({
       )}
       {data.leftOver > 0 && (
         <p style={{ margin: '10px 0 0', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
-          {fmt(data.leftOver)} is left over: no loan costs more than a safe return, so the plan keeps it. Save or invest it.
+          {data.budget > 0
+            ? `${fmt(data.leftOver)} stays with you this month, outside your total for debts.`
+            : `${fmt(data.leftOver)} is left over: no loan costs more than a safe return, so the plan keeps it. Save or invest it.`}
         </p>
       )}
       <div style={{ marginTop: 10 }}>
@@ -392,6 +416,8 @@ export function PayThisMonth({
 
 const BAR = ['#2a2a26', '#5e5e58', '#0a0a0a', '#76766f'];
 
+/** MARK PAID (solid) and OTHER AMOUNT (outline): real buttons, big enough
+ *  to read and hit, not 10px brackets. */
 /** The section when there's nothing to tick: details missing, or no plan. */
 export function PayNotice({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -410,9 +436,11 @@ function kindLine(row: PayRow, fmt: (v: number, ccy?: PayRow['currency']) => str
     case 'minimum':
       return 'CARD MINIMUM';
     case 'extra':
-      return `${row.minimum > 0 ? `${min} ${row.card ? 'MINIMUM' : 'EMI'} + ` : ''}${fmt(row.extra, row.currency)} EXTRA`;
+      return `${row.minimum > 0 ? `${min} ${row.card ? 'MINIMUM' : 'EMI'} + ` : ''}${fmt(row.extra, row.currency)} EXTRA${
+        row.owedAfter ? ` · ${fmt(row.owedAfter, row.currency)} STILL OWED AFTER` : ''
+      }`;
     case 'clears':
-      return 'PAYS IT OFF';
+      return 'PAYS IT OFF, INTEREST INCLUDED';
     case 'ef':
       return 'SET ASIDE · UNTIL THE FUND REACHES ITS TARGET';
     case 'goals':

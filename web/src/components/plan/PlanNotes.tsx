@@ -67,7 +67,7 @@ function buildNotes(plan: PlanData): Note[] {
             : `Paying off the ${loanName(top.loan)} and ${best.name} come out about even`,
       body:
         r.verdict === 'prepay'
-          ? 'What you save on the loan is certain; a saving rate can fall. So spare cash goes to the loan, after an emergency fund.'
+          ? "What you save on the loan is certain; a saving rate can fall. That's why the plan puts spare cash on this loan. If you'd rather keep some cash to hand first, set a monthly total for debts or an emergency fund at the top of the plan."
           : r.verdict === 'invest_safe'
             ? 'This loan is cheap enough that a safe saving rate beats it after tax. The plan still pays it down; the tool shows what parking the cash instead would do.'
             : 'Within half a point either way. Paying the loan is certain; saving keeps the cash to hand.',

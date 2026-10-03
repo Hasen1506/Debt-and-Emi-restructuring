@@ -76,7 +76,7 @@ export function LifeEventForm({
   kinds = ['salary_reset', 'floating_rate_reset', 'property_buy'],
   initialKind,
   initialLoanIndex,
-  dateLabel = 'From',
+  dateLabel = 'Starting from',
   saveLabel,
   onSave,
   onCancel,
@@ -215,7 +215,7 @@ export function LifeEventForm({
               </select>
             </label>
             <div style={{ flex: '1 1 140px', maxWidth: 180 }}>
-              <Field label="New rate" kind="percent" value={newRate} onChange={setNewRate} error={show('newRate')} />
+              <Field label="New rate, % a year" kind="percent" value={newRate} onChange={setNewRate} error={show('newRate')} />
             </div>
           </>
         )}
@@ -265,7 +265,7 @@ export function LifeEventForm({
               />
             </div>
             <div style={{ flex: '1 1 120px', maxWidth: 160 }}>
-              <Field label="Rate" kind="percent" value={draft.nominal_rate} onChange={(v) => setDraft({ ...draft, nominal_rate: v })} error={show('rate')} />
+              <Field label="Interest rate, % a year" kind="percent" value={draft.nominal_rate} onChange={(v) => setDraft({ ...draft, nominal_rate: v })} error={show('rate')} />
             </div>
             <div style={{ flex: '1 1 120px', maxWidth: 160 }}>
               <Field
@@ -277,7 +277,7 @@ export function LifeEventForm({
               />
             </div>
             <div style={{ flex: '1 1 160px' }}>
-              <Field label="EMI" kind="money" currency={ccy} value={draft.scheduled_emi} onChange={(v) => setDraft({ ...draft, scheduled_emi: v })} error={show('emi')} />
+              <Field label="EMI a month" kind="money" currency={ccy} value={draft.scheduled_emi} onChange={(v) => setDraft({ ...draft, scheduled_emi: v })} error={show('emi')} />
             </div>
           </div>
         </>

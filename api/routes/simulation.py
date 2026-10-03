@@ -259,6 +259,7 @@ def _plan_kwargs(req: SimulateRequest | CompareRequest) -> dict:
         ),
         ef_top_up_rate=req.ef_top_up_rate,
         goals=_build_goal_states(req.goals) if req.goals else None,
+        debt_budget=req.debt_budget,
     )
 
 
@@ -380,4 +381,6 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
         months_pulled_forward=diff["months_pulled_forward"],
         interest_saved=diff["interest_saved"],
         extra_invested=diff["extra_invested"],
+        baseline_total_interest=base.total_interest_paid,
+        scenario_total_interest=scenario_result.total_interest_paid,
     )

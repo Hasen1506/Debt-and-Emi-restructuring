@@ -20,10 +20,11 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import Callable, Literal, Optional
 
 from engine.formulas import effective_rate, emi
 from engine.lenders import resolve as resolve_lender
+from engine.loan_check import _inr
 from engine.models import Country, IncomeType, Loan, LoanType, User
 from engine.surplus import loan_currency_or_default, to_user_currency
 from engine.rate_cards import (
@@ -39,13 +40,47 @@ from engine.rate_cards import (
 _COLLATERAL_BACKED = {LoanType.HOME, LoanType.AUTO}
 
 
-def _displayed_rate_for(r: RateRange, loan_type: LoanType, income_type: Optional[IncomeType]) -> Decimal:
+def _displayed_rate_for(
+    r: RateRange, loan_type: LoanType, income_type: Optional[IncomeType],
+    fit: Optional[str] = None,
+) -> Decimal:
     """Pick the realistic indicative rate for `income_type` on `loan_type`:
     salaried → best end; business_owner → mid-of-band on unsecured products,
-    best end on collateral-backed products."""
+    best end on collateral-backed products. A credit score below the range
+    lenders keep their best rate for (`fit == "higher"`) gets the middle of
+    the band too."""
+    if fit == "higher":
+        return r.median
     if income_type == IncomeType.BUSINESS_OWNER and loan_type not in _COLLATERAL_BACKED:
         return r.median
     return r.low
+
+
+# The credit score a lender looks for, by the bureaus' own bands (see
+# engine.credit_score): CIBIL and FICO both start "very good" at 740-750,
+# where lenders keep their advertised best rates. Below the floor an
+# unsecured application (a card transfer, a personal loan) is often
+# declined; a loan against a house or car is judged on the asset as well,
+# so its floor is lower.
+_SCORE_BEST = {Country.IN: 750, Country.US: 740}
+_SCORE_FLOOR = {
+    (Country.IN, False): 700, (Country.IN, True): 650,
+    (Country.US, False): 670, (Country.US, True): 620,
+}
+
+CreditFit = Literal["best", "higher", "unlikely", "unknown"]
+
+
+def credit_fit(score: Optional[int], country: Country, secured: bool) -> CreditFit:
+    """Where the user's score (from Profile; None when not given) sits
+    against what a lender wants for this kind of credit."""
+    if not score:
+        return "unknown"
+    if score >= _SCORE_BEST[country]:
+        return "best"
+    if score >= _SCORE_FLOOR[(country, secured)]:
+        return "higher"
+    return "unlikely"
 from engine.restructuring import (
     BT_NET_SAVING_HURDLE, BT_RATE_THRESHOLD,
     CONSOLIDATION_RATE_THRESHOLD, REFI_RATE_GAP,
@@ -104,6 +139,42 @@ class RestructuringOpportunity:
     breakeven_months: Optional[int] = None
     # Refinance only: interest saved over the rest of the loan, less costs.
     lifetime_net_saving: Optional[Decimal] = None
+    # Where the user's credit score sits against what the lender wants
+    # (credit_fit), and the score its best rate usually goes to.
+    credit_fit: str = "unknown"
+    score_needed: Optional[int] = None
+    # "plan": the saving is worked out on the balances the user's plan
+    # leaves each month; "today": on today's balances held for the year.
+    saving_basis: str = "today"
+    # Months until the plan clears every loan this move is about, when it
+    # does so within the year.
+    plan_clears_in_months: Optional[int] = None
+    # Yearly rate saved before fees, and the months it is saved for (a
+    # transfer promo shorter than a year saves only during the promo).
+    rate_gap: Decimal = D("0")
+    saving_window: int = 12
+    # Rebuilds the headline after the saving changes (see fit_to_plan).
+    retitle: Optional[Callable[["RestructuringOpportunity"], str]] = field(
+        default=None, repr=False, compare=False,
+    )
+
+
+@dataclass
+class HeldBack:
+    """A move the scan found but doesn't recommend, and why: the user's
+    credit score is below what lenders take, or the plan clears the debt
+    before the move would pay for itself."""
+    kind: RecommendationKind
+    affected_loan_indices: list[int]
+    target_bank: Optional[str]
+    reason: Literal["credit_score", "plan_clears", "costs_more"]
+    note: str
+
+
+@dataclass
+class ScanResult:
+    opportunities: list[RestructuringOpportunity]
+    held_back: list[HeldBack]
 
 
 def _country_pool(country: Country) -> list[InstitutionRateCard]:
@@ -185,6 +256,7 @@ def _best_market_rate(
     loan_type: LoanType,
     known: Optional[set[str]] = None,
     income_type: Optional[IncomeType] = None,
+    fit: Optional[str] = None,
 ) -> Optional[tuple[str, Decimal]]:
     """Return (bank_name, displayed_rate) for the cheapest populated Tier-A
     offer of `loan_type`. Used to surface the refi/consolidation target.
@@ -213,7 +285,7 @@ def _best_market_rate(
             r = None
         if r is None:
             continue
-        displayed = _displayed_rate_for(r, loan_type, income_type)
+        displayed = _displayed_rate_for(r, loan_type, income_type, fit)
         if best_rate is None or displayed < best_rate:
             best_rate = displayed
             best_bank = card.name
@@ -224,6 +296,18 @@ def _best_market_rate(
 
 def _fmt_pct(d: Decimal) -> str:
     return f"{(d * D('100')):.2f}%"
+
+
+def _pct_short(d: Decimal) -> str:
+    """'0%', '1.5%': a rate as a bank prints it."""
+    return _fmt_pct(d).rstrip("%").rstrip("0").rstrip(".") + "%"
+
+
+def _money(amount: Decimal, ccy: str) -> str:
+    """'₹5,00,000' in Indian grouping, '$12,000' otherwise."""
+    if ccy == "₹":
+        return _inr(amount)
+    return f"{ccy}{amount:,.0f}"
 
 
 def _breakeven_months(one_time_cost: Decimal, yearly_gross_saving: Decimal) -> Optional[int]:
@@ -259,6 +343,7 @@ def _scan_card_balance_transfer(
     country: Country,
     known: set[str],
     income_type: Optional[IncomeType] = None,
+    fit: CreditFit = "unknown",
 ) -> Optional[RestructuringOpportunity]:
     # Pick the relationship-preferred BT target first; fall back to the
     # overall winner if the user doesn't already have a card with any of
@@ -278,12 +363,15 @@ def _scan_card_balance_transfer(
     ccy = "₹" if country == Country.IN else "$"
     bt_cost = fee_pct * card.outstanding
     bt_breakeven = _breakeven_months(bt_cost, (card_effective - promo_rate) * card.outstanding)
-    headline = (
-        f"Save ~{ccy}{saving_annualised:,.0f} in the first year by moving the "
-        f"{ccy}{card.outstanding:,.0f} on your {card.bank} card to "
-        f"{target_card.name} (cheaper card, {promo_months}-month promo at "
-        f"~{_fmt_pct(cand.effective_bt_apr)})"
-    )
+    card_name = f"{card.bank} card" if card.bank else "card"
+
+    def title(o: RestructuringOpportunity) -> str:
+        return (
+            f"Save ~{_money(o.estimated_annual_saving, ccy)} in the first year by moving the "
+            f"{_money(card.outstanding, ccy)} on your {card_name} to "
+            f"{target_card.name} ({_pct_short(promo_rate)} for {promo_months} months"
+            f"{f' plus a {_pct_short(fee_pct)} fee' if fee_pct > 0 else ''})"
+        )
     rationale = (
         f"Card-to-card transfer. You'd pay roughly {_fmt_pct(cand.effective_bt_apr)} "
         f"on the new card during the {promo_months}-month promo period vs. "
@@ -301,6 +389,7 @@ def _scan_card_balance_transfer(
             "transfers; expect a manual review and a higher chance of decline "
             "or partial-limit approval."
         )
+    rationale += _score_note(fit, country, secured=False, transfer=True)
     # If the relationship pick differs from the overall winner, surface the
     # alternative so the UI can show a dismissable "even cheaper elsewhere".
     alt_bank = alt_rate = alt_saving = None
@@ -313,9 +402,9 @@ def _scan_card_balance_transfer(
             alt_bank = alt_card.name
             alt_rate = alt_eff
             alt_saving = _bt_saving_annualised(card, card_effective, alt_eff, alt_months)
-    return RestructuringOpportunity(
+    opp = RestructuringOpportunity(
         kind="balance_transfer",
-        headline=headline,
+        headline="",
         rationale=rationale,
         estimated_annual_saving=saving_annualised,
         affected_loan_banks=[card.bank],
@@ -337,7 +426,14 @@ def _scan_card_balance_transfer(
         affected_loan_indices=[card_index],
         one_time_cost=bt_cost,
         breakeven_months=bt_breakeven,
+        credit_fit=fit,
+        score_needed=_SCORE_BEST[country],
+        rate_gap=card_effective - promo_rate,
+        saving_window=min(promo_months, 12),
+        retitle=title,
     )
+    opp.headline = title(opp)
+    return opp
 
 
 def _scan_consolidation_opportunity(
@@ -345,6 +441,7 @@ def _scan_consolidation_opportunity(
     effective_rates: dict[int, Decimal],
     known: set[str],
     currency: Optional[str] = None,
+    fit: CreditFit = "unknown",
 ) -> Optional[RestructuringOpportunity]:
     """Look at unsecured high-rate loans (personal + credit card) and see if
     a single consolidated personal loan at market rate would beat the blended
@@ -362,11 +459,11 @@ def _scan_consolidation_opportunity(
     if len(unsecured) < 2:
         return None
     rel_market = (
-        _best_market_rate(market, LoanType.PERSONAL, known, user.income_type)
+        _best_market_rate(market, LoanType.PERSONAL, known, user.income_type, fit)
         if known else None
     )
     overall_market = _best_market_rate(
-        market, LoanType.PERSONAL, known=None, income_type=user.income_type,
+        market, LoanType.PERSONAL, known=None, income_type=user.income_type, fit=fit,
     )
     chosen = rel_market or overall_market
     if chosen is None:
@@ -385,11 +482,12 @@ def _scan_consolidation_opportunity(
     gross = (cand.blended_avg_rate - market_low) * total
     saving = _first_year_saving(gross, consol_cost)
     ccy = "₹" if market == Country.IN else "$"
-    headline = (
-        f"Save ~{ccy}{saving:,.0f} in the first year by combining your {len(cand.loans)} "
-        f"unsecured loans into one personal loan with {target_bank} at "
-        f"~{_fmt_pct(cand.consolidated_rate)}"
-    )
+    def title(o: RestructuringOpportunity) -> str:
+        return (
+            f"Save ~{_money(o.estimated_annual_saving, ccy)} in the first year by combining your {len(cand.loans)} "
+            f"unsecured loans into one personal loan with {target_bank} at "
+            f"~{_fmt_pct(cand.consolidated_rate)}"
+        )
     rationale = (
         f"Right now your {len(cand.loans)} unsecured loans cost a blended "
         f"{_fmt_pct(cand.blended_avg_rate)} per year on average. Rolling them "
@@ -404,6 +502,7 @@ def _scan_consolidation_opportunity(
             "actual offer depends on 3 years of ITR + GST returns + bank-"
             "statement review. Bring documentation up front to avoid re-pricing."
         )
+    rationale += _score_note(fit, market, secured=False)
     alt_bank = alt_rate = alt_saving = None
     if (
         rel_market is not None
@@ -419,9 +518,9 @@ def _scan_consolidation_opportunity(
             alt_saving = _first_year_saving(
                 (cand.blended_avg_rate - alt_displayed) * total, consol_cost,
             )
-    return RestructuringOpportunity(
+    opp = RestructuringOpportunity(
         kind="consolidation",
-        headline=headline,
+        headline="",
         rationale=rationale,
         estimated_annual_saving=saving,
         affected_loan_banks=[l.bank for l in cand.loans],
@@ -450,7 +549,13 @@ def _scan_consolidation_opportunity(
             i for i, l in unsecured_with_idx
             if any(l is cl for cl in cand.loans)
         ],
+        credit_fit=fit,
+        score_needed=_SCORE_BEST[market],
+        rate_gap=cand.blended_avg_rate - market_low,
+        retitle=title,
     )
+    opp.headline = title(opp)
+    return opp
 
 
 def _refi_interest_saved(loan: Loan, new_rate: Decimal) -> Decimal:
@@ -471,6 +576,7 @@ def _scan_refi_opportunity(
     country: Country,
     known: set[str],
     income_type: Optional[IncomeType] = None,
+    fit: CreditFit = "unknown",
 ) -> Optional[RestructuringOpportunity]:
     median = market_median(country, loan.loan_type)
     if median is None:
@@ -478,10 +584,12 @@ def _scan_refi_opportunity(
     # Assume refi costs = 1% of outstanding (processing fee + legal).
     refi_costs = loan.outstanding * D("0.01")
     rel_market = (
-        _best_market_rate(country, loan.loan_type, known, income_type)
+        _best_market_rate(country, loan.loan_type, known, income_type, fit)
         if known else None
     )
-    overall_market = _best_market_rate(country, loan.loan_type, known=None, income_type=income_type)
+    overall_market = _best_market_rate(
+        country, loan.loan_type, known=None, income_type=income_type, fit=fit,
+    )
     chosen = rel_market or overall_market
     target_bank = chosen[0] if chosen else None
     new_rate = chosen[1] if chosen else median
@@ -506,17 +614,18 @@ def _scan_refi_opportunity(
             f"replacing your {loan.bank} {kind_label} with a cheaper one "
             f"from {target_bank or 'another lender'} (~{_fmt_pct(new_rate)})"
         )
-    headline = (
-        f"Save ~{ccy}{net_savings:,.0f} over the rest of the loan "
-        f"(~{ccy}{annual_saving:,.0f} in the first year) by {action}"
-    )
+    def title(o: RestructuringOpportunity) -> str:
+        return (
+            f"Save ~{_money((o.lifetime_net_saving or D('0')), ccy)} over the rest of the loan "
+            f"(~{_money(o.estimated_annual_saving, ccy)} in the first year) by {action}"
+        )
     rationale = (
         f"You're paying {_fmt_pct(loan.nominal_rate)}, which is "
         f"{_fmt_pct(loan.nominal_rate - median)} above what most banks now "
         f"quote ({_fmt_pct(median)}). Switching the loan over saves roughly "
-        f"{ccy}{interest_saved:,.0f} in interest across the remaining tenure, "
-        f"minus about {ccy}{refi_costs:,.0f} in processing and switching fees "
-        f"— a net win of about {ccy}{net_savings:,.0f}."
+        f"{_money(interest_saved, ccy)} in interest across the remaining tenure, "
+        f"minus about {_money(refi_costs, ccy)} in processing and switching fees "
+        f"— a net win of about {_money(net_savings, ccy)}."
     )
     if income_type == IncomeType.BUSINESS_OWNER and loan.loan_type not in _COLLATERAL_BACKED:
         rationale += (
@@ -532,6 +641,7 @@ def _scan_refi_opportunity(
             " Run Loan Check first: part of this gap may be repo-rate cuts "
             "the bank should already have passed on, which cost nothing to claim."
         )
+    rationale += _score_note(fit, country, secured=True)
     alt_bank = alt_rate = alt_saving = None
     if (
         rel_market is not None
@@ -543,9 +653,9 @@ def _scan_refi_opportunity(
         alt_saving = _first_year_saving(
             (loan.nominal_rate - alt_rate) * loan.outstanding, refi_costs,
         )
-    return RestructuringOpportunity(
+    opp = RestructuringOpportunity(
         kind="refinance",
-        headline=headline,
+        headline="",
         rationale=rationale,
         estimated_annual_saving=annual_saving,
         affected_loan_banks=[loan.bank],
@@ -569,7 +679,13 @@ def _scan_refi_opportunity(
         one_time_cost=refi_costs,
         breakeven_months=_breakeven_months(refi_costs, gross),
         lifetime_net_saving=net_savings,
+        credit_fit=fit,
+        score_needed=_SCORE_BEST[country],
+        rate_gap=loan.nominal_rate - new_rate,
+        retitle=title,
     )
+    opp.headline = title(opp)
+    return opp
 
 
 def _latest_verified(country: Country) -> Optional[str]:
@@ -610,15 +726,154 @@ def _in_user_currency(
     return opp
 
 
-def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringOpportunity]:
-    """Run every Layer 1 scan on the user's loan book. Returns opportunities
-    sorted by estimated annual saving, descending."""
+_MOVE = {
+    "balance_transfer": "balance transfer",
+    "consolidation": "consolidation loan",
+    "refinance": "refinance",
+}
+
+# The balance-transfer rationale's closing line when the saving is worked
+# out on today's balance; fit_to_plan swaps it for the plan's.
+_TODAY_LINE = (
+    "This rate-comparison estimate holds today's balance constant; "
+    "paying the card down during the promo reduces the saving."
+)
+_PLAN_LINE = "This uses the balance your plan leaves on the card each month."
+
+
+def _score_note(fit: CreditFit, country: Country, secured: bool, transfer: bool = False) -> str:
+    """One sentence on what the user's credit score means for the offer."""
+    best = _SCORE_BEST[country]
+    if fit == "best":
+        return " Your credit score is in the range lenders keep their best rates for."
+    if fit == "higher":
+        if transfer:
+            return (
+                " At your credit score the bank may approve a smaller limit or "
+                "decline; ask before you apply."
+            )
+        return (
+            " At your credit score lenders usually quote above their best rate, "
+            "so this uses the middle of the bank's range."
+        )
+    if fit == "unknown":
+        return (
+            f" Lenders keep their best rates for credit scores of {best} and up; "
+            "add yours in Profile to see whether it fits."
+        )
+    return ""
+
+
+def _ccy_symbol(country: Country) -> str:
+    return "₹" if country == Country.IN else "$"
+
+
+def fit_to_plan(
+    opp: RestructuringOpportunity,
+    user: User,
+    plan_balances: dict[int, list[Decimal]],
+    country: Country,
+) -> Optional[HeldBack]:
+    """Work the saving out on the balances the user's plan leaves each
+    month (`plan_balances[i]` is loan i's balance at the end of months
+    1, 2, …), not on today's balance held for a year.
+
+    A plan that clears a ₹80,000 card next month leaves almost nothing for
+    a transfer to save, so the move is held back when the plan clears the
+    debt within two months (a transfer or a new loan takes a week or more
+    to go through) or when the fee costs more than it saves. Otherwise the
+    saving, pay-back and headline are rewritten in place. Returns the
+    HeldBack, or None when the opportunity stands."""
+    idx = opp.affected_loan_indices
+    if not idx or any(not plan_balances.get(i) for i in idx):
+        return None
+    paths = [plan_balances[i] for i in idx]
+    start = [user.loans[i].outstanding for i in idx]
+
+    def closing(m: int) -> Decimal:
+        # After the path ends (debt-free, or the horizon) the last value holds.
+        return sum((p[min(m, len(p)) - 1] for p in paths), D("0"))
+
+    def opening(m: int) -> Decimal:
+        return sum(start, D("0")) if m == 1 else closing(m - 1)
+
+    horizon = max(len(p) for p in paths)
+    clears = next((m for m in range(1, horizon + 1) if closing(m) <= D("1")), None)
+    monthly = opp.rate_gap / D("12")
+    gross = sum((monthly * opening(m) for m in range(1, opp.saving_window + 1)), D("0"))
+    cost = opp.one_time_cost
+    saving = gross - cost
+    ccy = _ccy_symbol(country)
+    move = _MOVE[opp.kind]
+    if clears is not None and clears <= 2:
+        # Month 1 of the plan is the current month.
+        when = "this month" if clears == 1 else "by next month"
+        return HeldBack(
+            kind=opp.kind, affected_loan_indices=idx, target_bank=opp.target_bank,
+            reason="plan_clears",
+            note=(
+                f"Your plan pays this off {when}, before a {move} would go "
+                f"through and earn back its {_money(cost, ccy)} fee."
+            ),
+        )
+    if saving <= 0:
+        return HeldBack(
+            kind=opp.kind, affected_loan_indices=idx, target_bank=opp.target_bank,
+            reason="costs_more",
+            note=(
+                f"With your plan's payments a {move} saves about {_money(gross, ccy)} "
+                f"in interest, less than its {_money(cost, ccy)} fee."
+            ),
+        )
+
+    today_gross = monthly * sum(start, D("0")) * D(opp.saving_window)
+    if opp.alternative_annual_saving is not None and today_gross > 0:
+        # The alternative's extra saving shrinks with the balance the same way.
+        extra = (opp.alternative_annual_saving - opp.estimated_annual_saving) * gross / today_gross
+        if extra > 0:
+            opp.alternative_annual_saving = saving + extra
+        else:
+            opp.alternative_target_bank = None
+            opp.alternative_target_rate = None
+            opp.alternative_annual_saving = None
+    opp.estimated_annual_saving = saving
+    opp.saving_basis = "plan"
+    opp.plan_clears_in_months = clears if clears is not None and clears <= 12 else None
+    if cost > 0:
+        earned = D("0")
+        opp.breakeven_months = None
+        for m in range(1, horizon + 1):
+            earned += monthly * opening(m)
+            if earned >= cost:
+                opp.breakeven_months = m
+                break
+    if opp.kind == "refinance" and clears is not None:
+        whole = sum((monthly * opening(m) for m in range(1, clears + 1)), D("0"))
+        opp.lifetime_net_saving = max(D("0"), whole - cost)
+    opp.rationale = opp.rationale.replace(_TODAY_LINE, _PLAN_LINE)
+    if opp.retitle is not None:
+        opp.headline = opp.retitle(opp)
+    return None
+
+
+def scan(
+    user: User,
+    marginal_rate: Decimal = D("0"),
+    plan_balances: Optional[dict[int, list[Decimal]]] = None,
+) -> ScanResult:
+    """Run every Layer 1 scan on the user's loan book.
+
+    Opportunities come back sorted by estimated first-year saving. A move
+    the user's credit score makes unlikely, or that the plan (when
+    `plan_balances` is given) makes pointless, is listed in `held_back`
+    with the reason instead."""
     rates = {
         id(l): effective_rate(l, marginal_rate, user.country, user.tax_regime, user.itemises, user.itemised_share)
         for l in user.loans
     }
     known = _known_banks(user)
-    out: list[RestructuringOpportunity] = []
+    score = user.credit_score
+    found: list[tuple[RestructuringOpportunity, Loan, Country]] = []
 
     # Each loan is matched with lenders in its own currency's market.
     def market(l: Loan) -> Country:
@@ -626,17 +881,21 @@ def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringO
 
     for i, l in enumerate(user.loans):
         if l.loan_type == LoanType.CREDIT_CARD:
+            m = market(l)
             opp = _scan_card_balance_transfer(
-                l, i, rates[id(l)], market(l), known, user.income_type,
+                l, i, rates[id(l)], m, known, user.income_type,
+                credit_fit(score, m, secured=False),
             )
             if opp is not None:
-                out.append(_in_user_currency(opp, l, user))
+                found.append((opp, l, m))
 
     for ccy in sorted({loan_currency_or_default(l, user) for l in user.loans}):
-        consol = _scan_consolidation_opportunity(user, rates, known, ccy)
+        m = _market_for(ccy)
+        consol = _scan_consolidation_opportunity(
+            user, rates, known, ccy, credit_fit(score, m, secured=False),
+        )
         if consol is not None:
-            first = user.loans[consol.affected_loan_indices[0]]
-            out.append(_in_user_currency(consol, first, user))
+            found.append((consol, user.loans[consol.affected_loan_indices[0]], m))
 
     # Refi candidates: home and auto loans (`scan_refinance` accepts only
     # those). Personal loans are covered by consolidation above; cards by
@@ -644,9 +903,42 @@ def scan_all(user: User, marginal_rate: Decimal = D("0")) -> list[RestructuringO
     # win lands on top.
     for i, l in enumerate(user.loans):
         if l.loan_type in (LoanType.HOME, LoanType.AUTO):
-            opp = _scan_refi_opportunity(l, i, market(l), known, user.income_type)
+            m = market(l)
+            opp = _scan_refi_opportunity(
+                l, i, m, known, user.income_type, credit_fit(score, m, secured=True),
+            )
             if opp is not None:
-                out.append(_in_user_currency(opp, l, user))
+                found.append((opp, l, m))
 
-    out.sort(key=lambda o: o.estimated_annual_saving, reverse=True)
-    return out
+    kept: list[RestructuringOpportunity] = []
+    held: list[HeldBack] = []
+    for opp, loan, m in found:
+        if opp.credit_fit == "unlikely":
+            floor = _SCORE_FLOOR[(m, opp.kind == "refinance")]
+            held.append(HeldBack(
+                kind=opp.kind, affected_loan_indices=opp.affected_loan_indices,
+                target_bank=opp.target_bank, reason="credit_score",
+                note=(
+                    f"Lenders seldom approve a {_MOVE[opp.kind]} below a credit "
+                    f"score of about {floor}; yours is {score}. Paying on time and "
+                    f"keeping card use low raises it."
+                ),
+            ))
+            continue
+        if plan_balances is not None:
+            hb = fit_to_plan(opp, user, plan_balances, m)
+            if hb is not None:
+                held.append(hb)
+                continue
+        kept.append(_in_user_currency(opp, loan, user))
+    kept.sort(key=lambda o: o.estimated_annual_saving, reverse=True)
+    return ScanResult(opportunities=kept, held_back=held)
+
+
+def scan_all(
+    user: User,
+    marginal_rate: Decimal = D("0"),
+    plan_balances: Optional[dict[int, list[Decimal]]] = None,
+) -> list[RestructuringOpportunity]:
+    """The opportunities `scan` recommends, biggest first-year saving first."""
+    return scan(user, marginal_rate, plan_balances).opportunities

@@ -118,6 +118,9 @@ def test_sensitivity_surplus_delta(client, india_user_payload):
     # Extra ₹10k/mo of surplus → either more interest saved, or no change if
     # the loan already clears within horizon. interest_saved must be ≥ 0.
     assert D(body["interest_saved"]) >= 0
+    # Both totals come back for What if's before/after bars, and agree with
+    # the saving.
+    assert D(body["baseline_total_interest"]) - D(body["scenario_total_interest"]) == D(body["interest_saved"])
 
 
 def test_sensitivity_rate_shock(client, india_user_payload):
@@ -438,3 +441,16 @@ def test_simulate_shortfall_is_zero_when_covered(client, india_user_payload):
         "user": india_user_payload, "strategy": "avalanche", "horizon_months": 12,
     })
     assert D(r.json()["shortfall"]) == 0
+
+
+def test_debt_budget_is_what_the_plan_pays_each_month(client, india_user_payload):
+    """The user's own monthly total for debts, not all their spare cash."""
+    body = {"user": india_user_payload, "horizon_months": 360}
+    free = client.post("/api/simulate", json=body).json()
+    capped = client.post("/api/simulate", json={**body, "debt_budget": "60000"}).json()
+    assert Decimal(capped["trajectory"][0]["total_paid"]) <= Decimal("60000.01")
+    assert Decimal(free["trajectory"][0]["total_paid"]) > Decimal("60000")
+    assert capped["debt_free_month"] > free["debt_free_month"]
+    # The what-if runs against the same budget.
+    cmp = client.post("/api/sensitivity/compare", json={**body, "debt_budget": "60000", "surplus_delta": "5000"}).json()
+    assert Decimal(cmp["months_pulled_forward"]) > 0

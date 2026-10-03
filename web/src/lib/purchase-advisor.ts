@@ -9,8 +9,8 @@
  * page or embed a verdict card on /plan. The math is deliberately
  * conservative: TCO assumes scheduled EMIs (no avalanche acceleration),
  * tax benefits respect the user's chosen regime without nudging a
- * switch, and depreciation warnings surface for vehicles regardless of
- * country.
+ * switch, and vehicles get a depreciation warning in both countries, from
+ * each country's published value table.
  *
  * Country + regime gating:
  *   • IN old regime: home loan Sec 24(b) ₹2L/yr cap on interest.
@@ -267,7 +267,12 @@ export function analyzePurchase(input: PurchaseInput): PurchaseAnalysis {
         : null,
   };
 
-  const warnings = buildWarnings(input, monthsToTarget);
+  const warnings = buildWarnings(input, monthsToTarget, {
+    principal,
+    monthlyEmi,
+    months: n,
+    downPct,
+  });
   const notes = buildNotes(input, taxResult);
 
   return {
@@ -428,18 +433,69 @@ function computeTaxBenefit(args: {
 
 // ─── Warnings + notes ──────────────────────────────────────────────────────
 
-function buildWarnings(input: PurchaseInput, monthsToTarget: number): string[] {
+/**
+ * Share of the price a vehicle has lost by a given age in months, as
+ * (month, share) points with straight lines between them.
+ *   • IN: IRDAI's IDV depreciation table, which insurers use to value a
+ *     vehicle: 5% up to 6 months, 15% by 1 year, 20% by 2, 30% by 3,
+ *     40% by 4, 50% by 5.
+ *   • US: Carfax: over 10% in the first month, about 20% in the first
+ *     year, worth about 40% of the price after 5 years.
+ * Past 5 years both carry on at 10 points a year, the pace of years 2–5,
+ * and stop at 90%.
+ */
+const VEHICLE_VALUE_LOST: Record<Country, Array<[number, number]>> = {
+  IN: [[0, 0], [6, 0.05], [12, 0.15], [24, 0.2], [36, 0.3], [48, 0.4], [60, 0.5]],
+  US: [[0, 0], [1, 0.1], [12, 0.2], [60, 0.6]],
+};
+
+function valueLost(country: Country, month: number): number {
+  const pts = VEHICLE_VALUE_LOST[country];
+  const [lastM, lastShare] = pts[pts.length - 1];
+  if (month >= lastM) return Math.min(0.9, lastShare + ((month - lastM) / 12) * 0.1);
+  for (let i = 1; i < pts.length; i++) {
+    const [m0, s0] = pts[i - 1];
+    const [m1, s1] = pts[i];
+    if (month <= m1) return s0 + ((month - m0) / (m1 - m0)) * (s1 - s0);
+  }
+  return lastShare;
+}
+
+/** How many months from the start the loan balance is above the
+ *  vehicle's value by the table above (0 when it never is). */
+function monthsUnderwater(
+  input: PurchaseInput,
+  loan: { principal: number; monthlyEmi: number; months: number },
+): number {
+  const r = input.loanRateAnnual / 12;
+  let balance = loan.principal;
+  let last = 0;
+  for (let m = 1; m <= loan.months && balance > 0; m++) {
+    balance = Math.max(0, balance * (1 + r) - loan.monthlyEmi);
+    if (balance > input.price * (1 - valueLost(input.country, m))) last = m;
+  }
+  return last;
+}
+
+function buildWarnings(
+  input: PurchaseInput,
+  monthsToTarget: number,
+  loan: { principal: number; monthlyEmi: number; months: number; downPct: number },
+): string[] {
   const w: string[] = [];
   if (monthsToTarget <= 0) {
     w.push('Buying this month means the down payment has to be in hand now.');
   }
   if (input.type === 'vehicle') {
     w.push(
-      'Cars and bikes lose value fast: often 15–25% in the first year and about half by year 5. On a long loan you can owe more than it is worth.',
+      input.country === 'IN'
+        ? 'Cars and bikes lose value fast: insurers count one as 15% below its price after a year and half by year 5 (IRDAI’s value table).'
+        : 'Cars lose value fast: about 20% in the first year and about 60% in five (Carfax).',
     );
-    if ((input.loanTenureYears ?? DEFAULT_TENURE_YEARS.vehicle) > 5) {
+    const months = monthsUnderwater(input, loan);
+    if (months > 0) {
       w.push(
-        'Over 5 years, you would owe more than it is worth for most of the loan.',
+        `With ${Math.round(loan.downPct * 100)}% down, you would owe more than it is worth for the first ${months} month${months === 1 ? '' : 's'} of the loan: selling it then wouldn't clear what you owe.`,
       );
     }
   }

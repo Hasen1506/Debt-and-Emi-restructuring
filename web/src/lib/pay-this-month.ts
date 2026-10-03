@@ -33,6 +33,9 @@ export interface PayRow {
   extra: number;
   /** Cards: the day of the month the bill is due, when it's on file. */
   dueDay?: number;
+  /** What the loan still owes after this month's interest and payment
+   *  (its currency), when the engine reports it. */
+  owedAfter?: number;
 }
 
 export interface PayThisMonth {
@@ -40,8 +43,12 @@ export interface PayThisMonth {
   /** Every row, in the user's currency. */
   total: number;
   /** Surplus the plan leaves unplaced this month (no loan costs more than
-   *  a safe return), in the user's currency. */
+   *  a safe return, or the user's own total for debts), in their currency. */
   leftOver: number;
+  /** The extra on top of EMIs and minimums, in the user's currency. */
+  extraUser: number;
+  /** The user's own monthly total for debts; 0 = all spare cash. */
+  budget: number;
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -51,6 +58,8 @@ export function payThisMonth(plan: PlanData): PayThisMonth | null {
   if (!plan.live) return null;
   const first = plan.monthlyPayments.find((p) => p.month === 1);
   if (!first) return null;
+  // What each loan still owes once this month's interest and payment are in.
+  const after = plan.trajectory.find((p) => p.month === 1)?.balancesByLoanIndex;
   const { loans, country } = plan.user;
   const userCcy = userDefaultCurrency(country);
   const loanRows: PayRow[] = [];
@@ -62,9 +71,13 @@ export function payThisMonth(plan: PlanData): PayThisMonth | null {
     if (!loan || !(amount >= 1)) continue;
     const minimum = Math.min(amount, Math.round(Number(plan.firstMonthMinimums[index] ?? 0)));
     const extra = amount - minimum;
-    // The balance the plan started from (after logged activity): a payment
-    // at least that big pays the loan off this month.
-    const clears = paid >= Number(loan.outstanding || 0) - 0.5;
+    // Paid off only when the engine leaves nothing owing after this month's
+    // interest. Against the opening balance, ₹80,500 on an ₹80,000 card
+    // looked like a payoff while the interest kept ₹2,300 owing.
+    const owedAfter = after?.[index];
+    const clears = owedAfter != null
+      ? Number(owedAfter) <= 0.5
+      : paid >= Number(loan.outstanding || 0) - 0.5;
     const isCard = loan.loan_type === 'credit_card';
     loanRows.push({
       key: loan.id ?? `loan-${index}`,
@@ -78,6 +91,7 @@ export function payThisMonth(plan: PlanData): PayThisMonth | null {
       minimum,
       extra: extra >= 1 ? extra : 0,
       ...(isCard && loan.due_day ? { dueDay: loan.due_day } : {}),
+      ...(owedAfter != null ? { owedAfter: Math.max(0, Math.round(Number(owedAfter))) } : {}),
     });
   }
   // Extra payments first (largest first, in one currency: ₹4.8 lakh is not
@@ -105,5 +119,5 @@ export function payThisMonth(plan: PlanData): PayThisMonth | null {
   const unplaced = surplus - extrasUser - ef - goals;
   // Rounding leaves a few rupees either way; only a real remainder is shown.
   const leftOver = unplaced >= Math.max(1, surplus * 0.01) ? unplaced : 0;
-  return { rows, total, leftOver };
+  return { rows, total, leftOver, extraUser: extrasUser, budget: Number(plan.debtBudget || 0) };
 }

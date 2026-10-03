@@ -15,7 +15,8 @@ from engine.decisions import (
     cash_yield_check, right_time_to_borrow, right_time_from_odds, MeetingMoves, money,
 )
 from engine.formulas import effective_rate
-from engine.models import Country, FilingStatusUS
+from engine.models import Country, FilingStatusUS, TaxRegimeIN
+from engine.tax.india import marginal_rate as india_marginal_rate
 from engine.simulation import simulate_plan
 from engine.surplus import to_user_currency, loan_currency_or_default
 
@@ -173,7 +174,10 @@ def cash_yield(req: CashYieldRequest) -> CashYieldResponse:
 def borrow_timing(req: BorrowTimingRequest) -> BorrowTimingResponse:
     if req.consensus_change_bps is not None:
         if req.months_to_decision is None:
-            raise HTTPException(422, "months_to_decision is needed with consensus_change_bps.")
+            raise HTTPException(422, detail={
+                "field": "months_to_decision",
+                "message": "months_to_decision: needed with consensus_change_bps.",
+            })
         verdict = right_time_to_borrow(
             current_rate=req.current_rate,
             six_month_avg=req.six_month_avg if req.six_month_avg is not None else req.current_rate,
@@ -235,6 +239,31 @@ def asset_liquidation(req: AssetLiquidationRequest) -> AssetLiquidationResponse:
         tax_notes = [sold.explanation, *sold.caveats]
         if not req.state_marginal_rate:
             tax_notes.append("No state income tax included: add your state rate in Setup if you pay one.")
+    elif asset.asset_type != "real_estate":
+        # Shares, funds, gold, deposits: each has its own holding period,
+        # exemption and rate (the ones the ranker uses). The property rules
+        # below (24 months, indexation, stamp-duty selling costs) taxed a
+        # share sale opened from the ranker as if it were a flat.
+        marginal = (
+            req.marginal_rate
+            if req.marginal_rate is not None
+            else india_marginal_rate(req.taxable_income, TaxRegimeIN.NEW)
+        )
+        sold = compute_liquidation_proceeds(
+            replace(asset, current_market_value=req.sale_price),
+            today=date.today(),
+            country=Country.IN,
+            taxable_income=req.taxable_income,
+            marginal_rate=marginal,
+            state=asset.state,
+        )
+        if sold.is_blocked:
+            raise HTTPException(status_code=400, detail=sold.block_reason or sold.explanation)
+        net_proceeds, ltcg_tax = sold.net_proceeds, sold.tax_owed
+        selling_cost_pct = (
+            sold.transaction_costs / req.sale_price if req.sale_price > 0 else D("0")
+        )
+        tax_notes = [sold.explanation, *sold.caveats]
     else:
         state = asset.state or "Maharashtra"        # default for selling-cost lookup
         try:

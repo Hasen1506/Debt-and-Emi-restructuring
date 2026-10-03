@@ -7,6 +7,8 @@
  * card dates, fees, holdings) lives in Profile, and is kept untouched when a
  * saved profile is edited here.
  */
+import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
+import { SAFE_RATES } from '@/lib/invest-vs-prepay';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
@@ -294,7 +296,7 @@ export function QuickSetup() {
       investment_options: [
         {
           name: country === 'IN' ? 'Liquid fund' : 'HYSA',
-          expected_return: country === 'IN' ? '0.068' : '0.045',
+          expected_return: country === 'IN' ? SAFE_RATES.liquid_in.rate : SAFE_RATES.hysa_us.rate,
           liquidity_class: 'liquid',
           is_in_pool: true,
         },
@@ -307,7 +309,7 @@ export function QuickSetup() {
       ...(sameCountry
         ? {}
         : {
-            inflation_rate: country === 'IN' ? '0.046' : '0.025',
+            inflation_rate: INFLATION_FORECAST[country].rate,
             hike_effective_month: FY_ANCHOR_MONTH[country],
             state_marginal_rate: undefined,
           }),
@@ -435,7 +437,7 @@ export function QuickSetup() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 760 }}>
         <header>
           <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
-            $ SETUP · 3 STEPS · ABOUT 2 MINUTES
+            SETUP · 3 STEPS · ABOUT 2 MINUTES
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>
             {prev ? 'Update your numbers' : 'Your loans, and a plan to clear them'}

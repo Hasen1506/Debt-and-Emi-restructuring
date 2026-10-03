@@ -1,10 +1,13 @@
 'use client';
 
+import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
+import { SAFE_RATES } from '@/lib/invest-vs-prepay';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/Card';
 import { BankCombobox, Field, Select } from '@/components/ToolPrimitives';
 import { LBracket, LButton, LShell, L_T } from '@/components/ledger/primitives';
+import { previousPage } from '@/lib/nav-trail';
 import { PROFILE_SECTIONS, ProfileSummary } from '@/components/profile/ProfileSummary';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { RateRangeHint } from '@/components/RateRangeHint';
@@ -182,6 +185,7 @@ export function ProfileClient({ payoffOrder }: { payoffOrder: ReactNode }) {
       }}
       onDone={done}
       payoffOrder={payoffOrder}
+      focus={searchParams.get('focus')}
     />
   );
 }
@@ -192,16 +196,30 @@ function ProfileEditor({
   onOpen,
   onDone,
   payoffOrder,
+  focus,
 }: {
   section: number | null;
   saved: boolean;
   onOpen: (n: number) => void;
   onDone: (saved: boolean) => void;
   payoffOrder: ReactNode;
+  /** A field to scroll to and focus, from `?focus=` ("hike"). */
+  focus?: string | null;
 }) {
   // -1 while the summary shows: no form section is open.
   const step = section ?? -1;
   const [ready, setReady] = useState(false);
+  // The page the user came from ("Plan"), for a way back to it.
+  const [back, setBack] = useState<{ href: string; name: string } | null>(null);
+  useEffect(() => setBack(previousPage('/profile')), []);
+  // A link that names a field (?focus=hike) lands on it, not the top.
+  useEffect(() => {
+    if (!ready || !focus || section === null) return;
+    const box = document.getElementById(`pf-${focus}`);
+    if (!box) return;
+    box.scrollIntoView({ block: 'center' });
+    box.querySelector<HTMLElement>('input, select')?.focus({ preventScroll: true });
+  }, [ready, focus, section]);
 
   // ─── form state ─────────────────────────────────────────────────────────
   // Both optional. We never gate the flow on them — the "You" step is a soft
@@ -571,7 +589,7 @@ function ProfileEditor({
       investment_options: [
         {
           name: country === 'IN' ? 'Liquid fund' : 'HYSA',
-          expected_return: country === 'IN' ? '0.068' : '0.045',
+          expected_return: country === 'IN' ? SAFE_RATES.liquid_in.rate : SAFE_RATES.hysa_us.rate,
           liquidity_class: 'liquid',
           is_in_pool: true,
         },
@@ -587,7 +605,7 @@ function ProfileEditor({
           num(rate, '0'),
         ] as [number, number, string])
         .filter(([f, t, r]) => f > 0 && t > f && Number(r) >= 0),
-      inflation_rate: country === 'IN' ? '0.046' : '0.025',
+      inflation_rate: INFLATION_FORECAST[country].rate,
       is_nri_us: isNriUs,
       // Only the currencies still in use, at the rate entered above.
       fx_to_user_currency: Object.fromEntries(
@@ -763,12 +781,19 @@ function ProfileEditor({
     return (
       <LShell>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 820 }}>
+          {back && <BackLink back={back} />}
           <ProfileHeader title="Your profile">
             Everything the plan uses. Change a part with its [EDIT]; the rest stays as it is.
           </ProfileHeader>
           {justSaved && (
             <p role="status" style={{ margin: 0, padding: '8px 12px', border: `1px solid ${L_T.positive}`, color: L_T.positive }}>
               Saved. Home and Plan use the new numbers.
+              {back && (
+                <>
+                  {' '}
+                  <LBracket href={back.href}>{`BACK TO ${back.name.toUpperCase()} →`}</LBracket>
+                </>
+              )}
             </p>
           )}
           <ProfileSummary
@@ -786,9 +811,12 @@ function ProfileEditor({
   return (
     <LShell>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 820 }}>
+      {back && <BackLink back={back} />}
       <ProfileHeader title={PROFILE_SECTIONS[step] ?? 'Your profile'} editing>
-        Change what you need and save. Sections you don&apos;t open stay as they are.
+        Change what you need and save. You can move between parts first;
+        Save keeps every change, Cancel drops them all.
       </ProfileHeader>
+      <SectionTabs step={step} onOpen={onOpen} onAll={() => onDone(false)} />
 
       <Card>
         {step === 0 && (
@@ -852,7 +880,7 @@ function ProfileEditor({
 
         {step === 1 && (
           <div style={{ display: 'grid', gap: 12 }}>
-            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
               <Select
                 label="Country"
                 value={country}
@@ -902,7 +930,7 @@ function ProfileEditor({
         )}
 
         {step === 2 && (
-          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
             <Select
               label="Income type"
               value={incomeType}
@@ -1106,39 +1134,7 @@ function ProfileEditor({
                 </div>
               </>
             )}
-            <BankCombobox
-              label="Primary bank"
-              value={primaryBank}
-              onChange={setPrimaryBank}
-              country={country}
-              info={
-                <>
-                  Your salary account. <strong>Doesn't affect the math</strong> —
-                  used by Tools › Cash-yield to suggest sweep / liquid-fund
-                  options for the bank you already use.
-                </>
-              }
-            />
-            <div style={{ gridColumn: '1 / -1' }}>
-              <OtherBanksField
-                country={country}
-                primaryBank={primaryBank}
-                value={otherBanks}
-                onAdd={(name) => {
-                  const trimmed = name.trim();
-                  if (!trimmed) return;
-                  if (trimmed === primaryBank) return;
-                  if (otherBanks.includes(trimmed)) return;
-                  setOtherBanks([...otherBanks, trimmed]);
-                  setNewOtherBank('');
-                }}
-                onRemove={(name) =>
-                  setOtherBanks(otherBanks.filter((b) => b !== name))
-                }
-                draft={newOtherBank}
-                onDraftChange={setNewOtherBank}
-              />
-            </div>
+            <div id="pf-hike">
             <Field
               label="Expected annual income hike (%)"
               kind="percent"
@@ -1156,6 +1152,7 @@ function ProfileEditor({
                 </>
               }
             />
+            </div>
             <Select
               label="Hike applies in"
               value={String(hikeEffectiveMonth)}
@@ -1294,7 +1291,7 @@ function ProfileEditor({
                 style={{
                   display: 'grid',
                   gap: 12,
-                  gridTemplateColumns: '1fr 1fr',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))',
                   padding: 12,
                   border: '1px solid var(--border)',
                   borderRadius: 6,
@@ -1389,6 +1386,7 @@ function ProfileEditor({
                     }
                   />
                 </div>
+                {l.loan_type !== 'credit_card' && (
                 <Select
                   label="Rate type"
                   value={l.rate_type}
@@ -1425,6 +1423,7 @@ function ProfileEditor({
                     </>
                   }
                 />
+                )}
                 {(l.loan_type === 'personal_loan' ||
                   l.loan_type === 'auto_loan' ||
                   l.loan_type === 'gold_loan' ||
@@ -1550,6 +1549,8 @@ function ProfileEditor({
                     />
                   </>
                 )}
+                {l.loan_type !== 'credit_card' && (
+                  <>
                 <Field
                   label="Prepayment penalty (%)"
                   kind="percent"
@@ -1644,6 +1645,8 @@ function ProfileEditor({
                     </>
                   }
                 />
+                  </>
+                )}
                 {l.loan_type === 'home_loan' && (
                   <Field
                     label="Pre-EMI months remaining"
@@ -1735,7 +1738,7 @@ function ProfileEditor({
                 )}
                 {l.loan_type === 'credit_card' && (
                   <Field
-                    label="Spend you'll carry (not what you'll repay in full)"
+                    label="New spending you won't clear each month"
                     kind="money"
                     currency={loanCurrency(l, country)}
                     value={l.expected_monthly_spend ?? ''}
@@ -1743,7 +1746,7 @@ function ProfileEditor({
                       updateLoan(i, { expected_monthly_spend: v })
                     }
                     placeholder="0"
-                    hint="Set 0 if you pay the statement in full each month — most users with surplus do."
+                    hint="0 if you pay each statement in full"
                     info={
                       <>
                         <strong>What this is.</strong> Only the slice of new
@@ -1801,7 +1804,7 @@ function ProfileEditor({
                       });
                     }}
                     placeholder="e.g. 5"
-                    hint="Day-of-month your statement is generated"
+                    hint="The day of the month it's made"
                     info={
                       <>
                         The day each month your bank generates the bill for
@@ -1819,14 +1822,14 @@ function ProfileEditor({
                 )}
                 {l.loan_type === 'credit_card' && (
                   <Field
-                    label="Last 6 digits (optional)"
+                    label="Last digits of the card (optional)"
                     value={l.card_last_6 ?? ''}
                     onChange={(v) => {
                       const digits = v.replace(/\D/g, '').slice(0, 6);
                       updateLoan(i, { card_last_6: digits || undefined });
                     }}
-                    placeholder="e.g. 654657"
-                    hint="Helps you tell two cards apart on /portfolio"
+                    placeholder="e.g. 4657"
+                    hint="Tells two cards apart in your lists"
                     info={
                       <>
                         Optional — purely a UI label. We mask the rest of the
@@ -1845,7 +1848,7 @@ function ProfileEditor({
                       updateLoan(i, { cardholder_name: v || undefined })
                     }
                     placeholder="As printed on card"
-                    hint="Disambiguates personal vs joint cards"
+                    hint="Tells a joint card from your own"
                   />
                 )}
                 {l.loan_type === 'credit_card' && l.statement_day != null && (
@@ -1891,12 +1894,14 @@ function ProfileEditor({
                     }
                   />
                 )}
+                {l.loan_type !== 'credit_card' && (
+                  <>
                 <Field
                   label="Processing fee a year (%, optional)"
                   kind="percent"
                   value={l.processing_fee_amortised ?? ''}
                   onChange={(v) => updateLoan(i, { processing_fee_amortised: v })}
-                  hint="Spread over the loan's life, e.g. 0.5. Leave blank for cards."
+                  hint="Spread over the loan's life, e.g. 0.5"
                   info={
                     <>
                       One-time processing fee, amortised across the loan's
@@ -1928,6 +1933,8 @@ function ProfileEditor({
                     </>
                   }
                 />
+                  </>
+                )}
                 <div style={{ gridColumn: '1 / -1' }}>
                   <EffectiveAprBreakdown
                     loan={l}
@@ -2006,8 +2013,43 @@ function ProfileEditor({
 
         {step === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div id="pf-banks" style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+                <BankCombobox
+                  label="Primary bank"
+                  value={primaryBank}
+                  onChange={setPrimaryBank}
+                  country={country}
+                  info={
+                    <>
+                      Your salary account. <strong>Doesn't affect the math</strong> —
+                      used by Spare cash to suggest a sweep or liquid fund at the
+                      bank you already use.
+                    </>
+                  }
+                />
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <OtherBanksField
+                    country={country}
+                    primaryBank={primaryBank}
+                    value={otherBanks}
+                    onAdd={(name) => {
+                      const trimmed = name.trim();
+                      if (!trimmed) return;
+                      if (trimmed === primaryBank) return;
+                      if (otherBanks.includes(trimmed)) return;
+                      setOtherBanks([...otherBanks, trimmed]);
+                      setNewOtherBank('');
+                    }}
+                    onRemove={(name) =>
+                      setOtherBanks(otherBanks.filter((b) => b !== name))
+                    }
+                    draft={newOtherBank}
+                    onDraftChange={setNewOtherBank}
+                  />
+                </div>
+            </div>
             {cashAccounts.length === 0 && (
-              <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+              <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
                 <Field
                   label="Total savings balance"
                   kind="money"
@@ -2195,7 +2237,7 @@ function ProfileEditor({
               </div>
             )}
 
-            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
               <Field
                 label="Emergency fund — current"
                 kind="money"
@@ -2267,7 +2309,7 @@ function ProfileEditor({
               country={country}
               fxRates={fxRates}
             />
-            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+            <div id="pf-credit" style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
               <Field
                 label="Current credit score (optional)"
                 value={creditScore}
@@ -2281,20 +2323,22 @@ function ProfileEditor({
                   country === 'IN' ? (
                     <>
                       <strong>India:</strong> CIBIL or Experian, range 300-900.
-                      Used only to flag which tool actions might affect your
-                      score — never to gate features. Skip if you don't know it.
+                      Used to judge which cheaper-rate offers a lender would
+                      likely give you, and to flag which actions might affect
+                      your score. Skip if you don&apos;t know it.
                     </>
                   ) : (
                     <>
                       <strong>US:</strong> FICO or VantageScore, range 300-850.
-                      Used only to flag which tool actions might affect your
-                      score — never to gate features. Skip if you don't know it.
+                      Used to judge which cheaper-rate offers a lender would
+                      likely give you, and to flag which actions might affect
+                      your score. Skip if you don&apos;t know it.
                     </>
                   )
                 }
               />
               <div className="muted" style={{ fontSize: 12, alignSelf: 'end' }}>
-                Used for the score-impact chips on each tool. Skip if you don't know it.
+                Cheaper rates on Home use it to leave out offers lenders seldom give at your score. Skip if you don&apos;t know it.
               </div>
             </div>
           </div>
@@ -2328,11 +2372,56 @@ function ProfileEditor({
   );
 }
 
+/** "← Back to Plan": the page the user opened Profile from. */
+function BackLink({ back }: { back: { href: string; name: string } }) {
+  return (
+    <div>
+      <LBracket href={back.href} style={{ fontSize: 12 }}>{`← BACK TO ${back.name.toUpperCase()}`}</LBracket>
+    </div>
+  );
+}
+
+/** Every part of the profile, one tap away while editing; the first
+ *  shows the whole profile again. Moving between parts keeps edits. */
+function SectionTabs({ step, onOpen, onAll }: { step: number; onOpen: (n: number) => void; onAll: () => void }) {
+  const tab = (on: boolean): React.CSSProperties => ({
+    fontFamily: 'inherit',
+    fontSize: 11,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    padding: '8px 12px',
+    minHeight: 36,
+    border: `1px solid ${on ? L_T.ink : L_T.ruleSoft}`,
+    background: on ? L_T.ink : L_T.paper,
+    color: on ? L_T.bg : L_T.ink,
+    fontWeight: on ? 700 : 500,
+    cursor: 'pointer',
+    textDecoration: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+  });
+  return (
+    <nav aria-label="Parts of your profile" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      <button type="button" style={tab(false)} onClick={onAll}>
+        ← WHOLE PROFILE
+      </button>
+      {PROFILE_SECTIONS.map((name, n) => (
+        <button key={name} type="button" style={tab(n === step)} aria-current={n === step ? 'step' : undefined} onClick={() => onOpen(n)}>
+          {SECTION_TAB[n] ?? name}
+        </button>
+      ))}
+      <a href="/profile/assets" style={tab(false)}>WHAT YOU OWN</a>
+    </nav>
+  );
+}
+
+const SECTION_TAB = ['YOU', 'COUNTRY AND TAX', 'INCOME', 'LOANS', 'SAVINGS AND BANKS'];
+
 function ProfileHeader({ title, editing, children }: { title: string; editing?: boolean; children: React.ReactNode }) {
   return (
     <header>
       <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
-        $ PROFILE{editing ? ' · EDIT' : ''}
+        PROFILE{editing ? ' · EDIT' : ''}
       </div>
       <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>{title}</h1>
       <p style={{ color: L_T.muted, margin: '8px 0 0', lineHeight: 1.6 }}>{children}</p>
@@ -2850,7 +2939,7 @@ function AdvancedTaxDetails({
         style={{
           display: 'grid',
           gap: 12,
-          gridTemplateColumns: '1fr 1fr',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))',
           marginTop: 10,
           padding: '10px 12px',
           border: '1px dashed var(--border)',
@@ -3159,9 +3248,8 @@ function TenureField({
             background: 'var(--soft-bg)',
           }}
         >
-          Credit cards don&apos;t have a fixed tenure — they revolve until
-          cleared. The bank&apos;s min-payment formula drives the trajectory;
-          /plan will show how many months you&apos;d need to clear.
+          A card has no end date: it runs until it&apos;s cleared. Plan
+          shows how many months that takes at what you pay.
         </div>
       </div>
     );
@@ -3248,15 +3336,13 @@ function TenureField({
           <>
             ≈ <strong>{derived}</strong> months at this EMI
             <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-              Computed from outstanding + rate + EMI. Most people don&apos;t
-              know their tenure off the top of their head — only banks do —
-              so we work it out from the three numbers above.
+              Worked out from the balance, rate and EMI above.
             </div>
           </>
         ) : (
           <>
-            <em>Fill outstanding, rate, and EMI above</em> — we&apos;ll
-            compute remaining months for you. No need to know it.
+            <em>Fill in the balance, rate and EMI above</em> and the months
+            left are worked out for you.
           </>
         )}
       </div>
@@ -3451,32 +3537,40 @@ function MinPaymentExplainer({
         <div>
           {explanation.source === 'bank' ? (
             <>
-              <strong>{explanation.bank}</strong> uses{' '}
-              <em>{explanation.formula}</em>. At your current outstanding that
-              works out to roughly <strong>{estimatedLabel}</strong>/month — and
-              that&apos;s what we treat as the floor when projecting your plan.
+              <strong>{explanation.bank}</strong> asks for{' '}
+              <em>{explanation.formula}</em>: about{' '}
+              <strong>{estimatedLabel}</strong> a month at today&apos;s
+              balance. The plan always pays at least this.
             </>
           ) : (
             <>
-              We don&apos;t have a formula specific to{' '}
-              <strong>{explanation.bank}</strong>, so we fall back to the
-              country default: <em>{explanation.formula}</em>. That&apos;s about{' '}
-              <strong>{estimatedLabel}</strong>/month at your current
-              outstanding — used as the floor unless you override it below.
+              {explanation.bank ? (
+                <>
+                  No rule on file for <strong>{explanation.bank}</strong>, so
+                  the usual one:{' '}
+                </>
+              ) : (
+                <>With no bank picked, the usual rule: </>
+              )}
+              <em>{explanation.formula}</em>. That&apos;s about{' '}
+              <strong>{estimatedLabel}</strong> a month at today&apos;s
+              balance; the plan pays at least this unless you enter your
+              statement&apos;s figure below.
             </>
           )}
         </div>
       </div>
       <Field
-        label="Override minimum payment (optional)"
+        label="Minimum on your statement (optional)"
         kind="money"
         currency={loanCurrency(loan, country)}
+        placeholder={estimatedLabel}
         value={loan.min_payment_override ?? ''}
         onChange={onOverrideChange}
         hint={
           loan.min_payment_override
             ? `Replaces the ${estimatedLabel} estimate above.`
-            : 'Leave blank to use the formula above. Fill in only if your statement shows a different number.'
+            : 'Blank: the rule above'
         }
       />
     </div>

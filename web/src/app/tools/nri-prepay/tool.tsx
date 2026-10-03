@@ -393,7 +393,7 @@ export function NriPrepayTool() {
                     value={manualDrift}
                     error={at('manualDrift')}
                     onChange={setManualDrift}
-                    hint={`Above 0: ${loanCurrency} gets stronger. Blank: its long-run trend (INR has weakened ~3% a year against USD).`}
+                    hint={`Above 0: ${loanCurrency} gets stronger. Blank: the last 20 years' trend (the rupee has lost 2% to 4.5% a year, depending on the currency).`}
                   />
                 </div>
               )}
@@ -502,7 +502,7 @@ export function NriPrepayTool() {
             ...(twoCurrencies
               ? [
                   { k: 'exchange rate', v: displayedFx ?? '—', ...(fxFrom ? { note: fxFrom } : {}) },
-                  { k: `${loanCurrency} against ${userCurrency}`, v: pct(v.fx_drift_used), note: 'a year; above 0 makes the loan dearer' },
+                  { k: `${loanCurrency} against ${userCurrency}`, v: pct(v.fx_drift_used), note: `a year${manualDrift ? '' : ', the last 20 years’ trend'}; above 0 makes the loan dearer` },
                 ]
               : []),
             { k: `the loan, in ${userCurrency}`, v: pct(v.effective_loan_cost_in_user_currency), tone: 'neg' as const },

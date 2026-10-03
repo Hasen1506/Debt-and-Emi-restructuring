@@ -300,3 +300,87 @@ up, all fixed on the R7 PR:
 - The medallion's three pips are 14×10. They pass WCAG 2.5.8 because the medallion beside them opens the same three choices as full-width buttons; on a phone the medallion is the easier tap.
 - Polymarket, frankfurter and open.er-api are blocked from the build container, so Right time's odds and the live exchange rate need a first look once deployed.
 
+## 9 · Owner feedback (2 Oct 2026)
+
+Reproduced with a new user: ₹1.5L take-home, ₹60k spending, a ₹2L personal loan at 14% and an ₹80k card at 42%.
+
+| # | What the owner saw | Cause | Fix |
+|---|---|---|---|
+| F1 | A payment bigger than what's owed | Home called ₹80,500 on an ₹80,000 card PAYS IT OFF, judged against the opening balance; the month's interest left ₹2,300 owing | The label reads the engine's balance after the month; extra rows say what's still owed |
+| F2 | "Total to pay" didn't match Plan's amount; who decides the emergency fund? | The plan put every rupee of spare cash on debts and offered no choice | `debt_budget` in the engine (EMIs + minimums + extra a month, the rest stays with the user, freed EMIs still roll forward). TO DEBTS chip on Plan; Home says how much is extra and links to it; the emergency fund is offered, not imposed |
+| F3 | Changing strategy changes nothing | With the card both the smallest and the dearest debt, all three orders are the same | The switch says "Same plan: all three pay Credit card first, then Personal loan" |
+| F4 | The bonus tool said "Failed to fetch" | Free-plan API asleep: the host answers 502/503 without CORS headers while it wakes | Browser calculations retry for about 30 seconds, then say so in words; sign-in and reports aren't retried |
+| F5 | Plan takes seconds to load | Not the engine (about 50 ms for all calls) or the page (0.05–0.6 s warm): both free-plan services sleep after 15 minutes | Owner decision: an always-on plan for the API at least |
+| — | Spare cash said "emergency fund = full" with no fund set | — | Says none is set |
+
+### Walking every page as a user
+
+The owner asked for a pass as a user: does each section say what it is, and does any link strand you? Findings and fixes:
+
+| # | What was confusing | Fix |
+|---|---|---|
+| U1 | Plan's pay-rise link opened one Profile section with no way to see the rest or go back | Profile shows "← Back to Plan" (or wherever you came from), a strip of every part (edits carry across), and the link lands on the hike field. Banks moved to the Savings part, where the summary lists them |
+| U2 | "$" before every heading read as dollars on a rupee plan; "OCT 26" read as 26 October; "STMT #1138" meant nothing; "Avalanche" didn't say what it switches; "[IN · ₹]" did nothing | Prompt glyph gone; months read OCT 2026 (OCT '26 on the chart axis); STMT and "/ LEDGER" gone; the switch is labelled PAYOFF ORDER; the pin says INDIA · ₹ and opens Profile |
+| U3 | Activity listed the card at its ₹4,000 minimum while Home said to pay ₹80,500; its PAID / OTHER were small brackets | Activity takes the plan's own payment for the month (same cached run as Home) and records it as Home does; same big buttons |
+| U4 | "Open positions" is trading talk; the card-balance reminder floated between two sections and said "(never)" | Your loans and cards, with where the numbers come from; the reminder sits inside it and says "not updated since you added it" |
+| U5 | Plan's "Cash flow restoring soon" said ₹9,500 comes back "in 3 months" beside a KPI saying 4 months, and urged "pre-decide" with jargon buttons (Goal SIP, Boost EF) | "After your last payment": names the month and the whole ₹90,000 a month now going to debts; offers Save for a goal / Set an emergency fund / Try it in What if, without telling the user which |
+| U6 | Goal priority "Save for it first" read as before debts | "Against your other goals: Before the others / Soonest date first"; "start from a plan" is "start from a template" |
+| U7 | Tools hard to notice (small OPEN at the far right, a 10px "[← ALL TOOLS]") | Whole-row links on Goals with each tool's name; Home ends with "Something came up?" listing every question; each tool ends with the other tools. This brings back a tools list on Home, which the redesign had removed |
+
+### Honest numbers and clearer pictures (H1, D1)
+
+| # | What was wrong | Fix |
+|---|---|---|
+| H1a | Cheaper rates promised ₹18,624 a year for moving an ₹80,000 card the plan pays off this month, with no word on whose rate it was or whether the user would get it | Savings use the balances the plan leaves each month; a move the plan makes pointless is listed under "looked at, not worth it now" with why. Each offer names the bank, says it is the advertised rate and when it was last checked, and what the user's credit score means. The Profile score now counts: below what lenders usually take (CIBIL 700 / FICO 670 unsecured) the move is held back; a middling score prices a loan at the middle of the bank's range. Engine text uses Indian grouping |
+| H1b | "Rising costs +4.6%" gave no source, and could not be changed; a second set of defaults (5.5% / 3.0%) in the code disagreed | One source: RBI's forecast for 2026–27 (5.0%, 5 Aug 2026) or the Fed's median for 2027 (2.3%, 16 Sep 2026), said on the chip. "Your own rate" sets it; saving a rate turns rising costs on. Invest-vs-prepay uses the same rate |
+| H1c | Plan note: "So spare cash goes to the loan, after an emergency fund" read as an instruction; the emergency-fund split's help showed engine variable names and a file path | The note says why the plan pays the loan and where to keep cash aside if you'd rather; the help is in plain words and says the amount is your call |
+| D1a | What if showed "→ DEBT-FREE −1 MO → INTEREST −₹17,420" and nothing to judge the size by | "Debt-free 1 month sooner · ₹17,420 less interest", then two pairs of bars: the debt-free date and the interest paid, on your plan and with the change |
+| D1b | Goals' progress was an 8-character text bar squeezed under the amount; "GOALS NEED ₹0/MO" showed in red when every goal was on track and just starts after the debts | A real bar the width of the SAVED SO FAR column; "TO GOALS NOW · NOT YET · SAVING STARTS JAN 2027, AFTER DEBTS" |
+| F6 | Found by the full fuzz run: an asset sale with an empty purchase date crashed (500); Right time's 422 had no field/message | Both return a 422 naming the field |
+
+Still to check: HDFC's "0% for 6 months + 1.5% fee" balance transfer and the other rate cards are as noted in May 2026; they need checking against the banks' current pages (part of the tool accuracy pass).
+
+### Tool results and their numbers (U1 tools, A1 part 1, 3 Oct 2026)
+
+Each tool run as the ₹1.5 lakh take-home user (₹2 lakh personal loan at 14%, ₹80,000 card at 42%).
+
+| # | What was wrong | Fix |
+|---|---|---|
+| A1a | Liquidate: picking the card left its monthly payment blank, so "keep it" assumed the card went unpaid for five years at 42%. Selling a ₹40 lakh flat to clear ₹80,000 came out "Sell it" | The EMI, or the card's minimum, fills the payment; the same case now reads "Keep it". When the loan is a small part of what a sale raises, the answer says the rest is the asset against spare cash |
+| A1b | Liquidate: shares, funds or gold opened from the ranker were taxed as property (24 months, indexation, stamp-duty costs). The hint said "a year is enough", which is wrong for Indian property | The API taxes each asset by its own rules (shares: 12.5% above ₹1.25 lakh after a year, plus cess); the page says it works out a property sale unless opened from your assets, and gives 2 years for Indian property. "Net gain" was the cash left after the loan and is named so |
+| A1c | CII for 2025-26 and 2026-27 were provisional guesses (380, 397). CBDT notified 376 (1 Jul 2025) and 384 (15 Jul 2026): the guesses overstated indexed cost and understated tax on pre-2024 property | Table updated; 2027-28 is the only provisional year |
+| A1d | Safe rates were May 2026 guesses from before RBI's cuts: FD 7.10%, T-bill 7.0%, liquid fund 6.8%, US savings 4.5% | Dated September quotes: 1-year FD 6.25% (SBI, HDFC Bank), 364-day T-bill 5.91% (RBI auction 9 Sep 2026), liquid fund about 6.5%, top US savings about 4.25%. Setup, Profile, Liquidate and the idle-cash check read the same numbers |
+| A1e | Quick setup's tax rate was the bare slab: 20% at ₹1.5 lakh take-home where Profile said 20.8% (with cess), and 10% inside the 87A rebate where Profile said 0 | One calculation for both |
+| A1f | Purchase started loans at hard-coded rates: a car at 10.5% (banks' middle about 9.0%), "something else" at 11% (personal loans about 15.5%), and Indian rates for US users | Starts at the middle of the big banks' advertised rates for that loan and country, and says so |
+| A1g | Prices rose at an old 4.6% in Liquidate (and the API default) | The central bank's forecast or the user's own rate |
+| A1h | Bank lists in New debt and Right time showed 28 Indian banks as "published rates"; 22 of them were estimated from their peers, not read off the bank | Only the 6 banks whose advertised ranges were noted are listed, with the date (14 May 2026) and "check before you apply". New debt takes a rate you were quoted, as Right time does |
+| U1a | New debt said "fees included" with no fee entered, and its bank list wasn't cheapest first before an amount was typed | "No fee entered" and how to add one; sorted by rate |
+| U1b | Purchase said "10.50% after tax" for a car loan with no tax break; future years listed 2036 first | "At 9.00%, no tax break"; this year first |
+
+### Remaining tools and pages (U1 pages, A1 part 2, 3 Oct 2026)
+
+Loan check with an SBI loan from June 2022 (7.55%, now 8.90%); NRI prepay as a US earner with a ₹40 lakh SBI loan; Spare cash with ₹1.5 lakh; then Profile's loans, setup, Activity's log and Portfolio at 390px.
+
+| # | What was wrong | Fix |
+|---|---|---|
+| A1i | Loan check said the loan "started at 7.55% when the repo rate was 4.00%": the repo was 4.40–4.90% in June 2022. The engine takes the lowest of the two months before, in case the rate was fixed at sanction (the cautious figure), but didn't say so. THE MATH showed "repo rate = 26 Sep 2026", a date under a rate's name; rate cards were dated "2026-05-14" | The finding names the start month and why the lowest rate is used; THE MATH shows today's repo rate (5.25%) with its source; dates read 14 May 2026. The rate history itself checks out: RBI 5.25% since 5 Dec 2025, next decision 7 Oct; Fed 3.75–4.00% after the 16 Sep 2026 rise |
+| A1j | NRI prepay took the rupee as flat against every currency but the dollar, so a Dubai or London earner's loan looked dearer than history suggests (nudging to prepay) | The rupee's 20-year slide for each currency offered, rounded: AED and USD 3%, EUR 3%, AUD 3%, GBP 2%, CAD 2.5%, SGD 4.5% a year (the dirham is pegged to the dollar). The help says the trend depends on the currency |
+| A1k | A missing exchange rate kept NRI prepay on "Fetching today's rate…" for 30 seconds: the browser retried the API's own "provider unavailable" answer as if the host were waking | Only a non-JSON 502/503/504 (the host's page) is retried; the profile's rate fills in at once |
+| A1l | Spare cash and Home showed the card at 42.00% and the reason as "Highest effective rate (49.56%)"; NRI prepay's reason read "every unit clears debt at the higher rate" | "The dearest debt left: 42.00% a year, 49.56% counting GST on the interest"; plain reasons in NRI prepay; one loan is "your only loan" |
+| U1c | Profile's loan and card boxes were 583px wide on a 390px phone, cutting off the right column | Columns fold to one on a phone |
+| U1d | A card showed loan-only fields (rate type, prepayment fee, lock-in, part-payment gap, processing fee, insurance), and its help said "/plan", "/portfolio", "drives the trajectory" and "(unspecified bank)… (country default)" | Hidden for cards; help in plain words; the minimum is "the usual rule" with today's estimate as the placeholder |
+| U1e | Activity's log: "Rate" and "New rate" had no unit; the date was a bare "From" | "% a year"; "Starting from" |
+| U1f | Portfolio opened with the credit card (a debt) above what you own; two "add" paths (by value, by ticker) weren't told apart; "the sell-to-repay tool" and "Find what to liquidate" named a tool that doesn't exist under that name | Cards move to the end under "Your cards · what you owe on them"; the empty state says which path is which; the action asks the tool's own question |
+
+Setup (three steps, 390px) needed nothing: the tax bracket (16% on ₹1.2 lakh take-home, new regime), the debt-free date and the first month's numbers all check out.
+
+### Last of the accuracy pass (A1 part 3, 3 Oct 2026)
+
+| # | What was wrong | Fix |
+|---|---|---|
+| A1m | Purchase said cars lose "15–25% the first year and about half by year 5" with no source, and told anyone on a loan over 5 years they'd "owe more than it is worth for most of the loan". With the usual 15% down that isn't true: on a 7-year loan at 9% the balance stays below the car's value throughout | Each country's published figures: in India, IRDAI's value table for insurance (15% off after a year, 50% by year 5); in the US, Carfax (about 20% in the first year, about 60% in five). The second warning is worked out from the user's own price, down payment, rate and term, and names the months they would owe more than the car is worth (0% down for 7 years in India: the first 19 months), or doesn't appear |
+| A1n | Spare cash's 1-year Treasury default was 4.5%, dated 25 Sep 2026 | 4.54%, the close on 30 Sep 2026 |
+| A1o | The US rate cards gave personal-loan rates for Chase and Bank of America (neither makes personal loans; Chase lends only against a card's limit), Goldman Sachs (stopped in 2023) and Ally (sold its lending arm in 2024), and a mortgage range for Ally (no applications since 31 Jan 2025). The cheapest US consolidation target, the one Plan's refinance suggestion names, was Chase at 6.99%: a loan the user can't get | Those ranges removed (a test keeps them out); Discover, which still lends under Capital One, starts at 6.99%. The cheapest target is now Wells Fargo at 7.49% |
+
+**Rate cards: not yet re-verified.** Spot checks on 3 Oct 2026 (rate-comparison sites; the banks' own pages are blocked from this container) found the May figures out of date. SBI home loans now 7.25–8.55% (card: 7.50–8.70%); SBI Xpress Credit 11.15–14.30% (card: 10.30–14.85%); HDFC personal loans 9.99–24% with a ₹6,500 fee (card: 10.50–24%, 0.5%); SBI's home loan fee 0.35% capped at ₹10,000 (card: 0.5%). The comparison sites also disagree with each other (HDFC home loans 7.75–13.20% on one, 8.70–9.10% on another), so the cards were not rewritten from them. Needed: the banks' rate pages allowed in this environment's network settings, then one pass over all six Indian and six US cards. (Products a lender no longer offers are already gone: A1o.)
+

@@ -341,7 +341,7 @@ def test_proceeds_real_estate_uses_existing_ltcg_path():
     purchase so CII isn't needed (current-FY CII may not be CBDT-notified yet)."""
     a = _asset(date(2024, 8, 1), purchase_price=D("5000000"))
     r = compute_liquidation_proceeds(
-        a, today=date(2026, 5, 16), country=Country.IN,
+        a, today=date(2027, 5, 16), country=Country.IN,
         taxable_income=D("1500000"), state="Maharashtra",
     )
     assert not r.is_blocked
@@ -351,13 +351,13 @@ def test_proceeds_real_estate_uses_existing_ltcg_path():
 
 def test_proceeds_real_estate_uses_provisional_cii_when_cbdt_lags():
     """Pre-Finance-Act property + current FY whose CII isn't CBDT-notified
-    yet (e.g. FY 2026-27 mid-2026) → engine uses an extrapolated provisional
+    yet (e.g. FY 2027-28 before July 2027) → engine uses an extrapolated provisional
     CII so the math still runs, and surfaces a caveat naming the
     provisional status. Replaces the prior 'block-on-missing-CII' behaviour
     after the May 2026 backlog refinement."""
     a = _asset(date(2015, 6, 1), purchase_price=D("5000000"))
     r = compute_liquidation_proceeds(
-        a, today=date(2026, 5, 16), country=Country.IN,
+        a, today=date(2027, 5, 16), country=Country.IN,
         taxable_income=D("1500000"), state="Maharashtra",
     )
     assert not r.is_blocked

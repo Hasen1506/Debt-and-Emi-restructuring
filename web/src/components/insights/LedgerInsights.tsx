@@ -15,16 +15,18 @@ export function LedgerInsights({
   runArgs,
   strategy,
   rolled,
+  planPay,
 }: {
   user: UserPayload;
   runArgs: PlanRunArgs | null;
   strategy: StrategyName;
   rolled: RolledLoan[];
+  planPay?: Record<number, { amount: number; minimum: number; extra: number }>;
 }) {
   return (
     <LShell>
       <div id="activity-ledger" style={{ flex: 1, padding: '4px 0 0', scrollMarginTop: 24 }}>
-        <ActivityPage user={user} runArgs={runArgs} strategy={strategy} rolled={rolled} />
+        <ActivityPage user={user} runArgs={runArgs} strategy={strategy} rolled={rolled} planPay={planPay} />
       </div>
     </LShell>
   );

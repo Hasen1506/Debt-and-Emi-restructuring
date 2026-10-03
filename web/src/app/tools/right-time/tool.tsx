@@ -20,6 +20,7 @@ import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
 import { deriveMetrics } from '@/lib/derived';
 import { LOAN_TYPE_NAME, loanName } from '@/lib/loan-types';
+import { formatAsOf } from '@/lib/invest-vs-prepay';
 
 type Urgency = 'now' | '3m_ok' | '6m_ok';
 
@@ -112,7 +113,8 @@ export function RightTimeTool() {
 
   useEffect(() => {
     let cancelled = false;
-    api.institutions(country)
+    // Only the banks whose advertised rates were checked (tier A).
+    api.institutions(country, 'A')
       .then((data) => {
         if (cancelled) return;
         setInstitutions(data);
@@ -140,6 +142,10 @@ export function RightTimeTool() {
   }, [institutions, bank, loanType]);
 
   const currentRate = currentRateOverride || bankRange?.median || '';
+  const bankNoted = useMemo(() => {
+    const d = institutions?.find((i) => i.name.toLowerCase() === bank.toLowerCase())?.last_verified ?? '';
+    return /^\d{4}-\d{2}-\d{2}/.test(d) ? formatAsOf(d.slice(0, 10)) : null;
+  }, [institutions, bank]);
 
   // Whether the bank is one the user already has: the add button says so.
   const isExistingBank = useMemo(() => {
@@ -237,8 +243,9 @@ export function RightTimeTool() {
             </LFieldGrid>
             {bankRange && (
               <LNote style={{ margin: '8px 0 0' }}>
-                {bank} lends at {formatPct(bankRange.low, 2)} to {formatPct(bankRange.high, 2)}, {formatPct(bankRange.median, 2)} in the
-                middle. Your offer depends on your credit; type a real quote under + MORE.
+                {bank} advertised {formatPct(bankRange.low, 2)} to {formatPct(bankRange.high, 2)}
+                {bankNoted ? ` (noted ${bankNoted})` : ''}, {formatPct(bankRange.median, 2)} in the middle. Banks change these and your
+                offer depends on your credit: type a real quote under + MORE.
               </LNote>
             )}
           </div>

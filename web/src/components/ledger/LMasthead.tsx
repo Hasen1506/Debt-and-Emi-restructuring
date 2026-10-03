@@ -5,14 +5,12 @@
  *
  * Per spec §3:
  *  - 6px ink top slab
- *  - row 1: RightDue / LEDGER wordmark + STMT timestamp
+ *  - row 1: RightDue wordmark + today's date and time
  *  - ASCII rule
  *  - row 2: bracketed nav, locale pin on the right
  *  - ASCII rule
  *
- * `section` highlights the active nav item. `stmt` is the per-screen
- * statement number — defaults to #1138 (Home); other screens pass
- * #1138-PLAN, §8a-WINDFALL, etc.
+ * `section` highlights the active nav item.
  */
 
 import { useEffect, useState } from 'react';
@@ -23,6 +21,7 @@ import { SessionIndicator } from '@/components/chrome/SessionIndicator';
 import { StrategyMedallion } from '@/components/personas/StrategyMedallion';
 import type { Country } from '@/lib/api';
 import type { StrategyName } from '@/lib/strategy';
+import { recordPage } from '@/lib/nav-trail';
 
 export type LedgerSection = 'home' | 'plan' | 'activity' | 'goals' | 'profile';
 
@@ -50,22 +49,6 @@ export function sectionFromPath(path: string): LedgerSection {
     return 'profile';
   }
   return 'home';
-}
-
-function stmtFromPath(path: string): string {
-  if (path === '/' || path === '') return '#1138';
-  if (path.startsWith('/plan')) return '#1138-PLAN';
-  if (path.startsWith('/activity')) return '#1138-ACT';
-  if (path.startsWith('/onboarding')) return '#SETUP';
-  if (path.startsWith('/profile')) return '#PROFILE';
-  if (path.startsWith('/tools/')) {
-    const slug = path.split('/')[2]?.toUpperCase() ?? '';
-    return slug ? `§${slug}` : '#TOOLS';
-  }
-  if (path.startsWith('/tools')) return '#TOOLS';
-  if (path.startsWith('/goals')) return '#1138-GOALS';
-  if (path.startsWith('/portfolio')) return '#1138-HOLD';
-  return '#1138';
 }
 
 function stamp(country: Country): string {
@@ -96,18 +79,31 @@ function timeNow(country: Country): string {
 
 /** `strategy` shows the payoff strategy's medallion; left out when
  *  there is no debt to order. */
-export function LMasthead({ country, strategy }: { country: Country; strategy?: StrategyName | null }) {
+export function LMasthead({
+  country,
+  strategy,
+  sameOrder,
+}: {
+  country: Country;
+  strategy?: StrategyName | null;
+  /** The one order all three strategies pay the debts in, when they agree. */
+  sameOrder?: string[] | null;
+}) {
   const path = usePathname() || '/';
   const section = sectionFromPath(path);
-  const stmt = stmtFromPath(path);
   const [time, setTime] = useState<string>('');
+  // Remembers this page so the next one can offer a way back to it.
+  useEffect(() => {
+    recordPage(path + window.location.search);
+  }, [path]);
   useEffect(() => {
     setTime(timeNow(country));
     const t = setInterval(() => setTime(timeNow(country)), 60_000);
     return () => clearInterval(t);
   }, [country]);
 
-  const localePin = country === 'IN' ? 'IN · ₹' : 'US · $';
+  // Which country's tax and rates the plan uses; Profile changes it.
+  const localePin = country === 'IN' ? 'INDIA · ₹' : 'USA · $';
 
   return (
     <header
@@ -135,10 +131,9 @@ export function LMasthead({ country, strategy }: { country: Country; strategy?: 
           }}
         >
           RightDue
-          <span style={{ color: L_T.muted, fontWeight: 400 }}> / LEDGER</span>
         </div>
         <div style={{ fontSize: 10, color: L_T.muted, letterSpacing: '0.1em' }}>
-          {stamp(country)} · {time || '--:--'} {tzLabel(country)} · STMT {stmt}
+          {stamp(country)} · {time || '--:--'} {tzLabel(country)}
         </div>
       </div>
       <div style={{ margin: '8px 0 0' }}>
@@ -168,8 +163,8 @@ export function LMasthead({ country, strategy }: { country: Country; strategy?: 
           </LBracket>
         ))}
         <span style={{ marginLeft: 'auto', display: 'inline-flex', flexWrap: 'wrap', maxWidth: '100%', gap: 10, alignItems: 'center', justifyContent: 'flex-end' }}>
-          {strategy && <StrategyMedallion strategy={strategy} />}
-          <LBracket>{localePin}</LBracket>
+          {strategy && <StrategyMedallion strategy={strategy} sameOrder={sameOrder ?? null} />}
+          <LBracket href="/profile?step=country" label={`Country: ${country === 'IN' ? 'India' : 'USA'}. Change it in Profile`}>{localePin}</LBracket>
           <SessionIndicator />
         </span>
       </nav>

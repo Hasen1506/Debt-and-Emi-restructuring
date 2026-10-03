@@ -16,7 +16,9 @@ import {
   type TaxReinvestSetting,
 } from '@/lib/tax-reinvest';
 import {
+  inflationRateFor,
   loadInflationModelingServer,
+  loadInflationRateServer,
   type InflationModeling,
 } from '@/lib/inflation-modeling';
 import {
@@ -78,6 +80,17 @@ function extractMonthlyPayments(
 }
 
 
+/** Each loan's month-end balance under the plan, for /restructuring. */
+function planBalances(scenario: SimulateResponse, loanCount: number): Record<number, string[]> {
+  const out: Record<number, string[]> = {};
+  for (let i = 0; i < loanCount; i++) out[i] = [];
+  for (const p of scenario.trajectory.slice(0, 600)) {
+    if (p.month < 1) continue;
+    for (const [k, v] of Object.entries(p.balances_by_loan_index ?? {})) out[Number(k)]?.push(v);
+  }
+  return out;
+}
+
 /** Everything the plan runs on, read from the cookies, before the engine
  *  is called: the profile with logged activity applied, its settings, life
  *  events and goals. `simBaseArgs` is what /simulate gets (less the
@@ -104,8 +117,12 @@ export async function loadPlanInputs(
   // If the hike toggle is OFF, zero out `annual_hike_rate` so the engine
   // simulates flat income. The stored profile is untouched — toggling back
   // ON next render restores the user's configured rate.
+  // Rising prices: the user's own rate from Plan, else the central bank's
+  // latest forecast (the profile's saved rate was only ever a default).
+  const ownInflation = await loadInflationRateServer();
   let adjustedUser: UserPayload = {
     ...profile.user,
+    inflation_rate: inflationRateFor(profile.user.country, ownInflation),
     loans: application.loans,
     annual_hike_rate:
       hikeModeling === 'off' ? '0' : profile.user.annual_hike_rate ?? '0',
@@ -306,6 +323,7 @@ export async function loadPlanInputs(
   const efBalance = Number(adjustedUser.efund_balance ?? '0');
   const efTarget = Number(adjustedUser.efund_target ?? '0');
   const efSplit = await (await import('@/lib/ef-split')).loadEfSplitServer();
+  const debtBudget = await (await import('@/lib/debt-budget')).loadDebtBudgetServer();
   const { goalsForSimulateServer } = await import('@/lib/goals');
   const { readContributionTotalsServer } = await import(
     '@/lib/goal-contributions'
@@ -344,6 +362,7 @@ export async function loadPlanInputs(
     inflate_expenses: inflationModeling === 'on' ? true : undefined,
     lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
     ef_top_up_rate: efTopUpRate,
+    debt_budget: debtBudget || undefined,
     // Per-goal payload — engine runs serial-fill per month with
     // goal-expiry awareness, threads saved_so_far across iterations,
     // and returns per-goal slices + end-of-trajectory fill rates.
@@ -364,9 +383,11 @@ export async function loadPlanInputs(
     lifecycle_events,
     displayUser,
     efSplit,
+    debtBudget,
     goalsForEngine,
     hasGoalsForEngine,
     simBaseArgs,
+    ownInflation,
   };
 }
 
@@ -391,9 +412,11 @@ export async function loadPlan(
     lifecycle_events,
     displayUser,
     efSplit,
+    debtBudget,
     goalsForEngine,
     hasGoalsForEngine,
     simBaseArgs,
+    ownInflation,
   } = await loadPlanInputs(hikeModeling, taxReinvest, inflationModeling, fxDrift);
   const otherStrategies = STRATEGIES.filter((s) => s !== strategy);
 
@@ -414,12 +437,14 @@ export async function loadPlan(
       surplus,
       opportunities: [],
       totalAnnualSaving: '0',
+      heldBack: [],
       user: displayUser,
       configuredUser: profile.user,
       marginalRate: profile.marginalRate,
       strategy,
       hikeModeling,
       inflationModeling,
+      ownInflationRate: ownInflation,
       fxDrift,
       bracketTransitions,
       advanceTaxSchedule,
@@ -436,6 +461,7 @@ export async function loadPlan(
       byCurrencyBaseline: {},
       fxRatesUsed: {},
       efSplit,
+      debtBudget,
       goalsActive: hasGoalsForEngine,
       goalContributions: [],
       goalFinals: [],
@@ -454,18 +480,26 @@ export async function loadPlan(
   if (gaps.length > 0) return fallback();
 
   try {
+    const scenarioCall = cachedEngineCall('simulate', { ...simBaseArgs, strategy }, () => api.simulate({ ...simBaseArgs, strategy }));
+    // Cheaper rates are worked out on the balances this plan leaves each
+    // month: a card the plan clears this month has little left to save.
+    const restructuringCall = scenarioCall.then((s) => {
+      const req = {
+        user: adjustedUser,
+        marginal_rate: profile.marginalRate,
+        plan_balances: planBalances(s, adjustedUser.loans.length),
+      };
+      return cachedEngineCall('restructuring', req, () => api.restructuring(req));
+    });
     const [scenario, baseline, restructuring, ...altSims] = await Promise.all([
-      cachedEngineCall('simulate', { ...simBaseArgs, strategy }, () => api.simulate({ ...simBaseArgs, strategy })),
+      scenarioCall,
       cachedEngineCall('baseline', {
         user: adjustedUser,
         horizon_months: HORIZON_MONTHS,
         lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
       }, () => api.baseline({ user: adjustedUser, horizon_months: HORIZON_MONTHS,
         lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined })),
-      cachedEngineCall('restructuring', {
-        user: adjustedUser,
-        marginal_rate: profile.marginalRate,
-      }, () => api.restructuring({ user: adjustedUser, marginal_rate: profile.marginalRate })),
+      restructuringCall,
       ...otherStrategies.map((s) => cachedEngineCall('simulate', { ...simBaseArgs, strategy: s }, () => api.simulate({ ...simBaseArgs, strategy: s }))),
     ]);
     const strategyCompare = {
@@ -510,12 +544,14 @@ export async function loadPlan(
       surplus,
       opportunities: restructuring.opportunities,
       totalAnnualSaving: restructuring.total_annual_saving,
+      heldBack: restructuring.held_back ?? [],
       user: displayUser,
       configuredUser: profile.user,
       marginalRate: profile.marginalRate,
       strategy,
       hikeModeling,
       inflationModeling,
+      ownInflationRate: ownInflation,
       fxDrift,
       bracketTransitions,
       advanceTaxSchedule,
@@ -541,6 +577,7 @@ export async function loadPlan(
       byCurrencyBaseline,
       fxRatesUsed,
       efSplit,
+      debtBudget,
       goalsActive: hasGoalsForEngine,
       goalContributions:
         scenario.surplus_allocation?.goal_contributions?.map((c) => ({

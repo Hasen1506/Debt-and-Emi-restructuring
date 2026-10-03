@@ -376,7 +376,7 @@ export function LogDialog({
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
           <h2 id="log-dialog-h" style={{ margin: 0, fontSize: 11, letterSpacing: '0.18em', color: L_T.accent, fontWeight: 700 }}>
-            $ {edit ? 'CHANGE THIS ENTRY' : 'LOG AN ENTRY'}
+            {edit ? 'CHANGE THIS ENTRY' : 'LOG AN ENTRY'}
           </h2>
           <LBracket onClick={onClose} label="Close">× CLOSE</LBracket>
         </div>
@@ -511,7 +511,7 @@ export function LogDialog({
             kinds={[lifeKind]}
             initialKind={lifeKind}
             initialLoanIndex={type === 'rate' ? initial.loanIndex : undefined}
-            dateLabel={type === 'loan' ? 'Taken on' : 'From'}
+            dateLabel={type === 'loan' ? 'Taken on' : 'Starting from'}
             saveLabel="SAVE · RE-RUN THE PLAN"
             onSave={saveLife}
             onCancel={onClose}

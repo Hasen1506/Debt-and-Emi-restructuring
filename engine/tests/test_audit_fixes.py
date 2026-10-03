@@ -237,7 +237,7 @@ def test_windfall_skips_a_cheap_first_loan_under_snowball():
                           strategy=Strategy.SNOWBALL)
     assert a.invest_instead is False
     assert a.to_loan_id == id(card)
-    assert "Highest effective rate" in a.rationale
+    assert "The dearest debt" in a.rationale
 
 
 def test_windfall_invests_only_when_no_loan_beats_the_fund():
