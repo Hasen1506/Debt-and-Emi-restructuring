@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { waitForSignInApi, SignInApiStarting } from '@/lib/sign-in-readiness';
 
 export const dynamic = 'force-dynamic';
 const METHODS: Record<string, string[]> = {
@@ -61,10 +62,14 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
   // Never send INTERNAL_API_TOKEN: it would bypass the OTP rate limits.
   const base = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
   try {
+    const body = req.method === 'GET' ? undefined : await readBody(req);
+    // Wake a sleeping API with safe reads before creating an OTP. Never replay
+    // an email request or code verification after an ambiguous failure.
+    if (path === 'auth/request-otp') await waitForSignInApi(base);
     const upstream = await fetch(`${base.replace(/\/$/, '')}/api/${path}`, {
       method: req.method,
       headers,
-      body: req.method === 'GET' ? undefined : await readBody(req),
+      body,
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(60000),
@@ -81,6 +86,11 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
       headers: responseHeaders,
     });
   } catch (error) {
+    if (error instanceof SignInApiStarting) {
+      return Response.json({ detail: { code: 'sign_in_starting' } }, {
+        status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '30' },
+      });
+    }
     if (error instanceof BodyTooLarge) {
       return Response.json({ detail: 'The request is too large.' }, { status: 413 });
     }

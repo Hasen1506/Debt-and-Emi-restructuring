@@ -6,6 +6,13 @@ export function authErrorMessage(status: number, body: string, retryAfter: strin
       ? `Too many sign-in attempts. Wait ${Math.ceil(seconds)} seconds and try again.`
       : 'Sign-in is temporarily busy. Wait a minute and try again.';
   }
+  if (status === 503) {
+    try {
+      if (JSON.parse(body)?.detail?.code === 'sign_in_starting') {
+        return 'Sign-in is waking up. Please wait 30 seconds and try again.';
+      }
+    } catch { /* Keep arbitrary upstream errors private. */ }
+  }
   if (status >= 500) return 'Sign-in is temporarily unavailable. Try again in a minute.';
   try {
     const detail = JSON.parse(body)?.detail;
