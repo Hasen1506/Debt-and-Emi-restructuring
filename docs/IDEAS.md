@@ -15,3 +15,8 @@ Suggestions that came up while implementing the 2026-10-07 roadmap. None of thes
 ## From PR C (true APR)
 - **True APR does not drive the payoff order in PR C.** It is shown beside the effective rate only. Founder decision (2026-10-07): rank by the forward-looking marginal cost of the next rupee prepaid instead (not the all-in true APR, which includes sunk fees). That is being built as PR J, so this entry is closed by J.
 - **APR on offers.** Show the same true-APR breakdown on balance-transfer and consolidation offers, so a "10.5% + 2% fee" offer is compared on one number with the loans it would replace.
+
+## From PR E (your rules)
+- **Rule: "keep this loan for the tax break".** A one-tap rule that parks a deductible home or education loan last, with its after-tax rate shown, instead of making the user pin everything else above it.
+- **Drag to reorder.** The custom order uses ↑/↓ buttons today; drag handles would be quicker on a phone.
+- **Per-rule cost.** Show what each rule costs on its own (pin vs small-first), not only the total against Avalanche, so the user can drop the expensive one.
