@@ -20,3 +20,8 @@ Suggestions that came up while implementing the 2026-10-07 roadmap. None of thes
 - **Rule: "keep this loan for the tax break".** A one-tap rule that parks a deductible home or education loan last, with its after-tax rate shown, instead of making the user pin everything else above it.
 - **Drag to reorder.** The custom order uses ↑/↓ buttons today; drag handles would be quicker on a phone.
 - **Per-rule cost.** Show what each rule costs on its own (pin vs small-first), not only the total against Avalanche, so the user can drop the expensive one.
+
+## From PR D (your own values)
+- **One config file for policy constants.** GST, tax slabs, BT/refi hurdles and the cash-advisor floors are still constants in code. A versioned `config/<country>/<FY>.json`, read by engine and web, would make Budget-day updates one file. (The audit's §2 "Assumptions page" is now built for the user's own values; this is the policy side.)
+- **"Why this default?" links.** Each default on the Assumptions page could link to where it comes from (SBI 1-yr FD rate, 10-yr Nifty CAGR, the broker's charges) with its as-of date.
+- **Per-asset selling cost in the asset form.** The engine accepts `selling_cost_pct` per holding; only the per-type value is editable in the web today.
