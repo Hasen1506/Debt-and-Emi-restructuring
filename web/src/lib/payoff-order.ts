@@ -1,13 +1,13 @@
 /**
  * The order each strategy puts the open loans in, by the engine's rules
- * (engine/ordering.py rank_loans): avalanche by effective rate, snowball
+ * (engine/ordering.py rank_loans): avalanche by the marginal cost of the
+ * next payment (lib/marginal-cost, roadmap PR J), snowball
  * by balance, your rules (lib/payoff-rules) then by rate. When all three
  * agree, they share today's starting order. Balances, floating-rate
  * resets and future loans can still change the later order and outcome.
  */
 import type { UserPayload } from './api';
-import { computeBreakdown } from './effective-apr';
-import { usMortgageShieldShare } from './deductions';
+import { userMarginalCosts } from './marginal-cost';
 import { isOpenCurrentLoan } from './plan-controls';
 import { LOAN_TYPE_NAME } from './loan-types';
 import type { StrategyName } from './strategy';
@@ -15,10 +15,10 @@ import { applyRules, rulesOrDefault, parseRules } from './payoff-rules';
 
 export function payoffOrders(user: UserPayload, marginalRate: string): Record<StrategyName, number[]> {
   const idx = user.loans.flatMap((l, i) => (isOpenCurrentLoan(l) ? [i] : []));
-  const share = usMortgageShieldShare(user);
-  const eff = new Map(
-    idx.map((i) => [i, computeBreakdown(user.loans[i], marginalRate, user.country, user.tax_regime, share).effective.toNumber()]),
-  );
+  // Avalanche and the rules' "by rate" fallback rank by the marginal cost
+  // of the next payment (roadmap PR J), as the engine does.
+  const mcs = userMarginalCosts(user, marginalRate, idx);
+  const eff = new Map(idx.map((i) => [i, mcs.get(i)?.orderKey.toNumber() ?? 0]));
   const bal = (i: number) => Number(user.loans[i].outstanding);
   const byRate = (a: number, b: number) => (eff.get(b) ?? 0) - (eff.get(a) ?? 0);
   const byBalance = (a: number, b: number) => bal(a) - bal(b);

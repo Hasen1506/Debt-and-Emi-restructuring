@@ -45,10 +45,13 @@ const STRATEGY_EXPLAINER: Record<StrategyName, React.ReactNode> = {
   avalanche: (
     <>
       <strong>Avalanche</strong> — pay minimums on every loan, then throw all
-      extra cash at the one with the highest <em>effective</em> APR (the rate
-      after GST, late-fee risk, and tax shields are baked in). When it clears,
-      cascade to the next-highest. This is mathematically the cheapest path —
-      always pays the least total interest.
+      extra cash at the loan where the <em>next</em> payment saves the most: its
+      interest compounded monthly, plus GST on card interest, minus any tax
+      break the payment gives up and any prepayment fee. Fees already paid
+      (processing, insurance) don&apos;t count: they don&apos;t change what the
+      next payment saves. A loan still in its lock-in goes last. When a loan
+      clears, cascade to the next. This is the cheapest path for the interest
+      still ahead.
     </>
   ),
   snowball: (
@@ -63,7 +66,7 @@ const STRATEGY_EXPLAINER: Record<StrategyName, React.ReactNode> = {
     <>
       <strong>Your rules</strong> — your own order: pin a loan to the front,
       clear any loan under an amount first, or set the whole order. Whatever
-      the rules don&apos;t place goes by highest effective rate. The plan shows
+      the rules don&apos;t place goes by what the next payment saves (as Avalanche). The plan shows
       what your rules cost against Avalanche. (This replaces Hybrid, which is
       the rule &quot;clear loans under ₹50,000 / $1,000 first&quot;.)
     </>

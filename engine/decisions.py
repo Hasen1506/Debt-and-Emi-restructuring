@@ -11,6 +11,7 @@ from engine.formulas import after_tax_return, emi, effective_rate, prepay_recomm
 from engine.minimum_payments import compute_minimum_payment
 from engine.loan_check import _inr
 from engine.ordering import Strategy, rank_loans
+from engine.marginal_cost import why_first
 
 D = Decimal
 
@@ -162,6 +163,7 @@ def allocate_windfall(
     marginal_tax_rate: Decimal = D("0"),
     rules: PayoffRules | None = None,
     prepay_hurdle: Decimal | None = None,
+    marginal_costs: dict | None = None,
 ) -> WindfallAllocation:
     """§8a — single decision, not a plan. Runs Layer 1 logic (already done at scan
     time), then Layer 2 ranking, then Layer 3 invest-vs-prepay gate on the top
@@ -178,7 +180,13 @@ def allocate_windfall(
 
     # The rules name loans by their position in the list the caller passed.
     index_of = {id(l): i for i, l in enumerate(loans)}
-    ranked = rank_loans(active, effective_rates, strategy, country=country, rules=rules, index_of=index_of)
+    # Payoff order: the marginal cost of the next unit prepaid (roadmap PR J)
+    # when the caller has it ({id(loan): MarginalCost}), else the effective rate.
+    order = (
+        {k: mc.order_key for k, mc in marginal_costs.items()} if marginal_costs
+        else effective_rates
+    )
+    ranked = rank_loans(active, order, strategy, country=country, rules=rules, index_of=index_of)
     # A loan whose terms bar an extra payment now (a lock-in) isn't offered:
     # Spare Cash used to send ₹20,000 to a loan the plan itself wouldn't pay.
     blocked = [
@@ -243,7 +251,10 @@ def allocate_windfall(
 
     leftover = amount - to_loan
     nominal = f"{top.nominal_rate*100:.2f}% a year"
-    if strategy == Strategy.AVALANCHE or top is max(ranked, key=lambda l: effective_rates[id(l)]):
+    mc = (marginal_costs or {}).get(id(top))
+    if mc is not None and (strategy == Strategy.AVALANCHE or top is max(ranked, key=lambda l: order[id(l)])):
+        rationale = f"The dearest debt left. {why_first(mc)}"
+    elif strategy == Strategy.AVALANCHE or top is max(ranked, key=lambda l: effective_rates[id(l)]):
         if top_rate - top.nominal_rate >= D("0.005"):
             extra = (
                 "GST on the interest"

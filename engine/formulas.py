@@ -125,7 +125,7 @@ DEDUCTIBLE_LOAN_TYPES_IN = {LoanType.HOME, LoanType.EDUCATION}
 DEDUCTIBLE_LOAN_TYPES_US = {LoanType.HOME, LoanType.EDUCATION}    # mortgage: itemisers; student loan: above the line
 
 
-def effective_rate(
+def tax_shield_fraction(
     loan: Loan,
     marginal_tax_rate: Decimal,
     country: Country,
@@ -138,29 +138,10 @@ def effective_rate(
     magi: Decimal | None = None,
     filing_status=None,
 ) -> Decimal:
-    """§4.1 effective rate = nominal × [1 − shield_fraction × marginal_rate] + fees + GST.
-
-    Tax shield only applies to home loan (Sec 24(b) India / IRC §163 US) and
-    education loan (Sec 80E India, interest-only). Non-deductible loan types
-    (credit card, personal, auto, gold, BNPL) get zero shield.
-
-    - India, new regime: no 80E, so an education loan gets no shield (Sec
-      24(b) on a let-out home is still allowed; self-occupied is capped at 0).
-    - US: mortgage interest only helps someone who itemises, and then only
-      the part of their itemised deductions above the standard deduction
-      does: `itemised_share` (0–1) is that part as a share of the mortgage
-      interest. A $350k loan at 6.75% ($23,625 interest, $16,100 standard
-      deduction) saves tax on $7,525 of it, not all of it. Callers pass
-      `user.itemises` and `user.itemised_share`; the defaults keep older
-      direct callers unchanged.
-    - Caps are per taxpayer, not per loan: `home_interest_total` (India,
-      annual interest across home loans) shares the ₹2L 24(b) cap, and
-      `mortgage_debt_total` (US, balances across home loans) applies the
-      $750k §163 debt limit (P2-05). Each defaults to this loan alone.
-    - US student loans get the §221 above-the-line deduction (P2-25): up to
-      $2,500 of interest a year (shared via `us_student_interest_total`),
-      phased out by `magi` when given. No itemising needed.
-    """
+    """Share of each unit of this loan's interest the user gets back in tax
+    (0 – marginal rate): §4.1's shield, used by `effective_rate` and by the
+    marginal cost of prepaying (engine/marginal_cost.py, roadmap PR J).
+    See `effective_rate` for the rules."""
     nominal = loan.nominal_rate
     annual_interest = loan.outstanding * nominal
     regime = tax_regime or TaxRegimeIN.NEW
@@ -202,6 +183,50 @@ def effective_rate(
             deductible_total = min(total, cap)
             shield_pct = (deductible_total / total) * marginal_tax_rate
 
+    return shield_pct
+
+
+def effective_rate(
+    loan: Loan,
+    marginal_tax_rate: Decimal,
+    country: Country,
+    tax_regime: TaxRegimeIN | None = None,
+    itemises: bool = True,
+    itemised_share: Decimal = D("1"),
+    home_interest_total: Decimal | None = None,
+    mortgage_debt_total: Decimal | None = None,
+    us_student_interest_total: Decimal | None = None,
+    magi: Decimal | None = None,
+    filing_status=None,
+) -> Decimal:
+    """§4.1 effective rate = nominal × [1 − shield_fraction × marginal_rate] + fees + GST.
+
+    Tax shield only applies to home loan (Sec 24(b) India / IRC §163 US) and
+    education loan (Sec 80E India, interest-only). Non-deductible loan types
+    (credit card, personal, auto, gold, BNPL) get zero shield.
+
+    - India, new regime: no 80E, so an education loan gets no shield (Sec
+      24(b) on a let-out home is still allowed; self-occupied is capped at 0).
+    - US: mortgage interest only helps someone who itemises, and then only
+      the part of their itemised deductions above the standard deduction
+      does: `itemised_share` (0–1) is that part as a share of the mortgage
+      interest. A $350k loan at 6.75% ($23,625 interest, $16,100 standard
+      deduction) saves tax on $7,525 of it, not all of it. Callers pass
+      `user.itemises` and `user.itemised_share`; the defaults keep older
+      direct callers unchanged.
+    - Caps are per taxpayer, not per loan: `home_interest_total` (India,
+      annual interest across home loans) shares the ₹2L 24(b) cap, and
+      `mortgage_debt_total` (US, balances across home loans) applies the
+      $750k §163 debt limit (P2-05). Each defaults to this loan alone.
+    - US student loans get the §221 above-the-line deduction (P2-25): up to
+      $2,500 of interest a year (shared via `us_student_interest_total`),
+      phased out by `magi` when given. No itemising needed.
+    """
+    nominal = loan.nominal_rate
+    shield_pct = tax_shield_fraction(
+        loan, marginal_tax_rate, country, tax_regime, itemises, itemised_share,
+        home_interest_total, mortgage_debt_total, us_student_interest_total, magi, filing_status,
+    )
     base = nominal * (D("1") - shield_pct)
 
     gst = gst_component(

@@ -30,3 +30,9 @@ Suggestions that came up while implementing the 2026-10-07 roadmap. None of thes
 - **Next policy date on New debt check.** With Right time gone, a floating-rate offer could still show one quiet line: "The next RBI/Fed decision is on <date>; a floating rate moves with it", from the meeting calendar the app already keeps, with no odds and no wait/borrow verdict.
 - **Start a purchase from a goal.** A home or car goal on Goals could open New debt check in purchase mode with its price, date and saved amount filled in.
 - **Fold Loan check into New debt check too.** Loan check (is my existing loan's rate fair?) is the third "loan before/after signing" tool; a third mode would leave one place for every loan question.
+
+## From PR J (marginal-cost order)
+- **Fee-aware look-ahead for prepayment fees.** A fee charged on each prepaid rupee is a one-off cost whose size depends on when the loan is prepaid, so a per-year figure (fee × 12 / months left, as built) is a good guide but not always the best order: on sampled portfolios with fees, a fixed order beat it about 1 time in 11. A small look-ahead (try the top two loans for the next few months and keep the cheaper) would close the gap.
+- **The invest-vs-prepay gate on the same number.** The gate that decides whether extra goes to debt at all still compares the all-in effective rate (sunk fees included) with the after-tax return. Comparing the marginal cost instead would make the two decisions agree.
+- **GST on foreclosure charges.** Indian banks add 18% GST to a prepayment/foreclosure fee; neither the order nor the simulator counts it yet.
+- **"Why this loan first" on Plan too.** Home and Spare cash show the breakdown; the Plan's schedule could show it beside the first loan, with the second loan's figure for comparison.
