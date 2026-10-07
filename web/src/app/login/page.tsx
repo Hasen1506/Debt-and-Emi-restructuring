@@ -7,11 +7,16 @@
  */
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
 import { hydrateFromServer, prepareAccountCache, serializeClientState, syncSliceToServer } from '@/lib/server-sync';
 import { notifySessionChanged } from '@/lib/session-events';
+import { SIGN_IN_STARTING_MESSAGE } from '@/lib/auth-error';
+
+// The free-plan API sleeps when idle and can take over a minute to start.
+const STARTING_RETRIES = 3;
+const STARTING_RETRY_DELAY_MS = 5000;
 
 type Phase = 'email' | 'code';
 
@@ -28,13 +33,36 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
+  // Wake the API as soon as the page opens, so it is usually ready by the
+  // time the email is typed. Best-effort: a failure here changes nothing.
+  useEffect(() => {
+    api.health().catch(() => {});
+  }, []);
+
+  /** Request a code, retrying only while the API is still starting. The proxy
+   *  reports "starting" before it creates a code, so these retries never send
+   *  a second email. */
+  async function requestOtpWhenReady(address: string) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await api.requestOtp(address);
+        return;
+      } catch (err) {
+        const starting = err instanceof Error && err.message === SIGN_IN_STARTING_MESSAGE;
+        if (!starting || attempt >= STARTING_RETRIES) throw err;
+        setInfo('Starting the sign-in service. This can take up to a minute the first time...');
+        await new Promise(resolve => setTimeout(resolve, STARTING_RETRY_DELAY_MS));
+      }
+    }
+  }
+
   async function onRequest(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setInfo(null);
     setSubmitting(true);
     try {
-      await api.requestOtp(email.trim().toLowerCase());
+      await requestOtpWhenReady(email.trim().toLowerCase());
       setPhase('code');
       setInfo(`We sent a 6-digit code to ${email}. It expires in 10 minutes.`);
     } catch (err) {
