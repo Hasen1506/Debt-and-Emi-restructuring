@@ -25,13 +25,13 @@ BRACKETS_2026 = {
         (D("768700"),   D("0.35")),
         (D("Infinity"), D("0.37")),
     ],
-    # HoH thresholds approx 1.5× single below top bracket; refer IRS Rev Proc 2025-32 exact table
+    # Rev. Proc. 2025-32 Table 2 (P2-23: was 201,775 / 256,225).
     FilingStatusUS.HOH: [
         (D("17700"),    D("0.10")),
         (D("67450"),    D("0.12")),
         (D("105700"),   D("0.22")),
-        (D("201775"),   D("0.24")),
-        (D("256225"),   D("0.32")),
+        (D("201750"),   D("0.24")),
+        (D("256200"),   D("0.32")),
         (D("640600"),   D("0.35")),
         (D("Infinity"), D("0.37")),
     ],
@@ -43,26 +43,32 @@ STANDARD_DEDUCTION_2026 = {
     FilingStatusUS.HOH:    D("24150"),
 }
 
-SALT_CAP_2026 = D("10000")             # TCJA cap, still in effect for 2026
+# OBBBA §70120 raised the SALT cap to $40,000 for 2025, +1% a year: $40,400
+# for 2026 ($20,200 married filing separately). It phases down by 30% of
+# MAGI above $505,000 ($252,500 MFS) but never below $10,000 (P2-03).
+SALT_CAP_2026 = D("40400")
+SALT_CAP_FLOOR = D("10000")
+SALT_PHASEDOWN_MAGI_2026 = D("505000")
+SALT_PHASEDOWN_RATE = D("0.30")
 MORTGAGE_INTEREST_PRINCIPAL_LIMIT = D("750000")    # IRC §163
 
 # ── 2026 LTCG brackets (IRC §1(h); inflation-adjusted per Rev Proc 2025-32) ──
 # Each entry: (upper_threshold, ltcg_rate). 0% / 15% / 20% brackets.
-# [VERIFY exact 2026 figures from Rev Proc 2025-32 when finalised]
+# Rev. Proc. 2025-32 §4.03 (P2-04).
 LTCG_BRACKETS_2026 = {
     FilingStatusUS.SINGLE: [
-        (D("49500"),    D("0.00")),
-        (D("547000"),   D("0.15")),
+        (D("49450"),    D("0.00")),
+        (D("545500"),   D("0.15")),
         (D("Infinity"), D("0.20")),
     ],
     FilingStatusUS.MFJ: [
-        (D("99000"),    D("0.00")),
-        (D("615250"),   D("0.15")),
+        (D("98900"),    D("0.00")),
+        (D("613700"),   D("0.15")),
         (D("Infinity"), D("0.20")),
     ],
     FilingStatusUS.HOH: [
-        (D("66500"),    D("0.00")),
-        (D("581000"),   D("0.15")),
+        (D("66200"),    D("0.00")),
+        (D("579600"),   D("0.15")),
         (D("Infinity"), D("0.20")),
     ],
 }
@@ -77,6 +83,37 @@ NIIT_THRESHOLD_2026 = {
 
 # Collectibles (gold, art, coins) — capped at 28% LTCG under §1(h)(4)
 COLLECTIBLE_LTCG_MAX_RATE = D("0.28")
+
+# §221 student-loan interest (Rev. Proc. 2025-32 §4.29), P2-25.
+STUDENT_LOAN_INTEREST_MAX = D("2500")
+STUDENT_LOAN_PHASEOUT_2026 = {
+    FilingStatusUS.SINGLE: (D("85000"), D("100000")),
+    FilingStatusUS.HOH:    (D("85000"), D("100000")),
+    FilingStatusUS.MFJ:    (D("175000"), D("205000")),
+}
+
+
+def salt_cap(magi: Decimal | None = None) -> Decimal:
+    """2026 SALT cap after the high-income phase-down."""
+    if magi is None or magi <= SALT_PHASEDOWN_MAGI_2026:
+        return SALT_CAP_2026
+    return max(SALT_CAP_FLOOR, SALT_CAP_2026 - SALT_PHASEDOWN_RATE * (magi - SALT_PHASEDOWN_MAGI_2026))
+
+
+def student_loan_interest_deduction(
+    interest_paid: Decimal, magi: Decimal, filing_status: FilingStatusUS,
+) -> Decimal:
+    """Above-the-line §221 deduction: up to $2,500, phased out by MAGI."""
+    if interest_paid <= 0:
+        return D("0")
+    lo, hi = STUDENT_LOAN_PHASEOUT_2026[filing_status]
+    allowed = min(interest_paid, STUDENT_LOAN_INTEREST_MAX)
+    if magi <= lo:
+        return allowed
+    if magi >= hi:
+        return D("0")
+    return allowed * (hi - magi) / (hi - lo)
+
 
 # §121 primary-residence capital-gains exclusion
 SECTION_121_EXCLUSION_SINGLE = D("250000")
@@ -101,32 +138,44 @@ def us_capital_gains_tax(
     filing_status: FilingStatusUS,
     state_marginal_rate: Decimal = D("0"),
     is_collectible: bool = False,
+    long_term: bool | None = None,
 ) -> Decimal:
     """Total US capital gains tax: federal + NIIT (if MAGI > threshold) + state.
 
-    Short-term (≤ 365 days): taxed as ordinary income at federal marginal rate.
-    Long-term (> 365 days): 0/15/20% bracket, capped at 28% for collectibles.
-    NIIT 3.8% adds on top when MAGI exceeds filing-status threshold.
-    State applies its own marginal rate on the full gain (most states; some
-    treat cap gains as ordinary, a couple have 0% — caller controls via the
-    state_marginal_rate input).
+    `taxable_income` is the year's ordinary taxable income WITHOUT this
+    gain; the gain is stacked on top of it, and income + gain is the MAGI
+    proxy for NIIT.
+
+    Short-term: taxed as ordinary income at the federal marginal rate.
+    Long-term ("more than one year": pass `long_term` from calendar dates;
+    the `holding_days > 365` fallback is wrong on leap years, P2-11): the
+    0/15/20% bands apply to the gain STACKED on top of ordinary income
+    (P2-22), capped at 28% for collectibles.
+    NIIT 3.8% applies to min(gain, MAGI − threshold), not the whole gain.
     """
     if gain <= 0:
         return D("0")
 
-    is_lt = holding_days > 365
+    is_lt = long_term if long_term is not None else holding_days > 365
 
     if is_lt:
-        bracket = ltcg_bracket_rate(taxable_income, filing_status)
-        if is_collectible:
-            bracket = min(COLLECTIBLE_LTCG_MAX_RATE, max(bracket, D("0.15")))
-        federal = gain * bracket
+        ordinary = max(D("0"), taxable_income)
+        federal = D("0")
+        prev = D("0")
+        for limit, rate in LTCG_BRACKETS_2026[filing_status]:
+            lo = max(prev, ordinary)
+            hi = min(limit, ordinary + gain)
+            if hi > lo:
+                r = rate
+                if is_collectible:
+                    r = min(COLLECTIBLE_LTCG_MAX_RATE, max(rate, D("0.15")))
+                federal += (hi - lo) * r
+            prev = limit
     else:
-        federal = gain * federal_marginal_rate(taxable_income, filing_status)
+        federal = federal_tax(taxable_income + gain, filing_status) - federal_tax(taxable_income, filing_status)
 
-    niit = D("0")
-    if taxable_income > NIIT_THRESHOLD_2026[filing_status]:
-        niit = gain * NIIT_RATE
+    over = taxable_income + gain - NIIT_THRESHOLD_2026[filing_status]
+    niit = min(gain, over) * NIIT_RATE if over > 0 else D("0")
 
     state = gain * state_marginal_rate
     return federal + niit + state
@@ -172,6 +221,7 @@ def itemisation_benefit(
     charitable_giving: Decimal,
     filing_status: FilingStatusUS,
     marginal_rate: Decimal,
+    magi: Decimal | None = None,
 ) -> tuple[Decimal, bool]:
     """Returns (tax_saved, itemises_flag).
 
@@ -181,7 +231,7 @@ def itemisation_benefit(
     std = STANDARD_DEDUCTION_2026[filing_status]
     itemisable = (
         mortgage_interest_paid
-        + min(salt_taxes_paid, SALT_CAP_2026)
+        + min(salt_taxes_paid, salt_cap(magi))
         + charitable_giving
     )
     if itemisable > std:
