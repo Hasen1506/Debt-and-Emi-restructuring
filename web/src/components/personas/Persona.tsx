@@ -32,12 +32,12 @@ export const PERSONA: Record<StrategyName, PersonaInfo> = {
     rule: 'Highest rate first.',
     feel: 'The hard climb, and the least interest.',
   },
-  hybrid: {
-    name: 'Hybrid',
+  rules: {
+    name: 'Your rules',
     tag: 'THE RIDGE',
     figure: 'Atlas on the ridge, a boulder in one hand and a snowball in the other',
-    rule: 'Small balances first for a quick win, then the highest rate.',
-    feel: 'A win early, then the maths.',
+    rule: 'Your own order: pinned loans, small balances, then the highest rate.',
+    feel: 'Your call, with its cost against Avalanche shown.',
   },
   snowball: {
     name: 'Snowball',
