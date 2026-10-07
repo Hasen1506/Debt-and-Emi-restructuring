@@ -368,7 +368,7 @@ export function applyConfirmedEventWithRefresh(
   event: LifecycleEvent,
 ): { user: UserPayload; marginalRate: string; snapshot: AppliedSnapshot } {
   const { user: updatedUser, snapshot } = applyConfirmedEvent(user, event);
-  const marginalRate = deriveMarginalRateForUser(updatedUser);
+  const marginalRate = deriveMarginalRateForUser(updatedUser, prevMarginalRate);
   return {
     user: updatedUser,
     marginalRate,
