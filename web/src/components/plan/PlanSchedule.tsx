@@ -170,6 +170,13 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
     };
   });
 
+  // QA #19: with loans in two currencies a row showed ₹ and $ side by side
+  // and no total anyone could match to a bank account. Each row now has the
+  // month's total in the plan's currency, and a note says how it's added up.
+  const totalByMonth = new Map<number, number>(plan.monthlyPayments.map((row) => [row.month, row.totalPaid]));
+  const foreign = Array.from(new Set(loanCols.map((l) => loanCurrency(l, plan.user.country)).filter((c) => c !== ccy)));
+  const mixed = foreign.length > 0;
+
   const eventRows = rows.filter((r) => r.event);
   const visibleRows = expanded ? rows : eventRows;
   const totalCount = rows.length || plan.trajectory.length;
@@ -195,6 +202,13 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
           NO EVENTS · the next {totalCount} months hold steady. Show all months to see each one.
         </div>
       ) : (
+        <>
+        {mixed && (
+          <div role="note" style={{ padding: '6px 0 8px', fontSize: 10, color: L_T.muted, lineHeight: 1.5 }}>
+            Loan columns marked ({foreign.join(', ')}) are in that loan&apos;s own currency. TOTAL, EXTRA, INTEREST,
+            PRINCIPAL and BALANCE are in {ccy}, converted at the exchange rate saved on your profile.
+          </div>
+        )}
         <div
           role="region"
           aria-label="Month-by-month schedule"
@@ -232,6 +246,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                       // A loan in another currency says so: its column is in it.
                       (loanCurrency(l, plan.user.country) !== ccy ? ` (${loanCurrency(l, plan.user.country)})` : ''),
                   ),
+                  ...(mixed ? [`TOTAL (${ccy})`] : []),
                   'EXTRA',
                   'INTEREST',
                   'PRINCIPAL',
@@ -271,6 +286,11 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                         : '—'}
                     </td>
                   ))}
+                  {mixed && (
+                    <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      {fc((totalByMonth.get(r.mo) ?? 0).toFixed(0))}
+                    </td>
+                  )}
                   <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.accent, fontWeight: 700 }}>
                     {r.extra > 0 ? fc(r.extra.toFixed(0)) : '—'}
                   </td>
@@ -282,6 +302,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
       <RateResetAlert plan={plan} />
     </section>
