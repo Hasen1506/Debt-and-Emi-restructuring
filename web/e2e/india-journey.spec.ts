@@ -59,7 +59,10 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
   await test.step('what-if: a ₹50,000 lump sum on the card', async () => {
     const whatIf = page.locator('#what-if');
     const compare = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().endsWith('/api/sensitivity/compare') && r.ok());
-    await whatIf.getByRole('textbox', { name: 'Pay a lump sum' }).fill('50000');
+    // The amount box commits on Enter/blur (typing alone only edits a draft).
+    const lump = whatIf.getByRole('textbox', { name: 'Pay a lump sum' });
+    await lump.fill('50000');
+    await lump.press('Enter');
     const body = await (await compare).json();
     expect(Number(body.interest_saved)).toBeGreaterThan(0);
     expect(Number(body.scenario_total_interest)).toBeLessThan(Number(body.baseline_total_interest));
