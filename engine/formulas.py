@@ -288,6 +288,31 @@ def prepay_recommended(
 GST_ON_CARD_INTEREST_IN = D("0.18")
 
 
+def prepayment_beats_fee(monthly_rate: Decimal, fee_pct: Decimal, months_left: int | None) -> bool:
+    """True when paying 1 extra unit now saves more interest than the
+    bank's prepayment fee takes.
+
+    Of each extra unit, `fee_pct` goes to the fee and `1 - fee_pct` to
+    principal. That principal would otherwise have grown at `monthly_rate`
+    for the `months_left` the loan still runs, so the prepayment is worth
+    it only when (1 - fee) x (1 + r)^k > 1. `months_left=None` means the
+    loan never clears on its current payment (any fee below 100% pays off).
+
+    Found by the property suite (engine/tests/test_property_invariants.py): a 0.51% loan with a 0.28%
+    fee and 12 months left was still prepaid, so the "optimised" plan cost
+    more than paying only the minimums.
+    """
+    if fee_pct <= 0:
+        return True
+    if fee_pct >= 1:
+        return False
+    if months_left is None:
+        return True
+    if months_left <= 0 or monthly_rate <= 0:
+        return False
+    return (D("1") - fee_pct) * (D("1") + monthly_rate) ** int(months_left) > D("1")
+
+
 def loan_market(loan: Loan, country: Country) -> Country:
     """The market a loan's rules come from: its currency when tagged
     (an INR card held by a US resident is still an Indian card), else the

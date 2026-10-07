@@ -21,9 +21,15 @@ export function FxCachePersister({
 }: {
   rates: Record<string, string>;
 }) {
+  // Keyed on the rates' content, not the object: a re-render with the same
+  // rates (e.g. when sign-out flips the session to anonymous just before the
+  // page unloads) re-stamped the cookie right after sign-out had cleared it,
+  // leaving the last user's FX cache in the browser (E2E golden journey).
+  const key = JSON.stringify(rates);
   useEffect(() => {
-    if (Object.keys(rates).length === 0) return;
-    saveFxCacheClient(rates);
-  }, [rates]);
+    const parsed = JSON.parse(key) as Record<string, string>;
+    if (Object.keys(parsed).length === 0) return;
+    saveFxCacheClient(parsed);
+  }, [key]);
   return null;
 }

@@ -21,7 +21,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SESSION_CHANGED_EVENT } from './session-events';
-import { writeProfileCookieClient, clearProfileClient, serializeProfileForServer, type StoredProfile } from './user-store';
+import { writeProfileCookieClient, clearProfileClient, resumeProfileClient, serializeProfileForServer, type StoredProfile } from './user-store';
 import { writeLifecycleClient, readLifecycleClient, type LifecycleEvent } from './lifecycle-events';
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -100,6 +100,7 @@ export function prepareAccountCache(userId: string): void {
   if (previous && previous !== userId) clearAccountCache();
   localStorage.setItem(ACCOUNT_KEY, userId);
   preparedAccount = userId;
+  resumeProfileClient();
   reportSync(Object.keys(pendingState(userId)).length ? 'pending' : 'saved');
 }
 
