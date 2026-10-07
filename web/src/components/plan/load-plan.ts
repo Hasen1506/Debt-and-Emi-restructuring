@@ -7,6 +7,7 @@ import { api, type SimulateResponse, type UserPayload, type LifecycleEventInput 
 import { cachedEngineCall } from '@/lib/server-engine-cache';
 import { loadProfileServer } from '@/lib/user-store';
 import { loadStrategyServer, STRATEGIES, type StrategyName } from '@/lib/strategy';
+import { loadRulesServer, rulesForLoans, rulesOrDefault } from '@/lib/payoff-rules';
 import {
   loadHikeModelingServer,
   type HikeModeling,
@@ -355,6 +356,12 @@ export async function loadPlanInputs(
   // what is left after goals). Omitting it made the engine hold back a
   // fixed gap / 12 instead, so 0% and "has goals" both ignored the slider.
   const efTopUpRate = efTarget > 0 && efBalance < efTarget ? efSplit : undefined;
+  // The user's payoff rules ride on the user (engine reads them only when
+  // the strategy is 'rules'); none saved = Hybrid's rule (roadmap PR E).
+  adjustedUser = {
+    ...adjustedUser,
+    payoff_rules: rulesForLoans(rulesOrDefault(await loadRulesServer(), adjustedUser.country), adjustedUser.loans.length),
+  };
 
   // Build the same simulate-args dict for every strategy variant so the
   // comparison table reflects "what if you flipped only the strategy".
@@ -476,7 +483,7 @@ export async function loadPlan(
       anyGoalShort: false,
       strategyCompare: {
         avalanche: { debtFreeMonth: null, totalInterest: '0' },
-        hybrid: { debtFreeMonth: null, totalInterest: '0' },
+        rules: { debtFreeMonth: null, totalInterest: '0' },
         snowball: { debtFreeMonth: null, totalInterest: '0' },
       },
       // Offline mock branch — engine didn't run, no real allocation.
