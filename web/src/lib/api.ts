@@ -286,6 +286,12 @@ export interface UserPayload {
   fx_drift_annualized?: Record<string, string>;
   /** Strategy 'rules' (roadmap PR E): the user's payoff rules (lib/payoff-rules). */
   payoff_rules?: { small_first_below: string | null; pinned: number[]; custom_order: number[] };
+  /** The user's own assumptions (lib/assumptions, roadmap PR D); omitted = defaults. */
+  prepay_hurdle?: string | null;
+  asset_returns?: Record<string, string>;
+  liquidation_costs?: Record<string, string>;
+  /** Web-only assumptions (emergency-fund months and fixed top-up, goal buffer); the API ignores them. */
+  assumptions?: { ef_months?: number | null; ef_save_amount?: string | null; goal_buffer_pct?: string | null };
   /** Annual tax (₹/$) on income that's NOT covered by employer TDS —
    *  rental, FD interest > ₹40k, capital gains, freelance side-income.
    *  Salaried users opt in by entering a number here; the tax sleeve

@@ -11,41 +11,22 @@
  */
 
 import type { AssetPayload, AssetType, Country } from './api';
+import { DEFAULT_ASSET_RETURNS } from './assumptions';
 
-const ASSET_DEFAULT_RETURNS_IN: Partial<Record<AssetType, number>> = {
-  savings_balance: 0.035,
-  fixed_deposit: 0.07,
-  equity_stocks: 0.12,
-  equity_mf: 0.11,
-  debt_mf: 0.07,
-  gold_physical: 0.08,
-  sgb: 0.08,
-  real_estate: 0.07,
-  ppf: 0.071,
-  epf: 0.0825,
-  nps: 0.09,
-  other: 0.06,
-};
-
-const ASSET_DEFAULT_RETURNS_US: Partial<Record<AssetType, number>> = {
-  savings_balance: 0.04,
-  fixed_deposit: 0.045,
-  equity_stocks: 0.10,
-  equity_mf: 0.09,
-  debt_mf: 0.05,
-  gold_physical: 0.07,
-  real_estate: 0.06,
-  ppf: 0,
-  epf: 0,
-  nps: 0,
-  sgb: 0,
-  other: 0.05,
-};
+// One web copy of the engine's tables (lib/assumptions, checked against
+// engine/country_data.py by tests/roadmap-d-values.cjs). This file's own
+// copy had drifted: an Indian FD at 7% here, 6.25% in the engine.
+const ASSET_DEFAULT_RETURNS_IN = DEFAULT_ASSET_RETURNS.IN;
+const ASSET_DEFAULT_RETURNS_US = DEFAULT_ASSET_RETURNS.US;
 
 export function defaultAssetCagr(
   assetType: AssetType | string,
   country: Country,
+  overrides?: Record<string, string>,
 ): number {
+  // The user's own return for this type (Profile → Assumptions, roadmap PR D).
+  const own = overrides?.[assetType];
+  if (own != null && own !== '' && Number.isFinite(Number(own))) return Number(own);
   const table =
     country === 'IN' ? ASSET_DEFAULT_RETURNS_IN : ASSET_DEFAULT_RETURNS_US;
   return table[assetType as AssetType] ?? 0.06;
@@ -60,13 +41,14 @@ export function projectAssetValue(
   asset: AssetPayload,
   country: Country,
   monthsForward: number,
+  overrides?: Record<string, string>,
 ): number {
   const current = Number(asset.current_market_value || '0');
   if (monthsForward <= 0 || current === 0) return current;
   const cagr =
     asset.appreciation_cagr != null && asset.appreciation_cagr !== ''
       ? Number(asset.appreciation_cagr)
-      : defaultAssetCagr(asset.asset_type, country);
+      : defaultAssetCagr(asset.asset_type, country, overrides);
   if (!Number.isFinite(cagr) || cagr === 0) return current;
   const monthly = cagr / 12;
   return current * Math.pow(1 + monthly, monthsForward);
@@ -82,8 +64,9 @@ export function projectedLiquidatableValue(
   assets: AssetPayload[] | undefined,
   country: Country,
   monthsForward: number,
+  overrides?: Record<string, string>,
 ): number {
   return (assets ?? [])
     .filter((a) => a.user_marks_liquid !== false)
-    .reduce((s, a) => s + projectAssetValue(a, country, monthsForward), 0);
+    .reduce((s, a) => s + projectAssetValue(a, country, monthsForward, overrides), 0);
 }

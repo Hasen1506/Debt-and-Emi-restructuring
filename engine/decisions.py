@@ -162,6 +162,7 @@ def allocate_windfall(
     country: Country = Country.IN,
     marginal_tax_rate: Decimal = D("0"),
     rules: PayoffRules | None = None,
+    prepay_hurdle: Decimal | None = None,
 ) -> WindfallAllocation:
     """§8a — single decision, not a plan. Runs Layer 1 logic (already done at scan
     time), then Layer 2 ranking, then Layer 3 invest-vs-prepay gate on the top
@@ -209,7 +210,7 @@ def allocate_windfall(
     best = next((o for o in liquid if o.expected_return == best_return), None)
     rate_ok = [
         l for l in ranked
-        if best is None or prepay_recommended(effective_rates[id(l)], best_return, inflation, marginal_tax_rate)
+        if best is None or prepay_recommended(effective_rates[id(l)], best_return, inflation, marginal_tax_rate, prepay_hurdle)
     ]
     # A fee bigger than the interest the payment saves makes prepaying a loss.
     worth = [l for l in rate_ok if net_of_fee(l)[2] > net_of_fee(l)[1]]

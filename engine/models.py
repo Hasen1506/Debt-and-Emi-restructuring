@@ -215,6 +215,10 @@ class Asset:
     # for a 33% bracket holder, so the "should I sell to pay down debt"
     # math otherwise understates the asset's value.
     us_is_tax_exempt_muni: bool = False
+    # Cost of selling, as a share of the sale value (brokerage + STT, a
+    # jeweller's cut, an exit load). None = the engine's default for the
+    # asset type (roadmap PR D: user-editable defaults).
+    selling_cost_pct: Optional[Decimal] = None
     # Holdings tracker — populated for equity_stocks / equity_mf entries that
     # the user enters as ticker+quantity rather than a flat market value. When
     # set, `current_market_value` is derived as quantity × last_price and is
@@ -353,6 +357,15 @@ class User:
     fx_drift_annualized: dict[str, Decimal] = field(default_factory=dict)
     # The user's payoff rules when the strategy is RULES (engine/ordering.py).
     payoff_rules: Optional[PayoffRules] = None
+    # ── The user's own assumptions (roadmap PR D); empty / None = defaults ──
+    # Margin a loan's after-tax rate must beat the best liquid return by
+    # before extra goes to it (formulas.PREPAY_RISK_PREMIUM, +0.5pp).
+    prepay_hurdle: Optional[Decimal] = None
+    # Expected yearly return per asset type, replacing country_data's table.
+    asset_returns: dict[str, Decimal] = field(default_factory=dict)
+    # Selling cost per asset type (share of sale value), replacing the
+    # asset_liquidation defaults; an asset's own selling_cost_pct wins.
+    liquidation_costs: dict[str, Decimal] = field(default_factory=dict)
     # FX rates used to convert non-residence-currency loan amounts (EMIs,
     # interest) into the user's residence currency for surplus / DTI math.
     # Keyed by loan currency ("INR", "USD", ...) with value = "how many

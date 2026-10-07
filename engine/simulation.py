@@ -748,7 +748,7 @@ def simulate_plan(
 
         worth_prepaying = [
             l for l in ranked
-            if prepay_recommended(rates[id(l)], best_liquid_return, inflation, marg)
+            if prepay_recommended(rates[id(l)], best_liquid_return, inflation, marg, user.prepay_hurdle)
             and _fee_pays_off(l)
         ]
         worth_ids = {id(l) for l in worth_prepaying}

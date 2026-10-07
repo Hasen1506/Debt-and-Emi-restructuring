@@ -7,7 +7,9 @@
  * fall back on. The monthly amount shows before saving.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { goalBuffer } from '@/lib/assumptions';
+import { loadProfileClient } from '@/lib/user-store';
 import { formatCurrencyWhole } from '@/lib/api';
 import {
   GOAL_PRESETS,
@@ -71,6 +73,10 @@ export function GoalForm({
   const editing = !!initial;
   const [goal, setGoal] = useState<Goal>(() => initial ?? { ...blankGoal('downpayment'), targetMonth: '' });
   const [labelTouched, setLabelTouched] = useState(editing);
+  // A new goal starts with the user's default buffer when they set one.
+  useEffect(() => {
+    if (!editing) setGoal((g) => ({ ...g, bufferPct: goalBuffer(loadProfileClient().user, g.bufferPct) }));
+  }, [editing]);
   const [saved, setSaved] = useState('');
   const [more, setMore] = useState(false);
   const [tried, setTried] = useState(false);
@@ -87,7 +93,8 @@ export function GoalForm({
       ...(editing
         ? {}
         : {
-            bufferPct: p.bufferPct,
+            // The user's default buffer (Profile → Assumptions) when set.
+            bufferPct: goalBuffer(loadProfileClient().user, p.bufferPct),
             priorityBump: p.priorityBump,
             fundingSources: [...p.fundingSources],
             deadlineKind: p.deadlineKind,
