@@ -25,6 +25,7 @@ import {
   type OutcomeReportRequest,
 } from '@/lib/api';
 import { parsePercentInput } from '@/lib/rate-input';
+import { localIsoDate } from '@/lib/today';
 
 const SHARED_KEY = 'rightdue.outcome.shared.v1';
 const SHARED_EVENT = 'rightdue:outcome-shared';
@@ -119,7 +120,8 @@ function daysBetween(from: string, to: string): number {
 }
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  // Local date, not UTC: in India toISOString() is yesterday until 05:30 (P2-19).
+  return localIsoDate(new Date());
 }
 
 /** The report this tracker adds up to, or why there isn't one yet. */
