@@ -54,12 +54,12 @@ const TAX_SLEEVE_TIP = (
     </div>
     <div style={{ marginTop: 8 }}>
       <strong>How the target is calculated.</strong> From the &quot;tax on
-      non-TDS income&quot; field you entered at onboarding (salaried) or
+      income with no withholding&quot; field (non-TDS income in India) you entered at onboarding (salaried) or
       from your stated annual business income (business owner). The
       installments follow the statutory schedule for your country.
     </div>
     <div style={{ marginTop: 8 }}>
-      Not your situation? Clear the non-TDS field in{' '}
+      Not your situation? Clear that field in{' '}
       <a href="/profile?step=2" style={{ color: 'var(--accent)' }}>
         Setup → Income
       </a>{' '}
@@ -241,7 +241,7 @@ export function TaxSleeveCard({
             </>
           ) : (
             <>
-              the <strong>&quot;tax on non-TDS income&quot;</strong> field you
+              the <strong>&quot;{country === 'IN' ? 'tax on non-TDS income' : 'tax on income with no withholding'}&quot;</strong> field you
               entered. Edit or clear it in{' '}
               <a href="/profile?step=2" style={{ color: 'var(--accent)' }}>
                 Setup → Income
