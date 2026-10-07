@@ -725,7 +725,8 @@ def simulate_plan(
         # first loan made snowball invest everything while a 42% card
         # sat at its minimum, because a small 7% car loan came first.
         ranked = rank_loans(active, rates, strategy, country=user.country,
-                            balance_of=lambda l: to_user_currency(l.outstanding, l, user))
+                            balance_of=lambda l: to_user_currency(l.outstanding, l, user),
+                            rules=user.payoff_rules, index_of=loan_position)
         invested_this_month = D("0")
         extra_for_debt = surplus
         def _fee_pays_off(l: Loan) -> bool:
@@ -923,6 +924,7 @@ def simulate_plan(
                     strategy,
                     country=user.country,
                     balance_of=lambda l: to_user_currency(l.outstanding, l, user),
+                    rules=user.payoff_rules, index_of=loan_position,
                 )
                 left = reinvest_amount
                 for target in reinvest_ranked:
