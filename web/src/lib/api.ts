@@ -1256,6 +1256,10 @@ export const api = {
 
   simulate: (req: SimulateArgs) => post<SimulateResponse>('/api/simulate', req),
 
+  /** Roadmap PR F: the interest cost of funding each goal before high-interest debt. */
+  goalsTradeoff: (req: SimulateArgs & { goal_ids?: string[] }) =>
+    post<{ tradeoffs: GoalTradeoff[] }>('/api/goals/tradeoff', req),
+
   baseline: (req: {
     user: UserPayload;
     horizon_months?: number;
@@ -1683,7 +1687,23 @@ export interface SimulateArgs {
      *  sim-month index. Lets the UI park a goal until later in the
      *  timeline. null = start at month 0 (legacy behavior). */
     funding_start_month_index?: number | null;
+    /** Funding rule (roadmap PR F, lib/goal-funding): omitted = 'schedule'. */
+    funding_rule?: 'schedule' | 'fixed' | 'surplus_pct' | 'after_debt';
+    funding_amount?: string | null;
+    funding_pct?: string | null;
+    after_loan_index?: number | null;
   }[];
+}
+
+/** Roadmap PR F: funding one goal now (before high-interest debt) against debt first. */
+export interface GoalTradeoff {
+  goal_id: string;
+  has_high_apr_debt: boolean;
+  extra_interest: string;
+  debt_free_later_months: number;
+  debt_first_reaches_target: boolean;
+  debt_first_fill_rate: string;
+  funded_now_fill_rate: string;
 }
 
 /** The plan's settings for a run (everything /plan sends to /simulate
