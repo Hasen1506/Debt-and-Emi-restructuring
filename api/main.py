@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from engine.surplus import MissingFxRate
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -86,6 +87,14 @@ async def _validation_error(request: Request, exc: RequestValidationError) -> JS
         errors.append({"field": field, "message": f"{field}: {msg}" if field else msg})
     first = errors[0] if errors else {"field": "", "message": "The request could not be read."}
     return JSONResponse(status_code=422, content={"detail": first, "errors": errors[:20]})
+
+
+@app.exception_handler(MissingFxRate)
+async def _missing_fx(request: Request, exc: MissingFxRate) -> JSONResponse:
+    """A foreign loan reached the engine without an exchange rate (H4).
+    The schema normally catches this first; never guess parity."""
+    msg = f"{exc} — save an exchange rate for each foreign loan."
+    return JSONResponse(status_code=422, content={"detail": {"field": "user.fx_to_user_currency", "message": msg}})
 
 
 app.include_router(simulation.router, prefix="/api")
