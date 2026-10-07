@@ -1,8 +1,7 @@
-"""Decision sub-modules — §8a, 8b, 8d, 8e, 8f."""
+"""Decision sub-modules — §8a, 8b, 8d, 8e (§8f Right time retired in roadmap PR I)."""
 from decimal import Decimal
 from engine.decisions import (
     allocate_windfall, evaluate_new_debt, quick_recompute, cash_yield_check,
-    right_time_to_borrow,
 )
 from engine.models import Loan, LoanType, Country, InvestmentOption, LiquidityClass
 from engine.ordering import Strategy
@@ -134,88 +133,6 @@ def test_cash_yield_flags_when_loan_beats_alt():
 
 
 # ─── §8f Right-Time-to-Borrow ─────────────────────────────────────────────────
-
-def test_borrow_wait_when_cut_expected_and_user_flexible():
-    """50bps cut expected in 3 months, user can wait 3m → wait."""
-    v = right_time_to_borrow(
-        current_rate=D("0.13"), six_month_avg=D("0.124"),
-        consensus_change_bps=-50, months_to_decision=3,
-        urgency="3m_ok", principal=D("1000000"), tenure_months=36,
-    )
-    assert v.verdict == "wait"
-    assert v.estimated_savings > D("0")
-
-
-def test_borrow_saving_is_on_the_falling_balance():
-    """₹5L over 36 months, 50bps cut: the EMIs differ by about ₹120, so
-    about ₹4,300 over the loan. The old "cut × principal × years" said
-    ₹7,500 and told the user to wait for less than the ₹5,000 bar."""
-    v = right_time_to_borrow(
-        current_rate=D("0.13"), six_month_avg=D("0.124"),
-        consensus_change_bps=-50, months_to_decision=3,
-        urgency="3m_ok", principal=D("500000"), tenure_months=36,
-    )
-    assert D("4000") < v.estimated_savings < D("4600")
-    assert v.verdict == "borrow_now"
-
-
-def test_borrow_detail_uses_the_users_currency():
-    v = right_time_to_borrow(
-        current_rate=D("0.07"), six_month_avg=D("0.07"),
-        consensus_change_bps=-50, months_to_decision=3,
-        urgency="3m_ok", principal=D("400000"), tenure_months=360,
-        country=Country.US,
-    )
-    assert v.verdict == "wait"
-    assert "$" in v.detail and "₹" not in v.detail
-    small = right_time_to_borrow(
-        current_rate=D("0.07"), six_month_avg=D("0.07"),
-        consensus_change_bps=-10, months_to_decision=3,
-        urgency="3m_ok", principal=D("400000"), tenure_months=360,
-    )
-    assert "Only a 0.10% cut" in small.detail
-
-
-def test_borrow_now_when_user_urgent():
-    """Even if a cut is expected, urgent user borrows now."""
-    v = right_time_to_borrow(
-        current_rate=D("0.13"), six_month_avg=D("0.124"),
-        consensus_change_bps=-50, months_to_decision=3,
-        urgency="now", principal=D("500000"), tenure_months=36,
-    )
-    assert v.verdict == "borrow_now"
-
-
-def test_borrow_now_when_hike_expected():
-    v = right_time_to_borrow(
-        current_rate=D("0.13"), six_month_avg=D("0.124"),
-        consensus_change_bps=+25, months_to_decision=3,
-        urgency="6m_ok", principal=D("500000"), tenure_months=36,
-    )
-    assert v.verdict == "borrow_now"
-
-
-def test_borrow_now_says_why_when_the_cut_is_real_but_small():
-    """A 50bps cut on ₹5L over 3 years saves ~₹4,180 — below the ₹5,000 bar.
-    It used to say 'No meaningful change expected (-50bps)'."""
-    v = right_time_to_borrow(
-        current_rate=D("0.09"), six_month_avg=D("0.09"),
-        consensus_change_bps=-50, months_to_decision=3,
-        urgency="6m_ok", principal=D("500000"), tenure_months=36,
-    )
-    assert v.verdict == "borrow_now"
-    assert "No meaningful change" not in v.detail
-    assert "save only" in v.detail and "₹4,180" in v.detail
-
-
-def test_borrow_now_says_why_when_the_cut_is_far_off():
-    v = right_time_to_borrow(
-        current_rate=D("0.09"), six_month_avg=D("0.09"),
-        consensus_change_bps=-100, months_to_decision=12,
-        urgency="6m_ok", principal=D("5000000"), tenure_months=240,
-    )
-    assert v.verdict == "borrow_now"
-    assert "12 months" in v.detail
 
 
 # ─── Phase 3 review: same bug classes as Loan Check ──────────────────────────
@@ -426,25 +343,6 @@ def test_new_debt_take_says_what_is_left():
     )
     assert v.verdict == "take"
     assert "₹15,600 a month" in v.detail and "budget allows" not in v.detail
-
-
-def test_borrow_now_checks_the_emi_fits():
-    """Audit round 4: $300k at 15.99% over 60 months ($7,294 EMI) on $1,060
-    of monthly room was "Borrow now" with an add button. It's cant_afford,
-    with the timing kept as a note; a loan that fits says what it leaves."""
-    args = dict(
-        current_rate=D("0.1599"), six_month_avg=D("0.1599"),
-        consensus_change_bps=0, months_to_decision=1, urgency="now",
-        tenure_months=60, country=Country.US,
-    )
-    v = right_time_to_borrow(**args, principal=D("300000"), monthly_room=D("1060"))
-    assert v.verdict == "cant_afford"
-    assert v.monthly_payment == D("7293.82")
-    assert "$6,234 a month short" in v.detail and "On timing alone" in v.detail
-    ok = right_time_to_borrow(**args, principal=D("20000"), monthly_room=D("1060"))
-    assert ok.verdict == "borrow_now" and "leaves $574 a month" in ok.detail
-    blind = right_time_to_borrow(**args, principal=D("300000"))
-    assert blind.verdict == "borrow_now" and "judges the timing only" in blind.detail
 
 
 def _pl(**terms):

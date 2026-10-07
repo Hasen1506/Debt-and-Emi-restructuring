@@ -78,28 +78,6 @@ def test_cash_yield_skipped_below_threshold(client):
                         "annual_uplift": None, "beats_top_loan": None, "rationale": None}
 
 
-def test_right_time_to_borrow_wait(client):
-    """50bps cut expected in 3 months, user can wait → 'wait' verdict."""
-    r = client.post("/api/right-time-to-borrow", json={
-        "current_rate": "0.085", "six_month_avg": "0.090",
-        "consensus_change_bps": -50, "months_to_decision": 3,
-        "urgency": "3m_ok", "principal": "5000000", "tenure_months": 240,
-    })
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["verdict"] == "wait"
-
-
-def test_right_time_to_borrow_urgent(client):
-    r = client.post("/api/right-time-to-borrow", json={
-        "current_rate": "0.085", "six_month_avg": "0.090",
-        "consensus_change_bps": -50, "months_to_decision": 3,
-        "urgency": "now", "principal": "5000000", "tenure_months": 240,
-    })
-    assert r.status_code == 200
-    assert r.json()["verdict"] == "borrow_now"
-
-
 def test_asset_liquidation_recommends_sell_for_high_rate_debt(client):
     """Pre-Finance-Act-2024 property, ₹15L credit-card debt at 36%, weak asset
     return → all three gates should pass."""
@@ -281,15 +259,6 @@ def test_windfall_zero_amount_is_a_named_422(client, india_user_payload):
     r = client.post("/api/windfall", json={"amount": "0", "user": india_user_payload})
     assert r.status_code == 422
     assert r.json()["detail"]["field"] == "amount"
-
-
-def test_right_time_rejects_unknown_urgency(client):
-    r = client.post("/api/right-time-to-borrow", json={
-        "current_rate": "0.09", "six_month_avg": "0.09",
-        "consensus_change_bps": -50, "months_to_decision": 3,
-        "urgency": "whenever", "principal": "500000", "tenure_months": 36,
-    })
-    assert r.status_code == 422
 
 
 def test_quick_recompute_rejects_a_loan_that_is_not_there(client, india_user_payload):

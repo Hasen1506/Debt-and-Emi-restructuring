@@ -401,7 +401,7 @@ function EmptyState({ paidOff }: { paidOff: boolean }) {
             <>
               No loans or cards on file. Plan ahead:{' '}
               <LBracket href="/goals">GOALS →</LBracket>{' '}
-              <LBracket href="/tools/purchase">A BIG PURCHASE →</LBracket>{' '}
+              <LBracket href="/tools/new-debt?mode=purchase">A BIG PURCHASE →</LBracket>{' '}
               <LBracket href="/portfolio">PORTFOLIO →</LBracket>{' '}
               <LBracket href="/profile?step=loans">ADD A LOAN →</LBracket>
             </>

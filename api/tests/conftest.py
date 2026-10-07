@@ -6,8 +6,6 @@ from fastapi.testclient import TestClient
 
 # Tests never reach FRED or the RBI website; feed tests pass their own fetcher.
 os.environ.setdefault("RATES_FEED", "off")
-# Nor Polymarket; odds tests pass their own fetcher.
-os.environ.setdefault("MARKET_ODDS", "off")
 # The fuzz sends thousands of requests from one client; limits have their own tests.
 os.environ.setdefault("RATE_LIMITS", "off")
 

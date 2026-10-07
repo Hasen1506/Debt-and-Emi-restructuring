@@ -40,17 +40,10 @@ export const TOOLS: ToolMeta[] = [
     id: 'new-debt',
     tag: '8b',
     name: 'New debt check',
-    question: 'Should I take this new loan or EMI?',
-    sub: 'Checks it against your plan before you sign.',
+    question: 'A new loan, an EMI offer, or a big purchase?',
+    // Big purchase merged in here (roadmap PR I): one place to check new debt.
+    sub: 'Checks a loan or EMI offer, or a home or car you plan to buy, against your plan before you sign.',
     href: '/tools/new-debt',
-  },
-  {
-    id: 'purchase',
-    tag: '8g',
-    name: 'Big purchase',
-    question: 'Planning a big purchase?',
-    sub: 'What it really costs, and how to fit it into the plan.',
-    href: '/tools/purchase',
   },
   {
     id: 'liquidate',
@@ -67,14 +60,6 @@ export const TOOLS: ToolMeta[] = [
     question: 'Invest the money, or prepay a loan?',
     sub: 'Shares or funds in a normal and a bad year, against the loan’s rate.',
     href: '/tools/invest-vs-prepay',
-  },
-  {
-    id: 'right-time',
-    tag: '8f',
-    name: 'Right time',
-    question: 'Borrow now, or wait for rates to fall?',
-    sub: 'The market’s odds of a rate cut, and what waiting would save.',
-    href: '/tools/right-time',
   },
   {
     id: 'loan-check',

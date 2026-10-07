@@ -41,7 +41,6 @@ def configure_env(tmp: Path) -> None:
     os.environ["OUTCOMES_DATABASE_URL"] = f"sqlite+aiosqlite:///{tmp / 'outcomes.sqlite3'}"
     os.environ["RATES_STORE_PATH"] = str(tmp / "rates.json")
     os.environ["RATES_FEED"] = "off"
-    os.environ["MARKET_ODDS"] = "off"
     os.environ["RATE_LIMITS"] = "off"
     os.environ.setdefault("CORS_ORIGINS", "http://localhost:3100,http://127.0.0.1:3100")
     os.environ.pop("RESEND_API_KEY", None)

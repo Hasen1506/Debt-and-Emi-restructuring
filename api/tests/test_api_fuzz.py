@@ -228,9 +228,6 @@ def _bodies(user: dict) -> dict:
         "/api/new-debt": {"list_price": "50000", "cash_price_elsewhere": "45000",
                           "emi_offer_months": 12, "emi_offer_monthly_payment": "4500"},
         "/api/cash-yield": {"idle_balance": "500000", "current_yield": "0.025", "country": "IN"},
-        "/api/right-time-to-borrow": {"current_rate": "0.085", "six_month_avg": "0.090",
-                                      "consensus_change_bps": -50, "months_to_decision": 3,
-                                      "urgency": "3m_ok", "principal": "5000000", "tenure_months": 240},
         "/api/asset-liquidation": {
             "asset": {"asset_type": "real_estate", "purchase_price": "6000000",
                       "purchase_date": "2018-06-15", "current_market_value": "9000000",

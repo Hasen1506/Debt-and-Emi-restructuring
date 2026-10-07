@@ -50,13 +50,6 @@ def test_m2_penalty_insurance_and_enums_are_bounded(client, india_user_payload):
     assert client.post("/api/simulate", json={"user": user}).status_code == 200
 
 
-def test_p2_20_tiny_rate_no_500(client):
-    r = client.post("/api/right-time-to-borrow", json={
-        "current_rate": "1e-66", "principal": "1e-66", "tenure_months": 620, "urgency": "now",
-    })
-    assert r.status_code != 500
-
-
 def test_quick_recompute_converts_currency_and_checks_index_first(client, india_user_payload):
     user = _with_usd_loan(india_user_payload, {"USD": "83"})
     r = client.post("/api/quick-recompute", json={

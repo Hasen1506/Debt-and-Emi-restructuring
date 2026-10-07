@@ -25,3 +25,8 @@ Suggestions that came up while implementing the 2026-10-07 roadmap. None of thes
 - **One config file for policy constants.** GST, tax slabs, BT/refi hurdles and the cash-advisor floors are still constants in code. A versioned `config/<country>/<FY>.json`, read by engine and web, would make Budget-day updates one file. (The audit's §2 "Assumptions page" is now built for the user's own values; this is the policy side.)
 - **"Why this default?" links.** Each default on the Assumptions page could link to where it comes from (SBI 1-yr FD rate, 10-yr Nifty CAGR, the broker's charges) with its as-of date.
 - **Per-asset selling cost in the asset form.** The engine accepts `selling_cost_pct` per holding; only the per-type value is editable in the web today.
+
+## From PR I (tools)
+- **Next policy date on New debt check.** With Right time gone, a floating-rate offer could still show one quiet line: "The next RBI/Fed decision is on <date>; a floating rate moves with it", from the meeting calendar the app already keeps, with no odds and no wait/borrow verdict.
+- **Start a purchase from a goal.** A home or car goal on Goals could open New debt check in purchase mode with its price, date and saved amount filled in.
+- **Fold Loan check into New debt check too.** Loan check (is my existing loan's rate fair?) is the third "loan before/after signing" tool; a third mode would leave one place for every loan question.

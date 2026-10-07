@@ -18,6 +18,6 @@ test('calculation cache expires, evicts oldest entries, and never caches a faile
 });
 test('public calculations and rate catalogues omit cookies; same-origin account calls retain them',async()=>{
  const fetch=global.fetch;global.window={};const seen=[];global.fetch=async(url,opts)=>{seen.push({url,opts});return Response.json({})};
- try{const {api}=require(path.join(root,'lib/api.ts'));await api.institutions('IN');await api.rateOdds('IN');await api.simulate({user:{country:'IN'}});await api.requestOtp('test@example.com');await api.getUserState();assert.deepEqual(seen.map(s=>s.opts.credentials),['omit','omit','omit','include','include']);assert.equal(seen[3].url,'/api/session/auth/request-otp');assert.equal(seen[4].url,'/api/session/user/state')}
+ try{const {api}=require(path.join(root,'lib/api.ts'));await api.institutions('IN');await api.centralRates();await api.simulate({user:{country:'IN'}});await api.requestOtp('test@example.com');await api.getUserState();assert.deepEqual(seen.map(s=>s.opts.credentials),['omit','omit','omit','include','include']);assert.equal(seen[3].url,'/api/session/auth/request-otp');assert.equal(seen[4].url,'/api/session/user/state')}
  finally{global.fetch=fetch;delete global.window}
 });
