@@ -37,6 +37,7 @@ const SLICE_TARGETS: Record<string, SliceTarget> = {
   advance_tax:        { kind: 'cookie',       name: 'finoptima_advance_tax' },
   activity:           { kind: 'localStorage', name: 'finoptima_activity' },
   strategy:           { kind: 'cookie',       name: 'finoptima_strategy' },
+  payoff_rules:       { kind: 'cookie',       name: 'finoptima_payoff_rules' },
   inflation_modeling: { kind: 'cookie',       name: 'finoptima_inflation_modeling' },
   inflation_rate:     { kind: 'cookie',       name: 'finoptima_inflation_rate' },
   hike_modeling:      { kind: 'cookie',       name: 'finoptima_hike_modeling' },
@@ -258,8 +259,14 @@ export async function hydrateLocalStores(data: Record<string, unknown>, isCurren
   }
   for (const [slice, target] of Object.entries(SLICE_TARGETS)) {
     if (!(slice in data)) continue;
-    const value = data[slice];
+    let value = data[slice];
     if (value == null) continue;
+    // Hybrid was retired for "Your rules" (roadmap PR E): an account saved
+    // with 'hybrid' comes back as 'rules', whose default rule is Hybrid's.
+    if (slice === 'strategy' && value === 'hybrid') {
+      value = 'rules';
+      syncSliceToServer('strategy', 'rules');
+    }
     if (slice === 'lifecycle') {
       try {writeLifecycleClient((typeof value === 'string' ? JSON.parse(value) : value) as LifecycleEvent[],false);} catch { /* Retain local history if storage is full. */ }
       continue;
