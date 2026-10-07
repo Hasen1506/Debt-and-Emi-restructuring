@@ -274,6 +274,10 @@ export interface UserPayload {
    *  currency before summing into the surplus / DTI calculation. Empty
    *  dict is the safe default (parity, so the helper is a no-op). */
   fx_to_user_currency?: Record<string, string>;
+  /** Where each rate in fx_to_user_currency came from and when (lib/fx-refresh):
+   *  the provider's as-of date, when it was fetched, and whether the user typed
+   *  it (a typed rate isn't auto-refreshed). */
+  fx_meta?: Record<string, FxMeta>;
   /** Annualized FX drift per non-residence currency. When non-empty, the
    *  engine compounds drift into the FX rate each month so long-horizon
    *  loans denominated in a different currency see year-over-year
@@ -758,6 +762,16 @@ export interface LiquidationRecommendation {
 export interface LiquidationRankingsResponse {
   recommendations: LiquidationRecommendation[];
   considered_but_skipped: LiquidationRecommendation[];
+}
+
+export interface FxMeta {
+  /** The day the rate is for, as the provider says (YYYY-MM-DD); null when unknown. */
+  as_of: string | null;
+  /** When it was fetched or typed (ISO timestamp). */
+  fetched_at: string;
+  source: string;
+  /** Typed by the user: kept until they press Refresh. */
+  manual?: boolean;
 }
 
 export interface FxRateResponse {
