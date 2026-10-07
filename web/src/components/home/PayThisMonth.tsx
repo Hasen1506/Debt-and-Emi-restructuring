@@ -29,6 +29,7 @@ import { userDefaultCurrency } from '@/lib/currency';
 import type { PayRow, PayThisMonth as PayData } from '@/lib/pay-this-month';
 import { Field } from '@/components/ToolPrimitives';
 import { LAllocationBar, LBracket, LSectionHeader, L_T, lPayBtn, lStrip } from '@/components/ledger/primitives';
+import { payoffBreakdown } from '@/lib/schedule-reconcile';
 
 /** Fund and goal ticks, per month: they aren't loan payments, so they
  *  aren't Activity entries. */
@@ -506,7 +507,9 @@ function kindLine(row: PayRow, fmt: (v: number, ccy?: PayRow['currency']) => str
         row.owedAfter ? ` · ${fmt(row.owedAfter, row.currency)} STILL OWED AFTER` : ''
       }`;
     case 'clears':
-      return 'PAYS IT OFF, INTEREST INCLUDED';
+      return row.payoff
+        ? `PAYS IT OFF · ${payoffBreakdown(row.payoff.owed, row.payoff.interest, row.payoff.gst, (n) => fmt(n, row.currency)).toUpperCase()}`
+        : 'PAYS IT OFF, INTEREST INCLUDED';
     case 'ef':
       return 'SET ASIDE · UNTIL THE FUND REACHES ITS TARGET';
     case 'goals':

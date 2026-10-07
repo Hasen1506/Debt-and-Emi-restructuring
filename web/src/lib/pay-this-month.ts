@@ -7,6 +7,7 @@
 import type { PlanData } from '@/components/plan/PlanData';
 import { loanCurrency, loanToUser, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { GST_RATE_IN } from '@/lib/gst';
 
 /** emi / minimum: only what the bank requires. extra: more on top.
  *  clears: the payment pays the loan off. ef / goals: money set aside. */
@@ -36,6 +37,9 @@ export interface PayRow {
   /** What the loan still owes after this month's interest and payment
    *  (its currency), when the engine reports it. */
   owedAfter?: number;
+  /** A payoff: the balance, the month's interest and (India, cards) GST
+   *  that make up `amount`, in `currency`. */
+  payoff?: { owed: number; interest: number; gst: number };
 }
 
 export interface PayThisMonth {
@@ -79,6 +83,13 @@ export function payThisMonth(plan: PlanData): PayThisMonth | null {
       ? Number(owedAfter) <= 0.5
       : paid >= Number(loan.outstanding || 0) - 0.5;
     const isCard = loan.loan_type === 'credit_card';
+    // A payoff is more than the balance: this month's interest, and GST on a
+    // card's interest in India, go on first (audit 2026-10-07 §1).
+    const owedNow = Number(loan.outstanding || 0);
+    const charge = Math.max(0, amount - owedNow);
+    const gstShare = isCard && country === 'IN' ? GST_RATE_IN.toNumber() : 0;
+    const gst = Math.round((charge * gstShare) / (1 + gstShare));
+    const payoff = clears ? { owed: Math.round(Math.min(owedNow, amount)), interest: Math.round(charge) - gst, gst } : undefined;
     loanRows.push({
       key: loan.id ?? `loan-${index}`,
       loanIndex: index,
@@ -92,6 +103,7 @@ export function payThisMonth(plan: PlanData): PayThisMonth | null {
       extra: extra >= 1 ? extra : 0,
       ...(isCard && loan.due_day ? { dueDay: loan.due_day } : {}),
       ...(owedAfter != null ? { owedAfter: Math.max(0, Math.round(Number(owedAfter))) } : {}),
+      ...(payoff ? { payoff } : {}),
     });
   }
   // Extra payments first (largest first, in one currency: ₹4.8 lakh is not

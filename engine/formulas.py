@@ -1,6 +1,7 @@
 """Core financial formulas — design spec §4.1–§4.23."""
 from decimal import Decimal
 from engine.models import Loan, Country, TaxRegimeIN, LoanType
+from engine.tax.gst import GST_RATE_IN
 
 D = Decimal
 
@@ -114,9 +115,9 @@ def gst_component(loan_type: LoanType, nominal_rate: Decimal,
     GST on the fee about zero.
     """
     if loan_type == LoanType.CREDIT_CARD:
-        return nominal_rate * D("0.18")
+        return nominal_rate * GST_RATE_IN
     if loan_type in (LoanType.PERSONAL, LoanType.HOME, LoanType.AUTO):
-        return processing_fee_rate * D("0.18")
+        return processing_fee_rate * GST_RATE_IN
     return D("0")
 
 
@@ -285,7 +286,7 @@ def prepay_recommended(
     return loan_effective_rate > invest_net + PREPAY_RISK_PREMIUM
 
 
-GST_ON_CARD_INTEREST_IN = D("0.18")
+GST_ON_CARD_INTEREST_IN = GST_RATE_IN
 
 
 def prepayment_beats_fee(monthly_rate: Decimal, fee_pct: Decimal, months_left: int | None) -> bool:

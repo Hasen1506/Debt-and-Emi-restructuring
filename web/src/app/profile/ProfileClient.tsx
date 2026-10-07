@@ -3,6 +3,8 @@
 import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { SAFE_RATES } from '@/lib/invest-vs-prepay';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { DEFAULT_EF_SPLIT, efMonthsToFill, readEfSplitClient } from '@/lib/ef-split';
+import { profileMarginalRate } from '@/lib/marginal-rate';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/Card';
 import { BankCombobox, Field, Select } from '@/components/ToolPrimitives';
@@ -302,6 +304,8 @@ function ProfileEditor({
     { from: string; to: string; rate: string }[]
   >([]);
   const [marginalRate, setMarginalRate] = useState('');
+  // The rate as loaded, so a save can tell a typed rate from a stale estimate (lib/marginal-rate).
+  const loadedMarginalRate = useRef('');
   // 1-12. Defaults to country FY-1 (April for IN, January for US). When the
   // user changes country and HASN'T manually picked a month, we follow the
   // country default. `hikeMonthTouched` tracks the manual override.
@@ -446,6 +450,7 @@ function ProfileEditor({
       );
     }
     setMarginalRate(stored.marginalRate ?? '');
+    loadedMarginalRate.current = stored.marginalRate ?? '';
     if (stored.creditScore != null) setCreditScore(String(stored.creditScore));
   }, []);
 
@@ -785,19 +790,31 @@ function ProfileEditor({
     // State only applies to US users; India users have a single national
     // slab. The combined rate flows into tax-aware effective APR + tax
     // savings calculations downstream.
-    const federalMarginal = derivedBracket
-      ? derivedBracket.marginalRate
-      : Number(num(marginalRate, '0.30'));
     const stateRate =
       country === 'US' && stateMarginalRate.trim()
         ? Number(num(stateMarginalRate, '0'))
         : 0;
+    // Gross pay first, then a rate typed now, then the saved rate while the
+    // inputs behind it are unchanged, else a fresh estimate from take-home
+    // (lib/marginal-rate: a stale 0% survived a switch from IN to US).
+    const { rate: composedRate } = profileMarginalRate({
+      bracketRate: derivedBracket ? derivedBracket.marginalRate : null,
+      stateRate,
+      manualRate: marginalRate,
+      loadedRate: loadedMarginalRate.current,
+      prev: stored.isLive ? stored.user : undefined,
+      country,
+      incomeType,
+      monthlyIncome: userWithFx.monthly_income,
+      regime: taxRegime,
+      filing: filingStatus,
+    });
     // Deductions-derived rate wins when present — it already includes
     // state for US users (via stateMarginalRate threaded into the
-    // helper). Otherwise fall through to bracket + state composition.
+    // helper).
     const resolvedMarginalRate = deductionDerived
       ? deductionDerived.toFixed(4)
-      : (federalMarginal + stateRate).toFixed(4);
+      : composedRate.toFixed(4);
     // A balance typed now is dated today; one left as it was keeps its date.
     const stampedUser = {
       ...userWithFx,
@@ -2413,7 +2430,7 @@ function ProfileEditor({
                   <>
                     The "Lean / Standard / Conservative" buttons below set this
                     to 3 / 6 / 9 months of your stated expenses respectively.
-                    /plan diverts 30% of each month's surplus into EF top-up
+                    /plan diverts your chosen share (30% unless you move the slider on Plan) of each month's surplus into EF top-up
                     until this target is met — debt-free is pushed out a bit
                     in exchange for a real safety net.
                     <div style={{ marginTop: 6 }}>
@@ -3247,6 +3264,9 @@ function EfTierPicker({
   country: Country;
   fxRates: Record<string, string>;
 }) {
+  // Read after mount: the cookie isn't there on the server.
+  const [efSplit, setEfSplit] = useState(DEFAULT_EF_SPLIT);
+  useEffect(() => setEfSplit(readEfSplitClient()), []);
   const totalMonthlyExpenses =
     Number(monthlyExpenses || 0) + Number(variableExpenses || 0);
   if (totalMonthlyExpenses <= 0) {
@@ -3276,14 +3296,10 @@ function EfTierPicker({
   const isPicked = (months: number) =>
     Math.abs(currentNum - totalMonthlyExpenses * months) < 1;
 
-  // Months to fill at 30% of surplus per month (the engine's waterfall rate).
-  const monthsToFill = (months: number) => {
-    const target = totalMonthlyExpenses * months;
-    const gap = Math.max(0, target - balance);
-    if (gap === 0) return 0;
-    if (surplus <= 0) return Infinity;
-    return Math.ceil(gap / (surplus * 0.3));
-  };
+  // Months to fill at the user's own EF share of surplus (Plan's slider,
+  // lib/ef-split). This used to be a fixed 30% whatever the slider said.
+  const monthsToFill = (months: number) =>
+    efMonthsToFill(totalMonthlyExpenses * months, balance, surplus, efSplit);
 
   return (
     <div
@@ -3304,8 +3320,8 @@ function EfTierPicker({
         {' ('}
         {formatCurrency(String(totalMonthlyExpenses), currency)}/mo
         {'). '}
-        At 30% of your surplus per month, the time-to-fill estimate is shown
-        beside each option.
+        At {Math.round(Number(efSplit) * 100)}% of your surplus per month (your
+        Plan setting), the time-to-fill estimate is shown beside each option.
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {tiers.map((t) => {

@@ -65,7 +65,7 @@ _US_DEFAULTS: dict[LoanType, _DefaultPenalty] = {
 
 # GST at 18% on consumer-finance penalties in India.
 # Home loans are exempt by the GST schedule.
-_GST_RATE_IN = D("0.18")
+from engine.tax.gst import GST_RATE_IN as _GST_RATE_IN  # noqa: E402
 _GST_EXEMPT_LOAN_TYPES: set[LoanType] = {LoanType.HOME}
 
 

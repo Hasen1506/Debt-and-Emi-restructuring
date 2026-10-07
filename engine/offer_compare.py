@@ -41,7 +41,7 @@ from engine.loan_check import TOLERANCE, _add_months, _inr, _month_start, _pct
 
 D = Decimal
 
-GST_RATE_IN = D("0.18")
+from engine.tax.gst import GST_RATE_IN  # noqa: E402  (one place, engine/tax/gst.py)
 # Moving a loan takes weeks of paperwork and a fresh credit check, so it has
 # to beat the next best choice by at least this much to be worth suggesting.
 REFINANCE_MARGIN = D("10000")
@@ -211,7 +211,7 @@ def _fee(amount: Decimal, percent: Optional[Decimal], plus_gst: bool,
         return []
     lines = [CostLine(label, base)]
     if plus_gst:
-        lines.append(CostLine(f"GST on the {label.lower()} (18%)", _rupees(base * GST_RATE_IN)))
+        lines.append(CostLine(f"GST on the {label.lower()} ({GST_RATE_IN * 100:.0f}%)", _rupees(base * GST_RATE_IN)))
     return lines
 
 

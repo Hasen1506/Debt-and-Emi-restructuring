@@ -105,7 +105,11 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     await page.goto('/tax');
     await expect(page.getByText('USA ($)')).toBeVisible();
     await expect(page.getByText('Single', { exact: true })).toBeVisible();
-    await expect(page.getByText('20.8%')).toBeVisible();
+    // Roadmap PR A: the bracket is re-estimated for the US from the $1,801.80
+    // take-home (10%). It used to keep India's 20.8% after the switch, which
+    // is how a high earner ended up on a stale 0% (lib/marginal-rate).
+    await expect(page.getByText('10.0%')).toBeVisible();
+    await expect(page.getByText('20.8%')).toHaveCount(0);
   });
 
   await test.step('sign out clears this browser', async () => {
