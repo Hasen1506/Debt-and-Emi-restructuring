@@ -143,8 +143,10 @@ class LoanIn(_In):
     rate_type: str = "floating"
     tenure_months_remaining: Months
     scheduled_emi: Amount
-    processing_fee_amortised: Amount = D("0")
-    insurance_premium_pct: Decimal = D("0")
+    # Both are yearly rates added to the loan's cost (M2: unbounded values
+    # turned a 12% loan "not worth prepaying" or broke the maths).
+    processing_fee_amortised: Decimal = Field(D("0"), ge=0, le=1)
+    insurance_premium_pct: Decimal = Field(D("0"), ge=0, le=1)
     property_use: Optional[str] = None
     min_payment_override: Optional[Amount] = None
     currency: Optional[str] = None
@@ -153,8 +155,8 @@ class LoanIn(_In):
     # UI-only — the engine's monthly-accrual model doesn't consume them.
     # Documented here so the schema surfaces the fields instead of
     # silently dropping them.
-    statement_day: Optional[int] = Field(None, ge=1, le=31)
-    due_day: Optional[int] = Field(None, ge=1, le=31)
+    statement_day: Optional[int] = Field(None, ge=1, le=28)
+    due_day: Optional[int] = Field(None, ge=1, le=28)
     # Floating-rate scheduling — only meaningful when rate_type == "floating".
     # See engine/models.py:Loan for semantics. next_reset_month is 1-based
     # against the simulation; the frontend derives it from a calendar
@@ -163,7 +165,7 @@ class LoanIn(_In):
     next_reset_month: Optional[int] = Field(None, ge=1, le=MAX_MONTHS)
     rate_drift_annualized: SignedRate = D("0")
     # True-APR restructuring triggers — see engine/models.py:Loan docstring.
-    prepayment_penalty_pct: Decimal = D("0")
+    prepayment_penalty_pct: Decimal = Field(D("0"), ge=0, le=D("0.1"))
     prepay_lock_in_months: Months = 0
     part_payment_freq_months: Optional[int] = Field(None, ge=1, le=MAX_MONTHS)
     pre_emi_months_remaining: Months = 0
@@ -176,6 +178,43 @@ class LoanIn(_In):
     # Optional UI-only labelling for credit cards. Engine ignores both.
     card_last_6: Optional[str] = None
     cardholder_name: Optional[str] = None
+
+    @field_validator("statement_day", "due_day", mode="before")
+    @classmethod
+    def _day_1_28(cls, v: Any) -> Any:
+        # Saved profiles may hold 29-31 from before the 1-28 rule; a month
+        # always has a 28th, so clamp instead of failing the whole plan.
+        if isinstance(v, int) and 28 < v <= 31:
+            return 28
+        return v
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def _currency(cls, v: Any) -> Any:
+        # H4: free text let "usd" or "EUR" fall back to 1:1.
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        if not isinstance(v, str) or v.strip().upper() not in ("INR", "USD"):
+            raise ValueError("Loan currency must be INR or USD")
+        return v.strip().upper()
+
+    @field_validator("rate_type", "rate_basis", "property_use", mode="before")
+    @classmethod
+    def _lower_enum(cls, v: Any, info) -> Any:
+        # M2: a typo such as "Floating" silently turned rate resets off.
+        if v is None:
+            return None if info.field_name == "property_use" else v
+        if not isinstance(v, str):
+            raise ValueError(f"{info.field_name} must be text")
+        t = v.strip().lower().replace("-", "_")
+        allowed = {
+            "rate_type": ("floating", "fixed"),
+            "rate_basis": ("reducing", "flat"),
+            "property_use": ("self_occupied", "let_out", ""),
+        }[info.field_name]
+        if t not in allowed:
+            raise ValueError(f"{info.field_name} must be one of {', '.join(a for a in allowed if a)}")
+        return (t or None) if info.field_name == "property_use" else t
 
     def to_engine(self) -> Loan:
         # Convert flat-quoted consumer-durable / NBFC rates to their
@@ -432,6 +471,34 @@ class UserIn(_In):
     # monthly: rate_at_m = spot × (1 + drift)^((m-1)/12). Empty / omitted
     # → no drift, FX stays flat at spot. Used by the NRI-US FX-drift toggle.
     fx_drift_annualized: Dict[str, Decimal] = Field(default_factory=dict)
+
+    @field_validator("fx_to_user_currency", "fx_drift_annualized", mode="after")
+    @classmethod
+    def _fx_keys(cls, v: Dict[str, Decimal], info) -> Dict[str, Decimal]:
+        out: Dict[str, Decimal] = {}
+        for k, val in v.items():
+            key = str(k).strip().upper()
+            if key not in ("INR", "USD"):
+                raise ValueError("Exchange rates are only supported for INR and USD")
+            if info.field_name == "fx_drift_annualized" and not (D("-0.99") <= val <= D("1")):
+                # H5: below -1 the monthly factor is complex and the API 500'd.
+                raise ValueError("FX drift must be between -99% and +100% a year")
+            if info.field_name == "fx_to_user_currency" and val < 0:
+                raise ValueError("Exchange rates can't be negative")
+            out[key] = val
+        return out
+
+    @model_validator(mode="after")
+    def _fx_for_foreign_loans(self):
+        # H4: a foreign loan without a rate was counted 1:1 (USD 5,000 as
+        # ₹5,000). Every foreign loan that still owes needs a rate above 0.
+        own = "INR" if self.country == Country.IN else "USD"
+        for loan in self.loans:
+            ccy = loan.currency or own
+            if ccy != own and loan.outstanding > 0 and self.fx_to_user_currency.get(ccy, D("0")) <= 0:
+                raise ValueError(f"Save an exchange rate for your {ccy} loan (1 {ccy} in {own})")
+        return self
+
     # Old-regime / itemized deductions. Engine drops these — used by the
     # frontend to derive a more accurate marginal_rate display + tax
     # breakdown. See `DeductionsIn` for field semantics.
@@ -868,7 +935,9 @@ class WindfallResponse(_Base):
 class NewDebtRequest(_In):
     list_price: Amount
     cash_price_elsewhere: Amount
-    emi_offer_months: Months
+    # A 1-month "loan" is a bill, not credit (live QA accepted it); the
+    # shortest real EMI offers are 3 months (no-cost card EMI).
+    emi_offer_months: int = Field(..., ge=3, le=MAX_MONTHS)
     emi_offer_monthly_payment: Amount
     processing_fee: Amount = D("0")
     user_savings_after_efund: Amount = D("0")
