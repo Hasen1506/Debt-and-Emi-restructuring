@@ -1,7 +1,7 @@
 /**
  * The order each strategy puts the open loans in, by the engine's rules
  * (engine/ordering.py rank_loans): avalanche by effective rate, snowball
- * by balance, hybrid small balances first then by rate. When all three
+ * by balance, your rules (lib/payoff-rules) then by rate. When all three
  * agree, they share today's starting order. Balances, floating-rate
  * resets and future loans can still change the later order and outcome.
  */
@@ -11,9 +11,7 @@ import { usMortgageShieldShare } from './deductions';
 import { isOpenCurrentLoan } from './plan-controls';
 import { LOAN_TYPE_NAME } from './loan-types';
 import type { StrategyName } from './strategy';
-
-/** engine/ordering.py HYBRID_SMALL_BALANCE_IN / _US. */
-const HYBRID_SMALL: Record<string, number> = { IN: 50000, US: 1000 };
+import { applyRules, rulesOrDefault, parseRules } from './payoff-rules';
 
 export function payoffOrders(user: UserPayload, marginalRate: string): Record<StrategyName, number[]> {
   const idx = user.loans.flatMap((l, i) => (isOpenCurrentLoan(l) ? [i] : []));
@@ -24,11 +22,11 @@ export function payoffOrders(user: UserPayload, marginalRate: string): Record<St
   const bal = (i: number) => Number(user.loans[i].outstanding);
   const byRate = (a: number, b: number) => (eff.get(b) ?? 0) - (eff.get(a) ?? 0);
   const byBalance = (a: number, b: number) => bal(a) - bal(b);
-  const small = HYBRID_SMALL[user.country] ?? HYBRID_SMALL.IN;
+  const rules = rulesOrDefault(parseRules(user.payoff_rules), user.country);
   return {
     avalanche: [...idx].sort(byRate),
     snowball: [...idx].sort(byBalance),
-    hybrid: [...idx.filter((i) => bal(i) < small).sort(byBalance), ...idx.filter((i) => bal(i) >= small).sort(byRate)],
+    rules: applyRules(idx, rules, (i) => eff.get(i) ?? 0, bal),
   };
 }
 
@@ -37,7 +35,7 @@ export function payoffOrders(user: UserPayload, marginalRate: string): Record<St
 export function sharedPayoffOrder(user: UserPayload, marginalRate: string): string[] | null {
   const o = payoffOrders(user, marginalRate);
   const key = o.avalanche.join(',');
-  if (o.avalanche.length === 0 || o.snowball.join(',') !== key || o.hybrid.join(',') !== key) return null;
+  if (o.avalanche.length === 0 || o.snowball.join(',') !== key || o.rules.join(',') !== key) return null;
   return o.avalanche.map((i) => {
     const l = user.loans[i];
     const type = LOAN_TYPE_NAME[l.loan_type];
