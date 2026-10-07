@@ -87,7 +87,8 @@
       ]
     ],
     "surcharge_cap_new_regime": 0.25,
-    "cess": 0.04
+    "cess": 0.04,
+    "gst": 0.18
   },
   "us": {
     "single": {
