@@ -71,7 +71,7 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
         allocation = allocate_windfall(
             req.amount, normalized, normalized_rates,
             user.investment_options, user.inflation_rate, strategy=req.strategy,
-            country=user.country, marginal_tax_rate=marg,
+            country=user.country, marginal_tax_rate=marg, rules=user.payoff_rules,
         )
     except DecisionInputError as e:
         raise _bad(e)
