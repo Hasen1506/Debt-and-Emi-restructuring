@@ -3,6 +3,7 @@
  * run /plan shows, so the two can't disagree. Streamed in (the page wraps these in <Suspense>), so
  * the rest of home paints without waiting on the engine.
  */
+import { userMarginalCosts, whyFirst } from '@/lib/marginal-cost';
 import { cache } from 'react';
 import Link from 'next/link';
 import Decimal from 'decimal.js';
@@ -109,7 +110,7 @@ export async function HomeMoveOneStep() {
 
 /** Why the strategy puts the extra on this loan. */
 const REASON: Record<string, (rate: string) => string> = {
-  avalanche: (rate) => `it costs the most, ${rate}`,
+  avalanche: (rate) => `the next payment saves the most here (${rate})`,
   snowball: (rate) => `it's the smallest balance (${rate})`,
   rules: (rate) => `your rules put it first (${rate})`,
 };
@@ -163,12 +164,15 @@ export async function HomePayThisMonth() {
   const m = deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate, creditScore: null, isLive: plan.profileIsLive });
   const top = data.rows.find((r) => r.kind === 'extra' || r.kind === 'clears');
   const target = top ? m.loans.find((l) => l.index === top.loanIndex) : undefined;
+  // "Why this loan first" (roadmap PR J): what the next payment on it saves,
+  // broken down the way the payoff order ranks it.
+  const mc = target ? userMarginalCosts(plan.user, plan.marginalRate).get(target.index) : undefined;
   const reason =
     top && target
       ? {
           key: top.key,
-          text: `${m.loans.filter((l) => l.outstanding.gt(0)).length > 1 ? `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(rateWords(target, country))}` : `The extra goes on your only loan, at ${rateWords(target, country)}`}. It saves about ${formatCurrencyWhole(
-            Math.round(new Decimal(top.extra).times(target.effective).toNumber()),
+          text: `${m.loans.filter((l) => l.outstanding.gt(0)).length > 1 ? `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(rateWords(target, country))}` : `The extra goes on your only loan, at ${rateWords(target, country)}`}. ${mc ? `${whyFirst(mc)}. ` : ''}It saves about ${formatCurrencyWhole(
+            Math.round(new Decimal(top.extra).times(mc ? Decimal.max(0, mc.total) : target.effective).toNumber()),
             top.currency,
           )} of interest a year.`,
         }
