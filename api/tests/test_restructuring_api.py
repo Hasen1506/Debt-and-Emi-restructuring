@@ -83,7 +83,10 @@ def test_full_plan_rejects_harmful_consolidation_and_ignores_supplied_fake_paths
     assert not any(o['kind'] == 'consolidation' for o in body['opportunities'])
     held = next(h for h in body['held_back'] if h['kind'] == 'consolidation')
     assert held['reason'] == 'costs_more'
-    assert '7,135' in held['note']
+    # The figure moved from ₹7,135 when Indian card interest started to
+    # carry its 18% GST in the cash flow (P2-13); the verdict is unchanged.
+    import re
+    assert re.search(r'₹[\d,]+ more in the first year', held['note'])
 
 
 def test_restructuring_plan_must_describe_the_same_user_and_marginal_rate(client, india_user_payload):
