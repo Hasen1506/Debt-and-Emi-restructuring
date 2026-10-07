@@ -189,8 +189,15 @@ async function syncProfileToServer(profile: StoredProfile, additionalSlices: Rec
   await syncSlicesToServer({ ...additionalSlices, ...serializeProfileForServer(profile) });
 }
 
+// Set once this page has cleared the profile (sign-out, account switch).
+// A plan render still in flight can land after that and would re-write the
+// FX cache, leaving the last user's rates in the browser (E2E golden journey,
+// "sign out clears this browser"). Sign-out reloads the page, which resets it.
+let profileCleared = false;
+
 export function clearProfileClient() {
   if (typeof document === 'undefined') return;
+  profileCleared = true;
   const names = [MARGINAL_COOKIE, SCORE_COOKIE, FX_COOKIE];
   for (let i = 0; i < MAX_PROFILE_CHUNKS; i++) names.push(profileChunkName(i));
   for (const c of names) {
@@ -212,7 +219,13 @@ export function loadFxCacheClient(): FxCacheEntry | null {
   }
 }
 
+/** A signed-in account owns the cache again (see `profileCleared`). */
+export function resumeProfileClient() {
+  profileCleared = false;
+}
+
 export function saveFxCacheClient(rates: Record<string, string>) {
+  if (profileCleared) return;
   const entry: FxCacheEntry = { rates, ts: Date.now() };
   writeClientCookie(FX_COOKIE, JSON.stringify(entry));
 }
