@@ -11,3 +11,7 @@ Suggestions that came up while implementing the 2026-10-07 roadmap. None of thes
 - **Store the rate history.** Keep each day's fetched rate (not just the latest) so the schedule can show what a foreign EMI cost in rupees/dollars in past months, and Activity can value a logged payment at that day's rate.
 - **Rate-move alert.** When a foreign loan's converted EMI moves more than a set % since the last plan, say so on Home ("Your ₹ EMI now costs $12 more a month").
 - **Server-side daily refresh.** Today the refresh runs when the app opens; a nightly API job could refresh every signed-in profile's rates so a plan opened on a new device is already current.
+
+## From PR C (true APR)
+- **True APR does not drive the payoff order in PR C.** It is shown beside the effective rate only. Founder decision (2026-10-07): rank by the forward-looking marginal cost of the next rupee prepaid instead (not the all-in true APR, which includes sunk fees). That is being built as PR J, so this entry is closed by J.
+- **APR on offers.** Show the same true-APR breakdown on balance-transfer and consolidation offers, so a "10.5% + 2% fee" offer is compared on one number with the loans it would replace.
