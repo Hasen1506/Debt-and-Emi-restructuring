@@ -760,7 +760,7 @@ export function SubmitBar({
 
 /**
  * Lightweight CTA used by tools whose recommendation is "take on a new
- * loan" — i.e. new-debt and right-time. Unlike `ApplyAction` (which writes
+ * loan" — i.e. New debt check (and its big-purchase mode). Unlike `ApplyAction` (which writes
  * a payment event to Activity), this just deep-links to the setup form so
  * the user can add the loan to their profile properly.
  */
@@ -776,8 +776,8 @@ export function AddToSetupAction({ label }: { label: string }) {
 }
 
 /**
- * One-click "add this loan to my profile" affordance. Used by new-debt and
- * right-time when the verdict is "take the loan" — writes the loan into
+ * One-click "add this loan to my profile" affordance. Used by New debt check
+ * when the verdict is "take the loan" — writes the loan into
  * the local profile cookie and confirms inline so the user doesn't have
  * to navigate to Setup.
  */
