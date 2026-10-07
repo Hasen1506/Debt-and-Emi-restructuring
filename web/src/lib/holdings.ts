@@ -6,6 +6,7 @@
  */
 import Decimal from 'decimal.js';
 import type { AssetPayload, Country } from './api';
+import { localIsoDate } from './today';
 
 export interface QuoteResult {
   ticker: string;
@@ -117,7 +118,7 @@ export function holdingToAsset(
     asset_type: input.assetType ?? 'equity_stocks',
     purchase_price: purchasePrice.toFixed(2),
     purchase_date:
-      input.purchaseDate ?? new Date().toISOString().slice(0, 10),
+      input.purchaseDate ?? localIsoDate(new Date()),
     current_market_value: value.toFixed(2),
     label: input.label || quote.name,
     ticker: input.ticker,
@@ -173,14 +174,14 @@ export async function fxForQuote(
   try {
     const r = await lookup(currency, userCurrency);
     if (Number(r.rate) > 0) {
-      return { rate: r.rate, asOf: r.as_of ?? new Date().toISOString().slice(0, 10), source: 'live' };
+      return { rate: r.rate, asOf: r.as_of ?? localIsoDate(new Date()), source: 'live' };
     }
   } catch {
     // fall through to a saved rate
   }
   const kept = saved?.[currency];
   if (kept && Number(kept) > 0) {
-    return { rate: kept, asOf: new Date().toISOString().slice(0, 10), source: 'saved' };
+    return { rate: kept, asOf: localIsoDate(new Date()), source: 'saved' };
   }
   throw new Error(
     `it's priced in ${currency}, your portfolio is in ${userCurrency}, and today's ${currency}→${userCurrency} rate couldn't be fetched`,
