@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT))
 
 from engine.models import FilingStatusUS  # noqa: E402
 from engine.tax import india, usa  # noqa: E402
+from engine.tax.gst import GST_RATE_IN  # noqa: E402
 
 OUT_PATH = ROOT / "web" / "src" / "lib" / "tax-tables.json"
 
@@ -60,6 +61,8 @@ def build() -> dict:
             "surcharge": _slabs(india.SURCHARGE_BANDS),
             "surcharge_cap_new_regime": _num(india.SURCHARGE_CAP_NEW_REGIME),
             "cess": _num(india.CESS_RATE),
+            # GST on card interest, fees and charges (engine/tax/gst.py).
+            "gst": _num(GST_RATE_IN),
         },
         "us": {
             status.value: {
