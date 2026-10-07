@@ -1,4 +1,4 @@
-"""GET /api/rates/central · GET /api/rates/odds · GET /api/rates/feed-health · POST /api/admin/rate-update.
+"""GET /api/rates/central · GET /api/rates/feed-health · POST /api/admin/rate-update.
 
 Central-bank policy rates (RBI repo + Fed funds) and the published MPC /
 FOMC meeting calendar.
@@ -9,8 +9,8 @@ Each rate carries `as_of`, the day it was last known to be current, so
 screens can show it. The meeting calendar is
 `api/data/central_bank_calendar.json`, updated once a year.
 
-`/rates/odds` is the market's chance of each move at the coming
-decisions, from Polymarket (api/market_odds.py).
+(`/rates/odds`, Polymarket's odds for the coming decisions, was retired with
+the Right time tool in roadmap PR I.)
 
 `/admin/rate-update` records a meeting's outcome in the calendar's
 meeting list. It does not change the rate history: corrections to that go
@@ -28,8 +28,8 @@ from typing import Optional
 from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import JSONResponse
 
-from api import market_odds, rates_feed
-from api.schemas import RateOddsResponse, _Base, _In
+from api import rates_feed
+from api.schemas import _Base, _In
 from engine import policy_rates
 from engine.models import Country
 
@@ -131,17 +131,6 @@ def get_central_rates() -> CentralRatesResponse:
         IN=_country_entry(Country.IN, cal, today),
         US=_country_entry(Country.US, cal, today),
     )
-
-
-@router.get("/rates/odds", response_model=RateOddsResponse)
-def get_rate_odds(country: str = "IN") -> RateOddsResponse:
-    """The market's odds for each coming RBI or Fed decision (Polymarket),
-    soonest first. No meetings when there are no usable odds right now."""
-    country = country.upper()
-    if country not in ("IN", "US"):
-        raise HTTPException(status_code=422, detail="country must be IN or US.")
-    reading = market_odds.CACHE.odds(country, market_odds.calendar(country))
-    return RateOddsResponse(**market_odds.reading_out(country, reading))
 
 
 @router.get("/rates/feed-health")
