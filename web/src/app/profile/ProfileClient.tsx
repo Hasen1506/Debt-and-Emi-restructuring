@@ -48,6 +48,7 @@ import {
 } from '@/lib/user-store';
 import { currencySymbol, loanCurrency, loanMarket, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import { dateProfileRates } from '@/lib/fx-refresh';
+import { efMonths } from '@/lib/assumptions';
 import { employerTaxPhrase, salaryDeductionsPhrase, takeHomeLabel, untaxedIncomeLabel } from '@/lib/payroll-labels';
 import { convertForCountrySwitch, hasAmountsInCurrency, loansInHomeCurrency, validSwitchRate, type SwitchableAmounts } from '@/lib/country-switch';
 import {
@@ -326,6 +327,7 @@ function ProfileEditor({
   // from today's quote when it loads and editable. Required: without it a
   // ₹20 lakh loan was added to dollars at parity.
   const [fxRates, setFxRates] = useState<Record<string, string>>({});
+  const [ownEfMonths, setOwnEfMonths] = useState(6);
   const [fxQuotes, setFxQuotes] = useState<Record<string, 'loading' | 'failed' | FxRateResponse>>({});
   // Most users don't know their exact remaining tenure — they know
   // outstanding, EMI, rate. We default to deriving tenure from those three
@@ -377,6 +379,7 @@ function ProfileEditor({
     setCountry(u.country);
     setIsNriUs(!!u.is_nri_us);
     if (u.fx_to_user_currency) setFxRates(u.fx_to_user_currency);
+    setOwnEfMonths(efMonths(u));
     setIncomeType(u.income_type);
     setMonthlyIncome(u.monthly_income ?? '');
     setFixedExpenses(u.fixed_expenses ?? '');
@@ -2473,6 +2476,7 @@ function ProfileEditor({
               loans={loans}
               country={country}
               fxRates={fxRates}
+              ownMonths={ownEfMonths}
             />
             <div id="pf-credit" style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
               <Field
@@ -2581,6 +2585,7 @@ function SectionTabs({ step, onOpen, onAll }: { step: number; onOpen: (n: number
         </button>
       ))}
       <a href="/profile/assets" style={tab(false)}>WHAT YOU OWN</a>
+      <a href="/profile/assumptions" style={tab(false)}>ASSUMPTIONS</a>
     </nav>
   );
 }
@@ -3263,7 +3268,10 @@ function EfTierPicker({
   loans,
   country,
   fxRates,
+  ownMonths = 6,
 }: {
+  /** The user's own months of cover (Profile → Assumptions, roadmap PR D). */
+  ownMonths?: number;
   monthlyExpenses: string;
   variableExpenses: string;
   efundBalance: string;
@@ -3301,6 +3309,9 @@ function EfTierPicker({
     { id: 'lean' as const, label: 'Lean', months: 3, descr: '3 months of expenses' },
     { id: 'std' as const, label: 'Standard', months: 6, descr: '6 months — recommended' },
     { id: 'cons' as const, label: 'Conservative', months: 9, descr: '9 months — high risk or dependents' },
+    ...(ownMonths !== 3 && ownMonths !== 6 && ownMonths !== 9
+      ? [{ id: 'own' as const, label: 'Yours', months: ownMonths, descr: `${ownMonths} months, as set in Assumptions` }]
+      : []),
   ];
 
   const currentNum = Number(currentTarget || 0);
