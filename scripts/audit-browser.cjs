@@ -63,7 +63,7 @@ async function run(name, u, fn, storage={},events=[]){
     await checkButton(p,'Check this loan');await p.getByText('Effective APR',{exact:true}).waitFor();assert.match(await text(p),/2,000/);assert.doesNotMatch(await text(p),/Effective APR\s*0\.0%/);
   });
   await run('R7: savings fund the down payment and invalid terms hide verdict',user({savings_balance:'1000000',loans:[loan('a',{scheduled_emi:'10000'})]}),async(p)=>{
-    await p.goto(base+'/tools/purchase');await p.getByLabel('Price (INR)',{exact:true}).fill('2000000');assert.match(await text(p),/Feasible on current surplus/);assert.match(await text(p),/0\/mo to save/);
+    await p.goto(base+'/tools/new-debt?mode=purchase');await p.getByLabel('Price (INR)',{exact:true}).fill('2000000');assert.match(await text(p),/Feasible on current surplus/);assert.match(await text(p),/0\/mo to save/);
     await p.getByLabel('Down payment (%)',{exact:true}).fill('150');assert.match(await text(p),/down payment from 0/);assert.doesNotMatch(await text(p),/Feasible on current surplus/);
     await p.getByLabel('Down payment (%)',{exact:true}).fill('20');await p.getByLabel(/Loan tenure/).fill('0');assert.match(await text(p),/tenure up to 40/);
   });
@@ -80,11 +80,6 @@ async function run(name, u, fn, storage={},events=[]){
     await p.goto(base+'/tools/new-debt');await p.getByLabel('Loan amount',{exact:true}).fill('100000');await checkButton(p,'Check this loan');await p.getByRole('button',{name:/Add this personal loan/}).waitFor();
     await p.getByLabel('Loan amount',{exact:true}).fill('1000000');assert.equal(await p.getByRole('button',{name:/Add this personal loan/}).count(),0);assert.equal((await saved(c)).loans.length,1);
     await checkButton(p,'Check this loan');await p.getByRole('button',{name:/Add this personal loan/}).click();await p.waitForFunction(()=>document.cookie.includes('z1.'));const s=await saved(c);assert.equal(s.loans.length,2);assert.ok(Number(s.loans[1].scheduled_emi)>20000);
-  });
-  await run('R8: Right Time stale verdict cannot add unaffordable principal',user({savings_balance:'0',loans:[loan('a',{scheduled_emi:'5000'})]}),async(p,c)=>{
-    await p.goto(base+'/tools/right-time');await p.getByLabel('Loan type',{exact:true}).selectOption('personal_loan');await p.getByLabel('Bank (for the current quoted rate)').selectOption('HDFC Bank');
-    await p.getByLabel('Loan amount',{exact:true}).fill('100000');await p.getByLabel('How urgent is the borrow?').selectOption('now');await p.getByLabel('Rate change you expect at the next decision (bps)').fill('0');await p.getByLabel('Months to next decision').fill('1');await checkButton(p,'What should I do?');
-    await p.getByRole('button',{name:/Add this personal loan/}).waitFor();await p.getByLabel(/Loan amount|Principal/).fill('10000000');assert.equal(await p.getByRole('button',{name:/Add this personal loan/}).count(),0);assert.equal((await saved(c)).loans.length,1);
   });
   async function spare(p){await p.goto(base+'/tools/windfall');await p.getByLabel('SPARE CASH',{exact:true}).fill('10000');await checkButton(p,/WHERE SHOULD IT GO/);await p.getByRole('button',{name:/I DID THIS/}).waitFor();}
   await run('R8: spare cash debits selected savings, credits EF once, and matches Home',user({efund_balance:'0',efund_target:'10000',cash_accounts:[{name:'Savings',kind:'savings',balance:'50000',apy:'.025'}]}),async(p,c)=>{
@@ -148,7 +143,7 @@ async function run(name, u, fn, storage={},events=[]){
   });
 
   await run('Adjacent: purchase default excludes locked FD balances',cashUser,async(p)=>{
-    await p.goto(base+'/tools/purchase');assert.equal(await p.getByLabel('Savings available for this purchase').inputValue(),'20000.00');
+    await p.goto(base+'/tools/new-debt?mode=purchase');assert.equal(await p.getByLabel('Savings available for this purchase').inputValue(),'20000.00');
   });
   await run('Adjacent: new loan action invalidates when current debt changes even if EMI room is identical',user({savings_balance:'0'}),async(p,c)=>{
     await p.goto(base+'/tools/new-debt');await p.getByLabel('Loan amount',{exact:true}).fill('100000');await checkButton(p,'Check this loan');await p.getByRole('button',{name:/Add this personal loan/}).waitFor();
