@@ -13,9 +13,11 @@ import { loadProfileClient } from '@/lib/user-store';
 import { hydrateFromServer, prepareAccountCache, serializeClientState, syncSliceToServer } from '@/lib/server-sync';
 import { notifySessionChanged } from '@/lib/session-events';
 import { SIGN_IN_STARTING_MESSAGE } from '@/lib/auth-error';
+import { safeRedirect } from '@/lib/safe-redirect';
+import { RESEND_COOLDOWN_S, wakeProgress } from '@/lib/wake-progress';
 
 // The free-plan API sleeps when idle and can take over a minute to start.
-const STARTING_RETRIES = 3;
+const STARTING_RETRIES = 12;
 const STARTING_RETRY_DELAY_MS = 5000;
 
 type Phase = 'email' | 'code';
@@ -24,7 +26,7 @@ export default function LoginPage() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get('next');
-  const redirectTo = next?.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/';
+  const redirectTo = typeof window === 'undefined' ? '/' : safeRedirect(next, window.location.origin);
 
   const [phase, setPhase] = useState<Phase>('email');
   const [email, setEmail] = useState('');
@@ -32,6 +34,32 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // When the current request started (ms), for the waking-up progress.
+  const [busySince, setBusySince] = useState<number | null>(null);
+  const [busyAction, setBusyAction] = useState<'send' | 'verify'>('send');
+  const [now, setNow] = useState(() => Date.now());
+  // Resend becomes available again at this time (ms).
+  const [resendAt, setResendAt] = useState(0);
+
+  // Tick once a second while a request is pending or the resend cooldown runs.
+  useEffect(() => {
+    if (busySince === null && resendAt <= Date.now()) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [busySince, resendAt]);
+  const wake = busySince === null ? null : wakeProgress(now - busySince, busyAction);
+  const resendIn = Math.max(0, Math.ceil((resendAt - now) / 1000));
+
+  function startBusy(action: 'send' | 'verify') {
+    setBusyAction(action);
+    setBusySince(Date.now());
+    setNow(Date.now());
+    setSubmitting(true);
+  }
+  function endBusy() {
+    setBusySince(null);
+    setSubmitting(false);
+  }
 
   // Wake the API as soon as the page opens, so it is usually ready by the
   // time the email is typed. Best-effort: a failure here changes nothing.
@@ -50,7 +78,6 @@ export default function LoginPage() {
       } catch (err) {
         const starting = err instanceof Error && err.message === SIGN_IN_STARTING_MESSAGE;
         if (!starting || attempt >= STARTING_RETRIES) throw err;
-        setInfo('Starting the sign-in service. This can take up to a minute the first time...');
         await new Promise(resolve => setTimeout(resolve, STARTING_RETRY_DELAY_MS));
       }
     }
@@ -60,22 +87,23 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setInfo(null);
-    setSubmitting(true);
+    startBusy('send');
     try {
       await requestOtpWhenReady(email.trim().toLowerCase());
       setPhase('code');
+      setResendAt(Date.now() + RESEND_COOLDOWN_S * 1000);
       setInfo(`We sent a 6-digit code to ${email}. It expires in 10 minutes.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
-      setSubmitting(false);
+      endBusy();
     }
   }
 
   async function onVerify(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setSubmitting(true);
+    startBusy('verify');
     try {
       const user = await api.verifyOtp(email.trim().toLowerCase(), code.trim());
       prepareAccountCache(user.id);
@@ -93,7 +121,7 @@ export default function LoginPage() {
       // Strip the "/api/auth/verify-otp → 400: " prefix from FastAPI's error.
       setError(msg.replace(/^\S+ → \d+: ?/, '') || 'Verification failed.');
     } finally {
-      setSubmitting(false);
+      endBusy();
     }
   }
 
@@ -118,16 +146,18 @@ export default function LoginPage() {
   }
 
   async function onResend() {
+    if (resendIn > 0) return;
     setError(null);
     setInfo(null);
-    setSubmitting(true);
+    startBusy('send');
     try {
-      await api.requestOtp(email.trim().toLowerCase());
-      setInfo(`New code sent to ${email}.`);
+      await requestOtpWhenReady(email.trim().toLowerCase());
+      setResendAt(Date.now() + RESEND_COOLDOWN_S * 1000);
+      setInfo(`New code sent to ${email}. It expires in 10 minutes.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not resend.');
     } finally {
-      setSubmitting(false);
+      endBusy();
     }
   }
 
@@ -135,7 +165,9 @@ export default function LoginPage() {
     <section style={card}>
       <h1 style={title}>Sign in</h1>
       <p style={subtitle}>
-        We&rsquo;ll email you a 6-digit code. No passwords.
+        {phase === 'email'
+          ? <>We&rsquo;ll email you a 6-digit code. No passwords.</>
+          : <>Enter the 6-digit code we emailed you.</>}
       </p>
 
       {phase === 'email' && (
@@ -150,10 +182,11 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               style={input}
+              className="login-input"
               placeholder="you@example.com"
             />
           </label>
-          <button type="submit" disabled={submitting || !email} style={primary}>
+          <button type="submit" disabled={submitting || !email} style={primaryStyle(submitting || !email)}>
             [ {submitting ? 'Sending…' : 'Send code'} ]
           </button>
         </form>
@@ -177,21 +210,36 @@ export default function LoginPage() {
               placeholder="••••••"
             />
           </label>
-          <button type="submit" disabled={submitting || code.length !== 6} style={primary}>
+          <button type="submit" disabled={submitting || code.length !== 6} style={primaryStyle(submitting || code.length !== 6)}>
             [ {submitting ? 'Verifying…' : 'Verify and sign in'} ]
           </button>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 4 }}>
-            <button type="button" onClick={() => { setPhase('email'); setCode(''); setError(null); setInfo(null); }} style={ghost}>
+            <button type="button" disabled={submitting} onClick={() => { setPhase('email'); setCode(''); setError(null); setInfo(null); }} style={{ ...ghost, opacity: submitting ? 0.5 : 1 }}>
               [← Change email]
             </button>
-            <button type="button" onClick={onResend} disabled={submitting} style={ghost}>
-              [Resend code]
+            <button type="button" onClick={onResend} disabled={submitting || resendIn > 0} style={{ ...ghost, opacity: submitting || resendIn > 0 ? 0.5 : 1 }}>
+              {resendIn > 0 ? `[Resend in ${resendIn}s]` : '[Resend code]'}
             </button>
           </div>
         </form>
       )}
 
-      {info && <p style={infoText}>{info}</p>}
+      {wake?.show && (
+        <div role="status" aria-live="polite" style={{ marginTop: 14 }}>
+          <p style={{ ...infoText, marginTop: 0 }}>{wake.message}</p>
+          <div
+            role="progressbar"
+            aria-label="Waking up the server"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={wake.pct}
+            style={{ height: 4, background: 'var(--border)', marginTop: 6 }}
+          >
+            <div style={{ width: `${wake.pct}%`, height: '100%', background: 'var(--ink)', transition: 'width 1s linear' }} />
+          </div>
+        </div>
+      )}
+      {info && !wake?.show && <p style={infoText}>{info}</p>}
       {error && <p style={errorText}>{error}</p>}
     </section>
   );
@@ -232,6 +280,10 @@ const primary: React.CSSProperties = {
   textTransform: 'uppercase',
   cursor: 'pointer',
 };
+/** Disabled looks disabled (QA BUG-2: it was identical to enabled). */
+function primaryStyle(disabled: boolean): React.CSSProperties {
+  return disabled ? { ...primary, opacity: 0.45, cursor: 'not-allowed' } : primary;
+}
 const ghost: React.CSSProperties = {
   padding: '6px 10px',
   background: 'transparent',
