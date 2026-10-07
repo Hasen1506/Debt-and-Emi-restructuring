@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from engine.models import User, Loan, Country, IncomeType
 from engine.minimum_payments import compute_minimum_payment
+from engine.formulas import monthly_interest_charge
 from engine.country_data import lookup_mab
 
 D = Decimal
@@ -79,7 +80,23 @@ def _user_residence_currency(user: User) -> str:
 
 def loan_currency_or_default(loan: Loan, user: User) -> str:
     """Resolve a loan's currency, falling back to user residence default."""
-    return loan.currency or _user_residence_currency(user)
+    return (loan.currency or _user_residence_currency(user)).upper()
+
+
+class MissingFxRate(ValueError):
+    """A foreign-currency loan has no usable exchange rate (H4)."""
+
+
+def fx_rate(loan_ccy: str, user: User) -> Decimal:
+    """Rate for 1 unit of `loan_ccy` in the user's currency. Never guesses
+    parity: ₹20 lakh is not $20 lakh. Lower-case codes are accepted."""
+    rates = user.fx_to_user_currency or {}
+    rate = rates.get(loan_ccy)
+    if rate is None:
+        rate = rates.get(loan_ccy.upper(), rates.get(loan_ccy.lower()))
+    if rate is None or rate <= 0:
+        raise MissingFxRate(f"No exchange rate for {loan_ccy}")
+    return rate
 
 
 def to_user_currency(amount: Decimal, loan: Loan, user: User) -> Decimal:
@@ -93,8 +110,7 @@ def to_user_currency(amount: Decimal, loan: Loan, user: User) -> Decimal:
     loan_ccy = loan_currency_or_default(loan, user)
     if loan_ccy == _user_residence_currency(user):
         return amount
-    rate = user.fx_to_user_currency.get(loan_ccy, D("1"))
-    return amount * rate
+    return amount * fx_rate(loan_ccy, user)
 
 
 def from_user_currency(amount: Decimal, loan: Loan, user: User) -> Decimal:
@@ -106,10 +122,7 @@ def from_user_currency(amount: Decimal, loan: Loan, user: User) -> Decimal:
     loan_ccy = loan_currency_or_default(loan, user)
     if loan_ccy == _user_residence_currency(user):
         return amount
-    rate = user.fx_to_user_currency.get(loan_ccy, D("1"))
-    if rate == 0:
-        return amount
-    return amount / rate
+    return amount / fx_rate(loan_ccy, user)
 
 
 def compute_total_minimums(
@@ -130,7 +143,7 @@ def compute_total_minimums(
             to_user_currency(
                 compute_minimum_payment(
                     l, user.country,
-                    interest_accrued=l.outstanding * l.nominal_rate / D("12"),
+                    interest_accrued=monthly_interest_charge(l, user.country),
                     simple_mode=simple_mode,
                 ),
                 l,
