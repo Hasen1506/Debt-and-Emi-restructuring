@@ -35,6 +35,7 @@ from engine.formulas import (
 )
 from engine.minimum_payments import compute_minimum_payment
 from engine.ordering import Strategy, rank_loans
+from engine.marginal_cost import user_marginal_costs
 from engine.goals import GoalState, MonthlyGoalAllocation, serial_fill_allocation
 from engine.surplus import (
     allocate_surplus,
@@ -724,7 +725,10 @@ def simulate_plan(
         # only if none does is the surplus invested. Checking just the
         # first loan made snowball invest everything while a 42% card
         # sat at its minimum, because a small 7% car loan came first.
-        ranked = rank_loans(active, rates, strategy, country=user.country,
+        # Payoff order: the marginal cost of the next unit prepaid (roadmap
+        # PR J), not the all-in effective rate (which counts sunk fees).
+        order_keys = {k: mc.order_key for k, mc in user_marginal_costs(active, user, marg, m, loan_start_month).items()}
+        ranked = rank_loans(active, order_keys, strategy, country=user.country,
                             balance_of=lambda l: to_user_currency(l.outstanding, l, user),
                             rules=user.payoff_rules, index_of=loan_position)
         invested_this_month = D("0")
@@ -918,9 +922,7 @@ def simulate_plan(
                 # cleared this month — those drop out automatically).
                 reinvest_ranked = rank_loans(
                     remaining_active,
-                    {id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises, user.itemised_share,
-                                           **tax_caps_context(remaining_active, user))
-                     for l in remaining_active},
+                    {k: mc.order_key for k, mc in user_marginal_costs(remaining_active, user, marg, m, loan_start_month).items()},
                     strategy,
                     country=user.country,
                     balance_of=lambda l: to_user_currency(l.outstanding, l, user),
