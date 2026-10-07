@@ -1,8 +1,11 @@
 name: CI
 
 on:
+  # Branch pushes are covered by their PR run; only main runs on push.
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
