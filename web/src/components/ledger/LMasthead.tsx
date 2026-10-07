@@ -37,18 +37,27 @@ const NAV: Array<[label: string, key: LedgerSection, href: string]> = [
   ['PROFILE', 'profile', '/profile'],
 ];
 
-export function sectionFromPath(path: string): LedgerSection {
+export function sectionFromPath(path: string): LedgerSection | null {
   if (path.startsWith('/plan')) return 'plan';
   if (path.startsWith('/activity')) return 'activity';
   if (path.startsWith('/goals') || path.startsWith('/tools')) return 'goals';
   if (
     path.startsWith('/onboarding') ||
     path.startsWith('/profile') ||
-    path.startsWith('/portfolio')
+    path.startsWith('/portfolio') ||
+    path.startsWith('/tax')
   ) {
     return 'profile';
   }
-  return 'home';
+  if (path === '/' || path === '') return 'home';
+  // A page outside the app (e.g. /login, a 404) lights no tab.
+  return null;
+}
+
+/** Pages a signed-out visitor sees: the app's own menu, payoff-strategy
+ *  switch and country pin are hidden there (live QA BUG-3/4/8). */
+export function isSignedOutPage(path: string): boolean {
+  return path === '/login' || path.startsWith('/login/') || path === '/welcome.html';
 }
 
 function stamp(country: Country): string {
@@ -91,6 +100,7 @@ export function LMasthead({
 }) {
   const path = usePathname() || '/';
   const section = sectionFromPath(path);
+  const signedOutPage = isSignedOutPage(path);
   const [time, setTime] = useState<string>('');
   // Remembers this page so the next one can offer a way back to it.
   useEffect(() => {
@@ -151,7 +161,7 @@ export function LMasthead({
           alignItems: 'center',
         }}
       >
-        {NAV.map(([label, key, href]) => (
+        {!signedOutPage && NAV.map(([label, key, href]) => (
           <LBracket
             key={key}
             active={section === key}
@@ -163,9 +173,12 @@ export function LMasthead({
           </LBracket>
         ))}
         <span style={{ marginLeft: 'auto', display: 'inline-flex', flexWrap: 'wrap', maxWidth: '100%', gap: 10, alignItems: 'center', justifyContent: 'flex-end' }}>
-          {strategy && <StrategyMedallion strategy={strategy} sameOrder={sameOrder ?? null} />}
-          <LBracket href="/profile?step=country" label={`Country: ${country === 'IN' ? 'India' : 'USA'}. Change it in Profile`}>{localePin}</LBracket>
-          <SessionIndicator />
+          {!signedOutPage && strategy && <StrategyMedallion strategy={strategy} sameOrder={sameOrder ?? null} />}
+          {!signedOutPage && (
+            <LBracket href="/profile?step=country" label={`Country: ${country === 'IN' ? 'India' : 'USA'}. Change it in Profile`}>{localePin}</LBracket>
+          )}
+          {/* On /login itself a "[SIGN IN]" link would point at this page. */}
+          {path !== '/login' && <SessionIndicator />}
         </span>
       </nav>
       <LRule length={300} />

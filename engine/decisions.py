@@ -8,7 +8,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Optional
 from engine.models import Loan, Country, LoanType, InvestmentOption, LiquidityClass
-from engine.formulas import emi, effective_rate, prepay_recommended
+from engine.formulas import after_tax_return, emi, effective_rate, prepay_recommended
 from engine.minimum_payments import compute_minimum_payment
 from engine.loan_check import _inr
 from engine.ordering import Strategy, rank_loans
@@ -160,6 +160,7 @@ def allocate_windfall(
     inflation: Decimal,
     strategy: Strategy = Strategy.AVALANCHE,
     country: Country = Country.IN,
+    marginal_tax_rate: Decimal = D("0"),
 ) -> WindfallAllocation:
     """§8a — single decision, not a plan. Runs Layer 1 logic (already done at scan
     time), then Layer 2 ranking, then Layer 3 invest-vs-prepay gate on the top
@@ -205,7 +206,7 @@ def allocate_windfall(
     best = next((o for o in liquid if o.expected_return == best_return), None)
     rate_ok = [
         l for l in ranked
-        if best is None or prepay_recommended(effective_rates[id(l)], best_return, inflation)
+        if best is None or prepay_recommended(effective_rates[id(l)], best_return, inflation, marginal_tax_rate)
     ]
     # A fee bigger than the interest the payment saves makes prepaying a loss.
     worth = [l for l in rate_ok if net_of_fee(l)[2] > net_of_fee(l)[1]]
@@ -222,7 +223,11 @@ def allocate_windfall(
             )
         return WindfallAllocation(
             to_loan_id=None, loan_label=f"{top.bank} {top.loan_type.value}", amount=amount,
-            rationale=f"{best.name} at {best_return*100:.2f}% beats your dearest loan ({top_rate*100:.2f}%) once inflation is counted",
+            rationale=(
+                f"{best.name} at {best_return*100:.2f}% "
+                + (f"({after_tax_return(best_return, marginal_tax_rate)*100:.2f}% after tax) " if marginal_tax_rate > 0 else "")
+                + f"beats your dearest loan ({top_rate*100:.2f}% after any tax benefit)"
+            ),
             interest_avoided=interest_saved_by_prepaying(top, min(amount, top.outstanding), country),
             invest_instead=True, investment_name=best.name, investment_return=best_return,
             interest_basis=interest_basis(top, country), blocked=blocked,

@@ -6,10 +6,10 @@
  *   - loading → renders nothing (avoids a flash of "Sign in")
  *   - anon    → "[SIGN IN]" link to /login?next=<current path>
  *   - authed  → "USER@EXAMPLE.COM · [SIGN OUT]" (sign-out calls
- *               /api/auth/logout, then router.refresh() so server
+ *               /api/auth/logout, then a full load of /login so server
  *               components re-render)
  */
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useSession } from '@/lib/auth';
 import { useState } from 'react';
 
@@ -21,12 +21,15 @@ const TEXT: React.CSSProperties = {
 
 export function SessionIndicator() {
   const session = useSession();
-  const router = useRouter();
   const pathname = usePathname();
   const [error, setError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
-  if (session.status === 'loading') return null;
+  // Hold the space while the session loads, so the header doesn't look
+  // like it lost its sign-in controls (live QA on a 404 page).
+  if (session.status === 'loading') {
+    return <span aria-hidden style={{ ...TEXT, color: 'var(--muted)', minWidth: 60, display: 'inline-block' }}>…</span>;
+  }
 
   if (session.status === 'anon') {
     const next = pathname && pathname !== '/login' ? `?next=${encodeURIComponent(pathname)}` : '';
@@ -42,8 +45,9 @@ export function SessionIndicator() {
     setError(null);
     try {
       await session.logout();
-      router.push('/login');
-      router.refresh();
+      // A full load, so no signed-in page flashes around the login card.
+      window.location.assign('/login');
+      return;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign-out failed. Please try again.');
     } finally { setSigningOut(false); }
@@ -67,7 +71,7 @@ export function SessionIndicator() {
         className="l-hit"
         style={{ ...TEXT, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)' }}
       >
-        {signingOut ? '[SAVING…]' : '[SIGN OUT]'}
+        {signingOut ? '[SIGNING OUT…]' : '[SIGN OUT]'}
       </button>
       {error && <span role="alert" style={{ letterSpacing: 0, color: 'var(--negative)' }}>{error}</span>}
     </span>

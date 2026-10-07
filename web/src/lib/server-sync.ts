@@ -114,9 +114,47 @@ export function clearAccountCache(): void {
     if (target.kind === 'localStorage') localStorage.removeItem(target.name);
     else document.cookie = `${target.name}=; path=/; max-age=0`;
   }
-  for (const name of ['finoptima_activity_deltas', 'finoptima_goals_digest', 'finoptima_goal_contributions_digest', 'finoptima_monthly_spend_digest']) {
+  for (const name of ['finoptima_activity_deltas', 'finoptima_goals_digest', 'finoptima_goal_contributions_digest', 'finoptima_monthly_spend_digest', 'finoptima_ledger_tone']) {
     document.cookie = `${name}=; path=/; max-age=0`;
   }
+  // Per-user keys outside the synced slices (PASS2 P2-18): on a shared
+  // computer the next person must not read them after a sign-out.
+  for (const key of LOCAL_PER_USER_KEYS) localStorage.removeItem(key);
+  if (typeof sessionStorage !== 'undefined') {
+    for (const key of SESSION_PER_USER_KEYS) sessionStorage.removeItem(key);
+  }
+}
+
+/**
+ * After a successful sign-out (pending writes already flushed), drop every
+ * leftover unsynced-change queue so the next person on this computer cannot
+ * read them (P2-18). Not called on an account switch: there the old
+ * account's queue is kept so it can still be retried when they come back.
+ */
+export function clearPendingSync(): void {
+  pendingMemory.clear();
+  for (const key of storageKeys(localStorage)) {
+    if (key.startsWith('finoptima_pending_sync_')) localStorage.removeItem(key);
+  }
+}
+
+/** localStorage keys that hold one person's data but are not synced slices. */
+export const LOCAL_PER_USER_KEYS = [
+  'finoptima_set_aside',
+  'finoptima_balances_entered',
+  'finoptima_stale_snooze_until',
+] as const;
+/** sessionStorage keys with one person's navigation or prompts. */
+export const SESSION_PER_USER_KEYS = ['rightdue_trail', 'finoptima_debtfree_prompt_dismissed'] as const;
+
+function storageKeys(store: Storage): string[] {
+  const keys: string[] = [];
+  const n = typeof store.length === 'number' ? store.length : 0;
+  for (let i = 0; i < n; i++) {
+    const k = store.key(i);
+    if (k !== null) keys.push(k);
+  }
+  return keys;
 }
 
 /** Preserve all trial-mode data when a user first signs in. */

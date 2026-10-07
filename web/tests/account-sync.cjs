@@ -70,7 +70,7 @@ test('session listeners update after login, and failed saves or logout retain th
  Module._load=function(request,parent,...rest){
   if(request==='react')return {...load.call(this,request,parent,...rest),useState:initial=>[state??=initial,next=>state=next],useRef:()=>ref,useEffect:fn=>effects.push(fn)};
   if(request==='@/lib/api')return {api:{me:async()=>{if(!currentUser)throw Error('401');return currentUser},logout:async()=>{if(!allowLogout)throw Error('offline');currentUser=null}}};
-  if(request==='./server-sync'&&parent.filename.endsWith('auth.ts'))return {flushPendingState:async()=>allowFlush,clearAccountCache:()=>cleared++};
+  if(request==='./server-sync'&&parent.filename.endsWith('auth.ts'))return {flushPendingState:async()=>allowFlush,clearAccountCache:()=>cleared++,clearPendingSync:()=>{}};
   return load.call(this,request,parent,...rest);
  };
  try {

@@ -1,6 +1,6 @@
 """POST /api/simulate · /api/baseline · /api/sensitivity/compare"""
 from copy import deepcopy
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from fastapi import APIRouter
 
 from engine.simulation import simulate_plan, baseline_minimums_only
@@ -209,6 +209,9 @@ D = Decimal
 router = APIRouter(tags=["simulation"])
 
 
+_CENT = Decimal("0.01")
+
+
 def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
     """Flatten SimulationResult.months → trajectory points. Balance is the sum
     across all loans at each month — that's what the chart wants.
@@ -219,23 +222,31 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
     deepcopy boundary, so re-computing from `row.balances` here would
     silently lose the currency tag and bucket everything under INR.
     """
+    # Money is rounded to paise/cents here (BUG_REPORT Low): values used to
+    # come back as '958583.3333333333333333333333' and every client rounded.
+    def q(v):
+        return v.quantize(_CENT, rounding=ROUND_HALF_UP) if v is not None else None
+
+    def qd(d):
+        return {k: q(v) for k, v in d.items()}
+
     points: list[TrajectoryPoint] = []
     for row in result.months:
         # In the user's currency: a plain sum added ₹ and $ balances.
         total_balance = row.balance_in_user_currency
         points.append(TrajectoryPoint(
             month=row.month_index,
-            balance=total_balance,
-            interest_paid=row.interest_paid_month,
-            invested=row.invested_this_month,
-            payments_by_loan_index=row.payments_by_loan_index,
-            balances_by_currency=dict(row.balances_by_currency),
-            balances_by_loan_index=dict(row.balances_by_loan_index),
-            available_surplus=row.available_surplus,
-            goal_contributions=dict(row.goal_contributions),
-            total_paid=row.total_payment_nominal,
-            extra_paid=row.extra_paid,
-            shortfall=row.shortfall,
+            balance=q(total_balance),
+            interest_paid=q(row.interest_paid_month),
+            invested=q(row.invested_this_month),
+            payments_by_loan_index=qd(row.payments_by_loan_index),
+            balances_by_currency=qd(row.balances_by_currency),
+            balances_by_loan_index=qd(row.balances_by_loan_index),
+            available_surplus=q(row.available_surplus),
+            goal_contributions=qd(row.goal_contributions),
+            total_paid=q(row.total_payment_nominal),
+            extra_paid=q(row.extra_paid),
+            shortfall=q(row.shortfall),
         ))
     return points
 

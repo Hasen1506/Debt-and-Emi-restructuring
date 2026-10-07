@@ -1638,23 +1638,32 @@ export function formatUSD(value: string | number | Decimal): string {
   });
 }
 
+/** Compact tiers, largest first: [divisor, decimals, suffix]. */
+const INR_TIERS: [number, number, string][] = [[10_000_000, 2, 'Cr'], [100_000, 2, 'L'], [1_000, 1, 'k']];
+const USD_TIERS: [number, number, string][] = [[1_000_000, 2, 'M'], [1_000, 1, 'k']];
+
+/**
+ * Pick the unit from the value as it will be SHOWN, after rounding (P2-21):
+ * 99,999.995 used to print "₹100.0k" and 999.995 "₹1000"; they are now
+ * "₹1.00L" and "₹1.0k".
+ */
+function compactTier(d: Decimal, sym: string, tiers: [number, number, string][], baseDp: number): string {
+  let i = tiers.findIndex(([div]) => d.toDecimalPlaces(baseDp).gte(div));
+  if (i === -1) return `${sym}${d.toFixed(baseDp)}`;
+  // Rounding inside a tier can reach the next one (99.96k -> "100.0k").
+  while (i > 0 && d.div(tiers[i][0]).toDecimalPlaces(tiers[i][1]).mul(tiers[i][0]).gte(tiers[i - 1][0])) i--;
+  const [div, dp, suffix] = tiers[i];
+  return `${sym}${d.div(div).toDecimalPlaces(dp).toFixed(dp)}${suffix}`;
+}
+
 /** Compact INR for chart axes / tight stat tiles. Uses Cr/L/k abbreviation. */
 export function formatINRCompact(value: string | number | Decimal): string {
-  return signed(value, 0, (d) => {
-    if (d.gte(10_000_000)) return `₹${d.div(10_000_000).toFixed(2)}Cr`;
-    if (d.gte(100_000)) return `₹${d.div(100_000).toFixed(2)}L`;
-    if (d.gte(1_000)) return `₹${d.div(1_000).toFixed(1)}k`;
-    return `₹${d.toFixed(0)}`;
-  });
+  return signed(value, 0, (d) => compactTier(d, '₹', INR_TIERS, 0));
 }
 
 /** Compact USD for chart axes / tight stat tiles. Uses M/k abbreviation. */
 export function formatUSDCompact(value: string | number | Decimal): string {
-  return signed(value, 2, (d) => {
-    if (d.gte(1_000_000)) return `$${d.div(1_000_000).toFixed(2)}M`;
-    if (d.gte(1_000)) return `$${d.div(1_000).toFixed(1)}k`;
-    return `$${d.toFixed(2)}`;
-  });
+  return signed(value, 2, (d) => compactTier(d, '$', USD_TIERS, 2));
 }
 
 /** POST /api/simulate body. */

@@ -145,3 +145,18 @@ def test_legacy_sessions_remain_usable_but_expire_at_the_exact_deadline(auth_cli
     assert client.get('/api/auth/me', headers=headers).status_code == 200
     monkeypatch.setattr(dependencies, 'utc_now', lambda: expiry)
     assert client.get('/api/auth/me', headers=headers).status_code == 401
+
+
+def test_wrong_guesses_count_across_codes_for_the_day(auth_client):
+    """M7: a new code used to reset the 5-guess budget (25 guesses per ten
+    minutes). After 15 wrong guesses in a day, even the right code waits."""
+    client, codes = auth_client
+    email = 'guess-limit@example.com'
+    for _ in range(3):
+        assert client.post('/api/auth/request-otp', json={'email': email}).status_code == 204
+        for _ in range(5):
+            assert client.post('/api/auth/verify-otp', json={'email': email, 'code': '999999'}).status_code == 400
+    assert client.post('/api/auth/request-otp', json={'email': email}).status_code == 204
+    response = client.post('/api/auth/verify-otp', json={'email': email, 'code': codes[-1]})
+    assert response.status_code == 429
+    assert 'today' in response.json()['detail']

@@ -11,6 +11,7 @@ import {
   amountInWords,
   formatAmount,
   groupDigits,
+  isImmediateAmountError,
   parseAmountText,
   regroupWhileTyping,
   sameAmount,
@@ -239,8 +240,13 @@ export function Field({
   };
   const moneyParsed = isMoney ? parseAmountText(moneyText, currency) : null;
   const moneyWords = moneyParsed?.value ? amountInWords(moneyParsed.value, currency) : null;
+  // Letters, a minus sign or an impossible size are flagged as they're typed
+  // (live QA: "abc" and "-100" got only the browser's red outline).
   const shownError =
-    error ?? (isMoney && moneyTouched && moneyParsed?.error ? moneyParsed.error : null);
+    error ??
+    (isMoney && moneyParsed?.error && (moneyTouched || isImmediateAmountError(moneyText, moneyParsed))
+      ? moneyParsed.error
+      : null);
   const hintText = [moneyWords ? `= ${moneyWords}` : '', hint ?? ''].filter(Boolean).join(' · ') || undefined;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

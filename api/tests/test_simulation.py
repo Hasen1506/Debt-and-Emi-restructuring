@@ -295,8 +295,10 @@ def test_trajectory_balance_is_in_the_users_currency(client):
     }).json()
     first = body["trajectory"][0]
     bucket = first["balances_by_currency"]
-    assert D(first["balance"]) == D(bucket["INR"]) * D("0.012") + D(bucket["USD"])
+    # Each figure is rounded to the cent, so allow a cent of drift.
+    assert abs(D(first["balance"]) - (D(bucket["INR"]) * D("0.012") + D(bucket["USD"]))) <= D("0.01")
     assert D(first["balance"]) < D("100000")
+    assert D(first["balance"]) == D(first["balance"]).quantize(D("0.01"))
 
 
 def _us_home_payload(outstanding, deductions=None, filing="single"):

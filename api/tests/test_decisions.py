@@ -175,12 +175,14 @@ def _us_sale(main_home: bool, **extra):
 def test_asset_liquidation_us_uses_us_capital_gains(client):
     """A US sale isn't taxed as an Indian one: $350k less 8% selling costs
     less $100k basis is a $222k long-term gain at 15% federal = $33,300
-    (India's rules gave $31,817.50 "LTCG" with Maharashtra costs)."""
+    (India's rules gave $31,817.50 "LTCG" with Maharashtra costs).
+    Stacked on $108k of income, MAGI is $330k, so NIIT (3.8%) applies to the
+    $130k above $200k: $4,940 more (P2-22; it was skipped before)."""
     r = client.post("/api/asset-liquidation", json=_us_sale(False))
     assert r.status_code == 200, r.text
     body = r.json()
-    assert Decimal(body["ltcg_tax"]) == Decimal("33300")
-    assert Decimal(body["net_proceeds"]) == Decimal("288700")
+    assert Decimal(body["ltcg_tax"]) == Decimal("38240")
+    assert Decimal(body["net_proceeds"]) == Decimal("283760")
     assert any("No state income tax" in n for n in body["tax_notes"])
 
 

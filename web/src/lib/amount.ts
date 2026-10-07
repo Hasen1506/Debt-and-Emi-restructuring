@@ -33,6 +33,7 @@ export function parseAmountText(raw: string, currency: AmountCurrency = 'INR'): 
     .replace(/^(₹|\$|rs\.?|inr|usd)/, '')
     .replace(/[,\s_]/g, '');
   if (s === '') return { value: '', error: null };
+  if (/^-/.test(s)) return { value: null, error: 'Amounts can\'t be negative.' };
   const m = /^(\d*\.?\d+)\.?([a-z]*)$/.exec(s);
   if (!m) {
     const eg = currency === 'INR' ? '25,00,000 or 25L' : '250,000 or 250k';
@@ -42,7 +43,27 @@ export function parseAmountText(raw: string, currency: AmountCurrency = 'INR'): 
   if (mult === undefined) {
     return { value: null, error: `"${m[2]}" isn't a scale I know. Use k, L (lakh), cr, or m.` };
   }
-  return { value: new Decimal(m[1]).mul(mult).toDecimalPlaces(2).toString(), error: null };
+  const amount = new Decimal(m[1]).mul(mult).toDecimalPlaces(2);
+  // The API refuses more than 1e12; huge inputs also used to be stored in
+  // exponent form ("1e+23"), which later digit checks rejected (P2-21).
+  if (amount.gt(MAX_AMOUNT)) {
+    return {
+      value: null,
+      error: currency === 'INR' ? 'That is more than ₹1 lakh crore. Check the amount.' : 'That is more than $1 trillion. Check the amount.',
+    };
+  }
+  return { value: amount.toFixed(), error: null };
+}
+
+/** The largest amount the API accepts (api/schemas.py MAX_AMOUNT). */
+export const MAX_AMOUNT = new Decimal('1e12');
+
+/** Errors worth showing while the person is still typing (not just on blur):
+ *  a minus sign, letters with no number, or an impossible size. */
+export function isImmediateAmountError(raw: string, parsed: ParsedAmount): boolean {
+  if (!parsed.error) return false;
+  const s = raw.trim().replace(/^(₹|\$|rs\.?|inr|usd)/i, '').replace(/[,\s_]/g, '');
+  return s.startsWith('-') || /^[^\d.]/.test(s) || parsed.error.startsWith('That is more than');
 }
 
 /** True when two stored amounts are the same number ("2500000" and "2500000.00"). */

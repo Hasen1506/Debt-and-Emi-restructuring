@@ -20,6 +20,7 @@ from copy import deepcopy
 from engine.models import LifecycleEvent, LifecycleEventKind, User
 from engine.simulation import simulate_plan, SimulationResult
 from engine.ordering import Strategy
+from engine.surplus import from_user_currency
 
 D = Decimal
 
@@ -95,20 +96,13 @@ def with_income_shock(
     `savings_balance`, which the simulation never reads, so a six-month
     job loss came out identical to no job loss.
     """
-    events: list[LifecycleEvent] = []
-    if shock_months > 0:
-        events.append(LifecycleEvent(
-            kind=LifecycleEventKind.SALARY_RESET, effective_month=1,
-            new_monthly_take_home=D("0"),
-        ))
-        events.append(LifecycleEvent(
-            kind=LifecycleEventKind.SALARY_RESET, effective_month=shock_months + 1,
-            new_monthly_take_home=user.monthly_income,
-        ))
-    # Push horizon out by the shock window
+    # The engine zeroes take-home for the window itself (P2-09 / income
+    # restore): planned salary resets and hikes still move the underlying
+    # pay, so a reset planned inside the window applies once it ends and the
+    # pay after the shock is whatever the plan says by then, not today's.
     return _run(
         user, strategy, horizon_months + shock_months, marginal_rate,
-        simulation_start_month, plan, extra_events=events,
+        simulation_start_month, plan, income_shock_months=max(0, shock_months),
     )
 
 
@@ -165,11 +159,20 @@ def with_lump_sum(
     simulation_start_month: int = 1,
     plan: dict | None = None,
 ) -> SimulationResult:
-    """Apply `amount` upfront to `user.loans[target_loan_index]` before simulating."""
+    """Apply `amount` (in the user's currency) upfront to
+    `user.loans[target_loan_index]` before simulating.
+
+    The amount is converted to the loan's currency (P2-07), the bank's
+    prepayment fee comes out of it, and a loan that can't take an extra
+    payment yet (lock-in / pre-EMI) is left as it is.
+    """
     u = deepcopy(user)
     if 0 <= target_loan_index < len(u.loans):
         l = u.loans[target_loan_index]
-        l.outstanding = max(D("0"), l.outstanding - amount)
+        if l.pre_emi_months_remaining <= 0 and l.prepay_lock_in_months <= 0:
+            in_loan_ccy = from_user_currency(amount, l, u)
+            to_principal = in_loan_ccy * (D("1") - (l.prepayment_penalty_pct or D("0")))
+            l.outstanding = max(D("0"), l.outstanding - to_principal)
     return _run(u, strategy, horizon_months, marginal_rate, simulation_start_month, plan)
 
 
@@ -181,6 +184,10 @@ def compare(
     months_delta = D("0")
     if baseline.debt_free_month and scenario.debt_free_month:
         months_delta = D(baseline.debt_free_month - scenario.debt_free_month)
+    elif baseline.debt_free_month is None and scenario.debt_free_month:
+        # The baseline never finishes inside its horizon: the what-if pulls
+        # the date forward by at least horizon - scenario (was reported as 0).
+        months_delta = D(max(0, len(baseline.months) - scenario.debt_free_month))
     return {
         "debt_free_month_baseline": baseline.debt_free_month,
         "debt_free_month_scenario": scenario.debt_free_month,

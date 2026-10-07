@@ -10,7 +10,6 @@
 import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { SAFE_RATES } from '@/lib/invest-vs-prepay';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
 import Decimal from 'decimal.js';
 import { BankCombobox, Field, Select } from '@/components/ToolPrimitives';
 import {
@@ -49,7 +48,8 @@ import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIs
 import { loadProfileClient, type StoredProfile } from '@/lib/user-store';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward, stampBalanceDates, prepareLoanPaymentTiming } from '@/lib/roll-forward';
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
-import { HYDRATED_EVENT } from '@/lib/server-sync';
+import { HYDRATED_EVENT, flushPendingState } from '@/lib/server-sync';
+import { ONBOARDING_DONE_HREF } from '@/lib/onboarding-save';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
 import {
   applyRateTypeChoice,
@@ -110,15 +110,17 @@ const num = (v: string | undefined, fallback = '0') => ((v ?? '').trim() === '' 
 const isAmount = (v: string) => v.trim() === '' || /^\d*\.?\d+$/.test(v.trim());
 
 export function QuickSetup() {
-  const router = useRouter();
   const [ready, setReady] = useState(false);
   const [saved, setSaved] = useState<StoredProfile | null>(null);
   const [step, setStep] = useState(0);
   const [showErrors, setShowErrors] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
 
   const [country, setCountry] = useState<Country>('IN');
   const [isNriUs, setIsNriUs] = useState(false);
+  const [countryNote, setCountryNote] = useState<string | null>(null);
   const [incomeType, setIncomeType] = useState<IncomeType>('salaried');
   const [takeHome, setTakeHome] = useState('');
   const [spend, setSpend] = useState('');
@@ -433,13 +435,46 @@ export function QuickSetup() {
     setStep(next);
   }
 
+  /** A country change never re-reads typed amounts in the new currency
+   *  (live QA: ₹20 lakh became $2,000,000). Loans already entered keep
+   *  their currency (tagged, so the loans step asks for a rate); take-home
+   *  and spending are cleared so they're entered again in the new one. */
+  function pickCountry(next: Country) {
+    if (next === country) return;
+    const from = userDefaultCurrency(country);
+    const fromSym = from === 'INR' ? '₹' : '$';
+    const nextSym = next === 'US' ? '$' : '₹';
+    const hasLoans = loans.some((l) => Number(l.outstanding) > 0 && (l.currency ?? from) === from);
+    const hasPay = Number(takeHome) > 0 || Number(spend) > 0;
+    if (hasLoans) {
+      setLoans((cur) => cur.map((l) => (Number(l.outstanding) > 0 && !l.currency ? { ...l, currency: from } : l)));
+      if (next === 'US') setIsNriUs(true);
+    }
+    if (hasPay) {
+      setTakeHome('');
+      setSpend('');
+    }
+    setCountry(next);
+    setCountryNote(
+      hasLoans || hasPay
+        ? [
+            hasPay ? `Take-home and spending were cleared: enter them again in ${nextSym}.` : '',
+            hasLoans ? `Loans you entered stay in ${fromSym}; you'll be asked for an exchange rate.` : '',
+          ].filter(Boolean).join(' ')
+        : null,
+    );
+  }
+
   function skipLoans() {
     setLoans([]);
     setShowErrors(false);
     setStep(2);
   }
 
-  function save() {
+  async function save() {
+    if (saving) return;
+    setSaving(true);
+    setSaveFailed(false);
     const built = buildUser();
     // Date changed balances today; preserve the anchor when only other fields changed.
     const asOf = localIsoDate(getCountryToday(built.country));
@@ -447,6 +482,7 @@ export function QuickSetup() {
     const user = { ...built, loans: stampBalanceDates(built.loans, current.user.loans, asOf) };
     const ok = saveProfileWithPaidEmis({ ...current, user, marginalRate: marginal().rate }, asOf);
     if (!ok) {
+      setSaving(false);
       setSaveFailed(true);
       return;
     }
@@ -455,7 +491,14 @@ export function QuickSetup() {
     } catch {
       /* private mode: the stale-card nudge falls back to activity only */
     }
-    router.push('/');
+    // Give the account copy a moment to reach the server (it stays queued
+    // in this browser either way), then open the plan with a full
+    // navigation. router.push('/') could replay a cached redirect back to
+    // /onboarding from before the profile existed, so the button looked
+    // dead and nothing said the save had worked (live QA, 7 Oct).
+    setJustSaved(true);
+    await Promise.race([flushPendingState().catch(() => false), new Promise((r) => setTimeout(r, 4000))]);
+    window.location.assign(ONBOARDING_DONE_HREF);
   }
 
   if (!ready) {
@@ -499,14 +542,17 @@ export function QuickSetup() {
           {step === 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <ChipRow label="Where you live">
-                <Chip on={country === 'IN'} onClick={() => setCountry('IN')}>India · ₹</Chip>
-                <Chip on={country === 'US'} onClick={() => setCountry('US')}>USA · $</Chip>
+                <Chip on={country === 'IN'} onClick={() => pickCountry('IN')}>India · ₹</Chip>
+                <Chip on={country === 'US'} onClick={() => pickCountry('US')}>USA · $</Chip>
                 {country === 'US' && (
                   <Chip on={isNriUs} onClick={() => setIsNriUs(!isNriUs)}>
                     {isNriUs ? '✓ ' : '+ '}I also have loans in India
                   </Chip>
                 )}
               </ChipRow>
+              {countryNote && (
+                <p role="status" style={{ margin: 0, fontSize: 13, color: L_T.negative }}>{countryNote}</p>
+              )}
               <ChipRow label="How you earn">
                 <Chip on={incomeType === 'salaried'} onClick={() => setIncomeType('salaried')}>Salaried</Chip>
                 <Chip on={incomeType === 'business_owner'} onClick={() => setIncomeType('business_owner')}>
@@ -654,8 +700,13 @@ export function QuickSetup() {
                   site and try again.
                 </p>
               )}
+              {justSaved && (
+                <p role="status" style={{ color: L_T.positive, margin: 0 }}>
+                  Saved. Opening your plan…
+                </p>
+              )}
               <Actions back={<LBracket onClick={() => goTo(1)}>← BACK</LBracket>}>
-                <LButton onClick={save}>SAVE · OPEN MY PLAN</LButton>
+                <LButton onClick={save} disabled={saving}>{saving ? 'SAVING…' : 'SAVE · OPEN MY PLAN'}</LButton>
               </Actions>
             </div>
           )}

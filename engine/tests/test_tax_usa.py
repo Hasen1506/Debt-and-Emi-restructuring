@@ -56,10 +56,11 @@ def test_itemisation_below_standard():
 
 
 def test_itemisation_above_standard_single():
-    """20k mortgage + 10k SALT (capped) + 2k charity = 32k > 16,100 std → itemises."""
+    """20k mortgage + 10k SALT + 2k charity = 32k > 16,100 std → itemises.
+    (2026 SALT cap is $40,400 under OBBBA, so $10k is fully counted.)"""
     saved, itemises = usa.itemisation_benefit(
         mortgage_interest_paid=D("20000"),
-        salt_taxes_paid=D("15000"),         # capped at 10k
+        salt_taxes_paid=D("10000"),
         charitable_giving=D("2000"),
         filing_status=FilingStatusUS.SINGLE,
         marginal_rate=D("0.24"),

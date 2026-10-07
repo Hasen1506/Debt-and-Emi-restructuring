@@ -47,7 +47,11 @@ def test_every_strategy_prepays_the_card_when_a_cheap_loan_comes_first(strategy)
     first = r.months[0]
     assert first.invested_this_month == 0
     assert first.payments_by_loan_index[1] > D("50000")   # the card got the extra
-    assert r.debt_free_month is not None and r.debt_free_month <= 4
+    # The card clears within 4 months. The 7% car loan doesn't beat the
+    # 7.5% fund, so after the card clears the freed money is saved and the
+    # car runs to its schedule (the cascade used to ignore the gate: H2/H3).
+    assert any(r.months[i].balances_by_loan_index[1] == 0 for i in range(4))
+    assert r.total_invested > 0
 
 
 def test_surplus_is_invested_only_when_no_loan_beats_the_hurdle():

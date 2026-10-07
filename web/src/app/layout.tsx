@@ -6,6 +6,7 @@ import { sharedPayoffOrder } from '@/lib/payoff-order';
 import { LMasthead } from '@/components/ledger/LMasthead';
 import { LFooter } from '@/components/ledger/primitives';
 import { SessionHydrator } from '@/lib/server-sync';
+import { SecureCookies } from '@/components/SecureCookies';
 import { ProfileProvider } from '@/lib/use-profile';
 import { SaveFailedNotice } from '@/components/SaveFailedNotice';
 import { AccountSyncNotice } from '@/components/AccountSyncNotice';
@@ -37,6 +38,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <a href="#main" className="skip-link">
           Skip to content
         </a>
+        <SecureCookies />
         <SessionHydrator />
         <LMasthead country={profile.user.country} strategy={hasDebt ? strategy : null} sameOrder={sameOrder} />
         <SaveFailedNotice />

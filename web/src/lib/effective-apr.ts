@@ -40,10 +40,23 @@ export interface Breakdown {
 
 const D = (v: string | number | Decimal) => new Decimal(v);
 
-function homeLoan24bCap(regime: TaxRegimeIN, propertyUse: string): Decimal {
-  if (propertyUse === 'let_out') return D('Infinity');
+function loanMarketOf(loan: Pick<LoanPayload, 'currency'>, country: Country): Country {
+  return loan.currency === 'INR' ? 'IN' : loan.currency === 'USD' ? 'US' : country;
+}
+
+/** Home-loan interest that lowers tax on other income, as the engine's
+ *  `country_cap_home_loan`: ₹2L (old regime) or nothing (new regime). A
+ *  let-out loss is set off against other income only up to the same ₹2L
+ *  (old) and not at all (new); rental income isn't modelled. */
+function homeLoan24bCap(regime: TaxRegimeIN, _propertyUse: string): Decimal {
+  void _propertyUse;
   return regime === 'old' ? D('200000') : D('0');
 }
+
+/** IRC §163(h)(3)(F): interest on up to $750k of mortgage debt. */
+const US_MORTGAGE_DEBT_LIMIT = D('750000');
+/** IRC §221: up to $2,500 of student-loan interest a year, above the line. */
+const US_STUDENT_LOAN_INTEREST_MAX = D('2500');
 
 /**
  * Compute the per-loan breakdown and effective APR.
@@ -75,7 +88,7 @@ export function computeBreakdown(
 
   // ─── Tax shield ──────────────────────────────────────────────────────────
   const deductibleIN = new Set(['home_loan', 'education_loan']);
-  const deductibleUS = new Set(['home_loan']);
+  const deductibleUS = new Set(['home_loan', 'education_loan']);
   const deductible =
     country === 'IN' ? deductibleIN : deductibleUS;
   const annualInterest = outstanding.mul(nominal);
@@ -89,6 +102,12 @@ export function computeBreakdown(
   ) {
     // 80E is an old-regime deduction; the engine gives no shield here.
     shieldNote = 'New regime: no 80E deduction';
+  } else if (loan.loan_type === 'education_loan' && country === 'US' && annualInterest.gt(0)) {
+    const allowed = Decimal.min(annualInterest, US_STUDENT_LOAN_INTEREST_MAX);
+    shieldPct = allowed.div(annualInterest).mul(marginal);
+    shieldNote = annualInterest.gt(US_STUDENT_LOAN_INTEREST_MAX)
+      ? 'IRC §221: up to $2,500 of interest a year is deductible (phases out at higher incomes)'
+      : 'IRC §221: student-loan interest deduction (phases out at higher incomes)';
   } else if (loan.loan_type === 'home_loan' && country === 'US' && usShare.lte(0)) {
     shieldNote = 'Standard deduction: mortgage interest saves no tax';
   } else if (deductible.has(loan.loan_type) && annualInterest.gt(0)) {
@@ -111,7 +130,12 @@ export function computeBreakdown(
         shieldNote = 'Sec 80E: interest fully deductible';
       } else if (loan.loan_type === 'home_loan' && country === 'US') {
         shieldPct = marginal.mul(usShare);
-        shieldNote = usShare.lt(1)
+        if (outstanding.gt(US_MORTGAGE_DEBT_LIMIT)) {
+          shieldPct = shieldPct.mul(US_MORTGAGE_DEBT_LIMIT).div(outstanding);
+        }
+        shieldNote = outstanding.gt(US_MORTGAGE_DEBT_LIMIT)
+          ? 'IRC §163: only interest on the first $750,000 of mortgage debt is deductible'
+          : usShare.lt(1)
           ? `Only interest above the standard deduction saves tax (${usShare.mul(100).toFixed(0)}% of it)`
           : 'IRC §163: mortgage interest deduction (itemisers)';
       }
@@ -135,8 +159,10 @@ export function computeBreakdown(
     });
   }
 
-  // ─── GST (India only) ────────────────────────────────────────────────────
-  if (country === 'IN') {
+  // ─── GST (Indian loans only) ─────────────────────────────────────────────
+  // Follows the loan's own market: an INR card held by a US resident still
+  // carries Indian GST on its interest.
+  if (loanMarketOf(loan, country) === 'IN') {
     if (loan.loan_type === 'credit_card') {
       const gst = nominal.mul(D('0.18'));
       if (gst.gt(0)) {

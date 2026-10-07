@@ -44,6 +44,10 @@ SURCHARGE_BANDS = [
     (D("Infinity"),   D("0.37")),
 ]
 SURCHARGE_CAP_LTCG = D("0.25")
+# Finance Act 2023: under the new regime (s.115BAC) the 37% band is capped
+# at 25% (P2-01). Income Tax Dept: "25% in case assessee opted for new tax
+# regime under section 115BAC".
+SURCHARGE_CAP_NEW_REGIME = D("0.25")
 
 CESS_RATE = D("0.04")                # Health & education cess
 
@@ -61,24 +65,27 @@ def _slab_tax(taxable_income: Decimal, slabs) -> Decimal:
     return tax
 
 
-def surcharge_rate(taxable_income: Decimal, is_ltcg: bool = False) -> Decimal:
-    """Surcharge rate based on income band. LTCG capped at 25%."""
+def surcharge_rate(
+    taxable_income: Decimal,
+    is_ltcg: bool = False,
+    regime: TaxRegimeIN | None = None,
+) -> Decimal:
+    """Surcharge rate based on income band. LTCG capped at 25%; the new
+    regime caps every band at 25% (no 37%)."""
     for limit, rate in SURCHARGE_BANDS:
         if taxable_income <= limit:
-            return min(rate, SURCHARGE_CAP_LTCG) if is_ltcg else rate
+            if is_ltcg:
+                rate = min(rate, SURCHARGE_CAP_LTCG)
+            if regime == TaxRegimeIN.NEW:
+                rate = min(rate, SURCHARGE_CAP_NEW_REGIME)
+            return rate
     return D("0")
 
 
-def income_tax(
-    taxable_income: Decimal,
-    regime: TaxRegimeIN,
-    is_salaried: bool = True,
-) -> Decimal:
-    """Total income tax for FY2026-27: slab tax (less 87A rebate) × (1 + surcharge) × 1.04."""
+def _tax_before_surcharge(taxable_income: Decimal, regime: TaxRegimeIN) -> Decimal:
+    """Slab tax after the 87A rebate (and its new-regime marginal relief)."""
     slabs = NEW_REGIME_SLABS if regime == TaxRegimeIN.NEW else OLD_REGIME_SLABS
     tax = _slab_tax(taxable_income, slabs)
-
-    # 87A rebate
     if regime == TaxRegimeIN.NEW and taxable_income <= REBATE_87A_NEW_THRESHOLD:
         tax = max(D("0"), tax - REBATE_87A_NEW)
     elif regime == TaxRegimeIN.NEW:
@@ -88,12 +95,34 @@ def income_tax(
         tax = min(tax, taxable_income - REBATE_87A_NEW_THRESHOLD)
     elif regime == TaxRegimeIN.OLD and taxable_income <= REBATE_87A_OLD_THRESHOLD:
         tax = max(D("0"), tax - REBATE_87A_OLD)
+    return max(D("0"), tax)
 
+
+SURCHARGE_THRESHOLDS = [D("5000000"), D("10000000"), D("20000000"), D("50000000")]
+
+
+def income_tax(
+    taxable_income: Decimal,
+    regime: TaxRegimeIN,
+    is_salaried: bool = True,
+) -> Decimal:
+    """Total income tax for FY2026-27: slab tax (less 87A rebate) × (1 + surcharge) × 1.04.
+
+    Surcharge marginal relief (P2-02): just above ₹50L / ₹1Cr / ₹2Cr / ₹5Cr
+    the tax plus surcharge can't exceed the tax at the threshold plus the
+    income above it. Without it ₹1,000 more income cost ₹1.12 lakh at ₹50L.
+    """
+    tax = _tax_before_surcharge(taxable_income, regime)
     if tax <= 0:
         return D("0")
-
-    surcharge = surcharge_rate(taxable_income)
-    return tax * (D("1") + surcharge) * (D("1") + CESS_RATE)
+    surcharge = surcharge_rate(taxable_income, regime=regime)
+    with_surcharge = tax * (D("1") + surcharge)
+    below = [t for t in SURCHARGE_THRESHOLDS if t < taxable_income]
+    if below and surcharge > 0:
+        t = below[-1]
+        at_t = _tax_before_surcharge(t, regime) * (D("1") + surcharge_rate(t, regime=regime))
+        with_surcharge = min(with_surcharge, at_t + (taxable_income - t))
+    return with_surcharge * (D("1") + CESS_RATE)
 
 
 def marginal_rate(taxable_income: Decimal, regime: TaxRegimeIN) -> Decimal:
@@ -120,7 +149,7 @@ def marginal_rate(taxable_income: Decimal, regime: TaxRegimeIN) -> Decimal:
             base = rate
             break
         prev = limit
-    surcharge = surcharge_rate(taxable_income)
+    surcharge = surcharge_rate(taxable_income, regime=regime)
     return base * (D("1") + surcharge) * (D("1") + CESS_RATE)
 
 

@@ -44,7 +44,9 @@ import { newLoanId, withLoanIds } from '@/lib/loan-ids';
 import {
   loadProfileClient,
 } from '@/lib/user-store';
-import { loanCurrency, loanMarket, loanToUser, userDefaultCurrency } from '@/lib/currency';
+import { currencySymbol, loanCurrency, loanMarket, loanToUser, userDefaultCurrency } from '@/lib/currency';
+import { employerTaxPhrase, salaryDeductionsPhrase, takeHomeLabel, untaxedIncomeLabel } from '@/lib/payroll-labels';
+import { convertForCountrySwitch, hasAmountsInCurrency, loansInHomeCurrency, validSwitchRate, type SwitchableAmounts } from '@/lib/country-switch';
 import {
   FY_ANCHOR_MONTH,
   getCountryToday,
@@ -349,6 +351,14 @@ function ProfileEditor({
 
   const [creditScore, setCreditScore] = useState('');
 
+  // Country switch guard (live QA, 7 Oct): a new country is held here until
+  // the user confirms how existing amounts move to the new currency.
+  const [pendingCountry, setPendingCountry] = useState<Country | null>(null);
+  const [switchRate, setSwitchRate] = useState('');
+  const [switchRateState, setSwitchRateState] = useState<'idle' | 'loading' | 'failed'>('idle');
+  const [keepLoansInOld, setKeepLoansInOld] = useState(true);
+  const [switchNote, setSwitchNote] = useState<string | null>(null);
+
   // Rehydrate from the saved profile cookie on mount so re-visiting Setup
   // shows the data the user already entered (not blank defaults).
   // isLive=false means there's no cookie — leave empty defaults in place.
@@ -642,7 +652,78 @@ function ProfileEditor({
     };
   }
 
+  function switchableAmounts(): SwitchableAmounts {
+    return {
+      monthlyIncome, fixedExpenses, variableExpenses, annualGrossSalary,
+      annualBusinessIncome, extraIncomeAnnualTax, savingsBalance, efundBalance,
+      efundTarget, cashAccounts, incomeStreams, deductions, loans, fxRates,
+    };
+  }
+
+  /** Picking a new country never re-reads amounts silently: with money in
+   *  the profile it opens the confirm panel instead (see country-switch). */
+  function requestCountry(v: Country) {
+    setSwitchNote(null);
+    if (v === country) {
+      setPendingCountry(null);
+      return;
+    }
+    if (!hasAmountsInCurrency(switchableAmounts(), country)) {
+      setCountry(v);
+      if (v !== 'US') setIsNriUs(false);
+      setPendingCountry(null);
+      return;
+    }
+    const from = userDefaultCurrency(country), to = userDefaultCurrency(v);
+    setPendingCountry(v);
+    setKeepLoansInOld(true);
+    setSwitchRate('');
+    setSwitchRateState('loading');
+    api
+      .fxRate(from, to)
+      .then((r) => {
+        setSwitchRate((cur) => (cur.trim() ? cur : String(r.rate)));
+        setSwitchRateState('idle');
+      })
+      .catch(() => setSwitchRateState('failed'));
+  }
+
+  function confirmCountrySwitch() {
+    if (!pendingCountry) return;
+    const rate = Number(switchRate);
+    if (!validSwitchRate(rate)) return;
+    const from = country, to = pendingCountry;
+    const keep = keepLoansInOld && loansInHomeCurrency(loans, from) > 0;
+    const next = convertForCountrySwitch(switchableAmounts(), from, to, rate, keep);
+    setMonthlyIncome(next.monthlyIncome);
+    setFixedExpenses(next.fixedExpenses);
+    setVariableExpenses(next.variableExpenses);
+    setAnnualGrossSalary(next.annualGrossSalary);
+    setAnnualBusinessIncome(next.annualBusinessIncome);
+    setExtraIncomeAnnualTax(next.extraIncomeAnnualTax);
+    setSavingsBalance(next.savingsBalance);
+    setEfundBalance(next.efundBalance);
+    setEfundTarget(next.efundTarget);
+    setCashAccounts(next.cashAccounts);
+    setIncomeStreams(next.incomeStreams);
+    setDeductions(next.deductions);
+    setLoans(next.loans);
+    setFxRates(next.fxRates);
+    setCountry(to);
+    // Per-loan currency tagging is the NRI mode on a US profile.
+    setIsNriUs(to === 'US' && keep);
+    setPendingCountry(null);
+    const sFrom = currencySymbol(userDefaultCurrency(from)), sTo = currencySymbol(userDefaultCurrency(to));
+    setSwitchNote(
+      `Converted at ${sFrom}1 = ${sTo}${rate}. ` +
+      (keep ? `Your existing loans stay in ${sFrom}. ` : 'Your loans were converted too. ') +
+      'Check your income and spending before you save: they are now read in ' + sTo + '.',
+    );
+  }
+
   async function save() {
+    // A country change waits for its currency decision.
+    if (pendingCountry) return;
     // A deep link can reach Review without passing the Loans check.
     if (!loansComplete) {
       onOpen(3);
@@ -784,7 +865,7 @@ function ProfileEditor({
     Object.keys(fxErrors).length === 0;
   const canAdvance =
     step === 0 ? true                                                       // 'You' is fully optional — never gate the flow
-      : step === 1 ? !!country
+      : step === 1 ? !!country && pendingCountry === null
       : step === 2 ? Number(monthlyIncome) > 0 && Number(fixedExpenses) >= 0
       : step === 4 ? Number(savingsBalance) >= 0
       : true;
@@ -826,13 +907,8 @@ function ProfileEditor({
           </ProfileHeader>
           {justSaved && (
             <p role="status" style={{ margin: 0, padding: '8px 12px', border: `1px solid ${L_T.positive}`, color: L_T.positive }}>
+              {/* One way back: the link above (QA: two stacked BACK TO PLAN links). */}
               Saved. Home and Plan use the new numbers.
-              {back && (
-                <>
-                  {' '}
-                  <LBracket href={back.href}>{`BACK TO ${back.name.toUpperCase()} →`}</LBracket>
-                </>
-              )}
             </p>
           )}
           <ProfileSummary
@@ -923,10 +999,7 @@ function ProfileEditor({
               <Select
                 label="Country"
                 value={country}
-                onChange={(v: Country) => {
-                  setCountry(v);
-                  if (v !== 'US') setIsNriUs(false);
-                }}
+                onChange={(v: Country) => requestCountry(v)}
                 options={[
                   { value: 'IN' as Country, label: 'India' },
                   { value: 'US' as Country, label: 'USA' },
@@ -934,6 +1007,23 @@ function ProfileEditor({
               />
               <div />
             </div>
+            {pendingCountry && (
+              <CountrySwitchPanel
+                from={country}
+                to={pendingCountry}
+                rate={switchRate}
+                rateState={switchRateState}
+                onRate={setSwitchRate}
+                loanCount={loansInHomeCurrency(loans, country)}
+                keepLoans={keepLoansInOld}
+                onKeepLoans={setKeepLoansInOld}
+                onConfirm={confirmCountrySwitch}
+                onCancel={() => setPendingCountry(null)}
+              />
+            )}
+            {switchNote && (
+              <p role="status" style={{ margin: 0, fontSize: 13, color: L_T.positive }}>{switchNote}</p>
+            )}
             {country === 'US' && (
               <label
                 style={{
@@ -981,7 +1071,7 @@ function ProfileEditor({
               info={
                 <>
                   <strong>Salaried</strong> = fixed monthly inflow from an
-                  employer, EPF + TDS already deducted.{' '}
+                  employer, {salaryDeductionsPhrase(country)}.{' '}
                   <strong>Self-employed / business owner</strong> = variable
                   income from your own work. The engine handles surplus
                   calculations slightly differently for each.
@@ -989,7 +1079,7 @@ function ProfileEditor({
               }
             />
             <Field
-              label={`In-hand salary (${country === 'IN' ? '₹' : '$'}/month, after TDS + PF)`}
+              label={takeHomeLabel(country)}
               kind="money"
               currency={userCcy}
               value={monthlyIncome}
@@ -2391,6 +2481,11 @@ function ProfileEditor({
           </div>
         )}
 
+        {pendingCountry && (
+          <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
+            Confirm or cancel the country change above before saving.
+          </p>
+        )}
         {saveFailed && (
           <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
             Your profile wasn&apos;t saved: this browser didn&apos;t keep it. Check
@@ -3056,7 +3151,7 @@ function AdvancedTaxDetails({
         {incomeType === 'salaried' && (
           <div style={{ gridColumn: '1 / -1' }}>
             <Field
-              label={`Tax on non-TDS income (${country === 'IN' ? '₹' : '$'}/year, optional)`}
+              label={untaxedIncomeLabel(country)}
               kind="money"
               currency={country === 'IN' ? 'INR' : 'USD'}
               value={extraIncomeAnnualTax}
@@ -3065,7 +3160,7 @@ function AdvancedTaxDetails({
               info={
                 <>
                   <strong>Most salaried users leave this blank.</strong>{' '}
-                  Employer TDS already covers your salary's tax.
+                  {employerTaxPhrase(country)}
                   <br />
                   <br />
                   Fill only if you have income <strong>outside salary</strong>:
@@ -3551,9 +3646,12 @@ function MinPaymentExplainer({
   country: Country;
   onOverrideChange: (value: string) => void;
 }) {
-  const explanation = explainMinPayment(loan, country);
+  // The card's own currency, not the profile's: an NRI's rupee card kept
+  // a "$2,250.00" placeholder after its currency was set to INR (QA #17).
+  const currency = loanCurrency(loan, country);
+  const ruleCountry: Country = currency === 'INR' ? 'IN' : currency === 'USD' ? 'US' : country;
+  const explanation = explainMinPayment(loan, ruleCountry);
   if (!explanation) return null;
-  const currency = country === 'IN' ? 'INR' : 'USD';
   const estimatedLabel = formatCurrency(explanation.estimated, currency);
   return (
     <div
@@ -3620,6 +3718,72 @@ function MinPaymentExplainer({
             : 'Blank: the rule above'
         }
       />
+    </div>
+  );
+}
+
+
+/** Asks how existing amounts move to the new country's currency. Nothing
+ *  changes until the user confirms; Cancel keeps the old country. */
+function CountrySwitchPanel({
+  from, to, rate, rateState, onRate, loanCount, keepLoans, onKeepLoans, onConfirm, onCancel,
+}: {
+  from: Country;
+  to: Country;
+  rate: string;
+  rateState: 'idle' | 'loading' | 'failed';
+  onRate: (v: string) => void;
+  loanCount: number;
+  keepLoans: boolean;
+  onKeepLoans: (v: boolean) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const fromCcy = userDefaultCurrency(from), toCcy = userDefaultCurrency(to);
+  const sFrom = currencySymbol(fromCcy), sTo = currencySymbol(toCcy);
+  const name = (c: Country) => (c === 'IN' ? 'India' : 'the USA');
+  const r = Number(rate);
+  const rateOk = validSwitchRate(r);
+  return (
+    <div
+      role="dialog"
+      aria-label="Change country"
+      style={{ border: `1px solid ${L_T.negative}`, padding: '12px 14px', display: 'grid', gap: 10, fontSize: 13, lineHeight: 1.55 }}
+    >
+      <strong>Your amounts are in {sFrom}. {name(to) === 'the USA' ? 'The USA' : 'India'} uses {sTo}.</strong>
+      <span>
+        Switching to {name(to)} won&apos;t re-read {sFrom}20,00,000 as {sTo}2,000,000. Choose how your
+        income, spending, savings{loanCount ? ' and loans' : ''} move over, or cancel to stay in {name(from)}.
+      </span>
+      <label style={{ display: 'grid', gap: 4 }}>
+        <span>Exchange rate: {sFrom}1 = {sTo}…</span>
+        <input
+          className="num"
+          inputMode="decimal"
+          value={rate}
+          onChange={(e) => onRate(e.target.value.replace(/[^0-9.]/g, ''))}
+          placeholder={rateState === 'loading' ? 'Fetching today’s rate…' : fromCcy === 'INR' ? 'e.g. 0.012' : 'e.g. 83'}
+          aria-invalid={rate.trim() !== '' && !rateOk}
+          style={{ padding: '8px 10px', border: `1px solid ${rate.trim() !== '' && !rateOk ? L_T.negative : 'var(--border)'}`, maxWidth: 220 }}
+        />
+        {rateState === 'failed' && <span style={{ color: L_T.negative }}>Today&apos;s rate couldn&apos;t be fetched. Enter it from your bank&apos;s app.</span>}
+        {rate.trim() !== '' && !rateOk && <span style={{ color: L_T.negative }}>Enter a rate above 0.</span>}
+      </label>
+      {loanCount > 0 && (
+        <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
+          <input type="checkbox" checked={keepLoans} onChange={(e) => onKeepLoans(e.target.checked)} style={{ marginTop: 3 }} />
+          <span>
+            Keep my {loanCount} existing loan{loanCount === 1 ? '' : 's'} in {sFrom} (they are still {fromCcy} loans).
+            Untick to convert {loanCount === 1 ? 'it' : 'them'} to {sTo} at this rate.
+          </span>
+        </label>
+      )}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ opacity: rateOk ? 1 : 0.4 }}>
+          <LButton onClick={rateOk ? onConfirm : undefined} disabled={!rateOk}>{`CONVERT AND SWITCH TO ${to === 'US' ? 'USA' : 'INDIA'}`}</LButton>
+        </span>
+        <LBracket onClick={onCancel}>{`CANCEL · STAY IN ${from === 'US' ? 'USA' : 'INDIA'}`}</LBracket>
+      </div>
     </div>
   );
 }

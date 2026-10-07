@@ -6,6 +6,7 @@
  * checks the fields and hands back a draft; the caller saves it (Plan as
  * planned, Activity as happened when the date has passed).
  */
+import { tenureError } from '@/lib/tenure-rules';
 import { useEffect, useMemo, useState } from 'react';
 import { likelyRateType } from '@/lib/rate-type';
 import type { LoanPayload, LoanType, UserPayload } from '@/lib/api';
@@ -135,9 +136,8 @@ export function LifeEventForm({
     outstanding: kind === 'property_buy' && !(n(draft.outstanding) > 0) ? 'Enter the amount borrowed.' : null,
     rate: kind === 'property_buy' ? (draft.nominal_rate.trim() ? rateOutOfRange(draft.nominal_rate) : 'Enter the rate.') : null,
     months:
-      kind === 'property_buy' &&
-      !(Number.isInteger(draft.tenure_months_remaining) && draft.tenure_months_remaining > 0 && draft.tenure_months_remaining <= 480)
-        ? 'Enter the months to repay, 1 to 480.'
+      kind === 'property_buy'
+        ? tenureError(draft.loan_type, draft.tenure_months_remaining || '')
         : null,
     emi: kind === 'property_buy' && !(n(draft.scheduled_emi) > 0) ? 'Enter the EMI.' : null,
   };

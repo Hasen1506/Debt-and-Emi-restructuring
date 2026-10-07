@@ -8,6 +8,7 @@ behavioural — smallest balance first regardless of rate.
 to it cascades to the next-priority debt.
 """
 from decimal import Decimal
+from typing import Callable
 from enum import Enum
 from engine.models import Country, Loan
 
@@ -39,22 +40,27 @@ def rank_loans(
     effective_rates: dict[int, Decimal],
     strategy: Strategy,
     country: Country = Country.IN,
+    balance_of: Callable[[Loan], Decimal] | None = None,
 ) -> list[Loan]:
     """Returns loans sorted by priority for extra-allocation routing.
 
     `effective_rates` is {id(loan): effective_rate} from formulas.effective_rate().
     Higher priority = first to receive extra. `country` selects the hybrid
     small-balance threshold (§4.5).
+
+    `balance_of` maps a loan to its balance in the user's currency (M3):
+    a $10,000 loan is not smaller than a ₹50,000 one. Defaults to the raw
+    balance for single-currency callers.
     """
+    bal = balance_of or (lambda l: l.outstanding)
     if strategy == Strategy.AVALANCHE:
         return sorted(loans, key=lambda l: effective_rates[id(l)], reverse=True)
     if strategy == Strategy.SNOWBALL:
-        return sorted(loans, key=lambda l: l.outstanding)
+        return sorted(loans, key=bal)
     if strategy == Strategy.HYBRID:
         threshold = hybrid_small_balance_threshold(country)
-        small = sorted([l for l in loans if l.outstanding < threshold],
-                       key=lambda l: l.outstanding)
-        rest = sorted([l for l in loans if l.outstanding >= threshold],
+        small = sorted([l for l in loans if bal(l) < threshold], key=bal)
+        rest = sorted([l for l in loans if bal(l) >= threshold],
                       key=lambda l: effective_rates[id(l)], reverse=True)
         return small + rest
     raise ValueError(f"Unknown strategy: {strategy}")

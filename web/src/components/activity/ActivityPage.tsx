@@ -381,6 +381,9 @@ function Month({
   const due = m.rows.filter((r) => r.pending);
   const emisDue = due.filter((r) => r.ref.kind === 'due' && !r.ref.card).length;
   const logged = m.rows.length - due.length;
+  // QA #26: a month's due rows in ₹ and $ side by side, and the plan's
+  // extra (often the whole card) logged by MARK PAID as if routine.
+  const note = dueNote(due);
   return (
     <section id={`month-${m.month}`} aria-labelledby={`month-${m.month}-h`} style={{ scrollMarginTop: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, borderTop: `2px solid ${L_T.ink}`, padding: '10px 0 6px' }}>
@@ -404,6 +407,11 @@ function Month({
           </LBracket>
         </span>
       </div>
+      {open && note && (
+        <p role="note" style={{ margin: '0 0 6px', fontSize: 10, color: L_T.muted, lineHeight: 1.5 }}>
+          {note}
+        </p>
+      )}
       {open &&
         (m.rows.length === 0 ? (
           <p style={{ margin: 0, padding: '8px 0', fontSize: 12, color: L_T.muted }}>Nothing logged this month yet.</p>
@@ -581,4 +589,20 @@ function dueEntry(
   return extra > 0
     ? { loanIndex, loanId, kind: 'paid_extra' as const, date, amount: r.amount, scheduledEmi: r.minimum ?? r.amount, plannedExtra: r.extra }
     : { loanIndex, loanId, kind: 'paid_full' as const, date, amount: r.amount, scheduledEmi: r.amount };
+}
+
+/** What to say above a month's due rows: mixed currencies, and the plan's extra. */
+export function dueNote(due: HistoryRow[]): string | null {
+  const parts: string[] = [];
+  const planned = due.map((r) => r.planned ?? '').join(' ');
+  if (planned.includes('₹') && planned.includes('$')) {
+    parts.push('Each amount is in its own loan\'s currency; ₹ and $ rows are not added together.');
+  }
+  const extras = due.filter((r) => r.ref.kind === 'due' && Number(r.ref.extra ?? 0) > 0).length;
+  if (extras > 0) {
+    parts.push(
+      `The plan puts extra money on ${extras === 1 ? 'one of these' : `${extras} of these`}. MARK PAID logs the full planned payment, extra included; use OTHER AMOUNT if you paid only the EMI or minimum.`,
+    );
+  }
+  return parts.length ? parts.join(' ') : null;
 }

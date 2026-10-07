@@ -37,10 +37,11 @@ export function useSession(): SessionState & { refresh: () => Promise<void>; log
   }
 
   async function logout() {
-    const { clearAccountCache, flushPendingState } = await import('./server-sync');
+    const { clearAccountCache, clearPendingSync, flushPendingState } = await import('./server-sync');
     if (!await flushPendingState()) throw new Error('Your changes have not reached your account. Retry saving before signing out.');
     await api.logout();
     clearAccountCache();
+    clearPendingSync();
     setState({ status: 'anon', user: null });
     notifySessionChanged();
   }

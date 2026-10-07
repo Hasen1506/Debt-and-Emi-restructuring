@@ -374,6 +374,13 @@ def _holding_days(asset: Asset, today: date) -> int:
     return (today - asset.purchase_date).days
 
 
+def held_more_than_months(purchase: date, sale: date, months: int) -> bool:
+    """India "more than 12 / 24 months" and US "more than one year" (P2-11).
+    Day counts (>= 365 / 730) called a sale on the anniversary, or after a
+    leap-year 365 days, long-term."""
+    return _held_long_term(purchase, sale, months)
+
+
 def _years_held(asset: Asset, today: date) -> int:
     return _holding_days(asset, today) // 365
 
@@ -446,17 +453,22 @@ def _proceeds_fd(asset: Asset, today: date) -> ProceedsResult:
     )
 
 
-def _equity_tax(gain: Decimal, holding_days: int, taxable_income: Decimal) -> Decimal:
+def _equity_tax(
+    gain: Decimal, is_long_term: bool, taxable_income: Decimal,
+    exemption_left: Decimal = EQUITY_LTCG_EXEMPTION,
+) -> Decimal:
     """Tax on listed-equity sale: STCG 20% or LTCG 12.5% above ₹1.25L exemption.
 
+    The ₹1.25L §112A exemption is once per financial year (P2-12): a caller
+    combining several equity sales passes what is left of it.
     Surcharge capped at 15% for equity (§111A / §112A). Cess 4%.
     """
     if gain <= 0:
         return D("0")
-    if holding_days < EQUITY_LT_HOLD_DAYS:
+    if not is_long_term:
         base_tax = gain * EQUITY_STCG_RATE
     else:
-        taxable_gain = max(D("0"), gain - EQUITY_LTCG_EXEMPTION)
+        taxable_gain = max(D("0"), gain - max(D("0"), min(exemption_left, EQUITY_LTCG_EXEMPTION)))
         base_tax = taxable_gain * EQUITY_LTCG_RATE
 
     surcharge = min(surcharge_rate(taxable_income, is_ltcg=True), EQUITY_SURCHARGE_CAP)
@@ -469,12 +481,12 @@ def _proceeds_equity(
     """Listed equity (stocks/MF) — STCG 20% or LTCG 12.5% above ₹1.25L."""
     val = asset.current_market_value
     days_held = _holding_days(asset, today)
-    is_lt = days_held >= EQUITY_LT_HOLD_DAYS
+    is_lt = held_more_than_months(asset.purchase_date, today, 12)
 
     transaction_costs = val * (EQUITY_STT_RATE + EQUITY_BROKERAGE)
     gross = val - transaction_costs
     gain = max(D("0"), gross - asset.purchase_price)
-    tax = _equity_tax(gain, days_held, taxable_income)
+    tax = _equity_tax(gain, is_lt, taxable_income)
 
     is_mf = asset.asset_type == "equity_mf"
     label_type = "equity MF" if is_mf else "equity stocks"
@@ -541,7 +553,7 @@ def _proceeds_gold(
     """Physical gold — ST<24mo at slab; LT 12.5% flat post-Budget-2024."""
     val = asset.current_market_value
     days_held = _holding_days(asset, today)
-    is_lt = days_held >= GOLD_LT_HOLD_DAYS
+    is_lt = held_more_than_months(asset.purchase_date, today, 24)
 
     transaction_costs = val * GOLD_TRANSACTION_COST
     gross = val - transaction_costs
@@ -599,7 +611,7 @@ def _proceeds_sgb(
             ),
         )
 
-    is_lt = days_held >= SGB_LT_HOLD_DAYS
+    is_lt = held_more_than_months(asset.purchase_date, today, 12)
     transaction_costs = val * SGB_EXCHANGE_COST
     gross = val - transaction_costs
     gain = max(D("0"), gross - asset.purchase_price)
@@ -889,12 +901,13 @@ def _us_cap_gains_helpers(
     tax = us_capital_gains_tax(
         gain=gain,
         holding_days=days_held,
+        long_term=held_more_than_months(asset.purchase_date, today, 12),
         taxable_income=taxable_income,
         filing_status=filing_status,
         state_marginal_rate=state_marginal_rate,
         is_collectible=is_collectible,
     )
-    return gross, tax, days_held, days_held > 365
+    return gross, tax, days_held, held_more_than_months(asset.purchase_date, today, 12)
 
 
 def _proceeds_us_equity(
@@ -1039,6 +1052,7 @@ def _proceeds_us_real_estate(
     tax = us_capital_gains_tax(
         gain=gain_after_121,
         holding_days=days_held,
+        long_term=held_more_than_months(asset.purchase_date, today, 12),
         taxable_income=taxable_income,
         filing_status=filing_status,
         state_marginal_rate=state_marginal_rate,

@@ -30,7 +30,7 @@ from engine.models import (
     LifecycleEvent,
     LifecycleEventKind,
 )
-from engine.formulas import emi, effective_rate, prepay_recommended, real_emi
+from engine.formulas import emi, effective_rate, monthly_interest_charge, prepay_recommended, real_emi
 from engine.minimum_payments import compute_minimum_payment
 from engine.ordering import Strategy, rank_loans
 from engine.goals import GoalState, MonthlyGoalAllocation, serial_fill_allocation
@@ -52,8 +52,36 @@ D = Decimal
 MAX_RATE_DRIFT = D("0.03")
 
 
+# Payroll deductions besides income tax (P2-24).
+US_SS_RATE = D("0.062")
+US_SS_WAGE_BASE_2026 = D("184500")       # SSA 2026 contribution and benefit base
+US_MEDICARE_RATE = D("0.0145")
+US_ADDL_MEDICARE_RATE = D("0.009")       # above $200k wages (single threshold)
+US_ADDL_MEDICARE_THRESHOLD = D("200000")
+IN_EPF_RATE = D("0.12")
+IN_EPF_WAGE_CEILING_ANNUAL = D("180000")  # ₹15,000/month statutory wage ceiling
+
+
+def payroll_deductions(user: User, gross: Decimal) -> Decimal:
+    """Yearly payroll deductions other than income tax: FICA in the US;
+    employee EPF in India at the statutory floor (12% of the ₹15,000/month
+    wage ceiling). Many employers deduct EPF on the full basic, so the
+    take-home this produces is an upper bound, not an exact figure."""
+    if user.income_type != IncomeType.SALARIED or gross <= 0:
+        return D("0")
+    if user.country == Country.IN:
+        return IN_EPF_RATE * min(gross, IN_EPF_WAGE_CEILING_ANNUAL)
+    fica = US_SS_RATE * min(gross, US_SS_WAGE_BASE_2026) + US_MEDICARE_RATE * gross
+    if gross > US_ADDL_MEDICARE_THRESHOLD:
+        fica += US_ADDL_MEDICARE_RATE * (gross - US_ADDL_MEDICARE_THRESHOLD)
+    return fica
+
+
 def estimated_take_home(user: User, gross: Decimal) -> Decimal:
-    """Income-tax-only estimate; callers can override payroll/PF withholding."""
+    """Monthly take-home from a gross salary: income tax plus payroll
+    deductions (FICA / EPF). It used to subtract income tax only, which
+    overstated a planned salary's take-home by 7.65% in the US (P2-24).
+    Callers with an exact figure should send `new_monthly_take_home`."""
     if user.country == Country.IN:
         from engine.tax.india import income_tax, STANDARD_DEDUCTION_NEW_SALARIED, STANDARD_DEDUCTION_OLD_SALARIED
         regime = user.tax_regime or TaxRegimeIN.NEW
@@ -63,6 +91,7 @@ def estimated_take_home(user: User, gross: Decimal) -> Decimal:
         from engine.tax.usa import federal_tax, STANDARD_DEDUCTION_2026
         filing = user.filing_status or FilingStatusUS.SINGLE
         tax = federal_tax(max(D("0"), gross - STANDARD_DEDUCTION_2026[filing]), filing) + gross * user.state_marginal_rate
+    tax += payroll_deductions(user, gross)
     return (max(D("0"), gross - tax) / D("12")).quantize(D("0.01"), rounding=ROUND_HALF_UP)
 
 
@@ -80,6 +109,26 @@ def _months_to_clear(balance: Decimal, rate: Decimal, payment: Decimal) -> int |
     if a <= r * p:
         return None
     return math.ceil(-math.log(1 - r * p / a) / math.log(1 + r))
+
+
+def tax_caps_context(loans: list[Loan], user: User) -> dict:
+    """Per-taxpayer totals for the shared deduction caps (P2-05/06/25):
+    India 24(b) interest across home loans, the US $750k mortgage-debt
+    limit, and the US $2,500 student-loan interest deduction."""
+    own_market = user.country
+    def market(l: Loan) -> Country:
+        c = (l.currency or "").upper()
+        return Country.IN if c == "INR" else Country.US if c == "USD" else own_market
+    homes = [l for l in loans if l.loan_type == LoanType.HOME and l.outstanding > 0 and market(l) == own_market]
+    edu = [l for l in loans if l.loan_type == LoanType.EDUCATION and l.outstanding > 0 and market(l) == own_market]
+    magi = user.annual_gross_salary or user.annual_business_income or None
+    return {
+        "home_interest_total": sum((l.outstanding * l.nominal_rate for l in homes), D("0")),
+        "mortgage_debt_total": sum((l.outstanding for l in homes), D("0")),
+        "us_student_interest_total": sum((l.outstanding * l.nominal_rate for l in edu), D("0")),
+        "magi": magi,
+        "filing_status": user.filing_status,
+    }
 
 
 def _reset_rate(loan: Loan, new_rate: Decimal, months_left: int) -> None:
@@ -235,6 +284,7 @@ def simulate_plan(
     debt_budget: Decimal | None = None,
     expense_delta: Decimal = D("0"),
     expense_delta_from_month: int = 1,
+    income_shock_months: int = 0,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`. Returns one MonthRow per month
     until either all loans clear or horizon is reached.
@@ -297,6 +347,10 @@ def simulate_plan(
     always paid, even above it. A positive `income_delta` or `expense_delta`
     raises it by the same amount from that month on, so
     the cut reaches the debts as the what-if says.
+
+    `income_shock_months` (default 0) zeroes take-home pay for months
+    1..N while planned salary resets and hikes still move the underlying
+    pay, so what returns after the shock is the plan's pay by then.
 
     `minimums_only` pays each loan its minimum and nothing more: no
     surplus, no cascade when a loan clears, no reinvest events. It is the
@@ -447,6 +501,10 @@ def simulate_plan(
                 ):
                     ln = loans[ev.loan_index]
                     _reset_rate(ln, ev.new_rate, ln.tenure_months_remaining - max(0, m - ln.first_payment_month))
+                    # A deliberate reset (or a rate-shock what-if) is the new
+                    # anchor for the ±MAX_RATE_DRIFT clamp; otherwise the next
+                    # auto reset pulled a +4% shock back to +3% (P2-08).
+                    start_rate[id(ln)] = ln.nominal_rate
 
         # Auto floating-rate resets — for any floating loan with a
         # next_reset_month + rate_reset_frequency_months pair, fire a
@@ -488,7 +546,7 @@ def simulate_plan(
         # for the schedule to fire (or they can set it to the schedule's
         # first-phase rate as a sensible fallback).
         if (
-            user.annual_hike_rate > 0
+            (user.annual_hike_rate > 0 or bool(user.hike_schedule))
             and m >= first_hike
             and (m - first_hike) % 12 == 0
         ):
@@ -512,6 +570,17 @@ def simulate_plan(
             break
         active = [l for l in owing if m >= l.first_payment_month]
 
+        # Moratorium / pre-first-EMI months still accrue interest; banks
+        # capitalise it onto the balance (M1). A ₹10L education loan at 10%
+        # with its first EMI in month 13 owes about ₹1.1L more by then.
+        # A planned loan accrues from its arrival month.
+        # A loan taken this month (first EMI next month) is covered by that
+        # first EMI's interest, so only longer gaps capitalise.
+        for l in owing:
+            start = loan_start_month.get(id(l), 1)
+            if start <= m < l.first_payment_month and l.first_payment_month - start >= 2:
+                l.outstanding += monthly_interest_charge(l, user.country)
+
         # Card spend: for any active credit card with expected_monthly_spend
         # set, bump outstanding before computing minimum payments. Models
         # "user keeps using the card" rather than the freeze-and-pay-off
@@ -529,7 +598,7 @@ def simulate_plan(
         minimums = {
             id(l): compute_minimum_payment(
                 l, user.country,
-                interest_accrued=l.outstanding * l.nominal_rate / D("12"),
+                interest_accrued=monthly_interest_charge(l, user.country),
                 simple_mode=simple_mode,
             )
             for l in active
@@ -537,13 +606,14 @@ def simulate_plan(
 
         # Effective rate per loan (drives ordering + Layer 3 gate)
         rates = {
-            id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises, user.itemised_share)
+            id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises, user.itemised_share,
+                                  **tax_caps_context(active, user))
             for l in active
         }
 
         # Available surplus this month — recompute with current income
         scratch_user = deepcopy(user)
-        scratch_user.monthly_income = income
+        scratch_user.monthly_income = D("0") if m <= income_shock_months else income
         scratch_user.loans = active
         if expense_delta != 0 and m >= max(1, expense_delta_from_month):
             # Spending cuts reduce the same bucket as the saved profile.
@@ -579,10 +649,15 @@ def simulate_plan(
         efund_monthly_to_credit = min(
             efund_monthly_plan, max(D("0"), ef_target - ef_balance),
         )
-        surplus = compute_available_surplus(
+        # The fixed top-up only lands when the month can pay for it (P2-15):
+        # crediting it regardless filled the fund on paper with money the
+        # user never had, and debt prepayment started a year early.
+        pre_ef_surplus = compute_available_surplus(
             scratch_user, active, matched_contribution=matched_contribution,
-            simple_mode=simple_mode, efund_monthly=efund_monthly_to_credit,
+            simple_mode=simple_mode, efund_monthly=D("0"),
         )
+        efund_monthly_to_credit = min(efund_monthly_to_credit, max(D("0"), pre_ef_surplus))
+        surplus = max(D("0"), pre_ef_surplus - efund_monthly_to_credit)
         shortfall = compute_shortfall(scratch_user, active, simple_mode=simple_mode)
         if minimums_only:
             surplus = D("0")
@@ -647,15 +722,19 @@ def simulate_plan(
         # only if none does is the surplus invested. Checking just the
         # first loan made snowball invest everything while a 42% card
         # sat at its minimum, because a small 7% car loan came first.
-        ranked = rank_loans(active, rates, strategy, country=user.country)
+        ranked = rank_loans(active, rates, strategy, country=user.country,
+                            balance_of=lambda l: to_user_currency(l.outstanding, l, user))
         invested_this_month = D("0")
         extra_for_debt = surplus
         worth_prepaying = [
             l for l in ranked
-            if prepay_recommended(rates[id(l)], best_liquid_return, inflation)
+            if prepay_recommended(rates[id(l)], best_liquid_return, inflation, marg)
         ]
+        worth_ids = {id(l) for l in worth_prepaying}
 
-        if ranked and surplus > 0 and not worth_prepaying:
+        if surplus > 0 and (not ranked or not worth_prepaying):
+            # Nothing beats the after-tax return, or every owed loan is
+            # still before its first EMI: the surplus is saved, not lost.
             invested_this_month = surplus
             extra_for_debt = D("0")
 
@@ -684,6 +763,7 @@ def simulate_plan(
         # took the fee out of the principal payment, not as a separate
         # charge against surplus.
         prepay_penalty_paid = D("0")
+        penalised = None
         if extra_for_debt > 0 and ranked:
             # Pick the highest-ranked loan that's actually open to extra
             # payment this month (out of lock-in, past its part-payment
@@ -691,13 +771,20 @@ def simulate_plan(
             # candidate, then no-op if every loan is gated — surplus
             # carries forward implicitly via the EF buffer.
             target = next((l for l in worth_prepaying if _can_part_pay(l, m)), None)
-            if target is not None:
+            if target is None:
+                # Every loan worth prepaying is gated this month (lock-in,
+                # part-payment cooldown, pre-EMI). The money stays with the
+                # user (H3): it used to vanish.
+                invested_this_month += extra_for_debt
+                extra_for_debt = D("0")
+            else:
                 extra_in_loan_ccy = from_user_currency(extra_for_debt, target, user)
                 penalty_in_loan_ccy = extra_in_loan_ccy * target.prepayment_penalty_pct
                 effective_prepay = extra_in_loan_ccy - penalty_in_loan_ccy
                 payments[id(target)] += effective_prepay
                 if penalty_in_loan_ccy > 0:
                     prepay_penalty_paid = to_user_currency(penalty_in_loan_ccy, target, user)
+                    penalised = (target, effective_prepay, target.prepayment_penalty_pct)
                 last_part_payment_month[id(target)] = m
 
         # Amortise each loan; track cascade
@@ -713,8 +800,7 @@ def simulate_plan(
         # Cascade is also tracked in user currency so it can be re-converted
         # into whichever loan currency the next-priority loan is in.
         for l in active:
-            monthly_rate = l.nominal_rate / D("12")
-            interest_this = l.outstanding * monthly_rate
+            interest_this = monthly_interest_charge(l, user.country)
             # Pre-EMI broken-period: bank charges interest only, no
             # principal payment. The user pays exactly `interest_this`
             # for this month; payments[id(l)] gets overwritten so the
@@ -743,6 +829,16 @@ def simulate_plan(
             interest_paid += to_user_currency(interest_this, l, user)
             principal_paid += to_user_currency(principal_this, l, user)
 
+        # The fee is due only on the part of the prepayment the loan
+        # actually took. When the target cleared, the refunded part was
+        # charged a fee it never paid (BUG_REPORT Low): give that back.
+        if penalised is not None and id(penalised[0]) in cleared and penalised[2] < 1:
+            tgt, eff_prepay, pct = penalised
+            refund_loan = max(D("0"), min(eff_prepay, from_user_currency(cascade_surplus, tgt, user)))
+            over_fee = refund_loan * pct / (D("1") - pct)
+            over_fee_user = to_user_currency(over_fee, tgt, user)
+            prepay_penalty_paid = max(D("0"), prepay_penalty_paid - over_fee_user)
+            cascade_surplus += over_fee_user
         # Fold prepay penalty into interest_paid — bank pocketed it,
         # principal didn't budge by that amount. Accounting it as
         # interest keeps total_interest comparable across runs and
@@ -753,19 +849,31 @@ def simulate_plan(
         # Apply cascade within the same month to the next-priority active loan
         # (after the clears we just processed)
         if cascade_surplus > 0 and not minimums_only:
-            next_active = [l for l in ranked if l.outstanding > 0]
-            if next_active:
-                top = next_active[0]
-                monthly_rate = top.nominal_rate / D("12")
+            # Walk the payoff order until the freed money is used up (H2):
+            # only the next loan used to get it, and anything above its
+            # balance was dropped. Gated loans (lock-in / cooldown /
+            # pre-EMI) and loans not worth prepaying are skipped; whatever
+            # is left is kept by the user as savings.
+            for top in ranked:
+                if cascade_surplus <= 0:
+                    break
+                if top.outstanding <= 0 or id(top) not in worth_ids or not _can_part_pay(top, m):
+                    continue
                 add_principal = from_user_currency(cascade_surplus, top, user)
                 if add_principal >= top.outstanding:
                     add_principal = top.outstanding
-                    cleared.append(id(top))
+                    if id(top) not in cleared:
+                        cleared.append(id(top))
                 top.outstanding -= add_principal
-                principal_paid += to_user_currency(add_principal, top, user)
+                used = to_user_currency(add_principal, top, user)
+                cascade_surplus -= used
+                principal_paid += used
                 # Reflect the cascade in the per-loan payment dict so the UI
                 # can show the real amount the user sends to that bank.
                 payments[id(top)] = payments.get(id(top), D("0")) + add_principal
+            if cascade_surplus > 0:
+                invested_this_month += cascade_surplus
+                cascade_surplus = D("0")
 
         # Auto-reinvest event (e.g. annual tax-saving refund routed back
         # into debt). Layered on top of cascade — same routing rule (highest
@@ -779,22 +887,33 @@ def simulate_plan(
                 # cleared this month — those drop out automatically).
                 reinvest_ranked = rank_loans(
                     remaining_active,
-                    {id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises, user.itemised_share)
+                    {id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises, user.itemised_share,
+                                           **tax_caps_context(remaining_active, user))
                      for l in remaining_active},
                     strategy,
                     country=user.country,
+                    balance_of=lambda l: to_user_currency(l.outstanding, l, user),
                 )
-                if reinvest_ranked:
-                    target = reinvest_ranked[0]
-                    add = from_user_currency(reinvest_amount, target, user)
+                left = reinvest_amount
+                for target in reinvest_ranked:
+                    if left <= 0:
+                        break
+                    if not _can_part_pay(target, m):
+                        continue
+                    add = from_user_currency(left, target, user)
                     if add >= target.outstanding:
                         add = target.outstanding
-                        cleared.append(id(target))
+                        if id(target) not in cleared:
+                            cleared.append(id(target))
                     target.outstanding -= add
-                    principal_paid += to_user_currency(add, target, user)
+                    used = to_user_currency(add, target, user)
+                    left -= used
+                    principal_paid += used
                     payments[id(target)] = (
                         payments.get(id(target), D("0")) + add
                     )
+                if left > 0:
+                    invested_this_month += left
 
         total_payment_nominal = interest_paid + principal_paid
         total_payment_real = real_emi(total_payment_nominal, inflation, m)

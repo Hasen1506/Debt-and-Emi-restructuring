@@ -16,8 +16,11 @@ def emi(principal: Decimal, nominal_rate: Decimal, tenure_months: int) -> Decima
     r = nominal_rate / D("12")
     if r == 0:
         return principal / D(tenure_months)
-    n = D(tenure_months)
     factor = (D("1") + r) ** tenure_months
+    if factor - D("1") == 0:
+        # A positive rate so small that (1+r)^n rounds to 1 at Decimal
+        # precision: the loan is effectively interest-free (P2-20).
+        return principal / D(tenure_months)
     return principal * r * factor / (factor - D("1"))
 
 
@@ -81,14 +84,23 @@ def remaining_balance(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def country_cap_home_loan(country: Country, regime: TaxRegimeIN, property_use: str) -> Decimal:
-    """Sec 24(b) cap for India home loan. New regime self-occupied = 0; old regime self-occupied = ₹2L.
-    Let-out: no cap (deductible against rental income, modelled separately).
+    """Sec 24(b) cap for India home-loan interest that lowers tax on OTHER
+    income (P2-06).
+
+    - Self-occupied: ₹2L per taxpayer (old regime), nothing (new regime).
+    - Let-out: interest is deductible against the rent, but a house-property
+      loss can be set off against other income only up to ₹2L (old regime)
+      and not at all (new regime, s.115BAC). The engine doesn't model rental
+      income, so the shield is limited to that set-off. It used to be
+      unlimited, giving a new-regime let-out loan a full 30% shield.
     """
     if country != Country.IN:
         return D("Infinity")
-    if property_use == "let_out":
-        return D("Infinity")
     return D("200000") if regime == TaxRegimeIN.OLD else D("0")
+
+
+US_MORTGAGE_DEBT_LIMIT = D("750000")      # IRC §163(h)(3)(F), post-2017 loans
+US_STUDENT_LOAN_INTEREST_MAX = D("2500")  # IRC §221
 
 
 def gst_component(loan_type: LoanType, nominal_rate: Decimal,
@@ -109,7 +121,7 @@ def gst_component(loan_type: LoanType, nominal_rate: Decimal,
 
 
 DEDUCTIBLE_LOAN_TYPES_IN = {LoanType.HOME, LoanType.EDUCATION}
-DEDUCTIBLE_LOAN_TYPES_US = {LoanType.HOME}    # itemisers only — handled via usa.itemisation_benefit
+DEDUCTIBLE_LOAN_TYPES_US = {LoanType.HOME, LoanType.EDUCATION}    # mortgage: itemisers; student loan: above the line
 
 
 def effective_rate(
@@ -119,6 +131,11 @@ def effective_rate(
     tax_regime: TaxRegimeIN | None = None,
     itemises: bool = True,
     itemised_share: Decimal = D("1"),
+    home_interest_total: Decimal | None = None,
+    mortgage_debt_total: Decimal | None = None,
+    us_student_interest_total: Decimal | None = None,
+    magi: Decimal | None = None,
+    filing_status=None,
 ) -> Decimal:
     """§4.1 effective rate = nominal × [1 − shield_fraction × marginal_rate] + fees + GST.
 
@@ -135,6 +152,13 @@ def effective_rate(
       deduction) saves tax on $7,525 of it, not all of it. Callers pass
       `user.itemises` and `user.itemised_share`; the defaults keep older
       direct callers unchanged.
+    - Caps are per taxpayer, not per loan: `home_interest_total` (India,
+      annual interest across home loans) shares the ₹2L 24(b) cap, and
+      `mortgage_debt_total` (US, balances across home loans) applies the
+      $750k §163 debt limit (P2-05). Each defaults to this loan alone.
+    - US student loans get the §221 above-the-line deduction (P2-25): up to
+      $2,500 of interest a year (shared via `us_student_interest_total`),
+      phased out by `magi` when given. No itemising needed.
     """
     nominal = loan.nominal_rate
     annual_interest = loan.outstanding * nominal
@@ -145,6 +169,14 @@ def effective_rate(
         shield_pct = D("0")
     elif country == Country.IN and loan.loan_type == LoanType.EDUCATION and regime == TaxRegimeIN.NEW:
         shield_pct = D("0")
+    elif country == Country.US and loan.loan_type == LoanType.EDUCATION:
+        total = max(annual_interest, us_student_interest_total or D("0"))
+        allowed = min(total, US_STUDENT_LOAN_INTEREST_MAX)
+        if magi is not None:
+            from engine.tax.usa import student_loan_interest_deduction
+            from engine.models import FilingStatusUS
+            allowed = student_loan_interest_deduction(total, magi, filing_status or FilingStatusUS.SINGLE)
+        shield_pct = (allowed / total) * marginal_tax_rate if total > 0 else D("0")
     elif country == Country.US and not itemises:
         shield_pct = D("0")
     else:
@@ -159,15 +191,21 @@ def effective_rate(
         elif cap == D("Infinity"):
             share = itemised_share if country == Country.US else D("1")
             shield_pct = marginal_tax_rate * max(D("0"), min(D("1"), share))
+            if country == Country.US and loan.loan_type == LoanType.HOME:
+                debt = max(loan.outstanding, mortgage_debt_total or D("0"))
+                if debt > US_MORTGAGE_DEBT_LIMIT:
+                    shield_pct = shield_pct * US_MORTGAGE_DEBT_LIMIT / debt
         else:
-            deductible = min(annual_interest, cap)
-            shield_pct = (deductible / annual_interest) * marginal_tax_rate
+            total = max(annual_interest, home_interest_total or D("0"))
+            # The cap is shared pro rata across the taxpayer's home loans.
+            deductible_total = min(total, cap)
+            shield_pct = (deductible_total / total) * marginal_tax_rate
 
     base = nominal * (D("1") - shield_pct)
 
     gst = gst_component(
         loan.loan_type, nominal, loan.processing_fee_amortised,
-    ) if country == Country.IN else D("0")
+    ) if loan_market(loan, country) == Country.IN else D("0")
 
     return base + loan.processing_fee_amortised + loan.insurance_premium_pct + gst
 
@@ -212,14 +250,63 @@ def pretax_equiv(taxfree_rate: Decimal, marginal_rate: Decimal) -> Decimal:
 PREPAY_RISK_PREMIUM = D("0.005")   # +0.5pp hurdle (decimals)
 
 
+def after_tax_return(pre_tax_return: Decimal, marginal_tax_rate: Decimal) -> Decimal:
+    """A taxable yield after income tax at the user's marginal rate.
+
+    Liquid/debt funds (India, slab-taxed since Apr 2023), FDs, HYSA and
+    T-bill interest are all taxed as ordinary income. Clamped to [0, 1).
+    """
+    m = max(D("0"), min(marginal_tax_rate, D("0.99")))
+    return pre_tax_return * (D("1") - m)
+
+
 def prepay_recommended(
     loan_effective_rate: Decimal,
     best_liquid_return: Decimal,
     inflation: Decimal,
+    invest_tax_rate: Decimal = D("0"),
 ) -> bool:
-    """§4.6: prepay if loan_real_rate > user_best_real_return + 0.5pp risk premium.
+    """§4.6: prepay if the loan's after-tax cost beats the investment's
+    AFTER-TAX return by the 0.5pp risk premium.
+
+    `loan_effective_rate` is already net of any tax shield (80E / 24(b) /
+    §163), so the investment side must be taxed too (H1): comparing a
+    shielded loan rate with a pre-tax yield told a 30%-bracket borrower to
+    invest at 4.55% net rather than prepay a 6.3%-net education loan.
+    `invest_tax_rate` is the marginal rate applied to `best_liquid_return`
+    (pass 0 when the caller already supplies a post-tax yield).
+
+    Inflation hits both sides equally, so it cancels; it is kept in the
+    signature for callers but does not change the answer.
     LOCKED instruments must be excluded from `liquid_options` before calling this.
     """
-    loan_real = loan_effective_rate - inflation
-    invest_real = best_liquid_return - inflation
-    return loan_real > invest_real + PREPAY_RISK_PREMIUM
+    del inflation  # cancels out of (loan - i) > (invest - i) + premium
+    invest_net = after_tax_return(best_liquid_return, invest_tax_rate)
+    return loan_effective_rate > invest_net + PREPAY_RISK_PREMIUM
+
+
+GST_ON_CARD_INTEREST_IN = D("0.18")
+
+
+def loan_market(loan: Loan, country: Country) -> Country:
+    """The market a loan's rules come from: its currency when tagged
+    (an INR card held by a US resident is still an Indian card), else the
+    user's country."""
+    ccy = (loan.currency or "").upper()
+    if ccy == "INR":
+        return Country.IN
+    if ccy == "USD":
+        return Country.US
+    return country
+
+
+def monthly_interest_charge(loan: Loan, country: Country) -> Decimal:
+    """This month's finance charge on a loan, in the loan's currency.
+
+    Indian card statements add 18% GST on the finance charge (P2-13); the
+    ranking already counted it via `gst_component`, the cash flow did not.
+    """
+    interest = loan.outstanding * loan.nominal_rate / D("12")
+    if loan.loan_type == LoanType.CREDIT_CARD and loan_market(loan, country) == Country.IN:
+        interest = interest * (D("1") + GST_ON_CARD_INTEREST_IN)
+    return interest

@@ -60,7 +60,7 @@ export function DeductionsPanel({
   onChange,
 }: Props) {
   const visible = country === 'US' || (country === 'IN' && taxRegime === 'old');
-  const ded = value ?? {};
+  const ded = useMemo<DeductionsPayload>(() => value ?? {}, [value]);
   const update = (patch: Partial<DeductionsPayload>) =>
     onChange({ ...ded, ...patch });
 

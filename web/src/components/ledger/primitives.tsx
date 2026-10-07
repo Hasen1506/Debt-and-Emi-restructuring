@@ -723,13 +723,17 @@ export function LButton({
   onClick,
   href,
   full,
+  disabled,
 }: {
   children: ReactNode;
   onClick?: () => void;
   href?: string;
   full?: boolean;
+  /** Greyed out and inert (e.g. while saving). */
+  disabled?: boolean;
 }) {
   const base: CSSProperties = {
+    opacity: disabled ? 0.55 : 1,
     padding: '10px 20px',
     background: L_T.ink,
     color: L_T.bg,
@@ -752,7 +756,13 @@ export function LButton({
     );
   }
   return (
-    <button type="button" onClick={onClick} style={base}>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-busy={disabled || undefined}
+      style={{ ...base, cursor: disabled ? 'progress' : 'pointer' }}
+    >
       [ {children} ]
     </button>
   );

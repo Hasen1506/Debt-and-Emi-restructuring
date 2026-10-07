@@ -65,9 +65,11 @@ def test_multiple_future_loans_reserve_positions_in_input_order():
 
 def test_gross_salary_estimate_and_explicit_take_home_are_consistent():
     u = user([loan('1000000')])
-    assert estimated_take_home(u, D('1200000')) == D('100000')
+    # ₹12L is tax-free (87A); employee EPF at the statutory floor, 12% of
+    # ₹15,000/month = ₹1,800/month, still comes out of pay (P2-24).
+    assert estimated_take_home(u, D('1200000')) == D('98200')
     gross = LifecycleEvent(LifecycleEventKind.SALARY_RESET, 1, new_annual_gross=D('1200000'))
-    net = LifecycleEvent(LifecycleEventKind.SALARY_RESET, 1, new_monthly_take_home=D('100000'))
+    net = LifecycleEvent(LifecycleEventKind.SALARY_RESET, 1, new_monthly_take_home=D('98200'))
     a = simulate_plan(u, horizon_months=120, lifecycle_events=[gross])
     b = simulate_plan(u, horizon_months=120, lifecycle_events=[net])
     assert a.total_interest_paid == b.total_interest_paid

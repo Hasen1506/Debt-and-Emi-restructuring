@@ -16,6 +16,12 @@ from datetime import datetime, timedelta, timezone
 OTP_TTL = timedelta(minutes=10)
 OTP_MAX_ATTEMPTS = 5
 OTP_MAX_REQUESTS = 5
+# M7: per-email limits across codes. A fresh code used to reset the 5-guess
+# counter (25 guesses per 10 minutes, ~3,600 a day per account), and an
+# address could be mailed ~720 times a day from rotating IPs.
+OTP_DAILY_WINDOW = timedelta(hours=24)
+OTP_MAX_FAILED_DAILY = 15
+OTP_MAX_REQUESTS_DAILY = 20
 SESSION_TTL = timedelta(days=30)
 SESSION_COOKIE_NAME = "finoptima_session"
 

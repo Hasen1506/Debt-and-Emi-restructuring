@@ -50,9 +50,11 @@ def test_country_cap_home_loan_old_regime_self_occupied():
     assert cap == D("200000")
 
 
-def test_country_cap_let_out_unlimited():
-    cap = formulas.country_cap_home_loan(Country.IN, TaxRegimeIN.NEW, "let_out")
-    assert cap == D("Infinity")
+def test_country_cap_let_out_limited_to_loss_set_off():
+    """P2-06: without rental income in the engine, a let-out loss lowers tax
+    on other income only up to ₹2L (old regime) and not at all (new)."""
+    assert formulas.country_cap_home_loan(Country.IN, TaxRegimeIN.NEW, "let_out") == D("0")
+    assert formulas.country_cap_home_loan(Country.IN, TaxRegimeIN.OLD, "let_out") == D("200000")
 
 
 def test_effective_rate_new_regime_home_loan_no_shield():

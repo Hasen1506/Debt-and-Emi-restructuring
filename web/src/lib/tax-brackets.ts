@@ -64,8 +64,11 @@ const IN_OLD_REBATE_87A_CAP = TAX.in.old.rebate_87a.threshold; // income below w
 
 const IN_HEALTH_EDU_CESS = TAX.in.cess;      // cess on (tax + surcharge)
 const IN_SURCHARGE: Slab[] = toSlabs(TAX.in.surcharge as SlabRows);
-export function inSurchargeRate(taxableIncome: number): number {
-  return IN_SURCHARGE.find((b) => taxableIncome <= b.to)?.rate ?? 0;
+/** Surcharge rate for the band. The new regime caps it at 25% (no 37%
+ *  band, Finance Act 2023), as engine/tax/india.py `surcharge_rate`. */
+export function inSurchargeRate(taxableIncome: number, regime?: TaxRegimeIN): number {
+  const rate = IN_SURCHARGE.find((b) => taxableIncome <= b.to)?.rate ?? 0;
+  return regime === 'new' ? Math.min(rate, TAX.in.surcharge_cap_new_regime) : rate;
 }
 
 const US_SINGLE_SLABS: Slab[] = toSlabs(TAX.us.single.slabs as SlabRows);
@@ -206,7 +209,7 @@ function slabTax(taxable: number, slabs: Slab[]): Decimal {
 
 /** India tax on taxable income, as engine/tax/india.py `income_tax`:
  *  slab tax, less the 87A rebate, plus surcharge, plus 4% cess. */
-export function incomeTaxIN(taxable: number, regime: TaxRegimeIN): Decimal {
+function taxBeforeSurchargeIN(taxable: number, regime: TaxRegimeIN): Decimal {
   const t = regime === 'old' ? TAX.in.old : TAX.in.new;
   let tax = slabTax(taxable, regime === 'old' ? IN_OLD_SLABS : IN_NEW_SLABS);
   if (taxable <= t.rebate_87a.threshold) {
@@ -216,7 +219,26 @@ export function incomeTaxIN(taxable: number, regime: TaxRegimeIN): Decimal {
     // line the tax can't exceed the income above it.
     tax = Decimal.min(tax, taxable - t.rebate_87a.threshold);
   }
-  return tax.mul(1 + inSurchargeRate(taxable)).mul(1 + IN_HEALTH_EDU_CESS);
+  return Decimal.max(0, tax);
+}
+
+/** Surcharge band floors (₹50L / ₹1Cr / ₹2Cr / ₹5Cr). */
+const IN_SURCHARGE_THRESHOLDS = IN_SURCHARGE.slice(0, -1).map((b) => b.to);
+
+export function incomeTaxIN(taxable: number, regime: TaxRegimeIN): Decimal {
+  const tax = taxBeforeSurchargeIN(taxable, regime);
+  if (tax.lte(0)) return new Decimal(0);
+  const rate = inSurchargeRate(taxable, regime);
+  let withSurcharge = tax.mul(1 + rate);
+  // Surcharge marginal relief: just above a threshold, tax + surcharge
+  // can't exceed the tax at the threshold plus the income above it.
+  const below = IN_SURCHARGE_THRESHOLDS.filter((t) => t < taxable);
+  if (below.length && rate > 0) {
+    const t = below[below.length - 1];
+    const atT = taxBeforeSurchargeIN(t, regime).mul(1 + inSurchargeRate(t, regime));
+    withSurcharge = Decimal.min(withSurcharge, atT.add(taxable - t));
+  }
+  return withSurcharge.mul(1 + IN_HEALTH_EDU_CESS);
 }
 
 /** US federal tax on taxable income (no state). */
@@ -233,7 +255,7 @@ export function marginalRateIN(taxable: number, regime: TaxRegimeIN): number {
   if (taxable <= t.rebate_87a.threshold) return 0;
   const slabs = regime === 'old' ? IN_OLD_SLABS : IN_NEW_SLABS;
   const slab = slabs.find((s) => taxable <= s.to) ?? slabs[slabs.length - 1];
-  return slab.rate * (1 + inSurchargeRate(taxable)) * (1 + IN_HEALTH_EDU_CESS);
+  return slab.rate * (1 + inSurchargeRate(taxable, regime)) * (1 + IN_HEALTH_EDU_CESS);
 }
 
 /** US federal marginal rate. */

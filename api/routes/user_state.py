@@ -13,6 +13,8 @@ post office.
 """
 from __future__ import annotations
 
+import json
+
 from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -23,6 +25,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.auth.dependencies import current_user
 from api.db.database import get_db
 from api.db.models import User, UserState
+
+# P2-28: each PATCH is capped at 256 KB, but new keys merged in without
+# limit, so a row could grow forever and every app boot GETs all of it.
+MAX_STATE_BYTES = 2 * 1024 * 1024
+
+
+def _check_total_size(data: dict) -> None:
+    size = len(json.dumps(data, separators=(",", ":"), default=str).encode("utf-8"))
+    if size > MAX_STATE_BYTES:
+        raise HTTPException(413, "Your saved data is too large. Remove old entries and try again.")
+
 
 router = APIRouter(prefix="/user", tags=["user"])
 
@@ -72,7 +85,9 @@ async def patch_state(
         row = UserState(user_id=user.id, data=payload.data)
         db.add(row)
     else:
-        row.data = {**row.data, **payload.data}
+        merged = {**row.data, **payload.data}
+        _check_total_size(merged)
+        row.data = merged
     await db.commit()
     await db.refresh(row)
     return UserStateOut(data=row.data, updated_at=row.updated_at.isoformat() if row.updated_at else None)

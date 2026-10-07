@@ -12,13 +12,13 @@ from engine.asset_liquidation import (
 from engine.country_data import india_selling_cost_pct
 from engine.decisions import (
     DecisionInputError, allocate_windfall, evaluate_new_debt, quick_recompute,
-    cash_yield_check, right_time_to_borrow, right_time_from_odds, MeetingMoves, money,
+    cash_yield_check, right_time_to_borrow, right_time_from_odds, MeetingMoves, money, prepay_block,
 )
 from engine.formulas import effective_rate
 from engine.models import Country, FilingStatusUS, TaxRegimeIN
 from engine.tax.india import marginal_rate as india_marginal_rate
 from engine.simulation import simulate_plan
-from engine.surplus import to_user_currency, loan_currency_or_default
+from engine.surplus import from_user_currency, to_user_currency, loan_currency_or_default
 
 from api import market_odds
 from api.schemas import (
@@ -71,7 +71,7 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
         allocation = allocate_windfall(
             req.amount, normalized, normalized_rates,
             user.investment_options, user.inflation_rate, strategy=req.strategy,
-            country=user.country,
+            country=user.country, marginal_tax_rate=marg,
         )
     except DecisionInputError as e:
         raise _bad(e)
@@ -118,20 +118,38 @@ def new_debt(req: NewDebtRequest) -> NewDebtResponse:
 @router.post("/quick-recompute", response_model=QuickRecomputeResponse)
 def recompute(req: QuickRecomputeRequest) -> QuickRecomputeResponse:
     user = req.user.to_engine()
-    old = simulate_plan(
-        user, strategy=req.strategy, horizon_months=req.horizon_months,
-        marginal_rate=req.marginal_rate,
-    )
-    # Apply the lump-sum payment to the chosen loan, then resimulate. An
-    # index past the last loan used to "save nothing" instead of saying so.
+    # Validate the target before running anything (an index past the last
+    # loan used to "save nothing" instead of saying so).
     if not 0 <= req.target_loan_index < len(user.loans):
         raise HTTPException(status_code=422, detail={
             "field": "target_loan_index",
             "message": "Pick one of your loans.",
         })
+    target = user.loans[req.target_loan_index]
+    blocked = prepay_block(target)
+    if blocked:
+        raise HTTPException(status_code=422, detail={
+            "field": "target_loan_index",
+            "message": f"This loan {blocked}, so it can't take an extra payment now.",
+        })
+    own = "INR" if user.country == Country.IN else "USD"
+    if (loan_currency_or_default(target, user) != own
+            and user.fx_to_user_currency.get(loan_currency_or_default(target, user), D("0")) <= 0):
+        raise HTTPException(status_code=422, detail={
+            "field": "user.fx_to_user_currency",
+            "message": "Save an exchange rate for this foreign loan first.",
+        })
+    old = simulate_plan(
+        user, strategy=req.strategy, horizon_months=req.horizon_months,
+        marginal_rate=req.marginal_rate,
+    )
     scratch = deepcopy(user)
     l = scratch.loans[req.target_loan_index]
-    l.outstanding = max(D("0"), l.outstanding - req.extra_payment)
+    # extra_payment is in the user's currency (P2-07); the bank's
+    # prepayment fee comes out of it before it reaches principal.
+    in_loan_ccy = from_user_currency(req.extra_payment, l, scratch)
+    to_principal = in_loan_ccy * (D("1") - (l.prepayment_penalty_pct or D("0")))
+    l.outstanding = max(D("0"), l.outstanding - to_principal)
     new = simulate_plan(
         scratch, strategy=req.strategy, horizon_months=req.horizon_months,
         marginal_rate=req.marginal_rate,
