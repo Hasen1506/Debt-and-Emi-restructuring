@@ -6,6 +6,7 @@
 import { api, type SimulateResponse, type UserPayload, type LifecycleEventInput } from '@/lib/api';
 import { cachedEngineCall } from '@/lib/server-engine-cache';
 import { loadProfileServer } from '@/lib/user-store';
+import { efTopUpShare } from '@/lib/assumptions';
 import { loadStrategyServer, STRATEGIES, type StrategyName } from '@/lib/strategy';
 import { loadRulesServer, rulesForLoans, rulesOrDefault } from '@/lib/payoff-rules';
 import {
@@ -355,7 +356,9 @@ export async function loadPlanInputs(
   // (0 = every rupee to debt) and alongside goals (the engine splits
   // what is left after goals). Omitting it made the engine hold back a
   // fixed gap / 12 instead, so 0% and "has goals" both ignored the slider.
-  const efTopUpRate = efTarget > 0 && efBalance < efTarget ? efSplit : undefined;
+  // A fixed monthly amount set on Profile → Assumptions (roadmap PR D) wins
+  // over the slider's share: sent as its share of this month's spare cash.
+  const efTopUpRate = efTarget > 0 && efBalance < efTarget ? efTopUpShare(adjustedUser, efSplit, surplus) : undefined;
   // The user's payoff rules ride on the user (engine reads them only when
   // the strategy is 'rules'); none saved = Hybrid's rule (roadmap PR E).
   adjustedUser = {
