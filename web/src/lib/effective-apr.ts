@@ -19,6 +19,8 @@
  */
 import Decimal from 'decimal.js';
 import type { LoanPayload, Country, TaxRegimeIN } from './api';
+import { GST_RATE_IN } from './gst';
+const GST_PCT = GST_RATE_IN.mul(100).toFixed(0);
 
 export interface BreakdownLine {
   label: string;
@@ -164,10 +166,10 @@ export function computeBreakdown(
   // carries Indian GST on its interest.
   if (loanMarketOf(loan, country) === 'IN') {
     if (loan.loan_type === 'credit_card') {
-      const gst = nominal.mul(D('0.18'));
+      const gst = nominal.mul(GST_RATE_IN);
       if (gst.gt(0)) {
         lines.push({
-          label: 'GST on interest (18%)',
+          label: `GST on interest (${GST_PCT}%)`,
           value: gst,
           sign: '+',
           note: 'Government levy on card interest',
@@ -181,10 +183,10 @@ export function computeBreakdown(
       if (processingFee.gt(0)) {
         // The fee is already a yearly rate: GST is 18% of it. It used to
         // be divided again by balance × years, which made it about zero.
-        const gst = processingFee.mul(D('0.18'));
+        const gst = processingFee.mul(GST_RATE_IN);
         if (gst.gt(0)) {
           lines.push({
-            label: 'GST on processing fee (18%)',
+            label: `GST on processing fee (${GST_PCT}%)`,
             value: gst,
             sign: '+',
             note: 'Annualised over remaining tenure',
