@@ -1,5 +1,6 @@
 'use client';
 
+import { tenureError } from '@/lib/tenure-rules';
 import { useEffect, useMemo, useState } from 'react';
 import { AddLoanAction, Field, ScoreChip, SubmitBar } from '@/components/ToolPrimitives';
 import { LBracket, LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
@@ -196,6 +197,11 @@ export function NewDebtTool() {
     }
     if (savings.trim() === '') {
       failField('savings', 'Enter your savings outside the emergency fund, 0 if none.');
+      return;
+    }
+    const tenureProblem = tenureError(loanType, tenure);
+    if (tenureProblem) {
+      failField('tenure', tenureProblem);
       return;
     }
     if (card && (!(Number(offerEmi) > 0) || !Number.isFinite(Number(offerEmi)))) {
