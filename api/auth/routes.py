@@ -23,8 +23,11 @@ from starlette.concurrency import run_in_threadpool
 from api.auth.dependencies import current_user, current_user_optional, session_token_condition
 from api.auth.email import send_otp_email
 from api.auth.session import (
+    OTP_DAILY_WINDOW,
     OTP_MAX_ATTEMPTS,
+    OTP_MAX_FAILED_DAILY,
     OTP_MAX_REQUESTS,
+    OTP_MAX_REQUESTS_DAILY,
     OTP_TTL,
     SESSION_COOKIE_NAME,
     SESSION_TTL,
@@ -115,6 +118,16 @@ async def request_otp(
             "Too many codes requested for this email. Try again in ten minutes.",
             headers={"Retry-After": str(int(OTP_TTL.total_seconds()))},
         )
+    daily_requests = (await db.execute(
+        select(func.count()).select_from(OtpCode)
+        .where(OtpCode.user_id == user.id).where(OtpCode.created_at > now - OTP_DAILY_WINDOW)
+    )).scalar_one()
+    if daily_requests >= OTP_MAX_REQUESTS_DAILY:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many codes requested for this email today. Try again tomorrow.",
+            headers={"Retry-After": str(int(OTP_DAILY_WINDOW.total_seconds()))},
+        )
     await db.execute(
         update(OtpCode).where(OtpCode.user_id == user.id).where(OtpCode.used_at.is_(None)).values(used_at=now)
     )
@@ -172,6 +185,19 @@ async def verify_otp(
 
     if otp.attempts >= OTP_MAX_ATTEMPTS:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many attempts — request a new code.")
+
+    # Wrong guesses count across codes for this email (M7), so requesting a
+    # new code doesn't reset the budget.
+    failed_today = (await db.execute(
+        select(func.coalesce(func.sum(OtpCode.attempts), 0))
+        .where(OtpCode.user_id == user.id).where(OtpCode.created_at > now - OTP_DAILY_WINDOW)
+    )).scalar_one()
+    if failed_today >= OTP_MAX_FAILED_DAILY:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many wrong codes for this email today. Try again tomorrow.",
+            headers={"Retry-After": str(int(OTP_DAILY_WINDOW.total_seconds()))},
+        )
 
     if not hmac.compare_digest(otp.code_hash, hash_otp(payload.code)):
         otp.attempts += 1
