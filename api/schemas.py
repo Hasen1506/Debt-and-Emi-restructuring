@@ -272,6 +272,8 @@ class AssetIn(_In):
     sgb_at_maturity: bool = False
     us_section_121_eligible: bool = False
     us_is_tax_exempt_muni: bool = False
+    # Selling cost as a share of sale value; None = the engine default (roadmap PR D).
+    selling_cost_pct: Optional[Rate] = None
     # Holdings tracker fields — see Asset docstring in engine/models.py
     ticker: Optional[str] = None
     quantity: Optional[Amount] = None
@@ -314,6 +316,7 @@ class AssetIn(_In):
             sgb_at_maturity=self.sgb_at_maturity,
             us_section_121_eligible=self.us_section_121_eligible,
             us_is_tax_exempt_muni=self.us_is_tax_exempt_muni,
+            selling_cost_pct=self.selling_cost_pct,
             ticker=self.ticker,
             quantity=self.quantity,
             last_price=self.last_price,
@@ -487,6 +490,10 @@ class UserIn(_In):
     fx_drift_annualized: Dict[str, Decimal] = Field(default_factory=dict)
     # Strategy "rules": the user's own payoff order (engine/ordering.apply_rules).
     payoff_rules: Optional[PayoffRulesIn] = None
+    # The user's own assumptions (roadmap PR D); omitted = the defaults.
+    prepay_hurdle: Optional[Annotated[Decimal, Field(ge=D("0"), le=D("0.2"))]] = None
+    asset_returns: Dict[str, Annotated[Decimal, Field(ge=D("-0.5"), le=D("1"))]] = Field(default_factory=dict)
+    liquidation_costs: Dict[str, Rate] = Field(default_factory=dict)
 
     @field_validator("fx_to_user_currency", "fx_drift_annualized", mode="after")
     @classmethod
@@ -584,6 +591,9 @@ class UserIn(_In):
             fx_to_user_currency=dict(self.fx_to_user_currency),
             fx_drift_annualized=dict(self.fx_drift_annualized),
             payoff_rules=self.payoff_rules.to_engine() if self.payoff_rules else None,
+            prepay_hurdle=self.prepay_hurdle,
+            asset_returns=dict(self.asset_returns),
+            liquidation_costs=dict(self.liquidation_costs),
         )
 
 
