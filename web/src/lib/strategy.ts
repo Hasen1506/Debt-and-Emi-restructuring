@@ -2,7 +2,8 @@
  * Payoff strategy preference — global to the user.
  *
  * Three strategies mirror engine/ordering.Strategy:
- *  - avalanche  → highest effective APR first (default, mathematically fastest)
+ *  - avalanche  → where the next payment saves the most first: the marginal
+ *                 cost of prepaying (lib/marginal-cost, roadmap PR J); default
  *  - rules      → the user's own rules (lib/payoff-rules), then avalanche.
  *                 Replaces Hybrid (roadmap PR E): a saved 'hybrid' is read
  *                 as 'rules' with Hybrid's rule, and rewritten.
@@ -65,7 +66,7 @@ export const STRATEGY_LABEL: Record<StrategyName, string> = {
 
 /** One line on the order: the personas' rule, then what it costs or buys. */
 export const STRATEGY_SHORT: Record<StrategyName, string> = {
-  avalanche: 'Highest rate first, for the least interest.',
+  avalanche: 'Where the next payment saves the most, for the least interest.',
   rules: 'Your own order: pin a loan, clear small balances first, or set the order. The rest by highest rate.',
   snowball: 'Smallest balance first. Debts close sooner, for more interest.',
 };
