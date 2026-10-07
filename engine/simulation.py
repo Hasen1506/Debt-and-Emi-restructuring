@@ -30,7 +30,9 @@ from engine.models import (
     LifecycleEvent,
     LifecycleEventKind,
 )
-from engine.formulas import emi, effective_rate, monthly_interest_charge, prepay_recommended, real_emi
+from engine.formulas import (
+    emi, effective_rate, monthly_interest_charge, prepay_recommended, prepayment_beats_fee, real_emi,
+)
 from engine.minimum_payments import compute_minimum_payment
 from engine.ordering import Strategy, rank_loans
 from engine.goals import GoalState, MonthlyGoalAllocation, serial_fill_allocation
@@ -726,9 +728,27 @@ def simulate_plan(
                             balance_of=lambda l: to_user_currency(l.outstanding, l, user))
         invested_this_month = D("0")
         extra_for_debt = surplus
+        def _fee_pays_off(l: Loan) -> bool:
+            # A prepayment fee bigger than the interest the extra saves
+            # makes prepaying a loss: skip the loan (property suite bug).
+            if l.prepayment_penalty_pct <= 0:
+                return True
+            charge = monthly_interest_charge(l, user.country)
+            r_month = charge / l.outstanding if l.outstanding > 0 else D("0")
+            # Months left if the plan keeps paying the minimum plus this
+            # month's extra: the tail a unit prepaid now actually removes.
+            extra_here = from_user_currency(max(D("0"), surplus), l, user)
+            k = _months_to_clear(l.outstanding, r_month * 12, minimums[id(l)] + extra_here)
+            if k is not None:
+                # The extra paid this month comes off the final payment,
+                # k - 1 months from now: that is how long it would have grown.
+                k = min(k, horizon_months - m + 1) - 1
+            return prepayment_beats_fee(r_month, l.prepayment_penalty_pct, k)
+
         worth_prepaying = [
             l for l in ranked
             if prepay_recommended(rates[id(l)], best_liquid_return, inflation, marg)
+            and _fee_pays_off(l)
         ]
         worth_ids = {id(l) for l in worth_prepaying}
 
@@ -845,6 +865,16 @@ def simulate_plan(
         # makes the cost visible in the debt-free month.
         if prepay_penalty_paid > 0:
             interest_paid += prepay_penalty_paid
+
+        # In a short month the minimums were paid with money the user had
+        # to find elsewhere (`shortfall`). The unused part of a clearing
+        # loan's minimum shrinks that gap first; cascading it spent cash the
+        # user never had, so a tiny prepayment that moved a clearing month
+        # could make the plan cost MORE interest (property suite bug).
+        if shortfall > 0 and cascade_surplus > 0:
+            absorbed = min(shortfall, cascade_surplus)
+            shortfall -= absorbed
+            cascade_surplus -= absorbed
 
         # Apply cascade within the same month to the next-priority active loan
         # (after the clears we just processed)
