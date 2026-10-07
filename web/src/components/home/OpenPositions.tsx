@@ -18,6 +18,7 @@ import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { LBracket, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
 import { StaleCardNudge } from './StaleCardNudge';
+import { FxRateLine } from '@/components/fx/FxRateLine';
 import { useOwedNow } from '@/lib/owed-now';
 import { convertedBalanceLine, emiStatusLine } from '@/lib/position-status';
 import { getCountryToday, localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
@@ -54,6 +55,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
         now and then.
       </p>
       <StaleCardNudge user={user} />
+      <FxRateLine user={user} nowMs={Date.now()} />
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: `2px solid ${L_T.ink}` }}>
         {m.loans.map((d, i) => {
           const { loan } = d;

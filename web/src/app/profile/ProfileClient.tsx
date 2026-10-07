@@ -47,6 +47,7 @@ import {
   loadProfileClient,
 } from '@/lib/user-store';
 import { currencySymbol, loanCurrency, loanMarket, loanToUser, userDefaultCurrency } from '@/lib/currency';
+import { dateProfileRates } from '@/lib/fx-refresh';
 import { employerTaxPhrase, salaryDeductionsPhrase, takeHomeLabel, untaxedIncomeLabel } from '@/lib/payroll-labels';
 import { convertForCountrySwitch, hasAmountsInCurrency, loansInHomeCurrency, validSwitchRate, type SwitchableAmounts } from '@/lib/country-switch';
 import {
@@ -741,7 +742,17 @@ function ProfileEditor({
     // Start from the saved profile, so what this form doesn't edit
     // (holdings from /profile/assets, Plan's FX drift) is kept.
     const stored = loadProfileClient();
-    const userWithFx = { ...(stored.isLive ? stored.user : {}), ...buildUser() } as UserPayload;
+    // Date each foreign rate (lib/fx-refresh): kept, fetched just now, or
+    // typed (a typed rate is marked manual so app-open refresh leaves it be).
+    const fetchedQuotes = Object.fromEntries(
+      Object.entries(fxQuotes).flatMap(([c, q]) => (typeof q === 'object' ? [[c, q]] : [])),
+    );
+    const userWithFx = dateProfileRates(
+      { ...(stored.isLive ? stored.user : {}), ...buildUser() } as UserPayload,
+      stored.isLive ? stored.user : null,
+      fetchedQuotes,
+      Date.now(),
+    );
     // When the user provided gross income, derive marginal_rate from the
     // bracket they fall into — that's a sharper signal than the manual
     // marginal_rate field on Step 4. Fall back to the manual value only

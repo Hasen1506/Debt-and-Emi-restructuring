@@ -10,6 +10,7 @@ import { SecureCookies } from '@/components/SecureCookies';
 import { ProfileProvider } from '@/lib/use-profile';
 import { SaveFailedNotice } from '@/components/SaveFailedNotice';
 import { AccountSyncNotice } from '@/components/AccountSyncNotice';
+import { FxAutoRefresh } from '@/components/fx/FxAutoRefresh';
 
 export const metadata: Metadata = {
   title: 'RightDue — Debt & EMI Optimiser',
@@ -40,6 +41,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </a>
         <SecureCookies />
         <SessionHydrator />
+        <FxAutoRefresh />
         <LMasthead country={profile.user.country} strategy={hasDebt ? strategy : null} sameOrder={sameOrder} />
         <SaveFailedNotice />
         <AccountSyncNotice />
