@@ -11,7 +11,7 @@ Also: portfolio ranker (rank_liquidations) and per-asset-type proceeds math
 ranks the strongest moves; the proceeds helpers handle CGT, exit penalties,
 and lockup blocks per asset class.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as dc_replace
 from datetime import date
 from decimal import Decimal
 from typing import Optional
@@ -79,6 +79,11 @@ PPF_PARTIAL_WITHDRAWAL_YEAR = 7
 PPF_PREMATURE_CLOSURE_YEAR = 5
 PPF_PREMATURE_INTEREST_PENALTY = D("0.01")  # 1% rate reduction retrospectively
 EPF_FULL_WITHDRAWAL_SERVICE_YEARS = 5       # tax-free threshold
+
+
+def _sell_cost(asset: Asset, default: Decimal) -> Decimal:
+    """The asset's selling cost: the user's figure when set (roadmap PR D), else the default."""
+    return asset.selling_cost_pct if asset.selling_cost_pct is not None else default
 
 
 def _held_long_term(purchase: date, today: date, months: int) -> bool:
@@ -483,7 +488,7 @@ def _proceeds_equity(
     days_held = _holding_days(asset, today)
     is_lt = held_more_than_months(asset.purchase_date, today, 12)
 
-    transaction_costs = val * (EQUITY_STT_RATE + EQUITY_BROKERAGE)
+    transaction_costs = val * _sell_cost(asset, EQUITY_STT_RATE + EQUITY_BROKERAGE)
     gross = val - transaction_costs
     gain = max(D("0"), gross - asset.purchase_price)
     tax = _equity_tax(gain, is_lt, taxable_income)
@@ -521,7 +526,7 @@ def _proceeds_debt_mf(
     val = asset.current_market_value
     days_held = _holding_days(asset, today)
     exit_load = (
-        val * DEBT_MF_EXIT_LOAD if days_held < DEBT_MF_EXIT_LOAD_DAYS else D("0")
+        val * _sell_cost(asset, DEBT_MF_EXIT_LOAD) if days_held < DEBT_MF_EXIT_LOAD_DAYS else D("0")
     )
     gross = val - exit_load
     gain = max(D("0"), gross - asset.purchase_price)
@@ -555,7 +560,7 @@ def _proceeds_gold(
     days_held = _holding_days(asset, today)
     is_lt = held_more_than_months(asset.purchase_date, today, 24)
 
-    transaction_costs = val * GOLD_TRANSACTION_COST
+    transaction_costs = val * _sell_cost(asset, GOLD_TRANSACTION_COST)
     gross = val - transaction_costs
     gain = max(D("0"), gross - asset.purchase_price)
 
@@ -612,7 +617,7 @@ def _proceeds_sgb(
         )
 
     is_lt = held_more_than_months(asset.purchase_date, today, 12)
-    transaction_costs = val * SGB_EXCHANGE_COST
+    transaction_costs = val * _sell_cost(asset, SGB_EXCHANGE_COST)
     gross = val - transaction_costs
     gain = max(D("0"), gross - asset.purchase_price)
 
@@ -916,7 +921,7 @@ def _proceeds_us_equity(
 ) -> ProceedsResult:
     """US stocks / mutual funds / index funds — STCG ordinary / LTCG 0/15/20%."""
     val = asset.current_market_value
-    transaction_costs = val * D("0.001")     # most brokers: $0 commission, slippage
+    transaction_costs = val * _sell_cost(asset, D("0.001"))     # most brokers: $0 commission, slippage
     gross, tax, days_held, is_lt = _us_cap_gains_helpers(
         val, asset.purchase_price, asset, today, taxable_income,
         filing_status, state_marginal_rate, transaction_costs,
@@ -957,7 +962,7 @@ def _proceeds_us_debt_fund(
     upstream uses the taxable-equivalent yield to weight the hold-vs-sell
     decision."""
     val = asset.current_market_value
-    transaction_costs = val * D("0.001")
+    transaction_costs = val * _sell_cost(asset, D("0.001"))
     gross, tax, days_held, is_lt = _us_cap_gains_helpers(
         val, asset.purchase_price, asset, today, taxable_income,
         filing_status, state_marginal_rate, transaction_costs,
@@ -998,7 +1003,7 @@ def _proceeds_us_gold(
 ) -> ProceedsResult:
     """US gold (physical or ETF like GLD) — collectible, LTCG capped at 28%."""
     val = asset.current_market_value
-    transaction_costs = val * GOLD_TRANSACTION_COST
+    transaction_costs = val * _sell_cost(asset, GOLD_TRANSACTION_COST)
     gross, tax, days_held, is_lt = _us_cap_gains_helpers(
         val, asset.purchase_price, asset, today, taxable_income,
         filing_status, state_marginal_rate, transaction_costs,
@@ -1322,8 +1327,11 @@ def rank_liquidations(
     skipped: list[LiquidationRecommendation] = []
 
     for ai, asset in enumerate(user.assets):
+        # The user's own selling cost for this type, unless the asset has one.
+        if asset.selling_cost_pct is None and asset.asset_type in user.liquidation_costs:
+            asset = dc_replace(asset, selling_cost_pct=user.liquidation_costs[asset.asset_type])
         asset_return = asset.expected_return_pct or lookup_asset_return(
-            asset.asset_type, country
+            asset.asset_type, country, user.asset_returns
         )
         # Tax-exempt muni-bond funds: recast their nominal yield to
         # taxable-equivalent terms before comparing against debt cost. The
