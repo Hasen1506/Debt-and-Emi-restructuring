@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { waitForSignInApi, SignInApiStarting } from '@/lib/sign-in-readiness';
+import { allowedOrigins, isAllowedOrigin, setCookieHeaders } from '@/lib/request-origin';
 
 export const dynamic = 'force-dynamic';
 const METHODS: Record<string, string[]> = {
@@ -40,8 +41,10 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
   if (!methods) return new Response(null, { status: 404 });
   if (!methods.includes(req.method)) return new Response(null, { status: 405 });
   // Same-site session cookies alone do not protect a login from CSRF.
-  const webOrigin = process.env.WEB_ORIGIN ?? `${req.nextUrl.protocol}//${req.headers.get('host') ?? req.nextUrl.host}`;
-  if (req.method !== 'GET' && req.headers.get('origin') !== webOrigin) {
+  // WEB_ORIGIN may list several origins; without it the origin is rebuilt
+  // from X-Forwarded-Proto/-Host, since TLS ends at Render/Cloudflare (M6).
+  const origins = allowedOrigins(process.env.WEB_ORIGIN, req.headers, req.nextUrl.protocol, req.nextUrl.host);
+  if (req.method !== 'GET' && !isAllowedOrigin(req.headers.get('origin'), origins)) {
     return new Response('This request must come from RightDue.', { status: 403 });
   }
   if (req.method !== 'GET') {
@@ -77,8 +80,9 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
     const responseHeaders = new Headers({ 'Cache-Control': 'no-store' });
     const contentType = upstream.headers.get('content-type');
     if (contentType) responseHeaders.set('Content-Type', contentType);
-    const cookie = upstream.headers.get('set-cookie');
-    if (cookie) responseHeaders.set('Set-Cookie', cookie);
+    // Forward every Set-Cookie separately: headers.get() joins them with
+    // commas, which browsers read as one broken cookie.
+    for (const cookie of setCookieHeaders(upstream.headers)) responseHeaders.append('Set-Cookie', cookie);
     const retryAfter = upstream.headers.get('retry-after');
     if (retryAfter) responseHeaders.set('Retry-After', retryAfter);
     return new Response(upstream.status === 204 ? null : await upstream.arrayBuffer(), {
