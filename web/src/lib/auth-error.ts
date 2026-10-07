@@ -1,3 +1,6 @@
+/** Shown while the sleeping API starts. No sign-in code has been created yet, so a retry is safe. */
+export const SIGN_IN_STARTING_MESSAGE = 'Sign-in is waking up. Please wait 30 seconds and try again.';
+
 /** Public sign-in errors, without raw JSON, HTML or API paths. */
 export function authErrorMessage(status: number, body: string, retryAfter: string | null): string {
   if (status === 429) {
@@ -9,7 +12,7 @@ export function authErrorMessage(status: number, body: string, retryAfter: strin
   if (status === 503) {
     try {
       if (JSON.parse(body)?.detail?.code === 'sign_in_starting') {
-        return 'Sign-in is waking up. Please wait 30 seconds and try again.';
+        return SIGN_IN_STARTING_MESSAGE;
       }
     } catch { /* Keep arbitrary upstream errors private. */ }
   }
