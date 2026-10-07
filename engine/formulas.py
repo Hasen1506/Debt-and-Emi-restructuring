@@ -266,6 +266,7 @@ def prepay_recommended(
     best_liquid_return: Decimal,
     inflation: Decimal,
     invest_tax_rate: Decimal = D("0"),
+    hurdle: Decimal | None = None,
 ) -> bool:
     """§4.6: prepay if the loan's after-tax cost beats the investment's
     AFTER-TAX return by the 0.5pp risk premium.
@@ -283,7 +284,8 @@ def prepay_recommended(
     """
     del inflation  # cancels out of (loan - i) > (invest - i) + premium
     invest_net = after_tax_return(best_liquid_return, invest_tax_rate)
-    return loan_effective_rate > invest_net + PREPAY_RISK_PREMIUM
+    # `hurdle`: the user's own margin (roadmap PR D); default +0.5pp.
+    return loan_effective_rate > invest_net + (PREPAY_RISK_PREMIUM if hurdle is None else hurdle)
 
 
 GST_ON_CARD_INTEREST_IN = GST_RATE_IN
