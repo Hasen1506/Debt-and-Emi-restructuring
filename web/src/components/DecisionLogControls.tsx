@@ -37,6 +37,7 @@ import {
   type DecisionKind,
 } from '@/lib/decision-log';
 import { undoExpenseCommit } from '@/lib/expense-commit';
+import { localIsoDate } from '@/lib/today';
 
 interface Props {
   kind: DecisionKind;
@@ -65,7 +66,7 @@ export function DecisionLogControls({
   const [entry, setEntry] = useState<DecisionEntry | null>(null);
   const [actualAmount, setActualAmount] = useState('');
   const [actualDate, setActualDate] = useState(() =>
-    new Date().toISOString().slice(0, 10),
+    localIsoDate(new Date()),
   );
   const [notes, setNotes] = useState('');
   // Calibration stats over previously reconciled entries of this kind
