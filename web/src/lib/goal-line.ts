@@ -103,7 +103,7 @@ export function goalContext({
     efTarget: Number(user.efund_target || '0'),
     totalExpenses: Number(user.fixed_expenses || '0') + Number(user.variable_expenses || '0'),
     planProjects,
-    liquidatableValue: (g) => projectedLiquidatableValue(liquid, user.country, monthsUntil(g, today)),
+    liquidatableValue: (g) => projectedLiquidatableValue(liquid, user.country, monthsUntil(g, today), user.asset_returns),
     indicativeRate,
     series,
     priorDraw,
