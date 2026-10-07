@@ -15,6 +15,7 @@
 import Decimal from 'decimal.js';
 import type { Country, LoanType } from './api';
 import { getInstitution } from './rate-cards';
+import { GST_RATE_IN } from './gst';
 
 interface Defaults {
   flatFee: string;
@@ -41,7 +42,7 @@ const US_DEFAULTS: Record<LoanType, Defaults> = {
   bnpl: { flatFee: '15', penalRateAnnual: '0.30' },
 };
 
-const GST_RATE_IN = new Decimal('0.18');
+
 const GST_EXEMPT: Set<LoanType> = new Set(['home_loan']);
 
 export interface PenaltyEstimate {
