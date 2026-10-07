@@ -30,8 +30,13 @@ services:
       # token and are not limited. Generated here, copied to the web below.
       - key: INTERNAL_API_TOKEN
         generateValue: true
-      # Render's proxy appends the client address to X-Forwarded-For; read
-      # one hop back. Confirm after the first deploy (ROADMAP 6.4).
+      # How many proxies in front of the API append to X-Forwarded-For
+      # (api/client_ip.py reads that many hops back). "1" is right ONLY
+      # when NEXT_PUBLIC_API_BASE_URL points straight at *.onrender.com
+      # (Render's proxy is the one hop). If the API host is proxied
+      # through Cloudflare (orange cloud) set it to "2": with "1" every
+      # visitor resolves to a Cloudflare edge IP and shares one rate-limit
+      # bucket and one outcomes daily limit (BUG_REPORT M8).
       - key: TRUSTED_PROXY_HOPS
         value: "1"
       # Shared outcome reports (api/outcomes_store.py) keep a keyed hash of
@@ -45,6 +50,12 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: RESEND_API_KEY
+        sync: false
+      # Sender for sign-in codes, on a domain verified in Resend, e.g.
+      # "RightDue <signin@rightdue.app>". Without it the code falls back to
+      # onboarding@resend.dev, which Resend delivers ONLY to the Resend
+      # account owner, so real users never get their code (BUG_REPORT M8).
+      - key: RESEND_FROM
         sync: false
       - key: COOKIE_SECURE
         value: "1"
@@ -71,8 +82,13 @@ services:
         sync: false                # Fill in the dashboard: e.g. https://finoptima-api.onrender.com
       - key: NEXT_PUBLIC_DISABLE_AUTH
         sync: false                # false for accounts, true only for an explicit local trial.
+      # Browser origin(s) allowed to POST sign-in and account writes through
+      # /api/session (CSRF check). Comma-separated, exact scheme + host, e.g.
+      # "https://rightdue.app,https://finoptima-web.onrender.com". If unset
+      # the web server rebuilds the origin from X-Forwarded-Proto/-Host
+      # (BUG_REPORT M6); setting it explicitly is still recommended.
       - key: WEB_ORIGIN
-        sync: false                # Exact frontend HTTPS origin for same-origin account writes.
+        sync: false
 
 # Uncomment to provision a Render Postgres add-on alongside the API:
 # databases:
