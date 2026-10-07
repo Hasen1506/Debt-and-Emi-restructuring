@@ -58,6 +58,7 @@ def build() -> dict:
                 },
             },
             "surcharge": _slabs(india.SURCHARGE_BANDS),
+            "surcharge_cap_new_regime": _num(india.SURCHARGE_CAP_NEW_REGIME),
             "cess": _num(india.CESS_RATE),
         },
         "us": {
