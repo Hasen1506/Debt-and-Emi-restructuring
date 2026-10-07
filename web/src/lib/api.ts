@@ -29,7 +29,7 @@ function requestCredentials(path: string): RequestCredentials {
 }
 
 export type Country = 'IN' | 'US';
-export type Strategy = 'avalanche' | 'hybrid' | 'snowball';
+export type Strategy = 'avalanche' | 'rules' | 'snowball';
 export type LoanType =
   | 'home_loan'
   | 'auto_loan'
@@ -284,6 +284,8 @@ export interface UserPayload {
    *  appreciation/depreciation. Wired up by the /plan FX-drift toggle
    *  (NRI-US users only). Empty / omitted → flat FX rate. */
   fx_drift_annualized?: Record<string, string>;
+  /** Strategy 'rules' (roadmap PR E): the user's payoff rules (lib/payoff-rules). */
+  payoff_rules?: { small_first_below: string | null; pinned: number[]; custom_order: number[] };
   /** Annual tax (₹/$) on income that's NOT covered by employer TDS —
    *  rental, FD interest > ₹40k, capital gains, freelance side-income.
    *  Salaried users opt in by entering a number here; the tax sleeve
