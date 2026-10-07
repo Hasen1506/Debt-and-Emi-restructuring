@@ -46,3 +46,14 @@ export async function loadEfSplitServer(): Promise<string> {
   const { cookies } = await import('next/headers');
   return normalize((await cookies()).get(COOKIE_NAME)?.value);
 }
+
+/** Months to fill an emergency-fund gap when `split` of each month's
+ *  surplus goes to it (the user's Plan slider, not a fixed 30%). 0 when
+ *  there's no gap; Infinity when nothing goes to the fund. */
+export function efMonthsToFill(target: number, balance: number, surplus: number, split: string | number): number {
+  const gap = Math.max(0, target - balance);
+  if (gap === 0) return 0;
+  const share = Number(normalize(String(split)));
+  if (!(surplus > 0) || !(share > 0)) return Infinity;
+  return Math.ceil(gap / (surplus * share));
+}
