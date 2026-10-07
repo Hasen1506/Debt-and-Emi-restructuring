@@ -1,0 +1,61 @@
+{
+  "debt_free_month": 86,
+  "total_interest_paid": "93572.21",
+  "months_in_horizon": 86,
+  "yearly": [
+    {
+      "month": 1,
+      "balance": "357885.51",
+      "interest": "2122.02",
+      "paid": "5300.00"
+    },
+    {
+      "month": 12,
+      "balance": "320522.97",
+      "interest": "1795.31",
+      "paid": "5300.00"
+    },
+    {
+      "month": 24,
+      "balance": "276912.05",
+      "interest": "1553.67",
+      "paid": "5300.00"
+    },
+    {
+      "month": 36,
+      "balance": "230293.97",
+      "interest": "1295.33",
+      "paid": "5300.00"
+    },
+    {
+      "month": 48,
+      "balance": "180460.99",
+      "interest": "1019.14",
+      "paid": "5300.00"
+    },
+    {
+      "month": 60,
+      "balance": "127191.03",
+      "interest": "723.87",
+      "paid": "5300.00"
+    },
+    {
+      "month": 72,
+      "balance": "70246.62",
+      "interest": "408.21",
+      "paid": "5300.00"
+    },
+    {
+      "month": 84,
+      "balance": "9373.86",
+      "interest": "70.73",
+      "paid": "5300.00"
+    },
+    {
+      "month": 86,
+      "balance": "0.00",
+      "interest": "18.87",
+      "paid": "4135.69"
+    }
+  ]
+}
