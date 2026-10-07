@@ -7,7 +7,7 @@
  *   1. a custom order (when set, it wins),
  *   2. loans pinned to the front,
  *   3. "clear any loan under X first", smallest first;
- * everything else by highest effective rate. Each save re-runs the plan
+ * everything else by the marginal cost of the next payment. Each save re-runs the plan
  * (cookie + synced slice, then router.refresh), and the line under the
  * editor prices the rules against Avalanche from the plan's own runs.
  */
