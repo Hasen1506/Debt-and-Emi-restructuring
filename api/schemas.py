@@ -1023,69 +1023,6 @@ class CashYieldResponse(_Base):
     rationale: Optional[str] = None
 
 
-class OddsOutcomeOut(_Base):
-    bps: int                # the move: -25 is a 0.25% cut
-    label: str              # as the market words it
-    chance: Decimal         # 0–1
-
-
-class OddsMeetingOut(_Base):
-    date: str               # the decision day
-    title: str
-    url: str                # the market, to see it for yourself
-    volume: Decimal         # US dollars traded
-    cut_chance: Decimal
-    rise_chance: Decimal
-    outcomes: list[OddsOutcomeOut]
-
-
-class RateOddsResponse(_Base):
-    country: str
-    source: str             # "Polymarket"
-    fetched_at: Optional[str]
-    meetings: list[OddsMeetingOut]   # soonest first; empty when none
-
-
-class BorrowTimingRequest(_In):
-    current_rate: Rate
-    # Reported back only. Defaults to current_rate.
-    six_month_avg: Optional[Rate] = None
-    # Left out: the verdict goes on the market's odds for the coming
-    # decisions. Given: the old path, on that expected move alone.
-    consensus_change_bps: Optional[int] = Field(None, ge=-1000, le=1000)
-    months_to_decision: Optional[int] = Field(None, ge=0, le=120)
-    urgency: Literal["now", "3m_ok", "6m_ok"]
-    principal: Amount
-    tenure_months: int = Field(..., ge=1, le=MAX_MONTHS)
-    # A floating rate follows the policy rate after you borrow.
-    rate_type: Literal["fixed", "floating"] = "fixed"
-    # Currency for the wording and the "worth waiting" threshold.
-    country: Country = Country.IN
-    # Left each month after costs and current payments, from the profile.
-    # Can be negative (already short). The EMI has to fit in it.
-    monthly_room: Optional[Decimal] = Field(None, ge=D("-1e12"), le=D("1e12"))
-
-
-class BorrowTimingResponse(_Base):
-    current_rate: Decimal
-    six_month_avg: Decimal
-    consensus_change_bps: int
-    months_to_decision: int
-    urgency: str
-    verdict: str
-    estimated_savings: Decimal
-    detail: str
-    monthly_payment: Decimal
-    monthly_room: Optional[Decimal] = None
-    # On the market's odds (the default path):
-    cut_chance: Optional[Decimal] = None
-    rise_chance: Optional[Decimal] = None
-    saving_if_cut: Optional[Decimal] = None
-    wait_until: Optional[str] = None
-    rate_floats: bool = False
-    odds: Optional[RateOddsResponse] = None
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Asset liquidation (§8c / §4.18)
 # ─────────────────────────────────────────────────────────────────────────────
