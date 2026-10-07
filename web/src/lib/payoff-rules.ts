@@ -3,12 +3,13 @@
  *
  * Mirrors engine/ordering.py `PayoffRules` + `apply_rules`:
  *  - `custom_order`: the full order the user set (loan positions in
- *    user.loans); loans it leaves out follow by highest effective rate.
+ *    user.loans); loans it leaves out follow by the marginal cost of the
+ *    next payment (lib/marginal-cost), highest first.
  *    When set, the other rules are off.
  *  - `pinned`: loans moved to the front, in this order.
  *  - `small_first_below`: clear any loan under this balance (user's
  *    currency) first, smallest first. null = off.
- * Everything the rules don't place goes by highest effective rate.
+ * Everything the rules don't place goes by the marginal cost of the next payment.
  *
  * Stored in a cookie (first paint) and synced as the `payoff_rules` slice,
  * like the strategy itself. A user who had Hybrid is migrated to the rule
