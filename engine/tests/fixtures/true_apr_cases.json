@@ -1,0 +1,876 @@
+[
+ {
+  "in": {
+   "nominal": 0.42,
+   "months": null,
+   "fee_rate": 0.0,
+   "insurance_rate": 0.0,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.0,
+   "shield": 0.0
+  },
+  "out": {
+   "nominal": 0.42,
+   "compounding": 0.0910686573,
+   "gst": 0.1141448408,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.6252134982
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.085,
+   "months": 180,
+   "fee_rate": 0.0,
+   "insurance_rate": 0.0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0.0
+  },
+  "out": {
+   "nominal": 0.085,
+   "compounding": 0.0033909059,
+   "gst": 0.0,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.0883909059
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.105,
+   "months": 60,
+   "fee_rate": 0.004,
+   "insurance_rate": 0.0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0.0
+  },
+  "out": {
+   "nominal": 0.105,
+   "compounding": 0.0052034505,
+   "gst": 0.0017892509,
+   "fees": 0.0097269522,
+   "tax": 0.0,
+   "apr": 0.1217196535
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.085,
+   "months": 240,
+   "fee_rate": 0.0,
+   "insurance_rate": 0.0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0.3
+  },
+  "out": {
+   "nominal": 0.085,
+   "compounding": 0.0033909059,
+   "gst": 0.0,
+   "fees": 0.0,
+   "tax": -0.0272411715,
+   "apr": 0.0611497344
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.0,
+   "months": 24,
+   "fee_rate": 0.01,
+   "insurance_rate": 0.0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0.0
+  },
+  "out": {
+   "nominal": 0.0,
+   "compounding": 0.0,
+   "gst": 0.0,
+   "fees": 0.0196455358,
+   "tax": 0.0,
+   "apr": 0.0196455358
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.14,
+   "months": 12,
+   "fee_rate": 0.02,
+   "insurance_rate": 0.005,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0.0
+  },
+  "out": {
+   "nominal": 0.14,
+   "compounding": 0.0093420292,
+   "gst": 0.0084275798,
+   "fees": 0.0507634995,
+   "tax": 0.0,
+   "apr": 0.2085331085
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.1142,
+   "months": 120,
+   "fee_rate": 0,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.1142,
+   "compounding": 0.006171158,
+   "gst": 0.0,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.120371158
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.316,
+   "months": 6,
+   "fee_rate": 0,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.316,
+   "compounding": 0.0500330605,
+   "gst": 0.0,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.3660330605
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.0013,
+   "months": 120,
+   "fee_rate": 0,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.0013,
+   "compounding": 7.749e-07,
+   "gst": 0.0,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.0013007749
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.2555,
+   "months": null,
+   "fee_rate": 0.00909,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.2555,
+   "compounding": 0.0321488936,
+   "gst": 0.0,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.2876488936
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.2538,
+   "months": 240,
+   "fee_rate": 0.01006,
+   "insurance_rate": 0.00132,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.0,
+   "shield": 0.4179
+  },
+  "out": {
+   "nominal": 0.2538,
+   "compounding": 0.0317071608,
+   "gst": 0.0779893717,
+   "fees": 0.087044206,
+   "tax": -0.1747202754,
+   "apr": 0.2758204631
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.2775,
+   "months": 120,
+   "fee_rate": 0.00064,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0.1448
+  },
+  "out": {
+   "nominal": 0.2775,
+   "compounding": 0.0381620904,
+   "gst": 0.0005124635,
+   "fees": 0.0028255605,
+   "tax": -0.0511850187,
+   "apr": 0.2678150957
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.4496,
+   "months": 36,
+   "fee_rate": 0,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.4496,
+   "compounding": 0.1052547441,
+   "gst": 0.1257187239,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.680573468
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.0009,
+   "months": 12,
+   "fee_rate": 0,
+   "insurance_rate": 0.00492,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.0009,
+   "compounding": 3.713e-07,
+   "gst": 0.0,
+   "fees": 0.0049351786,
+   "tax": 0.0,
+   "apr": 0.00583555
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.0028,
+   "months": 60,
+   "fee_rate": 0,
+   "insurance_rate": 0.00118,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0.3377
+  },
+  "out": {
+   "nominal": 0.0028,
+   "compounding": 3.5961e-06,
+   "gst": 0.0,
+   "fees": 0.0011836721,
+   "tax": -0.0009486044,
+   "apr": 0.0030386638
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.1636,
+   "months": 240,
+   "fee_rate": 0.01936,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.1636,
+   "compounding": 0.0128422325,
+   "gst": 0.0614868045,
+   "fees": 0.1380249127,
+   "tax": 0.0,
+   "apr": 0.3759539497
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.0156,
+   "months": 12,
+   "fee_rate": 0.01644,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.0156,
+   "compounding": 0.0001120248,
+   "gst": 0.0058872208,
+   "fees": 0.0317167201,
+   "tax": 0.0,
+   "apr": 0.0533159657
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.1969,
+   "months": 12,
+   "fee_rate": 0,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.18,
+   "shield": 0.1928
+  },
+  "out": {
+   "nominal": 0.1969,
+   "compounding": 0.0187781335,
+   "gst": 0.0430745977,
+   "fees": 0.0,
+   "tax": -0.0460856102,
+   "apr": 0.212667121
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.3432,
+   "months": 12,
+   "fee_rate": 0.01359,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.3432,
+   "compounding": 0.0594788216,
+   "gst": 0.0070126814,
+   "fees": 0.037945424,
+   "tax": 0.0,
+   "apr": 0.447636927
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.3576,
+   "months": null,
+   "fee_rate": 0.00413,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.18,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.3576,
+   "compounding": 0.0648422712,
+   "gst": 0.0915021119,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.5139443831
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.1916,
+   "months": 12,
+   "fee_rate": 0.01924,
+   "insurance_rate": 0.00574,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.1916,
+   "compounding": 0.0177541813,
+   "gst": 0.04399358,
+   "fees": 0.0528303996,
+   "tax": 0.0,
+   "apr": 0.3061781608
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.3561,
+   "months": 36,
+   "fee_rate": 0.00332,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.3561,
+   "compounding": 0.0642717337,
+   "gst": 0.0,
+   "fees": 0.0111455716,
+   "tax": 0.0,
+   "apr": 0.4315173053
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.145,
+   "months": 36,
+   "fee_rate": 0,
+   "insurance_rate": 0.00296,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.145,
+   "compounding": 0.0100353528,
+   "gst": 0.0,
+   "fees": 0.003382618,
+   "tax": 0.0,
+   "apr": 0.1584179708
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.1339,
+   "months": 36,
+   "fee_rate": 0.00635,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.1339,
+   "compounding": 0.0085310144,
+   "gst": 0.0,
+   "fees": 0.015392065,
+   "tax": 0.0,
+   "apr": 0.1578230794
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.4203,
+   "months": 360,
+   "fee_rate": 0.01619,
+   "insurance_rate": 0.00966,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0.3119
+  },
+  "out": {
+   "nominal": 0.4203,
+   "compounding": 0.0912067065,
+   "gst": 0.3867210289,
+   "fees": 0.7323080379,
+   "tax": -0.6557202197,
+   "apr": 0.9748155536
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.0598,
+   "months": 36,
+   "fee_rate": 0.00615,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0.4198
+  },
+  "out": {
+   "nominal": 0.0598,
+   "compounding": 0.001666552,
+   "gst": 0.0024527895,
+   "fees": 0.0133288001,
+   "tax": -0.026974657,
+   "apr": 0.0502734846
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.4463,
+   "months": 240,
+   "fee_rate": 0.01912,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.4463,
+   "compounding": 0.103616227,
+   "gst": 0.0,
+   "fees": 0.4675036654,
+   "tax": 0.0,
+   "apr": 1.0174198924
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.3324,
+   "months": 60,
+   "fee_rate": 0.011,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0.3804
+  },
+  "out": {
+   "nominal": 0.3324,
+   "compounding": 0.0556217719,
+   "gst": 0.0082701795,
+   "fees": 0.0428658616,
+   "tax": -0.1751630851,
+   "apr": 0.263994728
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.406,
+   "months": 360,
+   "fee_rate": 0.0137,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.0,
+   "shield": 0.1993
+  },
+  "out": {
+   "nominal": 0.406,
+   "compounding": 0.0847553252,
+   "gst": 0.2420980485,
+   "fees": 0.4639460067,
+   "tax": -0.2665483932,
+   "apr": 0.9302509871
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.2547,
+   "months": 360,
+   "fee_rate": 0.00968,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0.1693
+  },
+  "out": {
+   "nominal": 0.2547,
+   "compounding": 0.0319406123,
+   "gst": 0.0,
+   "fees": 0.1378924767,
+   "tax": -0.0816960344,
+   "apr": 0.3428370545
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.2755,
+   "months": 240,
+   "fee_rate": 0,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.18,
+   "shield": 0.0269
+  },
+  "out": {
+   "nominal": 0.2755,
+   "compounding": 0.0375925432,
+   "gst": 0.0650883939,
+   "fees": 0.0,
+   "tax": -0.0099114118,
+   "apr": 0.3682695254
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.1879,
+   "months": 12,
+   "fee_rate": 0,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.1879,
+   "compounding": 0.0170572367,
+   "gst": 0.0407438916,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.2457011283
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.1425,
+   "months": null,
+   "fee_rate": 0,
+   "insurance_rate": 0.0095,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0.1647
+  },
+  "out": {
+   "nominal": 0.1425,
+   "compounding": 0.0096854675,
+   "gst": 0.0,
+   "fees": 0.0108639756,
+   "tax": -0.0266705566,
+   "apr": 0.1363788865
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.405,
+   "months": 240,
+   "fee_rate": 0.00232,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0.1298
+  },
+  "out": {
+   "nominal": 0.405,
+   "compounding": 0.0843139956,
+   "gst": 0.0055220216,
+   "fees": 0.0287087624,
+   "tax": -0.0797867954,
+   "apr": 0.4437579842
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.1918,
+   "months": null,
+   "fee_rate": 0.00833,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.1918,
+   "compounding": 0.0177922724,
+   "gst": 0.0,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.2095922724
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.1925,
+   "months": 36,
+   "fee_rate": 0.01557,
+   "insurance_rate": 0.007,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.1925,
+   "compounding": 0.0179259298,
+   "gst": 0.0,
+   "fees": 0.0514258558,
+   "tax": 0.0,
+   "apr": 0.2618517856
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.0058,
+   "months": 360,
+   "fee_rate": 0.00532,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.0058,
+   "compounding": 1.54432e-05,
+   "gst": 0.0,
+   "fees": 0.0124373363,
+   "tax": 0.0,
+   "apr": 0.0182527795
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.3634,
+   "months": 12,
+   "fee_rate": 0.01629,
+   "insurance_rate": 0.00398,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.3634,
+   "compounding": 0.0670744091,
+   "gst": 0.0,
+   "fees": 0.0525154001,
+   "tax": 0.0,
+   "apr": 0.4829898091
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.3193,
+   "months": 12,
+   "fee_rate": 0,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.0,
+   "shield": 0.2234
+  },
+  "out": {
+   "nominal": 0.3193,
+   "compounding": 0.0511317857,
+   "gst": 0.0787223378,
+   "fees": 0.0,
+   "tax": -0.0971070215,
+   "apr": 0.352047102
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.449,
+   "months": null,
+   "fee_rate": 0.00792,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.449,
+   "compounding": 0.1049557604,
+   "gst": 0.1254785923,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.6794343527
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.0257,
+   "months": 60,
+   "fee_rate": 0,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.0257,
+   "compounding": 0.0003048962,
+   "gst": 0.0,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.0260048962
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.12,
+   "months": 36,
+   "fee_rate": 0,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.0,
+   "shield": 0.0425
+  },
+  "out": {
+   "nominal": 0.12,
+   "compounding": 0.0068250301,
+   "gst": 0.0243360576,
+   "fees": 0.0,
+   "tax": -0.0057890663,
+   "apr": 0.1453720214
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.0989,
+   "months": 60,
+   "fee_rate": 3e-05,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.18,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.0989,
+   "compounding": 0.0046085283,
+   "gst": 0.0196591348,
+   "fees": 7.08275e-05,
+   "tax": 0.0,
+   "apr": 0.1232384906
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.3366,
+   "months": null,
+   "fee_rate": 0.01208,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.3366,
+   "compounding": 0.0571049708,
+   "gst": 0.0,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.3937049708
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.1023,
+   "months": 240,
+   "fee_rate": 0,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.18,
+   "gst_on_fee": 0.0,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.1023,
+   "compounding": 0.0049355449,
+   "gst": 0.0203863306,
+   "fees": 0.0,
+   "tax": 0.0,
+   "apr": 0.1276218755
+  }
+ },
+ {
+  "in": {
+   "nominal": 0.3985,
+   "months": 120,
+   "fee_rate": 0.01173,
+   "insurance_rate": 0,
+   "gst_on_interest": 0.0,
+   "gst_on_fee": 0.18,
+   "shield": 0
+  },
+  "out": {
+   "nominal": 0.3985,
+   "compounding": 0.0814764466,
+   "gst": 0.0177693619,
+   "fees": 0.0834628965,
+   "tax": 0.0,
+   "apr": 0.581208705
+  }
+ }
+]
