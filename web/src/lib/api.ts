@@ -609,45 +609,6 @@ export interface CashYieldResponse {
   rationale: string | null;
 }
 
-export interface BorrowTimingResponse {
-  current_rate: string;
-  six_month_avg: string;
-  consensus_change_bps: number;
-  months_to_decision: number;
-  urgency: string;
-  verdict: 'borrow_now' | 'wait' | 'cant_afford';
-  estimated_savings: string;
-  detail: string;
-  /** The EMI at today's rate. */
-  monthly_payment: string;
-  /** Left each month after costs and payments, when a profile was sent. */
-  monthly_room?: string | null;
-  /** On the market's odds: the chance of a cut by `wait_until`. */
-  cut_chance?: string | null;
-  rise_chance?: string | null;
-  /** The saving if the cut comes (estimated_savings is on the odds). */
-  saving_if_cut?: string | null;
-  wait_until?: string | null;
-  rate_floats?: boolean;
-  odds?: RateOddsResponse | null;
-}
-
-/** The market's chance of each move at the coming RBI or Fed decisions. */
-export interface RateOddsResponse {
-  country: 'IN' | 'US';
-  source: string;
-  fetched_at: string | null;
-  meetings: {
-    date: string;
-    title: string;
-    url: string;
-    volume: string;
-    cut_chance: string;
-    rise_chance: string;
-    outcomes: { bps: number; label: string; chance: string }[];
-  }[];
-}
-
 export type AssetType =
   | 'savings_balance' | 'fixed_deposit'
   | 'equity_stocks' | 'equity_mf' | 'debt_mf'
@@ -1363,21 +1324,6 @@ export const api = {
     minimum_idle_threshold?: string;
   }) => postWithFieldErrors<CashYieldResponse>('/api/cash-yield', req),
 
-  /** Without consensus_change_bps the verdict goes on the market's odds. */
-  rightTime: (req: {
-    current_rate: string;
-    six_month_avg?: string;
-    consensus_change_bps?: number;
-    months_to_decision?: number;
-    urgency: 'now' | '3m_ok' | '6m_ok';
-    principal: string;
-    tenure_months: number;
-    rate_type?: 'fixed' | 'floating';
-    country?: Country;
-    /** Income − costs − current payments, from the profile. */
-    monthly_room?: string;
-  }) => postWithFieldErrors<BorrowTimingResponse>('/api/right-time-to-borrow', req),
-
   loanCheck: (req: LoanCheckRequest) =>
     postWithFieldErrors<LoanCheckResponse>('/api/loan-check', req),
 
@@ -1527,9 +1473,6 @@ export const api = {
 
   centralRates: () =>
     get<CentralRatesResponse>('/api/rates/central'),
-
-  rateOdds: (country: Country) =>
-    get<RateOddsResponse>(`/api/rates/odds?country=${country}`),
 };
 
 export interface LoanTermsResponse {
