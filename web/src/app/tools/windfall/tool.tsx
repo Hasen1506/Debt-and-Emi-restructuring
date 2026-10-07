@@ -26,6 +26,7 @@ import {
   type UserPayload,
 } from '@/lib/api';
 import type { StrategyName } from '@/lib/strategy';
+import { readRulesClient, rulesForLoans, rulesOrDefault } from '@/lib/payoff-rules';
 import { useCurrentProfile, useStoredProfile } from '@/lib/use-profile';
 import { rollBalancesForward } from '@/lib/roll-forward';
 import { applyActivityDeltas, activityDeltas } from '@/lib/activity-cookie';
@@ -209,7 +210,12 @@ export function WindfallTool({
         const ef = efGap > 0 ? Math.min(efGap, total * efSplit) : 0;
         if (ef > 0) alloc.ef = Math.round(ef);
         let rest = total - (alloc.ef ?? 0);
-        let u: UserPayload = { ...planUser, loans: planUser.loans.map((l) => ({ ...l })) };
+        // The strategy's own order: 'rules' carries the user's rules (roadmap PR E).
+        let u: UserPayload = {
+          ...planUser,
+          loans: planUser.loans.map((l) => ({ ...l })),
+          payoff_rules: rulesForLoans(rulesOrDefault(readRulesClient(), planUser.country), planUser.loans.length),
+        };
         for (let n = 0; n <= u.loans.length && rest >= 1; n++) {
           if (!u.loans.some((l) => Number(l.outstanding) > 0)) break;
           const w = await api.windfall({ amount: rest.toFixed(2), user: u, marginal_rate: profile.marginalRate, strategy });
