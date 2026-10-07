@@ -8,7 +8,7 @@
  *      per-currency totals from the engine's per-loan payment trail so KPIs
  *      can render as separate INR / USD cards instead of a meaningless sum.
  */
-import { formatCurrency, type Country, type LoanPayload } from './api';
+import { formatCurrency, formatCurrencyWhole, type Country, type LoanPayload } from './api';
 import type { MonthlyPaymentBreakdown } from '@/components/plan/PlanData';
 import Decimal from 'decimal.js';
 
@@ -83,10 +83,13 @@ export function formatLoanAmount(
   country: Country,
   fx?: Record<string, string>,
 ): string {
-  const own = formatCurrency(Math.round(amount), loanCurrency(loan, country));
+  // The loan's own amount keeps its cents: rounding it to whole dollars
+  // and printing ".00" showed $42,042.00 for $42,042.04, so a profile's
+  // loan rows didn't add up to its Total (E2E golden journey, country switch).
+  const own = formatCurrency(amount, loanCurrency(loan, country));
   if (loanCurrency(loan, country) === userDefaultCurrency(country)) return own;
   const user = loanToUser(amount, loan, country, fx);
-  return user == null ? own : `${own} (≈ ${formatCurrency(Math.round(user), userDefaultCurrency(country))})`;
+  return user == null ? own : `${own} (≈ ${formatCurrencyWhole(user, userDefaultCurrency(country))})`;
 }
 
 /** Distinct currencies present in the loan list, ordered with the user-default
