@@ -15,8 +15,14 @@
  *    users on a new device shouldn't see this redirect. Genuinely new
  *    users will, which is correct.
  *
- * The matcher excludes /login (the gate's escape hatch), /onboarding
- * (we redirect *to* it), Next.js internals, and static assets.
+ * Loan Check (/tools/loan-check) is public: it needs only the loan's own
+ * facts and is the first thing a new visitor should be able to try. It used
+ * to sit behind the auth gate despite saying so (BUG_REPORT M5).
+ *
+ * The matcher excludes /login (the gate's escape hatch), /api, /art,
+ * Next.js internals and static files, each anchored to a whole path
+ * segment: an unanchored "login" also skipped /loginfoo, and the favicon
+ * (/icon.svg) was redirected to /login for signed-out visitors.
  *
  * Middleware can only check cookie *presence*, not session validity —
  * a stolen/expired token would still pass this gate, then 401 on the
@@ -31,6 +37,8 @@ const AUTH_DISABLED = process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true';
 
 export function middleware(req: NextRequest) {
   const url = req.nextUrl;
+
+  if (isPublicTool(url.pathname)) return NextResponse.next();
 
   if (!AUTH_DISABLED && !req.cookies.get(SESSION_COOKIE)) {
     // Signed-out visitors to the root see the public landing page
@@ -48,14 +56,9 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(dest);
   }
 
-  // /onboarding is reachable without a profile cookie — that's
-  // literally what it exists to capture. Loan Check is too: it needs
-  // only the loan's own facts, and it is the first thing a new visitor
-  // should be able to try.
-  if (
-    url.pathname.startsWith('/onboarding') ||
-    url.pathname.startsWith('/tools/loan-check')
-  ) {
+  // /onboarding is reachable without a profile cookie (signed in): that's
+  // literally what it exists to capture.
+  if (url.pathname === '/onboarding' || url.pathname.startsWith('/onboarding/')) {
     return NextResponse.next();
   }
 
@@ -69,9 +72,14 @@ export function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
+/** Pages anyone may use without signing in. */
+export function isPublicTool(pathname: string): boolean {
+  return pathname === '/tools/loan-check' || pathname.startsWith('/tools/loan-check/');
+}
+
 export const config = {
   matcher: [
-    '/((?!login|welcome\\.html|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|api|art/).*)',
+    '/((?!(?:login|api|art)(?:/|$)|_next/static|_next/image|welcome\\.html$|favicon\\.ico$|icon\\.svg$|robots\\.txt$|sitemap\\.xml$).*)',
   ],
 };
 
