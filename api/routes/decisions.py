@@ -17,6 +17,7 @@ from engine.decisions import (
     cash_yield_check, money, prepay_block,
 )
 from engine.formulas import effective_rate
+from engine.marginal_cost import user_marginal_costs
 from engine.models import Country, FilingStatusUS, TaxRegimeIN
 from engine.tax.india import marginal_rate as india_marginal_rate
 from engine.simulation import simulate_plan
@@ -51,6 +52,9 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
     # ranking balances/payment maths before comparing a cash amount with a
     # foreign loan; return the original loan's index for Activity.
     originals = user.loans
+    # The payoff order's marginal costs (roadmap PR J), on the loans as entered.
+    mcs = user_marginal_costs(originals, user, marg)
+    normalized_mcs = {}
     own = "INR" if user.country == Country.IN else "USD"
     normalized = []
     normalized_rates = {}
@@ -67,12 +71,15 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
         copy.currency = own
         normalized.append(copy)
         normalized_rates[id(copy)] = rates[id(loan)]
+        if id(loan) in mcs:
+            normalized_mcs[id(copy)] = mcs[id(loan)]
     try:
         allocation = allocate_windfall(
             req.amount, normalized, normalized_rates,
             user.investment_options, user.inflation_rate, strategy=req.strategy,
             country=user.country, marginal_tax_rate=marg, rules=user.payoff_rules,
             prepay_hurdle=user.prepay_hurdle,
+            marginal_costs=normalized_mcs,
         )
     except DecisionInputError as e:
         raise _bad(e)
