@@ -76,7 +76,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
       value: STRATEGY_LABEL[plan.strategy].toUpperCase(),
       about: 'Which loan gets the money left after EMIs and minimums.',
       control: (
-        <StrategySwitcher active={plan.strategy} variant="ledger" compare={plan.strategyCompare} country={u.country} />
+        <StrategySwitcher active={plan.strategy} variant="ledger" compare={plan.strategyCompare} country={u.country} user={plan.configuredUser} money={(n) => formatCurrencyWhole(String(n), ccy)} />
       ),
     },
     {

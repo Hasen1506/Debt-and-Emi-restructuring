@@ -1,8 +1,10 @@
-"""Layer 2 payoff ordering — avalanche / hybrid / snowball + freed-EMI cascade.
+"""Layer 2 payoff ordering — avalanche / your rules / snowball + freed-EMI cascade.
 
-Avalanche is the default (most profitable). Hybrid keeps psychological wins (small
-balances cleared first) while penalising rate efficiency. Snowball is pure
-behavioural — smallest balance first regardless of rate.
+Avalanche is the default (most profitable). Your rules (RULES, roadmap PR E)
+replace Hybrid: "clear any loan under X first", "pin this loan to the front",
+or a custom order; everything the rules don't place goes by rate. Hybrid is
+still accepted from older clients and is exactly the rule "clear loans under
+₹50,000 / $1,000 first". Snowball is pure behavioural — smallest balance first.
 
 §4.21 — when a debt reaches zero, its minimum payment + any extra allocated
 to it cascades to the next-priority debt.
@@ -10,7 +12,7 @@ to it cascades to the next-priority debt.
 from decimal import Decimal
 from typing import Callable
 from enum import Enum
-from engine.models import Country, Loan
+from engine.models import Country, Loan, PayoffRules
 
 D = Decimal
 
@@ -24,8 +26,9 @@ HYBRID_SMALL_BALANCE_US = D("1000")
 
 class Strategy(str, Enum):
     AVALANCHE = "avalanche"
-    HYBRID = "hybrid"
+    HYBRID = "hybrid"      # legacy: the rule "clear small balances first" (see hybrid_rules)
     SNOWBALL = "snowball"
+    RULES = "rules"
 
 
 def hybrid_small_balance_threshold(country: Country) -> Decimal:
@@ -35,12 +38,19 @@ def hybrid_small_balance_threshold(country: Country) -> Decimal:
     return HYBRID_SMALL_BALANCE_IN
 
 
+def hybrid_rules(country: Country) -> PayoffRules:
+    """The rule a Hybrid user is migrated to: the same order, as a rule."""
+    return PayoffRules(small_first_below=hybrid_small_balance_threshold(country))
+
+
 def rank_loans(
     loans: list[Loan],
     effective_rates: dict[int, Decimal],
     strategy: Strategy,
     country: Country = Country.IN,
     balance_of: Callable[[Loan], Decimal] | None = None,
+    rules: PayoffRules | None = None,
+    index_of: dict[int, int] | None = None,
 ) -> list[Loan]:
     """Returns loans sorted by priority for extra-allocation routing.
 
@@ -58,12 +68,35 @@ def rank_loans(
     if strategy == Strategy.SNOWBALL:
         return sorted(loans, key=bal)
     if strategy == Strategy.HYBRID:
-        threshold = hybrid_small_balance_threshold(country)
-        small = sorted([l for l in loans if bal(l) < threshold], key=bal)
-        rest = sorted([l for l in loans if bal(l) >= threshold],
-                      key=lambda l: effective_rates[id(l)], reverse=True)
-        return small + rest
+        strategy, rules = Strategy.RULES, hybrid_rules(country)
+    if strategy == Strategy.RULES:
+        return apply_rules(loans, effective_rates, rules or PayoffRules(), bal, index_of)
     raise ValueError(f"Unknown strategy: {strategy}")
+
+
+def apply_rules(
+    loans: list[Loan],
+    effective_rates: dict[int, Decimal],
+    rules: PayoffRules,
+    bal: Callable[[Loan], Decimal],
+    index_of: dict[int, int] | None = None,
+) -> list[Loan]:
+    """Order by the user's rules; whatever they don't place goes by rate.
+    `index_of` maps id(loan) → its position in user.loans (the rules' names);
+    it defaults to the position in `loans`."""
+    pos = index_of or {id(l): i for i, l in enumerate(loans)}
+    by_rate = lambda ls: sorted(ls, key=lambda l: effective_rates[id(l)], reverse=True)  # noqa: E731
+    by_index = {pos.get(id(l)): l for l in loans}
+    if rules.custom_order:
+        front = [by_index[i] for i in dict.fromkeys(rules.custom_order) if i in by_index]
+        return front + by_rate([l for l in loans if l not in front])
+    front = [by_index[i] for i in dict.fromkeys(rules.pinned) if i in by_index]
+    rest = [l for l in loans if l not in front]
+    if rules.small_first_below is not None and rules.small_first_below > 0:
+        small = sorted([l for l in rest if bal(l) < rules.small_first_below], key=bal)
+        rest = [l for l in rest if l not in small]
+        front += small
+    return front + by_rate(rest)
 
 
 def allocate_extra(

@@ -7,7 +7,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Optional
-from engine.models import Loan, Country, LoanType, InvestmentOption, LiquidityClass
+from engine.models import Loan, Country, LoanType, InvestmentOption, LiquidityClass, PayoffRules
 from engine.formulas import after_tax_return, emi, effective_rate, prepay_recommended
 from engine.minimum_payments import compute_minimum_payment
 from engine.loan_check import _inr
@@ -161,6 +161,7 @@ def allocate_windfall(
     strategy: Strategy = Strategy.AVALANCHE,
     country: Country = Country.IN,
     marginal_tax_rate: Decimal = D("0"),
+    rules: PayoffRules | None = None,
 ) -> WindfallAllocation:
     """§8a — single decision, not a plan. Runs Layer 1 logic (already done at scan
     time), then Layer 2 ranking, then Layer 3 invest-vs-prepay gate on the top
@@ -175,7 +176,9 @@ def allocate_windfall(
             rationale="No outstanding debt", interest_avoided=D("0"), leftover=amount,
         )
 
-    ranked = rank_loans(active, effective_rates, strategy, country=country)
+    # The rules name loans by their position in the list the caller passed.
+    index_of = {id(l): i for i, l in enumerate(loans)}
+    ranked = rank_loans(active, effective_rates, strategy, country=country, rules=rules, index_of=index_of)
     # A loan whose terms bar an extra payment now (a lock-in) isn't offered:
     # Spare Cash used to send ₹20,000 to a loan the plan itself wouldn't pay.
     blocked = [
@@ -253,7 +256,7 @@ def allocate_windfall(
     elif strategy == Strategy.SNOWBALL:
         rationale = f"The smallest balance, first in the snowball order you chose ({nominal})"
     else:
-        rationale = f"Next in the hybrid order you chose ({nominal})"
+        rationale = f"Next in the order your rules set ({nominal})"
     if leftover > 0:
         rationale += f"; clears it with {money(leftover, country)} left over"
     if fee > 0:

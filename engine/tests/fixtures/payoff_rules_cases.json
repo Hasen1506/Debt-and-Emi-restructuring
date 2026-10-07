@@ -1,0 +1,1524 @@
+[
+ {
+  "rates": [
+   0.427,
+   0.433
+  ],
+  "balances": [
+   182000.0,
+   39500.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   1,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.43
+  ],
+  "balances": [
+   53250.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.287
+  ],
+  "balances": [
+   85500.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.257,
+   0.466,
+   0.13,
+   0.011,
+   0.298
+  ],
+  "balances": [
+   173250.0,
+   136250.0,
+   379500.0,
+   279750.0,
+   337500.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": [
+    0
+   ]
+  },
+  "order": [
+   0,
+   1,
+   4,
+   2,
+   3
+  ]
+ },
+ {
+  "rates": [
+   0.028
+  ],
+  "balances": [
+   262000.0
+  ],
+  "rules": {
+   "small_first_below": "1000",
+   "pinned": [
+    0
+   ],
+   "custom_order": []
+  },
+  "order": [
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.037,
+   0.035,
+   0.388,
+   0.245,
+   0.108,
+   0.269
+  ],
+  "balances": [
+   195250.0,
+   258000.0,
+   376000.0,
+   202750.0,
+   67750.0,
+   114250.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   2,
+   5,
+   3,
+   4,
+   0,
+   1
+  ]
+ },
+ {
+  "rates": [
+   0.2,
+   0.026,
+   0.246,
+   0.153,
+   0.187,
+   0.235
+  ],
+  "balances": [
+   311750.0,
+   31500.0,
+   208750.0,
+   177000.0,
+   178750.0,
+   376500.0
+  ],
+  "rules": {
+   "small_first_below": "50000",
+   "pinned": [
+    3
+   ],
+   "custom_order": []
+  },
+  "order": [
+   3,
+   1,
+   2,
+   5,
+   0,
+   4
+  ]
+ },
+ {
+  "rates": [
+   0.228,
+   0.425,
+   0.034,
+   0.01,
+   0.345
+  ],
+  "balances": [
+   69250.0,
+   171750.0,
+   276500.0,
+   47750.0,
+   252250.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    0
+   ],
+   "custom_order": []
+  },
+  "order": [
+   0,
+   1,
+   4,
+   2,
+   3
+  ]
+ },
+ {
+  "rates": [
+   0.143,
+   0.161,
+   0.039,
+   0.436,
+   0.084
+  ],
+  "balances": [
+   60500.0,
+   32000.0,
+   374250.0,
+   393000.0,
+   70500.0
+  ],
+  "rules": {
+   "small_first_below": "50000",
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   1,
+   3,
+   0,
+   4,
+   2
+  ]
+ },
+ {
+  "rates": [
+   0.194,
+   0.278,
+   0.271,
+   0.395
+  ],
+  "balances": [
+   14250.0,
+   148500.0,
+   88250.0,
+   208750.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   3,
+   1,
+   2,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.136,
+   0.439,
+   0.042
+  ],
+  "balances": [
+   60500.0,
+   204000.0,
+   72750.0
+  ],
+  "rules": {
+   "small_first_below": "100000",
+   "pinned": [
+    1,
+    2
+   ],
+   "custom_order": [
+    0
+   ]
+  },
+  "order": [
+   0,
+   1,
+   2
+  ]
+ },
+ {
+  "rates": [
+   0.059,
+   0.144,
+   0.313
+  ],
+  "balances": [
+   205750.0,
+   235500.0,
+   89250.0
+  ],
+  "rules": {
+   "small_first_below": "50000",
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   2,
+   1,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.38,
+   0.382
+  ],
+  "balances": [
+   305500.0,
+   151750.0
+  ],
+  "rules": {
+   "small_first_below": "1000",
+   "pinned": [
+    0,
+    2
+   ],
+   "custom_order": [
+    2,
+    1
+   ]
+  },
+  "order": [
+   1,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.144,
+   0.188,
+   0.35,
+   0.257
+  ],
+  "balances": [
+   196500.0,
+   187250.0,
+   71750.0,
+   129500.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": [
+    1,
+    4,
+    2
+   ]
+  },
+  "order": [
+   1,
+   2,
+   3,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.439,
+   0.249,
+   0.039,
+   0.255,
+   0.053
+  ],
+  "balances": [
+   287000.0,
+   67000.0,
+   13000.0,
+   251250.0,
+   156000.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   0,
+   3,
+   1,
+   4,
+   2
+  ]
+ },
+ {
+  "rates": [
+   0.161
+  ],
+  "balances": [
+   393000.0
+  ],
+  "rules": {
+   "small_first_below": "1000",
+   "pinned": [
+    1
+   ],
+   "custom_order": []
+  },
+  "order": [
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.117,
+   0.172,
+   0.09,
+   0.405,
+   0.357,
+   0.244
+  ],
+  "balances": [
+   217250.0,
+   153000.0,
+   250000.0,
+   280500.0,
+   106250.0,
+   54250.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    6
+   ],
+   "custom_order": [
+    5,
+    4,
+    1
+   ]
+  },
+  "order": [
+   5,
+   4,
+   1,
+   3,
+   0,
+   2
+  ]
+ },
+ {
+  "rates": [
+   0.39,
+   0.371,
+   0.411
+  ],
+  "balances": [
+   280750.0,
+   61500.0,
+   48500.0
+  ],
+  "rules": {
+   "small_first_below": "50000",
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   2,
+   0,
+   1
+  ]
+ },
+ {
+  "rates": [
+   0.431,
+   0.018
+  ],
+  "balances": [
+   226250.0,
+   326250.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": [
+    1
+   ]
+  },
+  "order": [
+   1,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.139,
+   0.35
+  ],
+  "balances": [
+   26750.0,
+   128500.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    0,
+    1
+   ],
+   "custom_order": []
+  },
+  "order": [
+   0,
+   1
+  ]
+ },
+ {
+  "rates": [
+   0.425,
+   0.219,
+   0.283,
+   0.25,
+   0.36
+  ],
+  "balances": [
+   222250.0,
+   111250.0,
+   128500.0,
+   243250.0,
+   261500.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    4,
+    3
+   ],
+   "custom_order": []
+  },
+  "order": [
+   4,
+   3,
+   0,
+   2,
+   1
+  ]
+ },
+ {
+  "rates": [
+   0.257,
+   0.154,
+   0.357,
+   0.248
+  ],
+  "balances": [
+   256500.0,
+   345750.0,
+   120500.0,
+   385750.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    4,
+    3
+   ],
+   "custom_order": []
+  },
+  "order": [
+   3,
+   2,
+   0,
+   1
+  ]
+ },
+ {
+  "rates": [
+   0.033,
+   0.254
+  ],
+  "balances": [
+   212250.0,
+   147750.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    2
+   ],
+   "custom_order": []
+  },
+  "order": [
+   1,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.458,
+   0.43,
+   0.35
+  ],
+  "balances": [
+   113000.0,
+   302000.0,
+   54500.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    2
+   ],
+   "custom_order": []
+  },
+  "order": [
+   2,
+   0,
+   1
+  ]
+ },
+ {
+  "rates": [
+   0.384,
+   0.314,
+   0.441,
+   0.283
+  ],
+  "balances": [
+   84750.0,
+   257000.0,
+   302500.0,
+   83250.0
+  ],
+  "rules": {
+   "small_first_below": "250000",
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   3,
+   0,
+   2,
+   1
+  ]
+ },
+ {
+  "rates": [
+   0.069,
+   0.222,
+   0.218,
+   0.118
+  ],
+  "balances": [
+   104500.0,
+   186500.0,
+   62750.0,
+   292500.0
+  ],
+  "rules": {
+   "small_first_below": "100000",
+   "pinned": [
+    2
+   ],
+   "custom_order": []
+  },
+  "order": [
+   2,
+   1,
+   3,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.01,
+   0.155,
+   0.152,
+   0.335
+  ],
+  "balances": [
+   184750.0,
+   61500.0,
+   34000.0,
+   122000.0
+  ],
+  "rules": {
+   "small_first_below": "100000",
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   2,
+   1,
+   3,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.368,
+   0.329,
+   0.342
+  ],
+  "balances": [
+   88500.0,
+   314500.0,
+   11500.0
+  ],
+  "rules": {
+   "small_first_below": "1000",
+   "pinned": [
+    3,
+    1
+   ],
+   "custom_order": [
+    0,
+    1
+   ]
+  },
+  "order": [
+   0,
+   1,
+   2
+  ]
+ },
+ {
+  "rates": [
+   0.014
+  ],
+  "balances": [
+   206000.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.1,
+   0.063,
+   0.321,
+   0.192,
+   0.207
+  ],
+  "balances": [
+   327250.0,
+   374500.0,
+   81750.0,
+   156500.0,
+   289000.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    5,
+    3
+   ],
+   "custom_order": [
+    4
+   ]
+  },
+  "order": [
+   4,
+   2,
+   3,
+   0,
+   1
+  ]
+ },
+ {
+  "rates": [
+   0.018,
+   0.212
+  ],
+  "balances": [
+   209000.0,
+   232000.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    0,
+    2
+   ],
+   "custom_order": []
+  },
+  "order": [
+   0,
+   1
+  ]
+ },
+ {
+  "rates": [
+   0.146,
+   0.084
+  ],
+  "balances": [
+   39500.0,
+   123250.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    1,
+    0
+   ],
+   "custom_order": []
+  },
+  "order": [
+   1,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.399,
+   0.053
+  ],
+  "balances": [
+   4250.0,
+   221250.0
+  ],
+  "rules": {
+   "small_first_below": "250000",
+   "pinned": [],
+   "custom_order": [
+    1
+   ]
+  },
+  "order": [
+   1,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.042
+  ],
+  "balances": [
+   218750.0
+  ],
+  "rules": {
+   "small_first_below": "100000",
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.354
+  ],
+  "balances": [
+   303000.0
+  ],
+  "rules": {
+   "small_first_below": "1000",
+   "pinned": [],
+   "custom_order": [
+    0
+   ]
+  },
+  "order": [
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.412
+  ],
+  "balances": [
+   171000.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": [
+    1
+   ]
+  },
+  "order": [
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.28,
+   0.23,
+   0.05
+  ],
+  "balances": [
+   69250.0,
+   107750.0,
+   47000.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   0,
+   1,
+   2
+  ]
+ },
+ {
+  "rates": [
+   0.432,
+   0.036,
+   0.454,
+   0.395
+  ],
+  "balances": [
+   354250.0,
+   144750.0,
+   327250.0,
+   48250.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   2,
+   0,
+   3,
+   1
+  ]
+ },
+ {
+  "rates": [
+   0.365,
+   0.412,
+   0.037,
+   0.407,
+   0.336,
+   0.118
+  ],
+  "balances": [
+   152250.0,
+   257500.0,
+   179750.0,
+   289500.0,
+   18250.0,
+   58500.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   1,
+   3,
+   0,
+   4,
+   5,
+   2
+  ]
+ },
+ {
+  "rates": [
+   0.12,
+   0.151,
+   0.113,
+   0.114,
+   0.297
+  ],
+  "balances": [
+   394500.0,
+   12000.0,
+   91500.0,
+   398750.0,
+   124250.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": [
+    3,
+    0,
+    4,
+    1
+   ]
+  },
+  "order": [
+   3,
+   0,
+   4,
+   1,
+   2
+  ]
+ },
+ {
+  "rates": [
+   0.212,
+   0.137,
+   0.125,
+   0.08,
+   0.279,
+   0.263
+  ],
+  "balances": [
+   24000.0,
+   190750.0,
+   264500.0,
+   169000.0,
+   106000.0,
+   19000.0
+  ],
+  "rules": {
+   "small_first_below": "100000",
+   "pinned": [
+    0,
+    2
+   ],
+   "custom_order": []
+  },
+  "order": [
+   0,
+   2,
+   5,
+   4,
+   1,
+   3
+  ]
+ },
+ {
+  "rates": [
+   0.249,
+   0.21,
+   0.36,
+   0.087,
+   0.199,
+   0.194
+  ],
+  "balances": [
+   199500.0,
+   235000.0,
+   148750.0,
+   106500.0,
+   182000.0,
+   302000.0
+  ],
+  "rules": {
+   "small_first_below": "100000",
+   "pinned": [],
+   "custom_order": [
+    2,
+    4,
+    1,
+    6,
+    3
+   ]
+  },
+  "order": [
+   2,
+   4,
+   1,
+   3,
+   0,
+   5
+  ]
+ },
+ {
+  "rates": [
+   0.256
+  ],
+  "balances": [
+   57500.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.07,
+   0.436,
+   0.228,
+   0.134,
+   0.364
+  ],
+  "balances": [
+   289250.0,
+   91750.0,
+   62000.0,
+   98750.0,
+   254250.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": [
+    4,
+    0
+   ]
+  },
+  "order": [
+   4,
+   0,
+   1,
+   2,
+   3
+  ]
+ },
+ {
+  "rates": [
+   0.283,
+   0.245,
+   0.361,
+   0.175
+  ],
+  "balances": [
+   234000.0,
+   351250.0,
+   190500.0,
+   108500.0
+  ],
+  "rules": {
+   "small_first_below": "50000",
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   2,
+   0,
+   1,
+   3
+  ]
+ },
+ {
+  "rates": [
+   0.176,
+   0.452,
+   0.195,
+   0.465,
+   0.169,
+   0.26
+  ],
+  "balances": [
+   361500.0,
+   11500.0,
+   388500.0,
+   217250.0,
+   91500.0,
+   22750.0
+  ],
+  "rules": {
+   "small_first_below": "100000",
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   1,
+   5,
+   4,
+   3,
+   2,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.218
+  ],
+  "balances": [
+   195500.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.39,
+   0.155
+  ],
+  "balances": [
+   270500.0,
+   64000.0
+  ],
+  "rules": {
+   "small_first_below": "250000",
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   1,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.313
+  ],
+  "balances": [
+   391750.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.045,
+   0.474,
+   0.145,
+   0.125,
+   0.111,
+   0.314
+  ],
+  "balances": [
+   51500.0,
+   181000.0,
+   109750.0,
+   340500.0,
+   238000.0,
+   102750.0
+  ],
+  "rules": {
+   "small_first_below": "250000",
+   "pinned": [
+    4
+   ],
+   "custom_order": []
+  },
+  "order": [
+   4,
+   0,
+   5,
+   2,
+   1,
+   3
+  ]
+ },
+ {
+  "rates": [
+   0.229,
+   0.404,
+   0.304,
+   0.191,
+   0.183
+  ],
+  "balances": [
+   159750.0,
+   77000.0,
+   216750.0,
+   223250.0,
+   235000.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    2
+   ],
+   "custom_order": []
+  },
+  "order": [
+   2,
+   1,
+   0,
+   3,
+   4
+  ]
+ },
+ {
+  "rates": [
+   0.354,
+   0.23,
+   0.036,
+   0.222
+  ],
+  "balances": [
+   339750.0,
+   26500.0,
+   190500.0,
+   300500.0
+  ],
+  "rules": {
+   "small_first_below": "100000",
+   "pinned": [
+    1
+   ],
+   "custom_order": []
+  },
+  "order": [
+   1,
+   0,
+   3,
+   2
+  ]
+ },
+ {
+  "rates": [
+   0.448,
+   0.24,
+   0.1,
+   0.091
+  ],
+  "balances": [
+   238000.0,
+   103000.0,
+   312000.0,
+   388000.0
+  ],
+  "rules": {
+   "small_first_below": "250000",
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   1,
+   0,
+   2,
+   3
+  ]
+ },
+ {
+  "rates": [
+   0.136,
+   0.404
+  ],
+  "balances": [
+   256750.0,
+   92500.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   1,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.378,
+   0.104,
+   0.034,
+   0.376,
+   0.393
+  ],
+  "balances": [
+   335000.0,
+   275250.0,
+   176500.0,
+   164500.0,
+   232500.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    1
+   ],
+   "custom_order": []
+  },
+  "order": [
+   1,
+   4,
+   0,
+   3,
+   2
+  ]
+ },
+ {
+  "rates": [
+   0.212,
+   0.326
+  ],
+  "balances": [
+   365250.0,
+   146500.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    1,
+    2
+   ],
+   "custom_order": [
+    0
+   ]
+  },
+  "order": [
+   0,
+   1
+  ]
+ },
+ {
+  "rates": [
+   0.24,
+   0.182,
+   0.368,
+   0.024
+  ],
+  "balances": [
+   123750.0,
+   238500.0,
+   87000.0,
+   30500.0
+  ],
+  "rules": {
+   "small_first_below": "50000",
+   "pinned": [
+    0
+   ],
+   "custom_order": []
+  },
+  "order": [
+   0,
+   3,
+   2,
+   1
+  ]
+ },
+ {
+  "rates": [
+   0.106,
+   0.187,
+   0.263,
+   0.439,
+   0.44,
+   0.306
+  ],
+  "balances": [
+   6500.0,
+   126500.0,
+   20000.0,
+   285750.0,
+   353000.0,
+   80500.0
+  ],
+  "rules": {
+   "small_first_below": "1000",
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   4,
+   3,
+   5,
+   2,
+   1,
+   0
+  ]
+ },
+ {
+  "rates": [
+   0.299,
+   0.144,
+   0.112,
+   0.152,
+   0.076
+  ],
+  "balances": [
+   35000.0,
+   50000.0,
+   161750.0,
+   308250.0,
+   257750.0
+  ],
+  "rules": {
+   "small_first_below": "1000",
+   "pinned": [],
+   "custom_order": []
+  },
+  "order": [
+   0,
+   3,
+   1,
+   2,
+   4
+  ]
+ },
+ {
+  "rates": [
+   0.467,
+   0.09,
+   0.331,
+   0.414,
+   0.102,
+   0.432
+  ],
+  "balances": [
+   251000.0,
+   259500.0,
+   322500.0,
+   292000.0,
+   239750.0,
+   57250.0
+  ],
+  "rules": {
+   "small_first_below": null,
+   "pinned": [
+    3,
+    0
+   ],
+   "custom_order": [
+    3,
+    5,
+    1,
+    2,
+    0
+   ]
+  },
+  "order": [
+   3,
+   5,
+   1,
+   2,
+   0,
+   4
+  ]
+ }
+]

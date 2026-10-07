@@ -248,6 +248,23 @@ class PFBalance:
 
 
 @dataclass
+class PayoffRules:
+    """The user's own payoff order (roadmap PR E; replaces Hybrid).
+
+    Loans are named by their position in `User.loans`.
+    - `custom_order`: the full order the user set; loans it leaves out
+      follow by highest effective rate. When set, the other rules are off.
+    - `pinned`: loans moved to the front, in this order.
+    - `small_first_below`: clear any loan under this balance (in the user's
+      currency) first, smallest first. None = off.
+    Everything else goes by highest effective rate (avalanche).
+    """
+    small_first_below: Optional[Decimal] = None
+    pinned: list[int] = field(default_factory=list)
+    custom_order: list[int] = field(default_factory=list)
+
+
+@dataclass
 class User:
     country: Country
     income_type: IncomeType
@@ -334,6 +351,8 @@ class User:
     # ~2.5%/yr vs USD. Setting drift > 0 on the *residence* currency
     # itself is a no-op since to_user_currency short-circuits parity.
     fx_drift_annualized: dict[str, Decimal] = field(default_factory=dict)
+    # The user's payoff rules when the strategy is RULES (engine/ordering.py).
+    payoff_rules: Optional[PayoffRules] = None
     # FX rates used to convert non-residence-currency loan amounts (EMIs,
     # interest) into the user's residence currency for surplus / DTI math.
     # Keyed by loan currency ("INR", "USD", ...) with value = "how many

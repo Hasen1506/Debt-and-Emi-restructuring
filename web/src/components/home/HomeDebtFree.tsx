@@ -111,7 +111,7 @@ export async function HomeMoveOneStep() {
 const REASON: Record<string, (rate: string) => string> = {
   avalanche: (rate) => `it costs the most, ${rate}`,
   snowball: (rate) => `it's the smallest balance (${rate})`,
-  hybrid: (rate) => `your hybrid order puts it first (${rate})`,
+  rules: (rate) => `your rules put it first (${rate})`,
 };
 
 /** The loan's rate as its statement shows it, then what it really costs

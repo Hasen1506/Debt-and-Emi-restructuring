@@ -13,7 +13,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validat
 
 from engine.models import (
     Asset, Country, FilingStatusUS, IncomeType, InvestmentOption,
-    LiquidityClass, Loan, LoanType, PFBalance, TaxRegimeIN, User,
+    LiquidityClass, Loan, LoanType, PayoffRules, PFBalance, TaxRegimeIN, User,
 )
 from engine.formulas import flat_to_reducing
 from engine.layer0 import EmployerMatch
@@ -402,6 +402,20 @@ class PFBalanceIn(_In):
 # User
 # ─────────────────────────────────────────────────────────────────────────────
 
+class PayoffRulesIn(_In):
+    """The user's payoff rules (strategy "rules", roadmap PR E). Loans are
+    named by their position in `user.loans`."""
+    small_first_below: Optional[Amount] = None
+    pinned: list[LoanIndex] = Field(default_factory=list)
+    custom_order: list[LoanIndex] = Field(default_factory=list)
+
+    def to_engine(self) -> PayoffRules:
+        return PayoffRules(
+            small_first_below=self.small_first_below,
+            pinned=list(self.pinned), custom_order=list(self.custom_order),
+        )
+
+
 class UserIn(_In):
     country: Country
     income_type: IncomeType
@@ -471,6 +485,8 @@ class UserIn(_In):
     # monthly: rate_at_m = spot × (1 + drift)^((m-1)/12). Empty / omitted
     # → no drift, FX stays flat at spot. Used by the NRI-US FX-drift toggle.
     fx_drift_annualized: Dict[str, Decimal] = Field(default_factory=dict)
+    # Strategy "rules": the user's own payoff order (engine/ordering.apply_rules).
+    payoff_rules: Optional[PayoffRulesIn] = None
 
     @field_validator("fx_to_user_currency", "fx_drift_annualized", mode="after")
     @classmethod
@@ -567,6 +583,7 @@ class UserIn(_In):
             is_nri_us=self.is_nri_us,
             fx_to_user_currency=dict(self.fx_to_user_currency),
             fx_drift_annualized=dict(self.fx_drift_annualized),
+            payoff_rules=self.payoff_rules.to_engine() if self.payoff_rules else None,
         )
 
 

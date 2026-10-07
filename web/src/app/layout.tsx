@@ -3,6 +3,7 @@ import '@/styles/globals.css';
 import { loadProfileServer } from '@/lib/user-store';
 import { loadStrategyServer } from '@/lib/strategy';
 import { sharedPayoffOrder } from '@/lib/payoff-order';
+import { loadRulesServer, rulesOrDefault } from '@/lib/payoff-rules';
 import { LMasthead } from '@/components/ledger/LMasthead';
 import { LFooter } from '@/components/ledger/primitives';
 import { SessionHydrator } from '@/lib/server-sync';
@@ -19,11 +20,11 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [profile, strategy] = await Promise.all([loadProfileServer(), loadStrategyServer()]);
+  const [profile, strategy, rules] = await Promise.all([loadProfileServer(), loadStrategyServer(), loadRulesServer()]);
   // The strategy orders debts, so it shows only when there are some.
   const hasDebt = profile.user.loans.some((l) => Number(l.outstanding) > 0);
   // When every strategy pays the debts in the same order, the switch says so.
-  const sameOrder = hasDebt ? sharedPayoffOrder(profile.user, profile.marginalRate) : null;
+  const sameOrder = hasDebt ? sharedPayoffOrder({ ...profile.user, payoff_rules: rulesOrDefault(rules, profile.user.country) }, profile.marginalRate) : null;
   return (
     <html lang="en">
       <head>

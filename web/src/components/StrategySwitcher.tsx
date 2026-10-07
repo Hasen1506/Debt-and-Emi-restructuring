@@ -10,7 +10,8 @@
  *
  * Two variants:
  *   • 'inline' — segmented pill control, used in ExistingPlan / EditorialPlan
- *   • 'ledger' — bracketed `[AVALANCHE] · [HYBRID] · [SNOWBALL]` for LedgerPlan
+ *   • 'ledger' — bracketed `[AVALANCHE] · [YOUR RULES] · [SNOWBALL]` for LedgerPlan
+ *     (with the rules editor under it when "Your rules" is picked)
  *
  * Both surfaces share the same state + cookie write so a user who toggles
  * themes keeps their strategy preference.
@@ -26,7 +27,8 @@ import {
 } from '@/lib/strategy';
 import { InfoTip } from '@/components/ToolPrimitives';
 import { monthIndexToCountryLabel } from '@/lib/today';
-import type { Country } from '@/lib/api';
+import type { Country, UserPayload } from '@/lib/api';
+import { PayoffRulesEditor, rulesCost } from '@/components/plan/PayoffRulesEditor';
 
 /**
  * Per-strategy headline metrics — close month + total interest — keyed by
@@ -57,12 +59,13 @@ const STRATEGY_EXPLAINER: Record<StrategyName, React.ReactNode> = {
       this if motivation matters more than optimal math.
     </>
   ),
-  hybrid: (
+  rules: (
     <>
-      <strong>Hybrid</strong> — mostly Avalanche, but among loans with similar
-      effective rates, it kills the smaller one first. A compromise: keeps
-      most of the interest savings while still giving you the occasional
-      quick "closed" win.
+      <strong>Your rules</strong> — your own order: pin a loan to the front,
+      clear any loan under an amount first, or set the whole order. Whatever
+      the rules don&apos;t place goes by highest effective rate. The plan shows
+      what your rules cost against Avalanche. (This replaces Hybrid, which is
+      the rule &quot;clear loans under ₹50,000 / $1,000 first&quot;.)
     </>
   ),
 };
@@ -141,9 +144,15 @@ export function StrategySwitcher({
   variant = 'inline',
   compare,
   country,
+  user,
+  money,
 }: {
   active: StrategyName;
   variant?: 'inline' | 'ledger';
+  /** The saved profile: names the loans in the rules editor ('rules' only). */
+  user?: UserPayload;
+  /** Formats an amount in the user's currency for the rules' cost line. */
+  money?: (n: number) => string;
   /** Per-strategy headline metrics. When provided, the switcher renders a
    *  compact 3-row comparison below the picker so the decision is visible
    *  without flipping strategies one-by-one to A/B. */
@@ -192,7 +201,7 @@ export function StrategySwitcher({
               {STRATEGY_EXPLAINER.snowball}
             </div>
             <div style={{ marginTop: 8 }}>
-              {STRATEGY_EXPLAINER.hybrid}
+              {STRATEGY_EXPLAINER.rules}
             </div>
           </InfoTip>
         </span>
@@ -263,6 +272,14 @@ export function StrategySwitcher({
           ))}
         </div>
       )}
+      {active === 'rules' && user && (
+        <PayoffRulesEditor
+          user={user}
+          cost={compare ? rulesCost(compare.rules, compare.avalanche) : null}
+          avalancheMonth={compare?.avalanche?.debtFreeMonth ?? null}
+          money={money ?? ((n) => `${country === 'US' ? '$' : '₹'}${Math.round(n).toLocaleString(country === 'US' ? 'en-US' : 'en-IN')}`)}
+        />
+      )}
       </div>
     );
   }
@@ -287,7 +304,7 @@ export function StrategySwitcher({
           and chart update to match.
           <div style={{ marginTop: 8 }}>{STRATEGY_EXPLAINER.avalanche}</div>
           <div style={{ marginTop: 8 }}>{STRATEGY_EXPLAINER.snowball}</div>
-          <div style={{ marginTop: 8 }}>{STRATEGY_EXPLAINER.hybrid}</div>
+          <div style={{ marginTop: 8 }}>{STRATEGY_EXPLAINER.rules}</div>
         </InfoTip>
       </span>
       <div
