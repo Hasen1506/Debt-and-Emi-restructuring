@@ -236,3 +236,17 @@ input[type="range"] {
     --nav-tracking: 0.06em;
   }
 }
+
+/* Typing fields focus in ink, not the terracotta accent: an autofocused
+ * empty email box looked like a validation error (live QA BUG-1). */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline-color: var(--ink);
+}
+
+/* A field the app has judged invalid. */
+input[aria-invalid="true"],
+select[aria-invalid="true"] {
+  border-color: var(--negative) !important;
+}
