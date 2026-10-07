@@ -335,7 +335,7 @@ export function deriveMarginalRate(args: {
  *      capital-gains splits properly via `activeSlabGrossAnnual`).
  *   2. `annual_income` (the engine field — used when streams are absent).
  */
-export function deriveMarginalRateForUser(user: UserPayload): string {
+export function deriveMarginalRateForUser(user: UserPayload, fallback = '0'): string {
   const slabFromStreams = user.income_streams && user.income_streams.length > 0
     ? activeSlabGrossAnnual(user.income_streams)
     : D(0);
@@ -344,7 +344,9 @@ export function deriveMarginalRateForUser(user: UserPayload): string {
   const grossAnnual = slabFromStreams.gt(0)
     ? slabFromStreams
     : D(user.annual_income);
-  if (grossAnnual.lte(0)) return '0';
+  // No income on the profile: keep the caller's rate rather than a 0% that
+  // would read as "no tax" (lib/marginal-rate).
+  if (grossAnnual.lte(0)) return fallback;
   const derived = deriveMarginalRate({
     grossAnnual,
     country: user.country,
@@ -355,7 +357,7 @@ export function deriveMarginalRateForUser(user: UserPayload): string {
     incomeType: user.income_type,
     stateMarginalRate: user.state_marginal_rate,
   });
-  return derived?.toString() ?? '0';
+  return derived?.toString() ?? fallback;
 }
 
 // ─── Tax walkers ───────────────────────────────────────────────────────────
