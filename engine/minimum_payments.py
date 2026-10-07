@@ -113,7 +113,19 @@ def compute_minimum_payment(
     The floor holds unless the card owes less: then the minimum is the lot.
     """
     if loan.loan_type != LoanType.CREDIT_CARD:
+        if loan.pre_emi_months_remaining > 0:
+            # Pre-EMI: the bank collects interest only (P2-14). Counting the
+            # full EMI as committed made the difference vanish each month.
+            return interest_accrued if interest_accrued > 0 else loan.outstanding * loan.nominal_rate / D("12")
         return loan.scheduled_emi
+
+    # The card's own market sets its rules (M3): a USD card held by an
+    # Indian resident follows US issuer formulas, not a ₹200 floor in $.
+    ccy = (loan.currency or "").upper()
+    if ccy == "INR":
+        country = Country.IN
+    elif ccy == "USD":
+        country = Country.US
 
     # User override wins over the bank-specific formula. Honoured even in
     # Simple Mode — the override is an explicit user choice, not a heuristic.
