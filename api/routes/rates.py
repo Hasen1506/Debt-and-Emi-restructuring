@@ -17,6 +17,7 @@ meeting list. It does not change the rate history: corrections to that go
 in the verified table, where they are reviewed.
 """
 
+import hmac
 import json
 import os
 from datetime import date, datetime
@@ -166,7 +167,7 @@ def post_rate_update(
     ADMIN_RATE_UPDATE_TOKEN env var.
     """
     expected = os.environ.get("ADMIN_RATE_UPDATE_TOKEN", "")
-    if not expected or x_admin_token != expected:
+    if not expected or not hmac.compare_digest(x_admin_token.encode(), expected.encode()):
         raise HTTPException(status_code=403, detail="Invalid admin token.")
     if req.country not in ("IN", "US"):
         raise HTTPException(status_code=400, detail="country must be IN or US.")
