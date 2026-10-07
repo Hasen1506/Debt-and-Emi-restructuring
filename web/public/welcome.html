@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RightDue — Pay off debt faster, the right way</title>
+<meta name="description" content="RightDue is a personal debt restructuring and payoff optimiser for India and the USA. Analyse loans and EMIs, build avalanche or snowball payoff plans, spot refinancing opportunities, and decide between investing and prepaying.">
+<meta property="og:title" content="RightDue — Personal debt payoff optimiser">
+<meta property="og:description" content="Restructure loans and EMIs, build a payoff plan, and know when to prepay vs invest. For India and the USA.">
+<meta property="og:url" content="https://rightdue.app">
+<meta property="og:type" content="website">
+<style>
+  :root{--ink:#0f1b2d;--muted:#5b6778;--bg:#f7f8fb;--card:#fff;--brand:#0e7c66;--brand2:#0a5c4c;--line:#e3e7ee}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6}
+  a{color:var(--brand)}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  header{position:sticky;top:0;background:rgba(247,248,251,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:5}
+  .nav{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .logo{font-weight:800;font-size:22px;letter-spacing:-.02em;color:var(--ink);text-decoration:none}
+  .logo span{color:var(--brand)}
+  .nav a.btn{padding:9px 18px}
+  .btn{display:inline-block;background:var(--brand);color:#fff;text-decoration:none;font-weight:600;border-radius:10px;padding:13px 24px;transition:background .15s}
+  .btn:hover{background:var(--brand2)}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .hero{padding:84px 0 64px;text-align:center}
+  .pill{display:inline-block;font-size:13px;font-weight:600;color:var(--brand);background:#e3f4ef;border-radius:99px;padding:5px 14px;margin-bottom:20px}
+  h1{font-size:clamp(34px,6vw,58px);line-height:1.08;letter-spacing:-.03em;margin:0 0 18px}
+  .lead{font-size:clamp(17px,2.2vw,20px);color:var(--muted);max-width:680px;margin:0 auto 32px}
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  section{padding:64px 0}
+  h2{font-size:clamp(26px,4vw,36px);letter-spacing:-.02em;margin:0 0 12px;text-align:center}
+  .sub{color:var(--muted);text-align:center;max-width:640px;margin:0 auto 40px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px}
+  .card h3{margin:10px 0 8px;font-size:18px}
+  .card p{margin:0;color:var(--muted);font-size:15px}
+  .ico{width:42px;height:42px;border-radius:12px;background:#e3f4ef;display:flex;align-items:center;justify-content:center;font-size:21px}
+  .steps{counter-reset:s}
+  .steps .card{position:relative;padding-top:56px}
+  .steps .card::before{counter-increment:s;content:counter(s);position:absolute;top:22px;left:26px;width:26px;height:26px;border-radius:50%;background:var(--brand);color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+  .alt{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  ul.tick{list-style:none;padding:0;margin:14px 0 0}
+  ul.tick li{padding-left:26px;position:relative;margin:8px 0;color:var(--muted)}
+  ul.tick li::before{content:"✓";position:absolute;left:0;color:var(--brand);font-weight:700}
+  .about{max-width:720px;margin:0 auto;text-align:center;color:var(--muted)}
+  .note{font-size:13px;color:var(--muted);max-width:820px;margin:0 auto;text-align:center}
+  footer{border-top:1px solid var(--line);padding:32px 0;font-size:14px;color:var(--muted)}
+  .foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="/">Right<span>Due</span></a>
+    <a class="btn" href="/login">Sign in</a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div class="pill">For borrowers in India 🇮🇳 and the USA 🇺🇸</div>
+    <h1>Get out of debt faster,<br>the right way.</h1>
+    <p class="lead">RightDue is a personal debt restructuring and payoff optimiser. Add your loans, EMIs and credit cards, and get a clear, step-by-step plan to pay less interest and become debt-free sooner.</p>
+    <div class="cta">
+      <a class="btn" href="/login">Get started</a>
+      <a class="btn ghost" href="#how">How it works</a>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>Everything your debt plan needs</h2>
+      <p class="sub">One place to see every loan, understand what it really costs, and decide what to pay first.</p>
+      <div class="grid">
+        <div class="card"><div class="ico">📊</div><h3>Loan &amp; EMI analysis</h3><p>See the true cost of each loan: interest rate, remaining tenure, total interest left, and how each EMI splits between principal and interest.</p></div>
+        <div class="card"><div class="ico">🎯</div><h3>Avalanche or snowball plans</h3><p>Compare highest-interest-first against smallest-balance-first, and pick the payoff order that fits your budget and motivation.</p></div>
+        <div class="card"><div class="ico">🔁</div><h3>Refinancing alerts</h3><p>Flags loans where a balance transfer, consolidation or lower-rate refinance could cut your interest meaningfully.</p></div>
+        <div class="card"><div class="ico">⚖️</div><h3>Invest or prepay?</h3><p>Plain-language guidance on whether spare money should go to prepaying a loan or to investing, based on your rates and goals.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="alt">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <p class="sub">From a messy list of loans to a payoff date in a few minutes.</p>
+      <div class="grid steps">
+        <div class="card"><h3>Add your debts</h3><p>Home, car, personal and education loans, credit cards and EMIs, with balances, rates and tenures.</p></div>
+        <div class="card"><h3>Set your budget</h3><p>Tell RightDue how much you can put toward debt each month, including any extra above your EMIs.</p></div>
+        <div class="card"><h3>Get your plan</h3><p>See your optimised payoff order, debt-free date, interest saved, and where refinancing could help.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap split">
+      <div class="card">
+        <h3>🇮🇳 Built for India</h3>
+        <ul class="tick">
+          <li>EMI-based home, vehicle, personal and education loans</li>
+          <li>Credit card dues and no-cost EMIs</li>
+          <li>Amounts in ₹, with lakh and crore formatting</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>🇺🇸 Built for the USA</h3>
+        <ul class="tick">
+          <li>Credit cards, auto loans, student loans and mortgages</li>
+          <li>APR-based payoff modelling and balance transfers</li>
+          <li>Amounts in US dollars</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="about" class="alt">
+    <div class="wrap">
+      <h2>About RightDue</h2>
+      <p class="about">RightDue was founded in June 2026 by Vijeya Hasen K H to make debt restructuring simple and transparent for everyday borrowers. We are an independent, bootstrapped company based in India, serving users in India and the United States.</p>
+      <p class="about">Questions or partnerships: <a href="mailto:vijeya@rightdue.app">vijeya@rightdue.app</a></p>
+    </div>
+  </section>
+
+  <section>
+    <p class="note wrap">RightDue provides educational tools and personalised estimates to help you understand your options. Recommendations are reviewed by qualified professionals before they are shared with consumers. Results depend on the information you provide and your lender's terms. RightDue is not a lender and does not offer loans.</p>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div>© 2026 RightDue. All rights reserved.</div>
+    <div><a href="mailto:vijeya@rightdue.app">vijeya@rightdue.app</a> · <a href="/login">Sign in</a></div>
+  </div>
+</footer>
+</body>
+</html>

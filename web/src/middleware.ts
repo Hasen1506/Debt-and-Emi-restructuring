@@ -33,6 +33,15 @@ export function middleware(req: NextRequest) {
   const url = req.nextUrl;
 
   if (!AUTH_DISABLED && !req.cookies.get(SESSION_COOKIE)) {
+    // Signed-out visitors to the root see the public landing page
+    // (web/public/welcome.html) instead of being bounced to /login, so
+    // rightdue.app explains the product to anyone who visits.
+    if (url.pathname === '/') {
+      const landing = url.clone();
+      landing.pathname = '/welcome.html';
+      landing.search = '';
+      return NextResponse.rewrite(landing);
+    }
     const dest = url.clone();
     dest.pathname = '/login';
     dest.search = `?next=${encodeURIComponent(url.pathname + url.search)}`;
@@ -62,6 +71,7 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!login|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|api|art/).*)',
+    '/((?!login|welcome\\.html|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|api|art/).*)',
   ],
 };
+
