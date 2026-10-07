@@ -18,6 +18,10 @@ import { loanClears } from './plan-milestones';
 import { isOpenCurrentLoan } from '@/lib/plan-controls';
 import { resetDate } from '@/lib/rate-decision';
 import { ADD_LIFE_EVENT } from '@/components/lifecycle/LifecycleEventsPanel';
+import { deriveMetrics } from '@/lib/derived';
+import { GST_RATE_IN } from '@/lib/gst';
+import { reconcileSchedule, scheduleColumnHelp } from '@/lib/schedule-reconcile';
+import type { StoredProfile } from '@/lib/user-store';
 
 const LOAN_SHORT: Record<string, string> = {
   home_loan: 'Home',
@@ -177,6 +181,15 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   const foreign = Array.from(new Set(loanCols.map((l) => loanCurrency(l, plan.user.country)).filter((c) => c !== ccy)));
   const mixed = foreign.length > 0;
 
+  // How the columns add up to what's owed today (lib/schedule-reconcile).
+  const owedToday = Number(deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate } as StoredProfile).totalOutstanding);
+  const totals = reconcileSchedule(rows, owedToday);
+  const gstApplies = plan.user.country === 'IN' && plan.user.loans.some((l) => l.loan_type === 'credit_card');
+  const help: Record<string, string> = {
+    ...scheduleColumnHelp(gstApplies, GST_RATE_IN.mul(100).toFixed(0)),
+    [`TOTAL (${ccy})`]: 'Everything paid that month (principal + interest), in your currency.',
+  };
+
   const eventRows = rows.filter((r) => r.event);
   const visibleRows = expanded ? rows : eventRows;
   const totalCount = rows.length || plan.trajectory.length;
@@ -254,6 +267,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                 ].map((h, i) => (
                   <th
                     key={i}
+                    title={help[h]}
                     style={{
                       padding: '6px 10px',
                       textAlign: i < 3 ? 'left' : 'right',
@@ -302,10 +316,26 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             </tbody>
           </table>
         </div>
+        <ScheduleFooter totals={totals} fc={fc} gstApplies={gstApplies} />
         </>
       )}
       <RateResetAlert plan={plan} />
     </section>
+  );
+}
+
+/** Principal + interest = cash paid, and principal against today's balance. */
+function ScheduleFooter({ totals, fc, gstApplies }: { totals: ReturnType<typeof reconcileSchedule>; fc: (v: string | number) => string; gstApplies: boolean }) {
+  return (
+    <div role="note" aria-label="How the schedule adds up" style={{ padding: '8px 0', fontSize: 10, color: L_T.muted, lineHeight: 1.6 }}>
+      <strong style={{ color: L_T.ink, letterSpacing: '0.06em' }}>OVER THE PLAN · </strong>
+      PRINCIPAL {fc(totals.principal.toFixed(0))} + INTEREST {fc(totals.interest.toFixed(0))}
+      {gstApplies ? ' (GST ON CARD INTEREST INCLUDED)' : ''} = {fc(totals.cash.toFixed(0))} PAID.{' '}
+      {totals.tiesOut
+        ? `Principal repaid matches the ${fc(totals.outstanding.toFixed(0))} you owe today.`
+        : `Principal repaid differs from the ${fc(totals.outstanding.toFixed(0))} you owe today by ${fc(Math.abs(totals.gap).toFixed(0))}: loans that start later, or a balance the plan doesn't clear.`}{' '}
+      A payoff month is more than the balance because that month&apos;s interest is added first.
+    </div>
   );
 }
 
