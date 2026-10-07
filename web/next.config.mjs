@@ -13,6 +13,9 @@ const nextConfig = {
       // Plan decisions are rows in Activity's history since R4.
       { source: '/decisions', destination: '/activity', permanent: false },
       { source: '/tools', destination: '/goals#tools', permanent: false },
+      // Roadmap PR I: Big purchase is a mode of New debt check; Right time is retired.
+      { source: '/tools/purchase', destination: '/tools/new-debt?mode=purchase', permanent: false },
+      { source: '/tools/right-time', destination: '/tools/new-debt', permanent: false },
     ];
   },
 };
