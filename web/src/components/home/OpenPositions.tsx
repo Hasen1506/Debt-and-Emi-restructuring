@@ -18,17 +18,9 @@ import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { LBracket, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
 import { StaleCardNudge } from './StaleCardNudge';
-import { useOwedNow, type EmiStatus } from '@/lib/owed-now';
+import { useOwedNow } from '@/lib/owed-now';
+import { convertedBalanceLine, emiStatusLine } from '@/lib/position-status';
 import { getCountryToday, localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
-
-/** This month's EMI, by loan: said under its balance. */
-const STATUS_WORDS: Record<EmiStatus, (mon: string, next: string) => string> = {
-  first: (_mon, next) => `FIRST EMI IN ${next}`,
-  paid: (mon) => `AFTER ${mon} EMI`,
-  due: (mon) => `${mon} EMI TO PAY`,
-  part: (mon) => `${mon} EMI PART-PAID`,
-  missed: (mon) => `${mon} EMI NOT PAID`,
-};
 
 export function OpenPositions({ profile, m }: { profile: StoredProfile; m: DerivedMetrics }) {
   const [open, setOpen] = useState<number | null>(null);
@@ -132,6 +124,11 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
               </div>
               <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>{fc(owed.toFixed(0))}</div>
+                {ccy !== userCcy && !noFx && (
+                  <div style={{ fontSize: 10, color: L_T.muted }}>
+                    {convertedBalanceLine(formatCurrencyWhole(m.toUserCcy(owed, loan).toFixed(0), userCcy))}
+                  </div>
+                )}
                 {status && (
                   <div
                     style={{
@@ -140,12 +137,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                       color: status === 'paid' ? L_T.positive : status === 'due' ? L_T.muted : L_T.negative,
                     }}
                   >
-                    {STATUS_WORDS[status](mon, nextMon)}
-                  </div>
-                )}
-                {ccy !== userCcy && !noFx && (
-                  <div style={{ fontSize: 10, color: L_T.muted }}>
-                    ≈ {formatCurrencyWhole(m.toUserCcy(owed, loan).toFixed(0), userCcy)}
+                    {emiStatusLine(status, mon, nextMon, isCard ? 'MINIMUM' : 'EMI', !gaps.includes('emi') && d.required.gt(0) ? fc(d.required.toFixed(0)) : null)}
                   </div>
                 )}
               </div>
