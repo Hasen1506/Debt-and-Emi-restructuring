@@ -18,6 +18,7 @@
 import type Decimal from 'decimal.js';
 import type { LoanPayload, Country, IncomeType, TaxRegimeIN } from '@/lib/api';
 import { computeBreakdown, fmt } from '@/lib/effective-apr';
+import { trueApr, trueAprInputsFromBreakdown } from '@/lib/true-apr';
 import { RATE_CARD_AS_OF } from '@/lib/banks';
 import { RateRangeHint } from '@/components/RateRangeHint';
 
@@ -149,6 +150,7 @@ export function EffectiveAprBreakdown({
       <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
         {summary}
       </div>
+      <TrueAnnualCost loan={loan} lines={lines} />
       <RateRangeHint
         bank={loan.bank}
         loanType={loan.loan_type}
@@ -169,6 +171,37 @@ export function EffectiveAprBreakdown({
         GST + fee assumptions reflect rate cards verified {RATE_CARD_AS_OF}.
         Verify against your latest bank statement.
       </div>
+    </div>
+  );
+}
+
+/** The true annual cost from the cash flows (lib/true-apr, the engine's
+ *  engine/true_apr.py): monthly compounding, GST, fees and the tax benefit,
+ *  each shown as what it adds or takes off. */
+export function TrueAnnualCost({ loan, lines }: { loan: LoanPayload; lines: ReturnType<typeof computeBreakdown>['lines'] }) {
+  const t = trueApr(trueAprInputsFromBreakdown(loan, lines));
+  const row = (label: string, v: number) =>
+    Math.abs(v) < 0.00005 ? null : (
+      <div key={label} style={{ display: 'contents' }}>
+        <span>{label}</span>
+        <span className="num" style={{ fontFamily: 'var(--font-mono)', textAlign: 'right' }}>
+          {v < 0 ? '−' : '+'} {fmt(Math.abs(v))}
+        </span>
+      </div>
+    );
+  return (
+    <div aria-label="True annual cost" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 12px', fontSize: 12, color: 'var(--muted)' }}>
+      <span style={{ gridColumn: '1 / -1', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>
+        True annual cost (compounded monthly)
+      </span>
+      <span>Nominal rate</span>
+      <span className="num" style={{ fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{fmt(t.nominal)}</span>
+      {row('Monthly compounding', t.compounding)}
+      {row('Processing fee and insurance', t.fees)}
+      {row('GST on interest and fees', t.gst)}
+      {row('Tax benefit', t.tax)}
+      <span style={{ fontWeight: 700, color: 'var(--ink)' }}>True annual cost</span>
+      <span className="num" style={{ fontFamily: 'var(--font-mono)', textAlign: 'right', fontWeight: 700, color: 'var(--ink)' }}>= {fmt(t.apr)}</span>
     </div>
   );
 }
