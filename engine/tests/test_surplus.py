@@ -180,10 +180,10 @@ def test_total_minimums_no_op_when_loan_currency_matches_user_ccy():
     assert total == D("34713")
 
 
-def test_total_minimums_missing_fx_rate_falls_back_to_parity():
-    """If the user supplies a loan in a foreign currency but no FX rate for
-    it, the engine treats it as parity (rate=1) — wrong number but bounded
-    behaviour. UI is expected to surface this gap as a warning."""
+def test_total_minimums_missing_fx_rate_never_assumes_parity():
+    """H4: a foreign loan with no FX rate used to be counted 1:1 (₹40,000 as
+    $40,000). The engine now refuses instead of guessing; the API rejects
+    such a request with a 422 before it gets here."""
     user = User(
         country=Country.US, income_type=IncomeType.SALARIED,
         annual_income=D("60000"), monthly_income=D("5000"),
@@ -200,10 +200,10 @@ def test_total_minimums_missing_fx_rate_falls_back_to_parity():
         rate_type="floating", tenure_months_remaining=240,
         scheduled_emi=D("40000"), currency="INR",
     )
-    total = compute_total_minimums(user, [in_home])
-    # Parity fallback: 40000 INR → 40000 (no conversion). Engine doesn't
-    # crash; it returns a sum that's clearly off-scale for USD context.
-    assert total == D("40000")
+    import pytest
+    from engine.surplus import MissingFxRate
+    with pytest.raises(MissingFxRate):
+        compute_total_minimums(user, [in_home])
 
 
 # ─── allocate_surplus ─────────────────────────────────────────────────────
