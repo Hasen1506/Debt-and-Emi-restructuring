@@ -192,8 +192,11 @@ ASSET_DEFAULT_RETURNS_US = {
 }
 
 
-def lookup_asset_return(asset_type: str, country: Country = Country.IN) -> Decimal:
-    """Default nominal annual return for an asset class. Unknown → 6% conservative."""
+def lookup_asset_return(asset_type: str, country: Country = Country.IN, overrides: Optional[dict] = None) -> Decimal:
+    """Default nominal annual return for an asset class. Unknown → 6% conservative.
+    `overrides` (the user's own returns per type, roadmap PR D) win."""
+    if overrides and asset_type in overrides:
+        return overrides[asset_type]
     table = ASSET_DEFAULT_RETURNS_IN if country == Country.IN else ASSET_DEFAULT_RETURNS_US
     return table.get(asset_type, D("0.06"))
 
