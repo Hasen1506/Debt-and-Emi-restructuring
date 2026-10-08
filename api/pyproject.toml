@@ -12,6 +12,7 @@ dependencies = [
     "aiosqlite==0.20.0",
     "python-dotenv==1.2.4",
     "resend==2.5.1",
+    "pypdf==6.19.0",
 ]
 
 [project.optional-dependencies]

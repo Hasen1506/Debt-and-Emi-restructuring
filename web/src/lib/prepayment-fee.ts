@@ -20,7 +20,7 @@
 import type { Country, LoanPayload, LoanType } from './api';
 import { loanMarket } from './currency';
 
-export type FeeStatus = 'assumed' | 'unknown' | 'entered';
+export type FeeStatus = 'assumed' | 'unknown' | 'entered' | 'kfs';
 
 export const RBI_PREPAYMENT_RULE = 'RBI (Pre-payment Charges on Loans) Directions, 2025, para 5(i), 2 July 2025';
 export const RBI_PREPAYMENT_URL = 'https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12878&Mode=0';
@@ -48,9 +48,14 @@ export function prepaymentFeeDefault(loanType: LoanType, rateType: string, marke
 /** What the form shows for a loan's fee: the user's own figure, or the
  *  default with its one-line reason. */
 export function feeShown(
-  loan: Pick<LoanPayload, 'loan_type' | 'rate_type' | 'currency' | 'prepayment_penalty_pct'>,
+  loan: Pick<LoanPayload, 'loan_type' | 'rate_type' | 'currency' | 'prepayment_penalty_pct' | 'kfs_fields'>,
   country: Country,
 ): { status: FeeStatus; placeholder: string; hint: string } {
+  // Read from the loan's own Key Facts Statement (roadmap PR G): it replaces
+  // any default, the RBI one included.
+  if ((loan.prepayment_penalty_pct ?? '').trim() !== '' && loan.kfs_fields?.includes('prepayment_penalty_pct')) {
+    return { status: 'kfs', placeholder: '', hint: 'From your Key Facts Statement. Of any extra you pay.' };
+  }
   if ((loan.prepayment_penalty_pct ?? '').trim() !== '') {
     return { status: 'entered', placeholder: '', hint: 'Of any extra you pay.' };
   }

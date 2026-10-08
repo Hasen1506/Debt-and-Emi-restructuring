@@ -1,0 +1,19 @@
+SYNTHETIC SAMPLE - not a real loan document (RightDue test fixture)
+Illustration Bank Limited
+Key Facts Statement (figures from the hypothetical loan in Annex B of the RBI circular)
+Part 1 (Interest rate and fees/charges)
+1 Loan proposal/ account No. ILL/0001 Type of Loan Personal Loan
+2 Sanctioned Loan amount (in Rupees) 20,000
+4 Loan term (year/months/days) 24 months
+5 Instalment details
+Type of instalments Number of EPIs EPI (₹) Commencement of repayment, post sanction
+Monthly 24 970 30 days
+6 Interest rate (%) and type (fixed or floating or hybrid) 15% Fixed
+8 Fee/ Charges
+(i) Processing fees One-time ₹240 - -
+(ii) Insurance charges - - One-time ₹160
+(iii) Valuation fees - - - -
+(iv) Any other (please specify) - - - -
+9 Annual Percentage Rate (APR) (%) 17.07%
+10 Details of Contingent Charges (in ₹ or %, as applicable)
+(iii) Foreclosure charges, if applicable 3% of principal outstanding

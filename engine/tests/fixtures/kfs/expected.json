@@ -1,0 +1,61 @@
+{
+  "annex_b": {
+    "apr": "0.1707",
+    "emi": "970",
+    "insurance": "160",
+    "interest_rate": "0.15",
+    "prepayment_charge": "0.03",
+    "processing_fee": "240",
+    "rate_type": "fixed",
+    "sanctioned_amount": "20000",
+    "tenure_months": "24"
+  },
+  "home_floating": {
+    "apr": "0.0808",
+    "benchmark": "RBI Repo Rate",
+    "benchmark_rate": "0.0525",
+    "emi": "41822",
+    "final_rate": "0.08",
+    "interest_rate": "0.08",
+    "lender": "Example Housing Finance Limited",
+    "loan_type": "home_loan",
+    "prepayment_charge": "0",
+    "processing_fee": "25000",
+    "rate_type": "floating",
+    "sanctioned_amount": "5000000",
+    "spread": "0.0275",
+    "tenure_months": "240",
+    "valuation": "5000"
+  },
+  "mismatch": {
+    "apr": "0.155",
+    "emi": "10500"
+  },
+  "personal_fixed": {
+    "apr": "0.1468",
+    "emi": "11505",
+    "emi_count": "60",
+    "first_emi_date": "2026-11-05",
+    "insurance": "3000",
+    "interest_rate": "0.135",
+    "lender": "Sample Bank Limited",
+    "loan_type": "personal_loan",
+    "prepayment_charge": "0.04",
+    "processing_fee": "10000",
+    "rate_type": "fixed",
+    "sanctioned_amount": "500000",
+    "tenure_months": "60"
+  },
+  "sanction_letter": {
+    "emi": "16704",
+    "first_emi_date": "2023-04-05",
+    "interest_rate": "0.0925",
+    "lender": "Demo Finance Limited",
+    "loan_type": "auto_loan",
+    "prepayment_charge": "0.05",
+    "processing_fee": "4000",
+    "rate_type": "fixed",
+    "sanctioned_amount": "800000",
+    "tenure_months": "60"
+  }
+}

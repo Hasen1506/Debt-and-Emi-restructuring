@@ -44,10 +44,11 @@ def test_fixed_cards_and_us_loans_are_unknown_with_no_fee_assumed():
 
 
 def test_a_banks_curated_fee_never_overrides_rbi_on_a_floating_indian_loan():
-    # rate_cards.py has per-bank "industry norm" personal-loan fees (3–5%).
     # On a floating-rate loan RBI bars the fee, so the suggestion is 0.
     for bank in ("SBI", "HDFC Bank", "ICICI Bank", "Axis Bank", "Kotak Mahindra", "PNB"):
         t = lookup_loan_terms(bank, Country.IN, LoanType.PERSONAL, rate_type="floating")
         assert t.prepayment_penalty_pct == D("0"), bank
-    # Fixed rate: no rule fixes it, so the bank's indicative entry stands.
-    assert lookup_loan_terms("HDFC Bank", Country.IN, LoanType.PERSONAL, rate_type="fixed").prepayment_penalty_pct > 0
+    # Fixed rate: no rule fixes it. Roadmap PR G removed the per-bank
+    # "industry norm" fees (unsourced), so nothing is suggested; the user's
+    # own agreement or Key Facts Statement is the only source.
+    assert lookup_loan_terms("HDFC Bank", Country.IN, LoanType.PERSONAL, rate_type="fixed").prepayment_penalty_pct is None

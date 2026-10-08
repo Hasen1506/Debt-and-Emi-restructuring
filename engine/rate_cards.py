@@ -113,11 +113,6 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
             cash_advance_low=D("0.36"), cash_advance_high=D("0.48"),
         ),
         processing_fee_pct=D("0.0050"),
-        # SBI Xpress PL: ~3% foreclosure within first 6 months (typical IN PSU PL).
-        personal_loan_terms=LoanTerms(
-            prepayment_penalty_pct=D("0.03"), prepay_lock_in_months=6,
-            is_indicative=True, last_verified="2026-05 industry norms — confirm SoC",
-        ),
     ),
     InstitutionRateCard(
         institution_id="IN_HDFC", country=Country.IN, name="HDFC Bank", scrape_tier="A",
@@ -131,11 +126,6 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
         ),
         processing_fee_pct=D("0.0050"),
         # HDFC PL: ~4% in first 12mo, part-payment ~once per loan-year (typical HDFC PL terms).
-        personal_loan_terms=LoanTerms(
-            prepayment_penalty_pct=D("0.04"),
-            prepay_lock_in_months=12, part_payment_freq_months=12,
-            is_indicative=True, last_verified="2026-05 industry norms — confirm SoC",
-        ),
     ),
     InstitutionRateCard(
         institution_id="IN_ICICI", country=Country.IN, name="ICICI Bank", scrape_tier="A",
@@ -149,11 +139,6 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
         ),
         processing_fee_pct=D("0.0050"),
         # ICICI PL: ~5% in first 6mo per published policy; part-payment ~monthly cap.
-        personal_loan_terms=LoanTerms(
-            prepayment_penalty_pct=D("0.05"),
-            prepay_lock_in_months=6, part_payment_freq_months=1,
-            is_indicative=True, last_verified="2026-05 industry norms — confirm SoC",
-        ),
     ),
     InstitutionRateCard(
         institution_id="IN_AXIS", country=Country.IN, name="Axis Bank", scrape_tier="A",
@@ -165,11 +150,6 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
         ),
         processing_fee_pct=D("0.0050"),
         # Axis PL: ~4% in first 6mo, part-payment ~biannual (typical Axis PL).
-        personal_loan_terms=LoanTerms(
-            prepayment_penalty_pct=D("0.04"),
-            prepay_lock_in_months=6, part_payment_freq_months=6,
-            is_indicative=True, last_verified="2026-05 industry norms — confirm SoC",
-        ),
     ),
     InstitutionRateCard(
         institution_id="IN_KOTAK", country=Country.IN, name="Kotak Mahindra", scrape_tier="A",
@@ -181,11 +161,6 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
         ),
         processing_fee_pct=D("0.0050"),
         # Kotak PL: ~5% in first 12mo, quarterly part-payment cap (typical Kotak PL).
-        personal_loan_terms=LoanTerms(
-            prepayment_penalty_pct=D("0.05"),
-            prepay_lock_in_months=12, part_payment_freq_months=3,
-            is_indicative=True, last_verified="2026-05 industry norms — confirm SoC",
-        ),
     ),
     InstitutionRateCard(
         institution_id="IN_PNB", country=Country.IN, name="PNB", scrape_tier="A",
@@ -194,10 +169,6 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
         auto_loan=RateRange(D("0.0825"), D("0.0975")),
         processing_fee_pct=D("0.0050"),
         # PNB (PSU) — typically more lenient PL terms; ~2% in first 6mo.
-        personal_loan_terms=LoanTerms(
-            prepayment_penalty_pct=D("0.02"), prepay_lock_in_months=6,
-            is_indicative=True, last_verified="2026-05 industry norms — confirm SoC",
-        ),
     ),
 ]
 
@@ -447,40 +418,24 @@ INDIA_FINTECH: list[InstitutionRateCard] = [
         is_indicative=True,
         personal_loan=RateRange(D("0.1700"), D("0.3000")),
         processing_fee_pct=D("0.0250"),
-        personal_loan_terms=LoanTerms(
-            prepayment_penalty_pct=D("0"), prepay_lock_in_months=3,
-            is_indicative=True, last_verified="2026-05 fintech NBFC norms — confirm in doc",
-        ),
     ),
     InstitutionRateCard(
         institution_id="IN_CRED", country=Country.IN, name="Cred", scrape_tier="C",
         is_indicative=True,
         personal_loan=RateRange(D("0.1200"), D("0.1800")),
         processing_fee_pct=D("0.0100"),
-        personal_loan_terms=LoanTerms(
-            prepayment_penalty_pct=D("0"), prepay_lock_in_months=3,
-            is_indicative=True, last_verified="2026-05 Cred Cash terms — confirm in doc",
-        ),
     ),
     InstitutionRateCard(
         institution_id="IN_GPAY", country=Country.IN, name="Google Pay", scrape_tier="C",
         is_indicative=True,
         personal_loan=RateRange(D("0.1200"), D("0.2400")),
         processing_fee_pct=D("0.0200"),
-        personal_loan_terms=LoanTerms(
-            prepayment_penalty_pct=D("0"), prepay_lock_in_months=3,
-            is_indicative=True, last_verified="2026-05 partner-NBFC norms (DMI / Hero) — confirm",
-        ),
     ),
     InstitutionRateCard(
         institution_id="IN_PAISABAZAAR", country=Country.IN, name="PaisaBazaar", scrape_tier="C",
         is_indicative=True,
         personal_loan=RateRange(D("0.1100"), D("0.2400")),
         processing_fee_pct=D("0.0200"),
-        personal_loan_terms=LoanTerms(
-            prepayment_penalty_pct=D("0"), prepay_lock_in_months=3,
-            is_indicative=True, last_verified="2026-05 aggregator partner norms — confirm",
-        ),
     ),
 ]
 
@@ -722,6 +677,13 @@ def _country_default_terms(
         is_indicative=True,
         last_verified="2026-05 industry norms",
     )
+    unknown = lambda: LoanTerms(  # noqa: E731
+        prepayment_penalty_pct=None,
+        prepay_lock_in_months=None,
+        part_payment_freq_months=None,
+        is_indicative=True,
+        last_verified="not known: check the loan agreement or Key Facts Statement",
+    )
     if country == Country.IN:
         if loan_type == LoanType.CREDIT_CARD:
             return reg(D("0"), 0, None, "industry standard — no prepay penalty on cards")
@@ -729,12 +691,11 @@ def _country_default_terms(
             # engine/prepayment_fee.py: RBI (Pre-payment Charges on Loans)
             # Directions, 2025, para 5(i), July 2, 2025.
             return reg(D("0"), 0, None, "RBI Pre-payment Charges Directions, 2 Jul 2025, para 5(i)")
-        if loan_type == LoanType.HOME:
-            return norm(D("0.02"), 12, None)
-        if loan_type == LoanType.PERSONAL:
-            return norm(D("0.03"), 6, None)
-        if loan_type == LoanType.AUTO:
-            return norm(D("0.05"), 6, None)
+        # A fixed-rate loan's fee is whatever its own agreement / Key Facts
+        # Statement says; no rule fixes it, so none is suggested (roadmap
+        # PR G removed the unsourced 2-5% "industry norm" figures here).
+        if loan_type in (LoanType.HOME, LoanType.PERSONAL, LoanType.AUTO):
+            return unknown()
         if loan_type == LoanType.EDUCATION:
             return reg(D("0"), 0, None, "RBI master direction")
         return norm(D("0"), 0, None)

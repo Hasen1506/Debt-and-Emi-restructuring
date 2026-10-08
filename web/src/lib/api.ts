@@ -3,6 +3,7 @@
  * call sites convert with decimal.js when arithmetic is needed and with
  * `formatINR` / `formatUSD` for display.
  */
+import type { KfsReadResponse } from './kfs';
 import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
 import { authErrorMessage } from './auth-error';
@@ -76,6 +77,10 @@ export interface LoanPayload {
    *  Unset on loans saved before the choice had "Not sure". The API
    *  ignores it. */
   rate_type_assumed?: boolean;
+  /** Fields still holding the values read from the loan's Key Facts
+   *  Statement (roadmap PR G, lib/kfs). Editing a field removes it. The
+   *  API ignores it. */
+  kfs_fields?: string[];
   loan_type: LoanType;
   bank: string;
   outstanding: string;
@@ -1335,6 +1340,10 @@ export const api = {
     alt_name?: string;
     minimum_idle_threshold?: string;
   }) => postWithFieldErrors<CashYieldResponse>('/api/cash-yield', req),
+
+  /** Read a Key Facts Statement / sanction letter (roadmap PR G). Saves nothing. */
+  kfsRead: (req: { text?: string; pdf_base64?: string; as_of?: string }) =>
+    postWithFieldErrors<KfsReadResponse>('/api/kfs/read', req),
 
   loanCheck: (req: LoanCheckRequest) =>
     postWithFieldErrors<LoanCheckResponse>('/api/loan-check', req),

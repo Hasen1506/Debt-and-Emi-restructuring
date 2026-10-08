@@ -1,0 +1,16 @@
+SYNTHETIC SAMPLE - not a real loan document (RightDue test fixture)
+Mismatch Bank Limited
+Key Facts Statement
+Part 1 (Interest rate and fees/charges)
+1 Loan proposal/ account No. MBL/PL/77 Type of Loan Personal Loan
+2 Sanctioned Loan amount (in Rupees) ₹3,00,000
+4 Loan term (year/months/days) 36 months
+5 Instalment details
+Type of instalments Number of EPIs EPI (₹) Commencement of repayment, post sanction
+Monthly 36 10,500 30 days
+6 Interest rate (%) and type (fixed or floating or hybrid) 12.00% Fixed
+8 Fee/ Charges
+(i) Processing fees One-time ₹5,000 - -
+9 Annual Percentage Rate (APR) (%) 15.50%
+10 Details of Contingent Charges (in ₹ or %, as applicable)
+(iii) Foreclosure charges, if applicable 5% of principal outstanding

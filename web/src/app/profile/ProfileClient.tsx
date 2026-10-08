@@ -95,6 +95,9 @@ import {
 } from '@/lib/tax-brackets';
 import type { LoanTermsResponse } from '@/lib/api';
 import { feeShown, RBI_PREPAYMENT_RULE } from '@/lib/prepayment-fee';
+import { dropKfsFields, kfsNote } from '@/lib/kfs';
+import { KfsImport } from '@/components/profile/KfsImport';
+import { MarketRateLine } from '@/components/profile/MarketRateLine';
 
 /**
  * Format a loan-terms suggestion label. Honest about provenance:
@@ -490,7 +493,14 @@ function ProfileEditor({
   }, [triplets, country]);
 
   function updateLoan(idx: number, patch: Partial<LoanPayload>) {
-    setLoans((cur) => cur.map((l, i) => (i === idx ? patchLoanKeepingRateType(l, patch, country) : l)));
+    setLoans((cur) =>
+      cur.map((l, i) =>
+        i === idx
+          ? // A field changed here stops being "from your Key Facts Statement" (lib/kfs).
+            { ...patchLoanKeepingRateType(l, patch, country), kfs_fields: dropKfsFields(l, patch) }
+          : l,
+      ),
+    );
   }
 
   function addLoan() {
@@ -1446,6 +1456,13 @@ function ProfileEditor({
               monthly EMI. No loans? Remove them and save: goals, portfolio
               and purchase planning work without one.
             </p>
+            {country === 'IN' && (
+              <KfsImport
+                blankLoan={blankLoan}
+                todayIso={localIsoDate(getCountryToday(country))}
+                onAdd={(loan) => setLoans((cur) => [...cur, loan])}
+              />
+            )}
             {loans.map((l, i) => (
               <div
                 key={i}
@@ -1459,6 +1476,11 @@ function ProfileEditor({
                   position: 'relative',
                 }}
               >
+                {kfsNote(l) && (
+                  <p data-testid="kfs-note" className="muted" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12 }}>
+                    {kfsNote(l)}
+                  </p>
+                )}
                 <Select
                   label="Loan type"
                   value={l.loan_type}
@@ -1555,6 +1577,7 @@ function ProfileEditor({
                       updateLoan(i, { nominal_rate: rate })
                     }
                   />
+                  <MarketRateLine loan={l} country={country} />
                 </div>
                 {l.loan_type !== 'credit_card' && (
                 <Select<RateType | 'unsure'>
