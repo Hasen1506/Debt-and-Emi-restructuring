@@ -13,10 +13,11 @@ import itertools
 from decimal import Decimal as D
 from pathlib import Path
 
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from engine.decisions import allocate_windfall
+from engine.fee_order import plan_net_cost, rate_only_order
 from engine.formulas import effective_rate, emi
 from engine.marginal_cost import (
     LOCKED_OFFSET, compounded, loan_marginal_cost, marginal_cost, marginal_shield,
@@ -188,10 +189,13 @@ def _portfolios(draw):
     for i in range(draw(st.integers(2, 4))):
         lt = draw(st.sampled_from(types))
         rate = D(draw(st.integers(100, 4200 if lt in (LoanType.PERSONAL, LoanType.CREDIT_CARD) else 1600))) / 10000
-        # Balances keep every deduction under its cap (₹2L 24(b); $2,500
-        # §221), so the tax benefit is linear and the best order is a fixed one.
-        hi = 15 if country == Country.US and lt == LoanType.EDUCATION else 600
-        bal = D(draw(st.integers(5, hi)) * 1000)
+        # Balances keep every deduction under its cap, even with four such
+        # loans (4 × ₹3L × 16% < ₹2L 24(b); 4 × $3,900 × 16% < $2,500
+        # §221), so the tax benefit is linear in the interest.
+        if country == Country.US and lt == LoanType.EDUCATION:
+            bal = D(draw(st.integers(5, 39)) * 100)
+        else:
+            bal = D(draw(st.integers(5, 300 if lt == LoanType.HOME else 600)) * 1000)
         n = draw(st.integers(12, 84))
         kw = {}
         if lt == LoanType.CREDIT_CARD:
@@ -209,29 +213,155 @@ def _portfolios(draw):
     return u, marg
 
 
-@settings(max_examples=examples(30))
-@given(_portfolios())
-def test_property_marginal_order_is_at_least_as_good_as_the_best_fixed_order(case):
-    """On 2–4 loan portfolios (IN and US; cards with GST; deductible home and
-    education loans; sunk processing fees and insurance; lock-ins), the
-    marginal-cost avalanche costs no more, net of tax, than the best of every
-    fixed payoff order (brute force over all permutations).
+@st.composite
+def _fee_portfolios(draw):
+    """`_portfolios` with prepayment fees: each non-card loan charges 0.5%–5%
+    of every amount prepaid, half the time (roadmap PR K)."""
+    user, marg = draw(_portfolios())
+    for l in user.loans:
+        if l.loan_type != LoanType.CREDIT_CARD and draw(st.booleans()):
+            l.prepayment_penalty_pct = D(draw(st.integers(5, 50))) / 1000
+    return user, marg
 
-    Prepayment fees are not generated here: a fee proportional to each
-    prepaid rupee is a one-off cost whose size depends on when the loan is
-    prepaid (its EMIs shrink what is left to prepay), so no per-year rate,
-    ours included, makes a greedy order optimal; and the simulator's own
-    fee gate can skip a loan whose remaining months are few. With fees, a
-    fixed order beat the marginal order on about 1 in 11 sampled fee
-    portfolios (the old effective-rate order: about 1 in 5). The fee term
-    is covered by the unit tests above; see docs/IDEAS.md."""
-    user, marg = case
-    ours = _net_cost(user, simulate_plan(user, Strategy.AVALANCHE, horizon_months=360, marginal_rate=marg), marg)
+
+def _best_fixed_order_cost(user: User, marg: D) -> D:
+    """Brute force: the cheapest of every fixed payoff order, same simulator."""
     best = None
+    rules = user.payoff_rules
     for perm in itertools.permutations(range(len(user.loans))):
         user.payoff_rules = PayoffRules(custom_order=list(perm))
         cost = _net_cost(user, simulate_plan(user, Strategy.RULES, horizon_months=360, marginal_rate=marg), marg)
         best = cost if best is None else min(best, cost)
-    user.payoff_rules = None
-    # One rupee/cent per loan-month of rounding slack; nothing more.
+    user.payoff_rules = rules
+    return best
+
+
+# ── PR K: fee portfolios where PR J's greedy order lost (fail on main @ 7f97fc0) ──
+
+def _case(country, regime, income, loans):
+    ls = []
+    for i, (lt, bal, rate, n, fee, lock, pf, ins, minp) in enumerate(loans):
+        kw = {"prepayment_penalty_pct": D(fee), "prepay_lock_in_months": lock,
+              "processing_fee_amortised": D(pf), "insurance_premium_pct": D(ins)}
+        if minp is not None:
+            kw["min_payment_override"] = D(minp)
+        ls.append(_loan(lt, bal, rate, n=n, bank=f"B{i}", **kw))
+    return _user(ls, country=country, income=income, expenses="30000", regime=regime)
+
+
+T = LoanType
+FEE_REGRESSIONS = [
+    # (user, marginal rate). Found by sampling fee portfolios on main; on each,
+    # the greedy plan cost more than the best fixed order by more than the slack.
+    (lambda: _case(Country.US, None, "52056", [
+        (T.AUTO, 290000, "0.0751", 83, "0.03", 0, "0.01", "0.003", None),
+        (T.PERSONAL, 45000, "0.0101", 19, "0.01", 0, "0.027", "0", None),
+        (T.EDUCATION, 6000, "0.0228", 35, "0", 0, "0.006", "0.013", None)]), D("0.3")),
+    (lambda: _case(Country.IN, TaxRegimeIN.OLD, "83525", [
+        (T.CREDIT_CARD, 456000, "0.0295", 0, "0", 3, "0", "0", "41455"),
+        (T.HOME, 44000, "0.1595", 79, "0", 0, "0", "0", None),
+        (T.PERSONAL, 51000, "0.1927", 76, "0.021", 3, "0.007", "0.012", None)]), D("0.2")),
+    (lambda: _case(Country.IN, TaxRegimeIN.NEW, "91821", [
+        (T.CREDIT_CARD, 482000, "0.0267", 0, "0", 0, "0", "0", "48200"),
+        (T.PERSONAL, 50000, "0.0482", 33, "0.007", 1, "0", "0", None)]), D("0")),
+    (lambda: _case(Country.IN, TaxRegimeIN.OLD, "57654", [
+        (T.AUTO, 246000, "0.0567", 69, "0.012", 0, "0", "0", None),
+        (T.CREDIT_CARD, 29000, "0.0348", 0, "0", 0, "0", "0", "2231"),
+        (T.EDUCATION, 190000, "0.0269", 63, "0.014", 1, "0", "0", None)]), D("0")),
+]
+
+
+@settings(max_examples=examples(60))
+@given(_fee_portfolios())
+@example((FEE_REGRESSIONS[0][0](), FEE_REGRESSIONS[0][1]))
+@example((FEE_REGRESSIONS[3][0](), FEE_REGRESSIONS[3][1]))
+
+def test_property_marginal_order_is_at_least_as_good_as_the_best_fixed_order(case):
+    """On 2–4 loan portfolios (IN and US; cards with GST; deductible home and
+    education loans; sunk processing fees and insurance; lock-ins; and
+    prepayment fees on about half the loans), the Avalanche plan costs no
+    more, net of tax and fees included, than the best of every fixed payoff
+    order (brute force over all permutations).
+
+    Prepayment fees are in (roadmap PR K). A fee charged on each prepaid
+    rupee breaks the rate-by-rate order, so with a fee loan the plan
+    searches orders on the same simulator (engine/fee_order.py: every order
+    up to 5 loans) and keeps the cheapest; without one it is the greedy
+    marginal-cost order of PR J."""
+    user, marg = case
+    ours = _net_cost(user, simulate_plan(user, Strategy.AVALANCHE, horizon_months=360, marginal_rate=marg), marg)
+    best = _best_fixed_order_cost(user, marg)
+    # One rupee/cent per loan of rounding slack; nothing more.
     assert ours <= best + D(len(user.loans)), (ours, best)
+
+
+def test_fee_regressions_beat_or_match_the_best_fixed_order():
+    for make, marg in FEE_REGRESSIONS:
+        user = make()
+        res = simulate_plan(user, Strategy.AVALANCHE, horizon_months=360, marginal_rate=marg)
+        ours = _net_cost(user, res, marg)
+        best = _best_fixed_order_cost(user, marg)
+        assert ours <= best + D(len(user.loans)), (ours, best)
+        assert res.payoff_order_method == "exact"
+
+
+def test_the_net_cost_the_search_minimises_is_the_one_the_property_checks():
+    # Caps not binding: the engine's net cost (yearly caps) equals the test's.
+    for make, marg in FEE_REGRESSIONS:
+        user = make()
+        res = simulate_plan(user, Strategy.AVALANCHE, horizon_months=360, marginal_rate=marg)
+        assert abs(plan_net_cost(user, res, marg) - _net_cost(user, res, marg)) < D("0.000001")
+
+
+def test_a_fee_that_changes_the_order_is_explained():
+    # A 5% fee on a 13% loan with 18 months left: prepaying it early costs 5%
+    # of every rupee to save at most ~1.5 years of 13%; the 12% loan with no
+    # fee and 7 years left should take the extra first, and the plan says why.
+    feeful = _loan(LoanType.PERSONAL, 300000, "0.13", n=18, bank="Alpha", prepayment_penalty_pct=D("0.05"))
+    plain = _loan(LoanType.PERSONAL, 600000, "0.12", n=84, bank="Beta")
+    u = _user([feeful, plain], income=str(feeful.scheduled_emi + plain.scheduled_emi + 40000 + 25000), expenses="40000")
+    assert rate_only_order(u, D("0")) == [0, 1]                       # by rate alone: the 13% loan first
+    res = simulate_plan(u, Strategy.AVALANCHE, horizon_months=360, marginal_rate=D("0"))
+    assert _net_cost(u, res, D("0")) <= _best_fixed_order_cost(u, D("0")) + 2
+    assert res.payoff_order_note is not None
+    note = res.payoff_order_note
+    assert note.startswith("A prepayment fee changed this order.")
+    assert "Alpha personal loan" in note and "5% fee" in note and "Beta personal loan" in note
+    assert "saves about ₹" in note and "fees included" in note
+    # Without the fee nothing is searched and nothing is said.
+    feeful.prepayment_penalty_pct = D("0")
+    res0 = simulate_plan(u, Strategy.AVALANCHE, horizon_months=360, marginal_rate=D("0"))
+    assert res0.payoff_order_method is None and res0.payoff_order_note is None
+
+
+def test_more_than_five_loans_use_greedy_plus_local_swaps_and_never_lose_to_either_start():
+    loans = [
+        _loan(LoanType.PERSONAL, 300000, "0.13", n=18, bank="A", prepayment_penalty_pct=D("0.05")),
+        _loan(LoanType.PERSONAL, 400000, "0.12", n=84, bank="B"),
+        _loan(LoanType.AUTO, 250000, "0.10", n=48, bank="C", prepayment_penalty_pct=D("0.03")),
+        _loan(LoanType.PERSONAL, 150000, "0.16", n=36, bank="D"),
+        _loan(LoanType.CREDIT_CARD, 60000, "0.36", n=0, bank="E", min_payment_override=D("3000")),
+        _loan(LoanType.AUTO, 200000, "0.09", n=60, bank="F"),
+    ]
+    u = _user(loans, income=str(sum((l.min_payment_override or l.scheduled_emi for l in loans), D("0")) + 30000 + 30000),
+              expenses="30000")
+    res = simulate_plan(u, Strategy.AVALANCHE, horizon_months=360, marginal_rate=D("0"))
+    assert res.payoff_order_method == "local"
+    ours = _net_cost(u, res, D("0"))
+    u.payoff_rules = PayoffRules(custom_order=rate_only_order(u, D("0")))
+    by_rate = _net_cost(u, simulate_plan(u, Strategy.RULES, horizon_months=360, marginal_rate=D("0")), D("0"))
+    u.payoff_rules = None
+    from engine.simulation import _simulate_plan
+    greedy = _net_cost(u, _simulate_plan(u, Strategy.AVALANCHE, horizon_months=360, marginal_rate=D("0")), D("0"))
+    assert ours <= min(by_rate, greedy)
+
+
+def test_plan_net_cost_applies_the_24b_cap_per_year():
+    # Two home loans whose interest is far over ₹2L a year (old regime, 30%):
+    # the tax saved in year one is 30% of ₹2L, not of all the interest.
+    a = _loan(LoanType.HOME, 4_000_000, "0.09", n=240)
+    b = _loan(LoanType.HOME, 3_000_000, "0.09", n=240)
+    u = _user([a, b], income="400000", regime=TaxRegimeIN.OLD)
+    res = simulate_plan(u, Strategy.AVALANCHE, horizon_months=12, marginal_rate=D("0.3"))
+    saved = res.total_interest_paid - plan_net_cost(u, res, D("0.3"))
+    assert saved == D("0.3") * D("200000")

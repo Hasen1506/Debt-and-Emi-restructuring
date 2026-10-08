@@ -107,9 +107,11 @@ class Loan:
     # prepay aggressively or part-pay frequently. Defaults (0/None) keep
     # legacy callers running unchanged.
     #   • prepayment_penalty_pct  — % of the *extra* amount the bank
-    #     charges as a fee when you pay above-schedule. RBI mandates 0 for
-    #     individual floating-rate retail loans, so most India home/PL is
-    #     0; fixed-rate or US loans frequently 2-4% within the lock-in.
+    #     charges as a fee when you pay above-schedule. Blank means 0:
+    #     assumed 0 for an Indian floating-rate loan (RBI Pre-payment
+    #     Charges on Loans Directions, 2 July 2025, para 5(i)), unknown and
+    #     not assumed otherwise (engine/prepayment_fee.py). With a fee, the
+    #     Avalanche order is searched (engine/fee_order.py).
     #   • prepay_lock_in_months   — number of sim-months from start during
     #     which any extra principal payment is rejected. Surplus that
     #     can't go anywhere flows to the next-priority loan via the

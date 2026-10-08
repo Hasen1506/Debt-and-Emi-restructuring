@@ -220,6 +220,9 @@ export interface PlanData {
   shortfall: number;
   /** First later month whose projected minimums cannot be funded. */
   futureShortfall?: {month:number;amount:number};
+  /** Roadmap PR K: plain words when a prepayment fee changed the payoff
+   *  order (the engine searched orders and kept the cheapest). */
+  payoffOrderNote?: string | null;
   /** Open loans missing a rate or EMI. When any, the engine isn't run and
    *  the pages ask for the details instead of projecting. */
   gaps: ProfileGap[];

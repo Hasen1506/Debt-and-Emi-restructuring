@@ -317,6 +317,8 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
                 else req.horizon_months
             ),
         ),
+        payoff_order_method=result.payoff_order_method,
+        payoff_order_note=result.payoff_order_note,
     )
 
 

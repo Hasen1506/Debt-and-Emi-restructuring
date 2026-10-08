@@ -545,6 +545,11 @@ export interface SimulateResponse {
    *  by your target" badge on /goals + /plan. Empty when no goals
    *  were sent in the request. */
   goal_finals?: GoalFinalRaw[];
+  /** Roadmap PR K: set when an Avalanche plan had a loan with a prepayment
+   *  fee. How the order was searched ("exact" up to 5 loans, "local"
+   *  above), and plain words when a fee changed the order. */
+  payoff_order_method?: 'exact' | 'local' | null;
+  payoff_order_note?: string | null;
 }
 
 export interface CompareResponse {

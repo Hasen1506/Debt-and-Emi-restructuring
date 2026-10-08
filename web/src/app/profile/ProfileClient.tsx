@@ -94,6 +94,7 @@ import {
   isAdvanceTaxApplicable,
 } from '@/lib/tax-brackets';
 import type { LoanTermsResponse } from '@/lib/api';
+import { feeShown, RBI_PREPAYMENT_RULE } from '@/lib/prepayment-fee';
 
 /**
  * Format a loan-terms suggestion label. Honest about provenance:
@@ -1720,16 +1721,21 @@ function ProfileEditor({
                 {l.loan_type !== 'credit_card' && (
                   <>
                 <Field
-                  label="Prepayment penalty (%)"
+                  label="Prepayment fee (%, optional)"
                   kind="percent"
                   value={l.prepayment_penalty_pct ?? ''}
                   onChange={(v) =>
                     updateLoan(i, { prepayment_penalty_pct: v })
                   }
-                  placeholder="0"
-                  hint="2 = 2% of any amount prepaid; 0 for floating-rate home loans in India"
+                  placeholder={feeShown(l, country).placeholder}
+                  hint={feeShown(l, country).hint}
                   suggestion={
-                    loanSuggestions[i]?.prepayment_penalty_pct != null
+                    // A bank's curated fee is only offered where no rule
+                    // fixes it (roadmap PR K): never on a floating-rate
+                    // Indian loan, where RBI bars the fee.
+                    feeShown(l, country).status === 'unknown' &&
+                    loanSuggestions[i]?.prepayment_penalty_pct != null &&
+                    Number(loanSuggestions[i]!.prepayment_penalty_pct) > 0
                       ? {
                           value: loanSuggestions[i]!.prepayment_penalty_pct!,
                           label: suggestionLabel(
@@ -1742,11 +1748,14 @@ function ProfileEditor({
                   }
                   info={
                     <>
-                      What the bank charges on above-schedule payments.
-                      RBI mandates 0 for individual floating-rate retail
-                      loans (HL / PL); fixed-rate IN loans + US loans
-                      frequently 2-4% during lock-in. Check your sanction
-                      letter for the exact figure.
+                      What the bank charges on payments above the
+                      schedule, as a % of the amount prepaid. Leave it
+                      blank if you don&apos;t know. For a floating-rate
+                      loan in India it is taken as 0%: RBI bars
+                      prepayment charges on floating-rate loans to
+                      individuals for non-business purposes ({RBI_PREPAYMENT_RULE}).
+                      For a fixed-rate or US loan nothing is assumed; the
+                      sanction letter or Key Facts Statement states it.
                     </>
                   }
                 />

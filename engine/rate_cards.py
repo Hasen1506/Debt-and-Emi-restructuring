@@ -10,7 +10,7 @@ All rates are Decimal in [0, 1]. Use the `low`/`high` ends for sensitivity
 sliders; the median is what the optimiser uses by default.
 """
 from decimal import Decimal
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Optional
 from engine.models import Country, LoanType
 
@@ -726,7 +726,9 @@ def _country_default_terms(
         if loan_type == LoanType.CREDIT_CARD:
             return reg(D("0"), 0, None, "industry standard — no prepay penalty on cards")
         if rate_type == "floating":
-            return reg(D("0"), 0, None, "RBI master direction (DBR.No.DIR.BC.107/13.03.00/2015-16)")
+            # engine/prepayment_fee.py: RBI (Pre-payment Charges on Loans)
+            # Directions, 2025, para 5(i), July 2, 2025.
+            return reg(D("0"), 0, None, "RBI Pre-payment Charges Directions, 2 Jul 2025, para 5(i)")
         if loan_type == LoanType.HOME:
             return norm(D("0.02"), 12, None)
         if loan_type == LoanType.PERSONAL:
@@ -775,6 +777,10 @@ def lookup_loan_terms(
             break
     if bank_terms is None:
         return default
+    if country == Country.IN and rate_type == "floating" and loan_type != LoanType.CREDIT_CARD:
+        # RBI bars a prepayment fee on a floating-rate loan to an individual
+        # (engine/prepayment_fee.py); a bank's curated fee can't override it.
+        bank_terms = replace(bank_terms, prepayment_penalty_pct=default.prepayment_penalty_pct)
     # The bank entry overrides any field it sets; defaults fill the rest.
     # Resulting `is_indicative` = True if EITHER source is indicative
     # (regulatory mandate beats bank-quoted, but a bank override of a

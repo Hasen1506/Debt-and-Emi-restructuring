@@ -41,6 +41,7 @@ import { HORIZON_MONTHS } from '@/lib/horizon';
 import { loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
 import { newLoanId } from '@/lib/loan-ids';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { feeShown } from '@/lib/prepayment-fee';
 import { readEfSplitClient } from '@/lib/ef-split';
 import { emiFromMonths, firstExtraPayment, marginalRateFromTakeHome } from '@/lib/quick-setup';
 import { readStrategyClient, STRATEGY_LABEL, STRATEGY_SHORT } from '@/lib/strategy';
@@ -996,11 +997,12 @@ function LoanBlock({
           )}
           {!card && (
             <Field
-              label="Prepayment fee, %"
+              label="Prepayment fee, % (optional)"
               kind="percent"
               value={loan.prepayment_penalty_pct ?? ''}
               onChange={(v) => onPatch({ prepayment_penalty_pct: v })}
-              hint="Of any extra you pay. Blank if none"
+              placeholder={feeShown(loan, country).placeholder}
+              hint={feeShown(loan, country).hint}
               error={issues.fee}
             />
           )}

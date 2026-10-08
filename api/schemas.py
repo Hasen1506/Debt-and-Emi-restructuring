@@ -904,6 +904,12 @@ class SimulateResponse(_Base):
     # passed in the request — drives the "expected X% by your target"
     # badge on /goals + /plan. Empty list when no goals were sent.
     goal_finals: list[GoalFinalOut] = Field(default_factory=list)
+    # Fee-aware payoff order (roadmap PR K). Set when an Avalanche plan had
+    # a loan with a prepayment fee: how the order was searched ("exact" |
+    # "local"), and, when a fee changed the order from ranking by rate
+    # alone, the plain-words "why this loan first" line.
+    payoff_order_method: Optional[str] = None
+    payoff_order_note: Optional[str] = None
 
 
 class BaselineRequest(_In):

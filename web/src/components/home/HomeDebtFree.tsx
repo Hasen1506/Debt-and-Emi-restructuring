@@ -171,7 +171,7 @@ export async function HomePayThisMonth() {
     top && target
       ? {
           key: top.key,
-          text: `${m.loans.filter((l) => l.outstanding.gt(0)).length > 1 ? `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(rateWords(target, country))}` : `The extra goes on your only loan, at ${rateWords(target, country)}`}. ${mc ? `${whyFirst(mc)}. ` : ''}It saves about ${formatCurrencyWhole(
+          text: `${m.loans.filter((l) => l.outstanding.gt(0)).length > 1 ? `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(rateWords(target, country))}` : `The extra goes on your only loan, at ${rateWords(target, country)}`}. ${mc ? `${whyFirst(mc)}. ` : ''}${plan.payoffOrderNote ? `${plan.payoffOrderNote} ` : ''}It saves about ${formatCurrencyWhole(
             Math.round(new Decimal(top.extra).times(mc ? Decimal.max(0, mc.total) : target.effective).toNumber()),
             top.currency,
           )} of interest a year.`,
