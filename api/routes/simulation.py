@@ -3,9 +3,9 @@ from copy import deepcopy
 from decimal import ROUND_HALF_UP, Decimal
 from fastapi import APIRouter
 
-from engine.simulation import simulate_plan, baseline_minimums_only
+from engine.simulation import simulate_plan, baseline_minimums_only, goal_tradeoff
 from engine.models import LifecycleEvent, LifecycleEventKind, User
-from engine.goals import GoalState, serial_fill_allocation
+from engine.goals import GoalState, debt_gate, serial_fill_allocation
 from engine.sensitivity import (
     with_surplus_delta, with_income_shock, with_rate_shock,
     with_strategy, with_lump_sum, compare,
@@ -13,7 +13,8 @@ from engine.sensitivity import (
 from engine.surplus import allocate_surplus, compute_available_surplus
 
 from api.schemas import (
-    GoalContributionOut, GoalFinalOut, GoalIn, SimulateRequest,
+    GoalContributionOut, GoalFinalOut, GoalIn, GoalTradeoffOut, GoalTradeoffRequest,
+    GoalTradeoffResponse, SimulateRequest,
     SimulateResponse, SurplusAllocationOut, TrajectoryPoint,
     BaselineRequest, CompareRequest, CompareResponse, LifecycleEventIn,
 )
@@ -31,6 +32,10 @@ def _build_goal_states(goals: list[GoalIn]) -> list[GoalState]:
             priority_bump=g.priority_bump,
             order_index=g.order_index,
             funding_start_month_index=g.funding_start_month_index,
+            funding_rule=g.funding_rule,
+            funding_amount=g.funding_amount,
+            funding_pct=g.funding_pct,
+            after_loan_index=g.after_loan_index,
         )
         for g in goals
     ]
@@ -130,6 +135,7 @@ def _build_surplus_allocation(
         snapshot_goals = deepcopy(goal_states)
         alloc = serial_fill_allocation(
             snapshot_goals, surplus, current_sim_month=0,
+            debt_cleared=debt_gate(user.loans, user.country),
         )
         effective_outflow = alloc.total_outflow
         any_goal_short = alloc.any_goal_short
@@ -312,6 +318,22 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
             ),
         ),
     )
+
+
+@router.post("/goals/tradeoff", response_model=GoalTradeoffResponse)
+def goals_tradeoff(req: GoalTradeoffRequest) -> GoalTradeoffResponse:
+    """Roadmap PR F: per goal, the interest cost of funding it now (before
+    high-interest debt) against debt first. Two plan runs per goal."""
+    user = req.user.to_engine()
+    kwargs = _plan_kwargs(req)
+    goals = kwargs.pop("goals") or []
+    ids = [g.id for g in goals if not req.goal_ids or g.id in req.goal_ids][:10]
+    out = []
+    for gid in ids:
+        t = goal_tradeoff(user, goals, gid, strategy=req.strategy, horizon_months=req.horizon_months,
+                          marginal_rate=req.marginal_rate, **kwargs)
+        out.append(GoalTradeoffOut(**t.__dict__))
+    return GoalTradeoffResponse(tradeoffs=out)
 
 
 @router.post("/baseline", response_model=SimulateResponse)
