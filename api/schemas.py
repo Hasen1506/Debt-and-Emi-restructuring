@@ -745,6 +745,23 @@ class GoalIn(_In):
     # debt prepay gets the full surplus until funding kicks in. None
     # preserves the legacy "start at month 0" behavior.
     funding_start_month_index: int | None = None
+    # Funding rule (roadmap PR F): "schedule" (run-rate to the date, the
+    # default here so older clients are unchanged), "fixed" (funding_amount
+    # a month), "surplus_pct" (funding_pct of spare cash, 0–1) or
+    # "after_debt" (after the loan at after_loan_index clears; None = after
+    # every high-interest loan clears: debt first).
+    funding_rule: Literal["schedule", "fixed", "surplus_pct", "after_debt"] = "schedule"
+    funding_amount: Optional[Amount] = None
+    funding_pct: Optional[Rate] = None
+    after_loan_index: Optional[Annotated[int, Field(ge=0, le=99)]] = None
+
+    @model_validator(mode="after")
+    def _validate_funding_rule(self) -> "GoalIn":
+        if self.funding_rule == "fixed" and (self.funding_amount is None or self.funding_amount <= 0):
+            raise ValueError("funding_amount: a fixed monthly amount above zero is needed for the 'fixed' rule")
+        if self.funding_rule == "surplus_pct" and (self.funding_pct is None or self.funding_pct <= 0 or self.funding_pct > 1):
+            raise ValueError("funding_pct: a share of spare cash between 0 and 1 is needed for the 'surplus_pct' rule")
+        return self
 
     @model_validator(mode="after")
     def _validate_funding_window(self) -> "GoalIn":
@@ -769,6 +786,25 @@ class GoalIn(_In):
                 "fund. Clear the start month or move the target out."
             )
         return self
+
+
+class GoalTradeoffOut(_Base):
+    """Roadmap PR F: what funding one goal now, before high-interest debt,
+    costs against funding it debt-first."""
+    goal_id: str
+    has_high_apr_debt: bool
+    # Interest (and fees) paid with the goal funded now, minus debt first. ≥ 0 normally.
+    extra_interest: Decimal
+    # Months later the debts clear when the goal is funded now (may be 0).
+    debt_free_later_months: int
+    # Debt first: does the goal still reach its target by its date?
+    debt_first_reaches_target: bool
+    debt_first_fill_rate: Decimal
+    funded_now_fill_rate: Decimal
+
+
+class GoalTradeoffResponse(_Base):
+    tradeoffs: list[GoalTradeoffOut]
 
 
 class GoalContributionOut(_Base):
@@ -841,6 +877,11 @@ class SurplusAllocationOut(_Base):
     # run-rate this month. Drives the "some goals are short" banner
     # on /plan.
     any_goal_short: bool = False
+
+
+class GoalTradeoffRequest(SimulateRequest):
+    """A /simulate request plus which goals to price (default: all)."""
+    goal_ids: list[str] = Field(default_factory=list, max_length=50)
 
 
 class SimulateResponse(_Base):

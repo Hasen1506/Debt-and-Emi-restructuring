@@ -6,7 +6,11 @@
  * the gap, each with one button that does it.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api, type GoalTradeoff } from '@/lib/api';
+import { goalsForSimulate, isOpenGoal, readGoalsClient } from '@/lib/goals';
+import { fundingRuleLabel, isDebtFirst, tradeoffLine } from '@/lib/goal-funding';
+import { loadProfileClient } from '@/lib/user-store';
 import { formatCurrencyWhole } from '@/lib/api';
 import { KEPT_IN_LABEL, type Goal, type GoalFundingSource } from '@/lib/goals';
 import type { GoalContributionEntry } from '@/lib/goal-contributions';
@@ -132,6 +136,7 @@ export function GoalDetail({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontSize: 12, lineHeight: 1.6 }}>
+      {open && <GoalFundingLine goal={goal} currency={currency} today={today} onPatch={onPatch} />}
       {open && line.state !== 'funded' && line.state !== 'no_amount' && (
         <div>
           {line.state === 'past' ? (
@@ -276,6 +281,34 @@ export function GoalDetail({
               : []),
           ]}
         />
+      )}
+    </div>
+  );
+}
+
+
+/** How the plan funds it, and what funding it before high-interest debt
+ *  costs (roadmap PR F). One engine call per goal shown. */
+function GoalFundingLine({ goal, currency, today, onPatch }: { goal: Goal; currency: AmountCurrency; today: Date; onPatch: (p: Partial<Goal>) => void }) {
+  const [t, setT] = useState<GoalTradeoff | null>(null);
+  const user = loadProfileClient().user;
+  useEffect(() => {
+    let live = true;
+    const goals = goalsForSimulate(readGoalsClient().filter(isOpenGoal), today);
+    if (!goals.some((g) => g.id === goal.id) || !(user.loans ?? []).length) return;
+    api.goalsTradeoff({ user, goals, goal_ids: [goal.id] })
+      .then((r) => live && setT(r.tradeoffs[0] ?? null))
+      .catch(() => live && setT(null));
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goal.id, goal.amount, goal.targetMonth, JSON.stringify(goal.fundingRule)]);
+  return (
+    <div>
+      <span style={{ color: L_T.muted }}>FUNDING · </span>
+      {fundingRuleLabel(goal.fundingRule, user.loans ?? [], user.country, currency)}.
+      {t && <> {tradeoffLine(t, currency, monthLabel(goal.targetMonth))}</>}
+      {t && t.has_high_apr_debt && !isDebtFirst(goal.fundingRule) && (
+        <> <LBracket onClick={() => onPatch({ fundingRule: { kind: 'after_debt', afterLoanIndex: null } })}>DEBT FIRST</LBracket></>
       )}
     </div>
   );

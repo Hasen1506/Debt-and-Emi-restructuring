@@ -100,7 +100,25 @@ export interface Goal {
   /** Where the money for it is kept. Informational: Goals warns when
    *  the place doesn't suit how soon the money is needed. */
   keptIn?: GoalKeptIn;
+  /** How the plan funds it (roadmap PR F, lib/goal-funding). New goals
+   *  start "debt first"; a goal saved before this has none and keeps
+   *  the run-rate to its date ('schedule'). */
+  fundingRule?: GoalFundingRule;
 }
+
+export type GoalFundingRuleKind = 'schedule' | 'fixed' | 'surplus_pct' | 'after_debt';
+export interface GoalFundingRule {
+  kind: GoalFundingRuleKind;
+  /** fixed: amount a month, decimal string. */
+  amount?: string;
+  /** surplus_pct: share of spare cash, decimal string 0–1. */
+  pct?: string;
+  /** after_debt: the loan's position in user.loans; null = every high-interest loan. */
+  afterLoanIndex?: number | null;
+}
+
+/** "Debt first": the default for a new goal. */
+export const DEBT_FIRST: GoalFundingRule = { kind: 'after_debt', afterLoanIndex: null };
 
 export type GoalStatus = 'active' | 'cancelled' | 'archived';
 export type GoalKeptIn = 'savings' | 'fd' | 'debt_fund' | 'equity' | 'none';
@@ -294,6 +312,7 @@ export function goalSliceWrite(goals: Goal[]): GoalSliceWrite {
     orderIndex: g.orderIndex,
     fundingStartMonth: g.fundingStartMonth,
     autoDefer: g.autoDefer,
+    fundingRule: g.fundingRule,
   }));
   const value = btoa(JSON.stringify(digest));
   return { key: STORAGE_KEY, cookie: DIGEST_COOKIE, digest: value, value: sorted, slice: 'goals' };
@@ -334,6 +353,8 @@ interface GoalDigestRow {
   /** Auto-defer flag — see Goal.autoDefer. Undefined in the cookie
    *  falls back to true on read (default-on for legacy goals). */
   autoDefer?: boolean;
+  /** Funding rule (roadmap PR F); absent = 'schedule'. */
+  fundingRule?: GoalFundingRule;
   // Legacy fields kept for migration; not written going forward.
   priority?: 'critical' | 'important' | 'discretionary' | 'standard';
   preemptsEf?: boolean;
@@ -373,6 +394,58 @@ export interface GoalSimulateInput {
   priority_bump: boolean;
   order_index: number | null;
   funding_start_month_index: number | null;
+  funding_rule?: GoalFundingRuleKind;
+  funding_amount?: string | null;
+  funding_pct?: string | null;
+  after_loan_index?: number | null;
+}
+
+/** The engine's funding-rule fields for a goal; a missing or half-filled
+ *  rule is 'schedule' (the run-rate to the date). */
+export function fundingRuleForEngine(rule: GoalFundingRule | undefined): Pick<GoalSimulateInput, 'funding_rule' | 'funding_amount' | 'funding_pct' | 'after_loan_index'> {
+  if (rule?.kind === 'fixed' && Number(rule.amount) > 0) return { funding_rule: 'fixed', funding_amount: Number(rule.amount).toFixed(2) };
+  if (rule?.kind === 'surplus_pct' && Number(rule.pct) > 0 && Number(rule.pct) <= 1) return { funding_rule: 'surplus_pct', funding_pct: String(Number(rule.pct)) };
+  if (rule?.kind === 'after_debt') return { funding_rule: 'after_debt', after_loan_index: typeof rule.afterLoanIndex === 'number' && rule.afterLoanIndex >= 0 ? rule.afterLoanIndex : null };
+  return { funding_rule: 'schedule' };
+}
+
+/** The engine payload for open goals with an amount and a future date,
+ *  from Goal objects (client) or cookie rows (server). */
+export function goalsForSimulate(
+  rows: { id?: string; targetMonth: string; amount?: string; bufferPct?: string; priorityBump?: boolean; orderIndex?: number; fundingStartMonth?: string; fundingRule?: GoalFundingRule }[],
+  today: Date,
+  currentlySaved: Record<string, number> = {},
+): GoalSimulateInput[] {
+  return rows
+    .filter((r) => typeof r.id === 'string' && typeof r.amount === 'string' && Number(r.amount) > 0)
+    .map((r) => {
+      const base = Number(r.amount || '0');
+      const buf = Number(r.bufferPct || '0');
+      const required = base * (1 + (Number.isFinite(buf) ? buf : 0));
+      const targetIdx = targetMonthIndex(r.targetMonth, today);
+      const rawFundingStart =
+        typeof r.fundingStartMonth === 'string' && r.fundingStartMonth.length >= 7
+          ? targetMonthIndex(r.fundingStartMonth, today)
+          : null;
+      const rule = fundingRuleForEngine(r.fundingRule);
+      // A deferred start only applies to the run-rate rule; the others
+      // say when to save themselves. Dropped when it has slid past the date.
+      const fundingStart =
+        rule.funding_rule === 'schedule' && rawFundingStart !== null && targetIdx > 0 && rawFundingStart >= 0 && rawFundingStart < targetIdx
+          ? rawFundingStart
+          : null;
+      return {
+        id: r.id!,
+        target_month_index: targetIdx,
+        required_amount: required.toFixed(2),
+        saved_so_far: (currentlySaved[r.id!] ?? 0).toFixed(2),
+        priority_bump: r.priorityBump === true,
+        order_index: typeof r.orderIndex === 'number' ? r.orderIndex : null,
+        funding_start_month_index: fundingStart,
+        ...rule,
+      };
+    })
+    .filter((g) => g.target_month_index > 0);
 }
 
 function targetMonthIndex(goalTargetMonth: string, today: Date): number {
@@ -406,43 +479,7 @@ export async function goalsForSimulateServer(
   const { cookies } = await import('next/headers');
   const raw = (await cookies()).get(DIGEST_COOKIE)?.value;
   const rows = parseDigestCookie(raw);
-  return rows
-    // A goal with no amount yet has nothing for the plan to fund.
-    .filter((r) => typeof r.id === 'string' && typeof r.amount === 'string' && Number(r.amount) > 0)
-    .map((r) => {
-      const base = Number(r.amount || '0');
-      const buf = Number(r.bufferPct || '0');
-      const required = base * (1 + (Number.isFinite(buf) ? buf : 0));
-      const targetIdx = targetMonthIndex(r.targetMonth, today);
-      const rawFundingStart =
-        typeof r.fundingStartMonth === 'string' && r.fundingStartMonth.length >= 7
-          ? targetMonthIndex(r.fundingStartMonth, today)
-          : null;
-      // Defense-in-depth alongside the API-side validator: a stale
-      // cookie can carry a fundingStartMonth that has slid past the
-      // targetMonth (target moved earlier, or the user left the tab
-      // open across a long window). Drop the deferred-start in that
-      // case so the request validates instead of 422-ing the whole
-      // /plan render. The UI's auto-defer effect will recompute a
-      // valid index on next interaction.
-      const fundingStart =
-        rawFundingStart !== null &&
-        targetIdx > 0 &&
-        rawFundingStart >= 0 &&
-        rawFundingStart < targetIdx
-          ? rawFundingStart
-          : null;
-      return {
-        id: r.id!,
-        target_month_index: targetIdx,
-        required_amount: required.toFixed(2),
-        saved_so_far: (currentlySaved[r.id!] ?? 0).toFixed(2),
-        priority_bump: r.priorityBump === true,
-        order_index: typeof r.orderIndex === 'number' ? r.orderIndex : null,
-        funding_start_month_index: fundingStart,
-      };
-    })
-    .filter((g) => g.target_month_index > 0);
+  return goalsForSimulate(rows, today, currentlySaved);
 }
 
 export async function readGoalsServer(): Promise<Goal[]> {
@@ -475,6 +512,8 @@ export function blankGoal(kind: GoalKind = 'custom'): Goal {
     priorityBump: p.priorityBump,
     bufferPct: p.bufferPct,
     deadlineKind: p.deadlineKind,
+    // Debt first unless the user picks another rule (roadmap PR F).
+    fundingRule: { ...DEBT_FIRST },
   };
 }
 

@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { goalBuffer } from '@/lib/assumptions';
 import { loadProfileClient } from '@/lib/user-store';
+import { fundingRuleError, fundingRuleLabel, highInterestLoans, ruleOf } from '@/lib/goal-funding';
 import { formatCurrencyWhole } from '@/lib/api';
 import {
   GOAL_PRESETS,
@@ -112,8 +113,9 @@ export function GoalForm({
         ? 'Pick a month after this one.'
         : null,
     saved: saved && !(Number(saved) >= 0) ? 'Enter an amount, or leave it blank.' : null,
+    funding: fundingRuleError(goal.fundingRule),
   };
-  const valid = !errors.label && !errors.amount && !errors.targetMonth && !errors.saved;
+  const valid = !errors.label && !errors.amount && !errors.targetMonth && !errors.saved && !errors.funding;
   const show = (k: keyof typeof errors) => (tried ? errors[k] : null);
   const line = useMemo(
     () => (valid ? preview(goal, Number(saved || 0)) : null),
@@ -228,6 +230,8 @@ export function GoalForm({
           Soonest date first
         </LChip>
       </LChipRow>
+
+      <FundingRulePicker goal={goal} patch={patch} currency={currency} error={show('funding')} />
 
       <div>
         <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
@@ -350,4 +354,63 @@ export function monthLabel(ym: string): string {
   const i = Number(m) - 1;
   if (!(i >= 0 && i < 12)) return ym;
   return `${MONTH_NAMES_SHORT[i]} ${y}`;
+}
+
+
+/** 5 · How the plan pays into it (roadmap PR F). Debt first by default. */
+function FundingRulePicker({ goal, patch, currency, error }: { goal: Goal; patch: (p: Partial<Goal>) => void; currency: AmountCurrency; error: string | null }) {
+  const user = useMemo(() => loadProfileClient().user, []);
+  const loans = user.loans ?? [];
+  const rule = ruleOf(goal.fundingRule);
+  const set = (r: Goal['fundingRule']) => patch({ fundingRule: r });
+  const high = highInterestLoans(loans, user.country);
+  const open = loans.map((l, i) => ({ l, i })).filter(({ l }) => Number(l.outstanding) > 0);
+  return (
+    <div>
+      <LChipRow label="5 · How to fund it">
+        <LChip on={rule.kind === 'after_debt' && (rule.afterLoanIndex ?? null) === null} onClick={() => set({ kind: 'after_debt', afterLoanIndex: null })}>
+          Debt first
+        </LChip>
+        <LChip on={rule.kind === 'schedule'} onClick={() => set({ kind: 'schedule' })}>
+          On schedule from now
+        </LChip>
+        <LChip on={rule.kind === 'fixed'} onClick={() => set({ kind: 'fixed', amount: rule.amount ?? '' })}>
+          A fixed amount a month
+        </LChip>
+        <LChip on={rule.kind === 'surplus_pct'} onClick={() => set({ kind: 'surplus_pct', pct: rule.pct ?? '0.25' })}>
+          A share of spare cash
+        </LChip>
+        {open.length > 0 && (
+          <LChip on={rule.kind === 'after_debt' && typeof rule.afterLoanIndex === 'number'} onClick={() => set({ kind: 'after_debt', afterLoanIndex: open[0].i })}>
+            After a loan is paid off
+          </LChip>
+        )}
+      </LChipRow>
+      {rule.kind === 'fixed' && (
+        <Field label="Amount a month" kind="money" currency={currency} value={rule.amount ?? ''} onChange={(v: string) => set({ kind: 'fixed', amount: v })} />
+      )}
+      {rule.kind === 'surplus_pct' && (
+        <Field
+          label="Share of spare cash (%)"
+          value={rule.pct ? String(Math.round(Number(rule.pct) * 100)) : ''}
+          onChange={(v: string) => set({ kind: 'surplus_pct', pct: v === '' ? '' : String(Number(v) / 100) })}
+        />
+      )}
+      {rule.kind === 'after_debt' && typeof rule.afterLoanIndex === 'number' && (
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+          Which loan
+          <select aria-label="Which loan" value={rule.afterLoanIndex} onChange={(e) => set({ kind: 'after_debt', afterLoanIndex: Number(e.target.value) })}>
+            {open.map(({ l, i }) => (
+              <option key={i} value={i}>{l.bank ? `${l.bank} ` : ''}{l.loan_type.replace('_', ' ')} · {(Number(l.nominal_rate) * 100).toFixed(1)}%</option>
+            ))}
+          </select>
+        </label>
+      )}
+      <p style={{ fontSize: 11, color: L_T.muted, margin: '6px 0 0' }}>
+        {fundingRuleLabel(rule, loans, user.country, currency)}.
+        {rule.kind !== 'after_debt' && high.length > 0 && ' Saving before your high-interest debt is paid off costs interest; the goal shows how much once saved.'}
+      </p>
+      {error && <span role="alert" style={{ fontSize: 11, color: L_T.negative }}>{error}</span>}
+    </div>
+  );
 }

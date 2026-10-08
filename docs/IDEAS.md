@@ -37,6 +37,11 @@ Suggestions that came up while implementing the 2026-10-07 roadmap. None of thes
 - **GST on foreclosure charges.** Indian banks add 18% GST to a prepayment/foreclosure fee; neither the order nor the simulator counts it yet.
 - **"Why this loan first" on Plan too.** Home and Spare cash show the breakdown; the Plan's schedule could show it beside the first loan, with the second loan's figure for comparison.
 
+## From PR F (goals)
+- **Goal lines on Goals from the engine.** The Goals page still projects each goal's monthly amount client-side (`goal-line.ts`), which knows the deferral but not the new funding rules; the plan run already returns per-goal contributions and could drive the line instead.
+- **Ask existing goals once.** Goals saved before PR F keep "on schedule"; a one-time "Fund this debt first?" prompt (with its trade-off line) would let each user opt in, rather than switching them silently.
+- **A user-set "high interest" line.** Debt first waits for loans at 12% (India) / 10% (US) or more; this belongs on the Assumptions page next to the other defaults.
+
 ## From PR H (Pay via UPI)
 - **A QR code on a computer.** A `upi://pay` link only opens on a phone with a UPI app; on a laptop the same link could be shown as a QR code to scan with the phone, with the same amount and note.
 - **The UPI reference on the Activity entry.** When marking paid, let the user paste the 12-digit UPI reference (UTR) from their UPI app, so each Activity entry can be matched to the bank statement. MARK PAID stays the user's own confirmation either way.

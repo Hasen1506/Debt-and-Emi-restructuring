@@ -49,7 +49,47 @@ QueuedReason = Literal[
     "surplus_exhausted", # pool drained before reaching this goal
     "partial_fill",      # got something, but below run-rate
     "deferred",          # before funding_start_month_index — intentional
+    "waiting_on_debt",   # funding rule "after debt X clears" (roadmap PR F) — intentional
 ]
+
+# Funding rules (roadmap PR F):
+#   schedule    — the run-rate that lands the goal on its date (the legacy behaviour)
+#   fixed       — a fixed amount a month (`funding_amount`), up to what is still needed
+#   surplus_pct — a share of the month's spare cash (`funding_pct`, 0–1)
+#   after_debt  — nothing until a loan clears (`after_loan_index`, the loan's
+#                 position in user.loans), or until every high-interest loan
+#                 has cleared (`after_loan_index` None); then the run-rate.
+#                 This is "debt first", the default for a new goal.
+FundingRule = Literal["schedule", "fixed", "surplus_pct", "after_debt"]
+FUNDING_RULES = ("schedule", "fixed", "surplus_pct", "after_debt")
+
+# "High-interest" for the debt-first rule: a nominal rate at or above this
+# (credit cards, most personal loans; not home, car or education loans).
+HIGH_APR_THRESHOLD = {"IN": D("0.12"), "US": D("0.10")}
+
+
+def high_apr_threshold(country) -> Decimal:
+    c = country.value if hasattr(country, "value") else str(country)
+    return HIGH_APR_THRESHOLD.get(c, HIGH_APR_THRESHOLD["IN"])
+
+
+def debt_gate(loans, country, position_of=None):
+    """The `debt_cleared(after_loan_index)` callable the allocator asks.
+
+    `loans` are the user's loans in their current state; `position_of`
+    maps id(loan) → its index in user.loans (defaults to list order).
+    A loan named by index has cleared when its balance is 0 (or it isn't
+    in the list). None asks "has every high-interest loan cleared?"."""
+    pos = position_of or {id(l): i for i, l in enumerate(loans)}
+    open_idx = {pos[id(l)] for l in loans if l.outstanding > 0 and id(l) in pos}
+    limit = high_apr_threshold(country)
+    high_open = any(l.outstanding > 0 and l.nominal_rate >= limit for l in loans)
+
+    def cleared(idx):
+        if idx is None:
+            return not high_open
+        return idx not in open_idx
+    return cleared
 
 
 @dataclass
@@ -85,6 +125,11 @@ class GoalState:
     # reduces lifetime interest more than spreading the goal across the
     # whole window. None preserves the legacy "start at month 0" behavior.
     funding_start_month_index: int | None = None
+    # Funding rule (roadmap PR F); see FUNDING_RULES above.
+    funding_rule: str = "schedule"
+    funding_amount: Decimal | None = None
+    funding_pct: Decimal | None = None
+    after_loan_index: int | None = None
 
 
 @dataclass(frozen=True)
@@ -122,6 +167,7 @@ def serial_fill_allocation(
     goals: list[GoalState],
     available_surplus: Decimal,
     current_sim_month: int,
+    debt_cleared=None,
 ) -> MonthlyGoalAllocation:
     """Walk goals in user-effective order; each takes its run-rate
     from the remaining surplus pool. Later goals get 0 once pool
@@ -156,6 +202,7 @@ def serial_fill_allocation(
     # exhausted rows still emit so the UI gets honest status signals
     # in lean months.
     remaining = available_surplus if available_surplus > 0 else D("0")
+    month_surplus = remaining
     contributions: list[GoalContribution] = []
     any_short = False
 
@@ -200,7 +247,25 @@ def serial_fill_allocation(
                 )
             )
             continue
+        # "After debt X clears" (roadmap PR F): idle until it has. Like
+        # `deferred`, intentional, so not counted as falling short.
+        if g.funding_rule == "after_debt" and debt_cleared is not None and not debt_cleared(g.after_loan_index):
+            contributions.append(
+                GoalContribution(
+                    goal_id=g.id,
+                    amount=D("0"),
+                    run_rate=D("0"),
+                    queued_reason="waiting_on_debt",
+                )
+            )
+            continue
         run_rate = remaining_required / D(months_remaining)
+        # What this goal's rule asks for this month. The run-rate lands it
+        # on its date; a fixed amount or a share of spare cash may not.
+        if g.funding_rule == "fixed" and g.funding_amount is not None:
+            run_rate = g.funding_amount
+        elif g.funding_rule == "surplus_pct" and g.funding_pct is not None:
+            run_rate = month_surplus * g.funding_pct
         # Cap target at remaining_required so a near-finished goal in
         # its last month doesn't try to grab more than it needs.
         target = min(run_rate, remaining_required)
@@ -221,7 +286,7 @@ def serial_fill_allocation(
         # Use a tiny tolerance when comparing to run-rate so a few
         # paise of float drift doesn't flag a fully-funded goal as
         # short.
-        is_short = contribution < run_rate - D("0.01")
+        is_short = contribution < target - D("0.01")
         contributions.append(
             GoalContribution(
                 goal_id=g.id,

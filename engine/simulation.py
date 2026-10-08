@@ -36,7 +36,7 @@ from engine.formulas import (
 from engine.minimum_payments import compute_minimum_payment
 from engine.ordering import Strategy, rank_loans
 from engine.marginal_cost import user_marginal_costs
-from engine.goals import GoalState, MonthlyGoalAllocation, serial_fill_allocation
+from engine.goals import GoalState, MonthlyGoalAllocation, debt_gate, serial_fill_allocation
 from engine.surplus import (
     allocate_surplus,
     compute_available_surplus,
@@ -685,7 +685,11 @@ def simulate_plan(
         # subtraction below is a no-op when there's nothing to give.
         goal_contributions_this_month: dict[str, Decimal] = {}
         if goals is not None and not minimums_only:
-            alloc = serial_fill_allocation(goals, surplus, m - 1)
+            # Rule "after debt X clears" (roadmap PR F) reads this month's balances.
+            alloc = serial_fill_allocation(
+                goals, surplus, m - 1,
+                debt_cleared=debt_gate(loans, user.country, loan_position),
+            )
             # `alloc.total_outflow` is already bounded by `surplus`
             # inside the allocator, so no defensive min() needed —
             # adding one would risk a desync where goal.saved_so_far
@@ -1043,4 +1047,59 @@ def baseline_minimums_only(
         simple_mode=simple_mode,
         lifecycle_events=lifecycle_events,
         minimums_only=True,
+    )
+
+
+@dataclass
+class GoalTradeoff:
+    """Roadmap PR F: one goal funded now (on schedule, before high-interest
+    debt) against debt first (funded after every high-interest loan clears)."""
+    goal_id: str
+    has_high_apr_debt: bool
+    extra_interest: Decimal
+    debt_free_later_months: int
+    debt_first_reaches_target: bool
+    debt_first_fill_rate: Decimal
+    funded_now_fill_rate: Decimal
+
+
+def goal_tradeoff(user: User, goals: list[GoalState], goal_id: str, **plan_kwargs) -> GoalTradeoff:
+    """The interest cost of funding `goal_id` before high-interest debt.
+
+    Runs the plan twice with every other goal as set: once with this goal
+    on schedule from today (no deferral), once debt first. The difference
+    in interest paid is the trade-off line on Goals."""
+    from engine.goals import debt_gate
+
+    def run(rule: str):
+        gs = deepcopy(goals)
+        for g in gs:
+            if g.id == goal_id:
+                g.funding_rule, g.after_loan_index, g.funding_start_month_index = rule, None, None
+        res = simulate_plan(user, goals=gs, **plan_kwargs)
+        g = next(g for g in gs if g.id == goal_id)
+        saved = g.saved_at_target if g.saved_at_target is not None else g.saved_so_far
+        if g.saved_at_target is None and res.months and g.target_month_index > len(res.months):
+            # The plan stopped when the debts cleared, before the goal's date:
+            # from then on the month's spare cash and what went to the loans
+            # are free for it.
+            last = res.months[-1]
+            saved += (last.available_surplus + last.total_payment_nominal) * (g.target_month_index - len(res.months))
+        fill = min(D("1"), saved / g.required_amount) if g.required_amount > 0 else D("1")
+        return res, fill
+
+    has_high = not debt_gate(user.loans, user.country)(None)
+    now, now_fill = run("schedule")
+    later, later_fill = run("after_debt")
+    horizon = plan_kwargs.get("horizon_months", 360)
+    m_now = now.debt_free_month or horizon + 1
+    m_later = later.debt_free_month or horizon + 1
+    return GoalTradeoff(
+        goal_id=goal_id,
+        has_high_apr_debt=has_high,
+        extra_interest=(now.total_interest_paid - later.total_interest_paid).quantize(D("0.01")),
+        debt_free_later_months=max(0, m_now - m_later),
+        debt_first_reaches_target=later_fill >= D("1"),
+        debt_first_fill_rate=later_fill,
+        funded_now_fill_rate=now_fill,
     )
