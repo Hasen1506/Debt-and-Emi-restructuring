@@ -195,7 +195,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   const totalCount = rows.length || plan.trajectory.length;
 
   return (
-    <section>
+    <section id="schedule" style={{ scrollMarginTop: 16 }}>
       <LSectionHeader
         right={
           <span style={{ display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '14px 12px' }}>

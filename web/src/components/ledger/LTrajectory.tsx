@@ -37,7 +37,7 @@ const CHAR_W = 5.9;
  * ~80 px tall with 3 px text at 390 px).
  *
  * Milestone labels sit above their marker; one that would overlap the
- * label before it moves up a row.
+ * label before it moves up a row, or below the line when the top is full.
  */
 export function LTrajectory({
   points,
@@ -82,19 +82,23 @@ export function LTrajectory({
   );
 
   // Place each label: anchored to stay inside the chart, raised a row
-  // while it overlaps one already placed.
-  const placed: Array<{ x0: number; x1: number; row: number }> = [];
+  // while it overlaps one already placed. Near the top (loans that clear
+  // early, while the balance is still high) there's no room above, so it
+  // drops below the line instead of stacking on the labels there.
+  const placed: Array<{ x0: number; x1: number; y: number }> = [];
   const labels = milestones.map((m) => {
     const x = toX(m.t);
+    const markY = toY(m.v);
     const width = m.label.length * CHAR_W;
     const anchor = x - width / 2 < left ? 'start' : x + width / 2 > w - right ? 'end' : 'middle';
     const x0 = anchor === 'start' ? x - 4 : anchor === 'end' ? x - width + 4 : x - width / 2;
     const x1 = x0 + width;
-    let row = 0;
-    while (placed.some((p) => p.row === row && x0 < p.x1 + 8 && x1 > p.x0 - 8)) row++;
-    placed.push({ x0, x1, row });
-    const y = Math.max(12, toY(m.v) - 12 - row * 13);
-    return { x, y, anchor, row, label: m.label, markY: toY(m.v) };
+    const free = (y: number) => !placed.some((p) => Math.abs(p.y - y) < 12 && x0 < p.x1 + 8 && x1 > p.x0 - 8);
+    const above = Array.from({ length: 8 }, (_, k) => markY - 12 - k * 13).filter((y) => y >= 12);
+    const below = Array.from({ length: 8 }, (_, k) => markY + 18 + k * 13).filter((y) => y <= toY(0) - 6);
+    const y = [...above, ...below].find(free) ?? above[0] ?? 12;
+    placed.push({ x0, x1, y });
+    return { x, y, anchor, raised: y < markY - 12 || y > markY + 18, label: m.label, markY };
   });
 
   return (
@@ -152,6 +156,8 @@ export function LTrajectory({
             {minimumsNote}
           </text>
         )}
+        {/* Lines and markers first, every label after: a later loan's
+            dashed line no longer runs through an earlier loan's label. */}
         {labels.map((m, i) => (
           <g key={i}>
             <line
@@ -163,23 +169,33 @@ export function LTrajectory({
               strokeWidth={0.8}
               strokeDasharray="2 2"
             />
-            {m.row > 0 && (
-              <line x1={m.x} x2={m.x} y1={m.y + 3} y2={m.markY - 5} stroke={L_T.accent} strokeWidth={0.6} />
+            {m.raised && (
+              <line
+                x1={m.x}
+                x2={m.x}
+                y1={m.y < m.markY ? m.y + 3 : m.y - 10}
+                y2={m.y < m.markY ? m.markY - 5 : m.markY + 5}
+                stroke={L_T.accent}
+                strokeWidth={0.6}
+              />
             )}
             <rect x={m.x - 4} y={m.markY - 4} width="8" height="8" fill={L_T.accent} />
-            <text
-              x={m.x}
-              y={m.y}
-              fontFamily={L_MONO}
-              fontSize="9.5"
-              fontWeight="700"
-              fill={L_T.accent}
-              textAnchor={m.anchor}
-              {...HALO}
-            >
-              {m.label}
-            </text>
           </g>
+        ))}
+        {labels.map((m, i) => (
+          <text
+            key={i}
+            x={m.x}
+            y={m.y}
+            fontFamily={L_MONO}
+            fontSize="9.5"
+            fontWeight="700"
+            fill={L_T.accent}
+            textAnchor={m.anchor}
+            {...HALO}
+          >
+            {m.label}
+          </text>
         ))}
         {xs.map((d, i) => (
           <text

@@ -111,19 +111,20 @@ export function AssumptionsClient() {
   }
 
   const row = (label: string, def: string, input: React.ReactNode, note?: string, err?: string) => (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 1fr) 110px auto', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: `1px solid ${L_T.ruleSoft}` }}>
+    // Two columns, the default under the label: three overflowed a phone.
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: `1px solid ${L_T.ruleSoft}` }}>
       <span>
         {label}
         {note && <span style={{ display: 'block', fontSize: 11, color: L_T.muted }}>{note}</span>}
+        <span style={{ display: 'block', fontSize: 11, color: L_T.muted }}>Default {def}</span>
         {err && <span role="alert" style={{ display: 'block', fontSize: 11, color: L_T.negative }}>{err}</span>}
       </span>
-      <span style={{ fontSize: 11, color: L_T.muted }}>default {def}</span>
       {input}
     </div>
   );
   const box = (value: string, set: (v: string) => void, label: string, suffix: string, placeholder: string) => (
     <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-      <input aria-label={label} inputMode="decimal" value={value} placeholder={placeholder} onChange={(e) => set(e.target.value)} style={{ width: 80 }} />
+      <input aria-label={label} inputMode="decimal" value={value} placeholder={placeholder} onChange={(e) => set(e.target.value)} style={{ width: 72 }} />
       <span style={{ fontSize: 11 }}>{suffix}</span>
       {value !== '' && <button type="button" onClick={() => set('')} style={{ fontSize: 11 }} aria-label={`Reset ${label}`}>RESET</button>}
     </span>

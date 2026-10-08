@@ -29,7 +29,7 @@ import { userDefaultCurrency } from '@/lib/currency';
 import type { PayRow, PayThisMonth as PayData } from '@/lib/pay-this-month';
 import { Field } from '@/components/ToolPrimitives';
 import { UpiPay } from './UpiPay';
-import { LAllocationBar, LBracket, LSectionHeader, L_T, lPayBtn, lStrip } from '@/components/ledger/primitives';
+import { LBracket, LSectionHeader, L_T, lPayBtn, lStrip } from '@/components/ledger/primitives';
 import { payoffBreakdown } from '@/lib/schedule-reconcile';
 
 /** Fund and goal ticks, per month: they aren't loan payments, so they
@@ -389,18 +389,8 @@ export function PayThisMonth({
                         ? `SET ASIDE ${fmt(row.amount, row.currency)}`
                         : st
                           ? `MARK EXTRA PAID · ${fmt(row.amount - st.amount, row.currency)}`
-                          : `MARK PAID · ${fmt(row.amount, row.currency)}`}
+                          : 'MARK PAID'}
                     </button>
-                    {row.loanIndex !== null && (
-                      <UpiPay
-                        loan={loans[row.loanIndex] && (vpas[row.loanIndex] ? { ...loans[row.loanIndex], upi_vpa: vpas[row.loanIndex] } : loans[row.loanIndex])}
-                        name={row.name}
-                        amount={st ? row.amount - st.amount : row.amount}
-                        currency={row.currency}
-                        monthLabel={`${MONTH_NAMES_SHORT[Number(month.slice(5)) - 1]} ${month.slice(0, 4)}`}
-                        onSaveVpa={(v) => saveVpa(row, v)}
-                      />
-                    )}
                     {row.loanIndex !== null && (
                       <button
                         type="button"
@@ -410,6 +400,16 @@ export function PayThisMonth({
                       >
                         OTHER AMOUNT
                       </button>
+                    )}
+                    {row.loanIndex !== null && (
+                      <UpiPay
+                        loan={loans[row.loanIndex] && (vpas[row.loanIndex] ? { ...loans[row.loanIndex], upi_vpa: vpas[row.loanIndex] } : loans[row.loanIndex])}
+                        name={row.name}
+                        amount={st ? row.amount - st.amount : row.amount}
+                        currency={row.currency}
+                        monthLabel={`${MONTH_NAMES_SHORT[Number(month.slice(5)) - 1]} ${month.slice(0, 4)}`}
+                        onSaveVpa={(v) => saveVpa(row, v)}
+                      />
                     )}
                   </>
                 )}
@@ -477,28 +477,6 @@ export function PayThisMonth({
           <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 18 }}>{fmt(data.total)}</span>
         </li>
       </ol>
-      {data.rows.length > 1 && (
-        <div style={{ marginTop: 14 }}>
-          <div aria-hidden="true" style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 6 }}>
-            WHERE THIS MONTH&apos;S MONEY GOES
-          </div>
-          <LAllocationBar
-            label="Where this month's money goes"
-            height={14}
-            legend
-            segments={data.rows.map((r, i) => ({
-              id: r.key,
-              label: r.name,
-              value: r.amountUser,
-              amount: fmt(r.amount, r.currency),
-              // Dark fills only, so the white labels stay readable: the
-              // extra's loan in the accent (like its row), savings green,
-              // the other loans in greys.
-              color: r === firstExtra ? L_T.accent : r.loanIndex === null ? L_T.positive : BAR[i % BAR.length],
-            }))}
-          />
-        </div>
-      )}
       {data.leftOver > 0 && (
         <p style={{ margin: '10px 0 0', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
           {data.budget > 0
@@ -513,10 +491,6 @@ export function PayThisMonth({
   );
 }
 
-const BAR = ['#2a2a26', '#5e5e58', '#0a0a0a', '#76766f'];
-
-/** MARK PAID (solid) and OTHER AMOUNT (outline): real buttons, big enough
- *  to read and hit, not 10px brackets. */
 /** The section when there's nothing to tick: details missing, or no plan. */
 export function PayNotice({ title, children }: { title: string; children: ReactNode }) {
   return (

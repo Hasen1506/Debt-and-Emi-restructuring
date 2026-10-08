@@ -115,6 +115,13 @@ const REASON: Record<string, (rate: string) => string> = {
   rules: (rate) => `your rules put it first (${rate})`,
 };
 
+/** The same, when the breakdown below gives the rate. */
+const WHY: Record<string, (rate: string) => string> = {
+  avalanche: (rate) => `at ${rate} on the statement, it costs the most`,
+  snowball: (rate) => `it's the smallest balance (${rate} on the statement)`,
+  rules: (rate) => `your rules put it first (${rate} on the statement)`,
+};
+
 /** The loan's rate as its statement shows it, then what it really costs
  *  when that differs: a card's GST, a loan's fees, or a tax break. */
 function rateWords(l: LoanWithEffective, country: string): string {
@@ -167,11 +174,19 @@ export async function HomePayThisMonth() {
   // "Why this loan first" (roadmap PR J): what the next payment on it saves,
   // broken down the way the payoff order ranks it.
   const mc = target ? userMarginalCosts(plan.user, plan.marginalRate).get(target.index) : undefined;
+  // One rate per sentence: with the breakdown, the statement rate is the
+  // only other number (a card read 42%, 49.56% and 60.31% in one line).
+  const several = m.loans.filter((l) => l.outstanding.gt(0)).length > 1;
+  const why = target
+    ? mc
+      ? `${several ? `The extra goes here: ${(WHY[plan.strategy] ?? WHY.avalanche)(fmtPct(target.nominal))}.` : `The extra goes on your only loan, at ${fmtPct(target.nominal)} on the statement.`} ${whyFirst(mc)}. `
+      : `${several ? `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(rateWords(target, country))}` : `The extra goes on your only loan, at ${rateWords(target, country)}`}. `
+    : '';
   const reason =
     top && target
       ? {
           key: top.key,
-          text: `${m.loans.filter((l) => l.outstanding.gt(0)).length > 1 ? `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(rateWords(target, country))}` : `The extra goes on your only loan, at ${rateWords(target, country)}`}. ${mc ? `${whyFirst(mc)}. ` : ''}${plan.payoffOrderNote ? `${plan.payoffOrderNote} ` : ''}It saves about ${formatCurrencyWhole(
+          text: `${why}${plan.payoffOrderNote ? `${plan.payoffOrderNote} ` : ''}It saves about ${formatCurrencyWhole(
             Math.round(new Decimal(top.extra).times(mc ? Decimal.max(0, mc.total) : target.effective).toNumber()),
             top.currency,
           )} of interest a year.`,
