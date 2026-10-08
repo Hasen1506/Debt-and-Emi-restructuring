@@ -1,0 +1,47 @@
+name: Rate disclosures
+
+# Weekly: read each bank's published loan-rate disclosure (the range and mean
+# of rates on loans contracted last quarter, RBI 22 Jan 2015 para 2(a)) and
+# commit a dated JSON when the figures changed. See
+# scripts/fetch_rate_disclosures.py and engine/rate_disclosures.py.
+# A bank whose page can't be read is left out of that day's file; nothing is
+# guessed or carried over.
+on:
+  schedule:
+    - cron: "30 3 * * 1"   # Mondays 03:30 UTC (09:00 IST)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rate-disclosures
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Fetch and read the banks' pages
+        run: python scripts/fetch_rate_disclosures.py
+      - name: The data still passes its checks
+        run: python -m pytest engine/tests/test_rate_disclosures.py -q
+      - name: Commit a new dated file, if any
+        run: |
+          if [ -n "$(git status --porcelain -- api/data/rate_disclosures web/src/lib/rate-disclosures.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add api/data/rate_disclosures web/src/lib/rate-disclosures.json
+            git commit -m "data: banks' loan-rate disclosures as of $(date -u +%Y-%m-%d)"
+            git push
+          else
+            echo "No change in the banks' figures."
+          fi
