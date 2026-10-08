@@ -1,0 +1,10 @@
+{
+  "https://sbi.bank.in/web/interest-rates/interest-rates/loan-schemes-interest-rates/personal-loans-schemes": "sbi_pl.html.gz",
+  "https://www.hdfc.bank.in/personal-loan/interest-rates-and-charges": "hdfc_pl.html.gz",
+  "https://www.icici.bank.in/personal-banking/loans/personal-loan/personal-loan-interest-rates": "icici_pl.html.gz",
+  "https://www.icici.bank.in/personal-banking/loans/car-loan/service-charges": "icici_car.html.gz",
+  "https://www.axis.bank.in/loans/personal-loan/interest-rates-charges": "axis_pl.html.gz",
+  "https://www.kotak.bank.in/en/rates/interest-rates.html": "kotak_rates.html.gz",
+  "https://www.idfcfirst.bank.in/investors/regulatory-disclosures": "idfc_idx.html.gz",
+  "https://www.idfcfirst.bank.in/investors/regulatory-disclosures/interest-rate-range-contracted-loans-for-the-quarter-q1-fy-26-27": "idfc.html.gz"
+}
