@@ -4,6 +4,8 @@ One ASGI middleware, so it also covers requests FastAPI never routes.
 
 - **Size cap:** bodies over MAX_BODY_BYTES (256 KB; a profile with 50
   loans is about 50 KB) get a 413, whether or not they declare a length.
+  The one exception is reading a Key Facts Statement PDF (/api/kfs/read,
+  up to 4 MB of PDF sent as base64), capped at KFS_BODY_BYTES.
 - **Headers:** nosniff and no-referrer on everything; `no-store` on
   writes, whose replies carry the user's figures; HSTS behind HTTPS.
   Content-Security-Policy and frame-ancestors stay off until launch
@@ -28,6 +30,9 @@ from typing import Callable, Optional
 from api import client_ip
 
 MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", 256 * 1024))
+# A KFS PDF (engine/kfs.MAX_PDF_BYTES, 4 MB) as base64 in JSON.
+KFS_BODY_BYTES = 6 * 1024 * 1024
+LARGE_BODY_PATHS = {"/api/kfs/read": KFS_BODY_BYTES}
 WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
@@ -43,6 +48,7 @@ DEFAULT_LIMITS: list[tuple[str, Limit]] = [
     ("/api/auth/verify-otp", Limit(per_minute=6, burst=10)),
     ("/api/admin/", Limit(per_minute=2, burst=5)),
     ("/api/outcomes", Limit(per_minute=6, burst=10)),           # plus 10 a day (outcomes_store)
+    ("/api/kfs/", Limit(per_minute=10, burst=10)),              # reads up to 4 MB of PDF
     ("/api/", Limit(per_minute=120, burst=60)),
 ]
 
@@ -63,6 +69,7 @@ class SecurityMiddleware:
         proxy_hops: Optional[int] = None,
         internal_token: Optional[str] = None,
         max_body: Optional[int] = None,
+        large_body_paths: Optional[dict[str, int]] = None,
         clock: Callable[[], float] = time.monotonic,
     ):
         self.app = app
@@ -73,6 +80,7 @@ class SecurityMiddleware:
         token = internal_token if internal_token is not None else os.environ.get("INTERNAL_API_TOKEN", "")
         self.internal_token = token.encode()
         self.max_body = max_body if max_body is not None else MAX_BODY_BYTES
+        self.large_body_paths = large_body_paths if large_body_paths is not None else LARGE_BODY_PATHS
         self.clock = clock
         self._buckets: dict[tuple[str, str], tuple[float, float]] = {}
         self._seen = 0
@@ -138,11 +146,12 @@ class SecurityMiddleware:
             await send_with_headers({"type": "http.response.start", "status": status, "headers": hdrs})
             await send_with_headers({"type": "http.response.body", "body": body})
 
+        cap = max(self.max_body, self.large_body_paths.get(scope.get("path", ""), 0))
         if write:
             length = headers.get(b"content-length")
             if length is not None:
                 try:
-                    too_big = int(length) > self.max_body
+                    too_big = int(length) > cap
                 except ValueError:
                     return await reply(*_json(400, "The request's length could not be read."))
                 if too_big:
@@ -166,7 +175,7 @@ class SecurityMiddleware:
                 return
             chunk = message.get("body", b"")
             size += len(chunk)
-            if size > self.max_body:
+            if size > cap:
                 return await reply(*_json(413, "The request is too large."))
             chunks.append(chunk)
             if not message.get("more_body", False):
