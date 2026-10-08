@@ -22,12 +22,13 @@ import {
 } from '@/lib/activity';
 import { commitActivity } from '@/lib/commit-activity';
 import { paymentState } from '@/lib/payment-state';
-import { loadProfileClient, profileCookieKey } from '@/lib/user-store';
+import { loadProfileClient, profileCookieKey, saveProfileClient } from '@/lib/user-store';
 import { alignToLoans } from '@/lib/loan-ids';
 import { MONTH_NAMES_SHORT, localIsoDate, getCountryToday } from '@/lib/today';
 import { userDefaultCurrency } from '@/lib/currency';
 import type { PayRow, PayThisMonth as PayData } from '@/lib/pay-this-month';
 import { Field } from '@/components/ToolPrimitives';
+import { UpiPay } from './UpiPay';
 import { LAllocationBar, LBracket, LSectionHeader, L_T, lPayBtn, lStrip } from '@/components/ledger/primitives';
 import { payoffBreakdown } from '@/lib/schedule-reconcile';
 
@@ -64,6 +65,8 @@ export function PayThisMonth({
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [said, setSaid] = useState('');
+  // UPI IDs saved on this page, until Home re-renders with the saved profile.
+  const [vpas, setVpas] = useState<Record<number, string>>({});
   const profileAtRead = useRef('');
   const today = localIsoDate(getCountryToday(country));
   const month = today.slice(0, 7);
@@ -187,6 +190,25 @@ export function PayThisMonth({
     }
     log(row, row.extra > 0 ? 'paid_extra' : 'paid_full', row.amount);
     setSaid(`${row.name}: marked paid, ${fmt(row.amount, row.currency)}. Recorded in Activity.`);
+  }
+
+  /** Save the lender's UPI ID on the loan (roadmap PR H). */
+  function saveVpa(row: PayRow, vpa: string): boolean {
+    if (row.loanIndex === null) return false;
+    const stored = loadProfileClient();
+    const list = stored.user.loans ?? [];
+    const at = list.findIndex((l) => (loans[row.loanIndex!]?.id ? l.id === loans[row.loanIndex!].id : false));
+    const i = at >= 0 ? at : row.loanIndex;
+    if (!list[i]) return false;
+    const next = list.map((l, k) => (k === i ? { ...l, upi_vpa: vpa } : l));
+    const ok = saveProfileClient({ ...stored, user: { ...stored.user, loans: next } });
+    // The profile changed on purpose: payments logged after this are still for this page.
+    if (ok) {
+      profileAtRead.current = profileCookieKey();
+      setVpas((m) => ({ ...m, [row.loanIndex!]: vpa }));
+      setSaid(`${row.name}: UPI ID saved.`);
+    }
+    return ok;
   }
 
   function undo(row: PayRow) {
@@ -369,6 +391,16 @@ export function PayThisMonth({
                           ? `MARK EXTRA PAID · ${fmt(row.amount - st.amount, row.currency)}`
                           : `MARK PAID · ${fmt(row.amount, row.currency)}`}
                     </button>
+                    {row.loanIndex !== null && (
+                      <UpiPay
+                        loan={loans[row.loanIndex] && (vpas[row.loanIndex] ? { ...loans[row.loanIndex], upi_vpa: vpas[row.loanIndex] } : loans[row.loanIndex])}
+                        name={row.name}
+                        amount={st ? row.amount - st.amount : row.amount}
+                        currency={row.currency}
+                        monthLabel={`${MONTH_NAMES_SHORT[Number(month.slice(5)) - 1]} ${month.slice(0, 4)}`}
+                        onSaveVpa={(v) => saveVpa(row, v)}
+                      />
+                    )}
                     {row.loanIndex !== null && (
                       <button
                         type="button"

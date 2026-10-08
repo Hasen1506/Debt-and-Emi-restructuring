@@ -50,6 +50,9 @@ export interface LoanPayload {
   id?: string;
   /** Display metadata for an upcoming lifecycle loan; never persisted to the profile. */
   planned_effective_month?: number;
+  /** The lender's UPI ID for repayments, entered by the user (roadmap PR H,
+   *  lib/upi). Home's PAY VIA UPI builds a upi://pay link with it. The API ignores it. */
+  upi_vpa?: string;
   /** 'YYYY-MM-DD' the balance was last entered (Setup, Profile, a new
    *  loan). The plan rolls an EMI loan's balance forward by the EMIs due
    *  since (lib/roll-forward). The API ignores it. */
