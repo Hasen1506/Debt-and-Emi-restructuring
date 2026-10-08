@@ -29,6 +29,7 @@ from engine.models import (
     LiquidityClass,
     LifecycleEvent,
     LifecycleEventKind,
+    PayoffRules,
 )
 from engine.formulas import (
     emi, effective_rate, monthly_interest_charge, prepay_recommended, prepayment_beats_fee, real_emi,
@@ -202,6 +203,9 @@ class MonthRow:
     # Income short of costs plus minimums this month (user's currency); the
     # month's payments assume the gap was found somewhere.
     shortfall: Decimal = D("0")
+    # Position of the loan this month's extra went to (None: no extra went
+    # to a loan). Read by the fee-aware order's "why this loan first".
+    extra_to_loan_index: int | None = None
 
 
 @dataclass
@@ -216,6 +220,14 @@ class SimulationResult:
     # surface per-goal contributions in the SurplusAllocationOut
     # response without re-running the allocator.
     first_month_goal_allocation: MonthlyGoalAllocation | None = None
+    # Fee-aware order (roadmap PR K, engine/fee_order.py). Set only when an
+    # Avalanche plan had a loan with a prepayment fee and searched orders:
+    # `payoff_order_method` "exact" | "local"; `payoff_order` the fixed order
+    # kept (loan positions), None when the greedy marginal-cost plan was
+    # cheapest; `payoff_order_note` plain words when a fee changed the order.
+    payoff_order_method: str | None = None
+    payoff_order: list[int] | None = None
+    payoff_order_note: str | None = None
 
 
 def _marginal_rate(user: User, marginal_rate_override: Decimal | None) -> Decimal:
@@ -269,6 +281,50 @@ def _first_hike_month_index(
 
 
 def simulate_plan(
+    user: User,
+    strategy: Strategy = Strategy.AVALANCHE,
+    *args,
+    **kwargs,
+) -> SimulationResult:
+    """Run the plan forward (see `_simulate_plan` for every option).
+
+    Avalanche with a prepayment fee on an open loan (roadmap PR K): a fixed
+    fee breaks the rate-by-rate order, so candidate payoff orders are run on
+    this same simulator and the cheapest plan, net of tax and fees
+    included, is returned (engine/fee_order.py: every order up to 5 loans,
+    greedy plus local swaps above). Ties keep the greedy plan."""
+    from engine.fee_order import choose_order, has_fee_loan
+    if (strategy != Strategy.AVALANCHE or args or kwargs.get("minimums_only")
+            or not has_fee_loan(user.loans)):
+        return _simulate_plan(user, strategy, *args, **kwargs)
+    marg = _marginal_rate(user, kwargs.get("marginal_rate"))
+    goals = kwargs.get("goals")
+
+    def run(strat, order=None, final=False):
+        kw = dict(kwargs)
+        if goals is not None and not final:
+            kw["goals"] = deepcopy(goals)      # the run fills goal states in
+        u = copy(user)
+        u.payoff_rules = PayoffRules(custom_order=order) if order is not None else user.payoff_rules
+        return _simulate_plan(u, strat, **kw)
+
+    choice, res = choose_order(
+        user, marg,
+        run_greedy=lambda: run(Strategy.AVALANCHE),
+        run_fixed=lambda order: run(Strategy.RULES, order),
+    )
+    if goals is not None:
+        # Run the winner once more on the caller's own goal states, which
+        # the API reads back after the call.
+        res = (_simulate_plan(user, Strategy.AVALANCHE, **kwargs) if choice.order is None
+               else run(Strategy.RULES, choice.order, final=True))
+    res.payoff_order_method = choice.method
+    res.payoff_order = choice.order
+    res.payoff_order_note = choice.note
+    return res
+
+
+def _simulate_plan(
     user: User,
     strategy: Strategy = Strategy.AVALANCHE,
     horizon_months: int = 360,
@@ -793,6 +849,7 @@ def simulate_plan(
         # charge against surplus.
         prepay_penalty_paid = D("0")
         penalised = None
+        extra_target_index = None
         if extra_for_debt > 0 and ranked:
             # Pick the highest-ranked loan that's actually open to extra
             # payment this month (out of lock-in, past its part-payment
@@ -815,6 +872,7 @@ def simulate_plan(
                     prepay_penalty_paid = to_user_currency(penalty_in_loan_ccy, target, user)
                     penalised = (target, effective_prepay, target.prepayment_penalty_pct)
                 last_part_payment_month[id(target)] = m
+                extra_target_index = loan_position[id(target)]
 
         # Amortise each loan; track cascade
         interest_paid = D("0")
@@ -1008,6 +1066,7 @@ def simulate_plan(
             goal_contributions=goal_contributions_this_month,
             extra_paid=extra_paid,
             shortfall=shortfall,
+            extra_to_loan_index=extra_target_index,
         ))
 
         total_interest += interest_paid

@@ -156,10 +156,10 @@ def loan_marginal_cost(
     )
 
 
-def user_marginal_costs(loans: list[Loan], user, marginal_rate: Decimal, month: int = 1,
-                        start_month: dict[int, int] | None = None) -> dict[int, MarginalCost]:
-    """{id(loan): MarginalCost} for the open loans in `loans`, as of sim-month
-    `month` (1 = today). Shared by the simulation, Spare cash and the API."""
+def _shield_context(loans: list[Loan], user):
+    """What the marginal tax shield of each loan depends on: this year's
+    deductible interest and debt by kind, the US student-loan phase-out,
+    and the Indian regime."""
     from engine.formulas import loan_market
     from engine.models import FilingStatusUS
     own = user.country
@@ -177,6 +177,15 @@ def user_marginal_costs(loans: list[Loan], user, marginal_rate: Decimal, month: 
                                                   user.filing_status or FilingStatusUS.SINGLE)
         phaseout = allowed / min(edu_interest, US_STUDENT_INTEREST_CAP)
     regime = (user.tax_regime.value if user.tax_regime is not None else "new")
+    return home_interest, home_debt, edu_interest, phaseout, regime
+
+
+def user_marginal_costs(loans: list[Loan], user, marginal_rate: Decimal, month: int = 1,
+                        start_month: dict[int, int] | None = None) -> dict[int, MarginalCost]:
+    """{id(loan): MarginalCost} for the open loans in `loans`, as of sim-month
+    `month` (1 = today). Shared by the simulation, Spare cash and the API."""
+    own = user.country
+    home_interest, home_debt, edu_interest, phaseout, regime = _shield_context(loans, user)
     out: dict[int, MarginalCost] = {}
     for l in loans:
         if l.outstanding <= 0:
@@ -194,6 +203,20 @@ def user_marginal_costs(loans: list[Loan], user, marginal_rate: Decimal, month: 
             lock_in_months=max(0, l.prepay_lock_in_months - elapsed),
         )
     return out
+
+
+def uncapped_shields(loans: list[Loan], user, marginal_rate: Decimal) -> dict[int, Decimal]:
+    """{id(loan): share of each unit of its interest given back in tax}, as if
+    no yearly interest cap bound (the ₹2L 24(b) and $2,500 §221 caps are
+    applied year by year by the caller; the $750k mortgage-debt limit, the
+    regime and itemising still apply). Used by `plan_net_cost`."""
+    own = user.country
+    _, home_debt, _, phaseout, regime = _shield_context(loans, user)
+    return {
+        id(l): marginal_shield(l.loan_type, own.value, marginal_rate, regime, bool(user.itemises),
+                               user.itemised_share, D("0"), home_debt, phaseout)
+        for l in loans
+    }
 
 
 def why_first(mc: MarginalCost) -> str:

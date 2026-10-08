@@ -68,15 +68,91 @@ loan at 6.9%:
   processing fee / insurance no longer lifting a loan, a binding 24(b) /
   §163 / §221 cap no longer lowering one, and fees / lock-ins now lowering one.
 
+## Prepayment fees: a search, not a rate (PR K)
+
+Founder decision of 2026-10-08: the most accurate order, with fees in the
+ranking and in the property test, and no extra friction for people who
+don't know their fee.
+
+**Why the per-year fee term isn't enough.** A fee charged on each rupee
+prepaid is a one-off whose size depends on *when* the loan is prepaid: its
+EMIs shrink what is left to prepay, and a loan that runs out on its own
+pays no fee at all. So no per-year rate, the `fee × 12 / months left`
+term above included, makes a rate-by-rate (greedy) order optimal. On fee
+portfolios sampled on main @ 7f97fc0, a fixed order beat the greedy plan by
+more than the rounding slack in 11 of 41 and 7 of 40 (two samples; PR J
+measured about 1 in 11 with its own fee generator).
+
+**What the plan does** (`engine/fee_order.py`, called by `simulate_plan`).
+When the strategy is Avalanche and an open loan has a fee, the plan is run
+for candidate payoff orders on the same simulator and the cheapest is kept:
+
+```
+net cost = interest paid (GST on card interest and prepayment fees included)
+         − tax the deductible interest saves (marginal rate; ₹2L 24(b) and
+           $2,500 §221 caps applied per plan year)
+```
+
+* **Up to 5 open loans: exact.** Every order (at most 5! = 120 plan runs,
+  about 11 ms each) plus the greedy plan; the plan is never worse than the
+  best fixed order.
+* **6 or more: greedy plus local swaps.** The greedy plan and the
+  rate-only order, then a local search from the better one: swap any two
+  loans, or move a loan with a fee to any position; repeat while it gets
+  cheaper (at most 6 rounds). Every order of 6–7 loans would be 720–5,040
+  runs (about 8–60 s for one plan), too slow per request.
+* **Ties** keep the greedy plan, then the rate-only order; another order
+  wins only when it is cheaper by more than ₹1 / $1.
+* Only Avalanche searches. Your rules and Snowball are the user's own
+  order; Spare cash still ranks one payment by marginal cost and checks
+  the fee against the interest it saves.
+
+**"Why this loan first".** When the kept plan puts its extra on the loans
+in a different order than ranking by rate alone (the marginal cost without
+its fee term), the plan returns `payoff_order_note` and Home's "Pay this
+month" adds it, e.g.: "A prepayment fee changed this order. By rate alone
+the extra would go to your Alpha personal loan (13%) before your Beta
+personal loan (12%), but its 5% fee on every amount prepaid costs more than
+the interest that prepaying it early saves. Putting the extra on your Beta
+personal loan first saves about ₹3,447 over the plan, fees included."
+
+**No friction: what a blank fee means** (`engine/prepayment_fee.py`,
+`web/src/lib/prepayment-fee.ts`, one table in
+`engine/tests/fixtures/prepayment_fee_defaults.json`). The field stays
+optional and never blocks.
+
+| Loan | Blank fee means | Shown as |
+|---|---|---|
+| India, floating rate, not a card | 0% | "0 (assumed)" + "Assumed 0%: RBI bars prepayment charges on floating-rate loans to individuals (not for business) (RBI Directions, 2 July 2025)." |
+| Fixed rate, credit card, or a US loan | no fee assumed (0% in the math) | "Not known" + "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge." |
+
+Source, verified on rbi.org.in on 2026-10-08: **Reserve Bank of India
+(Pre-payment Charges on Loans) Directions, 2025**, RBI/2025-26/64,
+DoR.MCS.REC.38/01.01.001/2025-26, **July 2, 2025**, para 5(i): "For all
+loans granted for purposes other than business to individuals, with or
+without co-obligant(s), an RE shall not levy pre-payment charges" (on all
+floating rate loans and advances; part or full prepayment, any source of
+funds, no lock-in, 5(iii)). It covers loans sanctioned or renewed from
+1 January 2026; earlier loans are covered by the circulars it repeals for
+their period, e.g. DBOD.Dir.BC.No.110/13.03.00/2013-14 of May 7, 2014
+(banks: no foreclosure charges / pre-payment penalties on floating rate
+term loans to individual borrowers).
+https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12878&Mode=0 ·
+https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=8868&Mode=0
+
+No lender-specific fee is ever assumed. The Profile's click-to-fill chip
+(per-bank "industry norm" fees in `engine/rate_cards.py`, marked
+indicative) is now offered only where no rule fixes the fee, and
+`lookup_loan_terms` no longer lets a bank entry put a fee on a
+floating-rate Indian loan.
+
 ## Property
 
 `test_property_marginal_order_is_at_least_as_good_as_the_best_fixed_order`:
 on 2–4 loan portfolios (IN and US, cards with GST, deductible loans under
-their caps, sunk fees, lock-ins), the marginal-cost plan's interest net of
-tax is never more than the best of every fixed order (brute force over all
-permutations, run through the same simulator). Prepayment fees are left
-out of that property on purpose: a per-rupee fee is a one-off whose size
-depends on *when* the loan is prepaid, so no per-year rate makes a greedy
-order optimal. On sampled fee portfolios a fixed order beat the marginal
-order in about 1 in 11 (the old effective-rate order: about 1 in 5). See
-docs/IDEAS.md ("Fee-aware look-ahead").
+their caps, sunk fees, lock-ins, and since PR K **prepayment fees of
+0.5–5% on about half the loans**), the Avalanche plan's interest net of tax
+(fees included) is never more than the best of every fixed order (brute
+force over all permutations, run through the same simulator). Four fee
+portfolios on which PR J's greedy order lost are kept as fixed regression
+cases (`FEE_REGRESSIONS`), and they fail on main @ 7f97fc0.

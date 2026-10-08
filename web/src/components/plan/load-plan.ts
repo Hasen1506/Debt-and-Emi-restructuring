@@ -685,6 +685,7 @@ export async function loadPlan(
           }
         : null,
       shortfall: Number(scenario.shortfall ?? 0),
+      payoffOrderNote: scenario.payoff_order_note ?? null,
       futureShortfall: (() => {
         const row=scenario.trajectory.find(p=>p.month>1 && Number(p.shortfall)>0);
         return row ? {month:row.month,amount:Number(row.shortfall)} : undefined;
