@@ -482,3 +482,22 @@ BASE_URL=http://127.0.0.1:3001 AUDIT_BLOCK_EXTERNAL=1 node scripts/pr23-regressi
 ```
 
 Optional `PLAYWRIGHT_MODULE`, `CHROME_PATH` and `AUDIT_OUTPUT` configure the installed browser and evidence path. No merge or production deployment is part of this follow-up.
+
+## 12 · Signed-in walkthrough after PRs #29–#42 (8 Oct 2026)
+
+Every page walked at 390 px with four loans (card, personal, floating home, car), three months logged in Activity and one goal. Nothing in the test suites had broken: 188 web tests, 929 Python tests (the 4 PDF-reading tests need `cffi` installed in the environment, not a code change), typecheck, lint and production build. What a user would still trip over:
+
+| # | Where | Problem | Fix |
+|---|---|---|---|
+| Q1 | Home · Pay this month | The card's row gave three rates for one card: 42% (statement), 49.56% (with GST) and 60.31% (what the next payment saves) | The row gives the statement rate, then the one breakdown of what the next payment saves |
+| Q2 | Home · Pay this month | Three full-size buttons per row (MARK PAID · ₹X, PAY VIA UPI, OTHER AMOUNT), and a "Where this month's money goes" list that repeated the four rows | MARK PAID and OTHER AMOUNT on one line (the amount is already on the row); PAY VIA UPI is a quiet link until a UPI ID is saved, then a button; the repeated list is gone. Cheaper-rate details start folded. Home is 4.3 screens instead of 5.3 |
+| Q3 | Plan · chart | Loans that clear early stacked their labels at the top edge, with later dashed lines running through them | Labels drop below the line when the top is full and are drawn after every line |
+| Q4 | Plan | A 4-screen page with What if at the bottom | JUMP TO links under the KPIs: What if, month by month, rate decisions, life events |
+| Q5 | Plan · What you've paid | With a goal, a ₹76,000 pace against a ₹90,000 plan read "income doesn't support that monthly total" and hid the date: the goal's own saving, once the dear debts clear, was counted as a shortfall | `paceProjectionGap` (lib/pace) counts goal saving and money kept as savings before calling a month short. The message for a real shortfall now says what to update |
+| Q6 | Profile | Assumptions (`/profile/assumptions`) was reachable only from inside an edit, and its rows scrolled sideways at 390 px (434 px wide) | An Assumptions section on Profile with EDIT and how many values are your own; rows are two columns |
+| Q7 | Activity | This month's MARK PAID and OTHER AMOUNT stacked at the right of a narrow column | Under the row, side by side |
+| Q8 | Goals | A goal's CANCEL sat beside EDIT and read like "cancel the edit" | CANCEL GOAL |
+
+**Tabs.** Five stay: Home (what to pay now), Plan (when it ends, what if), Activity (what happened), Goals & Tools (something came up), Profile (my details). Each answers a different question, and five fit one line at 390 px. What was crowded was inside the pages: the same loans listed three times on Home, buttons of equal weight, long pages with no way to jump. Those are what changed.
+
+`scripts/pr23-regressions.cjs` P13 now expects setup to land on `/plan`, as PR #29 made it (it waited for `/`).

@@ -18,7 +18,7 @@
  */
 import Decimal from 'decimal.js';
 import type { ActivityEntry } from './activity';
-import type { Country, LoanPayload } from './api';
+import type { Country, LoanPayload, TrajectoryPointRaw } from './api';
 import { loanToUser } from './currency';
 import { alignToLoans, resolveLoanIndex } from './loan-ids';
 import { isRegularPayment } from './payment-state';
@@ -167,4 +167,28 @@ export function paceSummary(
  *  than 5% (and a rupee or dollar) either way. */
 export function paceDiffers(average: number, planTotal: number): boolean {
   return planTotal > 0 && Math.abs(average - planTotal) > Math.max(1, planTotal * 0.05);
+}
+
+/**
+ * Why a date "at this pace" can't be given, from the run at that total;
+ * undefined when it can. Up to the final payoff, the run must keep the
+ * total every month:
+ *   • future_minimums: EMIs and minimums later need more than the pace;
+ *   • unaffordable: income can't reach it in some month (costs that rise
+ *     later can make even a pace below today's total too much). Money the
+ *     plan sends elsewhere (a goal's saving once the dear debts clear, or
+ *     what's kept because no loan beats saving) was there to pay, so it
+ *     isn't a shortfall: one goal made a ₹76,000 pace against a ₹90,000
+ *     plan read "income doesn't support it".
+ */
+export function paceProjectionGap(
+  trajectory: Pick<TrajectoryPointRaw, 'month' | 'total_paid' | 'invested' | 'goal_contributions'>[],
+  debtFreeMonth: number | null | undefined,
+  average: number,
+): 'future_minimums' | 'unaffordable' | undefined {
+  const ongoing = trajectory.filter((p) => p.month >= 1 && (debtFreeMonth == null || p.month < debtFreeMonth));
+  if (ongoing.some((p) => Number(p.total_paid) > average + 1)) return 'future_minimums';
+  const placed = (p: (typeof ongoing)[number]) =>
+    Number(p.total_paid) + Number(p.invested || 0) + Object.values(p.goal_contributions ?? {}).reduce((s, v) => s + Number(v), 0);
+  return ongoing.some((p) => placed(p) < average - 1) ? 'unaffordable' : undefined;
 }

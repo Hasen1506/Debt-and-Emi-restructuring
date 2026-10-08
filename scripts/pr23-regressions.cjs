@@ -108,7 +108,7 @@ const regularMonths=(amount)=>[date(-2),date(-1)].map((d,i)=>payment({id:'pace'+
     assert.doesNotMatch(text,/you.d be debt-free/);assert.equal(await section.getByRole('button').count(),0);
   },{finoptima_activity:regularMonths(4000)});
   await run('P08 Pace beyond saved spending capacity has no false date or adopt button',user({loans:[emi({outstanding:'500000'})]}),async p=>{
-    const section=await paceView(p);const text=await section.innerText();assert.match(text,/averaged ₹80,000/);assert.match(text,/do not support that monthly total/);
+    const section=await paceView(p);const text=await section.innerText();assert.match(text,/averaged ₹80,000/);assert.match(text,/more than your take-home leaves after spending/);
     assert.doesNotMatch(text,/you.d be debt-free/);assert.equal(await section.getByRole('button').count(),0);
   },{finoptima_activity:regularMonths(80000).map(e=>({...e,kind:'paid_extra',source:'surplus'}))});
   await run('P09 NRI rate advice separates INR and USD loans by benchmark',user({country:'US',is_nri_us:true,monthly_income:'6000',annual_gross_salary:'72000',annual_income:'72000',fixed_expenses:'1500',fx_to_user_currency:{INR:'.012'},loans:[emi({loan_type:'home_loan',rate_type:'floating'}),emi({id:'usd',bank:'Chase',loan_type:'credit_card',currency:'USD',outstanding:'2000',scheduled_emi:'0',nominal_rate:'.24'}),emi({id:'in-card',bank:'ICICI',loan_type:'credit_card',scheduled_emi:'0',nominal_rate:'.42'})]}),async p=>{
@@ -147,7 +147,7 @@ const regularMonths=(amount)=>[date(-2),date(-1)].map((d,i)=>payment({id:'pace'+
     const args=r.request().postDataJSON();assert.equal(args.user.loans[0].first_payment_month,2);
     const result=await r.json();assert.equal(Number(result.trajectory.find(t=>t.month===1).total_paid),0);
     await p.getByRole('button',{name:/SAVE.*OPEN MY PLAN/}).click();
-    await p.waitForURL(base+'/',{waitUntil:'domcontentloaded'});assert.equal((await profile(c)).loans[0].first_emi_month,next);
+    await p.waitForURL(base+'/plan',{waitUntil:'domcontentloaded'});assert.equal((await profile(c)).loans[0].first_emi_month,next);
     await p.goto(base+'/');await p.getByText(/No loan payment is due this month/).waitFor();
     assert.match(await p.locator('section[aria-labelledby="home-cash"]').innerText(),/Spending ₹40,000 \+ EMIs and card minimums ₹0/);
     assert.match(await body(p),/No loan payment is due this month/);
@@ -155,7 +155,7 @@ const regularMonths=(amount)=>[date(-2),date(-1)].map((d,i)=>payment({id:'pace'+
   await run('P14 Pace must stay affordable after modeled costs rise',user({inflation_rate:'.25',loans:[emi({outstanding:'500000'})]}),async(p,c)=>{
     await c.addCookies([{name:'finoptima_inflation_modeling',value:'on',url:base},{name:'finoptima_inflation_rate',value:'.25',url:base}]);
     const section=await paceView(p);assert.match(await section.innerText(),/averaged ₹55,000/);
-    assert.match(await section.innerText(),/do not support that monthly total/);
+    assert.match(await section.innerText(),/more than your take-home leaves after spending/);
     assert.doesNotMatch(await section.innerText(),/you.d be debt-free/);assert.equal(await section.getByRole('button').count(),0);
   },{finoptima_activity:regularMonths(55000).map(e=>({...e,kind:'paid_extra',source:'surplus'}))});
   await run('P15 Stale Home cannot overwrite a newer payment ledger',user({loans:[emi()]}),async p=>{

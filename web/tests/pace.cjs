@@ -84,3 +84,17 @@ test('a loan already paid off with nothing logged doesn\'t hold a month open', (
   const s = paceSummary(paceMonths(entries, loans, '2026-10'), loans, 'IN', {});
   assert.equal(s.counted, 2);
 });
+
+test("a goal's saving after the dear debts clear isn't read as income falling short of the pace", () => {
+  const { paceProjectionGap } = lib("pace.ts");
+  const pt = (month, total_paid, extra = {}) => ({ month, total_paid: String(total_paid), invested: '0', ...extra });
+  // Pace ₹76,000 against a ₹90,000 plan: from month 3 a goal takes ₹22,000 of it.
+  const run = [pt(1, 76000), pt(2, 76000), pt(3, 54000, { goal_contributions: { g1: '22000' } }), pt(4, 54000, { goal_contributions: { g1: '22000' } }), pt(5, 30000)];
+  assert.equal(paceProjectionGap(run, 5, 76000), undefined);
+  // A month that can't reach the pace is a real shortfall (costs rising later, or a pace above what income leaves)...
+  assert.equal(paceProjectionGap([pt(1, 95000), pt(2, 80000), pt(3, 10)], 3, 95000), 'unaffordable');
+  // ...unless the gap went to a goal or was kept as savings.
+  assert.equal(paceProjectionGap([pt(1, 95000), pt(2, 80000, { invested: '15000' }), pt(3, 10)], 3, 95000), undefined);
+  // Later minimums above the pace: no date at that pace.
+  assert.equal(paceProjectionGap([pt(1, 76000), pt(2, 81000), pt(3, 10)], 3, 76000), 'future_minimums');
+});
