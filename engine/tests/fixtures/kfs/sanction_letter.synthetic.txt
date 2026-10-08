@@ -1,0 +1,13 @@
+SYNTHETIC SAMPLE - not a real loan document (RightDue test fixture)
+Demo Finance Limited
+SANCTION LETTER
+Date: 12-03-2023
+Dear Customer,
+We are pleased to sanction a Car Loan on the following terms:
+Loan Amount: Rs. 8,00,000/-
+Rate of Interest: 9.25% p.a. (Fixed)
+Tenure: 5 years
+EMI: Rs. 16,704/-
+Processing Fee: Rs. 4,000/- plus GST
+First EMI Date: 05-04-2023
+Foreclosure / Prepayment charges: 5% of principal outstanding
