@@ -5,6 +5,8 @@
  */
 import type { PlanData } from './PlanData';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { deriveMetrics } from '@/lib/derived';
+import type { StoredProfile } from '@/lib/user-store';
 
 export interface LoanClear {
   index: number;
@@ -47,4 +49,12 @@ export function loanClears(plan: PlanData): LoanClear[] {
     out.push({ index, month, name });
   });
   return out.sort((a, b) => a.month - b.month || a.index - b.index);
+}
+
+/** What's owed at the start of the plan (before this month's payments), in
+ *  the plan's currency: the schedule's first row and the chart's first
+ *  point, so both start from the OUTSTANDING Home shows. Loans that start
+ *  later aren't owed yet. */
+export function owedAtStart(plan: PlanData): number {
+  return Number(deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate } as StoredProfile).totalOutstanding);
 }

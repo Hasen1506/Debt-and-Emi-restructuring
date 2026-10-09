@@ -85,7 +85,9 @@ export function LTrajectory({
   // while it overlaps one already placed. Near the top (loans that clear
   // early, while the balance is still high) there's no room above, so it
   // drops below the line instead of stacking on the labels there.
-  const placed: Array<{ x0: number; x1: number; y: number }> = [];
+  // The axis title (OUTSTANDING, top left) counts as placed: a label for a
+  // loan that clears early used to sit on top of it.
+  const placed: Array<{ x0: number; x1: number; y: number }> = [{ x0: 8, x1: 8 + 'OUTSTANDING'.length * CHAR_W, y: 12 }];
   const labels = milestones.map((m) => {
     const x = toX(m.t);
     const markY = toY(m.v);

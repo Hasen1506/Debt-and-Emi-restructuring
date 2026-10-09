@@ -15,7 +15,7 @@ import { getCountryToday, monthIndexToCountryLabel, monthIndexToDate, MONTH_NAME
 import { STRATEGY_LABEL } from '@/lib/strategy';
 import { L_T, LSectionHeader } from '@/components/ledger/primitives';
 import { LTrajectory, type LTrajMilestone, type LTrajPoint } from '@/components/ledger/LTrajectory';
-import { loanClears } from './plan-milestones';
+import { loanClears, owedAtStart } from './plan-milestones';
 
 const CHART_NAME: Record<string, string> = {
   credit_card: 'CARD',
@@ -45,7 +45,11 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
       // "OCT ’26", not "OCT 26", which reads as a day.
       return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ’${String(d.getFullYear()).slice(-2)}`;
     };
-    const first = traj[0].month;
+    // The line starts at what's owed now (Home's OUTSTANDING), not after
+    // this month's payments: its top read ₹48.51L against ₹48.80L owed.
+    const start = traj[0].month === 1 ? owedAtStart(plan) : 0;
+    const series = start > 0 ? [{ month: 0, avalanche: start, minimums: start }, ...traj] : traj;
+    const first = series[0].month;
     const lastAll = traj[traj.length - 1].month;
     const clears = !short && plan.debtFreeMonth ? plan.debtFreeMonth : null;
     const lastMinOwed = traj.filter((p) => p.minimums > 0.5).at(-1)?.month ?? 0;
@@ -57,7 +61,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
       : minClear && minClear <= clears * 2
         ? Math.max(minClear, clears)
         : Math.min(lastAll, Math.max(clears + 6, Math.ceil(clears * 1.25)));
-    const shown = traj.filter((p) => p.month <= end);
+    const shown = series.filter((p) => p.month <= end);
     const span = Math.max(1, end - first);
     const tOf = (m: number) => (m - first) / span;
     const maxBal = shown.reduce((mx, p) => Math.max(mx, p.avalanche, p.minimums), 0);
@@ -102,7 +106,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
 
     const xLabels = [0, 0.25, 0.5, 0.75, 1].map((f) => {
       const m = first + Math.round(f * span);
-      return { t: tOf(m), l: shortDate(m) };
+      return { t: tOf(m), l: m === 0 ? 'NOW' : shortDate(m) };
     });
     // Compact (₹35.7L): the full figure didn't fit beside the axis on a phone.
     const yLabels = [
@@ -116,7 +120,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
       .filter(([m]) => m !== clears)
       .map(([m, names]) => `${names.join(' and ').toLowerCase()} paid off in ${label(m)}`);
     const title =
-      `Total debt over time. ${strategy} plan: ${formatCurrencyWhole(traj[0].avalanche, ccy)} after this month` +
+      `Total debt over time. ${strategy} plan: ${start > 0 ? `${formatCurrencyWhole(start, ccy)} now, ` : ''}${formatCurrencyWhole(traj[0].avalanche, ccy)} after this month` +
       (paidOff.length ? `; ${paidOff.join('; ')}` : '') +
       (clears ? `; debt-free in ${label(clears)}. ` : '; not cleared within the plan. ') +
       (minClear

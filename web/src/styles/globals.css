@@ -68,6 +68,15 @@ button {
   cursor: pointer;
 }
 
+/* Form fields don't inherit the page's font by default: a text box or a
+   dropdown without its own font-family showed in Arial among the mono. */
+input,
+select,
+textarea,
+optgroup {
+  font-family: inherit;
+}
+
 .mono {
   font-family: var(--font-mono);
 }

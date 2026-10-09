@@ -279,13 +279,14 @@ export function ActivityPage({
 
   return (
     <div ref={ref} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* What this page is for, in one line (each tab opens with one) */}
+      <p style={{ margin: '0 0 8px', fontSize: 13, color: L_T.inkSoft, lineHeight: 1.6 }}>
+        What you paid and what changed, by month. Each entry re-runs the plan from what really happened.
+      </p>
       <section aria-labelledby="activity-h">
         <LSectionHeader right={<LBracket accent onClick={() => setDialog({})}>+ LOG AN ENTRY</LBracket>}>
           <span id="activity-h">Activity · {count} {count === 1 ? 'entry' : 'entries'}</span>
         </LSectionHeader>
-        <p style={{ margin: '0 0 8px', fontSize: 12, color: L_T.inkSoft, lineHeight: 1.6 }}>
-          What you paid and what changed, by month. Each entry re-runs the plan from what really happened.
-        </p>
         {rolled.length > 0 && (
           <p style={{ margin: '0 0 8px', fontSize: 11, color: L_T.muted, lineHeight: 1.6 }}>
             Balances move on with the EMIs due since you entered them:{' '}

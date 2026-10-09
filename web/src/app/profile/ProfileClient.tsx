@@ -1130,7 +1130,7 @@ function ProfileEditor({
               onChange={setMonthlyIncome}
               hint={
                 country === 'IN'
-                  ? "What actually hits your account each month — NOT your CTC. Skip bonuses; add via Tools › Spare cash."
+                  ? "What reaches your account each month, not your CTC. Leave out bonuses; add them in Tools › Spare cash when they come."
                   : 'Take-home, post-tax, post-401(k). Add bonuses via Tools › Spare cash.'
               }
               info={
@@ -1163,7 +1163,7 @@ function ProfileEditor({
                 ) : (
                   <>
                     Take-home pay each month, <strong>after</strong> federal /
-                    state tax withholding and 401(k) contributions. NOT your
+                    state tax withholding and 401(k) contributions, not your
                     gross salary. Add bonuses separately via Tools › Spare cash.
                   </>
                 )
@@ -1189,12 +1189,12 @@ function ProfileEditor({
             {!showDetailedExpenses ? (
               <div style={{ gridColumn: '1 / -1' }}>
                 <Field
-                  label="Avg. monthly expenses (excludes EMIs)"
+                  label="Monthly spending, without EMIs"
                   kind="money"
                   currency={userCcy}
                   value={fixedExpenses}
                   onChange={setFixedExpenses}
-                  hint="Rent, food, utilities, subscriptions — do NOT include loan EMIs here"
+                  hint="Rent, food, bills and subscriptions, on average. Leave out loan EMIs: the plan adds them."
                   info={
                     <>
                       Everything non-debt: rent, groceries, fuel, utilities,
@@ -1309,7 +1309,7 @@ function ProfileEditor({
             )}
             <div id="pf-hike">
             <Field
-              label="Expected annual income hike (%)"
+              label="Yearly pay rise (%)"
               kind="percent"
               value={annualHikeRate}
               onChange={setAnnualHikeRate}
@@ -1327,7 +1327,7 @@ function ProfileEditor({
             />
             </div>
             <Select
-              label="Hike applies in"
+              label="Rise comes in"
               value={String(hikeEffectiveMonth)}
               onChange={(v) => {
                 setHikeEffectiveMonth(Number(v));
@@ -2633,7 +2633,7 @@ function ProfileHeader({ title, editing, children }: { title: string; editing?: 
         PROFILE{editing ? ' · EDIT' : ''}
       </div>
       <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>{title}</h1>
-      <p style={{ color: L_T.muted, margin: '8px 0 0', lineHeight: 1.6 }}>{children}</p>
+      <p style={{ color: L_T.inkSoft, fontSize: 13, margin: '8px 0 0', lineHeight: 1.6 }}>{children}</p>
     </header>
   );
 }
@@ -2752,7 +2752,7 @@ function HikeScheduleEditor({
         }}
       >
         <strong style={{ color: 'var(--ink)' }}>
-          Hike phases (optional)
+          Different rises by year (optional)
         </strong>
         <button
           type="button"
@@ -2768,18 +2768,18 @@ function HikeScheduleEditor({
             cursor: 'pointer',
           }}
         >
-          + Add hike phase
+          + Add a period
         </button>
       </div>
       <div style={{ color: 'var(--muted)', marginBottom: 8 }}>
         Use this if you expect different hike rates across the plan — e.g.
         "7% for the first 2 years, then 10% after a likely job switch."
-        Years outside any phase fall back to your scalar hike above
-        ({fallbackRate || '0'}).
+        Years outside a phase use the yearly rise above
+        ({fallbackRate || '0'}%).
       </div>
       {phases.length === 0 && (
         <div style={{ color: 'var(--muted)', fontStyle: 'italic', fontSize: 11 }}>
-          No phases configured. The simulation uses your scalar hike rate uniformly.
+          None added: the plan uses the yearly rise above for every year.
         </div>
       )}
       {phases.map((p, i) => (
@@ -3142,7 +3142,7 @@ function AdvancedTaxDetails({
           letterSpacing: '0.02em',
         }}
       >
-        + Advanced: tax details (auto-derive marginal rate, file the tax sleeve)
+        + More: tax details (your tax rate, advance tax)
       </summary>
       <div
         style={{
@@ -3236,8 +3236,8 @@ function AdvancedTaxDetails({
                   side-income.
                   <br />
                   <br />
-                  When &gt; 0, What you own shows a <strong>tax sleeve</strong> card
-                  with the next advance-tax installment date.
+                  When it's more than 0, What you own shows the next
+                  advance-tax date.
                 </>
               }
             />
@@ -3485,18 +3485,16 @@ function TenureField({
           kind="integer"
           hint={
             derived != null
-              ? `Auto-derive would say ≈ ${derived} mo`
-              : 'Fill rate + EMI + outstanding above to auto-derive'
+              ? `Worked out from the balance, EMI and rate: about ${derived} mo`
+              : 'Add the rate, EMI and balance above to work it out'
           }
           info={
             <>
               How many monthly EMIs are left until this loan is fully paid.
               <br />
               <br />
-              You&apos;re in manual mode because you opened the form already
-              knowing the exact tenure. If you don&apos;t know it, switch
-              back to auto-derive — we&apos;ll compute it from your
-              outstanding, EMI, and rate.
+              You&apos;re typing it in. If you don&apos;t know it, let the
+              app work it out from the balance, EMI and rate.
             </>
           }
         />
@@ -3515,7 +3513,7 @@ function TenureField({
             cursor: 'pointer',
           }}
         >
-          Use auto-derived instead
+          Work it out for me
         </button>
       </div>
     );
