@@ -37,10 +37,13 @@ export function ProfileSummary({
   assets,
   payoffOrder,
   onEdit,
+  marginalRate,
 }: {
   user: UserPayload;
   creditScore: string;
   assets: AssetPayload[];
+  /** The tax rate on the next rupee/dollar earned, as the plan uses it. */
+  marginalRate?: string;
   payoffOrder: ReactNode;
   onEdit: (section: number) => void;
 }) {
@@ -101,8 +104,17 @@ export function ProfileSummary({
                       : ''
                   }`,
                 ],
+            ...(Number(marginalRate) > 0 || marginalRate === '0'
+              ? [['Tax on your next ' + (user.country === 'IN' ? 'rupee' : 'dollar'), `${(Number(marginalRate) * 100).toFixed(1)}%`] as [string, ReactNode]]
+              : []),
           ]}
         />
+        {/* What the tax details change, and (India) which law the section numbers come from. */}
+        <p style={{ margin: '8px 0 0', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
+          {user.country === 'IN'
+            ? 'The plan uses these for the tax break on home-loan and education-loan interest (old regime only) and to weigh paying early against investing, after tax. Section numbers are the familiar 1961-Act ones (24(b), 80E, 87A); the Income-tax Act, 2025 renumbers them from 1 April 2026 with the same limits.'
+            : 'The plan uses these for the mortgage and student-loan interest deductions and to weigh paying early against investing, after tax.'}
+        </p>
       </section>
 
       <section aria-labelledby="pf-income">

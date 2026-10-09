@@ -58,6 +58,13 @@ test('UPI link refuses a bad UPI ID or amount instead of building a link that pa
   assert.equal(normalizeVpa('  A.B@OKSBI '), 'a.b@oksbi');
 });
 
+test('UPI limit note follows NPCI: up to ₹5L for a loan payment (Sep 2025), banks may cap lower', () => {
+  const { upiLimitNote } = lib('upi.ts');
+  assert.equal(upiLimitNote(25000), null);
+  assert.match(upiLimitNote(150000), /up to ₹5,00,000 for a loan payment, but your bank or app may cap it lower/);
+  assert.match(upiLimitNote(600000), /Over ₹5,00,000.*split it, or pay by net banking/);
+});
+
 test('Only a rupee loan with a saved UPI ID gets a link; the note is short and plain', () => {
   const { canPayByUpi, upiNote } = lib('upi.ts');
   assert.equal(canPayByUpi({ upi_vpa: 'loans.1@sbi', currency: 'INR' }, 'INR'), true);

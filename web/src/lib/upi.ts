@@ -16,9 +16,18 @@ import type { LoanPayload } from './api';
 /** A UPI ID: handle@provider, e.g. "hdfcbankcc.12345@hdfcbank". */
 const VPA_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{1,255}@[a-zA-Z][a-zA-Z0-9.-]{1,63}$/;
 
-/** Most banks cap a UPI payment at ₹1,00,000 a transaction (some allow
- *  more for loan repayments); above it the app may refuse. */
+/** UPI caps a payment to a verified loan collector at ₹5,00,000 (NPCI,
+ *  from 15 Sep 2025; ₹10,00,000 a day). Banks and apps may set their own
+ *  lower cap, often ₹1,00,000: above that a payment can be refused. */
+export const UPI_LOAN_LIMIT = 500000;
 export const UPI_TYPICAL_LIMIT = 100000;
+
+/** What to say about the cap for a payment of `amount` rupees, or null. */
+export function upiLimitNote(amount: number): string | null {
+  if (amount > UPI_LOAN_LIMIT) return 'Over ₹5,00,000, UPI’s limit for one loan payment: split it, or pay by net banking. ';
+  if (amount > UPI_TYPICAL_LIMIT) return 'UPI allows up to ₹5,00,000 for a loan payment, but your bank or app may cap it lower. ';
+  return null;
+}
 const NOTE_MAX = 50;
 
 export function normalizeVpa(v: string | undefined | null): string {

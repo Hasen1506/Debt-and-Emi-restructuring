@@ -957,6 +957,7 @@ function ProfileEditor({
             user={{ ...(stored.isLive ? stored.user : {}), ...buildUser() } as UserPayload}
             creditScore={creditScore}
             assets={stored.user.assets ?? []}
+            marginalRate={stored.marginalRate}
             payoffOrder={payoffOrder}
             onEdit={onOpen}
           />

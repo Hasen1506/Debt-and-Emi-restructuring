@@ -299,7 +299,7 @@ export function InvestVsPrepayDeepTool() {
               setLoanRatePct(v);
               setPicked(null);
             }}
-            hint="Its effective rate, after any tax break"
+            hint="What it costs a year: compounded, with GST on a card, after any tax break"
           />
           <Field
             label="Your tax rate (%)"
