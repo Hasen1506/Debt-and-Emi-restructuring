@@ -101,10 +101,12 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     expect(await planText(page)).toMatchSnapshot('india-to-usa-plan-schedule.txt');
   });
 
-  await test.step('/tax shows the US filing details', async () => {
+  await test.step('/tax opens Profile with the US filing details', async () => {
+    // /tax is Profile's tax section now (REDESIGN V5).
     await page.goto('/tax');
-    await expect(page.getByText('USA ($)')).toBeVisible();
-    await expect(page.getByText('Single', { exact: true })).toBeVisible();
+    await page.waitForURL('**/profile#pf-tax');
+    await expect(page.getByText(/^USA(,| with|$)/).first()).toBeVisible();
+    await expect(page.getByText(/^Single( ·|$)/).first()).toBeVisible();
     // Roadmap PR A: the bracket is re-estimated for the US from the $1,801.80
     // take-home (10%). It used to keep India's 20.8% after the switch, which
     // is how a high earner ended up on a stale 0% (lib/marginal-rate).

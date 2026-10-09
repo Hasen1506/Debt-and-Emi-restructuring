@@ -212,7 +212,15 @@ export function ProfileSummary({
       </section>
 
       <section aria-labelledby="pf-own">
-        <LSectionHeader step={6} right={<LBracket accent href="/profile/assets" label="Edit what you own">EDIT</LBracket>}>
+        <LSectionHeader
+          step={6}
+          right={
+            <span style={{ display: 'inline-flex', gap: 12 }}>
+              <LBracket href="/portfolio" label="See what you own: holdings, cash and what selling would do">SEE ALL</LBracket>
+              <LBracket accent href="/profile/assets" label="Edit what you own">EDIT</LBracket>
+            </span>
+          }
+        >
           <span id="pf-own">What you own</span>
         </LSectionHeader>
         <Rows

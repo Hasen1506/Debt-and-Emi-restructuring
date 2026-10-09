@@ -51,7 +51,7 @@ export function LedgerPortfolio({
         }}
       >
         <section>
-          <SectionLabel>PORTFOLIO · WHAT YOU OWN</SectionLabel>
+          <SectionLabel>HOLDINGS</SectionLabel>
           <div
             style={{
               background: 'var(--card)',
@@ -103,7 +103,7 @@ export function LedgerPortfolio({
     >
       <section>
         <SectionLabel>
-          PORTFOLIO · {summary.count} HOLDINGS · {summary.byType.length} TYPES
+          HOLDINGS · {summary.count} · {summary.byType.length} TYPES
         </SectionLabel>
         <LedgerKpiGrid
           cells={[
