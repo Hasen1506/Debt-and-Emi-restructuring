@@ -148,7 +148,7 @@ export function PlanNotes({ plan }: { plan: PlanData }) {
   const notes = buildNotes(plan);
   if (notes.length === 0) return null;
   return (
-    <section aria-labelledby="plan-notes-h">
+    <section aria-labelledby="plan-notes-h" id="notes" style={{ scrollMarginTop: 16 }}>
       <LSectionHeader>
         <span id="plan-notes-h">Notes · {notes.length}</span>
       </LSectionHeader>

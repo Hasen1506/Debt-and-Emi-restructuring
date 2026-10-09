@@ -91,12 +91,16 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper }: HomeProps) {
           gap: 22,
         }}
       >
+        {/* What this page is for, in one line (each tab opens with one) */}
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+          Your month on one page: what comes in and goes out, what to pay now, and every loan you have.
+        </p>
         <ContextLine profile={profile} />
         <CashFlow profile={profile} m={m} />
 
         <section aria-labelledby="home-status">
           <LSectionHeader>
-            <span id="home-status">Status</span>
+            <span id="home-status">Where you stand</span>
           </LSectionHeader>
           <LKpi
             cols={4}
@@ -170,7 +174,7 @@ function ContextLine({ profile }: { profile: StoredProfile }) {
       <span>
         {parts.join(' · ')}
       </span>
-      <LBracket href="/plan">CHANGE ON PLAN →</LBracket>
+      <LBracket href="/profile?step=tax">EDIT IN PROFILE →</LBracket>
     </section>
   );
 }

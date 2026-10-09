@@ -66,12 +66,19 @@ export function EffectiveAprBreakdown({
   }
 
   const mc = cost ?? loanMarginalCost(loan, country, marginalTaxRate, taxRegime ?? 'new', itemises ?? true);
-  const lines: { label: string; value: Decimal; sign: '+' | '−' }[] = [{ label: 'Interest, compounded monthly', value: mc.interest, sign: '+' }];
+  // From the statement rate, each line adds or takes something off.
+  const compounding = mc.interest.minus(loan.nominal_rate || 0);
+  const lines: { label: string; value: Decimal; sign: '+' | '−' }[] = [];
+  if (compounding.gt(0.00005)) lines.push({ label: 'Interest added monthly, so it compounds', value: compounding, sign: '+' });
   if (mc.gst.gt(0)) lines.push({ label: 'GST on the interest (18%), compounding with it', value: mc.gst, sign: '+' });
   if (mc.taxBenefit.gt(0)) lines.push({ label: 'Tax break on the interest', value: mc.taxBenefit, sign: '−' });
   // Fees paid upfront: not in the yearly cost, but the all-in figure says what they added.
   const { lines: feeLines } = computeBreakdown(loan, marginalTaxRate, country, taxRegime, itemises ?? true);
-  const hasUpfront = Number(loan.processing_fee_amortised || 0) > 0 || Number(loan.insurance_premium_pct || 0) > 0;
+  const upfront = [
+    Number(loan.processing_fee_amortised || 0) > 0 && 'processing fee',
+    Number(loan.insurance_premium_pct || 0) > 0 && 'insurance',
+  ].filter(Boolean).join(' and ');
+  const hasUpfront = upfront !== '';
   const allIn = hasUpfront ? trueApr(trueAprInputsFromBreakdown(loan, feeLines)).apr : null;
 
   const isCard = variant === 'card';
@@ -108,8 +115,8 @@ export function EffectiveAprBreakdown({
           fontFamily: 'var(--font-sans)',
         }}
       >
-        <span style={{ color: 'var(--muted)' }}>Rate on your statement</span>
-        <span className="num" style={{ ...num, color: 'var(--muted)' }}>{fmt(loan.nominal_rate || 0)}</span>
+        <span>Rate on your statement</span>
+        <span className="num" style={num}>{fmt(loan.nominal_rate || 0)}</span>
         {lines.map((line, i) => (
           <div key={i} style={{ display: 'contents' }}>
             <span style={{ color: 'var(--ink)' }}>{line.label}</span>
@@ -137,7 +144,7 @@ export function EffectiveAprBreakdown({
         early against investing.
         {mc.locked && ` Locked against prepayment for ${mc.lockInMonths} more month${mc.lockInMonths === 1 ? '' : 's'}, so it is paid after your open loans.`}
         {allIn != null &&
-          ` With the processing fee and insurance you paid upfront, it costs ${fmt(allIn)} a year over its life. Those are already paid, so they don't change what an early payment saves.`}
+          ` With the ${upfront} you paid upfront, it costs ${fmt(allIn)} a year over its life. ${upfront.includes(' and ') ? "Those are already paid, so they don't" : "That's already paid, so it doesn't"} change what an early payment saves.`}
       </div>
       <RateRangeHint
         bank={loan.bank}

@@ -208,7 +208,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
           {!plan.profileIsLive && ' · DEMO'}
           {!plan.live && ' · OFFLINE'}
         </span>
-        <LBracket href="/profile">EDIT IN PROFILE →</LBracket>
+        <LBracket href="/profile?step=tax">EDIT IN PROFILE →</LBracket>
       </div>
       <div role="group" aria-label="Assumptions" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {chips.map((c) => {

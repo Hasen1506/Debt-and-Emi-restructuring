@@ -136,6 +136,7 @@ const STEPS: ReadonlyArray<{ label: string; optional?: boolean }> = [
 const STEP_ALIASES: Record<string, number> = {
   you: 0,
   country: 1,
+  tax: 1,
   income: 2,
   loans: 3,
   savings: 4,

@@ -420,7 +420,7 @@ def _scan_card_balance_transfer(
         affected_loan_banks=[card.bank],
         target_bank=target_card.name,
         target_rate=cand.effective_bt_apr,
-        current_rate=card_effective,
+        current_rate=card_cost,  # as the card's Home row shows it
         detail={
             "outstanding": str(card.outstanding),
             "promo_rate": str(promo_rate),

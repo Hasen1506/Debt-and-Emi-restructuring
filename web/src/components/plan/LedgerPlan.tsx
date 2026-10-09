@@ -103,6 +103,10 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
 
         {/* What the plan assumes (editable chips), the data and guesses it
             rests on, then what it comes to */}
+        {/* What this page is for, in one line (each tab opens with one) */}
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+          When you&apos;ll be debt-free and how: the date, each month&apos;s payments, and changes you can try before you make them.
+        </p>
         <PlanAssumptions plan={plan} />
         <PlanGivens plan={plan} />
         <LKpi
@@ -150,10 +154,12 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {/* A four-screen page: one tap to the part you came for */}
         <nav aria-label="On this page" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 11, alignItems: 'center' }}>
           <span style={{ color: L_T.muted, letterSpacing: '0.1em' }}>JUMP TO</span>
-          <LBracket href="#what-if">WHAT IF</LBracket>
+          {/* In page order */}
           <LBracket href="#schedule">MONTH BY MONTH</LBracket>
           <LBracket href="#rate-decisions">RATE DECISIONS</LBracket>
           <LBracket href="#life-events">LIFE EVENTS</LBracket>
+          <LBracket href="#notes">NOTES</LBracket>
+          <LBracket href="#what-if">WHAT IF</LBracket>
         </nav>
 
         {/* What actually reached the debts, beside what the plan puts in */}

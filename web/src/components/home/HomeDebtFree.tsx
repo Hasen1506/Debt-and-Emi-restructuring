@@ -115,11 +115,11 @@ const REASON: Record<string, (rate: string) => string> = {
   rules: (rate) => `your rules put it first (${rate})`,
 };
 
-/** The same, when the breakdown below gives the rate. */
-const WHY: Record<string, (rate: string) => string> = {
-  avalanche: (rate) => `at ${rate} on the statement, it costs the most`,
-  snowball: (rate) => `it's the smallest balance (${rate} on the statement)`,
-  rules: (rate) => `your rules put it first (${rate} on the statement)`,
+/** The reason in plain words, when the breakdown after it gives the rates. */
+const WHY: Record<string, string> = {
+  avalanche: 'it costs the most',
+  snowball: "it's the smallest balance",
+  rules: 'your rules put it first',
 };
 
 /** The loan's rate as its statement shows it, then what it costs a year
@@ -179,7 +179,7 @@ export async function HomePayThisMonth() {
   const several = m.loans.filter((l) => l.outstanding.gt(0)).length > 1;
   const why = target
     ? mc
-      ? `${several ? `The extra goes here: ${(WHY[plan.strategy] ?? WHY.avalanche)(fmtPct(target.nominal))}.` : `The extra goes on your only loan, at ${fmtPct(target.nominal)} on the statement.`} ${whyFirst(mc)}. `
+      ? `${several ? `The extra goes here because ${WHY[plan.strategy] ?? WHY.avalanche}.` : 'The extra goes on your only loan.'} ${whyFirst(mc)}. `
       : `${several ? `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(rateWords(target, country))}` : `The extra goes on your only loan, at ${rateWords(target, country)}`}. `
     : '';
   const reason =

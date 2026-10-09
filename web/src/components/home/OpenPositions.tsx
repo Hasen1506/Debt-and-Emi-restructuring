@@ -50,10 +50,9 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
       </LSectionHeader>
       {/* Where these numbers come from: the user, not the bank. */}
       <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
-        As you entered them in Profile. A loan moves on by its EMI once you mark
-        it paid (or the month ends); card balances stay as entered until you
-        update them. Not linked to your bank, so check them against a statement
-        now and then.
+        As entered in Profile, not linked to your bank: check them against a
+        statement now and then. A loan moves on by its EMI once you mark it
+        paid; a card balance stays as entered until you update it.
       </p>
       <StaleCardNudge user={user} />
       <FxRateLine user={user} nowMs={Date.now()} />
