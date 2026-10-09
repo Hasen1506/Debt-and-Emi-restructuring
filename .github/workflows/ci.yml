@@ -152,6 +152,14 @@ jobs:
       - name: Golden journeys
         run: npx playwright test --project=chromium
         working-directory: web
+      - name: Show what each failed test saw
+        if: failure()
+        working-directory: web
+        run: |
+          for f in test-results/*/error-context.md; do
+            [ -f "$f" ] || continue
+            echo "::group::$f"; head -120 "$f"; echo "::endgroup::"
+          done
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -208,6 +216,14 @@ jobs:
       - name: Journeys and accessibility in Firefox and WebKit
         run: npx playwright test --project=firefox --project=webkit
         working-directory: web
+      - name: Show what each failed test saw
+        if: failure()
+        working-directory: web
+        run: |
+          for f in test-results/*/error-context.md; do
+            [ -f "$f" ] || continue
+            echo "::group::$f"; head -120 "$f"; echo "::endgroup::"
+          done
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

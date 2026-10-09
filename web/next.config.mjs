@@ -16,6 +16,10 @@ const nextConfig = {
       // Roadmap PR I: Big purchase is a mode of New debt check; Right time is retired.
       { source: '/tools/purchase', destination: '/tools/new-debt?mode=purchase', permanent: false },
       { source: '/tools/right-time', destination: '/tools/new-debt', permanent: false },
+      // Tax is Profile's "Where you live and tax" section since V5. A
+      // server redirect, not a page that redirects while rendering:
+      // Firefox aborted that navigation midway.
+      { source: '/tax', destination: '/profile#pf-tax', permanent: false },
     ];
   },
 };

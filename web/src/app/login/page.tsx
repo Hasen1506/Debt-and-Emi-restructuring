@@ -6,7 +6,7 @@
  *   2. Enter code       → POST /api/auth/verify-otp → cookie set → redirect
  */
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
@@ -23,7 +23,6 @@ const STARTING_RETRY_DELAY_MS = 5000;
 type Phase = 'email' | 'code';
 
 export default function LoginPage() {
-  const router = useRouter();
   const params = useSearchParams();
   const next = params.get('next');
   const redirectTo = typeof window === 'undefined' ? '/' : safeRedirect(next, window.location.origin);
@@ -114,8 +113,10 @@ export default function LoginPage() {
       // push their existing cookie state up if any.
       if (!hydrated) await migrateCookieStateIfNeeded();
       notifySessionChanged();
-      router.push(redirectTo);
-      router.refresh();
+      // A full page load, not router.push: the router may hold a copy of the
+      // destination fetched while signed out (for / that's the landing page),
+      // and WebKit showed it instead of asking the server again.
+      window.location.assign(redirectTo);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Verification failed.';
       // Strip the "/api/auth/verify-otp → 400: " prefix from FastAPI's error.
