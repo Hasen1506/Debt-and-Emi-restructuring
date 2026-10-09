@@ -58,6 +58,11 @@ export function ProfileSummary({
   const spendVar = Number(user.variable_expenses || 0);
   const hike = Number(user.annual_hike_rate || 0);
   const phases = (user.hike_schedule ?? []).length;
+  const a = user.assumptions;
+  const ownValues =
+    Object.keys(user.asset_returns ?? {}).length +
+    Object.keys(user.liquidation_costs ?? {}).length +
+    [user.prepay_hurdle, a?.ef_months, a?.ef_save_amount, a?.goal_buffer_pct].filter((v) => v != null && v !== '').length;
   const held = assets.reduce((s, a) => s.add(Number(a.current_market_value) > 0 ? a.current_market_value : 0), new Decimal(0));
   const edit = (n: number) => (
     <LBracket accent onClick={() => onEdit(n)} label={`Edit ${PROFILE_SECTIONS[n]}`}>
@@ -223,8 +228,28 @@ export function ProfileSummary({
         </section>
       )}
 
+      {/* The numbers the plan assumes (returns, selling costs, the emergency
+          fund): reachable from here, not only from inside an edit. */}
+      <section aria-labelledby="pf-assumptions">
+        <LSectionHeader step={payoffOrder ? 8 : 7} right={<LBracket accent href="/profile/assumptions" label="Edit the plan's assumptions">EDIT</LBracket>}>
+          <span id="pf-assumptions">Assumptions</span>
+        </LSectionHeader>
+        <Rows
+          rows={[
+            [
+              'Your own values',
+              ownValues > 0 ? (
+                `${ownValues} set by you; the rest are defaults`
+              ) : (
+                <Muted>Defaults: savings and investment returns, selling costs, emergency fund months, prepay margin</Muted>
+              ),
+            ],
+          ]}
+        />
+      </section>
+
       <section aria-labelledby="pf-privacy">
-        <LSectionHeader step={payoffOrder ? 8 : 7}>
+        <LSectionHeader step={payoffOrder ? 9 : 8}>
           <span id="pf-privacy">Privacy</span>
         </LSectionHeader>
         <p style={{ margin: 0, color: L_T.muted, lineHeight: 1.6 }}>

@@ -147,6 +147,15 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             },
           ]}
         />
+        {/* A four-screen page: one tap to the part you came for */}
+        <nav aria-label="On this page" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 11, alignItems: 'center' }}>
+          <span style={{ color: L_T.muted, letterSpacing: '0.1em' }}>JUMP TO</span>
+          <LBracket href="#what-if">WHAT IF</LBracket>
+          <LBracket href="#schedule">MONTH BY MONTH</LBracket>
+          <LBracket href="#rate-decisions">RATE DECISIONS</LBracket>
+          <LBracket href="#life-events">LIFE EVENTS</LBracket>
+        </nav>
+
         {/* What actually reached the debts, beside what the plan puts in */}
         {!short && <PlanPace plan={plan} />}
 

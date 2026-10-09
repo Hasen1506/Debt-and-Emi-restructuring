@@ -462,10 +462,10 @@ function DateCell({ date, pending }: { date: string; pending?: boolean }) {
   );
 }
 
-function Actions({ r, onAct }: { r: HistoryRow; onAct: (row: HistoryRow, action: Act) => void }) {
+function Actions({ r, onAct, start }: { r: HistoryRow; onAct: (row: HistoryRow, action: Act) => void; start?: boolean }) {
   const what = `${r.target}, ${r.date}`;
   return (
-    <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+    <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap', justifyContent: start ? 'flex-start' : 'flex-end' }}>
       {r.ref.kind === 'due' && (
         <>
           <button type="button" style={lPayBtn(true)} onClick={() => onAct(r, 'paid')} aria-label={`Mark paid: ${r.target}, ${r.planned}`}>
@@ -567,12 +567,14 @@ function Row({ r, wide, onAct }: { r: HistoryRow; wide: boolean; onAct: (row: Hi
             {effect}
           </span>
         )}
-        <span style={{ display: 'block', marginTop: 6 }}><Actions r={r} onAct={onAct} /></span>
       </span>
       <span role="cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
         <span style={{ display: 'block', fontWeight: 700, color: r.pending ? L_T.ink : TONE[r.tone] }}>{r.actual ?? r.planned ?? ''}</span>
         {status}
       </span>
+      {/* Under the row, left-aligned and side by side: squeezed into the
+          middle column, MARK PAID and OTHER AMOUNT stacked at the right. */}
+      <span style={{ gridColumn: '2 / -1', marginTop: 6 }}><Actions r={r} onAct={onAct} start /></span>
     </div>
   );
 }

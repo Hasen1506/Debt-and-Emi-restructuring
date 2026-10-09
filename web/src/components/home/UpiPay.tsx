@@ -58,7 +58,9 @@ export function UpiPay({
 
   if (!editing) {
     return (
-      <button type="button" onClick={() => setEditing(true)} style={lPayBtn(false)} aria-label={`Pay ${name} via UPI: add the lender's UPI ID`}>
+      // A quiet link until a UPI ID is saved: two full buttons per row
+      // (MARK PAID, OTHER AMOUNT) are enough to scan down a list of four.
+      <button type="button" onClick={() => setEditing(true)} style={{ background: 'none', border: 0, padding: '4px 0', minHeight: 24, color: L_T.inkSoft, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, letterSpacing: '0.06em' }} aria-label={`Pay ${name} via UPI: add the lender's UPI ID`}>
         PAY VIA UPI
       </button>
     );

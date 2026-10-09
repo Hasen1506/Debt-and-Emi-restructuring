@@ -2,8 +2,8 @@
 
 /**
  * Cheaper rates (REDESIGN R2.4): balance transfers, consolidation and
- * refinancing the engine found, one row each — the top one open, the rest
- * one click away. Lives on Home only (Plan used to repeat it): it's the
+ * refinancing the engine found, one row each, details one click away
+ * (the row already gives the saving, the fee and the pay-back). Lives on Home only (Plan used to repeat it): it's the
  * first thing to do with a loan, before paying it down faster.
  */
 import { useState, type ReactNode } from 'react';
@@ -82,7 +82,7 @@ export function HomeRestructure({
   /** Year-one saving across every move, in the user's currency. */
   totalAnnualSaving: string;
 }) {
-  const [open, setOpen] = useState<number | null>(0);
+  const [open, setOpen] = useState<number | null>(null);
   const userCcy = userDefaultCurrency(user.country);
   // The currency of the loans a move is about (the engine keeps them to one).
   const ccyOf = (o: RestructuringOpportunity) => {

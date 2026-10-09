@@ -52,7 +52,7 @@ import {
   loadActivityDeltasServer,
   loadActivityPaceServer,
 } from '@/lib/activity-cookie';
-import { PACE_MONTHS, monthsBefore, paceDiffers, paceSummary } from '@/lib/pace';
+import { PACE_MONTHS, monthsBefore, paceDiffers, paceProjectionGap, paceSummary } from '@/lib/pace';
 import { mergeTrajectories } from '@/lib/trajectory';
 import { mockTrajectory } from '@/lib/mock-data';
 import { deriveMetrics } from '@/lib/derived';
@@ -570,12 +570,7 @@ export async function loadPlan(
           : await cachedEngineCall('simulate', paceArgs, () => api.simulate(paceArgs)).catch(() => null);
         if (!paceSim) projectionUnavailable = 'failed';
         else {
-          // Except for the final payoff, a date "at this pace" requires
-          // that total throughout the run, including future costs/events.
-          const ongoing = paceSim.trajectory.filter(p => p.month >= 1 &&
-            (paceSim!.debt_free_month == null || p.month < paceSim!.debt_free_month));
-          if (ongoing.some(p => Number(p.total_paid) > logged.average! + 1)) projectionUnavailable = 'future_minimums';
-          else if (ongoing.some(p => Number(p.total_paid) < logged.average! - 1)) projectionUnavailable = 'unaffordable';
+          projectionUnavailable = paceProjectionGap(paceSim.trajectory, paceSim.debt_free_month, logged.average!);
         }
       }
     }

@@ -65,7 +65,7 @@ export function PlanPace({ plan }: { plan: PlanData }) {
           : pace.projectionUnavailable === 'future_minimums'
             ? ' Future EMIs and minimums exceed that monthly total. The simulator pays them, so it cannot give a payoff date at your lower payments.'
           : pace.projectionUnavailable === 'unaffordable'
-            ? ' The saved income, spending and other allocations do not support that monthly total. Update them before projecting or adopting this pace.'
+            ? " That's more than your take-home leaves after spending in some months, as Profile has them. If you keep paying it, your take-home is higher or your spending lower than Profile says: update them, and the date follows."
             : ' The pace projection could not be calculated. Try refreshing the plan.'}
       </>
     );

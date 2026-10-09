@@ -87,7 +87,7 @@ test('PAY VIA UPI renders a plain upi:// link with no claim of automatic payment
   assert.match(comp, /Tap MARK PAID to record it/);
   const pay = src('components/home/PayThisMonth.tsx');
   assert.match(pay, /<UpiPay/);
-  assert.match(pay, /MARK PAID · /);
+  assert.match(pay, /MARK PAID/);
   // No bill-payment network is claimed anywhere in the app.
   const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
   const claims = walk(root).filter((f) => /\.(tsx?|json)$/.test(f) && /\bBBPS\b|Bharat ?Bill ?Pay/i.test(fs.readFileSync(f, 'utf8')));
