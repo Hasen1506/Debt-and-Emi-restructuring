@@ -77,7 +77,7 @@ export function isPlanCall(path: '/api/simulate' | '/api/baseline') {
 
 /** Headline figures and the month-by-month table on /plan, as plain text. */
 export async function planText(page: Page) {
-  await expect(page.getByText('MONTH BY MONTH')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^MONTH BY MONTH/ })).toBeVisible();
   const table = page.locator('table').filter({ hasText: 'EVENT' }).first();
   const rows = await table.locator('tr').allInnerTexts();
   return rows.map((r) => r.replace(/\s+/g, ' ').trim()).join('\n') + '\n';
