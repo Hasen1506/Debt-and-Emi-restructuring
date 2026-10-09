@@ -501,3 +501,23 @@ Every page walked at 390 px with four loans (card, personal, floating home, car)
 **Tabs.** Five stay: Home (what to pay now), Plan (when it ends, what if), Activity (what happened), Goals & Tools (something came up), Profile (my details). Each answers a different question, and five fit one line at 390 px. What was crowded was inside the pages: the same loans listed three times on Home, buttons of equal weight, long pages with no way to jump. Those are what changed.
 
 `scripts/pr23-regressions.cjs` P13 now expects setup to land on `/plan`, as PR #29 made it (it waited for `/`).
+
+## 13 · Accuracy, clarity, landing page and the backlog (9 Oct 2026)
+
+Owner asked for the inaccurate bits corrected, every section made easier to grasp without changing the look, a new landing page, and the backlog finished. Then: Goals' type looked different, and Plan's month-by-month "quoted the wrong amount due" against what was owed.
+
+| # | Where | Problem | Fix |
+|---|---|---|---|
+| V1 | Everywhere a loan's rate shows | One card had three rates: 42% statement, 49.56% with GST, 60.31%/62.52% what a payment saves; ranking, the COST OF DEBT KPI and the invest-or-prepay gate each used a different one | One rate per loan: what it costs a year, interest compounded monthly, GST compounding with it on an Indian card, less the tax break at the margin (engine `MarginalCost.annual_cost`, web `annualCost`). A prepayment fee only orders where extra goes. A 42% card: 62.52% everywhere |
+| V2 | UPI, tax note, balance transfer | UPI note said a ₹1 lakh limit; tax sections cited without the 2025 Act; the transfer row quoted the simple rate | NPCI's ₹5 lakh loan-payment limit (banks may cap lower); Income-tax Act, 2025 renumbering note; transfer row uses the compounded rate |
+| V3 | Home, Plan, Goals | A page didn't say what it was for | A one-line lede per page; WHERE YOU STAND; plainer pay reason; JUMP TO in page order |
+| W1 | Plan · month by month | Loan columns are what's paid that month, so a payoff month's small last payment (CARD ₹9,435) read as what was owed on an ₹80,000 card; the chart's top read ₹48.51L (after this month's payments) against ₹48,80,000 owed; a fifth loan had no column | A first row, OWED AT THE START, with each loan's balance and the total; a note saying the columns are payments; FINAL on a loan's last payment; every loan gets a column; the chart starts at NOW from what's owed; CSV starts with the same row |
+| W2 | Goals and every form | Text boxes and dropdowns didn't inherit the page font and showed in Arial; ledes were 12 or 13 px by page; Goals' tool titles 15 px and dates in lower case | Form fields inherit the font; one lede style (13 px) on all five tabs; tool titles and table dates match the other pages |
+| W2b | Profile edit | "tax sleeve", "scalar hike", "auto-derive", shouting NOT | Plain words: Monthly spending, without EMIs; Yearly pay rise; Work it out for me |
+| V4 | Landing (`/` signed out) | A generic page in another style that described features loosely | Rebuilt in the ledger look with the real features and numbers, motion (register ticks paid, graph draws, figures count up, sections rise) off under reduced motion, works at 390 px |
+| V5 | /tax, /portfolio | Two pages outside the five tabs | /tax redirects to Profile's tax section; /portfolio is headed as Profile's What you own |
+| #26 | Tools | A verdict that mounted with its text was never read out | `lib/announce`: one polite live region; every verdict and Spare cash's result are written into it |
+| #24 | CI | No accessibility or hydration check | `e2e/a11y.spec.ts`: axe (WCAG 2/2.1 A, AA) on every tab and tool, signed in and out; serious or critical findings, hydration and page errors fail. Found one: a link in a sentence told apart by colour only |
+| #25 | CI | Chromium only | Firefox and WebKit run the same journeys and checks in their own job, against the same goldens |
+
+New tests: `web/tests/core-math.cjs` (India and US tax, card minimums, loan checks, chart data, where the schedule starts), the a11y spec. Validation: 199 web tests, 929 Python tests (4 skipped), 5 E2E specs in Chromium, 18 browser regressions, typecheck, lint, build.

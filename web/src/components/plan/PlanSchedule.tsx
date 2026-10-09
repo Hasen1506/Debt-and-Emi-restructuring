@@ -61,7 +61,7 @@ function payColumn(loan: PlanData['user']['loans'][number], i: number, country: 
 /** Every month of the schedule as a CSV file (the table may be collapsed).
  *  Each loan's column is in that loan's currency; the totals are in the
  *  user's, and every header says which. */
-function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData) {
+function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData, start: ScheduleCsvRow) {
   const { loans, country } = plan.user;
   const ccy = plan.displayCurrency.toLowerCase();
   const header = [
@@ -74,7 +74,8 @@ function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData) {
     `balance_${ccy}`,
     'event',
   ];
-  const lines = rows.map((r) =>
+  // The first line is what's owed at the start, as on screen.
+  const lines = [start, ...rows].map((r) =>
     [
       r.mo,
       r.date,
@@ -206,7 +207,25 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
       <LSectionHeader
         right={
           <span style={{ display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '14px 12px' }}>
-            <LBracket onClick={() => downloadRowsCSV(rows, plan)}>CSV</LBracket>
+            <LBracket
+              onClick={() =>
+                downloadRowsCSV(rows, plan, {
+                  mo: 0,
+                  date: startLabel,
+                  // Each loan's balance now (its column is payments below).
+                  perLoan: Object.fromEntries(
+                    loanCols.map((l, i) => [i, (l.planned_effective_month ?? 1) > 1 ? '0' : String(Number(l.outstanding) || 0)]),
+                  ),
+                  extra: 0,
+                  interest: 0,
+                  principal: 0,
+                  balance: owedToday,
+                  event: 'OWED AT THE START',
+                })
+              }
+            >
+              CSV
+            </LBracket>
             <LBracket onClick={() => window.print()}>PRINT</LBracket>
             <LBracket onClick={() => setExpanded((v) => !v)}>
               {expanded ? '↑ EVENTS ONLY' : `↓ ALL ${totalCount} MONTHS`}
