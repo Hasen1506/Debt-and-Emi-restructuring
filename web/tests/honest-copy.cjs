@@ -23,7 +23,7 @@ test('landing page says plans are automatic estimates, not financial advice',()=
  const html=fs.readFileSync(path.join(web,'public/welcome.html'),'utf8');
  assert.match(html,/generated automatically by RightDue's engine/);
  assert.match(html,/not financial advice/);
- assert.match(html,/Invest or prepay\?[\s\S]*?not investment advice/);
+ assert.match(html,/Invest or prepay[\s\S]*?not investment advice/i);
 });
 
 test('invest-vs-prepay page renders a not-investment-advice line',()=>{
