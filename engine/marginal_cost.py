@@ -4,7 +4,7 @@ The payoff order ranks loans by what the NEXT rupee (or dollar) of extra
 payment saves on each loan, looking forward only:
 
     marginal cost = interest, compounded monthly        (1 + r/12)^12 − 1
-                  + GST on that interest                (Indian credit cards: 18%)
+                  + GST on that interest, compounding   (Indian credit cards: 18%)
                   − tax benefit the prepayment gives up (24(b) / 80E / US mortgage
                                                          and student-loan interest)
                   − the prepayment / foreclosure fee,   fee% × 12 / months left
@@ -60,6 +60,13 @@ class MarginalCost:
         return self.lock_in_months > 0
 
     @property
+    def annual_cost(self) -> Decimal:
+        """What the debt costs a year from here: compounded interest plus GST,
+        less the tax break. The prepayment fee is left out: it is a cost of
+        prepaying, checked on its own (prepayment_beats_fee), not of owing."""
+        return self.interest + self.gst - self.tax_benefit
+
+    @property
     def order_key(self) -> Decimal:
         """Sort key, highest first: the total, with locked loans last."""
         return self.total - LOCKED_OFFSET if self.locked else self.total
@@ -84,7 +91,11 @@ def marginal_cost(
     share for a deductible one). `months_left`: months to the loan's end
     (≤ 0 = open-ended)."""
     interest = compounded(nominal_rate)
-    gst = interest * GST_ON_CARD_INTEREST_IN if card_gst else D("0")
+    # GST is billed on each month's interest and, on a balance carried, earns
+    # interest itself, so it compounds with it: (1 + r(1 + g)/12)^12 - 1 in all,
+    # as the simulation and true_apr have it. Taken as interest × g, a 42%
+    # card read 60.31% a year against the 62.6% it actually costs.
+    gst = compounded(nominal_rate * (1 + GST_ON_CARD_INTEREST_IN)) - interest if card_gst else D("0")
     tax_benefit = interest * shield_fraction
     k = months_left if months_left > 0 else OPEN_ENDED_MONTHS
     fee = prepayment_fee_pct * D("12") / D(k) if prepayment_fee_pct > 0 else D("0")

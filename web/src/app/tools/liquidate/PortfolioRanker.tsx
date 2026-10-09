@@ -15,8 +15,7 @@ import {
   type LiquidationVerdict,
   type UserPayload,
 } from '@/lib/api';
-import { computeBreakdown } from '@/lib/effective-apr';
-import { usMortgageShieldShare } from '@/lib/deductions';
+import { userMarginalCosts } from '@/lib/marginal-cost';
 import { applyToolResult } from '@/lib/apply-tool-result';
 
 interface Props {
@@ -59,12 +58,13 @@ export function PortfolioRanker({ user, marginalRate, isLive, onDrillIn }: Props
 
   // Per-loan effective rate dict, indexed by loan position.
   const effectiveRates = useMemo(() => {
+    // What each loan costs a year (compounded, GST, after the tax break):
+    // the rate the plan weighs an early payment by (lib/marginal-cost).
     const out: Record<number, string> = {};
+    const costs = userMarginalCosts(user, marginalRate);
     user.loans.forEach((l, i) => {
-      const { effective } = computeBreakdown(
-        l, marginalRate, user.country, user.tax_regime, usMortgageShieldShare(user),
-      );
-      out[i] = effective.toFixed(4);
+      const cost = costs.get(i);
+      if (cost) out[i] = cost.annualCost.toFixed(4);
     });
     return out;
   }, [user, marginalRate]);

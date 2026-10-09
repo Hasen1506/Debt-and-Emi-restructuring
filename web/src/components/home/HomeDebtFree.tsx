@@ -122,15 +122,15 @@ const WHY: Record<string, (rate: string) => string> = {
   rules: (rate) => `your rules put it first (${rate} on the statement)`,
 };
 
-/** The loan's rate as its statement shows it, then what it really costs
- *  when that differs: a card's GST, a loan's fees, or a tax break. */
+/** The loan's rate as its statement shows it, then what it costs a year
+ *  when that differs: compounding, a card's GST, or a tax break. */
 function rateWords(l: LoanWithEffective, country: string): string {
   const nominal = `${fmtPct(l.nominal)} a year`;
   const gap = l.effective.minus(l.nominal);
   if (gap.abs().lt(0.005)) return nominal;
   if (gap.lt(0)) return `${nominal}, ${fmtPct(l.effective)} after the tax break`;
-  const extra = country === 'IN' && l.loan.loan_type === 'credit_card' ? 'GST on the interest' : 'its fees';
-  return `${nominal}, ${fmtPct(l.effective)} counting ${extra}`;
+  const extra = country === 'IN' && l.loan.loan_type === 'credit_card' ? 'with GST, compounded monthly' : 'compounded monthly';
+  return `${nominal}, ${fmtPct(l.effective)} ${extra}`;
 }
 
 /** This month's payments, one row each, to tick off (REDESIGN R2.2). */

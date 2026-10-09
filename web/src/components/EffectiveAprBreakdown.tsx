@@ -1,23 +1,25 @@
 'use client';
 
 /**
- * Per-loan effective APR breakdown.
+ * What a loan costs a year, line by line: the same figure the loan's row,
+ * the dearest flag and the payoff order use (lib/marginal-cost, the engine's
+ * MarginalCost.annual_cost). Interest compounded monthly, plus GST on an
+ * Indian card (compounding with it), less the tax break an extra payment
+ * would give up. A prepayment fee comes off what an extra payment saves.
  *
- * Shows nominal → (tax shield) → (GST) → (fees) → effective APR as a
- * vertical list of signed contributions, mirroring how the engine computes
- * it. Used in two places:
+ * Used in two places with one look:
+ *   1. Profile, under each loan as it is typed in (the loan on its own).
+ *   2. Home, under a loan's row when opened (with the user's other loans,
+ *      so the tax caps are shared as in the plan: pass `cost`).
  *
- *   1. Setup Step 2 — live preview under each loan card, updates as the
- *      user types nominal rate / processing fee.
- *   2. Home's open positions — under each row, opened on demand.
- *
- * Both surfaces share the same component so the math is computed and
- * rendered identically — what the user sees in Setup is what they'll see
- * on Home.
+ * The upfront processing fee and insurance are not in it: already paid,
+ * they don't change what a payment saves. Where a loan has them, one line
+ * gives its all-in cost over its life (lib/true-apr) and says so.
  */
 import type Decimal from 'decimal.js';
 import type { LoanPayload, Country, IncomeType, TaxRegimeIN } from '@/lib/api';
 import { computeBreakdown, fmt } from '@/lib/effective-apr';
+import { loanMarginalCost, type MarginalCost } from '@/lib/marginal-cost';
 import { trueApr, trueAprInputsFromBreakdown } from '@/lib/true-apr';
 import { RATE_CARD_AS_OF } from '@/lib/banks';
 import { RateRangeHint } from '@/components/RateRangeHint';
@@ -30,27 +32,21 @@ export function EffectiveAprBreakdown({
   variant = 'card',
   incomeType,
   itemises,
+  cost,
 }: {
   loan: LoanPayload;
   marginalTaxRate: string;
   country: Country;
   taxRegime?: TaxRegimeIN;
-  /** 'card' = boxed surface for Setup; 'inline' = minimal for table-row use. */
+  /** 'card' = boxed surface for Profile; 'inline' = minimal for table-row use. */
   variant?: 'card' | 'inline';
   incomeType?: IncomeType;
   /** US: the share of mortgage interest that lowers tax,
-   *  `usMortgageShieldShare(user)`, so the breakdown matches the rate shown
-   *  beside it. Omitted: all of it (the setup preview, as labelled there). */
+   *  `usMortgageShieldShare(user)`. Omitted: all of it (the Profile preview). */
   itemises?: Decimal;
+  /** The loan's cost among the user's loans (Home). Omitted: the loan alone. */
+  cost?: MarginalCost;
 }) {
-  const { lines, effective, summary } = computeBreakdown(
-    loan,
-    marginalTaxRate,
-    country,
-    taxRegime,
-    itemises ?? true,
-  );
-
   const nominal = Number(loan.nominal_rate || '0');
   if (nominal <= 0) {
     return (
@@ -64,12 +60,22 @@ export function EffectiveAprBreakdown({
           fontStyle: 'italic',
         }}
       >
-        Enter the nominal rate to see your effective APR breakdown.
+        Enter the rate on your statement to see what this loan costs a year.
       </div>
     );
   }
 
+  const mc = cost ?? loanMarginalCost(loan, country, marginalTaxRate, taxRegime ?? 'new', itemises ?? true);
+  const lines: { label: string; value: Decimal; sign: '+' | '−' }[] = [{ label: 'Interest, compounded monthly', value: mc.interest, sign: '+' }];
+  if (mc.gst.gt(0)) lines.push({ label: 'GST on the interest (18%), compounding with it', value: mc.gst, sign: '+' });
+  if (mc.taxBenefit.gt(0)) lines.push({ label: 'Tax break on the interest', value: mc.taxBenefit, sign: '−' });
+  // Fees paid upfront: not in the yearly cost, but the all-in figure says what they added.
+  const { lines: feeLines } = computeBreakdown(loan, marginalTaxRate, country, taxRegime, itemises ?? true);
+  const hasUpfront = Number(loan.processing_fee_amortised || 0) > 0 || Number(loan.insurance_premium_pct || 0) > 0;
+  const allIn = hasUpfront ? trueApr(trueAprInputsFromBreakdown(loan, feeLines)).apr : null;
+
   const isCard = variant === 'card';
+  const num = { fontFamily: 'var(--font-mono)', textAlign: 'right' as const, whiteSpace: 'nowrap' as const };
   return (
     <div
       style={{
@@ -91,7 +97,7 @@ export function EffectiveAprBreakdown({
           fontWeight: 600,
         }}
       >
-        Effective APR breakdown
+        What this loan costs a year
       </div>
       <div
         style={{
@@ -102,55 +108,37 @@ export function EffectiveAprBreakdown({
           fontFamily: 'var(--font-sans)',
         }}
       >
+        <span style={{ color: 'var(--muted)' }}>Rate on your statement</span>
+        <span className="num" style={{ ...num, color: 'var(--muted)' }}>{fmt(loan.nominal_rate || 0)}</span>
         {lines.map((line, i) => (
           <div key={i} style={{ display: 'contents' }}>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ color: 'var(--ink)' }}>{line.label}</span>
-              {line.note && (
-                <span
-                  style={{ fontSize: 11, color: 'var(--muted)', fontStyle: 'italic' }}
-                >
-                  {line.note}
-                </span>
-              )}
-            </div>
-            <span
-              className="num"
-              style={{
-                fontFamily: 'var(--font-mono)',
-                textAlign: 'right',
-                color: line.sign === '−' ? 'var(--positive)' : 'var(--ink)',
-                whiteSpace: 'nowrap',
-              }}
-            >
+            <span style={{ color: 'var(--ink)' }}>{line.label}</span>
+            <span className="num" style={{ ...num, color: line.sign === '−' ? 'var(--positive)' : 'var(--ink)' }}>
               {line.sign} {fmt(line.value)}
             </span>
           </div>
         ))}
-        <div
-          style={{
-            gridColumn: '1 / -1',
-            borderTop: '1px solid var(--ink)',
-            marginTop: 2,
-          }}
-        />
-        <div style={{ fontWeight: 700 }}>Effective APR</div>
-        <span
-          className="num"
-          style={{
-            fontFamily: 'var(--font-mono)',
-            textAlign: 'right',
-            fontWeight: 700,
-            color: effective.gt(loan.nominal_rate || '0') ? 'var(--negative)' : 'var(--positive)',
-          }}
-        >
-          = {fmt(effective)}
+        <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--ink)', marginTop: 2 }} />
+        <div style={{ fontWeight: 700 }}>What it costs you a year</div>
+        <span className="num" style={{ ...num, fontWeight: 700, color: mc.annualCost.gt(loan.nominal_rate || '0') ? 'var(--negative)' : 'var(--positive)' }}>
+          = {fmt(mc.annualCost)}
         </span>
+        {mc.fee.gt(0) && (
+          <>
+            <span>Prepayment fee, spread over the months left</span>
+            <span className="num" style={{ ...num, color: 'var(--positive)' }}>− {fmt(mc.fee)}</span>
+            <span style={{ fontWeight: 700 }}>Each extra payment here saves</span>
+            <span className="num" style={{ ...num, fontWeight: 700 }}>= {fmt(mc.total)}</span>
+          </>
+        )}
       </div>
       <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-        {summary}
+        This is the rate the app ranks your loans by and uses to weigh paying
+        early against investing.
+        {mc.locked && ` Locked against prepayment for ${mc.lockInMonths} more month${mc.lockInMonths === 1 ? '' : 's'}, so it is paid after your open loans.`}
+        {allIn != null &&
+          ` With the processing fee and insurance you paid upfront, it costs ${fmt(allIn)} a year over its life. Those are already paid, so they don't change what an early payment saves.`}
       </div>
-      <TrueAnnualCost loan={loan} lines={lines} />
       <RateRangeHint
         bank={loan.bank}
         loanType={loan.loan_type}
@@ -171,37 +159,6 @@ export function EffectiveAprBreakdown({
         GST + fee assumptions reflect rate cards verified {RATE_CARD_AS_OF}.
         Verify against your latest bank statement.
       </div>
-    </div>
-  );
-}
-
-/** The true annual cost from the cash flows (lib/true-apr, the engine's
- *  engine/true_apr.py): monthly compounding, GST, fees and the tax benefit,
- *  each shown as what it adds or takes off. */
-export function TrueAnnualCost({ loan, lines }: { loan: LoanPayload; lines: ReturnType<typeof computeBreakdown>['lines'] }) {
-  const t = trueApr(trueAprInputsFromBreakdown(loan, lines));
-  const row = (label: string, v: number) =>
-    Math.abs(v) < 0.00005 ? null : (
-      <div key={label} style={{ display: 'contents' }}>
-        <span>{label}</span>
-        <span className="num" style={{ fontFamily: 'var(--font-mono)', textAlign: 'right' }}>
-          {v < 0 ? '−' : '+'} {fmt(Math.abs(v))}
-        </span>
-      </div>
-    );
-  return (
-    <div aria-label="True annual cost" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 12px', fontSize: 12, color: 'var(--muted)' }}>
-      <span style={{ gridColumn: '1 / -1', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>
-        True annual cost (compounded monthly)
-      </span>
-      <span>Nominal rate</span>
-      <span className="num" style={{ fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{fmt(t.nominal)}</span>
-      {row('Monthly compounding', t.compounding)}
-      {row('Processing fee and insurance', t.fees)}
-      {row('GST on interest and fees', t.gst)}
-      {row('Tax benefit', t.tax)}
-      <span style={{ fontWeight: 700, color: 'var(--ink)' }}>True annual cost</span>
-      <span className="num" style={{ fontFamily: 'var(--font-mono)', textAlign: 'right', fontWeight: 700, color: 'var(--ink)' }}>= {fmt(t.apr)}</span>
     </div>
   );
 }

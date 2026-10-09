@@ -25,8 +25,7 @@ import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { isOpenCurrentLoan } from '@/lib/plan-controls';
 import { resolveLoanIndex, type LoanRef } from '@/lib/loan-ids';
 import { HORIZON_MONTHS } from '@/lib/horizon';
-import { computeBreakdown } from '@/lib/effective-apr';
-import { usMortgageShieldShare } from '@/lib/deductions';
+import { userMarginalCosts } from '@/lib/marginal-cost';
 import { loadProfileClient } from '@/lib/user-store';
 import { commitSpendingCut, undoSpendingCut } from '@/lib/commit-spending-cut';
 import { applyToolResult } from '@/lib/apply-tool-result';
@@ -108,19 +107,13 @@ export function WhatIfPanel({
       const variable = Math.max(0, Number(configuredUser.variable_expenses || 0));
       const fallbackFixed = Math.max(0, Number(configuredUser.fixed_expenses || 0));
       const fixed = variable > 0 ? variable : fallbackFixed;
+      // First in the avalanche order: what each loan costs a year, the
+      // prepayment fee and lock-in counted (lib/marginal-cost), as the plan.
+      const costs = userMarginalCosts(user, marginalRate);
       const ranked = user.loans
-        .map((l, i) => {
-          const { effective } = computeBreakdown(
-            l,
-            marginalRate,
-            user.country,
-            user.tax_regime,
-            usMortgageShieldShare(user),
-          );
-          return { i, l, effective, outstanding: new Decimal(l.outstanding || 0) };
-        })
-        .filter((r) => isOpenCurrentLoan(r.l))
-        .sort((a, b) => b.effective.cmp(a.effective));
+        .map((l, i) => ({ i, l, key: costs.get(i)?.orderKey }))
+        .filter((r) => isOpenCurrentLoan(r.l) && r.key)
+        .sort((a, b) => b.key!.cmp(a.key!));
       const top = ranked[0]?.i ?? -1;
       const opts = user.loans.map((l, i) => ({
         value: i,

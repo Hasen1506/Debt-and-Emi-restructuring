@@ -122,7 +122,20 @@ def test_single_loan_untouched_inputs_are_identical(legacy_dir):
                       "strategy": rng.choice(["avalanche", "snowball", "hybrid"]),
                       "liquid_returns": rng.choice([[], ["0.04"], ["0.07"]])})
     for case, old, new in both(legacy_dir, cases):
+        if _gate_moved_by_compounding(case):
+            continue
         _assert_identical(case, old, new)
+
+
+def _gate_moved_by_compounding(case) -> bool:
+    """The invest-or-prepay gate now weighs a loan at its compounded annual
+    cost, (1 + r/12)^12 - 1, where the old engine took the nominal rate: a
+    7.5% loan costs 7.76% a year. Where the hurdle (best return + 0.5pp, no
+    tax at marginal rate 0) falls between the two, the old engine invested
+    and the new one prepays, on purpose. Every other case must still match."""
+    r = D(case["loans"][0]["nominal_rate"])
+    hurdles = [D(x) + D("0.005") for x in case.get("liquid_returns") or []]
+    return any(r <= h < (1 + r / 12) ** 12 - 1 for h in hurdles)
 
 
 def test_multi_loan_baseline_is_identical(legacy_dir):

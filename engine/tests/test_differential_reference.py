@@ -172,7 +172,9 @@ def test_plan_with_surplus_matches_reference():
         spare = D(rng.randint(0, 200_000))
         income = loan.scheduled_emi + spare
         res = simulate_plan(_user(country, loan, income), horizon_months=480)
-        worth = loan.nominal_rate > D("0.005")
+        # The gate weighs the loan at its compounded annual cost (no fund, so
+        # the hurdle is the 0.5pp margin alone).
+        worth = (1 + loan.nominal_rate / 12) ** 12 - 1 > D("0.005")
         ref = ref_amortise(_f(loan.outstanding), _f(loan.nominal_rate), _f(loan.scheduled_emi),
                            extra=(lambda m, s=_f(spare): s) if worth else (lambda m: F(0)))
         assert len(res.months) == len(ref), (loan, spare, len(res.months), len(ref))

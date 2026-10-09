@@ -3,7 +3,7 @@
 /**
  * Credit-card chip strip on /portfolio. Renders one card-shaped tile per
  * credit_card loan with the masked number, cardholder name, bank,
- * outstanding, and effective APR. Helps the user recognise *which* card
+ * outstanding, and what it costs a year. Helps the user recognise *which* card
  * the trajectory is talking about — a /plan KPI saying "HDFC credit card"
  * is one thing; seeing the actual masked number and cardholder is what
  * makes it click.
@@ -14,7 +14,7 @@
 import type { UserPayload, LoanType, Country } from '@/lib/api';
 import { formatCurrency } from '@/lib/api';
 import { fmt } from '@/lib/effective-apr';
-import { computeBreakdown } from '@/lib/effective-apr';
+import { loanMarginalCost } from '@/lib/marginal-cost';
 import Decimal from 'decimal.js';
 
 function formatLast6(digits: string | undefined): string {
@@ -61,7 +61,8 @@ export function CreditCardChips({
         }}
       >
         {cards.map((c, i) => {
-          const breakdown = computeBreakdown(c, marg, country, user.tax_regime);
+          // What the card costs a year: compounded, with GST (lib/marginal-cost).
+          const cost = loanMarginalCost(c, country, marg, user.tax_regime);
           return (
             <div
               key={`${c.bank}-${i}`}
@@ -98,7 +99,7 @@ export function CreditCardChips({
                     borderRadius: 3,
                   }}
                 >
-                  {fmt(breakdown.effective)} eff
+                  {fmt(cost.annualCost)}/yr
                 </span>
               </div>
               <div

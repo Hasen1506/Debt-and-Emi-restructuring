@@ -117,8 +117,8 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper }: HomeProps) {
                     tone: L_T.negative,
                   },
               gaps.length > 0
-                ? { l: 'EFFECTIVE RATE', v: '—', s: 'ADD YOUR LOAN DETAILS' }
-                : { l: 'EFFECTIVE RATE', v: fmtPct(m.blendedEffective), s: 'AVERAGE · AFTER FEES + TAX' },
+                ? { l: 'COST OF DEBT', v: '—', s: 'ADD YOUR LOAN DETAILS' }
+                : { l: 'COST OF DEBT', v: `${fmtPct(m.blendedEffective)}/YR`, s: 'AVERAGE · COMPOUNDED, AFTER TAX' },
             ]}
           />
         </section>
