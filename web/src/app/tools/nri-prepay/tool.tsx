@@ -1,5 +1,6 @@
 'use client';
 
+import { whereToFind } from '@/lib/where-to-find';
 import Decimal from 'decimal.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadProfileClient } from '@/lib/user-store';
@@ -90,6 +91,8 @@ export function NriPrepayTool() {
   const [loanRate, setLoanRate] = useState('');
   const [loanTenure, setLoanTenure] = useState('');
   const [loanCurrency, setLoanCurrency] = useState<Currency>('INR');
+  // A rupee loan's figures are on Indian papers, a dollar loan's on US ones.
+  const loanDocs = { country: loanCurrency === 'INR' ? 'IN' : 'US' };
   const [userCurrency, setUserCurrency] = useState<Currency>(profileUserCurrency);
   // What the user's savings earn and their tax rate, from the profile.
   const [savingsYield, setSavingsYield] = useState(() => {
@@ -333,9 +336,10 @@ export function NriPrepayTool() {
                 value={loanBalance}
                 error={at('loanBalance')}
                 onChange={setLoanBalance}
+                findIt={whereToFind('balance', loanDocs)}
               />
-              <Field label="Its rate, a year" kind="percent" value={loanRate} error={at('loanRate')} onChange={setLoanRate} />
-              <Field label="Months left" kind="integer" value={loanTenure} error={at('loanTenure')} onChange={setLoanTenure} />
+              <Field label="Its rate, a year" kind="percent" value={loanRate} error={at('loanRate')} onChange={setLoanRate} findIt={whereToFind('rate', loanDocs)} />
+              <Field label="Months left" kind="integer" value={loanTenure} error={at('loanTenure')} onChange={setLoanTenure} findIt={whereToFind('monthsLeft', loanDocs)} />
               <Select label="The loan's currency" value={loanCurrency} onChange={setLoanCurrency} options={CURRENCIES} />
             </LFieldGrid>
           )}

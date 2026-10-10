@@ -1,5 +1,6 @@
 'use client';
 
+import { whereToFind } from '@/lib/where-to-find';
 import { tenureError } from '@/lib/tenure-rules';
 import { useEffect, useMemo, useState } from 'react';
 import { AddLoanAction, Field, ScoreChip, SubmitBar } from '@/components/ToolPrimitives';
@@ -387,6 +388,7 @@ export function NewDebtTool() {
                   value={score}
                   onChange={setScore}
                   error={at('score')}
+                  findIt={whereToFind('creditScore', { country })}
                   hint={scoreOnFile !== '' && score === scoreOnFile ? 'From your profile' : 'For the effect of opening a new account'}
                 />
               </LFieldGrid>
@@ -404,13 +406,14 @@ export function NewDebtTool() {
             {more && (
               <div style={{ marginTop: 10 }}>
                 <LFieldGrid min={200}>
-                  <Field label="Processing fee" kind="money" currency={ccy} value={fee} onChange={setFee} error={at('fee')} hint={country === 'IN' ? "Before GST (18% is added). Often 0–2% of the loan; 0 if you don't know." : "Often 0–2% of the loan. 0 if you don't know."} />
+                  <Field label="Processing fee" kind="money" currency={ccy} value={fee} onChange={setFee} error={at('fee')} findIt={whereToFind('offerFee', { country })} hint={country === 'IN' ? "Before GST (18% is added). Often 0–2% of the loan; 0 if you don't know." : "Often 0–2% of the loan. 0 if you don't know."} />
                   {!isCard && (
                     <Field
                       label="A rate you were quoted (%)"
                       kind="percent"
                       value={quoted}
                       onChange={setQuoted}
+                      findIt={whereToFind('offerRate', { country })}
                       hint="Blank: the bank's middle rate"
                     />
                   )}

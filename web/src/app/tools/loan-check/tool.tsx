@@ -1,5 +1,6 @@
 'use client';
 
+import { whereToFind } from '@/lib/where-to-find';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Decimal from 'decimal.js';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
@@ -34,6 +35,8 @@ import { useFormErrors } from '@/lib/form-errors';
 type StartMode = 'headline' | 'split';
 
 // The API's field names → this form's inputs (api/routes/loan_check.py).
+
+const IN = { country: 'IN' } as const;
 const FIELDS: Record<string, string> = {
   lender: 'lender',
   loan_start: 'loanStart',
@@ -234,13 +237,13 @@ export function LoanCheckTool() {
                   error={at('currentRate')}
                   onChange={setCurrentRate}
                   placeholder="8.90"
-                  hint="From your latest statement or the bank's app"
+                  findIt={whereToFind('rate', IN)}
                 />
                 <RateProblem parsed={pCurrent} onFix={setCurrentRate} />
               </div>
-              <Field label="Still owed" kind="money" currency="INR" value={outstanding} error={at('outstanding')} onChange={setOutstanding} />
-              <Field label="Months left" value={months} error={at('months')} onChange={setMonths} kind="integer" placeholder="200" />
-              <Field label="EMI (optional)" kind="money" currency="INR" value={emi} error={at('emi')} onChange={setEmi} hint="Blank: worked out for you" />
+              <Field label="Still owed" kind="money" currency="INR" value={outstanding} error={at('outstanding')} onChange={setOutstanding} findIt={whereToFind('balance', IN)} />
+              <Field label="Months left" value={months} error={at('months')} onChange={setMonths} kind="integer" placeholder="200" findIt={whereToFind('monthsLeft', IN)} />
+              <Field label="EMI (optional)" kind="money" currency="INR" value={emi} error={at('emi')} onChange={setEmi} hint="Blank: worked out for you" findIt={whereToFind('emi', IN)} />
             </LFieldGrid>
           )}
 
@@ -252,13 +255,14 @@ export function LoanCheckTool() {
               error={at('loanStart')}
               onChange={setLoanStart}
               minYear={1995}
-              hint="If you later moved to a repo-linked rate, the month you moved"
+              hint={`If you later moved to a repo-linked rate, the month you moved. Find it: ${whereToFind('loanStart', IN)}`}
             />
             <Select
               label="What is the rate linked to?"
               value={benchmark}
               onChange={setBenchmark}
               options={BENCHMARK_OPTIONS}
+              findIt={whereToFind('rateBasis', IN)}
               info={
                 <>
                   Your sanction letter or loan statement names it: &ldquo;RLLR&rdquo;,
@@ -281,7 +285,7 @@ export function LoanCheckTool() {
             <div style={{ marginTop: 10 }}>
               {startMode === 'headline' ? (
                 <div style={{ maxWidth: 320 }}>
-                  <Field label="Rate when the loan started (%)" value={startRate} error={at('startRate')} onChange={setStartRate} placeholder="8.55" />
+                  <Field label="Rate when the loan started (%)" value={startRate} error={at('startRate')} onChange={setStartRate} placeholder="8.55" findIt={whereToFind('startRate', IN)} />
                   <RateProblem parsed={pStart} onFix={setStartRate} />
                 </div>
               ) : (
@@ -293,6 +297,7 @@ export function LoanCheckTool() {
                       error={at('startBench')}
                       onChange={setStartBench}
                       placeholder="8.20"
+                      findIt={'sanction letter or KFS, "Benchmark rate"'}
                       info={<>The lender&apos;s RLLR / EBLR on the day the loan started, as shown in the sanction letter.</>}
                     />
                     <RateProblem parsed={pBench} onFix={setStartBench} />
@@ -304,6 +309,7 @@ export function LoanCheckTool() {
                       error={at('startSpread')}
                       onChange={setStartSpread}
                       placeholder="0.35"
+                      findIt={whereToFind('spread', IN)}
                       info={<>The extra over the benchmark that applies to you, often called the spread, margin or credit risk premium.</>}
                     />
                     <RateProblem parsed={pSpread} onFix={setStartSpread} />
@@ -329,7 +335,7 @@ export function LoanCheckTool() {
                   onChange={setLastReset}
                   minYear={2019}
                   optional
-                  hint="Counts the overcharge further back. Skip if unsure."
+                  hint="Counts the overcharge further back. Find it: the rate-change letter or SMS, or the statement where the rate moved. Skip if unsure."
                 />
               </div>
             )}

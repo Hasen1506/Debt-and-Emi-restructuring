@@ -36,6 +36,7 @@ import type {
 import { BALANCES_ENTERED_KEY } from '@/lib/activity';
 import { parseAmountText, sameAmount } from '@/lib/amount';
 import { loanCurrency, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
+import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { deriveTenureMonths } from '@/lib/derived';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import { loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
@@ -576,6 +577,7 @@ export function QuickSetup() {
                 ) : (
                   <Field
                     label={incomeType === 'salaried' ? 'Take-home pay a month' : 'What you take home a month'}
+                    findIt={incomeType === 'salaried' ? whereToFind('takeHome', { country }) : null}
                     kind="money"
                     currency={userCcy}
                     value={takeHome}
@@ -610,6 +612,11 @@ export function QuickSetup() {
 
           {step === 1 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <p style={{ color: L_T.muted, margin: '4px 0 6px', fontSize: 12 }}>
+                {country === 'US'
+                  ? 'Keep your latest statements handy: each number below says where it is printed.'
+                  : 'Keep your Key Facts Statement (KFS) or latest loan statement handy: each number below says where it is printed.'}
+              </p>
               {loans.length === 0 && (
                 <p style={{ color: L_T.muted, margin: '4px 0 14px' }}>No loans entered.</p>
               )}
@@ -864,6 +871,7 @@ function LoanBlock({
     Number(loan.nominal_rate) > 0 && tenure === null;
   const name = loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : `Loan ${index + 1}`;
   const setCurrency = (c: CurrencyCode) => onPatch({ currency: c });
+  const find = (key: FindKey) => whereToFind(key, { country: ccy === 'INR' ? 'IN' : 'US', loanType: loan.loan_type });
   return (
     <div
       role="group"
@@ -896,15 +904,16 @@ function LoanBlock({
         />
         <Field
           label={card ? 'Balance on the card' : 'Balance left to repay'}
+          findIt={find('balance')}
           kind="money"
           currency={ccy}
           value={loan.outstanding}
           onChange={(v) => onPatch({ outstanding: v })}
-          hint={card ? 'Your latest statement balance' : 'Principal outstanding, from your statement or loan app'}
           error={issues.balance}
         />
         <Field
           label={card ? 'Card APR, % a year' : 'Interest rate, % a year'}
+          findIt={find('rate')}
           kind="percent"
           value={loan.nominal_rate}
           onChange={(v) => onPatch({ nominal_rate: v })}
@@ -914,6 +923,7 @@ function LoanBlock({
         {!card && !ui.byMonths && (
           <Field
             label="EMI a month"
+            findIt={find('emi')}
             kind="money"
             currency={ccy}
             value={loan.scheduled_emi}
@@ -931,6 +941,7 @@ function LoanBlock({
         {!card && ui.byMonths && (
           <Field
             label="Months left"
+            findIt={find('monthsLeft')}
             kind="integer"
             value={ui.months}
             onChange={(v) => onUi({ months: v })}
@@ -985,6 +996,7 @@ function LoanBlock({
           {!card && (
             <Select<RateType | 'unsure'>
               label="Fixed or floating rate"
+              findIt={find('rateType')}
               value={rateTypeChoice(loan)}
               onChange={(v) => onPatch(applyRateTypeChoice(v, loan.loan_type, country, loan.currency))}
               options={[
@@ -1002,6 +1014,7 @@ function LoanBlock({
           {!card && (
             <Field
               label="Prepayment fee, % (optional)"
+              findIt={find('prepayFee')}
               kind="percent"
               value={loan.prepayment_penalty_pct ?? ''}
               onChange={(v) => onPatch({ prepayment_penalty_pct: v })}
@@ -1013,6 +1026,7 @@ function LoanBlock({
           {!card && (
             <Field
               label="Lock-in, months"
+              findIt={find('lockIn')}
               kind="integer"
               value={loan.prepay_lock_in_months ? String(loan.prepay_lock_in_months) : ''}
               onChange={(v) => onPatch({ prepay_lock_in_months: Number(v) > 0 ? Math.floor(Number(v)) : undefined })}

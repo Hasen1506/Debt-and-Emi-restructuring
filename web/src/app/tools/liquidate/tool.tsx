@@ -1,5 +1,6 @@
 'use client';
 
+import { whereToFind } from '@/lib/where-to-find';
 import Decimal from 'decimal.js';
 import { dec } from '@/lib/safe-decimal';
 import { useEffect, useMemo, useState } from 'react';
@@ -419,6 +420,7 @@ export function LiquidateTool() {
               value={purchasePrice}
               onChange={setPurchasePrice}
               error={at('purchasePrice')}
+              findIt={whereToFind('purchasePrice', { country: isUS ? 'US' : 'IN' })}
               hint={saleMode === 'partial' ? 'For all of it; split by how much you sell' : undefined}
             />
             <Field
@@ -525,6 +527,7 @@ export function LiquidateTool() {
                   setConvertedFrom(null);
                 }}
                 error={at('debtBalance')}
+                findIt={whereToFind('balance', { country: isUS ? 'US' : 'IN' })}
                 hint={convertedFrom ?? undefined}
               />
               <Field
@@ -542,6 +545,7 @@ export function LiquidateTool() {
                 value={debtPayment}
                 onChange={setDebtPayment}
                 error={at('debtPayment')}
+                findIt={whereToFind('emi', { country: isUS ? 'US' : 'IN' })}
                 hint="Blank: the loan grows unpaid, a stress case"
               />
               <Field
@@ -551,6 +555,7 @@ export function LiquidateTool() {
                 value={taxableIncome}
                 onChange={setTaxableIncome}
                 error={at('taxableIncome')}
+                findIt={whereToFind('taxableIncome', { country: isUS ? 'US' : 'IN' })}
                 hint={incomeOnFile !== '' && taxableIncome === incomeOnFile ? 'From your profile. Sets the tax on the gain.' : 'Sets the tax on the gain'}
               />
             </LFieldGrid>
