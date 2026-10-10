@@ -91,12 +91,16 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper }: HomeProps) {
           gap: 22,
         }}
       >
+        {/* What this page is for, in one line (each tab opens with one) */}
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+          Your month on one page: what comes in and goes out, what to pay now, and every loan you have.
+        </p>
         <ContextLine profile={profile} />
         <CashFlow profile={profile} m={m} />
 
         <section aria-labelledby="home-status">
           <LSectionHeader>
-            <span id="home-status">Status</span>
+            <span id="home-status">Where you stand</span>
           </LSectionHeader>
           <LKpi
             cols={4}
@@ -117,8 +121,8 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper }: HomeProps) {
                     tone: L_T.negative,
                   },
               gaps.length > 0
-                ? { l: 'EFFECTIVE RATE', v: '—', s: 'ADD YOUR LOAN DETAILS' }
-                : { l: 'EFFECTIVE RATE', v: fmtPct(m.blendedEffective), s: 'AVERAGE · AFTER FEES + TAX' },
+                ? { l: 'COST OF DEBT', v: '—', s: 'ADD YOUR LOAN DETAILS' }
+                : { l: 'COST OF DEBT', v: `${fmtPct(m.blendedEffective)}/YR`, s: 'AVERAGE · COMPOUNDED, AFTER TAX' },
             ]}
           />
         </section>
@@ -170,7 +174,7 @@ function ContextLine({ profile }: { profile: StoredProfile }) {
       <span>
         {parts.join(' · ')}
       </span>
-      <LBracket href="/plan">CHANGE ON PLAN →</LBracket>
+      <LBracket href="/profile?step=tax">EDIT IN PROFILE →</LBracket>
     </section>
   );
 }
@@ -394,7 +398,7 @@ function EmptyState({ paidOff }: { paidOff: boolean }) {
             <>
               Every loan on file is paid off. Put the old EMIs to work:{' '}
               <LBracket href="/goals">GOALS →</LBracket>{' '}
-              <LBracket href="/portfolio">PORTFOLIO →</LBracket>{' '}
+              <LBracket href="/portfolio">WHAT YOU OWN →</LBracket>{' '}
               <LBracket href="/profile?step=loans">ADD A LOAN →</LBracket>
             </>
           ) : (
@@ -402,7 +406,7 @@ function EmptyState({ paidOff }: { paidOff: boolean }) {
               No loans or cards on file. Plan ahead:{' '}
               <LBracket href="/goals">GOALS →</LBracket>{' '}
               <LBracket href="/tools/new-debt?mode=purchase">A BIG PURCHASE →</LBracket>{' '}
-              <LBracket href="/portfolio">PORTFOLIO →</LBracket>{' '}
+              <LBracket href="/portfolio">WHAT YOU OWN →</LBracket>{' '}
               <LBracket href="/profile?step=loans">ADD A LOAN →</LBracket>
             </>
           )}

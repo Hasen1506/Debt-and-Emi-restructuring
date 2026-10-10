@@ -205,8 +205,9 @@ def test_processing_fee_raises_the_apr():
         emi_offer_months=12, emi_offer_monthly_payment=D("5000"),
         processing_fee=D("1199"), user_savings_after_efund=D("0"),
     )
-    assert D("0.035") < v.effective_apr < D("0.04")
-    assert v.total_real_cost == D("1199")
+    # The fee and its 18% GST (₹216) come out of the price up front.
+    assert D("0.04") < v.effective_apr < D("0.045")
+    assert v.total_real_cost == D("1415") and v.gst == D("215.82")
 
 
 def test_real_cost_includes_interest():
@@ -218,8 +219,9 @@ def test_real_cost_includes_interest():
         emi_offer_months=36, emi_offer_monthly_payment=payment,
         processing_fee=D("5000"),
     )
-    assert v.total_real_cost == (payment * 36 + 5000 - 500000).quantize(D("1"))
-    assert v.total_real_cost > D("100000")
+    # A bank loan's interest carries no GST; its fee does.
+    assert v.total_real_cost == (payment * 36 + 5000 + 900 - 500000).quantize(D("1"))
+    assert v.gst == D("900.00") and v.total_real_cost > D("100000")
     assert "₹1," in v.detail                           # Indian grouping, e.g. ₹1,20,211
     assert v.verdict == "take" and D("0.14") < v.effective_apr < D("0.15")
 
@@ -387,3 +389,69 @@ def test_windfall_fee_above_the_saving_keeps_the_cash():
     out = allocate_windfall(D("5000"), [pl], {id(pl): D("0.12")}, [], D("0.046"))
     assert out.to_loan_id is None and out.leftover == D("5000")
     assert "fee is more than the interest" in out.rationale
+
+
+def test_card_emi_pays_gst_on_its_interest():
+    """India: 18% GST on each month's interest in a card EMI."""
+    from engine.formulas import emi
+    payment = emi(D("60000"), D("0.16"), 12).quantize(D("0.01"))
+    v = evaluate_new_debt(
+        list_price=D("60000"), cash_price_elsewhere=D("60000"),
+        emi_offer_months=12, emi_offer_monthly_payment=payment, card_emi=True,
+    )
+    interest = payment * 12 - 60000
+    assert abs(v.gst - interest * D("0.18")) < D("1")
+    # GST on the interest raises the real rate by about 18% of it.
+    assert D("0.185") < v.effective_apr < D("0.195")
+
+
+def test_no_cost_card_emi_is_not_free():
+    """The discount behind a 'no-cost' EMI is the bank's interest, and GST is
+    charged on it, so the real cost is above zero even with no fee."""
+    v = evaluate_new_debt(
+        list_price=D("60000"), cash_price_elsewhere=D("60000"),
+        emi_offer_months=6, emi_offer_monthly_payment=D("10000"), card_emi=True,
+    )
+    assert D("300") < v.gst < D("600") and v.total_real_cost == v.gst.quantize(D("1"))
+    assert D("0") < v.effective_apr < D("0.04")
+    us = evaluate_new_debt(
+        list_price=D("600"), cash_price_elsewhere=D("600"), country=Country.US,
+        emi_offer_months=6, emi_offer_monthly_payment=D("100"), card_emi=True,
+    )
+    assert us.gst == 0 and us.effective_apr == 0
+
+
+def test_pay_cash_when_borrowing_costs_more_than_savings_earn():
+    from engine.formulas import emi
+    payment = emi(D("100000"), D("0.08"), 12).quantize(D("0.01"))
+    kw = dict(list_price=D("100000"), cash_price_elsewhere=D("100000"), emi_offer_months=12,
+              emi_offer_monthly_payment=payment, user_savings_after_efund=D("200000"))
+    # 8% beats savings that earn 4.4% after tax...
+    v = evaluate_new_debt(**kw, savings_return=D("0.044"))
+    assert v.verdict == "pay_cash" and "4.4% your savings earn" in v.detail
+    # ...but not savings that earn 9%.
+    assert evaluate_new_debt(**kw, savings_return=D("0.09")).verdict == "take"
+
+
+def test_savings_go_to_a_dearer_debt_first():
+    from engine.formulas import emi
+    payment = emi(D("100000"), D("0.12"), 12).quantize(D("0.01"))
+    v = evaluate_new_debt(
+        list_price=D("100000"), cash_price_elsewhere=D("100000"), emi_offer_months=12,
+        emi_offer_monthly_payment=payment, user_savings_after_efund=D("200000"),
+        savings_return=D("0.044"), dearest_debt=("credit card", D("0.6252")),
+    )
+    assert v.verdict == "take" and "62.5% your credit card costs" in v.detail
+
+
+def test_a_cheaper_bank_is_named_and_lenders_ceiling_is_flagged():
+    from engine.formulas import emi
+    payment = emi(D("300000"), D("0.19"), 36).quantize(D("0.01"))
+    v = evaluate_new_debt(
+        list_price=D("300000"), cash_price_elsewhere=D("300000"), emi_offer_months=36,
+        emi_offer_monthly_payment=payment, cheaper_loan=("ICICI Bank", D("0.0999")),
+        take_home=D("40000"), current_payments=D("12000"),
+    )
+    assert v.verdict == "take"
+    assert "ICICI Bank advertises loans like this from 10.0%" in v.detail
+    assert "lenders rarely approve past about half" in v.detail

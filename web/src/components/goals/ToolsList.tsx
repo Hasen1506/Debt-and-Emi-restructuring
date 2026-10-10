@@ -47,7 +47,7 @@ export function ToolsList({ user }: { user: ToolUser }) {
             >
               <span style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span style={{ fontSize: 10, letterSpacing: '0.14em', color: L_T.muted }}>{t.name.toUpperCase()}</span>
-                <span style={{ fontSize: 15, fontWeight: 700 }}>{t.question}</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{t.question}</span>
               </span>
               <span style={{ flex: '2 1 280px', color: L_T.inkSoft, fontSize: 12, lineHeight: 1.5 }}>{t.sub}</span>
               <span aria-hidden="true" style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', color: L_T.accent }}>

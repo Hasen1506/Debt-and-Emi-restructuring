@@ -73,8 +73,9 @@ test("Activity asks for the plan's payment, as Home does, and records it", () =>
 
 test('Rising costs: the forecast unless the user sets a rate from 0 to 25%', () => {
   const { normalizeInflationRate, inflationRateFor, INFLATION_FORECAST } = lib('inflation-modeling.ts');
-  assert.equal(INFLATION_FORECAST.IN.rate, '0.050');
-  assert.equal(inflationRateFor('IN', ''), '0.050');
+  const market = JSON.parse(fs.readFileSync(path.join(root, 'lib', 'market-data.json'), 'utf8'));
+  assert.equal(INFLATION_FORECAST.IN.rate, market.inflation.IN.rate);
+  assert.equal(inflationRateFor('IN', ''), market.inflation.IN.rate);
   assert.equal(inflationRateFor('US', ''), INFLATION_FORECAST.US.rate);
   assert.equal(normalizeInflationRate('0.07'), '0.07');
   assert.equal(inflationRateFor('IN', normalizeInflationRate('0.07')), '0.07');
@@ -98,10 +99,16 @@ test('Setup estimates the same tax rate Profile works out (slab, surcharge, cess
   assert.equal(marginalRateFromTakeHome('60000', 'IN', 'salaried', 'new', undefined).rate, 0);
 });
 
-test('Safe rates are dated September 2026 quotes', () => {
+test('Safe rates are the dated quotes in market-data.json', () => {
   const { SAFE_RATES } = lib('invest-vs-prepay.ts');
-  assert.equal(SAFE_RATES.fd_in.rate, '0.0625');
-  assert.equal(SAFE_RATES.gsec_in.rate, '0.0591');
-  assert.equal(SAFE_RATES.liquid_in.rate, '0.065');
-  for (const r of Object.values(SAFE_RATES)) assert.match(r.asOf, /^2026-/);
+  const market = JSON.parse(fs.readFileSync(path.join(root, 'lib', 'market-data.json'), 'utf8'));
+  for (const [key, r] of Object.entries(SAFE_RATES)) {
+    assert.equal(r.rate, market.safe[key].rate, key);
+    assert.equal(r.asOf, market.safe[key].as_of, key);
+    assert.match(r.asOf, /^20\d\d-\d\d(-\d\d)?$/, key);
+    assert.ok(Number(r.rate) > 0 && Number(r.rate) < 0.15, key);
+  }
+  // FDs compound quarterly; Treasury interest is free of state tax.
+  assert.equal(SAFE_RATES.fd_in.compounding, 'quarterly');
+  assert.equal(SAFE_RATES.treasury_us.tax.share, 0.8);
 });

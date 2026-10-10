@@ -1,13 +1,13 @@
 {
   "$schema_note": "Schedule of MPC (RBI) and FOMC (Fed) meeting dates. Update annually in January when central banks publish the next year's calendar. Source: rbi.org.in / federalreserve.gov.",
-  "last_updated": "2026-09-26",
+  "last_updated": "2026-10-09",
   "meetings": {
     "IN": [
       {"date": "2026-02-06", "outcome_rate": "0.0525", "note": "Feb MPC"},
       {"date": "2026-04-08", "outcome_rate": "0.0525", "note": "Apr MPC"},
       {"date": "2026-06-05", "outcome_rate": "0.0525", "note": "Jun MPC"},
       {"date": "2026-08-05", "outcome_rate": "0.0525", "note": "Aug MPC"},
-      {"date": "2026-10-07", "outcome_rate": null, "note": "Oct MPC"},
+      {"date": "2026-10-07", "outcome_rate": "0.0550", "note": "Oct MPC (hike)"},
       {"date": "2026-12-05", "outcome_rate": null, "note": "Dec MPC"},
       {"date": "2027-02-04", "outcome_rate": null, "note": "Feb MPC"},
       {"date": "2027-04-08", "outcome_rate": null, "note": "Apr MPC"},

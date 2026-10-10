@@ -90,6 +90,28 @@ export function writeProfileCookieClient(json: string): boolean {
   return false;
 }
 
+/** JSON with object keys in name order, so two copies of the same profile
+ *  compare equal whichever order their keys were written in. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_k, v) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, (v as Record<string, unknown>)[k]]))
+      : v,
+  );
+}
+
+/** Whether this browser's profile cookie already holds `user` (the
+ *  account copy often comes back with its keys in another order). */
+export function profileCookieHolds(user: unknown): boolean {
+  const raw = decodeProfileCookies(readClientCookie);
+  if (!raw) return false;
+  try {
+    return canonicalJson(JSON.parse(raw)) === canonicalJson(user);
+  } catch {
+    return false;
+  }
+}
+
 /** A cookie's value as stored (not URI-decoded), to put it back unchanged. */
 function readRawClientCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;

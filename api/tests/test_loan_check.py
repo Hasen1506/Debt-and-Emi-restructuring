@@ -3,6 +3,8 @@ from decimal import Decimal
 
 import pytest
 
+from engine import policy_rates
+
 D = Decimal
 
 
@@ -33,7 +35,7 @@ def test_loan_check_round_trip(client):
     missed = body["findings"][0]
     assert missed["claimable"] is True
     assert missed["citations"][0]["rule"].startswith("RBI (Commercial Banks")
-    assert body["rates_as_of"] == "2026-09-26"
+    assert body["rates_as_of"] == policy_rates.LAST_VERIFIED.isoformat()
     assert body["repo_changes_since_start"][-1]["new_rate"] in ("0.0525", 0.0525)
 
 
@@ -129,13 +131,15 @@ def test_split_fraction_check(client):
 
 def test_central_rates_are_current(client):
     body = client.get("/api/rates/central").json()
-    assert D(str(body["IN"]["current_rate"])) == D("0.0525")
+    # RBI raised the repo rate to 5.50% on 7 Oct 2026; the Fed's upper
+    # bound has been 4.00% since 16 Sep 2026.
+    assert D(str(body["IN"]["current_rate"])) == D("0.0550")
     assert D(str(body["US"]["current_rate"])) == D("0.0400")
-    assert body["IN"]["as_of"] == "2026-09-26"
-    assert body["IN"]["source"] == "Official decisions, checked by hand on 26 Sep 2026"
+    assert body["IN"]["as_of"] == "2026-10-09"
+    assert body["IN"]["source"] == "Official decisions, checked by hand on 09 Oct 2026"
 
 
 def test_loan_check_says_where_the_rates_come_from(client):
     body = client.post("/api/loan-check", json=_payload()).json()
-    assert body["rates_as_of"] == "2026-09-26"
-    assert body["rates_source"] == "Official decisions, checked by hand on 26 Sep 2026"
+    assert body["rates_as_of"] == policy_rates.LAST_VERIFIED.isoformat()
+    assert body["rates_source"] == f"Official decisions, checked by hand on {policy_rates.LAST_VERIFIED:%d %b %Y}"

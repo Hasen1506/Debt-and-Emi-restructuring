@@ -60,6 +60,7 @@ import {
 } from '@/components/ledger/primitives';
 import { LStepHead, LStepSub } from '@/components/ledger/LToolSteps';
 import { useWidth } from '@/lib/use-width';
+import { announce } from '@/lib/announce';
 
 const LOAN_WORDS: Record<string, string> = {
   credit_card: 'credit card',
@@ -471,6 +472,13 @@ export function WindfallTool({
   // ── Render ─────────────────────────────────────────────────────────────
   const dm = base?.month != null && after?.month != null ? after.month - base.month : null;
   const saving = base && after ? base.interest - after.interest : null;
+  // Read the result out once the plan has re-run (lib/announce).
+  const spoken = after?.month != null && !running
+    ? `Debt-free ${monthIndexToCountryLabel(after.month, country)}${dm != null && dm < 0 ? `, ${-dm} months sooner` : dm === 0 ? ', the same month' : ''}${saving && saving > 0 ? `; interest saved ${fmt(saving)}` : ''}.`
+    : '';
+  useEffect(() => {
+    if (spoken) announce(spoken);
+  }, [spoken]);
   const toGoals = targets.filter((t) => t.kind === 'goal').reduce((s, t) => s + (alloc[t.key] ?? 0), 0);
   const groups: { title: string; right?: string; kinds: Kind[] }[] = [
     { title: 'Emergency fund', right: `THE PLAN SENDS ${Math.round(efSplit * 100)}% HERE UNTIL IT'S FULL`, kinds: ['ef'] },

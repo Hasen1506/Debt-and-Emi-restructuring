@@ -23,7 +23,7 @@ const OPTIONS: { value: TaxReinvestSetting; label: string }[] = [
 ];
 
 const HELP_ON =
-  'Each year, projected tax savings on deductible interest are routed back to your highest-effective-APR debt.';
+  'Each year, projected tax savings on deductible interest are routed back to the debt that costs the most a year.';
 const HELP_OFF =
   'No reinvest applied. Tax savings (if any) stay with you to spend freely.';
 

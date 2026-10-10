@@ -34,9 +34,10 @@ def test_prepay_margin_default_and_override():
 
 
 def test_simulation_uses_the_users_prepay_margin():
-    """Before PR D the +0.5pp margin was fixed: a 7.9% loan against a 7.5%
-    fund always had its extra invested, whatever the user wanted."""
-    car = Loan(LoanType.AUTO, "x", D("400000"), D("0.079"), "fixed", 60, D("8100"))
+    """Before PR D the +0.5pp margin was fixed: a 7.7% loan (7.98% a year,
+    compounded) against a 7.5% fund always had its extra invested, whatever
+    the user wanted."""
+    car = Loan(LoanType.AUTO, "x", D("400000"), D("0.077"), "fixed", 60, D("8100"))
     default = simulate_plan(_user([car]), horizon_months=12)
     assert default.months[0].invested_this_month > 0
     own = simulate_plan(_user([car], prepay_hurdle=D("0")), horizon_months=12)

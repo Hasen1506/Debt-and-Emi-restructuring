@@ -167,11 +167,15 @@ export function Field({
   suggestion,
   error,
   currency = 'INR',
+  findIt,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   hint?: string;
+  /** Where the borrower finds this number (lib/where-to-find), shown as
+   *  "Find it: …" under the hint. */
+  findIt?: string | null;
   info?: ReactNode;
   kind?: FieldKind;
   /** For kind 'money': how to group digits and name the scale. */
@@ -248,13 +252,16 @@ export function Field({
       ? moneyParsed.error
       : null);
   const hintText = [moneyWords ? `= ${moneyWords}` : '', hint ?? ''].filter(Boolean).join(' · ') || undefined;
+  const describe = [describedBy(inputId, hintText, shownError), findIt ? `${inputId}-find` : '']
+    .filter(Boolean)
+    .join(' ') || undefined;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <LabelRow label={label} info={info} htmlFor={inputId} />
       <input
         id={inputId}
         ref={inputRef}
-        aria-describedby={describedBy(inputId, hintText, shownError)}
+        aria-describedby={describe}
         aria-invalid={shownError ? true : undefined}
         className={isNumeric ? 'num' : undefined}
         value={shown}
@@ -307,6 +314,7 @@ export function Field({
           {hintText}
         </span>
       )}
+      <FindIt id={`${inputId}-find`} text={findIt} />
     </div>
   );
 }
@@ -330,6 +338,16 @@ export function percentTextToFraction(v: string): string | null {
 function describedBy(id: string, hint?: string, error?: string | null): string | undefined {
   const ids = [error ? `${id}-err` : '', hint ? `${id}-hint` : ''].filter(Boolean);
   return ids.length ? ids.join(' ') : undefined;
+}
+
+/** "Find it: KFS, …" under a field: the paper the number is printed on. */
+function FindIt({ id, text }: { id: string; text?: string | null }) {
+  if (!text) return null;
+  return (
+    <span id={id} className="muted" style={{ fontSize: 11 }}>
+      Find it: {text}
+    </span>
+  );
 }
 
 /** The message under a field that the server (or a check) rejected. */
@@ -552,6 +570,7 @@ export function Select<T extends string>({
   info,
   hint,
   error,
+  findIt,
 }: {
   label: string;
   value: T;
@@ -561,6 +580,8 @@ export function Select<T extends string>({
   /** A line under the choice, like a field's hint. */
   hint?: string;
   error?: string | null;
+  /** Where the borrower finds this (lib/where-to-find). */
+  findIt?: string | null;
 }) {
   const selectId = useId();
   return (
@@ -570,7 +591,7 @@ export function Select<T extends string>({
         id={selectId}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
-        aria-describedby={describedBy(selectId, hint, error)}
+        aria-describedby={[describedBy(selectId, hint, error), findIt ? `${selectId}-find` : ''].filter(Boolean).join(' ') || undefined}
         aria-invalid={error ? true : undefined}
         style={{
           padding: '8px 10px',
@@ -593,6 +614,7 @@ export function Select<T extends string>({
           {hint}
         </span>
       )}
+      <FindIt id={`${selectId}-find`} text={findIt} />
     </div>
   );
 }

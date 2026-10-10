@@ -32,7 +32,7 @@ from engine.models import (
     PayoffRules,
 )
 from engine.formulas import (
-    emi, effective_rate, monthly_interest_charge, prepay_recommended, prepayment_beats_fee, real_emi,
+    emi, monthly_interest_charge, prepay_recommended, prepayment_beats_fee, real_emi,
 )
 from engine.minimum_payments import compute_minimum_payment
 from engine.ordering import Strategy, rank_loans
@@ -663,13 +663,6 @@ def _simulate_plan(
             for l in active
         }
 
-        # Effective rate per loan (drives ordering + Layer 3 gate)
-        rates = {
-            id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises, user.itemised_share,
-                                  **tax_caps_context(active, user))
-            for l in active
-        }
-
         # Available surplus this month — recompute with current income
         scratch_user = deepcopy(user)
         scratch_user.monthly_income = D("0") if m <= income_shock_months else income
@@ -787,7 +780,8 @@ def _simulate_plan(
         # sat at its minimum, because a small 7% car loan came first.
         # Payoff order: the marginal cost of the next unit prepaid (roadmap
         # PR J), not the all-in effective rate (which counts sunk fees).
-        order_keys = {k: mc.order_key for k, mc in user_marginal_costs(active, user, marg, m, loan_start_month).items()}
+        costs = user_marginal_costs(active, user, marg, m, loan_start_month)
+        order_keys = {k: mc.order_key for k, mc in costs.items()}
         ranked = rank_loans(active, order_keys, strategy, country=user.country,
                             balance_of=lambda l: to_user_currency(l.outstanding, l, user),
                             rules=user.payoff_rules, index_of=loan_position)
@@ -812,7 +806,11 @@ def _simulate_plan(
 
         worth_prepaying = [
             l for l in ranked
-            if prepay_recommended(rates[id(l)], best_liquid_return, inflation, marg, user.prepay_hurdle)
+            # The loan's cost a year from here (compounded, after GST and the
+            # tax break at the margin), the same figure the screens show. The
+            # all-in effective rate counted fees already paid and skipped
+            # compounding; the prepayment fee is checked just below.
+            if prepay_recommended(costs[id(l)].annual_cost, best_liquid_return, inflation, marg, user.prepay_hurdle)
             and _fee_pays_off(l)
         ]
         worth_ids = {id(l) for l in worth_prepaying}

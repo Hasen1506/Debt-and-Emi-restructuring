@@ -25,7 +25,7 @@ export function likelyRateType(loanType: LoanType, country: Country, currency?: 
 
 /** How to tell, in one line, for the help under the choice. */
 export const HOW_TO_TELL =
-  "Your loan letter's \"Type of interest\" line says. Or: if your EMI or months left have changed without you asking, it's floating.";
+  "If your EMI or months left have changed without you asking, it's floating.";
 
 /** Why "Not sure" landed where it did, said under the choice. */
 export function assumedRateTypeNote(loanType: LoanType, country: Country, currency?: LoanPayload['currency']): string {

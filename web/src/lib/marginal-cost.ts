@@ -5,7 +5,7 @@
  * engine/tests/fixtures/marginal_cost_cases.json) keeps the two equal.
  *
  *   marginal cost = interest, compounded monthly       (1 + r/12)^12 − 1
- *                 + GST on that interest               (Indian credit cards: 18%)
+ *                 + GST on that interest, compounding  (Indian credit cards: 18%)
  *                 − tax benefit the prepayment gives up (24(b) / 80E / US mortgage
  *                                                        and student-loan interest)
  *                 − prepayment fee                     fee% × 12 / months left
@@ -35,6 +35,10 @@ export interface MarginalCost {
   taxBenefit: Decimal;
   fee: Decimal;
   lockInMonths: number;
+  /** What the debt costs a year from here: interest + GST − tax break. The
+   *  rate shown for a loan everywhere; the prepayment fee is a cost of
+   *  prepaying, not of owing, so it comes off only in `total`. */
+  annualCost: Decimal;
   total: Decimal;
   locked: boolean;
   /** Sort key, highest first: the total, with locked loans last. */
@@ -54,14 +58,17 @@ export function marginalCost(
   lockInMonths = 0,
 ): MarginalCost {
   const interest = compounded(nominalRate);
-  const gst = cardGst ? interest.times(GST_ON_CARD_INTEREST_IN) : D(0);
+  // GST is billed on each month's interest and compounds with it (as the
+  // simulation and true APR have it): a 42% card costs 62.6% a year, not 60.31%.
+  const gst = cardGst ? compounded(D(nominalRate).times(GST_ON_CARD_INTEREST_IN.plus(1))).minus(interest) : D(0);
   const taxBenefit = interest.times(D(shieldFraction));
   const k = monthsLeft > 0 ? monthsLeft : OPEN_ENDED_MONTHS;
   const feePct = D(prepaymentFeePct || 0);
   const fee = feePct.gt(0) ? feePct.times(12).div(k) : D(0);
-  const total = interest.plus(gst).minus(taxBenefit).minus(fee);
+  const annualCost = interest.plus(gst).minus(taxBenefit);
+  const total = annualCost.minus(fee);
   const lock = Math.max(0, Math.trunc(lockInMonths));
-  return { interest, gst, taxBenefit, fee, lockInMonths: lock, total, locked: lock > 0, orderKey: lock > 0 ? total.minus(LOCKED_OFFSET) : total };
+  return { interest, gst, taxBenefit, fee, lockInMonths: lock, annualCost, total, locked: lock > 0, orderKey: lock > 0 ? total.minus(LOCKED_OFFSET) : total };
 }
 
 /** Tax saved on the NEXT unit of interest, as a share of it (see the engine's
@@ -124,14 +131,35 @@ export function userMarginalCosts(user: UserPayload, marginalRate: string, indic
   return out;
 }
 
+/** One loan on its own (Profile's preview while a loan is typed in): its
+ *  own interest stands for the tax caps. `itemises` as computeBreakdown's:
+ *  true = all mortgage interest lowers tax, or the share that does. */
+export function loanMarginalCost(
+  loan: LoanPayload,
+  country: string,
+  marginalRate: Decimal.Value,
+  regime: string = 'new',
+  itemises: boolean | Decimal = true,
+): MarginalCost {
+  const share = itemises === true ? D(1) : itemises === false ? D(0) : D(itemises);
+  const interest = D(loan.outstanding || 0).times(D(loan.nominal_rate || 0));
+  const own = marketOf(loan, country) === country;
+  const shield = own ? marginalShield(loan.loan_type, country, marginalRate, regime, share.gt(0), share, interest, D(loan.outstanding || 0), 1) : D(0);
+  const cardGst = loan.loan_type === 'credit_card' && marketOf(loan, country) === 'IN';
+  return marginalCost(loan.nominal_rate || 0, cardGst, shield, loan.prepayment_penalty_pct || 0, Number(loan.tenure_months_remaining || 0), Number(loan.prepay_lock_in_months || 0));
+}
+
 const pct = (v: Decimal) => `${v.times(100).toFixed(2)}%`;
 
 /** The breakdown lines for "why this loan first". */
 export function whyFirstLines(mc: MarginalCost): { label: string; value: string; sign: '+' | '−' | '=' }[] {
   const lines: { label: string; value: string; sign: '+' | '−' | '=' }[] = [{ label: 'Interest, compounded monthly', value: pct(mc.interest), sign: '+' }];
-  if (mc.gst.gt(0)) lines.push({ label: 'GST on the interest (18%)', value: pct(mc.gst), sign: '+' });
+  if (mc.gst.gt(0)) lines.push({ label: 'GST on the interest (18%), compounding with it', value: pct(mc.gst), sign: '+' });
   if (mc.taxBenefit.gt(0)) lines.push({ label: 'Tax break you’d give up', value: pct(mc.taxBenefit), sign: '−' });
-  if (mc.fee.gt(0)) lines.push({ label: 'Prepayment fee, over the months left', value: pct(mc.fee), sign: '−' });
+  if (mc.fee.gt(0)) {
+    lines.push({ label: 'What it costs you a year', value: pct(mc.annualCost), sign: '=' });
+    lines.push({ label: 'Prepayment fee, over the months left', value: pct(mc.fee), sign: '−' });
+  }
   lines.push({ label: 'Each extra payment here saves', value: `${pct(mc.total)} a year`, sign: '=' });
   return lines;
 }

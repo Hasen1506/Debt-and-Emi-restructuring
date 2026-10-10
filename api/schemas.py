@@ -1019,6 +1019,19 @@ class NewDebtRequest(_In):
     # Income − costs − payments already owed, per month (negative when
     # short). Sent from the profile; an EMI above it isn't "take".
     monthly_room: Optional[Decimal] = Field(None, ge=D("-1e12"), le=D("1e12"))
+    # A card EMI (India: GST on its interest) rather than a bank loan.
+    card_emi: bool = False
+    # What savings earn a year after tax; paying cash wins above it.
+    savings_return: Optional[Decimal] = Field(None, ge=D("0"), le=D("1"))
+    # The user's costliest debt and its yearly cost, after tax.
+    dearest_debt_name: Optional[str] = Field(None, max_length=80)
+    dearest_debt_rate: Optional[Decimal] = Field(None, ge=D("0"), le=D("10"))
+    # The lowest advertised rate for a loan like this one.
+    cheaper_bank: Optional[str] = Field(None, max_length=80)
+    cheaper_rate: Optional[Decimal] = Field(None, ge=D("0"), le=D("1"))
+    # A month, for the lenders' ceiling on loan payments.
+    take_home: Optional[Decimal] = Field(None, ge=D("0"), le=D("1e12"))
+    current_payments: Optional[Decimal] = Field(None, ge=D("0"), le=D("1e12"))
 
 
 class NewDebtResponse(_Base):
@@ -1031,6 +1044,7 @@ class NewDebtResponse(_Base):
     effective_apr: Decimal
     verdict: str
     detail: str
+    gst: Decimal = D("0")
 
 
 class QuickRecomputeRequest(_In):

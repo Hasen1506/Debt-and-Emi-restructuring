@@ -1,5 +1,8 @@
-"""Institution rate cards — §7.1."""
+"""Institution rate cards — §7.1. These check the live cards themselves."""
+from datetime import date
 from decimal import Decimal
+
+import pytest
 from engine.rate_cards import (
     ALL_INSTITUTIONS, INDIA_TIER_A, USA_TIER_A,
     INDIA_TIER_B, INDIA_TIER_C, USA_TIER_B, USA_TIER_C,
@@ -8,6 +11,7 @@ from engine.rate_cards import (
 from engine.models import Country, LoanType
 
 D = Decimal
+pytestmark = pytest.mark.live_rate_cards
 
 
 def test_india_tier_a_has_six_populated_banks():
@@ -31,24 +35,39 @@ def test_total_institutions_30_india_15_usa():
     assert usa_count == 15
 
 
-def test_hdfc_home_loan_range_matches_spec():
-    """Spec §7.1 indicative table: HDFC home 7.75-8.15%."""
+def test_hdfc_home_loan_range_is_what_hdfc_publishes():
+    """HDFC's page, 9 Oct 2026: repo 5.50% + 2.50 to + 7.95."""
     r = lookup_rate("HDFC Bank", LoanType.HOME)
     assert r is not None
-    assert r.low == D("0.0775") and r.high == D("0.0815")
-    assert r.median == D("0.0795")
+    assert r.low == D("0.0800") and r.high == D("0.1345")
 
 
-def test_icici_credit_card_range_matches_spec():
+def test_icici_credit_card_range_is_what_icici_publishes():
+    """ICICI's card charges, 9 Oct 2026: 1.25% to 3.75% a month."""
     r = lookup_rate("ICICI Bank", LoanType.CREDIT_CARD)
     assert r is not None
-    assert r.low == D("0.2988") and r.high == D("0.45")
+    assert r.low == D("0.15") and r.high == D("0.45")
 
 
-def test_chase_mortgage_range_matches_spec():
+def test_chase_mortgage_starts_at_its_advertised_30_year_rate():
     r = lookup_rate("JPMorgan Chase", LoanType.HOME)
     assert r is not None
-    assert r.low == D("0.0650") and r.high == D("0.0700")
+    assert r.low == D("0.07125") and r.high == D("0.07625")
+
+
+@pytest.mark.parametrize("card", INDIA_TIER_A + USA_TIER_A, ids=lambda c: c.name)
+def test_tier_a_cards_are_sane(card):
+    """What any update (by hand or scheduled) must keep true."""
+    date.fromisoformat(card.last_verified)
+    for r in (card.home_loan, card.personal_loan, card.auto_loan, card.education_loan):
+        if r is not None:
+            assert D("0.01") < r.low <= r.high < D("0.40"), card.name
+    cc = card.credit_card
+    if cc is not None:
+        assert D("0.05") < cc.apr_low <= cc.apr_high <= D("0.60"), card.name
+        # A promo with no known fee would be scored as free.
+        if cc.bt_promo_rate is not None:
+            assert cc.bt_promo_months and cc.bt_fee_pct is not None, card.name
 
 
 def test_lookup_unknown_bank_returns_none():
@@ -87,13 +106,13 @@ def test_market_median_india_home_loan():
     """Median across Tier-A India home loan medians should be in a reasonable band."""
     m = market_median(Country.IN, LoanType.HOME)
     assert m is not None
-    assert m > D("0.075") and m < D("0.090")    # 7.5%-9%
+    assert m > D("0.075") and m < D("0.100")    # 7.5%-10%
 
 
 def test_market_median_usa_mortgage():
     m = market_median(Country.US, LoanType.HOME)
     assert m is not None
-    assert m > D("0.060") and m < D("0.075")
+    assert m > D("0.060") and m < D("0.085")
 
 
 def test_no_us_personal_loan_or_mortgage_from_lenders_that_stopped_offering_them():

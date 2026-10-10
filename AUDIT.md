@@ -501,3 +501,41 @@ Every page walked at 390 px with four loans (card, personal, floating home, car)
 **Tabs.** Five stay: Home (what to pay now), Plan (when it ends, what if), Activity (what happened), Goals & Tools (something came up), Profile (my details). Each answers a different question, and five fit one line at 390 px. What was crowded was inside the pages: the same loans listed three times on Home, buttons of equal weight, long pages with no way to jump. Those are what changed.
 
 `scripts/pr23-regressions.cjs` P13 now expects setup to land on `/plan`, as PR #29 made it (it waited for `/`).
+
+## 13 · Accuracy, clarity, landing page and the backlog (9 Oct 2026)
+
+Owner asked for the inaccurate bits corrected, every section made easier to grasp without changing the look, a new landing page, and the backlog finished. Then: Goals' type looked different, and Plan's month-by-month "quoted the wrong amount due" against what was owed.
+
+| # | Where | Problem | Fix |
+|---|---|---|---|
+| V1 | Everywhere a loan's rate shows | One card had three rates: 42% statement, 49.56% with GST, 60.31%/62.52% what a payment saves; ranking, the COST OF DEBT KPI and the invest-or-prepay gate each used a different one | One rate per loan: what it costs a year, interest compounded monthly, GST compounding with it on an Indian card, less the tax break at the margin (engine `MarginalCost.annual_cost`, web `annualCost`). A prepayment fee only orders where extra goes. A 42% card: 62.52% everywhere |
+| V2 | UPI, tax note, balance transfer | UPI note said a ₹1 lakh limit; tax sections cited without the 2025 Act; the transfer row quoted the simple rate | NPCI's ₹5 lakh loan-payment limit (banks may cap lower); Income-tax Act, 2025 renumbering note; transfer row uses the compounded rate |
+| V3 | Home, Plan, Goals | A page didn't say what it was for | A one-line lede per page; WHERE YOU STAND; plainer pay reason; JUMP TO in page order |
+| W1 | Plan · month by month | Loan columns are what's paid that month, so a payoff month's small last payment (CARD ₹9,435) read as what was owed on an ₹80,000 card; the chart's top read ₹48.51L (after this month's payments) against ₹48,80,000 owed; a fifth loan had no column | A first row, OWED AT THE START, with each loan's balance and the total; a note saying the columns are payments; FINAL on a loan's last payment; every loan gets a column; the chart starts at NOW from what's owed; CSV starts with the same row |
+| W2 | Goals and every form | Text boxes and dropdowns didn't inherit the page font and showed in Arial; ledes were 12 or 13 px by page; Goals' tool titles 15 px and dates in lower case | Form fields inherit the font; one lede style (13 px) on all five tabs; tool titles and table dates match the other pages |
+| W2b | Profile edit | "tax sleeve", "scalar hike", "auto-derive", shouting NOT | Plain words: Monthly spending, without EMIs; Yearly pay rise; Work it out for me |
+| V4 | Landing (`/` signed out) | A generic page in another style that described features loosely | Rebuilt in the ledger look with the real features and numbers, motion (register ticks paid, graph draws, figures count up, sections rise) off under reduced motion, works at 390 px |
+| V5 | /tax, /portfolio | Two pages outside the five tabs | /tax redirects to Profile's tax section; /portfolio is headed as Profile's What you own |
+| #26 | Tools | A verdict that mounted with its text was never read out | `lib/announce`: one polite live region; every verdict and Spare cash's result are written into it |
+| #24 | CI | No accessibility or hydration check | `e2e/a11y.spec.ts`: axe (WCAG 2/2.1 A, AA) on every tab and tool, signed in and out; serious or critical findings, hydration and page errors fail. Found one: a link in a sentence told apart by colour only |
+| #25 | CI | Chromium only | Firefox and WebKit run the same journeys and checks in their own job, against the same goldens |
+
+New tests: `web/tests/core-math.cjs` (India and US tax, card minimums, loan checks, chart data, where the schedule starts), the a11y spec. Validation: 199 web tests, 929 Python tests (4 skipped), 5 E2E specs in Chromium, 18 browser regressions, typecheck, lint, build.
+
+## 14 · Rates re-read, New Debt Check, every field's source, data that stays current (9–10 Oct 2026)
+
+Owner asked whether New Debt Check and the rest are accurate, why Plan takes a couple of seconds, that every field be needed and say where its number comes from (KFS and the like), and, with internet access now available, that hard-coded data be brought up to date and kept current by scraping.
+
+| # | Where | Problem | Fix |
+|---|---|---|---|
+| X1 | Rate cards, policy rates | Cards and the repo rate were May figures; RBI raised the repo to 5.50% on 7 Oct 2026 | Repo 5.50% from 7 Oct ([MPC resolution](https://www.rbi.org.in/scripts/BS_PressReleaseDisplay.aspx?prid=63742)). India and US Tier-A cards re-read on each bank's own page on 9–10 Oct; repo-linked ranges quoted on the old repo (SBI, Axis, Kotak, PNB's RLLR 8.10→8.35%) carry the hike. HDFC and ICICI offer no 0% balance transfer, so it's gone. Tests run on a frozen copy of the May cards; the rate-card tests check the live ones |
+| X2 | CI · Firefox, WebKit | The browsers shared one test user in one database, and WebKit reported cancelled prefetches as page errors | Each browser signs in as its own user; the a11y check ignores WebKit's prefetch cancellations; the account sync refreshes only when a cookie actually changed |
+| X3 | New Debt Check | No 18% GST on fees or on card-EMI interest (no-cost EMIs included); paying cash was judged against 0%; a dearer existing debt was ignored; no cheaper bank named; no line on lenders' half-of-take-home | All five, from the user's profile: what savings earn after tax, the dearest debt, the cheapest Tier-A bank, take-home and current EMIs. Bank loans start from the bottom of the range for a 750+ (India) or 740+ (US) score |
+| X4 | Plan speed | A couple of seconds per load | Locally 50–100 ms warm; the wait is Render's free plan (0.1 CPU, sleeps when idle). The page sends 17% less (159→132 KB) and renders once; DEPLOY.md says what the paid plan buys |
+| X5 | Every form | Fields didn't say where a number is printed | A "Find it:" line under each figure: the KFS line (Rate of interest and type, Reference benchmark, Reset periodicity, Foreclosure charges, Processing fees), the loan or card statement, the sanction letter, Form 16 / ITR; for the US the Closing Disclosure, Truth in Lending box, mortgage or card statement, Form 1040. A rupee loan reads off Indian papers whatever country the borrower lives in. Setup, Profile, Loan Check, New Debt, NRI prepay, Sell or keep |
+| X6 | Safe yields, inflation, rate-card date | Typed into the code: T-bill 5.91%, a 6.5% liquid-fund guess, HYSA 4.25%, Treasury 4.54%, RBI's 5.0% forecast, "May 2026" on the rate cards, Purchase fallbacks from May | One file, `web/src/lib/market-data.json`, read by the web app and the engine, refreshed 10 Oct: 364-day T-bill 6.29%, 91-day 5.57% (liquid fund), Treasury 4.47%, online savings 3.50% APY (Marcus; Ally 3.10%), FD 6.25% (SBI, HDFC Bank), tax-free bonds 5.5% (NSE traded median), RBI CPI forecast 5.2% for 2026–27, Fed 2.3% for 2027. Dates on the cards and Purchase's fallbacks come from the cards |
+| X6b | Keeping it current | Nothing re-read these | `.github/workflows/market-data.yml`, Mondays: `scripts/refresh_market_data.py` re-reads RBI, Treasury, Fed, SBI, HDFC and FRED; tests run; a change is committed and redeploys. `web/scripts/watch-rate-pages.mjs` reads the 19 bank pages behind the cards. One **data-check** issue lists what needs a person (a page whose rates changed, a failed source, a by-hand figure past its age, the repo rate or mortgage average moving off what the cards were priced on) and closes when nothing is left |
+
+Checked live from this container now that it has internet access: the FX route reads frankfurter (USD/INR 96.73, 9 Oct) and the policy-rate feed's RBI page; the E2E server's 83.25 is its fixed test rate.
+
+Validation: 203 web tests, 957 Python tests (4 skipped), 5 E2E specs in Chromium, typecheck, lint, build; the refresh script run live and offline against saved pages.

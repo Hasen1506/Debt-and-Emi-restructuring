@@ -16,6 +16,7 @@ import Decimal from 'decimal.js';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole } from '@/lib/api';
 import { computeBreakdown, fmt as fmtPct } from '@/lib/effective-apr';
+import { userMarginalCosts } from '@/lib/marginal-cost';
 import { usMortgageShieldShare } from '@/lib/deductions';
 import { compareToLoan, formatAsOf, pct, safeBenchmarks } from '@/lib/invest-vs-prepay';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
@@ -44,17 +45,22 @@ function buildNotes(plan: PlanData): Note[] {
   const ccy = plan.displayCurrency;
   const regime = user.country === 'IN' ? user.tax_regime : undefined;
   const itemises = usMortgageShieldShare(user);
-  const open = user.loans.filter((l) => Number(l.outstanding || 0) > 0 && (l.planned_effective_month ?? 1) <= 1);
-  const ranked = open
-    .map((loan) => ({ loan, b: computeBreakdown(loan, plan.marginalRate, user.country, regime, itemises) }))
-    .sort((a, b) => b.b.effective.cmp(a.b.effective));
+  // What each loan costs a year (lib/marginal-cost): the figure the plan
+  // ranks and weighs prepaying by. `b` keeps the average tax saving, for the
+  // yearly amount the Tax note quotes.
+  const openIdx = user.loans.map((_, i) => i).filter((i) => Number(user.loans[i].outstanding || 0) > 0 && (user.loans[i].planned_effective_month ?? 1) <= 1);
+  const costs = userMarginalCosts(user, plan.marginalRate, openIdx);
+  const ranked = openIdx
+    .filter((i) => costs.has(i))
+    .map((i) => ({ loan: user.loans[i], mc: costs.get(i)!, b: computeBreakdown(user.loans[i], plan.marginalRate, user.country, regime, itemises) }))
+    .sort((a, b) => b.mc.orderKey.cmp(a.mc.orderKey));
   const notes: Note[] = [];
 
   // 1. Prepay or put it aside: the dearest loan against the best safe rate.
   const top = ranked[0];
   if (top) {
     const vehicles = safeBenchmarks(user.country, plan.marginalRate);
-    const r = compareToLoan(top.b.effective, vehicles);
+    const r = compareToLoan(top.mc.annualCost, vehicles);
     const best = r.bestVehicle;
     const gap = pct(r.spreadPct.abs());
     notes.push({
@@ -72,7 +78,7 @@ function buildNotes(plan: PlanData): Note[] {
             ? 'This loan is cheap enough that a safe saving rate beats it after tax. The plan still pays it down; the tool shows what parking the cash instead would do.'
             : 'Within half a point either way. Paying the loan is certain; saving keeps the cash to hand.',
       math: [
-        { k: `${cap(loanName(top.loan))}, effective rate`, v: fmtPct(top.b.effective) },
+        { k: `${cap(loanName(top.loan))}, cost a year`, v: fmtPct(top.mc.annualCost), note: 'compounded monthly, after tax' },
         {
           k: `${best.name}, after tax`,
           v: pct(best.afterTaxEffective),
@@ -99,18 +105,22 @@ function buildNotes(plan: PlanData): Note[] {
           user.country === 'IN'
             ? `The ${name}'s interest saves about ${formatCurrencyWhole(yearly.toFixed(0), ccy)} of tax a year (Sec 24)`
             : `The ${name}'s interest saves about ${formatCurrencyWhole(yearly.toFixed(0), ccy)} of tax a year`,
-        body: 'So it costs less than its rate, and the plan pays it off after dearer loans.',
+        // At the cap (old regime, interest over ₹2 lakh) the next rupee of
+        // interest saves no tax, so paying early gives none up.
+        body: home.mc.taxBenefit.gt(0)
+          ? 'Paying it early gives that saving up, so it costs less than its rate and the plan pays it off after dearer loans.'
+          : 'Your interest is already over the yearly cap, so paying early gives up none of that saving: the plan counts the loan at its full rate.',
         math: [
-          { k: 'Rate', v: fmtPct(home.b.lines[0]?.value ?? new Decimal(home.loan.nominal_rate || 0)) },
-          { k: 'Less the tax saved', v: `−${fmtPct(shield)}`, tone: 'pos' },
-          { k: 'What the plan counts (with fees)', v: fmtPct(home.b.effective) },
+          { k: 'Interest, compounded monthly', v: fmtPct(home.mc.interest) },
+          { k: 'Less the tax break an early payment gives up', v: `−${fmtPct(home.mc.taxBenefit)}`, tone: 'pos' },
+          { k: 'What it costs a year', v: fmtPct(home.mc.annualCost) },
         ],
       });
     } else if (user.country === 'IN' && (user.tax_regime ?? 'new') === 'new' && (home.loan.property_use ?? 'self_occupied') === 'self_occupied') {
       notes.push({
         eyebrow: 'TAX',
         title: `No tax saving on the ${name} under the new regime`,
-        body: `The new regime has no Sec 24(b) deduction for a home you live in, so the loan costs its full ${fmtPct(home.b.effective)}. The old regime allows up to ₹2 lakh of interest a year; whether it suits you depends on your other deductions.`,
+        body: `The new regime has no Sec 24(b) deduction for a home you live in, so the loan costs its full ${fmtPct(home.mc.annualCost)} a year. The old regime allows up to ₹2 lakh of interest a year; whether it suits you depends on your other deductions.`,
       });
     } else if (user.country === 'US' && itemises.lte(0)) {
       notes.push({
@@ -138,7 +148,7 @@ export function PlanNotes({ plan }: { plan: PlanData }) {
   const notes = buildNotes(plan);
   if (notes.length === 0) return null;
   return (
-    <section aria-labelledby="plan-notes-h">
+    <section aria-labelledby="plan-notes-h" id="notes" style={{ scrollMarginTop: 16 }}>
       <LSectionHeader>
         <span id="plan-notes-h">Notes · {notes.length}</span>
       </LSectionHeader>

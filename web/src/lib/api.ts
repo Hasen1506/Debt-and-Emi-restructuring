@@ -8,8 +8,12 @@ import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
 import { authErrorMessage } from './auth-error';
 
+// The web server may reach the API by an internal address (API_BASE_URL,
+// e.g. Render's private network on a paid plan) that browsers can't.
 const BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+  (typeof window === 'undefined' ? process.env.API_BASE_URL : undefined) ||
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  'http://localhost:8000';
 
 // Auth cookies must belong to the web host so middleware can see them.
 // Only authenticated state uses this fixed, same-origin proxy; engine calls
@@ -578,6 +582,8 @@ export interface NewDebtResponse {
   effective_apr: string;
   verdict: 'take' | 'pay_cash' | 'delay' | 'cant_afford';
   detail: string;
+  /** India: 18% GST on the fee, and on a card EMI's interest. */
+  gst: string;
 }
 
 export interface WindfallResponse {
@@ -1313,6 +1319,16 @@ export const api = {
     country?: 'IN' | 'US';
     /** Income − costs − payments already owed, per month (negative when short). */
     monthly_room?: string;
+    /** A card EMI (India: GST on its interest), not a bank loan. */
+    card_emi?: boolean;
+    /** What savings earn a year after tax. */
+    savings_return?: string;
+    dearest_debt_name?: string;
+    dearest_debt_rate?: string;
+    cheaper_bank?: string;
+    cheaper_rate?: string;
+    take_home?: string;
+    current_payments?: string;
   }) => postWithFieldErrors<NewDebtResponse>('/api/new-debt', req),
 
   windfall: (req: {

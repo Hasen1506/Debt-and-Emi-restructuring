@@ -2,16 +2,15 @@
  * Derived metrics computed client-side from a StoredProfile.
  *
  * Centralises the math that Home + Debts variants used to fake with
- * hardcoded constants. Same effective-APR formula as engine/formulas.py
- * (via lib/effective-apr.ts), same blending logic everywhere — toggle
- * themes and the numbers stay consistent.
+ * hardcoded constants. A loan's rate is what it costs a year from here
+ * (lib/marginal-cost, the engine's MarginalCost.annual_cost): the same
+ * figure on every page, and the one the payoff order ranks by.
  */
 import { dec } from './safe-decimal';
 import Decimal from 'decimal.js';
-import type { LoanPayload, Country, TaxRegimeIN } from './api';
+import type { LoanPayload, Country } from './api';
 import type { StoredProfile } from './user-store';
-import { computeBreakdown } from './effective-apr';
-import { usMortgageShieldShare } from './deductions';
+import { marginalCost, userMarginalCosts, type MarginalCost } from './marginal-cost';
 import { loanCurrency, userDefaultCurrency, type CurrencyCode } from './currency';
 import { requiredMonthly } from './min-payment';
 import { prepareLoanPaymentTiming } from './roll-forward';
@@ -20,7 +19,12 @@ import { countryMonthKey } from './today';
 export interface LoanWithEffective {
   loan: LoanPayload;
   nominal: Decimal;
+  /** What the loan costs a year from here: interest compounded monthly, plus
+   *  GST on a card, less the tax break at the margin (lib/marginal-cost,
+   *  the engine's annual_cost). The one rate shown for a loan. */
   effective: Decimal;
+  /** Its parts, and `orderKey` for the payoff order. */
+  cost: MarginalCost;
   outstanding: Decimal;
   /** What the bank requires this month, in the loan's currency: the EMI,
    *  or a card's minimum payment. */
@@ -40,7 +44,8 @@ export interface DerivedMetrics {
    *  minimum payments. Mirrors the engine's compute_available_surplus
    *  (before its floor at 0 and the emergency-fund top-up). */
   surplus: Decimal;
-  /** Loan with the highest effective APR (the "loudest" debt). null if no loans. */
+  /** The loan an extra payment goes to first by cost: the top of the
+   *  avalanche order (prepayment fee and lock-in counted). null if none. */
   loudest: LoanWithEffective | null;
   /** This month's interest across open loans (balance × nominal ÷ 12), in
    *  the user's currency. */
@@ -56,8 +61,6 @@ export interface DerivedMetrics {
 export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
   const { user, marginalRate } = profile;
   const country: Country = user.country;
-  const taxRegime: TaxRegimeIN | undefined = user.tax_regime;
-  const itemises = usMortgageShieldShare(user);
   const rawLoans = user.loans ?? [];
   const userCcy = userDefaultCurrency(country);
   const fxMap = user.fx_to_user_currency ?? {};
@@ -79,14 +82,17 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
   // debt. Counting it crashed home and /debts when every loan was paid off
   // (no "loudest" loan) and took its old EMI out of the surplus. `index`
   // stays the position in user.loans.
+  const costs = userMarginalCosts(user, marginalRate);
   const loans: LoanWithEffective[] = rawLoans
     .map((loan, index) => {
-      const { effective } = computeBreakdown(loan, marginalRate, country, taxRegime, itemises);
+      // Paid-off loans aren't costed (and are dropped just below).
+      const cost = costs.get(index) ?? marginalCost(loan.nominal_rate || 0, false, 0, 0, 0);
       return {
         loan,
         index,
         nominal: new Decimal(loan.nominal_rate || 0),
-        effective,
+        effective: cost.annualCost,
+        cost,
         outstanding: dec(loan.outstanding),
         required: requiredMonthly(loan, country),
       };
@@ -105,13 +111,11 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
     const outUser = toUserCcy(l.outstanding, l.loan);
     const emiUser = toUserCcy(l.required, l.loan);
     totalOutstanding = totalOutstanding.add(outUser);
-    // Blended-APR numerator is Σ(balance × EFFECTIVE rate), not nominal.
-    // Effective bakes in GST + processing fee + tax shield, so the blended
-    // number reflects true cost of carrying the portfolio, not the headline
-    // rates banks advertise. Verified against the engine's effective_rate.
+    // Σ(balance × what each loan costs a year), not the statement rates:
+    // compounding, GST and the tax break are in, as on each loan's row.
     weightedEffSum = weightedEffSum.add(outUser.mul(l.effective));
     emi = emi.add(emiUser);
-    if (l.outstanding.gt(0) && (loudest == null || l.effective.gt(loudest.effective))) {
+    if (l.outstanding.gt(0) && (loudest == null || l.cost.orderKey.gt(loudest.cost.orderKey))) {
       loudest = l;
     }
   }

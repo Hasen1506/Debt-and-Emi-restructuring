@@ -21,7 +21,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SESSION_CHANGED_EVENT } from './session-events';
-import { writeProfileCookieClient, clearProfileClient, resumeProfileClient, serializeProfileForServer, type StoredProfile } from './user-store';
+import { writeProfileCookieClient, profileCookieHolds, clearProfileClient, resumeProfileClient, serializeProfileForServer, type StoredProfile } from './user-store';
 import { writeLifecycleClient, readLifecycleClient, type LifecycleEvent } from './lifecycle-events';
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -252,7 +252,7 @@ export async function hydrateLocalStores(data: Record<string, unknown>, isCurren
   if (!isCurrent()) return;
   const profile = (data as { profile?: { user?: unknown; marginalRate?: string; creditScore?: number | null } }).profile;
   if (profile && typeof profile === 'object') {
-    if (profile.user) writeProfileCookieClient(JSON.stringify(profile.user));
+    if (profile.user && !profileCookieHolds(profile.user)) writeProfileCookieClient(JSON.stringify(profile.user));
     if (profile.marginalRate) writeCookie('finoptima_marginal', profile.marginalRate);
     if (profile.creditScore != null) writeCookie('finoptima_score', String(profile.creditScore));
     else if (profile.creditScore === null) document.cookie = 'finoptima_score=; path=/; max-age=0';
@@ -350,6 +350,11 @@ export async function hydrateFromServer(): Promise<boolean> {
   }
 }
 
+/** This browser's cookies as one comparable string, in name order. */
+function cookieSnapshot(): string {
+  return document.cookie.split(/;\s*/).filter(Boolean).sort().join('; ');
+}
+
 /**
  * Mount once at the root layout. On first paint after sign-in this
  * fetches the server blob and rehydrates local stores so components
@@ -373,9 +378,14 @@ export function SessionHydrator(): null {
         const user = await api.me();
         if (cancelled || currentAttempt !== attempt) return;
         prepareAccountCache(user.id);
+        const before = cookieSnapshot();
         if (!await hydrateFromServer() || cancelled) return;
         window.dispatchEvent(new Event(HYDRATED_EVENT));
-        router.refresh();
+        // Render the page again only when the account copy changed a cookie
+        // the server reads. Refreshing every time drew each page twice
+        // (Plan's simulation too), and in WebKit the refresh cancelled a
+        // link followed in the meantime.
+        if (cookieSnapshot() !== before) router.refresh();
       } catch {
         // 401 (signed out) — nothing to hydrate.
       }

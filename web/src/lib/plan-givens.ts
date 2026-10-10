@@ -106,7 +106,12 @@ export function planGivens(
     out.push({
       key: 'rate-type',
       label: 'Fixed or floating',
-      lines: [...lines, "Your loan letter's \"Type of interest\" says which."],
+      lines: [
+        ...lines,
+        country === 'US'
+          ? 'Page 1 of your Closing Disclosure or loan agreement says which.'
+          : 'The line "Rate of interest and type" on your KFS says which.',
+      ],
       source: worst(src),
       fix: { href: '/profile?step=loans', text: 'SET IT IN PROFILE' },
     });

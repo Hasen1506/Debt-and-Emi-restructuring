@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Callable, Literal, Optional
 
+from engine.marginal_cost import compounded
 from engine.formulas import effective_rate, emi
 from engine.lenders import resolve as resolve_lender
 from engine.loan_check import _inr
@@ -369,6 +370,10 @@ def _scan_card_balance_transfer(
     bt_cost = fee_pct * card.outstanding
     bt_breakeven = _breakeven_months(bt_cost, (card_effective - promo_rate) * card.outstanding)
     card_name = f"{card.bank} card" if card.bank else "card"
+    # The card's rate as its row on Home shows it: what it costs a year,
+    # compounded monthly (with GST on an Indian card). The saving above is
+    # worked on the monthly charge, the balance held constant.
+    card_cost = compounded(card_effective)
 
     def title(o: RestructuringOpportunity) -> str:
         return (
@@ -380,9 +385,9 @@ def _scan_card_balance_transfer(
     rationale = (
         f"Card-to-card transfer. You'd pay roughly {_fmt_pct(cand.effective_bt_apr)} "
         f"on the new card during the {promo_months}-month promo period vs. "
-        f"{_fmt_pct(card_effective)} on your current card. Clear it before the "
+        f"{_fmt_pct(card_cost)} a year on your current card. Clear it before the "
         f"promo ends — after that the rate snaps back to roughly "
-        f"{_fmt_pct(card_effective)} again. The new-card rate already accounts "
+        f"{_fmt_pct(card_cost)} again. The new-card rate already accounts "
         f"for the {_fmt_pct(fee_pct)} one-time transfer fee spread over the "
         f"promo months. This rate-comparison estimate holds today's balance constant; "
         f"paying the card down during the promo reduces the saving."
@@ -415,7 +420,7 @@ def _scan_card_balance_transfer(
         affected_loan_banks=[card.bank],
         target_bank=target_card.name,
         target_rate=cand.effective_bt_apr,
-        current_rate=card_effective,
+        current_rate=card_cost,  # as the card's Home row shows it
         detail={
             "outstanding": str(card.outstanding),
             "promo_rate": str(promo_rate),

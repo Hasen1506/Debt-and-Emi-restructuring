@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import type { LoanPayload } from '@/lib/api';
 import { formatCurrencyWhole } from '@/lib/api';
-import { canPayByUpi, normalizeVpa, upiNote, upiPayLink, UPI_TYPICAL_LIMIT, vpaError } from '@/lib/upi';
+import { canPayByUpi, normalizeVpa, upiLimitNote, upiNote, upiPayLink, vpaError } from '@/lib/upi';
 import { L_T, lPayBtn } from '@/components/ledger/primitives';
 
 export function UpiPay({
@@ -47,7 +47,7 @@ export function UpiPay({
         </a>
         <span style={{ fontSize: 11, color: L_T.muted, flexBasis: '100%' }}>
           {opened ? 'Paid in your UPI app? Tap MARK PAID to record it. ' : `To ${normalizeVpa(loan.upi_vpa)}. `}
-          {amount > UPI_TYPICAL_LIMIT && 'Most banks cap a UPI payment at ₹1,00,000; yours may allow more for a loan. '}
+          {upiLimitNote(amount)}
           <button type="button" onClick={() => { setVpa(loan.upi_vpa ?? ''); setEditing(true); }} style={{ background: 'none', border: 0, padding: 0, color: L_T.muted, textDecoration: 'underline', cursor: 'pointer', fontSize: 11 }}>
             Change UPI ID
           </button>

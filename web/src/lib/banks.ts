@@ -6,15 +6,23 @@
  * Keep this in sync with engine/rate_cards.py when bank lists change.
  */
 
+import RATE_CARDS from './rate-cards.json';
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 /**
- * When the rate cards in engine/rate_cards.py were last verified. Surfaced
- * in the EffectiveAprBreakdown disclaimer so users know the assumptions
- * aren't infinitely fresh. Bump this when rate_cards.py is refreshed.
+ * When the rate cards in engine/rate_cards.py were last verified ("Oct
+ * 2026"), from the exported rate-cards.json. Surfaced in the
+ * EffectiveAprBreakdown disclaimer so users know how fresh the
+ * assumptions are.
  */
-export const RATE_CARD_AS_OF = 'May 2026';
+export const RATE_CARD_AS_OF = (() => {
+  const [y, m] = RATE_CARDS.as_of.split('-');
+  return `${MONTHS[Number(m) - 1] ?? m} ${y}`;
+})();
 
 export const BANKS_IN: readonly string[] = [
-  // Tier A — authoritative May 2026
+  // Tier A — read from the banks' own pages
   'SBI',
   'HDFC Bank',
   'ICICI Bank',

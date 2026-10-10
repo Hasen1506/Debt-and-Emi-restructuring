@@ -1,5 +1,6 @@
 'use client';
 
+import { whereToFind } from '@/lib/where-to-find';
 import { tenureError } from '@/lib/tenure-rules';
 import { useEffect, useMemo, useState } from 'react';
 import { AddLoanAction, Field, ScoreChip, SubmitBar } from '@/components/ToolPrimitives';
@@ -20,7 +21,7 @@ import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
 import { deriveMetrics } from '@/lib/derived';
 import { LOAN_TYPE_NAME, loanName } from '@/lib/loan-types';
-import { formatAsOf } from '@/lib/invest-vs-prepay';
+import { formatAsOf, safeBenchmarks } from '@/lib/invest-vs-prepay';
 
 const VERDICT: Record<NewDebtResponse['verdict'], { text: string; tone: 'pos' | 'accent' | 'neg' }> = {
   take: { text: 'Take the loan.', tone: 'pos' },
@@ -153,8 +154,9 @@ export function NewDebtTool() {
       knownBanks,
       Number(loanAmount),
       Number(tenure),
+      Number(score) >= (country === 'IN' ? 750 : 740),
     );
-  }, [institutions, loanType, knownBanks, loanAmount, tenure]);
+  }, [institutions, loanType, knownBanks, loanAmount, tenure, score, country]);
 
   // The "active" bank — selectedBank if set, else the cheapest existing-relationship
   // bank, else the cheapest overall. Drives the EMI used in the verdict call.
@@ -175,6 +177,45 @@ export function NewDebtTool() {
     const m = deriveMetrics(profile);
     return m.fxMissing.length > 0 ? null : m.surplus.toFixed(2);
   }, [profile]);
+
+  // Banks keep the bottom of their range for scores of 750 and up (740 in
+  // the US); below that, or with no score, the middle is the fair guess.
+  const goodScore = Number(score) >= (country === 'IN' ? 750 : 740);
+  const bankRate = (b: BankComparisonRow) => (goodScore ? b.low : b.median);
+  const bankRateNote = goodScore ? 'best rate, for your score' : 'middle rate';
+
+  // What the verdict weighs the loan against, from the saved profile: what
+  // savings earn after tax, the costliest debt, and the payments already
+  // owed (for the lenders' ceiling).
+  const context = useMemo(() => {
+    if (!profile.isLive) return {};
+    const m = deriveMetrics(profile);
+    const safe = safeBenchmarks(country, profile.marginalRate).find((v) => v.key === (country === 'IN' ? 'fd_in' : 'hysa_us'));
+    const takeHome = Number(profile.user.annual_income) / 12;
+    const out: Record<string, string> = {};
+    if (safe) out.savings_return = safe.afterTaxEffective.toFixed(4);
+    if (m.loudest && m.fxMissing.length === 0) {
+      out.dearest_debt_name = loanName(m.loudest.loan).toLowerCase();
+      out.dearest_debt_rate = m.loudest.effective.toFixed(4);
+    }
+    if (takeHome > 0 && m.fxMissing.length === 0) {
+      out.take_home = takeHome.toFixed(2);
+      out.current_payments = m.emiBurden.toFixed(2);
+    }
+    return out;
+  }, [profile, country]);
+
+  // The lowest advertised rate for a loan like this (a card EMI is weighed
+  // against a personal loan).
+  const cheaper = useMemo(() => {
+    const field = loanType === 'credit_card' ? 'personal_loan' : RATE_FIELD_BY_LOAN_TYPE[loanType];
+    let best: { bank: string; rate: number } | null = null;
+    for (const inst of institutions ?? []) {
+      const r = field ? (inst[field] as { low: string } | null) : null;
+      if (r && (!best || Number(r.low) < best.rate)) best = { bank: inst.name, rate: Number(r.low) };
+    }
+    return best;
+  }, [institutions, loanType]);
 
   const fingerprint = JSON.stringify([loanType,loanAmount,listPrice,cashPrice,offerEmi,tenure,selectedBank,activeBank?.median,quoted,fee,savings,score,monthlyRoom,country,profile.user]);
   const [checked, setChecked] = useState('');
@@ -220,10 +261,9 @@ export function NewDebtTool() {
       const cashEq = isCard ? cashPrice : loanAmount;
       const list = isCard ? listPrice : loanAmount;
       const months = Number(tenure);
-      // Derive monthly EMI from the chosen bank's median rate. If none
-      // resolved, fall back to a typical-rate guess: 14% for personal/card,
-      // 9% for home/auto.
-      const rate = quotedRate ?? activeBank?.median ?? (isCard ? 0.36 : 0.14);
+      // The EMI at the chosen bank's rate for this score; with no published
+      // rate, a typical 14%.
+      const rate = quotedRate ?? (activeBank ? bankRate(activeBank) : null) ?? (isCard ? 0.36 : 0.14);
       const monthlyEmi = isCard ? Number(offerEmi) : computeEMI(Number(list), rate, months);
       const result = await api.newDebt({
         list_price: list,
@@ -234,6 +274,9 @@ export function NewDebtTool() {
         user_savings_after_efund: savings,
         country,
         ...(monthlyRoom != null ? { monthly_room: monthlyRoom } : {}),
+        card_emi: isCard,
+        ...context,
+        ...(cheaper && !(selectedBank && selectedBank === cheaper.bank) ? { cheaper_bank: cheaper.bank, cheaper_rate: cheaper.rate.toFixed(4) } : {}),
       });
       setV(result);
       setChecked(fingerprint);
@@ -265,7 +308,7 @@ export function NewDebtTool() {
 
   const isCard = loanType === 'credit_card';
   const isNewBank = !!(activeBank && !activeBank.isExisting);
-  const usedRate = isCard ? null : quotedRate ?? activeBank?.median ?? 0.14;
+  const usedRate = isCard ? null : quotedRate ?? (activeBank ? bankRate(activeBank) : null) ?? 0.14;
 
   return (
     <LSteps>
@@ -345,6 +388,7 @@ export function NewDebtTool() {
                   value={score}
                   onChange={setScore}
                   error={at('score')}
+                  findIt={whereToFind('creditScore', { country })}
                   hint={scoreOnFile !== '' && score === scoreOnFile ? 'From your profile' : 'For the effect of opening a new account'}
                 />
               </LFieldGrid>
@@ -362,13 +406,14 @@ export function NewDebtTool() {
             {more && (
               <div style={{ marginTop: 10 }}>
                 <LFieldGrid min={200}>
-                  <Field label="Processing fee" kind="money" currency={ccy} value={fee} onChange={setFee} error={at('fee')} hint="Often 0–2% of the loan. 0 if you don't know." />
+                  <Field label="Processing fee" kind="money" currency={ccy} value={fee} onChange={setFee} error={at('fee')} findIt={whereToFind('offerFee', { country })} hint={country === 'IN' ? "Before GST (18% is added). Often 0–2% of the loan; 0 if you don't know." : "Often 0–2% of the loan. 0 if you don't know."} />
                   {!isCard && (
                     <Field
                       label="A rate you were quoted (%)"
                       kind="percent"
                       value={quoted}
                       onChange={setQuoted}
+                      findIt={whereToFind('offerRate', { country })}
                       hint="Blank: the bank's middle rate"
                     />
                   )}
@@ -394,18 +439,22 @@ export function NewDebtTool() {
                 : quotedRate != null
                   ? `At the ${formatPct(String(quotedRate), 2)} you were quoted.`
                   : activeBank
-                  ? `At ${activeBank.name}'s middle rate of ${formatPct(String(activeBank.median), 2)}.`
+                  ? `At ${activeBank.name}'s ${bankRateNote} of ${formatPct(String(bankRate(activeBank)), 2)}.`
                   : 'No published rate for this loan, so a typical 14% is used.'}
               {!isCard && !(Number(fee) > 0) && ' No fee is included; add the bank\'s processing fee under MORE to count it.'}
             </LNote>
             <LKpi
               items={[
-                { l: 'IT REALLY COSTS', v: formatPct(v.effective_apr, 1), s: Number(fee) > 0 ? 'a year, fee included' : 'a year · no fee entered' },
+                { l: 'IT REALLY COSTS', v: formatPct(v.effective_apr, 1), s: Number(v.gst) >= 1 ? (Number(fee) > 0 ? 'a year, fee and GST included' : 'a year, GST included') : Number(fee) > 0 ? 'a year, fee included' : 'a year · no fee entered' },
                 { l: 'EMI', v: fmt(v.monthly_emi), s: `a month for ${tenure} months` },
                 {
                   l: 'MORE THAN CASH',
                   v: fmt(v.total_real_cost),
-                  s: Number(v.foregone_discount) > 0 ? `${fmt(v.foregone_discount)} of it a lost discount` : Number(fee) > 0 ? 'interest and fee' : 'interest',
+                  s: Number(v.foregone_discount) > 0
+                    ? `${fmt(v.foregone_discount)} of it a lost discount`
+                    : Number(v.gst) >= 1
+                    ? `${fmt(v.gst)} of it GST`
+                    : Number(fee) > 0 ? 'interest and fee' : 'interest',
                   tone: Number(v.total_real_cost) > 0 ? L_T.negative : L_T.positive,
                 },
                 ...(!isCard && activeBank
@@ -446,7 +495,7 @@ export function NewDebtTool() {
                     loan_type: isCard ? 'bnpl' : loanType,
                     bank: isCard ? 'Quoted EMI offer' : activeBank!.name,
                     outstanding: isCard ? listPrice : loanAmount,
-                    nominal_rate: isCard ? String(offerRate(Number(listPrice), Number(offerEmi), Number(tenure))) : String(quotedRate ?? activeBank!.median),
+                    nominal_rate: isCard ? String(offerRate(Number(listPrice), Number(offerEmi), Number(tenure))) : String(quotedRate ?? bankRate(activeBank!)),
                     tenure_months_remaining: Number(tenure),
                     scheduled_emi: String(v.monthly_emi),
                     processing_fee_amortised: fee !== '0' ? fee : undefined,
@@ -466,7 +515,7 @@ export function NewDebtTool() {
             rows={[
               { k: isCard ? 'price on the offer' : 'borrowed', v: fmt(v.list_price) },
               ...(isCard ? [{ k: 'price in cash', v: fmt(v.cash_price) }] : []),
-              ...(usedRate != null ? [{ k: 'rate', v: formatPct(String(usedRate), 2), note: quotedRate != null ? 'the rate you were quoted' : activeBank ? `${activeBank.name}, middle of its range` : 'typical, no published rate' }] : []),
+              ...(usedRate != null ? [{ k: 'rate', v: formatPct(String(usedRate), 2), note: quotedRate != null ? 'the rate you were quoted' : activeBank ? `${activeBank.name}, ${goodScore ? `bottom of its range (score ${country === 'IN' ? 750 : 740}+)` : 'middle of its range'}` : 'typical, no published rate' }] : []),
               { k: 'EMI', v: fmt(v.monthly_emi), note: `× ${tenure} months = ${fmt((Number(v.monthly_emi) * Number(tenure)).toFixed(0))}` },
               ...(Number(v.processing_fee) > 0 ? [{ k: 'processing fee', v: fmt(v.processing_fee) }] : []),
               {
@@ -516,6 +565,8 @@ function rankBanksForLoanType(
   knownBanks: Set<string>,
   loanAmount: number,
   tenureMonths: number,
+  /** A score that gets the bottom of each range; otherwise its middle. */
+  goodScore = false,
 ): BankComparison {
   const field = RATE_FIELD_BY_LOAN_TYPE[loanType];
   const rows: BankComparisonRow[] = [];
@@ -536,7 +587,7 @@ function rankBanksForLoanType(
     const median = (low + high) / 2;
     const isExisting = knownBanks.has(inst.name.toLowerCase());
     const principal = loanAmount > 0 ? loanAmount : 0;
-    const emi = computeEMI(principal, median, tenureMonths);
+    const emi = computeEMI(principal, goodScore ? low : median, tenureMonths);
     const totalPaid = emi * Math.max(tenureMonths, 0);
     const totalInterest = totalPaid - principal;
     rows.push({
@@ -549,11 +600,12 @@ function rankBanksForLoanType(
       totalInterest,
     });
   }
-  // Cheapest first. At one amount and term the interest follows the middle
-  // rate, so sorting on the rate also holds before an amount is typed (when
-  // every interest is 0). Existing-relationship flag is shown separately so
-  // the user can weigh friction on their own.
-  rows.sort((a, b) => a.median - b.median || a.totalInterest - b.totalInterest);
+  // Cheapest first. At one amount and term the interest follows the rate
+  // used (the bottom of the range for a good score, else its middle), so
+  // sorting on the rate also holds before an amount is typed (when every
+  // interest is 0). Existing-relationship flag is shown separately so the
+  // user can weigh friction on their own.
+  rows.sort((a, b) => (goodScore ? a.low - b.low : a.median - b.median) || a.totalInterest - b.totalInterest);
   return {
     existing: rows.filter((r) => r.isExisting),
     others: rows.filter((r) => !r.isExisting),

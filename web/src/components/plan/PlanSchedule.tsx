@@ -14,14 +14,12 @@ import { getCountryToday, localIsoDate, monthIndexToDate, MONTH_NAMES } from '@/
 import { loanCurrency } from '@/lib/currency';
 import { loanLabel } from '@/lib/loan-types';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
-import { loanClears } from './plan-milestones';
+import { loanClears, owedAtStart } from './plan-milestones';
 import { isOpenCurrentLoan } from '@/lib/plan-controls';
 import { resetDate } from '@/lib/rate-decision';
 import { ADD_LIFE_EVENT } from '@/components/lifecycle/LifecycleEventsPanel';
-import { deriveMetrics } from '@/lib/derived';
 import { GST_RATE_IN } from '@/lib/gst';
 import { reconcileSchedule, scheduleColumnHelp } from '@/lib/schedule-reconcile';
-import type { StoredProfile } from '@/lib/user-store';
 
 const LOAN_SHORT: Record<string, string> = {
   home_loan: 'Home',
@@ -63,7 +61,7 @@ function payColumn(loan: PlanData['user']['loans'][number], i: number, country: 
 /** Every month of the schedule as a CSV file (the table may be collapsed).
  *  Each loan's column is in that loan's currency; the totals are in the
  *  user's, and every header says which. */
-function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData) {
+function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData, start: ScheduleCsvRow) {
   const { loans, country } = plan.user;
   const ccy = plan.displayCurrency.toLowerCase();
   const header = [
@@ -76,7 +74,8 @@ function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData) {
     `balance_${ccy}`,
     'event',
   ];
-  const lines = rows.map((r) =>
+  // The first line is what's owed at the start, as on screen.
+  const lines = [start, ...rows].map((r) =>
     [
       r.mo,
       r.date,
@@ -140,7 +139,9 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   const ccy = plan.displayCurrency;
   const fc = (v: string | number) => formatCurrencyWhole(v, ccy);
   const today = getCountryToday(plan.user.country);
-  const loanCols = plan.user.loans.slice(0, 4);
+  // Every loan gets a column (a fifth one used to be left out); the table
+  // scrolls sideways on a narrow screen.
+  const loanCols = plan.user.loans;
   const short = plan.shortfall > 0 || !!plan.futureShortfall;
   const events = scheduleEvents(plan, short);
 
@@ -182,7 +183,14 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   const mixed = foreign.length > 0;
 
   // How the columns add up to what's owed today (lib/schedule-reconcile).
-  const owedToday = Number(deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate } as StoredProfile).totalOutstanding);
+  const owedToday = owedAtStart(plan);
+  // The month each loan's last payment goes out: its cell says FINAL, so a
+  // small last payment doesn't read as what's owed on it.
+  const finalMonth = new Map<number, number>(loanClears(plan).map((c) => [c.index, c.month]));
+  const startLabel = (() => {
+    const d = monthIndexToDate(1, today);
+    return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${d.getFullYear()}`;
+  })();
   const totals = reconcileSchedule(rows, owedToday);
   const gstApplies = plan.user.country === 'IN' && plan.user.loans.some((l) => l.loan_type === 'credit_card');
   const help: Record<string, string> = {
@@ -199,7 +207,25 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
       <LSectionHeader
         right={
           <span style={{ display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '14px 12px' }}>
-            <LBracket onClick={() => downloadRowsCSV(rows, plan)}>CSV</LBracket>
+            <LBracket
+              onClick={() =>
+                downloadRowsCSV(rows, plan, {
+                  mo: 0,
+                  date: startLabel,
+                  // Each loan's balance now (its column is payments below).
+                  perLoan: Object.fromEntries(
+                    loanCols.map((l, i) => [i, (l.planned_effective_month ?? 1) > 1 ? '0' : String(Number(l.outstanding) || 0)]),
+                  ),
+                  extra: 0,
+                  interest: 0,
+                  principal: 0,
+                  balance: owedToday,
+                  event: 'OWED AT THE START',
+                })
+              }
+            >
+              CSV
+            </LBracket>
             <LBracket onClick={() => window.print()}>PRINT</LBracket>
             <LBracket onClick={() => setExpanded((v) => !v)}>
               {expanded ? '↑ EVENTS ONLY' : `↓ ALL ${totalCount} MONTHS`}
@@ -216,6 +242,12 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
         </div>
       ) : (
         <>
+        <p style={{ margin: '0 0 8px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
+          The first row is what you owe on each loan at the start of {startLabel.charAt(0) + startLabel.slice(1, 3).toLowerCase()}, before
+          this month&apos;s payments. Every row after it is what you pay that month: each loan&apos;s
+          column is its EMI or minimum plus any extra, not what&apos;s left on it. BALANCE is what&apos;s left on all of them
+          at the month&apos;s end.
+        </p>
         {mixed && (
           <div role="note" style={{ padding: '6px 0 8px', fontSize: 10, color: L_T.muted, lineHeight: 1.5 }}>
             Loan columns marked ({foreign.join(', ')}) are in that loan&apos;s own currency. TOTAL, EXTRA, INTEREST,
@@ -233,7 +265,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             borderBottom: expanded ? `1px solid ${L_T.faint}` : undefined,
           }}
         >
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 760 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 760 + Math.max(0, loanCols.length - 4) * 90 }}>
             <thead>
               <tr
                 style={{
@@ -283,6 +315,25 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
               </tr>
             </thead>
             <tbody>
+              {/* Where the plan starts: what each loan owes before this
+                  month's payments. The rows below are what's paid. */}
+              <tr style={{ borderBottom: `1px solid ${L_T.ink}` }}>
+                <td style={{ padding: '7px 10px', color: L_T.muted }}>—</td>
+                <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>{startLabel}</td>
+                <td style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, lineHeight: 1.5 }}>OWED AT THE START</td>
+                {loanCols.map((l, idx) => {
+                  const owed = Number(l.outstanding) || 0;
+                  const later = (l.planned_effective_month ?? 1) > 1;
+                  return (
+                    <td key={idx} style={{ padding: '7px 10px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>
+                      {later || owed <= 0 ? '—' : formatCurrencyWhole(owed.toFixed(0), loanCurrency(l, plan.user.country))}
+                    </td>
+                  );
+                })}
+                {mixed && <td />}
+                <td colSpan={3} />
+                <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>{fc(owedToday.toFixed(0))}</td>
+              </tr>
               {visibleRows.map((r) => (
                 <tr
                   key={r.mo}
@@ -298,6 +349,9 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                       {r.perLoan[idx]
                         ? formatCurrencyWhole(Number(r.perLoan[idx]).toFixed(0), loanCurrency(l, plan.user.country))
                         : '—'}
+                      {r.perLoan[idx] && finalMonth.get(idx) === r.mo ? (
+                        <div style={{ fontSize: 9, letterSpacing: '0.08em', color: L_T.positive }}>FINAL</div>
+                      ) : null}
                     </td>
                   ))}
                   {mixed && (

@@ -5,6 +5,7 @@ local currency (₹ for India, $ for US). All rates as decimals.
 """
 from decimal import Decimal
 from typing import Optional
+from engine.market_data import safe_rate
 from engine.models import Country
 
 D = Decimal
@@ -163,7 +164,7 @@ def cii_is_provisional(fy_string: str) -> bool:
 
 ASSET_DEFAULT_RETURNS_IN = {
     "savings_balance": D("0.035"),
-    "fixed_deposit":   D("0.0625"),   # 1-yr FD at SBI and HDFC Bank, Sep 2026; overridden by fd_rate_pct
+    "fixed_deposit":   safe_rate("fd_in"),  # 1-yr FD at SBI and HDFC Bank (market-data.json); overridden by fd_rate_pct
     "equity_stocks":   D("0.12"),     # 10-yr Nifty CAGR ballpark
     "equity_mf":       D("0.11"),
     "debt_mf":         D("0.07"),
@@ -177,7 +178,7 @@ ASSET_DEFAULT_RETURNS_IN = {
 }
 
 ASSET_DEFAULT_RETURNS_US = {
-    "savings_balance": D("0.04"),     # HYSA ballpark
+    "savings_balance": safe_rate("hysa_us"),  # a top online savings account (market-data.json)
     "fixed_deposit":   D("0.045"),    # CD rate
     "equity_stocks":   D("0.10"),
     "equity_mf":       D("0.09"),

@@ -1,0 +1,96 @@
+name: Market data
+
+# Weekly: re-read the market figures the app quotes (safe yields, inflation
+# forecasts, the 30-year mortgage average) from their official sources and
+# commit web/src/lib/market-data.json when one changed, so the deployed app
+# follows the market without a code change. Then look at the bank pages
+# behind the Tier-A rate cards; anything a script can't settle (a page whose
+# rates changed, a source that failed, a by-hand figure gone stale, the repo
+# rate moving away from what the cards were priced on) goes in one open issue
+# labelled "data-check", updated each week and closed when nothing is left.
+# See scripts/refresh_market_data.py and web/scripts/watch-rate-pages.mjs.
+on:
+  schedule:
+    - cron: "0 4 * * 1"   # Mondays 04:00 UTC (09:30 IST), after the rate-disclosures run
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: market-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install web dependencies and Chromium
+        working-directory: web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Re-read market figures
+        run: python scripts/refresh_market_data.py --report report.md
+      - name: Look at the bank pages behind the rate cards
+        working-directory: web
+        continue-on-error: true
+        run: node scripts/watch-rate-pages.mjs --report ../report.md
+
+      - name: The app still passes its checks on the new figures
+        run: |
+          python -m pytest -q engine api -p no:cacheprovider
+          (cd web && npm test)
+
+      - name: Commit new figures, if any
+        run: |
+          if [ -n "$(git status --porcelain -- web/src/lib/market-data.json api/data/rate_pages.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add web/src/lib/market-data.json api/data/rate_pages.json
+            git commit -m "data: market figures as of $(date -u +%Y-%m-%d)"
+            git push
+          else
+            echo "No change in the market figures."
+          fi
+
+      - name: Open, update or close the data-check issue
+        run: |
+          gh label create data-check --color FBCA04 \
+            --description "Figures the weekly data run can't settle on its own" 2>/dev/null || true
+          issue=$(gh issue list --label data-check --state open --json number --jq '.[0].number // empty')
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ -s report.md ]; then
+            {
+              echo "The weekly [market-data run]($run_url) found figures that need a person."
+              echo "Tick each one off as you fix it; the next run rewrites this list."
+              echo
+              cat report.md
+              echo
+              echo "After re-reading a rate card, run \`node scripts/watch-rate-pages.mjs --accept\` in \`web/\` to record the bank pages as they are now."
+            } > body.md
+            if [ -n "$issue" ]; then
+              gh issue edit "$issue" --body-file body.md
+            else
+              gh issue create --title "Market data to check by hand" --label data-check --body-file body.md
+            fi
+          elif [ -n "$issue" ]; then
+            gh issue close "$issue" --comment "Nothing left to check in the [run of $(date -u +%Y-%m-%d)]($run_url)."
+          fi

@@ -73,6 +73,12 @@ import {
 
 /** Under the fixed-or-floating choice: what "Not sure" took it as, or a
  *  saved choice that differs from the usual for this kind of loan. */
+/** Where this loan's figure is printed: India's papers for a rupee loan,
+ *  US papers for a dollar one, whatever country the borrower lives in. */
+function findFor(l: LoanPayload, country: Country, key: FindKey): string | null {
+  return whereToFind(key, { country: loanMarket(l, country), loanType: l.loan_type });
+}
+
 function rateTypeHint(l: LoanPayload, country: Country): string {
   const usual = likelyRateType(l.loan_type, country, l.currency);
   if (l.rate_type_assumed === undefined) {
@@ -97,6 +103,7 @@ import type { LoanTermsResponse } from '@/lib/api';
 import { feeShown, RBI_PREPAYMENT_RULE } from '@/lib/prepayment-fee';
 import { dropKfsFields, kfsNote } from '@/lib/kfs';
 import { KfsImport } from '@/components/profile/KfsImport';
+import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { MarketRateLine } from '@/components/profile/MarketRateLine';
 
 /**
@@ -136,6 +143,7 @@ const STEPS: ReadonlyArray<{ label: string; optional?: boolean }> = [
 const STEP_ALIASES: Record<string, number> = {
   you: 0,
   country: 1,
+  tax: 1,
   income: 2,
   loans: 3,
   savings: 4,
@@ -957,6 +965,7 @@ function ProfileEditor({
             user={{ ...(stored.isLive ? stored.user : {}), ...buildUser() } as UserPayload}
             creditScore={creditScore}
             assets={stored.user.assets ?? []}
+            marginalRate={stored.marginalRate}
             payoffOrder={payoffOrder}
             onEdit={onOpen}
           />
@@ -1122,13 +1131,14 @@ function ProfileEditor({
             />
             <Field
               label={takeHomeLabel(country)}
+              findIt={incomeType === 'salaried' ? whereToFind('takeHome', { country }) : null}
               kind="money"
               currency={userCcy}
               value={monthlyIncome}
               onChange={setMonthlyIncome}
               hint={
                 country === 'IN'
-                  ? "What actually hits your account each month — NOT your CTC. Skip bonuses; add via Tools › Spare cash."
+                  ? "What reaches your account each month, not your CTC. Leave out bonuses; add them in Tools › Spare cash when they come."
                   : 'Take-home, post-tax, post-401(k). Add bonuses via Tools › Spare cash.'
               }
               info={
@@ -1161,7 +1171,7 @@ function ProfileEditor({
                 ) : (
                   <>
                     Take-home pay each month, <strong>after</strong> federal /
-                    state tax withholding and 401(k) contributions. NOT your
+                    state tax withholding and 401(k) contributions, not your
                     gross salary. Add bonuses separately via Tools › Spare cash.
                   </>
                 )
@@ -1187,12 +1197,12 @@ function ProfileEditor({
             {!showDetailedExpenses ? (
               <div style={{ gridColumn: '1 / -1' }}>
                 <Field
-                  label="Avg. monthly expenses (excludes EMIs)"
+                  label="Monthly spending, without EMIs"
                   kind="money"
                   currency={userCcy}
                   value={fixedExpenses}
                   onChange={setFixedExpenses}
-                  hint="Rent, food, utilities, subscriptions — do NOT include loan EMIs here"
+                  hint="Rent, food, bills and subscriptions, on average. Leave out loan EMIs: the plan adds them."
                   info={
                     <>
                       Everything non-debt: rent, groceries, fuel, utilities,
@@ -1307,7 +1317,7 @@ function ProfileEditor({
             )}
             <div id="pf-hike">
             <Field
-              label="Expected annual income hike (%)"
+              label="Yearly pay rise (%)"
               kind="percent"
               value={annualHikeRate}
               onChange={setAnnualHikeRate}
@@ -1325,7 +1335,7 @@ function ProfileEditor({
             />
             </div>
             <Select
-              label="Hike applies in"
+              label="Rise comes in"
               value={String(hikeEffectiveMonth)}
               onChange={(v) => {
                 setHikeEffectiveMonth(Number(v));
@@ -1364,6 +1374,7 @@ function ProfileEditor({
             </div>
             <Field
               label="Your marginal tax rate (%)"
+              findIt={whereToFind('taxRate', { country })}
               kind="percent"
               value={marginalRate}
               onChange={setMarginalRate}
@@ -1511,6 +1522,7 @@ function ProfileEditor({
                 />
                 <Field
                   label="Outstanding balance"
+                  findIt={findFor(l, country, 'balance')}
                   kind="money"
                   currency={loanCurrency(l, country)}
                   value={l.outstanding}
@@ -1542,10 +1554,11 @@ function ProfileEditor({
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <Field
                     label="Interest rate (%)"
+                    findIt={findFor(l, country, 'rate')}
                     kind="percent"
                     value={l.nominal_rate}
                     onChange={(v) => updateLoan(i, { nominal_rate: v })}
-                    hint="The rate on your statement, e.g. 8.5"
+                    hint="e.g. 8.5"
                     error={showLoanErrors ? loanErrors[i]?.rate : null}
                     info={
                       <>
@@ -1582,6 +1595,7 @@ function ProfileEditor({
                 {l.loan_type !== 'credit_card' && (
                 <Select<RateType | 'unsure'>
                   label="Fixed or floating rate"
+                  findIt={findFor(l, country, 'rateType')}
                   value={rateTypeChoice(l)}
                   onChange={(v) => updateLoan(i, applyRateTypeChoice(v, l.loan_type, country, l.currency))}
                   options={[
@@ -1625,6 +1639,7 @@ function ProfileEditor({
                   l.loan_type === 'bnpl') && (
                   <Select
                     label="Rate basis"
+                    findIt={findFor(l, country, 'rateBasis')}
                     value={l.rate_basis ?? 'reducing'}
                     onChange={(v) =>
                       updateLoan(i, { rate_basis: v as 'flat' | 'reducing' })
@@ -1662,6 +1677,7 @@ function ProfileEditor({
                   <>
                     <Select
                       label="Bank's reset frequency"
+                      findIt={findFor(l, country, 'resetFrequency')}
                       value={String(l.rate_reset_frequency_months ?? '')}
                       onChange={(v) =>
                         updateLoan(i, {
@@ -1703,12 +1719,13 @@ function ProfileEditor({
                     />
                     <Field
                       label="Next reset (optional)"
+                      findIt={findFor(l, country, 'nextReset')}
                       kind="date"
                       value={l.next_reset_date?.length === 7 ? `${l.next_reset_date}-01` : (l.next_reset_date ?? '')}
                       onChange={(v) =>
                         updateLoan(i, { next_reset_date: v || undefined })
                       }
-                      hint="On your loan statement or the bank's app. Plan shows a reset within three months, and the next RBI or Fed decision's effect from it."
+                      hint="Plan shows a reset within three months, and the next RBI or Fed decision's effect from it."
                     />
                     <Field
                       label="Expected rate change a year (%)"
@@ -1745,6 +1762,7 @@ function ProfileEditor({
                   <>
                 <Field
                   label="Prepayment fee (%, optional)"
+                  findIt={findFor(l, country, 'prepayFee')}
                   kind="percent"
                   value={l.prepayment_penalty_pct ?? ''}
                   onChange={(v) =>
@@ -1784,6 +1802,7 @@ function ProfileEditor({
                 />
                 <Field
                   label="Prepay lock-in left (months)"
+                  findIt={findFor(l, country, 'lockIn')}
                   value={String(l.prepay_lock_in_months ?? '')}
                   onChange={(v) =>
                     updateLoan(i, {
@@ -1903,6 +1922,7 @@ function ProfileEditor({
                 />
                 <Field
                   label={l.loan_type === 'credit_card' ? 'Usual monthly payment (optional)' : 'Bank-required EMI'}
+                  findIt={findFor(l, country, 'emi')}
                   kind="money"
                   currency={loanCurrency(l, country)}
                   value={l.scheduled_emi}
@@ -1993,6 +2013,7 @@ function ProfileEditor({
                 {l.loan_type === 'credit_card' && (
                   <Field
                     label="Statement day (1-28, optional)"
+                    findIt={findFor(l, country, 'statementDay')}
                     value={l.statement_day != null ? String(l.statement_day) : ''}
                     onChange={(v) => {
                       const n = Number(v);
@@ -2054,6 +2075,7 @@ function ProfileEditor({
                 {l.loan_type === 'credit_card' && l.statement_day != null && (
                   <Field
                     label="Due day (1-28)"
+                    findIt={findFor(l, country, 'dueDay')}
                     value={
                       l.due_day != null
                         ? String(l.due_day)
@@ -2098,6 +2120,7 @@ function ProfileEditor({
                   <>
                 <Field
                   label="Processing fee a year (%, optional)"
+                  findIt={findFor(l, country, 'processingFee')}
                   kind="percent"
                   value={l.processing_fee_amortised ?? ''}
                   onChange={(v) => updateLoan(i, { processing_fee_amortised: v })}
@@ -2121,6 +2144,7 @@ function ProfileEditor({
                 />
                 <Field
                   label="Insurance premium a year (%, optional)"
+                  findIt={findFor(l, country, 'insurance')}
                   kind="percent"
                   value={l.insurance_premium_pct ?? ''}
                   onChange={(v) => updateLoan(i, { insurance_premium_pct: v })}
@@ -2513,6 +2537,7 @@ function ProfileEditor({
             <div id="pf-credit" style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
               <Field
                 label="Current credit score (optional)"
+                findIt={whereToFind('creditScore', { country })}
                 value={creditScore}
                 onChange={setCreditScore}
                 hint={
@@ -2631,7 +2656,7 @@ function ProfileHeader({ title, editing, children }: { title: string; editing?: 
         PROFILE{editing ? ' · EDIT' : ''}
       </div>
       <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>{title}</h1>
-      <p style={{ color: L_T.muted, margin: '8px 0 0', lineHeight: 1.6 }}>{children}</p>
+      <p style={{ color: L_T.inkSoft, fontSize: 13, margin: '8px 0 0', lineHeight: 1.6 }}>{children}</p>
     </header>
   );
 }
@@ -2750,7 +2775,7 @@ function HikeScheduleEditor({
         }}
       >
         <strong style={{ color: 'var(--ink)' }}>
-          Hike phases (optional)
+          Different rises by year (optional)
         </strong>
         <button
           type="button"
@@ -2766,18 +2791,18 @@ function HikeScheduleEditor({
             cursor: 'pointer',
           }}
         >
-          + Add hike phase
+          + Add a period
         </button>
       </div>
       <div style={{ color: 'var(--muted)', marginBottom: 8 }}>
         Use this if you expect different hike rates across the plan — e.g.
         "7% for the first 2 years, then 10% after a likely job switch."
-        Years outside any phase fall back to your scalar hike above
-        ({fallbackRate || '0'}).
+        Years outside a phase use the yearly rise above
+        ({fallbackRate || '0'}%).
       </div>
       {phases.length === 0 && (
         <div style={{ color: 'var(--muted)', fontStyle: 'italic', fontSize: 11 }}>
-          No phases configured. The simulation uses your scalar hike rate uniformly.
+          None added: the plan uses the yearly rise above for every year.
         </div>
       )}
       {phases.map((p, i) => (
@@ -3140,7 +3165,7 @@ function AdvancedTaxDetails({
           letterSpacing: '0.02em',
         }}
       >
-        + Advanced: tax details (auto-derive marginal rate, file the tax sleeve)
+        + More: tax details (your tax rate, advance tax)
       </summary>
       <div
         style={{
@@ -3234,8 +3259,8 @@ function AdvancedTaxDetails({
                   side-income.
                   <br />
                   <br />
-                  When &gt; 0, What you own shows a <strong>tax sleeve</strong> card
-                  with the next advance-tax installment date.
+                  When it's more than 0, What you own shows the next
+                  advance-tax date.
                 </>
               }
             />
@@ -3483,18 +3508,16 @@ function TenureField({
           kind="integer"
           hint={
             derived != null
-              ? `Auto-derive would say ≈ ${derived} mo`
-              : 'Fill rate + EMI + outstanding above to auto-derive'
+              ? `Worked out from the balance, EMI and rate: about ${derived} mo`
+              : 'Add the rate, EMI and balance above to work it out'
           }
           info={
             <>
               How many monthly EMIs are left until this loan is fully paid.
               <br />
               <br />
-              You&apos;re in manual mode because you opened the form already
-              knowing the exact tenure. If you don&apos;t know it, switch
-              back to auto-derive — we&apos;ll compute it from your
-              outstanding, EMI, and rate.
+              You&apos;re typing it in. If you don&apos;t know it, let the
+              app work it out from the balance, EMI and rate.
             </>
           }
         />
@@ -3513,7 +3536,7 @@ function TenureField({
             cursor: 'pointer',
           }}
         >
-          Use auto-derived instead
+          Work it out for me
         </button>
       </div>
     );

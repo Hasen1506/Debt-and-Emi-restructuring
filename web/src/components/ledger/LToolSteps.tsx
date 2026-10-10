@@ -6,7 +6,8 @@
  * accent number) → THE MATH (LMathBlock). Windfall set the pattern; this
  * file holds its pieces so the other tools read the same.
  */
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+import { announce } from '@/lib/announce';
 import { L_T } from './primitives';
 
 /** A step's numbered header: `01 HOW MUCH`, the answer's number filled. */
@@ -103,8 +104,19 @@ export function LFieldGrid({ children, min = 220 }: { children: ReactNode; min?:
 /** The answer in one sentence, coloured by what it means. */
 export function LVerdict({ tone, children }: { tone?: 'pos' | 'neg' | 'accent' | null; children: ReactNode }) {
   const color = tone === 'pos' ? L_T.positive : tone === 'neg' ? L_T.negative : tone === 'accent' ? L_T.accent : L_T.ink;
+  // The verdict is read out when it appears or changes (lib/announce): a
+  // role="status" that mounts with its text in it is never spoken.
+  const ref = useRef<HTMLParagraphElement>(null);
+  const said = useRef('');
+  useEffect(() => {
+    const text = ref.current?.textContent ?? '';
+    if (text && text !== said.current) {
+      said.current = text;
+      announce(text);
+    }
+  });
   return (
-    <p role="status" style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, lineHeight: 1.4, color }}>
+    <p ref={ref} style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, lineHeight: 1.4, color }}>
       {children}
     </p>
   );

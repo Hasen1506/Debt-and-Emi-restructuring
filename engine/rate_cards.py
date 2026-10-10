@@ -1,7 +1,9 @@
 """Institution rate cards — Phase 1 (India 30 + USA 15) per design spec §7.1.
 
-Tier-A banks are populated with indicative ranges verified May 2026 (post-RBI
-cut to 5.25%; Fed funds 3.50-3.75%). Tier-B and Tier-C entries are filled with
+Tier-A banks hold ranges read from each bank's own rate pages: India re-checked
+9 Oct 2026 (RBI repo 5.50% from 7 Oct 2026), USA 9 Oct 2026 (Fed funds
+3.75-4.00% from 16 Sep 2026). An entry whose `last_verified` is older was not
+re-read then. Tier-B and Tier-C entries are filled with
 *extrapolated* indicative ranges anchored to Tier-A peers and typical product
 positioning (PSU spread vs private mid-tier vs SFB) — each is flagged
 `is_indicative=True` so data ops can swap in live scrapes incrementally.
@@ -15,6 +17,15 @@ from typing import Optional
 from engine.models import Country, LoanType
 
 D = Decimal
+
+# What the Tier-A cards were priced against when last read. The weekly data
+# run (scripts/refresh_market_data.py) flags the cards for a re-read once the
+# live figure moves away from these: a repo change shifts every Indian
+# repo-linked home loan; a quarter point in the 30-year average moves US
+# mortgage quotes.
+REPO_BASIS_IN = D("0.0550")      # RBI repo from 7 Oct 2026
+FED_UPPER_BASIS_US = D("0.0400")  # Fed funds upper bound from 16 Sep 2026
+PMMS_BASIS_US = D("0.0740")       # Freddie Mac 30-year average, 8 Oct 2026
 
 
 @dataclass
@@ -99,76 +110,106 @@ class InstitutionRateCard:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# India — Tier A (6 institutions, indicative May 2026)
+# India — Tier A (6 institutions; bank pages read 9 Oct 2026 unless noted)
+# Axis, Kotak and SBI home loans were still quoted on the 5.25% repo rate that
+# day; their repo-linked rates carry the 7 Oct hike (+0.25) here.
 # ─────────────────────────────────────────────────────────────────────────────
 
 INDIA_TIER_A: list[InstitutionRateCard] = [
     InstitutionRateCard(
         institution_id="IN_SBI", country=Country.IN, name="SBI", scrape_tier="A",
+        # Home 7.25% onwards w.e.f. 1 Apr 2026 on the 5.25% repo, +0.25.
+        # Personal 10.00-15.00% (Xpress Credit, updated 28 Sep 2026); car
+        # 8.40-9.35% (updated 16 Sep 2026). SBI Card: 3.75%/mo (45%) on
+        # unsecured cards, 2.75%/mo (33%) on secured cards. Its 60-day 0%
+        # transfer is left out: the fee isn't published, and a promo with
+        # an unknown fee would be scored as free.
         home_loan=RateRange(D("0.0750"), D("0.0870")),
-        personal_loan=RateRange(D("0.1030"), D("0.1485")),
-        auto_loan=RateRange(D("0.0810"), D("0.0905")),
+        personal_loan=RateRange(D("0.1000"), D("0.1500")),
+        auto_loan=RateRange(D("0.0840"), D("0.0935")),
         credit_card=CreditCardCard(
-            apr_low=D("0.2388"), apr_high=D("0.42"),
+            apr_low=D("0.33"), apr_high=D("0.45"),
             cash_advance_low=D("0.36"), cash_advance_high=D("0.48"),
         ),
         processing_fee_pct=D("0.0050"),
+        last_verified="2026-10-09",
     ),
     InstitutionRateCard(
         institution_id="IN_HDFC", country=Country.IN, name="HDFC Bank", scrape_tier="A",
-        home_loan=RateRange(D("0.0775"), D("0.0815")),
-        personal_loan=RateRange(D("0.1050"), D("0.2400")),
-        auto_loan=RateRange(D("0.0850"), D("0.0920")),
+        # Home: repo 5.50% + 2.50 to + 7.95 = 8.00-13.45%. Personal
+        # 9.99-24.00%. Car: 9.00% onwards (rack rate). Cards (MITC): 3.75%/mo
+        # = 45% on most cards, 1.99%/mo = 23.88% on Infinia, Diners Black and
+        # the like. No 0% balance transfer is offered (a transfer is an EMI
+        # loan on the card from 0.84%/mo), so none is listed; processing
+        # 1% of the amount, ₹250 at least.
+        home_loan=RateRange(D("0.0800"), D("0.1345")),
+        personal_loan=RateRange(D("0.0999"), D("0.2400")),
+        auto_loan=RateRange(D("0.0900"), D("0.0940")),
         credit_card=CreditCardCard(
-            apr_low=D("0.30"), apr_high=D("0.432"),
+            apr_low=D("0.2388"), apr_high=D("0.45"),
             cash_advance_low=D("0.36"), cash_advance_high=D("0.48"),
-            bt_promo_rate=D("0"), bt_promo_months=6, bt_fee_pct=D("0.015"),
+            bt_fee_pct=D("0.01"),
         ),
         processing_fee_pct=D("0.0050"),
+        last_verified="2026-10-09",
         # HDFC PL: ~4% in first 12mo, part-payment ~once per loan-year (typical HDFC PL terms).
     ),
     InstitutionRateCard(
         institution_id="IN_ICICI", country=Country.IN, name="ICICI Bank", scrape_tier="A",
-        home_loan=RateRange(D("0.0750"), D("0.0885")),
-        personal_loan=RateRange(D("0.1065"), D("0.1900")),
+        # Home 8.75-10.05% standard (pre-approved digital offers from
+        # 7.55%), on repo 5.50%. Personal 9.99-16.50%. Cards 1.25-3.75%/mo
+        # (15-45%); a balance transfer carries the card's own rate, so no
+        # 0% promo. Car loan not re-read.
+        home_loan=RateRange(D("0.0875"), D("0.1005")),
+        personal_loan=RateRange(D("0.0999"), D("0.1650")),
         auto_loan=RateRange(D("0.0880"), D("0.0980")),
         credit_card=CreditCardCard(
-            apr_low=D("0.2988"), apr_high=D("0.45"),
+            apr_low=D("0.15"), apr_high=D("0.45"),
             cash_advance_low=D("0.36"), cash_advance_high=D("0.48"),
-            bt_promo_rate=D("0"), bt_promo_months=6, bt_fee_pct=D("0.015"),
         ),
         processing_fee_pct=D("0.0050"),
+        last_verified="2026-10-09",
         # ICICI PL: ~5% in first 6mo per published policy; part-payment ~monthly cap.
     ),
     InstitutionRateCard(
         institution_id="IN_AXIS", country=Country.IN, name="Axis Bank", scrape_tier="A",
-        home_loan=RateRange(D("0.0765"), D("0.0980")),
-        personal_loan=RateRange(D("0.1049"), D("0.2200")),
+        # Home 8.00-8.85% (score 751+) and 8.20-9.10% (750 and below) on the
+        # 5.25% repo, +0.25. Personal 9.99-22%. Car and card not re-read.
+        home_loan=RateRange(D("0.0825"), D("0.0935")),
+        personal_loan=RateRange(D("0.0999"), D("0.2200")),
         auto_loan=RateRange(D("0.0865"), D("0.0950")),
         credit_card=CreditCardCard(
             apr_low=D("0.288"), apr_high=D("0.408"),
         ),
         processing_fee_pct=D("0.0050"),
         # Axis PL: ~4% in first 6mo, part-payment ~biannual (typical Axis PL).
+        last_verified="2026-10-09",
     ),
     InstitutionRateCard(
         institution_id="IN_KOTAK", country=Country.IN, name="Kotak Mahindra", scrape_tier="A",
-        home_loan=RateRange(D("0.0799"), D("0.0935")),
+        # Home 7.70-12.00% salaried (to 13.05% self-employed) on the 5.25%
+        # repo, +0.25. Cards 3.75%/mo (45%) at the top. Personal and car
+        # not re-read (the personal-loan page's range wasn't labelled).
+        home_loan=RateRange(D("0.0795"), D("0.1225")),
         personal_loan=RateRange(D("0.1099"), D("0.2400")),
         auto_loan=RateRange(D("0.0849"), D("0.0950")),
         credit_card=CreditCardCard(
-            apr_low=D("0.372"), apr_high=D("0.42"),
+            apr_low=D("0.372"), apr_high=D("0.45"),
         ),
         processing_fee_pct=D("0.0050"),
         # Kotak PL: ~5% in first 12mo, quarterly part-payment cap (typical Kotak PL).
+        last_verified="2026-10-09",
     ),
     InstitutionRateCard(
         institution_id="IN_PNB", country=Country.IN, name="PNB", scrape_tier="A",
-        home_loan=RateRange(D("0.0770"), D("0.0915")),
-        personal_loan=RateRange(D("0.1100"), D("0.1700")),
-        auto_loan=RateRange(D("0.0825"), D("0.0975")),
+        # Retail loans are RLLR + spread; PNB's RLLR went from 8.10% to
+        # 8.35% on 8 Oct 2026 (repo 5.50%), so the May ranges carry +0.25.
+        home_loan=RateRange(D("0.0795"), D("0.0940")),
+        personal_loan=RateRange(D("0.1125"), D("0.1725")),
+        auto_loan=RateRange(D("0.0850"), D("0.1000")),
         processing_fee_pct=D("0.0050"),
         # PNB (PSU) — typically more lenient PL terms; ~2% in first 6mo.
+        last_verified="2026-10-10",
     ),
 ]
 
@@ -444,59 +485,73 @@ INDIA_FINTECH: list[InstitutionRateCard] = [
 # USA — Tier A (6 institutions, indicative May 2026, Fed 3.50-3.75%)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Mortgages: each bank's advertised 30-year fixed rate on 9 Oct 2026 (low)
+# to half a point above it; Freddie Mac's survey average that week was
+# 7.40%. Cards: the variable APR range on each bank's flagship card page.
 # Chase and Bank of America make no personal loans (Chase lends only
 # against a card's limit, as "My Chase Loan"), so they have no
 # personal_loan range: a refinance suggestion must not point at one.
 USA_TIER_A: list[InstitutionRateCard] = [
     InstitutionRateCard(
         institution_id="US_CHASE", country=Country.US, name="JPMorgan Chase", scrape_tier="A",
-        home_loan=RateRange(D("0.0650"), D("0.0700")),       # 30yr fixed
+        home_loan=RateRange(D("0.07125"), D("0.07625")),     # 7.125% with 2.2 points
         auto_loan=RateRange(D("0.0569"), D("0.1369")),
         credit_card=CreditCardCard(
-            apr_low=D("0.2024"), apr_high=D("0.2924"),
+            apr_low=D("0.1849"), apr_high=D("0.2799"),        # Freedom Unlimited
         ),
         processing_fee_pct=D("0.01"),
+        last_verified="2026-10-09",
     ),
     InstitutionRateCard(
         institution_id="US_BOFA", country=Country.US, name="Bank of America", scrape_tier="A",
-        home_loan=RateRange(D("0.0655"), D("0.0705")),
+        # The mortgage page needs a ZIP code to show a rate: the week's
+        # survey average stands in.
+        home_loan=RateRange(D("0.0740"), D("0.0790")),
         auto_loan=RateRange(D("0.0549"), D("0.1074")),
         credit_card=CreditCardCard(
-            apr_low=D("0.1799"), apr_high=D("0.2899"),
+            apr_low=D("0.1774"), apr_high=D("0.2774"),        # Customized Cash Rewards
+            bt_promo_rate=D("0"), bt_promo_months=15, bt_fee_pct=D("0.03"),
         ),
+        last_verified="2026-10-09",
     ),
     InstitutionRateCard(
         institution_id="US_WFC", country=Country.US, name="Wells Fargo", scrape_tier="A",
-        home_loan=RateRange(D("0.0645"), D("0.0695")),
-        personal_loan=RateRange(D("0.0749"), D("0.2399")),
+        home_loan=RateRange(D("0.0750"), D("0.0800")),
+        personal_loan=RateRange(D("0.0674"), D("0.2399")),
         auto_loan=RateRange(D("0.0574"), D("0.1174")),
         credit_card=CreditCardCard(
-            apr_low=D("0.1999"), apr_high=D("0.2899"),
+            apr_low=D("0.1999"), apr_high=D("0.2899"),        # not re-read
         ),
+        last_verified="2026-10-09",
     ),
     InstitutionRateCard(
         institution_id="US_CITI", country=Country.US, name="Citibank", scrape_tier="A",
-        home_loan=RateRange(D("0.0660"), D("0.0710")),
+        home_loan=RateRange(D("0.07125"), D("0.07625")),     # 0.75 points
         personal_loan=RateRange(D("0.1149"), D("0.2049")),
         credit_card=CreditCardCard(
-            apr_low=D("0.1974"), apr_high=D("0.2974"),
+            apr_low=D("0.1849"), apr_high=D("0.2874"),        # Double Cash
+            bt_promo_rate=D("0"), bt_promo_months=18, bt_fee_pct=D("0.03"),
         ),
+        last_verified="2026-10-09",
     ),
     InstitutionRateCard(
         institution_id="US_USBANK", country=Country.US, name="U.S. Bank", scrape_tier="A",
-        home_loan=RateRange(D("0.0660"), D("0.0710")),
+        home_loan=RateRange(D("0.07375"), D("0.07875")),
         personal_loan=RateRange(D("0.0849"), D("0.2199")),
         auto_loan=RateRange(D("0.0599"), D("0.1199")),
         credit_card=CreditCardCard(
-            apr_low=D("0.1949"), apr_high=D("0.2899"),
+            apr_low=D("0.1799"), apr_high=D("0.2824"),        # Cash+
+            bt_promo_rate=D("0"), bt_promo_months=15, bt_fee_pct=D("0.05"),
         ),
+        last_verified="2026-10-09",
     ),
     InstitutionRateCard(
         institution_id="US_COF", country=Country.US, name="Capital One", scrape_tier="A",
         auto_loan=RateRange(D("0.0479"), D("0.0979")),
         credit_card=CreditCardCard(
-            apr_low=D("0.1974"), apr_high=D("0.2974"),
+            apr_low=D("0.1874"), apr_high=D("0.2874"),        # Quicksilver
         ),
+        last_verified="2026-10-09",
     ),
 ]
 
@@ -525,8 +580,8 @@ USA_TIER_B: list[InstitutionRateCard] = [
         is_indicative=True,
         personal_loan=RateRange(D("0.0699"), D("0.2499")),
         credit_card=CreditCardCard(
-            apr_low=D("0.1824"), apr_high=D("0.2824"),
-            bt_promo_rate=D("0"), bt_promo_months=18, bt_fee_pct=D("0.03"),
+            apr_low=D("0.1774"), apr_high=D("0.2674"),
+            bt_promo_rate=D("0"), bt_promo_months=15, bt_fee_pct=D("0.03"),
         ),
     ),
     InstitutionRateCard(

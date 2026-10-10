@@ -8,7 +8,8 @@ import { defineConfig } from '@playwright/test';
  * that can't pass first time is a bug to fix, not to retry.
  *
  *   npm run build   (with NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8100)
- *   E2E_DATABASE_URL=postgresql://… npx playwright test
+ *   E2E_DATABASE_URL=postgresql://… npx playwright test --project=chromium
+ *   npx playwright test --project=firefox --project=webkit   # cross-browser
  *   npx playwright test --update-snapshots   # after an intended plan change
  */
 const API_PORT = 8100;
@@ -33,10 +34,23 @@ export default defineConfig({
     viewport: { width: 1280, height: 900 },
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    launchOptions: process.env.PW_CHROMIUM_PATH
-      ? { executablePath: process.env.PW_CHROMIUM_PATH, args: ['--no-sandbox'] }
-      : {},
   },
+  // Chromium runs every push (Golden E2E); Firefox and WebKit (Safari's
+  // engine) run the same journeys in their own CI job (backlog #25). The
+  // goldens are shared: the plan must read the same in every browser.
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        browserName: 'chromium',
+        launchOptions: process.env.PW_CHROMIUM_PATH
+          ? { executablePath: process.env.PW_CHROMIUM_PATH, args: ['--no-sandbox'] }
+          : {},
+      },
+    },
+    { name: 'firefox', use: { browserName: 'firefox' } },
+    { name: 'webkit', use: { browserName: 'webkit' } },
+  ],
   webServer: [
     {
       command: `${python} ../e2e/api_server.py --port ${API_PORT}`,

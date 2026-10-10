@@ -10,7 +10,7 @@ import { loadCurrentProfileServer } from '@/lib/user-store';
 import { api } from '@/lib/api';
 import { GoalsPage as GoalLedger } from '@/components/goals/GoalsPage';
 import { ToolsList } from '@/components/goals/ToolsList';
-import { LShell } from '@/components/ledger/primitives';
+import { LShell, L_T } from '@/components/ledger/primitives';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +38,11 @@ export default async function GoalsPage() {
     <LShell>
       <h1 className="sr-only">Goals and tools</h1>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
+        {/* What this page is for, in one line (each tab opens with one) */}
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+          What you&apos;re saving for, and a tool for each one-off decision: a bonus,
+          a new loan, selling something, or investing instead of prepaying.
+        </p>
         <GoalLedger user={profile.user} lowestRates={rates} />
         <ToolsList user={profile.user} />
       </div>

@@ -44,7 +44,7 @@ export function pageName(href: string): string | null {
   if (path.startsWith('/activity')) return 'Activity';
   if (path.startsWith('/goals') || path === '/tools') return 'Goals and tools';
   if (path.startsWith('/tools/')) return TOOLS.find((t) => path.startsWith(t.href))?.name ?? 'the tool';
-  if (path.startsWith('/portfolio')) return 'Holdings';
+  if (path.startsWith('/portfolio')) return 'What you own';
   return null;
 }
 

@@ -1,10 +1,11 @@
 'use client';
 
 /**
- * Your loans and cards (REDESIGN R2.5, was Open positions): every open loan, one row each — rate and
- * effective rate, EMI or card minimum, months left, balance. A row opens to
- * how its effective rate is worked out (fees, GST, tax saving). The dearest
- * loan is flagged. Replaces the separate Debts page.
+ * Your loans and cards (REDESIGN R2.5, was Open positions): every open loan, one row each — the
+ * statement rate and what it costs a year (compounded, with GST, after the
+ * tax break: lib/marginal-cost), EMI or card minimum, months left, balance.
+ * A row opens to how that cost is worked out. The loan an extra payment
+ * goes to first by cost is flagged DEAREST. Replaces the separate Debts page.
  */
 import { useState } from 'react';
 import type { StoredProfile } from '@/lib/user-store';
@@ -49,10 +50,9 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
       </LSectionHeader>
       {/* Where these numbers come from: the user, not the bank. */}
       <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
-        As you entered them in Profile. A loan moves on by its EMI once you mark
-        it paid (or the month ends); card balances stay as entered until you
-        update them. Not linked to your bank, so check them against a statement
-        now and then.
+        As entered in Profile, not linked to your bank: check them against a
+        statement now and then. A loan moves on by its EMI once you mark it
+        paid; a card balance stays as entered until you update it.
       </p>
       <StaleCardNudge user={user} />
       <FxRateLine user={user} nowMs={Date.now()} />
@@ -80,7 +80,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
               <>
                 {fmtPct(d.nominal)} →{' '}
                 <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>{' '}
-                EFFECTIVE
+                A YEAR
               </>
             ),
             gaps.includes('emi') ? (
@@ -145,7 +145,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
               </div>
               <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 {!gaps.includes('rate') && (
-                  <LBracket onClick={() => setOpen(isOpen ? null : i)} label={`${isOpen ? 'Hide' : 'Show'} how the ${name} rate is worked out`}>
+                  <LBracket onClick={() => setOpen(isOpen ? null : i)} label={`${isOpen ? 'Hide' : 'Show'} what the ${name} costs a year, line by line`}>
                     {isOpen ? 'HIDE' : `WHY ${fmtPct(d.effective)}? ↓`}
                   </LBracket>
                 )}
@@ -163,6 +163,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                     taxRegime={country === 'IN' ? user.tax_regime : undefined}
                     incomeType={user.income_type}
                     itemises={itemises}
+                    cost={d.cost}
                   />
                 </div>
               )}

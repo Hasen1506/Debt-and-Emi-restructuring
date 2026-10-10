@@ -19,6 +19,7 @@
  * The same yields and tax rules feed the deep-dive tool, so the two can't
  * disagree. Each default yield carries the date it was true on.
  */
+import MARKET from './market-data.json';
 import Decimal from 'decimal.js';
 import type { Country } from './api';
 
@@ -89,41 +90,26 @@ export interface SafeRate {
 }
 
 /**
- * Default yields for the safe vehicles, dated, each from a published quote:
- *   • FD: SBI 6.25% for 1 year (from 15 Dec 2025) and HDFC Bank 6.25% for
- *     1 year to 15 months (from 6 Mar 2026), still current in Sep 2026.
- *   • T-bill: RBI's 364-day auction of 9 Sep 2026 cut off at 5.909%.
- *   • Liquid fund: yield to maturity about 6.5% in early Sep 2026.
- *   • HYSA: top online savings accounts about 4.25% APY, late Sep 2026.
- *   • Treasury: the 1-year Treasury yield closed at 4.54% on 30 Sep 2026.
- *   • Tax-free bonds: typical secondary-market yield, May 2026.
- * Both screens say so and ask for today's yield when the answer is close.
+ * Default yields for the safe vehicles, dated, each from a published quote
+ * in market-data.json (FD: SBI and HDFC Bank's 1-year rate; T-bill and
+ * liquid fund: RBI's last 364- and 91-day auction cut-offs; Treasury: the
+ * 1-year par yield; HYSA: a top online savings account; tax-free bonds: a
+ * typical secondary-market yield). scripts/refresh_market_data.py re-reads
+ * the automatic ones every week. Both screens show the date and ask for
+ * today's yield when the answer is close.
  */
+function quoted(key: keyof typeof MARKET.safe): Pick<SafeRate, 'rate' | 'asOf' | 'source'> {
+  const q = MARKET.safe[key];
+  return { rate: q.rate, asOf: q.as_of, source: q.source };
+}
+
 export const SAFE_RATES = {
-  fd_in: {
-    rate: '0.0625', tax: { kind: 'income', share: 1 }, compounding: 'quarterly',
-    asOf: '2026-09', source: '1-yr FD rate at SBI and HDFC Bank',
-  },
-  tax_free_bond_in: {
-    rate: '0.0525', tax: { kind: 'none' }, compounding: 'simple',
-    asOf: '2026-05', source: 'typical NHAI / REC secondary-market yield',
-  },
-  gsec_in: {
-    rate: '0.0591', tax: { kind: 'income', share: 1 }, compounding: 'simple',
-    asOf: '2026-09-09', source: 'yield at RBI’s 364-day T-bill auction',
-  },
-  liquid_in: {
-    rate: '0.065', tax: { kind: 'income', share: 1 }, compounding: 'simple',
-    asOf: '2026-09', source: 'yield to maturity of a liquid fund',
-  },
-  hysa_us: {
-    rate: '0.0425', tax: { kind: 'income', share: 1 }, compounding: 'simple',
-    asOf: '2026-09', source: 'APY at a top online savings account',
-  },
-  treasury_us: {
-    rate: '0.0454', tax: { kind: 'income', share: 0.8 }, compounding: 'simple',
-    asOf: '2026-09-30', source: 'US Treasury 1-yr yield',
-  },
+  fd_in: { ...quoted('fd_in'), tax: { kind: 'income', share: 1 }, compounding: 'quarterly' },
+  tax_free_bond_in: { ...quoted('tax_free_bond_in'), tax: { kind: 'none' }, compounding: 'simple' },
+  gsec_in: { ...quoted('gsec_in'), tax: { kind: 'income', share: 1 }, compounding: 'simple' },
+  liquid_in: { ...quoted('liquid_in'), tax: { kind: 'income', share: 1 }, compounding: 'simple' },
+  hysa_us: { ...quoted('hysa_us'), tax: { kind: 'income', share: 1 }, compounding: 'simple' },
+  treasury_us: { ...quoted('treasury_us'), tax: { kind: 'income', share: 0.8 }, compounding: 'simple' },
 } satisfies Record<string, SafeRate>;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

@@ -12,6 +12,8 @@
  * projections quietly stretch right on first load.
  */
 
+import MARKET from './market-data.json';
+
 export type InflationModeling = 'on' | 'off';
 
 export const DEFAULT_INFLATION_MODELING: InflationModeling = 'off';
@@ -49,16 +51,19 @@ export async function loadInflationModelingServer(): Promise<InflationModeling> 
 
 /**
  * The forecast the plan uses for rising prices, unless the user sets their
- * own rate on Plan. Each is a central bank's latest published forecast;
- * refresh it (and `asOf`) when a new one comes out.
- *   • India: RBI Monetary Policy Statement, 5 Aug 2026: CPI inflation for
- *     2026-27 projected at 5.0% (down from 5.1% in June; 4.6% in April).
- *   • US: FOMC Summary of Economic Projections, 16 Sep 2026: median PCE
- *     inflation 2.3% in 2027 (3.7% in 2026), 2.0% by 2029.
+ * own rate on Plan: each central bank's latest published forecast, from
+ * market-data.json (RBI's MPC resolution: CPI for the financial year; the
+ * Fed's Summary of Economic Projections: median PCE inflation next year).
+ * scripts/refresh_market_data.py re-reads both every week.
  */
+function forecast(country: 'IN' | 'US') {
+  const f = MARKET.inflation[country];
+  return { rate: f.rate, who: f.who, what: f.what, asOf: f.as_of };
+}
+
 export const INFLATION_FORECAST = {
-  IN: { rate: '0.050', who: 'RBI', what: 'forecast for 2026–27', asOf: '2026-08-05' },
-  US: { rate: '0.023', who: 'the Fed', what: 'median forecast for 2027 (PCE prices)', asOf: '2026-09-16' },
+  IN: forecast('IN'),
+  US: forecast('US'),
 } as const;
 
 // ─── The user's own rate ────────────────────────────────────────────────────
