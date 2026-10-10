@@ -46,6 +46,31 @@ on the free plan.
 Any push to the tracked branch triggers a redeploy automatically. To roll
 back, use **Manual Deploy** → pick a previous commit in the Render dashboard.
 
+## Keeping the figures current
+
+Nothing to run by hand week to week; three scheduled jobs keep the data
+fresh, and each commit they make redeploys the app:
+
+- **Live policy rates.** The API re-reads the RBI repo rate and the Fed funds
+  range every 6 hours (`api/rates_feed.py`); `GET /api/rates/feed-health`
+  says how old they are.
+- **Market data** (`.github/workflows/market-data.yml`, Mondays). Re-reads
+  T-bill and Treasury yields, the 1-year FD rate at SBI and HDFC Bank, the
+  RBI and Fed inflation forecasts and the 30-year mortgage average, and
+  commits `web/src/lib/market-data.json` when one changed. It also reads the
+  bank pages behind the Tier-A rate cards. What a script can't settle (a
+  bank page whose rates changed, a failed source, a by-hand figure past its
+  age, the repo rate moving off what the cards were priced on) is listed in
+  one open issue labelled **data-check**, closed when nothing is left.
+- **Rate disclosures** (`.github/workflows/rate-disclosures.yml`, Mondays).
+  Banks' published ranges of rates on last quarter's loans.
+
+When the data-check issue asks for a rate card to be re-read: update
+`engine/rate_cards.py`, run `python scripts/export_rate_cards.py`, then
+`node scripts/watch-rate-pages.mjs --accept` in `web/`, and commit. The
+workflows push to the default branch with the built-in token, so branch
+protection on it must let GitHub Actions push.
+
 ## Custom domain
 
 Each service has a *Custom Domains* tab. Point your DNS CNAME at the

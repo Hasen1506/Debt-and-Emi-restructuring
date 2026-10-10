@@ -1,0 +1,305 @@
+{
+  "about": "Bank pages behind the Tier-A rate cards (engine/rate_cards.py) and the by-hand savings rate. web/scripts/watch-rate-pages.mjs reads each one weekly and lists the percentages it shows; when that list differs from `seen` (what the page showed when the card was last checked), the weekly issue names the page with the figures that appeared and went. After re-reading a card, run `node scripts/watch-rate-pages.mjs --accept` in web/ to record the pages as they are now. US mortgage pages change daily and are left out: FRED's 30-year average stands in for them (scripts/refresh_market_data.py).",
+  "pages": [
+    {
+      "institution": "IN_SBI",
+      "product": "home_loan",
+      "url": "https://sbi.bank.in/web/interest-rates/interest-rates/loan-schemes-interest-rates/home-loans-interest-rates-current"
+    },
+    {
+      "institution": "IN_HDFC",
+      "product": "home_loan",
+      "url": "https://homeloans.hdfc.bank.in/checklist/home-loan-interest-rates"
+    },
+    {
+      "institution": "IN_HDFC",
+      "product": "personal_loan",
+      "url": "https://www.hdfc.bank.in/personal-loan/interest-rates-and-charges"
+    },
+    {
+      "institution": "IN_HDFC",
+      "product": "auto_loan",
+      "url": "https://www.hdfc.bank.in/car-loan/interest-rates-and-charges"
+    },
+    {
+      "institution": "IN_ICICI",
+      "product": "home_loan",
+      "url": "https://www.icici.bank.in/interest-rate"
+    },
+    {
+      "institution": "IN_ICICI",
+      "product": "personal_loan",
+      "url": "https://www.icici.bank.in/personal-banking/loans/personal-loan/interest-rates"
+    },
+    {
+      "institution": "IN_AXIS",
+      "product": "personal_loan",
+      "url": "https://www.axis.bank.in/loans/personal-loan/interest-rates-charges"
+    },
+    {
+      "institution": "IN_AXIS",
+      "product": "auto_loan",
+      "url": "https://www.axis.bank.in/loans/car-loan/interest-rates-charges"
+    },
+    {
+      "institution": "IN_KOTAK",
+      "product": "home_loan",
+      "url": "https://www.kotak.bank.in/en/personal-banking/loans/home-loan.html"
+    },
+    {
+      "institution": "IN_PNB",
+      "product": "all_retail",
+      "url": "https://pnb.bank.in/interst-rate-on-advances-linked-to-mclr.html"
+    },
+    {
+      "institution": "US_CHASE",
+      "product": "credit_card",
+      "url": "https://creditcards.chase.com/cash-back-credit-cards/freedom/unlimited"
+    },
+    {
+      "institution": "US_BOFA",
+      "product": "credit_card",
+      "url": "https://www.bankofamerica.com/credit-cards/products/cash-back-credit-card/"
+    },
+    {
+      "institution": "US_CITI",
+      "product": "credit_card",
+      "url": "https://www.citi.com/credit-cards/citi-double-cash-credit-card"
+    },
+    {
+      "institution": "US_USBANK",
+      "product": "credit_card",
+      "url": "https://www.usbank.com/credit-cards/cash-plus-visa-signature-credit-card.html"
+    },
+    {
+      "institution": "US_COF",
+      "product": "credit_card",
+      "url": "https://www.capitalone.com/credit-cards/quicksilver/"
+    },
+    {
+      "institution": "US_DISCOVER",
+      "product": "credit_card",
+      "url": "https://www.discover.com/credit-cards/balance-transfer/"
+    },
+    {
+      "institution": "US_WFC",
+      "product": "personal_loan",
+      "url": "https://www.wellsfargo.com/personal-loans/"
+    },
+    {
+      "institution": "MARKET",
+      "product": "hysa_us",
+      "url": "https://www.marcus.com/us/en/savings/high-yield-savings"
+    },
+    {
+      "institution": "MARKET",
+      "product": "hysa_us",
+      "url": "https://www.ally.com/bank/online-savings-account/"
+    }
+  ],
+  "seen": {
+    "https://sbi.bank.in/web/interest-rates/interest-rates/loan-schemes-interest-rates/home-loans-interest-rates-current": {
+      "figures": [
+        "7.25"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://homeloans.hdfc.bank.in/checklist/home-loan-interest-rates": {
+      "figures": [
+        "2.5",
+        "5.5",
+        "7.95",
+        "8",
+        "13.45"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.hdfc.bank.in/personal-loan/interest-rates-and-charges": {
+      "figures": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "9.97",
+        "9.99",
+        "10",
+        "10.89",
+        "11.18",
+        "12",
+        "24",
+        "24.06",
+        "25",
+        "33.94"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.hdfc.bank.in/car-loan/interest-rates-and-charges": {
+      "figures": [
+        "0.5",
+        "3",
+        "5",
+        "6",
+        "7.6",
+        "7.64",
+        "8.63",
+        "8.78",
+        "9",
+        "9.4",
+        "14",
+        "17.92",
+        "25"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.icici.bank.in/interest-rate": {
+      "figures": [
+        "2.5",
+        "6.5",
+        "7",
+        "7.1",
+        "9.99"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.icici.bank.in/personal-banking/loans/personal-loan/interest-rates": {
+      "figures": [
+        "1.59",
+        "2",
+        "3",
+        "8.1",
+        "8.4",
+        "9.25",
+        "9.99",
+        "11.45",
+        "16.5"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.axis.bank.in/loans/personal-loan/interest-rates-charges": {
+      "figures": [
+        "2",
+        "3",
+        "4.65",
+        "8",
+        "8.75",
+        "8.9",
+        "9.99",
+        "12.65",
+        "13.07",
+        "21.55",
+        "22",
+        "25",
+        "36"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.axis.bank.in/loans/car-loan/interest-rates-charges": {
+      "figures": [
+        "2",
+        "2.9",
+        "7",
+        "8.8",
+        "11.7",
+        "17.5"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.kotak.bank.in/en/personal-banking/loans/home-loan.html": {
+      "figures": [
+        "7.6"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://pnb.bank.in/interst-rate-on-advances-linked-to-mclr.html": {
+      "figures": [
+        "8.35"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://creditcards.chase.com/cash-back-credit-cards/freedom/unlimited": {
+      "figures": [
+        "1.5",
+        "3",
+        "5",
+        "18.49",
+        "27.99"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.bankofamerica.com/credit-cards/products/cash-back-credit-card/": {
+      "figures": [
+        "1",
+        "2",
+        "3",
+        "5",
+        "6",
+        "17.74",
+        "27.74"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.citi.com/credit-cards/citi-double-cash-credit-card": {
+      "figures": [
+        "1",
+        "1.72",
+        "2",
+        "3",
+        "5",
+        "18.49",
+        "28.74",
+        "29.99"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.usbank.com/credit-cards/cash-plus-visa-signature-credit-card.html": {
+      "figures": [
+        "1",
+        "2",
+        "4",
+        "5",
+        "17.99",
+        "28.24",
+        "50"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.capitalone.com/credit-cards/quicksilver/": {
+      "figures": [
+        "1.5",
+        "3",
+        "5",
+        "16",
+        "18.74",
+        "28.74"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.discover.com/credit-cards/balance-transfer/": {
+      "figures": [
+        "17.74",
+        "26.74"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.wellsfargo.com/personal-loans/": {
+      "figures": [
+        "6.74",
+        "10",
+        "13.99"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.marcus.com/us/en/savings/high-yield-savings": {
+      "figures": [
+        "3.5"
+      ],
+      "at": "2026-10-10"
+    },
+    "https://www.ally.com/bank/online-savings-account/": {
+      "figures": [
+        "3.1"
+      ],
+      "at": "2026-10-10"
+    }
+  }
+}

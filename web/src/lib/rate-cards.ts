@@ -68,6 +68,19 @@ interface RateCardsFile {
 const data = raw as unknown as RateCardsFile;
 
 export const RATE_CARDS_AS_OF = data.as_of;
+
+/** Median of the Tier-A banks' mid-rates for a loan type in a country, as
+ *  a fraction: the same figure the API's market median gives
+ *  (engine/rate_cards.market_median), for use before it loads. */
+export function tierAMedian(country: 'IN' | 'US', loanType: 'home_loan' | 'auto_loan' | 'personal_loan'): number | null {
+  const mids = Object.values(data.institutions)
+    .filter((c) => c.country === country && c.scrape_tier === 'A' && c[loanType])
+    .map((c) => (Number(c[loanType]!.low) + Number(c[loanType]!.high)) / 2)
+    .sort((a, b) => a - b);
+  if (!mids.length) return null;
+  const n = mids.length;
+  return n % 2 ? mids[(n - 1) / 2] : (mids[n / 2 - 1] + mids[n / 2]) / 2;
+}
 export const RATE_CARDS_SOURCE = data.source;
 
 export function getInstitution(bank: string): InstitutionRateCard | null {

@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-10-09",
+  "as_of": "2026-10-10",
   "source": "engine/rate_cards.py \u00b7 seeded May 2026 \u00b7 indicative until scrapers land",
   "institutions": {
     "SBI": {
@@ -178,16 +178,16 @@
       "name": "PNB",
       "scrape_tier": "A",
       "home_loan": {
-        "low": "0.0770",
-        "high": "0.0915"
+        "low": "0.0795",
+        "high": "0.0940"
       },
       "personal_loan": {
-        "low": "0.1100",
-        "high": "0.1700"
+        "low": "0.1125",
+        "high": "0.1725"
       },
       "auto_loan": {
-        "low": "0.0825",
-        "high": "0.0975"
+        "low": "0.0850",
+        "high": "0.1000"
       },
       "education_loan": null,
       "credit_card": null,
@@ -195,7 +195,7 @@
       "prepayment_penalty_floating": "0",
       "late_payment_flat_fee": null,
       "late_payment_penal_rate": null,
-      "last_verified": "2026-05-14",
+      "last_verified": "2026-10-10",
       "is_indicative": false
     },
     "Bank of Baroda": {

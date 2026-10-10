@@ -23,6 +23,8 @@ import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
 import { LFieldGrid, LNote, LStep, LStepSub, LSteps, LVerdict } from '@/components/ledger/LToolSteps';
 import { api, formatCurrency } from '@/lib/api';
+import { RATE_CARD_AS_OF } from '@/lib/banks';
+import { tierAMedian } from '@/lib/rate-cards';
 import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
 import { userDefaultCurrency } from '@/lib/currency';
 import { deriveMetrics } from '@/lib/derived';
@@ -58,10 +60,14 @@ const DEFAULTS = {
 const RATE_SOURCE = { home: 'home_loan', vehicle: 'auto_loan', other: 'personal_loan' } as const;
 
 /** Used until the bank rates load (or if they don't): the middle of the
- *  big banks' published rates in May 2026, the same cards the API serves. */
+ *  big banks' published rates, from the same cards the API serves. */
+function fallbackRates(country: 'IN' | 'US'): Record<PurchaseType, string> {
+  const pct = (t: (typeof RATE_SOURCE)[PurchaseType]) => String(Math.round((tierAMedian(country, t) ?? 0) * 1000) / 10);
+  return { home: pct(RATE_SOURCE.home), vehicle: pct(RATE_SOURCE.vehicle), other: pct(RATE_SOURCE.other) };
+}
 const RATE_FALLBACK: Record<'IN' | 'US', Record<PurchaseType, string>> = {
-  IN: { home: '8.3', vehicle: '9.0', other: '15.5' },
-  US: { home: '6.8', vehicle: '8.7', other: '16.0' },
+  IN: fallbackRates('IN'),
+  US: fallbackRates('US'),
 };
 
 function nextSixMonths(): string {
@@ -299,7 +305,7 @@ export function PurchaseTool() {
                   onChange={fieldTouch('rate', setRate)}
                   hint={
                     !touched.rate && rate === marketRates[type]
-                      ? 'Middle of the big banks’ published rates (May 2026). Use your lender’s offer.'
+                      ? `Middle of the big banks’ published rates (${RATE_CARD_AS_OF}). Use your lender’s offer.`
                       : 'From the lender’s offer'
                   }
                 />

@@ -6,6 +6,7 @@ each can be wired to a focused UI screen.
 from decimal import ROUND_HALF_UP, Decimal
 from dataclasses import dataclass, field, replace
 from typing import Optional
+from engine.market_data import approx_pct, safe_rate
 from engine.models import Loan, Country, LoanType, InvestmentOption, LiquidityClass, PayoffRules
 from engine.formulas import after_tax_return, emi, effective_rate, prepay_recommended
 from engine.minimum_payments import compute_minimum_payment
@@ -587,12 +588,12 @@ class CashYieldAlert:
     rationale: str
 
 
-# Country defaults (Sep 2026) — caller can override. A liquid fund's yield
-# to maturity was about 6.5% in early Sep 2026 (repo 5.25%); top online
-# savings accounts paid about 4.25%.
+# Country defaults — caller can override. From market-data.json, re-read
+# weekly: India, the 91-day T-bill cut-off (about what a liquid fund earns
+# before its fees); US, a top online savings account's APY.
 DEFAULT_BEST_LIQUID = {
-    Country.IN: (D("0.065"), "Liquid mutual fund ~6.5%"),    # short-duration liquid fund
-    Country.US: (D("0.0425"), "HYSA top-tier ~4.25%"),
+    Country.IN: (safe_rate("liquid_in"), f"Liquid fund {approx_pct(safe_rate('liquid_in'))}"),
+    Country.US: (safe_rate("hysa_us"), f"HYSA top-tier {approx_pct(safe_rate('hysa_us'))}"),
 }
 
 

@@ -18,6 +18,15 @@ from engine.models import Country, LoanType
 
 D = Decimal
 
+# What the Tier-A cards were priced against when last read. The weekly data
+# run (scripts/refresh_market_data.py) flags the cards for a re-read once the
+# live figure moves away from these: a repo change shifts every Indian
+# repo-linked home loan; a quarter point in the 30-year average moves US
+# mortgage quotes.
+REPO_BASIS_IN = D("0.0550")      # RBI repo from 7 Oct 2026
+FED_UPPER_BASIS_US = D("0.0400")  # Fed funds upper bound from 16 Sep 2026
+PMMS_BASIS_US = D("0.0740")       # Freddie Mac 30-year average, 8 Oct 2026
+
 
 @dataclass
 class RateRange:
@@ -193,11 +202,14 @@ INDIA_TIER_A: list[InstitutionRateCard] = [
     ),
     InstitutionRateCard(
         institution_id="IN_PNB", country=Country.IN, name="PNB", scrape_tier="A",
-        home_loan=RateRange(D("0.0770"), D("0.0915")),
-        personal_loan=RateRange(D("0.1100"), D("0.1700")),
-        auto_loan=RateRange(D("0.0825"), D("0.0975")),
+        # Retail loans are RLLR + spread; PNB's RLLR went from 8.10% to
+        # 8.35% on 8 Oct 2026 (repo 5.50%), so the May ranges carry +0.25.
+        home_loan=RateRange(D("0.0795"), D("0.0940")),
+        personal_loan=RateRange(D("0.1125"), D("0.1725")),
+        auto_loan=RateRange(D("0.0850"), D("0.1000")),
         processing_fee_pct=D("0.0050"),
         # PNB (PSU) — typically more lenient PL terms; ~2% in first 6mo.
+        last_verified="2026-10-10",
     ),
 ]
 
