@@ -6,10 +6,10 @@ between the loan's start and now. Each entry is (effective date, rate)
 where the date is the policy announcement day; the rate holds until the
 next entry.
 
-Sources, re-checked 26 Sep 2026:
-- RBI: monetary policy statements on rbi.org.in. Latest: 5.25% since the
-  5 Dec 2025 cut, held at the Feb, Apr, Jun and Aug 2026 meetings
-  (Aug 2026: SDF 5.00%, MSF 5.50%, repo at their midpoint).
+Sources, re-checked 9 Oct 2026:
+- RBI: monetary policy statements on rbi.org.in. Latest: raised 25 bps to
+  5.50% on 7 Oct 2026 (MPC resolution, 5-7 Oct; SDF 5.25%, MSF 5.75%),
+  after 5.25% from the 5 Dec 2025 cut through the Feb-Aug 2026 meetings.
 - Fed: FOMC statements on federalreserve.gov. Latest: target range raised
   to 3.75–4.00% on 16 Sep 2026. We store the upper bound.
 
@@ -29,7 +29,7 @@ from engine.models import Country
 
 D = Decimal
 
-LAST_VERIFIED = date(2026, 9, 26)
+LAST_VERIFIED = date(2026, 10, 9)
 
 REPO_RATE_IN: list[tuple[date, Decimal]] = [
     (date(2018, 8, 1), D("0.0650")),
@@ -50,6 +50,7 @@ REPO_RATE_IN: list[tuple[date, Decimal]] = [
     (date(2025, 4, 9), D("0.0600")),
     (date(2025, 6, 6), D("0.0550")),
     (date(2025, 12, 5), D("0.0525")),
+    (date(2026, 10, 7), D("0.0550")),
 ]
 
 FED_FUNDS_UPPER_US: list[tuple[date, Decimal]] = [

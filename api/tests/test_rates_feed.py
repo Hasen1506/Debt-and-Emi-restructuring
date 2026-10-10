@@ -21,7 +21,13 @@ IN_MEETINGS = [date(2026, 8, 5), date(2026, 10, 7), date(2026, 12, 5)]
 
 
 @pytest.fixture(autouse=True)
-def _clean():
+def _clean(monkeypatch):
+    # These tests act out decisions after the table as it stood on 26 Sep
+    # 2026 (last entry: the 5 Dec 2025 cut), so the 7 Oct 2026 MPC is still
+    # in the future here. The real table has since recorded that meeting.
+    monkeypatch.setitem(policy_rates._TABLE, Country.IN,
+                        [e for e in policy_rates.REPO_RATE_IN if e[0] <= date(2025, 12, 5)])
+    monkeypatch.setattr(policy_rates, "LAST_VERIFIED", date(2026, 9, 26))
     policy_rates.clear_live()
     yield
     policy_rates.clear_live()
