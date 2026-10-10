@@ -9,6 +9,7 @@
  */
 import type { UserPayload } from './api';
 import { DEMO_USER, DEMO_MARGINAL_RATE } from './demo-user';
+import { serverApiBase } from './api-base';
 import { readActivityClient } from './activity';
 import { syncActivityCookieClient } from './activity-cookie';
 import { withLoanIds } from './loan-ids';
@@ -273,8 +274,9 @@ async function fetchUserStateServer(): Promise<Record<string, unknown> | null> {
   const { cookies } = await import('next/headers');
   const session = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!session) return null;
-  const base =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+  // Server side: the API's internal address (lib/api-base), never the
+  // browser's relative one.
+  const base = serverApiBase();
   try {
     const res = await fetch(`${base}/api/user/state`, {
       headers: { Cookie: `${SESSION_COOKIE}=${session}` },

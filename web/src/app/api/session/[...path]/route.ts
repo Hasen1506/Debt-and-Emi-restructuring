@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { waitForSignInApi, SignInApiStarting } from '@/lib/sign-in-readiness';
 import { allowedOrigins, isAllowedOrigin, setCookieHeaders } from '@/lib/request-origin';
+import { serverApiBase } from '@/lib/api-base';
 
 export const dynamic = 'force-dynamic';
 const METHODS: Record<string, string[]> = {
@@ -62,8 +63,15 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
   if (token) headers.set('Cookie', `finoptima_session=${token}`);
   const expectedAccount = req.headers.get('x-account-id');
   if (path === 'user/state' && expectedAccount) headers.set('X-Account-Id', expectedAccount);
+  // The visitor's X-Forwarded-For, unchanged, so the API's per-IP limits on
+  // sign-in (api/security.py) see the visitor and not this server. The API
+  // trusts only its last TRUSTED_PROXY_HOPS entries (api/client_ip.py), the
+  // ones Cloudflare and Render appended; a forged left part is ignored.
+  // Without it every sign-in shared one bucket: this server's address.
+  const forwardedFor = req.headers.get('x-forwarded-for');
+  if (forwardedFor) headers.set('X-Forwarded-For', forwardedFor);
   // Never send INTERNAL_API_TOKEN: it would bypass the OTP rate limits.
-  const base = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+  const base = serverApiBase();
   try {
     const body = req.method === 'GET' ? undefined : await readBody(req);
     // Wake a sleeping API with safe reads before creating an OTP. Never replay

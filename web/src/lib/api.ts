@@ -7,13 +7,12 @@ import type { KfsReadResponse } from './kfs';
 import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
 import { authErrorMessage } from './auth-error';
+import { apiBase } from './api-base';
 
-// The web server may reach the API by an internal address (API_BASE_URL,
-// e.g. Render's private network on a paid plan) that browsers can't.
-const BASE =
-  (typeof window === 'undefined' ? process.env.API_BASE_URL : undefined) ||
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  'http://localhost:8000';
+// The browser calls the API on its own origin (Next.js proxies /api/* to
+// FastAPI in the same container); the web server calls it directly at
+// API_INTERNAL_URL. See lib/api-base.
+const BASE = apiBase();
 
 // Auth cookies must belong to the web host so middleware can see them.
 // Only authenticated state uses this fixed, same-origin proxy; engine calls
