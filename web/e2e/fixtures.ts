@@ -17,7 +17,16 @@ export const test = base.extend<{ page: Page }>({
 });
 export { expect };
 
-export async function signIn(page: Page, email: string) {
+/** The address a test signs in with. Firefox and WebKit run against one
+ *  database in CI, so each browser gets its own user (name+webkit@…);
+ *  otherwise WebKit signed in to the account Firefox had just set up. */
+export function testEmail(email: string): string {
+  const project = base.info().project.name;
+  return project === 'chromium' ? email : email.replace('@', `+${project}@`);
+}
+
+export async function signIn(page: Page, address: string) {
+  const email = testEmail(address);
   await page.goto('/login');
   await page.getByPlaceholder('you@example.com').fill(email);
   await page.getByRole('button', { name: /send code/i }).click();

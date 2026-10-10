@@ -158,7 +158,7 @@ jobs:
         run: |
           for f in test-results/*/error-context.md; do
             [ -f "$f" ] || continue
-            echo "::group::$f"; head -120 "$f"; echo "::endgroup::"
+            echo "::group::$f"; cat "$f"; echo "::endgroup::"
           done
       - if: failure()
         uses: actions/upload-artifact@v4
@@ -222,7 +222,7 @@ jobs:
         run: |
           for f in test-results/*/error-context.md; do
             [ -f "$f" ] || continue
-            echo "::group::$f"; head -120 "$f"; echo "::endgroup::"
+            echo "::group::$f"; cat "$f"; echo "::endgroup::"
           done
       - if: failure()
         uses: actions/upload-artifact@v4

@@ -51,6 +51,7 @@ import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward,
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
 import { HYDRATED_EVENT, flushPendingState } from '@/lib/server-sync';
 import { ONBOARDING_DONE_HREF } from '@/lib/onboarding-save';
+import { dateProfileRates } from '@/lib/fx-refresh';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
 import {
   applyRateTypeChoice,
@@ -476,10 +477,13 @@ export function QuickSetup() {
     if (saving) return;
     setSaving(true);
     setSaveFailed(false);
-    const built = buildUser();
+    const current = loadProfileClient();
+    // Each exchange rate keeps the date of the quote it came from, so the
+    // plan doesn't fetch it again the moment it opens.
+    const quotes = Object.fromEntries(Object.entries(fxQuotes).filter((e): e is [string, FxRateResponse] => typeof e[1] === 'object'));
+    const built = dateProfileRates(buildUser(), current.isLive ? current.user : null, quotes, Date.now());
     // Date changed balances today; preserve the anchor when only other fields changed.
     const asOf = localIsoDate(getCountryToday(built.country));
-    const current = loadProfileClient();
     const user = { ...built, loans: stampBalanceDates(built.loans, current.user.loans, asOf) };
     const ok = saveProfileWithPaidEmis({ ...current, user, marginalRate: marginal().rate }, asOf);
     if (!ok) {
