@@ -15,7 +15,12 @@ type Violation = { id: string; impact: string | null; help: string; nodes: { tar
 /** Watch a page for hydration and runtime errors from here on. */
 function watchErrors(page: Page): string[] {
   const errors: string[] = [];
-  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  page.on('pageerror', (e) => {
+    // WebKit reports the page being left's link prefetches, cut off by the
+    // next navigation, as "…?_rsc=… due to access control checks".
+    if (/_rsc=.*access control checks/.test(e.message)) return;
+    errors.push(`pageerror: ${e.message}`);
+  });
   page.on('console', (m) => {
     if (m.type() !== 'error') return;
     const t = m.text();
