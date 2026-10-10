@@ -1,12 +1,71 @@
 # Deploying RightDue to Render
 
-This repo is configured for a two-service Render deploy via `render.yaml`
-(a Render "Blueprint"). One service runs FastAPI, the other runs Next.js,
-and they talk to each other over the public internet.
+RightDue runs as **one** Render web service, `rightdue` (`render.yaml`,
+`Dockerfile`, `deploy/start.sh`). One container runs both halves:
 
-The existing Blueprint services retain the infrastructure names `finoptima-web`
-and `finoptima-api`. The public app, favicon and email branding use RightDue.
-Retaining service names and storage keys preserves existing URLs and saved profiles.
+```
+browser ─▶ Cloudflare (rightdue.app) ─▶ Render ─▶ Next.js  0.0.0.0:$PORT
+                                                    │ every /api/* path Next does not serve
+                                                    ▼ (web/next.config.mjs rewrites.fallback)
+                                                 FastAPI  127.0.0.1:8000 (uvicorn, 1 worker)
+```
+
+- On the free plan a visit now wakes one instance instead of two, and the API
+  is already running by the time the page has loaded (the start script waits
+  for FastAPI's `/api/health` before opening the public port).
+- Next.js keeps its own `/api/session/*` and `/api/holdings/quote`; a
+  `fallback` rewrite sends every other `/api/*` path, including
+  `/api/health` (the Render health check), to FastAPI. The browser only talks
+  to one origin, so `CORS_ORIGINS` and `NEXT_PUBLIC_API_BASE_URL` are not set.
+  Server code reaches the API at `API_INTERNAL_URL` (default
+  `http://127.0.0.1:8000`, `web/src/lib/api-base.ts`).
+- If either process exits, the container exits and Render restarts it.
+- Memory (512 MB on the free plan): measured locally about 155 MB idle after
+  start (uvicorn ~97 MB, Next.js standalone ~58 MB) and about 190 MB after a
+  few hundred page and API requests. `NODE_OPTIONS=--max-old-space-size=256`
+  caps the Node heap.
+
+### Client address and rate limits
+
+`api/client_ip.py` reads `X-Forwarded-For` only as far back as
+`TRUSTED_PROXY_HOPS`. Through Cloudflare (orange cloud) the chain ends
+`…, <visitor>, <Cloudflare edge>` (Cloudflare writes the visitor, Render
+appends the edge), so `TRUSTED_PROXY_HOPS=2`. The Next.js proxy (the rewrite
+and the `/api/session` route) passes `X-Forwarded-For` through **unchanged**,
+so it adds no hop. Set it to `1` if rightdue.app is ever DNS-only (grey cloud).
+Requests sent straight to `*.onrender.com` bypass Cloudflare and could choose
+their own rate-limit bucket; that was already true of the old deploy.
+
+### Cutover from the old two services
+
+Render cannot change an existing service's runtime (python/node → docker), so
+`rightdue` is a new service. The old `finoptima-web` and `finoptima-api`
+stay in `render.yaml` only as a commented record.
+
+1. Merge this change. In Render, open the Blueprint (or **New → Blueprint**
+   on this repo) and sync it: Render creates `rightdue`. Removing the old
+   services from `render.yaml` does **not** delete them; they keep serving.
+2. On `rightdue` → **Environment**, copy from `finoptima-api`:
+   `DATABASE_URL`, `RESEND_API_KEY`, `RESEND_FROM` (and `OUTCOMES_IP_KEY` if
+   you want today's per-address outcome counts kept). Set
+   `NEXT_PUBLIC_DISABLE_AUTH=false` and
+   `WEB_ORIGIN=https://rightdue.app,https://<rightdue service>.onrender.com`.
+   Save, then **Manual Deploy → Clear build cache & deploy** (the
+   `NEXT_PUBLIC_*` value is compiled in at build time).
+3. Check `https://<rightdue>.onrender.com/api/health` says `"db": "enabled"`,
+   then sign in on the onrender.com URL once.
+4. Move the domain: remove `rightdue.app` (and `www` if used) from
+   `finoptima-web` → **Settings → Custom Domains**, add it to `rightdue`.
+   In Cloudflare DNS point the `rightdue.app` CNAME (and `www`) at
+   `<rightdue>.onrender.com`, keep it proxied (orange) and SSL mode Full
+   (strict). Wait for Render to verify the domain and issue its certificate.
+5. Check https://rightdue.app loads, `/api/health` answers, sign-in works.
+6. Delete `finoptima-web` and `finoptima-api` in the Render dashboard.
+
+## The old two-service deploy (retired)
+
+The sections below describe the previous `finoptima-web` + `finoptima-api`
+deploy and are kept for reference until the cutover is done.
 
 ## First-time deploy
 

@@ -8,7 +8,10 @@ bug: taking the first entry let one made-up header bypass the outcome
 limits, and 36 fake reports gave a fake bank a 100% record.)
 
 TRUSTED_PROXY_HOPS=0 (the default, for local runs) ignores the header
-and uses the socket peer. Render puts one proxy in front of the API.
+and uses the socket peer. In the single-service deploy (DEPLOY.md) the
+API sits behind Cloudflare, Render and the Next.js server in the same
+container; Next.js passes X-Forwarded-For through unchanged, so only
+Cloudflare and Render count: TRUSTED_PROXY_HOPS=2.
 """
 from __future__ import annotations
 

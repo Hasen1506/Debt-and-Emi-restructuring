@@ -1,52 +1,35 @@
-# RightDue Render Blueprint — declarative two-service deploy.
-# Keep existing service names to update the current deployment in place.
-# After you click "New Blueprint" in Render and point it at this repo, Render
-# will prompt you to fill in CORS_ORIGINS and NEXT_PUBLIC_API_BASE_URL on first
-# deploy. You can grab those URLs from the service detail pages once they exist.
+# RightDue Render Blueprint — ONE free web service (Dockerfile at the repo
+# root) running FastAPI and Next.js together, so a visit wakes one instance
+# instead of two and the API is already up when the page has loaded.
 #
-# Existing deployment: rightdue-db is provisioned separately. Set its internal
-# connection string and the sending-only Resend key in the API dashboard.
-# Authentication mode is a dashboard setting, preserved on Blueprint updates.
-# Enable it only after DATABASE_URL and RESEND_API_KEY are configured.
+#   browser ─▶ Cloudflare (rightdue.app) ─▶ Render ─▶ Next.js :$PORT
+#                                                      └─▶ FastAPI 127.0.0.1:8000
+#
+# Next.js serves the pages, /api/session/* and /api/holdings/quote; every other
+# /api/* path (including /api/health) is proxied to FastAPI inside the
+# container (web/next.config.mjs). The browser only ever talks to one origin,
+# so CORS_ORIGINS and NEXT_PUBLIC_API_BASE_URL are no longer needed.
+#
+# Render cannot switch an existing service from python/node to docker, so this
+# is a NEW service. Cutover (DEPLOY.md, "Single service"): sync the Blueprint,
+# fill DATABASE_URL / RESEND_API_KEY / RESEND_FROM / WEB_ORIGIN, move the
+# rightdue.app custom domain to `rightdue`, then delete the two old services.
+#
+# Existing deployment: rightdue-db is provisioned separately (Neon).
+# Authentication mode (NEXT_PUBLIC_DISABLE_AUTH) is compiled into the web
+# bundle at build time; changing it needs a redeploy (with build cache cleared
+# if Render reuses the old build).
 
 services:
-  # ─── FastAPI backend ────────────────────────────────────────────────
   - type: web
-    name: finoptima-api
-    runtime: python
-    plan: free                     # $0/mo, sleeps after 15 min idle. Use `starter` for always-on ($7/mo).
-    rootDir: .
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /api/health
+    name: rightdue
+    runtime: docker
+    plan: free                     # $0/mo, 512 MB, sleeps after 15 min idle. `starter` for always-on.
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health   # Goes through Next.js to FastAPI, so it covers both.
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.12.14"
-      - key: PYTHONPATH
-        value: .
-      - key: CORS_ORIGINS
-        sync: false                # Fill in the dashboard: e.g. https://finoptima-web.onrender.com
-      # Rate limits (api/security.py): the web server's own calls send this
-      # token and are not limited. Generated here, copied to the web below.
-      - key: INTERNAL_API_TOKEN
-        generateValue: true
-      # How many proxies in front of the API append to X-Forwarded-For
-      # (api/client_ip.py reads that many hops back). "1" is right ONLY
-      # when NEXT_PUBLIC_API_BASE_URL points straight at *.onrender.com
-      # (Render's proxy is the one hop). If the API host is proxied
-      # through Cloudflare (orange cloud) set it to "2": with "1" every
-      # visitor resolves to a Cloudflare edge IP and shares one rate-limit
-      # bucket and one outcomes daily limit (BUG_REPORT M8).
-      - key: TRUSTED_PROXY_HOPS
-        value: "1"
-      # Shared outcome reports (api/outcomes_store.py) keep a keyed hash of
-      # the client address for the daily limit, never the address itself.
-      - key: OUTCOMES_IP_KEY
-        generateValue: true
-      # "labelled" shows the lender scorecard marked unverified; "hidden"
-      # keeps it back until reports can be verified (owner decision).
-      - key: SCORECARD_MODE
-        value: labelled
+      # ── Secrets: copy these from the old finoptima-api service ──────────
       - key: DATABASE_URL
         sync: false
       - key: RESEND_API_KEY
@@ -57,38 +40,134 @@ services:
       # account owner, so real users never get their code (BUG_REPORT M8).
       - key: RESEND_FROM
         sync: false
+      # ── Generated ──────────────────────────────────────────────────────
+      # Rate limits (api/security.py): the web server's own engine calls send
+      # this token and are not limited. Same process env for both halves now.
+      - key: INTERNAL_API_TOKEN
+        generateValue: true
+      # Shared outcome reports (api/outcomes_store.py) keep a keyed hash of
+      # the client address for the daily limit, never the address itself.
+      # A new value only resets today's per-address counts; copy the old
+      # one from finoptima-api to keep them.
+      - key: OUTCOMES_IP_KEY
+        generateValue: true
+      # ── Client address for rate limits (api/client_ip.py) ──────────────
+      # How many proxies we run behind append to X-Forwarded-For. Chain for
+      # https://rightdue.app with Cloudflare proxying (orange cloud):
+      #   Cloudflare writes the visitor's address, Render appends the
+      #   Cloudflare edge's address -> the visitor is 2 back from the end.
+      # The Next.js proxy in the container (rewrites, and /api/session)
+      # passes X-Forwarded-For through UNCHANGED, so it adds no hop.
+      # Set "1" if rightdue.app is ever DNS-only (grey cloud) in Cloudflare.
+      # Caveat: requests sent straight to *.onrender.com skip Cloudflare and
+      # could pick their own bucket; that was already true before.
+      - key: TRUSTED_PROXY_HOPS
+        value: "2"
+      # ── Cookies and CSRF (same origin now) ─────────────────────────────
       - key: COOKIE_SECURE
         value: "1"
       - key: COOKIE_SAMESITE
         value: lax
-
-  # ─── Next.js frontend ───────────────────────────────────────────────
-  - type: web
-    name: finoptima-web
-    runtime: node
-    plan: free                     # $0/mo, sleeps after 15 min idle. Use `starter` for always-on.
-    rootDir: web
-    buildCommand: npm ci && npm run build
-    startCommand: npm run start -- --port $PORT --hostname 0.0.0.0
-    envVars:
-      - key: NODE_VERSION
-        value: "24"
-      - key: INTERNAL_API_TOKEN
-        fromService:
-          type: web
-          name: finoptima-api
-          envVarKey: INTERNAL_API_TOKEN
-      - key: NEXT_PUBLIC_API_BASE_URL
-        sync: false                # Fill in the dashboard: e.g. https://finoptima-api.onrender.com
-      - key: NEXT_PUBLIC_DISABLE_AUTH
-        sync: false                # false for accounts, true only for an explicit local trial.
       # Browser origin(s) allowed to POST sign-in and account writes through
-      # /api/session (CSRF check). Comma-separated, exact scheme + host, e.g.
-      # "https://rightdue.app,https://finoptima-web.onrender.com". If unset
-      # the web server rebuilds the origin from X-Forwarded-Proto/-Host
-      # (BUG_REPORT M6); setting it explicitly is still recommended.
+      # /api/session (CSRF check). Comma-separated, exact scheme + host:
+      # "https://rightdue.app,https://<this service>.onrender.com". If unset
+      # the web server rebuilds the origin from X-Forwarded-Proto/-Host.
       - key: WEB_ORIGIN
         sync: false
+      # ── App settings ───────────────────────────────────────────────────
+      # "labelled" shows the lender scorecard marked unverified; "hidden"
+      # keeps it back until reports can be verified (owner decision).
+      - key: SCORECARD_MODE
+        value: labelled
+      # false for accounts, true only for an explicit local trial. Build-time
+      # value (passed to the Docker build as a build arg).
+      - key: NEXT_PUBLIC_DISABLE_AUTH
+        sync: false
+
+# ─── RETIRED after cutover: the old two-service deploy ───────────────────
+# Kept here, commented out, only as a record of the old settings. Once
+# `rightdue` serves rightdue.app, DELETE finoptima-web and finoptima-api in the
+# Render dashboard (removing them from this file does not delete them).
+#
+#   # ─── FastAPI backend ────────────────────────────────────────────────
+#   - type: web
+#     name: finoptima-api
+#     runtime: python
+#     plan: free                     # $0/mo, sleeps after 15 min idle. Use `starter` for always-on ($7/mo).
+#     rootDir: .
+#     buildCommand: pip install -r requirements.txt
+#     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+#     healthCheckPath: /api/health
+#     envVars:
+#       - key: PYTHON_VERSION
+#         value: "3.12.14"
+#       - key: PYTHONPATH
+#         value: .
+#       - key: CORS_ORIGINS
+#         sync: false                # Fill in the dashboard: e.g. https://finoptima-web.onrender.com
+#       # Rate limits (api/security.py): the web server's own calls send this
+#       # token and are not limited. Generated here, copied to the web below.
+#       - key: INTERNAL_API_TOKEN
+#         generateValue: true
+#       # How many proxies in front of the API append to X-Forwarded-For
+#       # (api/client_ip.py reads that many hops back). "1" is right ONLY
+#       # when NEXT_PUBLIC_API_BASE_URL points straight at *.onrender.com
+#       # (Render's proxy is the one hop). If the API host is proxied
+#       # through Cloudflare (orange cloud) set it to "2": with "1" every
+#       # visitor resolves to a Cloudflare edge IP and shares one rate-limit
+#       # bucket and one outcomes daily limit (BUG_REPORT M8).
+#       - key: TRUSTED_PROXY_HOPS
+#         value: "1"
+#       # Shared outcome reports (api/outcomes_store.py) keep a keyed hash of
+#       # the client address for the daily limit, never the address itself.
+#       - key: OUTCOMES_IP_KEY
+#         generateValue: true
+#       # "labelled" shows the lender scorecard marked unverified; "hidden"
+#       # keeps it back until reports can be verified (owner decision).
+#       - key: SCORECARD_MODE
+#         value: labelled
+#       - key: DATABASE_URL
+#         sync: false
+#       - key: RESEND_API_KEY
+#         sync: false
+#       # Sender for sign-in codes, on a domain verified in Resend, e.g.
+#       # "RightDue <signin@rightdue.app>". Without it the code falls back to
+#       # onboarding@resend.dev, which Resend delivers ONLY to the Resend
+#       # account owner, so real users never get their code (BUG_REPORT M8).
+#       - key: RESEND_FROM
+#         sync: false
+#       - key: COOKIE_SECURE
+#         value: "1"
+#       - key: COOKIE_SAMESITE
+#         value: lax
+#
+#   # ─── Next.js frontend ───────────────────────────────────────────────
+#   - type: web
+#     name: finoptima-web
+#     runtime: node
+#     plan: free                     # $0/mo, sleeps after 15 min idle. Use `starter` for always-on.
+#     rootDir: web
+#     buildCommand: npm ci && npm run build
+#     startCommand: npm run start -- --port $PORT --hostname 0.0.0.0
+#     envVars:
+#       - key: NODE_VERSION
+#         value: "24"
+#       - key: INTERNAL_API_TOKEN
+#         fromService:
+#           type: web
+#           name: finoptima-api
+#           envVarKey: INTERNAL_API_TOKEN
+#       - key: NEXT_PUBLIC_API_BASE_URL
+#         sync: false                # Fill in the dashboard: e.g. https://finoptima-api.onrender.com
+#       - key: NEXT_PUBLIC_DISABLE_AUTH
+#         sync: false                # false for accounts, true only for an explicit local trial.
+#       # Browser origin(s) allowed to POST sign-in and account writes through
+#       # /api/session (CSRF check). Comma-separated, exact scheme + host, e.g.
+#       # "https://rightdue.app,https://finoptima-web.onrender.com". If unset
+#       # the web server rebuilds the origin from X-Forwarded-Proto/-Host
+#       # (BUG_REPORT M6); setting it explicitly is still recommended.
+#       - key: WEB_ORIGIN
+#         sync: false
 
 # Uncomment to provision a Render Postgres add-on alongside the API:
 # databases:

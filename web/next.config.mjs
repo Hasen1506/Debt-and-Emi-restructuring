@@ -1,7 +1,33 @@
+// Single-service deploy (Dockerfile, render.yaml `rightdue`): FastAPI runs in
+// the same container and Next.js proxies the API paths to it, so the browser
+// only ever talks to one origin and only one service has to wake up.
+// Read at build time: rewrites are written into the build's route manifest.
+const API_INTERNAL_URL = (process.env.API_INTERNAL_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   typedRoutes: false,
+  // The Docker image runs the minimal standalone server (smaller and lighter
+  // on the 512 MB free plan). Off elsewhere so `next start` (CI, E2E, local)
+  // behaves as before.
+  ...(process.env.NEXT_OUTPUT_STANDALONE === '1' ? { output: 'standalone' } : {}),
+  experimental: {
+    // Proxied API calls (a KFS PDF read, a first plan on a cold CPU) may take
+    // longer than the 30 s default; matches the /api/session proxy's 60 s.
+    proxyTimeout: 60000,
+  },
+  // `fallback` rewrites run only after every page, route handler and public
+  // file has been checked, so Next's own /api/session/* and
+  // /api/holdings/quote still win and every other /api/* path (including
+  // /api/health, which the Render health check uses) reaches FastAPI.
+  async rewrites() {
+    return {
+      beforeFiles: [],
+      afterFiles: [],
+      fallback: [{ source: '/api/:path*', destination: `${API_INTERNAL_URL}/api/:path*` }],
+    };
+  },
   // Old addresses keep working after the five-tab redesign (REDESIGN.md).
   async redirects() {
     return [

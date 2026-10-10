@@ -1,0 +1,33 @@
+# Only engine/, api/, requirements.txt and web/ are needed in the image.
+.git
+.github
+**/node_modules
+**/.next
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+.venv
+.env
+.env.*
+!.env.example
+**/*.log
+web/test-results
+web/playwright-report
+web/blob-report
+web/e2e
+web/tests
+api/tests
+engine/tests
+api/data/outcomes.sqlite3*
+api/data/rates_live.json
+api/data/rates_live.tmp
+# Design files, notes and archives at the repo root.
+*.zip
+*.html
+*.jsx
+*.md
+design
+design-refresh
+docs
+e2e
+scripts
