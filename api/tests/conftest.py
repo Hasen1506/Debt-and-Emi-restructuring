@@ -11,8 +11,26 @@ os.environ.setdefault("RATE_LIMITS", "off")
 
 from api import outcomes_store
 from api.main import app
+from engine.tests.fixtures.pin_rates import pin_frozen_rate_cards
 
 D = Decimal
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "live_rate_cards: read the live rate cards, not the frozen test copy")
+
+
+@pytest.fixture(autouse=True)
+def _frozen_rate_cards(request):
+    """Bank rates as of 14 May 2026, so refreshing the live cards never moves
+    a test's expected numbers (engine/tests/fixtures/pin_rates)."""
+    if request.node.get_closest_marker("live_rate_cards"):
+        yield
+        return
+    restore = pin_frozen_rate_cards()
+    yield
+    restore()
 
 
 @pytest.fixture(autouse=True)

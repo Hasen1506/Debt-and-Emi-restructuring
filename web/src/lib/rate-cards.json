@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-05-14",
+  "as_of": "2026-10-09",
   "source": "engine/rate_cards.py \u00b7 seeded May 2026 \u00b7 indicative until scrapers land",
   "institutions": {
     "SBI": {
@@ -12,17 +12,17 @@
         "high": "0.0870"
       },
       "personal_loan": {
-        "low": "0.1030",
-        "high": "0.1485"
+        "low": "0.1000",
+        "high": "0.1500"
       },
       "auto_loan": {
-        "low": "0.0810",
-        "high": "0.0905"
+        "low": "0.0840",
+        "high": "0.0935"
       },
       "education_loan": null,
       "credit_card": {
-        "apr_low": "0.2388",
-        "apr_high": "0.42",
+        "apr_low": "0.33",
+        "apr_high": "0.45",
         "cash_advance_low": "0.36",
         "cash_advance_high": "0.48",
         "bt_promo_rate": null,
@@ -33,7 +33,7 @@
       "prepayment_penalty_floating": "0",
       "late_payment_flat_fee": null,
       "late_payment_penal_rate": null,
-      "last_verified": "2026-05-14",
+      "last_verified": "2026-10-09",
       "is_indicative": false
     },
     "HDFC Bank": {
@@ -42,32 +42,32 @@
       "name": "HDFC Bank",
       "scrape_tier": "A",
       "home_loan": {
-        "low": "0.0775",
-        "high": "0.0815"
+        "low": "0.0800",
+        "high": "0.1345"
       },
       "personal_loan": {
-        "low": "0.1050",
+        "low": "0.0999",
         "high": "0.2400"
       },
       "auto_loan": {
-        "low": "0.0850",
-        "high": "0.0920"
+        "low": "0.0900",
+        "high": "0.0940"
       },
       "education_loan": null,
       "credit_card": {
-        "apr_low": "0.30",
-        "apr_high": "0.432",
+        "apr_low": "0.2388",
+        "apr_high": "0.45",
         "cash_advance_low": "0.36",
         "cash_advance_high": "0.48",
-        "bt_promo_rate": "0",
-        "bt_promo_months": 6,
-        "bt_fee_pct": "0.015"
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": "0.01"
       },
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
       "late_payment_flat_fee": null,
       "late_payment_penal_rate": null,
-      "last_verified": "2026-05-14",
+      "last_verified": "2026-10-09",
       "is_indicative": false
     },
     "ICICI Bank": {
@@ -76,12 +76,12 @@
       "name": "ICICI Bank",
       "scrape_tier": "A",
       "home_loan": {
-        "low": "0.0750",
-        "high": "0.0885"
+        "low": "0.0875",
+        "high": "0.1005"
       },
       "personal_loan": {
-        "low": "0.1065",
-        "high": "0.1900"
+        "low": "0.0999",
+        "high": "0.1650"
       },
       "auto_loan": {
         "low": "0.0880",
@@ -89,19 +89,19 @@
       },
       "education_loan": null,
       "credit_card": {
-        "apr_low": "0.2988",
+        "apr_low": "0.15",
         "apr_high": "0.45",
         "cash_advance_low": "0.36",
         "cash_advance_high": "0.48",
-        "bt_promo_rate": "0",
-        "bt_promo_months": 6,
-        "bt_fee_pct": "0.015"
+        "bt_promo_rate": null,
+        "bt_promo_months": null,
+        "bt_fee_pct": null
       },
       "processing_fee_pct": "0.0050",
       "prepayment_penalty_floating": "0",
       "late_payment_flat_fee": null,
       "late_payment_penal_rate": null,
-      "last_verified": "2026-05-14",
+      "last_verified": "2026-10-09",
       "is_indicative": false
     },
     "Axis Bank": {
@@ -110,11 +110,11 @@
       "name": "Axis Bank",
       "scrape_tier": "A",
       "home_loan": {
-        "low": "0.0765",
-        "high": "0.0980"
+        "low": "0.0825",
+        "high": "0.0935"
       },
       "personal_loan": {
-        "low": "0.1049",
+        "low": "0.0999",
         "high": "0.2200"
       },
       "auto_loan": {
@@ -135,7 +135,7 @@
       "prepayment_penalty_floating": "0",
       "late_payment_flat_fee": null,
       "late_payment_penal_rate": null,
-      "last_verified": "2026-05-14",
+      "last_verified": "2026-10-09",
       "is_indicative": false
     },
     "Kotak Mahindra": {
@@ -144,8 +144,8 @@
       "name": "Kotak Mahindra",
       "scrape_tier": "A",
       "home_loan": {
-        "low": "0.0799",
-        "high": "0.0935"
+        "low": "0.0795",
+        "high": "0.1225"
       },
       "personal_loan": {
         "low": "0.1099",
@@ -158,7 +158,7 @@
       "education_loan": null,
       "credit_card": {
         "apr_low": "0.372",
-        "apr_high": "0.42",
+        "apr_high": "0.45",
         "cash_advance_low": null,
         "cash_advance_high": null,
         "bt_promo_rate": null,
@@ -169,7 +169,7 @@
       "prepayment_penalty_floating": "0",
       "late_payment_flat_fee": null,
       "late_payment_penal_rate": null,
-      "last_verified": "2026-05-14",
+      "last_verified": "2026-10-09",
       "is_indicative": false
     },
     "PNB": {
@@ -981,8 +981,8 @@
       "name": "JPMorgan Chase",
       "scrape_tier": "A",
       "home_loan": {
-        "low": "0.0650",
-        "high": "0.0700"
+        "low": "0.07125",
+        "high": "0.07625"
       },
       "personal_loan": null,
       "auto_loan": {
@@ -991,8 +991,8 @@
       },
       "education_loan": null,
       "credit_card": {
-        "apr_low": "0.2024",
-        "apr_high": "0.2924",
+        "apr_low": "0.1849",
+        "apr_high": "0.2799",
         "cash_advance_low": null,
         "cash_advance_high": null,
         "bt_promo_rate": null,
@@ -1003,7 +1003,7 @@
       "prepayment_penalty_floating": "0",
       "late_payment_flat_fee": null,
       "late_payment_penal_rate": null,
-      "last_verified": "2026-05-14",
+      "last_verified": "2026-10-09",
       "is_indicative": false
     },
     "Bank of America": {
@@ -1012,8 +1012,8 @@
       "name": "Bank of America",
       "scrape_tier": "A",
       "home_loan": {
-        "low": "0.0655",
-        "high": "0.0705"
+        "low": "0.0740",
+        "high": "0.0790"
       },
       "personal_loan": null,
       "auto_loan": {
@@ -1022,19 +1022,19 @@
       },
       "education_loan": null,
       "credit_card": {
-        "apr_low": "0.1799",
-        "apr_high": "0.2899",
+        "apr_low": "0.1774",
+        "apr_high": "0.2774",
         "cash_advance_low": null,
         "cash_advance_high": null,
-        "bt_promo_rate": null,
-        "bt_promo_months": null,
-        "bt_fee_pct": null
+        "bt_promo_rate": "0",
+        "bt_promo_months": 15,
+        "bt_fee_pct": "0.03"
       },
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
       "late_payment_flat_fee": null,
       "late_payment_penal_rate": null,
-      "last_verified": "2026-05-14",
+      "last_verified": "2026-10-09",
       "is_indicative": false
     },
     "Wells Fargo": {
@@ -1043,11 +1043,11 @@
       "name": "Wells Fargo",
       "scrape_tier": "A",
       "home_loan": {
-        "low": "0.0645",
-        "high": "0.0695"
+        "low": "0.0750",
+        "high": "0.0800"
       },
       "personal_loan": {
-        "low": "0.0749",
+        "low": "0.0674",
         "high": "0.2399"
       },
       "auto_loan": {
@@ -1068,7 +1068,7 @@
       "prepayment_penalty_floating": "0",
       "late_payment_flat_fee": null,
       "late_payment_penal_rate": null,
-      "last_verified": "2026-05-14",
+      "last_verified": "2026-10-09",
       "is_indicative": false
     },
     "Citibank": {
@@ -1077,8 +1077,8 @@
       "name": "Citibank",
       "scrape_tier": "A",
       "home_loan": {
-        "low": "0.0660",
-        "high": "0.0710"
+        "low": "0.07125",
+        "high": "0.07625"
       },
       "personal_loan": {
         "low": "0.1149",
@@ -1087,19 +1087,19 @@
       "auto_loan": null,
       "education_loan": null,
       "credit_card": {
-        "apr_low": "0.1974",
-        "apr_high": "0.2974",
+        "apr_low": "0.1849",
+        "apr_high": "0.2874",
         "cash_advance_low": null,
         "cash_advance_high": null,
-        "bt_promo_rate": null,
-        "bt_promo_months": null,
-        "bt_fee_pct": null
+        "bt_promo_rate": "0",
+        "bt_promo_months": 18,
+        "bt_fee_pct": "0.03"
       },
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
       "late_payment_flat_fee": null,
       "late_payment_penal_rate": null,
-      "last_verified": "2026-05-14",
+      "last_verified": "2026-10-09",
       "is_indicative": false
     },
     "U.S. Bank": {
@@ -1108,8 +1108,8 @@
       "name": "U.S. Bank",
       "scrape_tier": "A",
       "home_loan": {
-        "low": "0.0660",
-        "high": "0.0710"
+        "low": "0.07375",
+        "high": "0.07875"
       },
       "personal_loan": {
         "low": "0.0849",
@@ -1121,19 +1121,19 @@
       },
       "education_loan": null,
       "credit_card": {
-        "apr_low": "0.1949",
-        "apr_high": "0.2899",
+        "apr_low": "0.1799",
+        "apr_high": "0.2824",
         "cash_advance_low": null,
         "cash_advance_high": null,
-        "bt_promo_rate": null,
-        "bt_promo_months": null,
-        "bt_fee_pct": null
+        "bt_promo_rate": "0",
+        "bt_promo_months": 15,
+        "bt_fee_pct": "0.05"
       },
       "processing_fee_pct": null,
       "prepayment_penalty_floating": "0",
       "late_payment_flat_fee": null,
       "late_payment_penal_rate": null,
-      "last_verified": "2026-05-14",
+      "last_verified": "2026-10-09",
       "is_indicative": false
     },
     "Capital One": {
@@ -1149,8 +1149,8 @@
       },
       "education_loan": null,
       "credit_card": {
-        "apr_low": "0.1974",
-        "apr_high": "0.2974",
+        "apr_low": "0.1874",
+        "apr_high": "0.2874",
         "cash_advance_low": null,
         "cash_advance_high": null,
         "bt_promo_rate": null,
@@ -1161,7 +1161,7 @@
       "prepayment_penalty_floating": "0",
       "late_payment_flat_fee": null,
       "late_payment_penal_rate": null,
-      "last_verified": "2026-05-14",
+      "last_verified": "2026-10-09",
       "is_indicative": false
     },
     "American Express": {
@@ -1205,12 +1205,12 @@
       "auto_loan": null,
       "education_loan": null,
       "credit_card": {
-        "apr_low": "0.1824",
-        "apr_high": "0.2824",
+        "apr_low": "0.1774",
+        "apr_high": "0.2674",
         "cash_advance_low": null,
         "cash_advance_high": null,
         "bt_promo_rate": "0",
-        "bt_promo_months": 18,
+        "bt_promo_months": 15,
         "bt_fee_pct": "0.03"
       },
       "processing_fee_pct": null,
