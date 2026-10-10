@@ -3,9 +3,9 @@
  * Both series share a month index; if the avalanche schedule clears earlier
  * than baseline, we pad it with zeros so both lines end together.
  *
- * Each point also carries `avalancheByCcy` / `minimumsByCcy` derived from
- * the API's `balances_by_currency` field, so the chart can render separate
- * series for hybrid (NRI-US) users instead of plotting ₹ + $ on one axis.
+ * With loans in more than one currency, each point also carries
+ * `avalancheByCcy` / `minimumsByCcy` from the API's `balances_by_currency`,
+ * for separate series per currency (NRI-US users).
  */
 import type { SimulateResponse, TrajectoryPointRaw } from './api';
 import type { TrajectoryPoint } from './mock-data';
@@ -39,8 +39,11 @@ export function mergeTrajectories(
       month: i,
       avalanche: aPt?.total ?? 0,
       minimums: mPt?.total ?? 0,
-      avalancheByCcy: padCcy(aPt?.byCcy, ccyList),
-      minimumsByCcy: padCcy(mPt?.byCcy, ccyList),
+      // Only when there's more than one currency: for one, they repeat the
+      // totals, and the plan sent them to the browser for every month.
+      ...(ccyList.length > 1
+        ? { avalancheByCcy: padCcy(aPt?.byCcy, ccyList), minimumsByCcy: padCcy(mPt?.byCcy, ccyList) }
+        : {}),
       // Per-loan series is taken from the scenario (avalanche) leg only —
       // the chart compares loan-vs-loan within the chosen strategy, not
       // against the minimums baseline.

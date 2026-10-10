@@ -31,6 +31,16 @@ Retaining service names and storage keys preserves existing URLs and saved profi
 when idle, and the first request can take 50 seconds or more to wake them.
 Paid instance plans can be selected in Render if always-on service is needed.
 
+Speed: a free instance gets about a tenth of a CPU. Plan renders in about
+50 ms of CPU on a laptop (plus five engine calls on the API, run in
+parallel), which a tenth of a CPU stretches to a second or two, more on the
+first visit after a restart. The `starter` plan on `finoptima-web` (and the
+API) is the fix. On a paid API plan the web server can also reach the API
+over Render's private network: set `API_BASE_URL` on `finoptima-web` to
+`http://finoptima-api:<port>` (the API's internal address on its Connect
+tab). Free services can't receive private-network traffic, so leave it unset
+on the free plan.
+
 ## Updating
 
 Any push to the tracked branch triggers a redeploy automatically. To roll
