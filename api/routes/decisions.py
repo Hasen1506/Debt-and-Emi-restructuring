@@ -117,6 +117,18 @@ def new_debt(req: NewDebtRequest) -> NewDebtResponse:
             user_savings_after_efund=req.user_savings_after_efund,
             country=req.country,
             monthly_room=req.monthly_room,
+            card_emi=req.card_emi,
+            savings_return=req.savings_return,
+            dearest_debt=(
+                (req.dearest_debt_name or "costliest debt", req.dearest_debt_rate)
+                if req.dearest_debt_rate is not None else None
+            ),
+            cheaper_loan=(
+                (req.cheaper_bank, req.cheaper_rate)
+                if req.cheaper_bank and req.cheaper_rate is not None else None
+            ),
+            take_home=req.take_home,
+            current_payments=req.current_payments,
         )
     except DecisionInputError as e:
         raise _bad(e)

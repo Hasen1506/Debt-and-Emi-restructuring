@@ -299,38 +299,94 @@ class NewDebtVerdict:
     foregone_discount: Decimal
     processing_fee: Decimal
     # Everything paid beyond the cash price: the foregone discount, the
-    # processing fee and any interest in the EMIs. Never negative.
+    # processing fee, GST and any interest in the EMIs. Never negative.
     total_real_cost: Decimal
     monthly_emi: Decimal
-    effective_apr: Decimal                  # solved so NPV(payments) = cash price − fee
+    effective_apr: Decimal                  # the rate at which what's paid is worth the cash in hand
     verdict: str                            # "take" | "pay_cash" | "delay" | "cant_afford"
     detail: str
+    # India: 18% GST on the processing fee, and on a card EMI's interest
+    # (a "no-cost" EMI's too: its interest is the discount behind it).
+    gst: Decimal = D("0")
 
 
 MAX_APR = D("10")                           # 1000%: beyond this, say "over"
+# A card's "no-cost" EMI hides the bank's rate in the merchant's discount;
+# GST is still charged on that interest. Card EMI rates run about 13-16% a
+# year in India; 15% is used to estimate it.
+NO_COST_EMI_BANK_RATE = D("0.15")
+# Lenders' usual ceiling on all loan payments as a share of take-home
+# (India's FOIR); the US norm is about 43% of gross pay, which is more
+# than that share of take-home, so half of take-home is a fair warning line.
+PAYMENTS_SHARE_LIMIT = D("0.50")
+# A loan this much dearer than the cheapest bank's advertised rate is worth
+# a second quote.
+CHEAPER_QUOTE_GAP = D("0.02")
+
+
+def _pv(payment: Decimal, rate: Decimal, months: int) -> Decimal:
+    if rate <= 0:
+        return payment * months
+    m = rate / D("12")
+    return payment * (D("1") - (D("1") + m) ** -months) / m
+
+
+def _irr_annual(received: Decimal, outflows: list[Decimal]) -> Decimal:
+    """The yearly rate (monthly × 12, like an EMI rate) at which the
+    payments are worth what was received. 0 when they add up to no more
+    than it; MAX_APR when the rate is higher still."""
+    if received <= 0 or not outflows or sum(outflows) <= received:
+        return D("0")
+
+    def pv(r: Decimal) -> Decimal:
+        m, f, total = r / D("12"), D("1"), D("0")
+        for out in outflows:
+            f /= (D("1") + m)
+            total += out * f
+        return total
+
+    if pv(MAX_APR) > received:
+        return MAX_APR
+    lo, hi = D("0"), MAX_APR
+    for _ in range(80):
+        mid = (lo + hi) / D("2")
+        if pv(mid) > received:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / D("2")
 
 
 def _effective_apr_for_emi(monthly_emi: Decimal, months: int, principal: Decimal) -> Decimal:
-    """Bisect for the annual rate r where EMI matches. Principal here is what
-    the buyer effectively borrows: the cash price less any fee paid up front.
-    Returns 0 when the payments add up to no more than the principal, and
-    MAX_APR when the rate is higher still.
-    """
-    if principal <= 0 or monthly_emi <= 0 or months <= 0:
+    """The yearly rate at which `months` EMIs repay `principal` (what the
+    buyer effectively borrows: the cash price less any fee paid up front)."""
+    if months <= 0 or monthly_emi <= 0:
         return D("0")
-    if monthly_emi * months <= principal:
-        return D("0")
-    lo, hi = D("0"), MAX_APR
-    if emi(principal, hi, months) < monthly_emi:
-        return MAX_APR
-    for _ in range(80):
-        mid = (lo + hi) / D("2")
-        guess = emi(principal, mid, months)
-        if guess > monthly_emi:
-            hi = mid
-        else:
-            lo = mid
-    return (lo + hi) / D("2")
+    return _irr_annual(principal, [monthly_emi] * months)
+
+
+def _card_emi_gst(cash_price: Decimal, monthly_emi: Decimal, months: int) -> list[Decimal]:
+    """GST on each month's interest in a card EMI (India). The bank's
+    interest is what the EMIs pay over the price it financed; on a
+    "no-cost" EMI that's hidden in the discount, so it's estimated at the
+    usual card EMI rate."""
+    from engine.tax.gst import GST_RATE_IN
+    if monthly_emi * months > cash_price:
+        principal = cash_price
+        rate = _effective_apr_for_emi(monthly_emi, months, principal)
+    else:
+        rate = NO_COST_EMI_BANK_RATE
+        principal = _pv(monthly_emi, rate, months)
+    m, balance, out = rate / D("12"), principal, []
+    for _ in range(months):
+        interest = balance * m
+        out.append(interest * GST_RATE_IN)
+        balance -= monthly_emi - interest
+    return out
+
+
+def _pct1(r: Decimal) -> str:
+    return f"{r * 100:.1f}%"
 
 
 def evaluate_new_debt(
@@ -342,6 +398,13 @@ def evaluate_new_debt(
     user_savings_after_efund: Decimal = D("0"),
     country: Country = Country.IN,
     monthly_room: Optional[Decimal] = None,
+    *,
+    card_emi: bool = False,
+    savings_return: Optional[Decimal] = None,
+    dearest_debt: Optional[tuple[str, Decimal]] = None,
+    cheaper_loan: Optional[tuple[str, Decimal]] = None,
+    take_home: Optional[Decimal] = None,
+    current_payments: Optional[Decimal] = None,
 ) -> NewDebtVerdict:
     """§8b — compares take-EMI vs pay-cash vs delay. Returns the dominant verdict.
 
@@ -351,12 +414,20 @@ def evaluate_new_debt(
 
     A processing fee paid up front means the buyer borrows less than the
     cash price for the same EMIs, so it raises the effective APR; a
-    "no-cost" EMI with a fee is never 0%.
+    "no-cost" EMI with a fee is never 0%. In India 18% GST is added to the
+    fee, and to a card EMI's interest each month (`card_emi`).
 
     `monthly_room` is what's left each month after costs and the payments
     already owed (income − expenses − EMIs and card minimums; negative when
     short). When given, an EMI above it is never "take": a $7,294 EMI on a
     $1,300 room read "Take the EMI … if the budget allows".
+
+    `savings_return` is what savings earn a year after tax: paying cash is
+    better whenever borrowing costs more than that (10% when not given).
+    `dearest_debt` (name, yearly cost) is the user's costliest debt: savings
+    clear that first when it costs more than this loan. `cheaper_loan`
+    (bank, rate) is the lowest advertised rate for a loan like this one.
+    `take_home` and `current_payments` (a month) test the lenders' ceiling.
     """
     if list_price <= 0:
         raise DecisionInputError("list_price", "Enter the price above zero.")
@@ -373,20 +444,37 @@ def evaluate_new_debt(
     if user_savings_after_efund < 0:
         raise DecisionInputError("user_savings_after_efund", "Savings can't be negative.")
 
+    from engine.tax.gst import GST_RATE_IN
+    india = country == Country.IN
     foregone = max(D("0"), list_price - cash_price_elsewhere)
     cash_equivalent = cash_price_elsewhere
-    paid = emi_offer_monthly_payment * emi_offer_months + processing_fee
+    months = emi_offer_months
+    fee_gst = processing_fee * GST_RATE_IN if india else D("0")
+    interest_gst = (
+        _card_emi_gst(cash_equivalent, emi_offer_monthly_payment, months)
+        if india and card_emi else [D("0")] * months
+    )
+    gst = fee_gst + sum(interest_gst)
+    outflows = [emi_offer_monthly_payment + g for g in interest_gst]
+    paid = sum(outflows) + processing_fee + fee_gst
     total_real_cost = max(D("0"), paid - cash_equivalent).quantize(D("1"), rounding=ROUND_HALF_UP)
-    apr = _effective_apr_for_emi(emi_offer_monthly_payment, emi_offer_months, cash_equivalent - processing_fee)
+    apr = _irr_annual(cash_equivalent - processing_fee - fee_gst, outflows)
     apr_text = "over 1000%" if apr >= MAX_APR else f"about {apr*100:.1f}%"
     cost = money(total_real_cost, country)
+    gst_text = f", {money(gst.quantize(D('1')), country)} of it GST" if gst >= D("1") else ""
 
     can_pay_cash = user_savings_after_efund >= cash_equivalent
     fits = monthly_room is None or emi_offer_monthly_payment <= monthly_room
     emi_text = money(emi_offer_monthly_payment, country)
-    if can_pay_cash and apr > D("0.10"):
+    hurdle = savings_return if savings_return is not None else D("0.10")
+    dearer = dearest_debt if dearest_debt is not None and dearest_debt[1] > apr and dearest_debt[1] > hurdle else None
+    if can_pay_cash and apr > hurdle and dearer is None:
         verdict = "pay_cash"
-        detail = f"Borrowing really costs {apr_text} a year. Paying cash saves {cost}."
+        earn = (
+            f", more than the {_pct1(savings_return)} your savings earn after tax"
+            if savings_return is not None else ""
+        )
+        detail = f"Borrowing really costs {apr_text} a year{earn}. Paying cash saves {cost}{gst_text}."
     elif not fits:
         room = max(D("0"), monthly_room)
         room_text = (
@@ -407,9 +495,9 @@ def evaluate_new_debt(
                 f"{money(emi_offer_monthly_payment - monthly_room, country)} a month short. "
                 f"Borrow less, over more months, or save up first."
             )
-    elif apr > D("0.20"):
+    elif apr > D("0.20") and dearer is None:
         verdict = "delay"
-        detail = f"Borrowing really costs {apr_text} a year: too dear. Save up first; the loan costs {cost} more than cash."
+        detail = f"Borrowing really costs {apr_text} a year: too dear. Save up first; the loan costs {cost} more than cash{gst_text}."
     else:
         verdict = "take"
         budget = (
@@ -417,12 +505,29 @@ def evaluate_new_debt(
             f"The {emi_text} EMI leaves {money(monthly_room - emi_offer_monthly_payment, country)} "
             f"a month after your costs and payments."
         )
-        detail = (
-            f"Borrowing really costs {apr_text} a year, which is reasonable. {budget} "
-            f"It costs {cost} more than paying cash."
-            if total_real_cost > 0 else
-            f"Borrowing costs no more than paying cash. {budget}"
-        )
+        if dearer is not None and can_pay_cash:
+            detail = (
+                f"Borrowing costs {apr_text} a year, less than the {_pct1(dearer[1])} "
+                f"your {dearer[0]} costs. Put your savings on that and take this EMI. {budget}"
+            )
+        elif total_real_cost > 0:
+            detail = f"Borrowing really costs {apr_text} a year. {budget} It costs {cost} more than paying cash{gst_text}."
+        else:
+            detail = f"Borrowing costs no more than paying cash. {budget}"
+        if cheaper_loan is not None and apr - cheaper_loan[1] >= CHEAPER_QUOTE_GAP:
+            detail += (
+                f" {cheaper_loan[0]} advertises loans like this from {_pct1(cheaper_loan[1])}: "
+                f"worth asking for a quote."
+            )
+    # A card EMI is drawn on the card's limit: no lender approves it.
+    if (not card_emi and take_home is not None and take_home > 0
+            and current_payments is not None and verdict != "pay_cash"):
+        share = (current_payments + emi_offer_monthly_payment) / take_home
+        if share > PAYMENTS_SHARE_LIMIT:
+            detail += (
+                f" With it, loan payments take {share * 100:.0f}% of your take-home; "
+                f"lenders rarely approve past about half, so expect a smaller loan or a refusal."
+            )
 
     return NewDebtVerdict(
         list_price=list_price, cash_price=cash_price_elsewhere,
@@ -430,6 +535,7 @@ def evaluate_new_debt(
         total_real_cost=total_real_cost,
         monthly_emi=emi_offer_monthly_payment,
         effective_apr=apr, verdict=verdict, detail=detail,
+        gst=gst.quantize(D("0.01")),
     )
 
 

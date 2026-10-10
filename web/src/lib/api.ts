@@ -578,6 +578,8 @@ export interface NewDebtResponse {
   effective_apr: string;
   verdict: 'take' | 'pay_cash' | 'delay' | 'cant_afford';
   detail: string;
+  /** India: 18% GST on the fee, and on a card EMI's interest. */
+  gst: string;
 }
 
 export interface WindfallResponse {
@@ -1313,6 +1315,16 @@ export const api = {
     country?: 'IN' | 'US';
     /** Income − costs − payments already owed, per month (negative when short). */
     monthly_room?: string;
+    /** A card EMI (India: GST on its interest), not a bank loan. */
+    card_emi?: boolean;
+    /** What savings earn a year after tax. */
+    savings_return?: string;
+    dearest_debt_name?: string;
+    dearest_debt_rate?: string;
+    cheaper_bank?: string;
+    cheaper_rate?: string;
+    take_home?: string;
+    current_payments?: string;
   }) => postWithFieldErrors<NewDebtResponse>('/api/new-debt', req),
 
   windfall: (req: {
