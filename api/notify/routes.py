@@ -203,6 +203,9 @@ ACK_TEXT = {
 ACK_KIND = {"all": "ack_all", "some": "ack_some", "cant": "ack_cant"}
 
 
+PAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"
+
+
 def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
     doc = (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
@@ -213,7 +216,13 @@ def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
         "line-height:1.6;color:#111'>"
         f"<h1 style='font-size:1.3rem'>{html.escape(title)}</h1>{body}</body></html>"
     )
-    return HTMLResponse(doc, status_code=status, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+    return HTMLResponse(doc, status_code=status, headers={
+        "Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
+        # api/security.py gives /api/* "default-src 'none'"; these confirm
+        # pages are HTML with inline style attributes and a same-origin form
+        # (integration: G8 CSP x G7 pages). No scripts are allowed.
+        "Content-Security-Policy": PAGE_CSP,
+    })
 
 
 def _bad_link(msg: str) -> HTMLResponse:

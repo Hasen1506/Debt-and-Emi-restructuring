@@ -143,5 +143,8 @@ async def delete_my_account(
     }
     await db.execute(delete(User).where(User.id == user.id))
     await db.commit()
+    # Payday-email settings and answers (sprint G7) live in their own tables.
+    from api.notify.store import store as notify_store
+    await notify_store().forget(str(user.id))
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
     return {"deleted": True, "deleted_at": utc_now().isoformat(), "removed": removed}
