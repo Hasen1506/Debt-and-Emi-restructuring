@@ -84,20 +84,27 @@ def remaining_balance(
 # §4.1 / §4.16 — Effective rate with tax shield, fees, GST
 # ─────────────────────────────────────────────────────────────────────────────
 
-def country_cap_home_loan(country: Country, regime: TaxRegimeIN, property_use: str) -> Decimal:
-    """Sec 24(b) cap for India home-loan interest that lowers tax on OTHER
-    income (P2-06).
+def country_cap_home_loan(country: Country, regime: TaxRegimeIN, property_use: str,
+                          loan: Loan | None = None) -> Decimal:
+    """Home-loan interest that lowers tax on the user's income in a year
+    (India; P2-06, sprint G2). Income-tax Act 2025 numbers, 1961 in brackets.
 
-    - Self-occupied: ₹2L per taxpayer (old regime), nothing (new regime).
-    - Let-out: interest is deductible against the rent, but a house-property
-      loss can be set off against other income only up to ₹2L (old regime)
-      and not at all (new regime, s.115BAC). The engine doesn't model rental
-      income, so the shield is limited to that set-off. It used to be
-      unlimited, giving a new-regime let-out loan a full 30% shield.
+    - Self-occupied: ₹2L per taxpayer in the old regime (s.22(2)(a), [24(b)]),
+      ₹30k when the house wasn't finished within 5 years of borrowing
+      (s.22(2)(b)); nothing in the new regime (s.202(2)(a)(v), [115BAC]).
+    - Let-out: the interest is deducted from the rent (after 30%,
+      s.22(1)(a)); a loss beyond that lowers other income only up to ₹2L in
+      the old regime (s.109(1)(b), [71(3A)]) and not at all in the new one
+      (s.202(2)(b)(ii)). With `loan.annual_rent` the rent part counts;
+      without it only the set-off does ("simplified" in the app).
     """
     if country != Country.IN:
         return D("Infinity")
-    return D("200000") if regime == TaxRegimeIN.OLD else D("0")
+    from engine.tax import india
+    share = max(D("0"), min(D("1"), loan.tax_share)) if loan is not None else D("1")
+    if property_use == "let_out":
+        return india.let_out_room(regime, loan.annual_rent if loan is not None else None, share)
+    return india.self_occupied_cap(regime, loan.sec24_full_cap if loan is not None else True)
 
 
 US_MORTGAGE_DEBT_LIMIT = D("750000")      # IRC §163(h)(3)(F), post-2017 loans
@@ -161,27 +168,32 @@ def tax_shield_fraction(
         shield_pct = (allowed / total) * marginal_tax_rate if total > 0 else D("0")
     elif country == Country.US and not itemises:
         shield_pct = D("0")
-    else:
-        if loan.loan_type == LoanType.HOME and country == Country.IN:
-            cap = country_cap_home_loan(country, regime,
-                                        loan.property_use or "self_occupied")
-        else:
-            cap = D("Infinity")
-
-        if cap == 0:
+    elif country == Country.IN and loan.loan_type == LoanType.EDUCATION and loan.tax_deduction_months_left == 0:
+        # s.129(2) [80E]: the 8-tax-year window has ended.
+        shield_pct = D("0")
+    elif country == Country.IN and loan.loan_type == LoanType.HOME:
+        # The user's share of the interest (co-borrower), within the year's
+        # cap. Self-occupied homes share one cap pro rata
+        # (`home_interest_total`: the user's share of interest plus
+        # pre-construction instalments across them).
+        share = max(D("0"), min(D("1"), loan.tax_share))
+        use = loan.property_use or "self_occupied"
+        cap = country_cap_home_loan(country, regime, use, loan)
+        own = (annual_interest + loan.pre_construction_interest_annual) * share
+        total = own if use == "let_out" else max(own, home_interest_total or D("0"))
+        if cap <= 0 or total <= 0:
             shield_pct = D("0")
-        elif cap == D("Infinity"):
-            share = itemised_share if country == Country.US else D("1")
-            shield_pct = marginal_tax_rate * max(D("0"), min(D("1"), share))
-            if country == Country.US and loan.loan_type == LoanType.HOME:
-                debt = max(loan.outstanding, mortgage_debt_total or D("0"))
-                if debt > US_MORTGAGE_DEBT_LIMIT:
-                    shield_pct = shield_pct * US_MORTGAGE_DEBT_LIMIT / debt
         else:
-            total = max(annual_interest, home_interest_total or D("0"))
-            # The cap is shared pro rata across the taxpayer's home loans.
-            deductible_total = min(total, cap)
-            shield_pct = (deductible_total / total) * marginal_tax_rate
+            shield_pct = share * (min(total, cap) / total) * marginal_tax_rate
+    else:
+        # US: the itemised share. India (an education loan, s.129 / 80E,
+        # no cap): the user's share of the loan's interest.
+        share = itemised_share if country == Country.US else loan.tax_share
+        shield_pct = marginal_tax_rate * max(D("0"), min(D("1"), share))
+        if country == Country.US and loan.loan_type == LoanType.HOME:
+            debt = max(loan.outstanding, mortgage_debt_total or D("0"))
+            if debt > US_MORTGAGE_DEBT_LIMIT:
+                shield_pct = shield_pct * US_MORTGAGE_DEBT_LIMIT / debt
 
     return shield_pct
 
@@ -205,8 +217,12 @@ def effective_rate(
     education loan (Sec 80E India, interest-only). Non-deductible loan types
     (credit card, personal, auto, gold, BNPL) get zero shield.
 
-    - India, new regime: no 80E, so an education loan gets no shield (Sec
-      24(b) on a let-out home is still allowed; self-occupied is capped at 0).
+    - India, new regime (s.202 of the 2025 Act, [115BAC]): no 80E (s.129),
+      so an education loan gets no shield; self-occupied home interest gets
+      none; a let-out home's interest still lowers the tax on its rent
+      (`loan.annual_rent`). Old regime: s.22 [24(b)] within the caps, s.129
+      [80E] for 8 tax years (`loan.tax_deduction_months_left`), each on the
+      user's share of the loan (`loan.tax_share`, co-borrowers).
     - US: mortgage interest only helps someone who itemises, and then only
       the part of their itemised deductions above the standard deduction
       does: `itemised_share` (0–1) is that part as a share of the mortgage
@@ -215,7 +231,8 @@ def effective_rate(
       `user.itemises` and `user.itemised_share`; the defaults keep older
       direct callers unchanged.
     - Caps are per taxpayer, not per loan: `home_interest_total` (India,
-      annual interest across home loans) shares the ₹2L 24(b) cap, and
+      the user's share of interest and pre-construction instalments across
+      self-occupied home loans) shares the ₹2L s.22(2) cap, and
       `mortgage_debt_total` (US, balances across home loans) applies the
       $750k §163 debt limit (P2-05). Each defaults to this loan alone.
     - US student loans get the §221 above-the-line deduction (P2-25): up to

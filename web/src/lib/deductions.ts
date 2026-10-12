@@ -42,11 +42,15 @@ import TAX from './tax-tables.json';
 
 const D = dec;
 
-// India statutory caps (FY25/AY26)
-const CAP_80C = D('150000');
+// India statutory caps, tax year 2026-27 (tax-tables.json, from
+// engine/tax/india.py). Income-tax Act 2025 numbers: 80C is s.123 (with
+// Schedule XV), 80D s.126, 80CCD(1B) s.124, 80E s.129.
+const CAP_80C = D(TAX.in.deductions.sec80c_cap);
+// 80D (s.126): ₹25,000 for your own family's cover, ₹50,000 if you are 60+.
+// Cover for parents adds a separate limit that isn't asked here.
 const CAP_80D_DEFAULT = D('25000');
 const CAP_80D_SENIOR = D('50000');
-const CAP_80CCD_1B = D('50000');
+const CAP_80CCD_1B = D(TAX.in.deductions.sec80ccd1b_cap);
 // Standard deduction for salaried filers — auto-applied, not part of
 // the user-entered deductions payload. Old regime stays at ₹50k; new
 // regime was raised to ₹75k from FY24-25 onwards. Most users will
@@ -137,17 +141,19 @@ export function summariseDeductions(
     const sec80c = D(ded.sec_80c_annual);
     if (sec80c.gt(0)) {
       lines.push({
-        label: '80C investments',
+        label: '80C (now s.123): PF, PPF, ELSS, insurance, tuition',
         claimed: sec80c,
         allowed: Decimal.min(sec80c, CAP_80C),
-        note: sec80c.gt(CAP_80C) ? 'Capped at ₹1.5L' : undefined,
+        note: sec80c.gt(CAP_80C)
+          ? 'Capped at ₹1.5L'
+          : 'Home-loan principal is added from your loan on the Tax page; leave it out here',
       });
     }
     const sec80d = D(ded.sec_80d_annual);
     if (sec80d.gt(0)) {
       const cap = get80DCap(ageBracket);
       lines.push({
-        label: '80D health insurance',
+        label: '80D (now s.126) health insurance',
         claimed: sec80d,
         allowed: Decimal.min(sec80d, cap),
         note: sec80d.gt(cap)
@@ -158,16 +164,16 @@ export function summariseDeductions(
     const sec80e = D(ded.sec_80e_annual);
     if (sec80e.gt(0)) {
       lines.push({
-        label: '80E education-loan interest',
+        label: '80E (now s.129) education-loan interest',
         claimed: sec80e,
         allowed: sec80e,
-        note: 'No cap — interest fully deductible for 8 years',
+        note: 'No cap: interest deductible for the tax year you first pay it and the next seven',
       });
     }
     const sec80ccd = D(ded.sec_80ccd1b_annual);
     if (sec80ccd.gt(0)) {
       lines.push({
-        label: '80CCD(1B) NPS top-up',
+        label: '80CCD(1B) (now s.124) NPS top-up',
         claimed: sec80ccd,
         allowed: Decimal.min(sec80ccd, CAP_80CCD_1B),
         note: sec80ccd.gt(CAP_80CCD_1B) ? 'Capped at ₹50k' : undefined,

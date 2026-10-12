@@ -190,23 +190,24 @@ export function DeductionsPanel({
             }
           />
           <Field
-            label={`80C investments (${ccySym}/yr)`}
+            label={`80C (now s.123) investments (${ccySym}/yr)`}
             kind="money"
             currency={ccy}
             value={ded.sec_80c_annual ?? ''}
             onChange={(v) => update({ sec_80c_annual: v || undefined })}
-            hint="PPF, ELSS, life premium, principal repayment — capped at ₹1.5L"
+            hint="PF, PPF, ELSS, life premium, tuition: not your home-loan principal. Capped at ₹1.5L"
             info={
               <>
-                Sum of <strong>PPF + ELSS + life-insurance premium + home-loan
-                principal repayment + 5-yr FD + NSC + ULIP + Sukanya</strong>.
-                We cap at ₹1.5L at compute time, so entering more is harmless
-                — the excess simply isn&apos;t deducted.
+                Sum of <strong>employee PF + PPF + ELSS + life-insurance premium
+                + children&apos;s tuition + 5-yr FD + NSC + ULIP + Sukanya</strong>.
+                Leave out your home-loan principal: the Tax page adds it from
+                your loan, so it isn&apos;t counted twice. We cap the total at
+                ₹1.5L (s.123 of the Income-tax Act 2025, 80C before).
               </>
             }
           />
           <Field
-            label={`80D health insurance (${ccySym}/yr)`}
+            label={`80D (now s.126) health insurance (${ccySym}/yr)`}
             kind="money"
             currency={ccy}
             value={ded.sec_80d_annual ?? ''}

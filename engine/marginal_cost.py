@@ -127,6 +127,10 @@ def marginal_shield(
     interest_total: Decimal = D("0"),
     debt_total: Decimal = D("0"),
     phaseout_factor: Decimal = D("1"),
+    share: Decimal = D("1"),
+    let_out: bool = False,
+    cap: Decimal | None = None,
+    deduction_open: bool = True,
 ) -> Decimal:
     """Tax saved on the NEXT unit of this loan's interest, as a share of it.
 
@@ -143,13 +147,26 @@ def marginal_shield(
       year's student-loan interest is under $2,500; else 0.
     `country` is the user's tax residence ("IN" / "US"); `loan_type` the
     API name ("home_loan", "education_loan", ...).
+
+    India, sprint G2 (Income-tax Act 2025 numbers): `share` is the user's
+    share of the loan (a co-borrower saves tax on their part of the
+    interest only, s.24); `let_out` with `cap` = the year's room for a
+    let-out home's interest (its rent after 30% plus the old regime's ₹2L
+    set-off, engine/tax/india.let_out_room), open in either regime;
+    `cap` for a self-occupied home overrides ₹2L (₹30k under s.22(2)(b));
+    `deduction_open` False once an education loan's 8-tax-year s.129 [80E]
+    window has ended.
     """
     lt = loan_type.value if hasattr(loan_type, "value") else loan_type
     if country == "IN":
+        sh = max(D("0"), min(D("1"), share))
         if lt == "home_loan":
-            return marginal_rate if regime == "old" and interest_total < IN_HOME_INTEREST_CAP else D("0")
+            if let_out:
+                return marginal_rate * sh if cap is not None and interest_total < cap else D("0")
+            limit = IN_HOME_INTEREST_CAP if cap is None else cap
+            return marginal_rate * sh if regime == "old" and interest_total < limit else D("0")
         if lt == "education_loan":
-            return marginal_rate if regime == "old" else D("0")
+            return marginal_rate * sh if regime == "old" and deduction_open else D("0")
         return D("0")
     if lt == "home_loan":
         ok = itemises and itemised_share > 0 and debt_total < US_MORTGAGE_DEBT_LIMIT
@@ -192,7 +209,13 @@ def _shield_context(loans: list[Loan], user):
     market = lambda l: loan_market(l, own)  # noqa: E731
     homes = [l for l in loans if l.loan_type == LoanType.HOME and l.outstanding > 0 and market(l) == own]
     edu = [l for l in loans if l.loan_type == LoanType.EDUCATION and l.outstanding > 0 and market(l) == own]
-    home_interest = sum((l.outstanding * l.nominal_rate for l in homes), D("0"))
+    if own == Country.IN:
+        # The user's share of interest + pre-construction instalments on
+        # self-occupied homes: they share the one ₹2L cap (s.22(2), (5)).
+        home_interest = sum(((l.outstanding * l.nominal_rate + l.pre_construction_interest_annual) * l.tax_share
+                             for l in homes if (l.property_use or "self_occupied") != "let_out"), D("0"))
+    else:
+        home_interest = sum((l.outstanding * l.nominal_rate for l in homes), D("0"))
     home_debt = sum((l.outstanding for l in homes), D("0"))
     edu_interest = sum((l.outstanding * l.nominal_rate for l in edu), D("0"))
     phaseout = D("1")
@@ -204,6 +227,35 @@ def _shield_context(loans: list[Loan], user):
         phaseout = allowed / min(edu_interest, US_STUDENT_INTEREST_CAP)
     regime = (user.tax_regime.value if user.tax_regime is not None else "new")
     return home_interest, home_debt, edu_interest, phaseout, regime
+
+
+def _india_shield_args(l: Loan, own: Country, regime: str, interest_total: Decimal, month: int) -> tuple:
+    """`interest_total` for marginal_shield: a let-out Indian home is checked
+    against its own room, so it passes its own share of interest."""
+    if own == Country.IN and l.loan_type == LoanType.HOME and (l.property_use or "") == "let_out":
+        return ((l.outstanding * l.nominal_rate + l.pre_construction_interest_annual) * l.tax_share,)
+    return (interest_total,)
+
+
+def _india_shield_kwargs(l: Loan, own: Country, regime: str, home_interest: Decimal, month: int) -> dict:
+    """The India-only marginal_shield inputs for loan `l` in sim-month
+    `month` (sprint G2): share, let-out room, the ₹30k cap, the 80E window."""
+    if own != Country.IN:
+        return {}
+    from engine.models import TaxRegimeIN
+    from engine.tax import india
+    r = TaxRegimeIN.OLD if regime == "old" else TaxRegimeIN.NEW
+    kw: dict = {"share": l.tax_share}
+    if l.loan_type == LoanType.HOME:
+        if (l.property_use or "") == "let_out":
+            used = min(home_interest, india.SEC24B_SELF_OCCUPIED_CAP) if r == TaxRegimeIN.OLD else D("0")
+            kw["let_out"] = True
+            kw["cap"] = india.let_out_room(r, l.annual_rent, max(D("0"), min(D("1"), l.tax_share)), set_off_used=used)
+        elif not l.sec24_full_cap:
+            kw["cap"] = india.SEC24B_OTHER_CAP
+    elif l.loan_type == LoanType.EDUCATION and l.tax_deduction_months_left is not None:
+        kw["deduction_open"] = month <= l.tax_deduction_months_left
+    return kw
 
 
 def user_marginal_costs(loans: list[Loan], user, marginal_rate: Decimal, month: int = 1,
@@ -219,7 +271,8 @@ def user_marginal_costs(loans: list[Loan], user, marginal_rate: Decimal, month: 
         is_home = l.loan_type == LoanType.HOME
         shield = marginal_shield(
             l.loan_type, own.value, marginal_rate, regime, bool(user.itemises), user.itemised_share,
-            home_interest if is_home else edu_interest, home_debt, phaseout,
+            *_india_shield_args(l, own, regime, home_interest if is_home else edu_interest, month),
+            home_debt, phaseout, **_india_shield_kwargs(l, own, regime, home_interest, month),
         )
         start = (start_month or {}).get(id(l), 1)
         elapsed = max(0, month - start)
@@ -238,11 +291,14 @@ def uncapped_shields(loans: list[Loan], user, marginal_rate: Decimal) -> dict[in
     regime and itemising still apply). Used by `plan_net_cost`."""
     own = user.country
     _, home_debt, _, phaseout, regime = _shield_context(loans, user)
-    return {
-        id(l): marginal_shield(l.loan_type, own.value, marginal_rate, regime, bool(user.itemises),
-                               user.itemised_share, D("0"), home_debt, phaseout)
-        for l in loans
-    }
+    out = {}
+    for l in loans:
+        kw = _india_shield_kwargs(l, own, regime, D("0"), 1)
+        if kw.get("let_out"):
+            kw["cap"] = D("Infinity")
+        out[id(l)] = marginal_shield(l.loan_type, own.value, marginal_rate, regime, bool(user.itemises),
+                                     user.itemised_share, D("0"), home_debt, phaseout, **kw)
+    return out
 
 
 def why_first(mc: MarginalCost) -> str:

@@ -152,6 +152,23 @@ class Loan:
     # the comparison with bank loans stays apples-to-apples. Engine itself
     # never reads this field — it's a frontend / schema concern.
     rate_basis: str = "reducing"   # "flat" | "reducing"
+    # ── India tax inputs (sprint G2; engine/tax/india.py) ────────────────────
+    # The user's share of this loan for tax: a co-borrower who is also a
+    # co-owner claims their own share of the interest (s.24 of the 2025 Act
+    # [1961: s.26] gives each co-owner the relief "as if individually
+    # entitled") and of the principal in s.123 / 80C. 1 = the whole loan.
+    tax_share: Decimal = Decimal("1")
+    # Education loan, s.129 / 80E: months (from sim month 1) the deduction
+    # can still be claimed; None = not known, 0 = the 8-year window has ended.
+    tax_deduction_months_left: Optional[int] = None
+    # Home loan, s.22(1)(c): this year's one-fifth of the interest paid
+    # before the house was bought or finished (whole loan, before share).
+    pre_construction_interest_annual: Decimal = Decimal("0")
+    # Home loan, let out: the year's rent (whole house); None = not given.
+    annual_rent: Optional[Decimal] = None
+    # Home loan, self-occupied: False when the house wasn't finished within
+    # 5 years of borrowing, which cuts the cap to ₹30,000 (s.22(2)(b)).
+    sec24_full_cap: bool = True
 
 
 class LifecycleEventKind(str, Enum):

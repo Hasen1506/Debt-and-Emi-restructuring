@@ -40,12 +40,13 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
     expect(await planText(page)).toMatchSnapshot('usa-plan-schedule.txt');
   });
 
-  await test.step('/tax opens Profile with the US details', async () => {
-    // /tax is Profile's tax section now (REDESIGN V5).
-    await page.goto('/tax');
-    await page.waitForURL('**/profile#pf-tax');
+  await test.step('Profile and /tax show the US details', async () => {
+    // /tax is its own page again (sprint G2, grill #77).
+    await page.goto('/profile');
     await expect(page.getByText(/^USA(,| with|$)/).first()).toBeVisible();
     await expect(page.getByText(/^Single( ·|$)/).first()).toBeVisible();
+    await page.goto('/tax');
+    await expect(page.getByRole('heading', { name: /Tax and your loans/i })).toBeVisible();
   });
 
   let debtFree = '';

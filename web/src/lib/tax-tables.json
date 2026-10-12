@@ -64,6 +64,71 @@
         "max": 12500
       }
     },
+    "old_60_79": {
+      "slabs": [
+        [
+          300000,
+          0.0
+        ],
+        [
+          500000,
+          0.05
+        ],
+        [
+          1000000,
+          0.2
+        ],
+        [
+          null,
+          0.3
+        ]
+      ]
+    },
+    "old_80_plus": {
+      "slabs": [
+        [
+          500000,
+          0.0
+        ],
+        [
+          1000000,
+          0.2
+        ],
+        [
+          null,
+          0.3
+        ]
+      ]
+    },
+    "deductions": {
+      "sec24b_self_occupied_cap": 200000,
+      "sec24b_other_cap": 30000,
+      "let_out_standard_deduction": 0.3,
+      "hp_loss_set_off_cap": 200000,
+      "sec80c_cap": 150000,
+      "sec80ccd1b_cap": 50000,
+      "sec80e_tax_years": 8,
+      "pre_construction_instalments": 5
+    },
+    "section_map": {
+      "24(b)": "22(1)(b) and 22(2)",
+      "24(b) pre-construction": "22(1)(c)",
+      "24(a)": "22(1)(a)",
+      "23(2)": "21(6)",
+      "26": "24",
+      "71(3A)": "109(1)(b)",
+      "80C": "123 + Schedule XV",
+      "80CCD(1B)": "124",
+      "80D": "126",
+      "80E": "129",
+      "87A": "156",
+      "115BAC": "202",
+      "16(ia)": "19(1) Table Sl. 2",
+      "139(1)": "263(1)"
+    },
+    "law_as_of": "Income-tax Act, 2025 as amended by the Finance Act, 2026 \u00b7 tax year 2026-27 \u00b7 read 12 Oct 2026",
+    "law_source": "https://www.incometaxindia.gov.in/documents/d/guest/income_tax_act_2025_as_amended_by_fa_act_2026-pdf",
+    "rates_source": "https://www.incometaxindia.gov.in/w/first-schedule-104",
     "surcharge": [
       [
         5000000,

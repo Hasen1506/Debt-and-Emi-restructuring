@@ -180,6 +180,14 @@ class LoanIn(_In):
     # Optional UI-only labelling for credit cards. Engine ignores both.
     card_last_6: Optional[str] = None
     cardholder_name: Optional[str] = None
+    # India tax inputs (sprint G2): see engine/models.py:Loan. The web's Tax
+    # page sets them; omitted = the whole loan is the user's, no window /
+    # pre-construction / rent known, the full ₹2L cap.
+    tax_share: Decimal = Field(D("1"), ge=0, le=1)
+    tax_deduction_months_left: Optional[int] = Field(None, ge=0, le=MAX_MONTHS)
+    pre_construction_interest_annual: Amount = D("0")
+    annual_rent: Optional[Amount] = None
+    sec24_full_cap: bool = True
 
     @field_validator("statement_day", "due_day", mode="before")
     @classmethod
@@ -250,6 +258,11 @@ class LoanIn(_In):
             pre_emi_months_remaining=self.pre_emi_months_remaining,
             first_payment_month=self.first_payment_month,
             rate_basis=self.rate_basis,
+            tax_share=self.tax_share,
+            tax_deduction_months_left=self.tax_deduction_months_left,
+            pre_construction_interest_annual=self.pre_construction_interest_annual,
+            annual_rent=self.annual_rent,
+            sec24_full_cap=self.sec24_full_cap,
         )
 
 
@@ -530,6 +543,9 @@ class UserIn(_In):
     # breakdown. See `DeductionsIn` for field semantics.
     deductions: Optional["DeductionsIn"] = None
     income_streams: list[IncomeStreamIn] = Field(default_factory=list)
+    # Sprint G2 (#20): True once the user said the tax rate the plan uses
+    # (estimated from take-home) is right. UI-only; the engine drops it.
+    tax_rate_confirmed: Optional[bool] = None
 
     def _itemised(self) -> tuple[bool, Decimal]:
         """US only: does this person itemise, and what share of their
