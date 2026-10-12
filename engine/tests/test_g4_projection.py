@@ -71,3 +71,48 @@ def test_golden_persona_range():
 
 
 GOLDEN = (56, 53, 57, (54, 57, 57, 53))  # exact, earliest, latest, per scenario
+
+
+# ─── _reset_rate: the contract end date is the anchor (L5 golden statement) ──
+
+from engine.formulas import emi as _emi
+from engine.models import LifecycleEvent, LifecycleEventKind, Loan, LoanType
+
+
+def _home_after(events, months=36):
+    u = _user()
+    home = Loan(loan_type=LoanType.HOME, bank="SBI", outstanding=D("3000000"),
+                nominal_rate=D("0.085"), rate_type="floating", tenure_months_remaining=240,
+                scheduled_emi=_emi(D("3000000"), D("0.085"), 240), currency="INR")
+    u.loans = [home]
+    res = simulate_plan(u, Strategy.AVALANCHE, months, minimums_only=True,
+                        lifecycle_events=[LifecycleEvent(kind=LifecycleEventKind.FLOATING_RATE_RESET,
+                                                         effective_month=m, loan_index=0, new_rate=D(r))
+                                          for m, r in events])
+    return res
+
+
+def test_rise_after_a_cut_reamortises_to_the_original_maturity():
+    """Cut at month 13 (EMI kept, end date moves earlier), rise at month 25.
+    The bank keeps the ORIGINAL maturity: the EMI after the rise is what
+    clears the balance over the 216 months left on the contract, not the
+    higher EMI that would keep the new, earlier end date."""
+    res = _home_after([(13, "0.080"), (25, "0.090")])
+    bal_24 = res.months[23].balances_by_loan_index[0]
+    want = _emi(bal_24, D("0.090"), 240 - 24)
+    paid_26 = res.months[25].payments_by_loan_index[0]
+    assert abs(paid_26 - want) < D("1"), (paid_26, want)
+
+
+def test_rise_on_an_untouched_loan_still_keeps_the_end_date():
+    res = _home_after([(13, "0.095")])
+    bal_12 = res.months[11].balances_by_loan_index[0]
+    assert abs(res.months[13].payments_by_loan_index[0] - _emi(bal_12, D("0.095"), 228)) < D("1")
+
+
+def test_small_rise_after_a_cut_keeps_the_emi():
+    """A rise smaller than the earlier cut: the loan still clears before its
+    contract date at the old EMI, so the EMI doesn't move (tenor absorbs it)."""
+    base = _emi(D("3000000"), D("0.085"), 240)
+    res = _home_after([(13, "0.075"), (25, "0.080")])
+    assert abs(res.months[25].payments_by_loan_index[0] - base) < D("1")

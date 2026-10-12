@@ -24,11 +24,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from engine import minimum_payments as _mp  # noqa: E402
 from engine.minimum_payments import (  # noqa: E402
     INDIA_MIN_PAYMENT_FORMULAS, USA_MIN_PAYMENT_FORMULAS, compute_minimum_payment,
 )
 from engine.models import Country, Loan, LoanType  # noqa: E402
 from engine.prepayment_fee import prepayment_fee_default  # noqa: E402
+
+# G1 (grill #26) makes the Indian card minimum cover interest + GST; its
+# branch adds RBI_MIN_DUE_RULE. Detected so the fixture follows whichever
+# convention this tree's engine and TS twin use.
+_GST_IN_MIN_DUE = hasattr(_mp, "RBI_MIN_DUE_RULE")
 
 OUT_PATH = ROOT / "engine" / "tests" / "fixtures" / "mirror_cases.json"
 D = Decimal
@@ -52,6 +58,10 @@ def min_payment_cases() -> list[dict]:
             for bal in balances:
                 rate = D(str(round(rng.uniform(0.12, 0.48), 4)))
                 interest = bal * rate / D("12")   # the TS twin's interest line
+                if country == Country.IN and _GST_IN_MIN_DUE:
+                    # Sprint G1 (#26): the Indian minimum covers interest + 18% GST,
+                    # and min-payment.ts passes GST-inclusive interest, as the engine does.
+                    interest = interest * D("1.18")
                 got = compute_minimum_payment(_card(bank, bal, rate, ccy), country,
                                               interest_accrued=interest)
                 out.append({
