@@ -1117,7 +1117,8 @@ function PlanPreview({
       {shortfall.gt(0) && (
         <p role="alert" style={{ margin: 0, padding: '10px 12px', border: `1px solid ${L_T.negative}`, color: L_T.negative, lineHeight: 1.55 }}>
           Your take-home is {money(shortfall)} a month short of spending plus minimum payments. The date below
-          assumes money you don&apos;t have; Home shows where to cut.
+          pays that gap from your emergency fund, then borrows it on a card at card rates until it&apos;s repaid; Home
+          shows where to cut.
         </p>
       )}
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>

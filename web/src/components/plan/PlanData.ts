@@ -19,6 +19,7 @@ import type { BracketTransition } from '@/lib/bracket-transitions';
 import type { AdvanceTaxSchedule } from '@/lib/advance-tax';
 import type { CurrencyCode, PerCurrencyMetrics } from '@/lib/currency';
 import type { ProfileGap } from '@/lib/loan-gaps';
+import type { PlanGap } from '@/lib/plan-gap';
 
 /**
  * Per-month per-loan payment breakdown sourced from the engine.
@@ -215,11 +216,15 @@ export interface PlanData {
     efSplit: number;
   } | null;
   /** This month's income short of costs plus minimum payments, in the
-   *  user's currency (0 when covered). Above 0 the pages show no
-   *  debt-free date: the plan's payments assume money the user lacks. */
+   *  user's currency (0 when covered). Above 0 the engine borrows the gap
+   *  at a card rate (see `gap`), and the pages name both dates. */
   shortfall: number;
   /** First later month whose projected minimums cannot be funded. */
   futureShortfall?: {month:number;amount:number};
+  /** Grill #38 / live tests #15-#17: how short months are funded (the
+   *  emergency fund, then card-rate borrowing repaid first) and the date
+   *  if this month's gap closes. Null when nothing was ever short. */
+  gap?: PlanGap | null;
   /** Roadmap PR K: plain words when a prepayment fee changed the payoff
    *  order (the engine searched orders and kept the cheapest). */
   payoffOrderNote?: string | null;

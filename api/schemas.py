@@ -675,6 +675,10 @@ class SimulateRequest(_In):
     # can render slices without re-computing client-side. Empty list
     # means "no active goals" (cascade gets full surplus).
     goals: list[GoalIn] = Field(default_factory=list)
+    # Grill #38: a short month is paid from the emergency fund, then
+    # borrowed at a card rate and repaid first (engine/gap_debt.py). False
+    # keeps the old "the gap is found somewhere, free" assumption.
+    gap_as_debt: bool = True
 
 
 class TrajectoryPoint(_Base):
@@ -710,6 +714,14 @@ class TrajectoryPoint(_Base):
     extra_paid: Decimal = Field(default=D("0"))
     # Income short of costs plus minimum payments this month (0 when covered).
     shortfall: Decimal = Field(default=D("0"))
+    # Gap borrowing (grill #38), user's currency: owed at the month's end,
+    # this month's interest on it, borrowed and repaid this month, and the
+    # part of the gap the emergency fund covered.
+    gap_debt: Decimal = Field(default=D("0"))
+    gap_interest: Decimal = Field(default=D("0"))
+    gap_borrowed: Decimal = Field(default=D("0"))
+    gap_repaid: Decimal = Field(default=D("0"))
+    gap_from_savings: Decimal = Field(default=D("0"))
     # Per-goal contribution this month, keyed by goal id. Populated only
     # when `goals` was passed to /simulate. Lets achievability subtract
     # higher-priority goals' actual draws (which expire after their
@@ -884,6 +896,13 @@ class GoalTradeoffRequest(SimulateRequest):
     goal_ids: list[str] = Field(default_factory=list, max_length=50)
 
 
+class GapClosedOut(_Base):
+    # The plan with spending cut by this month's shortfall (live test #16).
+    cut: Decimal
+    debt_free_month: Optional[int]
+    total_interest_paid: Decimal
+
+
 class SimulateResponse(_Base):
     # 1 = this month. 0 = nothing is owed now (no loans, or all at 0);
     # None = not cleared within the horizon.
@@ -910,6 +929,18 @@ class SimulateResponse(_Base):
     # alone, the plain-words "why this loan first" line.
     payoff_order_method: Optional[str] = None
     payoff_order_note: Optional[str] = None
+    # Gap borrowing (grill #38): the yearly rate before GST, whether it is
+    # the user's own card ("your_card") or the country default ("default"),
+    # where the default comes from, and its interest over the plan (already
+    # inside total_interest_paid).
+    gap_rate: Optional[Decimal] = None
+    gap_rate_basis: Optional[str] = None
+    gap_rate_source: Optional[str] = None
+    total_gap_interest: Decimal = D("0")
+    # Live test #16: when this month is short, the same plan with the gap
+    # closed (spending cut by this month's shortfall), so the headline can
+    # say "<date> if the ₹X gap closes" beside the as-things-stand date.
+    gap_closed: Optional[GapClosedOut] = None
 
 
 class BaselineRequest(_In):
@@ -919,6 +950,7 @@ class BaselineRequest(_In):
     # Planned rate resets, so the minimums-only comparison sees the same
     # rates as the plan it is compared with.
     lifecycle_events: list[LifecycleEventIn] = Field(default_factory=list, max_length=500)
+    gap_as_debt: bool = True
 
 
 class CompareRequest(_In):
@@ -951,6 +983,10 @@ class CompareRequest(_In):
     alt_strategy: Optional[Strategy] = None
     lump_sum_amount: Optional[Amount] = None
     lump_sum_target_loan_index: Optional[LoanIndex] = None
+    # Live test #26: one loan re-amortised over this many more months.
+    tenure_extension_loan_index: Optional[LoanIndex] = None
+    tenure_extension_months: Optional[Annotated[int, Field(ge=1, le=MAX_MONTHS)]] = None
+    gap_as_debt: bool = True
 
     @model_validator(mode="after")
     def _valid_spending_cut(self) -> "CompareRequest":
@@ -970,6 +1006,15 @@ class CompareResponse(_Base):
     # Total interest on each side, for a before/after picture.
     baseline_total_interest: Optional[Decimal] = None
     scenario_total_interest: Optional[Decimal] = None
+    # This month's cash gap on each side (0 when covered), so a what-if
+    # that closes it can say so (live test #26).
+    baseline_shortfall: Optional[Decimal] = None
+    scenario_shortfall: Optional[Decimal] = None
+    # Tenure what-if only: the loan's EMI and remaining months before and after.
+    tenure_old_emi: Optional[Decimal] = None
+    tenure_new_emi: Optional[Decimal] = None
+    tenure_old_months: Optional[int] = None
+    tenure_new_months: Optional[int] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────

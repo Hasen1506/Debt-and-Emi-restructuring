@@ -466,6 +466,14 @@ export interface TrajectoryPointRaw {
   extra_paid?: string;
   /** Income short of costs plus minimums this month ('0' when covered). */
   shortfall?: string;
+  /** Gap borrowing (grill #38), user's currency: owed at the month's end,
+   *  this month's interest on it, borrowed / repaid this month, and the
+   *  part of the gap the emergency fund covered. */
+  gap_debt?: string;
+  gap_interest?: string;
+  gap_borrowed?: string;
+  gap_repaid?: string;
+  gap_from_savings?: string;
 }
 
 export interface GoalContributionRaw {
@@ -558,6 +566,15 @@ export interface SimulateResponse {
    *  above), and plain words when a fee changed the order. */
   payoff_order_method?: 'exact' | 'local' | null;
   payoff_order_note?: string | null;
+  /** Grill #38: the yearly rate a short month is borrowed at (before GST),
+   *  'your_card' or 'default', where the default comes from, and the
+   *  interest on it over the plan (inside total_interest_paid). */
+  gap_rate?: string | null;
+  gap_rate_basis?: 'your_card' | 'default' | null;
+  gap_rate_source?: string | null;
+  total_gap_interest?: string;
+  /** Live test #16: this plan with this month's gap closed. */
+  gap_closed?: { cut: string; debt_free_month: number | null; total_interest_paid: string } | null;
 }
 
 export interface CompareResponse {
@@ -569,6 +586,14 @@ export interface CompareResponse {
   /** Total interest on each side (plan, and plan with the change). */
   baseline_total_interest?: string | null;
   scenario_total_interest?: string | null;
+  /** This month's cash gap on each side ('0' when covered). */
+  baseline_shortfall?: string | null;
+  scenario_shortfall?: string | null;
+  /** Tenure what-if (live test #26): the loan's EMI and months, before and after. */
+  tenure_old_emi?: string | null;
+  tenure_new_emi?: string | null;
+  tenure_old_months?: number | null;
+  tenure_new_months?: number | null;
 }
 
 export interface NewDebtResponse {
@@ -1304,6 +1329,9 @@ export const api = {
     alt_strategy?: Strategy;
     lump_sum_amount?: string;
     lump_sum_target_loan_index?: number;
+    /** Live test #26: re-amortise this loan over this many more months. */
+    tenure_extension_loan_index?: number;
+    tenure_extension_months?: number;
     /** Calendar month (1-12) corresponding to sim month 1. */
     simulation_start_month?: number;
   }) => post<CompareResponse>('/api/sensitivity/compare', req),

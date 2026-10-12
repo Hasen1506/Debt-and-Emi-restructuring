@@ -15,6 +15,7 @@ interface MonthBucket {
   byCcy: Record<string, number>;
   byLoanIndex: Record<string, number>;
   interest: number;
+  gapDebt: number;
 }
 
 export function mergeTrajectories(
@@ -49,6 +50,8 @@ export function mergeTrajectories(
       // against the minimums baseline.
       balancesByLoanIndex: aPt?.byLoanIndex,
       interest: aPt?.interest ?? 0,
+      // Only when something was borrowed: most plans never are.
+      ...((aPt?.gapDebt || mPt?.gapDebt) ? { gapDebt: aPt?.gapDebt ?? 0, minimumsGapDebt: mPt?.gapDebt ?? 0 } : {}),
     });
   }
   return points;
@@ -72,6 +75,7 @@ function byMonth(rows: TrajectoryPointRaw[]): Map<number, MonthBucket> {
       byCcy,
       byLoanIndex,
       interest: Number(r.interest_paid) || 0,
+      gapDebt: Number(r.gap_debt) || 0,
     });
   }
   return out;

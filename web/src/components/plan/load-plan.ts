@@ -54,6 +54,7 @@ import {
 } from '@/lib/activity-cookie';
 import { PACE_MONTHS, monthsBefore, paceDiffers, paceProjectionGap, paceSummary } from '@/lib/pace';
 import { mergeTrajectories } from '@/lib/trajectory';
+import { planGap } from '@/lib/plan-gap';
 import { mockTrajectory } from '@/lib/mock-data';
 import { deriveMetrics } from '@/lib/derived';
 import { projectionGaps } from '@/lib/loan-gaps';
@@ -685,6 +686,7 @@ export async function loadPlan(
         const row=scenario.trajectory.find(p=>p.month>1 && Number(p.shortfall)>0);
         return row ? {month:row.month,amount:Number(row.shortfall)} : undefined;
       })(),
+      gap: planGap(scenario),
       gaps: [],
     };
   } catch {

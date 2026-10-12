@@ -20,6 +20,7 @@ import { resetDate } from '@/lib/rate-decision';
 import { ADD_LIFE_EVENT } from '@/components/lifecycle/LifecycleEventsPanel';
 import { GST_RATE_IN } from '@/lib/gst';
 import { reconcileSchedule, scheduleColumnHelp } from '@/lib/schedule-reconcile';
+import { gapEvents, gapRateWords } from '@/lib/plan-gap';
 
 const LOAN_SHORT: Record<string, string> = {
   home_loan: 'Home',
@@ -114,7 +115,9 @@ function scheduleEvents(plan: PlanData, short: boolean): Map<number, string[]> {
   for (const c of loanClears(plan)) clearsByMonth.set(c.month, [...(clearsByMonth.get(c.month) ?? []), c.name]);
   for (const [m, names] of clearsByMonth) {
     const what = `${names.join(' + ').toUpperCase()} PAID OFF`;
-    add(m, !short && m === plan.debtFreeMonth ? `★ DEBT-FREE · ${what}` : `★ ${what}`);
+    // Short, the schedule's date is "as things stand" (gap borrowed), and
+    // says so, so it can't read as a different story from the headline (#16).
+    add(m, m === plan.debtFreeMonth ? `★ DEBT-FREE${short ? ' AS THINGS STAND' : ''} · ${what}` : `★ ${what}`);
   }
   loans.forEach((l) => {
     if (isOpenCurrentLoan(l) && l.rate_type === 'floating' && l.next_reset_month) add(l.next_reset_month, `⊕ ${loanName(l).toUpperCase()} RATE RESETS`);
@@ -126,6 +129,12 @@ function scheduleEvents(plan: PlanData, short: boolean): Map<number, string[]> {
     } else if (e.kind === 'salary_reset') {
       add(e.effective_month, '⊙ PAY CHANGES');
     }
+  }
+  // Live test #15: say when a short month is borrowed and when it is paid
+  // back, so an extra in a later month never appears from nowhere.
+  if (plan.gap) {
+    const money = (v: number) => formatCurrencyWhole(Math.round(v), plan.displayCurrency);
+    for (const [m, e] of gapEvents(plan.gap, money, gapRateWords(plan.gap.rate))) add(m, e);
   }
   const last = plan.monthlyPayments.at(-1)?.month ?? 0;
   for (let m = 12; m < last; m += 12) {
@@ -198,6 +207,13 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
     [`TOTAL (${ccy})`]: 'Everything paid that month (principal + interest), in your currency.',
   };
 
+  // Gap borrowing (grill #38): a column only when the plan ever borrows.
+  const gapMonths = plan.gap?.months ?? {};
+  const showGap = Object.keys(gapMonths).length > 0;
+  if (showGap) {
+    help['GAP OWED'] =
+      'Short months are paid from your emergency fund, then borrowed on a card; this is what is owed on that borrowing at the month’s end. Spare cash pays it back before any loan gets extra.';
+  }
   const eventRows = rows.filter((r) => r.event);
   const visibleRows = expanded ? rows : eventRows;
   const totalCount = rows.length || plan.trajectory.length;
@@ -233,7 +249,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
           </span>
         }
       >
-        MONTH BY MONTH ·{' '}
+        MONTH BY MONTH{short ? ' · AS THINGS STAND' : ''} ·{' '}
         {expanded ? `${totalCount} MO` : `${eventRows.length} EVENT${eventRows.length === 1 ? '' : 'S'}`}
       </LSectionHeader>
       {visibleRows.length === 0 ? (
@@ -296,6 +312,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                   'INTEREST',
                   'PRINCIPAL',
                   'BALANCE',
+                  ...(showGap ? ['GAP OWED'] : []),
                 ].map((h, i) => (
                   <th
                     key={i}
@@ -333,6 +350,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                 {mixed && <td />}
                 <td colSpan={3} />
                 <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>{fc(owedToday.toFixed(0))}</td>
+                {showGap && <td style={{ padding: '7px 10px', textAlign: 'right' }}>—</td>}
               </tr>
               {visibleRows.map((r) => (
                 <tr
@@ -365,6 +383,16 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                   <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.negative }}>{fc(r.interest.toFixed(0))}</td>
                   <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.positive }}>{fc(r.principal.toFixed(0))}</td>
                   <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>{fc(r.balance.toFixed(0))}</td>
+                  {showGap && (
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.negative, whiteSpace: 'nowrap' }}>
+                      {gapMonths[r.mo]?.debt ? fc(gapMonths[r.mo].debt.toFixed(0)) : '—'}
+                      {gapMonths[r.mo]?.repaid ? (
+                        <div style={{ fontSize: 9, letterSpacing: '0.06em', color: L_T.positive }}>
+                          {fc(gapMonths[r.mo].repaid.toFixed(0))} REPAID
+                        </div>
+                      ) : null}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
