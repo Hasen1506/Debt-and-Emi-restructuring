@@ -81,7 +81,7 @@ test('Home and Plan rank and show loans by that cost: the dearest flag is the av
   assert.equal(m.loudest.index, payoffOrders(user, '0.3').avalanche[0]);
   assert.equal(m.loudest.index, 1);
   assert.equal(m.loans[1].effective.toFixed(4), m.loans[1].cost.annualCost.toFixed(4));
-  for (const f of ['components/home/OpenPositions.tsx', 'components/plan/PlanNotes.tsx', 'components/WhatIfPanel.tsx', 'app/tools/liquidate/PortfolioRanker.tsx']) {
+  for (const f of ['components/home/OpenPositions.tsx', 'components/plan/PlanNotes.tsx', 'components/WhatIfPanel.tsx']) {
     assert.doesNotMatch(src_(f), /computeBreakdown\([^)]*\)\.effective|b\.effective|\{ effective \} = computeBreakdown/, f);
   }
 });

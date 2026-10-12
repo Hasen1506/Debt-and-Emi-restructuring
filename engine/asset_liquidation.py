@@ -60,9 +60,34 @@ EQUITY_BROKERAGE = D("0.001")              # 0.1% discount broker
 GOLD_LT_HOLD_DAYS = 730                    # 24 months
 GOLD_TRANSACTION_COST = D("0.03")          # 3% blended (jewelry-loss / bullion-spread)
 
+# ─── Gold ETF (sprint G10) ────────────────────────────────────────────────────
+# A gold ETF's units are listed on a stock exchange, so they are long-term
+# after 12 months (Income-tax Act 2025 s.2(101)(b)(i); 1961 Act s.2(42A)),
+# not the 24 months that physical gold needs. Long-term gains: 12.5% with no
+# indexation (2025 Act s.197; 1961 Act s.112). Not an equity-oriented fund,
+# so no ₹1.25 lakh exemption and no STT. Selling cost: brokerage only.
+# Source: https://www.incometaxindia.gov.in/documents/d/guest/income_tax_act_2025_as_amended_by_fa_act_2026-pdf
+# (as amended by Finance Act 2026; read 2026-10-12).
+GOLD_ETF_LT_HOLD_MONTHS = 12
+GOLD_ETF_SELL_COST = D("0.001")            # 0.1% brokerage, as for shares
+
+# ─── Crypto / virtual digital assets (sprint G10) ─────────────────────────────
+# 30% on the gain, only the cost deductible, no set-off of a loss
+# (2025 Act s.194 Table Sl. No. 4; 1961 Act s.115BBH), plus 4% cess.
+# The 1% TDS on the sale (2025 Act s.393(1) Table Sl. No. 8(vi); 1961 Act
+# s.194S) is credit against this tax, not an extra cost. Same source as above.
+VDA_TAX_RATE = D("0.30")
+
 # ─── Debt MF ──────────────────────────────────────────────────────────────────
 DEBT_MF_EXIT_LOAD = D("0.01")              # 1% if held <1 year
 DEBT_MF_EXIT_LOAD_DAYS = 365
+# Units of a "Specified Mutual Fund" (more than 65% in debt) bought on or after
+# 1 Apr 2023: every gain is short-term, taxed at the slab rate (2025 Act s.76;
+# 1961 Act s.50AA). Units bought before that date are ordinary unlisted units:
+# long-term after 24 months, 12.5% with no indexation on a sale after
+# 23 Jul 2024 (2025 Act s.2(101)(a), s.197). Same source as above.
+SPECIFIED_MF_CUTOFF = date(2023, 4, 1)
+DEBT_MF_LT_HOLD_MONTHS = 24
 
 # ─── FD ───────────────────────────────────────────────────────────────────────
 FD_DEFAULT_PENALTY_PCT = D("0.01")         # 1% penalty on current balance
@@ -520,9 +545,12 @@ def _proceeds_equity(
 
 
 def _proceeds_debt_mf(
-    asset: Asset, today: date, marginal_rate: Decimal
+    asset: Asset, today: date, marginal_rate: Decimal, taxable_income: Decimal = D("1200000"),
 ) -> ProceedsResult:
-    """Debt MF (post-Apr-2023 units) — entire gain at slab; 1% exit load if <1yr."""
+    """Debt MF. Units bought on or after 1 Apr 2023: the whole gain at the slab
+    rate (2025 Act s.76 / 1961 Act s.50AA). Units bought before: long-term after
+    24 months at 12.5% without indexation, short-term at the slab rate. 1% exit
+    load if held under a year."""
     val = asset.current_market_value
     days_held = _holding_days(asset, today)
     exit_load = (
@@ -530,9 +558,25 @@ def _proceeds_debt_mf(
     )
     gross = val - exit_load
     gain = max(D("0"), gross - asset.purchase_price)
-    # `marginal_rate` already includes surcharge and cess (it's the rate
-    # the profile saves from engine.tax.india.marginal_rate).
-    tax = gain * marginal_rate
+    specified = asset.purchase_date >= SPECIFIED_MF_CUTOFF
+    long_term = (not specified) and held_more_than_months(asset.purchase_date, today, DEBT_MF_LT_HOLD_MONTHS)
+    if long_term:
+        surcharge = min(surcharge_rate(taxable_income, is_ltcg=True), LTCG_SURCHARGE_CAP)
+        tax = gain * LTCG_FLAT_RATE_POST_2024 * (D("1") + surcharge) * (D("1") + CESS_RATE)
+        how = (
+            f"bought before 1 Apr 2023 and held over 24 months, so a long-term "
+            f"gain at 12.5% with no indexation"
+        )
+    else:
+        # `marginal_rate` already includes surcharge and cess (it's the rate
+        # the profile saves from engine.tax.india.marginal_rate).
+        tax = gain * marginal_rate
+        how = (
+            f"bought on or after 1 Apr 2023, so taxed at your slab rate "
+            f"{marginal_rate*100:.1f}% however long it's held"
+            if specified
+            else f"held 24 months or less, so taxed at your slab rate {marginal_rate*100:.1f}%"
+        )
 
     return ProceedsResult(
         asset_label=asset.label or "Debt mutual fund",
@@ -543,12 +587,78 @@ def _proceeds_debt_mf(
         transaction_costs=D("0"),
         net_proceeds=gross - tax,
         explanation=(
-            f"Redeem {_inr(val)} of debt MF. Gain {_inr(gain)} taxed at your "
-            f"slab rate {marginal_rate*100:.1f}% (post-Apr-2023 units lose "
-            f"indexation) → ~{_inr(tax)}."
+            f"Redeem {_inr(val)} of debt MF. Gain {_inr(gain)}: {how} → ~{_inr(tax)}."
             + (f" Plus 1% exit load ({_inr(exit_load)}) for <1yr hold."
                if exit_load > 0 else "")
         ),
+        caveats=[
+            "A fund with more than 65% in debt counts as a debt fund here; a "
+            "hybrid fund may be taxed differently. Check your fund's factsheet."
+        ],
+    )
+
+
+def _proceeds_gold_etf(
+    asset: Asset, today: date, taxable_income: Decimal, marginal_rate: Decimal
+) -> ProceedsResult:
+    """Gold ETF (listed units): long-term after 12 months at 12.5%, else slab."""
+    val = asset.current_market_value
+    is_lt = held_more_than_months(asset.purchase_date, today, GOLD_ETF_LT_HOLD_MONTHS)
+    transaction_costs = val * _sell_cost(asset, GOLD_ETF_SELL_COST)
+    gross = val - transaction_costs
+    gain = max(D("0"), gross - asset.purchase_price)
+    if is_lt:
+        surcharge = min(surcharge_rate(taxable_income, is_ltcg=True), LTCG_SURCHARGE_CAP)
+        tax = gain * LTCG_FLAT_RATE_POST_2024 * (D("1") + surcharge) * (D("1") + CESS_RATE)
+        rate_used = "12.5% (long-term: listed units held over 12 months)"
+    else:
+        tax = gain * marginal_rate
+        rate_used = f"your slab rate {marginal_rate*100:.1f}% (short-term)"
+    return ProceedsResult(
+        asset_label=asset.label or "Gold ETF",
+        asset_type=asset.asset_type,
+        gross_proceeds=gross,
+        tax_owed=tax,
+        penalty=D("0"),
+        transaction_costs=transaction_costs,
+        net_proceeds=gross - tax,
+        explanation=(
+            f"Sell {_inr(val)} of gold ETF units. Gain {_inr(gain)} taxed at "
+            f"{rate_used} → ~{_inr(tax)}."
+        ),
+        caveats=[
+            "A gold mutual fund (not exchange-listed) is long-term only after "
+            "24 months: pick Gold, physical, for one."
+        ],
+    )
+
+
+def _proceeds_vda(asset: Asset, taxable_income: Decimal) -> ProceedsResult:
+    """Crypto / virtual digital asset: 30% + cess on the gain, cost only."""
+    val = asset.current_market_value
+    transaction_costs = val * _sell_cost(asset, D("0"))
+    gross = val - transaction_costs
+    # Only the cost of acquisition is deductible: selling costs don't reduce
+    # the taxed gain (2025 Act s.194 Table Sl. No. 4, column E).
+    gain = max(D("0"), val - asset.purchase_price)
+    tax = gain * VDA_TAX_RATE * (D("1") + CESS_RATE)
+    return ProceedsResult(
+        asset_label=asset.label or "Crypto",
+        asset_type=asset.asset_type,
+        gross_proceeds=gross,
+        tax_owed=tax,
+        penalty=D("0"),
+        transaction_costs=transaction_costs,
+        net_proceeds=gross - tax,
+        explanation=(
+            f"Sell {_inr(val)} of crypto. Gain {_inr(gain)} taxed at 30% plus 4% "
+            f"cess however long it was held → ~{_inr(tax)}."
+        ),
+        caveats=[
+            "A loss can't be set off against any other income or carried forward.",
+            "1% TDS is deducted on the sale; it counts towards this tax, it isn't extra.",
+            "Surcharge isn't included: it applies only above ₹50 lakh of income.",
+        ],
     )
 
 
@@ -1150,8 +1260,15 @@ def _compute_liquidation_proceeds_us(
         return _proceeds_us_debt_fund(
             asset, today, taxable_income, filing_status, state_marginal_rate,
         )
-    if at == "gold_physical":
+    if at in ("gold_physical", "gold_etf"):
+        # GLD-type ETFs are grantor trusts holding bullion: collectibles too.
         return _proceeds_us_gold(
+            asset, today, taxable_income, filing_status, state_marginal_rate,
+        )
+    if at == "crypto":
+        # The IRS treats digital assets as property: ordinary capital-gains
+        # rules, long-term after a year (https://www.irs.gov/filing/digital-assets).
+        return _proceeds_us_equity(
             asset, today, taxable_income, filing_status, state_marginal_rate,
         )
     if at == "real_estate":
@@ -1218,9 +1335,13 @@ def compute_liquidation_proceeds(
     if at in ("equity_stocks", "equity_mf"):
         return _proceeds_equity(asset, today, taxable_income)
     if at == "debt_mf":
-        return _proceeds_debt_mf(asset, today, marginal_rate)
+        return _proceeds_debt_mf(asset, today, marginal_rate, taxable_income)
     if at == "gold_physical":
         return _proceeds_gold(asset, today, taxable_income, marginal_rate)
+    if at == "gold_etf":
+        return _proceeds_gold_etf(asset, today, taxable_income, marginal_rate)
+    if at == "crypto":
+        return _proceeds_vda(asset, taxable_income)
     if at == "sgb":
         return _proceeds_sgb(asset, today, taxable_income, marginal_rate)
     if at == "real_estate":

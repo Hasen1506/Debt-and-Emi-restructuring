@@ -102,19 +102,24 @@ def evaluate_cross_border(inp: CrossBorderInputs) -> CrossBorderVerdict:
 
 
 # How fast the rupee has lost value against each currency, a year, over
-# the 20 years to September 2026, rounded to half a point. Rupees per unit
-# rose roughly: USD 46 → 88-94, EUR 58 → ~110, GBP 86 → ~130, AUD 35 → ~68,
-# CAD 41 → ~68, SGD 29 → ~74 (RBI reference rates; FRED DEXINUS; the
-# Nepal rupee's fixed 1.6 peg for the September 2026 cross rates). The
-# dirham is pegged to the dollar (3.6725 since 1997), so it moves with it.
+# the 20 years to October 2026, compounded and rounded to the nearest half
+# point. Rupees per unit, ECB reference rates (https://api.frankfurter.dev,
+# 1 Sep 2006 → 9 Oct 2026, read 2026-10-12 for sprint G10):
+#   USD 46.45 → 96.73 (3.7%/yr)   EUR 59.53 → 108.40 (3.0%)
+#   GBP 88.48 → 127.89 (1.9%)     AUD 35.54 → 67.53 (3.2%)
+#   CAD 42.03 → 68.00 (2.4%)      SGD 29.55 → 75.55 (4.8%)
+# The dirham is pegged to the dollar (3.6725 since 1997), so it moves with it.
+# Update rule: re-read both ends and re-round once a year (the 20-year
+# window moves slowly; a single year's swing shouldn't move the default).
+# USD and AED were 3.0% and SGD 4.5% before this check.
 INR_SLIDE_A_YEAR: dict[str, Decimal] = {
-    "USD": D("0.030"),
-    "AED": D("0.030"),
+    "USD": D("0.035"),
+    "AED": D("0.035"),
     "EUR": D("0.030"),
     "GBP": D("0.020"),
     "AUD": D("0.030"),
     "CAD": D("0.025"),
-    "SGD": D("0.045"),
+    "SGD": D("0.050"),
 }
 
 

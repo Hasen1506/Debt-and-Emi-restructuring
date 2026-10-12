@@ -3419,7 +3419,7 @@ function EfTierPicker({
 
   const tiers = [
     { id: 'lean' as const, label: 'Lean', months: 3, descr: '3 months of expenses' },
-    { id: 'std' as const, label: 'Standard', months: 6, descr: '6 months — recommended' },
+    { id: 'std' as const, label: 'Standard', months: 6, descr: '6 months of expenses' },
     { id: 'cons' as const, label: 'Conservative', months: 9, descr: '9 months — high risk or dependents' },
     ...(ownMonths !== 3 && ownMonths !== 6 && ownMonths !== 9
       ? [{ id: 'own' as const, label: 'Yours', months: ownMonths, descr: `${ownMonths} months, as set in Assumptions` }]

@@ -59,8 +59,9 @@ def test_emi_grows_over_5y_when_loan_currency_strengthens():
 
 
 def test_historical_drift_inr_usd_pair():
-    assert historical_drift_default("INR", "USD") == D("-0.030")
-    assert historical_drift_default("USD", "INR") == D("0.030")
+    # Re-checked for sprint G10: 46.45 → 96.73 rupees a dollar, 2006 → 2026.
+    assert historical_drift_default("INR", "USD") == D("-0.035")
+    assert historical_drift_default("USD", "INR") == D("0.035")
     assert historical_drift_default("EUR", "GBP") == D("0")     # unknown pair → 0
 
 

@@ -18,16 +18,16 @@ def test_cross_border_with_manual_fx_prepay_verdict(client):
         "loan_tenure_months": 180,
         "loan_currency": "INR",
         "user_currency": "USD",
-        "user_savings_yield": "0.05",
+        "user_savings_yield": "0.045",   # at -3.5% drift the loan costs 4.70% in USD
         "user_marginal_tax": "0.24",
         "manual_fx_rate": "0.012",
-        # uses historical default INR→USD drift = -0.030
+        # uses historical default INR→USD drift = -0.035 (re-checked in sprint G10)
     })
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["verdict"] == "prepay"
     assert D(body["fx_rate_used"]) == D("0.012")
-    assert D(body["fx_drift_used"]) == D("-0.030")
+    assert D(body["fx_drift_used"]) == D("-0.035")
     # EMI in 5y should be lower (INR depreciates → cheaper in USD)
     assert D(body["loan_emi_user_currency_y5"]) < D(body["loan_emi_user_currency"])
 

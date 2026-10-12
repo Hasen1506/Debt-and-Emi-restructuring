@@ -23,17 +23,17 @@ export const DEFAULT_EF_MONTHS = 6;
 export const DEFAULT_ASSET_RETURNS: Record<Country, Partial<Record<AssetType, number>>> = {
   IN: {
     savings_balance: 0.035, fixed_deposit: 0.0625, equity_stocks: 0.12, equity_mf: 0.11, debt_mf: 0.07,
-    gold_physical: 0.08, sgb: 0.08, real_estate: 0.07, ppf: 0.071, epf: 0.0825, nps: 0.09, other: 0.06,
+    gold_physical: 0.08, gold_etf: 0.08, sgb: 0.08, real_estate: 0.07, ppf: 0.071, epf: 0.0825, nps: 0.09, other: 0.06,
   },
   US: {
     savings_balance: 0.04, fixed_deposit: 0.045, equity_stocks: 0.10, equity_mf: 0.09, debt_mf: 0.05,
-    gold_physical: 0.07, real_estate: 0.06, ppf: 0, epf: 0, nps: 0, sgb: 0, other: 0.05,
+    gold_physical: 0.07, gold_etf: 0.07, real_estate: 0.06, ppf: 0, epf: 0, nps: 0, sgb: 0, other: 0.05,
   },
 };
 
 /** engine/asset_liquidation.py selling-cost defaults, by asset type and country. */
 export const DEFAULT_LIQUIDATION_COSTS: Record<Country, Partial<Record<AssetType, number>>> = {
-  IN: { equity_stocks: 0.002, equity_mf: 0.002, gold_physical: 0.03, sgb: 0.005, debt_mf: 0.01 },
+  IN: { equity_stocks: 0.002, equity_mf: 0.002, gold_physical: 0.03, gold_etf: 0.001, sgb: 0.005, debt_mf: 0.01 },
   US: { equity_stocks: 0.001, equity_mf: 0.001, debt_mf: 0.001, gold_physical: 0.03 },
 };
 
@@ -49,6 +49,11 @@ export interface UiAssumptions {
   ef_months?: number | null;
   ef_save_amount?: string | null;
   goal_buffer_pct?: string | null;
+  /** Choices the person made themselves at setup (lib/setup-choices,
+   *  sprint G10): 'ef_months', 'ef_split', 'strategy'. */
+  confirmed?: string[];
+  /** When they last made them, 'YYYY-MM-DD'. */
+  confirmed_at?: string;
 }
 
 type WithAssumptions = Pick<UserPayload, 'country'> & {

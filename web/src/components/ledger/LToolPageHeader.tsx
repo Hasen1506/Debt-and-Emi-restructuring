@@ -11,7 +11,7 @@
  *
  * The hero question is taken from `TOOLS` metadata. Tool body components
  * still own their INPUT/VERDICT/MATH blocks — this only fixes the
- * top-of-page chrome so all nine tools share the same masthead.
+ * top-of-page chrome so all six tools share the same masthead.
  */
 
 import { TOOLS } from '@/lib/tools';

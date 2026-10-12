@@ -233,7 +233,7 @@ export function ProfileSummary({
                   {money(held)} <Muted>· {assets.length} holding{assets.length > 1 ? 's' : ''}</Muted>
                 </>
               ) : (
-                <Muted>None entered. Add them to see whether selling one beats keeping a loan.</Muted>
+                <Muted>None entered. Add them on Portfolio.</Muted>
               ),
             ],
           ]}

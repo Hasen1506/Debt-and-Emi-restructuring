@@ -169,6 +169,7 @@ ASSET_DEFAULT_RETURNS_IN = {
     "equity_mf":       D("0.11"),
     "debt_mf":         D("0.07"),
     "gold_physical":   D("0.08"),
+    "gold_etf":        D("0.08"),     # same gold as gold_physical, listed units
     "sgb":             D("0.08"),     # excludes 2.5% semi-annual coupon (added separately if needed)
     "real_estate":     D("0.07"),
     "ppf":             D("0.071"),    # April 2026 notified rate; tax-free
@@ -184,6 +185,7 @@ ASSET_DEFAULT_RETURNS_US = {
     "equity_mf":       D("0.09"),
     "debt_mf":         D("0.05"),
     "gold_physical":   D("0.07"),
+    "gold_etf":        D("0.07"),     # same gold as gold_physical
     "real_estate":     D("0.06"),
     "ppf":             D("0"),         # n/a
     "epf":             D("0"),         # n/a

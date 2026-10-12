@@ -13,11 +13,13 @@ export const ASSET_TYPE_LABEL_IN: Record<AssetType, string> = {
   equity_mf: 'Equity MF',
   debt_mf: 'Debt MF',
   gold_physical: 'Gold',
+  gold_etf: 'Gold ETF',
   sgb: 'Sovereign Gold Bond',
   real_estate: 'Real estate',
   ppf: 'PPF',
   epf: 'EPF',
   nps: 'NPS',
+  crypto: 'Crypto',
   other: 'Other',
 };
 
@@ -28,11 +30,13 @@ export const ASSET_TYPE_LABEL_US: Record<AssetType, string> = {
   equity_mf: 'Equity MF / ETF',
   debt_mf: 'Bond fund',
   gold_physical: 'Gold',
+  gold_etf: 'Gold ETF',
   sgb: 'SGB',
   real_estate: 'Real estate',
   ppf: 'PPF',
   epf: '401(k) / IRA',
   nps: 'NPS',
+  crypto: 'Crypto',
   other: 'Other',
 };
 

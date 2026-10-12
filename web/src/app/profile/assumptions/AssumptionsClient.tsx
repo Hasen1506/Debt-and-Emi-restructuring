@@ -24,7 +24,7 @@ import { LBracket, L_T } from '@/components/ledger/primitives';
 
 const TYPE_LABEL: Record<string, string> = {
   savings_balance: 'Savings', fixed_deposit: 'Fixed deposit / CD', equity_stocks: 'Shares', equity_mf: 'Equity funds',
-  debt_mf: 'Debt funds', gold_physical: 'Gold', sgb: 'Sovereign Gold Bond', real_estate: 'Property', ppf: 'PPF', epf: 'EPF',
+  debt_mf: 'Debt funds', gold_physical: 'Gold', gold_etf: 'Gold ETF', crypto: 'Crypto', sgb: 'Sovereign Gold Bond', real_estate: 'Property', ppf: 'PPF', epf: 'EPF',
   nps: 'NPS', other: 'Other',
 };
 const pct = (f: string | number | null | undefined) => (f == null || f === '' ? '' : String(Number((Number(f) * 100).toFixed(4))));

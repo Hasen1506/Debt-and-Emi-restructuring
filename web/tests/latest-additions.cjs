@@ -17,9 +17,9 @@ test('editing assets retains tracked holdings and a failed save keeps the user o
   const file=path.join(root,'app/profile/assets/page.tsx');delete require.cache[require.resolve(file)];const Page=require(file).default;
   const render=()=>{index=0;return Page()};render();effects.splice(0).forEach(fn=>fn());let tree=render();
   function flatten(node){return Array.isArray(node)?node.flatMap(flatten):node&&typeof node==='object'?[node,...flatten(node.props?.children)]:[]}
-  const save=flatten(tree).find(n=>n.type==='button'&&n.props.children==='SAVE · OPEN LIQUIDATE');assert.ok(save);save.props.onClick();
+  const save=flatten(tree).find(n=>n.type==='button'&&n.props.children==='SAVE · BACK TO PORTFOLIO');assert.ok(save);save.props.onClick();
   assert.deepEqual(saved.user.assets[0],asset);assert.deepEqual(pushes,[]);tree=render();assert.ok(flatten(tree).some(n=>n.props?.role==='alert'));
-  allowSave=true;flatten(tree).find(n=>n.type==='button'&&n.props.children==='SAVE · OPEN LIQUIDATE').props.onClick();assert.deepEqual(pushes,['/tools/liquidate']);
+  allowSave=true;flatten(tree).find(n=>n.type==='button'&&n.props.children==='SAVE · BACK TO PORTFOLIO').props.onClick();assert.deepEqual(pushes,['/portfolio']);
  }finally{Module._load=load}
 });
 

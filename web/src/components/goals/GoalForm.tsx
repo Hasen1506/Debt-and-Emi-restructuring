@@ -74,6 +74,9 @@ export function GoalForm({
   const editing = !!initial;
   const [goal, setGoal] = useState<Goal>(() => initial ?? { ...blankGoal('downpayment'), targetMonth: '' });
   const [labelTouched, setLabelTouched] = useState(editing);
+  // How a new goal is funded is the person's call (sprint G10, grill #22):
+  // no rule is picked for them, and the share of spare cash starts blank.
+  const [fundingPicked, setFundingPicked] = useState(editing);
   // A new goal starts with the user's default buffer when they set one.
   useEffect(() => {
     if (!editing) setGoal((g) => ({ ...g, bufferPct: goalBuffer(loadProfileClient().user, g.bufferPct) }));
@@ -113,7 +116,7 @@ export function GoalForm({
         ? 'Pick a month after this one.'
         : null,
     saved: saved && !(Number(saved) >= 0) ? 'Enter an amount, or leave it blank.' : null,
-    funding: fundingRuleError(goal.fundingRule),
+    funding: fundingPicked ? fundingRuleError(goal.fundingRule) : 'Pick how the plan pays into it: debt first, on schedule, a fixed amount or a share of spare cash.',
   };
   const valid = !errors.label && !errors.amount && !errors.targetMonth && !errors.saved && !errors.funding;
   const show = (k: keyof typeof errors) => (tried ? errors[k] : null);
@@ -231,7 +234,16 @@ export function GoalForm({
         </LChip>
       </LChipRow>
 
-      <FundingRulePicker goal={goal} patch={patch} currency={currency} error={show('funding')} />
+      <FundingRulePicker
+        goal={goal}
+        picked={fundingPicked}
+        patch={(p) => {
+          setFundingPicked(true);
+          patch(p);
+        }}
+        currency={currency}
+        error={show('funding')}
+      />
 
       <div>
         <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
@@ -358,7 +370,7 @@ export function monthLabel(ym: string): string {
 
 
 /** 5 · How the plan pays into it (roadmap PR F). Debt first by default. */
-function FundingRulePicker({ goal, patch, currency, error }: { goal: Goal; patch: (p: Partial<Goal>) => void; currency: AmountCurrency; error: string | null }) {
+function FundingRulePicker({ goal, picked, patch, currency, error }: { goal: Goal; picked: boolean; patch: (p: Partial<Goal>) => void; currency: AmountCurrency; error: string | null }) {
   const user = useMemo(() => loadProfileClient().user, []);
   const loans = user.loans ?? [];
   const rule = ruleOf(goal.fundingRule);
@@ -368,35 +380,35 @@ function FundingRulePicker({ goal, patch, currency, error }: { goal: Goal; patch
   return (
     <div>
       <LChipRow label="5 · How to fund it">
-        <LChip on={rule.kind === 'after_debt' && (rule.afterLoanIndex ?? null) === null} onClick={() => set({ kind: 'after_debt', afterLoanIndex: null })}>
+        <LChip on={picked && rule.kind === 'after_debt' && (rule.afterLoanIndex ?? null) === null} onClick={() => set({ kind: 'after_debt', afterLoanIndex: null })}>
           Debt first
         </LChip>
-        <LChip on={rule.kind === 'schedule'} onClick={() => set({ kind: 'schedule' })}>
+        <LChip on={picked && rule.kind === 'schedule'} onClick={() => set({ kind: 'schedule' })}>
           On schedule from now
         </LChip>
-        <LChip on={rule.kind === 'fixed'} onClick={() => set({ kind: 'fixed', amount: rule.amount ?? '' })}>
+        <LChip on={picked && rule.kind === 'fixed'} onClick={() => set({ kind: 'fixed', amount: rule.amount ?? '' })}>
           A fixed amount a month
         </LChip>
-        <LChip on={rule.kind === 'surplus_pct'} onClick={() => set({ kind: 'surplus_pct', pct: rule.pct ?? '0.25' })}>
+        <LChip on={picked && rule.kind === 'surplus_pct'} onClick={() => set({ kind: 'surplus_pct', pct: rule.pct ?? '' })}>
           A share of spare cash
         </LChip>
         {open.length > 0 && (
-          <LChip on={rule.kind === 'after_debt' && typeof rule.afterLoanIndex === 'number'} onClick={() => set({ kind: 'after_debt', afterLoanIndex: open[0].i })}>
+          <LChip on={picked && rule.kind === 'after_debt' && typeof rule.afterLoanIndex === 'number'} onClick={() => set({ kind: 'after_debt', afterLoanIndex: open[0].i })}>
             After a loan is paid off
           </LChip>
         )}
       </LChipRow>
-      {rule.kind === 'fixed' && (
+      {picked && rule.kind === 'fixed' && (
         <Field label="Amount a month" kind="money" currency={currency} value={rule.amount ?? ''} onChange={(v: string) => set({ kind: 'fixed', amount: v })} />
       )}
-      {rule.kind === 'surplus_pct' && (
+      {picked && rule.kind === 'surplus_pct' && (
         <Field
           label="Share of spare cash (%)"
           value={rule.pct ? String(Math.round(Number(rule.pct) * 100)) : ''}
           onChange={(v: string) => set({ kind: 'surplus_pct', pct: v === '' ? '' : String(Number(v) / 100) })}
         />
       )}
-      {rule.kind === 'after_debt' && typeof rule.afterLoanIndex === 'number' && (
+      {picked && rule.kind === 'after_debt' && typeof rule.afterLoanIndex === 'number' && (
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
           Which loan
           <select aria-label="Which loan" value={rule.afterLoanIndex} onChange={(e) => set({ kind: 'after_debt', afterLoanIndex: Number(e.target.value) })}>
@@ -407,7 +419,7 @@ function FundingRulePicker({ goal, patch, currency, error }: { goal: Goal; patch
         </label>
       )}
       <p style={{ fontSize: 11, color: L_T.muted, margin: '6px 0 0' }}>
-        {fundingRuleLabel(rule, loans, user.country, currency)}.
+        {picked ? `${fundingRuleLabel(rule, loans, user.country, currency)}.` : 'Your call: the plan doesn’t pick one for you.'}
         {rule.kind !== 'after_debt' && high.length > 0 && ' Saving before your high-interest debt is paid off costs interest; the goal shows how much once saved.'}
       </p>
       {error && <span role="alert" style={{ fontSize: 11, color: L_T.negative }}>{error}</span>}

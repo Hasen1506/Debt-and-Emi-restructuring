@@ -14,12 +14,16 @@ const ASSET_TYPES_IN: { value: AssetType; label: string }[] = [
   { value: 'equity_stocks',   label: 'Equity stocks (direct)' },
   { value: 'equity_mf',       label: 'Equity mutual fund' },
   { value: 'debt_mf',         label: 'Debt mutual fund' },
-  { value: 'gold_physical',   label: 'Gold (physical / ETF)' },
+  // Physical gold and gold ETFs are taxed differently: an ETF's listed
+  // units are long-term after 12 months, physical gold after 24 (sprint G10).
+  { value: 'gold_physical',   label: 'Gold (physical, or a gold mutual fund)' },
+  { value: 'gold_etf',        label: 'Gold ETF (exchange-listed)' },
   { value: 'sgb',             label: 'Sovereign Gold Bond (SGB)' },
   { value: 'real_estate',     label: 'Real estate' },
   { value: 'ppf',             label: 'PPF' },
   { value: 'epf',             label: 'EPF' },
   { value: 'nps',             label: 'NPS' },
+  { value: 'crypto',          label: 'Crypto (virtual digital asset)' },
   { value: 'other',           label: 'Other' },
 ];
 
@@ -29,9 +33,11 @@ const ASSET_TYPES_US: { value: AssetType; label: string }[] = [
   { value: 'equity_stocks',   label: 'Equity stocks (direct)' },
   { value: 'equity_mf',       label: 'Equity mutual fund / ETF' },
   { value: 'debt_mf',         label: 'Bond fund' },
-  { value: 'gold_physical',   label: 'Gold (physical / ETF)' },
+  { value: 'gold_physical',   label: 'Gold (physical)' },
+  { value: 'gold_etf',        label: 'Gold ETF (e.g. a bullion trust)' },
   { value: 'real_estate',     label: 'Real estate' },
   { value: 'epf',             label: '401(k) / IRA  (blocked but trackable)' },
+  { value: 'crypto',          label: 'Crypto (digital asset)' },
   { value: 'other',           label: 'Other' },
 ];
 
@@ -139,7 +145,7 @@ export default function OnboardingAssetsPage() {
       setSaveError('Your assets could not be saved. Your previous saved assets are still available. Try again before continuing.');
       return;
     }
-    router.push('/tools/liquidate');
+    router.push('/portfolio');
   }
 
   const choices = country === 'US' ? ASSET_TYPES_US : ASSET_TYPES_IN;
@@ -148,10 +154,11 @@ export default function OnboardingAssetsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <section>
-        <h1 className="h1">ADD YOUR ASSETS</h1>
+        <h1 className="h1">PORTFOLIO · ADD WHAT YOU OWN</h1>
         <p className="muted">
-          Optional. Liquidate uses these to rank which asset to sell for which debt, after tax and lock-ins. Skip
-          this to try one asset against one loan in the tool instead.
+          Optional. These show on Portfolio, and the Sell to repay calculator can fill in a sale from any of them.
+          Each kind is taxed by its own rule when sold (a gold ETF is long-term after 12 months, physical gold after
+          24), so pick the closest kind.
         </p>
         {saveError && <p role="alert" style={{ color: 'var(--negative)' }}>{saveError}</p>}
         {!isLive && (
@@ -373,7 +380,7 @@ export default function OnboardingAssetsPage() {
 
       <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
         <button
-          onClick={() => router.push('/tools/liquidate')}
+          onClick={() => router.push('/portfolio')}
           style={{
             padding: '8px 12px', borderRadius: 6,
             border: '1px solid var(--border)', background: 'transparent',
@@ -387,7 +394,7 @@ export default function OnboardingAssetsPage() {
           className="btn btn-primary"
           style={{ padding: '8px 14px' }}
         >
-          SAVE · OPEN LIQUIDATE
+          SAVE · BACK TO PORTFOLIO
         </button>
       </div>
     </div>

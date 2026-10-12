@@ -55,6 +55,10 @@ export interface LoanPayload {
    *  entries name their loan by it, so removing another loan can't move
    *  their payments. The API ignores it. */
   id?: string;
+  /** Fields the person said "I don't know" to at setup, filled with a
+   *  labelled estimate (lib/setup-estimates, sprint G10). Client-only;
+   *  the API ignores it. */
+  estimated_fields?: string[];
   /** Display metadata for an upcoming lifecycle loan; never persisted to the profile. */
   planned_effective_month?: number;
   /** The lender's UPI ID for repayments, entered by the user (roadmap PR H,
@@ -368,7 +372,7 @@ export interface UserPayload {
   asset_returns?: Record<string, string>;
   liquidation_costs?: Record<string, string>;
   /** Web-only assumptions (emergency-fund months and fixed top-up, goal buffer); the API ignores them. */
-  assumptions?: { ef_months?: number | null; ef_save_amount?: string | null; goal_buffer_pct?: string | null };
+  assumptions?: { ef_months?: number | null; ef_save_amount?: string | null; goal_buffer_pct?: string | null; confirmed?: string[]; confirmed_at?: string };
   /** Annual tax (₹/$) on income that's NOT covered by employer TDS —
    *  rental, FD interest > ₹40k, capital gains, freelance side-income.
    *  Salaried users opt in by entering a number here; the tax sleeve
@@ -724,8 +728,9 @@ export interface CashYieldResponse {
 export type AssetType =
   | 'savings_balance' | 'fixed_deposit'
   | 'equity_stocks' | 'equity_mf' | 'debt_mf'
-  | 'gold_physical' | 'sgb'
+  | 'gold_physical' | 'gold_etf' | 'sgb'
   | 'real_estate' | 'ppf' | 'epf' | 'nps'
+  | 'crypto'
   | 'other';
 
 export interface AssetPayload {

@@ -31,6 +31,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { renameRequestCookies } from './lib/storage-migration';
+import { LANDING_COUNTRY_COOKIE, senseCountry } from './lib/landing-country';
 
 const SESSION_COOKIE = 'rightdue_session';
 const PROFILE_COOKIE = 'rightdue_user';
@@ -67,7 +68,19 @@ function gate(req: NextRequest, requestHeaders?: Headers): NextResponse {
       const landing = url.clone();
       landing.pathname = '/welcome.html';
       landing.search = '';
-      return requestHeaders ? NextResponse.rewrite(landing, { request: { headers: requestHeaders } }) : NextResponse.rewrite(landing);
+      const res = requestHeaders ? NextResponse.rewrite(landing, { request: { headers: requestHeaders } }) : NextResponse.rewrite(landing);
+      // Which country's version the page opens on (sprint G10): a guess
+      // from the CDN country header or Accept-Language, never stored
+      // against the visitor; their own toggle on the page wins.
+      if (!req.cookies.get(LANDING_COUNTRY_COOKIE)) {
+        res.cookies.set(LANDING_COUNTRY_COOKIE, senseCountry(req.headers), {
+          path: '/',
+          maxAge: 60 * 60 * 24,
+          sameSite: 'lax',
+          secure: url.protocol === 'https:',
+        });
+      }
+      return res;
     }
     const dest = url.clone();
     dest.pathname = '/login';
@@ -91,9 +104,14 @@ function gate(req: NextRequest, requestHeaders?: Headers): NextResponse {
   return next();
 }
 
-/** Pages anyone may use without signing in. */
+/** Pages anyone may use without signing in. The glossary (sprint G10,
+ *  grill #43) is linked from the public landing page. */
 export function isPublicTool(pathname: string): boolean {
-  return pathname === '/tools/loan-check' || pathname.startsWith('/tools/loan-check/');
+  return (
+    pathname === '/tools/loan-check' ||
+    pathname.startsWith('/tools/loan-check/') ||
+    pathname === '/glossary'
+  );
 }
 
 /** The privacy notice and terms (grill #51), readable before signing in

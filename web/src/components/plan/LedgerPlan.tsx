@@ -205,6 +205,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           <LBracket href="#life-events">LIFE EVENTS</LBracket>
           <LBracket href="#notes">NOTES</LBracket>
           <LBracket href="#what-if">WHAT IF</LBracket>
+          {/* Setup shows a plan after one loan; the rest are added from here (sprint G10, grill #16b). */}
+          <LBracket accent href="/onboarding?step=loans" label="Add another loan to the plan">+ LOAN</LBracket>
         </nav>
 
         {/* What actually reached the debts, beside what the plan puts in */}
