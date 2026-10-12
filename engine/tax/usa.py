@@ -93,11 +93,45 @@ STUDENT_LOAN_PHASEOUT_2026 = {
 }
 
 
-def salt_cap(magi: Decimal | None = None) -> Decimal:
-    """2026 SALT cap after the high-income phase-down."""
-    if magi is None or magi <= SALT_PHASEDOWN_MAGI_2026:
-        return SALT_CAP_2026
-    return max(SALT_CAP_FLOOR, SALT_CAP_2026 - SALT_PHASEDOWN_RATE * (magi - SALT_PHASEDOWN_MAGI_2026))
+# IRC §164(b)(7) as added by P.L. 119-21 §70120 (read 2026-10-12 at
+# https://www.law.cornell.edu/uscode/text/26/164): cap $40,000 (2025),
+# $40,400 (2026), then 101% of the prior year's for 2027-2029, and $10,000
+# from 2030. Phase-down threshold $500,000 (2025), $505,000 (2026), then
+# 101% a year. The phase-down (30% of MAGI over the threshold, never below
+# $10,000) applies only before 2030. Married filing separately: half of each.
+# The statute gives no rounding for the 101% years, so none is applied;
+# IRS may publish rounded figures for 2027+, which then replace these.
+SALT_CAP_BY_YEAR = {2025: D("40000"), 2026: D("40400")}
+SALT_THRESHOLD_BY_YEAR = {2025: D("500000"), 2026: D("505000")}
+SALT_CAP_AFTER_2029 = D("10000")
+
+
+def _salt_indexed(table: dict[int, Decimal], year: int) -> Decimal:
+    if year in table:
+        return table[year]
+    if year < min(table):
+        raise ValueError(f"SALT cap before {min(table)} isn't modelled")
+    amt = table[max(table)]
+    for _ in range(max(table), year):
+        amt = amt * D("1.01")
+    return amt
+
+
+def salt_cap_for_year(year: int, magi: Decimal | None = None, married_separately: bool = False) -> Decimal:
+    """The SALT deduction cap for a tax year, after the MAGI phase-down."""
+    half = D("0.5") if married_separately else D("1")
+    if year >= 2030:
+        return SALT_CAP_AFTER_2029 * half
+    cap = _salt_indexed(SALT_CAP_BY_YEAR, year) * half
+    threshold = _salt_indexed(SALT_THRESHOLD_BY_YEAR, year) * half
+    if magi is None or magi <= threshold:
+        return cap
+    return max(SALT_CAP_FLOOR * half, cap - SALT_PHASEDOWN_RATE * (magi - threshold))
+
+
+def salt_cap(magi: Decimal | None = None, year: int = 2026) -> Decimal:
+    """SALT cap after the high-income phase-down (default tax year 2026)."""
+    return salt_cap_for_year(year, magi)
 
 
 def student_loan_interest_deduction(

@@ -37,6 +37,7 @@ from engine.formulas import (
 from engine.minimum_payments import compute_minimum_payment
 from engine.ordering import Strategy, rank_loans
 from engine.marginal_cost import user_marginal_costs
+from engine.us_loans import forgiveness_prepay_block, mortgage_insurance_kind, pmi_due
 from engine.goals import GoalState, MonthlyGoalAllocation, debt_gate, serial_fill_allocation
 from engine.surplus import (
     allocate_surplus,
@@ -228,6 +229,10 @@ class SimulationResult:
     payoff_order_method: str | None = None
     payoff_order: list[int] | None = None
     payoff_order_note: str | None = None
+    # US mortgage insurance (grill #34): {loan position: last sim month PMI
+    # or FHA MIP was paid}. A loan whose insurance outlives the horizon or
+    # the loan isn't listed.
+    pmi_end_months: dict[int, int] = field(default_factory=dict)
 
 
 def _marginal_rate(user: User, marginal_rate_override: Decimal | None) -> Decimal:
@@ -476,6 +481,7 @@ def _simulate_plan(
     # Consulted alongside lock-in months to decide whether `extra_for_debt`
     # is legally allowed to deploy here this month, per the bank's T&Cs.
     last_part_payment_month: dict[int, int] = {}
+    pmi_end_months: dict[int, int] = {}
 
     def _can_part_pay(loan, m: int) -> bool:
         """True when an above-minimum payment is allowed on this loan in
@@ -488,6 +494,10 @@ def _simulate_plan(
              (the loan is interest-only, can't accept principal yet).
         """
         if loan.pre_emi_months_remaining > 0:
+            return False
+        # A federal student loan heading for PSLF / IDR forgiveness gets its
+        # required payment only (engine/us_loans.py, grill #33).
+        if forgiveness_prepay_block(loan, user.country) is not None:
             return False
         if m - loan_start_month[id(loan)] + 1 <= loan.prepay_lock_in_months:
             return False
@@ -1041,6 +1051,16 @@ def _simulate_plan(
         # chart sees a stable series (cleared loans flat at 0, never
         # disappearing).
         balances_by_idx = {loan_position[id(l)]: l.outstanding for l in loans}
+        # Mortgage insurance: count down FHA MIP months, and note the month
+        # PMI was last paid once the balance reaches 80% of original value.
+        for l in loans:
+            if mortgage_insurance_kind(l) is None or m < loan_start_month.get(id(l), 1):
+                continue
+            pos = loan_position[id(l)]
+            if l.pmi_months_remaining is not None and l.pmi_months_remaining > 0:
+                l.pmi_months_remaining -= 1
+            if pos not in pmi_end_months and pmi_due(l) == 0 and l.outstanding > 0:
+                pmi_end_months[pos] = m
         balance_user_ccy = sum(
             (to_user_currency(l.outstanding, l, user) for l in loans), D("0"),
         )
@@ -1081,6 +1101,7 @@ def _simulate_plan(
         total_invested=total_invested,
         final_balances={id(l): l.outstanding for l in loans},
         first_month_goal_allocation=first_month_alloc,
+        pmi_end_months=pmi_end_months,
     )
 
 

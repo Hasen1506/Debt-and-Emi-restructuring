@@ -195,7 +195,7 @@ export function summariseDeductions(
         label: 'Other itemized (SALT, charity, etc.)',
         claimed: other,
         allowed: other,
-        note: 'SALT cap of $10k applied by user; we trust the input',
+        note: 'SALT cap ($40,400 for 2026, lib/us-loans) applied by user; we trust the input',
       });
     }
     // Push a "vs standard" comparator note via the consumer.

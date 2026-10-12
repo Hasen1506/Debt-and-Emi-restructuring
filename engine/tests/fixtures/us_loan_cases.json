@@ -1,0 +1,1660 @@
+{
+ "as_of": "2026-10-12",
+ "student": [
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000"
+   },
+   "block": null,
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "currency": "USD"
+   },
+   "block": null,
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "forgiveness_track": "pslf"
+   },
+   "block": "is on track for Public Service Loan Forgiveness, so extra payments only shrink what would be forgiven tax-free; it gets its required payment and no more",
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "PSLF: the rest is forgiven after 120 qualifying payments while you work full time for a government or not-for-profit employer, and PSLF forgiveness isn't taxed. Extra payments are held off this loan; your required payment still goes."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "forgiveness_track": "pslf",
+    "currency": "USD"
+   },
+   "block": "is on track for Public Service Loan Forgiveness, so extra payments only shrink what would be forgiven tax-free; it gets its required payment and no more",
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "PSLF: the rest is forgiven after 120 qualifying payments while you work full time for a government or not-for-profit employer, and PSLF forgiveness isn't taxed. Extra payments are held off this loan; your required payment still goes."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "forgiveness_track": "pslf",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "PSLF: the rest is forgiven after 120 qualifying payments while you work full time for a government or not-for-profit employer, and PSLF forgiveness isn't taxed. Extra payments are held off this loan; your required payment still goes."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "forgiveness_track": "idr"
+   },
+   "block": "is on an income-driven plan you expect to end in forgiveness, so extra payments only shrink what would be forgiven; it gets its required payment and no more",
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "Income-driven forgiveness: what's left is forgiven after 20, 25 or 30 years (RAP is 30). Since 1 January 2026 that forgiven amount is generally taxable income, so set some money aside for it. Extra payments are held off this loan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "forgiveness_track": "idr",
+    "currency": "USD"
+   },
+   "block": "is on an income-driven plan you expect to end in forgiveness, so extra payments only shrink what would be forgiven; it gets its required payment and no more",
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "Income-driven forgiveness: what's left is forgiven after 20, 25 or 30 years (RAP is 30). Since 1 January 2026 that forgiven amount is generally taxable income, so set some money aside for it. Extra payments are held off this loan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "forgiveness_track": "idr",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "Income-driven forgiveness: what's left is forgiven after 20, 25 or 30 years (RAP is 30). Since 1 January 2026 that forgiven amount is generally taxable income, so set some money aside for it. Extra payments are held off this loan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal"
+   },
+   "block": null,
+   "explainer": [
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "currency": "USD"
+   },
+   "block": null,
+   "explainer": [
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "pslf"
+   },
+   "block": "is on track for Public Service Loan Forgiveness, so extra payments only shrink what would be forgiven tax-free; it gets its required payment and no more",
+   "explainer": [
+    "PSLF: the rest is forgiven after 120 qualifying payments while you work full time for a government or not-for-profit employer, and PSLF forgiveness isn't taxed. Extra payments are held off this loan; your required payment still goes."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "pslf",
+    "currency": "USD"
+   },
+   "block": "is on track for Public Service Loan Forgiveness, so extra payments only shrink what would be forgiven tax-free; it gets its required payment and no more",
+   "explainer": [
+    "PSLF: the rest is forgiven after 120 qualifying payments while you work full time for a government or not-for-profit employer, and PSLF forgiveness isn't taxed. Extra payments are held off this loan; your required payment still goes."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "pslf",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "PSLF: the rest is forgiven after 120 qualifying payments while you work full time for a government or not-for-profit employer, and PSLF forgiveness isn't taxed. Extra payments are held off this loan; your required payment still goes."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "idr"
+   },
+   "block": "is on an income-driven plan you expect to end in forgiveness, so extra payments only shrink what would be forgiven; it gets its required payment and no more",
+   "explainer": [
+    "Income-driven forgiveness: what's left is forgiven after 20, 25 or 30 years (RAP is 30). Since 1 January 2026 that forgiven amount is generally taxable income, so set some money aside for it. Extra payments are held off this loan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "idr",
+    "currency": "USD"
+   },
+   "block": "is on an income-driven plan you expect to end in forgiveness, so extra payments only shrink what would be forgiven; it gets its required payment and no more",
+   "explainer": [
+    "Income-driven forgiveness: what's left is forgiven after 20, 25 or 30 years (RAP is 30). Since 1 January 2026 that forgiven amount is generally taxable income, so set some money aside for it. Extra payments are held off this loan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "idr",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Income-driven forgiveness: what's left is forgiven after 20, 25 or 30 years (RAP is 30). Since 1 January 2026 that forgiven amount is generally taxable income, so set some money aside for it. Extra payments are held off this loan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "currency": "USD"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "pslf"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "pslf",
+    "currency": "USD"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "pslf",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "idr"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "idr",
+    "currency": "USD"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "idr",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  }
+ ],
+ "homes": [
+  {
+   "loan": {
+    "loan_type": "home_loan",
+    "outstanding": "285000",
+    "nominal_rate": "0.065",
+    "scheduled_emi": "1896",
+    "pmi_monthly": "150",
+    "original_home_value": "300000"
+   },
+   "due": "150",
+   "analysis": {
+    "kind": "pmi",
+    "monthly": "150",
+    "annual": "1800",
+    "request_balance": "240000",
+    "auto_balance": "234000",
+    "extra_to_request_now": "45000",
+    "months_to_request": 98,
+    "months_to_auto": 108,
+    "pmi_saved_by_paying_now": "14700",
+    "pmi_return_pct": "0.04",
+    "notes": [
+     "You can ask your servicer in writing to cancel PMI once the balance is 80% of the original value, earlier if you pay extra. You need a good payment history, no second mortgage, and possibly an appraisal showing the value hasn't fallen. It ends on its own when the balance is scheduled to reach 78%, and at the loan's halfway point at the latest (CFPB).",
+     "For 2026, PMI counts as deductible mortgage interest if you itemise and your AGI is $100,000 or less (phased out up to $109,000). The plan doesn't take that into account."
+    ]
+   }
+  },
+  {
+   "loan": {
+    "loan_type": "home_loan",
+    "outstanding": "240000",
+    "nominal_rate": "0.065",
+    "scheduled_emi": "1896",
+    "pmi_monthly": "150",
+    "original_home_value": "300000"
+   },
+   "due": "0",
+   "analysis": {
+    "kind": "pmi",
+    "monthly": "150",
+    "annual": "1800",
+    "request_balance": "240000",
+    "auto_balance": "234000",
+    "extra_to_request_now": "0",
+    "months_to_request": 0,
+    "months_to_auto": 10,
+    "pmi_saved_by_paying_now": null,
+    "pmi_return_pct": null,
+    "notes": [
+     "You can ask your servicer in writing to cancel PMI once the balance is 80% of the original value, earlier if you pay extra. You need a good payment history, no second mortgage, and possibly an appraisal showing the value hasn't fallen. It ends on its own when the balance is scheduled to reach 78%, and at the loan's halfway point at the latest (CFPB).",
+     "For 2026, PMI counts as deductible mortgage interest if you itemise and your AGI is $100,000 or less (phased out up to $109,000). The plan doesn't take that into account."
+    ]
+   }
+  },
+  {
+   "loan": {
+    "loan_type": "home_loan",
+    "outstanding": "240001",
+    "nominal_rate": "0.065",
+    "scheduled_emi": "1896",
+    "pmi_monthly": "150",
+    "original_home_value": "300000"
+   },
+   "due": "150",
+   "analysis": {
+    "kind": "pmi",
+    "monthly": "150",
+    "annual": "1800",
+    "request_balance": "240000",
+    "auto_balance": "234000",
+    "extra_to_request_now": "1",
+    "months_to_request": 1,
+    "months_to_auto": 10,
+    "pmi_saved_by_paying_now": "150",
+    "pmi_return_pct": "1800",
+    "notes": [
+     "You can ask your servicer in writing to cancel PMI once the balance is 80% of the original value, earlier if you pay extra. You need a good payment history, no second mortgage, and possibly an appraisal showing the value hasn't fallen. It ends on its own when the balance is scheduled to reach 78%, and at the loan's halfway point at the latest (CFPB).",
+     "For 2026, PMI counts as deductible mortgage interest if you itemise and your AGI is $100,000 or less (phased out up to $109,000). The plan doesn't take that into account."
+    ]
+   }
+  },
+  {
+   "loan": {
+    "loan_type": "home_loan",
+    "outstanding": "200000",
+    "nominal_rate": "0.065",
+    "scheduled_emi": "1896",
+    "pmi_monthly": "150",
+    "original_home_value": "300000"
+   },
+   "due": "0",
+   "analysis": {
+    "kind": "pmi",
+    "monthly": "150",
+    "annual": "1800",
+    "request_balance": "240000",
+    "auto_balance": "234000",
+    "extra_to_request_now": "0",
+    "months_to_request": 0,
+    "months_to_auto": 0,
+    "pmi_saved_by_paying_now": null,
+    "pmi_return_pct": null,
+    "notes": [
+     "You can ask your servicer in writing to cancel PMI once the balance is 80% of the original value, earlier if you pay extra. You need a good payment history, no second mortgage, and possibly an appraisal showing the value hasn't fallen. It ends on its own when the balance is scheduled to reach 78%, and at the loan's halfway point at the latest (CFPB).",
+     "For 2026, PMI counts as deductible mortgage interest if you itemise and your AGI is $100,000 or less (phased out up to $109,000). The plan doesn't take that into account."
+    ]
+   }
+  },
+  {
+   "loan": {
+    "loan_type": "home_loan",
+    "outstanding": "285000",
+    "nominal_rate": "0.065",
+    "scheduled_emi": "1896",
+    "pmi_monthly": "150"
+   },
+   "due": "150",
+   "analysis": {
+    "kind": "pmi",
+    "monthly": "150",
+    "annual": "1800",
+    "request_balance": null,
+    "auto_balance": null,
+    "extra_to_request_now": null,
+    "months_to_request": null,
+    "months_to_auto": null,
+    "pmi_saved_by_paying_now": null,
+    "pmi_return_pct": null,
+    "notes": [
+     "Add the home's original value (the lower of the price and the appraisal when you bought it) to see when PMI can end."
+    ]
+   }
+  },
+  {
+   "loan": {
+    "loan_type": "home_loan",
+    "outstanding": "285000",
+    "nominal_rate": "0.065",
+    "scheduled_emi": "1896",
+    "pmi_monthly": "0",
+    "original_home_value": "300000"
+   },
+   "due": "0",
+   "analysis": null
+  },
+  {
+   "loan": {
+    "loan_type": "home_loan",
+    "outstanding": "285000",
+    "nominal_rate": "0.065",
+    "scheduled_emi": "1896",
+    "pmi_monthly": "150",
+    "original_home_value": "300000",
+    "mortgage_insurance_kind": "fha_mip"
+   },
+   "due": "150",
+   "analysis": {
+    "kind": "fha_mip",
+    "monthly": "150",
+    "annual": "1800",
+    "request_balance": null,
+    "auto_balance": null,
+    "extra_to_request_now": null,
+    "months_to_request": null,
+    "months_to_auto": null,
+    "pmi_saved_by_paying_now": null,
+    "pmi_return_pct": null,
+    "notes": [
+     "FHA mortgage insurance doesn't end at 80% or 78%. For FHA loans from 3 June 2013 it runs 11 years if you borrowed 90% or less of the home's value, otherwise for the loan's term (HUD). Refinancing to a conventional loan is the usual way out; that's a big decision with its own costs."
+    ]
+   }
+  },
+  {
+   "loan": {
+    "loan_type": "home_loan",
+    "outstanding": "285000",
+    "nominal_rate": "0.065",
+    "scheduled_emi": "1896",
+    "pmi_monthly": "150",
+    "original_home_value": "300000",
+    "mortgage_insurance_kind": "fha_mip",
+    "pmi_months_remaining": 0
+   },
+   "due": "0",
+   "analysis": {
+    "kind": "fha_mip",
+    "monthly": "150",
+    "annual": "1800",
+    "request_balance": null,
+    "auto_balance": null,
+    "extra_to_request_now": null,
+    "months_to_request": null,
+    "months_to_auto": null,
+    "pmi_saved_by_paying_now": null,
+    "pmi_return_pct": null,
+    "notes": [
+     "FHA mortgage insurance doesn't end at 80% or 78%. For FHA loans from 3 June 2013 it runs 11 years if you borrowed 90% or less of the home's value, otherwise for the loan's term (HUD). Refinancing to a conventional loan is the usual way out; that's a big decision with its own costs."
+    ]
+   }
+  },
+  {
+   "loan": {
+    "loan_type": "home_loan",
+    "outstanding": "285000",
+    "nominal_rate": "0.065",
+    "scheduled_emi": "1896",
+    "pmi_monthly": "150",
+    "original_home_value": "300000",
+    "mortgage_insurance_kind": "fha_mip",
+    "pmi_months_remaining": 18
+   },
+   "due": "150",
+   "analysis": {
+    "kind": "fha_mip",
+    "monthly": "150",
+    "annual": "1800",
+    "request_balance": null,
+    "auto_balance": null,
+    "extra_to_request_now": null,
+    "months_to_request": null,
+    "months_to_auto": null,
+    "pmi_saved_by_paying_now": null,
+    "pmi_return_pct": null,
+    "notes": [
+     "FHA mortgage insurance doesn't end at 80% or 78%. For FHA loans from 3 June 2013 it runs 11 years if you borrowed 90% or less of the home's value, otherwise for the loan's term (HUD). Refinancing to a conventional loan is the usual way out; that's a big decision with its own costs.",
+     "You entered 18 months of MIP left."
+    ]
+   }
+  },
+  {
+   "loan": {
+    "loan_type": "home_loan",
+    "outstanding": "475000",
+    "nominal_rate": "0.07",
+    "scheduled_emi": "3200",
+    "pmi_monthly": "210",
+    "original_home_value": "500000"
+   },
+   "due": "210",
+   "analysis": {
+    "kind": "pmi",
+    "monthly": "210",
+    "annual": "2520",
+    "request_balance": "400000",
+    "auto_balance": "390000",
+    "extra_to_request_now": "75000",
+    "months_to_request": 121,
+    "months_to_auto": 133,
+    "pmi_saved_by_paying_now": "25410",
+    "pmi_return_pct": "0.0336",
+    "notes": [
+     "You can ask your servicer in writing to cancel PMI once the balance is 80% of the original value, earlier if you pay extra. You need a good payment history, no second mortgage, and possibly an appraisal showing the value hasn't fallen. It ends on its own when the balance is scheduled to reach 78%, and at the loan's halfway point at the latest (CFPB).",
+     "For 2026, PMI counts as deductible mortgage interest if you itemise and your AGI is $100,000 or less (phased out up to $109,000). The plan doesn't take that into account."
+    ]
+   }
+  },
+  {
+   "loan": {
+    "loan_type": "home_loan",
+    "outstanding": "100000",
+    "nominal_rate": "0.08",
+    "scheduled_emi": "600",
+    "pmi_monthly": "150",
+    "original_home_value": "300000"
+   },
+   "due": "0",
+   "analysis": {
+    "kind": "pmi",
+    "monthly": "150",
+    "annual": "1800",
+    "request_balance": "240000",
+    "auto_balance": "234000",
+    "extra_to_request_now": "0",
+    "months_to_request": 0,
+    "months_to_auto": 0,
+    "pmi_saved_by_paying_now": null,
+    "pmi_return_pct": null,
+    "notes": [
+     "You can ask your servicer in writing to cancel PMI once the balance is 80% of the original value, earlier if you pay extra. You need a good payment history, no second mortgage, and possibly an appraisal showing the value hasn't fallen. It ends on its own when the balance is scheduled to reach 78%, and at the loan's halfway point at the latest (CFPB).",
+     "For 2026, PMI counts as deductible mortgage interest if you itemise and your AGI is $100,000 or less (phased out up to $109,000). The plan doesn't take that into account."
+    ]
+   }
+  },
+  {
+   "loan": {
+    "loan_type": "auto_loan",
+    "outstanding": "285000",
+    "nominal_rate": "0.065",
+    "scheduled_emi": "1896",
+    "pmi_monthly": "150",
+    "original_home_value": "300000"
+   },
+   "due": "0",
+   "analysis": null
+  }
+ ],
+ "states": [
+  {
+   "state": null,
+   "kind": "unknown",
+   "modelled": false,
+   "label": "Add your state to see whether it taxes income and lets you deduct mortgage interest.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "",
+   "kind": "unknown",
+   "modelled": false,
+   "label": "Add your state to see whether it taxes income and lets you deduct mortgage interest.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "tx",
+   "kind": "no_income_tax",
+   "modelled": true,
+   "label": "TX has no state income tax on wages, so mortgage interest saves only federal tax.",
+   "source_url": "https://taxfoundation.org/data/all/state/state-income-tax-rates-2026/",
+   "rate": "0.22"
+  },
+  {
+   "state": "AL",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified AL's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "AK",
+   "kind": "no_income_tax",
+   "modelled": true,
+   "label": "AK has no state income tax on wages, so mortgage interest saves only federal tax.",
+   "source_url": "https://taxfoundation.org/data/all/state/state-income-tax-rates-2026/",
+   "rate": "0.22"
+  },
+  {
+   "state": "AZ",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified AZ's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "AR",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified AR's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "CA",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified CA's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "CO",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified CO's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "CT",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified CT's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "DE",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified DE's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "DC",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified DC's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "FL",
+   "kind": "no_income_tax",
+   "modelled": true,
+   "label": "FL has no state income tax on wages, so mortgage interest saves only federal tax.",
+   "source_url": "https://taxfoundation.org/data/all/state/state-income-tax-rates-2026/",
+   "rate": "0.22"
+  },
+  {
+   "state": "GA",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified GA's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "HI",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified HI's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "ID",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified ID's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "IL",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified IL's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "IN",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified IN's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "IA",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified IA's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "KS",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified KS's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "KY",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified KY's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "LA",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified LA's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "ME",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified ME's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "MD",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified MD's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "MA",
+   "kind": "no_deduction",
+   "modelled": true,
+   "label": "MA doesn't let you deduct home mortgage interest, so it saves only federal tax.",
+   "source_url": "https://www.mass.gov/directive/directive-86-8-interest-expenses",
+   "rate": "0.22"
+  },
+  {
+   "state": "MI",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified MI's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "MN",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified MN's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "MS",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified MS's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "MO",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified MO's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "MT",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified MT's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "NE",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified NE's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "NV",
+   "kind": "no_income_tax",
+   "modelled": true,
+   "label": "NV has no state income tax on wages, so mortgage interest saves only federal tax.",
+   "source_url": "https://taxfoundation.org/data/all/state/state-income-tax-rates-2026/",
+   "rate": "0.22"
+  },
+  {
+   "state": "NH",
+   "kind": "no_income_tax",
+   "modelled": true,
+   "label": "NH has no state income tax on wages, so mortgage interest saves only federal tax.",
+   "source_url": "https://www.revenue.nh.gov/news-and-media/repeal-nh-interest-and-dividends-tax-now-effect",
+   "rate": "0.22"
+  },
+  {
+   "state": "NJ",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified NJ's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "NM",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified NM's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "NY",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified NY's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "NC",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified NC's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "ND",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified ND's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "OH",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified OH's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "OK",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified OK's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "OR",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified OR's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "PA",
+   "kind": "no_deduction",
+   "modelled": true,
+   "label": "PA doesn't let you deduct home mortgage interest, so it saves only federal tax.",
+   "source_url": "https://www.pa.gov/agencies/revenue/forms-and-publications/pa-personal-income-tax-guide/deductions-and-credits",
+   "rate": "0.22"
+  },
+  {
+   "state": "RI",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified RI's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "SC",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified SC's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "SD",
+   "kind": "no_income_tax",
+   "modelled": true,
+   "label": "SD has no state income tax on wages, so mortgage interest saves only federal tax.",
+   "source_url": "https://taxfoundation.org/data/all/state/state-income-tax-rates-2026/",
+   "rate": "0.22"
+  },
+  {
+   "state": "TN",
+   "kind": "no_income_tax",
+   "modelled": true,
+   "label": "TN has no state income tax on wages, so mortgage interest saves only federal tax.",
+   "source_url": "https://taxfoundation.org/data/all/state/state-income-tax-rates-2026/",
+   "rate": "0.22"
+  },
+  {
+   "state": "TX",
+   "kind": "no_income_tax",
+   "modelled": true,
+   "label": "TX has no state income tax on wages, so mortgage interest saves only federal tax.",
+   "source_url": "https://taxfoundation.org/data/all/state/state-income-tax-rates-2026/",
+   "rate": "0.22"
+  },
+  {
+   "state": "UT",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified UT's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "VT",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified VT's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "VA",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified VA's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "WA",
+   "kind": "no_income_tax",
+   "modelled": true,
+   "label": "WA has no state income tax on wages, so mortgage interest saves only federal tax.",
+   "source_url": "https://taxfoundation.org/data/all/state/state-income-tax-rates-2026/",
+   "rate": "0.22"
+  },
+  {
+   "state": "WV",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified WV's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "WI",
+   "kind": "unverified",
+   "modelled": false,
+   "label": "State rules vary and we haven't verified WI's: the plan assumes your state lets you deduct mortgage interest at your state rate. Check your state's income-tax instructions.",
+   "source_url": null,
+   "rate": "0.2707"
+  },
+  {
+   "state": "WY",
+   "kind": "no_income_tax",
+   "modelled": true,
+   "label": "WY has no state income tax on wages, so mortgage interest saves only federal tax.",
+   "source_url": "https://taxfoundation.org/data/all/state/state-income-tax-rates-2026/",
+   "rate": "0.22"
+  }
+ ],
+ "salt": [
+  {
+   "year": 2025,
+   "magi": null,
+   "mfs": false,
+   "cap": "40000"
+  },
+  {
+   "year": 2025,
+   "magi": null,
+   "mfs": true,
+   "cap": "20000"
+  },
+  {
+   "year": 2025,
+   "magi": "400000",
+   "mfs": false,
+   "cap": "40000"
+  },
+  {
+   "year": 2025,
+   "magi": "400000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2025,
+   "magi": "505000",
+   "mfs": false,
+   "cap": "38500"
+  },
+  {
+   "year": 2025,
+   "magi": "505000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2025,
+   "magi": "510050",
+   "mfs": false,
+   "cap": "36985"
+  },
+  {
+   "year": 2025,
+   "magi": "510050",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2025,
+   "magi": "600000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2025,
+   "magi": "600000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2025,
+   "magi": "700000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2025,
+   "magi": "700000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2025,
+   "magi": "2000000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2025,
+   "magi": "2000000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2026,
+   "magi": null,
+   "mfs": false,
+   "cap": "40400"
+  },
+  {
+   "year": 2026,
+   "magi": null,
+   "mfs": true,
+   "cap": "20200"
+  },
+  {
+   "year": 2026,
+   "magi": "400000",
+   "mfs": false,
+   "cap": "40400"
+  },
+  {
+   "year": 2026,
+   "magi": "400000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2026,
+   "magi": "505000",
+   "mfs": false,
+   "cap": "40400"
+  },
+  {
+   "year": 2026,
+   "magi": "505000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2026,
+   "magi": "510050",
+   "mfs": false,
+   "cap": "38885"
+  },
+  {
+   "year": 2026,
+   "magi": "510050",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2026,
+   "magi": "600000",
+   "mfs": false,
+   "cap": "11900"
+  },
+  {
+   "year": 2026,
+   "magi": "600000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2026,
+   "magi": "700000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2026,
+   "magi": "700000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2026,
+   "magi": "2000000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2026,
+   "magi": "2000000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2027,
+   "magi": null,
+   "mfs": false,
+   "cap": "40804"
+  },
+  {
+   "year": 2027,
+   "magi": null,
+   "mfs": true,
+   "cap": "20402"
+  },
+  {
+   "year": 2027,
+   "magi": "400000",
+   "mfs": false,
+   "cap": "40804"
+  },
+  {
+   "year": 2027,
+   "magi": "400000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2027,
+   "magi": "505000",
+   "mfs": false,
+   "cap": "40804"
+  },
+  {
+   "year": 2027,
+   "magi": "505000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2027,
+   "magi": "510050",
+   "mfs": false,
+   "cap": "40804"
+  },
+  {
+   "year": 2027,
+   "magi": "510050",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2027,
+   "magi": "600000",
+   "mfs": false,
+   "cap": "13819"
+  },
+  {
+   "year": 2027,
+   "magi": "600000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2027,
+   "magi": "700000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2027,
+   "magi": "700000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2027,
+   "magi": "2000000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2027,
+   "magi": "2000000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2028,
+   "magi": null,
+   "mfs": false,
+   "cap": "41212.04"
+  },
+  {
+   "year": 2028,
+   "magi": null,
+   "mfs": true,
+   "cap": "20606.02"
+  },
+  {
+   "year": 2028,
+   "magi": "400000",
+   "mfs": false,
+   "cap": "41212.04"
+  },
+  {
+   "year": 2028,
+   "magi": "400000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2028,
+   "magi": "505000",
+   "mfs": false,
+   "cap": "41212.04"
+  },
+  {
+   "year": 2028,
+   "magi": "505000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2028,
+   "magi": "510050",
+   "mfs": false,
+   "cap": "41212.04"
+  },
+  {
+   "year": 2028,
+   "magi": "510050",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2028,
+   "magi": "600000",
+   "mfs": false,
+   "cap": "15757.19"
+  },
+  {
+   "year": 2028,
+   "magi": "600000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2028,
+   "magi": "700000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2028,
+   "magi": "700000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2028,
+   "magi": "2000000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2028,
+   "magi": "2000000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2029,
+   "magi": null,
+   "mfs": false,
+   "cap": "41624.1604"
+  },
+  {
+   "year": 2029,
+   "magi": null,
+   "mfs": true,
+   "cap": "20812.0802"
+  },
+  {
+   "year": 2029,
+   "magi": "400000",
+   "mfs": false,
+   "cap": "41624.1604"
+  },
+  {
+   "year": 2029,
+   "magi": "400000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2029,
+   "magi": "505000",
+   "mfs": false,
+   "cap": "41624.1604"
+  },
+  {
+   "year": 2029,
+   "magi": "505000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2029,
+   "magi": "510050",
+   "mfs": false,
+   "cap": "41624.1604"
+  },
+  {
+   "year": 2029,
+   "magi": "510050",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2029,
+   "magi": "600000",
+   "mfs": false,
+   "cap": "17714.7619"
+  },
+  {
+   "year": 2029,
+   "magi": "600000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2029,
+   "magi": "700000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2029,
+   "magi": "700000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2029,
+   "magi": "2000000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2029,
+   "magi": "2000000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2030,
+   "magi": null,
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2030,
+   "magi": null,
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2030,
+   "magi": "400000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2030,
+   "magi": "400000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2030,
+   "magi": "505000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2030,
+   "magi": "505000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2030,
+   "magi": "510050",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2030,
+   "magi": "510050",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2030,
+   "magi": "600000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2030,
+   "magi": "600000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2030,
+   "magi": "700000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2030,
+   "magi": "700000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2030,
+   "magi": "2000000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2030,
+   "magi": "2000000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2031,
+   "magi": null,
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2031,
+   "magi": null,
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2031,
+   "magi": "400000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2031,
+   "magi": "400000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2031,
+   "magi": "505000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2031,
+   "magi": "505000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2031,
+   "magi": "510050",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2031,
+   "magi": "510050",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2031,
+   "magi": "600000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2031,
+   "magi": "600000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2031,
+   "magi": "700000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2031,
+   "magi": "700000",
+   "mfs": true,
+   "cap": "5000"
+  },
+  {
+   "year": 2031,
+   "magi": "2000000",
+   "mfs": false,
+   "cap": "10000"
+  },
+  {
+   "year": 2031,
+   "magi": "2000000",
+   "mfs": true,
+   "cap": "5000"
+  }
+ ],
+ "escrow_note": "Enter the payment as principal and interest only. Escrow (property tax and home insurance the servicer collects with it) goes in your monthly fixed expenses, and PMI in its own field, so the plan can drop PMI when it ends."
+}

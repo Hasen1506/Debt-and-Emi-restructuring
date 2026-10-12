@@ -191,6 +191,15 @@ def _shield_context(loans: list[Loan], user):
     return home_interest, home_debt, edu_interest, phaseout, regime
 
 
+def _home_rate(l: Loan, user, marginal_rate: Decimal) -> Decimal:
+    """US mortgage interest saves no state tax in a state with no income tax
+    or one that disallows it (engine/us_loans.py, grill #79)."""
+    if user.country == Country.US and l.loan_type == LoanType.HOME:
+        from engine.us_loans import us_mortgage_marginal_rate
+        return us_mortgage_marginal_rate(marginal_rate, user.state, user.state_marginal_rate)
+    return marginal_rate
+
+
 def user_marginal_costs(loans: list[Loan], user, marginal_rate: Decimal, month: int = 1,
                         start_month: dict[int, int] | None = None) -> dict[int, MarginalCost]:
     """{id(loan): MarginalCost} for the open loans in `loans`, as of sim-month
@@ -203,8 +212,8 @@ def user_marginal_costs(loans: list[Loan], user, marginal_rate: Decimal, month: 
             continue
         is_home = l.loan_type == LoanType.HOME
         shield = marginal_shield(
-            l.loan_type, own.value, marginal_rate, regime, bool(user.itemises), user.itemised_share,
-            home_interest if is_home else edu_interest, home_debt, phaseout,
+            l.loan_type, own.value, _home_rate(l, user, marginal_rate), regime, bool(user.itemises),
+            user.itemised_share, home_interest if is_home else edu_interest, home_debt, phaseout,
         )
         start = (start_month or {}).get(id(l), 1)
         elapsed = max(0, month - start)
@@ -224,8 +233,8 @@ def uncapped_shields(loans: list[Loan], user, marginal_rate: Decimal) -> dict[in
     own = user.country
     _, home_debt, _, phaseout, regime = _shield_context(loans, user)
     return {
-        id(l): marginal_shield(l.loan_type, own.value, marginal_rate, regime, bool(user.itemises),
-                               user.itemised_share, D("0"), home_debt, phaseout)
+        id(l): marginal_shield(l.loan_type, own.value, _home_rate(l, user, marginal_rate), regime,
+                               bool(user.itemises), user.itemised_share, D("0"), home_debt, phaseout)
         for l in loans
     }
 

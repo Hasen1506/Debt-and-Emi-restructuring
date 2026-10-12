@@ -18,6 +18,7 @@ import Decimal from 'decimal.js';
 import type { LoanPayload, UserPayload } from './api';
 import { usMortgageShieldShare } from './deductions';
 import { GST_RATE_IN } from './gst';
+import { usMortgageMarginalRate } from './us-loans';
 
 const D = (v: string | number | Decimal) => new Decimal(v);
 
@@ -121,8 +122,13 @@ export function userMarginalCosts(user: UserPayload, marginalRate: string, indic
   for (const i of idx) {
     const l = loans[i];
     if (!l || !open(l)) continue;
+    // A US mortgage saves no state tax in a no-income-tax state or one that
+    // disallows mortgage interest (lib/us-loans, engine _home_rate, #79).
+    const rate = own === 'US' && l.loan_type === 'home_loan'
+      ? usMortgageMarginalRate(marginalRate, user.state, user.state_marginal_rate ?? 0).toString()
+      : marginalRate;
     const shield = marginalShield(
-      l.loan_type, own, marginalRate, user.tax_regime ?? 'new', itemisedShare.gt(0), itemisedShare,
+      l.loan_type, own, rate, user.tax_regime ?? 'new', itemisedShare.gt(0), itemisedShare,
       l.loan_type === 'home_loan' ? homeInterest : eduInterest, homeDebt, 1,
     );
     const cardGst = l.loan_type === 'credit_card' && marketOf(l, own) === 'IN';

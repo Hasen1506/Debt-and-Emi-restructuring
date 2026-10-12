@@ -105,6 +105,8 @@ import { dropKfsFields, kfsNote } from '@/lib/kfs';
 import { KfsImport } from '@/components/profile/KfsImport';
 import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { MarketRateLine } from '@/components/profile/MarketRateLine';
+import { UsLoanFields, UsStateField } from '@/components/profile/UsLoanFields';
+import { usLoanFieldsFor } from '@/lib/us-loans';
 
 /**
  * Format a loan-terms suggestion label. Honest about provenance:
@@ -309,6 +311,7 @@ function ProfileEditor({
   // Optional US state marginal rate (decimal). Added on top of federal
   // marginal_rate when present so combined math reflects state burden.
   const [stateMarginalRate, setStateMarginalRate] = useState('');
+  const [usState, setUsState] = useState('');
   const [annualHikeRate, setAnnualHikeRate] = useState('');
   // Optional hike phases for users who want varied rates over time (e.g.
   // "first 2yrs 7%, next 4yrs 10%, job switch at year 6"). Empty list →
@@ -415,6 +418,7 @@ function ProfileEditor({
     if (u.country === 'IN' && u.tax_regime) setTaxRegime(u.tax_regime);
     if (u.country === 'US' && u.filing_status) setFilingStatus(u.filing_status);
     if (u.state_marginal_rate) setStateMarginalRate(u.state_marginal_rate);
+    if (u.state) setUsState(u.state);
     setAnnualHikeRate(u.annual_hike_rate ?? '');
     if (u.hike_schedule && u.hike_schedule.length > 0) {
       setHikeSchedule(
@@ -615,6 +619,7 @@ function ProfileEditor({
         country === 'US' && stateMarginalRate.trim()
           ? num(stateMarginalRate)
           : undefined,
+      state: country === 'US' && usState ? usState : undefined,
       efund_balance: num(efundBalance),
       efund_target: num(efundTarget),
       loans: loans
@@ -650,6 +655,8 @@ function ProfileEditor({
             ...(l.min_payment_override && l.min_payment_override.trim() !== ''
               ? { min_payment_override: num(l.min_payment_override) }
               : {}),
+            // US-only fields leave with US-market loans only (lib/us-loans).
+            ...usLoanFieldsFor(l, country),
           };
         }),
       investment_options: [
@@ -1194,6 +1201,11 @@ function ProfileEditor({
                 onExtraIncomeAnnualTaxChange={setExtraIncomeAnnualTax}
               />
             </div>
+            {country === 'US' && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <UsStateField value={usState} onChange={setUsState} />
+              </div>
+            )}
             {!showDetailedExpenses ? (
               <div style={{ gridColumn: '1 / -1' }}>
                 <Field
@@ -1955,6 +1967,9 @@ function ProfileEditor({
                       }
                     />
                   </div>
+                )}
+                {loanMarket(l, country) === 'US' && (
+                  <UsLoanFields loan={l} onChange={(p) => updateLoan(i, p)} />
                 )}
                 {l.loan_type === 'credit_card' && (
                   <Field

@@ -14,6 +14,7 @@
  * deductions on the bracket.
  */
 
+import { SALT_CAP_COPY } from '@/lib/us-loans';
 import { useMemo } from 'react';
 import type {
   AgeBracket,
@@ -137,7 +138,7 @@ export function DeductionsPanel({
               for your filing status, we use the itemized total. Otherwise
               the standard wins automatically — no penalty for filling these in.
               <div style={{ marginTop: 8 }}>
-                <strong>SALT cap</strong> ($10k state + local) — apply it
+                <strong>SALT cap.</strong> {SALT_CAP_COPY} Apply it
                 yourself before entering, we trust the input.
               </div>
             </>
@@ -287,12 +288,11 @@ export function DeductionsPanel({
             onChange={(v) =>
               update({ itemized_deductions_other: v || undefined })
             }
-            hint="Sum of state/local tax (capped at $10k), charity, medical (>7.5% AGI)"
+            hint="Sum of state/local tax (capped at $40,400 for 2026), charity, medical (>7.5% AGI)"
             info={
               <>
-                <strong>SALT cap of $10k</strong> applies to state + local
-                income tax + property tax combined — apply the cap yourself
-                before entering. Add charity + qualified medical (over 7.5%
+                <strong>SALT cap.</strong> {SALT_CAP_COPY} Apply the cap
+                yourself before entering. Add charity + qualified medical (over 7.5%
                 of AGI) here too.
               </>
             }
