@@ -1,6 +1,6 @@
 """POST /api/simulate · /api/baseline · /api/sensitivity/compare"""
 from copy import deepcopy
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, localcontext
 from fastapi import APIRouter, HTTPException
 
 from engine.simulation import simulate_plan, baseline_minimums_only, goal_tradeoff
@@ -220,6 +220,16 @@ router = APIRouter(tags=["simulation"])
 _CENT = Decimal("0.01")
 
 
+def _cents(x: Decimal) -> Decimal:
+    """Round to paise/cents. A short month borrowed at card rate that never
+    closes compounds past 28 digits over a 100-year horizon (₹1e26+), where
+    a plain quantize raises InvalidOperation and the plan 500s; round in a
+    wider context instead."""
+    with localcontext() as ctx:
+        ctx.prec = max(ctx.prec, 80)
+        return x.quantize(_CENT, rounding=ROUND_HALF_UP)
+
+
 def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
     """Flatten SimulationResult.months → trajectory points. Balance is the sum
     across all loans at each month — that's what the chart wants.
@@ -233,7 +243,7 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
     # Money is rounded to paise/cents here (BUG_REPORT Low): values used to
     # come back as '958583.3333333333333333333333' and every client rounded.
     def q(v):
-        return v.quantize(_CENT, rounding=ROUND_HALF_UP) if v is not None else None
+        return _cents(v) if v is not None else None
 
     def qd(d):
         return {k: q(v) for k, v in d.items()}
@@ -271,7 +281,7 @@ def _gap_fields(result) -> dict:
         gap_rate=g.annual_rate if g else None,
         gap_rate_basis=g.basis if g else None,
         gap_rate_source=g.source if g else None,
-        total_gap_interest=result.total_gap_interest.quantize(_CENT, rounding=ROUND_HALF_UP),
+        total_gap_interest=_cents(result.total_gap_interest),
     )
 
 
