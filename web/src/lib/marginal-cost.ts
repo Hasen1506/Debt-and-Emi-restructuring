@@ -5,7 +5,7 @@
  * engine/tests/fixtures/marginal_cost_cases.json) keeps the two equal.
  *
  *   marginal cost = interest, compounded monthly       (1 + r/12)^12 − 1
- *                 + GST on that interest, compounding  (Indian credit cards: 18%)
+ *                 + GST on that interest, not compounding (Indian credit cards: 18%)
  *                 − tax benefit the prepayment gives up (24(b) / 80E / US mortgage
  *                                                        and student-loan interest)
  *                 − prepayment fee                     fee% × 12 / months left
@@ -17,7 +17,7 @@
 import Decimal from 'decimal.js';
 import type { LoanPayload, UserPayload } from './api';
 import { usMortgageShieldShare } from './deductions';
-import { GST_RATE_IN } from './gst';
+import { GST_RATE_IN, gstApplies } from './gst';
 
 const D = (v: string | number | Decimal) => new Decimal(v);
 
@@ -58,9 +58,11 @@ export function marginalCost(
   lockInMonths = 0,
 ): MarginalCost {
   const interest = compounded(nominalRate);
-  // GST is billed on each month's interest and compounds with it (as the
-  // simulation and true APR have it): a 42% card costs 62.6% a year, not 60.31%.
-  const gst = cardGst ? compounded(D(nominalRate).times(GST_ON_CARD_INTEREST_IN.plus(1))).minus(interest) : D(0);
+  // GST is 18% of the year's interest and is never itself charged interest:
+  // RBI Credit Card Master Direction 2022, para 9(b)(ii) and FAQ 7 ("unpaid
+  // charges/levies/taxes shall not be capitalized"). 42% → 51.11% + 9.20% = 60.31%.
+  // https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12300 (read 2026-10-12)
+  const gst = cardGst ? interest.times(GST_ON_CARD_INTEREST_IN) : D(0);
   const taxBenefit = interest.times(D(shieldFraction));
   const k = monthsLeft > 0 ? monthsLeft : OPEN_ENDED_MONTHS;
   const feePct = D(prepaymentFeePct || 0);
@@ -95,6 +97,13 @@ export function marginalShield(
   return D(0);
 }
 
+/** The prepayment fee as charged: an Indian lender adds 18% GST on it
+ *  (engine marginal_cost.prepayment_fee_with_gst; grill #27). */
+export function prepaymentFeeWithGst(feePct: Decimal.Value, india: boolean): Decimal {
+  const f = D(feePct || 0);
+  return india && gstApplies('prepayment_fee') ? f.plus(f.times(GST_RATE_IN)) : f;
+}
+
 function marketOf(loan: Pick<LoanPayload, 'currency'>, country: string): string {
   return loan.currency === 'INR' ? 'IN' : loan.currency === 'USD' ? 'US' : country;
 }
@@ -126,7 +135,7 @@ export function userMarginalCosts(user: UserPayload, marginalRate: string, indic
       l.loan_type === 'home_loan' ? homeInterest : eduInterest, homeDebt, 1,
     );
     const cardGst = l.loan_type === 'credit_card' && marketOf(l, own) === 'IN';
-    out.set(i, marginalCost(l.nominal_rate || 0, cardGst, shield, l.prepayment_penalty_pct || 0, Number(l.tenure_months_remaining || 0), Number(l.prepay_lock_in_months || 0)));
+    out.set(i, marginalCost(l.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(l.prepayment_penalty_pct || 0, marketOf(l, own) === 'IN'), Number(l.tenure_months_remaining || 0), Number(l.prepay_lock_in_months || 0)));
   }
   return out;
 }
@@ -146,7 +155,7 @@ export function loanMarginalCost(
   const own = marketOf(loan, country) === country;
   const shield = own ? marginalShield(loan.loan_type, country, marginalRate, regime, share.gt(0), share, interest, D(loan.outstanding || 0), 1) : D(0);
   const cardGst = loan.loan_type === 'credit_card' && marketOf(loan, country) === 'IN';
-  return marginalCost(loan.nominal_rate || 0, cardGst, shield, loan.prepayment_penalty_pct || 0, Number(loan.tenure_months_remaining || 0), Number(loan.prepay_lock_in_months || 0));
+  return marginalCost(loan.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(loan.prepayment_penalty_pct || 0, marketOf(loan, country) === 'IN'), Number(loan.tenure_months_remaining || 0), Number(loan.prepay_lock_in_months || 0));
 }
 
 const pct = (v: Decimal) => `${v.times(100).toFixed(2)}%`;
@@ -154,11 +163,11 @@ const pct = (v: Decimal) => `${v.times(100).toFixed(2)}%`;
 /** The breakdown lines for "why this loan first". */
 export function whyFirstLines(mc: MarginalCost): { label: string; value: string; sign: '+' | '−' | '=' }[] {
   const lines: { label: string; value: string; sign: '+' | '−' | '=' }[] = [{ label: 'Interest, compounded monthly', value: pct(mc.interest), sign: '+' }];
-  if (mc.gst.gt(0)) lines.push({ label: 'GST on the interest (18%), compounding with it', value: pct(mc.gst), sign: '+' });
+  if (mc.gst.gt(0)) lines.push({ label: 'GST on the interest (18%); RBI bars interest on it', value: pct(mc.gst), sign: '+' });
   if (mc.taxBenefit.gt(0)) lines.push({ label: 'Tax break you’d give up', value: pct(mc.taxBenefit), sign: '−' });
   if (mc.fee.gt(0)) {
     lines.push({ label: 'What it costs you a year', value: pct(mc.annualCost), sign: '=' });
-    lines.push({ label: 'Prepayment fee, over the months left', value: pct(mc.fee), sign: '−' });
+    lines.push({ label: 'Prepayment fee (with 18% GST in India), over the months left', value: pct(mc.fee), sign: '−' });
   }
   lines.push({ label: 'Each extra payment here saves', value: `${pct(mc.total)} a year`, sign: '=' });
   return lines;

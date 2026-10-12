@@ -122,6 +122,11 @@ class Loan:
     prepayment_penalty_pct: Decimal = Decimal("0")
     prepay_lock_in_months: int = 0
     part_payment_freq_months: Optional[int] = None
+    # Smallest part-payment the lender accepts (grill #30, sprint G1), in the
+    # loan's currency. Extra below it is set aside month to month until it
+    # reaches this amount (MonthRow.set_aside_for_prepay). 0 = any amount.
+    # From the loan agreement / KFS; no lender figure is ever assumed.
+    min_prepay_amount: Decimal = Decimal("0")
     # Pre-EMI broken-period interest. Used for under-construction home
     # loans: lender disburses tranches before possession, charging
     # interest-only on the disbursed amount until full possession. EMI

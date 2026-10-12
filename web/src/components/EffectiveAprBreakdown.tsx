@@ -4,7 +4,7 @@
  * What a loan costs a year, line by line: the same figure the loan's row,
  * the dearest flag and the payoff order use (lib/marginal-cost, the engine's
  * MarginalCost.annual_cost). Interest compounded monthly, plus GST on an
- * Indian card (compounding with it), less the tax break an extra payment
+ * Indian card (18% of the interest, never itself charged interest: RBI MD 2022 para 9(b)(ii)), less the tax break an extra payment
  * would give up. A prepayment fee comes off what an extra payment saves.
  *
  * Used in two places with one look:
@@ -70,7 +70,7 @@ export function EffectiveAprBreakdown({
   const compounding = mc.interest.minus(loan.nominal_rate || 0);
   const lines: { label: string; value: Decimal; sign: '+' | '−' }[] = [];
   if (compounding.gt(0.00005)) lines.push({ label: 'Interest added monthly, so it compounds', value: compounding, sign: '+' });
-  if (mc.gst.gt(0)) lines.push({ label: 'GST on the interest (18%), compounding with it', value: mc.gst, sign: '+' });
+  if (mc.gst.gt(0)) lines.push({ label: 'GST on the interest (18%); RBI bars interest on it', value: mc.gst, sign: '+' });
   if (mc.taxBenefit.gt(0)) lines.push({ label: 'Tax break on the interest', value: mc.taxBenefit, sign: '−' });
   // Fees paid upfront: not in the yearly cost, but the all-in figure says what they added.
   const { lines: feeLines } = computeBreakdown(loan, marginalTaxRate, country, taxRegime, itemises ?? true);

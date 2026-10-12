@@ -1,7 +1,7 @@
 """Core financial formulas — design spec §4.1–§4.23."""
 from decimal import Decimal
 from engine.models import Loan, Country, TaxRegimeIN, LoanType
-from engine.tax.gst import GST_RATE_IN
+from engine.tax.gst import GST_RATE_IN, gst_on
 
 D = Decimal
 
@@ -106,8 +106,10 @@ US_STUDENT_LOAN_INTEREST_MAX = D("2500")  # IRC §221
 
 def gst_component(loan_type: LoanType, nominal_rate: Decimal,
                   processing_fee_rate: Decimal) -> Decimal:
-    """India GST contribution to effective rate. 18% on credit-card interest;
-    18% on the processing fee for personal/home/auto.
+    """India GST contribution to effective rate, from the one table in
+    engine/tax/gst.py (grill #27): 18% on credit-card interest (loan
+    interest is exempt), and 18% on the processing fee of every loan type
+    (gold, education and BNPL fees carry it too; they used to be left out).
 
     `processing_fee_rate` is the fee already spread over the tenure as a
     yearly rate (`Loan.processing_fee_amortised`). It used to be divided
@@ -115,10 +117,8 @@ def gst_component(loan_type: LoanType, nominal_rate: Decimal,
     GST on the fee about zero.
     """
     if loan_type == LoanType.CREDIT_CARD:
-        return nominal_rate * GST_RATE_IN
-    if loan_type in (LoanType.PERSONAL, LoanType.HOME, LoanType.AUTO):
-        return processing_fee_rate * GST_RATE_IN
-    return D("0")
+        return gst_on("card_interest", nominal_rate)
+    return gst_on("loan_interest", nominal_rate) + gst_on("processing_fee", processing_fee_rate)
 
 
 DEDUCTIBLE_LOAN_TYPES_IN = {LoanType.HOME, LoanType.EDUCATION}

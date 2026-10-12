@@ -116,7 +116,7 @@ def test_single_loan_untouched_inputs_are_identical(legacy_dir):
     cases = []
     for _ in range(400):
         country = rng.choice(["IN", "US"])
-        lt = rng.choice(EMI_TYPES + (["credit_card"] if country == "US" else []))
+        lt = rng.choice(EMI_TYPES)  # cards: average daily balance since G1 (test_card_interest_on_the_average_daily_balance)
         loans = [_loan(rng, lt)]
         cases.append({"country": country, "income": _income(rng, loans, rng.random() < 0.8), "loans": loans,
                       "strategy": rng.choice(["avalanche", "snowball", "hybrid"]),
@@ -145,7 +145,7 @@ def test_multi_loan_baseline_is_identical(legacy_dir):
     cases = []
     for _ in range(250):
         country = rng.choice(["IN", "US"])
-        types = EMI_TYPES + (["credit_card"] if country == "US" else [])
+        types = EMI_TYPES  # cards: average daily balance since G1, see test_card_interest_on_the_average_daily_balance
         loans = [_loan(rng, rng.choice(types)) for _ in range(rng.randint(2, 5))]
         cases.append({"country": country, "income": _income(rng, loans, rng.random() < 0.7), "loans": loans,
                       "modes": ["baseline"]})
@@ -162,7 +162,7 @@ def test_multi_loan_plan_differs_only_by_the_cascade_fix(legacy_dir):
     cases, identical = [], 0
     for _ in range(250):
         country = rng.choice(["IN", "US"])
-        types = EMI_TYPES + (["credit_card"] if country == "US" else [])
+        types = EMI_TYPES  # cards: average daily balance since G1, see test_card_interest_on_the_average_daily_balance
         loans = [_loan(rng, rng.choice(types)) for _ in range(rng.randint(2, 4))]
         cases.append({"country": country, "income": _income(rng, loans, True), "loans": loans,
                       "strategy": rng.choice(["avalanche", "snowball", "hybrid"]), "modes": ["plan"]})
@@ -181,8 +181,10 @@ def test_multi_loan_plan_differs_only_by_the_cascade_fix(legacy_dir):
 
 def test_indian_card_interest_carries_18pct_gst(legacy_dir):
     """DIFFERENCE P2-13: Indian card finance charges now carry 18% GST in the
-    cash flow. First-month interest is exactly 1.18x the old engine's, and
-    the card never costs less in total."""
+    cash flow. Since sprint G1 the charge is on the average daily balance
+    (the payment stops interest on its part for the last third of the
+    cycle), so first-month interest is between 1.18 × 2/3 and 1.18 times the
+    old engine's whole-month figure."""
     rng = random.Random(SEED + 3)
     cases = []
     for _ in range(200):
@@ -192,8 +194,26 @@ def test_indian_card_interest_carries_18pct_gst(legacy_dir):
         cases.append({"country": "IN", "income": _income(rng, [card], True), "loans": [card], "modes": ["baseline"]})
     for case, old, new in both(legacy_dir, cases):
         o, n = old["baseline"], new["baseline"]
-        assert abs(D(n["months"][0][1]) - D(o["months"][0][1]) * D("1.18")) <= D("1e-6"), case
-        assert D(n["total_interest"]) >= D(o["total_interest"]) - EXACT, case
+        first_old, first_new = D(o["months"][0][1]), D(n["months"][0][1])
+        assert first_new <= first_old * D("1.18") + D("1e-6"), case
+        assert first_new >= first_old * D("1.18") * 2 / 3 - D("1e-6"), case
+
+
+def test_card_interest_on_the_average_daily_balance(legacy_dir):
+    """DIFFERENCE G1-ADB (sprint G1, grill #25): a US card's interest is on
+    the average daily balance; the payment made on the due date stops
+    interest on the paid part for the last third of the cycle (RBI MD 2022
+    FAQ 6 for India; the same daily-balance method US issuers use). It can
+    only be lower than the old whole-month charge, month by month."""
+    rng = random.Random(SEED + 9)
+    cases = []
+    for _ in range(150):
+        card = _loan(rng, "credit_card", min_bps=100)
+        cases.append({"country": "US", "income": _income(rng, [card], True), "loans": [card], "modes": ["baseline"]})
+    for case, old, new in both(legacy_dir, cases):
+        o, n = old["baseline"], new["baseline"]
+        assert D(n["months"][0][1]) <= D(o["months"][0][1]) + D("1e-6"), case
+        assert D(n["total_interest"]) <= D(o["total_interest"]) + EXACT, case
 
 
 def test_moratorium_interest_is_capitalised(legacy_dir):

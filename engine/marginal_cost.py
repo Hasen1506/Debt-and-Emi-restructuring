@@ -4,7 +4,7 @@ The payoff order ranks loans by what the NEXT rupee (or dollar) of extra
 payment saves on each loan, looking forward only:
 
     marginal cost = interest, compounded monthly        (1 + r/12)^12 − 1
-                  + GST on that interest, compounding   (Indian credit cards: 18%)
+                  + GST on that interest, not compounding (Indian credit cards: 18%)
                   − tax benefit the prepayment gives up (24(b) / 80E / US mortgage
                                                          and student-loan interest)
                   − the prepayment / foreclosure fee,   fee% × 12 / months left
@@ -77,6 +77,14 @@ def compounded(nominal: Decimal) -> Decimal:
     return (D("1") + nominal / D("12")) ** 12 - D("1")
 
 
+def prepayment_fee_with_gst(fee_pct: Decimal, india: bool) -> Decimal:
+    """The prepayment fee as charged: an Indian lender adds 18% GST on it
+    (engine/tax/gst.py, "prepayment_fee"; grill #27). Fee % as typed, GST
+    excluded, the way a KFS writes it ("4% + GST")."""
+    from engine.tax.gst import gst_on
+    return fee_pct + gst_on("prepayment_fee", fee_pct) if india else fee_pct
+
+
 def marginal_cost(
     nominal_rate: Decimal,
     card_gst: bool,
@@ -91,11 +99,17 @@ def marginal_cost(
     share for a deductible one). `months_left`: months to the loan's end
     (≤ 0 = open-ended)."""
     interest = compounded(nominal_rate)
-    # GST is billed on each month's interest and, on a balance carried, earns
-    # interest itself, so it compounds with it: (1 + r(1 + g)/12)^12 - 1 in all,
-    # as the simulation and true_apr have it. Taken as interest × g, a 42%
-    # card read 60.31% a year against the 62.6% it actually costs.
-    gst = compounded(nominal_rate * (1 + GST_ON_CARD_INTEREST_IN)) - interest if card_gst else D("0")
+    # GST is 18% of each month's interest, and the year's GST is 18% of the
+    # year's interest. It does not itself earn interest: RBI's Master
+    # Direction on Credit Card and Debit Card - Issuance and Conduct, 2022
+    # (RBI/2022-23/92, updated 7 March 2024), para 9(b)(ii): "The unpaid
+    # charges/levies/taxes shall not be capitalized for charging/compounding
+    # of interest", and its FAQ 7 (in force for taxes billed from
+    # 1 October 2022). So a 42% card costs (1 + 0.42/12)^12 - 1 = 51.11% of
+    # interest + 18% of that = 9.20% GST = 60.31% a year, not the 62.52%
+    # that compounding the GST gave. Source:
+    # https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12300 (read 2026-10-12)
+    gst = interest * GST_ON_CARD_INTEREST_IN if card_gst else D("0")
     tax_benefit = interest * shield_fraction
     k = months_left if months_left > 0 else OPEN_ENDED_MONTHS
     fee = prepayment_fee_pct * D("12") / D(k) if prepayment_fee_pct > 0 else D("0")
@@ -156,12 +170,13 @@ def loan_marginal_cost(
     the loan's own fields (as of today); the simulation passes the values
     for the month it is in."""
     from engine.formulas import loan_market
-    card_gst = loan.loan_type == LoanType.CREDIT_CARD and loan_market(loan, country) == Country.IN
+    india = loan_market(loan, country) == Country.IN
+    card_gst = loan.loan_type == LoanType.CREDIT_CARD and india
     return marginal_cost(
         loan.nominal_rate,
         card_gst,
         shield_fraction,
-        loan.prepayment_penalty_pct or D("0"),
+        prepayment_fee_with_gst(loan.prepayment_penalty_pct or D("0"), india),
         loan.tenure_months_remaining if months_left is None else months_left,
         loan.prepay_lock_in_months if lock_in_months is None else lock_in_months,
     )

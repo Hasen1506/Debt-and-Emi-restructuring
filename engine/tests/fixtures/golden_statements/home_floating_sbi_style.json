@@ -1,0 +1,239 @@
+{
+ "id": "home_floating_sbi_style",
+ "loan_type": "home",
+ "rate_type": "floating",
+ "bank_style": "SBI (EBLR-linked home loan)",
+ "simulated": true,
+ "principal": "2500000",
+ "start_rate": "0.086",
+ "tenure_months": 240,
+ "emi": "21855",
+ "convention": "daily reducing balance at monthly rests, actual days / 365",
+ "rate_changes": {
+  "4": "0.0835",
+  "13": "0.0885"
+ },
+ "reset_option": "a cut keeps the EMI (tenure shortens); a rise raises the EMI to keep the end date",
+ "sources": [
+  "https://sbi.co.in/web/nri/loans/home-loan",
+  "RBI, Reset of Floating Interest Rate on EMI based Personal Loans, 18 Aug 2023"
+ ],
+ "rows": [
+  {
+   "month": 1,
+   "period": "2026-11",
+   "days": 30,
+   "rate": "0.086",
+   "interest": "17671.23",
+   "paid": "21855",
+   "closing_balance": "2495816.23"
+  },
+  {
+   "month": 2,
+   "period": "2026-12",
+   "days": 31,
+   "rate": "0.086",
+   "interest": "18229.72",
+   "paid": "21855",
+   "closing_balance": "2492190.95"
+  },
+  {
+   "month": 3,
+   "period": "2027-01",
+   "days": 31,
+   "rate": "0.086",
+   "interest": "18203.24",
+   "paid": "21855",
+   "closing_balance": "2488539.19"
+  },
+  {
+   "month": 4,
+   "period": "2027-02",
+   "days": 28,
+   "rate": "0.0835",
+   "interest": "15940.29",
+   "paid": "21855",
+   "closing_balance": "2482624.48"
+  },
+  {
+   "month": 5,
+   "period": "2027-03",
+   "days": 31,
+   "rate": "0.0835",
+   "interest": "17606.23",
+   "paid": "21855",
+   "closing_balance": "2478375.71"
+  },
+  {
+   "month": 6,
+   "period": "2027-04",
+   "days": 30,
+   "rate": "0.0835",
+   "interest": "17009.13",
+   "paid": "21855",
+   "closing_balance": "2473529.84"
+  },
+  {
+   "month": 7,
+   "period": "2027-05",
+   "days": 31,
+   "rate": "0.0835",
+   "interest": "17541.73",
+   "paid": "21855",
+   "closing_balance": "2469216.57"
+  },
+  {
+   "month": 8,
+   "period": "2027-06",
+   "days": 30,
+   "rate": "0.0835",
+   "interest": "16946.27",
+   "paid": "21855",
+   "closing_balance": "2464307.84"
+  },
+  {
+   "month": 9,
+   "period": "2027-07",
+   "days": 31,
+   "rate": "0.0835",
+   "interest": "17476.33",
+   "paid": "21855",
+   "closing_balance": "2459929.17"
+  },
+  {
+   "month": 10,
+   "period": "2027-08",
+   "days": 31,
+   "rate": "0.0835",
+   "interest": "17445.28",
+   "paid": "21855",
+   "closing_balance": "2455519.45"
+  },
+  {
+   "month": 11,
+   "period": "2027-09",
+   "days": 30,
+   "rate": "0.0835",
+   "interest": "16852.26",
+   "paid": "21855",
+   "closing_balance": "2450516.71"
+  },
+  {
+   "month": 12,
+   "period": "2027-10",
+   "days": 31,
+   "rate": "0.0835",
+   "interest": "17378.53",
+   "paid": "21855",
+   "closing_balance": "2446040.24"
+  },
+  {
+   "month": 13,
+   "period": "2027-11",
+   "days": 30,
+   "rate": "0.0885",
+   "interest": "17792.43",
+   "paid": "22196",
+   "closing_balance": "2441636.67"
+  },
+  {
+   "month": 14,
+   "period": "2027-12",
+   "days": 31,
+   "rate": "0.0885",
+   "interest": "18352.41",
+   "paid": "22196",
+   "closing_balance": "2437793.08"
+  },
+  {
+   "month": 15,
+   "period": "2028-01",
+   "days": 31,
+   "rate": "0.0885",
+   "interest": "18323.52",
+   "paid": "22196",
+   "closing_balance": "2433920.60"
+  },
+  {
+   "month": 16,
+   "period": "2028-02",
+   "days": 29,
+   "rate": "0.0885",
+   "interest": "17114.13",
+   "paid": "22196",
+   "closing_balance": "2428838.73"
+  },
+  {
+   "month": 17,
+   "period": "2028-03",
+   "days": 31,
+   "rate": "0.0885",
+   "interest": "18256.22",
+   "paid": "22196",
+   "closing_balance": "2424898.95"
+  },
+  {
+   "month": 18,
+   "period": "2028-04",
+   "days": 30,
+   "rate": "0.0885",
+   "interest": "17638.65",
+   "paid": "22196",
+   "closing_balance": "2420341.60"
+  },
+  {
+   "month": 19,
+   "period": "2028-05",
+   "days": 31,
+   "rate": "0.0885",
+   "interest": "18192.35",
+   "paid": "22196",
+   "closing_balance": "2416337.95"
+  },
+  {
+   "month": 20,
+   "period": "2028-06",
+   "days": 30,
+   "rate": "0.0885",
+   "interest": "17576.38",
+   "paid": "22196",
+   "closing_balance": "2411718.33"
+  },
+  {
+   "month": 21,
+   "period": "2028-07",
+   "days": 31,
+   "rate": "0.0885",
+   "interest": "18127.53",
+   "paid": "22196",
+   "closing_balance": "2407649.86"
+  },
+  {
+   "month": 22,
+   "period": "2028-08",
+   "days": 31,
+   "rate": "0.0885",
+   "interest": "18096.95",
+   "paid": "22196",
+   "closing_balance": "2403550.81"
+  },
+  {
+   "month": 23,
+   "period": "2028-09",
+   "days": 30,
+   "rate": "0.0885",
+   "interest": "17483.36",
+   "paid": "22196",
+   "closing_balance": "2398838.17"
+  },
+  {
+   "month": 24,
+   "period": "2028-10",
+   "days": 31,
+   "rate": "0.0885",
+   "interest": "18030.72",
+   "paid": "22196",
+   "closing_balance": "2394672.89"
+  }
+ ]
+}

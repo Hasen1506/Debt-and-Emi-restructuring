@@ -19,7 +19,7 @@
  */
 import Decimal from 'decimal.js';
 import type { LoanPayload, Country, TaxRegimeIN } from './api';
-import { GST_RATE_IN } from './gst';
+import { GST_RATE_IN, gstApplies } from './gst';
 const GST_PCT = GST_RATE_IN.mul(100).toFixed(0);
 
 export interface BreakdownLine {
@@ -175,11 +175,9 @@ export function computeBreakdown(
           note: 'Government levy on card interest',
         });
       }
-    } else if (
-      loan.loan_type === 'personal_loan' ||
-      loan.loan_type === 'home_loan' ||
-      loan.loan_type === 'auto_loan'
-    ) {
+    } else if (gstApplies('processing_fee')) {
+      // Every loan type's processing fee carries GST (gold, education and
+      // BNPL were left out before): the one table in engine/tax/gst.py.
       if (processingFee.gt(0)) {
         // The fee is already a yearly rate: GST is 18% of it. It used to
         // be divided again by balance × years, which made it about zero.

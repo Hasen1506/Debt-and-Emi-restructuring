@@ -57,6 +57,26 @@ USA_MIN_PAYMENT_FORMULAS = {
                          "principal_pct": D("0.01"), "floor": D("25")},
 }
 
+# Provenance of the formulas above (grill #26). None = no source on file:
+# the formula is an estimate and the UI says "use the minimum on your statement".
+FORMULA_SOURCE: dict[str, dict] = {
+    bank: {"source_url": None, "as_of": None, "verified": False}
+    for bank in (*INDIA_MIN_PAYMENT_FORMULAS, *USA_MIN_PAYMENT_FORMULAS)
+}
+STATEMENT_MIN_ADVICE = (
+    "Estimated. Use the minimum amount due on your card statement: type it in once and the plan uses it."
+)
+RBI_MIN_DUE_RULE = "RBI Master Direction on Credit Card and Debit Card, 2022, para 9(b)(ii) and Annex"
+
+
+def minimum_basis(loan: Loan) -> str:
+    """"statement" when the user typed the statement's minimum, else
+    "estimated" (a formula with no verified source)."""
+    if loan.min_payment_override is not None and loan.min_payment_override > D("0"):
+        return "statement"
+    return "estimated"
+
+
 DEFAULT_FORMULA = {
     Country.IN: {"type": "greater_of_pct_floor", "pct": D("0.05"), "floor": D("200")},
     Country.US: {"type": "interest_plus_pct_plus_fees_floor", "pct": D("0.01"), "floor": D("35")},
@@ -140,6 +160,12 @@ def compute_minimum_payment(
 
     minimum = _evaluate(formula, loan.outstanding, interest_accrued, fees,
                         current_emi, over_limit, past_due)
+    if country == Country.IN:
+        # RBI MD 2022 para 9(b)(ii) + Annex: no negative amortisation, so the
+        # minimum covers the month's interest (GST included in
+        # `interest_accrued` for an Indian card) and charges. A "2% of the
+        # balance" estimate on a 42% card (4.13% a month with GST) fell short.
+        minimum = max(minimum, interest_accrued + fees + over_limit + past_due)
     # A $35 floor on a $20 balance is a $20 bill (plus its interest and fees).
     owed = loan.outstanding + interest_accrued + fees + current_emi + over_limit + past_due
     return min(minimum, max(owed, D("0")))

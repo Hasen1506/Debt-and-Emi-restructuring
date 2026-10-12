@@ -88,7 +88,19 @@
     ],
     "surcharge_cap_new_regime": 0.25,
     "cess": 0.04,
-    "gst": 0.18
+    "gst": 0.18,
+    "gst_applies": {
+      "card_interest": true,
+      "loan_interest": false,
+      "processing_fee": true,
+      "prepayment_fee": true,
+      "late_fee": true,
+      "penal_charge": true,
+      "bounce_charge": true,
+      "balance_transfer_fee": true,
+      "card_annual_fee": true,
+      "cash_advance_fee": true
+    }
   },
   "us": {
     "single": {

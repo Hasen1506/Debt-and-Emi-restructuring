@@ -17,19 +17,20 @@ flat→reducing) or a ten-thousandth (month-by-month schedules).
 
 | Domain | Test | Why nothing may change |
 |---|---|---|
-| One EMI loan, or one US card, in the user's own currency; no prepayment fee, moratorium or pre-EMI; Indian new regime / US (no tax shield) | `test_single_loan_untouched_inputs_are_identical` (400 profiles) | PR #29 touched none of these inputs |
-| Minimums-only baseline on 2–5 own-currency EMI loans / US cards | `test_multi_loan_baseline_is_identical` (250 profiles) | The baseline never cascades and these loans carry no GST |
+| One EMI loan in the user's own currency (cards left out since sprint G1, see G1-ADB); no prepayment fee, moratorium or pre-EMI; Indian new regime / US (no tax shield) | `test_single_loan_untouched_inputs_are_identical` (400 profiles) | PR #29 touched none of these inputs |
+| Minimums-only baseline on 2–5 own-currency EMI loans (no cards since G1) | `test_multi_loan_baseline_is_identical` (250 profiles) | The baseline never cascades and these loans carry no GST |
 
 ## Allowed differences, and the direction each must point
 
 | ID | Change | Old engine (`c753849`) | Current engine | What the test asserts | Test |
 |---|---|---|---|---|---|
 | H2 | Freed money from a loan that clears walks the whole payoff order | Gave it to the next loan only; anything above that loan's balance was dropped | Keeps walking until it is used up | Total interest never higher, debt-free month never later; at least half the profiles are unchanged (the fix only bites when freed money overflows the next loan) | `test_multi_loan_plan_differs_only_by_the_cascade_fix` |
-| P2-13 | 18% GST on Indian card finance charges | Interest without GST | Interest × 1.18 in the cash flow | First month's interest is exactly 1.18× the old figure; total card cost never lower | `test_indian_card_interest_carries_18pct_gst` |
-| M1 | Interest during a moratorium (first EMI 2+ months away) is capitalised | Interest before the first EMI vanished | It accrues onto the balance | Total interest strictly higher | `test_moratorium_interest_is_capitalised` |
+| P2-13 | 18% GST on Indian card finance charges | Interest without GST | Interest × 1.18 in the cash flow | First month's interest between 1.18 × 2/3 and 1.18× the old figure (since G1 it's on the average daily balance) | `test_indian_card_interest_carries_18pct_gst` |
+| M1 | Interest during a moratorium (first EMI 2+ months away) is capitalised | Interest before the first EMI vanished | It accrues onto the balance (simple interest on the principal for an education loan, SBI Student Loan MITC, since G1) | Total interest strictly higher | `test_moratorium_interest_is_capitalised` |
 | H4 | A foreign-currency loan with no saved exchange rate is refused | Treated ₹ and $ as 1:1, silently | Engine raises `MissingFxRate`; the API answers 422 | Old engine returns a plan; new engine refuses, for both plan and baseline | `test_foreign_loan_without_rate_is_refused_not_converted_1_to_1` |
 | Hike schedule | A salary hike schedule applies on its own | Phases were ignored unless a flat annual hike was also set | Phases raise income as scheduled | Total interest never higher, and lower in at least one profile | `test_hike_schedule_alone_now_raises_income` |
 | P2-14 | During pre-EMI the committed payment is the interest only | The full EMI was committed | Interest only | First month's spare cash never lower | `test_pre_emi_minimum_is_interest_only` |
+| G1-ADB (sprint G1) | Card interest on the average daily balance: spend carries half a cycle, the payment stops interest on its part for the last third, a card paid in full pays none on new spend | Whole month on balance + spend | `simulation.card_cycle_interest` | US card: first-month and total interest never higher | `test_card_interest_on_the_average_daily_balance` |
 | Prepayment fee gate (this PR) | A loan whose prepayment fee costs more than the interest the extra payment saves is not prepaid | Prepaid anyway, so the "optimised" plan could cost more than paying minimums | Prepays only when (1 − fee) × (1 + r)^k > 1, k = months the extra would otherwise have grown | The new plan never costs more than its own minimums-only baseline; the old engine did in some seeded profiles | `test_prepayment_fee_gate_never_prepays_at_a_loss` |
 
 ### Also changed in this PR, covered by the property suite rather than the differential one

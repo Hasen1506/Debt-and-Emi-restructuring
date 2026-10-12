@@ -50,15 +50,21 @@ def ref_balance_after(p: F, annual: F, n: int, k: int) -> F:
 
 
 def ref_amortise(p: F, annual: F, payment: F, gst: F = F(0), months: int = 480,
-                 extra=lambda m: F(0)):
+                 extra=lambda m: F(0), card: bool = False):
     """Rows of (balance_after, interest, invested) for a single loan paid
-    `payment` (+ `extra(m)`) a month; interest carries `gst` on top."""
+    `payment` (+ `extra(m)`) a month; interest carries `gst` on top.
+    `card`: a revolving card's average daily balance (sprint G1): the
+    payment, made on the due date, stops interest on the paid part for the
+    last third of the cycle; the payment is capped at what is owed."""
     r, b, rows = annual / 12, p, []
     for m in range(1, months + 1):
         if b <= 0:
             break
         interest = b * r * (1 + gst)
         pay = payment + extra(m)
+        if card:
+            pay = min(pay, b + interest)
+            interest = (b - min(pay, b) / 3) * r * (1 + gst)
         principal = pay - interest
         invested = F(0)
         if principal >= b:
@@ -201,7 +207,7 @@ def test_card_with_fixed_minimum_matches_reference_including_gst():
                     min_payment_override=minimum)
         res = baseline_minimums_only(_user(country, card, minimum), horizon_months=480)
         gst = F(18, 100) if country == Country.IN else F(0)
-        ref = ref_amortise(_f(p), _f(r), _f(minimum), gst=gst)
+        ref = ref_amortise(_f(p), _f(r), _f(minimum), gst=gst, card=True)
         assert len(res.months) == len(ref)
         for row, (bal, interest, _inv) in zip(res.months, ref):
             assert _close(row.balances_by_loan_index[0], bal, F(1, 10**4)), (country, p, r, minimum, row.month_index)

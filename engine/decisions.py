@@ -216,16 +216,24 @@ def allocate_windfall(
               if o.liquidity_class == LiquidityClass.LIQUID and o.is_in_pool]
     best_return = max((o.expected_return for o in liquid), default=D("0"))
     best = next((o for o in liquid if o.expected_return == best_return), None)
+    # The gate compares what the debt costs from here on (the marginal cost's
+    # annual_cost: compounded interest + GST − the tax break at the margin),
+    # the same number the payoff order uses, not the all-in effective rate,
+    # which counts a processing fee already paid (grill #36, sprint G1).
+    def gate_rate(l: Loan) -> Decimal:
+        mc = (marginal_costs or {}).get(id(l))
+        return mc.annual_cost if mc is not None else effective_rates[id(l)]
+
     rate_ok = [
         l for l in ranked
-        if best is None or prepay_recommended(effective_rates[id(l)], best_return, inflation, marginal_tax_rate, prepay_hurdle)
+        if best is None or prepay_recommended(gate_rate(l), best_return, inflation, marginal_tax_rate, prepay_hurdle)
     ]
     # A fee bigger than the interest the payment saves makes prepaying a loss.
     worth = [l for l in rate_ok if net_of_fee(l)[2] > net_of_fee(l)[1]]
 
     if not worth:
-        top = max(ranked, key=lambda l: effective_rates[id(l)])
-        top_rate = effective_rates[id(top)]
+        top = max(ranked, key=gate_rate)
+        top_rate = gate_rate(top)
         if rate_ok:
             return WindfallAllocation(
                 to_loan_id=None, loan_label=f"{top.bank} {top.loan_type.value}", amount=D("0"),

@@ -8,7 +8,10 @@ def _car(user):
         "loan_type": "auto_loan", "bank": "x", "outstanding": "400000", "nominal_rate": "0.079",
         "rate_type": "fixed", "tenure_months_remaining": 60, "scheduled_emi": "8100",
     }]
-    u["investment_options"][0]["expected_return"] = "0.075"
+    # The gate weighs the car loan at what it costs from here (grill #36,
+    # sprint G1): 7.9% compounded monthly = 8.19%. 7.8% + the 0.5pp default
+    # margin beats it; with a 0 margin, prepaying wins.
+    u["investment_options"][0]["expected_return"] = "0.078"
     return u
 
 

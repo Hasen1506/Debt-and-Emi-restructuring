@@ -128,7 +128,9 @@ def test_interest_plus_percent_card_minimum_includes_the_interest():
     u = _user(Country.US, [card])
     b = baseline_minimums_only(u, horizon_months=1)
     assert b.months[0].payments_by_loan_index[0] == D("150")
-    assert _balance(b.months[0]) == D("4950")
+    # The $150 paid on the due date stops interest on that part for the last
+    # third of the cycle (average daily balance, sprint G1): $99 interest.
+    assert _balance(b.months[0]) == D("4949")
     assert compute_minimum_payment(card, Country.US, interest_accrued=D("100")) == D("150")
 
 
