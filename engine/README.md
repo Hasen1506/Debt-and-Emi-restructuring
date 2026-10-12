@@ -1,6 +1,6 @@
 # Engine
 
-Pure-function Python library implementing the math from [module-02-design-spec.md](../module-02-design-spec.md) §4.1–§4.23. All currency math uses `Decimal` — never `float`.
+Pure-function Python library implementing the math from [module-02-design-spec.md](../docs/planning/module-02-design-spec.md) §4.1–§4.23. All currency math uses `Decimal` — never `float`.
 
 ## Layout
 - `models.py` — User, Loan, Asset, PFBalance, InvestmentOption dataclasses
@@ -21,7 +21,7 @@ python -m pytest engine/tests/ -v
 - PPF 7.1% (Q1 FY2026-27)
 - US Tax Year 2026 brackets and standard deductions (IRS Rev Proc 2025-32)
 
-See [§7.9 in the design spec](../module-02-design-spec.md) for source URLs and refresh cadence.
+See [§7.9 in the design spec](../docs/planning/module-02-design-spec.md) for source URLs and refresh cadence.
 
 ## Status
 Scaffold only. Remaining: Layer 0/1/2 (employer match, restructuring, ordering), decision sub-modules §8a–§8f, asset liquidation §4.18, country data store.

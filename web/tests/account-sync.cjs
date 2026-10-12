@@ -75,7 +75,7 @@ test('session listeners update after login, and failed saves or logout retain th
  };
  try {
   const file=path.join(root,'lib/auth.ts');delete require.cache[require.resolve(file)];const {useSession}=require(file),session=useSession(),dispose=effects[0]();await new Promise(r=>setImmediate(r));assert.equal(state.status,'anon');
-  currentUser={id:'A',email:'test@example.com'};handlers.get('finoptima:session-changed')();await new Promise(r=>setImmediate(r));assert.equal(state.status,'authed');
+  currentUser={id:'A',email:'test@example.com'};handlers.get('rightdue:session-changed')();await new Promise(r=>setImmediate(r));assert.equal(state.status,'authed');
   allowFlush=false;await assert.rejects(session.logout(),/not reached/);assert.equal(cleared,0);assert.equal(state.status,'authed');
   allowFlush=true;allowLogout=false;await assert.rejects(session.logout(),/offline/);assert.equal(cleared,0);assert.equal(state.status,'authed');
   allowLogout=true;await session.logout();assert.equal(cleared,1);assert.equal(state.status,'anon');dispose();assert.equal(handlers.size,0);

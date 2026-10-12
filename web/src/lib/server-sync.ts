@@ -11,7 +11,7 @@
  *
  * On app boot, <SessionHydrator/> fetches /api/user/state once. If
  * non-empty, it mirrors each known slice back into the matching
- * cookie/localStorage and dispatches a 'finoptima:hydrated' event so
+ * cookie/localStorage and dispatches a 'rightdue:hydrated' event so
  * components with stale state can re-read.
  *
  * Slices intentionally namespaced via a flat top-level key so the
@@ -62,12 +62,12 @@ const SLICE_TARGETS: Record<string, SliceTarget> = {
   // cookies and predates this file).
 };
 
-export const HYDRATED_EVENT = 'finoptima:hydrated';
+export const HYDRATED_EVENT = 'rightdue:hydrated';
 const ACCOUNT_KEY = 'rightdue_account_id';
 let accountGeneration = 0;
 let localRevision = 0;
 let preparedAccount: string | null = null;
-export const SYNC_CHANGED_EVENT = 'finoptima:sync-changed';
+export const SYNC_CHANGED_EVENT = 'rightdue:sync-changed';
 const pendingMemory = new Map<string, Record<string, unknown>>();
 
 /**

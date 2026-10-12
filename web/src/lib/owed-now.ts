@@ -66,10 +66,10 @@ export function useOwedNow(loans: LoanPayload[], country: Country): { rows: Owed
     // streamed in. Not cancelled with the effect: the cookie is already
     // rewritten, so a remount wouldn't ask again.
     if (refreshActivityCookieClient(loans, country)) window.setTimeout(() => router.refresh(), 1500);
-    window.addEventListener('finoptima:profile-changed', read);
+    window.addEventListener('rightdue:profile-changed', read);
     window.addEventListener('storage', read);
     return () => {
-      window.removeEventListener('finoptima:profile-changed', read);
+      window.removeEventListener('rightdue:profile-changed', read);
       window.removeEventListener('storage', read);
     };
     // Once, on mount: the loans are the page's.

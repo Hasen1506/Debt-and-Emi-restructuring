@@ -3,7 +3,7 @@
 /**
  * Ledger primitives — "The Statement" visual language.
  *
- * Mirrors the contracts in ledger-skin-home.jsx / ledger-skin-rest.jsx at
+ * Mirrors the contracts in design/ledger-v2/ledger-skin-home.jsx / ledger-skin-rest.jsx at
  * repo root. Every Ledger* screen composes from this file; no screen
  * should re-implement its own borders, mastheads, or KPI grids.
  *

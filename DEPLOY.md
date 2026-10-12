@@ -36,6 +36,34 @@ so it adds no hop. Set it to `1` if rightdue.app is ever DNS-only (grey cloud).
 Requests sent straight to `*.onrender.com` bypass Cloudflare and could choose
 their own rate-limit bucket; that was already true of the old deploy.
 
+### Security and privacy settings (sprint G8)
+
+All optional; the defaults are safe. Set them on the `rightdue` service.
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `OTP_GLOBAL_DAILY_CAP` | `90` | Sign-in codes sent per 24 h across **all** emails. Keep it under the email plan's quota (Resend Free: 100 a day, 3,000 a month, resend.com/pricing, 12 Oct 2026). When reached, sign-in shows "paused for today". |
+| `AUTH_LOG_RETENTION_DAYS` | `365` | How long sign-in records (codes sent, ended sessions) are kept, then purged (docs/privacy-and-retention.md). |
+| `RATE_LIMIT_STORE` | `db` | `db`: sign-in, account, admin and outcome routes also count against an hourly limit in Postgres, so a restart can't reset it. `memory`: in-memory buckets only. |
+| `RATE_BUCKET_KEY` | `OUTCOMES_IP_KEY` | Key for the hash of client addresses in `rate_buckets`. |
+| `TURNSTILE_SECRET_KEY` | unset (off) | Cloudflare Turnstile on code requests. Needs `NEXT_PUBLIC_TURNSTILE_SITE_KEY` too (below). |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | unset (off) | Build-time (Docker build arg): shows the Turnstile box on /login and allows `challenges.cloudflare.com` in the CSP. |
+| `SENTRY_DSN` | unset (off) | Scrubbed server error reports from the API and the web server (docs/monitoring.md). |
+| `RIGHTDUE_ALLOW_DISABLED_AUTH` | unset | Never on a public deploy. A production build or container start refuses `NEXT_PUBLIC_DISABLE_AUTH=true` unless this is `1` (web/auth-guard.mjs, deploy/start.sh). |
+
+**Turnstile, step by step.** Cloudflare dashboard → Turnstile → Add widget:
+hostname `rightdue.app` (and the onrender.com host if you sign in there),
+mode "Managed". Copy the site key into `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and the
+secret key into `TURNSTILE_SECRET_KEY`, then **Clear build cache & deploy**
+(the site key is compiled in). Turn it off by removing both.
+
+**Pages now send a Content-Security-Policy** with `frame-ancestors 'none'`
+(web/security-headers.mjs) in production builds; `next dev` does not, so
+local preview tools still work. A new third-party script, frame or API
+origin must be added there.
+
+**Regions**: docs/region-colocation.md (no change made).
+
 ### Cutover from the old two services
 
 Render cannot change an existing service's runtime (python/node → docker), so

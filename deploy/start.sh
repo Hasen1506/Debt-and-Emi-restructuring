@@ -12,6 +12,15 @@ WEB_DIR="${WEB_DIR:-$APP_DIR/web-server}"
 
 cd "$APP_DIR"
 
+# Grill #66: never start a public container with sign-in switched off (the
+# web build refuses it too, web/auth-guard.mjs). Override for a local
+# walkthrough only.
+if [ "${NEXT_PUBLIC_DISABLE_AUTH:-false}" = "true" ] && [ "${RIGHTDUE_ALLOW_DISABLED_AUTH:-0}" != "1" ]; then
+  echo "start.sh: NEXT_PUBLIC_DISABLE_AUTH=true would serve the app without sign-in; refusing to start." >&2
+  echo "start.sh: set NEXT_PUBLIC_DISABLE_AUTH=false (or RIGHTDUE_ALLOW_DISABLED_AUTH=1 for a local trial)." >&2
+  exit 1
+fi
+
 # One worker: the free plan has 512 MB and a fraction of a CPU, and the rate
 # limiter keeps its buckets in process memory (one worker = one set).
 # --forwarded-allow-ips is left at its default (127.0.0.1, i.e. Next.js);

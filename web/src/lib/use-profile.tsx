@@ -39,7 +39,7 @@ function clientSnapshot(): StoredProfile {
 }
 
 function subscribe(callback: () => void) {
-  const events = ['finoptima:profile-changed', 'finoptima:hydrated', 'storage', 'focus'];
+  const events = ['rightdue:profile-changed', 'rightdue:hydrated', 'storage', 'focus'];
   events.forEach(e => window.addEventListener(e, callback));
   return () => events.forEach(e => window.removeEventListener(e, callback));
 }

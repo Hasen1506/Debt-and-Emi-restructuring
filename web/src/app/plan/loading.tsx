@@ -52,7 +52,7 @@ export default function PlanLoading() {
         </div>
       </div>
       <style>{`
-        @keyframes finoptima-pulse {
+        @keyframes rightdue-pulse {
           0%, 100% { opacity: 0.5; }
           50% { opacity: 0.85; }
         }
@@ -69,7 +69,7 @@ function SkeletonBlock({ height }: { height: number }) {
         background: 'var(--card)',
         border: '1px solid var(--border)',
         borderRadius: 6,
-        animation: 'finoptima-pulse 1.4s ease-in-out infinite',
+        animation: 'rightdue-pulse 1.4s ease-in-out infinite',
       }}
     />
   );

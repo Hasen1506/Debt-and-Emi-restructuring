@@ -13,7 +13,7 @@
 > **HAVE** is already in the repo today.
 
 > **Redesign (1–2 Oct 2026, done):** the move to the Ledger V2 design and the
-> strategy personas is recorded in [REDESIGN.md](REDESIGN.md), with the
+> strategy personas is recorded in [REDESIGN.md](docs/history/REDESIGN.md), with the
 > before/after walkthroughs. The design files are in `design/`.
 
 ---
@@ -42,7 +42,7 @@
   - Decision engines: windfall, new-debt, quick-recompute, cash-yield, right-time-to-borrow (`engine/decisions.py`)
   - Central-bank rates + MPC/FOMC calendar, **static JSON with manual admin update** (`api/routes/rates.py`, `api/data/central_bank_calendar.json`)
   - Rate cards "verified May 2026" (`engine/rate_cards.py`, `web/src/lib/rate-cards.json`)
-  - Ledger skin screens, plus the list of sub-features the skin dropped (`LEDGER_MISSING.md`)
+  - Ledger skin screens, plus the list of sub-features the skin dropped (`docs/planning/LEDGER_MISSING.md`)
 - **Not present at all:** Loan Check, lender letters, lender-outcome network,
   offer comparison, live rate feeds, Playwright / axe / fuzz / load test suites, CI.
 - **Rebuilt so far (26 Sep 2026, branch `claude/vibrant-bardeen-5bsiyj`):**
@@ -53,7 +53,7 @@
   headers and rate limits (6.4), field errors on every tool.
   **685 tests passing.** Still missing: US letters, cross-browser and load
   suites (6.1, 6.5), verified outcome reports, a manual screen-reader run.
-- **Bug hunt and user-view audit (26 Sep 2026): see [`AUDIT.md`](AUDIT.md).**
+- **Bug hunt and user-view audit (26 Sep 2026): see [`AUDIT.md`](docs/history/AUDIT.md).**
   Fixed: the /plan chart and every date a month late, 10 engine bugs
   (payoff order vs investing, runaway floating rates, card minimums, tax
   shields, currency totals), 8 tool and slider bugs, three disagreeing tax
@@ -102,7 +102,7 @@
     less, and its headline updates on each change;
   - Goals tells a debt-free user the monthly amount instead of pointing at an
     empty /plan.
-- **Redesign done (1–2 Oct 2026, [REDESIGN.md](REDESIGN.md), R0–R7).** Five
+- **Redesign done (1–2 Oct 2026, [REDESIGN.md](docs/history/REDESIGN.md), R0–R7).** Five
   tabs (Home, Plan, Activity, Goals & Tools, Profile) in the Ledger V2 style.
   - Setup is 3 screens instead of 6, and amounts take `1.2L` or `50k`.
   - Home lists every payment this month and marks two paid in 2 taps.
@@ -587,7 +587,7 @@ The honest status before the crash: *a working, tested demo, not ready to launch
 - [ ] Uptime alerting on `/api/rates/feed-health` (Phase 5).
 - [ ] Trademark search and domain for **RightDue**.
 - [ ] CSP + anti-framing headers switched on (Phase 6.4).
-- [ ] Deferred Ledger-skin items: walk `LEDGER_MISSING.md` and decide per item (re-introduce / v2 / drop).
+- [ ] Deferred Ledger-skin items: walk `docs/planning/LEDGER_MISSING.md` and decide per item (re-introduce / v2 / drop).
 
 ---
 
@@ -861,7 +861,9 @@ cd web && npm run typecheck && npm run lint && npm run build
 CI runs exactly these on every push (`.github/workflows/ci.yml`).
 
 Leave `DATABASE_URL` unset and set `NEXT_PUBLIC_DISABLE_AUTH=true` for
-trial mode (no login, no sync). `CORS_ORIGINS` defaults to `http://localhost:3000`.
+trial mode (no login, no sync). A production build (`next build`, the Docker
+image) refuses that unless `RIGHTDUE_ALLOW_DISABLED_AUTH=1` is set too, so it
+can't reach a public deploy by mistake (`web/auth-guard.mjs`, grill #66). `CORS_ORIGINS` defaults to `http://localhost:3000`.
 
 Other API settings (all optional):
 

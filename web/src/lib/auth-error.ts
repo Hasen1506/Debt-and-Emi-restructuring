@@ -1,6 +1,9 @@
 /** Shown while the sleeping API starts. No sign-in code has been created yet, so a retry is safe. */
 export const SIGN_IN_STARTING_MESSAGE = 'Sign-in is waking up. Please wait 30 seconds and try again.';
 
+/** Shown when the server's daily cap on sign-in codes is reached. */
+export const SIGN_IN_PAUSED_MESSAGE = 'New sign-in codes are paused for today because of unusually many requests. Your saved data is safe. Please try again tomorrow.';
+
 /** Public sign-in errors, without raw JSON, HTML or API paths. */
 export function authErrorMessage(status: number, body: string, retryAfter: string | null): string {
   if (status === 429) {
@@ -11,9 +14,10 @@ export function authErrorMessage(status: number, body: string, retryAfter: strin
   }
   if (status === 503) {
     try {
-      if (JSON.parse(body)?.detail?.code === 'sign_in_starting') {
-        return SIGN_IN_STARTING_MESSAGE;
-      }
+      const code = JSON.parse(body)?.detail?.code;
+      if (code === 'sign_in_starting') return SIGN_IN_STARTING_MESSAGE;
+      // The day's cap on sign-in codes was reached (api/auth/routes.py, grill #59).
+      if (code === 'sign_in_paused') return SIGN_IN_PAUSED_MESSAGE;
     } catch { /* Keep arbitrary upstream errors private. */ }
   }
   if (status >= 500) return 'Sign-in is temporarily unavailable. Try again in a minute.';

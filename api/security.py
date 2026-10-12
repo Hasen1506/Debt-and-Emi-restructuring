@@ -8,10 +8,15 @@ One ASGI middleware, so it also covers requests FastAPI never routes.
   up to 4 MB of PDF sent as base64), capped at KFS_BODY_BYTES.
 - **Headers:** nosniff and no-referrer on everything; `no-store` on
   writes, whose replies carry the user's figures; HSTS behind HTTPS.
-  Content-Security-Policy and frame-ancestors stay off until launch
-  (ROADMAP 6.4): they stop the app opening in VS Code's preview.
+  API replies (/api/*) also carry `Content-Security-Policy: default-src
+  'none'; frame-ancestors 'none'` and `X-Frame-Options: DENY`: they are
+  data, never a page, and must never be framed (grill #58). The pages'
+  own policy is set by Next.js (web/security-headers.mjs).
 - **Rate limits:** a token bucket per client IP on every POST, PUT,
   PATCH and DELETE, tighter on sign-in (it sends email) and admin.
+  Buckets live in memory and reset when the free container restarts, so
+  sign-in, account, admin and outcome routes also count against an
+  hourly limit kept in Postgres (api/rate_buckets.py, grill #59).
   The client IP is spoof-proof (api/client_ip.py): X-Forwarded-For is
   read only as far back as TRUSTED_PROXY_HOPS proxies we run behind.
   The Next.js server renders /plan by calling the API itself, for every
@@ -25,7 +30,7 @@ import json
 import os
 import time
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from api import client_ip
 
@@ -34,6 +39,8 @@ MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", 256 * 1024))
 KFS_BODY_BYTES = 6 * 1024 * 1024
 LARGE_BODY_PATHS = {"/api/kfs/read": KFS_BODY_BYTES}
 WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+API_CSP = b"default-src 'none'; frame-ancestors 'none'"
+_AUTO = object()
 
 
 @dataclass(frozen=True)
@@ -71,6 +78,7 @@ class SecurityMiddleware:
         max_body: Optional[int] = None,
         large_body_paths: Optional[dict[str, int]] = None,
         clock: Callable[[], float] = time.monotonic,
+        persistent: Any = _AUTO,
     ):
         self.app = app
         self.limits = limits if limits is not None else DEFAULT_LIMITS
@@ -84,6 +92,16 @@ class SecurityMiddleware:
         self.clock = clock
         self._buckets: dict[tuple[str, str], tuple[float, float]] = {}
         self._seen = 0
+        # api.rate_buckets.DbRateCounter, None (memory only), or resolved
+        # from DATABASE_URL on first use.
+        self._persistent = persistent
+
+    @property
+    def persistent(self):
+        if self._persistent is _AUTO:
+            from api import rate_buckets
+            self._persistent = rate_buckets.default_counter()
+        return self._persistent
 
     # ── who is asking ──────────────────────────────────────────────────────
     def client_ip(self, scope) -> str:
@@ -126,6 +144,7 @@ class SecurityMiddleware:
         method = scope.get("method", "GET")
         write = method in WRITE_METHODS
         private = scope.get("path", "").startswith(("/api/auth/", "/api/user/"))
+        api_path = scope.get("path", "").startswith("/api/")
         https = scope.get("scheme") == "https" or (
             self.proxy_hops > 0 and headers.get(b"x-forwarded-proto", b"").split(b",")[-1].strip() == b"https"
         )
@@ -135,6 +154,8 @@ class SecurityMiddleware:
                 h = list(message.get("headers", []))
                 names = {k.lower() for k, _ in h}
                 extra = [(b"x-content-type-options", b"nosniff"), (b"referrer-policy", b"no-referrer")]
+                if api_path:
+                    extra += [(b"content-security-policy", API_CSP), (b"x-frame-options", b"DENY")]
                 if (write or private) and b"cache-control" not in names:
                     extra.append((b"cache-control", b"no-store"))
                 if https:
@@ -157,7 +178,10 @@ class SecurityMiddleware:
                 if too_big:
                     return await reply(*_json(413, "The request is too large."))
             if self.rate_limits and not self._internal(headers):
-                wait = self._take(self.client_ip(scope), scope.get("path", ""))
+                ip, path = self.client_ip(scope), scope.get("path", "")
+                wait = self._take(ip, path)
+                if wait is None and self.persistent is not None:
+                    wait = await self.persistent.hit(ip, path)
                 if wait is not None:
                     return await reply(*_json(
                         429, "Too many requests from this connection. Wait a minute and try again.",

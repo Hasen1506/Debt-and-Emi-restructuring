@@ -11,6 +11,9 @@ const METHODS: Record<string, string[]> = {
   'auth/logout': ['POST'],
   'auth/me': ['GET'],
   'user/state': ['GET', 'PUT', 'PATCH'],
+  // "Your data" page (grill #51): download everything, delete the account.
+  'auth/account/export': ['GET'],
+  'auth/account/delete': ['POST'],
 };
 const MAX_BODY_BYTES = 256 * 1024;
 
@@ -90,6 +93,8 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
     const responseHeaders = new Headers({ 'Cache-Control': 'no-store' });
     const contentType = upstream.headers.get('content-type');
     if (contentType) responseHeaders.set('Content-Type', contentType);
+    const disposition = upstream.headers.get('content-disposition');
+    if (disposition && path === 'auth/account/export') responseHeaders.set('Content-Disposition', disposition);
     // Forward every Set-Cookie separately: headers.get() joins them with
     // commas, which browsers read as one broken cookie.
     for (const cookie of setCookieHeaders(upstream.headers)) responseHeaders.append('Set-Cookie', cookie);

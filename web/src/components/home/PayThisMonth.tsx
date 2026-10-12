@@ -91,10 +91,10 @@ export function PayThisMonth({
       if (e.key === 'rightdue_activity' || e.key === SET_ASIDE_KEY) read();
     };
     window.addEventListener('storage', onStorage);
-    window.addEventListener('finoptima:profile-changed', read);
+    window.addEventListener('rightdue:profile-changed', read);
     return () => {
       window.removeEventListener('storage', onStorage);
-      window.removeEventListener('finoptima:profile-changed', read);
+      window.removeEventListener('rightdue:profile-changed', read);
     };
   }, [loans, month]);
 
