@@ -11,6 +11,8 @@ import { loadPlanFromCookies } from '@/components/plan/load-plan';
 import { MONTH_NAMES, getCountryToday, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { payThisMonth } from '@/lib/pay-this-month';
 import { PayNotice, PayThisMonth } from './PayThisMonth';
+import { HomeProgress } from './HomeProgress';
+import { localIsoDate } from '@/lib/today';
 import { HomeRestructure } from './HomeRestructure';
 import { LBracket } from '@/components/ledger/primitives';
 import { thisMonthMove } from '@/lib/this-month';
@@ -198,15 +200,36 @@ export async function HomePayThisMonth() {
       : plan.futureShortfall
         ? `From ${monthIndexToCountryLabel(plan.futureShortfall.month, country)}, the payments need more than you earn. See the plan.`
         : undefined;
+  // G7: progress under the register (months shaved, share card, prompts).
+  const open = plan.user.loans.filter((l) => Number(l.outstanding) > 0);
+  const datedPlan = plan.live && plan.shortfall <= 0 && !plan.futureShortfall ? plan.debtFreeMonth : null;
   return (
-    <PayThisMonth
-      data={data}
-      loans={plan.user.loans}
-      country={country}
-      monthLabel={monthLabel}
-      reason={reason}
-      alert={alert}
-    />
+    <>
+      <PayThisMonth
+        data={data}
+        loans={plan.user.loans}
+        country={country}
+        monthLabel={monthLabel}
+        reason={reason}
+        alert={alert}
+      />
+      <HomeProgress
+        country={country}
+        todayIso={localIsoDate(today)}
+        debtFreeMonth={datedPlan}
+        loans={open.map((l) => ({
+          type: LOAN_TYPE_NAME[l.loan_type],
+          outstanding: Number(l.outstanding),
+          ratePct: l.nominal_rate ? Math.round(Number(l.nominal_rate) * 10000) / 100 : null,
+          emi: Number(l.scheduled_emi) > 0 ? Number(l.scheduled_emi) : null,
+          currency: l.currency ?? userDefaultCurrency(country),
+        }))}
+        loansCleared={plan.user.loans.length - open.length}
+        pay={data}
+        strategy={plan.strategy}
+        monthLabel={monthLabel}
+      />
+    </>
   );
 }
 

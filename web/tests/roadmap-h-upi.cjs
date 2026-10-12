@@ -89,9 +89,11 @@ test('PAY VIA UPI renders a plain upi:// link with no claim of automatic payment
   assert.match(renderToStaticMarkup(React.createElement(UpiPay, { ...base, loan: { ...loan, upi_vpa: undefined } })), /add the lender&#x27;s UPI ID|add the lender's UPI ID/);
   assert.equal(renderToStaticMarkup(React.createElement(UpiPay, { ...base, loan, currency: 'USD' })), '');
   assert.equal(renderToStaticMarkup(React.createElement(UpiPay, { ...base, loan, amount: 0 })), '');
-  // After the UPI app opens, the user is told to confirm with MARK PAID; nothing is marked for them.
+  // After the UPI app opens, the user is asked whether it went through
+  // (G7: the page can't see the payment); nothing is marked until they say YES.
   const comp = src('components/home/UpiPay.tsx');
-  assert.match(comp, /Tap MARK PAID to record it/);
+  assert.match(comp, /YES, IT WENT THROUGH/);
+  assert.match(comp, /can&apos;t see your bank/);
   const pay = src('components/home/PayThisMonth.tsx');
   assert.match(pay, /<UpiPay/);
   assert.match(pay, /MARK PAID/);

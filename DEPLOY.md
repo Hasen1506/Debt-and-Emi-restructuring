@@ -130,6 +130,30 @@ When the data-check issue asks for a rate card to be re-read: update
 workflows push to the default branch with the built-in token, so branch
 protection on it must let GitHub Actions push.
 
+## Notifications (payday email, deadline reminders) — off by default
+
+Sprint G7. Nothing is sent and every `/api/notify/*` route answers 404 until
+a flag is `true`. Details: `docs/retention/PAYDAY-EMAIL.md`.
+
+| Variable | Where | What |
+|---|---|---|
+| `PAYDAY_EMAIL_ENABLED` | Render | `true` turns on the payday email and its "All paid / Some / Can't pay" links |
+| `DEADLINE_REMINDERS_ENABLED` | Render | `true` turns on complaint / loan-closure reminder emails |
+| `NOTIFY_SIGNING_KEY` | Render (secret) | 32+ random characters; signs the email links. `python -c "import secrets;print(secrets.token_urlsafe(48))"` |
+| `NOTIFY_CRON_SECRET` | Render (secret) + GitHub secret | 16+ characters; the scheduler's bearer token for `POST /api/notify/run` |
+| `PUBLIC_APP_URL` | Render + GitHub variable | e.g. `https://rightdue.app` (links in emails) |
+| `RESEND_API_KEY`, `RESEND_FROM` | Render | already set for sign-in codes; `RESEND_FROM` must be on a verified domain |
+| `PAYDAY_REPLY_INBOUND` | Render | optional: `true` also accepts a "done" reply |
+| `NOTIFY_REPLY_TO` | Render | with inbound: e.g. `reply@in.rightdue.app` on a Resend receiving domain (MX record) |
+| `RESEND_WEBHOOK_SECRET` | Render (secret) | with inbound: the `whsec_…` secret of the `email.received` webhook pointing at `https://<app>/api/notify/inbound` |
+| `NOTIFY_ENABLED` | GitHub repository variable | `true` lets `.github/workflows/notify.yml` call the run endpoint daily at 09:00 IST |
+
+Needs `DATABASE_URL` (the settings live in two tables, `notify_subscriptions`
+and `notify_events`, created on first use). Without it the signed-in routes
+answer 503. Account deletion must call `NotifyStore.forget(user_id)`.
+`POST /api/closure-letter` (the loan-cleared letter) needs no flag, no key
+and stores nothing.
+
 ## Custom domain
 
 Each service has a *Custom Domains* tab. Point your DNS CNAME at the
