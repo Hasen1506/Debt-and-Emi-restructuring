@@ -75,10 +75,11 @@ services:
       - key: WEB_ORIGIN
         sync: false
       # ── App settings ───────────────────────────────────────────────────
-      # "labelled" shows the lender scorecard marked unverified; "hidden"
-      # keeps it back until reports can be verified (owner decision).
+      # "hidden" (default, critique #55) keeps lender figures back; "verified"
+      # shows figures from reports checked against the bank's reply only;
+      # "labelled" shows every report, marked unverified.
       - key: SCORECARD_MODE
-        value: labelled
+        value: hidden
       # false for accounts, true only for an explicit local trial. Build-time
       # value (passed to the Docker build as a build arg).
       - key: NEXT_PUBLIC_DISABLE_AUTH

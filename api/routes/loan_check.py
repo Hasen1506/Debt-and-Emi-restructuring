@@ -6,9 +6,11 @@ Nothing is silently skipped: a month the server can't read is an error,
 never a quietly missing finding. (A lost bug did exactly that: "03/2019"
 typed into a Firefox month box made the rate-cut finding disappear.)
 """
+import json
 import re
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -16,8 +18,11 @@ from pydantic import Field
 
 from api import rates_feed
 from api.schemas import _Base
+from engine import lenders as lender_registry
+from engine.lenders import LenderType
 from engine.loan_check import (
-    Benchmark, LoanCheckInput, LoanCheckInputError, LoanCheckResult, TOLERANCE, check_loan,
+    Benchmark, LoanCheckInput, LoanCheckInputError, LoanCheckResult, SpreadChange, TOLERANCE,
+    check_loan,
 )
 from engine.models import Country
 
@@ -43,6 +48,12 @@ class LoanCheckRequest(_Base):
     benchmark: Benchmark = Benchmark.UNKNOWN
     last_reset: Optional[str] = None       # "YYYY-MM"
     as_of: Optional[str] = None            # "YYYY-MM-DD"; defaults to today
+    # What kind of lender (the screen always asks; a known name fills it in).
+    lender_type: LenderType = LenderType.UNKNOWN
+    # Has the bank changed the spread? With "yes", spread_change is the
+    # change as a signed fraction (+0.0025 = raised by 0.25 points).
+    spread_changed: SpreadChange = SpreadChange.UNSURE
+    spread_change: Optional[Decimal] = None
 
 
 class CitationOut(_Base):
@@ -50,6 +61,10 @@ class CitationOut(_Base):
     requirement: str
     source: str
     verified_against_text: bool
+    clause: str = ""
+    paragraph: str = ""
+    url: str = ""
+    checked_on: str = ""
 
 
 class FindingOut(_Base):
@@ -63,6 +78,17 @@ class FindingOut(_Base):
     months_overcharged: int
     citations: list[CitationOut]
     next_step: str
+
+
+class ResetWatchOut(_Base):
+    headline: str
+    detail: str
+    check_by: Optional[str]
+    last_change: Optional[str]
+    last_change_from: Optional[Decimal]
+    last_change_to: Optional[Decimal]
+    next_meeting: Optional[str]
+    citations: list[CitationOut]
 
 
 class RepoChangeOut(_Base):
@@ -88,6 +114,14 @@ class LoanCheckResponse(_Base):
     rates_as_of: str
     rates_source: str
     stale_rates_warning: Optional[str]
+    verdict: str
+    gap: Optional[Decimal]
+    lender_name: Optional[str]
+    lender_type: str
+    lender_type_source: str
+    rule_applies: bool
+    new_borrower_note: str
+    reset_watch: Optional[ResetWatchOut]
 
 
 def bad(field: str, message: str) -> HTTPException:
@@ -144,6 +178,19 @@ def _resolve_start_rate(req: LoanCheckRequest) -> Decimal:
     return req.start_rate
 
 
+_CALENDAR = Path(__file__).parent.parent / "data" / "central_bank_calendar.json"
+
+
+def next_rbi_meeting(today: date) -> Optional[date]:
+    """The next scheduled MPC decision day on or after `today`, if published."""
+    try:
+        meetings = json.loads(_CALENDAR.read_text())["meetings"]["IN"]
+        days = sorted(date.fromisoformat(m["date"]) for m in meetings)
+    except (OSError, ValueError, KeyError):
+        return None
+    return next((d for d in days if d >= today), None)
+
+
 def run_loan_check(req: LoanCheckRequest) -> tuple[LoanCheckInput, LoanCheckResult]:
     """Parse and check a request; input problems raise a 422 with the field."""
     loan_start = _parse_month("loan_start", "Loan start month", req.loan_start)
@@ -165,7 +212,14 @@ def run_loan_check(req: LoanCheckRequest) -> tuple[LoanCheckInput, LoanCheckResu
         emi=req.emi,
         benchmark=req.benchmark,
         last_reset=last_reset,
+        lender_type=req.lender_type,
+        spread_changed=req.spread_changed,
+        spread_change=req.spread_change,
+        next_policy_meeting=next_rbi_meeting(as_of),
     )
+    if req.spread_change is not None and abs(req.spread_change) >= 1:
+        raise bad("spread_change", f"Spread change {req.spread_change} looks like a percentage. "
+                                   f"Send it as a fraction (0.25 points is 0.0025).")
     try:
         return inp, check_loan(inp)
     except LoanCheckInputError as e:
@@ -175,7 +229,20 @@ def run_loan_check(req: LoanCheckRequest) -> tuple[LoanCheckInput, LoanCheckResu
 def citation_out(c) -> CitationOut:
     return CitationOut(
         rule=c.rule, requirement=c.requirement, source=c.source,
-        verified_against_text=c.verified_against_text,
+        verified_against_text=c.verified_against_text, clause=c.clause,
+        paragraph=c.paragraph, url=c.url, checked_on=c.checked_on,
+    )
+
+
+def reset_watch_out(w) -> Optional[ResetWatchOut]:
+    if w is None:
+        return None
+    iso = lambda d: d.isoformat() if d else None  # noqa: E731
+    return ResetWatchOut(
+        headline=w.headline, detail=w.detail, check_by=iso(w.check_by),
+        last_change=iso(w.last_change), last_change_from=w.last_change_from,
+        last_change_to=w.last_change_to, next_meeting=iso(w.next_meeting),
+        citations=[citation_out(c) for c in w.citations],
     )
 
 
@@ -218,4 +285,31 @@ def loan_check(req: LoanCheckRequest) -> LoanCheckResponse:
         rates_as_of=result.rates_as_of.isoformat(),
         rates_source=rates_feed.source_label(Country.IN),
         stale_rates_warning=result.stale_rates_warning,
+        verdict=result.verdict,
+        gap=result.gap,
+        lender_name=result.lender_name,
+        lender_type=result.lender_type.value,
+        lender_type_source=result.lender_type_source,
+        rule_applies=result.rule_applies,
+        new_borrower_note=result.new_borrower_note,
+        reset_watch=reset_watch_out(result.reset_watch),
     )
+
+
+class LenderChoiceOut(_Base):
+    id: str
+    name: str
+    type: str
+    has_rate_card: bool
+    rule_applies: bool
+
+
+@router.get("/loan-check/lenders", response_model=list[LenderChoiceOut])
+def loan_check_lenders() -> list[LenderChoiceOut]:
+    """Lenders the Loan Check picker offers, with the type that decides which
+    RBI rules bind them (engine/lenders.py)."""
+    return [
+        LenderChoiceOut(id=x.id, name=x.name, type=x.type.value,
+                        has_rate_card=x.has_rate_card, rule_applies=x.eblr_bound)
+        for x in lender_registry.all_lenders()
+    ]

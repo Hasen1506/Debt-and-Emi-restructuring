@@ -1,0 +1,7 @@
+# National Housing Bank, Grievance Redressal page (complaints against housing finance companies)
+# Source: https://www.nhb.org.in/en/grievance-redressal-officer/
+# Retrieved: 12 Oct 2026 (HTML page, fetched with curl)
+# Excerpts only, copied verbatim.
+
+ It has been the consistent endeavour of the National Housing Bank (NHB) to provide efficient service to all its constituents, including customers of Housing Finance Companies(HFCs), as per the provisions of Grievance Redressal Policy of the Bank. Any aggrieved customer of HFC is advised to approach the HFC in the first instance for redressal of his/her complaints (the details of first Point of Contacts (PoCs) /Nodal Officers of HFCs for grievances) and who does not receive response from the Housing Finance Company (HFC) within a period of one month or is dissatisfied with the response received from the HFC can lodge the complaint through GRIDS / Post in the prescribed form to the Grievance Redressal Department (GRD) of the Bank.
+ In case the complainant is not satisfied with the outcome, he/she may prefer an appeal to the Chief Grievance Redressal Officer of NHB designated for the purpose, within 30 days from the date of status of intimation to the complainant NHB has appointed following officer as Chief Grievance Redressal Officer : 

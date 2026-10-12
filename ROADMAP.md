@@ -355,11 +355,12 @@ under every Loan Check result):
 - [x] Reports are matched to one bank on the rate-card list
       (`engine/lenders.py`: "HDFC", "HDFC Bank Ltd." → HDFC Bank). A bank not
       on the list is refused, so an invented bank can never get a record.
-- [x] Label the scorecard **"unverified"** until reports are verified. **Owner
-      decision still pending:** show it labelled (the default,
-      `SCORECARD_MODE=labelled`) or hide it (`SCORECARD_MODE=hidden` in
-      `render.yaml`) until verification exists.
-- [ ] Verified reports: signed-in reporters, or an uploaded bank reply.
+- [x] Label the scorecard **"unverified"** until reports are verified. Owner
+      decision (Oct 2026, critique #55): hidden by default
+      (`SCORECARD_MODE=hidden`); `verified` shows only checked reports.
+- [x] Verified reports, first step: a report whose bank-reply text names the
+      bank and the new rate is stored as verified (the text itself is never
+      stored). A consistency check, not proof. Signed-in reporters: open.
 - [ ] Monthly "which banks pass on rate cuts" index (after enough data).
 
 **Abuse controls** (each was a real finding last time):
@@ -877,7 +878,7 @@ Other API settings (all optional):
 | `MAX_BODY_BYTES` | `262144` | request-size cap |
 | `OUTCOMES_DATABASE_URL` | `DATABASE_URL`, else `api/data/outcomes.sqlite3` | where shared outcome reports live |
 | `OUTCOMES_IP_KEY` | random per process | key for the hashed client address (daily report limits) |
-| `SCORECARD_MODE` | `labelled` | `hidden` keeps lender figures back until reports can be verified |
+| `SCORECARD_MODE` | `hidden` | `hidden` keeps lender figures back; `verified` shows only reports checked against the bank's reply; `labelled` shows all, marked unverified |
 
 The full fuzz: `FUZZ_N=20000 FUZZ_FULL=1 python -m pytest api/tests/test_api_fuzz.py -q`.
 

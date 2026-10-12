@@ -1,0 +1,55 @@
+# RBI (Non-Banking Financial Companies - Responsible Business Conduct) Directions, 2025 (updated 1 Jul 2026). RBI/DOR/2025-26/362, DOR.MCS.REC.No.281/01-01-039/2025-26, 28 Nov 2025
+# Source: https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12942 -> https://rbidocs.rbi.org.in/rdocs/notification/PDFs/362MD26CA543937BA439A97E1BCFC08CF5808.PDF
+# Retrieved: 12 Oct 2026 (PDF read in a browser and transcribed by hand; page breaks joined)
+# Excerpts only: the paragraphs Loan Check cites, copied verbatim.
+
+=== NBFC-RBC PDF (RBI/DOR/2025-26/362; DOR.MCS.REC.No.281/01-01-039/2025-26; dated November 28, 2025) ===
+
+Para 3 — Applicability (HFCs ARE covered):
+"3. These Directions shall be applicable to following Non-Banking Financial Company (hereinafter collectively referred to as 'NBFCs' and individually as an 'NBFC'), for all layers, unless specified otherwise:
+(1) NBFC-D registered with the RBI under the provisions of the RBI Act, 1934;
+(2) NBFC-ICC registered with the RBI under the provisions of the RBI Act, 1934;
+(3) NBFC-Factor registered with the RBI under the provisions of the Factoring Regulation Act, 2011;
+(4) NBFC-MFI registered with the RBI under the provisions of the RBI Act, 1934;
+(5) NBFC-IFC registered with the RBI under the provisions of the RBI Act, 1934;
+(6) IDF-NBFC registered with the RBI under the provisions of the RBI Act, 1934;
+(7) HFC registered with the RBI under the provisions of the NHB Act, 1987;"Para 22 (A.6 Regulation of excessive interest charged by NBFCs — interest rate model / gradation of risk):
+"22. The Board of an NBFC shall adopt an interest rate model taking into account relevant factors such as cost of funds, margin and risk premium and determine the rate of interest to be charged for loans and advances. The rate of interest and the approach for gradations of risk and rationale for charging different rate of interest to different categories of borrowers shall be disclosed to the borrower or customer in the application form and communicated explicitly in the sanction letter."
+
+Para 23:
+"23. The rates of interest and the approach for gradation of risks shall also be made available on the website of the companies or published in the relevant newspapers. The information published on the website or otherwise published shall be updated whenever there is a change in the rates of interest."
+
+Para 24:
+"24. The rate of interest must be annualised rate so that the borrower is aware of the exact rates that would be charged to the account."
+
+Para 25 (A.7 Complaints about excessive interest charged by NBFCs):
+"25. The Reserve Bank has been receiving several complaints regarding levying of excessive interest and charges on certain loans and advances by NBFCs. Though interest rates are not regulated by the Reserve Bank, rates of interest beyond a certain level may be seen to be excessive and can neither be sustainable nor be conforming to normal financial practice."Para 15 (A.3 Disbursement of loans including changes in terms and conditions — prospective interest rate changes):
+"15. An NBFC shall give notice to the borrower in the vernacular language or a language as understood by the borrower of any change in the terms and conditions including disbursement schedule, interest rates, service charges, pre-payment charges etc. The NBFC shall also ensure that changes in interest rates and charges are effected only prospectively. A suitable condition in this regard must be incorporated in the loan agreement."=== SECTION D: Reset of Floating Interest Rate on EMI based Personal Loans ===
+
+Para 31 (Section D start):
+"31. The following instructions shall be applicable to the existing as well as new personal loans with effect from January 1, 2024. An NBFC shall put in place an appropriate policy framework meeting the following requirements for implementation and compliance:
+
+(1) At the time of sanction, an NBFC shall clearly communicate to the borrowers about the possible impact of change in benchmark interest rate on the loan leading to changes in EMI and / or tenor or both. Subsequently, any increase in the EMI / tenor or both on account of the above shall be communicated to the borrower immediately through appropriate channels.
+
+(2) At the time of reset of interest rates, an NBFC may, at its option, provide a choice to the borrowers to switch over to a fixed rate as per its Board approved policy. The policy, inter alia, may also specify the number of times a borrower will be allowed to switch during the tenor of the loan.
+
+(3) The borrowers shall also be given the choice to opt for (i) enhancement in EMI or elongation of tenor or for a combination of both options; and, (ii) to prepay, either in part or in full, at any point during the tenor of the loan. Levy of pre-payment charges shall be subject to extant instructions.
+
+Note: Whenever there is a reset of interest rates for an entire class of borrowers in a particular loan category, say home loan, due to increase in the reference benchmark; the NBFC shall provide the following options to the borrowers:
+(i) Either enhancement in EMI or elongation of number of EMIs, keeping the EMI unchanged or a combination of both options;
+(ii) Switch to fixed interest rate for the remaining portion of the loan, where such an option is provided by the bank; and
+(iii) To prepay, either in part or in full, at any point during the residual tenor of the loan.
+
+(4) All applicable charges for switching of loans from floating to fixed rate and any other service charges/ administrative costs incidental to the exercise of the above options shall be transparently disclosed in the sanction letter and also at the time of revision of such charges/ costs by the NBFC from time to time. The applicable charges shall be as approved by the Board and shall be displayed on the NBFC's website.
+
+(5) An NBFC shall ensure that the elongation of tenor in case of floating rate loan does not result in negative amortisation.
+
+(6) An NBFC shall share / make accessible to the borrowers, through appropriate channels, a statement at the end of each quarter which shall at the minimum, enumerate the principal and interest recovered till date, EMI amount, number of EMIs left and annualized rate of interest / APR for the entire tenor of the loan. The NBFC shall ensure that the statements are simple and easily understood by the borrower."
+
+Para 32 (start, page 17 bottom):
+"32. Apart from the EMI based loans, these instructions would also apply, mutatis mutandis, to all equated instalment-based loans of different periodicities, irrespective of whether they are linked to an external benchmark or an internal benchmark. The instructions in paragraph 31 above are not applicable to other types of loans. In case of loans linked to an external benchmark, the NBFC shall..."
+
+(32 continues on page 18 — to be completed.)Para 32 (complete, from page 17 bottom joined to page 18 top):
+"32. Apart from the EMI based loans, these instructions would also apply, mutatis mutandis, to all equated instalment-based loans of different periodicities, irrespective of whether they are linked to an external benchmark or an internal benchmark. The instructions in paragraph 31 above are not applicable to other types of loans. In case of loans linked to an external benchmark, the NBFC shall put in place adequate information systems to monitor transmission of changes in the benchmark rate to the lending rate."
+
+(Section D ends here. Section E "Pre-payment charges on loans" begins at para 33.)

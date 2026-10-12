@@ -8,8 +8,12 @@ reports, Loan Check shows e.g. "HDFC Bank: 80% fixed in full · median
 A report carries only the bank, the outcome, the days the bank took and
 the rate before and after. No name, account number, amount or date.
 
-Reports are **unverified**: nobody has checked them against a bank
-reply. The scorecard says so (ROADMAP Phase 4).
+Reports are **unverified** unless the borrower adds the text of the
+bank's reply (pasted or read from an uploaded file in the browser) and that
+text names the bank and states the new rate. Then the report is stored with
+verified=True; the reply text itself is never stored or logged. This is a
+consistency check, not proof: the text could be typed by hand. The
+scorecard says which figures rest on checked replies (critique #55, #71).
 """
 from __future__ import annotations
 
@@ -18,6 +22,8 @@ from decimal import Decimal
 from enum import Enum
 from statistics import median
 from typing import Iterable, Optional
+
+import re
 
 from engine import lenders
 
@@ -66,15 +72,42 @@ def _pct(x: Decimal) -> str:
     return f"{(x * 100).normalize():f}%"
 
 
+def _rate_patterns(rate: Decimal) -> list[str]:
+    """8.4% → ['8.40', '8.4'] followed by '%' or 'per cent' / 'percent' / 'p.a.'."""
+    pct = (rate * 100).quantize(D("0.01"))
+    forms = {f"{pct:f}", f"{pct.normalize():f}"}
+    return [re.escape(f) + r"\s*(%|per\s*cent|percent|p\.?\s*a\.?)" for f in forms]
+
+
+def bank_reply_matches(text: Optional[str], lender_id: str, rate_after: Optional[Decimal]) -> bool:
+    """Does the bank's reply name this bank and state the new rate?
+
+    Both must appear. Only the yes/no answer is kept; the text is not."""
+    if not text or rate_after is None:
+        return False
+    found = lenders.by_id(lender_id)
+    if found is None:
+        return False
+    norm = " " + lenders.normalise(text) + " "
+    names = {lenders.normalise(found.name)} | {
+        k for k, v in lenders._BY_KEY.items() if v.id == lender_id  # noqa: SLF001 (same package)
+    }
+    if not any(f" {n} " in norm for n in names if n):
+        return False
+    flat = re.sub(r"\s+", " ", text.lower())
+    return any(re.search(r"(?<![\d.])" + p, flat) for p in _rate_patterns(rate_after))
+
+
 def make_report(
     lender: Optional[str],
     outcome: Outcome,
     days_taken: Optional[int],
     rate_before: Decimal,
     rate_after: Optional[Decimal],
+    bank_reply_text: Optional[str] = None,
 ) -> OutcomeReport:
     """Check a report before it is shared. Problems raise OutcomeInputError."""
-    found = lenders.resolve(lender)
+    found = lenders.resolve_bank(lender)
     if found is None:
         raise OutcomeInputError(
             "lender",
@@ -122,6 +155,7 @@ def make_report(
         days_taken=days_taken,
         rate_before=rate_before,
         rate_after=rate_after if outcome in FIXED else None,
+        verified=outcome in FIXED and bank_reply_matches(bank_reply_text, found.id, rate_after),
     )
 
 

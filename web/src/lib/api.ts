@@ -954,6 +954,24 @@ export interface CrossBorderResponse {
 // ─── Loan Check ─────────────────────────────────────────────────────────────
 
 export type LoanBenchmark = 'repo' | 'mclr' | 'base_rate' | 'unknown';
+/** Which RBI rules bind the lender (engine/lenders.py). */
+export type LoanLenderType =
+  | 'commercial_bank'
+  | 'small_finance_bank'
+  | 'regional_rural_bank'
+  | 'cooperative_bank'
+  | 'hfc'
+  | 'nbfc'
+  | 'unknown';
+export type SpreadChanged = 'no' | 'yes' | 'unsure';
+
+export interface LoanCheckLender {
+  id: string;
+  name: string;
+  type: LoanLenderType;
+  has_rate_card: boolean;
+  rule_applies: boolean;
+}
 
 export interface LoanCheckRequest {
   lender?: string;
@@ -967,6 +985,9 @@ export interface LoanCheckRequest {
   emi?: string;
   benchmark: LoanBenchmark;
   last_reset?: string;              // "YYYY-MM"
+  lender_type?: LoanLenderType;
+  spread_changed?: SpreadChanged;
+  spread_change?: string;           // signed fraction, with spread_changed 'yes'
 }
 
 export interface LoanCheckCitation {
@@ -974,10 +995,26 @@ export interface LoanCheckCitation {
   requirement: string;
   source: string;
   verified_against_text: boolean;
+  /** The rule's own words, verbatim (fragments joined with " … "). */
+  clause?: string;
+  paragraph?: string;
+  url?: string;
+  checked_on?: string;              // "YYYY-MM-DD"
+}
+
+export interface LoanCheckResetWatch {
+  headline: string;
+  detail: string;
+  check_by: string | null;          // "YYYY-MM-DD"
+  last_change: string | null;
+  last_change_from: string | null;
+  last_change_to: string | null;
+  next_meeting: string | null;
+  citations: LoanCheckCitation[];
 }
 
 export interface LoanCheckFinding {
-  kind: 'missed_rate_cut' | 'pricing_gap' | 'old_benchmark';
+  kind: 'missed_rate_cut' | 'pricing_gap' | 'old_benchmark' | 'below_expected' | 'rule_not_binding';
   headline: string;
   detail: string;
   claimable: boolean;
@@ -1006,6 +1043,14 @@ export interface LoanCheckResponse {
   rates_as_of: string;
   rates_source: string;
   stale_rates_warning: string | null;
+  verdict: 'missed_rate_cut' | 'matches' | 'below_expected' | 'old_benchmark' | 'rule_not_binding';
+  gap: string | null;               // current − expected, signed
+  lender_name: string | null;
+  lender_type: LoanLenderType;
+  lender_type_source: 'stated' | 'from_name' | 'assumed';
+  rule_applies: boolean;
+  new_borrower_note: string;
+  reset_watch: LoanCheckResetWatch | null;
 }
 
 export type ComplaintReply = 'none' | 'fixed' | 'partly' | 'rejected';
@@ -1085,6 +1130,10 @@ export interface ComplaintResponse {
   io_followup: ComplaintLetter | null;
   ombudsman: OmbudsmanComplaint | null;
   placeholders: ComplaintPlaceholders;
+  /** "Draft. Check before sending." Every letter is a draft (critique #54). */
+  draft_notice: string;
+  /** What the borrower ticks before copy / download is offered. */
+  self_check: string[];
 }
 
 // ─── Offer comparison (the lender's reply) ─────────────────────────────────
@@ -1158,6 +1207,8 @@ export interface OutcomeReportRequest {
   days_taken: number;
   rate_before: string;
   rate_after?: string;
+  /** Text of the bank's reply; checked on the server, never stored. */
+  bank_reply_text?: string;
 }
 
 export interface OutcomeReportResponse {
@@ -1165,6 +1216,7 @@ export interface OutcomeReportResponse {
   reports_for_lender: number;
   min_reports: number;
   message: string;
+  verified?: boolean;
 }
 
 export interface LenderScore {
@@ -1466,6 +1518,7 @@ export const api = {
     get<LenderScore>(`/api/outcomes/scorecard/lender?name=${encodeURIComponent(name)}`),
 
   outcomeLenders: () => get<{ id: string; name: string }[]>('/api/outcomes/lenders'),
+  loanCheckLenders: () => get<LoanCheckLender[]>('/api/loan-check/lenders'),
 
   scoreImpact: (req: {
     action: ScoreAction;

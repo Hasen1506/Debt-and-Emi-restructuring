@@ -46,7 +46,8 @@ def test_share_a_report(client, outcome_store):
     r = share(client)
     assert r.status_code == 200
     assert r.json() == {"lender": "HDFC Bank", "reports_for_lender": 1, "min_reports": 5,
-                        "message": "Thank you. HDFC Bank has 1 shared report; figures appear from 5."}
+                        "message": "Thank you. HDFC Bank has 1 shared report; figures appear from 5.",
+                        "verified": False}
     [row] = rows(outcome_store)
     assert row["lender_id"] == "IN_HDFC" and row["outcome"] == "fixed_full" and row["days_taken"] == 12
     assert row["verified"] is False
@@ -146,7 +147,12 @@ def _fill(client, n, lender="HDFC Bank", **changes):
         assert share(client, ip=f"198.51.100.{i}", lender=lender, **changes).status_code == 200
 
 
-def test_scorecard_waits_for_five(client, behind_proxy):
+@pytest.fixture()
+def labelled(monkeypatch):
+    monkeypatch.setenv("SCORECARD_MODE", "labelled")
+
+
+def test_scorecard_waits_for_five(client, behind_proxy, labelled):
     _fill(client, 4)
     s = client.get("/api/outcomes/scorecard/lender", params={"name": "hdfc"}).json()
     assert s["known"] and s["reports"] == 4 and not s["shown"]
@@ -165,7 +171,7 @@ def test_scorecard_for_unknown_and_quiet_banks(client):
     assert s["known"] and s["lender"] == "SBI" and s["reports"] == 0 and not s["shown"]
 
 
-def test_scorecard_lists_banks_with_reports(client, behind_proxy):
+def test_scorecard_lists_banks_with_reports(client, behind_proxy, labelled):
     _fill(client, 5)
     _fill(client, 2, lender="SBI", outcome="refused", rate_after=None)
     card = client.get("/api/outcomes/scorecard").json()
@@ -173,8 +179,9 @@ def test_scorecard_lists_banks_with_reports(client, behind_proxy):
 
 
 def test_hidden_mode_keeps_figures_back(client, behind_proxy, monkeypatch):
+    """Critique #55: hidden is the default, with no setting at all."""
     _fill(client, 5)
-    monkeypatch.setenv("SCORECARD_MODE", "hidden")
+    monkeypatch.delenv("SCORECARD_MODE", raising=False)
     s = client.get("/api/outcomes/scorecard/lender", params={"name": "HDFC"}).json()
     assert s["reports"] == 5 and not s["shown"] and s["headline"] is None
     assert s["hidden_reason"] == "Kept back until reports can be verified."
@@ -222,3 +229,34 @@ def test_lender_list(client):
 
 def test_health_says_where_reports_are_kept(client):
     assert client.get("/api/health").json()["outcomes_storage"] == "local file"
+
+
+# ── verified mode and bank replies (critique #55, #71) ─────────────────────
+
+REPLY = "HDFC Bank has reduced the rate on your home loan to 8.70% p.a."
+
+
+def test_reply_text_is_checked_but_never_stored(client, outcome_store):
+    r = share(client, bank_reply_text=REPLY)
+    assert r.status_code == 200 and r.json()["verified"] is True
+    [row] = rows(outcome_store)
+    assert row["verified"] is True
+    assert all("8.70%" not in str(v) and "reduced" not in str(v) for v in row.values())
+
+
+def test_verified_mode_counts_only_checked_reports(client, behind_proxy, monkeypatch):
+    monkeypatch.setenv("SCORECARD_MODE", "verified")
+    _fill(client, 5)                       # unverified
+    s = client.get("/api/outcomes/scorecard/lender", params={"name": "HDFC"}).json()
+    assert s["reports"] == 0 and not s["shown"]
+    for i in range(5):
+        assert share(client, ip=f"203.0.113.{i}", bank_reply_text=REPLY).json()["verified"]
+    s = client.get("/api/outcomes/scorecard/lender", params={"name": "HDFC"}).json()
+    assert s["shown"] and s["reports"] == 5 and s["verified_reports"] == 5 and s["label"] == "verified"
+
+
+def test_hfc_cannot_be_reported(client):
+    r = share(client, lender="LIC Housing Finance")
+    assert r.status_code == 422 and r.json()["detail"]["field"] == "lender"
+    names = {x["name"] for x in client.get("/api/outcomes/lenders").json()}
+    assert "LIC Housing Finance" not in names and "HDFC Bank" in names

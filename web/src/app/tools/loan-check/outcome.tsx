@@ -194,6 +194,17 @@ export function ShareOutcome({
   const [done, setDone] = useState<string | null>(null);
   const [err, setErr] = useState<{ field: string; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  // Text of the bank's reply (critique #71): checked on the server, never stored.
+  const [reply, setReply] = useState('');
+
+  async function readReplyFile(file: File | undefined) {
+    if (!file) return;
+    if (!/\.txt$/i.test(file.name) && !file.type.startsWith('text/')) {
+      setErr({ field: 'bank_reply_text', message: 'Upload the reply as a .txt file, or paste its text.' });
+      return;
+    }
+    setReply((await file.text()).slice(0, 20000));
+  }
 
   // Is the bank on the list? If not, the borrower picks it.
   useEffect(() => {
@@ -245,6 +256,7 @@ export function ShareOutcome({
     days_taken: draft.days,
     rate_before: currentRate,
     ...(draft.rateAfter ? { rate_after: draft.rateAfter } : {}),
+    ...(draft.rateAfter && reply.trim() ? { bank_reply_text: reply.trim() } : {}),
   };
 
   async function share() {
@@ -299,11 +311,42 @@ export function ShareOutcome({
           Rate: {formatPct(currentRate, 2)}
           {draft.rateAfter ? ` → ${formatPct(draft.rateAfter, 2)}` : ' (unchanged)'}
         </li>
+        {draft.rateAfter && reply.trim() && <li>The reply text, to check it (not kept)</li>}
       </ul>
       <p className="muted" style={{ fontSize: 12, margin: '0 0 12px' }}>
-        Not your name, account number, amounts or dates. Reports are not checked, so the
-        figures are shown as unverified.
+        Not your name, account number, amounts or dates. Reports without the bank&apos;s
+        reply are not checked.
       </p>
+      {draft.rateAfter && (
+        <div style={{ margin: '0 0 12px' }}>
+          <label htmlFor="lc-bank-reply" style={{ fontSize: 13, fontWeight: 600, display: 'block' }}>
+            Bank&apos;s reply (optional): paste its text, or upload it as .txt
+          </label>
+          <textarea
+            id="lc-bank-reply"
+            value={reply}
+            onChange={(e) => setReply(e.target.value.slice(0, 20000))}
+            rows={4}
+            style={{ width: '100%', fontSize: 13, marginTop: 4 }}
+          />
+          <input
+            type="file"
+            accept=".txt,text/plain"
+            aria-label="Upload the bank's reply as a text file"
+            onChange={(e) => readReplyFile(e.target.files?.[0])}
+            style={{ fontSize: 12, marginTop: 4 }}
+          />
+          <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>
+            If it names the bank and your new rate, the report counts as checked. The text
+            is read once and not kept. Remove your account number from it first.
+          </p>
+          {err?.field === 'bank_reply_text' && (
+            <p role="alert" style={{ margin: '4px 0 0', color: 'var(--negative)', fontSize: 13 }}>
+              {err.message}
+            </p>
+          )}
+        </div>
+      )}
       {done ? (
         <p role="status" style={{ fontSize: 14, margin: 0, color: 'var(--positive)' }}>
           Shared. {done}
