@@ -21,7 +21,7 @@ import type { Country } from './api';
 import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
 
-const COOKIE_NAME = 'finoptima_advance_tax';
+const COOKIE_NAME = 'rightdue_advance_tax';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 // ─── Client-side ────────────────────────────────────────────────────────────

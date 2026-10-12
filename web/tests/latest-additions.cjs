@@ -24,8 +24,8 @@ test('editing assets retains tracked holdings and a failed save keeps the user o
 });
 
 test('queued saves from the previous account never reach the newly signed-in account',async()=>{
- const data=new Map([['finoptima_account_id','A']]);global.localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)};const original=global.fetch;let release,started;const entered=new Promise(r=>started=r),seen=[];
+ const data=new Map([['rightdue_account_id','A']]);global.localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)};const original=global.fetch;let release,started;const entered=new Promise(r=>started=r),seen=[];
  global.fetch=async(url,opts)=>{seen.push(JSON.parse(opts.body).data);if(seen.length===1){started();await new Promise(r=>release=r)}return Response.json({data:{}})};
- try{const sync=require(path.join(root,'lib/server-sync.ts'));const first=sync.syncSliceToServer('goals',[{id:'A-first'}]);await entered;const queued=sync.syncSliceToServer('profile',{user:'A-private'});data.set('finoptima_account_id','B');release();await Promise.all([first,queued]);assert.deepEqual(seen,[{goals:[{id:'A-first'}]}]);await sync.syncSliceToServer('strategy','snowball');assert.deepEqual(seen[1],{strategy:'snowball'});}
+ try{const sync=require(path.join(root,'lib/server-sync.ts'));const first=sync.syncSliceToServer('goals',[{id:'A-first'}]);await entered;const queued=sync.syncSliceToServer('profile',{user:'A-private'});data.set('rightdue_account_id','B');release();await Promise.all([first,queued]);assert.deepEqual(seen,[{goals:[{id:'A-first'}]}]);await sync.syncSliceToServer('strategy','snowball');assert.deepEqual(seen[1],{strategy:'snowball'});}
  finally{global.fetch=original;delete global.localStorage}
 });

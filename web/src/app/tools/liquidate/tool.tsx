@@ -268,7 +268,7 @@ export function LiquidateTool() {
     clear();
     setApplied(false);
     try {
-      const requestProfileKey = JSON.stringify(loadProfileClient().user) + (document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '');
+      const requestProfileKey = JSON.stringify(loadProfileClient().user) + (document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '');
       const isoDate = normalizePurchaseDate(purchaseDate);
       if (!isoDate) {
         throw new Error('Enter when you bought it as a year (2018), a month (2018-06) or a date (2018-06-15).');
@@ -725,7 +725,7 @@ export function LiquidateTool() {
                 applied={applied}
                 onApply={() => {
                   if (applied || busy || checked !== fingerprint) return;
-                  const currentKey = JSON.stringify(loadProfileClient().user) + (document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '');
+                  const currentKey = JSON.stringify(loadProfileClient().user) + (document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '');
                   if (currentKey !== resultProfileKey) {
                     setErr('Your balances changed. Check the sale again before logging the payment.');
                     return;

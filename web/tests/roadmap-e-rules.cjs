@@ -53,7 +53,7 @@ test('Hybrid is migrated to "rules" with Hybrid\'s rule (cookie, synced slice, e
   // The client rewrites a hybrid cookie; hydration rewrites a hybrid slice; the slice for the rules syncs.
   assert.match(src('lib/strategy.ts'), /if \(v === 'hybrid'\) writeStrategyClient\('rules'\)/);
   const sync = src('lib/server-sync.ts');
-  assert.match(sync, /payoff_rules:\s+\{ kind: 'cookie',\s+name: 'finoptima_payoff_rules' \}/);
+  assert.match(sync, /payoff_rules:\s+\{ kind: 'cookie',\s+name: 'rightdue_payoff_rules' \}/);
   assert.match(sync, /slice === 'strategy' && value === 'hybrid'/);
   // No 'hybrid' strategy left in the web (currency "hybrid" users aside).
   for (const f of ['lib/payoff-order.ts', 'components/StrategySwitcher.tsx', 'components/personas/Persona.tsx', 'components/home/HomeDebtFree.tsx', 'components/plan/load-plan.ts', 'lib/api.ts']) {

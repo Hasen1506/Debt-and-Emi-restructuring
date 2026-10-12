@@ -64,7 +64,7 @@ async function requesterKeys(): Promise<string[]> {
     const { cookies, headers } = await import('next/headers');
     const [c, h] = await Promise.all([cookies(), headers()]);
     const keys: string[] = [];
-    const session = c.get('finoptima_session')?.value;
+    const session = (await import('./storage-migration')).sessionToken(c);
     if (session) keys.push('s:' + createHash('sha256').update(session).digest('hex').slice(0, 32));
     // Render appends the caller to X-Forwarded-For, so the last entry is the
     // one a client cannot forge; Cloudflare's header wins when present.

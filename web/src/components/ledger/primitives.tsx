@@ -771,11 +771,11 @@ export function LButton({
 // ─── LFooter — the calm-view toggle under Home ──────────────────────────
 export type LTone = 'CALM' | 'OVERWHELMED';
 
-const FOOTER_TONE_COOKIE = 'finoptima_ledger_tone';
+const FOOTER_TONE_COOKIE = 'rightdue_ledger_tone';
 
 export function readLedgerTone(): LTone {
   if (typeof document === 'undefined') return 'CALM';
-  const m = document.cookie.match(/finoptima_ledger_tone=([^;]+)/);
+  const m = document.cookie.match(/rightdue_ledger_tone=([^;]+)/);
   return m && m[1] === 'OVERWHELMED' ? 'OVERWHELMED' : 'CALM';
 }
 

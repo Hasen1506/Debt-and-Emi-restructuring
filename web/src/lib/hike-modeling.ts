@@ -13,7 +13,7 @@
 export type HikeModeling = 'on' | 'off';
 
 export const DEFAULT_HIKE_MODELING: HikeModeling = 'on';
-const COOKIE_NAME = 'finoptima_hike_modeling';
+const COOKIE_NAME = 'rightdue_hike_modeling';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 function isHikeModeling(v: string | null | undefined): v is HikeModeling {

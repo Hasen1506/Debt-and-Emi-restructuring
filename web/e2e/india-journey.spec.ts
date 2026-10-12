@@ -115,7 +115,7 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
   });
 
   await test.step('sign out clears this browser', async () => {
-    expect((await context.cookies()).map((c) => c.name)).toContain('finoptima_user');
+    expect((await context.cookies()).map((c) => c.name)).toContain('rightdue_user');
     await page.getByRole('button', { name: /SIGN OUT/ }).click();
     await page.waitForURL('**/login');
     await expect.poll(async () => (await context.cookies()).map((c) => c.name)).toEqual([]);

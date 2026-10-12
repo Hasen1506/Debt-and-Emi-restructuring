@@ -54,7 +54,7 @@ export function useStoredProfile(): StoredProfile {
 let currentCache: {key: string; profile: StoredProfile} | null = null;
 function currentSnapshot(): StoredProfile {
   const profile = clientSnapshot();
-  const raw = document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '';
+  const raw = document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '';
   const month = countryMonthKey(profile.user.country);
   const key = profileCookieKey() + raw + month;
   if (!currentCache || currentCache.key !== key) {

@@ -12,8 +12,9 @@ import { defineConfig } from '@playwright/test';
  *   npx playwright test --project=firefox --project=webkit   # cross-browser
  *   npx playwright test --update-snapshots   # after an intended plan change
  */
-const API_PORT = 8100;
-const WEB_PORT = 3100;
+// E2E_API_PORT / E2E_WEB_PORT let two checkouts run the suite side by side.
+const API_PORT = Number(process.env.E2E_API_PORT ?? 8100);
+const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 3100);
 const python = process.env.E2E_PYTHON ?? 'python';
 export const FROZEN_NOW = process.env.E2E_FROZEN_NOW ?? '2026-10-07T04:30:00.000Z';
 

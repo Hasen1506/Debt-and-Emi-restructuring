@@ -34,7 +34,7 @@ import { payoffBreakdown } from '@/lib/schedule-reconcile';
 
 /** Fund and goal ticks, per month: they aren't loan payments, so they
  *  aren't Activity entries. */
-const SET_ASIDE_KEY = 'finoptima_set_aside';
+const SET_ASIDE_KEY = 'rightdue_set_aside';
 
 // EMI PAID: the EMI or minimum has gone out, the plan's extra on it hasn't.
 type Status = { tag: 'PAID' | 'EMI PAID' | 'PARTIAL' | 'MISSED'; amount: number; date: string; undoable: boolean };
@@ -88,7 +88,7 @@ export function PayThisMonth({
     setReady(true);
     // Another tab (or Activity) logged something.
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'finoptima_activity' || e.key === SET_ASIDE_KEY) read();
+      if (e.key === 'rightdue_activity' || e.key === SET_ASIDE_KEY) read();
     };
     window.addEventListener('storage', onStorage);
     window.addEventListener('finoptima:profile-changed', read);

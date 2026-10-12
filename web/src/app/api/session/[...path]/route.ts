@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { waitForSignInApi, SignInApiStarting } from '@/lib/sign-in-readiness';
 import { allowedOrigins, isAllowedOrigin, setCookieHeaders } from '@/lib/request-origin';
 import { serverApiBase } from '@/lib/api-base';
+import { LEGACY_SESSION_COOKIE, SESSION_COOKIE, sessionToken } from '@/lib/storage-migration';
 
 export const dynamic = 'force-dynamic';
 const METHODS: Record<string, string[]> = {
@@ -59,8 +60,9 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
   }
   const headers = new Headers();
   if (req.method !== 'GET') headers.set('Content-Type', 'application/json');
-  const token = req.cookies.get('finoptima_session')?.value;
-  if (token) headers.set('Cookie', `finoptima_session=${token}`);
+  // Either cookie name for one release (critique #58); the API is sent the new one.
+  const token = sessionToken(req.cookies);
+  if (token) headers.set('Cookie', `${SESSION_COOKIE}=${token}`);
   const expectedAccount = req.headers.get('x-account-id');
   if (path === 'user/state' && expectedAccount) headers.set('X-Account-Id', expectedAccount);
   // The visitor's X-Forwarded-For, unchanged, so the API's per-IP limits on
@@ -91,6 +93,10 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
     // Forward every Set-Cookie separately: headers.get() joins them with
     // commas, which browsers read as one broken cookie.
     for (const cookie of setCookieHeaders(upstream.headers)) responseHeaders.append('Set-Cookie', cookie);
+    // Signing out or in also drops a session cookie still under the old name.
+    if ((path === 'auth/logout' || path === 'auth/verify-otp') && req.cookies.get(LEGACY_SESSION_COOKIE)) {
+      responseHeaders.append('Set-Cookie', `${LEGACY_SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`);
+    }
     const retryAfter = upstream.headers.get('retry-after');
     if (retryAfter) responseHeaders.set('Retry-After', retryAfter);
     return new Response(upstream.status === 204 ? null : await upstream.arrayBuffer(), {

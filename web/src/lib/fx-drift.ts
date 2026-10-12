@@ -19,7 +19,7 @@
 export type FxDriftSetting = 'on' | 'off';
 
 export const DEFAULT_FX_DRIFT: FxDriftSetting = 'off';
-const COOKIE_NAME = 'finoptima_fx_drift';
+const COOKIE_NAME = 'rightdue_fx_drift';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 function isFxDrift(v: string | null | undefined): v is FxDriftSetting {

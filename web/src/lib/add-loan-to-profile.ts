@@ -85,7 +85,7 @@ export function addLoanToProfile(input: AddLoanInput): number | null {
     || Number(input.outstanding) <= 0 || Number(input.nominal_rate) < 0 || Number(input.nominal_rate) > 1
     || Number(input.scheduled_emi) <= 0 || !Number.isInteger(input.tenure_months_remaining)
     || input.tenure_months_remaining < 1 || input.tenure_months_remaining > 480 || profile.user.loans.length >= 50) return null;
-  const raw = typeof document === 'undefined' ? '' : document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '';
+  const raw = typeof document === 'undefined' ? '' : document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '';
   const currentLoans = applyActivityDeltas(rollBalancesForward(profile.user.loans,countryMonthKey(profile.user.country)).loans, parseActivityDeltas(raw), countryMonthKey(profile.user.country)).loans;
   const capacity = deriveMetrics({...profile,user:{...profile.user,loans:currentLoans}});
   const payment = loanToUser(Number(input.scheduled_emi),newLoan,profile.user.country,

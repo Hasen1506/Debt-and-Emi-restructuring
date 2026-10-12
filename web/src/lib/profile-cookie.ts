@@ -8,8 +8,8 @@
  * The JSON is now compressed (lz-string, URL-safe, typically 4–6× smaller)
  * and split across numbered cookies when it's still large:
  *
- *   finoptima_user   = "z1.<count>.<first part>"
- *   finoptima_user_1 = "<second part>"  …
+ *   rightdue_user   = "z1.<count>.<first part>"
+ *   rightdue_user_1 = "<second part>"  …
  *
  * A cookie holding plain JSON (the old format) is still read.
  */
@@ -18,7 +18,7 @@ import {
   decompressFromEncodedURIComponent,
 } from 'lz-string';
 
-export const PROFILE_COOKIE = 'finoptima_user';
+export const PROFILE_COOKIE = 'rightdue_user';
 const PREFIX = 'z1.';
 /** Characters per cookie, under the ~4096 bytes a browser keeps for name,
  *  value and attributes together. */

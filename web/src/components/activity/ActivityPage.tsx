@@ -114,7 +114,7 @@ export function ActivityPage({
     // The cookie the plan reads follows what this browser holds.
     syncActivityCookieClient(alignToLoans(readActivityClient(), user.loans), user.loans, user.country);
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'finoptima_activity' || e.key === 'finoptima_monthly_spend') read();
+      if (e.key === 'rightdue_activity' || e.key === 'rightdue_monthly_spend') read();
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);

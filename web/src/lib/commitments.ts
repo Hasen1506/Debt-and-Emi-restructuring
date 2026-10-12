@@ -8,7 +8,7 @@
  *   • lump_sum     — one-time extra payment. Written to the activity ledger
  *                    as `paid_extra`, and mirrored here for the changelog.
  *
- * Storage: localStorage (`finoptima_commitments`). Same rationale as the
+ * Storage: localStorage (`rightdue_commitments`). Same rationale as the
  * activity ledger — unbounded list, cookie size cap.
  */
 
@@ -40,7 +40,7 @@ export interface CommitmentEntry {
   };
 }
 
-const STORAGE_KEY = 'finoptima_commitments';
+const STORAGE_KEY = 'rightdue_commitments';
 
 function safeParse(raw: string | null): CommitmentEntry[] {
   if (!raw) return [];

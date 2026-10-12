@@ -23,10 +23,10 @@ const user = (extra = {}) => ({ country: 'IN', income_type: 'salaried', annual_i
       nominal_rate: '.42', scheduled_emi: '0', tenure_months_remaining: 0 })], ...extra });
 const cookies = async c => Object.fromEntries((await c.cookies()).map(x => [x.name, decodeURIComponent(x.value)]));
 async function profile(c) {
-  const jar = await cookies(c); let raw = jar.finoptima_user;
+  const jar = await cookies(c); let raw = jar.rightdue_user;
   if (raw.startsWith('z1.')) {
     const match = /^z1\.(\d+)\./.exec(raw); let compressed = raw.slice(match[0].length);
-    for (let i = 1; i < Number(match[1]); i++) compressed += jar['finoptima_user_' + i] || '';
+    for (let i = 1; i < Number(match[1]); i++) compressed += jar['rightdue_user_' + i] || '';
     raw = LZ.decompressFromEncodedURIComponent(compressed);
   }
   return JSON.parse(raw);
@@ -53,8 +53,8 @@ let browser;
 async function run(name, u, fn, settings = {}) {
   const c = await browser.newContext();
   await c.route('https://**/*', r => r.abort()); // external fonts are unrelated to these flows
-  const jar = { finoptima_user: JSON.stringify(u), finoptima_marginal: '.208',
-    finoptima_debt_budget: '50000', ...settings };
+  const jar = { rightdue_user: JSON.stringify(u), rightdue_marginal: '.208',
+    rightdue_debt_budget: '50000', ...settings };
   await c.addCookies(Object.entries(jar).map(([name, value]) => ({ name, value: encodeURIComponent(value), url: base })));
   const p = await c.newPage(); p.setDefaultTimeout(15000); p.setDefaultNavigationTimeout(45000);
   const errors = []; p.on('pageerror', e => errors.push(e.message));
@@ -76,17 +76,17 @@ async function run(name, u, fn, settings = {}) {
     await p.getByRole('button', { name: /Lock in.*trim/i }).click();
     await p.getByRole('button', { name: /SHOW CHANGES MADE HERE/ }).waitFor();
     assert.equal((await profile(c)).fixed_expenses, '50000');
-    assert.equal((await cookies(c)).finoptima_debt_budget, '60000');
+    assert.equal((await cookies(c)).rightdue_debt_budget, '60000');
     await visit(p, '/plan');
     await p.waitForFunction(() => document.querySelector('main').textContent.includes('52,367'));
     assert.match(await body(p), /52,367/);
     await p.getByRole('button', { name: /SHOW CHANGES MADE HERE/ }).click();
     await p.getByRole('button', { name: 'Undo this spending cut and its debt-budget change', exact: true }).click();
-    await p.waitForFunction(() => JSON.parse(localStorage.getItem('finoptima_commitments') || '[]').length === 0);
+    await p.waitForFunction(() => JSON.parse(localStorage.getItem('rightdue_commitments') || '[]').length === 0);
     assert.equal((await profile(c)).fixed_expenses, '60000');
-    assert.equal((await cookies(c)).finoptima_debt_budget, '50000');
+    assert.equal((await cookies(c)).rightdue_debt_budget, '50000');
   });
-  for (const blocked of ['finoptima_user', 'finoptima_debt_budget']) {
+  for (const blocked of ['rightdue_user', 'rightdue_debt_budget']) {
     await run('Blocked ' + blocked + ' rolls back the whole cut', user(), async (p, c) => {
       await visit(p, '/plan'); await previewCut(p);
       await p.evaluate(key => {
@@ -97,8 +97,8 @@ async function run(name, u, fn, settings = {}) {
       }, blocked);
       await p.getByRole('button', { name: /Lock in.*trim/i }).click();
       assert.equal((await profile(c)).fixed_expenses, '60000');
-      assert.equal((await cookies(c)).finoptima_debt_budget, '50000');
-      assert.equal((await store(p, 'finoptima_commitments')).length, 0);
+      assert.equal((await cookies(c)).rightdue_debt_budget, '50000');
+      assert.equal((await store(p, 'rightdue_commitments')).length, 0);
       assert.equal(await p.getByRole('button', { name: 'Undo this spending cut and its debt-budget change', exact: true }).count(), 0);
     });
   }
@@ -107,7 +107,7 @@ async function run(name, u, fn, settings = {}) {
     await visit(p, '/'); assert.match(await body(p), /1,012/);
     await visit(p, '/activity');
     await p.getByRole('button', { name: /^Mark paid:.*1,012/ }).click();
-    const entries = await store(p, 'finoptima_activity');
+    const entries = await store(p, 'rightdue_activity');
     assert.equal(Number(entries[0].amount), 1012); assert.equal(Number(entries[0].scheduledEmi), 1012);
     await visit(p, '/activity'); assert.equal(await p.getByRole('button', { name: /^Mark paid:/ }).count(), 0);
   });
@@ -116,7 +116,7 @@ async function run(name, u, fn, settings = {}) {
     const d = p.getByRole('dialog'); await d.getByRole('button', { name: /Paid in full/i }).click();
     await d.getByLabel('Amount paid', { exact: true }).fill('1012');
     await d.getByRole('button', { name: /SAVE/ }).click(); await d.waitFor({ state: 'hidden' });
-    const entries = await store(p, 'finoptima_activity');
+    const entries = await store(p, 'rightdue_activity');
     assert.equal(Number(entries[0].amount), 1012); assert.equal(Number(entries[0].scheduledEmi), 1012);
   });
   await run('Costlier consolidation is held back after the card clears', user({ credit_score: 720,
@@ -141,7 +141,7 @@ async function run(name, u, fn, settings = {}) {
     await d.getByRole('button', { name: /SNOWBALL/ }).click();
     await p.getByRole('button', { name: 'Payoff strategy: Snowball. Change it', exact: true }).waitFor();
     await p.waitForFunction(() => document.querySelector('main').textContent.includes('34,638'));
-  }, { finoptima_debt_budget: '40000', finoptima_lifecycle: JSON.stringify([{ id: 'reset', kind: 'floating_rate_reset',
+  }, { rightdue_debt_budget: '40000', rightdue_lifecycle: JSON.stringify([{ id: 'reset', kind: 'floating_rate_reset',
     status: 'planned', loanId: 'b', loanIndex: 1, newRate: '.12', effectiveDate: month(1), loggedAt: now.toISOString() }]) });
   await run('Refinance headline and explanation use the revised repayment saving', user({ loans: [loan('home', {
     loan_type: 'home_loan', outstanding: '4000000', nominal_rate: '.10', rate_type: 'floating',
@@ -151,6 +151,6 @@ async function run(name, u, fn, settings = {}) {
     assert.ok(headline, 'A refinance opportunity must appear');
     assert.ok(text.includes(`net saving of about ₹${headline[1]}`));
     assert.doesNotMatch(text, /13,43,102/);
-  }, { finoptima_debt_budget: '90000' });
+  }, { rightdue_debt_budget: '90000' });
   await browser.close(); assert.ok(results.every(x => x.passed), 'Browser regressions failed; inspect AUDIT_OUTPUT');
 })().catch(e => { console.error(e); process.exitCode = 1; });

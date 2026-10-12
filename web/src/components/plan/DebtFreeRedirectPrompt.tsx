@@ -41,7 +41,7 @@ import type { PlanData } from './PlanData';
 import { loanToUser } from '@/lib/currency';
 import { payThisMonth } from '@/lib/pay-this-month';
 
-const DISMISS_KEY = 'finoptima_debtfree_prompt_dismissed';
+const DISMISS_KEY = 'rightdue_debtfree_prompt_dismissed';
 
 export function DebtFreeRedirectPrompt({
   plan,

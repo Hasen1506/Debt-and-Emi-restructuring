@@ -3,7 +3,7 @@ const root=path.resolve(__dirname,'../src'),resolve=Module._resolveFilename;
 Module._resolveFilename=function(request,parent,...rest){return resolve.call(this,request.startsWith('@/')?path.join(root,request.slice(2)):request,parent,...rest)};
 for(const ext of ['.ts','.tsx'])require.extensions[ext]=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,f);
 function setup(account='A') {
- const data=new Map([['finoptima_account_id',account]]),events=[];
+ const data=new Map([['rightdue_account_id',account]]),events=[];
  global.localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)};
  global.window={localStorage,dispatchEvent:e=>events.push(e.type)};
  const file=path.join(root,'lib/server-sync.ts');delete require.cache[require.resolve(file)];
@@ -17,7 +17,7 @@ test('a response fetched for one account cannot hydrate after another tab change
  try {
   global.fetch=async()=>{entered();await new Promise(r=>release=r);return Response.json({data:{strategy:'private-A'}})};
   const hydration=sync.hydrateFromServer();await started;
-  data.set('finoptima_account_id','B');release();
+  data.set('rightdue_account_id','B');release();
   assert.equal(await hydration,false);
  }finally{global.fetch=original;cleanup()}
 });
@@ -26,16 +26,16 @@ test('failed writes survive a module reload and retry before stale server hydrat
  const fetch=global.fetch,{data,sync,reload}=setup();
  try {
   global.fetch=async()=>{throw Error('offline')};await sync.syncSliceToServer('goals',[{id:'new'}]);
-  assert.equal(sync.getSyncStatus(),'failed');assert.equal(JSON.parse(data.get('finoptima_pending_sync_A')).goals[0].id,'new');
+  assert.equal(sync.getSyncStatus(),'failed');assert.equal(JSON.parse(data.get('rightdue_pending_sync_A')).goals[0].id,'new');
   let saved,calls=[];global.fetch=async(url,opts)=>{calls.push(opts.method??'GET');if(opts.method==='PATCH'){saved=JSON.parse(opts.body).data;assert.equal(opts.headers['X-Account-Id'],'A');return Response.json({data:saved})}return Response.json({data:saved})};
   const fresh=reload();await fresh.hydrateFromServer();
-  assert.deepEqual(calls,['PATCH','GET']);assert.equal(data.get('finoptima_pending_sync_A'),undefined);assert.equal(JSON.parse(data.get('finoptima_goals'))[0].id,'new');
+  assert.deepEqual(calls,['PATCH','GET']);assert.equal(data.get('rightdue_pending_sync_A'),undefined);assert.equal(JSON.parse(data.get('rightdue_goals'))[0].id,'new');
  }finally{global.fetch=fetch;cleanup()}
 });
 
 test('failed pending retry prevents GET hydration from overwriting local changes',async()=>{
  const fetch=global.fetch,{data,sync}=setup();let calls=0;
- try{global.fetch=async()=>{calls++;throw Error('offline')};await sync.syncSliceToServer('strategy','snowball');const before=calls;assert.equal(await sync.hydrateFromServer(),false);assert.equal(calls,before+1);assert.equal(JSON.parse(data.get('finoptima_pending_sync_A')).strategy,'snowball')}
+ try{global.fetch=async()=>{calls++;throw Error('offline')};await sync.syncSliceToServer('strategy','snowball');const before=calls;assert.equal(await sync.hydrateFromServer(),false);assert.equal(calls,before+1);assert.equal(JSON.parse(data.get('rightdue_pending_sync_A')).strategy,'snowball')}
  finally{global.fetch=fetch;cleanup()}
 });
 
@@ -44,7 +44,7 @@ test('newer edits made during a request remain queued until their own acknowledg
  try {
   global.fetch=async(url,opts)=>{writes.push(JSON.parse(opts.body).data);if(writes.length===1){entered();await new Promise(r=>release=r)}return Response.json({data:{}})};
   const first=sync.syncSliceToServer('strategy','avalanche');await started;const second=sync.syncSliceToServer('strategy','snowball');release();await Promise.all([first,second]);
-  assert.deepEqual(writes,[{strategy:'avalanche'},{strategy:'snowball'}]);assert.equal(data.has('finoptima_pending_sync_A'),false);assert.equal(sync.getSyncStatus(),'saved');
+  assert.deepEqual(writes,[{strategy:'avalanche'},{strategy:'snowball'}]);assert.equal(data.has('rightdue_pending_sync_A'),false);assert.equal(sync.getSyncStatus(),'saved');
  }finally{global.fetch=fetch;cleanup()}
 });
 
@@ -52,9 +52,9 @@ test('pending values stay with their original account and anonymous changes do n
  const fetch=global.fetch,{sync,data}=setup();let writes=[];
  try {
   global.fetch=async()=>{throw Error('offline')};await sync.syncSliceToServer('profile',{private:'A'});
-  data.set('finoptima_account_id','B');global.fetch=async(url,opts)=>{writes.push(JSON.parse(opts.body).data);return Response.json({data:{}})};
-  assert.equal(await sync.flushPendingState(),true);assert.deepEqual(writes,[]);await sync.syncSliceToServer('strategy','snowball');assert.deepEqual(writes,[{strategy:'snowball'}]);assert.ok(data.has('finoptima_pending_sync_A'));
-  data.delete('finoptima_account_id');await sync.syncSliceToServer('profile',{private:'anon'});assert.equal(writes.length,1);
+  data.set('rightdue_account_id','B');global.fetch=async(url,opts)=>{writes.push(JSON.parse(opts.body).data);return Response.json({data:{}})};
+  assert.equal(await sync.flushPendingState(),true);assert.deepEqual(writes,[]);await sync.syncSliceToServer('strategy','snowball');assert.deepEqual(writes,[{strategy:'snowball'}]);assert.ok(data.has('rightdue_pending_sync_A'));
+  data.delete('rightdue_account_id');await sync.syncSliceToServer('profile',{private:'anon'});assert.equal(writes.length,1);
  }finally{global.fetch=fetch;cleanup()}
 });
 

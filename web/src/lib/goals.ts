@@ -225,8 +225,8 @@ export const GOAL_PRESETS: Record<GoalKind, PresetDefaults> = {
 
 // ─── Persistence ───────────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'finoptima_goals';
-const DIGEST_COOKIE = 'finoptima_goals_digest';
+const STORAGE_KEY = 'rightdue_goals';
+const DIGEST_COOKIE = 'rightdue_goals_digest';
 
 function safeParse(raw: string | null): Goal[] {
   if (!raw) return [];

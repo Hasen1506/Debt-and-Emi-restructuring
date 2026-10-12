@@ -34,7 +34,7 @@ import { alignToLoans, resolveLoanIndex } from './loan-ids';
 import { localIsoDate, getCountryToday } from './today';
 import { monthsBefore, paceMonths, type PaceMonth } from './pace';
 
-const COOKIE_NAME = 'finoptima_activity_deltas';
+const COOKIE_NAME = 'rightdue_activity_deltas';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 // v4 adds the reported balance anchor. The compressed z3 envelope stays
 // readable across upgrades; v1-v3 payloads migrate on the next save.
@@ -104,7 +104,7 @@ export function syncActivityCookieClient(
   };
   const encoded = COMPRESSED + compressToEncodedURIComponent(JSON.stringify(payload));
   document.cookie = `${COOKIE_NAME}=${encoded}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
-  const saved = document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] === encoded;
+  const saved = document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] === encoded;
   if (saved && notify) window.dispatchEvent(new Event('finoptima:profile-changed'));
   return saved;
 }
@@ -272,13 +272,13 @@ export function refreshActivityCookieClient(loans: LoanPayload[], country: Count
   if (typeof document === 'undefined') return false;
   const entries = readActivityClient();
   if (entries.length === 0) return false;
-  const raw = document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '';
+  const raw = document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '';
   const pace = raw ? parseActivityPace(raw) : [];
   const lastMonth = monthsBefore(localIsoDate(getCountryToday(country)).slice(0, 7), 1)[0];
   if (pace.length > 0 && pace[pace.length - 1].month === lastMonth) return false;
   const before = raw;
   syncActivityCookieClient(alignToLoans(entries, loans), loans, country, false);
-  return (document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '') !== before;
+  return (document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '') !== before;
 }
 
 export function clearActivityCookieClient(): void {

@@ -1234,11 +1234,24 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 function accountHeaders(path: string): Record<string, string> {
   if (path === '/api/user/state' && typeof window !== 'undefined') {
     try {
-      const account = localStorage.getItem('finoptima_account_id');
+      const account = localStorage.getItem('rightdue_account_id');
       if (account) return { 'X-Account-Id': account };
     } catch { /* Browser storage may be unavailable. */ }
   }
   return {};
+}
+
+/** A non-2xx answer, with its HTTP status and body, so a caller can tell a
+ *  signed-out 401 from an offline device (live-test #2/#33). The message
+ *  keeps the old "path → status" form. */
+export class ApiStatusError extends Error {
+  constructor(message: string, public status: number, public body: string = '') {
+    super(message);
+  }
+  /** The JSON `detail` FastAPI sent, or null. */
+  detail(): unknown {
+    try { return (JSON.parse(this.body) as { detail?: unknown }).detail ?? null; } catch { return null; }
+  }
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -1247,7 +1260,7 @@ async function get<T>(path: string): Promise<T> {
     cache: 'no-store',
     credentials: requestCredentials(path),
   });
-  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  if (!res.ok) throw new ApiStatusError(`${path} → ${res.status}`, res.status, await res.text().catch(() => ''));
   return res.json() as Promise<T>;
 }
 
@@ -1261,7 +1274,7 @@ async function putJson<T>(path: string, body: unknown, method: 'PUT' | 'PATCH' =
   });
   if (!res.ok) {
     const detail = await res.text();
-    throw new Error(`${path} → ${res.status}: ${detail}`);
+    throw new ApiStatusError(`${path} → ${res.status}: ${detail}`, res.status, detail);
   }
   if (res.status === 204) return undefined as unknown as T;
   return res.json() as Promise<T>;
@@ -1488,8 +1501,17 @@ export const api = {
   getUserState: () => get<UserStatePayload>('/api/user/state'),
   putUserState: (data: Record<string, unknown>) =>
     putJson<UserStatePayload>('/api/user/state', { data }),
-  patchUserState: (data: Record<string, unknown>) =>
-    putJson<UserStatePayload>('/api/user/state', { data }, 'PATCH'),
+  /** `baseVersion`: the state version this device last read (critique #63);
+   *  a slice changed elsewhere since then answers 412. `force` keeps this
+   *  device's copy after the person chose it. `deviceId`: this browser's id,
+   *  so its own earlier writes never count as "another device". */
+  patchUserState: (data: Record<string, unknown>, baseVersion?: number | null, force = false, deviceId?: string | null) =>
+    putJson<UserStatePayload>('/api/user/state', {
+      data,
+      ...(baseVersion != null ? { base_version: baseVersion } : {}),
+      ...(force ? { force: true } : {}),
+      ...(deviceId ? { device_id: deviceId } : {}),
+    }, 'PATCH'),
 
   marketLowest: (country: 'IN' | 'US', loanType: string) =>
     get<{ country: string; loan_type: string; bank: string | null; low: string | null }>(
@@ -1570,6 +1592,8 @@ export interface LifecycleEventInput {
 export interface UserStatePayload {
   data: Record<string, unknown> | null;
   updated_at: string | null;
+  /** Write counter (critique #63); absent from an older API. */
+  version?: number;
 }
 
 export interface RateRangePayload {

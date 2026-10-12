@@ -147,7 +147,7 @@ export function GoalsPage({
       const history = prepareDecision(readDecisionsClient(), {...draft,result:{...draft.result,...(resultGoal ? {goal:resultGoal} : {})}});
       const writes: ClientSliceWrite[] = [goalWrite];
       if (initialContributions) writes.push(contributionSliceWrite(initialContributions));
-      writes.push({key:'finoptima_decisions',value:history,slice:'decisions'});
+      writes.push({key:'rightdue_decisions',value:history,slice:'decisions'});
       persistClientSlices(writes);
       setGoals(readGoalsClient());
       if (initialContributions) setContributions(initialContributions);

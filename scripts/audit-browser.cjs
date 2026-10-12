@@ -10,15 +10,15 @@ const output=process.env.AUDIT_OUTPUT || path.resolve(__dirname,'../audit-browse
 const loan=(id='a',extra={})=>({id,bank:id==='a'?'HDFC Bank':'ICICI Bank',loan_type:'personal_loan',outstanding:'100000',nominal_rate:'.18',rate_type:'fixed',scheduled_emi:'9000',tenure_months_remaining:24,...extra});
 const user=(extra={})=>({country:'IN',income_type:'salaried',monthly_income:'100000',annual_income:'1200000',annual_gross_salary:'1200000',fixed_expenses:'40000',savings_balance:'50000',efund_balance:'100000',efund_target:'100000',primary_bank:'HDFC Bank',tax_regime:'new',inflation_rate:'.046',loans:[loan()],investment_options:[],...extra});
 const event=(id,kind,extra)=>({id,kind,status:'planned',effectiveDate:'2026-09-01',loggedAt:'2026-09-01T00:00:00Z',...extra});
-async function saved(c){const cookies=await c.cookies();const get=n=>decodeURIComponent(cookies.find(x=>x.name===n)?.value ?? '');let raw=get('finoptima_user');if(raw.startsWith('z1.')){const m=/^z1\.(\d+)\./.exec(raw);let zipped=raw.slice(m[0].length);for(let i=1;i<Number(m[1]);i++)zipped+=get('finoptima_user_'+i);raw=LZ.decompressFromEncodedURIComponent(zipped);}return JSON.parse(raw);}
+async function saved(c){const cookies=await c.cookies();const get=n=>decodeURIComponent(cookies.find(x=>x.name===n)?.value ?? '');let raw=get('rightdue_user');if(raw.startsWith('z1.')){const m=/^z1\.(\d+)\./.exec(raw);let zipped=raw.slice(m[0].length);for(let i=1;i<Number(m[1]);i++)zipped+=get('rightdue_user_'+i);raw=LZ.decompressFromEncodedURIComponent(zipped);}return JSON.parse(raw);}
 async function text(p){return p.locator('main').innerText();}
 async function checkButton(p,name){await p.getByRole('button',{name}).click();await p.getByRole('button',{name}).waitFor({state:'visible'});await p.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).some(b=>b.disabled && /WORKING|Checking/i.test(b.textContent)),{},{timeout:30000});}
 let browser; const results=[];
 async function run(name, u, fn, storage={},events=[]){
   if(process.env.AUDIT_FILTER && !name.includes(process.env.AUDIT_FILTER)) return;
   const c=await browser.newContext();
-  await c.addCookies([{name:'finoptima_user',value:encodeURIComponent(JSON.stringify(u)),url:base+'/'}, {name:'finoptima_marginal',value:'0',url:base+'/'},
-    ...(events.length?[{name:'finoptima_lifecycle',value:encodeURIComponent(JSON.stringify(events)),url:base+'/'}]:[])]);
+  await c.addCookies([{name:'rightdue_user',value:encodeURIComponent(JSON.stringify(u)),url:base+'/'}, {name:'rightdue_marginal',value:'0',url:base+'/'},
+    ...(events.length?[{name:'rightdue_lifecycle',value:encodeURIComponent(JSON.stringify(events)),url:base+'/'}]:[])]);
   await c.addInitScript(store=>{for(const [key,value]of Object.entries(store))if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify(value));},storage);
   const p=await c.newPage();p.setDefaultTimeout(30000);p.setDefaultNavigationTimeout(60000);const errors=[];p.on('pageerror',e=>errors.push(e.message));
   const goto=p.goto.bind(p);
@@ -46,15 +46,15 @@ async function run(name, u, fn, storage={},events=[]){
     await p.goto(base+'/debts');await p.getByRole('button',{name:'Delete',exact:true}).click();assert.equal((await saved(c)).loans.length,0);
   },{},[{...event('p','property_buy',{loanDraft:loan('future',{bank:'Future Bank'})}),status:'confirmed',appliedSnapshot:{addedLoanId:'lifecycle_p',addedLoanIndex:1}}]);
   const cashUser=user({monthly_income:'50000',fixed_expenses:'30000',cash_accounts:[{name:'Salary Checking',kind:'checking',balance:'20000',apy:'0'},{name:'Locked FD',kind:'fd',balance:'100000',apy:'.07'}],savings_balance:'120000'});
-  const cashStorage={finoptima_cash_events:{startedAt:'2026-08-01',confirmations:[]}};
+  const cashStorage={rightdue_cash_events:{startedAt:'2026-08-01',confirmations:[]}};
   await run('R6: recap credits checking and reduces debt for extra payment',cashUser,async(p,c)=>{
     await p.goto(base+'/debts');await p.getByRole('button',{name:/MONTHLY RECAP/}).click();await p.getByLabel(/^EMIs paid/).fill('29000');await p.getByRole('button',{name:'Save override'}).click();
-    await p.waitForFunction(()=>JSON.parse(localStorage.getItem('finoptima_cash_events')).confirmations.length===1);
+    await p.waitForFunction(()=>JSON.parse(localStorage.getItem('rightdue_cash_events')).confirmations.length===1);
     const s=await saved(c);assert.equal(s.cash_accounts[0].balance,'11000.00');assert.equal(s.cash_accounts[1].balance,'100000');
-    const entries=await p.evaluate(()=>JSON.parse(localStorage.getItem('finoptima_activity')));assert.equal(entries.length,1);assert.equal(entries[0].amount,'20000.00');
+    const entries=await p.evaluate(()=>JSON.parse(localStorage.getItem('rightdue_activity')));assert.equal(entries.length,1);assert.equal(entries[0].amount,'20000.00');
     await p.goto(base+'/');assert.match(await text(p),/80,000/);
   },cashStorage);
-  await run('R6: opening partial month does not prompt full recap',cashUser,async(p)=>{await p.goto(base+'/debts');await p.getByRole('button',{name:'+ Add life event'}).waitFor();assert.equal(await p.getByRole('button',{name:/MONTHLY RECAP/}).count(),0);},{finoptima_cash_events:{startedAt:'2026-09-27',confirmations:[]}});
+  await run('R6: opening partial month does not prompt full recap',cashUser,async(p)=>{await p.goto(base+'/debts');await p.getByRole('button',{name:'+ Add life event'}).waitFor();assert.equal(await p.getByRole('button',{name:/MONTHLY RECAP/}).count(),0);},{rightdue_cash_events:{startedAt:'2026-09-27',confirmations:[]}});
   await run('R7: no-cost offer uses entered EMI; sticker increase changes cost',user(),async(p)=>{
     await p.goto(base+'/tools/new-debt');await p.getByLabel('What kind of loan are you considering?').selectOption('credit_card');
     await p.getByLabel('Sticker / list price').fill('10000');await p.getByLabel('Cash price elsewhere').fill('10000');await p.getByLabel('Actual offer monthly EMI').fill('1666.67');
@@ -86,14 +86,14 @@ async function run(name, u, fn, storage={},events=[]){
     await p.goto(base+'/tools/windfall');await p.getByLabel('Funding source',{exact:true}).selectOption('account');await p.getByLabel('Pay from',{exact:true}).selectOption('Savings');await p.getByLabel('SPARE CASH',{exact:true}).fill('10000');await checkButton(p,/WHERE SHOULD IT GO/);
     await p.getByRole('button',{name:/I DID THIS/}).click();const logged=p.getByRole('button',{name:/LOGGED/});await logged.waitFor();assert.equal(await logged.isDisabled(),true);
     const s=await saved(c);assert.equal(s.cash_accounts[0].balance,'40000.00');assert.equal(s.savings_balance,'40000.00');assert.equal(s.efund_balance,'3000.00');
-    const entries=await p.evaluate(()=>JSON.parse(localStorage.getItem('finoptima_activity')));assert.equal(entries.length,1);assert.equal(entries[0].amount,'7000.00');
+    const entries=await p.evaluate(()=>JSON.parse(localStorage.getItem('rightdue_activity')));assert.equal(entries.length,1);assert.equal(entries[0].amount,'7000.00');
     await p.goto(base+'/');assert.match(await text(p),/93,000/);await p.goto(base+'/debts');assert.match(await text(p),/93,000/);
   });
   await run('R8: investment logging creates a portfolio holding',user({loans:[loan('a',{nominal_rate:'.05'})],investment_options:[{name:'Liquid Fund',expected_return:'.3',liquidity_class:'liquid',is_in_pool:true}]}),async(p,c)=>{
     await spare(p);assert.match(await text(p),/INVEST IN LIQUID FUND/);await p.getByRole('button',{name:/I DID THIS/}).click();await p.getByRole('button',{name:/LOGGED/}).waitFor();const s=await saved(c);assert.equal(s.assets.at(-1).current_market_value,'10000.00');assert.equal(s.assets.at(-1).label,'Liquid Fund');
   });
   await run('Adjacent: insufficient source balance produces no partial financial writes',user({savings_balance:'1000',cash_accounts:[{name:'Savings',kind:'savings',balance:'1000',apy:'0'}]}),async(p,c)=>{
-    await p.goto(base+'/tools/windfall');await p.getByLabel('Funding source',{exact:true}).selectOption('account');await p.getByLabel('Pay from',{exact:true}).selectOption('Savings');await p.getByLabel('SPARE CASH',{exact:true}).fill('10000');await checkButton(p,/WHERE SHOULD IT GO/);await p.getByRole('button',{name:/I DID THIS/}).click();assert.match(await text(p),/cannot cover/);assert.equal((await saved(c)).cash_accounts[0].balance,'1000');assert.equal(await p.evaluate(()=>localStorage.getItem('finoptima_activity')),null);
+    await p.goto(base+'/tools/windfall');await p.getByLabel('Funding source',{exact:true}).selectOption('account');await p.getByLabel('Pay from',{exact:true}).selectOption('Savings');await p.getByLabel('SPARE CASH',{exact:true}).fill('10000');await checkButton(p,/WHERE SHOULD IT GO/);await p.getByRole('button',{name:/I DID THIS/}).click();assert.match(await text(p),/cannot cover/);assert.equal((await saved(c)).cash_accounts[0].balance,'1000');assert.equal(await p.evaluate(()=>localStorage.getItem('rightdue_activity')),null);
   });
   await run('R8: partial liquidation cannot sell more than owned',user(),async(p)=>{
     await p.goto(base+'/tools/liquidate');
@@ -115,7 +115,7 @@ async function run(name, u, fn, storage={},events=[]){
   });
   await run('Adjacent: foreign cash payoff converts both recommendation and Activity units',user({loans:[loan('foreign',{currency:'USD',outstanding:'1000',scheduled_emi:'100'})],fx_to_user_currency:{USD:'80'}}),async(p,c)=>{
     await spare(p);await p.getByRole('button',{name:/I DID THIS/}).click();await p.getByRole('button',{name:/LOGGED/}).waitFor();
-    const entries=await p.evaluate(()=>JSON.parse(localStorage.getItem('finoptima_activity')));assert.equal(entries[0].amount,'125.00');
+    const entries=await p.evaluate(()=>JSON.parse(localStorage.getItem('rightdue_activity')));assert.equal(entries[0].amount,'125.00');
     await p.goto(base+'/');assert.match(await text(p),/70,000/);
   });
   await run('Adjacent: bonus leftover preserves legacy savings without existing accounts',user({loans:[]}),async(p,c)=>{
@@ -134,8 +134,8 @@ async function run(name, u, fn, storage={},events=[]){
     await p.goto(base+'/');assert.match(await text(p),/NO DATE YET/);assert.match(await text(p),/FUTURE PAYMENTS NEED FUNDING/);
   },{},[event('expensive','property_buy',{effectiveDate:'2026-11-01',loanDraft:loan('future',{bank:'Future Bank',loan_type:'home_loan',outstanding:'5000000',nominal_rate:'.09',scheduled_emi:'63338',tenure_months_remaining:120})})]);
   await run('Adjacent: changed balances invalidate a spare-cash action before financial writes',user(),async(p,c)=>{
-    await spare(p);const changed=await saved(c);changed.monthly_income='80000';await c.addCookies([{name:'finoptima_user',value:encodeURIComponent(JSON.stringify(changed)),url:base+'/'}]);
-    await p.getByRole('button',{name:/I DID THIS/}).click();assert.match(await text(p),/changed. Run the cash check again/);assert.equal(await p.evaluate(()=>localStorage.getItem('finoptima_activity')),null);
+    await spare(p);const changed=await saved(c);changed.monthly_income='80000';await c.addCookies([{name:'rightdue_user',value:encodeURIComponent(JSON.stringify(changed)),url:base+'/'}]);
+    await p.getByRole('button',{name:/I DID THIS/}).click();assert.match(await text(p),/changed. Run the cash check again/);assert.equal(await p.evaluate(()=>localStorage.getItem('rightdue_activity')),null);
   });
   await run('Adjacent: mobile spare cash walkthrough has no page overflow',user(),async(p)=>{
     await p.setViewportSize({width:390,height:844});await spare(p);assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Horizontal page overflow');
@@ -147,7 +147,7 @@ async function run(name, u, fn, storage={},events=[]){
   });
   await run('Adjacent: new loan action invalidates when current debt changes even if EMI room is identical',user({savings_balance:'0'}),async(p,c)=>{
     await p.goto(base+'/tools/new-debt');await p.getByLabel('Loan amount',{exact:true}).fill('100000');await checkButton(p,'Check this loan');await p.getByRole('button',{name:/Add this personal loan/}).waitFor();
-    const u=await saved(c);u.loans[0].outstanding='50000';await c.addCookies([{name:'finoptima_user',value:encodeURIComponent(JSON.stringify(u)),url:base+'/'}]);
+    const u=await saved(c);u.loans[0].outstanding='50000';await c.addCookies([{name:'rightdue_user',value:encodeURIComponent(JSON.stringify(u)),url:base+'/'}]);
     await p.evaluate(()=>window.dispatchEvent(new Event('focus')));await p.getByRole('button',{name:/Add this personal loan/}).waitFor({state:'hidden'});assert.equal((await saved(c)).loans.length,1);
   });
 

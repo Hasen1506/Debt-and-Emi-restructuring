@@ -29,7 +29,7 @@ const loan = (id = 'a', extra = {}) => ({ id, bank: id, loan_type: 'home_loan', 
 const user = (extra = {}) => ({ country: 'US', income_type: 'salaried', monthly_income: '10000', annual_income: '120000', annual_gross_salary: '120000', fixed_expenses: '3000', savings_balance: '50000', primary_bank: 'a', loans: [loan()], ...extra });
 
 function stores(u) {
- const jar=new Map([['finoptima_user',encodeURIComponent(JSON.stringify(u))]]),data=new Map();
+ const jar=new Map([['rightdue_user',encodeURIComponent(JSON.stringify(u))]]),data=new Map();
  global.document={get cookie(){return [...jar].map(([k,v])=>`${k}=${v}`).join('; ');},set cookie(v){const [pair,...attrs]=v.split(';');const split=pair.indexOf('=');if(attrs.some(a=>a.trim()==='max-age=0'))jar.delete(pair.slice(0,split));else jar.set(pair.slice(0,split),pair.slice(split+1));}};
  global.localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)};
  global.window={localStorage:global.localStorage,dispatchEvent(){},addEventListener(){},removeEventListener(){}};
@@ -64,14 +64,14 @@ test('planned extra deferral uses residence country at the month boundary',()=>{
 test('older goal undo rejects overwriting a newer edit',()=>{
  process.env.NEXT_PUBLIC_DISABLE_AUTH='true';const {undoPlanDecision}=lib('decision-undo.ts');const {data}=stores(user());
  const older=decision('older'),newer=decision('newer',{snapshot:{goal:goal('middle')}});const decisions=[newer,older];
- data.set('finoptima_goals',JSON.stringify([goal('latest')]));data.set('finoptima_decisions',JSON.stringify(decisions));
- try {assert.throws(()=>undoPlanDecision(decisions,older),/newer|latest/i);assert.equal(JSON.parse(data.get('finoptima_goals'))[0].label,'latest');}finally{clean()}
+ data.set('rightdue_goals',JSON.stringify([goal('latest')]));data.set('rightdue_decisions',JSON.stringify(decisions));
+ try {assert.throws(()=>undoPlanDecision(decisions,older),/newer|latest/i);assert.equal(JSON.parse(data.get('rightdue_goals'))[0].label,'latest');}finally{clean()}
 });
 test('failed undo history save restores the goal and projection cookie',()=>{
  process.env.NEXT_PUBLIC_DISABLE_AUTH='true';const {undoPlanDecision}=lib('decision-undo.ts');const {writeGoalsClient}=lib('goals.ts');const {data,jar}=stores(user());
- const d=decision('edit');writeGoalsClient([goal('current')]);data.set('finoptima_decisions',JSON.stringify([d]));const cookie=jar.get('finoptima_goals_digest');const put=localStorage.setItem;
- localStorage.setItem=(k,v)=>{if(k==='finoptima_decisions')throw Error('quota');put(k,v)};
- try {assert.throws(()=>undoPlanDecision([d],d));assert.equal(JSON.parse(data.get('finoptima_goals'))[0].label,'current');assert.equal(jar.get('finoptima_goals_digest'),cookie);}finally{clean()}
+ const d=decision('edit');writeGoalsClient([goal('current')]);data.set('rightdue_decisions',JSON.stringify([d]));const cookie=jar.get('rightdue_goals_digest');const put=localStorage.setItem;
+ localStorage.setItem=(k,v)=>{if(k==='rightdue_decisions')throw Error('quota');put(k,v)};
+ try {assert.throws(()=>undoPlanDecision([d],d));assert.equal(JSON.parse(data.get('rightdue_goals'))[0].label,'current');assert.equal(jar.get('rightdue_goals_digest'),cookie);}finally{clean()}
 });
 
 
@@ -85,22 +85,22 @@ test('same-day statement cutoff keeps later payments and preserves unchanged anc
 });
 test('profile balance update refreshes activity projection and rolls back a blocked cookie',()=>{
  process.env.NEXT_PUBLIC_DISABLE_AUTH='true';const {saveProfileClient,loadProfileClient}=lib('user-store.ts');const {syncActivityCookieClient,parseActivityDeltas,applyActivityDeltas}=lib('activity-cookie.ts');
- const u=user({loans:[loan('a',{outstanding:'10000',balance_as_of:'2026-08-01'})]});const {data,jar}=stores(u);const entries=[entry()];data.set('finoptima_activity',JSON.stringify(entries));syncActivityCookieClient(entries,u.loans,'US');
+ const u=user({loans:[loan('a',{outstanding:'10000',balance_as_of:'2026-08-01'})]});const {data,jar}=stores(u);const entries=[entry()];data.set('rightdue_activity',JSON.stringify(entries));syncActivityCookieClient(entries,u.loans,'US');
  const updated={...u,loans:[{...u.loans[0],outstanding:'9000',balance_as_of:'2026-10-01'}]};
- try {assert.equal(saveProfileClient({user:updated}),true);assert.equal(parseActivityDeltas(jar.get('finoptima_activity_deltas')).length,0);
-  const nextEntries=[entry({date:'2026-10-02',amount:'200'})];data.set('finoptima_activity',JSON.stringify(nextEntries));syncActivityCookieClient(nextEntries,updated.loans,'US');const stale=jar.get('finoptima_activity_deltas');
+ try {assert.equal(saveProfileClient({user:updated}),true);assert.equal(parseActivityDeltas(jar.get('rightdue_activity_deltas')).length,0);
+  const nextEntries=[entry({date:'2026-10-02',amount:'200'})];data.set('rightdue_activity',JSON.stringify(nextEntries));syncActivityCookieClient(nextEntries,updated.loans,'US');const stale=jar.get('rightdue_activity_deltas');
   const changed={...updated,loans:[{...updated.loans[0],balance_as_of:'2026-10-03',outstanding:'8800'}]};
   assert.equal(applyActivityDeltas(changed.loans,parseActivityDeltas(stale),'2026-10').loans[0].outstanding,'8800');
-  const descriptor=Object.getOwnPropertyDescriptor(document,'cookie');Object.defineProperty(document,'cookie',{...descriptor,set(v){if(!v.startsWith('finoptima_activity_deltas='))descriptor.set(v)}});
-  assert.equal(saveProfileClient({user:changed}),false);assert.equal(loadProfileClient().user.loans[0].outstanding,'9000');assert.equal(jar.get('finoptima_activity_deltas'),stale);
+  const descriptor=Object.getOwnPropertyDescriptor(document,'cookie');Object.defineProperty(document,'cookie',{...descriptor,set(v){if(!v.startsWith('rightdue_activity_deltas='))descriptor.set(v)}});
+  assert.equal(saveProfileClient({user:changed}),false);assert.equal(loadProfileClient().user.loans[0].outstanding,'9000');assert.equal(jar.get('rightdue_activity_deltas'),stale);
  }finally{clean()}
 });
 test('undo reads current history, preserves unrelated decisions and blocks expired or stale goals',()=>{
  process.env.NEXT_PUBLIC_DISABLE_AUTH='true';const {undoPlanDecision}=lib('decision-undo.ts');const {writeGoalsClient}=lib('goals.ts');const {data}=stores(user());
- const d=decision('edit');const unrelated=decision('unrelated',{kind:'hike_toggle',snapshot:{},result:{}});writeGoalsClient([goal('current')]);data.set('finoptima_decisions',JSON.stringify([unrelated,d]));
+ const d=decision('edit');const unrelated=decision('unrelated',{kind:'hike_toggle',snapshot:{},result:{}});writeGoalsClient([goal('current')]);data.set('rightdue_decisions',JSON.stringify([unrelated,d]));
  try {const next=undoPlanDecision([d],d);assert.equal(next.length,2);assert.equal(next[0].id,'unrelated');assert.equal(next[1].reverted,true);
-  const stale=decision('stale',{result:{goalId:'g',goal:goal('expected')}});data.set('finoptima_decisions',JSON.stringify([stale]));assert.throws(()=>undoPlanDecision([stale],stale),/elsewhere/i);
-  const expired=decision('expired',{at:'2020-01-01T00:00:00Z'});data.set('finoptima_decisions',JSON.stringify([expired]));assert.throws(()=>undoPlanDecision([expired],expired),/no longer/i);
+  const stale=decision('stale',{result:{goalId:'g',goal:goal('expected')}});data.set('rightdue_decisions',JSON.stringify([stale]));assert.throws(()=>undoPlanDecision([stale],stale),/elsewhere/i);
+  const expired=decision('expired',{at:'2020-01-01T00:00:00Z'});data.set('rightdue_decisions',JSON.stringify([expired]));assert.throws(()=>undoPlanDecision([expired],expired),/no longer/i);
  }finally{clean()}
 });
 
@@ -126,7 +126,7 @@ test('statement re-anchoring conserves later principal across shuffled loan hist
 test('EF undo retains the original finite-range normalization for legacy snapshots',()=>{
  process.env.NEXT_PUBLIC_DISABLE_AUTH='true';const {undoPlanDecision}=lib('decision-undo.ts');const {data,jar}=stores(user());
  try {for(const efSplit of ['Infinity','-1','1.5','0.6']) {
-  const d=decision('ef',{kind:'ef_split_change',snapshot:{efSplit},result:{}});data.set('finoptima_decisions',JSON.stringify([d]));undoPlanDecision([d],d);
-  assert.equal(Number(jar.get('finoptima_ef_split')),efSplit==='0.6' ? .6 : .3);
+  const d=decision('ef',{kind:'ef_split_change',snapshot:{efSplit},result:{}});data.set('rightdue_decisions',JSON.stringify([d]));undoPlanDecision([d],d);
+  assert.equal(Number(jar.get('rightdue_ef_split')),efSplit==='0.6' ? .6 : .3);
  }}finally{clean()}
 });

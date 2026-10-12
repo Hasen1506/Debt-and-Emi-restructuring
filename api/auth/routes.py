@@ -29,6 +29,7 @@ from api.auth.session import (
     OTP_MAX_REQUESTS,
     OTP_MAX_REQUESTS_DAILY,
     OTP_TTL,
+    LEGACY_SESSION_COOKIE_NAME,
     SESSION_COOKIE_NAME,
     SESSION_TTL,
     generate_otp,
@@ -82,6 +83,7 @@ def _set_session_cookie(response: Response, token: str) -> None:
 
 def _clear_session_cookie(response: Response) -> None:
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+    response.delete_cookie(LEGACY_SESSION_COOKIE_NAME, path="/")
 
 
 @router.post("/request-otp", status_code=status.HTTP_204_NO_CONTENT)
@@ -221,7 +223,9 @@ async def logout(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[Optional[User], Depends(current_user_optional)],
     session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
+    legacy_cookie: Annotated[Optional[str], Cookie(alias=LEGACY_SESSION_COOKIE_NAME)] = None,
 ) -> Response:
+    session_cookie = session_cookie or legacy_cookie
     if user is not None and session_cookie:
         # Sign out this browser only; other devices retain their sessions.
         res = await db.execute(

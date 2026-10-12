@@ -24,7 +24,7 @@ function cardName(bank: string | undefined, idx: number, loans: UserPayload['loa
   const unnamed = loans.filter((l) => l.loan_type === 'credit_card' && !l.bank);
   return unnamed.length > 1 ? `Credit card ${unnamed.indexOf(loans[idx]) + 1}` : 'Credit card';
 }
-const SNOOZE_KEY = 'finoptima_stale_snooze_until';
+const SNOOZE_KEY = 'rightdue_stale_snooze_until';
 
 export function StaleCardNudge({ user }: { user: UserPayload }) {
   const [stale, setStale] = useState<{ bank: string; daysSince: number | null }[]>([]);
