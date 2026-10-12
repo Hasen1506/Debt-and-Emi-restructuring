@@ -15,6 +15,7 @@ import { notifySessionChanged } from '@/lib/session-events';
 import { SIGN_IN_STARTING_MESSAGE } from '@/lib/auth-error';
 import { safeRedirect } from '@/lib/safe-redirect';
 import { RESEND_COOLDOWN_S, wakeProgress } from '@/lib/wake-progress';
+import { GOOGLE_CONFIG_PATH, googleStartHref } from '@/lib/google-signin';
 
 // The free-plan API sleeps when idle and can take over a minute to start.
 const STARTING_RETRIES = 12;
@@ -66,6 +67,53 @@ export default function LoginPage() {
     api.health().catch(() => {});
   }, []);
 
+  // Sign in with Google (live test #6): shown only when the server has it
+  // switched on (GOOGLE_SIGNIN, api/auth/google.py). Off by default.
+  const [googleOn, setGoogleOn] = useState(false);
+  useEffect(() => {
+    let live = true;
+    fetch(GOOGLE_CONFIG_PATH, { cache: 'no-store', credentials: 'omit' })
+      .then((r) => (r.ok ? r.json() : { enabled: false }))
+      .then((c: { enabled?: boolean }) => { if (live) setGoogleOn(c.enabled === true); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
+  // Back from Google: the session cookie is set; load the account's data as
+  // after a code sign-in. An error comes back as ?google_error=.
+  const googleDone = params.get('google') === '1';
+  const googleError = params.get('google_error');
+  useEffect(() => {
+    if (googleError) setError(googleError);
+  }, [googleError]);
+  useEffect(() => {
+    if (!googleDone) return;
+    let live = true;
+    startBusy('verify');
+    api.me()
+      .then((user) => (live ? finishSignIn(user.id) : undefined))
+      .catch(() => { if (live) setError('Google sign-in did not finish. Try again, or use an email code.'); })
+      .finally(() => { if (live) endBusy(); });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleDone]);
+
+  /** After any sign-in: this browser now belongs to `userId`; bring the
+   *  account's data in (or push a guest's data up), then go on. */
+  async function finishSignIn(userId: string) {
+    prepareAccountCache(userId);
+    // Pull server state into cookies BEFORE navigating so middleware
+    // doesn't redirect returning users to /onboarding.
+    const hydrated = await hydrateFromServer();
+    // New users (or first-time signups) have nothing on the server —
+    // push their existing cookie state up if any.
+    if (!hydrated) await migrateCookieStateIfNeeded();
+    notifySessionChanged();
+    // A full page load, not router.push: the router may hold a copy of the
+    // destination fetched while signed out (for / that's the landing page),
+    // and WebKit showed it instead of asking the server again.
+    window.location.assign(redirectTo);
+  }
+
   /** Request a code, retrying only while the API is still starting. The proxy
    *  reports "starting" before it creates a code, so these retries never send
    *  a second email. */
@@ -105,18 +153,7 @@ export default function LoginPage() {
     startBusy('verify');
     try {
       const user = await api.verifyOtp(email.trim().toLowerCase(), code.trim());
-      prepareAccountCache(user.id);
-      // Pull server state into cookies BEFORE navigating so middleware
-      // doesn't redirect returning users to /onboarding.
-      const hydrated = await hydrateFromServer();
-      // New users (or first-time signups) have nothing on the server —
-      // push their existing cookie state up if any.
-      if (!hydrated) await migrateCookieStateIfNeeded();
-      notifySessionChanged();
-      // A full page load, not router.push: the router may hold a copy of the
-      // destination fetched while signed out (for / that's the landing page),
-      // and WebKit showed it instead of asking the server again.
-      window.location.assign(redirectTo);
+      await finishSignIn(user.id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Verification failed.';
       // Strip the "/api/auth/verify-otp → 400: " prefix from FastAPI's error.
@@ -190,6 +227,21 @@ export default function LoginPage() {
           <button type="submit" disabled={submitting || !email} style={primaryStyle(submitting || !email)}>
             [ {submitting ? 'Sending…' : 'Send code'} ]
           </button>
+          {googleOn && (
+            <>
+              <div aria-hidden="true" style={{ textAlign: 'center', fontSize: 11, color: 'var(--muted)', letterSpacing: '0.14em' }}>OR</div>
+              <a
+                href={googleStartHref(next)}
+                data-testid="google-signin"
+                style={{ ...primary, background: 'transparent', color: 'var(--ink)', border: '1px solid var(--ink)', textAlign: 'center', textDecoration: 'none' }}
+              >
+                [ Continue with Google ]
+              </a>
+              <p style={{ ...infoText, marginTop: 0, fontSize: 11 }}>
+                Google tells RightDue only your email address, which Google has checked is yours. Nothing else from your Google account is read or kept.
+              </p>
+            </>
+          )}
         </form>
       )}
 

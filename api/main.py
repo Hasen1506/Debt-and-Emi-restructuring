@@ -118,9 +118,13 @@ app.include_router(outcomes.router, prefix="/api")
 # Postgres add-on while we're still in trial mode.
 if db_enabled():
     from api.auth.routes import router as auth_router
+    from api.auth.google import router as google_router
     from api.routes import user_state
 
     app.include_router(auth_router, prefix="/api")
+    # Sign in with Google: every route 404s unless GOOGLE_SIGNIN=1 and the
+    # client id/secret are set (api/auth/google.py, DEPLOY.md).
+    app.include_router(google_router, prefix="/api")
     app.include_router(user_state.router, prefix="/api")
 else:
     log.warning("Skipping /api/auth/* and /api/user-state — DATABASE_URL unset.")

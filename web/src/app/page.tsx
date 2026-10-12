@@ -3,6 +3,7 @@ import { loadCurrentProfileServer } from '@/lib/user-store';
 import { readLifecycleServer } from '@/lib/lifecycle-events';
 import { loadStrategyServer } from '@/lib/strategy';
 import { LedgerHome } from '@/components/home/LedgerHome';
+import { GuestWelcomeBack } from '@/components/home/GuestWelcomeBack';
 import {
   HomeCheaperRates,
   HomeDebtFreeCaption,
@@ -21,6 +22,8 @@ export default async function HomePage() {
   return (
     <>
       <h1 className="sr-only">Home</h1>
+      {/* A guest coming back to a plan saved in this browser: continue or start fresh (live test #1). */}
+      <GuestWelcomeBack />
       <LedgerHome
         profile={profile}
         strategy={strategy}

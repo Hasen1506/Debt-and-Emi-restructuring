@@ -100,7 +100,10 @@ import {
   isAdvanceTaxApplicable,
 } from '@/lib/tax-brackets';
 import type { LoanTermsResponse } from '@/lib/api';
-import { feeShown, RBI_PREPAYMENT_RULE } from '@/lib/prepayment-fee';
+import { RBI_PREPAYMENT_RULE } from '@/lib/prepayment-fee';
+import { asksBusinessPurpose, feeShownWithPurpose as feeShown, PURPOSE_HELP, PURPOSE_QUESTION } from '@/lib/loan-purpose';
+import { cleanCity, stateFor, statesFor, STATE_HELP } from '@/lib/locations';
+import { NICKNAME_MAX } from '@/lib/loan-types';
 import { dropKfsFields, kfsNote } from '@/lib/kfs';
 import { KfsImport } from '@/components/profile/KfsImport';
 import { whereToFind, type FindKey } from '@/lib/where-to-find';
@@ -271,6 +274,9 @@ function ProfileEditor({
   const [ageBracket, setAgeBracket] = useState<AgeBracket | ''>('');
   const [country, setCountry] = useState<Country>('IN');
   const [isNriUs, setIsNriUs] = useState(false);
+  // Where they live (live test #5): optional, by country.
+  const [homeState, setHomeState] = useState('');
+  const [city, setCity] = useState('');
   const [incomeType, setIncomeType] = useState<IncomeType>('salaried');
   const [monthlyIncome, setMonthlyIncome] = useState('');
   const [fixedExpenses, setFixedExpenses] = useState('');
@@ -390,6 +396,8 @@ function ProfileEditor({
     if (u.age_bracket) setAgeBracket(u.age_bracket);
     setCountry(u.country);
     setIsNriUs(!!u.is_nri_us);
+    setHomeState(stateFor(u.country, u.state));
+    setCity(cleanCity(u.city));
     if (u.fx_to_user_currency) setFxRates(u.fx_to_user_currency);
     setOwnEfMonths(efMonths(u));
     setIncomeType(u.income_type);
@@ -608,6 +616,8 @@ function ProfileEditor({
         })),
       primary_bank: primaryBank,
       other_banks: otherBanks,
+      state: stateFor(country, homeState) || undefined,
+      city: cleanCity(city) || undefined,
       location_tier: 'urban',
       tax_regime: country === 'IN' ? taxRegime : undefined,
       filing_status: country === 'US' ? filingStatus : undefined,
@@ -1056,7 +1066,21 @@ function ProfileEditor({
                   { value: 'US' as Country, label: 'USA' },
                 ]}
               />
-              <div />
+              <Select
+                label="State (optional)"
+                value={stateFor(country, homeState)}
+                onChange={(v: string) => setHomeState(v)}
+                options={[{ value: '', label: 'Not set' }, ...statesFor(country).map((st) => ({ value: st, label: st }))]}
+                hint={STATE_HELP[country]}
+              />
+              <Field
+                label="City (optional)"
+                kind="text"
+                value={city}
+                onChange={(v) => setCity(v.slice(0, 60))}
+                placeholder={country === 'IN' ? 'e.g. Chennai' : 'e.g. Austin'}
+                hint="For your own reference. Nothing is worked out from it."
+              />
             </div>
             {pendingCountry && (
               <CountrySwitchPanel
@@ -1521,6 +1545,14 @@ function ProfileEditor({
                   }
                 />
                 <Field
+                  label="Nickname (optional)"
+                  kind="text"
+                  value={l.nickname ?? ''}
+                  onChange={(v) => updateLoan(i, { nickname: v.slice(0, NICKNAME_MAX) || undefined })}
+                  placeholder="e.g. Dad's car loan"
+                  hint="Your own name for it. Shown with the lender everywhere this loan appears."
+                />
+                <Field
                   label="Outstanding balance"
                   findIt={findFor(l, country, 'balance')}
                   kind="money"
@@ -1757,6 +1789,42 @@ function ProfileEditor({
                       }
                     />
                   </>
+                )}
+                {asksBusinessPurpose(l, country) && (
+                  <div style={{ gridColumn: '1 / -1' }} data-testid="business-purpose">
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{PURPOSE_QUESTION}</div>
+                    <div role="group" aria-label={PURPOSE_QUESTION} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {([
+                        [false, 'No, a personal loan'],
+                        [true, 'Yes, for a business'],
+                      ] as const).map(([v, text]) => {
+                        const on = l.business_purpose === v;
+                        return (
+                          <button
+                            key={String(v)}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => updateLoan(i, { business_purpose: v })}
+                            style={{
+                              padding: '7px 14px',
+                              borderRadius: 999,
+                              border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+                              background: on ? 'var(--accent)' : 'var(--card)',
+                              color: on ? '#fff' : 'var(--ink)',
+                              fontSize: 13,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {text}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="muted" style={{ fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
+                      {l.business_purpose === undefined ? 'Not answered yet, so the app treats it as a personal loan. ' : ''}
+                      {PURPOSE_HELP}
+                    </div>
+                  </div>
                 )}
                 {l.loan_type !== 'credit_card' && (
                   <>

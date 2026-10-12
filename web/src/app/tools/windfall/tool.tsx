@@ -37,7 +37,9 @@ import { commitCashChange } from '@/lib/commit-cash-change';
 import { readCashEventsClient } from '@/lib/cash-events';
 import { addActivityEntry, readActivityClient } from '@/lib/activity';
 import { loanToUser, userDefaultCurrency } from '@/lib/currency';
-import { localIsoDate, monthIndexToCountryLabel } from '@/lib/today';
+import { getCountryToday, localIsoDate, monthIndexToCountryLabel } from '@/lib/today';
+import { loanLabel } from '@/lib/loan-types';
+import { checkReceivedDate, kpiPrefix, nextRoundNote, whereItGoesHeading, type LoggedRound } from '@/lib/windfall-log';
 import { loadProfileClient } from '@/lib/user-store';
 import { fundedAmount, isOpenGoal, readGoalsClient, type Goal } from '@/lib/goals';
 import {
@@ -107,10 +109,9 @@ interface Run {
 }
 
 const keyOf = (l: LoanPayload, i: number) => `loan:${l.id ?? `#${i}`}`;
-const loanName = (l: LoanPayload) => {
-  const s = `${l.bank ? l.bank.replace(/\s+Bank$/i, '') + ' ' : ''}${LOAN_WORDS[l.loan_type] ?? l.loan_type}`;
-  return s.charAt(0).toUpperCase() + s.slice(1);
-};
+// The lender and type ("HDFC credit card"), with the user's nickname first
+// when the loan has one (live test #4).
+const loanName = (l: LoanPayload) => (LOAN_WORDS[l.loan_type] ? loanLabel(l) : l.loan_type);
 const sum = (a: Alloc) => Object.values(a).reduce((s, v) => s + v, 0);
 
 async function runPlan(args: PlanRunArgs, strategy: StrategyName): Promise<Run> {
@@ -152,6 +153,12 @@ export function WindfallTool({
   const [picking, setPicking] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [applied, setApplied] = useState<string | null>(null);
+  // What the last log put where (live test #19): the split below then reads
+  // as the next round, not as what was logged.
+  const [logged, setLogged] = useState<LoggedRound | null>(null);
+  // When the money came in (live test #20): the Activity entry's date.
+  const todayIso = localIsoDate(getCountryToday(country));
+  const [received, setReceived] = useState(todayIso);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [saved, setSaved] = useState<Record<string, number>>({});
   useEffect(() => {
@@ -364,6 +371,14 @@ export function WindfallTool({
     return () => { live = false; clearTimeout(t); };
   }, [alloc.ef, earnsNow, country]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A date before a paid loan's entered balance: that balance already has it.
+  const receivedCheck = checkReceivedDate(
+    received,
+    todayIso,
+    targets.filter((t) => t.kind === 'loan' && (alloc[t.key] ?? 0) > 0).map((t) => planUser.loans[t.index!]?.balance_as_of),
+  );
+  const receivedWarning = receivedCheck.ok ? receivedCheck.warning ?? null : receivedCheck.error;
+
   // ── Log it ─────────────────────────────────────────────────────────────
   function logIt() {
     if (applied) return;
@@ -378,7 +393,9 @@ export function WindfallTool({
       const currentMonth = countryMonthKey(stored.user.country);
       const currentLoans = applyActivityDeltas(rollBalancesForward(stored.user.loans, currentMonth).loans,
         activityDeltas(readActivityClient(), stored.user.loans, stored.user.country), currentMonth).loans;
-      const date = localIsoDate(new Date());
+      const dateCheck = checkReceivedDate(received, todayIso);
+      if (!dateCheck.ok) throw new Error(dateCheck.error);
+      const date = received;
       let entries = readActivityClient();
       let debt = 0;
       const lines: string[] = [];
@@ -463,7 +480,8 @@ export function WindfallTool({
       }
       if (ef > 0) lines.unshift(`${fmt(ef)} → emergency fund`);
       if (invest > 0) lines.push(`${fmt(invest)} → ${pick?.investName ?? 'investment'}`);
-      setApplied(`Logged: ${lines.join(', ')}.${kept >= 1 ? ` ${fmt(kept)} stays in savings.` : ''} Home and Plan use the new balances.`);
+      setApplied(`Logged: ${lines.join(', ')}${date !== todayIso ? `, dated ${date}` : ''}.${kept >= 1 ? ` ${fmt(kept)} stays in savings.` : ''} Home and Plan use the new balances.`);
+      setLogged({ lines, amount: fmt(total), date });
     } catch (e) {
       setErr((e as Error).message);
     }
@@ -508,7 +526,7 @@ export function WindfallTool({
       <section style={box} aria-labelledby="wf-in">
         <LStepHead no="01" id="wf-in">How much</LStepHead>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 14, alignItems: 'start' }}>
-          <Field label="Amount, after tax" kind="money" currency={currency} value={amount} onChange={(v) => { setAmount(v); setManual({}); setApplied(null); }} />
+          <Field label="Amount, after tax" kind="money" currency={currency} value={amount} onChange={(v) => { setAmount(v); setManual({}); setApplied(null); setLogged(null); }} />
           <LChipRow label="Where it comes from">
             <LChip on={source === 'external'} onClick={() => setSource('external')}>
               A bonus, refund or gift
@@ -517,6 +535,20 @@ export function WindfallTool({
               My savings
             </LChip>
           </LChipRow>
+          <label style={{ fontSize: 12, color: L_T.muted, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {source === 'external' ? 'Date it came in' : 'Date you moved it'}
+            <input
+              type="date"
+              value={received}
+              max={todayIso}
+              onChange={(e) => { setReceived(e.target.value); setApplied(null); setLogged(null); }}
+              aria-describedby="wf-date-help"
+              style={{ fontFamily: L_MONO, fontSize: 13, padding: '7px 8px', border: `1px solid ${L_T.ruleSoft}`, background: L_T.paper, color: L_T.ink }}
+            />
+            <span id="wf-date-help" style={{ fontSize: 11, lineHeight: 1.5 }}>
+              {receivedWarning ?? 'Activity records the payment on this date, so it counts in the right month. Change it if you paid it on a later day.'}
+            </span>
+          </label>
           {source === 'account' && accounts.length > 0 && (
             <label style={{ fontSize: 12, color: L_T.muted, display: 'flex', flexDirection: 'column', gap: 4 }}>
               From the account
@@ -540,8 +572,13 @@ export function WindfallTool({
       {total > 0 && (
         <section style={{ ...box, border: `2px solid ${L_T.ink}` }} aria-labelledby="wf-out">
           <LStepHead no="02" id="wf-out" accent>
-            Where it goes
+            {whereItGoesHeading(logged, fmt(total))}
           </LStepHead>
+          {logged && (
+            <p data-testid="wf-next-round" style={{ margin: '0 0 12px', fontSize: 12, lineHeight: 1.6, color: L_T.ink }}>
+              {nextRoundNote(logged)}
+            </p>
+          )}
           <div role="group" aria-label="Who splits it" style={{ display: 'inline-flex', border: `1px solid ${L_T.ink}`, marginBottom: 10, flexWrap: 'wrap' }}>
             {(
               [
@@ -666,13 +703,13 @@ export function WindfallTool({
               cols={wide ? 4 : 2}
               items={[
                 {
-                  l: 'DEBT-FREE',
+                  l: `${kpiPrefix(logged)}DEBT-FREE`,
                   v: after?.month != null ? monthIndexToCountryLabel(after.month, country).toUpperCase() : runArgs ? '—' : 'NO LOANS',
                   s: dm != null ? (dm < 0 ? `${-dm} MO SOONER` : dm === 0 ? 'SAME MONTH' : `${dm} MO LATER`) : running ? 'WORKING…' : '',
                   tone: dm != null && dm < 0 ? L_T.positive : L_T.ink,
                 },
                 {
-                  l: 'INTEREST SAVED',
+                  l: `${kpiPrefix(logged)}INTEREST SAVED`,
                   v: saving != null ? fmt(Math.max(0, saving)) : '—',
                   s: 'OVER THE PLAN',
                   tone: saving && saving > 0 ? L_T.positive : L_T.ink,

@@ -84,6 +84,15 @@ export interface LoanPayload {
    *  Statement (roadmap PR G, lib/kfs). Editing a field removes it. The
    *  API ignores it. */
   kfs_fields?: string[];
+  /** The user's own name for the loan ("Dad's car loan"), optional (live
+   *  test #4, sprint L3). Shown with the lender and type; the API ignores it. */
+  nickname?: string;
+  /** Asked on an Indian floating-rate loan (live test #11): true when the
+   *  loan is for a business. RBI's 0% prepayment-charge rule covers loans to
+   *  individuals for purposes other than business, so a business loan's fee
+   *  is "Not known" instead of "0 (assumed)". Unset = not asked yet (read as
+   *  a personal loan, the app's usual case). The API ignores it. */
+  business_purpose?: boolean;
   loan_type: LoanType;
   bank: string;
   outstanding: string;
@@ -243,6 +252,13 @@ export interface UserPayload {
    *  Captured at onboarding step 4, displayed on /debts. */
   cash_accounts?: CashAccountPayload[];
   primary_bank: string;
+  /** Where the user lives (live test #5, sprint L3), optional. `state` is an
+   *  Indian state / union territory or a US state, by its full name; the
+   *  engine reads it as the default state for a property's stamp duty or
+   *  selling costs when the asset has none. `city` is for the user's own
+   *  reference; the engine ignores it. */
+  state?: string;
+  city?: string;
   location_tier?: string;
   /** Banks the user holds savings/current accounts at without an active
    *  loan. Used by new-debt / refinance suggestions to prefer existing

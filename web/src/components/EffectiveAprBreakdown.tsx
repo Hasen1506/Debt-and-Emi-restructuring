@@ -19,6 +19,7 @@
 import type Decimal from 'decimal.js';
 import type { LoanPayload, Country, IncomeType, TaxRegimeIN } from '@/lib/api';
 import { computeBreakdown, fmt } from '@/lib/effective-apr';
+import { costLines } from '@/lib/cost-lines';
 import { loanMarginalCost, type MarginalCost } from '@/lib/marginal-cost';
 import { trueApr, trueAprInputsFromBreakdown } from '@/lib/true-apr';
 import { RATE_CARD_AS_OF } from '@/lib/banks';
@@ -66,14 +67,18 @@ export function EffectiveAprBreakdown({
   }
 
   const mc = cost ?? loanMarginalCost(loan, country, marginalTaxRate, taxRegime ?? 'new', itemises ?? true);
-  // From the statement rate, each line adds or takes something off.
-  const compounding = mc.interest.minus(loan.nominal_rate || 0);
-  const lines: { label: string; value: Decimal; sign: '+' | '−' }[] = [];
-  if (compounding.gt(0.00005)) lines.push({ label: 'Interest added monthly, so it compounds', value: compounding, sign: '+' });
-  if (mc.gst.gt(0)) lines.push({ label: 'GST on the interest (18%), compounding with it', value: mc.gst, sign: '+' });
-  if (mc.taxBenefit.gt(0)) lines.push({ label: 'Tax break on the interest', value: mc.taxBenefit, sign: '−' });
-  // Fees paid upfront: not in the yearly cost, but the all-in figure says what they added.
+  // From the statement rate, each line adds or takes something off, with
+  // its arithmetic and source (live test #13/#32: every addend named).
   const { lines: feeLines } = computeBreakdown(loan, marginalTaxRate, country, taxRegime, itemises ?? true);
+  const taxNote = feeLines.find((l) => l.label === 'Tax shield')?.note;
+  const all = costLines(loan.nominal_rate || 0, mc, {
+    taxNote,
+    monthsLeft: Number(loan.tenure_months_remaining || 0),
+    feePct: loan.prepayment_penalty_pct || 0,
+  });
+  const lines = all.filter((l) => l.key !== 'fee');
+  const feeLine = all.find((l) => l.key === 'fee');
+  // Fees paid upfront: not in the yearly cost, but the all-in figure says what they added.
   const upfront = [
     Number(loan.processing_fee_amortised || 0) > 0 && 'processing fee',
     Number(loan.insurance_premium_pct || 0) > 0 && 'insurance',
@@ -117,9 +122,23 @@ export function EffectiveAprBreakdown({
       >
         <span>Rate on your statement</span>
         <span className="num" style={num}>{fmt(loan.nominal_rate || 0)}</span>
-        {lines.map((line, i) => (
-          <div key={i} style={{ display: 'contents' }}>
-            <span style={{ color: 'var(--ink)' }}>{line.label}</span>
+        {lines.map((line) => (
+          <div key={line.key} style={{ display: 'contents' }}>
+            <span style={{ color: 'var(--ink)' }} data-testid={`cost-line-${line.key}`}>
+              {line.label}
+              <span className="muted" style={{ display: 'block', fontSize: 11, lineHeight: 1.5, marginTop: 2 }}>
+                {line.how}
+                {line.source && (
+                  <>
+                    {' '}Source:{' '}
+                    <a href={line.source.url} target="_blank" rel="noopener noreferrer">
+                      {line.source.label}
+                    </a>{' '}
+                    (checked {line.source.asOf}).
+                  </>
+                )}
+              </span>
+            </span>
             <span className="num" style={{ ...num, color: line.sign === '−' ? 'var(--positive)' : 'var(--ink)' }}>
               {line.sign} {fmt(line.value)}
             </span>
@@ -130,9 +149,12 @@ export function EffectiveAprBreakdown({
         <span className="num" style={{ ...num, fontWeight: 700, color: mc.annualCost.gt(loan.nominal_rate || '0') ? 'var(--negative)' : 'var(--positive)' }}>
           = {fmt(mc.annualCost)}
         </span>
-        {mc.fee.gt(0) && (
+        {mc.fee.gt(0) && feeLine && (
           <>
-            <span>Prepayment fee, spread over the months left</span>
+            <span data-testid="cost-line-fee">
+              {feeLine.label}
+              <span className="muted" style={{ display: 'block', fontSize: 11, lineHeight: 1.5, marginTop: 2 }}>{feeLine.how}</span>
+            </span>
             <span className="num" style={{ ...num, color: 'var(--positive)' }}>− {fmt(mc.fee)}</span>
             <span style={{ fontWeight: 700 }}>Each extra payment here saves</span>
             <span className="num" style={{ ...num, fontWeight: 700 }}>= {fmt(mc.total)}</span>

@@ -130,6 +130,48 @@ When the data-check issue asks for a rate card to be re-read: update
 workflows push to the default branch with the built-in token, so branch
 protection on it must let GitHub Actions push.
 
+## Sign in with Google (optional, off by default)
+
+Email + code stays the main way in. A "Continue with Google" button appears
+on /login only when the service has all of these (api/auth/google.py). Until
+then every `/api/auth/google/*` route answers 404 and nothing changes.
+
+| Variable | Value |
+| --- | --- |
+| `GOOGLE_SIGNIN` | `1` to switch it on; anything else (or unset) keeps it off |
+| `GOOGLE_OAUTH_CLIENT_ID` | the OAuth client's ID, `….apps.googleusercontent.com` |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | the client secret: set it in the Render dashboard only, never in git |
+| `GOOGLE_OAUTH_REDIRECT_URI` | optional; default is the first `WEB_ORIGIN` + `/api/auth/google/callback` |
+
+Creating the OAuth client (Google Cloud console, about 10 minutes):
+
+1. https://console.cloud.google.com → create (or pick) a project, e.g. "RightDue".
+2. *Google Auth Platform → Branding* (the OAuth consent screen): app name
+   "RightDue", support email, the app's home page (https://rightdue.app),
+   privacy policy and terms links, and `rightdue.app` as an authorised domain.
+3. *Audience*: User type **External**. While the app is in *Testing*, only the
+   test users listed there can sign in; choose *Publish app* to open it to
+   everyone. The scopes used are `openid` and `email` only (non-sensitive), so
+   publishing should not need Google's app verification review; Google's
+   console says if it does.
+4. *Data access*: add the scopes `openid` and `.../auth/userinfo.email`. Nothing else.
+5. *Clients → Create client*: type **Web application**.
+   - Authorised JavaScript origins: `https://rightdue.app`
+   - Authorised redirect URIs: `https://rightdue.app/api/auth/google/callback`
+     (add `http://localhost:3000/api/auth/google/callback` for local testing)
+6. Copy the client ID and secret into the Render service's environment with
+   `GOOGLE_SIGNIN=1`, then redeploy. The flag is read at run time: no web
+   rebuild is needed.
+
+How it works: the browser goes to `/api/auth/google/start` (Next.js passes
+`/api/*` to FastAPI), which sends it to Google with a one-time `state` and a
+PKCE challenge kept in a 10-minute httpOnly cookie. Google sends it back to
+the callback, which swaps the code for an ID token at Google's token
+endpoint, checks the token's issuer, audience, expiry and that Google has
+verified the email, then signs in to the RightDue account with that email
+(making one if it is new) and returns to /login, which loads the account's
+data as after a code sign-in. Only the email address is kept.
+
 ## Custom domain
 
 Each service has a *Custom Domains* tab. Point your DNS CNAME at the

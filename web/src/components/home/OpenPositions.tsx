@@ -15,7 +15,7 @@ import type { DerivedMetrics } from '@/lib/derived';
 import { usMortgageShieldShare } from '@/lib/deductions';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
 import { loanGaps } from '@/lib/loan-gaps';
-import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { LOAN_TYPE_NAME, loanNickname } from '@/lib/loan-types';
 import { EffectiveAprBreakdown } from '@/components/EffectiveAprBreakdown';
 import { LBracket, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
 import { StaleCardNudge } from './StaleCardNudge';
@@ -68,7 +68,9 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
           const isOpen = open === i;
           const owed = now.rows[d.index]?.owed ?? d.outstanding;
           const status = now.rows[d.index]?.status ?? null;
-          const name = loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : LOAN_TYPE_NAME[loan.loan_type];
+          const base = loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : LOAN_TYPE_NAME[loan.loan_type];
+          // The user's own name first when the loan has one (live test #4).
+          const name = loanNickname(loan) ? `${loanNickname(loan)} · ${base}` : base;
           const missing = (what: string) => <span style={{ color: L_T.negative, fontWeight: 700 }}>ADD THE {what}</span>;
           const parts = [
             gaps.includes('rate') ? (
