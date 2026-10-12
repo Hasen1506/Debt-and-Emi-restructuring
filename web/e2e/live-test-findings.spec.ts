@@ -89,14 +89,14 @@ test('L#6 [main] sign-in by emailed code works end to end', async ({ page }) => 
 // ── L1 persistence (guest saves) ─────────────────────────────────────────
 test.describe('guest mode (E2E_GUEST_MODE=1)', () => {
   test.skip(!GUEST, 'needs a NEXT_PUBLIC_DISABLE_AUTH=true build');
-  test.fixme('L#2 [L1] a guest Profile save succeeds and the toast clears', async ({ page }) => {
+  test('L#2 [L1] a guest Profile save succeeds and the toast clears', async ({ page }) => {
     await page.goto('/profile');
     await page.getByRole('button', { name: 'Edit Where you live and tax' }).click();
     await page.getByRole('button', { name: /SAVE CHANGES/ }).click();
     await expect(page.getByText(/Changes have not reached your account/)).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Retry save/ })).toHaveCount(0);
   });
-  test.fixme('L#3 [L1] guest loans survive navigation and reload', async ({ page }) => {
+  test('L#3 [L1] guest loans survive navigation and reload', async ({ page }) => {
     await page.goto('/onboarding');
     await page.getByLabel(/Take-home pay a month/).fill('120000');
     await page.getByLabel(/Spending a month/).fill('40000');
@@ -108,7 +108,7 @@ test.describe('guest mode (E2E_GUEST_MODE=1)', () => {
     await page.goto('/profile');
     await expect(page.locator('table').filter({ hasText: 'OWED' }).getByRole('row', { name: /^Credit card/ })).toBeVisible();
   });
-  test.fixme('L#27 [L1] a guest income revert persists across reload', async ({ page }) => {
+  test('L#27 [L1] a guest income revert persists across reload', async ({ page }) => {
     await page.goto('/profile');
     await page.getByRole('button', { name: /Edit Income/i }).click();
     await page.getByLabel(/Take-home pay a month/).fill('120000');
@@ -116,7 +116,7 @@ test.describe('guest mode (E2E_GUEST_MODE=1)', () => {
     await page.reload();
     await expect(page.getByText(/₹1,20,000/).first()).toBeVisible();
   });
-  test.fixme('L#33 [L1] a failed save says why, when it last tried, and retries with visible progress', async ({ page }) => {
+  test('L#33 [L1] a failed save says why, when it last tried, and retries with visible progress', async ({ page }) => {
     await page.route('**/api/user/**', (r) => r.abort('connectionfailed'));
     await page.goto('/profile');
     await page.getByRole('button', { name: 'Edit Where you live and tax' }).click();
@@ -128,76 +128,76 @@ test.describe('guest mode (E2E_GUEST_MODE=1)', () => {
 });
 
 // ── L3 ux-flows (owner spec: web/e2e/l3-ux-flows.spec.ts on hark/sprint-L3) ──
-test.fixme('L#1 [L3] a returning guest is offered "Start fresh" or "Continue"', async ({ page }) => {
+test('L#1 [L3] a returning guest is offered "Start fresh" or "Continue"', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('guest-welcome-back')).toBeVisible();
 });
-test.fixme('L#4 [L3] a loan takes a nickname', async ({ page }) => {
+test('L#4 [L3] a loan takes a nickname', async ({ page }) => {
   await page.goto('/profile');
   await page.getByRole('button', { name: 'Edit Loans' }).click();
   await expect(page.getByLabel('Nickname (optional)').first()).toBeVisible();
 });
-test.fixme('L#5 [L3] Where you live takes a state and a city', async ({ page }) => {
+test('L#5 [L3] Where you live takes a state and a city', async ({ page }) => {
   await page.goto('/profile');
   await page.getByRole('button', { name: 'Edit Where you live and tax' }).click();
   await expect(page.getByLabel('State (optional)')).toBeVisible();
   await expect(page.getByLabel('City (optional)')).toBeVisible();
 });
-test.fixme('L#6b [L3] no Google button unless the server turns it on', async ({ page }) => {
+test('L#6b [L3] no Google button unless the server turns it on', async ({ page }) => {
   await page.goto('/login');
   await expect(page.getByTestId('google-signin')).toHaveCount(0);
   expect(await (await page.request.get(`${API}/api/auth/google/config`)).json()).toEqual({ enabled: false });
 });
-test.fixme('L#11 [L3+G1] a floating loan asks "for a business?" before assuming a 0% prepayment fee', async ({ page }) => {
+test('L#11 [L3+G1] a floating loan asks "for a business?" before assuming a 0% prepayment fee', async ({ page }) => {
   await page.goto('/profile');
   await page.getByRole('button', { name: 'Edit Loans' }).click();
   await expect(page.getByTestId('business-purpose').getByText(/Not answered yet/)).toBeVisible();
 });
-test.fixme('L#13 [L3] every addend of the card\'s yearly cost is named', async ({ page }) => {
+test('L#13 [L3] every addend of the card\'s yearly cost is named', async ({ page }) => {
   await page.goto('/profile');
   await page.getByRole('button', { name: 'Edit Loans' }).click();
   await expect(page.getByTestId('cost-line-gst').first()).toContainText('3.500% × 1.18 = 4.130% a month');
   await expect(page.getByText('= 62.52%').first()).toBeVisible();
 });
-test.fixme('L#19 [L3] after LOG IT the next what-if is labelled as the next round', async ({ page }) => {
+test('L#19 [L3] after LOG IT the next what-if is labelled as the next round', async ({ page }) => {
   await page.goto('/tools/windfall');
   await page.getByLabel('Amount, after tax').fill('50000');
   await page.getByRole('button', { name: /I DID THIS · LOG IT/ }).click();
   await expect(page.getByText("Got another ₹50,000? Here's where it would go next")).toBeVisible();
 });
-test.fixme('L#20 [L3] spare cash takes the date it came in', async ({ page }) => {
+test('L#20 [L3] spare cash takes the date it came in', async ({ page }) => {
   await page.goto('/tools/windfall');
   await expect(page.getByLabel('Date it came in')).toBeVisible();
 });
-test.fixme('L#23 [L3+G1] card interest counts new spend from its transaction date', async ({ request }) => {
+test('L#23 [L3+G1] card interest counts new spend from its transaction date', async ({ request }) => {
   // Engine side: engine/tests/test_golden_statements.py card_revolving_hdfc_style
   // (strict xfail until G1 #25 lands). UI side: the persona's ₹20,000/mo spend.
   expect((await request.get(`${API}/api/health`)).ok()).toBeTruthy();
 });
-test.fixme('L#32 [L3+G1] the home loan\'s all-in uplift is labelled line by line', async ({ page }) => {
+test('L#32 [L3+G1] the home loan\'s all-in uplift is labelled line by line', async ({ page }) => {
   await page.goto('/profile');
   await page.getByRole('button', { name: 'Edit Loans' }).click();
   await expect(page.locator('[data-testid^="cost-line-"]').first()).toBeVisible();
 });
 
 // ── L2 plan-logic (owner spec: web/e2e/plan-short-month.spec.ts on hark/sprint-L2) ──
-test.fixme('L#15 [L2] no extra payment lands in a month that is short', async ({ page }) => {
+test('L#15 [L2] no extra payment lands in a month that is short', async ({ page }) => {
   await page.goto('/plan');
   await expect(page.getByRole('heading', { name: /MONTH BY MONTH · AS THINGS STAND/ })).toBeVisible();
 });
-test.fixme('L#16 [L2] a short plan names the date if the gap closes and as things stand', async ({ page }) => {
+test('L#16 [L2] a short plan names the date if the gap closes and as things stand', async ({ page }) => {
   await page.goto('/plan');
   await expect(page.getByText(/GAP CLOSES · AS THINGS STAND/)).toBeVisible();
 });
-test.fixme('L#17 [L2] the chart axis ends at the actual payoff month', async ({ page }) => {
+test('L#17 [L2] the chart axis ends at the actual payoff month', async ({ page }) => {
   await page.goto('/plan');
   await expect(page.getByTestId('trajectory-last-tick')).toBeVisible();
 });
-test.fixme('L#24 [L2] Home shows "due" beside what the month can cover', async ({ page }) => {
+test('L#24 [L2] Home shows "due" beside what the month can cover', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText(/Due this month: .* you have .* for them/)).toBeVisible();
 });
-test.fixme('L#26 [L2] a longer-tenure what-if runs the engine', async ({ page }) => {
+test('L#26 [L2] a longer-tenure what-if runs the engine', async ({ page }) => {
   await page.goto('/plan');
   await expect(page.locator('section[aria-labelledby="tenure-whatif"]')).toBeVisible();
 });
@@ -209,32 +209,32 @@ async function loanCheck(page: import('@playwright/test').Page, lender: string) 
   await page.getByLabel(/rate you pay|Your rate/i).first().fill('9.15');
   await page.getByLabel(/Balance|Loan amount/i).first().fill('3000000');
 }
-test.fixme('L#7 [G5] paying BELOW the should-be rate reads as good news, not a complaint', async ({ page }) => {
+test('L#7 [G5] paying BELOW the should-be rate reads as good news, not a complaint', async ({ page }) => {
   await loanCheck(page, 'SBI');
   await expect(page.getByText(/Worth a conversation with your bank/)).toHaveCount(0);
   await expect(page.getByText(/below/i).first()).toBeVisible();
 });
-test.fixme('L#8 [G5] identical numbers give the same verdict for SBI and LIC Housing Finance', async ({ page }) => {
+test('L#8 [G5] identical numbers give the same verdict for SBI and LIC Housing Finance', async ({ page }) => {
   await loanCheck(page, 'SBI');
   const sbi = await page.getByTestId('loan-check-verdict').innerText();
   await loanCheck(page, 'LIC Housing Finance');
   expect(await page.getByTestId('loan-check-verdict').innerText()).toBe(sbi);
 });
-test.fixme('L#9 [G5] ONE RATE mode asks "did your spread change?"', async ({ page }) => {
+test('L#9 [G5] ONE RATE mode asks "did your spread change?"', async ({ page }) => {
   await page.goto('/tools/loan-check');
   await expect(page.getByText(/did your spread change/i)).toBeVisible();
 });
-test.fixme('L#10 [G5] the lender is picked from a list (lender type shown)', async ({ page }) => {
+test('L#10 [G5] the lender is picked from a list (lender type shown)', async ({ page }) => {
   await page.goto('/tools/loan-check');
   await expect(page.getByRole('combobox', { name: /Lender/i })).toBeVisible();
 });
-test.fixme('L#28 [G5] the ₹ figure says "estimate for your conversation" beside the number', async ({ page }) => {
+test('L#28 [G5] the ₹ figure says "estimate for your conversation" beside the number', async ({ page }) => {
   await loanCheck(page, 'SBI');
   await expect(page.getByText(/estimate for your own conversation with the bank/i)).toBeVisible();
 });
 
 // ── G10 product-surface ──────────────────────────────────────────────────
-test.fixme('L#29 [G10] every savings claim on the landing states its baseline', async ({ request }) => {
+test('L#29 [G10] every savings claim on the landing states its baseline', async ({ request }) => {
   const html = await (await request.get('/welcome.html')).text();
   for (const m of html.matchAll(/(\d+)\s*(yrs?|years?)\s+saved/gi)) {
     expect(html.slice(m.index!, m.index! + 400)).toMatch(/compared with|than paying only the minimum|baseline/i);
@@ -242,7 +242,7 @@ test.fixme('L#29 [G10] every savings claim on the landing states its baseline', 
 });
 
 // ── L4 distress-triage ───────────────────────────────────────────────────
-test.fixme('L#25b [L4] "Feeling overwhelmed?" opens the "I can\'t pay this month" triage', async ({ page }) => {
+test('L#25b [L4] "Feeling overwhelmed?" opens the "I can\'t pay this month" triage', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /FEELING OVERWHELMED/ }).click();
   await expect(page.getByText(/can't pay this month/i).first()).toBeVisible();
