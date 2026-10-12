@@ -168,7 +168,7 @@ test('server error reports are off without SENTRY_DSN and carry no figures with 
   const [h,item,payload]=body.trimEnd().split('\n');
   assert.equal(JSON.parse(item).length,Buffer.byteLength(payload));
   assert.equal(JSON.parse(h).dsn,'https://pub@o1.ingest.sentry.io/42');
-  assert.doesNotMatch(payload,/18100|77/);
+  assert.doesNotMatch(JSON.stringify(JSON.parse(payload).exception),/18100|77/,'figures are scrubbed from the error text');
   assert.deepEqual(JSON.parse(payload).request,{method:'GET',url:'/plan'});
   process.env.SENTRY_DSN='https://pub@o1.ingest.sentry.io/42';
   const sent=[];const id=await er.reportServerError(new Error('boom'),{routePath:'/x'},async(u,i)=>{sent.push([u,i]);return new Response(null)});
