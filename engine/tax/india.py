@@ -1,7 +1,15 @@
-"""India income tax — FY2026-27 (verified May 2026).
+"""India income tax: tax year 2026-27 (what was FY 2026-27).
 
-Budget 2026-27 retained the FY2025-26 slabs unchanged. Income Tax Act, 2025
-effective April 1, 2026. Sources: KPMG/PRS/HDFC Bank Budget 2026-27 analyses.
+The Income-tax Act, 2025 (30 of 2025) replaced the 1961 Act from 1 April
+2026. Re-checked 12 Oct 2026 against primary sources (sprint G2):
+- New-regime slabs: s.202(1) Table of the Act as amended by the Finance
+  Act, 2026 (TAX_LAW_SOURCE). Rebate: s.156 (₹60,000 to ₹12L new, with the
+  s.156(2)(b) marginal relief; ₹12,500 to ₹5L old). Standard deduction:
+  s.19(1) Table Sl. 2 (₹75,000 new, ₹50,000 old).
+- Old-regime slabs and the surcharge bands for tax year 2026-27: Finance
+  Act, 2026, First Schedule Part I-B (TAX_RATES_SOURCE); the new regime's
+  surcharge stops at 25% (Finance Act 2026 s.2(4)(b) Table Sl. 10).
+Budget 2026 kept the FY 2025-26 rates.
 """
 from decimal import Decimal
 from engine.models import TaxRegimeIN
@@ -158,3 +166,317 @@ def is_at_87a_cliff(taxable_income: Decimal, regime: TaxRegimeIN, window: Decima
     if regime == TaxRegimeIN.NEW:
         return REBATE_87A_NEW_THRESHOLD < taxable_income <= REBATE_87A_NEW_THRESHOLD + window
     return REBATE_87A_OLD_THRESHOLD < taxable_income <= REBATE_87A_OLD_THRESHOLD + window
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Loan-related deductions and the old-vs-new regime comparison (sprint G2).
+#
+# Law: the Income-tax Act, 2025 (30 of 2025) replaced the Income-tax Act,
+# 1961 from 1 April 2026; "tax year" 2026-27 is what used to be FY 2026-27 /
+# AY 2027-28. Every figure below was read in the Act as amended by the
+# Finance Act, 2026 (incometaxindia.gov.in, "income_tax_act_2025_as_amended
+# _by_fa_act_2026", fetched 12 Oct 2026) and, for the slab rates, in the
+# First Schedule to the Finance Act, 2026, Part I-B
+# (https://www.incometaxindia.gov.in/w/first-schedule-104, fetched 12 Oct
+# 2026). docs/TAX_INDIA.md quotes the clauses. The 1961 numbers people still
+# use are kept beside the new ones (SECTION_MAP) because the FY 2025-26
+# return filed in 2026 still uses them.
+# ═════════════════════════════════════════════════════════════════════════════
+
+TAX_LAW_AS_OF = "Income-tax Act, 2025 as amended by the Finance Act, 2026 · tax year 2026-27 · read 12 Oct 2026"
+TAX_LAW_SOURCE = "https://www.incometaxindia.gov.in/documents/d/guest/income_tax_act_2025_as_amended_by_fa_act_2026-pdf"
+TAX_RATES_SOURCE = "https://www.incometaxindia.gov.in/w/first-schedule-104"
+
+# 1961 section → 2025 section, for every rule the app uses (CBDT's own
+# navigator and the Act's text; docs/TAX_INDIA.md).
+SECTION_MAP: dict[str, str] = {
+    "24(b)": "22(1)(b) and 22(2)",              # home-loan interest; ₹2L self-occupied cap
+    "24(b) pre-construction": "22(1)(c)",       # five equal instalments
+    "24(a)": "22(1)(a)",                        # 30% of annual value
+    "23(2)": "21(6)",                           # self-occupied: annual value nil
+    "26": "24",                                 # co-owners each get the relief
+    "71(3A)": "109(1)(b)",                      # house-property loss set-off ₹2L
+    "80C": "123 + Schedule XV",                 # ₹1.5L; home-loan principal = Sch XV para 1(r), 3
+    "80CCD(1B)": "124",
+    "80D": "126",
+    "80E": "129",                               # education-loan interest, 8 tax years
+    "87A": "156",
+    "115BAC": "202",                            # new regime (default); opt-out 202(4)
+    "16(ia)": "19(1) Table Sl. 2",              # standard deduction ₹75k new / ₹50k old
+    "139(1)": "263(1)",                         # return due date
+}
+
+
+def section_label(old: str) -> str:
+    """'s.24(b) (now s.22)' style label: both numbers, the new one second."""
+    new = SECTION_MAP.get(old)
+    return f"s.{old} (Income-tax Act 2025: s.{new})" if new else f"s.{old}"
+
+
+# s.22(2)(a) [1961: s.24(b) 2nd proviso]: interest on a self-occupied home,
+# ₹2,00,000 a year in all (s.22(5)), if the house was bought or built with
+# the loan within 5 years from the end of the tax year it was borrowed in.
+SEC24B_SELF_OCCUPIED_CAP = D("200000")
+# s.22(2)(b): ₹30,000 in any other case (construction late, repair loans).
+SEC24B_OTHER_CAP = D("30000")
+# s.22(1)(a) [1961: s.24(a)]: 30% of the annual value of a let-out house.
+LET_OUT_STANDARD_DEDUCTION = D("0.30")
+# s.109(1)(b) [1961: s.71(3A)]: a house-property loss is set off against
+# other income only up to ₹2,00,000 (old regime). s.202(2)(b)(ii): none in
+# the new regime.
+HP_LOSS_SET_OFF_CAP = D("200000")
+# s.123 [1961: s.80C]: ₹1,50,000 across Schedule XV items, home-loan
+# principal included (Schedule XV para 1(r) and 3(a)(iii)).
+SEC80C_CAP = D("150000")
+SEC80CCD1B_CAP = D("50000")
+# s.129(2) [1961: s.80E(3)]: the initial tax year (when interest is first
+# paid) and the seven after it, or until the interest is paid, if sooner.
+SEC80E_TAX_YEARS = 8
+# s.22(1)(c) [1961: Explanation to s.24(b)]: interest for the years before
+# the house was bought or finished, in five equal instalments from the
+# year it was finished. Since 1 Apr 2026 (Finance Act 2026) s.22(2) counts
+# these instalments inside the ₹2L self-occupied cap.
+PRE_CONSTRUCTION_INSTALMENTS = 5
+
+# Old regime for residents aged 60–79 / 80+ (First Schedule Part I-B,
+# Paragraph A (II), (III)). The new regime has one table for every age.
+OLD_REGIME_SLABS_60_79 = [
+    (D("300000"),     D("0.00")),
+    (D("500000"),     D("0.05")),
+    (D("1000000"),    D("0.20")),
+    (D("Infinity"),   D("0.30")),
+]
+OLD_REGIME_SLABS_80_PLUS = [
+    (D("500000"),     D("0.00")),
+    (D("1000000"),    D("0.20")),
+    (D("Infinity"),   D("0.30")),
+]
+
+
+def old_regime_slabs(age: str | None = None):
+    """'60_79' / '80_plus' get the senior tables; anything else the main one."""
+    if age == "80_plus":
+        return OLD_REGIME_SLABS_80_PLUS
+    if age == "60_79":
+        return OLD_REGIME_SLABS_60_79
+    return OLD_REGIME_SLABS
+
+
+def income_tax_for_age(taxable_income: Decimal, regime: TaxRegimeIN, age: str | None = None) -> Decimal:
+    """`income_tax` with the senior-citizen old-regime tables. Same rebate
+    (s.156(1): ≤ ₹5L, ₹12,500), surcharge relief and cess."""
+    if regime != TaxRegimeIN.OLD or old_regime_slabs(age) is OLD_REGIME_SLABS:
+        return income_tax(taxable_income, regime)
+    slabs = old_regime_slabs(age)
+
+    def before(ti: Decimal) -> Decimal:
+        t = _slab_tax(ti, slabs)
+        if ti <= REBATE_87A_OLD_THRESHOLD:
+            t = max(D("0"), t - REBATE_87A_OLD)
+        return max(D("0"), t)
+
+    tax = before(taxable_income)
+    if tax <= 0:
+        return D("0")
+    s = surcharge_rate(taxable_income, regime=regime)
+    with_s = tax * (D("1") + s)
+    below = [t for t in SURCHARGE_THRESHOLDS if t < taxable_income]
+    if below and s > 0:
+        t = below[-1]
+        with_s = min(with_s, before(t) * (D("1") + surcharge_rate(t, regime=regime)) + (taxable_income - t))
+    return with_s * (D("1") + CESS_RATE)
+
+
+def self_occupied_cap(regime: TaxRegimeIN, full_cap: bool = True) -> Decimal:
+    """Interest on self-occupied homes that lowers tax in a year: ₹2L
+    (₹30k if the house wasn't finished within 5 years of borrowing) in the
+    old regime; nothing in the new one (s.202(2)(a)(v))."""
+    if regime != TaxRegimeIN.OLD:
+        return D("0")
+    return SEC24B_SELF_OCCUPIED_CAP if full_cap else SEC24B_OTHER_CAP
+
+
+def let_out_room(
+    regime: TaxRegimeIN,
+    annual_rent: Decimal | None,
+    share: Decimal = D("1"),
+    municipal_tax: Decimal = D("0"),
+    set_off_used: Decimal = D("0"),
+) -> Decimal:
+    """Interest on a let-out home that lowers tax in a year. There's no cap
+    on the interest itself: it is deducted from the rent (after municipal
+    tax and the 30% standard deduction, s.22(1)(a)), and what's left over
+    as a loss can lower other income only up to ₹2L in the old regime
+    (s.109(1)(b)) and not at all in the new one (s.202(2)(b)(ii)).
+    `set_off_used` is the part of the ₹2L already taken by self-occupied
+    homes. Without the rent (None) only the set-off counts: the app labels
+    that "simplified"."""
+    rent_part = D("0")
+    if annual_rent is not None and annual_rent > 0:
+        nav = max(D("0"), annual_rent - municipal_tax) * share
+        rent_part = nav * (D("1") - LET_OUT_STANDARD_DEDUCTION)
+    set_off = max(D("0"), HP_LOSS_SET_OFF_CAP - set_off_used) if regime == TaxRegimeIN.OLD else D("0")
+    return rent_part + set_off
+
+
+def pre_construction_instalment(total_pre_construction_interest: Decimal) -> Decimal:
+    """One of the five equal yearly instalments (s.22(1)(c))."""
+    if total_pre_construction_interest <= 0:
+        return D("0")
+    return total_pre_construction_interest / PRE_CONSTRUCTION_INSTALMENTS
+
+
+def sec80e_months_left(first_interest_year: int, first_interest_month: int, today_year: int, today_month: int) -> int:
+    """Months (from this month, counting it) the 80E / s.129 deduction can
+    still be claimed. The initial tax year is the April–March year in which
+    interest was first paid; the window is that year and the next seven.
+    0 once it has ended."""
+    fy_start = first_interest_year if first_interest_month >= 4 else first_interest_year - 1
+    end_year, end_month = fy_start + SEC80E_TAX_YEARS, 3        # 31 March, 8 tax years on
+    left = (end_year - today_year) * 12 + (end_month - today_month) + 1
+    return max(0, left)
+
+
+def sec80c_room(other_80c: Decimal, home_principal_this_year: Decimal) -> Decimal:
+    """Unused s.123 / 80C room after the year's other items (PF, PPF, ELSS,
+    insurance, tuition) and the scheduled home-loan principal. A home-loan
+    prepayment that fits in this room also lowers old-regime tax."""
+    return max(D("0"), SEC80C_CAP - max(D("0"), other_80c) - max(D("0"), home_principal_this_year))
+
+
+# ─── Old vs new, with the loans ──────────────────────────────────────────────
+
+from dataclasses import dataclass, field  # noqa: E402
+
+
+@dataclass
+class HomeLoanYear:
+    """One home loan's year, in the user's share where it says so."""
+    interest: Decimal                       # the loan's interest for the year
+    principal: Decimal = D("0")             # scheduled principal repaid in the year
+    share: Decimal = D("1")                 # the user's share (co-borrower / co-owner)
+    let_out: bool = False
+    annual_rent: Decimal | None = None      # let-out: rent for the year (whole house)
+    municipal_tax: Decimal = D("0")
+    pre_construction_instalment: Decimal = D("0")   # this year's 1/5 (whole loan)
+    full_cap: bool = True                   # finished within 5 years of borrowing
+    principal_80c_eligible: bool = True     # lender listed in Schedule XV para 3(a)(iii)
+
+
+@dataclass
+class RegimeInputs:
+    salary: Decimal = D("0")                # gross salary
+    business_income: Decimal = D("0")       # profit from business / profession (slab-taxed)
+    other_income: Decimal = D("0")          # interest and other slab-taxed income
+    age: str | None = None                  # '60_79' / '80_plus' for the old-regime senior tables
+    hra_exemption: Decimal = D("0")         # old regime only, as claimed
+    sec80c_other: Decimal = D("0")          # 80C items other than home-loan principal
+    sec80d: Decimal = D("0")                # already within the 80D cap for the user's age
+    sec80ccd1b: Decimal = D("0")
+    other_old_deductions: Decimal = D("0")  # anything else old-regime only
+    edu_interest: Decimal = D("0")          # 80E interest inside its 8-year window (user's share)
+    home_loans: list[HomeLoanYear] = field(default_factory=list)
+
+
+@dataclass
+class RegimeSide:
+    taxable: Decimal
+    tax: Decimal
+    house_property: Decimal                 # signed: + income, − loss used
+    chapter_viii: Decimal                   # deductions from total income
+    loan_deductions: Decimal                # the part of the above that comes from the loans
+
+
+@dataclass
+class RegimeComparison:
+    old: RegimeSide
+    new: RegimeSide
+    better: str                             # 'old' | 'new' | 'same'
+    old_saves: Decimal                      # new tax − old tax (negative: new is cheaper)
+    loans_worth_in_old: Decimal             # old-regime tax the loans save
+    extra_deductions_for_old_to_win: Decimal | None   # when new wins; None if no amount does
+    switch_rule: str                        # 'yearly' | 'business_once'
+
+
+def _house_property(inp: RegimeInputs, regime: TaxRegimeIN) -> tuple[Decimal, Decimal]:
+    """(net house-property income after set-off limits, interest deduction
+    from the loans that counted). Self-occupied interest is capped in all
+    (s.22(2)/(5)); a let-out home nets its rent; a net loss lowers other
+    income only up to ₹2L in the old regime and not at all in the new."""
+    so = [h for h in inp.home_loans if not h.let_out]
+    lo = [h for h in inp.home_loans if h.let_out]
+    so_claim = sum(((h.interest + h.pre_construction_instalment) * h.share for h in so), D("0"))
+    so_cap = D("0")
+    if regime == TaxRegimeIN.OLD and so:
+        so_cap = SEC24B_SELF_OCCUPIED_CAP if all(h.full_cap for h in so) else min(
+            SEC24B_SELF_OCCUPIED_CAP, sum((SEC24B_SELF_OCCUPIED_CAP if h.full_cap else SEC24B_OTHER_CAP for h in so), D("0")))
+    so_deduction = min(so_claim, so_cap)
+    lo_net = D("0")
+    lo_interest = D("0")
+    for h in lo:
+        nav = max(D("0"), (h.annual_rent or D("0")) - h.municipal_tax) * h.share
+        interest = (h.interest + h.pre_construction_instalment) * h.share
+        lo_net += nav * (D("1") - LET_OUT_STANDARD_DEDUCTION) - interest
+        lo_interest += interest
+    total = lo_net - so_deduction
+    if total < 0:
+        floor = -HP_LOSS_SET_OFF_CAP if regime == TaxRegimeIN.OLD else D("0")
+        used = max(total, floor)
+    else:
+        used = total
+    # Interest that counted: what the head would be without any loan
+    # interest, less what it is.
+    no_interest = sum((max(D("0"), (h.annual_rent or D("0")) - h.municipal_tax) * h.share
+                       * (D("1") - LET_OUT_STANDARD_DEDUCTION) for h in lo), D("0"))
+    return used, no_interest - used
+
+
+def _side(inp: RegimeInputs, regime: TaxRegimeIN, extra_old: Decimal = D("0")) -> RegimeSide:
+    old = regime == TaxRegimeIN.OLD
+    std = min(STANDARD_DEDUCTION_OLD_SALARIED if old else STANDARD_DEDUCTION_NEW_SALARIED, max(D("0"), inp.salary))
+    salary = max(D("0"), inp.salary - std - (inp.hra_exemption if old else D("0")))
+    hp, hp_loans = _house_property(inp, regime)
+    gross_total = max(D("0"), salary + inp.business_income + inp.other_income + hp)
+    chapter = D("0")
+    loan_chapter = D("0")
+    if old:
+        principal = sum((h.principal * h.share for h in inp.home_loans if h.principal_80c_eligible), D("0"))
+        c80 = min(SEC80C_CAP, max(D("0"), inp.sec80c_other) + principal)
+        c80_without = min(SEC80C_CAP, max(D("0"), inp.sec80c_other))
+        loan_chapter = (c80 - c80_without) + inp.edu_interest
+        chapter = (c80 + inp.sec80d + min(SEC80CCD1B_CAP, inp.sec80ccd1b) + inp.edu_interest
+                   + inp.other_old_deductions + extra_old)
+    chapter = min(chapter, gross_total)
+    taxable = max(D("0"), gross_total - chapter)
+    return RegimeSide(taxable, income_tax_for_age(taxable, regime, inp.age), hp, chapter, hp_loans + loan_chapter)
+
+
+def compare_regimes(inp: RegimeInputs, has_business_income: bool | None = None) -> RegimeComparison:
+    """This tax year's tax under each regime with the loans counted.
+
+    Leaves out what the app doesn't ask: employer NPS (s.124(2), allowed in
+    both), special-rate income (capital gains), agricultural income,
+    carry-forward of house-property loss, and the 80+ / 60–79 split for
+    anyone who only gave an age bracket.
+    """
+    old = _side(inp, TaxRegimeIN.OLD)
+    new = _side(inp, TaxRegimeIN.NEW)
+    diff = new.tax - old.tax
+    better = "same" if abs(diff) < D("1") else ("old" if diff > 0 else "new")
+    bare = RegimeInputs(**{**inp.__dict__, "home_loans": [], "edu_interest": D("0")})
+    loans_worth = _side(bare, TaxRegimeIN.OLD).tax - old.tax
+    extra: Decimal | None = None
+    if better == "new":
+        lo, hi = D("0"), D("10000000")
+        if _side(inp, TaxRegimeIN.OLD, hi).tax >= new.tax:
+            extra = None
+        else:
+            for _ in range(60):
+                mid = (lo + hi) / 2
+                if _side(inp, TaxRegimeIN.OLD, mid).tax < new.tax:
+                    hi = mid
+                else:
+                    lo = mid
+            extra = hi.quantize(D("1"))
+    biz = has_business_income if has_business_income is not None else inp.business_income > 0
+    return RegimeComparison(old, new, better, diff, loans_worth, extra, "business_once" if biz else "yearly")

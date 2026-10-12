@@ -94,6 +94,32 @@ export interface LoanPayload {
   processing_fee_amortised?: string;
   insurance_premium_pct?: string;
   property_use?: string;
+  // ── India tax (sprint G2; lib/india-tax-loans, the Tax page) ──
+  /** The user's share of this loan for tax, '0'-'1' (a co-borrower who
+   *  co-owns the home). Omitted = '1'. */
+  tax_share?: string;
+  /** Education loan: 'YYYY-MM' interest was first paid. The s.129 [80E]
+   *  window is that April-March tax year and the next seven. Web-only;
+   *  sent to the engine as `tax_deduction_months_left`. */
+  edu_interest_start?: string;
+  /** Engine field, derived from `edu_interest_start` for each plan run. */
+  tax_deduction_months_left?: number;
+  /** Home loan: interest paid before the house was bought or finished, in
+   *  total, and the 'YYYY-MM' it was finished. Web-only; one fifth a year for
+   *  five tax years from that year is sent as `pre_construction_interest_annual`. */
+  pre_construction_interest_total?: string;
+  construction_completed?: string;
+  pre_construction_interest_annual?: string;
+  /** Home loan, let out: the year's rent for the whole house. */
+  annual_rent?: string;
+  /** Home loan, self-occupied: false when the house wasn't finished within
+   *  5 years of borrowing (cap ₹30,000, s.22(2)(b)). Omitted = true. */
+  sec24_full_cap?: boolean;
+  /** Home loan: false when the lender isn't one Schedule XV para 3(a)(iii)
+   *  lists for the 80C / s.123 principal deduction (banks, co-operative
+   *  banks, LIC, NHB, housing finance companies, some employers): a loan
+   *  from a relative, for one. Omitted = true. Web-only. */
+  principal_80c_eligible?: boolean;
   /** Optional user override for credit-card minimum payment. When set, the
    *  bank-specific formula is bypassed. Ignored for non-card loans. */
   min_payment_override?: string;
@@ -327,6 +353,9 @@ export interface UserPayload {
    *  dollars as strings, optional everywhere. Drives a more accurate
    *  derived marginal_rate when gross income is on file. */
   deductions?: DeductionsPayload;
+  /** Sprint G2 (#20): the user confirmed the tax rate estimated from
+   *  take-home pay. UI-only. */
+  tax_rate_confirmed?: boolean;
 }
 
 export type IncomeStreamKind =

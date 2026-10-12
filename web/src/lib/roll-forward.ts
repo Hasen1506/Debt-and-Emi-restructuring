@@ -25,6 +25,7 @@
  */
 import Decimal from 'decimal.js';
 import type { LoanPayload } from './api';
+import { resolveLoanTaxTiming } from './india-tax-loans';
 
 export interface RolledLoan {
   index: number;
@@ -50,9 +51,11 @@ export function nextMonth(month: string): string {
 
 /** Resolve calendar first-EMI dates for each fresh simulation and its preview. */
 export function prepareLoanPaymentTiming(loans: LoanPayload[], currentMonth: string): LoanPayload[] {
-  return loans.map(loan => loan.first_emi_month && /^\d{4}-(0[1-9]|1[0-2])$/.test(loan.first_emi_month)
+  // Sprint G2: also resolve the calendar tax fields (80E window,
+  // pre-construction instalment) for this month (lib/india-tax-loans).
+  return loans.map(loan => resolveLoanTaxTiming(loan.first_emi_month && /^\d{4}-(0[1-9]|1[0-2])$/.test(loan.first_emi_month)
     ? { ...loan, first_payment_month: Math.max(1, monthsBetween(currentMonth, loan.first_emi_month) + 1) }
-    : loan);
+    : loan, currentMonth));
 }
 
 /** The answer to "has this month's EMI gone out?": paid, still to pay, or

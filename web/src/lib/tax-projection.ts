@@ -24,6 +24,9 @@ import Decimal from 'decimal.js';
 import type { Country, DeductionsPayload, FilingStatusUS, LoanPayload, TaxRegimeIN } from './api';
 import { pickUSDeduction } from './deductions';
 import { loanCurrency, type CurrencyCode } from './currency';
+import { loanTaxLine, preConstructionInstalment, sec80eMonthsLeft, taxShare } from './india-tax-loans';
+import { letOutRoom } from './marginal-cost';
+import TAX from './tax-tables.json';
 
 export interface LoanYear1Interest {
   loanIndex: number;
@@ -136,6 +139,9 @@ interface MultiYearArgs {
   /** Horizon for the projection in years. Beyond this the deduction is
    *  assumed zero (in practice loans either clear or fall below the cap). */
   horizonYears?: number;
+  /** 'YYYY-MM' today, for the India calendar rules (80E window,
+   *  pre-construction instalments). Omitted: the engine fields on the loan. */
+  currentMonth?: string;
 }
 
 /**
@@ -191,29 +197,82 @@ function amortizeYearlyInterest(loan: LoanPayload, years: number): Decimal[] {
 }
 
 /**
- * Per-regime deduction caps as a function of (interest paid in a year).
- * Returns the deductible portion. Caps are applied per loan (Sec 24b is
- * actually a property-level cap but we approximate as loan-level since
- * the app's model is loan-centric).
+ * Deductible interest for one year of an Indian loan portfolio (sprint G2,
+ * Income-tax Act 2025; 1961 numbers in brackets). Caps are per taxpayer,
+ * not per loan: self-occupied homes share one ₹2L (s.22(2), (5) [24(b)]),
+ * each on the user's share (co-borrower) plus this year's pre-construction
+ * instalment (s.22(1)(c)); a let-out home is limited to its rent after 30%
+ * plus what's left of the old regime's ₹2L set-off (s.22(1)(a), s.109(1)(b));
+ * an education loan counts only inside its 8-tax-year window (s.129 [80E]).
+ * New regime: only a let-out home's interest against its rent (s.202).
+ * The year index counts from today; `yearInterest[i]` is loan i's interest.
  */
-function deductibleAmount(
-  country: Country,
+export function indiaDeductibleForYear(
   regime: TaxRegimeIN | undefined,
-  loan: LoanPayload,
-  rawInterest: Decimal,
+  loans: LoanPayload[],
+  yearInterest: Decimal[],
+  year: number,
+  currentMonth?: string,
 ): Decimal {
-  if (country === 'IN') {
-    const isNew = regime !== 'old';
-    if (isNew) return new Decimal(0);
+  const isOld = regime === 'old';
+  let soClaim = new Decimal(0);
+  let soCap = new Decimal(0);
+  let anySo = false;
+  let allFull = true;
+  let soCapSum = new Decimal(0);
+  let other = new Decimal(0);
+  const letOut: Array<{ claim: Decimal; loan: LoanPayload }> = [];
+  loans.forEach((loan, i) => {
+    const interest = yearInterest[i] ?? new Decimal(0);
+    const share = taxShare(loan);
     if (loan.loan_type === 'home_loan') {
-      return Decimal.min(rawInterest, 200_000);
+      // The instalment runs for the five tax years from completion; year 1
+      // is this tax year (approximately: plan years start this month).
+      const month = currentMonth ? addYears(currentMonth, year - 1) : undefined;
+      const inst = month ? preConstructionInstalment(loan, month) : new Decimal(loan.pre_construction_interest_annual || 0).mul(year === 1 ? 1 : 0);
+      const claim = interest.add(inst).mul(share);
+      if (claim.lte(0)) return;
+      if (loan.property_use === 'let_out') {
+        letOut.push({ claim, loan });
+      } else {
+        anySo = true;
+        soClaim = soClaim.add(claim);
+        const full = loan.sec24_full_cap !== false;
+        allFull = allFull && full;
+        soCapSum = soCapSum.add(full ? TAX.in.deductions.sec24b_self_occupied_cap : TAX.in.deductions.sec24b_other_cap);
+      }
+    } else if (loan.loan_type === 'education_loan' && isOld) {
+      const left = currentMonth ? sec80eMonthsLeft(loan.edu_interest_start, currentMonth) : loan.tax_deduction_months_left ?? null;
+      // The window closes at a 31 March; count the year if any of it is open.
+      if (left != null && left <= (year - 1) * 12) return;
+      other = other.add(interest.mul(share));
     }
-    if (loan.loan_type === 'education_loan') {
-      return rawInterest;
-    }
-    return new Decimal(0);
+  });
+  if (isOld && anySo) {
+    soCap = allFull
+      ? new Decimal(TAX.in.deductions.sec24b_self_occupied_cap)
+      : Decimal.min(TAX.in.deductions.sec24b_self_occupied_cap, soCapSum);
   }
-  // US — single regime
+  const soDeduction = Decimal.min(soClaim, soCap);
+  let total = soDeduction.add(other);
+  let setOffUsed = soDeduction;
+  for (const { claim, loan } of letOut) {
+    const room = letOutRoom(regime ?? 'new', loan.annual_rent, taxShare(loan), setOffUsed);
+    const got = Decimal.min(claim, room);
+    // What went past the rent used up set-off.
+    const rentPart = letOutRoom(regime ?? 'new', loan.annual_rent, taxShare(loan), new Decimal(TAX.in.deductions.hp_loss_set_off_cap));
+    setOffUsed = setOffUsed.add(Decimal.max(0, got.sub(rentPart)));
+    total = total.add(got);
+  }
+  return total;
+}
+
+function addYears(month: string, years: number): string {
+  const [y, m] = month.split('-').map(Number);
+  return `${y + years}-${String(m).padStart(2, '0')}`;
+}
+
+function deductibleAmountUS(loan: LoanPayload, rawInterest: Decimal): Decimal {
   if (loan.loan_type === 'home_loan') return rawInterest;
   if (loan.loan_type === 'education_loan') {
     return Decimal.min(rawInterest, 2_500);
@@ -268,12 +327,25 @@ export function projectAnnualTaxSavings(
   for (let y = 1; y <= years; y++) {
     let yearTotalDeductibleUserCcy = new Decimal(0);
     let usMortgageUserCcy = new Decimal(0);
+    if (user.country === 'IN') {
+      // INR loans only: the deduction caps are in rupees (an NRI's US loan
+      // gets no Indian deduction).
+      const inr = user.loans.map((l, i) => ({ l, i })).filter(({ l }) => (l.currency ?? 'INR') === 'INR');
+      const ded = indiaDeductibleForYear(
+        user.tax_regime,
+        inr.map(({ l }) => l),
+        inr.map(({ i }) => seriesPerLoan[i][y - 1]?.interest ?? new Decimal(0)),
+        y,
+        args.currentMonth,
+      );
+      const taxSaving = ded.mul(args.marginalRate);
+      if (taxSaving.gt(0)) out.push({ year: y, deductibleInterestUserCcy: ded, taxSaving, applyMonth: y * 12 + applyOffset });
+      continue;
+    }
     for (const loanSeries of seriesPerLoan) {
       const row = loanSeries[y - 1];
       if (!row) continue;
-      const deductibleLoanCcy = deductibleAmount(
-        user.country,
-        user.tax_regime,
+      const deductibleLoanCcy = deductibleAmountUS(
         row.loan,
         row.interest,
       );
@@ -305,20 +377,15 @@ export function projectAnnualTaxSavings(
 }
 
 /**
- * Country- AND regime-specific deduction rules.
+ * Country- AND regime-specific deduction rules, in plain words with both
+ * section numbers (India: Income-tax Act 2025 and 1961; lib/india-tax-loans).
  *
- * India — regime matters from FY24 onwards (new regime is default):
- *   • Old regime:
- *     - Home loan interest: Sec 24(b), ₹2L cap (self-occupied).
- *     - Education loan interest: Sec 80E, full deduction, 8 years.
- *     - Auto / personal / cards: no deduction.
- *   • New regime (FY24+ default):
- *     - All of the above are NOT available except let-out property
- *       interest (Sec 24b for rental — but we don't currently track
- *       let-out vs self-occupied, so we just surface "not deductible
- *       on new regime" without nudging a switch. Switching regimes
- *       costs the lower slab rates, which this app can't fully
- *       evaluate against, so the choice is left to the user.
+ * India — the new regime (s.202, 1961 s.115BAC) is the default:
+ *   • Old regime: home-loan interest s.22 [24(b)] up to ₹2L self-occupied,
+ *     principal in s.123 [80C]; education-loan interest s.129 [80E], no cap,
+ *     8 tax years. Auto / personal / cards: none.
+ *   • New regime: only a let-out home's interest, against its rent.
+ *   The Tax page compares the two with the loans counted (lib/regime-compare).
  *
  * US — single regime, deductions stable:
  *   • Home loan interest: Schedule A itemised, $750k cap (TCJA).
@@ -331,36 +398,14 @@ function describeDeduction(
   loan: LoanPayload,
 ): { eligible: boolean; context: string | null } {
   if (country === 'IN') {
-    // New regime is default from FY24+ when regime is unset.
     const isNew = regime !== 'old';
-    if (loan.loan_type === 'home_loan') {
-      if (isNew) {
-        return {
-          eligible: false,
-          // The user picked new regime in onboarding. We respect the choice
-          // and don't nudge them to switch — regime change has consequences
-          // (loses lower slab rates) that this app can't fully evaluate.
-          context: 'Sec 24(b) self-occupied: not deductible on new regime.',
-        };
-      }
-      return {
-        eligible: true,
-        context: 'Sec 24(b): interest deductible up to ₹2L/yr (self-occupied).',
-      };
-    }
-    if (loan.loan_type === 'education_loan') {
-      if (isNew) {
-        return {
-          eligible: false,
-          context: 'Sec 80E: not deductible on new regime.',
-        };
-      }
-      return {
-        eligible: true,
-        context: 'Sec 80E: full interest deductible, up to 8 years from repayment start.',
-      };
-    }
-    return { eligible: false, context: null };
+    const month = new Date().toISOString().slice(0, 7);
+    const line = loanTaxLine(loan, isNew ? 'new' : 'old', month);
+    if (line == null) return { eligible: false, context: null };
+    const eligible = loan.loan_type === 'home_loan'
+      ? !isNew || loan.property_use === 'let_out'
+      : !isNew && sec80eMonthsLeft(loan.edu_interest_start, month) !== 0;
+    return { eligible, context: line };
   }
   // US — no regime split.
   if (loan.loan_type === 'home_loan') {

@@ -112,8 +112,9 @@ export function ProfileSummary({
         {/* What the tax details change, and (India) which law the section numbers come from. */}
         <p style={{ margin: '8px 0 0', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
           {user.country === 'IN'
-            ? 'The plan uses these for the tax break on home-loan and education-loan interest (old regime only) and to weigh paying early against investing, after tax. Section numbers are the familiar 1961-Act ones (24(b), 80E, 87A); the Income-tax Act, 2025 renumbers them from 1 April 2026 with the same limits.'
-            : 'The plan uses these for the mortgage and student-loan interest deductions and to weigh paying early against investing, after tax.'}
+            ? 'The plan uses these for the tax break on home-loan and education-loan interest and to weigh paying early against investing, after tax. The Income-tax Act, 2025 renumbered the sections from 1 April 2026 with the same limits (24(b) is now s.22, 80C s.123, 80E s.129, the new regime s.202).'
+            : 'The plan uses these for the mortgage and student-loan interest deductions and to weigh paying early against investing, after tax.'}{' '}
+          <LBracket href="/tax" label="Open the Tax page">{user.country === 'IN' ? 'OLD VS NEW REGIME, LOAN BY LOAN →' : 'TAX PAGE →'}</LBracket>
         </p>
       </section>
 

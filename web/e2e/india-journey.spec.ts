@@ -101,16 +101,19 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     expect(await planText(page)).toMatchSnapshot('india-to-usa-plan-schedule.txt');
   });
 
-  await test.step('/tax opens Profile with the US filing details', async () => {
-    // /tax is Profile's tax section now (REDESIGN V5).
-    await page.goto('/tax');
-    await page.waitForURL('**/profile#pf-tax');
+  await test.step('Profile and /tax show the US filing details', async () => {
+    // /tax is its own page again (sprint G2, grill #77); Profile's tax
+    // section links to it.
+    await page.goto('/profile');
     await expect(page.getByText(/^USA(,| with|$)/).first()).toBeVisible();
     await expect(page.getByText(/^Single( ·|$)/).first()).toBeVisible();
     // Roadmap PR A: the bracket is re-estimated for the US from the $1,801.80
     // take-home (10%). It used to keep India's 20.8% after the switch, which
     // is how a high earner ended up on a stale 0% (lib/marginal-rate).
     await expect(page.getByText('10.0%')).toBeVisible();
+    await expect(page.getByText('20.8%')).toHaveCount(0);
+    await page.goto('/tax');
+    await expect(page.getByRole('heading', { name: /Tax and your loans/i })).toBeVisible();
     await expect(page.getByText('20.8%')).toHaveCount(0);
   });
 

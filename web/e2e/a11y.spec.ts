@@ -79,6 +79,7 @@ test('signed in: every tab and tool passes axe with no hydration errors', async 
     '/profile',
     '/profile?step=loans',
     '/portfolio',
+    '/tax',
     '/tools/windfall',
     '/tools/new-debt',
     '/tools/liquidate',

@@ -115,6 +115,17 @@ def _months_to_clear(balance: Decimal, rate: Decimal, payment: Decimal) -> int |
     return math.ceil(-math.log(1 - r * p / a) / math.log(1 + r))
 
 
+def _home_interest_pool(homes: list[Loan], country: Country) -> Decimal:
+    """India: the user's share of a year's interest and pre-construction
+    instalments across self-occupied home loans, which share one ₹2L cap
+    (s.22(2), (5) of the Income-tax Act 2025; sprint G2). US: every home
+    loan's interest, as before."""
+    if country != Country.IN:
+        return sum((l.outstanding * l.nominal_rate for l in homes), D("0"))
+    return sum(((l.outstanding * l.nominal_rate + l.pre_construction_interest_annual) * l.tax_share
+                for l in homes if (l.property_use or "self_occupied") != "let_out"), D("0"))
+
+
 def tax_caps_context(loans: list[Loan], user: User) -> dict:
     """Per-taxpayer totals for the shared deduction caps (P2-05/06/25):
     India 24(b) interest across home loans, the US $750k mortgage-debt
@@ -127,7 +138,7 @@ def tax_caps_context(loans: list[Loan], user: User) -> dict:
     edu = [l for l in loans if l.loan_type == LoanType.EDUCATION and l.outstanding > 0 and market(l) == own_market]
     magi = user.annual_gross_salary or user.annual_business_income or None
     return {
-        "home_interest_total": sum((l.outstanding * l.nominal_rate for l in homes), D("0")),
+        "home_interest_total": _home_interest_pool(homes, own_market),
         "mortgage_debt_total": sum((l.outstanding for l in homes), D("0")),
         "us_student_interest_total": sum((l.outstanding * l.nominal_rate for l in edu), D("0")),
         "magi": magi,
