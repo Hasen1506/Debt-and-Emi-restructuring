@@ -20,6 +20,7 @@ import { usMortgageShieldShare } from './deductions';
 import { GST_RATE_IN, gstApplies } from './gst';
 import { taxShare } from './india-tax-loans';
 import TAX from './tax-tables.json';
+import { usMortgageMarginalRate } from './us-loans';
 
 const D = (v: string | number | Decimal) => new Decimal(v);
 
@@ -186,8 +187,13 @@ export function userMarginalCosts(user: UserPayload, marginalRate: string, indic
     const regime = user.tax_regime ?? 'new';
     const india = own === 'IN' ? indiaShieldOptions(l, regime, homeInterest) : {};
     const total = india.letOut ? indiaOwnInterest(l) : l.loan_type === 'home_loan' ? homeInterest : eduInterest;
+    // A US mortgage saves no state tax in a no-income-tax state or one that
+    // disallows mortgage interest (lib/us-loans, engine _home_rate, #79).
+    const rate = own === 'US' && l.loan_type === 'home_loan'
+      ? usMortgageMarginalRate(marginalRate, user.state, user.state_marginal_rate ?? 0).toString()
+      : marginalRate;
     const shield = marginalShield(
-      l.loan_type, own, marginalRate, regime, itemisedShare.gt(0), itemisedShare,
+      l.loan_type, own, rate, regime, itemisedShare.gt(0), itemisedShare,
       total, homeDebt, 1, india,
     );
     const cardGst = l.loan_type === 'credit_card' && marketOf(l, own) === 'IN';

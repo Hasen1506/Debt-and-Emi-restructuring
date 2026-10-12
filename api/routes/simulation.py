@@ -362,7 +362,25 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         ),
         payoff_order_method=result.payoff_order_method,
         payoff_order_note=result.payoff_order_note,
+        pmi_events=_pmi_events(result, user),
     )
+
+
+def _pmi_events(result, user) -> list:
+    """When the plan's PMI / FHA MIP ends (grill #34): a lifecycle event."""
+    from api.schemas import PmiEventOut
+    from engine.us_loans import mortgage_insurance_kind
+    out = []
+    for idx, m in sorted(result.pmi_end_months.items()):
+        kind = mortgage_insurance_kind(user.loans[idx]) or "pmi"
+        note = (
+            f"PMI ends after month {m}: the balance reaches 80% of the home's original value, so you can "
+            "ask your servicer in writing to cancel it (CFPB)."
+            if kind == "pmi" else
+            f"FHA mortgage insurance ends after month {m}, the months of MIP you entered."
+        )
+        out.append(PmiEventOut(loan_index=idx, last_paid_month=m, kind=kind, note=note))
+    return out
 
 
 @router.post("/goals/tradeoff", response_model=GoalTradeoffResponse)

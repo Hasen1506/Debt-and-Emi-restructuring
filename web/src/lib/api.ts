@@ -200,6 +200,19 @@ export interface LoanPayload {
    *  loans) gets converted to its reducing-balance equivalent at the
    *  engine boundary so the math stays apples-to-apples with bank quotes. */
   rate_basis?: 'flat' | 'reducing';
+  /** US student loans (lib/us-loans, grill #33): 'federal' | 'private';
+   *  blank is treated as federal, so it is never refinanced privately. */
+  student_loan_kind?: 'federal' | 'private';
+  /** US federal student loans: 'pslf' | 'idr' holds extra payments off the
+   *  loan (they'd only shrink what's forgiven). */
+  forgiveness_track?: 'pslf' | 'idr';
+  /** US mortgages (grill #34): monthly PMI / FHA MIP paid with the payment. */
+  pmi_monthly?: string;
+  /** The home's original value: the lower of price and appraisal at purchase. */
+  original_home_value?: string;
+  mortgage_insurance_kind?: 'pmi' | 'fha_mip';
+  /** FHA MIP months left; blank = for the life of the loan. */
+  pmi_months_remaining?: number;
   /** Last 6 digits of the credit-card number (optional). Stored as a
    *  string ('XXXXXX'). UI-only — engine doesn't consume it. Used to
    *  render a recognisable card chip on /portfolio and Holdings. */
@@ -306,6 +319,9 @@ export interface UserPayload {
    *  California top bracket. Added to federal marginal_rate when present
    *  so combined effective-rate math reflects state burden. */
   state_marginal_rate?: string;
+  /** US state, two-letter code (lib/us-loans: mortgage interest saves no
+   *  state tax in a no-income-tax state or one that disallows it, #79). */
+  state?: string;
   efund_balance?: string;
   efund_target?: string;
   loans: LoanPayload[];

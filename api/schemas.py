@@ -188,6 +188,33 @@ class LoanIn(_In):
     pre_construction_interest_annual: Amount = D("0")
     annual_rent: Optional[Amount] = None
     sec24_full_cap: bool = True
+    # US-only (engine/us_loans.py, grill #33/#34). Student loans: "federal" |
+    # "private" (blank = treated as federal); forgiveness track "pslf" |
+    # "idr" holds extra payments off the loan. Mortgages: monthly PMI / FHA
+    # MIP, the home's original value, the insurance kind, FHA months left.
+    student_loan_kind: Optional[str] = None
+    forgiveness_track: Optional[str] = None
+    pmi_monthly: Amount = D("0")
+    original_home_value: Optional[Amount] = None
+    mortgage_insurance_kind: Optional[str] = None
+    pmi_months_remaining: Optional[int] = Field(None, ge=0, le=MAX_MONTHS)
+
+    @field_validator("student_loan_kind", "forgiveness_track", "mortgage_insurance_kind", mode="before")
+    @classmethod
+    def _us_enums(cls, v: Any, info) -> Any:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        if not isinstance(v, str):
+            raise ValueError(f"{info.field_name} must be text")
+        t = v.strip().lower().replace("-", "_")
+        allowed = {
+            "student_loan_kind": ("federal", "private"),
+            "forgiveness_track": ("pslf", "idr", "none"),
+            "mortgage_insurance_kind": ("pmi", "fha_mip"),
+        }[info.field_name]
+        if t not in allowed:
+            raise ValueError(f"{info.field_name} must be one of {', '.join(allowed)}")
+        return None if t == "none" else t
 
     @field_validator("statement_day", "due_day", mode="before")
     @classmethod
@@ -263,6 +290,12 @@ class LoanIn(_In):
             pre_construction_interest_annual=self.pre_construction_interest_annual,
             annual_rent=self.annual_rent,
             sec24_full_cap=self.sec24_full_cap,
+            student_loan_kind=self.student_loan_kind,
+            forgiveness_track=self.forgiveness_track,
+            pmi_monthly=self.pmi_monthly,
+            original_home_value=self.original_home_value,
+            mortgage_insurance_kind=self.mortgage_insurance_kind,
+            pmi_months_remaining=self.pmi_months_remaining,
         )
 
 
@@ -922,6 +955,13 @@ class GapClosedOut(_Base):
     total_interest_paid: Decimal
 
 
+class PmiEventOut(_Base):
+    loan_index: int
+    last_paid_month: int
+    kind: str                                # "pmi" | "fha_mip"
+    note: str
+
+
 class SimulateResponse(_Base):
     # 1 = this month. 0 = nothing is owed now (no loans, or all at 0);
     # None = not cleared within the horizon.
@@ -960,6 +1000,9 @@ class SimulateResponse(_Base):
     # closed (spending cut by this month's shortfall), so the headline can
     # say "<date> if the ₹X gap closes" beside the as-things-stand date.
     gap_closed: Optional[GapClosedOut] = None
+    # US mortgage insurance (grill #34): one row per loan whose PMI / FHA
+    # MIP ends inside the plan, with the sim month it was last paid.
+    pmi_events: list[PmiEventOut] = Field(default_factory=list)
 
 
 class BaselineRequest(_In):
@@ -1376,7 +1419,7 @@ class RestructuringHeldBackOut(_Base):
     kind: str
     affected_loan_indices: list[int]
     target_bank: Optional[str] = None
-    reason: str                              # "credit_score" | "plan_clears" | "costs_more"
+    reason: str                              # "credit_score" | "plan_clears" | "costs_more" | "federal_protections"
     note: str
 
 

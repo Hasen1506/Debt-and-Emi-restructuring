@@ -137,6 +137,10 @@ def prepay_block(loan: Loan) -> str | None:
     up, so it's a caveat, not a block."""
     if loan.pre_emi_months_remaining > 0:
         return "is still in its pre-EMI period"
+    from engine.us_loans import forgiveness_prepay_block
+    why = forgiveness_prepay_block(loan)
+    if why is not None:
+        return why
     if loan.prepay_lock_in_months > 0:
         n = loan.prepay_lock_in_months
         return f"is locked against prepayment for {n} more month{'' if n == 1 else 's'}"

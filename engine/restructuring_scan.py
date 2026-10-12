@@ -173,7 +173,7 @@ class HeldBack:
     kind: RecommendationKind
     affected_loan_indices: list[int]
     target_bank: Optional[str]
-    reason: Literal["credit_score", "plan_clears", "costs_more"]
+    reason: Literal["credit_score", "plan_clears", "costs_more", "federal_protections"]
     note: str
 
 
@@ -1066,6 +1066,24 @@ def scan(
 
     kept: list[RestructuringOpportunity] = []
     held: list[HeldBack] = []
+    # US student loans (grill #33): a federal loan, or one not marked
+    # private, is never offered a private refinance or a consolidation into
+    # a private loan. When a private lender's rate is lower, say why not.
+    from engine.us_loans import is_federal_or_unknown_student_loan, refinance_note
+    for i, l in enumerate(user.loans):
+        if l.outstanding <= 0 or not is_federal_or_unknown_student_loan(l, user.country):
+            continue
+        best = _best_market_rate(Country.US, LoanType.EDUCATION, None, user.income_type)
+        if best is not None and best[1] < l.nominal_rate:
+            held.append(HeldBack(
+                kind="refinance", affected_loan_indices=[i], target_bank=None,
+                reason="federal_protections", note=refinance_note(l),
+            ))
+    found = [
+        (opp, loan, m) for opp, loan, m in found
+        if not any(is_federal_or_unknown_student_loan(user.loans[i], user.country)
+                   for i in opp.affected_loan_indices)
+    ]
     for opp, loan, m in found:
         if opp.credit_fit == "unlikely":
             floor = _SCORE_FLOOR[(m, opp.kind == "refinance")]

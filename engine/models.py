@@ -169,6 +169,22 @@ class Loan:
     # Home loan, self-occupied: False when the house wasn't finished within
     # 5 years of borrowing, which cuts the cap to ₹30,000 (s.22(2)(b)).
     sec24_full_cap: bool = True
+    # ── US-only fields (engine/us_loans.py; grill #33, #34) ──────────────────
+    # Student loans: "federal" | "private" | None (not marked; treated as
+    # federal, so never refinanced privately). `forgiveness_track` "pslf" |
+    # "idr" holds extra payments off the loan (they'd shrink what's forgiven).
+    student_loan_kind: Optional[str] = None
+    forgiveness_track: Optional[str] = None
+    # Mortgages: monthly mortgage insurance paid on top of the payment, the
+    # home's original value (lower of price and appraisal at purchase), and
+    # its kind: "pmi" (conventional; ends at 80% of original value on
+    # request) or "fha_mip" (runs `pmi_months_remaining` months, or for the
+    # loan's life when blank). The simulator counts PMI as a monthly cost
+    # until it ends.
+    pmi_monthly: Decimal = Decimal("0")
+    original_home_value: Optional[Decimal] = None
+    mortgage_insurance_kind: Optional[str] = None
+    pmi_months_remaining: Optional[int] = None
 
 
 class LifecycleEventKind(str, Enum):
