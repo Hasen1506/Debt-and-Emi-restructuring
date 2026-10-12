@@ -4,7 +4,7 @@
  * reads the plan, checks /tax, signs out; then signs in again on a clean
  * browser and gets the saved plan back from the account.
  */
-import { expect, fillLoan, isPlanCall, planSummary, planText, signIn, test } from './fixtures';
+import { expect, fillLoan, isPlanCall, planSummary, planText, signIn, test, makeSetupChoices } from './fixtures';
 
 const EMAIL = 'golden-usa@rightdue.app';
 
@@ -34,6 +34,7 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
   });
 
   await test.step('saved plan (golden schedule)', async () => {
+    await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
     await page.waitForURL('**/plan');
     await expect(page.getByText('FILING SINGLE', { exact: false })).toBeVisible();

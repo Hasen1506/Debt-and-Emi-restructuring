@@ -66,6 +66,15 @@ export async function fillLoan(page: Page, index: number, loan: LoanInput) {
   }
 }
 
+/** Setup's last step asks what only the person can decide (sprint G10,
+ *  grill #22). The journeys keep their goldens: no emergency fund for now,
+ *  and the cheapest path, which is what setup used to assume silently. */
+export async function makeSetupChoices(page: Page) {
+  await page.getByRole('button', { name: /^Not now$/ }).click();
+  const order = page.getByRole('button', { name: /^Cheapest path/ });
+  if (await order.count()) await order.click();
+}
+
 /** A compact, stable summary of a /api/simulate or /api/baseline response. */
 export async function planSummary(res: Response) {
   const body = await res.json();

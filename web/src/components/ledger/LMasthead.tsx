@@ -23,17 +23,19 @@ import type { Country } from '@/lib/api';
 import type { StrategyName } from '@/lib/strategy';
 import { recordPage } from '@/lib/nav-trail';
 
-export type LedgerSection = 'home' | 'plan' | 'activity' | 'goals' | 'profile';
+export type LedgerSection = 'home' | 'plan' | 'activity' | 'goals' | 'portfolio' | 'profile';
 
-// Five tabs, one per reason to open the app: what to pay (Home), when am
+// Six tabs, one per reason to open the app: what to pay (Home), when am
 // I done / what if (Plan), what happened (Activity), something came up
-// (Goals & Tools), my details (Profile). Pages that aren't tabs light up
-// the tab they belong to.
-const NAV: Array<[label: string, key: LedgerSection, href: string]> = [
+// (Goals & Tools), what I own (Portfolio, its own tab since sprint G10:
+// the founder kept it as part of the finance super-app), my details
+// (Profile). Pages that aren't tabs light up the tab they belong to.
+export const NAV: Array<[label: string, key: LedgerSection, href: string]> = [
   ['HOME', 'home', '/'],
   ['PLAN', 'plan', '/plan'],
   ['ACTIVITY', 'activity', '/activity'],
   ['GOALS & TOOLS', 'goals', '/goals'],
+  ['PORTFOLIO', 'portfolio', '/portfolio'],
   ['PROFILE', 'profile', '/profile'],
 ];
 
@@ -41,10 +43,11 @@ export function sectionFromPath(path: string): LedgerSection | null {
   if (path.startsWith('/plan')) return 'plan';
   if (path.startsWith('/activity')) return 'activity';
   if (path.startsWith('/goals') || path.startsWith('/tools')) return 'goals';
+  // What you own, and the form that adds to it.
+  if (path.startsWith('/portfolio') || path.startsWith('/profile/assets')) return 'portfolio';
   if (
     path.startsWith('/onboarding') ||
     path.startsWith('/profile') ||
-    path.startsWith('/portfolio') ||
     path.startsWith('/tax')
   ) {
     return 'profile';

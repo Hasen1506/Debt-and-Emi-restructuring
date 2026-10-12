@@ -94,7 +94,7 @@ export function StrategyMedallion({
         type="button"
         aria-expanded={open != null}
         aria-haspopup="true"
-        aria-label={`Payoff strategy: ${p.name}. Change it`}
+        aria-label={`Payoff strategy: ${p.name}, ${p.tag.toLowerCase()}. Change it`}
         onClick={toggle}
         style={{
           display: 'inline-flex',
@@ -117,6 +117,7 @@ export function StrategyMedallion({
               sets the order debts are paid off in. */}
           <small style={{ fontSize: 9, letterSpacing: '0.12em', color: L_T.muted }}>PAYOFF ORDER</small>
           <b style={{ fontSize: 11, letterSpacing: '0.08em' }}>{p.name.toUpperCase()}</b>
+          <small style={{ fontSize: 9, letterSpacing: '0.1em', color: L_T.muted }}>{p.tag}</small>
         </span>
       </button>
       <span
@@ -220,7 +221,7 @@ export function StrategyMedallion({
                 <PersonaMedallion strategy={s} size={32} />
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <b style={{ display: 'block', fontSize: 12, letterSpacing: '0.06em' }}>
-                    {PERSONA[s].name.toUpperCase()}
+                    {PERSONA[s].name.toUpperCase()} · {PERSONA[s].tag}
                     {on && <span style={{ color: L_T.accent }}> · IN USE</span>}
                   </b>
                   <span style={{ display: 'block', fontSize: 11, lineHeight: 1.45, color: L_T.muted }}>{PERSONA[s].rule}</span>

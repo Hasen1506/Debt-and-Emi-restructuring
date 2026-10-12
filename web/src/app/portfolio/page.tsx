@@ -3,30 +3,31 @@ import { summarisePortfolio } from '@/components/portfolio/portfolioSummary';
 import { LedgerPortfolio } from '@/components/portfolio/LedgerPortfolio';
 import { CashManagementSection } from '@/components/debts/CashManagementSection';
 import { LBracket, L_T } from '@/components/ledger/primitives';
+import { PORTFOLIO_INTRO } from '@/lib/portfolio-tab';
 
 /**
- * /portfolio: Profile's "What you own" (REDESIGN V5). Reached from the
- * Profile summary; the masthead keeps PROFILE lit and the header says so.
+ * /portfolio: its own tab since sprint G10 (founder's cut-list decision 2:
+ * "keep, as a new tab"). It used to be Profile's "What you own" page.
  *
- * Summary of the user's assets (FDs, MFs, gold, real estate, retirement)
- * with a list ranked by current value and CTAs into the asset mini-wizard
- * (/profile/assets) and the liquidation advisor (/tools/liquidate).
+ * What the user holds and what it's worth (FDs, funds, gold, property,
+ * retirement, crypto), shares and funds tracked by ticker, the cash they
+ * keep, and a link to the Sell to repay calculator. Nothing here ranks
+ * holdings or says what to sell (grill #50).
  *
- * Empty state when no assets are on file — pushes the user into the
- * mini-wizard rather than showing a wall of zeroes.
+ * Empty state when no assets are on file: it points to the add form
+ * (/profile/assets) rather than showing a wall of zeroes.
  */
 export default async function PortfolioPage() {
   const profile = await loadCurrentProfileServer();
   const summary = summarisePortfolio(profile.user.assets, profile.user.country);
   return (
     <>
-      {/* Headed like the rest of Profile, with the way back to it. */}
       <header style={{ marginBottom: 22, maxWidth: 820 }}>
-        <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>PROFILE · WHAT YOU OWN</div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>What you own</h1>
+        <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>PORTFOLIO · WHAT YOU OWN</div>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>Portfolio</h1>
         <p style={{ color: L_T.inkSoft, fontSize: 13, margin: '8px 0 0', lineHeight: 1.6 }}>
-          What you hold and what it&apos;s worth, the cash you keep, and whether selling something beats keeping a loan.{' '}
-          <LBracket href="/profile">← WHOLE PROFILE</LBracket>
+          {PORTFOLIO_INTRO}{' '}
+          <LBracket href="/profile/assets">+ ADD OR EDIT</LBracket>
         </p>
       </header>
       <LedgerPortfolio

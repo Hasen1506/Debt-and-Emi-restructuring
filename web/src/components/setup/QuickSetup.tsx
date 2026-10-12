@@ -43,9 +43,12 @@ import { loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
 import { newLoanId } from '@/lib/loan-ids';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { feeShown } from '@/lib/prepayment-fee';
-import { readEfSplitClient } from '@/lib/ef-split';
+import { readEfSplitClient, writeEfSplitClient } from '@/lib/ef-split';
+import { SetupChoices } from '@/components/setup/SetupChoices';
+import { applyChoices, choicesFrom, missingChoices, type SetupChoices as Choices } from '@/lib/setup-choices';
 import { emiFromMonths, firstExtraPayment, marginalRateFromTakeHome } from '@/lib/quick-setup';
-import { readStrategyClient, STRATEGY_LABEL, STRATEGY_SHORT } from '@/lib/strategy';
+import { estimateBalance, monthsSince, typicalRate, TYPICAL_RATE_AS_OF, withEstimate } from '@/lib/setup-estimates';
+import { readStrategyClient, strategyName, STRATEGY_SHORT, writeStrategyClient, type StrategyName } from '@/lib/strategy';
 import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { loadProfileClient, type StoredProfile } from '@/lib/user-store';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward, stampBalanceDates, prepareLoanPaymentTiming } from '@/lib/roll-forward';
@@ -84,6 +87,12 @@ interface LoanUi {
   byMonths: boolean;
   months: string;
   more: boolean;
+  /** "I don't know the balance": work it out from what was borrowed. */
+  estOpen?: boolean;
+  estAmount?: string;
+  estStart?: string;
+  estTerm?: string;
+  estError?: string | null;
 }
 
 type FxQuote = FxRateResponse | 'loading' | 'failed';
@@ -135,6 +144,9 @@ export function QuickSetup() {
   const [fxQuotes, setFxQuotes] = useState<Record<string, FxQuote>>({});
 
   const [preview, setPreview] = useState<Preview | null>(null);
+  // Choices only the person can make (lib/setup-choices, grill #22).
+  const [choices, setChoices] = useState<Choices>({ efMonths: null, efSplit: null, strategy: null });
+  const [choiceErrors, setChoiceErrors] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const stepRef = useRef<HTMLElement>(null);
   const firstRender = useRef(true);
@@ -157,8 +169,13 @@ export function QuickSetup() {
         const s = new Decimal(num(u.fixed_expenses)).add(num(u.variable_expenses)).toString();
         setSpend(s);
         setSpendAtStart(s);
-        setLoans(loansWithIds.length > 0 ? loansWithIds : [blankLoan()]);
+        // From Plan's "+ LOAN" (?step=loans): straight to the loans, with a
+        // blank one to fill in.
+        const addOne = new URLSearchParams(window.location.search).get('step') === 'loans';
+        setLoans(addOne ? [...loansWithIds, blankLoan()] : loansWithIds.length > 0 ? loansWithIds : [blankLoan()]);
+        if (addOne) setStep(1);
         setFxRates(u.fx_to_user_currency ?? {});
+        setChoices(choicesFrom(u, readEfSplitClient(), readStrategyClient()));
       }
       setReady(true);
     }
@@ -340,7 +357,8 @@ export function QuickSetup() {
       ],
     };
     const base = prev ?? ({} as Partial<UserPayload>);
-    return {
+    const monthlySpend = Number(num(spend));
+    return applyChoices({
       ...defaults,
       ...base,
       ...(sameCountry
@@ -364,7 +382,7 @@ export function QuickSetup() {
       fx_to_user_currency: Object.fromEntries(
         foreignCcys.filter((c) => Number(fxRates[c]) > 0).map((c) => [c, String(fxRates[c]).trim()]),
       ),
-    } as UserPayload;
+    } as UserPayload, choices, monthlySpend, localIsoDate(getCountryToday(country)));
   }
 
   /** The saved rate when gross pay (or the same take-home) backs it; else an estimate. */
@@ -387,10 +405,10 @@ export function QuickSetup() {
   }
 
   // ── Step 3: run the plan and the minimums-only plan ──
-  const runKey = step === 2 ? JSON.stringify([buildUser(), marginal().rate]) : '';
+  const runKey = step === 2 ? JSON.stringify([buildUser(), marginal().rate, choices.strategy, choices.efSplit]) : '';
   useEffect(() => {
     if (!runKey) return;
-    const [built, marginalRate] = JSON.parse(runKey) as [UserPayload, string];
+    const [built, marginalRate, pickedStrategy, pickedSplit] = JSON.parse(runKey) as [UserPayload, string, Choices['strategy'], string | null];
     // As Plan will see them: dated today, with this month's EMI added back
     // where it has already gone out (lib/roll-forward).
     const asOf = localIsoDate(getCountryToday(built.country));
@@ -403,14 +421,14 @@ export function QuickSetup() {
     Promise.all([
       api.simulate({
         user,
-        strategy: readStrategyClient(),
+        strategy: pickedStrategy ?? readStrategyClient(),
         horizon_months: HORIZON_MONTHS,
         marginal_rate: marginalRate,
         simulation_start_month: getCountryMonth(user.country),
         // Plan's emergency-fund split, so the two show the same numbers.
         ef_top_up_rate:
           Number(user.efund_target ?? 0) > 0 && Number(user.efund_balance ?? 0) < Number(user.efund_target)
-            ? readEfSplitClient()
+            ? (pickedSplit ?? readEfSplitClient())
             : undefined,
       }),
       api.baseline({ user, horizon_months: HORIZON_MONTHS }),
@@ -476,6 +494,14 @@ export function QuickSetup() {
 
   async function save() {
     if (saving) return;
+    if (missingChoices(choices, activeLoans.length > 0).length > 0) {
+      setChoiceErrors(true);
+      return;
+    }
+    // The order and the split live beside the profile (their own cookies
+    // and synced slices); write the person's picks there too.
+    if (choices.strategy) writeStrategyClient(choices.strategy);
+    if (choices.efSplit) writeEfSplitClient(choices.efSplit);
     setSaving(true);
     setSaveFailed(false);
     const current = loadProfileClient();
@@ -615,8 +641,14 @@ export function QuickSetup() {
               <p style={{ color: L_T.muted, margin: '4px 0 6px', fontSize: 12 }}>
                 {country === 'US'
                   ? 'Keep your latest statements handy: each number below says where it is printed.'
-                  : 'Keep your Key Facts Statement (KFS) or latest loan statement handy: each number below says where it is printed.'}
+                  : 'Keep your Key Facts Statement (KFS) or latest loan statement handy: each number below says where it is printed.'}{' '}
+                Not sure of a number? Tap I DON&apos;T KNOW beside it for a marked estimate.
               </p>
+              {!prev && (
+                <p style={{ color: L_T.inkSoft, margin: '0 0 6px', fontSize: 12 }}>
+                  One loan is enough to start: you&apos;ll see your plan next, and can add the rest from Plan with + LOAN.
+                </p>
+              )}
               {loans.length === 0 && (
                 <p style={{ color: L_T.muted, margin: '4px 0 14px' }}>No loans entered.</p>
               )}
@@ -700,11 +732,23 @@ export function QuickSetup() {
                 country={country}
                 money={money}
               />
+              <SetupChoices
+                value={choices}
+                onChange={(c) => {
+                  setChoices(c);
+                  setChoiceErrors(false);
+                }}
+                showErrors={choiceErrors}
+                hasLoans={activeLoans.length > 0}
+                monthlySpend={Number(num(spend))}
+                money={(v) => money(v)}
+              />
               <PlanFootnotes
                 country={country}
                 estimated={marginal().estimated}
                 rate={marginal().rate}
                 noLoans={activeLoans.length === 0}
+                picked={choices.strategy}
               />
               {saveFailed && (
                 <p role="alert" style={{ color: L_T.negative, margin: 0 }}>
@@ -872,6 +916,9 @@ function LoanBlock({
   const name = loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : `Loan ${index + 1}`;
   const setCurrency = (c: CurrencyCode) => onPatch({ currency: c });
   const find = (key: FindKey) => whereToFind(key, { country: ccy === 'INR' ? 'IN' : 'US', loanType: loan.loan_type });
+  const estimated = new Set(loan.estimated_fields ?? []);
+  // A typical rate in the loan's own currency's market (rupee loans: India's banks).
+  const typical = typicalRate(ccy === 'INR' ? 'IN' : 'US', loan.loan_type);
   return (
     <div
       role="group"
@@ -908,7 +955,8 @@ function LoanBlock({
           kind="money"
           currency={ccy}
           value={loan.outstanding}
-          onChange={(v) => onPatch({ outstanding: v })}
+          onChange={(v) => onPatch({ outstanding: v, estimated_fields: withEstimate(loan, 'balance', false).estimated_fields })}
+          hint={estimated.has('balance') ? 'An estimate from what you borrowed. Replace it with your statement’s figure when you can.' : undefined}
           error={issues.balance}
         />
         <Field
@@ -916,8 +964,14 @@ function LoanBlock({
           findIt={find('rate')}
           kind="percent"
           value={loan.nominal_rate}
-          onChange={(v) => onPatch({ nominal_rate: v })}
-          hint={card ? 'A 3.5% monthly rate is 42% a year' : undefined}
+          onChange={(v) => onPatch({ nominal_rate: v, estimated_fields: withEstimate(loan, 'rate', false).estimated_fields })}
+          hint={
+            estimated.has('rate')
+              ? `Typical for this kind of loan: the middle of the published rates of the banks RightDue tracks, as of ${TYPICAL_RATE_AS_OF}. Yours may differ; your statement or loan app shows it.`
+              : card
+                ? 'A 3.5% monthly rate is 42% a year'
+                : undefined
+          }
           error={issues.rate}
         />
         {!card && !ui.byMonths && (
@@ -960,6 +1014,20 @@ function LoanBlock({
         />
       )}
       <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+        {typical != null && (loan.nominal_rate.trim() === '' || estimated.has('rate')) && (
+          <LBracket
+            onClick={() =>
+              onPatch({ nominal_rate: String(typical), estimated_fields: withEstimate(loan, 'rate', true).estimated_fields })
+            }
+          >
+            I DON&apos;T KNOW THE RATE
+          </LBracket>
+        )}
+        {!card && (
+          <LBracket aria-expanded={!!ui.estOpen} onClick={() => onUi({ estOpen: !ui.estOpen, estError: null })}>
+            {ui.estOpen ? '− I KNOW THE BALANCE' : 'I DON’T KNOW THE BALANCE'}
+          </LBracket>
+        )}
         {!card && (
           <LBracket
             onClick={() => {
@@ -980,6 +1048,39 @@ function LoanBlock({
           [{ui.more ? '−' : '+'} MORE TERMS · OPTIONAL]
         </button>
       </div>
+      {!card && ui.estOpen && (
+        <div role="group" aria-label="Work out the balance" style={{ ...grid2, padding: '10px 12px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}` }}>
+          <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12, color: L_T.inkSoft }}>
+            From what you borrowed, when it started and its term, at the rate above. It assumes every EMI was paid on time
+            and nothing extra: an estimate, marked as one, until you enter the real balance.
+          </p>
+          <Field label="Amount borrowed" kind="money" currency={ccy} value={ui.estAmount ?? ''} onChange={(v) => onUi({ estAmount: v })} />
+          <Field label="First EMI (year-month)" kind="text" placeholder="2022-04" value={ui.estStart ?? ''} onChange={(v) => onUi({ estStart: v })} />
+          <Field label="Term when you took it, months" kind="integer" value={ui.estTerm ?? ''} onChange={(v) => onUi({ estTerm: v })} />
+          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <LBracket
+              accent
+              onClick={() => {
+                const rate = loan.nominal_rate.trim() || (typical != null ? String(typical) : '');
+                const paid = monthsSince((ui.estStart ?? '').trim(), thisMonth);
+                const term = Number(ui.estTerm);
+                const bal = rate && paid != null && term > 0 ? estimateBalance(ui.estAmount ?? '', rate, term, paid) : null;
+                if (!bal || !(Number(rate) > 0)) {
+                  onUi({ estError: 'Enter the amount, the month of the first EMI (like 2022-04), the term in months, and the rate above (or tap I DON’T KNOW THE RATE).' });
+                  return;
+                }
+                let next = withEstimate(loan, 'balance', true);
+                if (!loan.nominal_rate.trim()) next = withEstimate(next, 'rate', true);
+                onPatch({ outstanding: bal, nominal_rate: rate, estimated_fields: next.estimated_fields });
+                onUi({ estOpen: false, estError: null, byMonths: true, months: String(Math.max(1, term - (paid ?? 0))) });
+              }}
+            >
+              USE THIS ESTIMATE
+            </LBracket>
+            {ui.estError && <span role="alert" style={{ fontSize: 12, color: L_T.negative }}>{ui.estError}</span>}
+          </div>
+        </div>
+      )}
       {ui.more && (
         <div style={{ ...grid2, padding: '10px 12px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}` }}>
           {!showCurrency && (
@@ -1159,18 +1260,21 @@ function PlanFootnotes({
   estimated,
   rate,
   noLoans,
+  picked,
 }: {
   country: Country;
   estimated: boolean;
   rate: string;
   noLoans: boolean;
+  /** The order the person picked above; the saved one until they do. */
+  picked: StrategyName | null;
 }) {
-  const strategy = readStrategyClient();
+  const strategy = picked ?? readStrategyClient();
   return (
     <ul style={{ margin: 0, paddingLeft: 18, color: L_T.muted, fontSize: 11, lineHeight: 1.7 }}>
       {!noLoans && (
         <li>
-          Order: <strong style={{ color: L_T.ink }}>{STRATEGY_LABEL[strategy]}</strong>. {STRATEGY_SHORT[strategy]} Switch
+          Order: <strong style={{ color: L_T.ink }}>{strategyName(strategy)}</strong>. {STRATEGY_SHORT[strategy]} Switch
           it at the top of any page.
         </li>
       )}

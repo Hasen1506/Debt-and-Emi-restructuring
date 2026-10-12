@@ -51,11 +51,13 @@ class AssetType(str, Enum):
     EQUITY_MF = "equity_mf"
     DEBT_MF = "debt_mf"
     GOLD_PHYSICAL = "gold_physical"
+    GOLD_ETF = "gold_etf"           # listed units: long-term after 12 months (sprint G10)
     SGB = "sgb"
     REAL_ESTATE = "real_estate"
     PPF = "ppf"
     EPF = "epf"
     NPS = "nps"
+    CRYPTO = "crypto"               # virtual digital asset: 30% in India (sprint G10)
     OTHER = "other"
 
 

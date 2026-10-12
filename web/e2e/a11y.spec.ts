@@ -6,7 +6,7 @@
  * is how the Windfall hydration bug went unnoticed.
  */
 import type { Page } from '@playwright/test';
-import { expect, fillLoan, signIn, test } from './fixtures';
+import { expect, fillLoan, signIn, test, makeSetupChoices } from './fixtures';
 
 const AXE = require.resolve('axe-core/axe.min.js');
 
@@ -69,6 +69,7 @@ test('signed in: every tab and tool passes axe with no hydration errors', async 
   await fillLoan(page, 0, { kind: /^home$/i, balance: '3500000', rate: '8.5', emi: '35000' });
   await fillLoan(page, 1, { kind: /^card$/i, balance: '85000', rate: '42' });
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
+  await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
   await page.waitForURL('**/plan');
   for (const path of [

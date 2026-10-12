@@ -4,6 +4,14 @@
  *
  * Body components live alongside each route under app/tools/<slug>/tool.tsx
  * so this stays a flat metadata list. The order is the order users see.
+ *
+ * Six tools (verified for sprint G10 against this list and app/tools/*):
+ * Spare cash, New debt check, Sell to repay, Invest or prepay, Loan check,
+ * NRI prepay. The other folders under app/tools are old addresses that
+ * redirect: cash-yield → windfall, recompute → /plan#what-if, purchase →
+ * new-debt?mode=purchase (next.config.mjs). Loan check shows for India
+ * only, NRI prepay for someone in the US with loans in India, so most
+ * people see five.
  */
 import type { Country } from './api';
 
@@ -49,8 +57,10 @@ export const TOOLS: ToolMeta[] = [
     id: 'liquidate',
     tag: '8c',
     name: 'Sell to repay',
-    question: 'Should I sell something to clear a loan?',
-    sub: 'What it earns after tax against what the loan costs.',
+    // A calculator on an asset the person picks, never a ranking of what
+    // to sell (sprint G10; grill #50, founder's cut-list decision 1).
+    question: 'What would selling something do to a loan?',
+    sub: 'A calculator: the tax and costs on a sale you choose, and what it leaves after the loan. It doesn’t pick what to sell.',
     href: '/tools/liquidate',
   },
   {
@@ -58,7 +68,7 @@ export const TOOLS: ToolMeta[] = [
     tag: '8h',
     name: 'Invest or prepay',
     question: 'Invest the money, or prepay a loan?',
-    sub: 'Shares or funds in a normal and a bad year, against the loan’s rate.',
+    sub: 'A calculator: shares or funds in a normal and a bad year, against the loan’s rate. Not investment advice.',
     href: '/tools/invest-vs-prepay',
   },
   {

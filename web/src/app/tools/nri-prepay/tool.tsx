@@ -14,6 +14,7 @@ import {
 } from '@/components/ToolPrimitives';
 import { LBracket, LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
 import { LFieldGrid, LNote, LStep, LSteps, LVerdict } from '@/components/ledger/LToolSteps';
+import { Term } from '@/components/Term';
 import { loanLabel } from '@/lib/loan-types';
 import {
   api,
@@ -115,6 +116,11 @@ export function NriPrepayTool() {
   // Where the rate in the field came from, for THE MATH.
   const [fxFrom, setFxFrom] = useState('');
   const [manualDrift, setManualDrift] = useState('');
+  // What sending the money costs, all in (fee + the exchange-rate margin),
+  // as a % of the amount. Typed by the person: it differs by bank and app
+  // (sprint G10, NRI accuracy; grill #35). Blank = not counted, and the
+  // answer says so.
+  const [remitPct, setRemitPct] = useState('');
   // A saved loan shows as one line; EDIT opens its fields.
   const [editLoan, setEditLoan] = useState(false);
   const [more, setMore] = useState(false);
@@ -391,13 +397,20 @@ export function NriPrepayTool() {
                 </span>
               )}
               {more && (
-                <div style={{ marginTop: 10, maxWidth: 360 }}>
+                <div style={{ marginTop: 10, maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <Field
+                    label="Sending the money costs (%)"
+                    kind="percent"
+                    value={remitPct}
+                    onChange={setRemitPct}
+                    hint="Your bank's or app's fee plus the gap between its rate and the market rate. Ask it for the all-in cost of sending this amount."
+                  />
                   <Field
                     label={`${loanCurrency} against ${userCurrency}, % a year`}
                     value={manualDrift}
                     error={at('manualDrift')}
                     onChange={setManualDrift}
-                    hint={`Above 0: ${loanCurrency} gets stronger. Blank: the last 20 years' trend (the rupee has lost 2% to 4.5% a year, depending on the currency).`}
+                    hint={`Above 0: ${loanCurrency} gets stronger. Blank: the last 20 years' trend (the rupee has lost 2% to 5% a year, depending on the currency; 3.5% against the dollar).`}
                   />
                 </div>
               )}
@@ -421,6 +434,12 @@ export function NriPrepayTool() {
                 s: 'a year',
               },
             ]}
+          />
+          <NriNotes
+            spread={Number(v.spread)}
+            remitPct={twoCurrencies ? remitPct : ''}
+            loanCurrency={loanCurrency}
+            userCurrency={userCurrency}
           />
           <div style={{ marginTop: 12 }}>
             <LKpi
@@ -517,5 +536,38 @@ export function NriPrepayTool() {
         />
       )}
     </LSteps>
+  );
+}
+
+
+/** What the NRI answer leaves out, and the one-time cost of sending the
+ *  money (sprint G10: NRI made accurate). Rules: a US tax resident is taxed
+ *  on worldwide income, so interest an NRE account earns, tax-free in
+ *  India, is still US income (https://www.irs.gov/individuals/international-taxpayers/us-citizens-and-resident-aliens-abroad);
+ *  an Indian home loan's interest deduction is the old regime's for a
+ *  self-occupied home (Income-tax Act 2025 s.22; 1961 Act s.24(b)). */
+function NriNotes({ spread, remitPct, loanCurrency, userCurrency }: { spread: number; remitPct: string; loanCurrency: string; userCurrency: string }) {
+  const cost = Number(remitPct) / 100;
+  const payback = cost > 0 && spread > 0 ? Math.ceil((cost / spread) * 12) : null;
+  return (
+    <div style={{ marginTop: 12 }}>
+      {loanCurrency !== userCurrency && (
+        <LNote style={{ color: L_T.ink }}>
+          {!(cost > 0)
+            ? 'Sending the money isn’t counted: add what it costs under + MORE.'
+            : payback != null
+              ? `Sending it costs ${(cost * 100).toFixed(2)}% once; the gap above earns that back in about ${payback} month${payback === 1 ? '' : 's'}.`
+              : `Sending it costs ${(cost * 100).toFixed(2)}% once, on top of the gap above.`}
+        </LNote>
+      )}
+      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.7, color: L_T.muted }}>
+        <li>The loan&apos;s rate is before any tax break. If you deduct its interest (in India, the old regime&apos;s home-loan deduction, or against rent from a let-out home), it costs you less, and prepaying saves less.</li>
+        <li>If you are taxed in the US, interest your savings earn anywhere is US income, including an NRE account in India that is tax-free there. Use your US rate above.</li>
+        <li>The exchange-rate trend is the last 20 years&apos;, not a forecast.</li>
+      </ul>
+      <p style={{ margin: '8px 0 0', fontSize: 12, color: L_T.muted }}>
+        Terms: <Term id="remittance_cost" /> · <Term id="fx_drift" /> · <Term id="nre_nro" /> · <Term id="tax_shield" />
+      </p>
+    </div>
   );
 }

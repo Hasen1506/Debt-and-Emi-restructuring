@@ -23,7 +23,8 @@ export function ToolsList({ user }: { user: ToolUser }) {
         <span id="tools-h">Tools · {tools.length}</span>
       </LSectionHeader>
       <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
-        Each answers one question against your own plan. Nothing changes until you choose to add it.
+        Each answers one question against your own plan. Nothing changes until you choose to add it.{' '}
+        <a href="/glossary" style={{ color: L_T.accent }}>What the terms mean</a>
       </p>
       <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 8 }}>
         {tools.map((t) => (

@@ -90,7 +90,7 @@ test('rules editor shows under the switcher with the cost against Avalanche', ()
   const user = { country: 'IN', loans: [{ loan_type: 'home_loan', bank: 'HDFC Bank', outstanding: '4000000' }, { loan_type: 'credit_card', bank: 'ICICI Bank', outstanding: '80000' }] };
   const compare = { avalanche: { debtFreeMonth: 37, totalInterest: '500000' }, rules: { debtFreeMonth: 40, totalInterest: '512000' }, snowball: { debtFreeMonth: 41, totalInterest: '520000' } };
   const html = renderToStaticMarkup(React.createElement(StrategySwitcher, { active: 'rules', variant: 'ledger', compare, country: 'IN', user, money }));
-  assert.match(html, /\[YOUR RULES\]/);
+  assert.match(html, /\[YOUR RULES · YOUR OWN ORDER\]/);
   assert.match(html, /Your payoff rules/);
   assert.match(html, /Clear any loan under/);
   assert.match(html, /PIN FIRST/);
