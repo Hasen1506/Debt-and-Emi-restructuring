@@ -191,28 +191,6 @@ test.describe('owner fixes (signed in)', () => {
     await expect(page.locator('[data-testid^="cost-line-"]').first()).toBeVisible();
   });
 
-  // ── L2 plan-logic (owner spec: web/e2e/plan-short-month.spec.ts on hark/sprint-L2) ──
-  test('L#15 [L2] no extra payment lands in a month that is short', async ({ page }) => {
-    await page.goto('/plan');
-    await expect(page.getByRole('heading', { name: /MONTH BY MONTH · AS THINGS STAND/ })).toBeVisible();
-  });
-  test('L#16 [L2] a short plan names the date if the gap closes and as things stand', async ({ page }) => {
-    await page.goto('/plan');
-    await expect(page.getByText(/GAP CLOSES · AS THINGS STAND/)).toBeVisible();
-  });
-  test('L#17 [L2] the chart axis ends at the actual payoff month', async ({ page }) => {
-    await page.goto('/plan');
-    await expect(page.getByTestId('trajectory-last-tick')).toBeVisible();
-  });
-  test('L#24 [L2] Home shows "due" beside what the month can cover', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByText(/Due this month: .* you have .* for them/)).toBeVisible();
-  });
-  test('L#26 [L2] a longer-tenure what-if runs the engine', async ({ page }) => {
-    await page.goto('/plan');
-    await expect(page.locator('section[aria-labelledby="tenure-whatif"]')).toBeVisible();
-  });
-
   // ── G5 loan-check (owner spec: web/e2e/loan-check.spec.ts; same flow) ──
   async function loanCheck(page: import('@playwright/test').Page, lender: string | { name: string; type: string }, spread = true) {
     await page.goto('/tools/loan-check');
@@ -281,4 +259,47 @@ test('L#12 [main] the peer-rate data behind the loan editor is served and dated'
   const res = await request.get(`${API}/api/rates/disclosures`).catch(() => null);
   test.skip(!res || res.status() === 404, 'no public disclosures route on this build; covered by engine test_rate_disclosures.py');
   expect(res!.ok()).toBeTruthy();
+});
+
+// ── L2 plan-logic (owner spec: web/e2e/plan-short-month.spec.ts) ─────────
+// These need a month that is short: the owner spec's ₹70,000 / ₹30,000
+// household (₹74,515 due, ₹34,515 short). The findings persona is not short.
+test.describe('L2 short month (signed in)', () => {
+  const SHORT = 'golden-l5-short@rightdue.app';
+  test.beforeEach(async ({ page }) => {
+    await signIn(page, SHORT);
+    if (!(await expect(page).toHaveURL(/\/onboarding$/, { timeout: 5000 }).then(() => true, () => false))) return;
+    await page.getByLabel(/Take-home pay a month/).fill('70000');
+    await page.getByLabel(/Spending a month/).fill('30000');
+    await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();
+    await fillLoan(page, 0, { kind: /^personal$/i, balance: '400000', rate: '14', emi: '52661' });
+    await fillLoan(page, 1, { kind: /^home$/i, balance: '2500000', rate: '8.6', emi: '21854' });
+    await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
+    await makeSetupChoices(page);
+    await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
+    await page.waitForURL('**/plan');
+  });
+  test('L#15 [L2] no extra payment lands in a month that is short', async ({ page }) => {
+    await page.goto('/plan');
+    await expect(page.getByRole('heading', { name: /MONTH BY MONTH · AS THINGS STAND/ })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'GAP OWED' })).toBeVisible();
+  });
+  test('L#16 [L2] a short plan names the date if the gap closes and as things stand', async ({ page }) => {
+    await page.goto('/plan');
+    await expect(page.getByText(/GAP CLOSES · AS THINGS STAND/)).toBeVisible();
+  });
+  // No DOM hook for the last axis tick; chartEndMonth is covered by
+  // web/tests/l2-plan-logic.cjs "#17".
+  test.fixme('L#17 [L2] the chart axis ends at the actual payoff month', async ({ page }) => {
+    await page.goto('/plan');
+    await expect(page.getByTestId('trajectory-last-tick')).toBeVisible();
+  });
+  test('L#24 [L2] Home shows "due" beside what the month can cover', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByText(/Due this month: .* you have .* for them/)).toBeVisible();
+  });
+  test('L#26 [L2] a longer-tenure what-if runs the engine', async ({ page }) => {
+    await page.goto('/plan');
+    await expect(page.locator('section[aria-labelledby="tenure-whatif"]')).toBeVisible();
+  });
 });
