@@ -76,7 +76,7 @@ def sign_in(client, codes, email=EMAIL):
     assert client.post("/api/auth/request-otp", json={"email": email}).status_code == 204
     r = client.post("/api/auth/verify-otp", json={"email": email, "code": codes[-1]})
     assert r.status_code == 200, r.text
-    return r.cookies["finoptima_session"]
+    return r.cookies["rightdue_session"]
 
 
 # ── #59: an account exists only after the email is proven ─────────────────
@@ -164,7 +164,7 @@ def test_turnstile_verify_fails_closed(monkeypatch):
 def test_export_has_the_saved_plan_and_no_secrets(harness):
     client, codes = harness
     token = sign_in(client, codes)
-    cookie = {"Cookie": f"finoptima_session={token}"}
+    cookie = {"Cookie": f"rightdue_session={token}"}
     plan = {"profile": {"loans": [{"bank": "SBI", "outstanding": "3000000"}]}}
     assert client.put("/api/user/state", json={"data": plan}, headers=cookie).status_code == 200
     r = client.get("/api/auth/account/export", headers=cookie)
@@ -187,7 +187,7 @@ def test_delete_needs_the_accounts_own_email(harness):
     client, codes = harness
     token = sign_in(client, codes)
     r = client.post("/api/auth/account/delete", json={"confirm_email": "other@example.com"},
-                    headers={"Cookie": f"finoptima_session={token}"})
+                    headers={"Cookie": f"rightdue_session={token}"})
     assert r.status_code == 400 and r.json()["detail"]["field"] == "confirm_email"
     assert len(client.query(select(User))) == 1
     client.cookies.clear()
@@ -199,21 +199,21 @@ def test_delete_erases_every_linked_record_and_signs_out_everywhere(harness):
     first = sign_in(client, codes)
     second = sign_in(client, codes)  # another device
     sign_in(client, codes, "someone-else@example.com")
-    cookie = {"Cookie": f"finoptima_session={first}"}
+    cookie = {"Cookie": f"rightdue_session={first}"}
     client.put("/api/user/state", json={"data": {"profile": {"x": 1}}}, headers=cookie)
     r = client.post("/api/auth/account/delete", json={"confirm_email": EMAIL.upper()}, headers=cookie)
     assert r.status_code == 200, r.text
     assert r.json()["removed"] == {"saved_plan": 1, "sessions": 2, "sign_in_codes": 2}
     assert "Max-Age=0" in r.headers["set-cookie"]
     for t in (first, second):
-        assert client.get("/api/auth/me", headers={"Cookie": f"finoptima_session={t}"}).status_code == 401
+        assert client.get("/api/auth/me", headers={"Cookie": f"rightdue_session={t}"}).status_code == 401
     assert [u.email for u in client.query(select(User))] == ["someone-else@example.com"]
     assert client.query(select(UserState)) == []
     assert [c.email for c in client.query(select(OtpChallenge))] == ["someone-else@example.com"]
     assert len(client.query(select(Session))) == 1
     # The address can sign up again later, as a new empty account.
     again = sign_in(client, codes)
-    assert client.get("/api/user/state", headers={"Cookie": f"finoptima_session={again}"}).json()["data"] is None
+    assert client.get("/api/user/state", headers={"Cookie": f"rightdue_session={again}"}).json()["data"] is None
 
 
 # ── #51: retention ────────────────────────────────────────────────────────
@@ -279,6 +279,7 @@ def test_db_rate_counter_allows_when_the_database_is_down():
 
     counter = rate_buckets.DbRateCounter(broken, key=b"k")
     import asyncio
+    from datetime import date
     assert asyncio.run(counter.hit("1.2.3.4", "/api/auth/request-otp")) is None
 
 
@@ -369,3 +370,24 @@ def test_unhandled_error_answers_500_and_is_reported(monkeypatch):
         assert calls == [("RuntimeError", "GET", "/api/__g8_boom/{loan_id}")]
     finally:
         app.router.routes[:] = [rt for rt in app.router.routes if getattr(rt, "path", "") != "/api/__g8_boom/{loan_id}"]
+
+
+def test_delete_also_forgets_payday_email_settings(harness, tmp_path):
+    """Integration (G8 x G7): deleting the account wipes the notify tables."""
+    import asyncio
+    from datetime import date
+    from api.notify import store as nstore
+    s = nstore.NotifyStore(nstore.sqlite_engine(tmp_path / "notify.sqlite3"))
+    nstore.set_store(s)
+    try:
+        client, codes = harness
+        token = sign_in(client, codes)
+        cookie = {"Cookie": f"rightdue_session={token}"}
+        uid = client.get("/api/auth/me", headers=cookie).json()["id"]
+        asyncio.run(s.set_payday(uid, EMAIL, on=True, day=1, snapshot=None, today=date(2026, 10, 7)))
+        assert asyncio.run(s.get(uid)) is not None
+        r = client.post("/api/auth/account/delete", json={"confirm_email": EMAIL}, headers=cookie)
+        assert r.status_code == 200, r.text
+        assert asyncio.run(s.get(uid)) is None
+    finally:
+        nstore.set_store(None)
