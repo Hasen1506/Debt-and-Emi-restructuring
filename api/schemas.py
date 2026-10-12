@@ -1394,3 +1394,24 @@ class LiquidationRankingsRequest(_In):
 class LiquidationRankingsResponse(_Base):
     recommendations: list[LiquidationRecommendationOut]
     considered_but_skipped: list[LiquidationRecommendationOut]
+
+
+class RangeScenarioOut(_Base):
+    id: str
+    label: str
+    why: str
+    debt_free_month: Optional[int] = None
+    shift_months: Optional[int] = None
+
+
+class RangeResponse(_Base):
+    """Grill #24 (sprint G4): exact debt-free month plus earliest/latest.
+    `None` months = not paid off inside the horizon (open_ended)."""
+    exact: Optional[int] = None
+    earliest: Optional[int] = None
+    latest: Optional[int] = None
+    scenarios: list[RangeScenarioOut]
+    has_floating: bool
+    open_ended: bool
+    rate_band: Decimal
+    income_months: int

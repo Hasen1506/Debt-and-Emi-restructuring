@@ -11,23 +11,36 @@
  * Pure normal-on-returns gives unrealistically symmetric tails.
  *
  * No dependency on a third-party RNG — uses a Box-Muller transform on
- * Math.random(). Deterministic seed support is intentionally omitted;
- * the tool reruns per parameter change which gives the user a feel for
- * sampling variance.
+ * Math.random(). An optional `seed` (sprint G4, grill #41) makes a run
+ * reproducible for golden tests; without one the tool reruns per parameter
+ * change, which gives the user a feel for sampling variance.
  */
 import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
 
 const D = dec;
 
+/** A small seeded generator (mulberry32) so a run can be reproduced in a
+ *  golden test (grill #41). Without a seed the tool keeps Math.random. */
+export function seededRandom(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /** One sample from a standard normal distribution (mean 0, std 1). */
-function boxMuller(): number {
-  // Math.random can rarely return exactly 0 which would blow up log;
+function boxMuller(rand: () => number = Math.random): number {
+  // The generator can rarely return exactly 0 which would blow up log;
   // clamp away from 0 (and 1, for symmetry).
   let u = 0;
   let v = 0;
-  while (u === 0) u = Math.random();
-  while (v === 0) v = Math.random();
+  while (u === 0) u = rand();
+  while (v === 0) v = rand();
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
@@ -46,6 +59,9 @@ export interface MonteCarloInput {
   /** Annual inflation rate. When > 0, the helper also returns the
    *  real-terms distribution (CPI-adjusted). */
   inflation?: number;
+  /** Optional seed: the same seed gives the same trials (golden tests).
+   *  Omitted in the tool, which reruns per change on Math.random. */
+  seed?: number;
 }
 
 export interface MonteCarloResult {
@@ -89,6 +105,7 @@ export function simulateMonteCarlo(input: MonteCarloInput): MonteCarloResult {
   const sigma = input.volatility;
   const taxRate = input.taxRate;
   const infl = input.inflation ?? 0;
+  const rand = input.seed === undefined ? Math.random : seededRandom(input.seed);
 
   // Log-normal parameters: if we want E[1+R] = (1+mu) and Var(R) = sigma^2,
   // then the underlying normal has mean lnMean and std lnStd.
@@ -102,7 +119,7 @@ export function simulateMonteCarlo(input: MonteCarloInput): MonteCarloResult {
   for (let t = 0; t < trials; t += 1) {
     // The sum of independent log returns is normal. Scale drift by the
     // exact holding period and uncertainty by sqrt(time), including stub years.
-    const logFactor = lnMean * years + lnStd * Math.sqrt(years) * (sigma === 0 ? 0 : boxMuller());
+    const logFactor = lnMean * years + lnStd * Math.sqrt(years) * (sigma === 0 ? 0 : boxMuller(rand));
     const preTax = Math.exp(logFactor / years) - 1;
     const afterTax = preTax > 0 ? preTax * (1 - taxRate) : preTax;
     trialReturns[t] = afterTax;

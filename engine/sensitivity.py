@@ -195,3 +195,105 @@ def compare(
         "interest_saved": baseline.total_interest_paid - scenario.total_interest_paid,
         "extra_invested": scenario.total_invested - baseline.total_invested,
     }
+
+
+# ─── Payoff-date range (grill #24) ──────────────────────────────────────────
+#
+# The headline debt-free month is one deterministic path: today's rates,
+# today's pay. Home shows that exact month AND a range, with the reason for
+# each edge, built from the few things that most often move a payoff date:
+#   • floating rates 1 point lower / higher from the next month
+#     (floating loans only, applied as a rate reset; see with_rate_shock);
+#   • one month with no take-home pay (a job gap, a medical month);
+#   • one extra month of take-home pay arriving now (a bonus or refund),
+#     paid to the dearest loan as an extra payment.
+# Named scenarios rather than Monte Carlo: loan rates move in steps that
+# central-bank decisions drive, not as random noise, and each scenario is a
+# sentence a person can check. Five simulator runs, not five thousand.
+#
+# Caveat carried into the copy: on a rate rise the engine raises the EMI to
+# keep the end date (_reset_rate, unchanged this sprint). Many Indian lenders
+# extend the tenure instead, which would push the later edge out further.
+
+RANGE_RATE_BAND = D("0.01")      # ±1 percentage point on floating loans
+RANGE_INCOME_MONTHS = 1          # ±1 month of take-home pay
+
+
+def debt_free_range(
+    user: User,
+    strategy: Strategy = Strategy.AVALANCHE,
+    horizon_months: int = 360,
+    marginal_rate: Decimal | None = None,
+    simulation_start_month: int = 1,
+    plan: dict | None = None,
+    rate_band: Decimal = RANGE_RATE_BAND,
+    income_months: int = RANGE_INCOME_MONTHS,
+    baseline: SimulationResult | None = None,
+) -> dict:
+    """The exact debt-free month plus an earliest–latest range.
+
+    Returns {exact, earliest, latest, scenarios: [...], has_floating,
+    open_ended}. Each scenario is {id, label, why, debt_free_month,
+    shift_months} (shift > 0 = later than exact). `None` months mean "not
+    paid off inside the horizon"; `open_ended` is then True and the UI says
+    "after <horizon>" for that edge rather than inventing a date.
+    """
+    base = baseline or _run(user, strategy, horizon_months, marginal_rate,
+                            simulation_start_month, plan)
+    exact = base.debt_free_month
+    has_floating = any(l.rate_type == "floating" and l.outstanding > 0 for l in user.loans)
+    scenarios: list[tuple[str, str, str, SimulationResult]] = []
+
+    if has_floating and rate_band > 0:
+        pts = f"{rate_band * 100:.0f}"
+        scenarios.append((
+            "rate_down", f"Floating rates {pts} point lower",
+            "Your bank's benchmark (repo or SOFR) is cut and the cut is passed on.",
+            with_rate_shock(user, -rate_band, strategy, horizon_months, marginal_rate,
+                            simulation_start_month=simulation_start_month, plan=plan)))
+        scenarios.append((
+            "rate_up", f"Floating rates {pts} point higher",
+            "Your bank's benchmark rises. The plan assumes the EMI goes up to keep "
+            "the end date; if your bank extends the tenure instead, it ends later still.",
+            with_rate_shock(user, rate_band, strategy, horizon_months, marginal_rate,
+                            simulation_start_month=simulation_start_month, plan=plan)))
+
+    if income_months > 0 and user.monthly_income > 0:
+        word = "month" if income_months == 1 else "months"
+        scenarios.append((
+            "income_gap", f"{income_months} {word} with no pay",
+            "A gap between jobs or a month off work. Minimums are still paid, from savings.",
+            with_income_shock(user, income_months, strategy, horizon_months, marginal_rate,
+                              simulation_start_month=simulation_start_month, plan=plan)))
+        kw = dict(plan or {})
+        bonus = [(1, user.monthly_income * D(income_months))]
+        kw["reinvest_events"] = list(kw.get("reinvest_events") or []) + bonus
+        scenarios.append((
+            "income_bonus", f"{income_months} extra {word} of pay",
+            "A bonus, refund or gift, paid now to your dearest loan.",
+            _run(user, strategy, horizon_months, marginal_rate, simulation_start_month, kw)))
+
+    def shift(m: int | None) -> int | None:
+        if exact is None or m is None:
+            return None
+        return m - exact
+
+    rows = [
+        {"id": sid, "label": label, "why": why, "debt_free_month": r.debt_free_month,
+         "shift_months": shift(r.debt_free_month)}
+        for sid, label, why, r in scenarios
+    ]
+    months = [exact] + [r["debt_free_month"] for r in rows]
+    known = [m for m in months if m is not None]
+    open_ended = any(m is None for m in months)
+    return {
+        "exact": exact,
+        "earliest": min(known) if known else None,
+        # An edge that never pays off inside the horizon is open-ended (None).
+        "latest": None if open_ended else (max(known) if known else None),
+        "scenarios": rows,
+        "has_floating": has_floating,
+        "open_ended": open_ended,
+        "rate_band": rate_band,
+        "income_months": income_months,
+    }

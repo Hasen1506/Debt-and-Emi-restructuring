@@ -112,6 +112,8 @@ async def _missing_fx(request: Request, exc: MissingFxRate) -> JSONResponse:
 
 
 app.include_router(simulation.router, prefix="/api")
+from api.routes import payoff_range  # noqa: E402  (sprint G4, grill #24)
+app.include_router(payoff_range.router, prefix="/api")
 app.include_router(decisions.router, prefix="/api")
 app.include_router(layer0.router, prefix="/api")
 app.include_router(institutions.router, prefix="/api")

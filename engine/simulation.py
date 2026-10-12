@@ -149,10 +149,20 @@ def tax_caps_context(loans: list[Loan], user: User) -> dict:
 def _reset_rate(loan: Loan, new_rate: Decimal, months_left: int) -> None:
     """Move a floating loan to `new_rate`.
 
-    A cut keeps the EMI, so the loan finishes sooner. A rise raises the
-    EMI just enough to keep the same end date. RBI's 2023 reset rules
-    forbid negative amortisation, and a fixed EMI under a rising rate
-    grew a ₹30L loan without limit (₹82 crore of interest).
+    A cut keeps the EMI, so the loan finishes sooner. A rise first uses
+    up that head start: the EMI stays while the loan still clears by its
+    contractual end date (`months_left`), and only then rises, just
+    enough to finish on that date. RBI's 2023 reset rules forbid negative
+    amortisation, and a fixed EMI under a rising rate grew a ₹30L loan
+    without limit (₹82 crore of interest).
+
+    Sprint G4 (L5 golden statement, home_floating_sbi_style): after a cut
+    then a rise this used to raise the EMI to keep the NEW, earlier end
+    date, a higher EMI than the bank asks. Bank statements keep the
+    original maturity: the reset re-amortises over the months left to it
+    (RBI DOR.MCS.REC.32/01.01.003/2023-24, 18 Aug 2023: EMI and/or tenor
+    may change, with no negative amortisation). The end date is never
+    pushed past the contract's.
     """
     new_rate = max(D("0"), new_rate)
     old_rate = loan.nominal_rate
@@ -161,9 +171,15 @@ def _reset_rate(loan: Loan, new_rate: Decimal, months_left: int) -> None:
         return
     if loan.scheduled_emi <= 0 or loan.outstanding <= 0:
         return
-    n = _months_to_clear(loan.outstanding, old_rate, loan.scheduled_emi) or (
-        months_left if months_left > 0 else 12
-    )
+    n_now = _months_to_clear(loan.outstanding, old_rate, loan.scheduled_emi)
+    # The contractual end date is the anchor; the plan's own (later) path
+    # wins only if it already ran past it (no forced EMI jump then).
+    # (One month of slack: ceil() on a float path count can read 229 for a
+    # loan with exactly 228 left.)
+    if months_left > 0:
+        n = n_now if n_now is not None and n_now > months_left + 1 else months_left
+    else:
+        n = n_now or 12
     needed = emi(loan.outstanding, new_rate, n)
     if needed > loan.scheduled_emi:
         loan.scheduled_emi = needed

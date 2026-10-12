@@ -152,6 +152,35 @@ export interface GoalLine {
   levers: ShortfallLevers | null;
 }
 
+/**
+ * What a goal's funding rule asks for each month (grill #41: the rules
+ * goal-line didn't know). The TypeScript twin of the run-rate step in
+ * engine/goals.py serial_fill_allocation:
+ *   schedule    — what's left ÷ months left (lands it on its date);
+ *   fixed       — the fixed amount;
+ *   surplus_pct — that share of the month's spare cash;
+ * each capped at what is still needed. `after_debt` waits (startIndex),
+ * then runs on schedule. Golden cases: engine/tests/fixtures/mirror_cases.json.
+ */
+export function ruleRunRate(
+  rule: Goal['fundingRule'],
+  remaining: number,
+  monthsLeft: number,
+  spare: number,
+): number {
+  if (remaining <= 0 || monthsLeft <= 0) return 0;
+  let rate = remaining / monthsLeft;
+  if (rule?.kind === 'fixed' && rule.amount != null && rule.amount !== '') rate = Number(rule.amount);
+  else if (rule?.kind === 'surplus_pct' && rule.pct != null && rule.pct !== '') rate = Math.max(0, spare) * Number(rule.pct);
+  return Math.min(rate, remaining);
+}
+
+/** The first month's contribution for a lone goal: the rule's ask, limited
+ *  by the spare cash there is (engine: min(target, remaining pool)). */
+export function firstMonthContribution(rule: Goal['fundingRule'], remaining: number, monthsLeft: number, spare: number): number {
+  return Math.min(ruleRunRate(rule, remaining, monthsLeft, spare), Math.max(0, spare));
+}
+
 export function goalLine(goal: Goal, saved: number, ctx: GoalContext): GoalLine {
   const required = fundedAmount(goal);
   const months = monthsUntil(goal, ctx.today);
@@ -190,6 +219,17 @@ export function goalLine(goal: Goal, saved: number, ctx: GoalContext): GoalLine 
   const d = ctx.defer[goal.id];
   const deferred = ctx.planProjects && goal.autoDefer !== false && d && !d.unreachable && d.startMonthIndex > 0;
   const startIndex = deferred ? d.startMonthIndex : 0;
+  // A fixed amount or a share of spare cash is what the plan will actually
+  // put aside (engine/goals.py); the line used to show the run-rate to the
+  // date whatever the rule said. A rule whose pace can't make the date is
+  // SHORT, even when spare cash could have covered it.
+  const kind = goal.fundingRule?.kind;
+  if (kind === 'fixed' || kind === 'surplus_pct') {
+    const monthly = ruleRunRate(goal.fundingRule, remaining, months, ctx.monthlySurplus);
+    const ruleShort = monthly * months < remaining - 0.5;
+    const ruleState: GoalState = ruleShort ? 'short' : state;
+    return { required, saved, remaining, pct, months, monthly, startIndex: 0, state: ruleState, tiers, rec, levers: ruleShort ? levers ?? computeShortfallLevers(input) : levers };
+  }
   const monthly = deferred ? d.fundingMonthlyRate : remaining / months;
   return { required, saved, remaining, pct, months, monthly, startIndex, state, tiers, rec, levers };
 }
