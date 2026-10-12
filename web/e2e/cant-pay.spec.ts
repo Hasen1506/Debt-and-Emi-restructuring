@@ -36,5 +36,5 @@ test('India: Feeling overwhelmed → can\u2019t pay this month → protect order
   await expect(page.getByLabel('Hardship letter draft')).toHaveValue(/^DRAFT/);
   await expect(page.getByTestId('cp-rights')).toContainText('before 8:00 a.m. or after 7:00 p.m.');
   await expect(page.getByTestId('cp-settle')).toContainText('at least 12 months');
-  await expect(page.getByRole('link', { name: /LONGER TENURE WHAT-IF/ })).toHaveAttribute('href', '/plan');
+  await expect(page.getByRole('link', { name: /LONGER TENURE WHAT-IF/ })).toHaveAttribute('href', '/plan#tenure-what-if');
 });

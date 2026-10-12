@@ -145,7 +145,7 @@ export function CantPay() {
                   For anything short: tell the lender <em>before</em> the due date (letter below). If the EMI is
                   auto-debited (NACH, a standing bank mandate), a failed debit adds the bank&apos;s return charge on top,
                   so ask the lender first. A longer tenure lowers the EMI: try it on{' '}
-                  <LBracket href="/plan">PLAN → LONGER TENURE WHAT-IF</LBracket> (it shows when a month falls short), where
+                  <LBracket href="/plan#tenure-what-if">PLAN → LONGER TENURE WHAT-IF</LBracket> (it shows when a month falls short), where
                   an unpaid gap is also counted as card-rate debt rather than ignored.
                 </p>
               )}
