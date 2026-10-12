@@ -13,6 +13,7 @@ import { formatCurrency } from '@/lib/api';
 import type { AgeBracket, AssetPayload, UserPayload } from '@/lib/api';
 import { formatLoanAmount, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import { loanLabel } from '@/lib/loan-types';
+import { placeLabel } from '@/lib/locations';
 
 const AGE_LABEL: Record<AgeBracket, string> = {
   under_25: 'Under 25',
@@ -94,6 +95,7 @@ export function ProfileSummary({
         <Rows
           rows={[
             ['Country', `${user.country === 'IN' ? 'India' : 'USA'}${user.is_nri_us ? ', with loans in India' : ''}`],
+            ['Lives in', placeLabel(user) || <Muted key="p">Not set</Muted>],
             user.country === 'IN'
               ? ['Tax regime', user.tax_regime === 'old' ? 'Old regime' : 'New regime']
               : [

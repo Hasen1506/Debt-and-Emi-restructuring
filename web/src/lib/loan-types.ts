@@ -28,16 +28,31 @@ export const LOAN_TYPE_NAME: Record<LoanType, string> = {
   bnpl: 'BNPL',
 };
 
-/** Starts a line or fills a label: "Home loan", or "HDFC credit card"
- *  when the lender is on file (its own capitals, " Bank" dropped). */
-export function loanLabel(l: { bank?: string | null; loan_type: LoanType }): string {
-  const t = LOAN_TYPE_NAME[l.loan_type];
-  const bank = (l.bank ?? '').replace(/\s+bank$/i, '').trim();
-  return bank ? `${bank} ${t}` : t.charAt(0).toUpperCase() + t.slice(1);
+/** The user's own name for a loan (live test #4: "Dad's car loan"), trimmed
+ *  and kept short; '' when there is none. Profile → Loans sets it. */
+export const NICKNAME_MAX = 40;
+export function loanNickname(l: { nickname?: string | null }): string {
+  return (l.nickname ?? '').replace(/\s+/g, ' ').trim().slice(0, NICKNAME_MAX);
 }
 
-/** Mid-sentence: "home loan", or "HDFC credit card" with a lender. */
-export function loanName(l: { bank?: string | null; loan_type: LoanType }): string {
+function bankAndType(l: { bank?: string | null; loan_type: LoanType }): string {
   const bank = (l.bank ?? '').replace(/\s+bank$/i, '').trim();
   return bank ? `${bank} ${LOAN_TYPE_NAME[l.loan_type]}` : LOAN_TYPE_NAME[l.loan_type];
+}
+
+/** Starts a line or fills a label: "Home loan", or "HDFC credit card"
+ *  when the lender is on file (its own capitals, " Bank" dropped). With a
+ *  nickname: "Dad's car loan (HDFC car loan)". */
+export function loanLabel(l: { bank?: string | null; loan_type: LoanType; nickname?: string | null }): string {
+  const base = bankAndType(l);
+  const hasBank = (l.bank ?? '').trim() !== '';
+  const cap = hasBank ? base : base.charAt(0).toUpperCase() + base.slice(1);
+  const nick = loanNickname(l);
+  return nick ? `${nick} (${base})` : cap;
+}
+
+/** Mid-sentence: "home loan", or "HDFC credit card" with a lender, or the
+ *  user's own name for it. */
+export function loanName(l: { bank?: string | null; loan_type: LoanType; nickname?: string | null }): string {
+  return loanNickname(l) || bankAndType(l);
 }

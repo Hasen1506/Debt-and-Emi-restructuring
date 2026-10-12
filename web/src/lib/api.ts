@@ -112,6 +112,9 @@ export interface LoanPayload {
   /** 'credit_report' when the loan was added from a credit-report import; the
    *  form then says which figures the report didn't carry. The API ignores it. */
   imported_from?: 'credit_report';
+  /** The user's own name for the loan ("Dad's car loan"), optional (live
+   *  test #4, sprint L3). Shown with the lender and type; the API ignores it. */
+  nickname?: string;
   loan_type: LoanType;
   bank: string;
   outstanding: string;
@@ -310,6 +313,13 @@ export interface UserPayload {
    *  Captured at onboarding step 4, displayed on /debts. */
   cash_accounts?: CashAccountPayload[];
   primary_bank: string;
+  /** Where the user lives (live test #5, sprint L3), optional. `state` is an
+   *  Indian state / union territory or a US state, by its full name; the
+   *  engine reads it as the default state for a property's stamp duty or
+   *  selling costs when the asset has none. `city` is for the user's own
+   *  reference; the engine ignores it. */
+  state?: string;
+  city?: string;
   location_tier?: string;
   /** Banks the user holds savings/current accounts at without an active
    *  loan. Used by new-debt / refinance suggestions to prefer existing
