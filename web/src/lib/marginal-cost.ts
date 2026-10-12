@@ -5,7 +5,7 @@
  * engine/tests/fixtures/marginal_cost_cases.json) keeps the two equal.
  *
  *   marginal cost = interest, compounded monthly       (1 + r/12)^12 − 1
- *                 + GST on that interest, compounding  (Indian credit cards: 18%)
+ *                 + GST on that interest, not compounding (Indian credit cards: 18%)
  *                 − tax benefit the prepayment gives up (24(b) / 80E / US mortgage
  *                                                        and student-loan interest)
  *                 − prepayment fee                     fee% × 12 / months left
@@ -58,9 +58,11 @@ export function marginalCost(
   lockInMonths = 0,
 ): MarginalCost {
   const interest = compounded(nominalRate);
-  // GST is billed on each month's interest and compounds with it (as the
-  // simulation and true APR have it): a 42% card costs 62.6% a year, not 60.31%.
-  const gst = cardGst ? compounded(D(nominalRate).times(GST_ON_CARD_INTEREST_IN.plus(1))).minus(interest) : D(0);
+  // GST is 18% of the year's interest and is never itself charged interest:
+  // RBI Credit Card Master Direction 2022, para 9(b)(ii) and FAQ 7 ("unpaid
+  // charges/levies/taxes shall not be capitalized"). 42% → 51.11% + 9.20% = 60.31%.
+  // https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12300 (read 2026-10-12)
+  const gst = cardGst ? interest.times(GST_ON_CARD_INTEREST_IN) : D(0);
   const taxBenefit = interest.times(D(shieldFraction));
   const k = monthsLeft > 0 ? monthsLeft : OPEN_ENDED_MONTHS;
   const feePct = D(prepaymentFeePct || 0);
@@ -154,7 +156,7 @@ const pct = (v: Decimal) => `${v.times(100).toFixed(2)}%`;
 /** The breakdown lines for "why this loan first". */
 export function whyFirstLines(mc: MarginalCost): { label: string; value: string; sign: '+' | '−' | '=' }[] {
   const lines: { label: string; value: string; sign: '+' | '−' | '=' }[] = [{ label: 'Interest, compounded monthly', value: pct(mc.interest), sign: '+' }];
-  if (mc.gst.gt(0)) lines.push({ label: 'GST on the interest (18%), compounding with it', value: pct(mc.gst), sign: '+' });
+  if (mc.gst.gt(0)) lines.push({ label: 'GST on the interest (18%); RBI bars interest on it', value: pct(mc.gst), sign: '+' });
   if (mc.taxBenefit.gt(0)) lines.push({ label: 'Tax break you’d give up', value: pct(mc.taxBenefit), sign: '−' });
   if (mc.fee.gt(0)) {
     lines.push({ label: 'What it costs you a year', value: pct(mc.annualCost), sign: '=' });
