@@ -9,7 +9,7 @@ outside what the API schema accepts.
 from __future__ import annotations
 
 import os
-from decimal import Decimal
+from decimal import ROUND_CEILING, Decimal
 
 from hypothesis import HealthCheck, settings
 from hypothesis import strategies as st
@@ -146,7 +146,9 @@ def users(
         income = (commitment + expenses) * D(draw(st.integers(50, 110))) / D(100)
     else:
         income = (commitment + expenses) * D(draw(st.integers(100, 300))) / D(100) + draw(money(0, 100_000))
-    income = income.quantize(D("1"))
+    # Round UP: a covering income rounded down could leave a sub-rupee short
+    # month (e.g. 0.41), which L2 now borrows at card rate.
+    income = income.quantize(D("1"), rounding=ROUND_CEILING)
     opts = []
     if draw(st.booleans()):
         opts.append(InvestmentOption(
