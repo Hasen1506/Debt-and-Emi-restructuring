@@ -14,8 +14,8 @@ Sources, re-checked 9 Oct 2026:
   to 3.75–4.00% on 16 Sep 2026. We store the upper bound.
 
 The tables below are the verified base. Decisions after them come from
-the live feeds (api/rates_feed.py: FRED and the RBI website, every 6
-hours) through `apply_live`, which only ever adds changes dated after the
+the live feeds (api/rates_feed.py: FRED and the RBI website, read by a
+weekly GitHub Action into a committed file) through `apply_live`, which only ever adds changes dated after the
 table ends. When a feed is down the table plus the last good fetch is
 used, and `rates_as_of` says how current that is. Add a decision here
 by hand only to correct the record, and bump LAST_VERIFIED.
