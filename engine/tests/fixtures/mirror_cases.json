@@ -1820,5 +1820,831 @@
     "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
    }
   }
+ ],
+ "goal_rule": [
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "72990"
+    },
+    "remaining": "706725",
+    "months": 116,
+    "spare": "101090"
+   },
+   "out": {
+    "amount": "72990"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "58092"
+    },
+    "remaining": "47187",
+    "months": 2,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "324226",
+    "months": 33,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "1654826",
+    "months": 56,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "777625",
+    "months": 61,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "179325",
+    "months": 116,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "57502"
+    },
+    "remaining": "440213",
+    "months": 4,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "642115",
+    "months": 14,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "3339"
+    },
+    "remaining": "11620",
+    "months": 64,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "293009",
+    "months": 94,
+    "spare": "105340"
+   },
+   "out": {
+    "amount": "3117.117021276595744680851064"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.36"
+    },
+    "remaining": "984538",
+    "months": 4,
+    "spare": "3735"
+   },
+   "out": {
+    "amount": "1344.60"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "1564869",
+    "months": 6,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.63"
+    },
+    "remaining": "1488831",
+    "months": 84,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "60747"
+    },
+    "remaining": "1270861",
+    "months": 29,
+    "spare": "114658"
+   },
+   "out": {
+    "amount": "60747"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.57"
+    },
+    "remaining": "1524216",
+    "months": 11,
+    "spare": "175253"
+   },
+   "out": {
+    "amount": "99894.21"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.82"
+    },
+    "remaining": "531862",
+    "months": 115,
+    "spare": "184561"
+   },
+   "out": {
+    "amount": "151340.02"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.57"
+    },
+    "remaining": "806524",
+    "months": 94,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "75062",
+    "months": 61,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "220338",
+    "months": 80,
+    "spare": "40671"
+   },
+   "out": {
+    "amount": "2754.225"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "59120"
+    },
+    "remaining": "265777",
+    "months": 87,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.97"
+    },
+    "remaining": "1561583",
+    "months": 71,
+    "spare": "130500"
+   },
+   "out": {
+    "amount": "126585.00"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "20562"
+    },
+    "remaining": "1733743",
+    "months": 23,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.53"
+    },
+    "remaining": "1096848",
+    "months": 94,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.32"
+    },
+    "remaining": "1464833",
+    "months": 88,
+    "spare": "104672"
+   },
+   "out": {
+    "amount": "33495.04"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "77490"
+    },
+    "remaining": "1004513",
+    "months": 30,
+    "spare": "32255"
+   },
+   "out": {
+    "amount": "32255"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "66053"
+    },
+    "remaining": "645910",
+    "months": 89,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "38698"
+    },
+    "remaining": "1256013",
+    "months": 62,
+    "spare": "47839"
+   },
+   "out": {
+    "amount": "38698"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "528060",
+    "months": 73,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.44"
+    },
+    "remaining": "239215",
+    "months": 69,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "29573"
+    },
+    "remaining": "301769",
+    "months": 23,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "549634",
+    "months": 52,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.64"
+    },
+    "remaining": "1247616",
+    "months": 4,
+    "spare": "61190"
+   },
+   "out": {
+    "amount": "39161.60"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.09"
+    },
+    "remaining": "515044",
+    "months": 32,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "74927"
+    },
+    "remaining": "169661",
+    "months": 24,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.51"
+    },
+    "remaining": "1521588",
+    "months": 48,
+    "spare": "47339"
+   },
+   "out": {
+    "amount": "24142.89"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.34"
+    },
+    "remaining": "1693595",
+    "months": 92,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "483427",
+    "months": 57,
+    "spare": "197251"
+   },
+   "out": {
+    "amount": "8481.175438596491228070175439"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.38"
+    },
+    "remaining": "1677048",
+    "months": 10,
+    "spare": "97156"
+   },
+   "out": {
+    "amount": "36919.28"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "2395"
+    },
+    "remaining": "372775",
+    "months": 118,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "7386"
+    },
+    "remaining": "656165",
+    "months": 108,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "36599"
+    },
+    "remaining": "1738347",
+    "months": 115,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.78"
+    },
+    "remaining": "1792342",
+    "months": 45,
+    "spare": "44089"
+   },
+   "out": {
+    "amount": "34389.42"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "75550"
+    },
+    "remaining": "1024694",
+    "months": 86,
+    "spare": "179821"
+   },
+   "out": {
+    "amount": "75550"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.23"
+    },
+    "remaining": "348350",
+    "months": 97,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.32"
+    },
+    "remaining": "684167",
+    "months": 33,
+    "spare": "76614"
+   },
+   "out": {
+    "amount": "24516.48"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "1228779",
+    "months": 40,
+    "spare": "40924"
+   },
+   "out": {
+    "amount": "30719.475"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.93"
+    },
+    "remaining": "1157743",
+    "months": 83,
+    "spare": "61253"
+   },
+   "out": {
+    "amount": "56965.29"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "27066"
+    },
+    "remaining": "1268210",
+    "months": 84,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "631263",
+    "months": 23,
+    "spare": "129791"
+   },
+   "out": {
+    "amount": "27446.21739130434782608695652"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.98"
+    },
+    "remaining": "61128",
+    "months": 72,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.57"
+    },
+    "remaining": "261000",
+    "months": 59,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.13"
+    },
+    "remaining": "56207",
+    "months": 12,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.9"
+    },
+    "remaining": "1200605",
+    "months": 56,
+    "spare": "101708"
+   },
+   "out": {
+    "amount": "91537.2"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "11697",
+    "months": 12,
+    "spare": "140876"
+   },
+   "out": {
+    "amount": "974.75"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "68628"
+    },
+    "remaining": "753364",
+    "months": 48,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.22"
+    },
+    "remaining": "748198",
+    "months": 89,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.28"
+    },
+    "remaining": "575384",
+    "months": 64,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "332359",
+    "months": 11,
+    "spare": "22979"
+   },
+   "out": {
+    "amount": "22979"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "22946"
+    },
+    "remaining": "1689220",
+    "months": 17,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "73319"
+    },
+    "remaining": "1233997",
+    "months": 11,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  }
  ]
 }

@@ -98,3 +98,25 @@ test('#35: constants that quote a dated figure agree with the freshness registry
   assert.equal(Number(by.remittance_cost_us_in.value), Number(REMITTANCE_REFERENCE.rate));
   assert.equal(by.remittance_cost_us_in.url, REMITTANCE_REFERENCE.url);
 });
+
+test('differential: goal-line.ts funding rules match engine/goals.py serial_fill_allocation (first month)', () => {
+  const { firstMonthContribution } = lib('goal-line.ts');
+  assert.ok(cases.goal_rule.length >= 60);
+  const kinds = new Set(cases.goal_rule.map((c) => c.in.rule.kind));
+  assert.deepEqual([...kinds].sort(), ['fixed', 'schedule', 'surplus_pct']);
+  for (const c of cases.goal_rule) {
+    const got = firstMonthContribution(c.in.rule, Number(c.in.remaining), c.in.months, Number(c.in.spare));
+    assert.ok(Math.abs(got - Number(c.out.amount)) < 0.01, `${JSON.stringify(c.in)}: TS ${got} vs engine ${c.out.amount}`);
+  }
+});
+
+test('goal-line: a fixed amount too small for the date is SHORT and shows the fixed amount', () => {
+  const { goalLine, goalContext } = lib('goal-line.ts');
+  const today = new Date('2026-10-07T04:30:00Z');
+  const goal = { id: 'g1', name: 'Car', kind: 'custom', targetMonth: '2027-10', amount: '600000', bufferPct: '0', fundingSources: ['surplus'], status: 'active', fundingRule: { kind: 'fixed', amount: '10000' } };
+  const user = { country: 'IN', currency: 'INR', monthly_income: '150000', fixed_expenses: '50000', variable_expenses: '0', loans: [], assets: [], efund_balance: '0', efund_target: '0' };
+  const ctx = goalContext({ goals: [goal], saved: {}, user, today, indicativeRate: 0.1 });
+  const line = goalLine(goal, 0, ctx);
+  assert.equal(line.monthly, 10000);
+  assert.equal(line.state, 'short');
+});

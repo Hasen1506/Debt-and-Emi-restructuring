@@ -74,9 +74,34 @@ def prepayment_fee_cases() -> list[dict]:
     return out
 
 
+def goal_rule_cases() -> list[dict]:
+    """One goal, first month: what engine/goals.serial_fill_allocation puts
+    in under each funding rule (goal-line.ts firstMonthContribution)."""
+    from engine.goals import GoalState, serial_fill_allocation
+    rng = random.Random(41)
+    out = []
+    for _ in range(60):
+        rule = rng.choice(["schedule", "fixed", "surplus_pct"])
+        required = D(rng.randint(10_000, 2_000_000))
+        saved = D(rng.choice([0, 0, rng.randint(0, int(required))]))
+        months = rng.randint(1, 120)
+        spare = D(rng.choice([0, rng.randint(0, 200_000)]))
+        amount = D(rng.randint(500, 80_000)) if rule == "fixed" else None
+        pct = D(str(round(rng.uniform(0.05, 1), 2))) if rule == "surplus_pct" else None
+        g = GoalState(id="g", target_month_index=months, required_amount=required, saved_so_far=saved,
+                      funding_rule=rule, funding_amount=amount, funding_pct=pct)
+        c = serial_fill_allocation([g], spare, 0).contributions[0]
+        out.append({"in": {"rule": {"kind": rule, **({"amount": str(amount)} if amount is not None else {}),
+                                    **({"pct": str(pct)} if pct is not None else {})},
+                           "remaining": str(max(D(0), required - saved)), "months": months, "spare": str(spare)},
+                    "out": {"amount": str(c.amount)}})
+    return out
+
+
 def render() -> str:
     return json.dumps({"min_payment": min_payment_cases(),
-                       "prepayment_fee_default": prepayment_fee_cases()}, indent=1) + "\n"
+                       "prepayment_fee_default": prepayment_fee_cases(),
+                       "goal_rule": goal_rule_cases()}, indent=1) + "\n"
 
 
 if __name__ == "__main__":
