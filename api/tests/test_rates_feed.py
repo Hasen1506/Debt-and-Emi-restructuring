@@ -3,6 +3,7 @@
 No network: FRED replies are built from the verified table, and the RBI
 page is a hand-made copy of its rate panel (fixtures/rbi_policy_rates.html).
 """
+import json
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -224,10 +225,14 @@ def test_refresh_fallback_restart_and_health(tmp_path):
     assert policy_rates.rate_on(Country.IN, date(2026, 10, 8)) == D("0.0500")
     assert again.sources["rbi"].error and again.sources["rbi"].current == D("0.0500")
 
-    # A day without a good fetch is stale.
-    clock.at += timedelta(hours=19)
+    # Weekly cadence (grill #61): a quiet week is not stale...
+    clock.at += timedelta(days=6)
+    assert again.health(enabled=True)["status"] == "ok"
+    # ...but 46 days without a good check is.
+    clock.at += timedelta(days=40)
     h = again.health(enabled=True)
     assert h["status"] == "degraded"
+    assert all("over 45 days" in s["stale_reason"] for s in h["sources"])
     assert [s["status"] for s in h["sources"]] == ["stale", "stale"]
 
 
@@ -269,3 +274,173 @@ def test_feed_health_endpoint(client, tmp_path, monkeypatch):
     assert body["IN"]["as_of"] == date.today().isoformat()
     assert body["US"]["source"].startswith("Official decisions, checked by hand on")
     assert body["US"]["updated_at"] == "2026-09-16"
+
+
+# ── grill #61: weekly job, committed file, staleness by meeting ─────────────
+
+def test_stale_when_a_meeting_passed_without_a_check(tmp_path, monkeypatch):
+    monkeypatch.setattr(rates_feed, "_meetings",
+                        lambda c: {"US": US_MEETINGS, "IN": IN_MEETINGS}.get(c, []))
+    clock = Clock(datetime(2026, 10, 8, 6, 0, tzinfo=timezone.utc))
+    feed = _feed(tmp_path, {"fred": fred_csv(date(2026, 10, 7)), "rbi": RBI_PAGE}, clock)
+    feed.refresh()
+    # FOMC 28 Oct: still ok within the 7-day grace, stale after it.
+    clock.at = datetime(2026, 11, 4, tzinfo=timezone.utc)
+    assert feed.health(enabled=True)["status"] == "ok"
+    clock.at = datetime(2026, 11, 5, 1, tzinfo=timezone.utc)
+    h = feed.health(enabled=True)
+    fred = h["sources"][0]
+    assert fred["status"] == "stale" and fred["stale_reason"] == "no check since the 2026-10-28 meeting"
+
+
+def test_meeting_day_check_does_not_count_as_after_it():
+    m = [date(2026, 10, 28)]
+    assert rates_feed.missed_meeting(m, date(2026, 10, 28), date(2026, 11, 10)) == date(2026, 10, 28)
+    assert rates_feed.missed_meeting(m, date(2026, 10, 29), date(2026, 11, 10)) is None
+    assert rates_feed.missed_meeting(m, date(2026, 10, 1), date(2026, 11, 4)) is None   # inside grace
+
+
+def _entry(as_of, current="0.0525", changes=()):
+    return {"current": current, "as_of": as_of, "detail": {}, "changes": [list(c) for c in changes],
+            "last_success": as_of + "T03:00:00+00:00"}
+
+
+def test_should_commit_only_on_change_meeting_or_heartbeat(monkeypatch):
+    monkeypatch.setattr(rates_feed, "_meetings", lambda c: [date(2026, 10, 7)] if c == "IN" else [])
+    old = {"rbi": _entry("2026-09-28")}
+    # An ordinary week: nothing to commit, so no redeploy.
+    assert rates_feed.should_commit(old, {"rbi": _entry("2026-10-05")}, date(2026, 10, 5)) == (False, "no change")
+    # First check after the 7 Oct MPC: record "checked, no change".
+    ok, why = rates_feed.should_commit(old, {"rbi": _entry("2026-10-12")}, date(2026, 10, 12))
+    assert ok and "after the 2026-10-07 meeting" in why
+    # A new decision.
+    ok, why = rates_feed.should_commit(old, {"rbi": _entry("2026-10-05", "0.0550", [("2026-10-07", "0.0550")])},
+                                       date(2026, 10, 5))
+    assert ok and "changed" in why
+    # 30-day heartbeat.
+    assert rates_feed.should_commit({"rbi": _entry("2026-11-01")}, {"rbi": _entry("2026-12-01")},
+                                    date(2026, 12, 1))[0]
+    # A source that has never been read well proposes nothing.
+    assert rates_feed.should_commit(old, {"rbi": dict(_entry("x"), as_of=None)}, date(2026, 10, 5))[0] is False
+
+
+def test_committed_form_has_no_per_run_fields(tmp_path):
+    clock = Clock(datetime(2026, 10, 8, 6, 0, tzinfo=timezone.utc))
+    feed = _feed(tmp_path, {"fred": OSError("down"), "rbi": RBI_PAGE}, clock)
+    feed.refresh(save=False)
+    assert not (tmp_path / "rates.json").exists()
+    stored = feed.stored(committed=True)
+    assert "last_attempt" not in stored["rbi"] and "error" not in stored["rbi"]
+
+
+def test_weekly_script_writes_only_when_needed_and_fails_loudly(tmp_path, monkeypatch):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "fetch_policy_rates", Path(__file__).resolve().parents[2] / "scripts" / "fetch_policy_rates.py")
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+    monkeypatch.setattr(rates_feed, "_meetings",
+                        lambda c: {"US": US_MEETINGS, "IN": IN_MEETINGS}.get(c, []))
+    store = tmp_path / "policy_rates_live.json"
+    pages = {"fred": fred_csv(date(2026, 9, 25)), "rbi": RBI_PAGE}
+    get = lambda url: pages["fred" if "fred" in url else "rbi"]  # noqa: E731
+
+    status, summary, wrote = script.run(store, get=get, now=lambda: datetime(2026, 9, 26, tzinfo=timezone.utc))
+    assert (status, wrote) == (0, True) and "first good check" in summary
+    first = store.read_text()
+
+    # A week later, nothing new and no meeting in between: file untouched.
+    policy_rates.clear_live()
+    pages["fred"] = fred_csv(date(2026, 10, 2))
+    status, summary, wrote = script.run(store, get=get, now=lambda: datetime(2026, 10, 3, tzinfo=timezone.utc))
+    assert (status, wrote) == (0, False) and store.read_text() == first
+
+    # RBI page broken: the run fails (red X, email) but keeps the good file.
+    policy_rates.clear_live()
+    pages["rbi"] = "<html>Access denied</html>"
+    status, summary, wrote = script.run(store, get=get, now=lambda: datetime(2026, 10, 3, tzinfo=timezone.utc))
+    assert status == 1 and "FAILED" in summary
+    assert json.loads(store.read_text())["rbi"]["current"] == "0.0525"
+
+
+def test_app_start_reads_the_committed_file_without_a_thread(tmp_path, monkeypatch):
+    import threading
+    clock = Clock(datetime(2026, 10, 8, 6, 0, tzinfo=timezone.utc))
+    src = _feed(tmp_path, {"fred": fred_csv(date(2026, 10, 7)), "rbi": rbi_page("5.00", "4.75", "5.25")}, clock)
+    src.refresh(save=False)
+    store = tmp_path / "committed.json"
+    store.write_text(json.dumps(src.stored(committed=True)))
+    policy_rates.clear_live()
+
+    calls = []
+    app_feed = RatesFeed(store, get=lambda url: calls.append(url) or "", now=clock)
+    monkeypatch.setattr(rates_feed, "feed", app_feed)
+    monkeypatch.setenv("RATES_FEED", "on")
+    before = threading.active_count()
+    rates_feed.start()
+    assert calls == [] and threading.active_count() == before
+    assert policy_rates.rate_on(Country.IN, date(2026, 10, 8)) == D("0.0500")
+
+
+def test_committed_file_is_valid_and_matches_the_verified_table():
+    """api/data/policy_rates_live.json (written by the weekly job) loads
+    cleanly against the real verified table."""
+    from api.rates_feed import _DEFAULT_STORE
+    raw = json.loads(_DEFAULT_STORE.read_text())
+    assert set(raw) == {"fred", "rbi"}
+    for key, entry in raw.items():
+        assert "last_attempt" not in entry and "error" not in entry
+        assert D(entry["current"]) <= policy_rates.MAX_RATE
+
+
+# ── grill #61: admin edits persist in the database ──────────────────────────
+
+@pytest.fixture()
+def outcome_db(tmp_path):
+    from api import outcomes_store, rate_outcomes_store
+    st = rate_outcomes_store.RateOutcomeStore(outcomes_store.sqlite_engine(tmp_path / "rates.sqlite3"))
+    rate_outcomes_store.set_store(st)
+    yield st
+    rate_outcomes_store.set_store(None)
+
+
+def _first_meeting(country):
+    cal = json.loads((Path(__file__).resolve().parents[1] / "data" / "central_bank_calendar.json").read_text())
+    upcoming = [m for m in cal["meetings"][country] if m["date"] >= date.today().isoformat()]
+    return upcoming[0]["date"]
+
+
+def test_admin_edit_is_stored_in_the_database_and_shown(client, outcome_db, monkeypatch):
+    monkeypatch.setenv("ADMIN_RATE_UPDATE_TOKEN", "t0ken")
+    cal_file = Path(__file__).resolve().parents[1] / "data" / "central_bank_calendar.json"
+    before = cal_file.read_text()
+    day = _first_meeting("IN")
+    r = client.post("/api/admin/rate-update", headers={"X-Admin-Token": "t0ken"},
+                    json={"country": "IN", "new_rate": "0.0525", "decision_date": day, "note": "cut 25 bps"})
+    assert r.status_code == 200 and r.json()["stored_in"] == "database"
+    assert cal_file.read_text() == before          # the container's disk is not written
+    body = client.get("/api/rates/central").json()
+    m = [x for x in body["IN"]["upcoming_meetings"] if x["date"] == day][0]
+    assert D(m["outcome_rate"]) == D("0.0525") and m["note"] == "cut 25 bps"
+
+    # Survives a "restart": a fresh store on the same database sees it.
+    from api import rate_outcomes_store
+    rate_outcomes_store.set_store(rate_outcomes_store.RateOutcomeStore(outcome_db.engine))
+    body = client.get("/api/rates/central").json()
+    assert any(x["date"] == day and x["outcome_rate"] for x in body["IN"]["upcoming_meetings"])
+
+
+def test_admin_edit_refused_without_a_database_or_a_meeting(client, monkeypatch):
+    from api import rate_outcomes_store
+    monkeypatch.setattr(rate_outcomes_store, "store", lambda: None)
+    monkeypatch.setenv("ADMIN_RATE_UPDATE_TOKEN", "t0ken")
+    h = {"X-Admin-Token": "t0ken"}
+    day = _first_meeting("US")
+    assert client.post("/api/admin/rate-update", headers=h,
+                       json={"country": "US", "new_rate": "0.0375", "decision_date": day}).status_code == 503
+    assert client.post("/api/admin/rate-update", headers=h,
+                       json={"country": "US", "new_rate": "0.0375", "decision_date": "2026-01-02"}).status_code == 404
+    assert client.post("/api/admin/rate-update", headers=h,
+                       json={"country": "US", "new_rate": "6.25", "decision_date": day}).status_code == 400
+    assert client.post("/api/admin/rate-update", headers={"X-Admin-Token": "nope"},
+                       json={"country": "US", "new_rate": "0.0375", "decision_date": day}).status_code == 403

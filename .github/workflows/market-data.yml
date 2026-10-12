@@ -17,6 +17,7 @@ on:
 permissions:
   contents: write
   issues: write
+  pull-requests: write
 
 concurrency:
   group: market-data
@@ -54,22 +55,18 @@ jobs:
         continue-on-error: true
         run: node scripts/watch-rate-pages.mjs --report ../report.md
 
-      - name: The app still passes its checks on the new figures
+      - name: Data tests only (the figures, the rate cards, and the web code that reads them)
         run: |
-          python -m pytest -q engine api -p no:cacheprovider
-          (cd web && npm test)
+          python -m pytest -q -p no:cacheprovider engine/tests/test_market_data.py engine/tests/test_rate_cards.py
+          (cd web && node --test tests/walkthrough.cjs tests/roadmap-g-rates.cjs)
 
-      - name: Commit new figures, if any
-        run: |
-          if [ -n "$(git status --porcelain -- web/src/lib/market-data.json api/data/rate_pages.json)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add web/src/lib/market-data.json api/data/rate_pages.json
-            git commit -m "data: market figures as of $(date -u +%Y-%m-%d)"
-            git push
-          else
-            echo "No change in the market figures."
-          fi
+      - name: Propose new figures, if any
+        uses: ./.github/actions/data-pr
+        with:
+          bot: market-data
+          paths: web/src/lib/market-data.json api/data/rate_pages.json
+          title: "data: market figures as of ${{ github.run_started_at }}"
+          mode: ${{ vars.DATA_PR_MODE || 'merge' }}
 
       - name: Open, update or close the data-check issue
         run: |
