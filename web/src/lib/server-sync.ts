@@ -130,6 +130,31 @@ function storePending(account: string, data: Record<string, unknown>): void {
   } catch { /* Keep the in-memory retry even if browser storage is full. */ }
 }
 
+const DEVICE_KEY = 'rightdue_device_id';
+let memoryDeviceId: string | null = null;
+/**
+ * A random id for this browser (not tied to the person; holds no data). The
+ * server records which browser last wrote each part, so a write this browser
+ * made itself is never refused as "changed on another device", even when its
+ * answer was lost: a full page navigation (onboarding → Plan) cancels the
+ * fetch after the server has committed it, so the version it returned never
+ * arrives and the change is sent again from the queue on an old version.
+ */
+export function deviceId(): string {
+  try {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+      id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+  } catch {
+    memoryDeviceId ??= `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    return memoryDeviceId;
+  }
+}
+
 /** The account version this browser last read or wrote, or null if unknown. */
 export function knownVersion(account: string): number | null {
   try {
@@ -335,7 +360,7 @@ async function sendPending(account: string, generation: number, force = false): 
   const base = knownVersion(account);
   const attemptAt = Date.now();
   try {
-    const res = await api.patchUserState(snapshot, base, force);
+    const res = await api.patchUserState(snapshot, base, force, deviceId());
     clearRetry();
     retryCount = 0;
     const remaining = { ...pendingState(account) };

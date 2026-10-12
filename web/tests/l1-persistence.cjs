@@ -104,7 +104,8 @@ test('412: the other device\'s copy is loaded here, this device\'s is kept aside
   const s=sync.getSyncState();
   assert.equal(s.problem,'conflict');assert.deepEqual(s.conflictSlices,['commitments']);
   assert.equal(JSON.parse(data.get('rightdue_commitments'))[0].id,'phone','account copy shown here');
-  assert.deepEqual(bodies[1],{data:{strategy:'snowball'},base_version:4},'the part that did not conflict is sent on the new version');
+  assert.deepEqual({data:bodies[1].data,base_version:bodies[1].base_version},{data:{strategy:'snowball'},base_version:4},'the part that did not conflict is sent on the new version');
+  assert.equal(bodies[1].device_id,bodies[0].device_id,'every write names this browser');
   assert.ok(events.includes('rightdue:remote-applied'));
   assert.deepEqual(sync.conflictCopy('A'),{commitments:[{id:'mine'}]});
   assert.equal(await sync.keepThisDevice(),true);
@@ -131,6 +132,16 @@ test('an older version in a late answer never replaces a newer one this device a
   global.fetch=async()=>json({data:{},version:3});
   await sync.syncSliceToServer('strategy','snowball');
   assert.equal(data.get('rightdue_state_version_A'),'5');
+ }finally{global.fetch=fetch;cleanup()}
+});
+
+test('every write names this browser with one stable random id, kept across reloads',async()=>{
+ const fetch=global.fetch,{sync,data}=setup('A');const bodies=[];
+ try{
+  global.fetch=async(url,opts)=>{const b=JSON.parse(opts.body);bodies.push(b);return json({data:b.data,version:bodies.length})};
+  await sync.syncSliceToServer('strategy','snowball');await sync.syncSliceToServer('strategy','avalanche');
+  assert.ok(typeof bodies[0].device_id==='string'&&bodies[0].device_id.length>=8);
+  assert.equal(bodies[1].device_id,bodies[0].device_id);assert.equal(data.get('rightdue_device_id'),bodies[0].device_id);
  }finally{global.fetch=fetch;cleanup()}
 });
 

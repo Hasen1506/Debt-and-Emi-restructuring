@@ -141,7 +141,7 @@ def test_a_database_made_by_create_all_is_stamped_then_upgraded_keeping_its_data
             await _reset(conn)
             # The pre-Alembic production shape: create_all of the old models.
             await conn.run_sync(Base.metadata.create_all)
-            await conn.execute(text('ALTER TABLE user_state DROP COLUMN version, DROP COLUMN slice_versions'))
+            await conn.execute(text('ALTER TABLE user_state DROP COLUMN version, DROP COLUMN slice_versions, DROP COLUMN slice_writers'))
             await conn.execute(text("INSERT INTO users (id, email) VALUES ('00000000-0000-0000-0000-000000000001', 'old@example.com')"))
             await conn.execute(text("""INSERT INTO user_state (user_id, data) VALUES ('00000000-0000-0000-0000-000000000001', '{"profile": {"income": "5"}}')"""))
             await conn.run_sync(run_migrations)
@@ -172,3 +172,21 @@ def test_a_retried_put_of_the_same_blob_is_not_a_conflict(state_client):
     state_client.put('/api/user/state', headers=A, json={'data': {'profile': {'x': 1}}, 'base_version': 0})
     r = state_client.put('/api/user/state', headers=A, json={'data': {'profile': {'x': 1}}, 'base_version': 0})
     assert r.status_code == 200
+
+
+def test_a_browser_is_never_in_conflict_with_its_own_earlier_write(state_client):
+    # E2E (account-persistence "sign-in ended"): onboarding's PATCH committed
+    # but its answer was lost to the page navigation; the device, still at
+    # version 0, then edits the profile again (signed out, queued) and sends it
+    # after signing in. Its own write is not "another device".
+    phone = {'device_id': 'phone-1'}
+    body = lambda data, base: {'data': data, 'base_version': base, **phone}
+    assert state_client.patch('/api/user/state', headers=A, json=body({'profile': {'income': '120000'}}, 0)).status_code == 200
+    again = state_client.patch('/api/user/state', headers=A, json=body({'profile': {'income': '70000'}}, 0))
+    assert again.status_code == 200 and again.json()['data']['profile']['income'] == '70000'
+    # Another browser on that same old version is still refused.
+    other = state_client.patch('/api/user/state', headers=A, json={'data': {'profile': {'income': '1'}}, 'base_version': 0, 'device_id': 'laptop-1'})
+    assert other.status_code == 412
+    # And once the laptop wrote it, the phone's stale write is refused too.
+    state_client.patch('/api/user/state', headers=A, json={'data': {'profile': {'income': 'laptop'}}, 'base_version': 2, 'device_id': 'laptop-1'})
+    assert state_client.patch('/api/user/state', headers=A, json=body({'profile': {'income': 'phone'}}, 2)).status_code == 412

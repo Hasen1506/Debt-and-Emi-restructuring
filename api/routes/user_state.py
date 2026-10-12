@@ -22,7 +22,7 @@ import json
 from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,6 +60,11 @@ class UserStateIn(BaseModel):
     base_version: Optional[int] = None
     # The person chose to keep this device's copy of the conflicting slices.
     force: bool = False
+    # A random id this browser keeps. A slice this same browser wrote last is
+    # never a conflict for it: its own earlier write, perhaps one whose answer
+    # it never got (a full page navigation cancels the fetch after the server
+    # committed it), is not "another device".
+    device_id: Optional[str] = Field(default=None, max_length=64)
 
 
 # ── Blob-shape migrations (critique #63) ─────────────────────────────────────
@@ -97,30 +102,37 @@ def _out(row: UserState) -> UserStateOut:
 
 
 def _stale_slices(row: UserState, payload: UserStateIn, whole: bool) -> list[str]:
-    """Slices this write would overwrite that changed after `base_version`."""
+    """Slices this write would overwrite that another browser changed after
+    `base_version`."""
     if payload.base_version is None or payload.force:
         return []
     versions = row.slice_versions or {}
-    if whole:
-        # PUT replaces every slice: any write after base_version is a conflict.
-        if (row.version or 0) <= payload.base_version:
-            return []
-        current = row.data or {}
-        incoming = migrate_state_shape(dict(payload.data))
-        if current == incoming:
-            return []  # the same blob again (a retried write): nothing to lose
-        return sorted(versions)
+    writers = row.slice_writers or {}
     current = row.data or {}
     incoming = migrate_state_shape(dict(payload.data))
-    # A slice that already holds exactly this value is not a conflict: it is
-    # this device's own earlier write whose answer never reached it (a full
-    # page navigation cancels the fetch after the server committed it), sent
-    # again from the pending queue. Refusing it showed "changed on another
-    # device" to someone using one device.
-    return sorted(
-        k for k in payload.data
-        if int(versions.get(k, 0)) > payload.base_version and current.get(k) != incoming.get(k)
-    )
+
+    def changed_elsewhere(k: str) -> bool:
+        if int(versions.get(k, 0)) <= payload.base_version:
+            return False
+        if payload.device_id and writers.get(k) == payload.device_id:
+            return False  # this browser's own write, e.g. one whose answer it lost
+        # Already holds exactly this value (a resent write): nothing to lose.
+        return current.get(k) != incoming.get(k)
+
+    if whole:
+        # PUT replaces every slice, so any slice changed elsewhere conflicts.
+        return sorted(k for k in set(versions) | set(payload.data) if changed_elsewhere(k))
+    return sorted(k for k in payload.data if changed_elsewhere(k))
+
+
+def _writers(previous: dict[str, Any], incoming: dict[str, Any], payload: UserStateIn) -> dict[str, Any]:
+    out = dict(previous)
+    for k in incoming:
+        if payload.device_id:
+            out[k] = payload.device_id
+        else:
+            out.pop(k, None)  # an older client: writer unknown
+    return out
 
 
 def _conflict(row: UserState, stale: list[str]) -> HTTPException:
@@ -175,7 +187,8 @@ async def patch_state(
     if row is None:
         data = migrate_state_shape(incoming)
         _check_total_size(data)
-        row = UserState(user_id=user.id, data=data, version=1, slice_versions={k: 1 for k in incoming})
+        row = UserState(user_id=user.id, data=data, version=1, slice_versions={k: 1 for k in incoming},
+                        slice_writers=_writers({}, incoming, payload))
         db.add(row)
     else:
         stale = _stale_slices(row, payload, whole=False)
@@ -187,6 +200,7 @@ async def patch_state(
         row.data = merged
         row.version = version
         row.slice_versions = {**(row.slice_versions or {}), **{k: version for k in incoming}}
+        row.slice_writers = _writers(row.slice_writers or {}, incoming, payload)
     await db.commit()
     await db.refresh(row)
     return _out(row)
@@ -205,7 +219,8 @@ async def put_state(
     data = migrate_state_shape(incoming)
     _check_total_size(data)
     if row is None:
-        row = UserState(user_id=user.id, data=data, version=1, slice_versions={k: 1 for k in incoming})
+        row = UserState(user_id=user.id, data=data, version=1, slice_versions={k: 1 for k in incoming},
+                        slice_writers=_writers({}, incoming, payload))
         db.add(row)
     else:
         stale = _stale_slices(row, payload, whole=True)
@@ -215,6 +230,7 @@ async def put_state(
         row.data = data
         row.version = version
         row.slice_versions = {k: version for k in incoming}
+        row.slice_writers = _writers({}, incoming, payload)
     await db.commit()
     await db.refresh(row)
     return _out(row)

@@ -1503,12 +1503,14 @@ export const api = {
     putJson<UserStatePayload>('/api/user/state', { data }),
   /** `baseVersion`: the state version this device last read (critique #63);
    *  a slice changed elsewhere since then answers 412. `force` keeps this
-   *  device's copy after the person chose it. */
-  patchUserState: (data: Record<string, unknown>, baseVersion?: number | null, force = false) =>
+   *  device's copy after the person chose it. `deviceId`: this browser's id,
+   *  so its own earlier writes never count as "another device". */
+  patchUserState: (data: Record<string, unknown>, baseVersion?: number | null, force = false, deviceId?: string | null) =>
     putJson<UserStatePayload>('/api/user/state', {
       data,
       ...(baseVersion != null ? { base_version: baseVersion } : {}),
       ...(force ? { force: true } : {}),
+      ...(deviceId ? { device_id: deviceId } : {}),
     }, 'PATCH'),
 
   marketLowest: (country: 'IN' | 'US', loanType: string) =>
