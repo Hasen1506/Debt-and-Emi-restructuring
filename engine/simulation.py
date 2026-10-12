@@ -35,6 +35,7 @@ from engine.formulas import (
     emi, loan_market, monthly_interest_charge, prepay_recommended, prepayment_beats_fee, real_emi,
 )
 from engine.minimum_payments import compute_minimum_payment
+from engine.gap_debt import GapRate, gap_interest, gap_rate_for
 from engine.ordering import Strategy, rank_loans
 from engine.marginal_cost import prepayment_fee_with_gst, user_marginal_costs
 from engine.goals import GoalState, MonthlyGoalAllocation, debt_gate, serial_fill_allocation
@@ -227,9 +228,18 @@ class MonthRow:
     # EMIs off the total paid, so a card's minimum (EMI 0) read as "extra",
     # a cleared loan's EMI kept being subtracted, and ₹ and $ were mixed.
     extra_paid: Decimal = D("0")
-    # Income short of costs plus minimums this month (user's currency); the
-    # month's payments assume the gap was found somewhere.
+    # Income short of costs plus minimums this month (user's currency).
+    # With `gap_as_debt` (the default) the gap is paid from the emergency
+    # fund, then borrowed at a card's rate (engine/gap_debt.py, grill #38).
     shortfall: Decimal = D("0")
+    # Gap borrowing, user's currency: what's owed at the month's end, its
+    # interest this month (capitalised, not paid), what was borrowed and
+    # repaid this month, and what the emergency fund covered.
+    gap_debt: Decimal = D("0")
+    gap_interest: Decimal = D("0")
+    gap_borrowed: Decimal = D("0")
+    gap_repaid: Decimal = D("0")
+    gap_from_savings: Decimal = D("0")
     # Position of the loan this month's extra went to (None: no extra went
     # to a loan). Read by the fee-aware order's "why this loan first".
     extra_to_loan_index: int | None = None
@@ -260,6 +270,10 @@ class SimulationResult:
     payoff_order_method: str | None = None
     payoff_order: list[int] | None = None
     payoff_order_note: str | None = None
+    # Gap borrowing (grill #38): the rate it is charged and why, and its
+    # interest over the plan (already inside total_interest_paid).
+    gap_rate: GapRate | None = None
+    total_gap_interest: Decimal = D("0")
 
 
 def _marginal_rate(user: User, marginal_rate_override: Decimal | None) -> Decimal:
@@ -409,6 +423,7 @@ def _simulate_plan(
     expense_delta: Decimal = D("0"),
     expense_delta_from_month: int = 1,
     income_shock_months: int = 0,
+    gap_as_debt: bool = True,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`. Returns one MonthRow per month
     until either all loans clear or horizon is reached.
@@ -475,6 +490,13 @@ def _simulate_plan(
     `income_shock_months` (default 0) zeroes take-home pay for months
     1..N while planned salary resets and hikes still move the underlying
     pay, so what returns after the shock is the plan's pay by then.
+
+    `gap_as_debt` (default True, grill #38): a month short of cash is paid
+    from the emergency fund, then borrowed at a credit card's rate
+    (engine/gap_debt.py). The borrowing charges interest (counted in
+    `total_interest_paid`), is paid back first from any spare cash or freed
+    EMI, and the plan is not debt-free until it is repaid. False keeps the
+    old assumption that the gap is found somewhere for free.
 
     `minimums_only` pays each loan its minimum and nothing more: no
     surplus, no cascade when a loan clears, no reinvest events. It is the
@@ -607,6 +629,11 @@ def _simulate_plan(
             loans.append(dormant)
     last_arrival = max((ev.effective_month for ev in lifecycle_events or [] if id(ev) in upcoming), default=0)
 
+    # Gap borrowing (grill #38), in the user's currency.
+    gap_rate = gap_rate_for(user) if gap_as_debt else None
+    gap_debt = D("0")
+    total_gap_interest = D("0")
+
     for m in range(1, horizon_months + 1):
         # Lifecycle events fire at the very start of month m, before any
         # other month-mutating logic. A salary_reset at m=12 replaces
@@ -694,10 +721,16 @@ def _simulate_plan(
         # Filter out paid-off loans, and loans whose first EMI is later
         # (still owed, so not debt-free).
         owing = [l for l in loans if l.outstanding > 0]
-        if not owing and m > last_arrival:
+        if not owing and m > last_arrival and gap_debt <= 0:
             debt_free_month = m - 1
             break
         active = [l for l in owing if m >= l.first_payment_month]
+
+        # Gap borrowing charges a month's card interest on what's owed.
+        gap_int_month = gap_interest(gap_debt, gap_rate, user) if gap_rate and gap_debt > 0 else D("0")
+        gap_debt += gap_int_month
+        total_gap_interest += gap_int_month
+        gap_borrowed = gap_repaid = gap_from_savings = D("0")
 
         # Moratorium / pre-first-EMI months still accrue interest; banks
         # capitalise it onto the balance (M1). A ₹10L education loan at 10%
@@ -798,6 +831,13 @@ def _simulate_plan(
             scratch_user, active, matched_contribution=matched_contribution,
             simple_mode=simple_mode, efund_monthly=D("0"),
         )
+        # Spare cash pays back gap borrowing before anything else: it is a
+        # card balance at card rates (grill #38).
+        if gap_debt > 0 and pre_ef_surplus > 0:
+            pay_back = min(gap_debt, pre_ef_surplus)
+            gap_debt -= pay_back
+            gap_repaid += pay_back
+            pre_ef_surplus -= pay_back
         efund_monthly_to_credit = min(efund_monthly_to_credit, max(D("0"), pre_ef_surplus))
         surplus = max(D("0"), pre_ef_surplus - efund_monthly_to_credit)
         shortfall = compute_shortfall(scratch_user, active, simple_mode=simple_mode)
@@ -1050,6 +1090,14 @@ def _simulate_plan(
             absorbed = min(shortfall, cascade_surplus)
             shortfall -= absorbed
             cascade_surplus -= absorbed
+        # A freed EMI next pays back gap borrowing (live test #15: it used
+        # to land on another loan as an "extra" in a month the plan had
+        # already called short).
+        if gap_debt > 0 and cascade_surplus > 0:
+            pay_back = min(gap_debt, cascade_surplus)
+            gap_debt -= pay_back
+            gap_repaid += pay_back
+            cascade_surplus -= pay_back
 
         # Apply cascade within the same month to the next-priority active loan
         # (after the clears we just processed)
@@ -1086,6 +1134,16 @@ def _simulate_plan(
         # again if it clears the target.
         if m in reinvest_by_month and not minimums_only:
             reinvest_amount = reinvest_by_month[m]
+            # Money that arrives in a short month covers the gap, then any
+            # gap borrowing, before it prepays a loan.
+            if gap_as_debt:
+                for_gap = min(shortfall, reinvest_amount)
+                shortfall -= for_gap
+                reinvest_amount -= for_gap
+                pay_back = min(gap_debt, reinvest_amount)
+                gap_debt -= pay_back
+                gap_repaid += pay_back
+                reinvest_amount -= pay_back
             remaining_active = [l for l in loans if l.outstanding > 0 and m >= l.first_payment_month]
             if remaining_active:
                 # Re-rank by current effective APR (some loans may have
@@ -1118,6 +1176,13 @@ def _simulate_plan(
                     )
                 if left > 0:
                     invested_this_month += left
+
+        # What's still short is paid from the emergency fund, then borrowed.
+        if gap_as_debt and shortfall > 0:
+            gap_from_savings = min(shortfall, max(D("0"), ef_balance))
+            ef_balance -= gap_from_savings
+            gap_borrowed = shortfall - gap_from_savings
+            gap_debt += gap_borrowed
 
         total_payment_nominal = interest_paid + principal_paid
         total_payment_real = real_emi(total_payment_nominal, inflation, m)
@@ -1176,22 +1241,30 @@ def _simulate_plan(
             shortfall=shortfall,
             extra_to_loan_index=extra_target_index,
             set_aside_for_prepay=prepay_pot,
+            gap_debt=gap_debt,
+            gap_interest=gap_int_month,
+            gap_borrowed=gap_borrowed,
+            gap_repaid=gap_repaid,
+            gap_from_savings=gap_from_savings,
         ))
 
         total_interest += interest_paid
         total_invested += invested_this_month
 
-        if m >= last_arrival and all(l.outstanding == 0 for l in loans):
+        if m >= last_arrival and all(l.outstanding == 0 for l in loans) and gap_debt <= 0:
             debt_free_month = m
             break
 
     return SimulationResult(
         months=months,
         debt_free_month=debt_free_month,
-        total_interest_paid=total_interest,
+        # Gap borrowing's interest is a real cost of the plan (grill #38).
+        total_interest_paid=total_interest + total_gap_interest,
         total_invested=total_invested,
         final_balances={id(l): l.outstanding for l in loans},
         first_month_goal_allocation=first_month_alloc,
+        gap_rate=gap_rate,
+        total_gap_interest=total_gap_interest,
     )
 
 
@@ -1200,6 +1273,7 @@ def baseline_minimums_only(
     horizon_months: int = 360,
     simple_mode: bool = False,
     lifecycle_events: list[LifecycleEvent] | None = None,
+    gap_as_debt: bool = True,
 ) -> SimulationResult:
     """Counterfactual: pay only minimums (no extra), no Layer 3 redirection.
     Used to compute `savings_vs_minimums` for the Plan screen.
@@ -1215,6 +1289,7 @@ def baseline_minimums_only(
         simple_mode=simple_mode,
         lifecycle_events=lifecycle_events,
         minimums_only=True,
+        gap_as_debt=gap_as_debt,
     )
 
 

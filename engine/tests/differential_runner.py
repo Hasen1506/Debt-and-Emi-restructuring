@@ -69,15 +69,24 @@ def run_case(case: dict) -> dict:
     from engine.ordering import Strategy
     from engine.simulation import baseline_minimums_only, simulate_plan
 
+    # Gap borrowing (grill #38) exists only in engines that ship
+    # engine/gap_debt.py; the old engine always assumed the gap was free.
+    extra = {}
+    if "gap_as_debt" in case:
+        try:
+            import engine.gap_debt  # noqa: F401
+            extra = {"gap_as_debt": case["gap_as_debt"]}
+        except ImportError:
+            extra = {}
     out: dict = {}
     for mode in case.get("modes", ["plan", "baseline"]):
         try:
             user = build_user(case)
             if mode == "plan":
                 res = simulate_plan(user, strategy=Strategy(case.get("strategy", "avalanche")),
-                                    horizon_months=case.get("horizon", 360))
+                                    horizon_months=case.get("horizon", 360), **extra)
             else:
-                res = baseline_minimums_only(user, horizon_months=case.get("horizon", 360))
+                res = baseline_minimums_only(user, horizon_months=case.get("horizon", 360), **extra)
             out[mode] = _summary(res)
         except Exception as e:  # recorded, compared by the test
             out[mode] = {"error": type(e).__name__, "message": str(e)}

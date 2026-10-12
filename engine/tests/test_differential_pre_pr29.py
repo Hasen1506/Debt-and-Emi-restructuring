@@ -63,6 +63,9 @@ def run_legacy(legacy_dir: Path, cases: list[dict]) -> list[dict]:
 
 
 def both(legacy_dir, cases):
+    # Every older domain compares with the gap assumed free, as the old
+    # engine did; gap borrowing (#38) has its own DIRECTION test below.
+    cases = [{"gap_as_debt": False, **c} for c in cases]
     old = run_legacy(legacy_dir, cases)
     new = [run_case(c) for c in cases]
     return list(zip(cases, old, new))
@@ -296,3 +299,37 @@ def test_prepayment_fee_gate_never_prepays_at_a_loss(legacy_dir):
         assert D(new["plan"]["total_interest"]) <= D(new["baseline"]["total_interest"]) + D("0.01"), case
         old_losses += D(old["plan"]["total_interest"]) > D(old["baseline"]["total_interest"]) + D("0.01")
     assert old_losses > 0, "the seeded profiles should include the losses the old engine made"
+
+
+def test_short_months_are_borrowed_at_card_rates(legacy_dir):
+    """DIFFERENCE #38 (gap borrowing): a month whose income can't cover
+    costs plus minimums was assumed funded for free. Now the gap is
+    borrowed at a card rate and repaid first. With income below the
+    minimums the plan can only cost MORE and finish LATER (or never);
+    with income above them nothing changes."""
+    rng = random.Random(SEED + 38)
+    cases = []
+    for _ in range(150):
+        country = rng.choice(["IN", "US"])
+        loans = [_loan(rng) for _ in range(rng.randint(1, 3))]
+        cases.append({"country": country, "income": _income(rng, loans, rng.random() < 0.5), "loans": loans,
+                      "strategy": rng.choice(["avalanche", "snowball"]), "modes": ["plan"],
+                      "gap_as_debt": True})
+    # Against the same engine with the gap assumed free, which is what the
+    # IDENTICAL domains above pin to the old engine.
+    new = [run_case(c) for c in cases]
+    free = [run_case({**c, "gap_as_debt": False}) for c in cases]
+    changed = 0
+    for case, n, f in zip(cases, new, free):
+        n, f = n["plan"], f["plan"]
+        need = sum(D(l["emi"]) for l in case["loans"])
+        assert D(n["total_interest"]) >= D(f["total_interest"]) - EXACT, case
+        if f["debt_free_month"] is not None and n["debt_free_month"] is not None:
+            assert n["debt_free_month"] >= f["debt_free_month"], case
+        if D(case["income"]) >= need:
+            # Never short: identical to the free-gap run.
+            assert n["debt_free_month"] == f["debt_free_month"], case
+            assert abs(D(n["total_interest"]) - D(f["total_interest"])) <= EXACT, case
+        else:
+            changed += 1
+    assert changed > 0

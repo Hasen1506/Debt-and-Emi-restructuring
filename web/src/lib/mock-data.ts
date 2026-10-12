@@ -25,6 +25,10 @@ export type TrajectoryPoint = {
   /** Interest charged this month on the plan's schedule, in the user's
    *  currency (the engine's figure, not derived from balance changes). */
   interest?: number;
+  /** Gap borrowing owed at the month's end on each run (grill #38), user's
+   *  currency; not inside `avalanche` / `minimums`, which are loans only. */
+  gapDebt?: number;
+  minimumsGapDebt?: number;
 };
 
 export const mockTrajectory: TrajectoryPoint[] = Array.from({ length: 37 }, (_, i) => {

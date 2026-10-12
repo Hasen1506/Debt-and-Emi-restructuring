@@ -213,7 +213,9 @@ def test_p2_09_income_shock_lasts_its_full_window():
     reset = LifecycleEvent(LifecycleEventKind.SALARY_RESET, 3, new_monthly_take_home=D("120000"))
     r = with_income_shock(u, 6, horizon_months=60, plan={"lifecycle_events": [reset]})
     assert all(r.months[i].available_surplus == 0 for i in range(6))
-    assert r.months[6].available_surplus > D("70000")   # the planned raise applies after
+    # The planned raise applies after; it first repays the gap the shock
+    # months borrowed (grill #38), so count both.
+    assert r.months[6].available_surplus + r.months[6].gap_repaid > D("70000")
 
 
 # P2-10 ─────────────────────────────────────────────────────────────────────
