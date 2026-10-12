@@ -71,7 +71,7 @@ export async function fillLoan(page: Page, index: number, loan: LoanInput) {
  *  and the cheapest path, which is what setup used to assume silently. */
 export async function makeSetupChoices(page: Page) {
   await page.getByRole('button', { name: /^Not now$/ }).click();
-  const order = page.getByRole('button', { name: /^Cheapest path/ });
+  const order = page.getByRole('button', { name: /^Cheapest path \(Avalanche\)/ });
   if (await order.count()) await order.click();
 }
 
