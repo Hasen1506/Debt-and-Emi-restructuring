@@ -27,7 +27,7 @@ const loan = (id = 'a', extra = {}) => ({ id, bank: id, loan_type: 'home_loan', 
 const user = (extra = {}) => ({ country: 'US', income_type: 'salaried', monthly_income: '10000', annual_income: '120000', annual_gross_salary: '120000', fixed_expenses: '3000', savings_balance: '50000', primary_bank: 'a', loans: [loan()], ...extra });
 
 function stores(u, blocked=()=>false) {
-  const jar=new Map([['finoptima_user',encodeURIComponent(JSON.stringify(u))],['finoptima_marginal','.24'],['finoptima_score','780']]);
+  const jar=new Map([['rightdue_user',encodeURIComponent(JSON.stringify(u))],['rightdue_marginal','.24'],['rightdue_score','780']]);
   const data=new Map();
   global.document={get cookie(){return [...jar].map(([k,v])=>`${k}=${v}`).join('; ');},set cookie(value){
     const [pair,...attrs]=value.split(';');const split=pair.indexOf('=');const key=pair.slice(0,split);
@@ -44,7 +44,7 @@ function cleanup(){delete global.document;delete global.localStorage;delete glob
 test('saving a spending cut raises the debt budget, preserves cents and can undo both',async()=>{
   const {commitSpendingCut,undoSpendingCut}=lib('commit-spending-cut.ts');
   const {loadProfileClient}=lib('user-store.ts');const {readDebtBudgetClient}=lib('debt-budget.ts');
-  const u=user({fixed_expenses:'60000'});const s=stores(u);s.jar.set('finoptima_debt_budget','50000.25');
+  const u=user({fixed_expenses:'60000'});const s=stores(u);s.jar.set('rightdue_debt_budget','50000.25');
   try{
     const entries=commitSpendingCut(u,10000.25,1,'50000.25');
     assert.equal(loadProfileClient().user.fixed_expenses,'49999.75');
@@ -53,7 +53,7 @@ test('saving a spending cut raises the debt budget, preserves cents and can undo
     assert.equal(undoSpendingCut(entries[0].id).length,0);
     assert.equal(loadProfileClient().user.fixed_expenses,'60000');
     assert.equal(readDebtBudgetClient(),'50000.25');
-    assert.deepEqual(JSON.parse(s.data.get('finoptima_commitments')),[]);
+    assert.deepEqual(JSON.parse(s.data.get('rightdue_commitments')),[]);
     await new Promise(r=>setImmediate(r));
   }finally{cleanup();}
 });
@@ -63,7 +63,7 @@ test('all spare cash stays uncapped and stale debt budgets cannot save an outdat
   const u=user({fixed_expenses:'60000'});let s=stores(u);
   try{
     commitSpendingCut(u,10000,1,'');assert.equal(readDebtBudgetClient(),'');
-    s=stores(u);s.jar.set('finoptima_debt_budget','45000');
+    s=stores(u);s.jar.set('rightdue_debt_budget','45000');
     assert.throws(()=>commitSpendingCut(u,10000,1,'50000'),/debt budget changed/);
     assert.equal(s.data.size,0);
     await new Promise(r=>setImmediate(r));
@@ -74,17 +74,17 @@ test('blocked profile, budget and log writes roll back every part of a spending 
   const {commitSpendingCut}=lib('commit-spending-cut.ts');const {loadProfileClient}=lib('user-store.ts');
   const u=user({fixed_expenses:'60000'});
   try{
-    for(const target of ['finoptima_user','finoptima_debt_budget','finoptima_commitments']){
-      const s=stores(u,k=>k.startsWith(target));s.jar.set('finoptima_debt_budget','50000');
-      s.data.set('finoptima_commitments','[]');
-      if(target==='finoptima_commitments'){
+    for(const target of ['rightdue_user','rightdue_debt_budget','rightdue_commitments']){
+      const s=stores(u,k=>k.startsWith(target));s.jar.set('rightdue_debt_budget','50000');
+      s.data.set('rightdue_commitments','[]');
+      if(target==='rightdue_commitments'){
         const set=localStorage.setItem;
         localStorage.setItem=(k,v)=>{if(k===target)throw Error('quota');return set(k,v);};
       }
       assert.throws(()=>commitSpendingCut(u,10000,1,'50000'));
       assert.equal(loadProfileClient().user.fixed_expenses,'60000');
-      assert.equal(s.jar.get('finoptima_debt_budget'),'50000');
-      assert.equal(s.data.get('finoptima_commitments'),'[]');
+      assert.equal(s.jar.get('rightdue_debt_budget'),'50000');
+      assert.equal(s.data.get('rightdue_commitments'),'[]');
     }
     await new Promise(r=>setImmediate(r));
   }finally{cleanup();}
@@ -93,15 +93,15 @@ test('blocked profile, budget and log writes roll back every part of a spending 
 test('undo refuses to overwrite later spending or debt-budget changes',async()=>{
   const {commitSpendingCut,undoSpendingCut}=lib('commit-spending-cut.ts');
   const {saveProfileClient,loadProfileClient}=lib('user-store.ts');
-  const u=user({fixed_expenses:'60000'});const s=stores(u);s.jar.set('finoptima_debt_budget','50000');
+  const u=user({fixed_expenses:'60000'});const s=stores(u);s.jar.set('rightdue_debt_budget','50000');
   try{
-    const entries=commitSpendingCut(u,10000,1,'50000');s.jar.set('finoptima_debt_budget','65000');
+    const entries=commitSpendingCut(u,10000,1,'50000');s.jar.set('rightdue_debt_budget','65000');
     assert.throws(()=>undoSpendingCut(entries[0].id),/changed after this cut/);
-    s.jar.set('finoptima_debt_budget','60000');
+    s.jar.set('rightdue_debt_budget','60000');
     saveProfileClient({...loadProfileClient(),user:{...loadProfileClient().user,fixed_expenses:'45000'}});
     assert.throws(()=>undoSpendingCut(entries[0].id),/changed after this cut/);
     assert.equal(loadProfileClient().user.fixed_expenses,'45000');
-    assert.equal(JSON.parse(s.data.get('finoptima_commitments')).length,1);
+    assert.equal(JSON.parse(s.data.get('rightdue_commitments')).length,1);
     await new Promise(r=>setImmediate(r));
   }finally{cleanup();}
 });
@@ -126,7 +126,7 @@ test('debt-budget parser preserves cents and rejects negative or malformed total
 
 test('related account slices reach the server in one patch and remain together for retry',async()=>{
   process.env.NEXT_PUBLIC_DISABLE_AUTH='false';
-  const data=new Map([['finoptima_account_id','cut-account']]);
+  const data=new Map([['rightdue_account_id','cut-account']]);
   global.localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)};
   global.window={dispatchEvent(){}};
   const {syncSlicesToServer,flushPendingState}=lib('server-sync.ts');
@@ -136,7 +136,7 @@ test('related account slices reach the server in one patch and remain together f
     api.patchUserState=async value=>{writes.push(value);throw Error('offline');};
     await syncSlicesToServer(change);
     assert.deepEqual(writes,[change]);
-    assert.deepEqual(JSON.parse(data.get('finoptima_pending_sync_cut-account')),change);
+    assert.deepEqual(JSON.parse(data.get('rightdue_pending_sync_cut-account')),change);
     api.patchUserState=async value=>{writes.push(value);return {data:value};};
     assert.equal(await flushPendingState(),true);
     assert.deepEqual(writes[1],change);

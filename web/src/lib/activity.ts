@@ -106,7 +106,7 @@ export const ACTIVITY_KINDS: ActivityKind[] = [
   'closed',
 ];
 
-const STORAGE_KEY = 'finoptima_activity';
+const STORAGE_KEY = 'rightdue_activity';
 
 function safeParse(raw: string | null): ActivityEntry[] {
   if (!raw) return [];
@@ -136,7 +136,7 @@ function isActivityEntry(v: unknown): v is ActivityEntry {
 
 /** localStorage key: the date setup last saved the user's balances. A card
  *  entered then is up to date even with no activity logged yet. */
-export const BALANCES_ENTERED_KEY = 'finoptima_balances_entered';
+export const BALANCES_ENTERED_KEY = 'rightdue_balances_entered';
 
 export function readActivityClient(): ActivityEntry[] {
   if (typeof window === 'undefined') return [];

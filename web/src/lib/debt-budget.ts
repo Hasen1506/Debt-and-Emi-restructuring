@@ -7,7 +7,7 @@
 
 import Decimal from 'decimal.js';
 
-const COOKIE_NAME = 'finoptima_debt_budget';
+const COOKIE_NAME = 'rightdue_debt_budget';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 /** '' for all spare cash, else a positive amount with at most two decimals. */

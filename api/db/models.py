@@ -85,6 +85,14 @@ class UserState(Base):
         primary_key=True,
     )
     data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    # Critique #63: a write counter, raised by every PATCH/PUT, and for each
+    # top-level slice the counter value at which it last changed. A client
+    # sends the version it last read; a slice another device changed since
+    # then is refused (412) instead of being overwritten silently.
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    slice_versions: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

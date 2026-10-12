@@ -146,18 +146,18 @@ test('server-side engine runs are budgeted per requester',()=>{
 
 // ── Logout clears per-user browser data (P2-18) ──────────────────────────
 test('sign-out clears the per-user keys outside the synced slices',()=>{
- const data=new Map([['finoptima_account_id','A'],['finoptima_set_aside','{}'],['finoptima_balances_entered','2026-10-01'],['finoptima_stale_snooze_until','x'],['finoptima_pending_sync_A','{"goals":[]}'],['finoptima_pending_sync_B','{}'],['other','keep']]);
- const ss=new Map([['rightdue_trail','[]'],['finoptima_debtfree_prompt_dismissed','1']]);
+ const data=new Map([['rightdue_account_id','A'],['rightdue_set_aside','{}'],['rightdue_balances_entered','2026-10-01'],['rightdue_stale_snooze_until','x'],['rightdue_pending_sync_A','{"goals":[]}'],['rightdue_pending_sync_B','{}'],['other','keep']]);
+ const ss=new Map([['rightdue_trail','[]'],['rightdue_debtfree_prompt_dismissed','1']]);
  const store=(m)=>({getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k),key:i=>[...m.keys()][i]??null,get length(){return m.size}});
  global.localStorage=store(data);global.sessionStorage=store(ss);global.window={localStorage,dispatchEvent(){}};global.document={cookie:''};
  try{
   const file=path.join(root,'lib/server-sync.ts');delete require.cache[require.resolve(file)];
   const sync=require(file);sync.clearAccountCache();
-  for(const k of ['finoptima_set_aside','finoptima_balances_entered','finoptima_stale_snooze_until'])assert.equal(data.has(k),false,k);
+  for(const k of ['rightdue_set_aside','rightdue_balances_entered','rightdue_stale_snooze_until'])assert.equal(data.has(k),false,k);
   assert.equal(ss.size,0);
-  assert.equal(data.has('finoptima_pending_sync_A'),true,'kept until a successful sign-out');
+  assert.equal(data.has('rightdue_pending_sync_A'),true,'kept until a successful sign-out');
   sync.clearPendingSync();
-  assert.equal(data.has('finoptima_pending_sync_A'),false);assert.equal(data.has('finoptima_pending_sync_B'),false);assert.equal(data.get('other'),'keep');
+  assert.equal(data.has('rightdue_pending_sync_A'),false);assert.equal(data.has('rightdue_pending_sync_B'),false);assert.equal(data.get('other'),'keep');
   assert.match(read('lib/auth.ts'),/clearPendingSync\(\)/);
  }finally{delete global.localStorage;delete global.sessionStorage;delete global.window;delete global.document}
 });

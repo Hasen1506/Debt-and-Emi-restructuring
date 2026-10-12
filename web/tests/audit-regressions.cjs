@@ -98,7 +98,7 @@ test('card balance anchor includes only subsequent extra payments and Home/Plan 
 });
 
 function browserStores({user:u=user(),blocked=false}={}) {
-  const jar=new Map([['finoptima_user',encodeURIComponent(JSON.stringify(u))],['finoptima_marginal','0']]);
+  const jar=new Map([['rightdue_user',encodeURIComponent(JSON.stringify(u))],['rightdue_marginal','0']]);
   const data=new Map();
   global.document={get cookie(){return [...jar].map(([k,v])=>`${k}=${v}`).join('; ');},set cookie(value){
     const [pair,...attributes]=value.split(';');const split=pair.indexOf('=');const name=pair.slice(0,split);
@@ -114,31 +114,31 @@ test('lifecycle confirmation is transactional, supports compressed history and u
   const {commitLifecycle}=lib('commit-lifecycle.ts');const {loadProfileClient}=lib('user-store.ts');
   const store=browserStores();
   const events=[event('a','floating_rate_reset',{loanId:'a',loanIndex:0,newRate:'.08'}),event('b','floating_rate_reset',{loanId:'b',loanIndex:1,newRate:'.09'})];
-  lc.writeLifecycleClient(events);assert.equal(lc.readLifecycleClient().length,2);assert.ok(decodeURIComponent(store.jar.get('finoptima_lifecycle')).startsWith('z1.'));
+  lc.writeLifecycleClient(events);assert.equal(lc.readLifecycleClient().length,2);assert.ok(decodeURIComponent(store.jar.get('rightdue_lifecycle')).startsWith('z1.'));
   commitLifecycle('a','confirmed');commitLifecycle('b','confirmed');assert.deepEqual(loadProfileClient().user.loans.map(l=>l.nominal_rate),['.08','.09']);
   commitLifecycle('a','delete');assert.deepEqual(loadProfileClient().user.loans.map(l=>l.nominal_rate),['0.12','.09']);
-  const before=store.jar.get('finoptima_lifecycle');
-  assert.throws(()=>lc.writeLifecycleClient([{...lc.readLifecycleClient()[0],note:require('node:crypto').randomBytes(10000).toString('base64')}]),/exceed browser storage/);assert.equal(store.jar.get('finoptima_lifecycle'),before);
-  store.setBlocked(name=>name.startsWith('finoptima_user'));assert.throws(()=>commitLifecycle('b','cancelled'),/profile could not be saved/);assert.equal(lc.readLifecycleClient()[0].status,'confirmed');assert.equal(loadProfileClient().user.loans[1].nominal_rate,'.09');
+  const before=store.jar.get('rightdue_lifecycle');
+  assert.throws(()=>lc.writeLifecycleClient([{...lc.readLifecycleClient()[0],note:require('node:crypto').randomBytes(10000).toString('base64')}]),/exceed browser storage/);assert.equal(store.jar.get('rightdue_lifecycle'),before);
+  store.setBlocked(name=>name.startsWith('rightdue_user'));assert.throws(()=>commitLifecycle('b','cancelled'),/profile could not be saved/);assert.equal(lc.readLifecycleClient()[0].status,'confirmed');assert.equal(loadProfileClient().user.loans[1].nominal_rate,'.09');
   delete global.document;delete global.window;delete global.localStorage;
 });
 test('cash transaction rolls back the activity and recap if profile cookies are blocked',()=>{
   process.env.NEXT_PUBLIC_DISABLE_AUTH='true';
   const {commitCashChange}=lib('commit-cash-change.ts');const {loadProfileClient}=lib('user-store.ts');
-  const store=browserStores({blocked:true});store.data.set('finoptima_activity','[]');
+  const store=browserStores({blocked:true});store.data.set('rightdue_activity','[]');
   const profile=loadProfileClient();assert.throws(()=>commitCashChange(profile,{...profile.user,savings_balance:'1'},[{id:'x'}],{confirmations:[{monthKey:'2026-08'}]}),/did not save/);
-  assert.equal(store.data.get('finoptima_activity'),'[]');assert.equal(store.data.has('finoptima_cash_events'),false);assert.equal(loadProfileClient().user.savings_balance,'50000');
+  assert.equal(store.data.get('rightdue_activity'),'[]');assert.equal(store.data.has('rightdue_cash_events'),false);assert.equal(loadProfileClient().user.savings_balance,'50000');
   delete global.document;delete global.window;delete global.localStorage;
 });
 test('clearing a stored credit score also clears the local cookie',()=>{
-  process.env.NEXT_PUBLIC_DISABLE_AUTH='true';const store=browserStores();store.jar.set('finoptima_score','780');
+  process.env.NEXT_PUBLIC_DISABLE_AUTH='true';const store=browserStores();store.jar.set('rightdue_score','780');
   const {saveProfileClient,loadProfileClient}=lib('user-store.ts');assert.equal(saveProfileClient({...loadProfileClient(),creditScore:null}),true);assert.equal(loadProfileClient().creditScore,null);
   delete global.document;delete global.window;delete global.localStorage;
 });
 test('parallel slice saves serialize atomic patches and a failed save never replaces unrelated state',async()=>{
   await new Promise(resolve=>setImmediate(resolve));
   process.env.NEXT_PUBLIC_DISABLE_AUTH='false';
-  const storage = new Map([['finoptima_account_id','queue-test']]);
+  const storage = new Map([['rightdue_account_id','queue-test']]);
   global.localStorage={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)};
   const {api}=lib('api.ts');const patch=api.patchUserState;let state={untouched:'keep'};const writes=[];let active=0,maxActive=0;
   api.patchUserState=async value=>{active++;maxActive=Math.max(maxActive,active);await new Promise(resolve=>setImmediate(resolve));state={...state,...value};writes.push(value);active--;return {data:state};};

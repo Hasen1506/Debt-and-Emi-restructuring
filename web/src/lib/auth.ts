@@ -49,7 +49,7 @@ export function useSession(): SessionState & { refresh: () => Promise<void>; log
   useEffect(() => {
     void refresh();
     const accountChanged = (event: StorageEvent) => {
-      if (event.key === 'finoptima_account_id') void refresh();
+      if (event.key === 'rightdue_account_id') void refresh();
     };
     window.addEventListener(SESSION_CHANGED_EVENT, refresh);
     window.addEventListener('storage', accountChanged);

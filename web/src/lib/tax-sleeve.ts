@@ -49,7 +49,7 @@ export interface TaxSleeveSlice {
   paidInstallments: string[];
 }
 
-const STORAGE_KEY = 'finoptima_tax_sleeve';
+const STORAGE_KEY = 'rightdue_tax_sleeve';
 const EMPTY: TaxSleeveSlice = { paidInstallments: [] };
 
 // ─── Read / write ──────────────────────────────────────────────────────────

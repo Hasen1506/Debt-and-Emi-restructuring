@@ -103,6 +103,10 @@ def main() -> None:
     async def reset() -> None:
         async with database.engine.begin() as conn:
             await conn.run_sync(database.Base.metadata.drop_all)
+            # Start-up migrates the schema (api/db/migrations): forget the
+            # applied revision too, or it would find nothing left to run.
+            from sqlalchemy import text
+            await conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
         await database.engine.dispose()
 
     asyncio.run(reset())

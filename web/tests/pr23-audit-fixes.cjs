@@ -27,7 +27,7 @@ const loan = (id = 'a', extra = {}) => ({ id, bank: id, loan_type: 'home_loan', 
 const user = (extra = {}) => ({ country: 'US', income_type: 'salaried', monthly_income: '10000', annual_income: '120000', annual_gross_salary: '120000', fixed_expenses: '3000', savings_balance: '50000', primary_bank: 'a', loans: [loan()], ...extra });
 
 function stores(u, blocked=()=>false) {
-  const jar=new Map([['finoptima_user',encodeURIComponent(JSON.stringify(u))],['finoptima_marginal','.24'],['finoptima_score','780']]);
+  const jar=new Map([['rightdue_user',encodeURIComponent(JSON.stringify(u))],['rightdue_marginal','.24'],['rightdue_score','780']]);
   const data=new Map();
   global.document={get cookie(){return [...jar].map(([k,v])=>`${k}=${v}`).join('; ');},set cookie(value){
     const [pair,...attrs]=value.split(';');const split=pair.indexOf('=');const key=pair.slice(0,split);
@@ -129,11 +129,11 @@ test('regular extras from monthly surplus count as a sustainable repayment pace'
 test('paid-at-entry records an EMI alongside an existing bonus and remains idempotent',async()=>{
   const {saveProfileWithPaidEmis}=lib('paid-at-entry.ts');const {loadProfileClient}=lib('user-store.ts');
   const u=user({country:'IN',loans:[emiLoan({balance_as_of:'2026-10-03',balance_after_emi:true})]});
-  const s=stores(u);s.data.set('finoptima_activity',JSON.stringify([payment()]));
+  const s=stores(u);s.data.set('rightdue_activity',JSON.stringify([payment()]));
   try {
     const profile=loadProfileClient();assert.equal(saveProfileWithPaidEmis(profile,'2026-10-03'),true);
     assert.equal(saveProfileWithPaidEmis(profile,'2026-10-03'),true);
-    const entries=JSON.parse(s.data.get('finoptima_activity'));
+    const entries=JSON.parse(s.data.get('rightdue_activity'));
     assert.equal(entries.length,2);assert.equal(regularPaid(entries).toNumber(),9000);
     assert.equal(paymentState(entries,9000,9000),'paid');
     await new Promise(r=>setImmediate(r));
@@ -143,10 +143,10 @@ test('paid-at-entry records an EMI alongside an existing bonus and remains idemp
 test('paid-at-entry records only the missing regular payment after a partial EMI',async()=>{
   const {saveProfileWithPaidEmis}=lib('paid-at-entry.ts');const {loadProfileClient}=lib('user-store.ts');
   const u=user({country:'IN',loans:[emiLoan({balance_as_of:'2026-10-03',balance_after_emi:true})]});const s=stores(u);
-  s.data.set('finoptima_activity',JSON.stringify([payment({kind:'paid_partial',amount:'4000',scheduledEmi:'9000'})]));
+  s.data.set('rightdue_activity',JSON.stringify([payment({kind:'paid_partial',amount:'4000',scheduledEmi:'9000'})]));
   try {
     assert.equal(saveProfileWithPaidEmis(loadProfileClient(),'2026-10-03'),true);
-    const entries=JSON.parse(s.data.get('finoptima_activity'));assert.equal(entries.length,2);assert.equal(regularPaid(entries).toNumber(),9000);
+    const entries=JSON.parse(s.data.get('rightdue_activity'));assert.equal(entries.length,2);assert.equal(regularPaid(entries).toNumber(),9000);
     await new Promise(r=>setImmediate(r));
   } finally {cleanup();}
 });
@@ -154,14 +154,14 @@ test('paid-at-entry records only the missing regular payment after a partial EMI
 test('blocked activity storage, profile cookies or empty-delta projection cookies roll back the profile and ledger',async()=>{
   const {saveProfileWithPaidEmis}=lib('paid-at-entry.ts');const {loadProfileClient}=lib('user-store.ts');
   const u=user({country:'IN',loans:[emiLoan()]});
-  for(const target of ['storage','finoptima_user','finoptima_activity_deltas']) {
-    const s=stores(u,k=>target===k);s.data.set('finoptima_activity','[]');
-    if(target==='storage') {const set=localStorage.setItem;localStorage.setItem=(k,v)=>{if(k==='finoptima_activity'&&v!=='[]') throw Error('quota');return set(k,v);};}
+  for(const target of ['storage','rightdue_user','rightdue_activity_deltas']) {
+    const s=stores(u,k=>target===k);s.data.set('rightdue_activity','[]');
+    if(target==='storage') {const set=localStorage.setItem;localStorage.setItem=(k,v)=>{if(k==='rightdue_activity'&&v!=='[]') throw Error('quota');return set(k,v);};}
     try {
       const profile=loadProfileClient();const next={...profile,user:{...u,monthly_income:'12000',loans:[emiLoan({balance_as_of:'2026-10-03',balance_after_emi:true})]}};
       assert.equal(saveProfileWithPaidEmis(next,'2026-10-03'),false,target);
       assert.equal(loadProfileClient().user.monthly_income,u.monthly_income,target);
-      assert.equal(s.data.get('finoptima_activity'),'[]',target);assert.equal(s.jar.has('finoptima_activity_deltas'),false,target);
+      assert.equal(s.data.get('rightdue_activity'),'[]',target);assert.equal(s.jar.has('rightdue_activity_deltas'),false,target);
       await new Promise(r=>setImmediate(r));
     } finally {cleanup();}
   }
@@ -169,11 +169,11 @@ test('blocked activity storage, profile cookies or empty-delta projection cookie
 
 test('an empty-delta regular payment must still verify its activity cookie and roll back if blocked',()=>{
   const {commitActivity}=lib('commit-activity.ts');const {syncActivityCookieClient}=lib('activity-cookie.ts');const u=user({country:'IN',loans:[emiLoan()]});
-  const s=stores(u,k=>k==='finoptima_activity_deltas');s.data.set('finoptima_activity','[]');
+  const s=stores(u,k=>k==='rightdue_activity_deltas');s.data.set('rightdue_activity','[]');
   try {
     const entries=[payment({kind:'paid_full',amount:'9000',scheduledEmi:'9000'})];
     assert.equal(syncActivityCookieClient(entries,u.loans,'IN'),false);
-    assert.throws(()=>commitActivity(entries,u),/could not be saved/);assert.equal(s.data.get('finoptima_activity'),'[]');
+    assert.throws(()=>commitActivity(entries,u),/could not be saved/);assert.equal(s.data.get('rightdue_activity'),'[]');
   } finally {cleanup();}
 });
 

@@ -17,7 +17,7 @@ import MARKET from './market-data.json';
 export type InflationModeling = 'on' | 'off';
 
 export const DEFAULT_INFLATION_MODELING: InflationModeling = 'off';
-const COOKIE_NAME = 'finoptima_inflation_modeling';
+const COOKIE_NAME = 'rightdue_inflation_modeling';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 function isInflationModeling(v: string | null | undefined): v is InflationModeling {
@@ -68,7 +68,7 @@ export const INFLATION_FORECAST = {
 
 // ─── The user's own rate ────────────────────────────────────────────────────
 
-const RATE_COOKIE = 'finoptima_inflation_rate';
+const RATE_COOKIE = 'rightdue_inflation_rate';
 
 /** '' for "use the forecast", else a yearly rate as a decimal ('0.06'),
  *  between 0 and 25%. */

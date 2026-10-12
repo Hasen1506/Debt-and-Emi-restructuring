@@ -17,7 +17,7 @@ export type StrategyName = 'avalanche' | 'rules' | 'snowball';
 
 export const STRATEGIES: StrategyName[] = ['avalanche', 'rules', 'snowball'];
 export const DEFAULT_STRATEGY: StrategyName = 'avalanche';
-const COOKIE_NAME = 'finoptima_strategy';
+const COOKIE_NAME = 'rightdue_strategy';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 function isStrategy(v: string | null | undefined): v is StrategyName {

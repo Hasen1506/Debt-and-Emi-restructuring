@@ -13,7 +13,7 @@
  */
 
 export const DEFAULT_EF_SPLIT = '0.3';
-const COOKIE_NAME = 'finoptima_ef_split';
+const COOKIE_NAME = 'rightdue_ef_split';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 function normalize(v: string | null | undefined): string {

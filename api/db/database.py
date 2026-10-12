@@ -1,9 +1,8 @@
 """Async SQLAlchemy engine + session factory.
 
 Reads DATABASE_URL from the environment (loaded via python-dotenv at app
-startup). On boot we call `init_db()` to create tables that don't yet
-exist — fine for phase 1; swap for Alembic when the schema starts
-evolving.
+startup). On boot `init_db()` runs the Alembic migrations
+(api/db/migrations) up to the newest one.
 
 DB is optional: if DATABASE_URL is unset, the engine is not created
 and `db_enabled()` returns False. `api.main` then skips mounting the
@@ -59,11 +58,47 @@ async def get_db() -> AsyncIterator[AsyncSession]:
         yield session
 
 
+# Critique #63: the schema is now versioned with Alembic (api/db/migrations).
+BASELINE_REVISION = "0001_baseline"
+_BASELINE_TABLES = {"users", "otp_codes", "sessions", "user_state"}
+
+
+def run_migrations(connection) -> list[str]:
+    """Bring the account database to the newest migration (sync, inside
+    `conn.run_sync`). A database made by the old `create_all`, with the four
+    tables but no alembic_version, is stamped at the baseline first, so the
+    baseline never tries to create tables that exist. Returns the tables a
+    model declares that no migration created (see init_db)."""
+    from pathlib import Path
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import inspect
+
+    root = Path(__file__).resolve().parents[2]
+    cfg = Config(str(root / "alembic.ini"))
+    cfg.set_main_option("script_location", str(root / "api" / "db" / "migrations"))
+    cfg.attributes["connection"] = connection
+    tables = set(inspect(connection).get_table_names())
+    if "alembic_version" not in tables and _BASELINE_TABLES <= tables:
+        log.info("Account database predates Alembic: stamping %s", BASELINE_REVISION)
+        command.stamp(cfg, BASELINE_REVISION)
+    command.upgrade(cfg, "head")
+    have = set(inspect(connection).get_table_names())
+    return sorted(t for t in Base.metadata.tables if t not in have)
+
+
 async def init_db() -> None:
     if engine is None:
         return
-    # Import models so they register on Base.metadata before create_all.
+    # Import models so they register on Base.metadata.
     from api.db import models  # noqa: F401
 
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        missing = await conn.run_sync(run_migrations)
+        if missing:
+            # A model added without a migration still gets its table, so a
+            # deploy never breaks on it, but say so: the schema test
+            # (api/tests/test_migrations.py) fails until a migration exists.
+            log.warning("Tables without an Alembic migration, created directly: %s", ", ".join(missing))
+            await conn.run_sync(Base.metadata.create_all)

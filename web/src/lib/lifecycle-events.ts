@@ -29,7 +29,7 @@ import { resolveLoanIndex } from './loan-ids';
 import { LOAN_TYPE_NAME, loanLabel } from './loan-types';
 import { nextMonth } from './roll-forward';
 
-const COOKIE_NAME = 'finoptima_lifecycle';
+const COOKIE_NAME = 'rightdue_lifecycle';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 export type LifecycleStatus = 'planned' | 'confirmed' | 'cancelled';

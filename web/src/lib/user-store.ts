@@ -1,7 +1,7 @@
 /**
  * Single source of truth for the user's profile across the app.
  *
- * Persistence is cookies (`finoptima_user`, compressed and split into
+ * Persistence is cookies (`rightdue_user`, compressed and split into
  * parts when large; see profile-cookie.ts) so both server components (via
  * next/headers) and client components (via document.cookie) can read the
  * same payload. Falls back to DEMO_USER when no cookie is present — that
@@ -19,10 +19,11 @@ import {
   MAX_PROFILE_CHUNKS,
   profileChunkName,
 } from './profile-cookie';
+import { sessionToken } from './storage-migration';
 
-const MARGINAL_COOKIE = 'finoptima_marginal';
-const SCORE_COOKIE = 'finoptima_score';
-const FX_COOKIE = 'finoptima_fx';
+const MARGINAL_COOKIE = 'rightdue_marginal';
+const SCORE_COOKIE = 'rightdue_score';
+const FX_COOKIE = 'rightdue_fx';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;  // 1 year
 // FX rates from the spot endpoint are refreshed daily — anything older is
 // re-fetched on next read. 24h is a sensible balance: the engine treats FX
@@ -166,7 +167,7 @@ export function saveProfileClient(profile: {
   const loans = withLoanIds(profile.user.loans ?? []);
   if (loans !== profile.user.loans) profile = { ...profile, user: { ...profile.user, loans } };
   const previousProfile = decodeProfileCookies(readClientCookie);
-  const previousActivity = readRawClientCookie('finoptima_activity_deltas');
+  const previousActivity = readRawClientCookie('rightdue_activity_deltas');
   if (!writeProfileCookieClient(JSON.stringify(profile.user))) {
     if (typeof window !== 'undefined') window.dispatchEvent(new Event(SAVE_FAILED_EVENT));
     return false;
@@ -177,7 +178,7 @@ export function saveProfileClient(profile: {
   } catch {
     if (previousProfile !== null) writeProfileCookieClient(previousProfile);
     else for (let i=0;i<MAX_PROFILE_CHUNKS;i++) document.cookie = `${profileChunkName(i)}=; path=/; max-age=0`;
-    document.cookie = previousActivity === null ? 'finoptima_activity_deltas=; path=/; max-age=0' : `finoptima_activity_deltas=${previousActivity}; path=/; SameSite=Lax`;
+    document.cookie = previousActivity === null ? 'rightdue_activity_deltas=; path=/; max-age=0' : `rightdue_activity_deltas=${previousActivity}; path=/; SameSite=Lax`;
     if (typeof window !== 'undefined') window.dispatchEvent(new Event(SAVE_FAILED_EVENT));
     return false;
   }
@@ -259,7 +260,7 @@ export function isFxCacheFresh(entry: FxCacheEntry | null): entry is FxCacheEntr
 
 // ─── Server-side ────────────────────────────────────────────────────────────
 
-const SESSION_COOKIE = 'finoptima_session';
+const SESSION_COOKIE = 'rightdue_session';
 
 /**
  * Server-side fetch of the user's persisted state. Returns null when:
@@ -272,7 +273,7 @@ const SESSION_COOKIE = 'finoptima_session';
  */
 async function fetchUserStateServer(): Promise<Record<string, unknown> | null> {
   const { cookies } = await import('next/headers');
-  const session = (await cookies()).get(SESSION_COOKIE)?.value;
+  const session = sessionToken(await cookies());
   if (!session) return null;
   // Server side: the API's internal address (lib/api-base), never the
   // browser's relative one.
@@ -330,7 +331,7 @@ export async function loadProfileServer(): Promise<StoredProfile> {
   // still be in flight. Login hydration supplies remote data on a new device.
   const local = _profileFromCookieStore(store);
   if (local.isLive) return local;
-  if (store.get(SESSION_COOKIE)?.value) {
+  if (sessionToken(store)) {
     const serverData = await fetchUserStateServer();
     const fromServer = profileFromServerData(serverData);
     if (fromServer) return fromServer;

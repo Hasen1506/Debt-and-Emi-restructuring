@@ -25,7 +25,7 @@
 export type TaxReinvestSetting = 'on' | 'off';
 
 export const DEFAULT_TAX_REINVEST: TaxReinvestSetting = 'off';
-const COOKIE_NAME = 'finoptima_tax_reinvest';
+const COOKIE_NAME = 'rightdue_tax_reinvest';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 function isTaxReinvest(v: string | null | undefined): v is TaxReinvestSetting {

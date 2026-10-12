@@ -23,6 +23,11 @@ import { useRouter } from 'next/navigation';
 import { SESSION_CHANGED_EVENT } from './session-events';
 import { writeProfileCookieClient, profileCookieHolds, clearProfileClient, resumeProfileClient, serializeProfileForServer, type StoredProfile } from './user-store';
 import { writeLifecycleClient, readLifecycleClient, type LifecycleEvent } from './lifecycle-events';
+import { migrateLegacyClientStorage } from './storage-migration';
+
+// finoptima_* → rightdue_* (critique #58): move this browser's keys before
+// any store reads them. The root layout loads this module on every page.
+migrateLegacyClientStorage();
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
@@ -33,38 +38,75 @@ interface SliceTarget {
   name: string;
 }
 const SLICE_TARGETS: Record<string, SliceTarget> = {
-  lifecycle:          { kind: 'cookie',       name: 'finoptima_lifecycle' },
-  advance_tax:        { kind: 'cookie',       name: 'finoptima_advance_tax' },
-  activity:           { kind: 'localStorage', name: 'finoptima_activity' },
-  strategy:           { kind: 'cookie',       name: 'finoptima_strategy' },
-  payoff_rules:       { kind: 'cookie',       name: 'finoptima_payoff_rules' },
-  inflation_modeling: { kind: 'cookie',       name: 'finoptima_inflation_modeling' },
-  inflation_rate:     { kind: 'cookie',       name: 'finoptima_inflation_rate' },
-  hike_modeling:      { kind: 'cookie',       name: 'finoptima_hike_modeling' },
-  tax_reinvest:       { kind: 'cookie',       name: 'finoptima_tax_reinvest' },
-  fx_drift:           { kind: 'cookie',       name: 'finoptima_fx_drift' },
-  commitments:        { kind: 'localStorage', name: 'finoptima_commitments' },
-  decision_log:       { kind: 'localStorage', name: 'finoptima_decision_log' },
-  cash_events:        { kind: 'localStorage', name: 'finoptima_cash_events' },
-  tax_sleeve:         { kind: 'localStorage', name: 'finoptima_tax_sleeve' },
-  goals:             { kind: 'localStorage', name: 'finoptima_goals' },
-  goal_contributions:{ kind: 'localStorage', name: 'finoptima_goal_contributions' },
-  monthly_spend:     { kind: 'localStorage', name: 'finoptima_monthly_spend' },
-  decisions:         { kind: 'localStorage', name: 'finoptima_decisions' },
-  ef_split:          { kind: 'cookie',       name: 'finoptima_ef_split' },
-  debt_budget:       { kind: 'cookie',       name: 'finoptima_debt_budget' },
+  lifecycle:          { kind: 'cookie',       name: 'rightdue_lifecycle' },
+  advance_tax:        { kind: 'cookie',       name: 'rightdue_advance_tax' },
+  activity:           { kind: 'localStorage', name: 'rightdue_activity' },
+  strategy:           { kind: 'cookie',       name: 'rightdue_strategy' },
+  payoff_rules:       { kind: 'cookie',       name: 'rightdue_payoff_rules' },
+  inflation_modeling: { kind: 'cookie',       name: 'rightdue_inflation_modeling' },
+  inflation_rate:     { kind: 'cookie',       name: 'rightdue_inflation_rate' },
+  hike_modeling:      { kind: 'cookie',       name: 'rightdue_hike_modeling' },
+  tax_reinvest:       { kind: 'cookie',       name: 'rightdue_tax_reinvest' },
+  fx_drift:           { kind: 'cookie',       name: 'rightdue_fx_drift' },
+  commitments:        { kind: 'localStorage', name: 'rightdue_commitments' },
+  decision_log:       { kind: 'localStorage', name: 'rightdue_decision_log' },
+  cash_events:        { kind: 'localStorage', name: 'rightdue_cash_events' },
+  tax_sleeve:         { kind: 'localStorage', name: 'rightdue_tax_sleeve' },
+  goals:             { kind: 'localStorage', name: 'rightdue_goals' },
+  goal_contributions:{ kind: 'localStorage', name: 'rightdue_goal_contributions' },
+  monthly_spend:     { kind: 'localStorage', name: 'rightdue_monthly_spend' },
+  decisions:         { kind: 'localStorage', name: 'rightdue_decisions' },
+  ef_split:          { kind: 'cookie',       name: 'rightdue_ef_split' },
+  debt_budget:       { kind: 'cookie',       name: 'rightdue_debt_budget' },
   // Profile slice is handled separately by user-store.ts (it spans 3
   // cookies and predates this file).
 };
 
 export const HYDRATED_EVENT = 'finoptima:hydrated';
-const ACCOUNT_KEY = 'finoptima_account_id';
+const ACCOUNT_KEY = 'rightdue_account_id';
 let accountGeneration = 0;
 let localRevision = 0;
 let preparedAccount: string | null = null;
 export const SYNC_CHANGED_EVENT = 'finoptima:sync-changed';
 const pendingMemory = new Map<string, Record<string, unknown>>();
-let syncStatus: 'saved' | 'pending' | 'failed' = 'saved';
+
+/**
+ * What the account copy is doing (live-test #2/#3/#27/#33).
+ *
+ * The old notice had one failure state for every cause, and a 401 (the
+ * sign-in ended or was revoked while the session cookie stayed in the
+ * browser, so pages still opened) was retried with the same dead cookie
+ * forever: "Changes have not reached your account… Retry save" never
+ * cleared, although each save had been kept on this device. Each cause now
+ * has its own state, message and next step.
+ */
+export type SyncProblem =
+  | 'signed_out'      // 401: sign in again; saved on this device meanwhile
+  | 'offline'         // network down, or the free server waking up: retried automatically
+  | 'server'          // 5xx from the API: retried automatically
+  | 'too_large'       // 413
+  | 'refused'         // 403/400/422: the request itself was rejected
+  | 'account_changed' // 409: another tab signed in as someone else
+  | 'conflict';       // 412: another device changed the same part since this one read it
+export interface SyncState {
+  status: 'saved' | 'pending' | 'failed';
+  problem?: SyncProblem;
+  /** ms since epoch of the last attempt to reach the account. */
+  lastAttemptAt?: number;
+  /** When the next automatic retry runs (offline/server only). */
+  nextRetryAt?: number;
+  /** Parts refused because another device changed them (conflict only). */
+  conflictSlices?: string[];
+}
+let syncState: SyncState = { status: 'saved' };
+/** Fired after account data from another device was written into this browser. */
+export const REMOTE_APPLIED_EVENT = 'rightdue:remote-applied';
+const VERSION_KEY = (account: string) => `rightdue_state_version_${account}`;
+const CONFLICT_KEY = (account: string) => `rightdue_sync_conflict_${account}`;
+/** Automatic retry delays for offline/server problems. */
+export const RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000, 120_000, 300_000];
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let retryCount = 0;
 
 function activeAccount(): string | null {
   try { return localStorage.getItem(ACCOUNT_KEY); } catch { return null; }
@@ -73,7 +115,7 @@ function activeAccount(): string | null {
 function pendingState(account: string): Record<string, unknown> {
   if (pendingMemory.has(account)) return pendingMemory.get(account)!;
   try {
-    const saved = JSON.parse(localStorage.getItem(`finoptima_pending_sync_${account}`) ?? '{}');
+    const saved = JSON.parse(localStorage.getItem(`rightdue_pending_sync_${account}`) ?? '{}');
     return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
   } catch { return {}; }
 }
@@ -81,19 +123,81 @@ function pendingState(account: string): Record<string, unknown> {
 function storePending(account: string, data: Record<string, unknown>): void {
   pendingMemory.set(account, data);
   try {
-    const key = `finoptima_pending_sync_${account}`;
+    const key = `rightdue_pending_sync_${account}`;
     if (Object.keys(data).length) localStorage.setItem(key, JSON.stringify(data));
     else localStorage.removeItem(key);
     pendingMemory.delete(account);
   } catch { /* Keep the in-memory retry even if browser storage is full. */ }
 }
 
-function reportSync(status: typeof syncStatus): void {
-  syncStatus = status;
+/** The account version this browser last read or wrote, or null if unknown. */
+export function knownVersion(account: string): number | null {
+  try {
+    const v = Number(localStorage.getItem(VERSION_KEY(account)));
+    return localStorage.getItem(VERSION_KEY(account)) !== null && Number.isInteger(v) && v >= 0 ? v : null;
+  } catch { return null; }
+}
+
+function storeVersion(account: string, version: unknown): void {
+  if (typeof version !== 'number' || !Number.isInteger(version)) return;
+  try { localStorage.setItem(VERSION_KEY(account), String(version)); } catch { /* next GET sets it */ }
+}
+
+/** This device's copy of parts another device changed first. */
+export function conflictCopy(account: string | null = activeAccount()): Record<string, unknown> | null {
+  if (!account) return null;
+  try {
+    const raw = localStorage.getItem(CONFLICT_KEY(account));
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length ? parsed : null;
+  } catch { return null; }
+}
+
+function storeConflict(account: string, data: Record<string, unknown> | null): void {
+  try {
+    if (data && Object.keys(data).length) localStorage.setItem(CONFLICT_KEY(account), JSON.stringify(data));
+    else localStorage.removeItem(CONFLICT_KEY(account));
+  } catch { /* in-memory notice still shows */ }
+}
+
+function setSyncState(next: SyncState): void {
+  syncState = next;
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(SYNC_CHANGED_EVENT));
 }
 
-export function getSyncStatus(): typeof syncStatus { return syncStatus; }
+function reportSync(status: SyncState['status']): void {
+  setSyncState({ status, lastAttemptAt: syncState.lastAttemptAt });
+}
+
+/** Which problem an error from the state endpoint is. */
+export function classifySyncError(error: unknown): SyncProblem {
+  const status = (error as { status?: unknown })?.status;
+  if (typeof status !== 'number') return 'offline';
+  if (status === 401) return 'signed_out';
+  if (status === 409) return 'account_changed';
+  if (status === 412) return 'conflict';
+  if (status === 413) return 'too_large';
+  if (status >= 500) return status === 502 || status === 503 || status === 504 ? 'offline' : 'server';
+  return 'refused';
+}
+
+function clearRetry(): void {
+  if (retryTimer !== null) clearTimeout(retryTimer);
+  retryTimer = null;
+}
+
+function scheduleRetry(): number | undefined {
+  clearRetry();
+  if (typeof window === 'undefined') return undefined;
+  const delay = RETRY_DELAYS_MS[Math.min(retryCount, RETRY_DELAYS_MS.length - 1)];
+  retryCount++;
+  retryTimer = setTimeout(() => { retryTimer = null; void flushPendingState(); }, delay);
+  return Date.now() + delay;
+}
+
+/** Status in three words, for older callers. getSyncState() has the detail. */
+export function getSyncStatus(): SyncState['status'] { return syncState.status; }
+export function getSyncState(): SyncState { return syncState; }
 
 /** A different signed-in account must not inherit this browser's old profile. */
 export function prepareAccountCache(userId: string): void {
@@ -102,7 +206,9 @@ export function prepareAccountCache(userId: string): void {
   localStorage.setItem(ACCOUNT_KEY, userId);
   preparedAccount = userId;
   resumeProfileClient();
-  reportSync(Object.keys(pendingState(userId)).length ? 'pending' : 'saved');
+  const conflict = conflictCopy(userId);
+  if (conflict) setSyncState({ status: 'failed', problem: 'conflict', conflictSlices: Object.keys(conflict) });
+  else reportSync(Object.keys(pendingState(userId)).length ? 'pending' : 'saved');
 }
 
 export function clearAccountCache(): void {
@@ -110,13 +216,15 @@ export function clearAccountCache(): void {
   localRevision++;
   localStorage.removeItem(ACCOUNT_KEY);
   preparedAccount = null;
+  clearRetry();
+  retryCount = 0;
   reportSync('saved');
   clearProfileClient();
   for (const target of Object.values(SLICE_TARGETS)) {
     if (target.kind === 'localStorage') localStorage.removeItem(target.name);
     else document.cookie = `${target.name}=; path=/; max-age=0`;
   }
-  for (const name of ['finoptima_activity_deltas', 'finoptima_goals_digest', 'finoptima_goal_contributions_digest', 'finoptima_monthly_spend_digest', 'finoptima_ledger_tone']) {
+  for (const name of ['rightdue_activity_deltas', 'rightdue_goals_digest', 'rightdue_goal_contributions_digest', 'rightdue_monthly_spend_digest', 'rightdue_ledger_tone']) {
     document.cookie = `${name}=; path=/; max-age=0`;
   }
   // Per-user keys outside the synced slices (PASS2 P2-18): on a shared
@@ -136,18 +244,18 @@ export function clearAccountCache(): void {
 export function clearPendingSync(): void {
   pendingMemory.clear();
   for (const key of storageKeys(localStorage)) {
-    if (key.startsWith('finoptima_pending_sync_')) localStorage.removeItem(key);
+    if (key.startsWith('rightdue_pending_sync_') || key.startsWith('rightdue_state_version_') || key.startsWith('rightdue_sync_conflict_')) localStorage.removeItem(key);
   }
 }
 
 /** localStorage keys that hold one person's data but are not synced slices. */
 export const LOCAL_PER_USER_KEYS = [
-  'finoptima_set_aside',
-  'finoptima_balances_entered',
-  'finoptima_stale_snooze_until',
+  'rightdue_set_aside',
+  'rightdue_balances_entered',
+  'rightdue_stale_snooze_until',
 ] as const;
 /** sessionStorage keys with one person's navigation or prompts. */
-export const SESSION_PER_USER_KEYS = ['rightdue_trail', 'finoptima_debtfree_prompt_dismissed'] as const;
+export const SESSION_PER_USER_KEYS = ['rightdue_trail', 'rightdue_debtfree_prompt_dismissed'] as const;
 
 function storageKeys(store: Storage): string[] {
   const keys: string[] = [];
@@ -204,25 +312,108 @@ export function syncSlicesToServer(slices: Record<string, unknown>): Promise<voi
   return syncQueue;
 }
 
-async function sendPending(account: string, generation: number): Promise<boolean> {
+async function sendPending(account: string, generation: number, force = false): Promise<boolean> {
   if (generation !== accountGeneration || activeAccount() !== account) return false;
   const snapshot = { ...pendingState(account) };
   if (!Object.keys(snapshot).length) return true;
   const { api } = await import('./api');
   if (generation !== accountGeneration || activeAccount() !== account) return false;
+  const base = knownVersion(account);
+  const attemptAt = Date.now();
   try {
-    await api.patchUserState(snapshot);
+    const res = await api.patchUserState(snapshot, base, force);
+    clearRetry();
+    retryCount = 0;
     const remaining = { ...pendingState(account) };
     for (const [slice, value] of Object.entries(snapshot)) {
       if (JSON.stringify(remaining[slice]) === JSON.stringify(value)) delete remaining[slice];
     }
     storePending(account, remaining);
-    if (activeAccount() === account) reportSync(Object.keys(remaining).length ? 'pending' : 'saved');
+    // Another device wrote in between (the version moved by more than this
+    // write): bring its other parts into this browser, or a later edit here
+    // would be based on an old copy (critique #63).
+    const version = res?.version;
+    if (typeof version === 'number' && res.data && (base === null || version > base + 1)) {
+      await applyRemote(account, generation, res.data, new Set([...Object.keys(snapshot), ...Object.keys(remaining)]));
+    }
+    storeVersion(account, version);
+    if (activeAccount() === account) {
+      setSyncState({ status: Object.keys(remaining).length ? 'pending' : 'saved', lastAttemptAt: attemptAt });
+    }
     return !Object.keys(remaining).length;
-  } catch {
-    if (activeAccount() === account) reportSync('failed');
+  } catch (error) {
+    if (activeAccount() !== account) return false;
+    const problem = classifySyncError(error);
+    if (problem === 'conflict') return handleConflict(account, generation, snapshot, error, attemptAt);
+    const retry = problem === 'offline' || problem === 'server';
+    const nextRetryAt = retry ? scheduleRetry() : undefined;
+    if (!retry) clearRetry();
+    setSyncState({ status: 'failed', problem, lastAttemptAt: attemptAt, nextRetryAt });
     return false;
   }
+}
+
+/**
+ * 412: another device changed some of these parts after this one read
+ * them. The account copy wins in this browser (the server is the source of
+ * truth when signed in); this device's version is kept aside so the person
+ * can choose it instead (keepThisDevice). Parts that did not conflict are
+ * sent again on top of the newer version.
+ */
+async function handleConflict(account: string, generation: number, snapshot: Record<string, unknown>, error: unknown, attemptAt: number): Promise<boolean> {
+  const detail = (error as { detail?: () => unknown }).detail?.() as
+    { slices?: string[]; data?: Record<string, unknown>; version?: number } | null;
+  const slices = Array.isArray(detail?.slices) ? detail!.slices.filter((s) => s in snapshot) : Object.keys(snapshot);
+  const pending = { ...pendingState(account) };
+  const mine: Record<string, unknown> = { ...(conflictCopy(account) ?? {}) };
+  for (const slice of slices) {
+    mine[slice] = pending[slice];
+    delete pending[slice];
+  }
+  storePending(account, pending);
+  storeConflict(account, mine);
+  if (detail?.data) await applyRemote(account, generation, detail.data, new Set(Object.keys(pending)));
+  storeVersion(account, detail?.version);
+  setSyncState({ status: 'failed', problem: 'conflict', lastAttemptAt: attemptAt, conflictSlices: Object.keys(mine) });
+  // Send what did not conflict, now based on the newer version.
+  if (Object.keys(pending).length) {
+    const ok = await sendPending(account, generation);
+    if (ok) setSyncState({ status: 'failed', problem: 'conflict', lastAttemptAt: Date.now(), conflictSlices: Object.keys(mine) });
+  }
+  return false;
+}
+
+/** Write account data from elsewhere into this browser, except the parts
+ *  this browser still has to send (`keep`), then tell the page. */
+async function applyRemote(account: string, generation: number, data: Record<string, unknown>, keep: Set<string>): Promise<void> {
+  const subset: Record<string, unknown> = {};
+  for (const [slice, value] of Object.entries(data)) if (!keep.has(slice)) subset[slice] = value;
+  if (!Object.keys(subset).length) return;
+  await hydrateLocalStores(subset, () => generation === accountGeneration && activeAccount() === account);
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(REMOTE_APPLIED_EVENT));
+}
+
+/** The person chose this device's copy of the conflicting parts: write it
+ *  back here and send it, overriding the other device's. */
+export async function keepThisDevice(): Promise<boolean> {
+  const account = activeAccount(), generation = accountGeneration;
+  const mine = account ? conflictCopy(account) : null;
+  if (!account || !mine) return true;
+  await hydrateLocalStores(mine, () => generation === accountGeneration && activeAccount() === account);
+  storeConflict(account, null);
+  storePending(account, { ...pendingState(account), ...mine });
+  let ok = false;
+  syncQueue = syncQueue.catch(() => {}).then(async () => { ok = await sendPending(account, generation, true); });
+  await syncQueue;
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(REMOTE_APPLIED_EVENT));
+  return ok;
+}
+
+/** The person kept the other device's copy: drop this device's. */
+export function keepOtherDevice(): void {
+  const account = activeAccount();
+  if (account) storeConflict(account, null);
+  setSyncState({ status: account && Object.keys(pendingState(account)).length ? 'pending' : 'saved', lastAttemptAt: syncState.lastAttemptAt });
 }
 
 /** Retry before hydration or sign-out so stale server state cannot replace edits. */
@@ -238,11 +429,30 @@ export async function flushPendingState(): Promise<boolean> {
 }
 
 /**
+ * The sign-in ended (GET /auth/me answered 401) but this browser still has
+ * changes queued for that account: say so after a reload too, instead of
+ * showing nothing until the next save fails.
+ */
+export function noteSignedOut(): void {
+  const account = activeAccount();
+  if (account && Object.keys(pendingState(account)).length) {
+    clearRetry();
+    setSyncState({ status: 'failed', problem: 'signed_out', lastAttemptAt: syncState.lastAttemptAt });
+  }
+}
+
+/** How many parts are saved here but not yet in the account. */
+export function pendingCount(): number {
+  const account = activeAccount();
+  return account ? Object.keys(pendingState(account)).length : 0;
+}
+
+/**
  * Mirror server-side state back into local stores. Called once after
  * boot when /api/user/state returns a populated blob.
  *
  * Also handles the profile slice, which spans 3 separate cookies
- * (finoptima_user, finoptima_marginal, finoptima_score) and so isn't
+ * (rightdue_user, rightdue_marginal, rightdue_score) and so isn't
  * in SLICE_TARGETS. Without this, returning users on a new device hit
  * a window where the session cookie exists but the profile cookie
  * doesn't — long enough for the middleware to redirect them to
@@ -253,9 +463,9 @@ export async function hydrateLocalStores(data: Record<string, unknown>, isCurren
   const profile = (data as { profile?: { user?: unknown; marginalRate?: string; creditScore?: number | null } }).profile;
   if (profile && typeof profile === 'object') {
     if (profile.user && !profileCookieHolds(profile.user)) writeProfileCookieClient(JSON.stringify(profile.user));
-    if (profile.marginalRate) writeCookie('finoptima_marginal', profile.marginalRate);
-    if (profile.creditScore != null) writeCookie('finoptima_score', String(profile.creditScore));
-    else if (profile.creditScore === null) document.cookie = 'finoptima_score=; path=/; max-age=0';
+    if (profile.marginalRate) writeCookie('rightdue_marginal', profile.marginalRate);
+    if (profile.creditScore != null) writeCookie('rightdue_score', String(profile.creditScore));
+    else if (profile.creditScore === null) document.cookie = 'rightdue_score=; path=/; max-age=0';
   }
   for (const [slice, target] of Object.entries(SLICE_TARGETS)) {
     if (!(slice in data)) continue;
@@ -303,7 +513,7 @@ export async function hydrateLocalStores(data: Record<string, unknown>, isCurren
   if (Array.isArray(data.monthly_spend)) {
     const { latestByMonth } = await import('./monthly-spend');
     if (!isCurrent()) return;
-    document.cookie = `finoptima_monthly_spend_digest=${btoa(JSON.stringify(latestByMonth(data.monthly_spend)))}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+    document.cookie = `rightdue_monthly_spend_digest=${btoa(JSON.stringify(latestByMonth(data.monthly_spend)))}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
   }
 }
 
@@ -339,6 +549,7 @@ export async function hydrateFromServer(): Promise<boolean> {
     const revision = localRevision, generation = accountGeneration;
     const account = activeAccount();
     const res = await api.getUserState();
+    if (account) storeVersion(account, res.version);
     // A different tab can change shared storage before its storage event
     // reaches this tab. Check the identity itself, including after imports.
     const isCurrent = () => revision === localRevision && generation === accountGeneration && account === activeAccount();
@@ -387,7 +598,9 @@ export function SessionHydrator(): null {
         // link followed in the meantime.
         if (cookieSnapshot() !== before) router.refresh();
       } catch {
-        // 401 (signed out) — nothing to hydrate.
+        // 401 (signed out): nothing to hydrate, but changes still queued for
+        // the account that was signed in here are shown as such.
+        if (!cancelled) noteSignedOut();
       }
     }
     void hydrate();

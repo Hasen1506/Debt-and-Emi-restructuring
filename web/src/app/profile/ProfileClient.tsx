@@ -335,6 +335,9 @@ function ProfileEditor({
   // Set when Continue is pressed with a loan missing its rate or EMI.
   const [showLoanErrors, setShowLoanErrors] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+  // Why SAVE CHANGES did not save (live-test #2/#27): it used to do nothing,
+  // or jump to Loans, with no word, so a blocked save looked like a lost one.
+  const [saveBlocked, setSaveBlocked] = useState<string | null>(null);
   // Exchange rate per foreign loan currency ("0.012" = $ per ₹1), filled
   // from today's quote when it loads and editable. Required: without it a
   // ₹20 lakh loan was added to dollars at parity.
@@ -756,8 +759,10 @@ function ProfileEditor({
     if (!loansComplete) {
       onOpen(3);
       setShowLoanErrors(true);
+      setSaveBlocked('Not saved yet: a loan needs a fix first. The Loans part is open with what to change; then save again.');
       return;
     }
+    setSaveBlocked(null);
     const score = Number(creditScore);
     // Foreign loans carry the exchange rate entered on the Loans step
     // (loansComplete requires one), so every page converts at the same rate.
@@ -2575,6 +2580,11 @@ function ProfileEditor({
             Confirm or cancel the country change above before saving.
           </p>
         )}
+        {saveBlocked && (
+          <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
+            {saveBlocked}
+          </p>
+        )}
         {saveFailed && (
           <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
             Your profile wasn&apos;t saved: this browser didn&apos;t keep it. Check
@@ -2594,7 +2604,12 @@ function ProfileEditor({
         >
           <LBracket onClick={() => onDone(false)}>CANCEL</LBracket>
           <span style={{ opacity: canAdvance ? 1 : 0.4 }}>
-            <LButton onClick={canAdvance ? save : undefined}>SAVE CHANGES</LButton>
+            <LButton onClick={canAdvance ? save : () => setSaveBlocked(
+              step === 1 ? 'Not saved yet: choose a country, and confirm or cancel a country change first.'
+                : step === 2 ? 'Not saved yet: take-home pay must be more than 0, and spending 0 or more.'
+                  : step === 4 ? 'Not saved yet: savings must be 0 or more.'
+                    : 'Not saved yet: check the fields above.',
+            )}>SAVE CHANGES</LButton>
           </span>
         </div>
       </Card>

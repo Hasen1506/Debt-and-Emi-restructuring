@@ -60,7 +60,7 @@ export interface DecisionEntry {
   reverted: boolean;
 }
 
-const STORAGE_KEY = 'finoptima_decisions';
+const STORAGE_KEY = 'rightdue_decisions';
 /** Soft-undo only applies to entries within the last N hours; older
  *  decisions are considered "ratified" and undo is hidden. */
 export const UNDO_WINDOW_HOURS = 72;

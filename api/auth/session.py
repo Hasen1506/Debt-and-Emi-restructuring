@@ -23,7 +23,10 @@ OTP_DAILY_WINDOW = timedelta(hours=24)
 OTP_MAX_FAILED_DAILY = 15
 OTP_MAX_REQUESTS_DAILY = 20
 SESSION_TTL = timedelta(days=30)
-SESSION_COOKIE_NAME = "finoptima_session"
+SESSION_COOKIE_NAME = "rightdue_session"
+# Critique #58: the old brand's cookie name, still accepted for one release
+# so sessions made before the rename keep working. Remove after Nov 2026.
+LEGACY_SESSION_COOKIE_NAME = "finoptima_session"
 
 
 def generate_otp() -> str:
