@@ -282,6 +282,10 @@ export function clearAccountCache(): void {
  */
 export function clearPendingSync(): void {
   pendingMemory.clear();
+  // A signed-out browser keeps nothing: the next sign-in starts with no
+  // version either, so a new device id loses nothing.
+  memoryDeviceId = null;
+  try { localStorage.removeItem(DEVICE_KEY); } catch { /* storage blocked */ }
   for (const key of storageKeys(localStorage)) {
     if (key.startsWith('rightdue_pending_sync_') || key.startsWith('rightdue_state_version_') || key.startsWith('rightdue_sync_conflict_')) localStorage.removeItem(key);
   }
