@@ -640,7 +640,10 @@ function ProfileEditor({
         })),
       primary_bank: primaryBank,
       other_banks: otherBanks,
-      state: stateFor(country, homeState) || undefined,
+      // One `state` (integration L3 x G3): India uses L3's state list; the
+      // US uses G3's two-letter state field, which drives the mortgage-interest
+      // state-tax rule (lib/us-loans).
+      state: (country === 'US' ? usState : stateFor(country, homeState)) || undefined,
       city: cleanCity(city) || undefined,
       location_tier: 'urban',
       tax_regime: country === 'IN' ? taxRegime : undefined,
@@ -649,7 +652,6 @@ function ProfileEditor({
         country === 'US' && stateMarginalRate.trim()
           ? num(stateMarginalRate)
           : undefined,
-      state: country === 'US' && usState ? usState : undefined,
       efund_balance: num(efundBalance),
       efund_target: num(efundTarget),
       loans: loans
@@ -1095,13 +1097,15 @@ function ProfileEditor({
                   { value: 'US' as Country, label: 'USA' },
                 ]}
               />
-              <Select
-                label="State (optional)"
-                value={stateFor(country, homeState)}
-                onChange={(v: string) => setHomeState(v)}
-                options={[{ value: '', label: 'Not set' }, ...statesFor(country).map((st) => ({ value: st, label: st }))]}
-                hint={STATE_HELP[country]}
-              />
+              {country === 'IN' && (
+                <Select
+                  label="State (optional)"
+                  value={stateFor(country, homeState)}
+                  onChange={(v: string) => setHomeState(v)}
+                  options={[{ value: '', label: 'Not set' }, ...statesFor(country).map((st) => ({ value: st, label: st }))]}
+                  hint={STATE_HELP[country]}
+                />
+              )}
               <Field
                 label="City (optional)"
                 kind="text"

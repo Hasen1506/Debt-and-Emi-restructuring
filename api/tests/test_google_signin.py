@@ -114,14 +114,14 @@ def test_callback_signs_in_creates_the_user_once_and_lands_on_next(make_client):
         r = c.get("/api/auth/google/callback", params={"code": "abc", "state": q["state"][0]})
         assert r.status_code == 302
         assert r.headers["location"] == "/login?google=1&next=%2Fplan"
-        token = r.cookies["finoptima_session"]
-        me = c.get("/api/auth/me", headers={"Cookie": f"finoptima_session={token}"})
+        token = r.cookies["rightdue_session"]
+        me = c.get("/api/auth/me", headers={"Cookie": f"rightdue_session={token}"})
         assert me.status_code == 200 and me.json()["email"] == "asha@example.com"
         assert seen[0]["code"] == "abc" and seen[0]["verifier"]
         # A second Google sign-in reaches the same account.
         _, q2 = _start(c)
         r2 = c.get("/api/auth/google/callback", params={"code": "def", "state": q2["state"][0]})
-        me2 = c.get("/api/auth/me", headers={"Cookie": f"finoptima_session={r2.cookies['finoptima_session']}"})
+        me2 = c.get("/api/auth/me", headers={"Cookie": f"rightdue_session={r2.cookies['rightdue_session']}"})
         assert me2.json()["id"] == me.json()["id"]
 
 
@@ -134,7 +134,7 @@ def test_existing_email_code_account_is_reused(make_client, monkeypatch):
         v = c.post("/api/auth/verify-otp", json={"email": "asha@example.com", "code": "123456"})
         _, q = _start(c)
         r = c.get("/api/auth/google/callback", params={"code": "x", "state": q["state"][0]})
-        me = c.get("/api/auth/me", headers={"Cookie": f"finoptima_session={r.cookies['finoptima_session']}"})
+        me = c.get("/api/auth/me", headers={"Cookie": f"rightdue_session={r.cookies['rightdue_session']}"})
         assert me.json()["id"] == v.json()["id"]
 
 
@@ -150,7 +150,7 @@ def test_bad_id_token_claims_never_sign_in(make_client, bad):
         _, q = _start(c)
         r = c.get("/api/auth/google/callback", params={"code": "x", "state": q["state"][0]})
         assert r.status_code == 302 and r.headers["location"].startswith("/login?google_error=")
-        assert "finoptima_session" not in r.cookies
+        assert "rightdue_session" not in r.cookies
 
 
 def test_state_mismatch_or_missing_flow_cookie_is_refused(make_client):
@@ -158,7 +158,7 @@ def test_state_mismatch_or_missing_flow_cookie_is_refused(make_client):
         _start(c)
         r = c.get("/api/auth/google/callback", params={"code": "x", "state": "forged"})
         assert r.headers["location"].startswith("/login?google_error=")
-        assert "finoptima_session" not in r.cookies
+        assert "rightdue_session" not in r.cookies
         c.cookies.clear()
         r = c.get("/api/auth/google/callback", params={"code": "x", "state": "anything"})
         assert r.headers["location"].startswith("/login?google_error=")

@@ -317,7 +317,9 @@ export interface UserPayload {
    *  Indian state / union territory or a US state, by its full name; the
    *  engine reads it as the default state for a property's stamp duty or
    *  selling costs when the asset has none. `city` is for the user's own
-   *  reference; the engine ignores it. */
+   *  reference; the engine ignores it. A US user's state is its two-letter
+   *  code (sprint G3, lib/us-loans: mortgage interest saves no state tax in
+   *  a no-income-tax state or one that disallows it, #79). */
   state?: string;
   city?: string;
   location_tier?: string;
@@ -333,9 +335,6 @@ export interface UserPayload {
    *  California top bracket. Added to federal marginal_rate when present
    *  so combined effective-rate math reflects state burden. */
   state_marginal_rate?: string;
-  /** US state, two-letter code (lib/us-loans: mortgage interest saves no
-   *  state tax in a no-income-tax state or one that disallows it, #79). */
-  state?: string;
   efund_balance?: string;
   efund_target?: string;
   loans: LoanPayload[];

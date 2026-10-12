@@ -30,10 +30,12 @@ test.describe('guards on main', () => {
     }
   });
 
-  test('L#30 [main] five-item nav, each tab opens without a dead end', async ({ page }) => {
+  test('L#30 [main] six-item nav (Portfolio since G10), each tab opens without a dead end', async ({ page }) => {
     await page.goto('/');
-    for (const [name, path] of [['HOME', '/'], ['PLAN', '/plan'], ['ACTIVITY', '/activity'], ['GOALS & TOOLS', '/goals'], ['PROFILE', '/profile']] as const) {
-      await page.getByRole('link', { name, exact: true }).first().click();
+    const nav = page.getByRole('navigation', { name: 'Main' });
+    for (const [name, path] of [['HOME', '/'], ['PLAN', '/plan'], ['ACTIVITY', '/activity'], ['GOALS & TOOLS', '/goals'], ['PORTFOLIO', '/portfolio'], ['PROFILE', '/profile']] as const) {
+      // LBracket renders "[HOME]": match the bracketed name inside the main nav.
+      await nav.getByRole('link', { name: `[${name}]`, exact: true }).click();
       await expect(page).toHaveURL(new RegExp(`${path === '/' ? '/$' : path}`));
       await expect(page.getByText(/This page could not be found|Application error/i)).toHaveCount(0);
     }
