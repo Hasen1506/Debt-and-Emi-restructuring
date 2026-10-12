@@ -51,11 +51,10 @@ KNOWN_GAPS = {
     # education loan, and the card's average-daily-balance approximation
     # (engine/simulation.py card_cycle_interest).
 }
-FULL_RUN_GAPS = {
-    "home_floating_sbi_style":
-        "G4 decision: after a cut (EMI kept, end date moves earlier) then a rise, _reset_rate raises "
-        "the EMI to keep the NEW, earlier end date; the bank-style statement keeps the original "
-        "maturity (EMI 22,196). Engine balance runs ~₹350/month lower after the rise.",
+FULL_RUN_GAPS: dict[str, str] = {
+    # home_floating_sbi_style: fixed in sprint G4. _reset_rate re-amortises a
+    # rise to the contractual maturity (bank convention; RBI 18 Aug 2023 reset
+    # circular), so the full 24 months now match the statement.
 }
 
 
