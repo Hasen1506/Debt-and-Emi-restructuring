@@ -160,7 +160,7 @@ test('wiring: the import never saves by itself; the market line sits beside the 
   assert.match(imp, /api\.kfsRead/);
   assert.doesNotMatch(imp, /saveProfile|persist|localStorage|api\.save|syncUser/);
   assert.match(imp, /Add this loan/);
-  assert.match(imp, /not kept/);
+  assert.match(imp, /never stored/); // G6 (#19): read on our server, never stored
   const prof = src('app/profile/ProfileClient.tsx');
   assert.match(prof, /<KfsImport/);
   assert.match(prof, /<MarketRateLine loan=\{l\} country=\{country\} \/>/);

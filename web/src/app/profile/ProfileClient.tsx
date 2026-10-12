@@ -104,6 +104,8 @@ import type { LoanTermsResponse } from '@/lib/api';
 import { feeShown, RBI_PREPAYMENT_RULE } from '@/lib/prepayment-fee';
 import { dropKfsFields, kfsNote } from '@/lib/kfs';
 import { KfsImport } from '@/components/profile/KfsImport';
+import { CreditReportImport } from '@/components/profile/CreditReportImport';
+import { SmsImport } from '@/components/profile/SmsImport';
 import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { MarketRateLine } from '@/components/profile/MarketRateLine';
 
@@ -1494,6 +1496,14 @@ function ProfileEditor({
                 onAdd={(loan) => setLoans((cur) => [...cur, loan])}
               />
             )}
+            {country === 'IN' && (
+              <CreditReportImport
+                blankLoan={blankLoan}
+                todayIso={localIsoDate(getCountryToday(country))}
+                onAdd={(added) => setLoans((cur) => [...cur, ...added])}
+              />
+            )}
+            {country === 'IN' && <SmsImport loans={loans} onPatchLoan={updateLoan} />}
             {loans.map((l, i) => (
               <div
                 key={i}
