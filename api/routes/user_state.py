@@ -103,8 +103,24 @@ def _stale_slices(row: UserState, payload: UserStateIn, whole: bool) -> list[str
     versions = row.slice_versions or {}
     if whole:
         # PUT replaces every slice: any write after base_version is a conflict.
-        return sorted(versions) if (row.version or 0) > payload.base_version else []
-    return sorted(k for k in payload.data if int(versions.get(k, 0)) > payload.base_version)
+        if (row.version or 0) <= payload.base_version:
+            return []
+        current = row.data or {}
+        incoming = migrate_state_shape(dict(payload.data))
+        if current == incoming:
+            return []  # the same blob again (a retried write): nothing to lose
+        return sorted(versions)
+    current = row.data or {}
+    incoming = migrate_state_shape(dict(payload.data))
+    # A slice that already holds exactly this value is not a conflict: it is
+    # this device's own earlier write whose answer never reached it (a full
+    # page navigation cancels the fetch after the server committed it), sent
+    # again from the pending queue. Refusing it showed "changed on another
+    # device" to someone using one device.
+    return sorted(
+        k for k in payload.data
+        if int(versions.get(k, 0)) > payload.base_version and current.get(k) != incoming.get(k)
+    )
 
 
 def _conflict(row: UserState, stale: list[str]) -> HTTPException:

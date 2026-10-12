@@ -155,3 +155,20 @@ def test_a_database_made_by_create_all_is_stamped_then_upgraded_keeping_its_data
     row, diff = asyncio.run(go())
     assert row.data == {'profile': {'income': '5'}} and row.version == 0 and row.slice_versions == {}
     assert diff == [], diff
+
+
+def test_a_retried_write_whose_answer_was_lost_is_not_a_conflict(state_client):
+    # E2E (account-persistence "signed in"): onboarding's PATCH committed, but
+    # the full navigation to /plan cancelled the fetch, so the device kept the
+    # change queued at its old version and sent it again. Same value: no 412.
+    _patch(state_client, {'profile': {'income': '1', 'loans': [1, 2]}}, base=0)    # v1, answer lost
+    again = _patch(state_client, {'profile': {'loans': [1, 2], 'income': '1'}}, base=0)
+    assert again.status_code == 200
+    # A different value at that old version is still refused.
+    assert _patch(state_client, {'profile': {'income': 'other'}}, base=0).status_code == 412
+
+
+def test_a_retried_put_of_the_same_blob_is_not_a_conflict(state_client):
+    state_client.put('/api/user/state', headers=A, json={'data': {'profile': {'x': 1}}, 'base_version': 0})
+    r = state_client.put('/api/user/state', headers=A, json={'data': {'profile': {'x': 1}}, 'base_version': 0})
+    assert r.status_code == 200

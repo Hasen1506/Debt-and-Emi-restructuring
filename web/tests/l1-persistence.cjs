@@ -114,6 +114,26 @@ test('412: the other device\'s copy is loaded here, this device\'s is kept aside
  }finally{global.fetch=fetch;cleanup()}
 });
 
+test('a resent write the account already holds (its answer was lost) is not shown as a conflict',async()=>{
+ const fetch=global.fetch,{sync,data}=setup('A',[['rightdue_state_version_A','0']]);let calls=0;
+ try{
+  // Old-API answer: 412 although the account holds exactly this device's value (keys in another order).
+  global.fetch=async()=>{calls++;return json({detail:{code:'stale_state',slices:['profile'],data:{profile:{b:2,a:1}},version:1}},412)};
+  await sync.syncSliceToServer('profile',{a:1,b:2});
+  assert.equal(sync.getSyncState().status,'saved');assert.equal(sync.conflictCopy('A'),null);
+  assert.equal(data.has('rightdue_pending_sync_A'),false);assert.equal(data.get('rightdue_state_version_A'),'1');assert.equal(calls,1);
+ }finally{global.fetch=fetch;cleanup()}
+});
+
+test('an older version in a late answer never replaces a newer one this device already has',async()=>{
+ const fetch=global.fetch,{sync,data}=setup('A',[['rightdue_state_version_A','5']]);
+ try{
+  global.fetch=async()=>json({data:{},version:3});
+  await sync.syncSliceToServer('strategy','snowball');
+  assert.equal(data.get('rightdue_state_version_A'),'5');
+ }finally{global.fetch=fetch;cleanup()}
+});
+
 test('finoptima_* cookies are renamed on the request and in the browser; a new-name value wins; the session stays HttpOnly',()=>{
  const {renameRequestCookies}=require(path.join(root,'lib/storage-migration.ts'));
  assert.equal(renameRequestCookies('rightdue_user=z1.1.abc; other=1',true),null);

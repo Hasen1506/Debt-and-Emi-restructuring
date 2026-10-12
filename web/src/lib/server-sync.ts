@@ -140,7 +140,21 @@ export function knownVersion(account: string): number | null {
 
 function storeVersion(account: string, version: unknown): void {
   if (typeof version !== 'number' || !Number.isInteger(version)) return;
+  // Never step back: the server's counter only rises, so a lower number is
+  // an answer that was overtaken (a GET sent before a PATCH that finished
+  // first). Storing it made this device's next save look stale to itself.
+  const known = knownVersion(account);
+  if (known !== null && version < known) return;
   try { localStorage.setItem(VERSION_KEY(account), String(version)); } catch { /* next GET sets it */ }
+}
+
+/** JSON with object keys sorted, so two copies of a slice compare equal
+ *  whatever order the database returned their keys in. */
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_k, v) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, (v as Record<string, unknown>)[k]]))
+      : v);
 }
 
 /** This device's copy of parts another device changed first. */
@@ -367,8 +381,22 @@ async function handleConflict(account: string, generation: number, snapshot: Rec
   const pending = { ...pendingState(account) };
   const mine: Record<string, unknown> = { ...(conflictCopy(account) ?? {}) };
   for (const slice of slices) {
+    // The account already holds exactly this device's value (its own
+    // earlier write, whose answer was lost): nothing to choose between.
+    if (detail?.data && slice in detail.data && canonical(detail.data[slice]) === canonical(pending[slice])) {
+      delete pending[slice];
+      continue;
+    }
     mine[slice] = pending[slice];
     delete pending[slice];
+  }
+  if (!Object.keys(mine).length) {
+    storePending(account, pending);
+    storeVersion(account, detail?.version);
+    if (detail?.data) await applyRemote(account, generation, detail.data, new Set(Object.keys(pending)));
+    if (Object.keys(pending).length) return sendPending(account, generation);
+    setSyncState({ status: 'saved', lastAttemptAt: attemptAt });
+    return true;
   }
   storePending(account, pending);
   storeConflict(account, mine);

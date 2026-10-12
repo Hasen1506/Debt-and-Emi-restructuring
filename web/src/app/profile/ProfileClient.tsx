@@ -3,6 +3,7 @@
 import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { SAFE_RATES } from '@/lib/invest-vs-prepay';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { REMOTE_APPLIED_EVENT } from '@/lib/server-sync';
 import { DEFAULT_EF_SPLIT, efMonthsToFill, readEfSplitClient } from '@/lib/ef-split';
 import { profileMarginalRate } from '@/lib/marginal-rate';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -210,6 +211,14 @@ export function ProfileClient({ payoffOrder }: { payoffOrder: ReactNode }) {
     section: searchParams.get('step') ? parseStepParam(searchParams.get('step')) : (null as number | null),
     saved: false,
   }));
+  // Account data from another device just replaced this browser's copy (a
+  // save refused as stale, or "use this device's version"): draw the summary
+  // again from it. An open form is left alone (critique #63).
+  useEffect(() => {
+    const redraw = () => setView((v) => (v.section === null ? { ...v, key: v.key + 1 } : v));
+    window.addEventListener(REMOTE_APPLIED_EVENT, redraw);
+    return () => window.removeEventListener(REMOTE_APPLIED_EVENT, redraw);
+  }, []);
   const done = (saved: boolean) => {
     if (searchParams.get('step')) router.replace('/profile', { scroll: false });
     setView((v) => ({ key: v.key + 1, section: null, saved }));
