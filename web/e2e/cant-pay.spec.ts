@@ -4,7 +4,7 @@
  * a ₹35,000 home EMI, a ₹15,000 car EMI and a card minimum: the page keeps
  * the home and car loans whole and shows the card minimum as short.
  */
-import { expect, fillLoan, signIn, test } from './fixtures';
+import { expect, fillLoan, signIn, test, makeSetupChoices } from './fixtures';
 
 test('India: Feeling overwhelmed → can\u2019t pay this month → protect order, cost, letter, rights', async ({ page }) => {
   await signIn(page, 'golden-cantpay@rightdue.app');
@@ -15,6 +15,7 @@ test('India: Feeling overwhelmed → can\u2019t pay this month → protect order
   await fillLoan(page, 1, { kind: /^car$/i, balance: '500000', rate: '9', emi: '15000' });
   await fillLoan(page, 2, { kind: /^card$/i, balance: '85000', rate: '42' });
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
+  await makeSetupChoices(page);
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
   await page.waitForURL('**/plan');
 

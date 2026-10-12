@@ -10,7 +10,7 @@
  *  - #24: "due" beside what the month can cover, on Plan and on Home;
  *  - #26: a longer-tenure what-if runs the engine and shows the new EMI.
  */
-import { expect, fillLoan, isPlanCall, signIn, test } from './fixtures';
+import { expect, fillLoan, isPlanCall, signIn, test, makeSetupChoices } from './fixtures';
 
 const EMAIL = 'golden-short-month@rightdue.app';
 
@@ -41,6 +41,7 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
   });
 
   await test.step('Plan: both dates named, due beside what the month covers', async () => {
+    await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
     await page.waitForURL('**/plan');
     await expect(page.getByText(/GAP CLOSES · AS THINGS STAND/)).toBeVisible();

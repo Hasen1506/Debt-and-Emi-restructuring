@@ -11,7 +11,7 @@
  *    with NEXT_PUBLIC_DISABLE_AUTH=true (how production served guests
  *    during the live test). CI builds the signed-in app, so they skip there.
  */
-import { expect, fillLoan, signIn, test } from './fixtures';
+import { expect, fillLoan, signIn, test, makeSetupChoices } from './fixtures';
 import { setUpPersona } from './persona';
 
 const API = `http://127.0.0.1:${process.env.E2E_API_PORT ?? 8100}`;
@@ -105,6 +105,7 @@ test.describe('guest mode (E2E_GUEST_MODE=1)', () => {
     await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();
     await fillLoan(page, 0, { kind: /^card$/i, balance: '150000', rate: '42' });
     await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
+    await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
     await page.reload();
     await page.goto('/profile');

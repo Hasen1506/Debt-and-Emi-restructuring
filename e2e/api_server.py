@@ -74,6 +74,12 @@ def install_stubs() -> None:
 
     auth_routes.generate_otp = lambda: E2E_OTP
     auth_routes.send_otp_email = lambda to, code: None
+    # The journeys sign the same persona in once per test, far more than the
+    # per-email (5 / 10 min, 20 / day) and global (90 / day) code caps from
+    # G8's OTP hardening allow. api/tests covers those caps; lift them here.
+    auth_routes.OTP_MAX_REQUESTS = 10_000
+    auth_routes.OTP_MAX_REQUESTS_DAILY = 10_000
+    auth_routes.OTP_GLOBAL_DAILY_CAP = 10_000
 
     async def fixed_fetch(base: str, quote: str):
         if base == quote:
