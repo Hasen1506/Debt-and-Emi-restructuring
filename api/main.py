@@ -99,6 +99,8 @@ async def _missing_fx(request: Request, exc: MissingFxRate) -> JSONResponse:
 
 
 app.include_router(simulation.router, prefix="/api")
+from api.routes import payoff_range  # noqa: E402  (sprint G4, grill #24)
+app.include_router(payoff_range.router, prefix="/api")
 app.include_router(decisions.router, prefix="/api")
 app.include_router(layer0.router, prefix="/api")
 app.include_router(institutions.router, prefix="/api")
@@ -112,9 +114,6 @@ app.include_router(kfs.router, prefix="/api")
 app.include_router(complaints.router, prefix="/api")
 app.include_router(offers.router, prefix="/api")
 app.include_router(outcomes.router, prefix="/api")
-# Sprint G4 (grill #24): the debt-free range.
-from api.routes import payoff_range  # noqa: E402
-app.include_router(payoff_range.router, prefix="/api")
 
 # DB-bound routers — only mounted when DATABASE_URL is configured.
 # Skipping them on the Render free tier keeps the API up without a
