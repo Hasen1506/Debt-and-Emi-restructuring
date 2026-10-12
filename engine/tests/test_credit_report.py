@@ -120,3 +120,33 @@ def test_password_protected_pdf():
     assert e.value.kind == "wrong_password"
     text = cr.pdf_text(data, PASSWORDS["cibil_locked"])
     assert cr.to_dict(cr.read_credit_report(text, as_of=TODAY))["open_loans"] == 3
+
+
+# Property: on any text, the reader either reads accounts or raises its own
+# plain error, and never echoes a PAN or a full account number.
+from hypothesis import given, settings, strategies as st  # noqa: E402
+
+_LINE = st.one_of(
+    st.text(max_size=60),
+    st.sampled_from([
+        "MEMBER NAME: X BANK ACCOUNT TYPE: PERSONAL LOAN", "ACCOUNT NUMBER: PL123456789 OWNERSHIP: INDIVIDUAL",
+        "CURRENT BALANCE: 1,00,000 EMI: 5,000", "PAN: ABCDE1234F", "CLOSED: 01-01-2020", "Status: Settled",
+        "Lender: Y | Type: Gold Loan | Acct No: GL99887766", "ENQUIRIES", "Interest Rate: 99",
+    ]),
+)
+
+
+@settings(max_examples=150, deadline=None)
+@given(st.lists(_LINE, max_size=30))
+def test_never_crashes_and_never_leaks(lines):
+    text = "\n".join(lines)
+    try:
+        d = cr.to_dict(cr.read_credit_report(text, as_of=TODAY))
+    except cr.CreditReportReadError:
+        return
+    blob = json.dumps(d)
+    assert "ABCDE1234F" not in blob
+    assert "PL123456789" not in blob and "GL99887766" not in blob
+    for a in d["accounts"]:
+        if a["loan"] and a["loan"]["nominal_rate"]:
+            assert 0 <= float(a["loan"]["nominal_rate"]) <= 0.6
