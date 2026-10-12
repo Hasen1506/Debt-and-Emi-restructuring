@@ -1477,8 +1477,10 @@ export const api = {
     ),
 
   // ─── auth ─────────────────────────────────────────────────────────────────
-  requestOtp: (email: string) =>
-    post<void>('/api/auth/request-otp', { email }),
+  /** `turnstileToken`: Cloudflare Turnstile's one-time token, sent only
+   *  when the check is on (NEXT_PUBLIC_TURNSTILE_SITE_KEY, grill #59). */
+  requestOtp: (email: string, turnstileToken?: string) =>
+    post<void>('/api/auth/request-otp', turnstileToken ? { email, turnstile_token: turnstileToken } : { email }),
   verifyOtp: (email: string, code: string) =>
     post<AuthUser>('/api/auth/verify-otp', { email, code }),
   logout: () => post<void>('/api/auth/logout', {}),

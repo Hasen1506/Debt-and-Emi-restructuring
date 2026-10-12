@@ -1,10 +1,19 @@
 """SQLAlchemy models for auth + per-user state.
 
 Tables:
-- users: one row per registered email.
-- otp_codes: short-lived 6-digit codes, hashed, single-use.
+- users: one row per *verified* email (created when a sign-in code is
+  first verified, never on a code request; grill #59).
+- otp_challenges: short-lived 6-digit codes, hashed, single-use, keyed by
+  email so an unverified address never gets a users row.
+- otp_codes: LEGACY (codes keyed by user_id, written before grill #59).
+  Nothing writes it now; retention (api/auth/retention.py) empties it.
 - sessions: opaque random tokens, looked up per request via cookie.
 - user_state: per-user JSON blob (profile, lifecycle, activity, etc).
+- rate_buckets: per-client request counters for the sign-in, admin and
+  outcome routes, so limits survive a restart (api/rate_buckets.py).
+
+No migrations yet: `create_all` only creates missing tables, which is
+why the email-keyed codes are a new table rather than a changed one.
 """
 from __future__ import annotations
 
@@ -44,6 +53,8 @@ class User(Base):
 
 
 class OtpCode(Base):
+    """LEGACY, read-only: see the module docstring."""
+
     __tablename__ = "otp_codes"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
@@ -92,3 +103,34 @@ class UserState(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="state")
+
+
+class OtpChallenge(Base):
+    """A sign-in code sent to an email, before any account exists.
+
+    `code_hash` is blanked once the code is used or expired (it is useless
+    then, and a 6-digit hash can be reversed from a dump). The row itself
+    is the record that a code was sent, kept for the retention period.
+    """
+
+    __tablename__ = "otp_challenges"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    email: Mapped[str] = mapped_column(String(320), index=True, nullable=False)
+    code_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
+
+
+class RateBucket(Base):
+    """One fixed-window counter: `key` is "<route prefix>|<keyed hash of
+    the client address>|<window start, epoch seconds>". The address itself
+    is never stored."""
+
+    __tablename__ = "rate_buckets"
+
+    key: Mapped[str] = mapped_column(String(160), primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)

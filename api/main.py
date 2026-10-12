@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 # Load .env before anything reads os.environ (engine, resend, etc).
 load_dotenv()
 
-from api import outcomes_store, rates_feed  # noqa: E402
+from api import observability, outcomes_store, rates_feed  # noqa: E402
 from api.security import SecurityMiddleware  # noqa: E402
 from api.db.database import db_enabled, init_db  # noqa: E402
 from api.routes import (  # noqa: E402
@@ -39,6 +39,9 @@ log = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    if db_enabled():
+        from api.auth import retention
+        await retention.purge_on_startup()  # sign-in record retention (grill #51)
     await outcomes_store.store().init()
     rates_feed.start()
     yield
@@ -90,6 +93,16 @@ async def _validation_error(request: Request, exc: RequestValidationError) -> JS
     return JSONResponse(status_code=422, content={"detail": first, "errors": errors[:20]})
 
 
+@app.exception_handler(Exception)
+async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+    """A bug: report it to Sentry when SENTRY_DSN is set (api/observability,
+    grill #64; no body, query, headers or account are sent), and answer
+    with a plain 500 that doesn't echo anything back."""
+    route = getattr(request.scope.get("route"), "path", "") or request.url.path
+    observability.capture_exception(exc, request.method, route)
+    return JSONResponse(status_code=500, content={"detail": {"field": "", "message": "Something went wrong on our side."}})
+
+
 @app.exception_handler(MissingFxRate)
 async def _missing_fx(request: Request, exc: MissingFxRate) -> JSONResponse:
     """A foreign loan reached the engine without an exchange rate (H4).
@@ -117,10 +130,12 @@ app.include_router(outcomes.router, prefix="/api")
 # Skipping them on the Render free tier keeps the API up without a
 # Postgres add-on while we're still in trial mode.
 if db_enabled():
+    from api.auth.account import router as account_router
     from api.auth.routes import router as auth_router
     from api.routes import user_state
 
     app.include_router(auth_router, prefix="/api")
+    app.include_router(account_router, prefix="/api")
     app.include_router(user_state.router, prefix="/api")
 else:
     log.warning("Skipping /api/auth/* and /api/user-state — DATABASE_URL unset.")

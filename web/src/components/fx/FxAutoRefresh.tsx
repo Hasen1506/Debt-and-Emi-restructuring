@@ -12,7 +12,7 @@ import { api } from '@/lib/api';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { ensureFxRates, fxDueForRefresh, refreshFxRates } from '@/lib/fx-refresh';
 
-export const FX_REFRESHED_EVENT = 'finoptima:fx-refreshed';
+export const FX_REFRESHED_EVENT = 'rightdue:fx-refreshed';
 
 export async function refreshProfileFx(force: string[] | null = null): Promise<{ refreshed: string[]; failed: string[] }> {
   const stored = loadProfileClient();
@@ -22,7 +22,7 @@ export async function refreshProfileFx(force: string[] | null = null): Promise<{
   const res = force ? await refreshFxRates(stored.user, lookup, now, force) : await ensureFxRates(stored.user, lookup, now);
   if (res.refreshed.length > 0) {
     saveProfileClient({ user: res.user, marginalRate: stored.marginalRate, creditScore: stored.creditScore });
-    window.dispatchEvent(new Event('finoptima:profile-changed'));
+    window.dispatchEvent(new Event('rightdue:profile-changed'));
   }
   window.dispatchEvent(new CustomEvent(FX_REFRESHED_EVENT, { detail: res }));
   return res;

@@ -105,7 +105,7 @@ export function syncActivityCookieClient(
   const encoded = COMPRESSED + compressToEncodedURIComponent(JSON.stringify(payload));
   document.cookie = `${COOKIE_NAME}=${encoded}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
   const saved = document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] === encoded;
-  if (saved && notify) window.dispatchEvent(new Event('finoptima:profile-changed'));
+  if (saved && notify) window.dispatchEvent(new Event('rightdue:profile-changed'));
   return saved;
 }
 

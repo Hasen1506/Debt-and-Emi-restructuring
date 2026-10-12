@@ -15,6 +15,8 @@ import { notifySessionChanged } from '@/lib/session-events';
 import { SIGN_IN_STARTING_MESSAGE } from '@/lib/auth-error';
 import { safeRedirect } from '@/lib/safe-redirect';
 import { RESEND_COOLDOWN_S, wakeProgress } from '@/lib/wake-progress';
+import { TURNSTILE_SITE_KEY, TurnstileBox } from '@/components/auth/Turnstile';
+import { PRIVACY_PATH, TERMS_PATH } from '@/lib/privacy-facts';
 
 // The free-plan API sleeps when idle and can take over a minute to start.
 const STARTING_RETRIES = 12;
@@ -39,6 +41,11 @@ export default function LoginPage() {
   const [now, setNow] = useState(() => Date.now());
   // Resend becomes available again at this time (ms).
   const [resendAt, setResendAt] = useState(0);
+  // Cloudflare Turnstile (only when NEXT_PUBLIC_TURNSTILE_SITE_KEY is set):
+  // a token is single-use, so each request asks for a fresh one.
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileReset, setTurnstileReset] = useState(0);
+  const needsTurnstile = Boolean(TURNSTILE_SITE_KEY);
 
   // Tick once a second while a request is pending or the resend cooldown runs.
   useEffect(() => {
@@ -72,7 +79,7 @@ export default function LoginPage() {
   async function requestOtpWhenReady(address: string) {
     for (let attempt = 0; ; attempt++) {
       try {
-        await api.requestOtp(address);
+        await api.requestOtp(address, turnstileToken ?? undefined);
         return;
       } catch (err) {
         const starting = err instanceof Error && err.message === SIGN_IN_STARTING_MESSAGE;
@@ -96,6 +103,7 @@ export default function LoginPage() {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
       endBusy();
+      if (needsTurnstile) setTurnstileReset((n) => n + 1);
     }
   }
 
@@ -159,6 +167,7 @@ export default function LoginPage() {
       setError(err instanceof Error ? err.message : 'Could not resend.');
     } finally {
       endBusy();
+      if (needsTurnstile) setTurnstileReset((n) => n + 1);
     }
   }
 
@@ -187,8 +196,20 @@ export default function LoginPage() {
               placeholder="you@example.com"
             />
           </label>
-          <button type="submit" disabled={submitting || !email} style={primaryStyle(submitting || !email)}>
-            [ {submitting ? 'Sending…' : 'Send code'} ]
+          <TurnstileBox onToken={setTurnstileToken} resetKey={turnstileReset} />
+          {/* DPDP Act 2023 s.5-6: the notice comes before consent, and consent
+              is a clear action (the button says so). Grill #51. */}
+          <p style={noticeText}>
+            We keep your email, your sign-in records and the plan you save, only to run your account on any device.
+            You can download or delete them any time. Read the <a href={PRIVACY_PATH}>privacy notice</a> and{' '}
+            <a href={TERMS_PATH}>terms</a>.
+          </p>
+          <button
+            type="submit"
+            disabled={submitting || !email || (needsTurnstile && !turnstileToken)}
+            style={primaryStyle(submitting || !email || (needsTurnstile && !turnstileToken))}
+          >
+            [ {submitting ? 'Sending…' : 'Agree and send code'} ]
           </button>
         </form>
       )}
@@ -214,11 +235,12 @@ export default function LoginPage() {
           <button type="submit" disabled={submitting || code.length !== 6} style={primaryStyle(submitting || code.length !== 6)}>
             [ {submitting ? 'Verifying…' : 'Verify and sign in'} ]
           </button>
+          <TurnstileBox onToken={setTurnstileToken} resetKey={turnstileReset} />
           <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 4 }}>
             <button type="button" disabled={submitting} onClick={() => { setPhase('email'); setCode(''); setError(null); setInfo(null); }} style={{ ...ghost, opacity: submitting ? 0.5 : 1 }}>
               [← Change email]
             </button>
-            <button type="button" onClick={onResend} disabled={submitting || resendIn > 0} style={{ ...ghost, opacity: submitting || resendIn > 0 ? 0.5 : 1 }}>
+            <button type="button" onClick={onResend} disabled={submitting || resendIn > 0 || (needsTurnstile && !turnstileToken)} style={{ ...ghost, opacity: submitting || resendIn > 0 ? 0.5 : 1 }}>
               {resendIn > 0 ? `[Resend in ${resendIn}s]` : '[Resend code]'}
             </button>
           </div>
@@ -297,5 +319,6 @@ const ghost: React.CSSProperties = {
   textTransform: 'uppercase',
   cursor: 'pointer',
 };
+const noticeText: React.CSSProperties = { margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--muted)' };
 const infoText: React.CSSProperties = { marginTop: 14, fontSize: 13, color: 'var(--muted)' };
 const errorText: React.CSSProperties = { marginTop: 14, fontSize: 13, color: 'var(--negative, #c53030)' };

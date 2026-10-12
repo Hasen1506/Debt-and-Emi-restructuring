@@ -17,9 +17,12 @@ COPY web/ ./
 # at build time. Render passes a service's environment variables to a Docker
 # build as build args when they are declared here.
 ARG NEXT_PUBLIC_DISABLE_AUTH=false
+# Cloudflare Turnstile site key (public). Empty = the check is off (api/auth/turnstile.py).
+ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 # Left empty on purpose: the browser calls the API on its own origin.
 ARG NEXT_PUBLIC_API_BASE_URL=
 ENV NEXT_PUBLIC_DISABLE_AUTH=$NEXT_PUBLIC_DISABLE_AUTH \
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY \
     NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
     NEXT_OUTPUT_STANDALONE=1 \
     NEXT_TELEMETRY_DISABLED=1

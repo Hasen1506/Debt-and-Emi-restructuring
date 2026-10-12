@@ -38,7 +38,7 @@ const AUTH_DISABLED = process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true';
 export function middleware(req: NextRequest) {
   const url = req.nextUrl;
 
-  if (isPublicTool(url.pathname)) return NextResponse.next();
+  if (isPublicTool(url.pathname) || isPublicPage(url.pathname)) return NextResponse.next();
 
   if (!AUTH_DISABLED && !req.cookies.get(SESSION_COOKIE)) {
     // Signed-out visitors to the root see the public landing page
@@ -75,6 +75,13 @@ export function middleware(req: NextRequest) {
 /** Pages anyone may use without signing in. */
 export function isPublicTool(pathname: string): boolean {
   return pathname === '/tools/loan-check' || pathname.startsWith('/tools/loan-check/');
+}
+
+/** The privacy notice and terms (grill #51), readable before signing in
+ *  (DPDP Act s.5: the notice comes before consent), and "Your data", which
+ *  also lets a guest clear this browser; it checks the session itself. */
+export function isPublicPage(pathname: string): boolean {
+  return pathname === '/privacy' || pathname === '/terms' || pathname === '/account';
 }
 
 export const config = {

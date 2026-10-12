@@ -30,7 +30,7 @@ import { dayLabel, LIFE_KIND_LABEL as KIND, LifeEventForm, lifeEventSummary } fr
 
 /** `window.dispatchEvent(new CustomEvent(ADD_LIFE_EVENT, { detail }))`
  *  opens the form; detail: `{ kind?, loanIndex? }`. */
-export const ADD_LIFE_EVENT = 'finoptima:add-life-event';
+export const ADD_LIFE_EVENT = 'rightdue:add-life-event';
 
 export function LifecycleEventsPanel({ user, configuredLoans = user.loans }: { user: UserPayload; configuredLoans?: UserPayload['loans'] }) {
   const router = useRouter();

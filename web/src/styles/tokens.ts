@@ -1,6 +1,6 @@
 /**
  * Design tokens — extends the existing mobile wireframe palette.
- * Source: wireframes-home.html :root variables.
+ * Source: design/wireframes/wireframes-home.html :root variables.
  *
  * Used by Tailwind-free CSS (CSS variables) and any chart code that needs
  * to pull from the same palette as the layout.

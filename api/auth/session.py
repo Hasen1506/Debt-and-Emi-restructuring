@@ -10,6 +10,7 @@ digest is stored, so database reads do not expose usable session cookies.
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -22,6 +23,23 @@ OTP_MAX_REQUESTS = 5
 OTP_DAILY_WINDOW = timedelta(hours=24)
 OTP_MAX_FAILED_DAILY = 15
 OTP_MAX_REQUESTS_DAILY = 20
+# Grill #59: one cap on codes sent per day across ALL emails, under the
+# email provider's own quota. Resend's free plan sends 100 emails a day and
+# 3,000 a month (https://resend.com/pricing, read 12 Oct 2026); 90 leaves
+# room for other mail. Raise it with OTP_GLOBAL_DAILY_CAP on a paid plan.
+def _int_env(name: str, default: int) -> int:
+    try:
+        value = int(os.environ.get(name, default))
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+OTP_GLOBAL_DAILY_CAP = _int_env("OTP_GLOBAL_DAILY_CAP", 90)
+# How long sign-in records (codes sent, sessions) are kept after they end.
+# DPDP Rules 2025 r.6(1)(e) and r.8(3) ask for one year of processing logs
+# once they are in force (14 May 2027); docs/privacy-and-retention.md.
+AUTH_LOG_RETENTION = timedelta(days=_int_env("AUTH_LOG_RETENTION_DAYS", 365))
 SESSION_TTL = timedelta(days=30)
 SESSION_COOKIE_NAME = "finoptima_session"
 

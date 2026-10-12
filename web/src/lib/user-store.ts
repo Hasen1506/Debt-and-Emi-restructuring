@@ -151,7 +151,7 @@ export function loadProfileClient(): StoredProfile {
 }
 
 /** Fired on window when a profile save didn't stick (SaveFailedNotice). */
-export const SAVE_FAILED_EVENT = 'finoptima:profile-save-failed';
+export const SAVE_FAILED_EVENT = 'rightdue:profile-save-failed';
 
 /**
  * Save the profile. Returns false when the browser didn't keep it, and
@@ -203,7 +203,7 @@ export function saveProfileClient(profile: {
           })(),
     isLive: true,
   }, additionalSlices);
-  if (typeof window !== 'undefined') window.dispatchEvent(new Event('finoptima:profile-changed'));
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('rightdue:profile-changed'));
   return true;
 }
 

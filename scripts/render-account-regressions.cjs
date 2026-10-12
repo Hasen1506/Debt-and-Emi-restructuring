@@ -11,7 +11,7 @@ const user={country:'IN',income_type:'salaried',monthly_income:'80000',annual_in
    await p.goto(base+'/onboarding',{waitUntil:'domcontentloaded',timeout:60000});const income=p.getByLabel('Take-home pay a month',{exact:true});await income.waitFor();await p.waitForFunction(()=>{const e=document.querySelector('main input');return e&&Object.keys(e).some(k=>k.startsWith('__reactProps'))});
    if(kind==='typed draft')await income.fill('12345');
    if(kind==='country draft')await p.getByRole('button',{name:'USA · $',exact:true}).click();
-   await p.evaluate(user=>{document.cookie='finoptima_user='+encodeURIComponent(JSON.stringify(user))+'; path=/';window.dispatchEvent(new Event('finoptima:hydrated'));},user);
+   await p.evaluate(user=>{document.cookie='finoptima_user='+encodeURIComponent(JSON.stringify(user))+'; path=/';window.dispatchEvent(new Event('rightdue:hydrated'));},user);
    if(kind==='untouched'){
     await p.getByRole('heading',{name:'Update your numbers',exact:true}).waitFor();assert.equal((await income.inputValue()).replace(/,/g,''),'80000');assert.equal((await p.getByLabel('Spending a month, without EMIs',{exact:true}).inputValue()).replace(/,/g,''),'30000');
    }else if(kind==='typed draft'){assert.equal((await income.inputValue()).replace(/,/g,''),'12345');assert.equal(await p.getByRole('heading',{name:'Update your numbers',exact:true}).count(),0);}
