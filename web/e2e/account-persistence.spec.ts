@@ -123,6 +123,9 @@ test('two devices: a stale edit is not written over the newer one; the person ch
 test('a browser still holding finoptima_* cookies keeps its session and data, and they are renamed', async ({ page, context, browser }) => {
   await setUp(page, 'l1-rename@rightdue.app');
   const old = await browser.newContext({ timezoneId: 'Asia/Kolkata', locale: 'en-IN' });
+  // Like the page fixture: no outside network (a Google Fonts request that
+  // never answers kept "load" from firing).
+  await old.route((url) => !/^(localhost|127\.0\.0\.1)$/.test(url.hostname), (route) => route.abort('blockedbyclient'));
   await old.addCookies((await context.cookies()).map((c) => ({ ...c, name: c.name.replace(/^rightdue_/, 'finoptima_') })));
   const oldPage = await old.newPage();
   await oldPage.clock.setFixedTime(FROZEN_NOW);

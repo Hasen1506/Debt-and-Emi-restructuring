@@ -99,6 +99,6 @@ async def init_db() -> None:
         if missing:
             # A model added without a migration still gets its table, so a
             # deploy never breaks on it, but say so: the schema test
-            # (api/tests/test_migrations.py) fails until a migration exists.
+            # (api/tests/test_state_versions_and_migrations.py) fails until a migration exists.
             log.warning("Tables without an Alembic migration, created directly: %s", ", ".join(missing))
             await conn.run_sync(Base.metadata.create_all)
