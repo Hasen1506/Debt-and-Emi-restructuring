@@ -32,7 +32,7 @@ from api import client_ip
 MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", 256 * 1024))
 # A KFS PDF (engine/kfs.MAX_PDF_BYTES, 4 MB) as base64 in JSON.
 KFS_BODY_BYTES = 6 * 1024 * 1024
-LARGE_BODY_PATHS = {"/api/kfs/read": KFS_BODY_BYTES}
+LARGE_BODY_PATHS = {"/api/kfs/read": KFS_BODY_BYTES, "/api/credit-report/read": KFS_BODY_BYTES}
 WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
@@ -49,6 +49,7 @@ DEFAULT_LIMITS: list[tuple[str, Limit]] = [
     ("/api/admin/", Limit(per_minute=2, burst=5)),
     ("/api/outcomes", Limit(per_minute=6, burst=10)),           # plus 10 a day (outcomes_store)
     ("/api/kfs/", Limit(per_minute=10, burst=10)),              # reads up to 4 MB of PDF
+    ("/api/credit-report/", Limit(per_minute=10, burst=10)),    # same size of PDF (G6)
     ("/api/", Limit(per_minute=120, burst=60)),
 ]
 

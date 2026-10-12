@@ -1,0 +1,23 @@
+SYNTHETIC SAMPLE - not a real credit report (RightDue test fixture)
+Equifax Credit Information Services Private Limited
+Equifax Risk Score 3.1: 688
+Report Date: 04-10-2026
+Account Details
+Institution: SAMPLE SMALL FINANCE BANK
+Type: Business Loan General
+Account Number: BL1234
+Ownership Type: Individual
+Date Opened: 10-10-2023
+Sanction Amount: 3,00,000
+Balance: 1,10,000
+Past Due Amount: 0
+Installment Amount: 9,800
+Status: Settled
+Institution: BNPL TEST CO
+Type: BNPL
+Account Number: BN0001
+Ownership Type: Individual
+Date Opened: 01-09-2026
+Sanction Amount: 10,000
+Balance: 6,000
+Status: Open

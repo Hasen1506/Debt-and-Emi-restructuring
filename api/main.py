@@ -31,6 +31,7 @@ from api.routes import (  # noqa: E402
     loan_check,
     outcomes,
     kfs,
+    credit_report,
 )
 
 log = logging.getLogger(__name__)
@@ -109,6 +110,7 @@ app.include_router(portfolio.router, prefix="/api")
 app.include_router(rates.router, prefix="/api")
 app.include_router(loan_check.router, prefix="/api")
 app.include_router(kfs.router, prefix="/api")
+app.include_router(credit_report.router, prefix="/api")
 app.include_router(complaints.router, prefix="/api")
 app.include_router(offers.router, prefix="/api")
 app.include_router(outcomes.router, prefix="/api")

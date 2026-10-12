@@ -1,0 +1,36 @@
+SYNTHETIC SAMPLE - not a real credit report (RightDue test fixture)
+Experian Credit Information Company of India
+Experian Credit Score: 781
+Report Date: 01/10/2026
+Personal Information
+Name: Test Person Two | Date of Birth: 02/02/1992 | PAN: BBBBB1111B
+Account Information
+Subscriber Name: SAMPLE BANK LTD
+Account Type: Personal Loan
+Account No: PL20240099
+Ownership: Individual
+Date Opened: 20/05/2024
+Sanction Amt: Rs 6,00,000
+Current Balance: Rs 4,10,300
+Amount Overdue: Rs 0
+Scheduled Monthly Payment Amount: Rs 13,350
+Rate of Interest: 13.25%
+Repayment Tenure: 60
+Account Status: Active
+Date Reported: 30/09/2026
+Subscriber Name: EDU LENDER NBFC
+Account Type: Education Loan
+Account No: ED00007777
+Ownership: Individual
+Date Opened: 01/08/2022
+Sanction Amt: Rs 8,00,000
+Current Balance: Rs 7,55,000
+Account Status: Active
+Date Reported: 31/08/2026
+Subscriber Name: CARDCO
+Account Type: Credit Card
+Account No: 5555XXXXXXXX1111
+Ownership: Guarantor
+Credit Limit: Rs 50,000
+Current Balance: Rs 12,000
+Account Status: Active

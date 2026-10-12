@@ -8,3 +8,5 @@ aiosqlite==0.20.0
 python-dotenv==1.2.4
 resend==2.5.1
 pypdf==6.19.0
+# AES-encrypted (password) PDFs: bank and bureau PDFs use AES, which pypdf needs this for (grill #18).
+cryptography==50.0.2

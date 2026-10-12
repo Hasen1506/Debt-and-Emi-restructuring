@@ -15,8 +15,11 @@ wording of a bank's sanction letter for loans sanctioned before the KFS rules.
 Rules this module keeps:
 - **Nothing is saved.** It returns what it read, line by line, for the user to
   confirm or change; the web form decides what to keep.
-- **Local only.** Plain-text rules on the document's own text layer (pypdf for
-  a PDF). No outside service and no AI model sees the document.
+- **Read on RightDue's server, never stored.** (Grill #19: this used to say
+  "local only", which was wrong: the PDF goes to POST /api/kfs/read.) Plain-text
+  rules on the document's own text layer (pypdf, in a child process with a
+  timeout, engine/pdf_text.py). No outside service and no AI model sees it. A
+  password, when the PDF has one, is used once in memory and never kept.
 - **Every value carries its source line**, so the form can show "from your
   KFS: <the line>" beside it.
 - **Cross-checks.** The EMI and the APR are worked out again from the terms
@@ -26,7 +29,6 @@ Rules this module keeps:
 """
 from __future__ import annotations
 
-import io
 import re
 from dataclasses import dataclass, field
 from datetime import date
@@ -34,6 +36,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Optional
 
 from engine.formulas import emi as emi_formula, remaining_balance
+from engine.pdf_text import DEFAULT_TIMEOUT_S, MAX_PDF_BYTES, MAX_PDF_PAGES, PdfTextError, read_pdf_text
 
 D = Decimal
 
@@ -42,8 +45,6 @@ CIRCULAR_URL = "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12663&Mo
 KFS_FROM = date(2024, 10, 1)
 
 MAX_TEXT_CHARS = 200_000
-MAX_PDF_BYTES = 4 * 1024 * 1024
-MAX_PDF_PAGES = 40
 
 # A stated EMI is rounded to the rupee (Annex B: 969.73 shown as 970).
 EMI_TOLERANCE_RUPEES = D("2")
@@ -90,35 +91,34 @@ class KfsResult:
 # Text
 # ─────────────────────────────────────────────────────────────────────────────
 
-def pdf_text(data: bytes) -> str:
-    """The text layer of a PDF, page by page. Raises KfsReadError when there
-    is none (a scan) or the file isn't a PDF."""
-    if len(data) > MAX_PDF_BYTES:
-        raise KfsReadError("The PDF is larger than 4 MB. Paste the KFS text instead.")
-    if not data.startswith(b"%PDF"):
-        raise KfsReadError("That file is not a PDF. Upload the KFS as a PDF, or paste its text.")
+_PDF_MESSAGES = {
+    "too_big": "The PDF is larger than 4 MB. Paste the KFS text instead.",
+    "not_pdf": "That file is not a PDF. Upload the KFS as a PDF, or paste its text.",
+    "needs_password": (
+        "This PDF is password-protected. Type the password your bank gave you (often your date of "
+        "birth, or part of your name, PAN or mobile number). It is used once to open the file and never kept."
+    ),
+    "wrong_password": "That password didn't open the PDF. Check it against the email or letter the file came with.",
+    "unreadable": "The PDF could not be read. Paste the KFS text instead.",
+    "scan": (
+        "This PDF has no text to read; it looks like a scan. Paste the KFS text instead, "
+        "or type the figures in yourself."
+    ),
+    "timeout": "This PDF took too long to read. Paste the KFS text instead.",
+}
+
+
+def pdf_text(data: bytes, password: Optional[str] = None, *, timeout: float = DEFAULT_TIMEOUT_S) -> str:
+    """The text layer of a PDF, page by page (first MAX_PDF_PAGES pages). Raises
+    KfsReadError when there is none (a scan), the file isn't a PDF, it needs a
+    password (used in memory once, never kept), or the parse runs out of time.
+    The parse runs in a child process (engine/pdf_text.py), see grill #60."""
     try:
-        from pypdf import PdfReader
-        reader = PdfReader(io.BytesIO(data))
-        if reader.is_encrypted:
-            try:
-                reader.decrypt("")
-            except Exception:  # noqa: BLE001
-                raise KfsReadError("The PDF is password-protected. Open it, copy the text and paste it here.")
-        pages = []
-        for page in reader.pages[:MAX_PDF_PAGES]:
-            pages.append(page.extract_text(extraction_mode="layout") or "")
-    except KfsReadError:
-        raise
-    except Exception as exc:  # noqa: BLE001 — any parser failure is the same answer to the user
-        raise KfsReadError("The PDF could not be read. Paste the KFS text instead.") from exc
-    text = "\n".join(pages)
-    if len(re.sub(r"\s", "", text)) < 40:
-        raise KfsReadError(
-            "This PDF has no text to read; it looks like a scan. Paste the KFS text instead, "
-            "or type the figures in yourself."
-        )
-    return text
+        return read_pdf_text(data, password, max_pages=MAX_PDF_PAGES, timeout=timeout)
+    except PdfTextError as exc:
+        err = KfsReadError(_PDF_MESSAGES.get(exc.kind, _PDF_MESSAGES["unreadable"]))
+        err.kind = exc.kind  # type: ignore[attr-defined]
+        raise err from exc
 
 
 def _lines(text: str) -> list[str]:
