@@ -129,7 +129,11 @@
 ## 2 · What makes the product hard to copy
 
 Goals, trackers and payoff maths are not unique; anyone can build those.
-These four things are the moat, and every phase below serves one of them:
+These four things are what we are building toward, and every phase below
+serves one of them. Honestly, none is a moat yet (grill #15): the outcome
+scorecard needs 5 reports per lender and there are no users, and anyone can
+re-read the same public rates. What we can claim today is that the data is
+**correct and dated**.
 
 1. **Shared lender outcomes.** After sending a letter, users record what the
    lender did (fixed in full, partly, refused, no reply, days taken, new rate)
@@ -147,8 +151,12 @@ These four things are the moat, and every phase below serves one of them:
 3. **Neutrality.** The app earns nothing from lenders. Loan marketplaces can't
    say "don't refinance, ask for the reset you're owed", because refinancing
    is how they get paid.
-4. **Data that stays current by itself.** Rates refresh from official
-   sources every 6 hours (Phase 5), never hand-edited JSON.
+4. **Data that is correct and dated.** Every figure carries its source and
+   the day it was last checked; scheduled jobs re-read the official sources
+   at the pace each one actually changes (policy rates weekly, as they move
+   only at RBI/FOMC meetings; Phase 5), never hand-edited JSON. Until there
+   are users, seed the outcomes data by personally helping the first ~30
+   Loan Check users send their letters.
 
 ### Will banks reply? (product principle)
 
@@ -396,7 +404,10 @@ under every Loan Check result):
 
 - [x] Current rates no longer come from hand-edited JSON: the verified table
       in `engine/policy_rates.py` plus decisions the feeds find after it
-      (`api/rates_feed.py`, fetched **every 6 hours** in a background thread).
+      (`api/rates_feed.py`). Since grill #61 they are fetched by a **weekly
+      GitHub Action** (`policy-rates.yml`, `scripts/fetch_policy_rates.py`) into
+      the committed `api/data/policy_rates_live.json`; the old 6-hourly thread
+      in a container that sleeps after 15 minutes is gone.
       The `current_rates` block is gone from `central_bank_calendar.json`; its
       meeting list is still kept by hand (used to date new decisions and for
       the "decision in N days" hint).
@@ -422,13 +433,14 @@ under every Loan Check result):
       `/api/rates/feed-health`: both sources should say `ok`. Then save the real
       RBI page over the fixture. If RBI blocks the fetch or changes the page,
       feed health says so and the app keeps the verified table.
-- [x] `GET /api/rates/feed-health`: last good fetch per source, age, error,
-      value; **503** once a source has gone 24 hours without a good fetch.
+- [x] `GET /api/rates/feed-health`: last good check per source, age, value;
+      **503** when a scheduled meeting passed 7+ days ago with no check after
+      it, or the last good check is over 45 days old (weekly cadence, #61).
 - [ ] Uptime alerting on `feed-health` (e.g. a free external monitor that
       alerts on any non-200). **Owner to set up** after deploy.
-- [x] Fallback: a failed feed keeps the last good value (saved across
-      restarts in `api/data/rates_live.json`, not committed), feed health shows
-      the error and age, and nothing crashes.
+- [x] Fallback: a failed fetch keeps the last good value (committed in
+      `api/data/policy_rates_live.json`, so it survives deploys), the weekly
+      run goes red, and nothing crashes.
 - [x] Show the as-of date everywhere a policy rate is quoted: Loan Check says
       "RBI repo rate as of … Source: …", the central-bank hint card shows it.
   - [x] **Found and fixed:** the rate-card "as of" badge printed
@@ -870,8 +882,8 @@ Other API settings (all optional):
 
 | Variable | Default | What it does |
 |---|---|---|
-| `RATES_FEED` | `on` | `off` stops fetching FRED/RBI (tests set it) |
-| `RATES_STORE_PATH` | `api/data/rates_live.json` | where the last good rates are kept |
+| `RATES_FEED` | `on` | `off` skips the committed policy-rate file (tests set it) |
+| `RATES_STORE_PATH` | `api/data/policy_rates_live.json` | the committed file the weekly job writes and the API reads at start |
 | `RATE_LIMITS` | `on` | `off` turns the per-IP limits off (tests set it) |
 | `TRUSTED_PROXY_HOPS` | `0` | proxies in front of the API; `1` on Render |
 | `INTERNAL_API_TOKEN` | unset | shared with the web server so its calls aren't limited |
