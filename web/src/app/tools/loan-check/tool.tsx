@@ -4,14 +4,13 @@ import { whereToFind } from '@/lib/where-to-find';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Decimal from 'decimal.js';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
-import { ComplaintPanel } from './complaint';
+import { ComplaintPanel, RuleQuote } from './complaint';
+import { EMPTY_CHOICE, LenderPicker, choiceFromName, resolveChoice, useLoanCheckLenders, type LenderChoice } from './lender-picker';
 import { OfferPanel } from './offers';
 import { LenderRecord } from './outcome';
 import { RateProblem } from './rate-problem';
 import {
-  BankCombobox,
   Field,
-  InfoTip,
   Select,
   SubmitBar,
 } from '@/components/ToolPrimitives';
@@ -25,11 +24,14 @@ import {
   type LoanBenchmark,
   type LoanCheckFinding,
   type LoanCheckRequest,
+  type LoanCheckResetWatch,
   type LoanCheckResponse,
+  type SpreadChanged,
 } from '@/lib/api';
 import { useStoredProfile } from '@/lib/use-profile';
 import { parsePercentInput, parseSpreadInput } from '@/lib/rate-input';
 import { formatAsOf } from '@/lib/as-of';
+import { TOL, gapWords, parseSpreadChange } from '@/lib/loan-check';
 import { useFormErrors } from '@/lib/form-errors';
 
 type StartMode = 'headline' | 'split';
@@ -39,6 +41,8 @@ type StartMode = 'headline' | 'split';
 const IN = { country: 'IN' } as const;
 const FIELDS: Record<string, string> = {
   lender: 'lender',
+  lender_type: 'lender',
+  spread_change: 'spreadChange',
   loan_start: 'loanStart',
   start_rate: 'startRate',
   start_benchmark_rate: 'startBench',
@@ -86,7 +90,20 @@ export function LoanCheckTool() {
   const [editLoan, setEditLoan] = useState(!homeLoan);
   const [more, setMore] = useState(false);
 
-  const [lender, setLender] = useState(homeLoan?.bank ?? '');
+  const { list: lenderList, failed: lenderListFailed } = useLoanCheckLenders();
+  const [choice, setChoice] = useState<LenderChoice>(EMPTY_CHOICE);
+  // A saved loan's bank fills the picker once the list has loaded.
+  const [lenderSeed, setLenderSeed] = useState<string>(homeLoan?.bank ?? '');
+  useEffect(() => {
+    if (lenderList.length && lenderSeed) {
+      setChoice(choiceFromName(lenderSeed, lenderList));
+      setLenderSeed('');
+    }
+  }, [lenderList, lenderSeed]);
+  const resolvedLender = resolveChoice(choice, lenderList);
+  const lender = resolvedLender.lender ?? '';
+  const [spreadChanged, setSpreadChanged] = useState<SpreadChanged | ''>('');
+  const [spreadChange, setSpreadChange] = useState('');
   const [loanStart, setLoanStart] = useState('');
   const [benchmark, setBenchmark] = useState<LoanBenchmark>('unknown');
   const [startMode, setStartMode] = useState<StartMode>('headline');
@@ -104,7 +121,8 @@ export function LoanCheckTool() {
   function pickLoan(i: number | null) {
     setLoanIdx(i);
     const l = i === null ? undefined : profile.user.loans[i];
-    setLender(l?.bank ?? '');
+    setLenderSeed(l?.bank ?? '');
+    if (!l?.bank) setChoice(EMPTY_CHOICE);
     setCurrentRate(pctFromFraction(l?.nominal_rate));
     setOutstanding(l?.outstanding ?? '');
     setMonths(l ? String(l.tenure_months_remaining) : '');
@@ -114,7 +132,7 @@ export function LoanCheckTool() {
   useEffect(() => { if (loanIdx != null) pickLoan(loanIdx); }, [profile.user.loans]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [resultValue, setResult] = useState<LoanCheckResponse | null>(null);
-  const fingerprint = JSON.stringify([loanIdx,lender,loanStart,benchmark,startMode,startRate,startBench,startSpread,currentRate,outstanding,months,emi,lastReset,profile.user]);
+  const fingerprint = JSON.stringify([loanIdx,choice,spreadChanged,spreadChange,loanStart,benchmark,startMode,startRate,startBench,startSpread,currentRate,outstanding,months,emi,lastReset,profile.user]);
   const [checkedKey, setCheckedKey] = useState('');
   const result = checkedKey === fingerprint ? resultValue : null;
   // The request behind `result`, reused by the complaint panel.
@@ -127,10 +145,12 @@ export function LoanCheckTool() {
   const pBench = parsePercentInput(startBench, { min: 1, max: 20 });
   const pSpread = parseSpreadInput(startSpread);
   const pCurrent = parsePercentInput(currentRate);
+  const pSpreadChange = parseSpreadChange(spreadChange);
 
   // What is still missing before the check can run. Shown next to the
   // button, so nobody has to guess why nothing happens.
   const stillNeeded: string[] = [];
+  if (resolvedLender.missing) stillNeeded.push(resolvedLender.missing);
   if (!loanStart) stillNeeded.push('the month the loan started');
   if (startMode === 'headline') {
     if (!startRate) stillNeeded.push('the starting rate');
@@ -141,10 +161,13 @@ export function LoanCheckTool() {
   if (!currentRate) stillNeeded.push('your current rate');
   if (!outstanding) stillNeeded.push('the outstanding balance');
   if (!months) stillNeeded.push('months left');
+  if (!spreadChanged) stillNeeded.push('whether your spread changed');
+  else if (spreadChanged === 'yes' && !spreadChange) stillNeeded.push('how much your spread changed');
 
   const hasInputError =
     (startMode === 'headline' ? !!pStart.error : !!pBench.error || !!pSpread.error) ||
-    !!pCurrent.error;
+    !!pCurrent.error ||
+    (spreadChanged === 'yes' && !!pSpreadChange.error);
 
   async function check(e: React.FormEvent) {
     e.preventDefault();
@@ -161,6 +184,9 @@ export function LoanCheckTool() {
     try {
       const req: LoanCheckRequest = {
         lender: lender || undefined,
+        lender_type: resolvedLender.lender_type,
+        spread_changed: spreadChanged || 'unsure',
+        spread_change: spreadChanged === 'yes' ? (pSpreadChange.fraction ?? undefined) : undefined,
         loan_start: loanStart,
         ...(startMode === 'headline'
           ? { start_rate: pStart.fraction ?? undefined }
@@ -225,11 +251,16 @@ export function LoanCheckTool() {
               </LChip>
             </LChipRow>
           )}
+          {picked && !editLoan && (
+            <div style={{ maxWidth: 360 }}>
+              <LenderPicker value={choice} onChange={setChoice} list={lenderList} failed={lenderListFailed} error={at('lender')} />
+            </div>
+          )}
           {picked && !editLoan ? (
             loanSummary
           ) : (
             <LFieldGrid>
-              <BankCombobox label="Lender" value={lender} onChange={setLender} country="IN" hint="To compare with what it charges new borrowers" />
+              <LenderPicker value={choice} onChange={setChoice} list={lenderList} failed={lenderListFailed} error={at('lender')} />
               <div>
                 <Field
                   label="Rate you pay now (%)"
@@ -319,6 +350,32 @@ export function LoanCheckTool() {
             </div>
           </div>
 
+          <div data-testid="lc-spread-question">
+            <LChipRow label="Has your bank told you in writing that your spread changed since the loan started?">
+              <LChip on={spreadChanged === 'no'} onClick={() => setSpreadChanged('no')}>No</LChip>
+              <LChip on={spreadChanged === 'yes'} onClick={() => setSpreadChanged('yes')}>Yes</LChip>
+              <LChip on={spreadChanged === 'unsure'} onClick={() => setSpreadChanged('unsure')}>Not sure</LChip>
+            </LChipRow>
+            <p style={{ fontSize: 11, margin: '6px 0 0', color: L_T.muted }}>
+              The spread (margin) is what your bank adds on top of the repo rate. A bank may
+              raise it only if your credit assessment changed substantially, as your loan
+              contract says, or the operating-cost part once in three years. A raised spread
+              explains part of a higher rate, so the check needs to know.
+            </p>
+            {spreadChanged === 'yes' && (
+              <div style={{ maxWidth: 320, marginTop: 8 }}>
+                <Field
+                  label="By how much? (points: +0.25 raised, -0.10 cut)"
+                  value={spreadChange}
+                  onChange={setSpreadChange}
+                  placeholder="+0.25"
+                  error={at('spreadChange') ?? (spreadChange ? pSpreadChange.error : null)}
+                  findIt="the bank's rate-change letter or SMS, or your statement"
+                />
+              </div>
+            )}
+          </div>
+
           <div>
             <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
             {!more && (
@@ -353,6 +410,7 @@ export function LoanCheckTool() {
       <div aria-live="polite" ref={resultRef} tabIndex={-1} style={{ outline: 'none' }}>
         {result && <LoanCheckResult r={result} />}
       </div>
+      {result?.reset_watch && <ResetWatchCard w={result.reset_watch} />}
       {result && checked && result.findings.some((f) => f.claimable) && (
         <>
           <LenderRecord lender={checked.lender} />
@@ -371,14 +429,8 @@ function LoanCheckResult({ r }: { r: LoanCheckResponse }) {
   return (
     <LSteps>
       <LStep no="02" id="lc-out" title="The answer" answer>
-        <LVerdict tone={r.status === 'no_issue' ? 'pos' : 'accent'}>
-          {r.status === 'no_issue'
-            ? 'No missed rate cut.'
-            : r.status === 'not_applicable'
-              ? 'Your loan is on an old benchmark.'
-              : claimable
-                ? 'Your bank owes you a rate cut.'
-                : 'Worth a conversation with your bank.'}
+        <LVerdict tone={r.verdict === 'missed_rate_cut' ? 'accent' : r.verdict === 'old_benchmark' || r.verdict === 'rule_not_binding' ? 'accent' : 'pos'}>
+          {VERDICT[r.verdict] ?? (claimable ? VERDICT.missed_rate_cut : VERDICT.matches)}
         </LVerdict>
         <LNote>{r.summary}</LNote>
         <LKpi
@@ -387,8 +439,8 @@ function LoanCheckResult({ r }: { r: LoanCheckResponse }) {
             ...(r.expected_rate ? [{ l: 'SHOULD BE ABOUT', v: formatPct(r.expected_rate, 2), tone: L_T.positive }] : []),
             ...(claimable
               ? [
-                  { l: 'AT STAKE, NEXT 12 MONTHS', v: inr(r.amount_at_stake_this_year), tone: L_T.negative },
-                  { l: 'OVERCHARGED SO FAR', v: inr(r.claim_amount), s: 'what a complaint can ask back', tone: L_T.negative },
+                  { l: 'ESTIMATE, NEXT 12 MONTHS', v: inr(r.amount_at_stake_this_year), s: 'for your conversation with the bank, not a confirmed refund', tone: L_T.negative },
+                  { l: 'POSSIBLY OVERCHARGED SO FAR', v: inr(r.claim_amount), s: 'a cautious estimate a complaint asks the bank to check', tone: L_T.negative },
                 ]
               : []),
           ]}
@@ -401,6 +453,11 @@ function LoanCheckResult({ r }: { r: LoanCheckResponse }) {
         {r.findings.map((f, i) => (
           <FindingCard key={i} f={f} />
         ))}
+        {r.new_borrower_note && (
+          <p data-testid="lc-new-borrower-note" style={{ fontSize: 12, margin: '14px 0 0', color: L_T.muted }}>
+            {r.new_borrower_note}
+          </p>
+        )}
       </LStep>
 
       <LMathBlock
@@ -415,7 +472,20 @@ function LoanCheckResult({ r }: { r: LoanCheckResponse }) {
                 },
               ]
             : []),
-          ...(gap ? [{ k: 'gap', v: formatPct(gap.toString(), 2), tone: gap.gt(0) ? ('neg' as const) : undefined }] : []),
+          ...(gap
+            ? [
+                {
+                  k: 'gap',
+                  v: gapWords(gap),
+                  tone: gap.gt(TOL) ? ('neg' as const) : undefined,
+                  note: gap.gt(TOL)
+                    ? 'you pay more than the repo moves imply'
+                    : gap.lt(-TOL)
+                      ? 'you pay less than the repo moves imply: in your favour, nothing to claim'
+                      : 'level, within rounding',
+                },
+              ]
+            : []),
           ...(claimable
             ? [
                 { k: 'at stake, next 12 months', v: inr(r.amount_at_stake_this_year) },
@@ -491,23 +561,87 @@ const th: React.CSSProperties = {
 };
 const td: React.CSSProperties = { padding: '6px 12px 6px 0' };
 
+const VERDICT: Record<LoanCheckResponse['verdict'], string> = {
+  missed_rate_cut: 'Your rate looks higher than the RBI rules allow.',
+  matches: 'No missed rate cut.',
+  below_expected: 'You pay less than the repo moves imply: in your favour.',
+  old_benchmark: 'Your loan is on an old benchmark.',
+  rule_not_binding: "The repo-rate rule for banks doesn't bind this lender.",
+};
+
+function icsDate(iso: string): string {
+  return iso.replace(/-/g, '');
+}
+
+/** A one-event calendar file, made in the browser (nothing is sent). */
+function downloadIcs(w: LoanCheckResetWatch) {
+  if (!w.check_by) return;
+  const body = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//RightDue//Loan Check reset watch//EN',
+    'BEGIN:VEVENT',
+    `UID:rightdue-reset-${w.check_by}@rightdue.app`,
+    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')}`,
+    `DTSTART;VALUE=DATE:${icsDate(w.check_by)}`,
+    'SUMMARY:Check your home-loan rate (RightDue Loan Check)',
+    `DESCRIPTION:${w.detail.replace(/[,;\\]/g, (c) => `\\${c}`).replace(/\n/g, ' ')}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+    '',
+  ].join('\r\n');
+  const url = URL.createObjectURL(new Blob([body], { type: 'text/calendar;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rightdue-rate-check-${w.check_by}.ics`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function ResetWatchCard({ w }: { w: LoanCheckResetWatch }) {
+  return (
+    <LStep no="03" id="lc-reset" title="Reset watch">
+      <div data-testid="lc-reset-watch">
+        <p style={{ fontSize: 13, fontWeight: 700, margin: '0 0 6px' }}>{w.headline}</p>
+        <p style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>{w.detail}</p>
+        {w.check_by && (
+          <p style={{ margin: '10px 0 0' }}>
+            <LBracket onClick={() => downloadIcs(w)}>ADD A REMINDER TO MY CALENDAR (.ICS)</LBracket>
+          </p>
+        )}
+        {w.citations.map((c, i) => (
+          <div key={i} style={{ fontSize: 12, marginTop: 8 }}>
+            {c.requirement}
+            <RuleQuote c={c} />
+          </div>
+        ))}
+      </div>
+    </LStep>
+  );
+}
+
 function FindingCard({ f }: { f: LoanCheckFinding }) {
   const tag =
     f.kind === 'missed_rate_cut'
-      ? 'Refund claim'
+      ? 'Possible refund claim: an estimate to check with the bank'
       : f.kind === 'pricing_gap'
         ? 'For information, not a refund claim'
-        : 'A switch, not a refund claim';
+        : f.kind === 'below_expected'
+          ? 'In your favour, nothing to claim'
+          : f.kind === 'rule_not_binding'
+            ? 'Information, not a refund claim'
+            : 'A switch, not a refund claim';
   return (
     <div style={{ marginTop: 18 }}>
       <LStepSub>{tag}</LStepSub>
       <p style={{ fontSize: 13, fontWeight: 700, margin: '8px 0 6px' }}>{f.headline}</p>
       <p style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>{f.detail}</p>
       {f.citations.map((c, i) => (
-        <blockquote key={i} style={{ margin: '10px 0 0', padding: '6px 12px', borderLeft: `3px solid ${L_T.ruleSoft}`, fontSize: 12 }}>
+        <div key={i} style={{ margin: '10px 0 0', padding: '6px 12px', borderLeft: `3px solid ${L_T.ruleSoft}`, fontSize: 12 }}>
           <div>{c.requirement}</div>
           <div style={{ fontSize: 11, marginTop: 4, color: L_T.muted }}>{c.rule}</div>
-        </blockquote>
+          <RuleQuote c={c} />
+        </div>
       ))}
       <p style={{ fontSize: 12, margin: '10px 0 0' }}>
         <strong>Next step:</strong> {f.next_step}

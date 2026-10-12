@@ -1,0 +1,47 @@
+# RBI (Commercial Banks - Responsible Business Conduct) Directions, 2025 (updated 1 Oct 2026). RBI/DOR/2025-26/170, DOR.MCS.REC.No.89/01-01-032/2025-26, 28 Nov 2025
+# Source: https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13140 -> https://rbidocs.rbi.org.in/rdocs/notification/PDFs/170MD.PDF
+# Retrieved: 12 Oct 2026 (PDF read in a browser and transcribed by hand; page breaks joined)
+# Excerpts only: the paragraphs Loan Check cites, copied verbatim.
+
+=== Commercial Banks RBC PDF (170MD.PDF) ===
+Ref: RBI/DOR/2025-26/170
+DOR.MCS.REC.No.89/01-01-032/2025-26
+Dated: November 28, 2025
+Title: Reserve Bank of India (Commercial Banks – Responsible Bank Conduct) Directions, 2025 (Updated as on October 1, 2026)
+161 pages.
+
+=== C. Reset of Floating Interest Rate on EMI based Personal Loans ===
+
+Para 349:
+"349. The following instructions shall be applicable to the existing as well as new personal loans with effect from January 1, 2024. A bank shall put in place an appropriate policy framework meeting the following requirements for implementation and compliance:
+
+(1) At the time of sanction, the bank shall clearly communicate to the borrower about the possible impact of change in benchmark interest rate on the loan leading to changes in EMI and / or tenor or both. Subsequently, any increase in the EMI / tenor or both on account of the above shall be communicated to the borrower immediately through appropriate channels.
+
+(2) At the time of reset of interest rates, a bank may, at its option, provide a choice to the borrowers to switch over to a fixed rate as per its policy approved by the Board or a Committee to which powers have been delegated by the Board. The policy, inter alia, may also specify the number of times a borrower will be allowed to switch during the tenor of the loan.
+
+(3) The borrower shall also be given the choice to opt for (i) enhancement in EMI or elongation of tenor or for a combination of both options; and, (ii) to prepay, either in part or in full, at any point during the tenor of the loan. Levy of pre-payment charges shall be subject to extant instructions.
+
+Note: Whenever there is a reset of interest rates for an entire class of borrowers in a particular loan category, say home loan, due to increase in the reference benchmark; the bank shall provide the following options to the borrowers:
+(i) Either enhancement in EMI or elongation of number of EMIs, keeping the EMI unchanged or a combination of both options;
+(ii) Switch to fixed interest rate for the remaining portion of the loan, where such an option is provided by the bank; and
+(iii) To prepay, either in part or in full, at any point during the residual tenor of the loan.
+
+(4) All applicable charges for switching of loans from floating to fixed rate and any other service charges / administrative costs incidental to the exercise of the above options shall be transparently disclosed in the sanction letter and also at the time of revision of such charges / costs by the bank from time to time. The applicable charges shall be as approved by the Board or a Committee to which powers have been delegated by the Board, and shall be displayed on the bank's website.
+
+(5) A bank shall ensure that the elongation of tenor in case of floating rate loan does not result in negative amortisation.
+
+(6) A bank shall share / make accessible to the borrower, through appropriate channels, a statement at the end of each quarter which shall at the minimum, enumerate the principal and interest recovered till date, EMI amount, number of EMIs left and annualised rate of interest / APR for the entire tenor of the loan. The bank shall ensure that the statements are simple and easily understood by the borrower."
+
+Para 350:
+"350. Apart from the EMI based loans, these instructions would also apply, mutatis mutandis, to all equated instalment-based personal loans of different periodicities irrespective of whether they are linked to an external benchmark or an internal benchmark. In case of loans linked to an external benchmark under the External Benchmark Lending Rate (EBLR) regime, the bank shall follow extant instructions and also put in place adequate information systems to monitor transmission of changes in the benchmark rate to the lending rate."
+
+Footnotes 30 and 31 (attached to items (2) and (4)):
+"30 Substituted with effect from October 1, 2026, consequent to Reserve Bank of India (Commercial Banks – Governance) Amendment Directions, 2026 dated July 14, 2026"
+"31 Substituted with effect from October 1, 2026, consequent to Reserve Bank of India (Commercial Banks – Governance) Amendment Directions, 2026 dated July 14, 2026"
+
+Section C ends here. Next section D = "Penal Charges in Loan Accounts" begins at para 351.
+
+Now need: the clause in Chapter VIII A (Fair Practices Code for Lenders, para 326+) that says interest rate changes are prospective, if any.=== Prospective interest rate change clause ===
+
+Para 337 (A.4 Disbursement of loans including changes in terms and conditions):
+"337. The bank shall ensure timely disbursement of loans sanctioned in conformity with the terms and conditions governing such sanction. The bank shall give notice of any change in the terms and conditions including interest rates, service charges etc. It shall also be ensured that changes in interest rates and charges are effected only prospectively."

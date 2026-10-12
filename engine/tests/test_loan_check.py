@@ -149,7 +149,9 @@ def test_pricing_gap_measured_after_fixing_missed_cut():
 def test_pricing_gap_alone():
     r = check_loan(_inp(current_rate=D("0.0815"), lender="hdfc  bank"))
     assert [f.kind for f in r.findings] == ["pricing_gap"]
-    assert r.status == "issues_found"
+    # Live test L#8: the verdict comes from the repo gap only. A lower
+    # new-borrower rate is a separate note, not "issues found".
+    assert r.status == "no_issue" and r.verdict == "matches"
     assert r.claim_amount == 0 and r.amount_at_stake_this_year == 0
 
 

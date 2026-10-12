@@ -1,50 +1,195 @@
 {
-  "_how_to_verify": "Paste the regulation's own wording into quoted_clause, set verified_against_text=True on the Citation in engine/citations.py, and run the tests. Every pattern in key_facts must appear in both the quote and the app's summary. Leave quoted_clause null until the text has actually been read.",
+  "_how_to_verify": "Copy the regulation's own words into the Citation's `clause` in engine/citations.py (fragments of one paragraph joined with ' … '), save the paragraphs to fixtures/rbi_extracts/<file>.txt with the Source and Retrieved header lines, name the file in `extract`, and set verified_against_text=True. Every key fact must appear in both the clause and the summary; every fragment must appear verbatim in the extract.",
+  "EBLR_SCOPE": {
+    "where": [
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13149",
+      "Reserve Bank of India (Commercial Banks – Interest Rates on Advances) Directions, 2025 (RBI/DOR/2025-26/161, DOR.CRE.REC.80./13.03.000/2025-26, 28 November 2025), paragraph 3; Reserve Bank of India (Small Finance Banks – Interest Rates on Advances) Directions, 2025 (RBI/DOR/2025-26/192, 28 November 2025), paragraph 3"
+    ],
+    "key_facts": [
+      "Commercial Banks",
+      "Small Finance Banks"
+    ]
+  },
+  "EBLR_MANDATE": {
+    "where": [
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13149",
+      "Reserve Bank of India (Commercial Banks – Interest Rates on Advances) Directions, 2025 (RBI/DOR/2025-26/161, DOR.CRE.REC.80./13.03.000/2025-26, 28 November 2025), paragraph 25; first required by RBI circular DBR.DIR.BC.No.14/13.03.00/2019-20 (4 September 2019), External Benchmark Based Lending"
+    ],
+    "key_facts": [
+      "floating rate",
+      "personal or retail loans",
+      "housing",
+      "External Benchmark"
+    ]
+  },
   "EBLR_RESET": {
     "where": [
-      "rbi.org.in, Notifications, 28 Nov 2025: RBI (Commercial Banks – Interest Rates on Advances) Directions, 2025 (DOR.RRC.REC.302/33-01-010/2025-26)",
-      "https://rbidocs.rbi.org.in/rdocs/notification/PDFs/NOTI53B238D8EB8CD847E7AE8031090F4DCE00.PDF (4 Sep 2019 circular, RBI/2019-20/53)"
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13149",
+      "Reserve Bank of India (Commercial Banks – Interest Rates on Advances) Directions, 2025 (RBI/DOR/2025-26/161, DOR.CRE.REC.80./13.03.000/2025-26, 28 November 2025), paragraph 38"
     ],
-    "key_facts": ["reset", "three months"],
-    "quoted_clause": null
+    "key_facts": [
+      "reset",
+      "at least once in three months"
+    ]
   },
   "EBLR_SPREAD": {
     "where": [
-      "rbi.org.in, Notifications, 28 Nov 2025: Interest Rates on Advances Directions, 2025",
-      "https://rbidocs.rbi.org.in/rdocs/notification/PDFs/NOTI53B238D8EB8CD847E7AE8031090F4DCE00.PDF"
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13149",
+      "Reserve Bank of India (Commercial Banks – Interest Rates on Advances) Directions, 2025 (RBI/DOR/2025-26/161, DOR.CRE.REC.80./13.03.000/2025-26, 28 November 2025), paragraph 33"
     ],
-    "key_facts": ["credit risk premium", "credit assessment", "three years"],
-    "quoted_clause": null
+    "key_facts": [
+      "credit risk premium",
+      "credit assessment",
+      "substantial change",
+      "once in three years"
+    ]
   },
-  "EBLR_MANDATE": {
-    "where": ["https://rbidocs.rbi.org.in/rdocs/notification/PDFs/NOTI53B238D8EB8CD847E7AE8031090F4DCE00.PDF"],
-    "key_facts": ["October", "2019", "external benchmark", "mutually acceptable"],
-    "quoted_clause": null
+  "EBLR_SWITCH": {
+    "where": [
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13149",
+      "Reserve Bank of India (Commercial Banks – Interest Rates on Advances) Directions, 2025 (RBI/DOR/2025-26/161, DOR.CRE.REC.80./13.03.000/2025-26, 28 November 2025), paragraph 41"
+    ],
+    "key_facts": [
+      "without any charges",
+      "administrative",
+      "legal costs",
+      "new loan of the same category, type, tenor and amount",
+      "mutually acceptable terms"
+    ]
+  },
+  "RESET_CHOICES_BANK": {
+    "where": [
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13140",
+      "Reserve Bank of India (Commercial Banks – Responsible Business Conduct) Directions, 2025 (RBI/DOR/2025-26/170, updated 1 October 2026), paragraph 349"
+    ],
+    "key_facts": [
+      "EMI",
+      "tenor",
+      "immediately",
+      "prepay"
+    ]
+  },
+  "RESET_CHOICES_NBFC": {
+    "where": [
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12942",
+      "Reserve Bank of India (Non-Banking Financial Companies – Responsible Business Conduct) Directions, 2025 (RBI/DOR/2025-26/362, updated 1 July 2026), paragraph 31, which HFCs follow under paragraph 176(3) of the Reserve Bank of India (Housing Finance Companies) Directions, 2025 (RBI/DoR/2025-26/365, 28 November 2025)"
+    ],
+    "key_facts": [
+      "EMI",
+      "tenor",
+      "immediately",
+      "prepay",
+      "internal benchmark"
+    ]
+  },
+  "PROSPECTIVE_BANK": {
+    "where": [
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13140",
+      "Reserve Bank of India (Commercial Banks – Responsible Business Conduct) Directions, 2025 (RBI/DOR/2025-26/170, updated 1 October 2026), paragraph 337"
+    ],
+    "key_facts": [
+      "interest rates",
+      "prospectively"
+    ]
+  },
+  "PROSPECTIVE_HFC": {
+    "where": [
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12939",
+      "Reserve Bank of India (Housing Finance Companies) Directions, 2025 (RBI/DoR/2025-26/365, 28 November 2025), paragraph 137, with paragraph 15 of the Reserve Bank of India (Non-Banking Financial Companies – Responsible Business Conduct) Directions, 2025 (RBI/DOR/2025-26/362, updated 1 July 2026)"
+    ],
+    "key_facts": [
+      "60 days",
+      "extra charges",
+      "prospectively"
+    ]
+  },
+  "HFC_RATE_POLICY": {
+    "where": [
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12942",
+      "Reserve Bank of India (Non-Banking Financial Companies – Responsible Business Conduct) Directions, 2025 (RBI/DOR/2025-26/362, updated 1 July 2026), paragraph 22, which HFCs follow under paragraph 146 of the Reserve Bank of India (Housing Finance Companies) Directions, 2025 (RBI/DoR/2025-26/365, 28 November 2025)"
+    ],
+    "key_facts": [
+      "interest rate model",
+      "cost of funds",
+      "margin",
+      "risk premium",
+      "sanction letter"
+    ]
+  },
+  "HFC_PREPAY_FREE": {
+    "where": [
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12939",
+      "Reserve Bank of India (Housing Finance Companies) Directions, 2025 (RBI/DoR/2025-26/365, 28 November 2025), paragraph 163(1)"
+    ],
+    "key_facts": [
+      "floating",
+      "pre-closed from any source"
+    ]
   },
   "IO_ESCALATION": {
     "where": [
-      "rbi.org.in, Notifications, 29 Dec 2023: RBI (Internal Ombudsman for Regulated Entities) Directions, 2023 (RBI/CEPD/2023-24/108)",
-      "RBI instructions of Jan 2026 on automatic escalation"
+      "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13271",
+      "Reserve Bank of India (Commercial Banks – Internal Ombudsman) Directions, 2026 (RBI/CEPD/2025-26/381, 14 January 2026), clause 14(1) and 14(9)"
     ],
-    "key_facts": ["Internal Ombudsman", "wholly or partly", "30 days"],
-    "quoted_clause": null
+    "key_facts": [
+      "partially resolved",
+      "wholly rejected",
+      "30 days"
+    ]
   },
   "RBIOS_ACCESS": {
-    "where": ["https://www.rbi.org.in/commonman/Upload/English/FAQs/PDFs/RBIOS01072026.pdf (RB-IOS 2026 FAQ)"],
-    "key_facts": ["30 days", "90 days"],
-    "quoted_clause": null
+    "where": [
+      "https://www.rbi.org.in/commonman/English/Scripts/FAQs.aspx?Id=3407",
+      "Reserve Bank – Integrated Ombudsman Scheme, 2026 (in force from 1 July 2026), clause 10, as RBI's FAQ states it"
+    ],
+    "key_facts": [
+      "30 days",
+      "90 days",
+      "whichever is later"
+    ]
   },
   "RBIOS_COMPENSATION": {
-    "where": ["https://www.rbi.org.in/commonman/Upload/English/FAQs/PDFs/RBIOS01072026.pdf (RB-IOS 2026 FAQ)"],
-    "key_facts": ["30 lakh", "3 lakh"],
-    "quoted_clause": null
+    "where": [
+      "https://www.rbi.org.in/commonman/English/Scripts/FAQs.aspx?Id=3407",
+      "Reserve Bank – Integrated Ombudsman Scheme, 2026 (in force from 1 July 2026), as RBI's FAQ states it"
+    ],
+    "key_facts": [
+      "30 lakh",
+      "3 lakh"
+    ]
+  },
+  "RBIOS_SCOPE": {
+    "where": [
+      "https://www.rbi.org.in/commonman/English/Scripts/FAQs.aspx?Id=3407",
+      "Reserve Bank – Integrated Ombudsman Scheme, 2026 (in force from 1 July 2026), coverage, as RBI's FAQ states it"
+    ],
+    "key_facts": [
+      "Commercial Banks",
+      "Regional Rural Banks",
+      "excluding Housing Finance Companies"
+    ]
+  },
+  "NHB_COMPLAINT": {
+    "where": [
+      "https://www.nhb.org.in/en/grievance-redressal-officer/",
+      "National Housing Bank, Grievance Redressal (complaints against housing finance companies)"
+    ],
+    "key_facts": [
+      "first",
+      "one month",
+      "GRIDS"
+    ]
   },
   "PREPAYMENT_NO_CHARGE": {
     "where": [
       "rbi.org.in, Notifications, 2 Jul 2025: RBI (Pre-payment Charges on Loans) Directions, 2025",
       "RBI circulars of 5 Jun 2012 (home loans) and 7 May 2014 (all floating-rate term loans to individuals) on foreclosure charges"
     ],
-    "key_facts": ["floating-rate", "individual", "non-business", "any source"],
-    "quoted_clause": null
+    "key_facts": [
+      "floating-rate",
+      "individual",
+      "non-business",
+      "any source"
+    ]
   }
 }

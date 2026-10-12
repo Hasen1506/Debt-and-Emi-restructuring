@@ -34,7 +34,12 @@ def test_loan_check_round_trip(client):
     assert kinds == ["missed_rate_cut", "pricing_gap"]
     missed = body["findings"][0]
     assert missed["claimable"] is True
-    assert missed["citations"][0]["rule"].startswith("RBI (Commercial Banks")
+    assert missed["citations"][0]["rule"].startswith("Reserve Bank of India (Commercial Banks")
+    c = missed["citations"][0]
+    assert c["verified_against_text"] is True and c["paragraph"] == "paragraph 38"
+    assert c["url"].startswith("https://www.rbi.org.in/") and "reset at least once in three months" in c["clause"]
+    assert body["verdict"] == "missed_rate_cut" and body["rule_applies"] is True
+    assert body["lender_type"] == "commercial_bank" and body["lender_type_source"] == "from_name"
     assert body["rates_as_of"] == policy_rates.LAST_VERIFIED.isoformat()
     assert body["repo_changes_since_start"][-1]["new_rate"] in ("0.0525", 0.0525)
 
@@ -143,3 +148,51 @@ def test_loan_check_says_where_the_rates_come_from(client):
     body = client.post("/api/loan-check", json=_payload()).json()
     assert body["rates_as_of"] == policy_rates.LAST_VERIFIED.isoformat()
     assert body["rates_source"] == f"Official decisions, checked by hand on {policy_rates.LAST_VERIFIED:%d %b %Y}"
+
+
+# ── Sprint G5: live-test L#7–L#10 through the API ──────────────────────────
+
+LIVE = dict(lender="SBI", loan_start="2022-03", start_rate="0.0915", current_rate="0.0915",
+            outstanding="3000000", tenure_months_remaining=200, as_of="2026-10-12")
+
+
+def test_live_negative_gap_reads_as_good_news(client):
+    body = client.post("/api/loan-check", json=_payload(**LIVE)).json()
+    assert body["verdict"] == "below_expected" and body["status"] == "no_issue"
+    assert D(body["gap"]) < 0 and D(body["claim_amount"]) == 0
+    assert "in your favour" in body["summary"]
+    w = body["reset_watch"]
+    assert w["last_change"] == "2026-10-07" and w["check_by"] == "2027-01-06"
+    assert w["next_meeting"] == "2026-12-04"
+
+
+def test_lic_hfl_gets_the_hfc_rules_not_a_bank_verdict(client):
+    body = client.post("/api/loan-check", json=_payload(**{**LIVE, "lender": "LIC Housing Finance"})).json()
+    assert body["verdict"] == "rule_not_binding" and body["rule_applies"] is False
+    assert body["lender_type"] == "hfc"
+    f = body["findings"][0]
+    assert f["kind"] == "rule_not_binding" and f["claimable"] is False
+    assert "grids.nhbonline.org.in" in f["next_step"]
+
+
+def test_contradicting_type_is_a_422_on_the_type_field(client):
+    r = client.post("/api/loan-check", json=_payload(**LIVE, lender_type="hfc"))
+    assert r.status_code == 422 and r.json()["detail"]["field"] == "lender_type"
+
+
+def test_spread_change_round_trip(client):
+    body = client.post("/api/loan-check", json=_payload(
+        spread_changed="yes", spread_change="0.0025", lender_type="commercial_bank")).json()
+    assert D(body["expected_rate"]) == D("0.0840")
+    r = client.post("/api/loan-check", json=_payload(spread_changed="yes"))
+    assert r.status_code == 422 and r.json()["detail"]["field"] == "spread_change"
+    r = client.post("/api/loan-check", json=_payload(spread_changed="yes", spread_change="0.25"))
+    assert r.status_code == 422 and "fraction" in r.json()["detail"]["message"]
+
+
+def test_lender_picker_list_carries_types(client):
+    xs = {x["name"]: x for x in client.get("/api/loan-check/lenders").json()}
+    assert xs["SBI"]["type"] == "commercial_bank" and xs["SBI"]["rule_applies"] and xs["SBI"]["has_rate_card"]
+    assert xs["AU SFB"]["type"] == "small_finance_bank" and xs["AU SFB"]["rule_applies"]
+    assert xs["LIC Housing Finance"]["type"] == "hfc" and not xs["LIC Housing Finance"]["rule_applies"]
+    assert "KreditBee" not in xs
