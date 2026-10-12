@@ -29,6 +29,10 @@ import { userDefaultCurrency } from '@/lib/currency';
 import type { PayRow, PayThisMonth as PayData } from '@/lib/pay-this-month';
 import { Field } from '@/components/ToolPrimitives';
 import { UpiPay } from './UpiPay';
+// G7: loan-cleared letter, payday email, answers from the email.
+import { LoanCleared } from './LoanCleared';
+import { PaydayEmail } from './PaydayEmail';
+import { EmailAnswers } from './EmailAnswers';
 import { LBracket, LSectionHeader, L_T, lPayBtn, lStrip } from '@/components/ledger/primitives';
 import { payoffBreakdown } from '@/lib/schedule-reconcile';
 
@@ -67,6 +71,8 @@ export function PayThisMonth({
   const [said, setSaid] = useState('');
   // UPI IDs saved on this page, until Home re-renders with the saved profile.
   const [vpas, setVpas] = useState<Record<number, string>>({});
+  // A payoff just marked paid: the celebration and the closure letter.
+  const [cleared, setCleared] = useState<PayRow | null>(null);
   const profileAtRead = useRef('');
   const today = localIsoDate(getCountryToday(country));
   const month = today.slice(0, 7);
@@ -190,6 +196,37 @@ export function PayThisMonth({
     }
     log(row, row.extra > 0 ? 'paid_extra' : 'paid_full', row.amount);
     setSaid(`${row.name}: marked paid, ${fmt(row.amount, row.currency)}. Recorded in Activity.`);
+    if (row.kind === 'clears') setCleared(row);
+  }
+
+  /** Every loan row not yet recorded this month, marked paid in full in one
+   *  commit (the payday email's "All paid", confirmed here). */
+  function markAllPaid(): boolean {
+    try {
+      let next = entries;
+      for (const row of data.rows) {
+        if (row.loanIndex === null || statusOf(row)) continue;
+        next = addActivityEntry(
+          next,
+          {
+            loanIndex: row.loanIndex,
+            kind: row.extra > 0 ? 'paid_extra' : 'paid_full',
+            date: today,
+            amount: String(row.amount),
+            scheduledEmi: String(row.minimum),
+            ...(row.extra > 0 ? { plannedExtra: String(row.extra) } : {}),
+            via: 'home',
+          },
+          loans,
+        );
+      }
+      if (next !== entries) commit(next);
+      setSaid('Marked paid from your email answer. Recorded in Activity.');
+      return true;
+    } catch (e) {
+      setError((e as Error).message);
+      return false;
+    }
   }
 
   /** Save the lender's UPI ID on the loan (roadmap PR H). */
@@ -309,6 +346,7 @@ export function PayThisMonth({
         {said}
       </p>
       {error && <p role="alert" style={{ color: L_T.negative }}>{error}</p>}
+      {ready && <EmailAnswers month={month} onMarkAllPaid={markAllPaid} />}
 
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: `2px solid ${L_T.ink}` }}>
         {data.rows.map((row, i) => {
@@ -409,6 +447,9 @@ export function PayThisMonth({
                         currency={row.currency}
                         monthLabel={`${MONTH_NAMES_SHORT[Number(month.slice(5)) - 1]} ${month.slice(0, 4)}`}
                         onSaveVpa={(v) => saveVpa(row, v)}
+                        rowKey={row.key}
+                        month={month}
+                        onConfirmed={() => attempt(() => markPaid(row))}
                       />
                     )}
                   </>
@@ -484,9 +525,23 @@ export function PayThisMonth({
             : `${fmt(data.leftOver)} is left over: no loan costs more than a safe return, so the plan keeps it. Save or invest it.`}
         </p>
       )}
+      {cleared && cleared.loanIndex !== null && (
+        <LoanCleared
+          name={cleared.name}
+          loanType={loans[cleared.loanIndex]?.loan_type ?? 'personal_loan'}
+          lender={loans[cleared.loanIndex]?.bank ?? ''}
+          country={country === 'US' ? 'US' : 'IN'}
+          currency={cleared.currency}
+          freed={cleared.minimum}
+          nextName={data.rows.find((r) => r !== cleared && r.loanIndex !== null && r.kind !== 'clears')?.name}
+          todayIso={today}
+          onClose={() => setCleared(null)}
+        />
+      )}
       <div style={{ marginTop: 10 }}>
         <LBracket href="/plan">WHY THIS ORDER? SEE THE PLAN →</LBracket>
       </div>
+      <PaydayEmail data={data} country={country === 'US' ? 'US' : 'IN'} todayIso={today} />
     </section>
   );
 }

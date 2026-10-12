@@ -26,6 +26,9 @@ import {
 import { EMPTY_BORROWER, fillLetter, missingDetails, type Borrower } from '@/lib/complaint-fill';
 import { parsePercentInput } from '@/lib/rate-input';
 import { ShareOutcome } from './outcome';
+// G7: follow-up reminders (calendar file; email when the server has them on).
+import { DeadlineReminders } from '@/components/home/DeadlineReminders';
+import { getCountryToday, localIsoDate } from '@/lib/today';
 
 const TRACK_KEY = 'rightdue.complaint.in.v1';
 
@@ -372,6 +375,12 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
                 {n}
               </p>
             ))}
+            <DeadlineReminders
+              items={t.milestones}
+              source="complaint"
+              todayIso={localIsoDate(getCountryToday('IN'))}
+              title={`Complaint to ${request.lender || 'the lender'}`}
+            />
           </div>
         )}
       </Card>

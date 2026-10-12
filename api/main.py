@@ -32,7 +32,9 @@ from api.routes import (  # noqa: E402
     outcomes,
     kfs,
     credit_report,
+    closure,
 )
+from api.notify import routes as notify_routes  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -129,6 +131,10 @@ app.include_router(credit_report.router, prefix="/api")
 app.include_router(complaints.router, prefix="/api")
 app.include_router(offers.router, prefix="/api")
 app.include_router(outcomes.router, prefix="/api")
+# G7: loan-cleared letter (no sign-in) and notifications (each route 404s
+# while its flag is off; the signed-in ones need DATABASE_URL).
+app.include_router(closure.router, prefix="/api")
+app.include_router(notify_routes.router, prefix="/api")
 
 # DB-bound routers — only mounted when DATABASE_URL is configured.
 # Skipping them on the Render free tier keeps the API up without a
