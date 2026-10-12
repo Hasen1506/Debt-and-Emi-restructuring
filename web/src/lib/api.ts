@@ -4,6 +4,7 @@
  * `formatINR` / `formatUSD` for display.
  */
 import type { KfsReadResponse } from './kfs';
+import type { CreditReportReadResponse } from './credit-report';
 import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
 import { authErrorMessage } from './auth-error';
@@ -84,6 +85,13 @@ export interface LoanPayload {
    *  Statement (roadmap PR G, lib/kfs). Editing a field removes it. The
    *  API ignores it. */
   kfs_fields?: string[];
+  /** Last four characters of the lender's account number, from a credit
+   *  report import (G6, lib/credit-report). Lets a pasted EMI SMS be matched
+   *  to this loan (lib/sms-parser). The API ignores it. */
+  account_last4?: string;
+  /** 'credit_report' when the loan was added from a credit-report import; the
+   *  form then says which figures the report didn't carry. The API ignores it. */
+  imported_from?: 'credit_report';
   loan_type: LoanType;
   bank: string;
   outstanding: string;
@@ -1357,8 +1365,11 @@ export const api = {
   }) => postWithFieldErrors<CashYieldResponse>('/api/cash-yield', req),
 
   /** Read a Key Facts Statement / sanction letter (roadmap PR G). Saves nothing. */
-  kfsRead: (req: { text?: string; pdf_base64?: string; as_of?: string }) =>
+  kfsRead: (req: { text?: string; pdf_base64?: string; password?: string; as_of?: string }) =>
     postWithFieldErrors<KfsReadResponse>('/api/kfs/read', req),
+  /** G6: read a user-downloaded credit report (CIBIL/Experian/CRIF/Equifax). Saves nothing. */
+  creditReportRead: (req: { text?: string; pdf_base64?: string; password?: string; as_of?: string }) =>
+    postWithFieldErrors<CreditReportReadResponse>('/api/credit-report/read', req),
 
   loanCheck: (req: LoanCheckRequest) =>
     postWithFieldErrors<LoanCheckResponse>('/api/loan-check', req),
