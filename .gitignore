@@ -17,3 +17,4 @@ api/data/notify.sqlite3*
 web/test-results/
 web/playwright-report/
 web/blob-report/
+.verify-all/
