@@ -17,7 +17,7 @@
  *     (0% in the math) and the form gently says to check the agreement.
  * No lender-specific fee is ever filled in.
  */
-import type { Country, LoanPayload, LoanType } from './api';
+import type { Country, LenderType, LoanPayload, LoanType } from './api';
 import { loanMarket } from './currency';
 
 export type FeeStatus = 'assumed' | 'unknown' | 'entered' | 'kfs';
@@ -27,6 +27,25 @@ export const RBI_PREPAYMENT_URL = 'https://www.rbi.org.in/Scripts/NotificationUs
 
 export const ASSUMED_REASON =
   'Assumed 0%: RBI bars prepayment charges on floating-rate loans to individuals (not for business) (RBI Directions, 2 July 2025).';
+export const BUSINESS_REASON =
+  "Not known: RBI's no-prepayment-charge rule covers business loans only from some lenders, and only for loans sanctioned from 1 January 2026. Check your loan agreement or Key Facts Statement.";
+export const BUSINESS_BANK_REASON =
+  'Assumed 0%: RBI bars prepayment charges on floating-rate business loans from commercial banks sanctioned from 1 January 2026 (RBI Directions, 2 July 2025, para 5(ii)(a)).';
+export const BUSINESS_SMALL_REASON =
+  'Assumed 0%: RBI bars prepayment charges on floating-rate business loans up to ₹50 lakh from small finance banks, sanctioned from 1 January 2026 (RBI Directions, 2 July 2025, para 5(ii)(b)).';
+export const OTHER_LENDER_REASON =
+  "Not known: RBI's no-prepayment-charge rule covers banks, co-operative banks and NBFCs/HFCs, not other lenders. Check your loan agreement.";
+export const LENDER_TYPE_LABELS: Record<LenderType, string> = {
+  bank: 'Bank (a commercial bank such as SBI, HDFC, ICICI)',
+  small_finance_bank: 'Small finance bank or regional rural bank',
+  cooperative_bank: 'Co-operative bank',
+  nbfc: 'NBFC (a non-bank lender such as Bajaj Finance)',
+  hfc: 'Housing finance company (HFC, such as LIC Housing Finance)',
+  other: 'Someone else (employer, chit fund, private lender)',
+};
+export const RULE_START_YEAR = 2026;
+export const SMALL_LENDER_BUSINESS_CAP = 5000000;
+
 export const UNKNOWN_REASON =
   'Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge.';
 
@@ -38,17 +57,34 @@ export interface FeeDefault {
 
 /** The fee the plan uses when the field is blank. `market` is the country
  *  whose rules the loan is under. */
-export function prepaymentFeeDefault(loanType: LoanType, rateType: string, market: Country): FeeDefault {
-  if (market === 'IN' && rateType === 'floating' && loanType !== 'credit_card') {
-    return { pct: '0', status: 'assumed', reason: ASSUMED_REASON };
+export interface FeeContext {
+  lenderType?: LenderType;
+  businessPurpose?: boolean;
+  sanctionYear?: number;
+  sanctionedAmount?: string | number;
+}
+
+export function prepaymentFeeDefault(loanType: LoanType, rateType: string, market: Country, ctx: FeeContext = {}): FeeDefault {
+  if (!(market === 'IN' && rateType === 'floating' && loanType !== 'credit_card')) {
+    return { pct: '0', status: 'unknown', reason: UNKNOWN_REASON };
   }
-  return { pct: '0', status: 'unknown', reason: UNKNOWN_REASON };
+  if (ctx.lenderType === 'other') return { pct: '0', status: 'unknown', reason: OTHER_LENDER_REASON };
+  if (!ctx.businessPurpose) return { pct: '0', status: 'assumed', reason: ASSUMED_REASON };
+  // A business loan: RBI 2025 Directions para 5(ii), loans from 2026 only.
+  const newRule = ctx.sanctionYear !== undefined && ctx.sanctionYear >= RULE_START_YEAR;
+  if (newRule && ctx.lenderType === 'bank') return { pct: '0', status: 'assumed', reason: BUSINESS_BANK_REASON };
+  const amt = ctx.sanctionedAmount === undefined || ctx.sanctionedAmount === '' ? NaN : Number(ctx.sanctionedAmount);
+  if (newRule && ctx.lenderType === 'small_finance_bank' && Number.isFinite(amt) && amt <= SMALL_LENDER_BUSINESS_CAP) {
+    return { pct: '0', status: 'assumed', reason: BUSINESS_SMALL_REASON };
+  }
+  return { pct: '0', status: 'unknown', reason: BUSINESS_REASON };
 }
 
 /** What the form shows for a loan's fee: the user's own figure, or the
  *  default with its one-line reason. */
 export function feeShown(
-  loan: Pick<LoanPayload, 'loan_type' | 'rate_type' | 'currency' | 'prepayment_penalty_pct' | 'kfs_fields'>,
+  loan: Pick<LoanPayload, 'loan_type' | 'rate_type' | 'currency' | 'prepayment_penalty_pct' | 'kfs_fields'> &
+    Partial<Pick<LoanPayload, 'lender_type' | 'business_purpose' | 'sanction_year' | 'sanctioned_amount'>>,
   country: Country,
 ): { status: FeeStatus; placeholder: string; hint: string } {
   // Read from the loan's own Key Facts Statement (roadmap PR G): it replaces
@@ -59,7 +95,12 @@ export function feeShown(
   if ((loan.prepayment_penalty_pct ?? '').trim() !== '') {
     return { status: 'entered', placeholder: '', hint: 'Of any extra you pay.' };
   }
-  const d = prepaymentFeeDefault(loan.loan_type, loan.rate_type, loanMarket(loan, country));
+  const d = prepaymentFeeDefault(loan.loan_type, loan.rate_type, loanMarket(loan, country), {
+    lenderType: loan.lender_type,
+    businessPurpose: loan.business_purpose,
+    sanctionYear: loan.sanction_year,
+    sanctionedAmount: loan.sanctioned_amount,
+  });
   return d.status === 'assumed'
     ? { status: 'assumed', placeholder: '0 (assumed)', hint: d.reason }
     : { status: 'unknown', placeholder: 'Not known', hint: d.reason };

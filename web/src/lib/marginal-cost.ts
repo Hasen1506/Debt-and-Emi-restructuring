@@ -17,7 +17,7 @@
 import Decimal from 'decimal.js';
 import type { LoanPayload, UserPayload } from './api';
 import { usMortgageShieldShare } from './deductions';
-import { GST_RATE_IN } from './gst';
+import { GST_RATE_IN, gstApplies } from './gst';
 
 const D = (v: string | number | Decimal) => new Decimal(v);
 
@@ -97,6 +97,13 @@ export function marginalShield(
   return D(0);
 }
 
+/** The prepayment fee as charged: an Indian lender adds 18% GST on it
+ *  (engine marginal_cost.prepayment_fee_with_gst; grill #27). */
+export function prepaymentFeeWithGst(feePct: Decimal.Value, india: boolean): Decimal {
+  const f = D(feePct || 0);
+  return india && gstApplies('prepayment_fee') ? f.plus(f.times(GST_RATE_IN)) : f;
+}
+
 function marketOf(loan: Pick<LoanPayload, 'currency'>, country: string): string {
   return loan.currency === 'INR' ? 'IN' : loan.currency === 'USD' ? 'US' : country;
 }
@@ -128,7 +135,7 @@ export function userMarginalCosts(user: UserPayload, marginalRate: string, indic
       l.loan_type === 'home_loan' ? homeInterest : eduInterest, homeDebt, 1,
     );
     const cardGst = l.loan_type === 'credit_card' && marketOf(l, own) === 'IN';
-    out.set(i, marginalCost(l.nominal_rate || 0, cardGst, shield, l.prepayment_penalty_pct || 0, Number(l.tenure_months_remaining || 0), Number(l.prepay_lock_in_months || 0)));
+    out.set(i, marginalCost(l.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(l.prepayment_penalty_pct || 0, marketOf(l, own) === 'IN'), Number(l.tenure_months_remaining || 0), Number(l.prepay_lock_in_months || 0)));
   }
   return out;
 }
@@ -148,7 +155,7 @@ export function loanMarginalCost(
   const own = marketOf(loan, country) === country;
   const shield = own ? marginalShield(loan.loan_type, country, marginalRate, regime, share.gt(0), share, interest, D(loan.outstanding || 0), 1) : D(0);
   const cardGst = loan.loan_type === 'credit_card' && marketOf(loan, country) === 'IN';
-  return marginalCost(loan.nominal_rate || 0, cardGst, shield, loan.prepayment_penalty_pct || 0, Number(loan.tenure_months_remaining || 0), Number(loan.prepay_lock_in_months || 0));
+  return marginalCost(loan.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(loan.prepayment_penalty_pct || 0, marketOf(loan, country) === 'IN'), Number(loan.tenure_months_remaining || 0), Number(loan.prepay_lock_in_months || 0));
 }
 
 const pct = (v: Decimal) => `${v.times(100).toFixed(2)}%`;
@@ -160,7 +167,7 @@ export function whyFirstLines(mc: MarginalCost): { label: string; value: string;
   if (mc.taxBenefit.gt(0)) lines.push({ label: 'Tax break you’d give up', value: pct(mc.taxBenefit), sign: '−' });
   if (mc.fee.gt(0)) {
     lines.push({ label: 'What it costs you a year', value: pct(mc.annualCost), sign: '=' });
-    lines.push({ label: 'Prepayment fee, over the months left', value: pct(mc.fee), sign: '−' });
+    lines.push({ label: 'Prepayment fee (with 18% GST in India), over the months left', value: pct(mc.fee), sign: '−' });
   }
   lines.push({ label: 'Each extra payment here saves', value: `${pct(mc.total)} a year`, sign: '=' });
   return lines;

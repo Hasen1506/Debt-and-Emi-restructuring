@@ -44,6 +44,8 @@ export type LoanType =
   | 'bnpl';
 export type LiquidityClass = 'liquid' | 'locked' | 'age_gated';
 export type IncomeType = 'salaried' | 'business_owner';
+/** Lender types for the prepayment-fee rule (engine/prepayment_fee.py LENDER_TYPES). */
+export type LenderType = 'bank' | 'small_finance_bank' | 'cooperative_bank' | 'nbfc' | 'hfc' | 'other';
 export type TaxRegimeIN = 'new' | 'old';
 export type FilingStatusUS = 'single' | 'mfj' | 'hoh';
 
@@ -84,6 +86,20 @@ export interface LoanPayload {
    *  Statement (roadmap PR G, lib/kfs). Editing a field removes it. The
    *  API ignores it. */
   kfs_fields?: string[];
+  /** "Is this loan for a business?" (grill #28 / live test #11; same field
+   *  as sprint L3's). Unset = not answered, read as a personal loan. The API
+   *  ignores it; lib/prepayment-fee reads it for the blank-fee default. */
+  business_purpose?: boolean;
+  /** Who lent it (grill #28): which RBI pre-payment rule can apply. The API ignores it. */
+  lender_type?: LenderType;
+  /** Year the loan was sanctioned or last renewed: RBI's 2025 Directions
+   *  cover business loans only from 1 Jan 2026. The API ignores it. */
+  sanction_year?: number;
+  /** Amount sanctioned (₹): the ₹50 lakh line in para 5(ii)(b). The API ignores it. */
+  sanctioned_amount?: string;
+  /** Smallest part-payment the lender accepts (grill #30). Extra below it is
+   *  set aside until it reaches this amount. Blank = any amount. */
+  min_prepay_amount?: string;
   loan_type: LoanType;
   bank: string;
   outstanding: string;

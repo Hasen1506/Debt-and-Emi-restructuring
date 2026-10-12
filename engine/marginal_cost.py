@@ -77,6 +77,14 @@ def compounded(nominal: Decimal) -> Decimal:
     return (D("1") + nominal / D("12")) ** 12 - D("1")
 
 
+def prepayment_fee_with_gst(fee_pct: Decimal, india: bool) -> Decimal:
+    """The prepayment fee as charged: an Indian lender adds 18% GST on it
+    (engine/tax/gst.py, "prepayment_fee"; grill #27). Fee % as typed, GST
+    excluded, the way a KFS writes it ("4% + GST")."""
+    from engine.tax.gst import gst_on
+    return fee_pct + gst_on("prepayment_fee", fee_pct) if india else fee_pct
+
+
 def marginal_cost(
     nominal_rate: Decimal,
     card_gst: bool,
@@ -162,12 +170,13 @@ def loan_marginal_cost(
     the loan's own fields (as of today); the simulation passes the values
     for the month it is in."""
     from engine.formulas import loan_market
-    card_gst = loan.loan_type == LoanType.CREDIT_CARD and loan_market(loan, country) == Country.IN
+    india = loan_market(loan, country) == Country.IN
+    card_gst = loan.loan_type == LoanType.CREDIT_CARD and india
     return marginal_cost(
         loan.nominal_rate,
         card_gst,
         shield_fraction,
-        loan.prepayment_penalty_pct or D("0"),
+        prepayment_fee_with_gst(loan.prepayment_penalty_pct or D("0"), india),
         loan.tenure_months_remaining if months_left is None else months_left,
         loan.prepay_lock_in_months if lock_in_months is None else lock_in_months,
     )

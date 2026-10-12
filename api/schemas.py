@@ -168,6 +168,8 @@ class LoanIn(_In):
     prepayment_penalty_pct: Decimal = Field(D("0"), ge=0, le=D("0.1"))
     prepay_lock_in_months: Months = 0
     part_payment_freq_months: Optional[int] = Field(None, ge=1, le=MAX_MONTHS)
+    # Lender's minimum part-payment (grill #30); extra below it is set aside.
+    min_prepay_amount: Amount = D("0")
     pre_emi_months_remaining: Months = 0
     # Sim month of the first EMI (a loan taken this month: 2). The web
     # derives it from the loan's calendar first EMI month.
@@ -243,6 +245,7 @@ class LoanIn(_In):
             rate_drift_annualized=self.rate_drift_annualized,
             prepayment_penalty_pct=self.prepayment_penalty_pct,
             prepay_lock_in_months=self.prepay_lock_in_months,
+            min_prepay_amount=self.min_prepay_amount,
             part_payment_freq_months=self.part_payment_freq_months,
             pre_emi_months_remaining=self.pre_emi_months_remaining,
             first_payment_month=self.first_payment_month,

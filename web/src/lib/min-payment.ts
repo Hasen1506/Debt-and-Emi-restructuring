@@ -10,6 +10,7 @@
 import Decimal from 'decimal.js';
 import type { Country, LoanPayload } from './api';
 import { dec } from './safe-decimal';
+import { GST_RATE_IN } from './gst';
 
 export interface MinPaymentExplanation {
   /** Short one-liner like "5% of outstanding or ₹200, whichever is higher". */
@@ -20,7 +21,15 @@ export interface MinPaymentExplanation {
   source: 'bank' | 'default';
   /** Bank label echoed back for the UI. */
   bank: string;
+  /** Grill #26: no formula has a verified source, so the figure is always an
+   *  estimate; the UI shows `advice` beside it. */
+  verified: false;
+  advice: string;
 }
+
+/** What the form says beside a formula figure (engine STATEMENT_MIN_ADVICE). */
+export const STATEMENT_MIN_ADVICE =
+  'Estimated. Use the minimum amount due on your card statement: type it in once and the plan uses it.';
 
 interface BankFormula {
   /** Display string used in the UI explainer. */
@@ -157,13 +166,20 @@ export function explainMinPayment(
   const formula = hit ?? DEFAULTS[country];
   const outstanding = dec(loan.outstanding);
   const interest = outstanding.mul(dec(loan.nominal_rate)).div(12);
-  // The floor never asks for more than the card owes.
-  const minimum = Decimal.min(formula.compute(outstanding, interest), Decimal.max(outstanding.add(interest), 0));
+  // RBI MD 2022 para 9(b)(ii): an Indian card's minimum covers the month's
+  // interest and its 18% GST (no negative amortisation). The floor never asks
+  // for more than the card owes.
+  const charges = country === 'IN' ? interest.mul(new Decimal(1).add(GST_RATE_IN)) : interest;
+  const raw = formula.compute(outstanding, charges);   // the engine passes GST-inclusive interest too
+  const floored = country === 'IN' ? Decimal.max(raw, charges) : raw;
+  const minimum = Decimal.min(floored, Decimal.max(outstanding.add(charges), 0));
   return {
     formula: formula.description,
     estimated: minimum.toFixed(0),
     source: hit ? 'bank' : 'default',
     bank: loan.bank || '',
+    verified: false,
+    advice: STATEMENT_MIN_ADVICE,
   };
 }
 
