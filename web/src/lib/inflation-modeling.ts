@@ -103,3 +103,39 @@ export async function loadInflationRateServer(): Promise<string> {
 export function inflationRateFor(country: 'IN' | 'US', own: string): string {
   return own || INFLATION_FORECAST[country].rate;
 }
+
+// ─── Long-run anchor (grill #39, sprint G4) ─────────────────────────────────
+
+/**
+ * Each central bank's own long-run inflation target: the anchor for plans
+ * that run many years, where a one-year forecast compounded for 20 years
+ * would overstate costs. Both are in engine/data_freshness.json, which
+ * fails a test when they go unchecked for a year.
+ *  - India: CPI target 4% (band 2–6%), 1 Apr 2026 – 31 Mar 2031, Gazette
+ *    S.O. 1580(E) of 25 Mar 2026 under RBI Act s.45ZA.
+ *  - US: 2% PCE, FOMC Statement on Longer-Run Goals, reaffirmed 27 Jan 2026.
+ * Update rule: the forecast above refreshes weekly; these change only when
+ * the notification (next review by Mar 2031) or the FOMC statement does.
+ */
+export const INFLATION_LONG_RUN = {
+  IN: { rate: '0.04', who: 'RBI', what: 'inflation target (4%, band 2–6%) to March 2031', url: 'https://www.rbi.org.in/scripts/bs_viewbulletin.aspx?Id=24174' },
+  US: { rate: '0.02', who: 'the Fed', what: 'longer-run goal (2% PCE prices)', url: 'https://www.federalreserve.gov/monetarypolicy/files/FOMC_LongerRunGoals.pdf' },
+} as const;
+
+/**
+ * The line shown beside the debt-free date (grill #39): when inflation
+ * modelling is off, say plainly that the plan holds spending flat; when on,
+ * say at what rate it grows. `monthlySpend` is already formatted (₹45,000).
+ */
+export function spendingAssumptionLine(
+  mode: InflationModeling,
+  monthlySpend: string,
+  ratePct?: string,
+): string {
+  if (mode === 'off') {
+    return `Assumes your spending stays at ${monthlySpend} a month. Turn on rising prices on Plan to see the date with inflation.`;
+  }
+  return ratePct
+    ? `Assumes your spending of ${monthlySpend} a month grows ${ratePct}% a year with prices.`
+    : `Assumes your spending of ${monthlySpend} a month grows with prices.`;
+}

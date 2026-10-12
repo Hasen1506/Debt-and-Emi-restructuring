@@ -1,0 +1,125 @@
+{
+  "about": "Every dated figure RightDue quotes, in one place (grill #35, sprint G4). Each entry names its source, the date it was last checked against that source (as_of), how often it must be re-checked (cadence_days) and how (auto = a script or workflow refreshes it; by_hand = a person re-reads the source). engine/tests/test_data_freshness.py fails when any entry is older than as_of + cadence_days + grace_days, or when a code constant no longer matches the value here. Figures that already live in their own dated data file are listed with `file` + `as_of_key` and read from that file, so nothing is copied twice. Every entry of web/src/lib/market-data.json is included automatically (see market_data_cadence_days). To refresh a by_hand entry: re-read the source, update the value in code AND here, and set as_of to the day you checked.",
+  "grace_days": 14,
+  "market_data_file": "web/src/lib/market-data.json",
+  "market_data_cadence_days": {
+    "_default_auto": 21,
+    "inflation.IN": 75,
+    "inflation.US": 100
+  },
+  "entries": [
+    {
+      "id": "inflation_long_run_in",
+      "what": "India long-run inflation anchor for multi-year plans: the CPI target",
+      "value": "0.04",
+      "source": "Gazette notification S.O. 1580(E), 25 Mar 2026 (RBI Act s.45ZA): CPI target 4%, band 2-6%, 1 Apr 2026 - 31 Mar 2031; confirmed in RBI Bulletin 22 May 2026",
+      "url": "https://www.rbi.org.in/scripts/bs_viewbulletin.aspx?Id=24174",
+      "as_of": "2026-10-12",
+      "cadence_days": 365,
+      "how": "by_hand",
+      "used_in": ["web/src/lib/inflation-modeling.ts INFLATION_LONG_RUN.IN"],
+      "code_ref": {"ts": "web/src/lib/inflation-modeling.ts", "pattern": "IN: \\{ rate: '([0-9.]+)'"}
+    },
+    {
+      "id": "inflation_long_run_us",
+      "what": "US long-run inflation anchor for multi-year plans: the Fed's 2% PCE goal",
+      "value": "0.02",
+      "source": "FOMC Statement on Longer-Run Goals and Monetary Policy Strategy, reaffirmed effective 27 Jan 2026",
+      "url": "https://www.federalreserve.gov/monetarypolicy/files/FOMC_LongerRunGoals.pdf",
+      "as_of": "2026-10-12",
+      "cadence_days": 365,
+      "how": "by_hand",
+      "used_in": ["web/src/lib/inflation-modeling.ts INFLATION_LONG_RUN.US"],
+      "code_ref": {"ts": "web/src/lib/inflation-modeling.ts", "pattern": "US: \\{ rate: '([0-9.]+)'"}
+    },
+    {
+      "id": "remittance_cost_us_in",
+      "what": "Reference cost of sending money US -> India (fee + exchange-rate margin), % of a $200 transfer. A hint beside the NRI remittance-cost field, not a silent default.",
+      "value": "0.0368",
+      "source": "World Bank Remittance Prices Worldwide, US -> India corridor, total average Q3 2025 (data collected 4-28 Aug 2025)",
+      "url": "https://remittanceprices.worldbank.org/corridor/United-States/India",
+      "as_of": "2026-10-12",
+      "cadence_days": 180,
+      "how": "by_hand",
+      "used_in": ["web/src/lib/payoff-range.ts REMITTANCE_REFERENCE (hint copy for G10's NRI field)"],
+      "code_ref": {"ts": "web/src/lib/payoff-range.ts", "pattern": "REMITTANCE_REFERENCE = \\{[^}]*rate: '([0-9.]+)'"}
+    },
+    {
+      "id": "gap_card_apr_in",
+      "what": "India card rate a shortfall is borrowed at when the user has no card on file (L2 gap debt)",
+      "value": "0.45",
+      "source": "SBI Card Most Important Terms and Conditions, Finance Charges 3.75% p.m. (45% p.a.) + GST; page correct as of 22 Jul 2025",
+      "url": "https://www.sbicard.com/en/most-important-terms-and-conditions.page",
+      "as_of": "2026-10-12",
+      "cadence_days": 180,
+      "how": "by_hand",
+      "used_in": ["engine/gap_debt.py GAP_CARD_APR_IN (branch hark/sprint-L2)"],
+      "code_ref": {"py": "engine.gap_debt:GAP_CARD_APR_IN", "skip_if_missing": true}
+    },
+    {
+      "id": "gap_card_apr_us",
+      "what": "US card rate a shortfall is borrowed at when the user has no card on file (L2 gap debt)",
+      "value": "0.2236",
+      "source": "Federal Reserve G.19 Consumer Credit: credit card plans, accounts assessed interest, Aug 2026 (released 7 Oct 2026)",
+      "url": "https://www.federalreserve.gov/releases/g19/current/default.htm",
+      "as_of": "2026-10-12",
+      "cadence_days": 100,
+      "how": "by_hand",
+      "used_in": ["engine/gap_debt.py GAP_CARD_APR_US (branch hark/sprint-L2)"],
+      "code_ref": {"py": "engine.gap_debt:GAP_CARD_APR_US", "skip_if_missing": true}
+    },
+    {
+      "id": "policy_rates",
+      "what": "RBI repo / Fed funds history used by Loan Check and rate resets",
+      "source": "RBI MPC resolutions; FOMC statements (engine/policy_rates.py)",
+      "url": "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx",
+      "as_of_py": "engine.policy_rates:LAST_VERIFIED",
+      "cadence_days": 70,
+      "how": "auto",
+      "used_in": ["engine/policy_rates.py", "Loan Check"]
+    },
+    {
+      "id": "rate_cards",
+      "what": "Bank card/loan rate cards (top-level as_of)",
+      "source": "each lender's published rate page (web/src/lib/rate-cards.json, exported by scripts/export_rate_cards.py)",
+      "url": "https://sbi.co.in/web/interest-rates",
+      "file": "web/src/lib/rate-cards.json",
+      "as_of_key": "as_of",
+      "cadence_days": 45,
+      "how": "by_hand",
+      "used_in": ["engine/rate_cards.py", "web/src/lib/rate-cards.ts"]
+    },
+    {
+      "id": "rate_disclosures",
+      "what": "Lenders' published floating-rate disclosures",
+      "source": "lender pages listed in api/data/rate_pages.json (scripts/fetch_rate_disclosures.py)",
+      "url": "https://www.rbi.org.in/",
+      "file": "web/src/lib/rate-disclosures.json",
+      "as_of_key": "as_of",
+      "cadence_days": 35,
+      "how": "auto",
+      "used_in": ["engine/rate_disclosures.py", "Loan Check"]
+    },
+    {
+      "id": "central_bank_calendar",
+      "what": "RBI MPC / FOMC meeting dates",
+      "source": "RBI and Fed published meeting schedules (api/data/central_bank_calendar.json)",
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+      "file": "api/data/central_bank_calendar.json",
+      "as_of_key": "last_updated",
+      "cadence_days": 365,
+      "how": "by_hand",
+      "used_in": ["api/routes/rates.py", "reset-date alerts"]
+    },
+    {
+      "id": "tax_tables_fy",
+      "what": "India FY 2026-27 slabs / US TY 2026 brackets (web/src/lib/tax-tables.json)",
+      "source": "Income-tax Act 2025 / Finance Act; IRS Rev. Proc. for TY 2026 (engine/tax/*)",
+      "url": "https://incometaxindia.gov.in/",
+      "as_of": "2026-04-01",
+      "cadence_days": 365,
+      "how": "by_hand",
+      "used_in": ["engine/tax/india.py", "engine/tax/usa.py", "web/src/lib/tax-tables.json"]
+    }
+  ]
+}

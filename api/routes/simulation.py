@@ -8,7 +8,7 @@ from engine.models import LifecycleEvent, LifecycleEventKind, User
 from engine.goals import GoalState, debt_gate, serial_fill_allocation
 from engine.sensitivity import (
     with_surplus_delta, with_income_shock, with_rate_shock,
-    with_strategy, with_lump_sum, compare,
+    with_strategy, with_lump_sum, compare, debt_free_range,
 )
 from engine.surplus import allocate_surplus, compute_available_surplus
 
@@ -17,6 +17,7 @@ from api.schemas import (
     GoalTradeoffResponse, SimulateRequest,
     SimulateResponse, SurplusAllocationOut, TrajectoryPoint,
     BaselineRequest, CompareRequest, CompareResponse, LifecycleEventIn,
+    RangeResponse,
 )
 
 
@@ -420,3 +421,19 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
         baseline_total_interest=base.total_interest_paid,
         scenario_total_interest=scenario_result.total_interest_paid,
     )
+
+
+@router.post("/sensitivity/range", response_model=RangeResponse)
+def sensitivity_range(req: CompareRequest) -> RangeResponse:
+    """Grill #24 (sprint G4): the exact debt-free month and a range, with
+    the reason for each edge (floating rates ±1 point, ±1 month of pay).
+    Takes the same body as /sensitivity/compare; its what-if knobs are
+    ignored, so the range is around the plan /plan shows."""
+    user = req.user.to_engine()
+    plan = _plan_kwargs(req)
+    sm = plan.pop("simulation_start_month")
+    r = debt_free_range(
+        user, strategy=req.strategy, horizon_months=req.horizon_months,
+        marginal_rate=req.marginal_rate, simulation_start_month=sm, plan=plan,
+    )
+    return RangeResponse(**r)
