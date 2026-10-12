@@ -22,6 +22,15 @@
 
 const TURNSTILE = 'https://challenges.cloudflare.com';
 
+/** The API's origin when the browser calls it on another origin (a split
+ *  deploy or the E2E run set an absolute NEXT_PUBLIC_API_BASE_URL; see
+ *  src/lib/api-base.ts). Unset or relative: the page's own origin, 'self'. */
+function apiOrigin(env) {
+  const base = (env.NEXT_PUBLIC_API_BASE_URL || '').trim();
+  if (!/^https?:\/\//i.test(base)) return [];
+  try { return [new URL(base).origin]; } catch { return []; }
+}
+
 /** @param {Record<string, string | undefined>} env */
 export function contentSecurityPolicy(env = process.env) {
   const turnstile = Boolean((env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '').trim());
@@ -31,7 +40,7 @@ export function contentSecurityPolicy(env = process.env) {
     'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
     'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
     'img-src': ["'self'", 'data:', 'blob:'],
-    'connect-src': ["'self'", ...(turnstile ? [TURNSTILE] : [])],
+    'connect-src': ["'self'", ...apiOrigin(env), ...(turnstile ? [TURNSTILE] : [])],
     'frame-src': turnstile ? [TURNSTILE] : ["'none'"],
     'worker-src': ["'self'", 'blob:'],
     'manifest-src': ["'self'"],

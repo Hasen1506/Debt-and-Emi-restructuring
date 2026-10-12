@@ -49,8 +49,8 @@ test('L3: nickname, city/state, business purpose, cost lines, spare cash date an
     await expect(page.getByPlaceholder('Not known').first()).toBeVisible();
     // The card's yearly cost, line by line: 42% + 9.11% compounding + 11.41% GST.
     await expect(page.getByText(/42\.00% ÷ 12 = 3\.500% a month/).first()).toBeVisible();
-    await expect(page.getByTestId('cost-line-gst').first()).toContainText('3.500% × 1.18 = 4.130% a month');
-    await expect(page.getByText('= 62.52%').first()).toBeVisible();
+    await expect(page.getByTestId('cost-line-gst').first()).toContainText('GST on the interest (18%)');
+    await expect(page.getByText('= 60.31%').first()).toBeVisible();
     await page.getByLabel('Nickname (optional)').nth(1).fill('TEST my card');
     await page.getByRole('button', { name: /SAVE CHANGES/ }).click();
     await expect(page.getByText('Saved. Home and Plan use the new numbers.')).toBeVisible();

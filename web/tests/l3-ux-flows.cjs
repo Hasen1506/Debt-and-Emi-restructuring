@@ -115,7 +115,8 @@ test('#5 state lists are complete and a country switch drops the other country\'
   const profile = src('app/profile/ProfileClient.tsx');
   assert.match(profile, /label="State \(optional\)"/);
   assert.match(profile, /label="City \(optional\)"/);
-  assert.match(profile, /state: stateFor\(country, homeState\) \|\| undefined/);
+  // Integration L3 x G3: one `state`; the US keeps G3's two-letter field.
+  assert.match(profile, /state: \(country === 'US' \? usState : stateFor\(country, homeState\)\) \|\| undefined/);
   assert.match(src('components/profile/ProfileSummary.tsx'), /'Lives in', placeLabel\(user\)/);
 });
 

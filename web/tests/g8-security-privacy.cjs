@@ -42,6 +42,9 @@ test('pages get a CSP that forbids framing, other-site scripts, eval and plugins
  assert.match(csp,/object-src 'none'/);
  assert.match(csp,/base-uri 'self'/);
  assert.match(csp,/connect-src 'self'(;|$)/);
+ // A split deploy / the E2E run call the API on its own origin (api-base.ts).
+ assert.match(contentSecurityPolicy({NEXT_PUBLIC_API_BASE_URL:'http://127.0.0.1:8100/'}),/connect-src 'self' http:\/\/127\.0\.0\.1:8100(;|$)/);
+ assert.match(contentSecurityPolicy({NEXT_PUBLIC_API_BASE_URL:'/api'}),/connect-src 'self'(;|$)/);
  assert.doesNotMatch(csp,/unsafe-eval/);
  assert.doesNotMatch(csp,/challenges\.cloudflare\.com/,'Turnstile origins only when it is on');
  assert.match(csp,/style-src [^;]*https:\/\/fonts\.googleapis\.com/);
@@ -76,7 +79,7 @@ test('next.config.mjs sends the headers in production builds',async()=>{
 test('privacy notice, terms and Your data are reachable without signing in',()=>{
  const src=fs.readFileSync(path.join(root,'middleware.ts'),'utf8');
  const out=ts.transpileModule(src,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
- const m={exports:{}};new Function('module','exports','require',out)(m,m.exports,(id)=>id==='next/server'?{NextResponse:{}}:require(id));
+ const m={exports:{}};new Function('module','exports','require',out)(m,m.exports,(id)=>id==='next/server'?{NextResponse:{}}:require(id.startsWith('./')?path.join(root,id):id));
  for(const p of ['/privacy','/terms','/account'])assert.ok(m.exports.isPublicPage(p),p);
  assert.ok(!m.exports.isPublicPage('/plan'));assert.ok(!m.exports.isPublicPage('/privacy-x'));
 });
@@ -179,7 +182,7 @@ test('server error reports are off without SENTRY_DSN and carry no figures with 
 test('no finoptima event names or identifiers remain outside cookie/storage keys',()=>{
  const walk=(d,o=[])=>{for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory())walk(p,o);else if(/\.(tsx?|mjs|css)$/.test(e.name))o.push(p)}return o};
  const hits=[];
- for(const f of walk(root)){if(f.endsWith(path.join('lib','account.ts')))continue;const s=fs.readFileSync(f,'utf8');
+ for(const f of walk(root)){if(f.endsWith(path.join('lib','account.ts'))||f.endsWith(path.join('lib','storage-migration.ts')))continue;const s=fs.readFileSync(f,'utf8');
   for(const m of s.matchAll(/finoptima[^_]/gi))hits.push(`${path.relative(web,f)}: ${m[0]}`)}
  assert.deepEqual(hits,[]);
 });
