@@ -1274,6 +1274,10 @@ export const api = {
 
   simulate: (req: SimulateArgs) => post<SimulateResponse>('/api/simulate', req),
 
+  /** Grill #24 (sprint G4): exact debt-free month + range with reasons. */
+  sensitivityRange: (req: SimulateArgs) =>
+    post<import('./payoff-range').PayoffRange>('/api/sensitivity/range', req),
+
   /** Roadmap PR F: the interest cost of funding each goal before high-interest debt. */
   goalsTradeoff: (req: SimulateArgs & { goal_ids?: string[] }) =>
     post<{ tradeoffs: GoalTradeoff[] }>('/api/goals/tradeoff', req),

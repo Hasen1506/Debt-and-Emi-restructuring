@@ -120,3 +120,11 @@ test('goal-line: a fixed amount too small for the date is SHORT and shows the fi
   assert.equal(line.monthly, 10000);
   assert.equal(line.state, 'short');
 });
+
+test('#24: the Home range words read the engine edges, and say nothing when there is no range', () => {
+  const src = fs.readFileSync(path.join(root, 'components/home/HomeDebtFreeRange.tsx'), 'utf8');
+  assert.match(src, /api\.sensitivityRange\(plan\.runArgs\)/);
+  assert.match(src, /WHY THIS RANGE/);
+  const apiSrc = fs.readFileSync(path.join(root, 'lib/api.ts'), 'utf8');
+  assert.match(apiSrc, /'\/api\/sensitivity\/range'/);
+});
