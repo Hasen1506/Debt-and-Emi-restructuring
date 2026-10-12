@@ -285,6 +285,39 @@ def _first_hike_month_index(
     return m if m > 1 else 13
 
 
+# Average-daily-balance approximation for a revolving card (grill #25, L5's
+# HDFC-style golden statement). RBI MD 2022 FAQ 6: once a bill isn't paid in
+# full, interest runs from each transaction's date on the outstanding,
+# "adjusted for payments ... as and when credited". The simulator works in
+# whole months, so:
+#  * new spend, spread evenly through the cycle, carries interest for about
+#    half of it (CARD_SPEND_SHARE);
+#  * the month's payment, made on the due date about 20 days into a ~30-day
+#    cycle (HDFC's statement-to-due gap; RBI requires at least a fortnight,
+#    MD para 10(a)), stops interest on the paid part for the last third of the
+#    cycle (CARD_PAID_EARLY_SHARE);
+#  * a card whose last bill was paid in full (opening balance 0) pays no
+#    interest on this month's spend: the interest-free period applies.
+# Charging a whole month on balance + spend read ₹11.8k too high after 12
+# months on ₹1.5L against the daily-balance statement.
+CARD_SPEND_SHARE = D("0.5")
+CARD_PAID_EARLY_SHARE = D("1") / D("3")
+
+
+def card_cycle_interest(loan: Loan, country: Country, opening: Decimal, spend: Decimal,
+                        payment: Decimal) -> Decimal:
+    """This cycle's finance charge (GST included for an Indian card) on the
+    average daily balance. `opening` is the balance before this month's
+    `spend`; `payment` what is paid on the due date."""
+    if opening <= 0:
+        return D("0")
+    paid = min(max(payment, D("0")), opening + spend)
+    adb = opening + spend * CARD_SPEND_SHARE - paid * CARD_PAID_EARLY_SHARE
+    scratch = copy(loan)
+    scratch.outstanding = max(adb, D("0"))
+    return monthly_interest_charge(scratch, country)
+
+
 def simulate_plan(
     user: User,
     strategy: Strategy = Strategy.AVALANCHE,
@@ -484,6 +517,8 @@ def _simulate_plan(
     # Set-aside for a lender's minimum part-payment (grill #30): extra below
     # the minimum waits here, in user currency, until it is big enough.
     prepay_pot = D("0")
+    # Education-loan moratorium interest accrued so far (simple, not compounded).
+    moratorium_accrued: dict[int, Decimal] = {}
 
     def _can_part_pay(loan, m: int) -> bool:
         """True when an above-minimum payment is allowed on this loan in
@@ -646,8 +681,23 @@ def _simulate_plan(
         for l in owing:
             start = loan_start_month.get(id(l), 1)
             if start <= m < l.first_payment_month and l.first_payment_month - start >= 2:
-                l.outstanding += monthly_interest_charge(l, user.country)
+                if l.loan_type == LoanType.EDUCATION:
+                    # Simple interest through an education loan's moratorium,
+                    # on the principal only, capitalised when repayment starts
+                    # (SBI Student Loan MITC: "Simple interest to be charged
+                    # during moratorium period"). Compounding it monthly read
+                    # ~₹5.9k too high over 36 months on ₹10L (L5 golden).
+                    accrued = moratorium_accrued.get(id(l), D("0"))
+                    principal_only = copy(l)
+                    principal_only.outstanding = l.outstanding - accrued
+                    charge = monthly_interest_charge(principal_only, user.country)
+                    moratorium_accrued[id(l)] = accrued + charge
+                    l.outstanding += charge
+                else:
+                    l.outstanding += monthly_interest_charge(l, user.country)
 
+        card_opening: dict[int, Decimal] = {}
+        card_spend: dict[int, Decimal] = {}
         # Card spend: for any active credit card with expected_monthly_spend
         # set, bump outstanding before computing minimum payments. Models
         # "user keeps using the card" rather than the freeze-and-pay-off
@@ -657,6 +707,11 @@ def _simulate_plan(
                 l.loan_type == LoanType.CREDIT_CARD
                 and l.expected_monthly_spend > 0
             ):
+                # Opening balance before this month's spend: 0 means the last
+                # bill was paid in full, so the spend gets its interest-free
+                # period (RBI MD 2022 para 3(a)(xvi)).
+                card_opening[id(l)] = l.outstanding
+                card_spend[id(l)] = l.expected_monthly_spend
                 l.outstanding += l.expected_monthly_spend
 
         # Minimum payments per active loan. Card formulas of the "interest +
@@ -909,6 +964,11 @@ def _simulate_plan(
         # into whichever loan currency the next-priority loan is in.
         for l in active:
             interest_this = monthly_interest_charge(l, user.country)
+            if l.loan_type == LoanType.CREDIT_CARD and l.outstanding > 0:
+                interest_this = card_cycle_interest(
+                    l, user.country, card_opening.get(id(l), l.outstanding),
+                    card_spend.get(id(l), D("0")), payments.get(id(l), D("0")),
+                )
             # Pre-EMI broken-period: bank charges interest only, no
             # principal payment. The user pays exactly `interest_this`
             # for this month; payments[id(l)] gets overwritten so the

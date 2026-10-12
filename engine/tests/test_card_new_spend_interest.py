@@ -17,9 +17,13 @@ The engine works month by month, so it can't follow each purchase's date.
 It posts the month's spend at the start of the month and charges a full
 month's interest on it: the most a purchase made that month could cost
 (the daily rule gives about half a month on spend spread evenly through it).
-The test accepts any convention between half a month and a full month, so
-a finer convention from G1 still passes, but never zero (no interest-free
-period while revolving) and never without GST.
+G1 (2026-10-12) replaced that with an average-daily-balance approximation
+(engine/simulation.py card_cycle_interest): spend carries interest for half
+the cycle, and the payment stops interest on the paid part for the last
+third. The spend also raises the formula minimum, which comes off the
+balance earlier, so the spend's net effect is a little under half a month:
+the lower bound is 40% of a full month. Never zero (no interest-free period
+while revolving) and never without GST.
 """
 from decimal import Decimal
 
@@ -63,7 +67,7 @@ def test_new_spend_on_a_revolving_card_is_charged_interest_with_gst():
     # A full month on the spend at 3.5% a month, plus 18% GST on it.
     full_month = spend * D("0.42") / 12 * (1 + GST_RATE_IN)
     assert extra > 0, "new spend on a revolving card has no interest-free period"
-    assert full_month / 2 - D("0.01") <= extra <= full_month + D("0.01"), (extra, full_month)
+    assert full_month * D("0.4") <= extra <= full_month + D("0.01"), (extra, full_month)
 
 
 def test_card_interest_is_not_just_balance_times_monthly_rate():
@@ -83,7 +87,7 @@ def test_us_card_new_spend_has_interest_but_no_gst():
     with_spend = _first_month_interest(_card_user(D("1000"), country=Country.US))
     extra = with_spend - base
     full_month = D("1000") * D("0.42") / 12
-    assert full_month / 2 - D("0.01") <= extra <= full_month + D("0.01")
+    assert full_month * D("0.4") <= extra <= full_month + D("0.01")
 
 
 def test_spend_makes_the_balance_grow_by_spend_less_principal_paid():
