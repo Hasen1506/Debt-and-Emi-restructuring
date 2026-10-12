@@ -213,35 +213,51 @@ test.describe('owner fixes (signed in)', () => {
     await expect(page.locator('section[aria-labelledby="tenure-whatif"]')).toBeVisible();
   });
 
-  // ── G5 loan-check (no branch pushed yet) ─────────────────────────────────
-  async function loanCheck(page: import('@playwright/test').Page, lender: string) {
+  // ── G5 loan-check (owner spec: web/e2e/loan-check.spec.ts; same flow) ──
+  async function loanCheck(page: import('@playwright/test').Page, lender: string | { name: string; type: string }, spread = true) {
     await page.goto('/tools/loan-check');
-    await page.getByLabel(/Lender|Bank/i).first().fill(lender);
-    await page.getByLabel(/rate you pay|Your rate/i).first().fill('9.15');
-    await page.getByLabel(/Balance|Loan amount/i).first().fill('3000000');
+    const pick = page.getByTestId('lc-lender');
+    await expect(pick.locator('option', { hasText: 'LIC Housing Finance' })).toHaveCount(1);
+    if (typeof lender === 'string') await pick.selectOption({ label: lender });
+    else {
+      await pick.selectOption({ label: 'Another lender (not listed)' });
+      await page.getByLabel("Lender's name").fill(lender.name);
+      await page.getByLabel('What kind of lender?').selectOption({ label: lender.type });
+    }
+    await page.getByLabel('Rate you pay now (%)').fill('9.15');
+    await page.getByLabel('Still owed').fill('3000000');
+    await page.getByLabel('Months left').fill('200');
+    await page.getByLabel('Month the loan started: month').selectOption({ label: 'March' });
+    await page.getByLabel('Month the loan started: year').selectOption('2022');
+    await page.getByLabel('What is the rate linked to?').selectOption('repo');
+    await page.getByLabel('Rate when the loan started (%)').fill('9.15');
+    if (spread) await page.getByTestId('lc-spread-question').getByRole('button', { name: 'No', exact: true }).click();
+    await page.getByRole('button', { name: /check my loan/i }).click();
   }
   test('L#7 [G5] paying BELOW the should-be rate reads as good news, not a complaint', async ({ page }) => {
     await loanCheck(page, 'SBI');
-    await expect(page.getByText(/Worth a conversation with your bank/)).toHaveCount(0);
-    await expect(page.getByText(/below/i).first()).toBeVisible();
+    await expect(page.getByText('You pay less than the repo moves imply: in your favour.')).toBeVisible();
+    await expect(page.getByText('Worth a conversation with your bank.')).toHaveCount(0);
   });
-  test('L#8 [G5] identical numbers give the same verdict for SBI and LIC Housing Finance', async ({ page }) => {
+  test('L#8 [G5] identical numbers give the same verdict whatever the bank is called', async ({ page }) => {
+    // G5: a housing finance company (LIC HFL) is NOT bound by the banks'
+    // repo rule, so it gets its own verdict by design; compare two banks.
     await loanCheck(page, 'SBI');
-    const sbi = await page.getByTestId('loan-check-verdict').innerText();
-    await loanCheck(page, 'LIC Housing Finance');
-    expect(await page.getByTestId('loan-check-verdict').innerText()).toBe(sbi);
+    await expect(page.getByText('You pay less than the repo moves imply: in your favour.')).toBeVisible();
+    await loanCheck(page, { name: 'Some Bank I Typed', type: 'Bank (public, private or foreign)' });
+    await expect(page.getByText('You pay less than the repo moves imply: in your favour.')).toBeVisible();
   });
-  test('L#9 [G5] ONE RATE mode asks "did your spread change?"', async ({ page }) => {
-    await page.goto('/tools/loan-check');
-    await expect(page.getByText(/did your spread change/i)).toBeVisible();
+  test('L#9 [G5] the check asks "did your spread change?"', async ({ page }) => {
+    await loanCheck(page, 'SBI', false);
+    await expect(page.getByText(/Still needed: whether your spread changed/).first()).toBeVisible();
   });
   test('L#10 [G5] the lender is picked from a list (lender type shown)', async ({ page }) => {
     await page.goto('/tools/loan-check');
-    await expect(page.getByRole('combobox', { name: /Lender/i })).toBeVisible();
+    await expect(page.getByTestId('lc-lender').locator('option', { hasText: 'LIC Housing Finance' })).toHaveCount(1);
   });
   test('L#28 [G5] the ₹ figure says "estimate for your conversation" beside the number', async ({ page }) => {
     await loanCheck(page, 'SBI');
-    await expect(page.getByText(/estimate for your own conversation with the bank/i)).toBeVisible();
+    await expect(page.getByText(/estimate for your own conversation with the bank/i).first()).toBeVisible();
   });
 
   // ── G10 product-surface ──────────────────────────────────────────────────
