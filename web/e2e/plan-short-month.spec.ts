@@ -45,7 +45,7 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
     await page.waitForURL('**/plan');
     await expect(page.getByText(/GAP CLOSES · AS THINGS STAND/)).toBeVisible();
-    await expect(page.getByText('DUE THIS MONTH')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'DUE THIS MONTH' })).toBeVisible();
     await expect(page.getByText(/YOU CAN COVER ₹40,000 · SHORT ₹34,515/)).toBeVisible();
     await expect(page.getByText(/borrowed on a card at 45% a year plus 18% GST/)).toBeVisible();
     await expect(page.getByRole('heading', { name: /MONTH BY MONTH · AS THINGS STAND/ })).toBeVisible();
