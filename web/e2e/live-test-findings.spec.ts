@@ -19,7 +19,6 @@ const GUEST = process.env.E2E_GUEST_MODE === '1';
 
 // ── Guards: right on main ────────────────────────────────────────────────
 test.describe('guards on main', () => {
-  test.describe.configure({ mode: 'serial' });
   let ready = false;
   test.beforeEach(async ({ page }) => {
     // One account for the whole group (each test signs in again).

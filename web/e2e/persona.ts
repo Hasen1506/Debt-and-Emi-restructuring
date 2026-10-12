@@ -8,7 +8,8 @@ export const PERSONA_EMAIL = 'golden-l5-persona@rightdue.app';
 
 export async function setUpPersona(page: Page, email = PERSONA_EMAIL) {
   await signIn(page, email);
-  await expect(page).toHaveURL(/\/onboarding$/);
+  // A local rerun against a reused server finds the account already set up.
+  if (!(await expect(page).toHaveURL(/\/onboarding$/, { timeout: 5000 }).then(() => true, () => false))) return;
   await page.getByLabel(/Take-home pay a month/).fill('120000');
   await page.getByLabel(/Spending a month/).fill('40000');
   await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();
