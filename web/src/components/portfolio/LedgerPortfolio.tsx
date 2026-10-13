@@ -1,4 +1,5 @@
 import type { Country, UserPayload } from '@/lib/api';
+import { portfolioHint } from '@/lib/r8-inputs';
 import { formatCurrency } from '@/lib/api';
 import {
   assetTypeLabel,
@@ -62,8 +63,7 @@ export function LedgerPortfolio({
               lineHeight: 1.6,
             }}
           >
-            Nothing on file yet. Add what you own at its value (FDs, funds,
-            gold, property, PF), or track shares and funds by ticker below,
+            Nothing on file yet. {portfolioHint(country)}, or track shares and funds by ticker below,
             priced for you. Then the Sell to repay calculator can fill in a
             sale from any of them.
             <div style={{ marginTop: 12 }}>

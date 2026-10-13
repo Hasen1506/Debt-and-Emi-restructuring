@@ -7,6 +7,7 @@
  * same payload. Falls back to DEMO_USER when no cookie is present — that
  * keeps the app usable for first-time visitors.
  */
+import { clampAssumptions, clampTaxRate } from './r8-inputs';
 import type { UserPayload } from './api';
 import { DEMO_USER, DEMO_MARGINAL_RATE } from './demo-user';
 import { serverApiBase } from './api-base';
@@ -132,8 +133,9 @@ export function loadProfileClient(): StoredProfile {
     };
   }
   try {
-    const user = JSON.parse(raw) as UserPayload;
-    const marginalRate = readClientCookie(MARGINAL_COOKIE) ?? DEMO_MARGINAL_RATE;
+    // R8-6: a profile saved before the assumption bounds still plans.
+    const user = clampAssumptions(JSON.parse(raw) as UserPayload & Record<string, unknown>) as UserPayload;
+    const marginalRate = clampTaxRate(readClientCookie(MARGINAL_COOKIE) ?? DEMO_MARGINAL_RATE);
     const scoreRaw = readClientCookie(SCORE_COOKIE);
     return {
       user,
@@ -304,8 +306,9 @@ function _profileFromCookieStore(store: {
     };
   }
   try {
-    const user = JSON.parse(raw) as UserPayload;
-    const marginalRate = store.get(MARGINAL_COOKIE)?.value ?? DEMO_MARGINAL_RATE;
+    // R8-6: a profile saved before the assumption bounds still plans.
+    const user = clampAssumptions(JSON.parse(raw) as UserPayload & Record<string, unknown>) as UserPayload;
+    const marginalRate = clampTaxRate(store.get(MARGINAL_COOKIE)?.value ?? DEMO_MARGINAL_RATE);
     const scoreRaw = store.get(SCORE_COOKIE)?.value;
     return {
       user,

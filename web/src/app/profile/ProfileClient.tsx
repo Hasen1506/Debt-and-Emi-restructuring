@@ -1,5 +1,7 @@
 'use client';
 
+import { assumptionError, wholeMonthsError, wholeMonthsValue, LOCK_IN_RANGE, PART_PAY_FREQ_RANGE } from '@/lib/r8-inputs';
+import { creditScoreError, usableCreditScore } from '@/lib/r7-inputs';
 import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { SAFE_RATES } from '@/lib/invest-vs-prepay';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -366,6 +368,8 @@ function ProfileEditor({
   // Why SAVE CHANGES did not save (live-test #2/#27): it used to do nothing,
   // or jump to Loans, with no word, so a blocked save looked like a lost one.
   const [saveBlocked, setSaveBlocked] = useState<string | null>(null);
+  // R8-7: the text typed in whole-month loan fields, by `${loan id}:lock|freq`.
+  const [monthsText, setMonthsText] = useState<Record<string, string>>({});
   // Exchange rate per foreign loan currency ("0.012" = $ per ₹1), filled
   // from today's quote when it loads and editable. Required: without it a
   // ₹20 lakh loan was added to dollars at parity.
@@ -617,7 +621,7 @@ function ProfileEditor({
           : undefined,
       deductions: hasAnyDeductions(deductions) ? deductions : undefined,
       income_streams: incomeStreams.length > 0 ? incomeStreams : undefined,
-      credit_score: creditScore.trim() || undefined,
+      credit_score: usableCreditScore(creditScore, country) || undefined,
       // When user has populated rich per-account cash, derive the legacy
       // total from the sum of optimizable balances (everything except
       // 'checking', which is operational float). Single-field users keep
@@ -790,6 +794,27 @@ function ProfileEditor({
     );
   }
 
+  function assumptionBlock(): { step: number; what: string } | null {
+    if (assumptionError('payRise', annualHikeRate)) return { step: 2, what: 'the yearly pay rise is out of range' };
+    if (hikeSchedule.some((ph) => assumptionError('payRise', num(ph.rate, '0'))))
+      return { step: 2, what: 'a pay-rise phase is out of range' };
+    if (assumptionError('tax', marginalRate) || assumptionError('tax', stateMarginalRate))
+      return { step: 2, what: 'the tax rate is out of range' };
+    for (const [idx, l] of loans.entries()) {
+      if (
+        assumptionError('fee', l.prepayment_penalty_pct) ||
+        assumptionError('fee', l.processing_fee_amortised) ||
+        assumptionError('fee', l.insurance_premium_pct) ||
+        assumptionError('rateDrift', l.rate_drift_annualized) ||
+        wholeMonthsError(monthsText[`${l.id ?? idx}:lock`] ?? '', LOCK_IN_RANGE) ||
+        wholeMonthsError(monthsText[`${l.id ?? idx}:freq`] ?? '', PART_PAY_FREQ_RANGE)
+      )
+        return { step: 3, what: 'a loan has a fee, rate change or month count out of range' };
+    }
+    if (creditScoreError(creditScore, country)) return { step: 4, what: 'the credit score isn’t a valid score' };
+    return null;
+  }
+
   async function save() {
     // A country change waits for its currency decision.
     if (pendingCountry) return;
@@ -800,8 +825,16 @@ function ProfileEditor({
       setSaveBlocked('Not saved yet: a loan needs a fix first. The Loans part is open with what to change; then save again.');
       return;
     }
+    // R8-6/7/8: an assumption out of range blocks the save, with the part
+    // that holds it open, instead of saving a value the plan can't use.
+    const badAssumption = assumptionBlock();
+    if (badAssumption) {
+      onOpen(badAssumption.step);
+      setSaveBlocked(`Not saved yet: ${badAssumption.what}. Fix the highlighted field, then save again.`);
+      return;
+    }
     setSaveBlocked(null);
-    const score = Number(creditScore);
+    const score = Number(usableCreditScore(creditScore, country) || 'x');
     // Foreign loans carry the exchange rate entered on the Loans step
     // (loansComplete requires one), so every page converts at the same rate.
     // Start from the saved profile, so what this form doesn't edit
@@ -1395,6 +1428,7 @@ function ProfileEditor({
               kind="percent"
               value={annualHikeRate}
               onChange={setAnnualHikeRate}
+              error={assumptionError('payRise', annualHikeRate)}
               hint="e.g. 8. Leave 0 if uncertain."
               info={
                 <>
@@ -1452,6 +1486,7 @@ function ProfileEditor({
               kind="percent"
               value={marginalRate}
               onChange={setMarginalRate}
+              error={assumptionError('tax', marginalRate)}
               hint="Tax on your next rupee or dollar of income, e.g. 30."
               info={
                 country === 'IN' ? (
@@ -1846,6 +1881,7 @@ function ProfileEditor({
                       onChange={(v) =>
                         updateLoan(i, { rate_drift_annualized: v })
                       }
+                      error={assumptionError('rateDrift', l.rate_drift_annualized)}
                       placeholder="0"
                       hint="0.5 = rates up half a point a year; -0.5 = cuts"
                       info={
@@ -1916,6 +1952,7 @@ function ProfileEditor({
                   onChange={(v) =>
                     updateLoan(i, { prepayment_penalty_pct: v })
                   }
+                  error={assumptionError('fee', l.prepayment_penalty_pct)}
                   placeholder={feeShown(l, country).placeholder}
                   hint={feeShown(l, country).hint}
                   suggestion={
@@ -1951,12 +1988,13 @@ function ProfileEditor({
                 <Field
                   label="Prepay lock-in left (months)"
                   findIt={findFor(l, country, 'lockIn')}
-                  value={String(l.prepay_lock_in_months ?? '')}
-                  onChange={(v) =>
-                    updateLoan(i, {
-                      prepay_lock_in_months: v === '' ? undefined : Number(v),
-                    })
-                  }
+                  value={monthsText[`${l.id ?? i}:lock`] ?? String(l.prepay_lock_in_months ?? '')}
+                  onChange={(v) => {
+                    // R8-7: keep what's typed; store a number only when it's a whole one.
+                    setMonthsText((m) => ({ ...m, [`${l.id ?? i}:lock`]: v }));
+                    updateLoan(i, { prepay_lock_in_months: wholeMonthsValue(v, LOCK_IN_RANGE) });
+                  }}
+                  error={wholeMonthsError(monthsText[`${l.id ?? i}:lock`] ?? '', LOCK_IN_RANGE)}
                   placeholder="0"
                   hint="Months from now before the bank takes an extra payment; 0 if the lock-in is over (typically 6-12 from the loan's start)"
                   suggestion={
@@ -1983,12 +2021,12 @@ function ProfileEditor({
                 />
                 <Field
                   label="Part-payment frequency (months)"
-                  value={String(l.part_payment_freq_months ?? '')}
-                  onChange={(v) =>
-                    updateLoan(i, {
-                      part_payment_freq_months: v === '' ? undefined : Number(v),
-                    })
-                  }
+                  value={monthsText[`${l.id ?? i}:freq`] ?? String(l.part_payment_freq_months ?? '')}
+                  onChange={(v) => {
+                    setMonthsText((m) => ({ ...m, [`${l.id ?? i}:freq`]: v }));
+                    updateLoan(i, { part_payment_freq_months: wholeMonthsValue(v, PART_PAY_FREQ_RANGE) });
+                  }}
+                  error={wholeMonthsError(monthsText[`${l.id ?? i}:freq`] ?? '', PART_PAY_FREQ_RANGE)}
                   placeholder="(unlimited)"
                   hint="Minimum gap between extra payments — e.g. 12 = once a year"
                   suggestion={
@@ -2275,6 +2313,7 @@ function ProfileEditor({
                   kind="percent"
                   value={l.processing_fee_amortised ?? ''}
                   onChange={(v) => updateLoan(i, { processing_fee_amortised: v })}
+                  error={assumptionError('fee', l.processing_fee_amortised)}
                   hint="Spread over the loan's life, e.g. 0.5"
                   info={
                     <>
@@ -2299,6 +2338,7 @@ function ProfileEditor({
                   kind="percent"
                   value={l.insurance_premium_pct ?? ''}
                   onChange={(v) => updateLoan(i, { insurance_premium_pct: v })}
+                  error={assumptionError('fee', l.insurance_premium_pct)}
                   hint="e.g. 0.1; leave blank if none"
                   info={
                     <>
@@ -2691,6 +2731,8 @@ function ProfileEditor({
                 findIt={whereToFind('creditScore', { country })}
                 value={creditScore}
                 onChange={setCreditScore}
+                // R8-8: the same check as New debt (R7-6).
+                error={creditScoreError(creditScore, country)}
                 hint={
                   country === 'IN'
                     ? 'CIBIL/Experian — 300 to 900'
@@ -3370,6 +3412,7 @@ function AdvancedTaxDetails({
               kind="percent"
               value={stateMarginalRate}
               onChange={onStateMarginalRateChange}
+              error={assumptionError('tax', stateMarginalRate)}
               hint="e.g. 6.82 for CA top, 0 for TX/FL/WA"
               info={
                 <>

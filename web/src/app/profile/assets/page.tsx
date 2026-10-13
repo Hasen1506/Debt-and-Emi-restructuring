@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Field, Select } from '@/components/ToolPrimitives';
 import type { AssetPayload, AssetType, Country } from '@/lib/api';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
+import { parseAmountText } from '@/lib/amount';
+import { assetAmountError, marketValueError, rowStarted } from '@/lib/r8-inputs';
 
 // Asset-type choices per country. Shares engine asset_type strings; only
 // the label changes (e.g. fixed_deposit → "CD" on US).
@@ -102,11 +104,17 @@ export default function OnboardingAssetsPage() {
     setTried(true);
     setSaveError(null);
     if (assets.some(missingDate)) return;
+    // R8-9: a started row with a bad amount blocks the save with a message;
+    // it is never dropped silently.
+    const ccy = country === 'US' ? 'USD' : 'INR';
+    if (assets.some((a) => marketValueError(a, ccy, true) || assetAmountError(a.purchase_price ?? '', ccy))) {
+      setSaveError('Not saved yet: fix the highlighted field.');
+      return;
+    }
+    const amount = (v: string | undefined) => (v ?? '').trim() === '' ? '' : (parseAmountText(v ?? '', ccy).value ?? '');
     const stored = loadProfileClient();
     const cleaned: AssetPayload[] = assets
-      .filter(
-        (a) => a.asset_type && Number(a.current_market_value) > 0,
-      )
+      .filter((a) => a.asset_type && rowStarted(a) && Number(amount(a.current_market_value)) > 0)
       .map((a) => {
         // For approximate basis: ensure purchase_date is year-only ("YYYY")
         // — engine accepts it, ranker adds a wider error band.
@@ -114,9 +122,9 @@ export default function OnboardingAssetsPage() {
           ...a,
           asset_type: a.asset_type,
           label: a.label?.trim() || undefined,
-          purchase_price: a.purchase_price || '0',
+          purchase_price: amount(a.purchase_price) || '0',
           purchase_date: a.purchase_date || '',
-          current_market_value: a.current_market_value,
+          current_market_value: amount(a.current_market_value),
         };
         // Pass through optional fields if filled.
         if (a.rental_income_annual) out.rental_income_annual = a.rental_income_annual;
@@ -206,6 +214,7 @@ export default function OnboardingAssetsPage() {
                 label={`Current market value (${currencySymbol})`}
                 value={a.current_market_value}
                 onChange={(v) => update(i, { current_market_value: v })}
+                error={marketValueError(a, country === 'US' ? 'USD' : 'INR', tried)}
                 hint="Approximate is fine."
               />
               <label style={{
@@ -235,6 +244,7 @@ export default function OnboardingAssetsPage() {
                     label={`Approximate purchase price (${currencySymbol})`}
                     value={a.purchase_price}
                     onChange={(v) => update(i, { purchase_price: v })}
+                    error={assetAmountError(a.purchase_price ?? '', country === 'US' ? 'USD' : 'INR')}
                     hint="Within ±20% is fine for ranking."
                   />
                 </>
@@ -251,6 +261,7 @@ export default function OnboardingAssetsPage() {
                     label={`Purchase price (${currencySymbol})`}
                     value={a.purchase_price}
                     onChange={(v) => update(i, { purchase_price: v })}
+                    error={assetAmountError(a.purchase_price ?? '', country === 'US' ? 'USD' : 'INR')}
                   />
                 </>
               )}
