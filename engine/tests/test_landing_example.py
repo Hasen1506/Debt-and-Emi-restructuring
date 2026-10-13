@@ -72,34 +72,95 @@ def test_extra_goes_to_the_card_first():
         assert sum(v for k, v in extra.items() if k != "Credit card") == 0
 
 
-def test_chart_labels_never_collide():
-    """Live test 2026-10-13: the milestone labels overlapped, a leader ran
-    through another label, and the due note sat far from its line. Every
-    label now stays inside the plot, clear of both lines, of every other
-    label and of every other leader; its leader starts at its own square."""
+def _views():
     for c in ("IN", "US"):
-        ch = SAVED[c]["chart"]
-        lay = le.layout_chart(ch, le.chart_labels(ch), le.money(c, ch["due_left_at_edge"]))
-        boxes = [o["box"] for o in lay["marks"]] + [lay["final"]["box"], lay["note"]["box"]]
-        for b in boxes:
-            assert b[0] >= le.PLOT_X0 - 0.5 and b[2] <= le.PLOT_X1 + 0.5, (c, b)
+        yield c, le.chart_geometry(c, SAVED, le.DESK), False
+        yield c, le.chart_geometry(c, SAVED, le.PHONE, phone=True), True
+
+
+def test_chart_milestones_are_tied_to_their_markers():
+    """UX50 A-01/A-02 (replaces test_chart_labels_never_collide, which only
+    proved "no collision": the chart still read as meshed because a leader
+    could end beside the wrong label). Now every payoff label hangs off its
+    own marker's guide like a flag, on a strip under the axis: the guide
+    runs down the label's own edge, never touches another label, and no
+    other marker sits within reach of the label."""
+    for c, g, phone in _views():
+        x = SAVED[c]
+        cls = le.clusters(x)
+        # One marker per cluster; payoffs within MERGE_MONTHS share one, so
+        # no two squares fuse into a blob (A-05).
+        assert len(g["markers"]) == len(cls)
+        assert sorted(m for cl in cls for m in cl["months"]) == sorted(p["month"] for p in x["plan"]["payoffs"])
+        for cl in cls:
+            assert cl["months"][-1] - cl["months"][0] <= le.MERGE_MONTHS * (len(cl["months"]) - 1)
+        for a, b in zip(cls, cls[1:]):
+            assert b["months"][0] - a["months"][-1] > le.MERGE_MONTHS
+        xs = [m["x"] for m in g["markers"]]
+        assert all(b - a >= 2 * g["spec"]["sq"] for a, b in zip(xs, xs[1:])), (c, xs)
+        # Each marker sits on the plan line.
+        pts = set(g["pts"])
+        assert all((m["x"], m["y"]) in pts for m in g["markers"]), c
+        assert g["pts"][-1] == (g["x1"], g["y1"]), "the line ends at zero, at the debt-free month"
+        if phone:
+            assert g["labels"] == []
+            continue
+        assert len(g["labels"]) == len(g["markers"])
+        others = [t["box"] for t in g["texts"]]
+        for lab, m in zip(g["labels"], g["markers"]):
+            box = lab["box"]
+            # Below the axis: nothing is drawn inside the plot.
+            assert box[1] > g["y1"], (c, lab["marker"]["cluster"]["lines"])
+            # The flag: its guide is the label's own edge.
+            edge = box[0] if lab["side"] == "start" else box[2]
+            assert abs(edge - m["x"]) <= le.FLAG_GAP + 0.5, (c, edge, m["x"])
+            assert lab["pole_bottom"] == box[3] and m["y"] < box[1]
+            # Its guide touches no other text, and no other marker is near it.
+            mine = [t["box"] for t in lab["texts"]]
+            for b in others:
+                if b not in mine:
+                    assert not le._vhit(m["x"], m["y"], lab["pole_bottom"], le._grow(b, 2)), (c, b)
+            for o in g["markers"]:
+                if o is not m:
+                    assert not (box[0] - 12 <= o["x"] <= box[2] + 12), (c, lab["marker"]["cluster"]["lines"], o["x"])
+        # The last label is the debt-free one, and a direct label ends the line.
+        assert g["labels"][-1]["marker"]["cluster"]["lines"][-1].endswith("DEBT-FREE")
+        direct = [t for t in g["texts"] if t["kind"] == "direct"]
+        assert len(direct) == 1 and direct[0]["box"][0] > g["x1"]
+
+
+def test_chart_nothing_overlaps_or_is_clipped():
+    for c, g, phone in _views():
+        # A label's own lines stack edge to edge, so each label is one box.
+        boxes = [t["box"] for t in g["texts"] if t["kind"] != "strip"] + [lab["box"] for lab in g["labels"]]
+        for b in [t["box"] for t in g["texts"]]:
+            assert 0 <= b[0] and b[2] <= g["w"] and 0 <= b[1] and b[3] <= g["h"], (c, phone, b)
         for i, a in enumerate(boxes):
             for b in boxes[i + 1:]:
-                assert not le._overlap(a, b), (c, a, b)
-        plan, due = le._pts(ch["plan_path"]), le._pts(ch["due_path"])
-        for b in boxes:
-            for line in (plan, due):
-                assert not any(le._hit(p, q, b) for p, q in zip(line, line[1:])), (c, b)
-        for o in lay["marks"]:
-            (lx, _), _ = o["leader"]
-            assert any(abs(m["x"] - lx) < 0.01 for m in o["cluster"]), (c, o["texts"])
-            assert o["box"][0] - 6 <= lx <= o["box"][2] + 6, (c, o["texts"])  # text sits at its marker
+                assert not le._overlap(le._grow(a, 1), b), (c, phone, a, b)
+        # The line never runs through text.
+        for p, q in zip(g["pts"], g["pts"][1:]):
             for b in boxes:
-                if b != o["box"]:
-                    assert not le._hit(*o["leader"], b), (c, o["texts"], b)
-        # Markers less than MERGE_DX apart share one leader and one label.
-        xs = sorted(m["x"] for m in ch["markers"][:-1])
-        assert len(lay["marks"]) == 1 + sum(1 for a, b in zip(xs, xs[1:]) if b - a >= le.MERGE_DX)
-        # The due note ends at the dashed line's last point, just under it.
-        ex, ey = le._pts(ch["due_path"])[-1]
-        assert abs(lay["note"]["x"] - ex) <= 10 and 0 < lay["note"]["y"] - ey <= 24
+                assert not le._seg_hit(p, q, le._grow(b, 2)), (c, phone, b)
+        for mk in g["markers"]:
+            s = g["spec"]["sq"] / 2
+            assert 0 <= mk["x"] - s and mk["x"] + s <= g["w"] and mk["y"] + s <= g["h"]
+        # Round y ticks: the top is a 1/1.5/2/2.5/3/4/5/6/8 step, half is round.
+        top = g["top"]
+        assert top >= SAVED[c]["chart"]["owed"]
+        assert le.axis_money(c, top) == {"IN": "₹50L", "US": "$300k"}[c]
+        assert le.axis_money(c, top / 2) == {"IN": "₹25L", "US": "$150k"}[c]
+        # The phone drawing is phone-sized, so its 12-unit text is 12px at 390.
+        if phone:
+            assert g["w"] <= 340
+
+
+def test_chart_has_no_minimums_line_or_legend():
+    """A-02/A-06: the chart shows the plan only; the minimums-only figure
+    stays in the note under the KPIs as a labelled ceiling."""
+    html = le.WELCOME.read_text()
+    for c in ("IN", "US"):
+        block = html.split(f"<!-- gen:chart-{c} -->")[1].split(f"<!-- /gen:chart-{c} -->")[0]
+        assert "stroke-dasharray=\"6 5\"" not in block and "ONLY WHAT" not in block
+        assert block.count('class="cdesk"') == 1 and block.count('class="cphone"') == 1
+    assert 'class="legend"' not in html

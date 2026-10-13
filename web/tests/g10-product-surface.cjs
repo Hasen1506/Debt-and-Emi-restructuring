@@ -65,7 +65,12 @@ test('welcome.html carries the figures in landing-example.json, for both countri
     assert.equal(total, Number(x.budget), `${c}: month 1 pays the budget`);
     assert.ok(reg.includes(money(total)));
     const chart = block('chart', c);
-    assert.ok(chart.includes(x.chart.plan_path) && chart.includes(x.chart.due_path), `${c} chart paths`);
+    // UX50 A-02: the chart is the plan only (the dashed minimums line went:
+    // a second baseline beside the KPI strip's). Its title, the phone list
+    // and the debt-free month all come from the JSON.
+    assert.ok(chart.includes(`Debt-free in <b>${x.plan.debt_free}</b>`), `${c} chart title`);
+    assert.ok(chart.includes(`<b>${x.plan.debt_free}</b></li>`), `${c} debt-free list row`);
+    assert.doesNotMatch(chart, /ONLY WHAT/);
     const note = block('due-note', c);
     if (x.vs_only_whats_due.debt_free) assert.ok(note.includes(x.vs_only_whats_due.debt_free));
     else assert.match(note, /more than 40 years/);

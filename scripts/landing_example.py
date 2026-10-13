@@ -92,42 +92,18 @@ def _first_payments(res, names: list[str]) -> list[dict]:
             for i in range(len(names))]
 
 
-def _chart(user: User, plan, mins, names: list[str]) -> dict:
-    """The landing chart, drawn from the two runs in the page's 800×300 box:
-    x from NOW (x=70) to a quarter past the plan's last month (x=790), y from
-    the total owed now (y=44) to zero (y=258). The "only what's due" line is
-    cut at the right edge, where it is still far from zero."""
+def _chart(user: User, plan, names: list[str]) -> dict:
+    """The landing chart's data (UX50 A-02): the plan's total owed, month by
+    month. gen_chart draws it twice (desktop and phone). "Paying only
+    what's due" is no longer on the chart: it's a different comparison
+    from the KPI strip (A-06), kept as a labelled ceiling in the note."""
     owed = float(sum(l.outstanding for l in user.loans))
     end = plan.debt_free_month or 480
-    span = int(end * 1.25)
-    px = lambda m: round(70 + 720 * m / span, 1)  # noqa: E731
-    py = lambda b: round(258 - 214 * b / owed, 1)  # noqa: E731
-
-    def path(res) -> str:
-        pts = [(0, owed)] + [
-            (r.month_index, float(sum(r.balances_by_loan_index.values())))
-            for r in res.months if r.month_index <= span and (r.month_index % 3 == 0 or r.month_index == end)
-        ]
-        return "M" + " L".join(f"{px(m)},{py(b)}" for m, b in pts)
-
-    payoffs = _payoffs(plan, names)
-    markers = []
-    for p in payoffs:
-        m = p["month"]
-        if m is None:
-            continue
-        row = plan.months[m - 1]
-        markers.append({"loan": p["loan"], "label": p["label"], "x": px(m), "y": py(float(sum(row.balances_by_loan_index.values())))})
-    years = sorted({_month_label(m)[-4:] for m in (1, span // 2, span)})
-    mins_left = mins.months[min(span, len(mins.months)) - 1]
-    return {
-        "plan_path": path(plan),
-        "due_path": path(mins),
-        "markers": markers,
-        "axis": {"mid": {"x": px(span // 2), "label": _month_label(span // 2)[-4:]}, "end": {"x": px(span), "label": _month_label(span)[-4:]}},
-        "top_label_lakh_or_k": owed,
-        "due_left_at_edge": str(round(float(sum(mins_left.balances_by_loan_index.values())))),
-    }
+    series = [[0, round(owed)]] + [
+        [r.month_index, round(float(sum(r.balances_by_loan_index.values())))]
+        for r in plan.months if r.month_index <= end
+    ]
+    return {"end_month": end, "owed": round(owed), "series": series}
 
 
 def work_out(user: User, names: list[str], marginal: str) -> dict:
@@ -149,7 +125,7 @@ def work_out(user: User, names: list[str], marginal: str) -> dict:
             # What's due in month 1 on each loan (EMIs, the card's minimum).
             "first_month_due": _first_payments(mins, names),
         },
-        "chart": _chart(user, plan, mins, names),
+        "chart": _chart(user, plan, names),
         "vs_smallest_first": {
             "debt_free": _month_label(snow.debt_free_month),
             "months_sooner": (snow.debt_free_month or 0) - (plan.debt_free_month or 0),
@@ -225,13 +201,15 @@ def gen_register(c: str, f: dict) -> str:
         card = r["loan"] == "Credit card"
         sub = (f"{money(c, due[r['loan']])} MINIMUM + {money(c, extra)} EXTRA" if card and extra >= 1
                else ("MINIMUM" if card else ("EMI" if c == "IN" else "PAYMENT")))
-        top = ' top' if extra >= 1 else ''
+        # UX50 A-08: "first", not "top" (the masthead's .top gave this row a
+        # 6px black slab and a notch). The stamp is a decoration (A-24).
+        first = ' first' if extra >= 1 else ''
         rows.append(
-            f'        <div class="row{top}">\n'
+            f'        <div class="row{first}">\n'
             f'          <span class="n">{i + 1:02d}</span>\n'
             f'          <span><b>{r["loan"]}</b><span class="sub">{sub}</span></span>\n'
             f'          <span class="amt">{money(c, r["payment"])}</span>\n'
-            f'          <span class="stamp" data-stamp>MARK PAID</span>\n'
+            f'          <span class="stamp" data-stamp aria-hidden="true">MARK PAID</span>\n'
             f'        </div>'
         )
     month = date(START.year, START.month, 1).strftime("%B").upper()
@@ -241,42 +219,72 @@ def gen_register(c: str, f: dict) -> str:
 
 
 def gen_kpis(c: str, f: dict) -> str:
+    """UX50 A-06: one baseline in the strip (smallest first, same budget).
+    The old 4th KPI ("DEBT-FREE DATE · SAME MONTH", in the accent colour)
+    read like a warning and repeated KPI 2; it now says where this month's
+    extra goes."""
     x = f[c]
     v = x["vs_smallest_first"]
+    due = {r["loan"]: float(r["payment"]) for r in x["plan"]["first_month_due"]}
+    extra = sorted(((float(r["payment"]) - due[r["loan"]], r["loan"]) for r in x["plan"]["first_month"]), reverse=True)[0]
     sooner = v["months_sooner"]
-    when = (f"{sooner} MO SOONER" if sooner > 0 else "SAME MONTH")
+    when = f", {sooner} MO SOONER" if sooner > 0 else ""
     return (
         f'      <div class="kpi"><div class="l">OUTSTANDING</div><div class="v">{money(c, x["outstanding"])}</div><div class="s">{x["loans"]} LOANS</div></div>\n'
-        f'      <div class="kpi"><div class="l">DEBT-FREE</div><div class="v">{x["plan"]["debt_free"].upper()}</div><div class="s">AT {money(c, x["budget"])}/MO</div></div>\n'
-        f'      <div class="kpi"><div class="l">INTEREST SAVED</div><div class="v" style="color:var(--pos)">{money(c, v["interest_saved"])}</div><div class="s">VS SMALLEST FIRST, SAME {money(c, x["budget"])}</div></div>\n'
-        f'      <div class="kpi"><div class="l">DEBT-FREE DATE</div><div class="v" style="color:var(--accent)">{when}</div><div class="s">VS SMALLEST FIRST</div></div>'
+        f'      <div class="kpi"><div class="l">DEBT-FREE BY</div><div class="v">{x["plan"]["debt_free"].upper()}</div><div class="s">AT {money(c, x["budget"])}/MO</div></div>\n'
+        f'      <div class="kpi"><div class="l">INTEREST SAVED</div><div class="v" style="color:var(--pos)">{money(c, v["interest_saved"])}</div><div class="s">VS SMALLEST FIRST, SAME {money(c, x["budget"])}{when}</div></div>\n'
+        f'      <div class="kpi"><div class="l">EXTRA THIS MONTH</div><div class="v">{money(c, extra[0])}</div><div class="s">ALL OF IT TO THE {extra[1].upper()}</div></div>'
     )
 
 
-# ─── Landing chart label layout ───────────────────────────────────────────
-# Everything below is in the chart's 800×300 viewBox. Labels are IBM Plex Mono
-# 11px with .5 letter-spacing: 7.1 units a character (width padded 4% for a
-# fallback monospace). A label sits beside the end of its leader, at its
-# marker's x, so the text lines up with the square it names; markers closer
-# than MERGE_DX share one leader and a stacked label. Each label takes the
-# first spot (shortest leader) that clears both lines, the axes, the other
-# labels and the other leaders; layout_chart() raises if none does.
-LABEL_FS = 11
-CHAR_W = 0.6 * LABEL_FS + 0.5
+# ─── Landing chart (UX50 A-02) ────────────────────────────────────────────
+# The old chart put leader labels inside the plot and an automatic placer
+# kept them from colliding, but not from pointing at the wrong label (A-01).
+# Now: one line (the plan), round y ticks with gridlines, a y-axis line, a
+# direct "₹0 · MAY ’32" label at the line's end, and the payoffs on a strip
+# under the x-axis. Each payoff is one square on the line (payoffs within
+# MERGE_MONTHS share one square and one label, A-05), a faint guide drops
+# from the square to the strip, and the label hangs off that guide like a
+# flag: the guide runs down the label's own edge, so a label can only
+# belong to one square. The strip is 1-D, so the solver is a brute-force
+# pick of side (right/left of the guide) and row for each label.
+#
+# Below 520px the page shows a second, phone-sized SVG drawn at 1:1 (12px
+# text) and the payoffs as a list (A-02 item 6, A-03).
+#
+# Units are the SVG's viewBox units. Labels are IBM Plex Mono 12 with .5
+# letter-spacing: 0.6em + .5 a character, padded 4% for a fallback mono.
+import math
+
+LABEL_FS = 12
 LINE_H = 14
-MERGE_DX = 16
-PLOT_X0, PLOT_X1, PLOT_Y0, PLOT_Y1 = 72, 790, 24, 250
+MERGE_MONTHS = 3
+DESK = {"w": 800, "x0": 84, "x1": 680, "y0": 30, "y1": 226, "year_y": 244, "strip_y": 258, "sq": 9}
+PHONE = {"w": 330, "h": 168, "x0": 50, "x1": 318, "y0": 14, "y1": 132, "year_y": 152, "sq": 10}
+FLAG_GAP = 5      # guide → label text
+ROW_GAP = 8       # between two strip rows
+INK, RUST, MUTED, GRID, HL2 = "#0a0a0a", "#ab4f30", "#5e5e58", "#e6e4da", "#fff3c4"
 
 
-def text_w(s: str) -> float:
-    return round(len(s) * CHAR_W * 1.04, 1)
+def text_w(s: str, fs: float = LABEL_FS) -> float:
+    return round(len(s) * (0.6 * fs + 0.5) * 1.04, 1)
 
 
-def _pts(path: str) -> list[tuple[float, float]]:
-    return [tuple(float(v) for v in p.split(",")) for p in path.lstrip("M").split(" L")]
+def _overlap(a, b) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
-def _hit(p, q, box) -> bool:
+def _grow(b, dx, dy=None):
+    dy = dx if dy is None else dy
+    return (b[0] - dx, b[1] - dy, b[2] + dx, b[3] + dy)
+
+
+def _vhit(x, y0, y1, box) -> bool:
+    """Does the vertical segment x, y0→y1 touch box?"""
+    return box[0] <= x <= box[2] and min(y0, y1) <= box[3] and max(y0, y1) >= box[1]
+
+
+def _seg_hit(p, q, box) -> bool:
     """Does segment p→q touch box (x0, y0, x1, y1)? Liang–Barsky."""
     (x0, y0), (x1, y1) = p, q
     dx, dy = x1 - x0, y1 - y0
@@ -296,131 +304,252 @@ def _hit(p, q, box) -> bool:
     return True
 
 
-def _overlap(a, b) -> bool:
-    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+def nice_max(v: float) -> float:
+    k = 10 ** math.floor(math.log10(v))
+    for m in (1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10):
+        if m * k >= v:
+            return m * k
+    return 10 * k
 
 
-def _grow(b, d):
-    return (b[0] - d, b[1] - d, b[2] + d, b[3] + d)
+def axis_money(c: str, v: float) -> str:
+    if v == 0:
+        return "₹0" if c == "IN" else "$0"
+    return f"₹{v / 1e5:g}L" if c == "IN" else f"${v / 1e3:g}k"
 
 
-def _due_note(ch: dict, left: str) -> dict:
-    """The "only what's due" note, right-aligned under the dashed line's end."""
-    ex, ey = _pts(ch["due_path"])[-1]
-    text = f"ONLY WHAT&#39;S DUE: {left} LEFT →"
-    w = text_w(text.replace("&#39;", "'"))
-    x1 = min(ex + 4, PLOT_X1 - 2)
-    y = round(ey + 20, 1)
-    return {"text": text, "x": round(x1, 1), "y": y, "box": (x1 - w, y - 0.9 * LABEL_FS, x1, y + 3)}
+def _short_name(loan: str) -> str:
+    return loan.upper()
 
 
-def layout_chart(ch: dict, labels: list[str], left: str) -> dict:
-    """Place every label; returns marks (one per cluster) plus the final
-    marker's label and the due note, each with its box for the tests."""
-    plan, due = _pts(ch["plan_path"]), _pts(ch["due_path"])
-    ms = [dict(m, label_text=labels[i]) for i, m in enumerate(ch["markers"])]
-    final, rest = ms[-1], ms[:-1]
+def _range(a: str, b: str, title: bool = False) -> str:
+    """'Oct 2027', 'Nov 2027' → "OCT–NOV ’27"; across years "NOV ’27–JAN ’28"."""
+    f = (lambda s: s[:3]) if title else (lambda s: s[:3].upper())
+    if a == b:
+        return f"{f(a)} ’{a[-2:]}"
+    if a[-4:] == b[-4:]:
+        return f"{f(a)}–{f(b)} ’{b[-2:]}"
+    return f"{f(a)} ’{a[-2:]}–{f(b)} ’{b[-2:]}"
 
-    fixed = [  # axis text and the title
-        (0, 4, 120, 20), (0, 36, 64, 52), (0, 138, 64, 154), (0, 250, 64, 266), (66, 278, 800, 294),
-    ]
-    note = _due_note(ch, left)
-    fixed.append(note["box"])
-    fw = text_w(final["label_text"])
-    fx = min(max(final["x"], PLOT_X0 + fw / 2), PLOT_X1 - fw / 2)
-    fy = round(final["y"] + 18, 1)
-    final_box = (fx - fw / 2, fy - 0.9 * LABEL_FS, fx + fw / 2, fy + 3)
-    fixed.append(final_box)
-    rects = [(m["x"] - 4, m["y"] - 4, m["x"] + 4, m["y"] + 4) for m in ms]
 
-    clusters: list[list[dict]] = []
-    for m in sorted(rest, key=lambda m: m["x"]):
-        if clusters and m["x"] - clusters[-1][-1]["x"] < MERGE_DX:
-            clusters[-1].append(m)
+def clusters(x: dict) -> list[dict]:
+    """Payoffs in month order; ones within MERGE_MONTHS of the previous one
+    in the same cluster share a square and a label."""
+    ps = sorted(x["plan"]["payoffs"], key=lambda p: p["month"])
+    out: list[dict] = []
+    for p in ps:
+        if out and p["month"] - out[-1]["months"][-1] <= MERGE_MONTHS:
+            out[-1]["loans"].append(p["loan"])
+            out[-1]["months"].append(p["month"])
+            out[-1]["labels"].append(p["label"])
         else:
-            clusters.append([m])
+            out.append({"loans": [p["loan"]], "months": [p["month"]], "labels": [p["label"]]})
+    end = x["plan"]["debt_free_month"]
+    for cl in out:
+        cl["month"] = cl["months"][-1]
+        cl["final"] = cl["month"] == end
+        when = _range(cl["labels"][0], cl["labels"][-1])
+        names = [_short_name(n) for n in cl["loans"]]
+        lines = [n + " +" for n in names[:-1]] + [names[-1]]
+        cl["lines"] = lines + [f"{when} · DEBT-FREE" if cl["final"] else when]
+        first, rest = cl["loans"][0], [_lower_first(n) for n in cl["loans"][1:]]
+        cl["list_name"] = " + ".join([first] + rest)
+        cl["list_when"] = _range(cl["labels"][0], cl["labels"][-1], title=True)
+    return out
 
-    def lines_clear(box) -> bool:
-        b = _grow(box, 5)
-        return not any(_hit(p, q, b) for line in (plan, due) for p, q in zip(line, line[1:]))
 
-    # Every spot each label could take on its own, cheapest first; then the
-    # cheapest set where no label or leader crosses another (small search:
-    # a handful of clusters).
-    SIDE_COST = {"end": 0, "start": 4, "below": 8}
-    options: list[list[dict]] = []
-    for cl in clusters:
-        anchor = max(cl, key=lambda m: m["y"])  # the lowest square
-        lx, top = anchor["x"], max(m["y"] for m in cl) + 5
-        texts = [m["label_text"] for m in cl]
-        w, h = max(text_w(t) for t in texts), LINE_H * len(texts)
-        opts = []
-        for yc in range(int(top + 16), PLOT_Y1, 2):
-            for side in ("end", "start", "below"):
-                if side == "end":
-                    box = (lx - 5 - w, yc - h / 2, lx - 5, yc + h / 2)
-                elif side == "start":
-                    box = (lx + 5, yc - h / 2, lx + 5 + w, yc + h / 2)
-                else:
-                    x0 = min(max(lx - w / 2, PLOT_X0), PLOT_X1 - w)
-                    box = (x0, yc + 3, x0 + w, yc + 3 + h)
-                if box[0] < PLOT_X0 or box[2] > PLOT_X1 or box[1] < PLOT_Y0 or box[3] > PLOT_Y1:
-                    continue
-                leader = ((lx, top), (lx, yc))
-                if not lines_clear(box) or any(_overlap(_grow(box, 3), r) for r in fixed + rects):
-                    continue
-                if any(_hit(*leader, _grow(r, 1)) for r in fixed):
-                    continue
-                opts.append({"cluster": cl, "box": tuple(round(v, 1) for v in box), "leader": leader, "side": side,
-                             "texts": texts, "cost": yc - top + SIDE_COST[side]})
-        opts.sort(key=lambda o: o["cost"])
-        options.append(opts[:60])
+def _year_ticks(end: int, step: int) -> list[tuple[int, str]]:
+    first = (13 - START.month) % 12 + 1  # month index of the first January
+    out = []
+    m = first
+    while m <= end:
+        lab = _month_label(m)
+        if int(lab[-4:]) % step == 0 or step == 1:
+            out.append((m, lab[-4:]))
+        m += 12
+    return out
 
-    def clash(o, p) -> bool:
-        return (_overlap(_grow(o["box"], 6), p["box"]) or _hit(*o["leader"], _grow(p["box"], 2))
-                or _hit(*p["leader"], _grow(o["box"], 2)))
 
-    best: dict = {"cost": float("inf"), "set": None}
+def chart_geometry(c: str, f: dict, spec: dict, phone: bool = False) -> dict:
+    """Every mark and text box of one drawing, for gen_chart and the tests."""
+    x = f[c]
+    ch = x["chart"]
+    end, owed = ch["end_month"], ch["owed"]
+    top = nice_max(owed)
+    x0, x1, y0, y1 = spec["x0"], spec["x1"], spec["y0"], spec["y1"]
+    px = lambda m: round(x0 + (x1 - x0) * m / end, 1)  # noqa: E731
+    py = lambda b: round(y1 - (y1 - y0) * b / top, 1)  # noqa: E731
+    bal = {m: b for m, b in ch["series"]}
+    pts = [(px(m), py(b)) for m, b in ch["series"]]
+    cls = clusters(x)
+    markers = [{"x": px(cl["month"]), "y": py(bal[cl["month"]]), "cluster": cl} for cl in cls]
+    texts: list[dict] = []  # every text box: {"kind", "text", "box"}
 
-    def search(i: int, chosen: list[dict], cost: float) -> None:
+    def add(kind, text, tx, ty, anchor="start", fs=LABEL_FS, **kw):
+        w = text_w(text, fs)
+        bx0 = tx if anchor == "start" else (tx - w if anchor == "end" else tx - w / 2)
+        t = {"kind": kind, "text": text, "x": round(tx, 1), "y": round(ty, 1), "anchor": anchor, "fs": fs,
+             "box": (round(bx0, 1), round(ty - 0.9 * fs, 1), round(bx0 + w, 1), round(ty + 0.25 * fs, 1)), **kw}
+        texts.append(t)
+        return t
+
+    yticks = [top, top / 2, 0]
+    for v in yticks:
+        add("ytick", axis_money(c, v), x0 - 8, py(v) + 4, "end")
+
+    labels: list[dict] = []
+    H = spec.get("h", 0)
+    if not phone:
+        labels = _place_strip(markers, spec)
+        for lab in labels:
+            texts.extend(lab["texts"])
+        H = max(t["box"][3] for t in texts) + 6
+        # The direct label at the end of the line.
+        df = add("direct", f'{axis_money(c, 0)} · {mon(x["plan"]["debt_free"])}', x1 + 12, y1 - 8, "start")
+        df["bold"] = True
+    # x axis: the start month, then Januaries.
+    add("xtick", mon(_month_label(1)), x0, spec["year_y"], "start")
+    span_years = end / 12
+    step = (1 if span_years <= 8 else 2) if not phone else (2 if span_years <= 8 else 3)
+    guides = [(m["x"], m["y"], lab["pole_bottom"]) for m, lab in zip(markers, labels)] if labels else []
+    for m, yr in _year_ticks(end, step):
+        t = {"box": None}
+        tx = px(m)
+        w = text_w(yr)
+        box = (tx - w / 2, spec["year_y"] - 0.9 * LABEL_FS, tx + w / 2, spec["year_y"] + 3)
+        if box[2] > spec["w"] - 2 or any(_overlap(_grow(box, 6, 0), o["box"]) for o in texts):
+            continue
+        if any(_vhit(gx, gy, gb, _grow(box, 3)) for gx, gy, gb in guides):
+            continue
+        t = add("xtick", yr, tx, spec["year_y"], "middle")
+    return {"spec": spec, "w": spec["w"], "h": round(H, 1), "top": top, "yticks": [(v, py(v)) for v in yticks],
+            "pts": pts, "markers": markers, "labels": labels, "texts": texts, "guides": guides,
+            "x0": x0, "x1": x1, "y0": y0, "y1": y1}
+
+
+def _place_strip(markers: list[dict], spec: dict) -> list[dict]:
+    """Pick a side (label right or left of its guide) and a row for every
+    payoff label, cheapest first; raises if nothing fits."""
+    W, sy = spec["w"], spec["strip_y"]
+    max_lines = max(len(m["cluster"]["lines"]) for m in markers)
+    row_top = [sy + 8, sy + 8 + max_lines * LINE_H + ROW_GAP]
+
+    def option(m, side, row):
+        lines = m["cluster"]["lines"]
+        w = max(text_w(t) for t in lines)
+        top = row_top[row]
+        bot = top + len(lines) * LINE_H
+        bx0 = m["x"] + FLAG_GAP if side == "start" else m["x"] - FLAG_GAP - w
+        box = (round(bx0, 1), top, round(bx0 + w, 1), bot)
+        if box[0] < 4 or box[2] > W - 4:
+            return None
+        return {"marker": m, "side": side, "row": row, "box": box, "pole_bottom": bot,
+                "cost": row * 100 + (0 if side == "start" else 1)}
+
+    opts = [[o for s in ("start", "end") for r in (0, 1) if (o := option(m, s, r))] for m in markers]
+
+    def ok(a, b) -> bool:
+        if _overlap(_grow(a["box"], 10, 3), b["box"]):
+            return False
+        # A guide never crosses another label.
+        for p, q in ((a, b), (b, a)):
+            if _vhit(p["marker"]["x"], p["marker"]["y"], p["pole_bottom"], _grow(q["box"], 8, 2)):
+                return False
+        return True
+
+    best = {"cost": math.inf, "set": None}
+
+    def search(i, chosen, cost):
         if cost >= best["cost"]:
             return
-        if i == len(options):
+        if i == len(opts):
             best.update(cost=cost, set=list(chosen))
             return
-        for o in options[i]:
-            if not any(clash(o, p) for p in chosen):
+        for o in opts[i]:
+            if all(ok(o, p) for p in chosen):
                 search(i + 1, chosen + [o], cost + o["cost"])
 
-    search(0, [], 0.0)
+    search(0, [], 0)
     if best["set"] is None:
-        raise SystemExit("landing chart: no room for every milestone label")
-    placed = best["set"]
-    return {"marks": placed, "final": {"x": round(fx, 1), "y": fy, "box": final_box, "text": final["label_text"], "m": final},
-            "note": note}
+        raise SystemExit("landing chart: no room on the strip for every payoff label")
+    out = []
+    for o in best["set"]:
+        tx = o["marker"]["x"] + FLAG_GAP if o["side"] == "start" else o["marker"]["x"] - FLAG_GAP
+        o["texts"] = []
+        for i, line in enumerate(o["marker"]["cluster"]["lines"]):
+            ty = o["box"][1] + LINE_H * (i + 1) - 3.5
+            w = text_w(line)
+            bx0 = tx if o["side"] == "start" else tx - w
+            o["texts"].append({"kind": "strip", "text": line, "x": round(tx, 1), "y": round(ty, 1),
+                               "anchor": o["side"], "fs": LABEL_FS, "date": i == len(o["marker"]["cluster"]["lines"]) - 1,
+                               "box": (round(bx0, 1), round(ty - 0.9 * LABEL_FS, 1), round(bx0 + w, 1), round(ty + 0.25 * LABEL_FS, 1))})
+        out.append(o)
+    return out
 
 
-def _mark_svg(o: dict, cls: str) -> str:
-    x0, y0, x1, y1 = o["box"]
-    (lx, ly0), (_, ly1) = o["leader"]
-    if o["side"] == "end":
-        tx, anchor = x1, "end"
-    elif o["side"] == "start":
-        tx, anchor = x0, "start"
-    else:
-        tx, anchor = x0, "start"
-    spans = "".join(f'<tspan x="{tx}" y="{round(y0 + LINE_H * (i + 1) - 0.35 * LABEL_FS, 1)}">{t}</tspan>' for i, t in enumerate(o["texts"]))
-    squares = "".join(f'<rect x="{m["x"] - 4}" y="{m["y"] - 4}" width="8" height="8" fill="#ab4f30"/>' for m in o["cluster"])
-    return (f'<g class="mk {cls}"><line class="dl" x1="{lx}" y1="{round(ly0, 1)}" x2="{lx}" y2="{round(ly1, 1)}" stroke="#ab4f30" stroke-dasharray="2 3"/>'
-            f'{squares}<text class="ml" text-anchor="{anchor}">{spans}</text></g>')
+def _svg_text(t: dict, fill: str = MUTED, bold: bool = False) -> str:
+    anchor = {"start": "start", "end": "end", "middle": "middle"}[t["anchor"]]
+    w = ' font-weight="700"' if bold else ""
+    return f'<text x="{t["x"]}" y="{t["y"]}" text-anchor="{anchor}" fill="{fill}"{w}>{t["text"]}</text>'
 
 
-def chart_labels(ch: dict) -> list[str]:
-    """One label a marker: the loan and its month; the last is DEBT-FREE."""
-    ms = ch["markers"]
-    return [f'DEBT-FREE · {mon(m["label"])}' if i == len(ms) - 1
-            else f'{m["loan"].replace("HDFC ", "").replace("SBI ", "").upper()} · {mon(m["label"])}'
-            for i, m in enumerate(ms)]
+def _svg(c: str, g: dict, phone: bool) -> str:
+    x0, x1, y0, y1, sq = g["x0"], g["x1"], g["y0"], g["y1"], g["spec"]["sq"]
+    line = "M" + " L".join(f"{a},{b}" for a, b in g["pts"])
+    area = line + f" L{x1},{y1} L{x0},{y1} Z"
+    out = []
+    for v, yy in g["yticks"]:
+        if v:
+            out.append(f'<line x1="{x0}" y1="{yy}" x2="{x1}" y2="{yy}" stroke="{GRID}" stroke-width="1"/>')
+    out.append(f'<path class="fill" d="{area}" fill="{HL2}"/>')
+    out.append(f'<line x1="{x0}" y1="{y0 - 8}" x2="{x0}" y2="{y1}" stroke="{INK}" stroke-width="1"/>')
+    out.append(f'<line x1="{x0}" y1="{y1}" x2="{x1}" y2="{y1}" stroke="{INK}" stroke-width="1"/>')
+    if not phone:
+        sy = g["spec"]["strip_y"]
+        out.append(f'<line x1="{x0}" y1="{sy}" x2="{x1}" y2="{sy}" stroke="{GRID}" stroke-width="1"/>')
+    out.append(f'<path class="draw" d="{line}" fill="none" stroke="{INK}" stroke-width="2.5" stroke-linejoin="round"/>')
+    txt = [_svg_text(t) for t in g["texts"] if t["kind"] in ("ytick", "xtick")]
+    out.append(f'<g font-family="IBM Plex Mono, monospace" font-size="{LABEL_FS}">' + "".join(txt) + "</g>")
+    cls = "abcd"
+    for i, m in enumerate(g["markers"]):
+        k = cls[min(i, 3)] if i < len(g["markers"]) - 1 else "d"
+        parts = []
+        if not phone:
+            lab = g["labels"][i]
+            sy = g["spec"]["strip_y"]
+            parts.append(f'<line x1="{m["x"]}" y1="{round(m["y"] + sq / 2 + 2, 1)}" x2="{m["x"]}" y2="{sy - 4}" stroke="{RUST}" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/>')
+            parts.append(f'<line x1="{m["x"]}" y1="{sy - 4}" x2="{m["x"]}" y2="{lab["pole_bottom"]}" stroke="{RUST}" stroke-width="1.5"/>')
+            parts.append("".join(_svg_text(t, RUST if t["date"] else INK, True) for t in lab["texts"]))
+        parts.append(f'<rect x="{round(m["x"] - sq / 2, 1)}" y="{round(m["y"] - sq / 2, 1)}" width="{sq}" height="{sq}" fill="{RUST}"/>')
+        out.append(f'<g class="mk {k}" font-family="IBM Plex Mono, monospace" font-size="{LABEL_FS}" letter-spacing=".5">' + "".join(parts) + "</g>")
+    for t in g["texts"]:
+        if t["kind"] == "direct":
+            out.append(f'<g class="mk d" font-family="IBM Plex Mono, monospace" font-size="{LABEL_FS}" letter-spacing=".5">{_svg_text(t, RUST, True)}</g>')
+    return "\n            ".join(out)
+
+
+def gen_chart(c: str, f: dict) -> str:
+    x = f[c]
+    desk = chart_geometry(c, f, DESK)
+    ph = chart_geometry(c, f, PHONE, phone=True)
+    cls = clusters(x)
+    owed = float(x["outstanding"])
+    paid = "; ".join(f'{cl["list_name"]} paid off {cl["list_when"]}' for cl in cls)
+    aria = (f'Example: the total owed falls from {short_owed(c, owed)} in {_month_label(1)} to zero in '
+            f'{x["plan"]["debt_free"]}. {paid}.')
+    items = "".join(f'\n          <li><span>{cl["list_name"]}</span><b>paid off {cl["list_when"]}</b></li>' for cl in cls)
+    return (
+        f'        <p class="ctitle">Debt-free in <b>{x["plan"]["debt_free"]}</b>, paying {money(c, x["budget"])} a month.</p>\n'
+        f'        <svg class="cdesk" viewBox="0 0 {desk["w"]} {desk["h"]}" role="img" aria-label="{aria}">\n'
+        f'            {_svg(c, desk, False)}\n'
+        f'        </svg>\n'
+        f'        <svg class="cphone" viewBox="0 0 {ph["w"]} {ph["h"]}" aria-hidden="true">\n'
+        f'            {_svg(c, ph, True)}\n'
+        f'        </svg>\n'
+        f'        <ol class="mlist" aria-label="When each loan is paid off">{items}\n'
+        f'          <li class="df"><span>Debt-free</span><b>{x["plan"]["debt_free"]}</b></li>\n'
+        f'        </ol>'
+    )
 
 
 def _lower_first(name: str) -> str:
@@ -432,56 +561,17 @@ def _lower_first(name: str) -> str:
     return first[:1].lower() + first[1:] + (" " + rest if rest else "")
 
 
-def gen_chart(c: str, f: dict) -> str:
-    x = f[c]
-    ch = x["chart"]
-    labels, mlist = chart_labels(ch), []
-    for i, m in enumerate(ch["markers"]):
-        last = i == len(ch["markers"]) - 1
-        mlist.append(f'{_lower_first(m["loan"]) if not last else "debt-free"} {mon(m["label"])}')
-    owed = float(x["outstanding"])
-    left = money(c, ch["due_left_at_edge"])
-    lay = layout_chart(ch, labels, left)
-    cls = "abcd"
-    marks = [_mark_svg(o, cls[min(i, 2)]) for i, o in enumerate(lay["marks"])]
-    fm = lay["final"]
-    marks.append(f'<g class="mk d"><rect x="{fm["m"]["x"] - 4}" y="{fm["m"]["y"] - 4}" width="8" height="8" fill="#ab4f30"/>'
-                 f'<text class="ml" x="{fm["x"]}" y="{fm["y"]}" text-anchor="middle">{fm["text"]}</text></g>')
-    note = lay["note"]
-    aria = (f'Example: total debt falls from {short_owed(c, owed)} now to zero in {x["plan"]["debt_free"]} on the plan; '
-            f'paying only what is due still leaves {left} owed in {ch["axis"]["end"]["label"]}.')
-    return (
-        f'        <svg viewBox="0 0 800 300" role="img" aria-label="{aria}">\n'
-        f'          <g font-family="IBM Plex Mono, monospace" font-size="11" fill="#5e5e58">\n'
-        f'            <text x="8" y="16" letter-spacing="1.5">OUTSTANDING</text>\n'
-        f'            <text class="yl" x="8" y="48">{short_owed(c, owed)}</text>\n'
-        f'            <text class="yl" x="8" y="150">{short_owed(c, owed / 2)}</text>\n'
-        f'            <text class="yl" x="8" y="262">{"₹0" if c == "IN" else "$0"}</text>\n'
-        f'            <text x="70" y="290">NOW</text>\n'
-        # Live re-test 2 R2-4: anchored by their middle / right edge, so the
-        # phone's 22px axis text can't run past the 800-wide viewBox.
-        f'            <text x="{ch["axis"]["mid"]["x"]}" y="290" text-anchor="middle">{ch["axis"]["mid"]["label"]}</text>\n'
-        f'            <text x="{min(ch["axis"]["end"]["x"], 796)}" y="290" text-anchor="end">{ch["axis"]["end"]["label"]}</text>\n'
-        f'          </g>\n'
-        f'          <line x1="70" y1="258" x2="790" y2="258" stroke="#0a0a0a" stroke-width="1"/>\n'
-        f'          <path class="fade-line" d="{ch["due_path"]}" fill="none" stroke="#5e5e58" stroke-width="2" stroke-dasharray="6 5"/>\n'
-        f'          <path class="draw" d="{ch["plan_path"]}" fill="none" stroke="#0a0a0a" stroke-width="2.5"/>\n'
-        f'          <g font-family="IBM Plex Mono, monospace" font-size="{LABEL_FS}" font-weight="700" fill="#ab4f30" letter-spacing=".5">\n'
-        + "\n".join(f"            {m}" for m in marks) +
-        f'\n          </g>\n'
-        f'          <text class="ml" x="{note["x"]}" y="{note["y"]}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="{LABEL_FS}" fill="#5e5e58" letter-spacing=".5">{note["text"]}</text>\n'
-        f'        </svg>\n'
-        f'        <p class="mlist">{"Paid off: " + " · ".join(mlist)}. Paying only what&#39;s due: {left} still owed in {ch["axis"]["end"]["label"]}.</p>'
-    )
-
-
 def gen_due_note(c: str, f: dict) -> str:
+    """UX50 A-21: one line; the minimums-only ceiling sits behind "How we
+    compare" instead of a 60-word paragraph."""
     d = f[c]["vs_only_whats_due"]
     when = (f"until {d['debt_free']}" if d["debt_free"] else "more than 40 years (the card&#39;s minimum shrinks with the balance, so it never quite clears)")
-    return (f'      <p class="note" style="margin-top:10px">The savings above compare two ways of paying the same {money(c, f[c]["budget"])} a month. '
-            f'Paying only what&#39;s due (each EMI and the card&#39;s minimum, nothing extra) would take {when}: that is the most a plan can save, '
-            f'not what it saves most people, so it isn&#39;t the headline. Worked out by RightDue&#39;s engine from the loans shown; '
-            f'<a href="/glossary">what the terms mean</a>.</p>')
+    b = money(c, f[c]["budget"])
+    return (f'      <details class="note cmp"><summary>Compared with paying the same {b} a month, smallest balance first. '
+            f'<span class="how">How we compare</span></summary>\n'
+            f'      <p>Paying only what&#39;s due (each EMI and the card&#39;s minimum, nothing extra) would take {when}: '
+            f'that is the most a plan can save, not what it saves most people, so it isn&#39;t the headline. '
+            f'Worked out by RightDue&#39;s engine from the loans shown; <a href="/glossary">what the terms mean</a>.</p></details>')
 
 
 GENERATORS = {"register": gen_register, "kpis": gen_kpis, "chart": gen_chart, "due-note": gen_due_note}
