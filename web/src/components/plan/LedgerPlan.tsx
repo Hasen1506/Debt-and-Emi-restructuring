@@ -223,7 +223,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {!short && <PlanPace plan={plan} />}
 
         {plan.shortfall > 0 && <ShortfallBanner plan={plan} />}
-        {plan.shortfall > 0 && <TenureWhatIf plan={plan} />}
+        {/* Live re-test L#26: offered whether or not this month is short. */}
+        <TenureWhatIf plan={plan} />
         {plan.futureShortfall && <div role="alert" style={{color:L_T.negative,fontSize:12}}>
           FUTURE FUNDING GAP · SHORT {fc(plan.futureShortfall.amount)} IN {monthIndexToCountryLabel(plan.futureShortfall.month,plan.user.country).toUpperCase()}.
           {plan.gap

@@ -1033,6 +1033,7 @@ function ProfileEditor({
             </div>
             <Field
               label="Your name (optional)"
+              kind="text"
               value={displayName}
               onChange={setDisplayName}
               hint="Used only as a greeting. Stays in your browser."

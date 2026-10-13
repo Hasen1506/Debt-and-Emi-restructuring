@@ -82,7 +82,9 @@ test('#17: the chart axis ends at the plan’s payoff, not the end of the minimu
   // Live test: plan clears Aug 2033 (~month 82) while the axis ran to Oct 2044.
   const end = gap.chartEndMonth({ planClears: 82, minClear: 216, lastMonth: 216 });
   assert.ok(end < 216 && end >= 82, String(end));
-  assert.equal(gap.chartEndMonth({ planClears: 82, minClear: 120, lastMonth: 216 }), 120);
+  // Live re-test 13 Oct (L#17): the axis ends at payoff itself, not the minimums' end.
+  assert.equal(gap.chartEndMonth({ planClears: 82, minClear: 120, lastMonth: 216 }), 82);
+  assert.equal(gap.chartEndMonth({ planClears: 82, minClear: 216, lastMonth: 216 }), 82);
   // A gap that only grows: three years of it, not 30.
   assert.equal(gap.chartEndMonth({ planClears: null, minClear: null, lastMonth: 360, growingGapFrom: 1 }), 37);
   assert.equal(gap.chartEndMonth({ planClears: null, minClear: null, lastMonth: 360 }), 360);

@@ -21,7 +21,7 @@ import { SessionIndicator } from '@/components/chrome/SessionIndicator';
 import { StrategyMedallion } from '@/components/personas/StrategyMedallion';
 import type { Country } from '@/lib/api';
 import type { StrategyName } from '@/lib/strategy';
-import { recordPage } from '@/lib/nav-trail';
+import { isToolPage, recordPage } from '@/lib/nav-trail';
 
 export type LedgerSection = 'home' | 'plan' | 'activity' | 'goals' | 'portfolio' | 'profile';
 
@@ -42,7 +42,7 @@ export const NAV: Array<[label: string, key: LedgerSection, href: string]> = [
 export function sectionFromPath(path: string): LedgerSection | null {
   if (path.startsWith('/plan')) return 'plan';
   if (path.startsWith('/activity')) return 'activity';
-  if (path.startsWith('/goals') || path.startsWith('/tools')) return 'goals';
+  if (path.startsWith('/goals') || path === '/tools' || isToolPage(path)) return 'goals';
   // What you own, and the form that adds to it.
   if (path.startsWith('/portfolio') || path.startsWith('/profile/assets')) return 'portfolio';
   if (

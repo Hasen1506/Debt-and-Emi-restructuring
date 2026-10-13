@@ -8,6 +8,19 @@ import { TOOLS } from './tools';
 
 const KEY = 'rightdue_trail';
 
+/** Every page under app/tools. Any other /tools/... address is a 404, which
+ *  must not light the Goals tab or become a "Back to the tool" link (live
+ *  re-test NEW-10). */
+export const TOOL_PAGES = [
+  'cash-yield', 'invest-vs-prepay', 'liquidate', 'loan-check', 'new-debt',
+  'nri-prepay', 'purchase', 'recompute', 'windfall',
+].map((s) => `/tools/${s}`);
+
+export function isToolPage(path: string): boolean {
+  const p = path.split(/[?#]/)[0].replace(/\/$/, '');
+  return TOOL_PAGES.some((t) => p === t || p.startsWith(`${t}/`));
+}
+
 interface Trail {
   prev: string | null;
   cur: string | null;
@@ -43,7 +56,9 @@ export function pageName(href: string): string | null {
   if (path.startsWith('/plan')) return 'Plan';
   if (path.startsWith('/activity')) return 'Activity';
   if (path.startsWith('/goals') || path === '/tools') return 'Goals and tools';
-  if (path.startsWith('/tools/')) return TOOLS.find((t) => path.startsWith(t.href))?.name ?? 'the tool';
+  // Only a real tool: an unknown /tools/... address is a 404 (live re-test NEW-10).
+  if (path.startsWith('/tools/'))
+    return TOOLS.find((t) => path.startsWith(t.href))?.name ?? (isToolPage(path) ? 'the tool' : null);
   if (path.startsWith('/portfolio')) return 'Portfolio';
   return null;
 }

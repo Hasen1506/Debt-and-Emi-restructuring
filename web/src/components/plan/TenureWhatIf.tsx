@@ -99,7 +99,8 @@ export function TenureWhatIf({ plan }: { plan: PlanData }) {
       </div>
       <p style={{ margin: '4px 0 8px', color: L_T.inkSoft }}>
         A longer tenure (more months to repay) lowers the EMI, but you pay interest for longer. Pick a loan and how many
-        more months; the plan re-runs with the new EMI. Nothing is saved.
+        more months; the plan re-runs with the new EMI and the result shows here. Nothing is saved: the chart and table
+        keep showing your current plan until you change the loan in Profile.
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', alignItems: 'center' }}>
         <label>

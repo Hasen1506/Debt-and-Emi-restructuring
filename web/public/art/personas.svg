@@ -72,7 +72,7 @@
   </symbol>
 
   <!-- HYBRID · the ridge: both kinds of debt in hand, a quick win first. -->
-  <symbol id="scene-hybrid" viewBox="0 0 480 240">
+  <symbol id="scene-rules" viewBox="0 0 480 240">
     <defs>
       <clipPath id="hy-left"><rect width="240" height="240"/></clipPath>
       <clipPath id="hy-right"><rect x="240" width="240" height="240"/></clipPath>
@@ -131,7 +131,7 @@
     </g>
     <circle cx="30" cy="20" r="7" fill="#fff" stroke="#1f1c17" stroke-width="1.6"/>
   </symbol>
-  <symbol id="med-hybrid" viewBox="0 0 40 40">
+  <symbol id="med-rules" viewBox="0 0 40 40">
     <rect width="20" height="40" fill="#b8261c"/>
     <rect x="20" width="20" height="40" fill="#f1ece0"/>
     <path d="M0,39 L20,28 L20,40 L0,40 Z" fill="#5a0f08"/>

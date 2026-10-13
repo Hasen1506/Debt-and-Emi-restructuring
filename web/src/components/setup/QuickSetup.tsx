@@ -546,7 +546,7 @@ export function QuickSetup() {
 
   return (
     <LShell>
-      <div onInputCapture={() => { edited.current = true; }} onClickCapture={() => { edited.current = true; }} style={{ display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 760 }}>
+      <div onInputCapture={() => { edited.current = true; }} onClickCapture={() => { edited.current = true; }} style={{ display: 'flex', flexDirection: 'column', gap: 22, width: '100%' }}>
         <header>
           <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
             SETUP · 3 STEPS · ABOUT 2 MINUTES

@@ -124,7 +124,12 @@ export function shortHeadline(args: {
     };
   }
   if (shortfall > 0) {
-    return { value: 'NO DATE YET', sub: `SHORT ${money(shortfall)}/MO · AS THINGS STAND: ${asIs}` };
+    // Live re-test L#16: the gap-closed run has no date either (later
+    // months fall short again), so say so instead of half a template.
+    return {
+      value: 'NO DATE YET',
+      sub: `SHORT ${money(shortfall)}/MO · AS THINGS STAND: ${asIs}${asIsMonth ? '' : ' · NO DATE EVEN IF THIS MONTH’S GAP CLOSES'}`,
+    };
   }
   // Only a later month is short: the engine's date already borrows for it.
   return { value: asIsMonth ? label(asIsMonth) : 'NO DATE YET', sub: 'A LATER MONTH IS SHORT · GAP BORROWED' };
@@ -148,8 +153,11 @@ export function chartEndMonth(args: {
   const { planClears, minClear, lastMonth, growingGapFrom } = args;
   if (!planClears && growingGapFrom) return Math.min(lastMonth, Math.max(24, growingGapFrom + 36));
   if (!planClears) return lastMonth;
-  if (minClear && minClear <= planClears * 2) return Math.max(minClear, planClears);
-  return Math.min(lastMonth, Math.max(planClears + 6, Math.ceil(planClears * 1.25)));
+  // Live re-test L#17: end at the payoff month itself. Padding to the end of
+  // the minimums line (or a quarter more) ran the axis a year past payoff;
+  // the minimums' own clear date is printed in the chart note instead.
+  void minClear;
+  return Math.min(lastMonth, planClears);
 }
 
 /**
