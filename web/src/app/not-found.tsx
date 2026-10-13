@@ -1,7 +1,11 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import type { CSSProperties } from 'react';
+import type { Metadata } from 'next';
 import { L_MONO, L_T } from '@/components/ledger/primitives';
+
+// Live re-test 6B R6B-6: the 404 had the generic site title.
+export const metadata: Metadata = { title: 'Page not found · RightDue' };
 
 /** A missing page keeps the app's header and offers a way back (live QA:
  *  /tax was a bare 404). UX50 A-14: signed-out visitors now reach it too

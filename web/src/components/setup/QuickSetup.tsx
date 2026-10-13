@@ -59,6 +59,8 @@ import { HYDRATED_EVENT, flushPendingState, signedInAccount } from '@/lib/server
 import { ONBOARDING_DONE_HREF } from '@/lib/onboarding-save';
 import { LAST_SEEN_KEY } from '@/lib/guest-return';
 import { formatAsOfDate } from '@/lib/loan-gaps';
+import { saneCap } from '@/lib/plan-gap';
+import { formatTaxRate } from '@/lib/tax-profile';
 import { checkSpend, parseDraft, serializeDraft, SETUP_DRAFT_KEY, SPEND_COPY, stepFromParam, urlWithStep } from '@/lib/setup-draft';
 import { dateProfileRates } from '@/lib/fx-refresh';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
@@ -330,6 +332,12 @@ export function QuickSetup() {
     }
     return out;
   }
+  // Live re-test 6B R6B-7: a rate out of range (−42, 4200) is marked as
+  // soon as it's typed and left, not only after Continue.
+  function rateRangeOnly(l: LoanPayload): Issues {
+    const bad = rateOutOfRange(l.nominal_rate);
+    return bad ? { rate: bad } : {};
+  }
   const activeLoans = loans.filter((l) => Number(l.outstanding) > 0);
   const foreignCcys = Array.from(
     new Set(activeLoans.map((l) => loanCurrency(l, country)).filter((c) => c !== userCcy)),
@@ -354,18 +362,20 @@ export function QuickSetup() {
   // "not valid", not "missing"; only blank fields are missing numbers.
   const summaryFlags = loans.map((l) => {
     const issues = issuesOf(l);
-    if (Object.keys(issues).length === 0) return { emiTooSmall: false, invalid: false, missing: false };
+    if (Object.keys(issues).length === 0) return { emiTooSmall: false, invalid: false, outOfRange: false, missing: false };
     const emiTooSmall = !!emiBelowInterest({ ...l, currency: loanCurrency(l, country) as 'INR' | 'USD' });
     const invalid = (!!uiOf(l.id).rateUnreadable && (l.nominal_rate ?? '').trim() === '') || !!rateOutOfRange(l.nominal_rate);
     const others = Object.keys(issues).filter((k) => !(invalid && k === 'rate') && !(emiTooSmall && k === 'emi'));
     // UX50 B-36: an unanswered "has this month's EMI gone out?" is a
     // question, not a missing number.
     const numbers = others.filter((k) => k !== 'paid');
-    return { emiTooSmall, invalid, missing: !emiTooSmall && numbers.length > 0, unanswered: others.includes('paid') };
+    const outOfRange = !!rateOutOfRange(l.nominal_rate) && Number.isFinite(Number(l.nominal_rate));
+    return { emiTooSmall, invalid, outOfRange, missing: !emiTooSmall && numbers.length > 0, unanswered: others.includes('paid') };
   });
   const step2Summary = setupSummaryLine({
     emiTooSmall: summaryFlags.some((f) => f.emiTooSmall),
     invalid: summaryFlags.some((f) => f.invalid),
+    outOfRange: summaryFlags.some((f) => f.invalid) && summaryFlags.filter((f) => f.invalid).every((f) => f.outOfRange),
     missing: summaryFlags.some((f) => f.missing),
     fx: Object.keys(fxErrors).length > 0,
     unanswered: summaryFlags.filter((f) => f.unanswered).length,
@@ -792,8 +802,20 @@ export function QuickSetup() {
                   label="Left each month, before EMIs"
                   value={money(leftBeforeEmis)}
                   tone={leftBeforeEmis.lt(0) ? 'negative' : 'ink'}
-                  note={leftBeforeEmis.lt(0) ? 'You spend more than you take home. Check both numbers.' : undefined}
                 />
+              )}
+              {/* Live re-test 6B: spending above take-home went through to step 3
+                  with only a muted note; warn here, where both numbers are. */}
+              {leftBeforeEmis && leftBeforeEmis.lt(0) && (
+                <p
+                  role="status"
+                  data-testid="spend-over-income"
+                  style={{ margin: 0, padding: '10px 12px', border: `1px solid ${L_T.negative}`, color: L_T.negative, fontSize: 13, lineHeight: 1.55 }}
+                >
+                  You spend {money(leftBeforeEmis.neg())} a month more than you take home, before any EMI. Check both
+                  numbers. If they&apos;re right, the plan can&apos;t give a payoff date: it borrows the gap on a card
+                  until spending or income changes.
+                </p>
               )}
               <Actions>
                 <LButton onClick={() => goTo(1)}>CONTINUE · WHAT YOU OWE</LButton>
@@ -836,7 +858,7 @@ export function QuickSetup() {
                   country={country}
                   showCurrency={(country === 'US' && isNriUs) || loanCurrency(l, country) !== userCcy}
                   ui={uiOf(l.id)}
-                  issues={showErrors ? issuesOf(l) : {}}
+                  issues={showErrors ? issuesOf(l) : rateRangeOnly(l)}
                   computedEmi={uiOf(l.id).byMonths ? emiOf(l) : ''}
                   askPaid={askPaid(l)}
                   monthName={thisMonthName}
@@ -1442,11 +1464,23 @@ function PlanPreview({
         plan.debt_free_month != null ? monthIndexToCountryLabel(plan.debt_free_month, country) : 'Not in sight',
         plan.debt_free_month != null ? freeIn(plan.debt_free_month) : 'Payments don’t cover the interest yet',
       ];
+  // Live re-test 6B R6B-1: the same branch as Plan's TOTAL INTEREST. Short
+  // with no date as things stand, the gap borrowing compounds for decades
+  // (crore-scale totals on a ₹-lakh debt), and with no date at all a total
+  // above 100x what's owed today means nothing: say so instead of a figure.
+  const owedToday = loans.reduce((t, l) => t + Math.max(0, Number(l.outstanding) || 0), 0);
+  const gapRunsAway = short && plan.debt_free_month == null;
+  const insane = !Number.isFinite(Number(plan.total_interest_paid)) || Number(plan.total_interest_paid) > saneCap(owedToday);
+  const interestRow: [string, ReactNode, string?] = gapRunsAway
+    ? ['Interest you’ll pay', '—', 'the gap borrowing keeps growing']
+    : plan.debt_free_month == null && insane
+      ? ['Interest you’ll pay', '—', 'doesn’t clear at these figures']
+      : ['Interest you’ll pay', money(plan.total_interest_paid), 'over the whole plan'];
   // UX50 B-04: paying only the minimums is the most a plan can save, not
   // what it saves most people; said so, under its own name.
   const rows: Array<[string, ReactNode, string?]> = [
     debtFreeRow,
-    ['Interest you’ll pay', money(plan.total_interest_paid), 'over the whole plan'],
+    interestRow,
     short
       ? ['Vs paying only minimums', '—', 'needs a payoff date first']
       : [
@@ -1526,7 +1560,8 @@ function PlanFootnotes({
         </li>
       )}
       <li>
-        Tax bracket {(Number(rate) * 100).toFixed(0)}%
+        {/* R6B-5: one decimal, as Profile, Tax and Invest-or-prepay show it (31.2%, not 31%). */}
+        Tax bracket {formatTaxRate(rate)}
         {estimated
           ? `, estimated from take-home. Add your gross ${country === 'IN' ? 'salary (Form 16)' : 'pay (W-2)'} in Profile to make it exact.`
           : ', from your profile.'}

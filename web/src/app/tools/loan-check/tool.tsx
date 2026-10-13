@@ -265,12 +265,12 @@ export function LoanCheckTool() {
                 <Field
                   label="Rate you pay now (%)"
                   value={currentRate}
-                  error={at('currentRate')}
+                  error={at('currentRate') ?? pCurrent.error}
                   onChange={setCurrentRate}
                   placeholder="8.90"
                   findIt={whereToFind('rate', IN)}
                 />
-                <RateProblem parsed={pCurrent} onFix={setCurrentRate} />
+                <RateProblem parsed={pCurrent} onFix={setCurrentRate} fixOnly />
               </div>
               <Field label="Still owed" kind="money" currency="INR" value={outstanding} error={at('outstanding')} onChange={setOutstanding} findIt={whereToFind('balance', IN)} />
               <Field label="Months left" value={months} error={at('months')} onChange={setMonths} kind="integer" placeholder="200" findIt={whereToFind('monthsLeft', IN)} />
@@ -305,6 +305,11 @@ export function LoanCheckTool() {
             />
           </LFieldGrid>
           <div>
+            {/* UX50 C-16: the KFS has the starting rate; the import was hidden in Profile → Loans → [EDIT]. */}
+            <p data-testid="loan-check-import-link" style={{ margin: '0 0 8px', fontSize: 12, lineHeight: 1.5 }}>
+              Have the KFS or sanction letter? It shows the starting rate.{' '}
+              <a href="/profile?step=loans" style={{ color: 'var(--accent)' }}>[IMPORT IT ON PROFILE →]</a>
+            </p>
             <LChipRow label="The rate it started at">
               <LChip on={startMode === 'headline'} onClick={() => setStartMode('headline')}>
                 One rate
@@ -316,8 +321,8 @@ export function LoanCheckTool() {
             <div style={{ marginTop: 10 }}>
               {startMode === 'headline' ? (
                 <div style={{ maxWidth: 320 }}>
-                  <Field label="Rate when the loan started (%)" value={startRate} error={at('startRate')} onChange={setStartRate} placeholder="8.55" findIt={whereToFind('startRate', IN)} />
-                  <RateProblem parsed={pStart} onFix={setStartRate} />
+                  <Field label="Rate when the loan started (%)" value={startRate} error={at('startRate') ?? pStart.error} onChange={setStartRate} placeholder="8.55" findIt={whereToFind('startRate', IN)} />
+                  <RateProblem parsed={pStart} onFix={setStartRate} fixOnly />
                 </div>
               ) : (
                 <LFieldGrid min={200}>
@@ -325,25 +330,25 @@ export function LoanCheckTool() {
                     <Field
                       label="Bank's benchmark rate then (%)"
                       value={startBench}
-                      error={at('startBench')}
+                      error={at('startBench') ?? pBench.error}
                       onChange={setStartBench}
                       placeholder="8.20"
                       findIt={'sanction letter or KFS, "Benchmark rate"'}
                       info={<>The lender&apos;s RLLR / EBLR on the day the loan started, as shown in the sanction letter.</>}
                     />
-                    <RateProblem parsed={pBench} onFix={setStartBench} />
+                    <RateProblem parsed={pBench} onFix={setStartBench} fixOnly />
                   </div>
                   <div>
                     <Field
                       label="Your spread (%)"
                       value={startSpread}
-                      error={at('startSpread')}
+                      error={at('startSpread') ?? pSpread.error}
                       onChange={setStartSpread}
                       placeholder="0.35"
                       findIt={whereToFind('spread', IN)}
                       info={<>The extra over the benchmark that applies to you, often called the spread, margin or credit risk premium.</>}
                     />
-                    <RateProblem parsed={pSpread} onFix={setStartSpread} />
+                    <RateProblem parsed={pSpread} onFix={setStartSpread} fixOnly />
                   </div>
                 </LFieldGrid>
               )}

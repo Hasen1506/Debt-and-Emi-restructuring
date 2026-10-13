@@ -16,8 +16,7 @@
  * Both surfaces share the same state + cookie write so a user who toggles
  * themes keeps their strategy preference.
  */
-import { useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { OfflineStrategyNote, useStrategyRefresh } from '@/components/useStrategyRefresh';
 import {
   STRATEGIES,
   STRATEGY_LABEL,
@@ -166,16 +165,14 @@ export function StrategySwitcher({
    *  fallback when omitted. */
   country?: Country;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  // R6B-9: offline, the choice is saved and the refresh waits for the connection.
+  const { pending, offline, refresh } = useStrategyRefresh();
 
   function pick(s: StrategyName) {
     if (s === active || pending) return;
     writeStrategyClient(s);
-    startTransition(() => {
-      // Server component re-renders with the new cookie value.
-      router.refresh();
-    });
+    // Server component re-renders with the new cookie value.
+    refresh();
   }
 
   if (variant === 'ledger') {
@@ -248,6 +245,7 @@ export function StrategySwitcher({
           {pending ? 'Working it out…' : STRATEGY_SHORT[active]}
         </span>
       </div>
+      <OfflineStrategyNote show={offline} />
       {compare && allSame(compare) && (
         <div style={{ fontSize: 11, color: 'var(--muted)' }}>
           All three clear your debt in the same month at the same cost, so the
@@ -350,6 +348,7 @@ export function StrategySwitcher({
       >
         {pending ? 'Working it out…' : STRATEGY_SHORT[active]}
       </span>
+      <OfflineStrategyNote show={offline} />
       {compare && (
         <div
           style={{

@@ -89,7 +89,9 @@ test('R3-3: Invest or prepay rate fields say "isn’t a valid rate" and refuse o
   assert.equal(percentTextError('-20', { min: -99 }), null);
   assert.match(percentTextError('600', { max: 500 }), /above 500%/);
   const tool = src('app/tools/invest-vs-prepay/tool.tsx');
-  assert.equal((tool.match(/error=\{rateErrors\./g) || []).length, 5);
+  // R6B-3 (live re-test 6B): years held gained its own field error, so six
+  // fields now carry one (stricter than the five before).
+  assert.equal((tool.match(/error=\{rateErrors\./g) || []).length, 6);
 });
 
 test('NEW-18: Invest or prepay pre-fills the tax rate as formatTaxRate does and computes with the exact rate', () => {

@@ -24,6 +24,7 @@
 
 import { ivpAnswerNote } from '@/lib/ivp-answer-note';
 import { INFLATION_FORECAST, readInflationRateClient } from '@/lib/inflation-modeling';
+import { inflationError, mcNote, yearsHeldError } from '@/lib/r6b-inputs';
 import { useEffect, useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
 import { Field, percentTextError } from '@/components/ToolPrimitives';
@@ -185,7 +186,10 @@ export function InvestVsPrepayDeepTool() {
     marginal: percentTextError(marginalPct, { what: 'A tax rate' }),
     ret: percentTextError(expReturnPct, { min: -99, what: 'A return' }),
     vol: swings ? percentTextError(volPct, { max: 500, what: 'A swing' }) : null,
-    inflation: swings ? percentTextError(inflationPct, { min: -50, what: 'Inflation' }) : null,
+    // R6B-4: one range (0 to 100%) for the field and the simulation.
+    inflation: swings ? inflationError(inflationPct) : null,
+    // R6B-3: whole years, 1 to 100, with its own field error.
+    years: swings ? yearsHeldError(yearsHeld) : null,
   };
 
   // R4-1: name the field that stops the answer, not always the first two.
@@ -270,7 +274,8 @@ export function InvestVsPrepayDeepTool() {
     if (!result || !swings) return null;
     const years = parseNum(yearsHeld);
     const infl = parseNum(inflationPct);
-    if (!years || years.lte(0) || years.gt(100) || !infl || infl.lt(0) || infl.gt(100)) return null;
+    if (yearsHeldError(yearsHeld) || inflationError(inflationPct) || yearsHeld.trim() === '' || inflationPct.trim() === '') return null;
+    if (!years || !infl) return null;
     return simulateMonteCarlo({
       expectedReturn: result.preTax.toNumber(),
       volatility: Math.max(0, Number(volPct) / 100),
@@ -370,7 +375,7 @@ export function InvestVsPrepayDeepTool() {
             error={rateErrors.ret}
           />
           {swings && <Field label="How much it swings a year (%)" value={volPct} onChange={setVolPct} hint="One standard deviation" error={rateErrors.vol} />}
-          {swings && <Field label="Years you'd hold it" kind="integer" value={yearsHeld} onChange={setYearsHeld} />}
+          {swings && <Field label="Years you'd hold it" value={yearsHeld} onChange={setYearsHeld} hint="Whole years, 1 to 100" error={rateErrors.years} />}
           {swings && <Field label="Prices rise a year (%)" value={inflationPct} onChange={setInflationPct} error={rateErrors.inflation} />}
         </LFieldGrid>
       </LStep>
@@ -413,11 +418,9 @@ export function InvestVsPrepayDeepTool() {
                 },
               ]}
             />
-            {swings && !mc && (
+            {swings && !mc && mcNote(yearsHeld, inflationPct) !== '' && (
               <LNote style={{ margin: '16px 0 0' }}>
-                {rateErrors.inflation
-                  ? 'Fix "Prices rise a year" to see the 5,000 runs (beats the loan, keeps up with prices).'
-                  : 'Fix the years held and "Prices rise a year" (0 to 100%) to see the 5,000 runs.'}
+                {mcNote(yearsHeld, inflationPct)}
               </LNote>
             )}
             {mc && (

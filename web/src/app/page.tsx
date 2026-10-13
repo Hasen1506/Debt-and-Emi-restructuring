@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import type { Metadata } from 'next';
 import { loadCurrentProfileServer } from '@/lib/user-store';
 import { readLifecycleServer } from '@/lib/lifecycle-events';
 import { loadStrategyServer } from '@/lib/strategy';
@@ -12,6 +13,9 @@ import {
   HomePayThisMonth,
   HomeThisMonthStrip,
 } from '@/components/home/HomeDebtFree';
+
+// Live re-test 6B R6B-6: Home had the generic site title.
+export const metadata: Metadata = { title: 'Home · RightDue' };
 
 // Home streams the plan's date and this month's payments: the page paints
 // at once and the engine's answer (~10–40 ms) fills in.

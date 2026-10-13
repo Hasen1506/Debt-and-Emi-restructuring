@@ -129,6 +129,9 @@ test('C-05: the hardship letter is editable with copy, email, share and download
 
 test('Invest or prepay: a bad inflation or years field says why the runs are missing (O-1); retyping a loan rate keeps it picked (O-2)', () => {
   const t = src('app/tools/invest-vs-prepay/tool.tsx');
-  assert.match(t, /Fix "Prices rise a year" to see the 5,000 runs/);
+  // R6B-4 (live re-test 6B): the note moved to lib/r6b-inputs mcNote so it
+  // names only the bad field; same sentence, now checked on its output.
+  assert.match(t, /mcNote\(yearsHeld, inflationPct\)/);
+  assert.match(lib('r6b-inputs.ts').mcNote('5', 'abc'), /^Fix "Prices rise a year" to see the 5,000 runs/);
   assert.match(t, /loans\.find\(\(l\) => Number\(pctOf\(l\.effective\)\) === n\)/);
 });
