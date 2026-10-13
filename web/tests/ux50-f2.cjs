@@ -63,6 +63,9 @@ test('B-02: saving Setup records the visit, so Home does not ask "is it yours?"'
   const { shouldAskGuest, LAST_SEEN_KEY } = lib('guest-return.ts');
   const qs = src('components/setup/QuickSetup.tsx');
   assert.match(qs, /localStorage\.setItem\(LAST_SEEN_KEY, String\(Date\.now\(\)\)\)/);
+  // Guests only, and sign-out clears it: a signed-in browser keeps nothing after sign-out.
+  assert.match(qs, /if \(!signedInAccount\(\)\) window\.localStorage\.setItem\(LAST_SEEN_KEY/);
+  assert.match(src('lib/server-sync.ts'), /LOCAL_PER_USER_KEYS = \[[^\]]*'rightdue_guest_last_seen'/);
   const now = Date.now();
   // What Home reads right after that save.
   assert.equal(shouldAskGuest({ signedIn: false, hasSavedProfile: true, lastSeenMs: now - 5000, nowMs: now, answeredThisTab: false }), false);

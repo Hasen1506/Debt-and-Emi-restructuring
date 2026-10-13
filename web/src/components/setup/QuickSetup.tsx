@@ -55,7 +55,7 @@ import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIs
 import { loadProfileClient, type StoredProfile } from '@/lib/user-store';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward, stampBalanceDates, prepareLoanPaymentTiming } from '@/lib/roll-forward';
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
-import { HYDRATED_EVENT, flushPendingState } from '@/lib/server-sync';
+import { HYDRATED_EVENT, flushPendingState, signedInAccount } from '@/lib/server-sync';
 import { ONBOARDING_DONE_HREF } from '@/lib/onboarding-save';
 import { LAST_SEEN_KEY } from '@/lib/guest-return';
 import { formatAsOfDate } from '@/lib/loan-gaps';
@@ -661,9 +661,11 @@ export function QuickSetup() {
     }
     // UX50 B-02: this visit is on record, so Home doesn't greet a plan
     // made seconds ago with "Welcome back… is it yours?". The draft is done.
+    // Guests only: signed in, Home never asks, and sign-out must leave this
+    // browser empty (india/usa-journey "sign out clears this browser").
     draftOn.current = false;
     try {
-      window.localStorage.setItem(LAST_SEEN_KEY, String(Date.now()));
+      if (!signedInAccount()) window.localStorage.setItem(LAST_SEEN_KEY, String(Date.now()));
       window.sessionStorage.removeItem(SETUP_DRAFT_KEY);
     } catch {
       /* private mode */

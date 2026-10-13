@@ -112,6 +112,11 @@ function activeAccount(): string | null {
   try { return localStorage.getItem(ACCOUNT_KEY); } catch { return null; }
 }
 
+/** The signed-in account this browser is caching for, or null for a guest. */
+export function signedInAccount(): string | null {
+  return preparedAccount ?? activeAccount();
+}
+
 function pendingState(account: string): Record<string, unknown> {
   if (pendingMemory.has(account)) return pendingMemory.get(account)!;
   try {
@@ -296,6 +301,9 @@ export const LOCAL_PER_USER_KEYS = [
   'rightdue_set_aside',
   'rightdue_balances_entered',
   'rightdue_stale_snooze_until',
+  // A guest's last visit (guest-return LAST_SEEN_KEY): sign-out leaves this
+  // browser empty, and the next person must not inherit "you were here".
+  'rightdue_guest_last_seen',
 ] as const;
 /** sessionStorage keys with one person's navigation or prompts. */
 export const SESSION_PER_USER_KEYS = ['rightdue_trail', 'rightdue_debtfree_prompt_dismissed'] as const;
