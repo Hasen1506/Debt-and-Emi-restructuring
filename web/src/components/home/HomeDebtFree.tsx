@@ -217,7 +217,7 @@ export async function HomePayThisMonth() {
             shortfall: plan.shortfall,
           }),
           (v) => fc(Math.round(v)),
-        )} Pay what you can, and call the bank before the due date.`
+        )} Pay every EMI and card minimum in full first: a missed one is reported to the credit bureaus and brings late fees. Find the gap from spending, or call the bank before the due date.`
       : plan.futureShortfall
         ? `From ${monthIndexToCountryLabel(plan.futureShortfall.month, country)}, the payments need more than you earn. See the plan.`
         : undefined;

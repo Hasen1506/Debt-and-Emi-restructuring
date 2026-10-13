@@ -354,7 +354,9 @@ export function PayThisMonth({
       )}
       {alert && (
         <p style={{ margin: '0 0 12px', padding: '8px 12px', fontSize: 12, lineHeight: 1.6, ...lStrip('negative') }}>
-          {alert}
+          {alert}{' '}
+          {/* UX50 B-14: what to say to the bank, one tap away. */}
+          <LBracket href="/cant-pay">WHAT TO SAY TO THE BANK →</LBracket>
         </p>
       )}
       <p role="status" aria-live="polite" style={{ margin: 0, fontSize: 12, color: L_T.positive, minHeight: said ? 18 : 0 }}>

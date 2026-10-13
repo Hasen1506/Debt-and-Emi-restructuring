@@ -31,7 +31,8 @@ export function tenureWhatIfCopy(args: {
   } else if (extraInterest <= -1) {
     interest = short
       ? `About ${money(-extraInterest)} less interest over the plan, because the gap borrowing at card rates shrinks.`
-      : `About ${money(-extraInterest)} less interest over the plan: the ${money(Math.max(0, freed))} a month the lower EMI frees goes to your dearer loans first, in your payoff order.`;
+      : // UX50 B-26: the cost first, then the condition the saving rests on.
+        `On this loan alone, a longer tenure means more interest. Only if you put the ${money(Math.max(0, freed))} a month the lower EMI frees into your dearer loans, every month, does the whole plan come out about ${money(-extraInterest)} cheaper.`;
   } else {
     interest = 'About the same interest over the plan.';
   }
