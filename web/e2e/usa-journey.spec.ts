@@ -37,7 +37,7 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
     await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
     await page.waitForURL('**/plan');
-    await expect(page.getByText('FILING SINGLE', { exact: false })).toBeVisible();
+    await expect(page.locator('#main').getByText('FILING SINGLE', { exact: false })).toBeVisible();
     expect(await planText(page)).toMatchSnapshot('usa-plan-schedule.txt');
   });
 
@@ -70,7 +70,7 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
     await p2.clock.setFixedTime(new Date(process.env.E2E_FROZEN_NOW ?? '2026-10-07T04:30:00.000Z'));
     await signIn(p2, EMAIL);
     await p2.goto('/plan');
-    await expect(p2.getByText('FILING SINGLE', { exact: false })).toBeVisible();
+    await expect(p2.locator('#main').getByText('FILING SINGLE', { exact: false })).toBeVisible();
     const again = (await p2.getByText(/^DEBT-FREE$/).first().locator('xpath=..').innerText()).replace(/\s+/g, '');
     expect(again).toBe(debtFree);
     await fresh.close();
