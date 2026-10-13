@@ -100,3 +100,33 @@ test('the parser module never calls the network', () => {
   const src = fs.readFileSync(path.join(root, 'lib', 'sms-parser.ts'), 'utf8');
   assert.doesNotMatch(src, /\bfetch\(|XMLHttpRequest|navigator\.sendBeacon|from '\.\/api'/);
 });
+
+// UX50 C-13 / C-14: top Indian bank card-statement wordings and the EMI merchant.
+// SYNTHETIC messages in each bank's usual shape.
+test('UX50 C-13: card statement SMS in HDFC, SBI, ICICI, Axis, Kotak wording', () => {
+  const cases = [
+    ['Statement for HDFC Bank Credit Card XX9876: Total due Rs.42,310.00, Minimum due Rs.2,120.00. Due date 22-Oct-2026.', '42310', '2120', '2026-10-22', '9876'],
+    ['Dear Customer, Total Amt Due on your SBI Card ending 4321 is Rs.1,50,000.00, Min Amt Due Rs 7,500.00, due by 20-Oct-26.', '150000', '7500', '2026-10-20', '4321'],
+    ['ICICI Bank Credit Card XX1111 statement: Total Amt Due Rs.15,234; Min Amt Due Rs.762; Payable by 25/10/2026.', '15234', '762', '2026-10-25', '1111'],
+    ['Axis Bank Credit Card no. XX2222: Total Amount Due INR 8,450.00, Minimum Amount Due INR 423.00, Payment due date 18-10-2026.', '8450', '423', '2026-10-18', '2222'],
+    ['Kotak Credit Card xx3333 statement generated. Total Amount Due: Rs. 23,999.50 Min. Amount Due: Rs. 1,200.00 Pay by 21-Oct-26', '23999.5', '1200', '2026-10-21', '3333'],
+  ];
+  for (const [text, total, min, due, last4] of cases) {
+    const p = s.parseSms(text);
+    assert.equal(p.kind, 'card_statement', text);
+    assert.equal(p.total_due, total, text);
+    assert.equal(p.min_due, min, text);
+    assert.equal(p.due_date, due, text);
+    assert.equal(p.card_last4, last4, text);
+  }
+});
+
+test('UX50 C-14: an EMI debit "towards EMI" has no merchant "wards EMI", and keeps the bank', () => {
+  const p = s.parseSms('Your a/c XX1234 is debited for Rs.13,000.00 on 05-10-26 towards EMI. -HDFC Bank');
+  assert.equal(p.kind, 'emi_debit');
+  assert.equal(p.amount, '13000');
+  assert.equal(p.merchant, null);
+  assert.equal(p.bank, 'HDFC Bank');
+  const q = s.parseSms('Rs 500.00 debited from A/c XX1234 on 05-10-26 towards SWIGGY ORDER. -Sample Bank');
+  assert.equal(q.merchant, 'SWIGGY ORDER');
+});

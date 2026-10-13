@@ -109,9 +109,10 @@ export interface LoanPayload {
    *  report import (G6, lib/credit-report). Lets a pasted EMI SMS be matched
    *  to this loan (lib/sms-parser). The API ignores it. */
   account_last4?: string;
-  /** 'credit_report' when the loan was added from a credit-report import; the
-   *  form then says which figures the report didn't carry. The API ignores it. */
-  imported_from?: 'credit_report';
+  /** Where the loan's figures came from when it was imported (credit report,
+   *  KFS, or an EMI SMS); the form shows a "From your …" chip and which figures
+   *  still need checking (UX50 D-09). The API ignores it. */
+  imported_from?: 'credit_report' | 'kfs' | 'sms';
   /** The user's own name for the loan ("Dad's car loan"), optional (live
    *  test #4, sprint L3). Shown with the lender and type; the API ignores it. */
   nickname?: string;

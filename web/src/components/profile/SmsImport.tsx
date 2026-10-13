@@ -15,6 +15,7 @@
  */
 import { useMemo, useState } from 'react';
 import type { LoanPayload } from '@/lib/api';
+import { loanLabel } from '@/lib/loan-types';
 import { cardSpendByCard, matchEmiToLoan, parseSmsBatch, type ParsedSms } from '@/lib/sms-parser';
 
 const KIND_LABEL: Record<string, string> = {
@@ -35,12 +36,27 @@ function rupees(v: string | number | null): string {
   return Number.isFinite(n) ? `₹${n.toLocaleString('en-IN')}` : String(v);
 }
 
+/** A loan proposed from an EMI debit SMS for a loan not in the list yet (UX50 D-10):
+ *  the EMI and the account digits are known; the type is a guess the user can change
+ *  and the balance is left for them (or I DON'T KNOW → estimate from the EMI). */
+export function loanFromEmiSms(p: ParsedSms): Partial<LoanPayload> {
+  return {
+    loan_type: 'personal_loan',
+    bank: p.bank ?? '',
+    scheduled_emi: p.amount ?? undefined,
+    account_last4: p.account_last4 ?? undefined,
+    imported_from: 'sms',
+  } as Partial<LoanPayload>;
+}
+
 export function SmsImport({
   loans,
   onPatchLoan,
+  onAddLoan,
 }: {
   loans: LoanPayload[];
   onPatchLoan: (index: number, patch: Partial<LoanPayload>) => void;
+  onAddLoan?: (loan: Partial<LoanPayload>) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -72,8 +88,7 @@ export function SmsImport({
   }
 
   const spend = parsed ? cardSpendByCard(parsed) : {};
-  const statements = (parsed ?? []).filter((p) => p.kind === 'card_statement');
-
+  
   return (
     <section
       data-testid="sms-import"
@@ -90,13 +105,16 @@ export function SmsImport({
         or with a blank line between. They are read on this device only and never sent anywhere. OTPs and offers
         are skipped. Nothing changes until you tap it.
       </p>
-      <textarea
-        rows={6}
-        data-testid="sms-text"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Rs 3,499.00 spent on … Credit Card XX4321 on 06-Oct-26 at …"
-      />
+      <label style={{ display: 'grid', gap: 4, fontSize: 13 }}>
+        Paste SMS, one per line
+        <textarea
+          rows={6}
+          data-testid="sms-text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Rs 3,499.00 spent on … Credit Card XX4321 on 06-Oct-26 at …"
+        />
+      </label>
       <div>
         <button
           type="button"
@@ -113,21 +131,45 @@ export function SmsImport({
         <div data-testid="sms-result" style={{ display: 'grid', gap: 6, fontSize: 13 }}>
           {parsed.map((p, k) => {
             const match = p.kind === 'emi_debit' ? matchEmiToLoan(p, forMatch) : null;
+            const stIdx = p.kind === 'card_statement' ? cardIndexFor(p.card_last4) : null;
+            const key = `st-${k}`;
+            const addKey = `add-${k}`;
             return (
               <div key={k} data-testid="sms-row" style={{ borderTop: '1px solid var(--border)', paddingTop: 6 }}>
                 <strong>{KIND_LABEL[p.kind]}</strong>
-                {p.amount ? ` · ${rupees(p.amount)}` : ''}
+                {p.kind === 'card_statement' ? (
+                  <>
+                    {p.total_due ? ` · Total ${rupees(p.total_due)}` : ''}
+                    {p.min_due ? ` · Min ${rupees(p.min_due)}` : ''}
+                    {p.due_date ? ` · due ${p.due_date}` : ''}
+                  </>
+                ) : p.amount ? ` · ${rupees(p.amount)}` : ''}
                 {p.merchant ? ` · ${p.merchant}` : ''}
+                {(p.kind === 'emi_debit' || p.kind === 'emi_bounce') && p.bank ? ` · ${p.bank}` : ''}
                 {p.card_last4 ? ` · card ${p.card_last4}` : p.account_last4 ? ` · a/c ${p.account_last4}` : ''}
                 {p.date ? ` · ${p.date}` : ''}
                 {match !== null && (
-                  <div className="muted" style={{ fontSize: 12 }}>
-                    This matches the EMI on {loans[Number(match)].bank || 'your loan'}.
+                  <div className="muted" style={{ fontSize: 12 }} data-testid="sms-emi-match">
+                    Matches your {loanLabel(loans[Number(match)])}
+                    {loans[Number(match)].scheduled_emi ? ` (EMI ${rupees(loans[Number(match)].scheduled_emi ?? null)})` : ''}.
                   </div>
                 )}
                 {p.kind === 'emi_debit' && match === null && (
-                  <div className="muted" style={{ fontSize: 12 }}>
-                    It doesn&apos;t match one of your loans&apos; EMIs exactly, so nothing is linked.
+                  <div style={{ fontSize: 12, display: 'grid', gap: 4 }}>
+                    <span className="muted">It doesn&apos;t match one of your loans&apos; EMIs, so nothing is linked.</span>
+                    {onAddLoan && p.amount && (
+                      <button
+                        type="button"
+                        className="btn-ghost"
+                        data-testid="sms-add-loan"
+                        disabled={done.includes(addKey)}
+                        onClick={() => { onAddLoan(loanFromEmiSms(p)); setDone([...done, addKey]); }}
+                      >
+                        {done.includes(addKey)
+                          ? 'Added below. Check its type and balance, then save.'
+                          : `Add this as a loan: ${p.bank ? `${p.bank} · ` : ''}EMI ${rupees(p.amount)}${p.account_last4 ? ` · a/c XX${p.account_last4}` : ''}`}
+                      </button>
+                    )}
                   </div>
                 )}
                 {p.kind === 'emi_bounce' && (
@@ -136,33 +178,30 @@ export function SmsImport({
                     soon as you can and ask the lender to waive the charge.
                   </div>
                 )}
+                {stIdx !== null && (p.total_due || p.min_due) && (
+                  <div style={{ marginTop: 4 }}>
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      data-testid="sms-apply-statement"
+                      disabled={done.includes(key)}
+                      onClick={() => {
+                        onPatchLoan(stIdx, {
+                          ...(p.total_due ? { outstanding: p.total_due } : {}),
+                          ...(p.min_due ? { min_payment_override: p.min_due } : {}),
+                        });
+                        setDone([...done, key]);
+                      }}
+                    >
+                      {done.includes(key)
+                        ? 'Updated ✓. Save the profile to keep it.'
+                        : p.total_due
+                          ? `Update ${loanLabel(loans[stIdx])}: ${rupees(p.total_due)} owed${p.min_due ? `, minimum ${rupees(p.min_due)}` : ''}`
+                          : `Use ${rupees(p.min_due)} as ${loanLabel(loans[stIdx])}'s minimum`}
+                    </button>
+                  </div>
+                )}
               </div>
-            );
-          })}
-
-          {statements.map((p, k) => {
-            const idx = cardIndexFor(p.card_last4);
-            const key = `st-${k}`;
-            if (idx === null || !p.total_due) return null;
-            return (
-              <button
-                key={key}
-                type="button"
-                className="btn-ghost"
-                data-testid="sms-apply-statement"
-                disabled={done.includes(key)}
-                onClick={() => {
-                  onPatchLoan(idx, {
-                    outstanding: p.total_due ?? undefined,
-                    ...(p.min_due ? { min_payment_override: p.min_due } : {}),
-                  });
-                  setDone([...done, key]);
-                }}
-              >
-                {done.includes(key)
-                  ? 'Updated'
-                  : `Set ${loans[idx].bank || 'card'} to ${rupees(p.total_due)} owed${p.min_due ? `, minimum ${rupees(p.min_due)}` : ''}`}
-              </button>
             );
           })}
 
@@ -183,8 +222,8 @@ export function SmsImport({
                 }}
               >
                 {done.includes(key)
-                  ? 'Updated'
-                  : `Use ${rupees(total)} as ${loans[idx].bank || 'this card'}'s monthly spend (only if these SMS cover one month)`}
+                  ? 'Updated ✓. Save the profile to keep it.'
+                  : `Use ${rupees(total)} as ${loanLabel(loans[idx])}'s monthly spend (only if these SMS cover one month)`}
               </button>
             );
           })}

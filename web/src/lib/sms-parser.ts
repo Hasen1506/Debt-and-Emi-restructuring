@@ -125,6 +125,17 @@ function amountAfter(label: string, s: string): string | null {
   return m ? money(m[1]) : null;
 }
 
+/** The first rupee amount (with its Rs/INR/₹ marker) within ~60 characters of a
+ *  label, so "Total Amt Due on your SBI Card ending 4321 is Rs.1,50,000" skips the
+ *  card digits (UX50 C-13). */
+function amountNear(label: string, s: string): string | null {
+  const m = s.match(new RegExp(label + String.raw`[^₹]{0,60}?` + AMT, 'i'));
+  return m ? money(m[1]) : null;
+}
+
+const STATEMENT_RE = /total\s*(?:amt\.?|amount)?\s*due|min(?:imum)?\.?\s*(?:amt\.?|amount)?\s*due/i;
+const DUE_RE = /(?:payable by|pay by|payment due(?: date)?|due (?:by|on|date)|due date)\s*[:\-]?\s*(?:on\s*)?([0-9A-Za-z\-/ ,]{5,14})/gi;
+
 function cleanMerchant(raw: string | null): string | null {
   if (!raw) return null;
   const v = raw.replace(/\s+/g, ' ').trim().replace(/[.,;:-]+$/, '');
@@ -146,7 +157,7 @@ export function parseSms(text: string): ParsedSms {
   }
   const moved = /\b(debited|credited|spent|paid|withdrawn|sent|deducted|received|deposited|transferred|purchase|txn|transaction)\b/i.test(t);
   if (!moved && /\b(pre-?approved|offer|apply now|eligible for|loan of up to|limit increase|click)\b/i.test(t)
-      && !/total (?:amt|amount) due|min(?:imum)? (?:amt|amount)? ?due/i.test(t)) {
+      && !STATEMENT_RE.test(t)) {
     out.kind = 'promo';
     return out;
   }
@@ -159,12 +170,16 @@ export function parseSms(text: string): ParsedSms {
   out.ref = after(/(?:upi\s*ref(?:\s*no)?|ref(?:erence)?\s*(?:no|number)?|txn\s*id|utr)\s*[:.#]?\s*([A-Za-z0-9]{6,22})/i, t);
 
   // Card statement SMS.
-  if (/total (?:amt|amount) due|min(?:imum)?\.? (?:amt|amount)? ?due/i.test(t)) {
+  if (STATEMENT_RE.test(t)) {
     out.kind = 'card_statement';
-    out.total_due = amountAfter(String.raw`total (?:amt|amount) due`, t);
-    out.min_due = amountAfter(String.raw`min(?:imum)?\.? (?:amt|amount)? ?due`, t);
-    const due = t.match(/(?:due (?:by|on|date)|pay by|payment due)\s*[:\-]?\s*([0-9A-Za-z\-/ ,]{5,14})/i);
-    out.due_date = due ? findDate(due[1]) : null;
+    out.total_due = amountNear(String.raw`total\s*(?:amt\.?|amount)?\s*due`, t);
+    out.min_due = amountNear(String.raw`min(?:imum)?\.?\s*(?:amt\.?|amount)?\s*due`, t);
+    // "Total Amt Due on your SBI Card…" isn't a date: take the first due phrase that holds one.
+    out.due_date = null;
+    for (const due of t.matchAll(DUE_RE)) {
+      const d = findDate(due[1]);
+      if (d) { out.due_date = d; break; }
+    }
     out.amount = out.total_due;
     return out;
   }
@@ -188,8 +203,11 @@ export function parseSms(text: string): ParsedSms {
     out.kind = t.search(/debited|spent|paid|sent/i) < t.search(/credited|received/i) ? 'debit' : 'credit';
   }
 
-  const m = t.match(/\b(?:at|to|towards|for|info[:\s])\s*([A-Za-z0-9][A-Za-z0-9 &.'@\-_*/]{1,40}?)(?=\s+(?:on|via|ref|upi|avl|avail|txn|\(|from)\b|[.;]\s|\s*$)/i);
+  // Longest word first with a word boundary, so "towards EMI" isn't read as "to" + "wards EMI" (UX50 C-14).
+  const m = t.match(/(?:\b(?:towards|at|to|for)\b|\binfo[:\s])\s*([A-Za-z0-9][A-Za-z0-9 &.'@\-_*/]{1,40}?)(?=\s+(?:on|via|ref|upi|avl|avail|txn|\(|from)\b|[.;]\s|\s*$)/i);
   out.merchant = cleanMerchant(m ? m[1] : null);
+  // An EMI debit has a lender, not a merchant: the row shows the bank from the SMS signature.
+  if (out.kind === 'emi_debit' || out.kind === 'emi_bounce') out.merchant = null;
   if (out.kind === 'credit') out.merchant = cleanMerchant(after(/\bfrom\s+([A-Za-z0-9][A-Za-z0-9 &.'@\-_]{1,40}?)(?=\s+(?:on|via|ref|upi|avl)\b|[.;]\s|\s*$)/i, t)) ?? out.merchant;
   return out;
 }
