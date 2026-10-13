@@ -4,9 +4,9 @@
 import { LChip as Chip, LChipRow as ChipRow, L_T } from '@/components/ledger/primitives';
 import { Term } from '@/components/Term';
 import { CHOICE_ERROR, EF_MONTH_CHOICES, EF_SPLIT_CHOICES, missingChoices, type SetupChoices as Choices } from '@/lib/setup-choices';
-import { STRATEGY_PLAIN, STRATEGY_LABEL, type StrategyName } from '@/lib/strategy';
+import { STRATEGIES, STRATEGY_PLAIN, STRATEGY_LABEL, type StrategyName } from '@/lib/strategy';
 
-const ORDER: StrategyName[] = ['avalanche', 'snowball', 'rules'];
+const ORDER: StrategyName[] = STRATEGIES;
 
 export function SetupChoices({
   value,

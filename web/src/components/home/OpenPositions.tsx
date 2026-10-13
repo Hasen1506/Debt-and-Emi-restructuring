@@ -88,7 +88,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
             ),
             gaps.includes('emi') ? (
               missing('EMI')
-            ) : d.required.gt(0) ? (
+            ) : d.required.gt(0) && !(status && status !== 'paid') ? (
               `${isCard ? 'MINIMUM' : 'EMI'} ${fc(d.required.toFixed(0))}`
             ) : null,
             // Once this month's EMI is paid it's no longer one of the months left.
@@ -144,20 +144,24 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                     {convertedBalanceLine(formatCurrencyWhole(m.toUserCcy(owed, loan).toFixed(0), userCcy))}
                   </div>
                 )}
-                {status && (
-                  <div
-                    style={{
-                      fontSize: 10,
-                      letterSpacing: '0.08em',
-                      color: status === 'paid' ? L_T.positive : status === 'due' ? L_T.muted : L_T.negative,
-                    }}
-                  >
-                    {emiStatusLine(status, mon, nextMon, isCard ? 'MINIMUM' : 'EMI', !gaps.includes('emi') && d.required.gt(0) ? fc(d.required.toFixed(0)) : null)}
-                  </div>
-                )}
               </div>
+              {status && (
+                // UX50 B-06: the EMI status gets its own full-width line under
+                // the loan, so the details beside the balance don't wrap into
+                // a narrow column on a phone.
+                <div
+                  style={{
+                    gridColumn: '2 / -1',
+                    fontSize: 10,
+                    letterSpacing: '0.08em',
+                    color: status === 'paid' ? L_T.positive : status === 'due' ? L_T.muted : L_T.negative,
+                  }}
+                >
+                  {emiStatusLine(status, mon, nextMon, isCard ? 'MINIMUM' : 'EMI', !gaps.includes('emi') && d.required.gt(0) ? fc(d.required.toFixed(0)) : null)}
+                </div>
+              )}
               <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                {!gaps.includes('rate') && (
+                {!gaps.includes('rate') && d.effective.gt(0) && (
                   <LBracket onClick={() => setOpen(isOpen ? null : i)} label={`${isOpen ? 'Hide' : 'Show'} what the ${name} costs a year, line by line`}>
                     {isOpen ? 'HIDE' : `WHY ${fmtPct(d.effective)}? ↓`}
                   </LBracket>

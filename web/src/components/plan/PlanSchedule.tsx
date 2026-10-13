@@ -52,9 +52,6 @@ function csvCell(v: string | number): string {
   return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 }
 
-/** A spreadsheet-safe column name: "pay_2_credit_card_hdfc_bank_inr". The
- *  position keeps two unnamed loans (or two from one bank) apart. */
-
 /** Every month of the schedule as a CSV file (the table may be collapsed).
  *  Each loan's column is in that loan's currency; the totals are in the
  *  user's, and every header says which. */

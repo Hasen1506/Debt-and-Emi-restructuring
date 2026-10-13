@@ -15,7 +15,8 @@
 
 export type StrategyName = 'avalanche' | 'rules' | 'snowball';
 
-export const STRATEGIES: StrategyName[] = ['avalanche', 'rules', 'snowball'];
+// UX50 B-08: one order everywhere (Setup, Profile, the switcher): cheapest, smallest, yours.
+export const STRATEGIES: StrategyName[] = ['avalanche', 'snowball', 'rules'];
 export const DEFAULT_STRATEGY: StrategyName = 'avalanche';
 const COOKIE_NAME = 'rightdue_strategy';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
