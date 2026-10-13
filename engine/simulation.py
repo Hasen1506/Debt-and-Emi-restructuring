@@ -429,8 +429,16 @@ def _simulate_plan(
     expense_delta_from_month: int = 1,
     income_shock_months: int = 0,
     gap_as_debt: bool = True,
+    stop_owed_multiple: Decimal | None = None,
 ) -> SimulationResult:
-    """Run the plan forward `horizon_months`. Returns one MonthRow per month
+    """Run the plan forward `horizon_months`.
+
+    `stop_owed_multiple` (default None: off, every caller before NEW-19
+    unchanged) ends the run early once what's owed (loans in the user's
+    currency plus gap borrowing) passes that multiple of month 1's. Such a
+    plan never clears; the API cuts its trajectory at 100x anyway, so
+    running the rest of a 1,200-month horizon only burnt CPU (live re-test
+    3 NEW-19). The months kept are identical to a full run's. Returns one MonthRow per month
     until either all loans clear or horizon is reached.
 
     Loans in `user.loans` are deep-copied — the caller's data is not mutated.
@@ -1274,6 +1282,12 @@ def _simulate_plan(
         if m >= last_arrival and all(l.outstanding == 0 for l in loans) and gap_debt <= 0:
             debt_free_month = m
             break
+        if stop_owed_multiple is not None:
+            owed_now = balance_user_ccy + gap_debt
+            if m == 1:
+                stop_cap = stop_owed_multiple * max(owed_now, D("1"))
+            elif owed_now > stop_cap:
+                break
 
     return SimulationResult(
         months=months,
@@ -1295,6 +1309,7 @@ def baseline_minimums_only(
     simple_mode: bool = False,
     lifecycle_events: list[LifecycleEvent] | None = None,
     gap_as_debt: bool = True,
+    stop_owed_multiple: Decimal | None = None,
 ) -> SimulationResult:
     """Counterfactual: pay only minimums (no extra), no Layer 3 redirection.
     Used to compute `savings_vs_minimums` for the Plan screen.
@@ -1311,6 +1326,7 @@ def baseline_minimums_only(
         lifecycle_events=lifecycle_events,
         minimums_only=True,
         gap_as_debt=gap_as_debt,
+        stop_owed_multiple=stop_owed_multiple,
     )
 
 

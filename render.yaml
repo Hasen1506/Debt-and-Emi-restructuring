@@ -5,8 +5,9 @@
 #   browser ─▶ Cloudflare (rightdue.app) ─▶ Render ─▶ Next.js :$PORT
 #                                                      └─▶ FastAPI 127.0.0.1:8000
 #
-# Next.js serves the pages, /api/session/* and /api/holdings/quote; every other
-# /api/* path (including /api/health) is proxied to FastAPI inside the
+# Next.js serves the pages, /api/session/*, /api/holdings/quote and
+# /api/healthz (the health check); every other /api/* path (including
+# /api/health) is proxied to FastAPI inside the
 # container (web/next.config.mjs). The browser only ever talks to one origin,
 # so CORS_ORIGINS and NEXT_PUBLIC_API_BASE_URL are no longer needed.
 #
@@ -27,7 +28,13 @@ services:
     plan: free                     # $0/mo, 512 MB, sleeps after 15 min idle. `starter` for always-on.
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    healthCheckPath: /api/health   # Goes through Next.js to FastAPI, so it covers both.
+    # Live re-test 3 NEW-19: answered by Next.js itself (web/src/app/api/
+    # healthz/route.ts, prerendered), not proxied to FastAPI. Through the
+    # proxy, a busy API on 0.15 CPU made the 5 s check time out and Render
+    # returned 502s. If FastAPI dies, deploy/start.sh exits the container,
+    # so this still catches a dead API. Changing it needs a Blueprint sync
+    # (or the same value under Settings > Health Check Path).
+    healthCheckPath: /api/healthz
     envVars:
       # ── Secrets: copy these from the old finoptima-api service ──────────
       - key: DATABASE_URL
