@@ -108,31 +108,45 @@ export function gapRateWords(rate: number): string {
  * below shows); `ifClosed` is the date with the gap closed. Both are named,
  * so the headline and the table tell one story.
  */
-export function shortHeadline(args: {
+export function shortHeadline(args: ShortStoryArgs): { value: string; sub: string } {
+  const { shortfall, asIsMonth, closedMonth, label } = args;
+  const line = shortGapLine(args);
+  if (line && shortfall > 0) {
+    return { value: closedMonth ? label(closedMonth) : 'NO DATE YET', sub: line.toUpperCase() };
+  }
+  // Only a later month is short: the engine's date already borrows for it.
+  return { value: asIsMonth ? label(asIsMonth) : 'NO DATE YET', sub: 'A LATER MONTH IS SHORT · GAP BORROWED' };
+}
+
+export interface ShortStoryArgs {
   shortfall: number;
   asIsMonth: number | null;
   closedMonth: number | null | undefined;
   label: (m: number) => string;
   money: (v: number) => string;
-}): { value: string; sub: string } {
+}
+
+/** Live re-test 7 R7-2: the words for "no date as things stand", one
+ *  phrase for Setup, Plan and Home (the plan looks 30 years ahead). */
+export const AS_IS_NEVER = 'not in 30 years';
+
+/**
+ * Live test #16 / answers L2 #16, the founder rule, in ONE place
+ * (live re-test 7 R7-2: Setup said "not in sight", Plan "NOT IN 30 YEARS"
+ * and Home left the as-is date out). Short this month:
+ *   "if the ₹X/mo gap closes · as things stand: <date>"
+ * and with no gap-closed date either:
+ *   "short ₹X/mo · as things stand: <date>"
+ * Sentence case; Plan and Home set it in capitals. Null when not short.
+ */
+export function shortGapLine(args: ShortStoryArgs): string | null {
   const { shortfall, asIsMonth, closedMonth, label, money } = args;
-  const asIs = asIsMonth ? label(asIsMonth) : 'NOT IN 30 YEARS';
-  if (shortfall > 0 && closedMonth) {
-    return {
-      value: label(closedMonth),
-      sub: `IF THE ${money(shortfall)}/MO GAP CLOSES · AS THINGS STAND: ${asIs}`,
-    };
-  }
-  if (shortfall > 0) {
-    // Live re-test L#16: the gap-closed run has no date either (later
-    // months fall short again), so say so instead of half a template.
-    return {
-      value: 'NO DATE YET',
-      sub: `SHORT ${money(shortfall)}/MO · AS THINGS STAND: ${asIs}${asIsMonth ? '' : ' · NO DATE EVEN IF THIS MONTH’S GAP CLOSES'}`,
-    };
-  }
-  // Only a later month is short: the engine's date already borrows for it.
-  return { value: asIsMonth ? label(asIsMonth) : 'NO DATE YET', sub: 'A LATER MONTH IS SHORT · GAP BORROWED' };
+  if (!(shortfall > 0)) return null;
+  const asIs = asIsMonth ? label(asIsMonth) : AS_IS_NEVER;
+  if (closedMonth) return `if the ${money(shortfall)}/mo gap closes · as things stand: ${asIs}`;
+  // Live re-test L#16: the gap-closed run has no date either (later
+  // months fall short again), so say so instead of half a template.
+  return `short ${money(shortfall)}/mo · as things stand: ${asIs}${asIsMonth ? '' : ' · no date even if this month’s gap closes'}`;
 }
 
 /**

@@ -9,6 +9,7 @@
  */
 import { useCallback, useState } from 'react';
 import { ApiFieldError } from '@/lib/api';
+import { fractionAsPercent, isFractionRateField } from '@/lib/r7-inputs';
 
 export interface FormError {
   field: string;
@@ -27,6 +28,18 @@ const PLAIN: [RegExp, (m: RegExpMatchArray) => string][] = [
 /** The server's message without its "field: " prefix, in plain words. */
 export function plainMessage(field: string, message: string): string {
   const bare = field && message.startsWith(`${field}: `) ? message.slice(field.length + 2) : message;
+  // Live re-test 7 R7-5: a rate field is sent as a fraction (0.12 for 12%),
+  // so the API's bound ("less than or equal to 10") is in those units. Say
+  // it in the percent the person typed: "Must be 1000% or less.", never
+  // "Must be 10 or less." on a % box.
+  if (isFractionRateField(field)) {
+    const b = bare.match(/^Input should be (greater|less) than( or equal to)? (-?[\d.]+)$/);
+    if (b) {
+      const pct = fractionAsPercent(b[3]);
+      if (b[2]) return b[1] === 'greater' ? `Must be ${pct} or more.` : `Must be ${pct} or less.`;
+      return b[1] === 'greater' ? `Must be more than ${pct}.` : `Must be less than ${pct}.`;
+    }
+  }
   for (const [re, say] of PLAIN) {
     const m = bare.match(re);
     if (m) return say(m);

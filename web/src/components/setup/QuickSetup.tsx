@@ -59,7 +59,8 @@ import { HYDRATED_EVENT, flushPendingState, signedInAccount } from '@/lib/server
 import { ONBOARDING_DONE_HREF } from '@/lib/onboarding-save';
 import { LAST_SEEN_KEY } from '@/lib/guest-return';
 import { formatAsOfDate } from '@/lib/loan-gaps';
-import { saneCap } from '@/lib/plan-gap';
+import { saneCap, shortGapLine } from '@/lib/plan-gap';
+import { loanKindsFor, paymentWords } from '@/lib/r7-inputs';
 import { formatTaxRate } from '@/lib/tax-profile';
 import { checkSpend, parseDraft, serializeDraft, SETUP_DRAFT_KEY, SPEND_COPY, stepFromParam, urlWithStep } from '@/lib/setup-draft';
 import { dateProfileRates } from '@/lib/fx-refresh';
@@ -781,7 +782,7 @@ export function QuickSetup() {
                   />
                 )}
                 <Field
-                  label="Spending a month, without EMIs"
+                  label={`Spending a month, without ${paymentWords(country).many}`}
                   kind="money"
                   currency={userCcy}
                   value={spend}
@@ -799,7 +800,7 @@ export function QuickSetup() {
               </div>
               {leftBeforeEmis && (
                 <MoneyLine
-                  label="Left each month, before EMIs"
+                  label={`Left each month, before ${paymentWords(country).many}`}
                   value={money(leftBeforeEmis)}
                   tone={leftBeforeEmis.lt(0) ? 'negative' : 'ink'}
                 />
@@ -812,7 +813,7 @@ export function QuickSetup() {
                   data-testid="spend-over-income"
                   style={{ margin: 0, padding: '10px 12px', border: `1px solid ${L_T.negative}`, color: L_T.negative, fontSize: 13, lineHeight: 1.55 }}
                 >
-                  You spend {money(leftBeforeEmis.neg())} a month more than you take home, before any EMI. Check both
+                  You spend {money(leftBeforeEmis.neg())} a month more than you take home, before any {paymentWords(country).one}. Check both
                   numbers. If they&apos;re right, the plan can&apos;t give a payoff date: it borrows the gap on a card
                   until spending or income changes.
                 </p>
@@ -925,10 +926,10 @@ export function QuickSetup() {
 
               {emisInUserCcy && leftBeforeEmis && activeLoans.some((l) => needsEmi(l.loan_type)) && (
                 <MoneyLine
-                  label="Left each month, after EMIs"
+                  label={`Left each month, after ${paymentWords(country).many}`}
                   value={money(leftBeforeEmis.sub(emisInUserCcy))}
                   tone={leftBeforeEmis.sub(emisInUserCcy).lt(0) ? 'negative' : 'ink'}
-                  note={`${money(leftBeforeEmis)} − ${money(emisInUserCcy)} in EMIs${
+                  note={`${money(leftBeforeEmis)} − ${money(emisInUserCcy)} in ${paymentWords(country).many}${
                     activeLoans.some((l) => l.loan_type === 'credit_card') ? '; card minimums come out of this' : ''
                   }`}
                 />
@@ -1156,7 +1157,8 @@ function LoanBlock({
         <LBracket onClick={onRemove}>REMOVE</LBracket>
       </div>
       <ChipRow label="Kind of loan">
-        {TYPE_CHIPS.map(([t, label]) => (
+        {/* R7-7: no gold loans on a US borrower's dollar loan (an Indian product). */}
+        {loanKindsFor(TYPE_CHIPS, ccy === 'INR' ? 'IN' : country, loan.loan_type).map(([t, label]) => (
           <Chip key={t} on={loan.loan_type === t} onClick={() => onPatch({ loan_type: t })}>
             {label}
           </Chip>
@@ -1206,7 +1208,7 @@ function LoanBlock({
         />
         {!card && !ui.byMonths && (
           <Field
-            label="EMI a month"
+            label={paymentWords(country).field}
             findIt={find('emi')}
             kind="money"
             currency={ccy}
@@ -1231,7 +1233,7 @@ function LoanBlock({
             kind="integer"
             value={ui.months}
             onChange={(v) => onUi({ months: v })}
-            hint={computedEmi ? `EMI works out to ${formatCurrencyWhole(computedEmi, ccy)} a month` : 'We work out the EMI'}
+            hint={computedEmi ? `${paymentWords(country).field.replace(/ a month$/, '')} works out to ${formatCurrencyWhole(computedEmi, ccy)} a month` : `We work out the ${paymentWords(country).one}`}
             error={issues.months}
           />
         )}
@@ -1243,6 +1245,7 @@ function LoanBlock({
           value={emiAnswer(loan, thisMonth)}
           onChange={(a) => onPatch(emiAnswerPatch(a, thisMonth))}
           error={issues.paid}
+          word={paymentWords(country).one}
         />
       )}
       <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
@@ -1268,7 +1271,7 @@ function LoanBlock({
               onUi({ byMonths: !ui.byMonths, months: ui.months || (loan.tenure_months_remaining > 0 ? String(loan.tenure_months_remaining) : '') });
             }}
           >
-            {ui.byMonths ? 'I KNOW THE EMI INSTEAD' : 'I KNOW THE MONTHS LEFT INSTEAD'}
+            {ui.byMonths ? `I KNOW THE ${paymentWords(country).upper} INSTEAD` : 'I KNOW THE MONTHS LEFT INSTEAD'}
           </LBracket>
         )}
         <button
@@ -1283,11 +1286,11 @@ function LoanBlock({
       {!card && ui.estOpen && (
         <div role="group" aria-label="Work out the balance" style={{ ...grid2, padding: '10px 12px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}` }}>
           <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12, color: L_T.inkSoft }}>
-            From what you borrowed, when it started and its term, at the rate above. It assumes every EMI was paid on time
+            From what you borrowed, when it started and its term, at the rate above. It assumes every {paymentWords(country).one} was paid on time
             and nothing extra: an estimate, marked as one, until you enter the real balance.
           </p>
           <Field label="Amount borrowed" kind="money" currency={ccy} value={ui.estAmount ?? ''} onChange={(v) => onUi({ estAmount: v })} />
-          <Field label="First EMI (year-month)" kind="text" placeholder="2022-04" value={ui.estStart ?? ''} onChange={(v) => onUi({ estStart: v })} />
+          <Field label={`${paymentWords(country).first} (year-month)`} kind="text" placeholder="2022-04" value={ui.estStart ?? ''} onChange={(v) => onUi({ estStart: v })} />
           <Field label="Term when you took it, months" kind="integer" value={ui.estTerm ?? ''} onChange={(v) => onUi({ estTerm: v })} />
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <LBracket
@@ -1298,7 +1301,7 @@ function LoanBlock({
                 const term = Number(ui.estTerm);
                 const bal = rate && paid != null && term > 0 ? estimateBalance(ui.estAmount ?? '', rate, term, paid) : null;
                 if (!bal || !(Number(rate) > 0)) {
-                  onUi({ estError: 'Enter the amount, the month of the first EMI (like 2022-04), the term in months, and the rate above (or tap I DON’T KNOW THE RATE).' });
+                  onUi({ estError: `Enter the amount, the month of the ${paymentWords(country).first.replace(/^First/, 'first')} (like 2022-04), the term in months, and the rate above (or tap I DON’T KNOW THE RATE).` });
                   return;
                 }
                 let next = withEstimate(loan, 'balance', true);
@@ -1450,14 +1453,18 @@ function PlanPreview({
   // "years sooner" while there's no date to measure from (Plan says the same).
   const short = shortfall.gt(0);
   const closedMonth = plan.gap_closed?.debt_free_month ?? null;
-  const asIs = plan.debt_free_month != null ? monthIndexToCountryLabel(plan.debt_free_month, country) : 'not in sight';
+  // Live re-test 7 R7-2: the words come from the one helper Plan and Home use.
   const debtFreeRow: [string, ReactNode, string?] = short
     ? [
         'Debt-free',
         closedMonth ? monthIndexToCountryLabel(closedMonth, country) : 'No date yet',
-        closedMonth
-          ? `if the ${money(shortfall)}/mo gap closes · as things stand: ${asIs}`
-          : `short ${money(shortfall)}/mo · as things stand: ${asIs}`,
+        shortGapLine({
+          shortfall: shortfall.toNumber(),
+          asIsMonth: plan.debt_free_month ?? null,
+          closedMonth,
+          label: (m) => monthIndexToCountryLabel(m, country),
+          money: (v) => money(new Decimal(v)),
+        }) ?? '',
       ]
     : [
         'Debt-free',
@@ -1522,13 +1529,13 @@ function PlanPreview({
         <div style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
         {move && moveLoan ? (
           <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-            Pay every EMI and card minimum, then put{' '}
+            Pay every {paymentWords(country).one} and card minimum, then put{' '}
             <strong>{money(move.extra, loanCurrency(moveLoan, country))}</strong> extra on your{' '}
             <strong>{moveLoan.bank ? `${moveLoan.bank} ` : ''}{LOAN_TYPE_NAME[moveLoan.loan_type]}</strong>.
           </div>
         ) : (
           <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-            Pay every EMI and card minimum. Nothing is left over for extra payments this month.
+            Pay every {paymentWords(country).one} and card minimum. Nothing is left over for extra payments this month.
           </div>
         )}
       </div>

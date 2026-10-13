@@ -16,6 +16,7 @@ export function EmiPaidQuestion({
   value,
   onChange,
   error,
+  word = 'EMI',
 }: {
   /** This month, e.g. "October". */
   monthName: string;
@@ -24,18 +25,21 @@ export function EmiPaidQuestion({
   value: EmiAnswer | undefined;
   onChange: (answer: EmiAnswer) => void;
   error?: string | null;
+  /** Live re-test 7 R7-7: "EMI" in India, "monthly payment" in the US. */
+  word?: string;
 }) {
+  const many = word === 'EMI' ? 'EMIs' : `${word}s`;
   const note =
     value === 'paid'
-      ? `The balance should be what your loan app shows now, after it. Home shows ${monthName}'s EMI as paid.`
+      ? `The balance should be what your loan app shows now, after it. Home shows ${monthName}'s ${word} as paid.`
       : value === 'due'
-        ? `Home lists ${monthName}'s EMI to pay, and the plan takes it off this balance.`
+        ? `Home lists ${monthName}'s ${word} to pay, and the plan takes it off this balance.`
         : value === 'first'
-          ? `A loan just taken: nothing to pay in ${monthName}. The plan starts its EMIs in ${nextMonthName}.`
+          ? `A loan just taken: nothing to pay in ${monthName}. The plan starts its ${many} in ${nextMonthName}.`
           : 'So the plan counts it once: not twice, not skipped.';
   return (
     <div>
-      <LChipRow label={`Has ${monthName}'s EMI gone out?`}>
+      <LChipRow label={`Has ${monthName}'s ${word} gone out?`}>
         <LChip on={value === 'paid'} onClick={() => onChange('paid')}>
           PAID ALREADY
         </LChip>
@@ -43,7 +47,7 @@ export function EmiPaidQuestion({
           NOT YET
         </LChip>
         <LChip on={value === 'first'} onClick={() => onChange('first')}>
-          NEW LOAN · FIRST EMI IN {nextMonthName.slice(0, 3).toUpperCase()}
+          NEW LOAN · FIRST {word.toUpperCase()} IN {nextMonthName.slice(0, 3).toUpperCase()}
         </LChip>
       </LChipRow>
       <p

@@ -18,6 +18,7 @@ import {
 import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
 import { loadProfileClient } from '@/lib/user-store';
 import { useFormErrors } from '@/lib/form-errors';
+import { rateOutOfRange } from '@/lib/loan-gaps';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { loanCurrency, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import { SAFE_RATES, formatAsOf } from '@/lib/invest-vs-prepay';
@@ -279,6 +280,12 @@ export function LiquidateTool() {
       failField(missing[0], missing[2]);
       return;
     }
+    // R7-5: the same 0–100% a year as the field shows while typing.
+    const rateErr = rateOutOfRange(debtRate);
+    if (rateErr) {
+      failField('debtRate', rateErr);
+      return;
+    }
     if (saleMode === 'partial' && (![qty,totalQty,unitPrice].every(v => Number.isFinite(Number(v)) && Number(v)>0) || Number(qty)>Number(totalQty))) {
       failField('qty','Sell more than 0 and no more than you own, at a price above 0.'); return;
     }
@@ -536,7 +543,9 @@ export function LiquidateTool() {
                 kind="percent"
                 value={debtRate}
                 onChange={setDebtRate}
-                error={at('debtRate')}
+                // R7-5: checked as it's typed (0 to 100% a year, as Loan Check),
+                // so an absurd rate never reaches the API's fraction bound.
+                error={at('debtRate') ?? rateOutOfRange(debtRate)}
                 hint="After any tax break on it"
               />
               <Field

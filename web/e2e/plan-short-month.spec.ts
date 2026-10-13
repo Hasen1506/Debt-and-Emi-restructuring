@@ -38,6 +38,8 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
     // #15: nothing extra goes to a loan in a month that is short.
     for (const p of sim.trajectory) if (Number(p.shortfall) > 0) expect(Number(p.extra_paid)).toBe(0);
     await expect(page.getByText(/borrows it on a card at card rates/)).toBeVisible();
+    // R7-2: Setup's headline uses the same helper and words as Plan and Home.
+    await expect(page.getByText(/^if the ₹34,515\/mo gap closes · as things stand: (?:[A-Z][a-z]{2} \d{4}|not in 30 years)$/).first()).toBeVisible();
   });
 
   await test.step('Plan: both dates named, due beside what the month covers', async () => {
@@ -80,6 +82,8 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
     // Home streams its figures the same way: read them in #main.
     const main = page.locator('#main');
     await expect(main.getByText(/Due this month: ₹74,515 in EMIs and minimums\. After your costs you have ₹40,000 for them, so you're ₹34,515 short\./)).toBeVisible();
-    await expect(main.getByText(/GAP CLOSES · PLAN →/)).toBeVisible();
+    // Live re-test 7 R7-2 (golden updated on purpose): Home now names the
+    // as-is date too, in the same words as Plan and Setup (answers L2 #16).
+    await expect(main.getByText(/IF THE ₹34,515\/MO GAP CLOSES · AS THINGS STAND: (?:[A-Z]{3} \d{4}|NOT IN 30 YEARS) · PLAN →/)).toBeVisible();
   });
 });

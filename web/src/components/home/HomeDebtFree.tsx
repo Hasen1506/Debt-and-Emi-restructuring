@@ -3,7 +3,7 @@
  * run /plan shows, so the two can't disagree. Streamed in (the page wraps these in <Suspense>), so
  * the rest of home paints without waiting on the engine.
  */
-import { dueVsAffordable, dueVsAffordableLine } from '@/lib/plan-gap';
+import { dueVsAffordable, dueVsAffordableLine, shortGapLine } from '@/lib/plan-gap';
 import { userMarginalCosts, whyFirst } from '@/lib/marginal-cost';
 import { cache } from 'react';
 import Link from 'next/link';
@@ -48,9 +48,17 @@ export async function HomeDebtFreeCaption() {
   if (plan.shortfall > 0) {
     return (
       <Link href="/plan" className="l-hit">
-        {plan.gap?.closed?.debtFreeMonth ? 'IF THE ' : 'SHORT '}
-        {formatCurrencyWhole(Math.round(plan.shortfall), userDefaultCurrency(plan.user.country))}/MO
-        {plan.gap?.closed?.debtFreeMonth ? ' GAP CLOSES' : ''} · PLAN →
+        {/* Live re-test 7 R7-2: Plan's and Setup's words, as-is date included. */}
+        {(
+          shortGapLine({
+            shortfall: plan.shortfall,
+            asIsMonth: plan.debtFreeMonth,
+            closedMonth: plan.gap?.closed?.debtFreeMonth,
+            label: (m) => monthIndexToCountryLabel(m, plan.user.country),
+            money: (v) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country)),
+          }) ?? ''
+        ).toUpperCase()}{' '}
+        · PLAN →
       </Link>
     );
   }

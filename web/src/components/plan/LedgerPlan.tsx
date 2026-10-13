@@ -227,7 +227,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           ]}
         />
         {/* A four-screen page: one tap to the part you came for */}
-        <nav aria-label="On this page" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 11, alignItems: 'center' }}>
+        <nav aria-label="On this page" data-print="hide" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 11, alignItems: 'center' }}>
           <span style={{ color: L_T.muted, letterSpacing: '0.1em' }}>JUMP TO</span>
           {/* In page order */}
           <LBracket href="#schedule">MONTH BY MONTH</LBracket>
@@ -277,7 +277,11 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           </div>
         )}
         <PlanTrajectory plan={shownPlan} short={short} />
-        {!short && <DebtFreeRedirectPrompt plan={plan} />}
+        {!short && (
+          <div data-print="hide">
+            <DebtFreeRedirectPrompt plan={plan} />
+          </div>
+        )}
 
         {/* Month by month, collapsed to the months something happens;
             the next rate reset below */}
@@ -306,7 +310,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         )}
 
         {/* What if: real engine runs against this plan, nothing saved until asked */}
-        <section id="what-if" style={{ scrollMarginTop: 16 }}>
+        <section id="what-if" data-print="hide" style={{ scrollMarginTop: 16 }}>
           <LSectionHeader>What if</LSectionHeader>
           <p style={{ margin: '0 0 4px', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
             Each change re-runs your plan and shows what it does. Nothing is saved until you press the button under it.

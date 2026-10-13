@@ -127,7 +127,7 @@ export function TenureWhatIf({
     : null;
 
   return (
-    <section id="tenure-what-if" aria-labelledby="tenure-whatif" style={{ border: `1px solid ${L_T.ink}`, padding: '12px 16px', fontSize: 12, lineHeight: 1.7 }}>
+    <section id="tenure-what-if" data-print="hide" aria-labelledby="tenure-whatif" style={{ border: `1px solid ${L_T.ink}`, padding: '12px 16px', fontSize: 12, lineHeight: 1.7 }}>
       <div id="tenure-whatif" style={{ fontWeight: 700, letterSpacing: '0.08em' }}>
         WHAT IF THE BANK GAVE YOU A LONGER TENURE?
       </div>

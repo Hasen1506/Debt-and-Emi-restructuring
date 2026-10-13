@@ -742,7 +742,10 @@ function SliderRow({
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
-        opacity: disabled ? 0.6 : 1,
+        // Live re-test 7 R7-3: the row is no longer faded as a whole. Its
+        // hint says why it's off ("None of your loans has a floating
+        // rate…"): that is information and keeps full contrast; only the
+        // disabled controls themselves are greyed (exempt from contrast).
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -784,7 +787,7 @@ function SliderRow({
         disabled={disabled}
         aria-label={title}
         aria-valuetext={formatValue(value)}
-        style={{ width: '100%', accentColor: L_T.accent }}
+        style={{ width: '100%', accentColor: L_T.accent, opacity: disabled ? 0.6 : 1 }}
       />
       <div style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.5 }}>{hint}</div>
       <div aria-live="polite" style={{ fontSize: 12, lineHeight: 1.6 }}>
@@ -997,6 +1000,7 @@ function TypableAmountInput({
           background: L_T.paper,
           color: L_T.ink,
           textAlign: 'right',
+          opacity: disabled ? 0.6 : 1,
         }}
       />
       {unit && (
