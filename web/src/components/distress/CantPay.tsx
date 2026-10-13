@@ -36,6 +36,7 @@ import {
   TRIAGE_VERIFIED_ON,
   MAX_MONTHS_UNPAID,
   hardshipLetter,
+  missedCostClosing,
   missedPaymentCost,
   protectOrder,
   readCharge,
@@ -310,7 +311,11 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
         <input type="checkbox" checked={autoDebit} onChange={(e) => setAutoDebit(e.target.checked)} />
         <span>Paid by auto-debit (NACH / mandate)</span>
       </label>
-      {valid ? (
+      {valid && n === 0 ? (
+        <p data-testid="cp-cost-total" aria-live="polite" style={{ fontSize: 12, lineHeight: 1.8, marginTop: 10 }}>
+          {missedCostClosing(0, fc(0))}
+        </p>
+      ) : valid ? (
         <div data-testid="cp-cost-total" aria-live="polite" style={{ fontSize: 12, lineHeight: 1.8, marginTop: 10 }}>
           {n === 1
             ? `Interest on the unpaid ${fc(pick.required)} at the loan\u2019s own ${pick.ratePct.toFixed(2)}%: ${fc(cost.interest)}`
@@ -323,8 +328,8 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
           Bounce charge{n > 1 && autoDebit ? ` (${n} failed debits)` : ''}: {fc(cost.bounce)}
           {cost.unknown.includes('bounce') ? ' (not entered: check the bank\u2019s schedule of charges)' : ''}
           <br />
-          <strong>Adds about {fc(cost.total)}</strong>, plus {n === 1 ? 'a missed payment' : 'missed payments'} on your credit report
-          {n >= 3 ? '. After 90 days unpaid the loan is classed a default (NPA).' : '.'}
+          <strong>Adds about {fc(cost.total)}</strong>
+          {missedCostClosing(n, fc(cost.total)).slice(`Adds about ${fc(cost.total)}`.length)}
         </div>
       ) : (
         <p data-testid="cp-cost-total" role="status" style={{ fontSize: 12, color: L_T.negative, marginTop: 10 }}>

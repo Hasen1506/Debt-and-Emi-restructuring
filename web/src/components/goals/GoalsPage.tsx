@@ -69,7 +69,10 @@ export function GoalsPage({
   const [user, setUser] = useState(userProp);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState<FormState>(null);
+  // UX50 C-09: the server renders the new-goal form (most visits here have
+  // no goals yet), so it no longer appears after hydration and shoves the
+  // templates and Tools ~530px down. With goals saved it closes on load.
+  const [form, setForm] = useState<FormState>({ mode: 'new' });
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [showClosed, setShowClosed] = useState(false);
   const [templateNote, setTemplateNote] = useState<{ summary: string; caveats: string[] } | null>(null);
@@ -87,8 +90,8 @@ export function GoalsPage({
     setGoals(g);
     setContributions(readContributionsClient());
     setLoaded(true);
-    // No goals yet: the form is the page.
-    if (g.length === 0) setForm({ mode: 'new' });
+    // No goals yet: the form is the page (already open from the server).
+    if (g.length > 0) setForm(null);
   }, []);
 
   const saved = useMemo(() => totalsByGoal(contributions), [contributions]);
@@ -280,7 +283,7 @@ export function GoalsPage({
 
         {form?.mode === 'new' && (
           <div style={{ marginBottom: 14 }}>
-            {loaded && goals.length === 0 && (
+            {goals.length === 0 && (
               <p style={{ margin: '0 0 10px', fontSize: 12, color: L_T.muted }}>
                 No goals yet. Add what you&apos;re saving for, and the plan sets money aside for it.
               </p>

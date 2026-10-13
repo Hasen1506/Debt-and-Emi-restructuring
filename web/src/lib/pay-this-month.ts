@@ -133,3 +133,20 @@ export function payThisMonth(plan: PlanData): PayThisMonth | null {
   const leftOver = unplaced >= Math.max(1, surplus * 0.01) ? unplaced : 0;
   return { rows, total, leftOver, extraUser: extrasUser, budget: Number(plan.debtBudget || 0) };
 }
+
+/** R6-5: one "owed after" for a card on Home. Once a payment on the card is
+ *  marked this month, Home's loans list shows the entered balance less it
+ *  ("≈ …, before interest", UX50 B-12); Pay this month now shows that same
+ *  figure in the same words instead of the plan's own month-end balance.
+ *  Before that, the plan's figure is labelled as including the interest. */
+export function owedAfterLabel(
+  row: Pick<PayRow, 'card' | 'owedAfter'>,
+  now: { owed: number; cardBefore?: number } | undefined,
+  fmt: (v: number) => string,
+): string {
+  if (row.card && now?.cardBefore != null) return `≈ ${fmt(Math.round(now.owed))} OWED NOW, BEFORE INTEREST`;
+  if (!row.owedAfter) return '';
+  return row.card
+    ? `${fmt(row.owedAfter)} STILL OWED AFTER, WITH THIS MONTH'S INTEREST`
+    : `${fmt(row.owedAfter)} STILL OWED AFTER`;
+}

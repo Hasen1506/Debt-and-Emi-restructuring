@@ -35,7 +35,7 @@ export async function HomeDebtFreeValue() {
   if (plan.gaps.length === 0 && plan.shortfall > 0 && plan.gap?.closed?.debtFreeMonth)
     return <>{monthIndexToCountryLabel(plan.gap.closed.debtFreeMonth, plan.user.country).toUpperCase()}</>;
   if (plan.gaps.length > 0 || plan.shortfall > 0 || plan.futureShortfall) return <>NO DATE YET</>;
-  if (!plan.live) return <Link href="/plan">SEE PLAN →</Link>;
+  if (!plan.live) return <Link href="/plan" className="l-hit">SEE PLAN →</Link>;
   // 0 = nothing owed now; null = not cleared within the horizon.
   if (plan.debtFreeMonth === 0) return <>NOW</>;
   if (!plan.debtFreeMonth) return <>NOT ON THIS PLAN</>;
@@ -44,20 +44,20 @@ export async function HomeDebtFreeValue() {
 
 export async function HomeDebtFreeCaption() {
   const plan = await loadPlanOnce();
-  if (plan.gaps.length > 0) return <Link href="/profile?step=loans">ADD LOAN DETAILS →</Link>;
+  if (plan.gaps.length > 0) return <Link href="/profile?step=loans" className="l-hit">ADD LOAN DETAILS →</Link>;
   if (plan.shortfall > 0) {
     return (
-      <Link href="/plan">
+      <Link href="/plan" className="l-hit">
         {plan.gap?.closed?.debtFreeMonth ? 'IF THE ' : 'SHORT '}
         {formatCurrencyWhole(Math.round(plan.shortfall), userDefaultCurrency(plan.user.country))}/MO
         {plan.gap?.closed?.debtFreeMonth ? ' GAP CLOSES' : ''} · PLAN →
       </Link>
     );
   }
-  if (plan.futureShortfall) return <Link href="/plan">FUTURE PAYMENTS NEED FUNDING · SEE PLAN →</Link>;
+  if (plan.futureShortfall) return <Link href="/plan" className="l-hit">FUTURE PAYMENTS NEED FUNDING · SEE PLAN →</Link>;
   if (!plan.live) return <>DATE + MONTHLY SCHEDULE</>;
   if (plan.debtFreeMonth === 0) return <>NOTHING OWED</>;
-  if (!plan.debtFreeMonth) return <Link href="/plan">RAISE SURPLUS · SEE PLAN →</Link>;
+  if (!plan.debtFreeMonth) return <Link href="/plan" className="l-hit">RAISE SURPLUS · SEE PLAN →</Link>;
   // The date rests on what goes to debts each month and on rates staying
   // where they are; said with it (the rest is on Plan's "takes as given").
   const savedRates = plan.runArgs?.user.loans.some(l => l.rate_type === 'floating' && Number(l.rate_drift_annualized)) ||
@@ -72,7 +72,7 @@ export async function HomeDebtFreeCaption() {
       ? ` · AT THE ${fc(pace.average)}/MO YOU'VE PAID: ${monthIndexToCountryLabel(pace.debtFreeMonth, plan.user.country).toUpperCase()}`
       : '';
   return (
-    <Link href="/plan">
+    <Link href="/plan" className="l-hit">
       IN {monthsSpan(plan.debtFreeMonth).toUpperCase()}
       {toDebts ? ` · AT ${fc(toDebts)}/MO TO DEBTS, ${rateWords}` : ''}
       {atPace} · PLAN →
