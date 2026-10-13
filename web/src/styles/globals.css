@@ -293,8 +293,9 @@ select[aria-invalid="true"] {
     height: 20px;
   }
 }
-button.l-hit,
-a.l-hit {
+/* Links keep their ::after hit area; a min-height on a link in a flex row
+   top-aligns its text against its button neighbours. */
+button.l-hit {
   min-height: 24px;
 }
 .l-check-row {
