@@ -1367,3 +1367,36 @@ def goal_tradeoff(user: User, goals: list[GoalState], goal_id: str, **plan_kwarg
         debt_first_fill_rate=later_fill,
         funded_now_fill_rate=now_fill,
     )
+
+
+# ─── Live re-test NEW-3: loans that can never be paid off ────────────────────
+
+@dataclass
+class NonAmortisingLoan:
+    loan_index: int
+    monthly_interest: Decimal
+    scheduled_emi: Decimal
+
+
+def non_amortising_loans(user: User) -> list[NonAmortisingLoan]:
+    """EMI loans whose EMI is at or below the interest they earn each month.
+
+    Such a loan never clears: running the plan on it used to compound for
+    the whole 1,200-month horizon and print 25-digit figures. Callers report
+    it as an explicit "never clears" state instead (live re-test NEW-3).
+    Cards are excluded (their minimum is a formula, and the minimums
+    baseline handles them), as are US federal loans on a forgiveness track
+    (an income-driven payment below interest is allowed there)."""
+    out: list[NonAmortisingLoan] = []
+    for i, loan in enumerate(user.loans):
+        if loan.loan_type == LoanType.CREDIT_CARD:
+            continue
+        if getattr(loan, "forgiveness_track", None):
+            continue
+        P, r, E = loan.outstanding, loan.nominal_rate, loan.scheduled_emi
+        if P <= 0 or r <= 0 or E <= 0:
+            continue
+        interest = P * r / Decimal(12)
+        if E <= interest:
+            out.append(NonAmortisingLoan(i, interest.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), E))
+    return out

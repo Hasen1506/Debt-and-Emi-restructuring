@@ -39,7 +39,7 @@ import { loanCurrency, userDefaultCurrency, type CurrencyCode } from '@/lib/curr
 import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { deriveTenureMonths } from '@/lib/derived';
 import { HORIZON_MONTHS } from '@/lib/horizon';
-import { loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
+import { emiBelowInterest, loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
 import { newLoanId } from '@/lib/loan-ids';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { feeShown } from '@/lib/prepayment-fee';
@@ -546,7 +546,7 @@ export function QuickSetup() {
 
   return (
     <LShell>
-      <div onInputCapture={() => { edited.current = true; }} onClickCapture={() => { edited.current = true; }} style={{ display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 760 }}>
+      <div onInputCapture={() => { edited.current = true; }} onClickCapture={() => { edited.current = true; }} style={{ display: 'flex', flexDirection: 'column', gap: 22, width: '100%' }}>
         <header>
           <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
             SETUP · 3 STEPS · ABOUT 2 MINUTES
@@ -984,7 +984,9 @@ function LoanBlock({
             onChange={(v) => onPatch({ scheduled_emi: v })}
             hint={
               emiTooSmall
-                ? "At this EMI the balance doesn't go down. Check the EMI and the rate."
+                ? issues.emi
+                  ? undefined
+                  : (emiBelowInterest({ ...loan, currency: ccy }) ?? "At this EMI the balance doesn't go down. Check the EMI and the rate.")
                 : tenure
                   ? `About ${tenure} months left, to ${monthIndexToCountryLabel(tenure, country)}`
                   : undefined

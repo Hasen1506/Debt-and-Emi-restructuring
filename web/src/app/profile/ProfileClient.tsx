@@ -93,7 +93,7 @@ function rateTypeHint(l: LoanPayload, country: Country): string {
 import { explainMinPayment, suggestedGraceDays } from '@/lib/min-payment';
 import { api, formatCurrency, type FxRateResponse } from '@/lib/api';
 import { deriveTenureMonths } from '@/lib/derived';
-import { loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
+import { emiBelowInterest, loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
 import {
   classifyBracket,
   computeAnnualTax,
@@ -1033,6 +1033,7 @@ function ProfileEditor({
             </div>
             <Field
               label="Your name (optional)"
+              kind="text"
               value={displayName}
               onChange={setDisplayName}
               hint="Used only as a greeting. Stays in your browser."
@@ -3701,6 +3702,10 @@ function TenureField({
               Worked out from the balance, rate and EMI above.
             </div>
           </>
+        ) : emiBelowInterest(loan) ? (
+          <span role="alert" style={{ color: 'var(--negative)' }}>
+            {emiBelowInterest(loan)}
+          </span>
         ) : (
           <>
             <em>Fill in the balance, rate and EMI above</em> and the months

@@ -88,17 +88,52 @@ export function LTrajectory({
   // The axis title (OUTSTANDING, top left) counts as placed: a label for a
   // loan that clears early used to sit on top of it.
   const placed: Array<{ x0: number; x1: number; y: number }> = [{ x0: 8, x1: 8 + 'OUTSTANDING'.length * CHAR_W, y: 12 }];
-  const labels = milestones.map((m) => {
+  // Live re-test NEW-6: a label must not sit on either line, on another
+  // marker's leader, or on the minimums note (the landing chart's rule,
+  // PR #49). Each line is sampled across the label's width.
+  const lineYAt = (key: 'av' | 'min', x: number): number | null => {
+    for (let i = 1; i < points.length; i++) {
+      const xa = toX(points[i - 1].t);
+      const xb = toX(points[i].t);
+      if (x >= Math.min(xa, xb) && x <= Math.max(xa, xb)) {
+        const f = xb === xa ? 0 : (x - xa) / (xb - xa);
+        return toY(points[i - 1][key] + f * (points[i][key] - points[i - 1][key]));
+      }
+    }
+    return null;
+  };
+  const markXs = milestones.map((m) => toX(m.t));
+  if (minimumsNote && last) {
+    const ny = Math.max(top - 4, toY(last.min) - 6);
+    placed.push({ x0: w - right - minimumsNote.length * CHAR_W, x1: w - right, y: ny });
+  }
+  const labels = milestones.map((m, mi) => {
     const x = toX(m.t);
     const markY = toY(m.v);
     const width = m.label.length * CHAR_W;
     const anchor = x - width / 2 < left ? 'start' : x + width / 2 > w - right ? 'end' : 'middle';
     const x0 = anchor === 'start' ? x - 4 : anchor === 'end' ? x - width + 4 : x - width / 2;
     const x1 = x0 + width;
-    const free = (y: number) => !placed.some((p) => Math.abs(p.y - y) < 12 && x0 < p.x1 + 8 && x1 > p.x0 - 8);
-    const above = Array.from({ length: 8 }, (_, k) => markY - 12 - k * 13).filter((y) => y >= 12);
-    const below = Array.from({ length: 8 }, (_, k) => markY + 18 + k * 13).filter((y) => y <= toY(0) - 6);
-    const y = [...above, ...below].find(free) ?? above[0] ?? 12;
+    const clearOfLabels = (y: number) => !placed.some((p) => Math.abs(p.y - y) < 12 && x0 < p.x1 + 8 && x1 > p.x0 - 8);
+    // Text box: baseline y, about 9 px tall.
+    const clearOfLines = (y: number) => {
+      for (let sx = x0 - 2; sx <= x1 + 2; sx += 3) {
+        for (const key of ['av', 'min'] as const) {
+          const ly = lineYAt(key, sx);
+          if (ly !== null && ly >= y - 11 && ly <= y + 4) return false;
+        }
+      }
+      // Another marker's dotted leader runs from its marker down to the axis.
+      return !markXs.some((mx, j) => j !== mi && mx >= x0 - 3 && mx <= x1 + 3 && y > toY(milestones[j].v) - 10);
+    };
+    const above = Array.from({ length: 14 }, (_, k) => markY - 12 - k * 13).filter((y) => y >= 12);
+    const below = Array.from({ length: 14 }, (_, k) => markY + 18 + k * 13).filter((y) => y <= toY(0) - 6);
+    const candidates = [...above, ...below];
+    const y =
+      candidates.find((c) => clearOfLabels(c) && clearOfLines(c)) ??
+      candidates.find(clearOfLabels) ??
+      above[0] ??
+      12;
     placed.push({ x0, x1, y });
     return { x, y, anchor, raised: y < markY - 12 || y > markY + 18, label: m.label, markY };
   });

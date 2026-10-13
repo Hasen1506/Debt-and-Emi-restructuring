@@ -587,6 +587,12 @@ export async function loadPlan(
       adjustedUser.country,
     );
     return {
+      nonAmortising: (scenario.non_amortising ?? []).map((b) => ({
+        loanIndex: b.loan_index,
+        monthlyInterest: Number(b.monthly_interest),
+        scheduledEmi: Number(b.scheduled_emi),
+      })),
+      baselineNeverClears: !!baseline.never_clears || (baseline.debt_free_month == null && Number(baseline.total_interest_paid) > 0),
       trajectory: mergeTrajectories(scenario, baseline),
       debtFreeMonth: scenario.debt_free_month,
       totalInterest: scenario.total_interest_paid,

@@ -56,6 +56,12 @@ export interface ActivityImpact {
 }
 
 export interface PlanData {
+  /** Live re-test NEW-3: loans whose EMI doesn't cover their interest. The
+   *  engine refuses to project them; Plan shows one warning card. */
+  nonAmortising?: { loanIndex: number; monthlyInterest: number; scheduledEmi: number }[];
+  /** Live re-test NEW-2: paying only the minimums never clears the debt, so
+   *  its interest total is unbounded and is not compared. */
+  baselineNeverClears?: boolean;
   trajectory: TrajectoryPoint[];
   debtFreeMonth: number | null;
   totalInterest: string;

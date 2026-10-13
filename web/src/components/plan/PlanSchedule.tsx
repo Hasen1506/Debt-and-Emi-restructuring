@@ -270,6 +270,12 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             PRINCIPAL and BALANCE are in {ccy}, converted at the exchange rate saved on your profile.
           </div>
         )}
+        {/* Live re-test NEW-17: on a phone the table is wider than the screen;
+            say so, since the scroll bar is hidden until touched. */}
+        <style>{`.rd-scroll-hint{display:none}@media (max-width: 820px){.rd-scroll-hint{display:block}}`}</style>
+        <div className="rd-scroll-hint" style={{ padding: '4px 0 6px', fontSize: 10, color: L_T.muted }}>
+          SWIPE SIDEWAYS FOR EVERY COLUMN →
+        </div>
         <div
           role="region"
           aria-label="Month-by-month schedule"

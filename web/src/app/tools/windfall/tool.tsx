@@ -201,7 +201,9 @@ export function WindfallTool({
     let live = true;
     setPick(null);
     setPicking(false);
-    if (!(total > 0)) {
+    // Live re-test NEW-8: no figures while the date is refused (a future
+    // date showed "₹66 crore interest saved" before logging was refused).
+    if (!(total > 0) || received > todayIso) {
       setPick(null);
       return;
     }
@@ -261,7 +263,7 @@ export function WindfallTool({
       }
     }, 450);
     return () => { live = false; clearTimeout(t); };
-  }, [total, planUser, efGap, efSplit, profile.marginalRate, strategy]);
+  }, [total, planUser, efGap, efSplit, profile.marginalRate, strategy, received, todayIso]);
 
   const engineAlloc = pick?.alloc ?? {};
   const alloc: Alloc = mode === 'engine' ? engineAlloc : manual;

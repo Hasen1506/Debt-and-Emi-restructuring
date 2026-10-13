@@ -16,6 +16,7 @@ import {
   regroupWhileTyping,
   sameAmount,
   type AmountCurrency,
+  amountForCaller,
 } from '@/lib/amount';
 
 /** 'percent': the caller's value is a fraction ("0.085"); the field shows
@@ -201,7 +202,11 @@ export function Field({
   const [pctText, setPctText] = useState(() => fractionToPercentText(value));
   useEffect(() => {
     if (!isPercent) return;
-    setPctText((t) => (percentTextToFraction(t) === value ? t : fractionToPercentText(value)));
+    setPctText((t) => {
+      const f = percentTextToFraction(t);
+      if (f === null && value === '') return t;
+      return f === value ? t : fractionToPercentText(value);
+    });
   }, [isPercent, value]);
   // Money fields keep the typed text ("25L", "25,00,0") and hand the caller
   // plain digits; regrouped only when the value changes from outside.
@@ -211,6 +216,8 @@ export function Field({
     if (!isMoney) return;
     setMoneyText((t) => {
       const p = parseAmountText(t, currency).value;
+      // Unreadable text ("25 la") was handed up as '', so keep it in the box.
+      if (p === null && value === '') return t;
       return p !== null && sameAmount(p, value) ? t : formatAmount(value, currency);
     });
   }, [isMoney, value, currency]);
@@ -225,12 +232,13 @@ export function Field({
         const el = inputRef.current;
         if (el && document.activeElement === el) el.setSelectionRange(next.caret, next.caret);
       });
-      return onChange(parseAmountText(next.text, currency).value ?? raw);
+      return onChange(amountForCaller(next.text, currency));
     }
     if (!isPercent) return onChange(raw);
     setPctText(raw);
     const f = percentTextToFraction(raw);
-    onChange(f ?? raw);
+    // Never hand unreadable text ("8.5x") to the caller's Decimal math.
+    onChange(f ?? '');
   };
   const handleFocus = () => {
     if (hasSuggestion && suggestion) onChange(suggestion.value);

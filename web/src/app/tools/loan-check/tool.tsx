@@ -237,7 +237,7 @@ export function LoanCheckTool() {
 
   return (
     <LSteps>
-      <LStep no="01" id="lc-in" title="Your home loan">
+      <LStep no="01" id="lc-in" title={homeLoans.length > 0 && loanIdx === null ? 'Another loan' : 'Your home loan'}>
         <form onSubmit={check} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {homeLoans.length > 0 && (
             <LChipRow label="Which loan?">

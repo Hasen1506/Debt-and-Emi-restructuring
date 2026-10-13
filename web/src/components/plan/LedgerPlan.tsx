@@ -32,7 +32,7 @@ import {
 } from '@/components/ledger/primitives';
 import { deriveMetrics } from '@/lib/derived';
 import { dec } from '@/lib/safe-decimal';
-import { describeGap, type ProfileGap } from '@/lib/loan-gaps';
+import { describeGap, emiBelowInterest, type ProfileGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import type { StoredProfile } from '@/lib/user-store';
 import { PlanTrajectory } from './PlanTrajectory';
@@ -57,6 +57,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   const fc = (v: string | number) => formatCurrencyWhole(v, ccy);
   const interestSaved =
     Number(plan.baselineInterest) - Number(plan.totalInterest);
+  const limit = saneLimit(plan);
+  const sane = (v: number) => Number.isFinite(v) && Math.abs(v) <= limit;
   // Short of cash this month: the schedule below pays minimums the user
   // can't fund, so its date isn't one to plan around.
   const short = plan.shortfall > 0 || !!plan.futureShortfall;
@@ -92,11 +94,17 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   // When paying only the minimums clears it (null: not within the plan).
   const lastMinOwed = plan.trajectory.filter((p) => p.minimums > 0.5).at(-1)?.month ?? 0;
   const baselineClear = plan.trajectory.find((p) => p.month > lastMinOwed && p.minimums <= 0.5)?.month ?? null;
+  // Live re-test NEW-2: when paying only the minimums never clears, its
+  // interest total compounds for 100 years (25-digit figures); there is no
+  // honest ₹ difference to print.
+  const minimumsNeverClear = !!plan.baselineNeverClears || baselineClear === null;
   // Nothing owed: every loan on file is at 0, or there are none.
   const debtFreeNow = !plan.user.loans.some((l) => dec(l.outstanding).gt(0));
 
   if (debtFreeNow) return <DebtFreeNow hasLoans={plan.user.loans.length > 0} />;
   if (plan.gaps.length > 0) return <NeedsLoanDetails gaps={plan.gaps} />;
+  if (plan.nonAmortising && plan.nonAmortising.length > 0)
+    return <NeverClears plan={plan} fc={fc} />;
 
   return (
     <LShell>
@@ -144,11 +152,11 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                     ? `IN ${monthsSpan(plan.debtFreeMonth).toUpperCase()}`
                     : 'RAISE SURPLUS OR CUT SPEND TO CLEAR',
                 },
-            gapRunsAway
+            gapRunsAway || (!plan.debtFreeMonth && !sane(Number(plan.totalInterest)))
               ? {
                   l: 'TOTAL INTEREST',
                   v: '—',
-                  s: 'THE GAP BORROWING KEEPS GROWING',
+                  s: gapRunsAway ? 'THE GAP BORROWING KEEPS GROWING' : "DOESN'T CLEAR AT THESE FIGURES",
                   tone: L_T.negative,
                 }
               : {
@@ -157,9 +165,11 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                   s:
                     plan.gap && plan.gap.totalInterest >= 1
                       ? `INCL. ${fc(Math.round(plan.gap.totalInterest))} ON GAP BORROWING`
-                      : interestSaved >= 1
-                        ? `${fc(interestSaved)} LESS THAN MINIMUMS`
-                        : 'SAME AS PAYING MINIMUMS',
+                      : minimumsNeverClear
+                        ? 'MINIMUMS ALONE NEVER CLEAR IT'
+                        : interestSaved >= 1 && sane(interestSaved)
+                          ? `${fc(interestSaved)} LESS THAN MINIMUMS`
+                          : 'SAME AS PAYING MINIMUMS',
                   tone: L_T.positive,
                 },
             {
@@ -213,7 +223,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {!short && <PlanPace plan={plan} />}
 
         {plan.shortfall > 0 && <ShortfallBanner plan={plan} />}
-        {plan.shortfall > 0 && <TenureWhatIf plan={plan} />}
+        {/* Live re-test L#26: offered whether or not this month is short. */}
+        <TenureWhatIf plan={plan} />
         {plan.futureShortfall && <div role="alert" style={{color:L_T.negative,fontSize:12}}>
           FUTURE FUNDING GAP · SHORT {fc(plan.futureShortfall.amount)} IN {monthIndexToCountryLabel(plan.futureShortfall.month,plan.user.country).toUpperCase()}.
           {plan.gap
@@ -315,7 +326,9 @@ function ShortfallBanner({ plan }: { plan: PlanData }) {
       each short month is paid from your emergency fund while it lasts, then
       borrowed on {card}, and any money freed later pays that borrowing back
       first, before any loan gets extra.
-      {gap && gap.peak > 0 && gap.peakMonth
+      {gap && gap.peak > 0 && gap.peakMonth && !gap.repaidMonth
+        ? ' At this income the borrowing is never repaid: it grows without limit.'
+        : gap && gap.peak > 0 && gap.peakMonth
         ? ` The borrowing peaks at ${fc(gap.peak)} in ${monthIndexToCountryLabel(gap.peakMonth, plan.user.country)}${gap.repaidMonth ? ` and is repaid by ${monthIndexToCountryLabel(gap.repaidMonth, plan.user.country)}` : ' and is never repaid at this income'}.`
         : ''}{' '}
       Missing a payment instead costs late fees and hurts your credit score. Close
@@ -336,6 +349,40 @@ function ShortfallBanner({ plan }: { plan: PlanData }) {
 }
 
 /** A loan is missing its rate or EMI: no projection until it's added. */
+/** No figure on Plan may exceed 100× what is owed today (live re-test NEW-2). */
+function saneLimit(plan: PlanData): number {
+  const owed = plan.user.loans.reduce((s, l) => s + Math.max(0, Number(l.outstanding) || 0), 0);
+  return Math.max(1, owed) * 100;
+}
+
+/** Live re-test NEW-3: one clear card instead of a 1,200-month schedule. */
+function NeverClears({ plan, fc }: { plan: PlanData; fc: (v: number) => string }) {
+  return (
+    <LShell>
+      <div role="alert" style={{ padding: '40px 0', fontFamily: L_MONO }}>
+        <LCli>PLAN · A LOAN THAT NEVER CLEARS</LCli>
+        <LRule length={200} />
+        <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
+          There&apos;s no payoff date: at these figures the EMI doesn&apos;t cover the interest, so the balance never goes down.
+          <ul style={{ margin: '10px 0 14px', paddingLeft: 18, color: L_T.ink }}>
+            {(plan.nonAmortising ?? []).map((b) => {
+              const loan = plan.user.loans[b.loanIndex];
+              const name = loan ? `${(loan.bank || 'Your').toUpperCase()} ${LOAN_TYPE_NAME[loan.loan_type].toUpperCase()}` : 'A LOAN';
+              return (
+                <li key={b.loanIndex}>
+                  {name}: interest about {fc(Math.round(b.monthlyInterest))} a month, EMI {fc(Math.round(b.scheduledEmi))}.
+                  {loan && emiBelowInterest(loan) ? ` ${emiBelowInterest(loan)}` : ''}
+                </li>
+              );
+            })}
+          </ul>
+          <LBracket href="/profile?step=loans">CHECK THE LOAN →</LBracket>
+        </div>
+      </div>
+    </LShell>
+  );
+}
+
 function NeedsLoanDetails({ gaps }: { gaps: ProfileGap[] }) {
   return (
     <LShell>

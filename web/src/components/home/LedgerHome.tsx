@@ -18,6 +18,8 @@ import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { cashFlowForMonth, deriveMetrics, type DerivedMetrics } from '@/lib/derived';
 import { projectionGaps } from '@/lib/loan-gaps';
+import { dueVsAffordable } from '@/lib/plan-gap';
+import { dec } from '@/lib/safe-decimal';
 import { userDefaultCurrency } from '@/lib/currency';
 import { MONTH_NAMES, getCountryToday, monthIndexToCountryLabel } from '@/lib/today';
 import type { StrategyName } from '@/lib/strategy';
@@ -278,6 +280,11 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
   const gaps = projectionGaps(profile.user);
   const amount = m.surplus.gt(0) ? Math.round(Number(m.surplus.toString())) : 0;
   const lender = (loudest.loan.bank || 'your highest-rate lender').toUpperCase();
+  const income = Number(dec(profile.user.monthly_income));
+  const costs = Number(dec(profile.user.fixed_expenses).add(dec(profile.user.variable_expenses)));
+  const shortBreakdown = m.surplus.lt(0)
+    ? dueVsAffordable({ income, costs, shortfall: Math.round(-Number(m.surplus)) })
+    : null;
 
   return (
     <LShell>
@@ -328,17 +335,39 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
               letterSpacing: '-0.01em',
             }}
           >
-            {oneStep
-              ? oneStep
-              : amount > 0
-                ? `PAY ${fc(Math.min(amount, Number(m.toUserCcy(loudest.outstanding, loudest.loan))))} TO YOUR ${lender} ${LOAN_TYPE_NAME[loudest.loan.loan_type].toUpperCase()}.`
-                : `KEEP CURRENT EMIS RUNNING.`}
+            {/* Live re-test NEW-13: the server's step can arrive empty; the
+                line computed here shows whenever it does, so the heading
+                below always has an action above it. */}
+            <style>{`.rd-one-step:not(:empty) + .rd-one-step-fallback{display:none}`}</style>
+            <span className="rd-one-step">{oneStep}</span>
+            <span className="rd-one-step-fallback" data-testid="one-step-fallback">
+              {m.surplus.lt(0)
+                ? 'PAY EVERY EMI AND CARD MINIMUM YOU CAN, SECURED LOANS (HOME, CAR, GOLD) FIRST. FOR WHAT YOU CAN’T COVER, CALL THE BANK BEFORE THE DUE DATE.'
+                : amount > 0
+                  ? `PAY ${fc(Math.min(amount, Number(m.toUserCcy(loudest.outstanding, loudest.loan))))} TO YOUR ${lender} ${LOAN_TYPE_NAME[loudest.loan.loan_type].toUpperCase()}.`
+                  : `KEEP CURRENT EMIS RUNNING.`}
+            </span>
           </div>
           <div style={{ fontSize: 12, color: L_T.muted, marginTop: 18, lineHeight: 1.7 }}>
             THE SINGLE MOST USEFUL THING YOU CAN DO RIGHT NOW.
             <br />
             NOTHING ELSE NEEDS TO BE DECIDED TODAY.
           </div>
+          {shortBreakdown && (
+            // Live re-test L#24: the same Due / You can cover / Short as Plan.
+            <dl
+              aria-label="This month"
+              data-testid="home-short-breakdown"
+              style={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', gap: '2px 18px', margin: '18px 0 0', fontSize: 12 }}
+            >
+              <dt>DUE THIS MONTH</dt>
+              <dd style={{ margin: 0, textAlign: 'right', fontWeight: 700 }}>{fc(shortBreakdown.due)}</dd>
+              <dt>YOU CAN COVER</dt>
+              <dd style={{ margin: 0, textAlign: 'right', fontWeight: 700 }}>{fc(shortBreakdown.canCover)}</dd>
+              <dt>SHORT</dt>
+              <dd style={{ margin: 0, textAlign: 'right', fontWeight: 700, color: L_T.negative }}>{fc(shortBreakdown.short)}</dd>
+            </dl>
+          )}
           <div style={{ marginTop: 24 }}>
             <LButton href={gaps.length > 0 ? '/profile?step=loans' : '/activity#activity-ledger'} full>
               I&apos;LL DO THIS

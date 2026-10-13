@@ -120,3 +120,54 @@ def test_out_of_range_tenure_is_422(country, data, n):
     user["loans"][0]["tenure_months_remaining"] = n
     r = client.post("/api/simulate", json=_body("/api/simulate", user))
     assert r.status_code == 422, r.text
+
+
+# ── Live re-test 13 Oct (NEW-2/NEW-3): bounded or flagged ───────────────────
+
+@settings(max_examples=examples(25), deadline=None)
+@given(loan=loan_payload(), cut=st.sampled_from([None, "x10", "emi_half_interest"]))
+def test_plan_endpoints_bounded_or_never_clears(loan, cut):
+    loan = dict(loan)
+    out, r = D(loan["outstanding"]), D(loan["nominal_rate"])
+    if cut == "x10":
+        loan["outstanding"] = str(out * 10)
+    elif cut == "emi_half_interest" and r > 0:
+        loan["scheduled_emi"] = str(max(D(1), (out * r / 24).quantize(D("1"))))
+    user = {
+        "country": "IN", "income_type": "salaried", "annual_income": "2400000",
+        "monthly_income": "200000", "fixed_expenses": "40000", "savings_balance": "0",
+        "primary_bank": "HDFC Bank", "loans": [loan],
+    }
+    owed = D(loan["outstanding"])
+    for path in ("/api/simulate", "/api/baseline"):
+        res = client.post(path, json={"user": user})
+        assert res.status_code == 200, res.text[:300]
+        b = res.json()
+        if b.get("never_clears"):
+            if b.get("non_amortising"):
+                assert b["trajectory"] == [] and b["months_in_horizon"] == 0
+            continue
+        assert b["debt_free_month"] is not None
+        assert b["months_in_horizon"] < 360 or b["debt_free_month"] <= 360
+        assert D(b["total_interest_paid"]) <= owed * 100 + 1
+        assert max((D(p["balance"]) for p in b["trajectory"]), default=D(0)) <= owed * 100 + 1
+
+
+def test_live_retest_10x_home_loan_returns_never_clears_not_1200_months():
+    user = {
+        "country": "IN", "income_type": "salaried", "annual_income": "1440000",
+        "monthly_income": "120000", "fixed_expenses": "50000", "savings_balance": "0",
+        "primary_bank": "HDFC Bank",
+        "loans": [{"loan_type": "home_loan", "bank": "HDFC Bank", "outstanding": "25000000",
+                   "nominal_rate": "0.086", "rate_type": "floating", "tenure_months_remaining": 0,
+                   "scheduled_emi": "22000"}],
+    }
+    for path in ("/api/simulate", "/api/baseline"):
+        b = client.post(path, json={"user": user, "horizon_months": 1200}).json()
+        assert b["never_clears"] is True
+        assert b["non_amortising"][0]["loan_index"] == 0
+        assert D(b["non_amortising"][0]["monthly_interest"]) == D("179166.67")
+        assert b["trajectory"] == [] and b["months_in_horizon"] == 0
+    c = client.post("/api/sensitivity/compare", json={"user": user, "surplus_delta": "1000"}).json()
+    assert c["baseline_never_clears"]
+    assert D(c["interest_saved"]) == 0

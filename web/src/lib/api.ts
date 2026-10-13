@@ -626,6 +626,11 @@ export interface GoalFinalRaw {
 }
 
 export interface SimulateResponse {
+  /** Live re-test NEW-2/3: not cleared within the horizon while owed. */
+  never_clears?: boolean;
+  /** EMI loans whose EMI doesn't cover their interest; when non-empty the
+   *  plan was not run and trajectory is empty. */
+  non_amortising?: { loan_index: number; monthly_interest: string; scheduled_emi: string }[];
   debt_free_month: number | null;
   total_interest_paid: string;
   total_invested: string;
@@ -660,6 +665,10 @@ export interface SimulateResponse {
 }
 
 export interface CompareResponse {
+  /** Live re-test NEW-2: either side never clears, so interest_saved
+   *  compares unbounded totals and must not be shown. */
+  baseline_never_clears?: boolean;
+  scenario_never_clears?: boolean;
   baseline_debt_free_month: number | null;
   scenario_debt_free_month: number | null;
   months_pulled_forward: string;
