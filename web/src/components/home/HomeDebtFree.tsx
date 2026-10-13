@@ -23,6 +23,8 @@ import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
+import { homeThisMonthLine } from '@/lib/home-this-month';
+import { L_T, lStrip } from '@/components/ledger/primitives';
 
 // One engine run per request, shared by the value and its caption.
 const loadPlanOnce = cache(loadPlanFromCookies);
@@ -48,7 +50,12 @@ export async function HomeDebtFreeCaption() {
       <Link href="/plan">
         {plan.gap?.closed?.debtFreeMonth ? 'IF THE ' : 'SHORT '}
         {formatCurrencyWhole(Math.round(plan.shortfall), userDefaultCurrency(plan.user.country))}/MO
-        {plan.gap?.closed?.debtFreeMonth ? ' GAP CLOSES' : ''} · PLAN →
+        {plan.gap?.closed?.debtFreeMonth ? ' GAP CLOSES' : ''}
+        {/* UX50 B-13: both dates, as on Plan. */}
+        {plan.gap?.closed?.debtFreeMonth && plan.debtFreeMonth
+          ? ` · AS THINGS STAND: ${monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()}`
+          : ''}{' '}
+        · PLAN →
       </Link>
     );
   }
@@ -239,11 +246,41 @@ export async function HomePayThisMonth() {
           currency: l.currency ?? userDefaultCurrency(country),
         }))}
         loansCleared={plan.user.loans.length - open.length}
+        shortLine={
+          // UX50 B-13: the same story as the Home and Plan headline.
+          plan.shortfall > 0
+            ? plan.gap?.closed?.debtFreeMonth
+              ? `Debt-free in ${monthIndexToCountryLabel(plan.gap.closed.debtFreeMonth, country)} if the ${fc(plan.shortfall)}/mo gap closes${plan.debtFreeMonth ? ` (as things stand: ${monthIndexToCountryLabel(plan.debtFreeMonth, country)})` : ''}. Once it closes, this counts the months you take off.`
+              : `No debt-free date while you're ${fc(plan.shortfall)} a month short. Once the gap closes, this counts the months you take off.`
+            : undefined
+        }
         pay={data}
         strategy={plan.strategy}
         monthLabel={monthLabel}
       />
     </>
+  );
+}
+
+/** UX50 B-11: what to do this month, in one line at the top of Home. The
+ *  same engine run as the list below (cached per request). */
+export async function HomeThisMonthStrip() {
+  const plan = await loadPlanOnce();
+  if (plan.gaps.length > 0 || !plan.live) return null;
+  const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country));
+  const line = homeThisMonthLine(payThisMonth(plan), plan.shortfall, fc);
+  if (!line) return null;
+  return (
+    <section
+      aria-label="This month"
+      data-testid="home-this-month"
+      style={{ padding: '12px 14px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, ...lStrip(line.tone === 'short' ? 'negative' : 'accent') }}
+    >
+      <div style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
+      <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+        {line.text} <LBracket href="#home-pay">{line.link}</LBracket>
+      </p>
+    </section>
   );
 }
 

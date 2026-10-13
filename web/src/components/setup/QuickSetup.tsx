@@ -902,6 +902,7 @@ export function QuickSetup() {
                 noLoans={activeLoans.length === 0}
                 country={country}
                 money={money}
+                hasFund={Number(buildUser().efund_balance ?? 0) > 0}
               />
               <SetupChoices
                 value={choices}
@@ -1334,18 +1335,41 @@ function LoanBlock({
   );
 }
 
+/** UX50 B-19: a slow first answer (the calculator waking up) says so. */
+function PreviewWaiting() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setSlow(true), 4000);
+    return () => window.clearTimeout(t);
+  }, []);
+  return (
+    <div role="status" style={{ color: L_T.muted, margin: 0, lineHeight: 1.6 }}>
+      <p style={{ margin: 0 }}>Working out your plan…</p>
+      {slow && (
+        <p style={{ margin: '6px 0 0', fontSize: 13 }}>
+          Still working: the calculator wakes up after a quiet spell, which can take up to a minute. You can save
+          now; Plan finishes it.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function PlanPreview({
   preview,
   error,
   noLoans,
   country,
   money,
+  hasFund = false,
 }: {
   preview: Preview | null;
   error: string | null;
   noLoans: boolean;
   country: Country;
   money: (v: Decimal | string, ccy?: CurrencyCode) => string;
+  /** Savings set aside: a short month draws on them before a card (UX50 B-32). */
+  hasFund?: boolean;
 }) {
   if (noLoans) {
     return (
@@ -1356,13 +1380,7 @@ function PlanPreview({
     );
   }
   if (error) return <p role="alert" style={{ color: L_T.negative, margin: 0 }}>{error}</p>;
-  if (!preview) {
-    return (
-      <p role="status" style={{ color: L_T.muted, margin: 0 }}>
-        Working out your plan…
-      </p>
-    );
-  }
+  if (!preview) return <PreviewWaiting />;
   const { plan, minimums, loans } = preview;
   const shortfall = new Decimal(plan.shortfall || 0);
   // Month m of the plan is the m-th payment, as Home and Plan count it.
@@ -1377,30 +1395,49 @@ function PlanPreview({
     minimums.trajectory[0]?.payments_by_loan_index,
   );
   const moveLoan = move ? loans[move.index] : null;
+  // UX50 B-13: short this month, the same headline as Plan and Home: the
+  // date if the gap closes, with the date as things stand beside it; and no
+  // "years sooner" while there's no date to measure from (Plan says the same).
+  const short = shortfall.gt(0);
+  const closedMonth = plan.gap_closed?.debt_free_month ?? null;
+  const asIs = plan.debt_free_month != null ? monthIndexToCountryLabel(plan.debt_free_month, country) : 'not in sight';
+  const debtFreeRow: [string, ReactNode, string?] = short
+    ? [
+        'Debt-free',
+        closedMonth ? monthIndexToCountryLabel(closedMonth, country) : 'No date yet',
+        closedMonth
+          ? `if the ${money(shortfall)}/mo gap closes · as things stand: ${asIs}`
+          : `short ${money(shortfall)}/mo · as things stand: ${asIs}`,
+      ]
+    : [
+        'Debt-free',
+        plan.debt_free_month != null ? monthIndexToCountryLabel(plan.debt_free_month, country) : 'Not in sight',
+        plan.debt_free_month != null ? freeIn(plan.debt_free_month) : 'Payments don’t cover the interest yet',
+      ];
+  // UX50 B-04: paying only the minimums is the most a plan can save, not
+  // what it saves most people; said so, under its own name.
   const rows: Array<[string, ReactNode, string?]> = [
-    [
-      'Debt-free',
-      plan.debt_free_month != null ? monthIndexToCountryLabel(plan.debt_free_month, country) : 'Not in sight',
-      plan.debt_free_month != null ? freeIn(plan.debt_free_month) : 'Payments don’t cover the interest yet',
-    ],
+    debtFreeRow,
     ['Interest you’ll pay', money(plan.total_interest_paid), 'over the whole plan'],
-    [
-      'Vs paying minimums',
-      interestSaved.gt(0) ? `${money(interestSaved)} less` : 'about the same',
-      minimums.debt_free_month == null
-        ? 'minimums alone never clear it'
-        : monthsSaved && monthsSaved > 0
-          ? `${monthsSpan(monthsSaved)} sooner`
-          : undefined,
-    ],
+    short
+      ? ['Vs paying only minimums', '—', 'needs a payoff date first']
+      : [
+          'Vs paying only minimums',
+          interestSaved.gt(0) ? `${money(interestSaved)} less` : 'about the same',
+          minimums.debt_free_month == null
+            ? 'minimums alone never clear it'
+            : monthsSaved && monthsSaved > 0
+              ? `${monthsSpan(monthsSaved)} sooner · the most a plan can save, not a typical saving`
+              : undefined,
+        ],
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {shortfall.gt(0) && (
         <p role="alert" style={{ margin: 0, padding: '10px 12px', border: `1px solid ${L_T.negative}`, color: L_T.negative, lineHeight: 1.55 }}>
-          Your take-home is {money(shortfall)} a month short of spending plus minimum payments. The date below
-          pays that gap from your emergency fund, then borrows it on a card at card rates until it&apos;s repaid; Home
-          shows where to cut.
+          Your take-home is {money(shortfall)} a month short of spending plus minimum payments. The date below is
+          if you close that gap. As things stand, the gap is {hasFund ? 'paid from your emergency fund, then ' : ''}borrowed
+          on a card at card rates until it&apos;s repaid; Home shows which payments to protect.
         </p>
       )}
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>

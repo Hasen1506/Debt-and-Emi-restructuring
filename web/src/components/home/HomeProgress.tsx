@@ -27,6 +27,7 @@ export function HomeProgress({
   pay,
   strategy,
   monthLabel,
+  shortLine,
 }: {
   country: 'IN' | 'US';
   todayIso: string;
@@ -38,6 +39,8 @@ export function HomeProgress({
   pay: PayThisMonth;
   strategy: string;
   monthLabel: string;
+  /** UX50 B-13: short this month, the headline's own words. */
+  shortLine?: string;
 }) {
   const [marks, setMarks] = useState<DebtFreeMark[]>([]);
   const [moved, setMoved] = useState(false);
@@ -119,7 +122,7 @@ export function HomeProgress({
     <section aria-labelledby="home-progress" style={{ marginTop: 18 }}>
       <LSectionHeader><span id="home-progress">Your progress</span></LSectionHeader>
       <p style={{ margin: '0 0 8px', fontSize: 13, lineHeight: 1.6 }}>
-        {s ? shavedLine(s) : ym ? `Debt-free in ${ymLabel(ym)}. Each extra payment you log moves it sooner, and this counter keeps score.` : 'Once the plan has a debt-free date, this counts the months you take off it.'}
+        {s ? shavedLine(s) : ym ? `Debt-free in ${ymLabel(ym)}. Each extra payment you log moves it sooner, and this counter keeps score.` : shortLine ?? 'Once the plan has a debt-free date, this counts the months you take off it.'}
       </p>
       {ym && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -152,7 +155,7 @@ export function HomeProgress({
                 {p.href && <a href={p.href} style={{ ...lPayBtn(false), textDecoration: 'none' }}>OPEN</a>}
                 {p.action === 'copy_plan' && <button type="button" style={lPayBtn(false)} onClick={() => void copyPlan()}>COPY MY PLAN</button>}
                 <button type="button" onClick={() => later(p)} style={{ background: 'none', border: 0, color: L_T.muted, textDecoration: 'underline', cursor: 'pointer', fontSize: 11 }}>
-                  Next month
+                  Remind me next month
                 </button>
               </li>
             ))}
