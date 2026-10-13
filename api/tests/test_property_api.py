@@ -171,3 +171,71 @@ def test_live_retest_10x_home_loan_returns_never_clears_not_1200_months():
     c = client.post("/api/sensitivity/compare", json={"user": user, "surplus_delta": "1000"}).json()
     assert c["baseline_never_clears"]
     assert D(c["interest_saved"]) == 0
+
+
+# ── Live re-test 2 (NEW-2): gap / shortfall outputs are bounded or flagged ──
+
+def _persona_b_user(take_home="70000"):
+    return {
+        "country": "IN", "income_type": "salaried", "annual_income": str(D(take_home) * 12),
+        "monthly_income": take_home, "fixed_expenses": "40000", "savings_balance": "0",
+        "primary_bank": "HDFC Bank",
+        "loans": [
+            {"loan_type": "credit_card", "bank": "HDFC Bank", "outstanding": "150000",
+             "nominal_rate": "0.42", "rate_type": "fixed", "tenure_months_remaining": 0, "scheduled_emi": "0"},
+            {"loan_type": "personal_loan", "bank": "HDFC Bank", "outstanding": "400000",
+             "nominal_rate": "0.14", "rate_type": "fixed", "tenure_months_remaining": 0, "scheduled_emi": "13000"},
+            {"loan_type": "home_loan", "bank": "HDFC Bank", "outstanding": "2500000",
+             "nominal_rate": "0.086", "rate_type": "floating", "tenure_months_remaining": 0, "scheduled_emi": "22000"},
+        ],
+    }
+
+
+def _assert_gap_bounded(b, owed_cap):
+    traj = b["trajectory"]
+    if b.get("never_clears"):
+        # Flagged: the run stops at the horizon or before figures run away.
+        assert len(traj) <= 360
+        assert b["trajectory_cut_month"] is None or b["trajectory_cut_month"] <= 360
+    for p in traj:
+        assert D(p["gap_debt"] or 0) <= owed_cap, p
+        assert D(p["balance"]) + D(p["gap_debt"] or 0) <= owed_cap, p
+
+
+def test_persona_b_short_month_schedule_stops_and_gap_owed_is_bounded():
+    user = _persona_b_user()
+    for path in ("/api/simulate", "/api/baseline"):
+        b = client.post(path, json={"user": user, "horizon_months": 1200}).json()
+        assert b["never_clears"] is True
+        assert 0 < len(b["trajectory"]) <= 360
+        start = D(b["trajectory"][0]["balance"]) + D(b["trajectory"][0]["gap_debt"] or 0)
+        _assert_gap_bounded(b, start * 100 + 1)
+    c = client.post("/api/sensitivity/compare", json={
+        "user": user, "horizon_months": 1200, "include_trajectory": True,
+        "surplus_delta": "1000",
+    }).json()
+    assert c["scenario_trajectory"] and len(c["scenario_trajectory"]) <= 360
+
+
+@settings(max_examples=examples(20), deadline=None)
+@given(
+    take_home=st.integers(30_000, 140_000),
+    spend=st.integers(10_000, 90_000),
+    path=st.sampled_from(["/api/simulate", "/api/baseline"]),
+)
+def test_gap_outputs_bounded_or_flagged(take_home, spend, path):
+    user = _persona_b_user(str(take_home))
+    user["fixed_expenses"] = str(spend)
+    r = client.post(path, json={"user": user, "horizon_months": 1200})
+    assert r.status_code == 200, r.text[:300]
+    b = r.json()
+    if not b["trajectory"]:
+        assert b.get("never_clears")
+        return
+    start = D(b["trajectory"][0]["balance"]) + D(b["trajectory"][0]["gap_debt"] or 0)
+    if b.get("never_clears"):
+        _assert_gap_bounded(b, start * 100 + 1)
+    else:
+        assert b["debt_free_month"] is not None
+        # A plan that clears repays its gap borrowing too.
+        assert max((D(p["gap_debt"] or 0) for p in b["trajectory"]), default=D(0)) <= start * 100 + 1

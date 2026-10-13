@@ -62,6 +62,9 @@ export interface PlanData {
   /** Live re-test NEW-2: paying only the minimums never clears the debt, so
    *  its interest total is unbounded and is not compared. */
   baselineNeverClears?: boolean;
+  /** Live re-test 2 NEW-2: the plan never clears, so the schedule stops at
+   *  `month` (30 years, or where what's owed would pass 100x the start). */
+  scheduleCut?: { month: number | null; growsWithoutLimit: boolean } | null;
   trajectory: TrajectoryPoint[];
   debtFreeMonth: number | null;
   totalInterest: string;

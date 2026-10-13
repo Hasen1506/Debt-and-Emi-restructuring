@@ -636,6 +636,10 @@ export interface SimulateResponse {
   total_invested: string;
   trajectory: TrajectoryPointRaw[];
   months_in_horizon: number;
+  /** Live re-test 2 NEW-2: a plan that never clears stops at 30 years, or
+   *  earlier where what's owed passes 100x the start (grows_without_limit). */
+  trajectory_cut_month?: number | null;
+  grows_without_limit?: boolean;
   /** This month's income short of costs plus minimum payments ('0' when
    *  covered); above 0, the plan's date assumes money the user doesn't have. */
   shortfall?: string;
@@ -669,6 +673,10 @@ export interface CompareResponse {
    *  compares unbounded totals and must not be shown. */
   baseline_never_clears?: boolean;
   scenario_never_clears?: boolean;
+  /** Live test L#26 (include_trajectory): the what-if's own trajectory. */
+  scenario_trajectory?: TrajectoryPointRaw[] | null;
+  scenario_trajectory_cut_month?: number | null;
+  scenario_grows_without_limit?: boolean;
   baseline_debt_free_month: number | null;
   scenario_debt_free_month: number | null;
   months_pulled_forward: string;

@@ -592,6 +592,10 @@ export async function loadPlan(
         monthlyInterest: Number(b.monthly_interest),
         scheduledEmi: Number(b.scheduled_emi),
       })),
+      scheduleCut:
+        scenario.debt_free_month == null && (scenario.trajectory_cut_month != null || scenario.never_clears)
+          ? { month: scenario.trajectory_cut_month ?? null, growsWithoutLimit: !!scenario.grows_without_limit }
+          : null,
       baselineNeverClears: !!baseline.never_clears || (baseline.debt_free_month == null && Number(baseline.total_interest_paid) > 0),
       trajectory: mergeTrajectories(scenario, baseline),
       debtFreeMonth: scenario.debt_free_month,
