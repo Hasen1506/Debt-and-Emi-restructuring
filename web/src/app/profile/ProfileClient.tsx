@@ -991,7 +991,7 @@ function ProfileEditor({
     const stored = loadProfileClient();
     return (
       <LShell>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 820 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22, width: '100%' }}>
           {back && <BackLink back={back} />}
           <ProfileHeader title="Your profile">
             Everything the plan uses. Change a part with its [EDIT]; the rest stays as it is.
@@ -1017,7 +1017,7 @@ function ProfileEditor({
 
   return (
     <LShell>
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 820 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
       {back && <BackLink back={back} />}
       <ProfileHeader title={PROFILE_SECTIONS[step] ?? 'Your profile'} editing>
         Change what you need and save. You can move between parts first;

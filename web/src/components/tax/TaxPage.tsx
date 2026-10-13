@@ -46,7 +46,7 @@ export function TaxPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 28, maxWidth: 820 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 28, width: '100%' }}>
       <header>
         <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>PROFILE · TAX</div>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>Tax and your loans</h1>

@@ -70,3 +70,36 @@ def test_extra_goes_to_the_card_first():
         extra = {r["loan"]: Decimal(r["payment"]) - due[r["loan"]] for r in p["first_month"]}
         assert max(extra, key=extra.get) == "Credit card"
         assert sum(v for k, v in extra.items() if k != "Credit card") == 0
+
+
+def test_chart_labels_never_collide():
+    """Live test 2026-10-13: the milestone labels overlapped, a leader ran
+    through another label, and the due note sat far from its line. Every
+    label now stays inside the plot, clear of both lines, of every other
+    label and of every other leader; its leader starts at its own square."""
+    for c in ("IN", "US"):
+        ch = SAVED[c]["chart"]
+        lay = le.layout_chart(ch, le.chart_labels(ch), le.money(c, ch["due_left_at_edge"]))
+        boxes = [o["box"] for o in lay["marks"]] + [lay["final"]["box"], lay["note"]["box"]]
+        for b in boxes:
+            assert b[0] >= le.PLOT_X0 - 0.5 and b[2] <= le.PLOT_X1 + 0.5, (c, b)
+        for i, a in enumerate(boxes):
+            for b in boxes[i + 1:]:
+                assert not le._overlap(a, b), (c, a, b)
+        plan, due = le._pts(ch["plan_path"]), le._pts(ch["due_path"])
+        for b in boxes:
+            for line in (plan, due):
+                assert not any(le._hit(p, q, b) for p, q in zip(line, line[1:])), (c, b)
+        for o in lay["marks"]:
+            (lx, _), _ = o["leader"]
+            assert any(abs(m["x"] - lx) < 0.01 for m in o["cluster"]), (c, o["texts"])
+            assert o["box"][0] - 6 <= lx <= o["box"][2] + 6, (c, o["texts"])  # text sits at its marker
+            for b in boxes:
+                if b != o["box"]:
+                    assert not le._hit(*o["leader"], b), (c, o["texts"], b)
+        # Markers less than MERGE_DX apart share one leader and one label.
+        xs = sorted(m["x"] for m in ch["markers"][:-1])
+        assert len(lay["marks"]) == 1 + sum(1 for a, b in zip(xs, xs[1:]) if b - a >= le.MERGE_DX)
+        # The due note ends at the dashed line's last point, just under it.
+        ex, ey = le._pts(ch["due_path"])[-1]
+        assert abs(lay["note"]["x"] - ex) <= 10 and 0 < lay["note"]["y"] - ey <= 24

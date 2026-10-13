@@ -253,26 +253,192 @@ def gen_kpis(c: str, f: dict) -> str:
     )
 
 
+# ─── Landing chart label layout ───────────────────────────────────────────
+# Everything below is in the chart's 800×300 viewBox. Labels are IBM Plex Mono
+# 11px with .5 letter-spacing: 7.1 units a character (width padded 4% for a
+# fallback monospace). A label sits beside the end of its leader, at its
+# marker's x, so the text lines up with the square it names; markers closer
+# than MERGE_DX share one leader and a stacked label. Each label takes the
+# first spot (shortest leader) that clears both lines, the axes, the other
+# labels and the other leaders; layout_chart() raises if none does.
+LABEL_FS = 11
+CHAR_W = 0.6 * LABEL_FS + 0.5
+LINE_H = 14
+MERGE_DX = 16
+PLOT_X0, PLOT_X1, PLOT_Y0, PLOT_Y1 = 72, 790, 24, 250
+
+
+def text_w(s: str) -> float:
+    return round(len(s) * CHAR_W * 1.04, 1)
+
+
+def _pts(path: str) -> list[tuple[float, float]]:
+    return [tuple(float(v) for v in p.split(",")) for p in path.lstrip("M").split(" L")]
+
+
+def _hit(p, q, box) -> bool:
+    """Does segment p→q touch box (x0, y0, x1, y1)? Liang–Barsky."""
+    (x0, y0), (x1, y1) = p, q
+    dx, dy = x1 - x0, y1 - y0
+    t0, t1 = 0.0, 1.0
+    for pp, qq in ((-dx, x0 - box[0]), (dx, box[2] - x0), (-dy, y0 - box[1]), (dy, box[3] - y0)):
+        if pp == 0:
+            if qq < 0:
+                return False
+            continue
+        t = qq / pp
+        if pp < 0:
+            t0 = max(t0, t)
+        else:
+            t1 = min(t1, t)
+        if t0 > t1:
+            return False
+    return True
+
+
+def _overlap(a, b) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def _grow(b, d):
+    return (b[0] - d, b[1] - d, b[2] + d, b[3] + d)
+
+
+def _due_note(ch: dict, left: str) -> dict:
+    """The "only what's due" note, right-aligned under the dashed line's end."""
+    ex, ey = _pts(ch["due_path"])[-1]
+    text = f"ONLY WHAT&#39;S DUE: {left} LEFT →"
+    w = text_w(text.replace("&#39;", "'"))
+    x1 = min(ex + 4, PLOT_X1 - 2)
+    y = round(ey + 20, 1)
+    return {"text": text, "x": round(x1, 1), "y": y, "box": (x1 - w, y - 0.9 * LABEL_FS, x1, y + 3)}
+
+
+def layout_chart(ch: dict, labels: list[str], left: str) -> dict:
+    """Place every label; returns marks (one per cluster) plus the final
+    marker's label and the due note, each with its box for the tests."""
+    plan, due = _pts(ch["plan_path"]), _pts(ch["due_path"])
+    ms = [dict(m, label_text=labels[i]) for i, m in enumerate(ch["markers"])]
+    final, rest = ms[-1], ms[:-1]
+
+    fixed = [  # axis text and the title
+        (0, 4, 120, 20), (0, 36, 64, 52), (0, 138, 64, 154), (0, 250, 64, 266), (66, 278, 800, 294),
+    ]
+    note = _due_note(ch, left)
+    fixed.append(note["box"])
+    fw = text_w(final["label_text"])
+    fx = min(max(final["x"], PLOT_X0 + fw / 2), PLOT_X1 - fw / 2)
+    fy = round(final["y"] + 18, 1)
+    final_box = (fx - fw / 2, fy - 0.9 * LABEL_FS, fx + fw / 2, fy + 3)
+    fixed.append(final_box)
+    rects = [(m["x"] - 4, m["y"] - 4, m["x"] + 4, m["y"] + 4) for m in ms]
+
+    clusters: list[list[dict]] = []
+    for m in sorted(rest, key=lambda m: m["x"]):
+        if clusters and m["x"] - clusters[-1][-1]["x"] < MERGE_DX:
+            clusters[-1].append(m)
+        else:
+            clusters.append([m])
+
+    def lines_clear(box) -> bool:
+        b = _grow(box, 5)
+        return not any(_hit(p, q, b) for line in (plan, due) for p, q in zip(line, line[1:]))
+
+    # Every spot each label could take on its own, cheapest first; then the
+    # cheapest set where no label or leader crosses another (small search:
+    # a handful of clusters).
+    SIDE_COST = {"end": 0, "start": 4, "below": 8}
+    options: list[list[dict]] = []
+    for cl in clusters:
+        anchor = max(cl, key=lambda m: m["y"])  # the lowest square
+        lx, top = anchor["x"], max(m["y"] for m in cl) + 5
+        texts = [m["label_text"] for m in cl]
+        w, h = max(text_w(t) for t in texts), LINE_H * len(texts)
+        opts = []
+        for yc in range(int(top + 16), PLOT_Y1, 2):
+            for side in ("end", "start", "below"):
+                if side == "end":
+                    box = (lx - 5 - w, yc - h / 2, lx - 5, yc + h / 2)
+                elif side == "start":
+                    box = (lx + 5, yc - h / 2, lx + 5 + w, yc + h / 2)
+                else:
+                    x0 = min(max(lx - w / 2, PLOT_X0), PLOT_X1 - w)
+                    box = (x0, yc + 3, x0 + w, yc + 3 + h)
+                if box[0] < PLOT_X0 or box[2] > PLOT_X1 or box[1] < PLOT_Y0 or box[3] > PLOT_Y1:
+                    continue
+                leader = ((lx, top), (lx, yc))
+                if not lines_clear(box) or any(_overlap(_grow(box, 3), r) for r in fixed + rects):
+                    continue
+                if any(_hit(*leader, _grow(r, 1)) for r in fixed):
+                    continue
+                opts.append({"cluster": cl, "box": tuple(round(v, 1) for v in box), "leader": leader, "side": side,
+                             "texts": texts, "cost": yc - top + SIDE_COST[side]})
+        opts.sort(key=lambda o: o["cost"])
+        options.append(opts[:60])
+
+    def clash(o, p) -> bool:
+        return (_overlap(_grow(o["box"], 6), p["box"]) or _hit(*o["leader"], _grow(p["box"], 2))
+                or _hit(*p["leader"], _grow(o["box"], 2)))
+
+    best: dict = {"cost": float("inf"), "set": None}
+
+    def search(i: int, chosen: list[dict], cost: float) -> None:
+        if cost >= best["cost"]:
+            return
+        if i == len(options):
+            best.update(cost=cost, set=list(chosen))
+            return
+        for o in options[i]:
+            if not any(clash(o, p) for p in chosen):
+                search(i + 1, chosen + [o], cost + o["cost"])
+
+    search(0, [], 0.0)
+    if best["set"] is None:
+        raise SystemExit("landing chart: no room for every milestone label")
+    placed = best["set"]
+    return {"marks": placed, "final": {"x": round(fx, 1), "y": fy, "box": final_box, "text": final["label_text"], "m": final},
+            "note": note}
+
+
+def _mark_svg(o: dict, cls: str) -> str:
+    x0, y0, x1, y1 = o["box"]
+    (lx, ly0), (_, ly1) = o["leader"]
+    if o["side"] == "end":
+        tx, anchor = x1, "end"
+    elif o["side"] == "start":
+        tx, anchor = x0, "start"
+    else:
+        tx, anchor = x0, "start"
+    spans = "".join(f'<tspan x="{tx}" y="{round(y0 + LINE_H * (i + 1) - 0.35 * LABEL_FS, 1)}">{t}</tspan>' for i, t in enumerate(o["texts"]))
+    squares = "".join(f'<rect x="{m["x"] - 4}" y="{m["y"] - 4}" width="8" height="8" fill="#ab4f30"/>' for m in o["cluster"])
+    return (f'<g class="mk {cls}"><line class="dl" x1="{lx}" y1="{round(ly0, 1)}" x2="{lx}" y2="{round(ly1, 1)}" stroke="#ab4f30" stroke-dasharray="2 3"/>'
+            f'{squares}<text class="ml" text-anchor="{anchor}">{spans}</text></g>')
+
+
+def chart_labels(ch: dict) -> list[str]:
+    """One label a marker: the loan and its month; the last is DEBT-FREE."""
+    ms = ch["markers"]
+    return [f'DEBT-FREE · {mon(m["label"])}' if i == len(ms) - 1
+            else f'{m["loan"].replace("HDFC ", "").replace("SBI ", "").upper()} · {mon(m["label"])}'
+            for i, m in enumerate(ms)]
+
+
 def gen_chart(c: str, f: dict) -> str:
     x = f[c]
     ch = x["chart"]
-    marks, mlist = [], []
-    cls = "abcd"
+    labels, mlist = chart_labels(ch), []
     for i, m in enumerate(ch["markers"]):
-        name = m["loan"].replace("HDFC ", "").replace("SBI ", "").upper()
         last = i == len(ch["markers"]) - 1
-        lab = f'DEBT-FREE · {mon(m["label"])}' if last else f'{name} · {mon(m["label"])}'
-        if last:
-            marks.append(f'<g class="mk {cls[min(i, 3)]}"><rect x="{m["x"] - 4}" y="{m["y"] - 4}" width="8" height="8" fill="#ab4f30"/>'
-                         f'<text class="ml" x="{m["x"]}" y="{m["y"] + 18}" text-anchor="middle">{lab}</text></g>')
-        else:
-            ly = 140 + 22 * i
-            marks.append(f'<g class="mk {cls[min(i, 3)]}"><line class="dl" x1="{m["x"]}" y1="{m["y"] + 4}" x2="{m["x"]}" y2="{ly - 10}" stroke="#ab4f30" stroke-dasharray="2 3"/>'
-                         f'<rect x="{m["x"] - 4}" y="{m["y"] - 4}" width="8" height="8" fill="#ab4f30"/>'
-                         f'<text class="ml" x="{m["x"] + 4}" y="{ly}">{lab}</text></g>')
         mlist.append(f'{m["loan"].lower() if not last else "debt-free"} {mon(m["label"])}')
     owed = float(x["outstanding"])
     left = money(c, ch["due_left_at_edge"])
+    lay = layout_chart(ch, labels, left)
+    cls = "abcd"
+    marks = [_mark_svg(o, cls[min(i, 2)]) for i, o in enumerate(lay["marks"])]
+    fm = lay["final"]
+    marks.append(f'<g class="mk d"><rect x="{fm["m"]["x"] - 4}" y="{fm["m"]["y"] - 4}" width="8" height="8" fill="#ab4f30"/>'
+                 f'<text class="ml" x="{fm["x"]}" y="{fm["y"]}" text-anchor="middle">{fm["text"]}</text></g>')
+    note = lay["note"]
     aria = (f'Example: total debt falls from {short_owed(c, owed)} now to zero in {x["plan"]["debt_free"]} on the plan; '
             f'paying only what is due still leaves {left} owed in {ch["axis"]["end"]["label"]}.')
     return (
@@ -289,10 +455,10 @@ def gen_chart(c: str, f: dict) -> str:
         f'          <line x1="70" y1="258" x2="790" y2="258" stroke="#0a0a0a" stroke-width="1"/>\n'
         f'          <path class="fade-line" d="{ch["due_path"]}" fill="none" stroke="#5e5e58" stroke-width="2" stroke-dasharray="6 5"/>\n'
         f'          <path class="draw" d="{ch["plan_path"]}" fill="none" stroke="#0a0a0a" stroke-width="2.5"/>\n'
-        f'          <g font-family="IBM Plex Mono, monospace" font-size="10" font-weight="700" fill="#ab4f30" letter-spacing=".5">\n'
+        f'          <g font-family="IBM Plex Mono, monospace" font-size="{LABEL_FS}" font-weight="700" fill="#ab4f30" letter-spacing=".5">\n'
         + "\n".join(f"            {m}" for m in marks) +
         f'\n          </g>\n'
-        f'          <text class="ml" x="560" y="40" font-family="IBM Plex Mono, monospace" font-size="10" fill="#5e5e58" letter-spacing=".5">ONLY WHAT&#39;S DUE: {left} LEFT →</text>\n'
+        f'          <text class="ml" x="{note["x"]}" y="{note["y"]}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="{LABEL_FS}" fill="#5e5e58" letter-spacing=".5">{note["text"]}</text>\n'
         f'        </svg>\n'
         f'        <p class="mlist">{"Paid off: " + " · ".join(mlist)}. Paying only what&#39;s due: {left} still owed in {ch["axis"]["end"]["label"]}.</p>'
     )
