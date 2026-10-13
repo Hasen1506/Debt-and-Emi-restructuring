@@ -154,6 +154,7 @@ export function TenureWhatIf({
               type="button"
               aria-pressed={months === m}
               onClick={() => setMonths(months === m ? 0 : m)}
+              className="l-hit"
               style={{
                 fontFamily: 'inherit',
                 fontSize: 11,

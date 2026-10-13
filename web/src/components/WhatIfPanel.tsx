@@ -756,7 +756,10 @@ function SliderRow({
           unit={unit}
           mode={inputMode}
           currency={currency}
-          placeholder={inputMode === 'bps' ? '0' : formatValue(0)}
+          // R6-3: a plain "0" placeholder. The words ("no payment", "no change")
+          // stopped fitting a 390px box once C-02 set inputs in 16px type;
+          // the slider's own readout still says them.
+          placeholder="0"
           label={title}
         />
         {showMaxButton && !disabled && (

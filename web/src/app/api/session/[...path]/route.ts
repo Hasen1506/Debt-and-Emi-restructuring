@@ -40,7 +40,7 @@ async function readBody(req: NextRequest): Promise<string> {
 }
 
 /** Fixed upstream and path allowlist: never a general-purpose proxy. */
-async function proxy(req: NextRequest, context: { params: Promise<{ path: string[] }> }): Promise<Response> {
+async function proxyInner(req: NextRequest, context: { params: Promise<{ path: string[] }> }): Promise<Response> {
   const path = (await context.params).path.join('/');
   const methods = METHODS[path];
   if (!methods) return new Response(null, { status: 404 });
@@ -137,7 +137,24 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
   }
 }
 
+/** R6-6: every answer here is per-person (or says who is signed in), so no
+ *  cache or proxy may keep or share it: private, no-store on every status,
+ *  including the 404/405/403/413/502 branches and HEAD, and Vary: Cookie. */
+function noStore(res: Response): Response {
+  res.headers.set('Cache-Control', 'private, no-store');
+  res.headers.append('Vary', 'Cookie');
+  return res;
+}
+async function proxy(req: NextRequest, context: { params: Promise<{ path: string[] }> }): Promise<Response> {
+  return noStore(await proxyInner(req, context));
+}
+async function head(req: NextRequest, context: { params: Promise<{ path: string[] }> }): Promise<Response> {
+  const path = (await context.params).path.join('/');
+  return noStore(new Response(null, { status: METHODS[path] ? 405 : 404, headers: { Allow: (METHODS[path] ?? []).join(', ') } }));
+}
+
 export const GET = proxy;
+export const HEAD = head;
 export const POST = proxy;
 export const PUT = proxy;
 export const PATCH = proxy;

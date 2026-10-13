@@ -154,7 +154,7 @@ export function HomeProgress({
                 <span style={{ flex: '1 1 260px' }}>{p.text}</span>
                 {p.href && <a href={p.href} style={{ ...lPayBtn(false), textDecoration: 'none' }}>OPEN</a>}
                 {p.action === 'copy_plan' && <button type="button" style={lPayBtn(false)} onClick={() => void copyPlan()}>COPY MY PLAN</button>}
-                <button type="button" onClick={() => later(p)} style={{ background: 'none', border: 0, color: L_T.muted, textDecoration: 'underline', cursor: 'pointer', fontSize: 11 }}>
+                <button type="button" className="l-hit" onClick={() => later(p)} style={{ background: 'none', border: 0, color: L_T.muted, textDecoration: 'underline', cursor: 'pointer', fontSize: 11 }}>
                   Remind me next month
                 </button>
               </li>

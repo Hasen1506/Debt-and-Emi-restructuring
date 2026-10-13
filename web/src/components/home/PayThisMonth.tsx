@@ -26,7 +26,8 @@ import { loadProfileClient, profileCookieKey, saveProfileClient } from '@/lib/us
 import { alignToLoans } from '@/lib/loan-ids';
 import { MONTH_NAMES_SHORT, localIsoDate, getCountryToday } from '@/lib/today';
 import { userDefaultCurrency } from '@/lib/currency';
-import type { PayRow, PayThisMonth as PayData } from '@/lib/pay-this-month';
+import { owedAfterLabel, type PayRow, type PayThisMonth as PayData } from '@/lib/pay-this-month';
+import { owedNow } from '@/lib/owed-now';
 import { Field } from '@/components/ToolPrimitives';
 import { UpiPay } from './UpiPay';
 // G7: loan-cleared letter, payday email, answers from the email.
@@ -330,6 +331,13 @@ export function PayThisMonth({
       return ka - kb;
     });
 
+  // R6-5: the card's "owed after" comes from the same place as Home's loans
+  // list once a payment on it is marked (lib/owed-now, UX50 B-12).
+  const owedRows = ready ? owedNow(loans, entries, month) : null;
+  const owedNowFor = (row: PayRow) => {
+    const r = row.loanIndex !== null ? owedRows?.[row.loanIndex] : undefined;
+    return r ? { owed: r.owed.toNumber(), ...(r.cardBefore ? { cardBefore: r.cardBefore.toNumber() } : {}) } : undefined;
+  };
   return (
     <section aria-labelledby="home-pay">
       <LSectionHeader
@@ -422,7 +430,7 @@ export function PayThisMonth({
                   )}
                 </div>
                 <div style={{ fontSize: 12, letterSpacing: '0.04em', color: L_T.inkSoft, marginTop: 4, lineHeight: 1.5 }}>
-                  {kindLine(row, fmt)}
+                  {kindLine(row, fmt, owedNowFor(row))}
                   {row.dueDay ? ` · DUE ${row.dueDay} ${MONTH_NAMES_SHORT[Number(month.slice(5)) - 1].toUpperCase()}` : ''}
                 </div>
                 {reason && reason.key === row.key && !st && (
@@ -589,7 +597,7 @@ export function PayNotice({ title, children }: { title: string; children: ReactN
   );
 }
 
-function kindLine(row: PayRow, fmt: (v: number, ccy?: PayRow['currency']) => string): string {
+function kindLine(row: PayRow, fmt: (v: number, ccy?: PayRow['currency']) => string, now?: { owed: number; cardBefore?: number }): string {
   const min = row.loanIndex !== null && row.minimum > 0 ? fmt(row.minimum, row.currency) : '';
   switch (row.kind) {
     case 'emi':
@@ -598,7 +606,7 @@ function kindLine(row: PayRow, fmt: (v: number, ccy?: PayRow['currency']) => str
       return 'CARD MINIMUM';
     case 'extra':
       return `${row.minimum > 0 ? `${min} ${row.card ? 'MINIMUM' : 'EMI'} + ` : ''}${fmt(row.extra, row.currency)} EXTRA${
-        row.owedAfter ? ` · ${fmt(row.owedAfter, row.currency)} STILL OWED AFTER` : ''
+        ((t) => (t ? ` · ${t}` : ''))(owedAfterLabel(row, now, (v) => fmt(v, row.currency)))
       }`;
     case 'clears':
       return row.payoff

@@ -217,6 +217,14 @@ export function readMonthsUnpaid(raw: string): { months: number | null; error: s
   return { months: n, error: null };
 }
 
+/** R6-4: the line under the cost block. At 0 months nothing has been missed,
+ *  so there is no cost and nothing goes on the credit report. */
+export const NOTHING_UNPAID_LINE = 'Nothing is unpaid yet: pay by the due date and there\u2019s no extra cost.';
+export function missedCostClosing(months: number, totalText: string): string {
+  if (months <= 0) return NOTHING_UNPAID_LINE;
+  return `Adds about ${totalText}, plus ${months === 1 ? 'a missed payment' : 'missed payments'} on your credit report${months >= 3 ? '. After 90 days unpaid the loan is classed a default (NPA).' : '.'}`;
+}
+
 /** Read a lender charge typed by the user: blank is null (unknown), else a non-negative amount. */
 export function readCharge(raw: string): { value: number | null; error: string | null } {
   const t = String(raw ?? '').trim().replace(/^(₹|rs\.?)\s*/i, '').replace(/[,\s]/g, '');

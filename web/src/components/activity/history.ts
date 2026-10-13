@@ -88,7 +88,11 @@ function entryRow(e: ActivityEntry, loan: LoanPayload, country: Country): Histor
   const fmt = (v: string | number) => formatCurrencyWhole(Math.round(Number(v)), ccy);
   const card = loan.loan_type === 'credit_card';
   const { overdue, est, extra } = decorateEntry(e, loan, country);
-  const planned = Number(e.scheduledEmi) > 0 ? fmt(e.scheduledEmi) : undefined;
+  // R6-5: an extra the plan asked for is part of what was planned. Activity
+  // said "planned ₹10,000" for a card Home said to pay ₹47,500 on.
+  const plannedExtra = e.kind === 'paid_extra' ? Math.max(0, Number(e.plannedExtra) || 0) : 0;
+  const plannedTotal = (Number(e.scheduledEmi) || 0) + plannedExtra;
+  const planned = Number(e.scheduledEmi) > 0 ? fmt(plannedTotal) : undefined;
   const notes: string[] = [];
   if (e.newOutstanding) notes.push(`balance now ${fmt(e.newOutstanding)}`);
   if (e.coversForwardMonths) notes.push(`covers ${e.coversForwardMonths} months${e.source ? ` · ${e.source.replace('-', ' ')}` : ''}`);
@@ -129,7 +133,15 @@ function entryRow(e: ActivityEntry, loan: LoanPayload, country: Country): Histor
         type: 'EXTRA',
         status: 'PAID',
         tone: 'positive',
-        effect: Number(extra) > 0 ? { text: `−${fmt(extra)} OFF THE BALANCE`, tone: 'positive' } : undefined,
+        // The extra off the balance is the plan's when it asked for it; only
+        // what went beyond the plan is called extra (R6-5).
+        effect: Number(extra) > 0
+          ? { text: plannedExtra > 0
+              ? (Number(extra) > plannedExtra + 0.5
+                ? `−${fmt(extra)} OFF THE BALANCE · ${fmt(Number(extra) - plannedExtra)} MORE THAN THE PLAN`
+                : `−${fmt(extra)} OFF THE BALANCE, AS PLANNED`)
+              : `−${fmt(extra)} EXTRA OFF THE BALANCE`, tone: 'positive' }
+          : undefined,
       };
     case 'closed':
       return { ...base, type: 'PAYOFF', status: 'PAID OFF', tone: 'positive', effect: { text: 'BALANCE → 0', tone: 'positive' } };

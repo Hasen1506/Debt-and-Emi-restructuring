@@ -275,6 +275,14 @@ select[aria-invalid="true"] {
   }
 }
 
+/* Links keep their ::after hit area; a min-height on a link in a flex row
+   top-aligns its text against its button neighbours.
+   R6-2: this base rule must come BEFORE the coarse-pointer block below; it
+   used to sit after it, so at equal specificity it won and every l-hit
+   button stayed 24px tall on phones. */
+button.l-hit {
+  min-height: 24px;
+}
 /* UX50 C-04: bracket buttons are set in 10px type; on a touch screen give
    each a real 44px-tall box (WCAG 2.5.8 asks 24px; Android/Apple 44–48),
    and checkboxes a 20px square. */
@@ -284,6 +292,8 @@ select[aria-invalid="true"] {
     display: inline-flex;
     align-items: center;
     min-height: 44px;
+    min-width: 44px;
+    justify-content: center;
     padding-left: 4px !important;
     padding-right: 4px !important;
   }
@@ -292,11 +302,17 @@ select[aria-invalid="true"] {
     width: 20px;
     height: 20px;
   }
+  /* R6-2: the app footer's links get a 44px row on a touch screen. */
+  .rd-site-footer a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
 }
-/* Links keep their ::after hit area; a min-height on a link in a flex row
-   top-aligns its text against its button neighbours. */
-button.l-hit {
-  min-height: 24px;
+/* R6-2: a long label must never squeeze the box in a check row. */
+.l-check-row > input[type='checkbox'],
+.l-check-row > input[type='radio'] {
+  flex-shrink: 0;
 }
 .l-check-row {
   display: flex;
