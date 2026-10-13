@@ -98,7 +98,7 @@ test('R4-1: Invest or prepay names the invalid field in the answer box', async (
   const tax = page.getByLabel('Your tax rate (%)');
   await loanRate.fill('14');
   await tax.fill('15.6');
-  const answer = page.locator('#ivp-out');
+  const answer = page.locator('[aria-labelledby="ivp-out"]');
   const ret = page.getByLabel(/Today's rate \(%\)|It earns a year, on average \(%\)/);
   await ret.fill('abc');
   await expect(ret).toHaveAttribute('aria-invalid', 'true');
