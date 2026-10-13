@@ -271,7 +271,7 @@ export async function HomeThisMonthStrip() {
   const plan = await loadPlanOnce();
   if (plan.gaps.length > 0 || !plan.live) return null;
   const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country));
-  const line = homeThisMonthLine(payThisMonth(plan), plan.shortfall, fc);
+  const line = homeThisMonthLine(payThisMonth(plan), plan.shortfall, fc, plan.user.country);
   if (!line) return null;
   return <HomeThisMonth line={line} />;
 }

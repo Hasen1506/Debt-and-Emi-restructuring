@@ -7,6 +7,7 @@
  * A row opens to how that cost is worked out. The loan an extra payment
  * goes to first by cost is flagged DEAREST. Replaces the separate Debts page.
  */
+import { localTerms, paymentWords } from '@/lib/terms';
 import { useState } from 'react';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrencyWhole } from '@/lib/api';
@@ -28,6 +29,8 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
   const [open, setOpen] = useState<number | null>(null);
   const { user } = profile;
   const country = user.country;
+  // R8-2: the tag a US borrower reads ("PAYMENT") instead of India's "EMI".
+  const emiTag = country === 'US' ? 'PAYMENT' : 'EMI';
   const userCcy = userDefaultCurrency(country);
   const gapCtx = { country, fx: user.fx_to_user_currency };
   // With a rate missing the dearest loan isn't known, so none is flagged.
@@ -51,7 +54,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
       {/* Where these numbers come from: the user, not the bank. */}
       <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
         As entered in Profile, not linked to your bank: check them against a
-        statement now and then. A loan moves on by its EMI once you mark it
+        statement now and then. A loan moves on by its {paymentWords(country).one} once you mark it
         paid; a card shows what you've paid this month off the balance you
         entered, until you enter the next statement.
       </p>
@@ -87,9 +90,9 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
               </>
             ),
             gaps.includes('emi') ? (
-              missing('EMI')
+              missing(emiTag)
             ) : d.required.gt(0) && !(status && status !== 'paid') ? (
-              `${isCard ? 'MINIMUM' : 'EMI'} ${fc(d.required.toFixed(0))}`
+              `${isCard ? 'MINIMUM' : emiTag} ${fc(d.required.toFixed(0))}`
             ) : null,
             // Once this month's EMI is paid it's no longer one of the months left.
             isCard ? 'REVOLVING' : months > 0 ? `${now.rows[d.index]?.status === 'paid' ? months - 1 : months} MO LEFT` : null,
@@ -157,7 +160,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                     color: status === 'paid' ? L_T.positive : status === 'due' ? L_T.muted : L_T.negative,
                   }}
                 >
-                  {emiStatusLine(status, mon, nextMon, isCard ? 'MINIMUM' : 'EMI', !gaps.includes('emi') && d.required.gt(0) ? fc(d.required.toFixed(0)) : null)}
+                  {emiStatusLine(status, mon, nextMon, isCard ? 'MINIMUM' : emiTag, !gaps.includes('emi') && d.required.gt(0) ? fc(d.required.toFixed(0)) : null)}
                 </div>
               )}
               <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -210,7 +213,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
             <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
               {formatCurrencyWhole(totalNow.toFixed(0), userCcy)}
               <span style={{ color: L_T.muted, fontWeight: 400 }}>
-                {' '}· EMIS + MINIMUMS {formatCurrencyWhole(m.emiBurden.toFixed(0), userCcy)}/MO
+                {' '}· {localTerms('EMIS', country)} + MINIMUMS {formatCurrencyWhole(m.emiBurden.toFixed(0), userCcy)}/MO
               </span>
             </span>
           )}

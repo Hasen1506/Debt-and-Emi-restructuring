@@ -13,6 +13,7 @@
  * only, NRI prepay for someone in the US with loans in India, so most
  * people see five.
  */
+import { localTerms } from './terms';
 import type { Country } from './api';
 
 export interface ToolMeta {
@@ -97,5 +98,11 @@ export const TOOLS: ToolMeta[] = [
 export function toolsFor(user: { country: Country; is_nri_us?: boolean }): ToolMeta[] {
   return TOOLS.filter(
     (t) => (!t.countries || t.countries.includes(user.country)) && (!t.nriOnly || user.is_nri_us === true),
-  );
+  ).map((t) => toolInCountry(t, user.country));
+}
+
+/** R8-2: a tool's words as a borrower in this country says them. */
+export function toolInCountry(t: ToolMeta, country: Country | string | undefined): ToolMeta {
+  if (country !== 'US') return t;
+  return { ...t, question: localTerms(t.question, country), sub: localTerms(t.sub, country) };
 }

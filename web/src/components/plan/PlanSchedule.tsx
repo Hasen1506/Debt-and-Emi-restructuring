@@ -7,6 +7,7 @@
  * next floating-rate reset (when it's within three months). The central
  * bank's next decision has its own section (RateDecisions).
  */
+import { paymentWords } from '@/lib/terms';
 import { useState } from 'react';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole, type LoanPayload } from '@/lib/api';
@@ -259,7 +260,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
         <p style={{ margin: '0 0 8px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
           The first row is what you owe on each loan at the start of {startLabel.charAt(0) + startLabel.slice(1, 3).toLowerCase()}, before
           this month&apos;s payments. Every row after it is what you pay that month: each loan&apos;s
-          column is its EMI or minimum plus any extra, not what&apos;s left on it. BALANCE is what&apos;s left on all of them
+          column is its {paymentWords(plan.user.country).one} or minimum plus any extra, not what&apos;s left on it. BALANCE is what&apos;s left on all of them
           at the month&apos;s end.
         </p>
         {mixed && (

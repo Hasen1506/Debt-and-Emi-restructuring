@@ -14,7 +14,7 @@
  * top-of-page chrome so all six tools share the same masthead.
  */
 
-import { TOOLS } from '@/lib/tools';
+import { TOOLS, toolInCountry } from '@/lib/tools';
 import { useStoredProfile } from '@/lib/use-profile';
 import { ToolStrip } from '@/components/goals/ToolsList';
 import { LToolHeader } from './LToolShell';
@@ -46,7 +46,7 @@ export function LToolPageHeader({
   // §4.9 spec: the *exact* question the tool answers is the hero line.
   // TOOLS metadata stores them as sentence-case ("Got a bonus?"); we
   // upcase here so every tool reads as a ledger statement.
-  const question = meta.question;
+  const question = toolInCountry(meta, user?.country).question;
 
   return (
     <LShell>

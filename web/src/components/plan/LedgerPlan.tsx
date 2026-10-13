@@ -14,6 +14,7 @@
  * (REDESIGN R2).
  */
 
+import { localTerms, paymentWords } from '@/lib/terms';
 import type { PlanData } from './PlanData';
 import { useState } from 'react';
 import type { CompareResponse } from '@/lib/api';
@@ -222,7 +223,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
               : {
                   l: 'PAYING THIS MONTH',
                   v: fc(monthlyOutlay),
-                  s: 'EMIS + MINIMUMS + EXTRA',
+                  s: localTerms('EMIS + MINIMUMS + EXTRA', plan.user.country),
                 },
           ]}
         />
@@ -356,7 +357,7 @@ function ShortfallBanner({ plan }: { plan: PlanData }) {
         SHORT {fc(plan.shortfall)} A MONTH
       </div>
       <dl style={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', gap: '2px 18px', margin: '0 0 8px' }}>
-        <dt>Due this month (EMIs and minimums)</dt>
+        <dt>{localTerms('Due this month (EMIs and minimums)', plan.user.country)}</dt>
         <dd style={{ margin: 0, textAlign: 'right', fontWeight: 700 }}>{fc(d.due)}</dd>
         <dt>What your income covers after costs</dt>
         <dd style={{ margin: 0, textAlign: 'right', fontWeight: 700 }}>{fc(d.canCover)}</dd>
@@ -405,15 +406,15 @@ function NeverClears({ plan, fc }: { plan: PlanData; fc: (v: number) => string }
         <LCli>PLAN · A LOAN THAT NEVER CLEARS</LCli>
         <LRule length={200} />
         <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
-          There&apos;s no payoff date: at these figures the EMI doesn&apos;t cover the interest, so the balance never goes down.
+          {localTerms('There’s no payoff date: at these figures the EMI doesn’t cover the interest, so the balance never goes down.', plan.user.country)}
           <ul style={{ margin: '10px 0 14px', paddingLeft: 18, color: L_T.ink }}>
             {(plan.nonAmortising ?? []).map((b) => {
               const loan = plan.user.loans[b.loanIndex];
               const name = loan ? `${(loan.bank || 'Your').toUpperCase()} ${LOAN_TYPE_NAME[loan.loan_type].toUpperCase()}` : 'A LOAN';
               return (
                 <li key={b.loanIndex}>
-                  {name}: interest about {fc(Math.round(b.monthlyInterest))} a month, EMI {fc(Math.round(b.scheduledEmi))}.
-                  {loan && emiBelowInterest(loan) ? ` ${emiBelowInterest(loan)}` : ''}
+                  {name}: interest about {fc(Math.round(b.monthlyInterest))} a month, {paymentWords(plan.user.country).one} {fc(Math.round(b.scheduledEmi))}.
+                  {loan && emiBelowInterest(loan, plan.user.country) ? ` ${emiBelowInterest(loan, plan.user.country)}` : ''}
                 </li>
               );
             })}
