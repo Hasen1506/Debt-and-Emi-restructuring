@@ -53,7 +53,7 @@ import {
   loadActivityPaceServer,
 } from '@/lib/activity-cookie';
 import { PACE_MONTHS, monthsBefore, paceDiffers, paceProjectionGap, paceSummary } from '@/lib/pace';
-import { mergeTrajectories } from '@/lib/trajectory';
+import { extractMonthlyPayments, mergeTrajectories } from '@/lib/trajectory';
 import { planGap } from '@/lib/plan-gap';
 import { mockTrajectory } from '@/lib/mock-data';
 import { deriveMetrics } from '@/lib/derived';
@@ -67,24 +67,6 @@ import {
 } from '@/lib/currency';
 import type { PlanData, MonthlyPaymentBreakdown } from '@/components/plan/PlanData';
 
-function extractMonthlyPayments(
-  scenario: SimulateResponse,
-): MonthlyPaymentBreakdown[] {
-  return scenario.trajectory
-    .filter((p) => p.month >= 1)
-    .map((p) => {
-      const perLoan: Record<number, string> = {};
-      for (const [idx, amount] of Object.entries(p.payments_by_loan_index ?? {})) {
-        perLoan[Number(idx)] = amount;
-      }
-      return {
-        month: p.month,
-        perLoan,
-        totalPaid: Number(p.total_paid ?? 0),
-        extraPaid: Number(p.extra_paid ?? 0),
-      };
-    });
-}
 
 
 /** Everything the plan runs on, read from the cookies, before the engine

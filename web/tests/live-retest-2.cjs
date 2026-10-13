@@ -172,7 +172,35 @@ test('small fixes: R2-2, NEW-23, R2-7, NEW-18, R2-10, NEW-9, R2-9, R2-6, R2-8', 
   assert.match(wf, /aria-invalid=\{receivedCheck\.ok \? undefined : true\}/);
   const home = src('components/home/LedgerHome.tsx');
   assert.doesNotMatch(home, /your highest-rate lender/);
-  assert.doesNotMatch(src('app/page.tsx'), /……/);
+  assert.match(src('app/page.tsx'), /oneStep=\{[\s\S]*?fallback=\{<span aria-busy="true" \/>\}/);
   assert.match(src('app/tools/loan-check/tool.tsx'), /placeholder="e\.g\. 22,000"/);
   assert.doesNotMatch(src('components/distress/CantPay.tsx'), /schedule of charges"/);
+});
+
+test('L#26: the what-if trajectory redraws the plan line and table, minimums kept', () => {
+  const { planWithWhatIf } = lib('trajectory.ts');
+  const plan = {
+    user: { country: 'IN', loans: [{ loan_type: 'home_loan', scheduled_emi: '22000', outstanding: '100000' }] },
+    trajectory: [1, 2, 3].map((m) => ({ month: m, avalanche: 100 - m * 10, minimums: 100 - m * 5 })),
+    monthlyPayments: [],
+    debtFreeMonth: 10,
+    gap: null,
+  };
+  const r = {
+    scenario_debt_free_month: 2,
+    tenure_new_emi: '20378.00',
+    scenario_trajectory: [1, 2].map((m) => ({ month: m, balance: String(50 - m * 25), payments_by_loan_index: { 0: '20378' }, total_paid: '20378', extra_paid: '0' })),
+  };
+  const p = planWithWhatIf(plan, r, 0);
+  assert.equal(p.debtFreeMonth, 2);
+  assert.deepEqual(p.trajectory.map((t) => t.avalanche), [25, 0, 0]);
+  assert.deepEqual(p.trajectory.map((t) => t.minimums), [95, 90, 85]);
+  assert.equal(p.monthlyPayments.length, 2);
+  assert.equal(p.user.loans[0].scheduled_emi, '20378.00');
+  assert.equal(plan.user.loans[0].scheduled_emi, '22000');
+  assert.equal(planWithWhatIf(plan, { scenario_trajectory: [] }, 0), null);
+  const lp = src('components/plan/LedgerPlan.tsx');
+  assert.match(lp, /<PlanTrajectory plan=\{shownPlan\}/);
+  assert.match(lp, /<PlanSchedule plan=\{shownPlan\}/);
+  assert.match(lp, /BACK TO MY PLAN/);
 });

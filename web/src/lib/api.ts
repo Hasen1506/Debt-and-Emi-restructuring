@@ -1501,6 +1501,8 @@ export const api = {
     /** Live test #26: re-amortise this loan over this many more months. */
     tenure_extension_loan_index?: number;
     tenure_extension_months?: number;
+    /** Live test L#26: also return the what-if's trajectory. */
+    include_trajectory?: boolean;
     /** Calendar month (1-12) corresponding to sim month 1. */
     simulation_start_month?: number;
   }) => post<CompareResponse>('/api/sensitivity/compare', req),

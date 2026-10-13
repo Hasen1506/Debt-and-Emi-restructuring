@@ -73,5 +73,7 @@ test('NEW-2/NEW-3: Plan never prints unbounded totals', () => {
   assert.match(plan, /return <NeverClears plan=\{plan\} fc=\{fc\} \/>/);
   assert.match(plan, /never repaid: it grows without limit/);
   const tw = src('components/plan/TenureWhatIf.tsx');
-  assert.match(tw, /neverClears\n\s+\? r\.scenario_never_clears/);
+  // Round 2 (R2-3) moved the sentences to lib/tenure-whatif-copy.ts.
+  assert.match(tw, /tenureWhatIfCopy\(\{[\s\S]*neverClears,[\s\S]*scenarioNeverClears: !!r\.scenario_never_clears/);
+  assert.match(src('lib/tenure-whatif-copy.ts'), /if \(neverClears\) \{\n\s+interest = scenarioNeverClears/);
 });

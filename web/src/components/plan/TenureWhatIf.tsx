@@ -25,7 +25,15 @@ export const TENURE_STEPS = [12, 24, 60, 120] as const;
 
 export const RBI_RESET_CIRCULAR_URL = 'https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12529';
 
-export function TenureWhatIf({ plan }: { plan: PlanData }) {
+export function TenureWhatIf({
+  plan,
+  onResult,
+}: {
+  plan: PlanData;
+  /** Live test L#26: the what-if's result (with its trajectory), or null
+   *  when it's cleared, so the chart and table can show it. */
+  onResult?: (r: CompareResponse | null, loanIndex: number, months: number) => void;
+}) {
   const user = plan.runArgs?.user ?? plan.user;
   const ccy = plan.displayCurrency;
   const fc = (v: string | number) => formatCurrencyWhole(Math.round(Number(v)), ccy);
@@ -62,6 +70,7 @@ export function TenureWhatIf({ plan }: { plan: PlanData }) {
           horizon_months: HORIZON_MONTHS,
           tenure_extension_loan_index: loanIdx,
           tenure_extension_months: months,
+          include_trajectory: true,
         });
         if (!cancelled) setState({ loading: false, result: r, error: null });
       } catch (e) {
@@ -75,6 +84,11 @@ export function TenureWhatIf({ plan }: { plan: PlanData }) {
     // baseKey stands in for the plan's run settings.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loanIdx, months, baseKey]);
+
+  useEffect(() => {
+    onResult?.(state.result, loanIdx, months);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.result]);
 
   if (options.length === 0) return null;
   const loan = user.loans[loanIdx];
@@ -113,8 +127,8 @@ export function TenureWhatIf({ plan }: { plan: PlanData }) {
       </div>
       <p style={{ margin: '4px 0 8px', color: L_T.inkSoft }}>
         A longer tenure (more months to repay) lowers the EMI, but you pay interest for longer. Pick a loan and how many
-        more months; the plan re-runs with the new EMI and the result shows here. Nothing is saved: the chart and table
-        keep showing your current plan until you change the loan in Profile.
+        more months; the plan re-runs with the new EMI, and the chart and table below switch to it (a button there takes
+        you back to your plan). Nothing is saved until you change the loan in Profile.
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', alignItems: 'center' }}>
         <label>
