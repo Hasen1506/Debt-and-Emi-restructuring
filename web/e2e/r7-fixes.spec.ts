@@ -90,8 +90,8 @@ test('R7-7: US Setup says monthly payment, not EMI, and has no gold loan', async
   await expect(kinds.getByRole('button', { name: /^gold$/i })).toHaveCount(0);
   await fillLoan(page, 0, { kind: /^card$/i, balance: '9000', rate: '24' });
   await fillLoan(page, 1, { kind: /^car$/i, balance: '18000', rate: '7', emi: '420' });
-  await expect(page.getByLabel('Monthly payment')).toBeVisible();
-  await expect(page.getByLabel('EMI a month')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Monthly payment' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'EMI a month' })).toHaveCount(0);
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await expect(page).toHaveURL(/step=plan/);
   await expect(page.getByText(/Pay every monthly payment and card minimum/).first()).toBeVisible();
