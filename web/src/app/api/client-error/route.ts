@@ -5,12 +5,12 @@
  * path without query). 204 either way. Per-visitor limit: 10 a minute.
  */
 import { NextRequest } from 'next/server';
-import { clientIp, TokenBucket } from '../../../lib/client-ip';
+import { clientIp } from '../../../lib/client-ip';
+import { clientErrorLimiter } from '../../../lib/route-limiters';
 import { reportServerError } from '../../../lib/error-report';
 import { shouldReport } from '../../../lib/client-error';
 
 export const dynamic = 'force-dynamic';
-export const clientErrorLimiter = new TokenBucket(10, 10);
 
 export async function POST(req: NextRequest): Promise<Response> {
   const done = new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });

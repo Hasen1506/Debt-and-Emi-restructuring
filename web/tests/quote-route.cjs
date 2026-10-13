@@ -41,11 +41,12 @@ test('quotes use a bounded upstream timeout and preserve pence currency identifi
 // UX50 E-20: the quote route keeps its own per-visitor limit.
 test('quotes are rate-limited per visitor (30 a minute) and keyed on the edge header on Render', async () => {
   const route = require('../src/app/api/holdings/quote/route.ts');
+  const { quoteLimiter } = require('../src/lib/route-limiters.ts');
   const original = global.fetch;
   const env = { ...process.env };
   try {
     process.env.RENDER = 'true';
-    route.quoteLimiter.reset();
+    quoteLimiter.reset();
     global.fetch = async () => Response.json({ chart: { result: [{ meta: { regularMarketPrice: 1, currency: 'INR' } }] } });
     const ask = (ip, xff) => route.GET(new NextRequest('https://web.example/api/holdings/quote?ticker=TEST.NS', {
       headers: { 'cf-connecting-ip': ip, 'x-forwarded-for': `${xff}, ${ip}, 172.71.1.${Math.floor(Math.random() * 250)}, 10.0.0.1` },
@@ -60,7 +61,7 @@ test('quotes are rate-limited per visitor (30 a minute) and keyed on the edge he
   } finally {
     global.fetch = original;
     for (const k of Object.keys(process.env)) if (!(k in env)) delete process.env[k];
-    route.quoteLimiter.reset();
+    quoteLimiter.reset();
   }
 });
 
