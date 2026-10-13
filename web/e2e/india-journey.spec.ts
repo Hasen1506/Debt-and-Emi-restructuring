@@ -7,7 +7,7 @@
  * Every figure asserted here comes from the real engine on fixed inputs:
  * fixed FX (1 USD = ₹83.25), fixed day (7 Oct 2026), fixed OTP.
  */
-import { expect, fillLoan, isPlanCall, money, planSummary, planText, signIn, test, makeSetupChoices } from './fixtures';
+import { expect, fillLoan, isPlanCall, money, planSummary, planText, signIn, test, makeSetupChoices, openProfileSection } from './fixtures';
 
 const EMAIL = 'golden-india@rightdue.app';
 
@@ -73,7 +73,7 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
 
   await test.step('switch country to the USA, converting at the stubbed rate', async () => {
     await page.goto('/profile');
-    await page.getByRole('button', { name: 'Edit Where you live and tax' }).click();
+    await openProfileSection(page, 'Where you live and tax');
     await page.getByLabel('Country', { exact: true }).selectOption('US');
     const dialog = page.getByRole('dialog', { name: 'Change country' });
     await expect(dialog.getByText('Your amounts are in ₹. The USA uses $.')).toBeVisible();

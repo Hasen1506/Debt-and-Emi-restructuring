@@ -11,7 +11,7 @@
  *    with NEXT_PUBLIC_DISABLE_AUTH=true (how production served guests
  *    during the live test). CI builds the signed-in app, so they skip there.
  */
-import { expect, fillLoan, landedOnOnboarding, signIn, test, makeSetupChoices } from './fixtures';
+import { expect, fillLoan, landedOnOnboarding, signIn, test, makeSetupChoices, openProfileSection } from './fixtures';
 import { setUpPersona } from './persona';
 
 const API = `http://127.0.0.1:${process.env.E2E_API_PORT ?? 8100}`;
@@ -55,7 +55,7 @@ test.describe('guards on main', () => {
 
   test('L#25 [main] a short month shows "Feeling overwhelmed?" on Home', async ({ page }) => {
     await page.goto('/profile');
-    await page.getByRole('button', { name: /Edit Income/i }).click();
+    await openProfileSection(page, 'Income and spending');
     await page.getByLabel(/In-hand salary|Take-home pay a month/).fill('20000');
     await page.getByRole('button', { name: /SAVE CHANGES/ }).click();
     await expect(page.getByText('Saved. Home and Plan use the new numbers.')).toBeVisible();
@@ -65,7 +65,7 @@ test.describe('guards on main', () => {
 
   test('L#27 [main] (signed in) reverting the stress income persists across reload', async ({ page }) => {
     await page.goto('/profile');
-    await page.getByRole('button', { name: /Edit Income/i }).click();
+    await openProfileSection(page, 'Income and spending');
     await page.getByLabel(/In-hand salary|Take-home pay a month/).fill('120000');
     await page.getByRole('button', { name: /SAVE CHANGES/ }).click();
     await expect(page.getByText('Saved. Home and Plan use the new numbers.')).toBeVisible();
@@ -93,7 +93,7 @@ test.describe('guest mode (E2E_GUEST_MODE=1)', () => {
   test.skip(!GUEST, 'needs a NEXT_PUBLIC_DISABLE_AUTH=true build');
   test('L#2 [L1] a guest Profile save succeeds and the toast clears', async ({ page }) => {
     await page.goto('/profile');
-    await page.getByRole('button', { name: 'Edit Where you live and tax' }).click();
+    await openProfileSection(page, 'Where you live and tax');
     await page.getByRole('button', { name: /SAVE CHANGES/ }).click();
     await expect(page.getByText(/Changes have not reached your account/)).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Retry save/ })).toHaveCount(0);
@@ -113,7 +113,7 @@ test.describe('guest mode (E2E_GUEST_MODE=1)', () => {
   });
   test('L#27 [L1] a guest income revert persists across reload', async ({ page }) => {
     await page.goto('/profile');
-    await page.getByRole('button', { name: /Edit Income/i }).click();
+    await openProfileSection(page, 'Income and spending');
     await page.getByLabel(/In-hand salary|Take-home pay a month/).fill('120000');
     await page.getByRole('button', { name: /SAVE CHANGES/ }).click();
     await page.reload();
@@ -122,7 +122,7 @@ test.describe('guest mode (E2E_GUEST_MODE=1)', () => {
   test('L#33 [L1] a failed save says why, when it last tried, and retries with visible progress', async ({ page }) => {
     await page.route('**/api/user/**', (r) => r.abort('connectionfailed'));
     await page.goto('/profile');
-    await page.getByRole('button', { name: 'Edit Where you live and tax' }).click();
+    await openProfileSection(page, 'Where you live and tax');
     await page.getByRole('button', { name: /SAVE CHANGES/ }).click();
     const retry = page.getByRole('button', { name: /Retry save/ });
     await retry.click();
@@ -145,12 +145,12 @@ test.describe('owner fixes (signed in)', () => {
   });
   test('L#4 [L3] a loan takes a nickname', async ({ page }) => {
     await page.goto('/profile');
-    await page.getByRole('button', { name: 'Edit Loans' }).click();
+    await openProfileSection(page, 'Loans');
     await expect(page.getByLabel('Nickname (optional)').first()).toBeVisible();
   });
   test('L#5 [L3] Where you live takes a state and a city', async ({ page }) => {
     await page.goto('/profile');
-    await page.getByRole('button', { name: 'Edit Where you live and tax' }).click();
+    await openProfileSection(page, 'Where you live and tax');
     await expect(page.getByLabel('State (optional)')).toBeVisible();
     await expect(page.getByLabel('City (optional)')).toBeVisible();
   });
@@ -161,12 +161,12 @@ test.describe('owner fixes (signed in)', () => {
   });
   test('L#11 [L3+G1] a floating loan asks "for a business?" before assuming a 0% prepayment fee', async ({ page }) => {
     await page.goto('/profile');
-    await page.getByRole('button', { name: 'Edit Loans' }).click();
+    await openProfileSection(page, 'Loans');
     await expect(page.getByTestId('business-purpose').getByText(/Not answered yet/)).toBeVisible();
   });
   test('L#13 [L3] every addend of the card\'s yearly cost is named', async ({ page }) => {
     await page.goto('/profile');
-    await page.getByRole('button', { name: 'Edit Loans' }).click();
+    await openProfileSection(page, 'Loans');
     await expect(page.getByTestId('cost-line-gst').first()).toContainText('GST on the interest (18%)');
     await expect(page.getByText('= 60.31%').first()).toBeVisible();
   });
@@ -187,7 +187,7 @@ test.describe('owner fixes (signed in)', () => {
   });
   test('L#32 [L3+G1] the home loan\'s all-in uplift is labelled line by line', async ({ page }) => {
     await page.goto('/profile');
-    await page.getByRole('button', { name: 'Edit Loans' }).click();
+    await openProfileSection(page, 'Loans');
     await expect(page.locator('[data-testid^="cost-line-"]').first()).toBeVisible();
   });
 

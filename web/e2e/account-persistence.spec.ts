@@ -9,7 +9,7 @@
  * cookies from before the rename.
  */
 import type { BrowserContext, Page } from '@playwright/test';
-import { expect, fillLoan, FROZEN_NOW, OTP, signIn, test, testEmail, makeSetupChoices } from './fixtures';
+import { expect, fillLoan, FROZEN_NOW, OTP, signIn, test, testEmail, makeSetupChoices, openProfileSection } from './fixtures';
 
 const API = `http://127.0.0.1:${process.env.E2E_API_PORT ?? 8100}`;
 const notice = (page: Page) => page.locator('[data-sync-state]');
@@ -29,7 +29,7 @@ async function setUp(page: Page, email: string) {
 
 async function setTakeHome(page: Page, amount: string) {
   await page.goto('/profile');
-  await page.getByRole('button', { name: 'Edit Income and spending' }).click();
+  await openProfileSection(page, 'Income and spending');
   await page.getByLabel(/In-hand salary|Take-home/).first().fill(amount);
   await page.getByRole('button', { name: /SAVE CHANGES/ }).click();
   await expect(page.getByText('Saved. Home and Plan use the new numbers.')).toBeVisible();
@@ -102,7 +102,7 @@ test('two devices: a stale edit is not written over the newer one; the person ch
   await setTakeHome(phonePage, '90000');
   await expect(notice(phonePage)).toHaveCount(0);
   // ...then the laptop, still on the copy it loaded before.
-  await laptopPage.getByRole('button', { name: 'Edit Income and spending' }).click();
+  await openProfileSection(laptopPage, 'Income and spending');
   await laptopPage.getByLabel(/In-hand salary|Take-home/).first().fill('80000');
   await laptopPage.getByRole('button', { name: /SAVE CHANGES/ }).click();
   await expect(notice(laptopPage)).toHaveAttribute('data-sync-state', 'conflict');

@@ -91,6 +91,22 @@ export async function makeSetupChoices(page: Page) {
   await planPreviewSettled(page);
 }
 
+/** Profile: open one part of the form with its [EDIT] and check it opened.
+ *  /profile draws its summary again once the account copy arrives (session
+ *  hydration remounts the editor), and the rows can move while it does. A
+ *  click sent in that moment is lost: WebKit in CI, run 38333832010, stayed
+ *  on the summary for the whole two minutes. So click until the part's own
+ *  heading shows; what the test asserts afterwards is unchanged. */
+export async function openProfileSection(page: Page, section: string) {
+  const edit = page.getByRole('button', { name: `Edit ${section}`, exact: true });
+  const opened = page.getByRole('heading', { level: 1, name: section, exact: true });
+  await expect(edit.or(opened).first()).toBeVisible();
+  await expect(async () => {
+    if (!(await opened.isVisible()) && (await edit.isVisible())) await edit.click({ timeout: 2_000 });
+    await expect(opened).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
 /** Setup's plan preview has finished loading (figures or an error shown). */
 export async function planPreviewSettled(page: Page) {
   await expect(page.getByText('Working out your plan…')).toHaveCount(0);

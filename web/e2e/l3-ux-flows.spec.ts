@@ -3,7 +3,7 @@
  * #1, end to end (rightdue-live-test.md). The persona is the live test's:
  * Chennai, a floating-rate home loan and an HDFC card at 42%.
  */
-import { expect, fillLoan, signIn, test, makeSetupChoices } from './fixtures';
+import { expect, fillLoan, signIn, test, makeSetupChoices, openProfileSection } from './fixtures';
 
 const EMAIL = 'golden-l3-ux@rightdue.app';
 
@@ -30,7 +30,7 @@ test('L3: nickname, city/state, business purpose, cost lines, spare cash date an
 
   await test.step('#5: state and city on Where you live', async () => {
     await page.goto('/profile');
-    await page.getByRole('button', { name: 'Edit Where you live and tax' }).click();
+    await openProfileSection(page, 'Where you live and tax');
     await page.getByLabel('State (optional)').selectOption('Tamil Nadu');
     await page.getByLabel('City (optional)').fill('Chennai');
     await page.getByRole('button', { name: /SAVE CHANGES/ }).click();
@@ -40,7 +40,7 @@ test('L3: nickname, city/state, business purpose, cost lines, spare cash date an
 
   await test.step('#4 #11 #13: nickname, "for a business?", every cost line named', async () => {
     await page.goto('/profile');
-    await page.getByRole('button', { name: 'Edit Loans' }).click();
+    await openProfileSection(page, 'Loans');
     const purpose = page.getByTestId('business-purpose');
     await expect(purpose).toHaveCount(1); // the floating home loan, not the card
     await expect(purpose.getByText(/Not answered yet/)).toBeVisible();
