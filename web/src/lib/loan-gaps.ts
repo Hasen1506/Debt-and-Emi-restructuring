@@ -11,6 +11,7 @@ import { LOAN_TYPE_NAME } from './loan-types';
 import type { Country, LoanPayload, LoanType, UserPayload } from './api';
 import { dec } from './safe-decimal';
 import { loanToUser } from './currency';
+import { paymentWords } from './r7-inputs';
 import { amountInWords, formatAmount } from './amount';
 
 /** 'fx': a loan in another currency with no exchange rate on file. Without
@@ -82,8 +83,10 @@ export function loanGaps(loan: LoanPayload, ctx?: GapContext): LoanGapField[] {
 /** Setup's check on a loan being typed in: a blank field is missing even
  *  where 0 would be allowed. Returns a message per missing field. */
 export function loanDraftErrors(
-  loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'>,
+  loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'> & { currency?: 'INR' | 'USD' },
+  country?: string,
 ): Partial<Record<LoanGapField, string>> {
+  const pw = paymentWords(country ?? (loan.currency === 'USD' ? 'US' : 'IN'));
   // A typed rate the engine won't take is an error even on a row with no
   // balance: the whole profile goes to the engine.
   const badRate = rateOutOfRange(loan.nominal_rate);
@@ -99,9 +102,11 @@ export function loanDraftErrors(
     out.rate = 'This kind of loan always charges interest. Enter the rate from your statement.';
   }
   if (needsEmi(loan.loan_type) && dec(loan.scheduled_emi).lte(0)) {
-    out.emi = 'Enter the monthly EMI the bank takes (on your statement or banking app).';
+    out.emi = pw.one === 'EMI'
+      ? 'Enter the monthly EMI the bank takes (on your statement or banking app).'
+      : 'Enter the monthly payment the lender takes (on your statement or banking app).';
   } else if (needsEmi(loan.loan_type) && !out.rate) {
-    const never = emiBelowInterest(loan);
+    const never = emiBelowInterest(loan, country);
     if (never) out.emi = never;
   }
   return out;
@@ -116,6 +121,7 @@ export function loanDraftErrors(
  */
 export function emiBelowInterest(
   loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'> & { currency?: 'INR' | 'USD' },
+  country?: string,
 ): string | null {
   if (!needsEmi(loan.loan_type)) return null;
   const P = dec(loan.outstanding);
@@ -127,14 +133,18 @@ export function emiBelowInterest(
   const ccy = loan.currency === 'USD' ? 'USD' : 'INR';
   const sym = ccy === 'INR' ? '₹' : '$';
   const money = (d: typeof P) => `${sym}${formatAmount(d.toDecimalPlaces(0).toFixed(), ccy)}`;
-  const words = (d: typeof P) => amountInWords(d.toDecimalPlaces(0).toFixed(), ccy) ?? money(d);
+  // R8-1: "₹25 lakh" reads well in India; in dollars a word only helps from
+  // a million up ("$18 thousand" is not how a US statement reads).
+  const words = (d: typeof P) =>
+    ccy === 'USD' && d.lt(1_000_000) ? money(d) : (amountInWords(d.toDecimalPlaces(0).toFixed(), ccy) ?? money(d));
+  const pw = paymentWords(country ?? (ccy === 'USD' ? 'US' : 'IN'));
   const pct = rate.mul(100).toDecimalPlaces(2).toString();
   const tenth = P.div(10);
   const guess = E.gt(tenth.mul(rate).div(12)) ? ` (did you mean ${words(tenth)}?)` : '';
   return (
     `At ${pct}%, ${words(P)} earns ${money(interest)} interest a month, ` +
-    `${E.eq(interest.toDecimalPlaces(0)) || E.eq(interest) ? 'the same as' : 'more than'} the ${money(E)} EMI, so this loan would never be paid off. ` +
-    `Check the balance${guess}, the rate and the EMI.`
+    `${E.eq(interest.toDecimalPlaces(0)) || E.eq(interest) ? 'the same as' : 'more than'} the ${money(E)} ${pw.one}, so this loan would never be paid off. ` +
+    `Check the balance${guess}, the rate and the ${pw.one}.`
   );
 }
 
