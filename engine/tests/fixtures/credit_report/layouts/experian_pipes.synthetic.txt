@@ -1,0 +1,10 @@
+SYNTHETIC SAMPLE - not a real credit report (RightDue test fixture)
+Experian Credit Information Company of India
+Experian Credit Score 781
+Report Date 05/10/2026
+Credit Account Summary
+| Lender | Account Type | Account No | Ownership | Date Opened | Sanctioned Amount | Current Balance | Amount Overdue | EMI Amount | Account Status | Date Reported |
+| SAMPLE HFC | Housing Loan | HL00123456 | Joint | 15-03-2021 | 45,00,000 | 38,12,450 | 0 | 39,500 | Active | 30-09-2026 |
+| DEMO BANK | Credit Card | 4111XXXXXXXX4321 | Individual | 02-07-2019 | 1,50,000 | 64,210 | 3,500 | - | Active | 30-09-2026 |
+| QUICKPAY FINANCE | Consumer Loan | CD99887766 | Individual | 10-01-2026 | 42,000 | 21,000 | 0 | 3,500 | Active | 23-09-2026 |
+| OLD AUTO FINANCE | Auto Loan | AL55554444 | Individual | 01-04-2017 | 5,00,000 | 0 | 0 | - | Closed | 31-03-2022 |

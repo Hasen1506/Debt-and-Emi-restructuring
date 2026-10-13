@@ -17,10 +17,14 @@ import { api, ApiFieldError, type LoanPayload } from '@/lib/api';
 import { bytesToBase64 } from '@/lib/kfs';
 import {
   BUREAU_LINKS,
+  EXPERIAN_STEPS,
   loanFromAccount,
+  matchExistingLoan,
+  mergePatch,
   missingSentence,
   type CreditReportReadResponse,
 } from '@/lib/credit-report';
+import { loanLabel } from '@/lib/loan-types';
 
 const MAX_PDF = 4 * 1024 * 1024;
 
@@ -40,16 +44,37 @@ function rupees(v: string | null | undefined): string {
   return Number.isFinite(n) ? `₹${n.toLocaleString('en-IN')}` : v;
 }
 
+const FIELD_WORD: Record<string, string> = {
+  outstanding: 'balance', scheduled_emi: 'EMI', nominal_rate: 'rate', tenure_months_remaining: 'months left',
+  account_last4: 'account digits', balance_as_of: 'balance date',
+};
+
 export function CreditReportImport({
   blankLoan,
   todayIso,
   onAdd,
+  existing = [],
+  onUpdate,
+  startOpen = false,
+  onClose,
 }: {
   blankLoan: () => LoanPayload;
   todayIso: string;
   onAdd: (loans: LoanPayload[]) => void;
+  /** The loans already in the form: an account that matches one is offered as an
+   *  update, unticked, never added twice (UX50 D-03). */
+  existing?: LoanPayload[];
+  onUpdate?: (index: number, patch: Partial<LoanPayload>) => void;
+  startOpen?: boolean;
+  /** Called on Close and on "Type my loans in" (setup goes back to the manual fields). */
+  onClose?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
+  const [showPw, setShowPw] = useState(false);
+  const [guide, setGuide] = useState(false);
+  const [noAccounts, setNoAccounts] = useState(false);
+  // For accounts that match a loan already in the list: 'update' | 'new' | 'skip' (default skip).
+  const [choice, setChoice] = useState<Record<number, 'update' | 'new' | 'skip'>>({});
   const [text, setText] = useState('');
   const [password, setPassword] = useState('');
   const [needsPassword, setNeedsPassword] = useState(false);
@@ -67,7 +92,17 @@ export function CreditReportImport({
     setError(null);
     setResult(null);
     setPicked(new Set());
+    setChoice({});
+    setNoAccounts(false);
   }
+
+  function close() {
+    reset();
+    setOpen(false);
+    onClose?.();
+  }
+
+  const matches = (result?.accounts ?? []).map((a) => (a.loan ? matchExistingLoan(a.loan, existing) : -1));
 
   async function read(req: { text?: string; pdf_base64?: string; password?: string }) {
     setBusy(true);
@@ -75,11 +110,16 @@ export function CreditReportImport({
     try {
       const res = await api.creditReportRead({ ...req, as_of: todayIso });
       setResult(res);
-      setPicked(new Set(res.accounts.map((a, i) => (a.loan ? i : -1)).filter((i) => i >= 0)));
+      // Pre-tick only accounts that aren't already in the list (UX50 D-03).
+      setPicked(new Set(res.accounts
+        .map((a, i) => (a.loan && matchExistingLoan(a.loan, existing) < 0 ? i : -1))
+        .filter((i) => i >= 0)));
       setPassword(''); // used once; not kept in the form either
     } catch (e) {
       if (e instanceof ApiFieldError && e.field === 'password') setNeedsPassword(true);
-      setError(e instanceof Error ? e.message : 'The report could not be read.');
+      const msg = e instanceof Error ? e.message : 'The report could not be read.';
+      setNoAccounts(/couldn.t read the accounts/i.test(msg));
+      setError(msg);
     } finally {
       setBusy(false);
     }
@@ -98,23 +138,35 @@ export function CreditReportImport({
 
   function add() {
     if (!result) return;
-    const loans = result.accounts
-      .map((a, i) => (picked.has(i) && a.loan ? a.loan : null))
-      .filter((l): l is NonNullable<typeof l> => l !== null)
-      .map((l) => ({
-        ...loanFromAccount(l, blankLoan(), todayIso),
-        imported_from: 'credit_report' as const,
-        ...(l.account_last4 ? { account_last4: l.account_last4 } : {}),
-      }));
+    const loans: LoanPayload[] = [];
+    result.accounts.forEach((a, i) => {
+      if (!a.loan) return;
+      const m = matches[i];
+      const incoming = loanFromAccount(a.loan, blankLoan(), todayIso);
+      if (m >= 0) {
+        const c = choice[i] ?? 'skip';
+        if (c === 'new') loans.push(incoming);
+        if (c === 'update' && onUpdate) {
+          const patch: Partial<LoanPayload> = {};
+          for (const d of mergePatch(existing[m], incoming)) (patch as Record<string, unknown>)[d.field] = incoming[d.field];
+          onUpdate(m, patch);
+        }
+      } else if (picked.has(i)) {
+        loans.push(incoming);
+      }
+    });
     onAdd(loans);
     reset();
     setOpen(false);
   }
 
+  const updates = Object.values(choice).filter((c) => c === 'update').length;
+  const adds = picked.size + Object.values(choice).filter((c) => c === 'new').length;
+
   if (!open) {
     return (
       <button type="button" className="btn-ghost" data-testid="cr-open" onClick={() => setOpen(true)}>
-        Import from your credit report (CIBIL, Experian, CRIF, Equifax)
+        Import from your credit report (CIBIL, Experian, CRIF, Equifax) · beta
       </button>
     );
   }
@@ -125,24 +177,43 @@ export function CreditReportImport({
       style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 12, display: 'grid', gap: 10 }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-        <strong>Import from your credit report</strong>
-        <button type="button" className="btn-ghost" onClick={() => { reset(); setOpen(false); }}>
+        <strong>Fill from your credit report <span className="muted" style={{ fontSize: 11 }}>BETA · works with most CIBIL and Experian PDFs</span></strong>
+        <button type="button" className="btn-ghost" data-testid="cr-close" onClick={close}>
           Close
         </button>
       </div>
       <p className="muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.5 }}>
-        A credit report is the list a credit bureau (a company licensed by RBI to keep everyone&apos;s loan
-        records) holds on you: every loan and card in your name. Each bureau gives you one free report a year:{' '}
-        {BUREAU_LINKS.map((b, i) => (
-          <span key={b.name}>
-            {i > 0 && ', '}
-            <a href={b.url} target="_blank" rel="noreferrer">{b.name}</a>
-          </span>
-        ))}
-        . Download the PDF there and upload it here. It is read on RightDue&apos;s server by fixed rules, never
-        stored, and not sent to anyone else. Your name, PAN and date of birth on it are not read into the app.
-        You tick and check every loan before it goes in.
+        Your free credit report lists every loan and card in your name, even ones you&apos;ve forgotten. Upload
+        it and we&apos;ll fill in what it shows; you check each one. It is read on RightDue&apos;s server by fixed
+        rules, then deleted: never stored or shared. Your name, PAN and date of birth are not read into the app.
       </p>
+
+      <div style={{ fontSize: 12 }}>
+        <button type="button" className="btn-ghost" data-testid="cr-guide-open" aria-expanded={guide} onClick={() => setGuide(!guide)}>
+          Don&apos;t have it? Get it free from Experian in about 3 minutes
+        </button>
+        {guide && (
+          <div data-testid="cr-guide" style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+            <ol style={{ margin: 0, paddingLeft: 18 }}>
+              {EXPERIAN_STEPS.map((st) => <li key={st}>{st}</li>)}
+            </ol>
+            <span>
+              {BUREAU_LINKS.map((b, i) => (
+                <span key={b.name}>
+                  {i > 0 && ' · '}
+                  <a href={b.url} target="_blank" rel="noreferrer">{b.name}</a> ({b.note})
+                </span>
+              ))}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {busy && (
+        <p className="muted" role="status" data-testid="cr-progress" style={{ margin: 0, fontSize: 12 }}>
+          Reading your report on our server (up to 15 seconds; the first try after a quiet spell can take longer).
+        </p>
+      )}
 
       {!result && (
         <>
@@ -161,18 +232,27 @@ export function CreditReportImport({
               <label style={{ fontSize: 13, display: 'grid', gap: 4 }}>
                 The PDF&apos;s password
                 <input
-                  type="password"
+                  type={showPw ? 'text' : 'password'}
                   autoComplete="off"
                   data-testid="cr-password"
                   value={password}
                   maxLength={64}
+                  aria-describedby="cr-pw-help cr-pw-error"
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </label>
-              <span className="muted" style={{ fontSize: 12 }}>
-                The bureau&apos;s download page or email says which format it uses: often your date of birth as
-                DDMMYYYY, or the first four letters of your name with your birth year or the last four digits
-                of your mobile. It is used once to open the file and never kept.
+              <label style={{ fontSize: 12 }}>
+                <input type="checkbox" data-testid="cr-show-password" checked={showPw} onChange={(e) => setShowPw(e.target.checked)} />{' '}
+                Show password
+              </label>
+              {error && (
+                <p id="cr-pw-error" role="alert" data-testid="cr-error" style={{ margin: 0, fontSize: 13, color: 'var(--danger, #b00020)' }}>
+                  {error}
+                </p>
+              )}
+              <span id="cr-pw-help" className="muted" style={{ fontSize: 12 }}>
+                The bureau&apos;s download page or email says which format it uses. It is used once to open the
+                file and never kept.
               </span>
               <button
                 type="button"
@@ -206,10 +286,21 @@ export function CreditReportImport({
         </>
       )}
 
-      {error && (
-        <p role="alert" data-testid="cr-error" style={{ margin: 0, fontSize: 13, color: 'var(--danger, #b00020)' }}>
-          {error}
-        </p>
+      {error && !(needsPassword && file && !result) && (
+        <div role="alert" data-testid="cr-error" style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+          <p style={{ margin: 0, color: 'var(--danger, #b00020)' }}>{error}</p>
+          {noAccounts && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" className="btn-ghost" data-testid="cr-paste-instead"
+                onClick={() => document.querySelector<HTMLTextAreaElement>('[data-testid="cr-text"]')?.focus()}>
+                Paste the report&apos;s text
+              </button>
+              <button type="button" className="btn-ghost" data-testid="cr-type-instead" onClick={close}>
+                Type my loans in
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {result && (
@@ -234,10 +325,38 @@ export function CreditReportImport({
                   opacity: a.loan ? 1 : 0.7, fontSize: 13,
                 }}
               >
+                {matches[i] >= 0 && a.loan && (
+                  <span data-testid="cr-duplicate" style={{ fontSize: 12, display: 'grid', gap: 4 }}>
+                    <strong>Already in your loans: {loanLabel(existing[matches[i]])}.</strong>
+                    {mergePatch(existing[matches[i]], loanFromAccount(a.loan, blankLoan(), todayIso))
+                      .filter((d) => d.field !== 'balance_as_of')
+                      .map((d) => (
+                        <span key={d.field} className="muted">
+                          {FIELD_WORD[d.field] ?? d.field}: {d.from ? (d.field === 'outstanding' || d.field === 'scheduled_emi' ? rupees(d.from) : d.from) : 'empty'} →{' '}
+                          {d.field === 'outstanding' || d.field === 'scheduled_emi' ? rupees(d.to) : d.to}
+                        </span>
+                      ))}
+                    <span style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      {(['skip', 'update', 'new'] as const).map((c) => (
+                        <label key={c}>
+                          <input
+                            type="radio"
+                            name={`cr-dup-${i}`}
+                            data-testid={`cr-dup-${c}`}
+                            checked={(choice[i] ?? 'skip') === c}
+                            disabled={c === 'update' && !onUpdate}
+                            onChange={() => setChoice({ ...choice, [i]: c })}
+                          />{' '}
+                          {c === 'skip' ? 'Leave it' : c === 'update' ? 'Update it' : 'Add as new'}
+                        </label>
+                      ))}
+                    </span>
+                  </span>
+                )}
                 <span>
                   <input
                     type="checkbox"
-                    disabled={!a.loan}
+                    disabled={!a.loan || matches[i] >= 0}
                     checked={picked.has(i)}
                     onChange={(e) => {
                       const next = new Set(picked);
@@ -255,6 +374,7 @@ export function CreditReportImport({
                   {f.rate ? ` · ${Math.round(Number(f.rate.value) * 10000) / 100}%` : ''}
                   {f.credit_limit ? ` · limit ${rupees(f.credit_limit.value)}` : ''}
                   {f.sanctioned ? ` · sanctioned ${rupees(f.sanctioned.value)}` : ''}
+                  {f.reported ? ` · as of ${f.reported.value}` : ''}
                 </span>
                 {f.balance && (
                   <span className="muted" style={{ fontSize: 11 }}>From your report: &ldquo;{f.balance.source}&rdquo;</span>
@@ -270,8 +390,11 @@ export function CreditReportImport({
             );
           })}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="btn-primary" data-testid="cr-add" disabled={!picked.size} onClick={add}>
-              Add {picked.size} to my loans
+            <button type="button" className="btn-primary" data-testid="cr-add" disabled={!adds && !updates} onClick={add}>
+              {adds ? `Add ${adds} to my loans` : ''}
+              {adds && updates ? ', ' : ''}
+              {updates ? `update ${updates}` : ''}
+              {!adds && !updates ? 'Add 0 to my loans' : ''}
             </button>
             <button type="button" className="btn-ghost" onClick={reset}>
               Start again

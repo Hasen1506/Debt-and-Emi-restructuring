@@ -925,6 +925,15 @@ function ProfileEditor({
   const thisMonthName = MONTH_NAMES[Number(thisMonth.slice(5, 7)) - 1];
   const nextMonthName = MONTH_NAMES[Number(nextMonth(thisMonth).slice(5, 7)) - 1];
   const savedLoans = savedLoansRef.current;
+  // Loans added by an import and not saved yet: say so, and warn before a reload
+  // drops them (UX50 D-08).
+  const unsavedImports = loans.filter((l) => l.imported_from && !savedLoans.some((p) => p.id && p.id === l.id)).length;
+  useEffect(() => {
+    if (!unsavedImports) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [unsavedImports]);
   const askPaid = (l: LoanPayload) =>
     needsEmi(l.loan_type) && asksEmiPaid(l, savedLoans.find((p) => p.id === l.id));
   const paidErrors = loans.map((l) => (askPaid(l) && emiAnswer(l, thisMonth) === undefined ? emiPaidError(thisMonthName) : null));
@@ -1541,10 +1550,22 @@ function ProfileEditor({
               <CreditReportImport
                 blankLoan={blankLoan}
                 todayIso={localIsoDate(getCountryToday(country))}
+                existing={loans}
+                onUpdate={updateLoan}
                 onAdd={(added) => setLoans((cur) => [...cur, ...added])}
               />
             )}
-            {country === 'IN' && <SmsImport loans={loans} onPatchLoan={updateLoan} />}
+            {country === 'IN' && (
+              <SmsImport loans={loans}
+                onPatchLoan={updateLoan}
+                onAddLoan={(patch) => setLoans((cur) => [...cur, { ...blankLoan(), ...patch } as LoanPayload])}
+              />
+            )}
+            {unsavedImports > 0 && (
+              <p role="status" data-testid="import-unsaved" style={{ margin: 0, fontSize: 13, position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg, #fff)', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                {unsavedImports} imported loan{unsavedImports === 1 ? '' : 's'} not saved yet. Check the figures, then save at the bottom.
+              </p>
+            )}
             {loans.map((l, i) => (
               <div
                 key={i}
@@ -1558,6 +1579,22 @@ function ProfileEditor({
                   position: 'relative',
                 }}
               >
+                {l.imported_from && (
+                  <p data-testid="import-chip" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12 }}>
+                    <span style={{ border: '1px solid currentColor', padding: '1px 6px' }}>
+                      {l.imported_from === 'credit_report' ? 'From your credit report' : l.imported_from === 'kfs' ? 'From your KFS' : 'From a bank SMS'}
+                    </span>
+                    {(!l.nominal_rate || (l.loan_type !== 'credit_card' && !l.scheduled_emi) || !Number(l.outstanding)) && (
+                      <span style={{ color: 'var(--warn, #8a5a00)' }}>
+                        {' '}· check {[
+                          !Number(l.outstanding) && 'the balance',
+                          !l.nominal_rate && 'the rate',
+                          l.loan_type !== 'credit_card' && !l.scheduled_emi && 'the EMI',
+                        ].filter(Boolean).join(', ')}
+                      </span>
+                    )}
+                  </p>
+                )}
                 {kfsNote(l) && (
                   <p data-testid="kfs-note" className="muted" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12 }}>
                     {kfsNote(l)}

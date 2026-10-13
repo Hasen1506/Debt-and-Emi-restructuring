@@ -28,6 +28,8 @@ export interface CrProposedLoan {
   credit_limit: string | null;
   opened: string | null;
   account_last4: string | null;
+  /** The date the lender reported this balance (YYYY-MM-DD), when the report shows it (UX50 D-06). */
+  reported?: string | null;
   /** What the report didn't carry, so the form still asks for it. */
   missing: string[];
 }
@@ -53,12 +55,22 @@ export interface CreditReportReadResponse {
   source_url: string;
 }
 
-/** Where to get each bureau's free report (the user downloads it themselves). */
-export const BUREAU_LINKS: { name: string; url: string }[] = [
-  { name: 'TransUnion CIBIL', url: 'https://www.cibil.com/freecibilscore' },
-  { name: 'Experian', url: 'https://www.experian.in/' },
-  { name: 'CRIF High Mark', url: 'https://www.crifhighmark.com/' },
-  { name: 'Equifax', url: 'https://www.equifax.co.in/support/free-credit-report/' },
+/** Where to get each bureau's free report (the user downloads it themselves).
+ *  Experian first: its consumer portal gives a free report any time (DPIIT B-Ready
+ *  FAQ), CIBIL one free a year (UX50 D-13). Links go to the consumer pages, not
+ *  the corporate home pages. */
+export const BUREAU_LINKS: { name: string; url: string; note: string }[] = [
+  { name: 'Experian', url: 'https://consumer.experian.in/ECV-OLN/view/angular/', note: 'free any time, about 3 minutes, OTP on your mobile' },
+  { name: 'TransUnion CIBIL', url: 'https://www.cibil.com/freecibilscore', note: 'free once a year' },
+  { name: 'Equifax', url: 'https://www.equifax.co.in/support/free-credit-report/', note: 'free once a year' },
+  { name: 'CRIF High Mark', url: 'https://www.crifhighmark.com/', note: 'free once a year' },
+];
+
+/** Steps to get the free Experian report (the guide shown before upload). */
+export const EXPERIAN_STEPS: string[] = [
+  'Open Experian’s free report page and enter your name, mobile number and PAN.',
+  'Type the OTP sent to your mobile.',
+  'Download the report as a PDF. Its password is in the email or on the download page.',
 ];
 
 /** Plain words for what the user still has to fill in after the import. */
@@ -71,6 +83,12 @@ export const MISSING_LABEL: Record<string, string> = {
 };
 
 export function missingSentence(loan: CrProposedLoan): string {
+  if (loan.loan_type === 'credit_card') {
+    // A card has no EMI, tenure, rate type or KFS prepayment fee (UX50 D-07).
+    return loan.missing.length
+      ? "The report doesn't show the card's APR or minimum due. Your monthly card statement has both."
+      : '';
+  }
   const parts = loan.missing.map((k) => MISSING_LABEL[k] ?? k);
   if (!parts.length) return '';
   return `The report doesn't show ${parts.join(', ')}. Fill ${parts.length === 1 ? 'it' : 'them'} in before you save.`;
@@ -95,6 +113,64 @@ export function loanFromAccount(acc: CrProposedLoan, base: LoanPayload, todayIso
       if (gone >= 0 && gone < n) loan.tenure_months_remaining = n - gone;
     }
   }
-  loan.balance_as_of = todayIso;
+  // The balance is as of the lender's last report, not today (UX50 D-06); the paid-EMI
+  // roll-forward then moves it on. A date in the future or unreadable falls back to today.
+  loan.balance_as_of = acc.reported && /^\d{4}-\d{2}-\d{2}$/.test(acc.reported) && acc.reported <= todayIso
+    ? acc.reported
+    : todayIso;
+  if (acc.account_last4) loan.account_last4 = acc.account_last4;
+  loan.imported_from = 'credit_report';
   return loan;
+}
+
+/** A lender name reduced for matching: lower case, no "bank / ltd / limited /
+ *  finance / hfc" words, no punctuation. "HDFC Bank Ltd." and "hdfc" match. */
+export function lenderKey(name: string | null | undefined): string {
+  return (name ?? '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\b(bank|ltd|limited|pvt|private|finance|financial|services|co|company|corporation|nbfc|hfc|india|the|of)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Which of the user's existing loans an imported account is (UX50 D-03): the same
+ *  last four digits when both have them; otherwise the same type at the same lender
+ *  (fuzzy name match), when exactly one loan fits. -1 = no match (a new loan). */
+export function matchExistingLoan(
+  acc: { loan_type: LoanType; lender: string | null; account_last4?: string | null },
+  loans: { loan_type: LoanType; bank?: string | null; account_last4?: string | null }[],
+): number {
+  if (acc.account_last4) {
+    const hit = loans.map((l, i) => ({ l, i })).filter(({ l }) => l.account_last4 && l.account_last4 === acc.account_last4);
+    if (hit.length === 1) return hit[0].i;
+    if (hit.length > 1) return -1;
+  }
+  const key = lenderKey(acc.lender);
+  const same = loans
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => {
+      if (l.loan_type !== acc.loan_type) return false;
+      if (l.account_last4 && acc.account_last4 && l.account_last4 !== acc.account_last4) return false;
+      const k = lenderKey(l.bank);
+      return !!key && !!k && (k === key || k.startsWith(key + ' ') || key.startsWith(k + ' ') || k.split(' ')[0] === key.split(' ')[0]);
+    });
+  return same.length === 1 ? same[0].i : -1;
+}
+
+/** What an import would change on a loan already in the list: only the figures the
+ *  document states and that differ; the user ticks "Update" to apply them. */
+export function mergePatch(loan: LoanPayload, incoming: LoanPayload): { field: keyof LoanPayload; from: string; to: string }[] {
+  const keys: (keyof LoanPayload)[] = ['outstanding', 'scheduled_emi', 'nominal_rate', 'tenure_months_remaining', 'account_last4', 'balance_as_of'];
+  const out: { field: keyof LoanPayload; from: string; to: string }[] = [];
+  for (const k of keys) {
+    const to = incoming[k];
+    if (to === undefined || to === null || String(to) === '') continue;
+    const from = loan[k];
+    if (String(from ?? '') === String(to)) continue;
+    if (k === 'balance_as_of' && !incoming.outstanding) continue;
+    out.push({ field: k, from: String(from ?? ''), to: String(to) });
+  }
+  return out;
 }

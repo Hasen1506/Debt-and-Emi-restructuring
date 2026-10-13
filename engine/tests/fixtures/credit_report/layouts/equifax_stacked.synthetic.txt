@@ -1,0 +1,97 @@
+SYNTHETIC SAMPLE - not a real credit report (RightDue test fixture)
+Equifax Credit Information Services
+Equifax Risk Score 3.0
+688
+Report Date
+05-10-2026
+Account Details
+Lender
+SAMPLE HFC
+Account Type
+Housing Loan
+Account No
+HL00123456
+Ownership
+Joint
+Date Opened
+15-03-2021
+Sanctioned Amount
+45,00,000
+Current Balance
+38,12,450
+Amount Overdue
+0
+EMI Amount
+39,500
+Account Status
+Active
+Date Reported
+30-09-2026
+Lender
+DEMO BANK
+Account Type
+Credit Card
+Account No
+4111XXXXXXXX4321
+Ownership
+Individual
+Date Opened
+02-07-2019
+Sanctioned Amount
+1,50,000
+Current Balance
+64,210
+Amount Overdue
+3,500
+EMI Amount
+-
+Account Status
+Active
+Date Reported
+30-09-2026
+Lender
+QUICKPAY FINANCE
+Account Type
+Consumer Loan
+Account No
+CD99887766
+Ownership
+Individual
+Date Opened
+10-01-2026
+Sanctioned Amount
+42,000
+Current Balance
+21,000
+Amount Overdue
+0
+EMI Amount
+3,500
+Account Status
+Active
+Date Reported
+23-09-2026
+Lender
+OLD AUTO FINANCE
+Account Type
+Auto Loan
+Account No
+AL55554444
+Ownership
+Individual
+Date Opened
+01-04-2017
+Sanctioned Amount
+5,00,000
+Current Balance
+0
+Amount Overdue
+0
+EMI Amount
+-
+Account Status
+Closed
+Date Reported
+31-03-2022
+Enquiries
+ANOTHER BANK

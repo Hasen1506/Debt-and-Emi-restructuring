@@ -23,6 +23,7 @@ Errors are 422 with one user-facing message:
 from __future__ import annotations
 
 import base64
+import logging
 import binascii
 import re
 from datetime import date
@@ -32,7 +33,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import Field
 
 from api.schemas import _Base
-from engine.credit_report import MAX_TEXT_CHARS, CreditReportReadError, pdf_text, read_credit_report, to_dict
+from engine.credit_report import MAX_TEXT_CHARS, CreditReportReadError, detect_bureau, pdf_text, read_credit_report, to_dict
 from engine.pdf_text import MAX_PASSWORD_CHARS, MAX_PDF_BYTES
 
 router = APIRouter(tags=["credit-report"])
@@ -49,8 +50,14 @@ class CreditReportReadRequest(_Base):
     as_of: Optional[str] = Field(None, max_length=10)
 
 
-def _fail(field: str, message: str) -> HTTPException:
-    return HTTPException(status_code=422, detail={"field": field, "message": message})
+log = logging.getLogger("rightdue.import")
+
+
+def _fail(field: str, message: str, kind: Optional[str] = None) -> HTTPException:
+    detail = {"field": field, "message": message}
+    if kind:
+        detail["kind"] = kind  # lets the form offer the right way out (paste, type, password)
+    return HTTPException(status_code=422, detail=detail)
 
 
 @router.post("/credit-report/read")
@@ -72,7 +79,8 @@ def read(req: CreditReportReadRequest) -> dict:
             text = pdf_text(data, req.password or None)
         except CreditReportReadError as exc:
             field = "password" if exc.kind in ("needs_password", "wrong_password") else "pdf_base64"
-            raise _fail(field, str(exc))
+            log.info("credit_report_read failed kind=%s source=pdf bytes=%d", exc.kind, len(data))
+            raise _fail(field, str(exc), exc.kind)
         field = "pdf_base64"
     elif req.text and req.text.strip():
         text, field = req.text, "text"
@@ -81,5 +89,12 @@ def read(req: CreditReportReadRequest) -> dict:
     try:
         result = read_credit_report(text, as_of=as_of)
     except CreditReportReadError as exc:
-        raise _fail(field, str(exc))
+        # Counts only, never values (D-02): which bureau, how much text, why it failed,
+        # so a layout we can't read yet shows up in the logs.
+        log.info(
+            "credit_report_read failed kind=%s source=%s bureau=%s text_chars=%d lines=%d",
+            exc.kind, "pdf" if field == "pdf_base64" else "text", detect_bureau(text) or "unknown",
+            len(text), text.count("\n") + 1,
+        )
+        raise _fail(field, str(exc), exc.kind)
     return to_dict(result)
