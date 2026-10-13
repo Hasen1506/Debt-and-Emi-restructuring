@@ -33,6 +33,9 @@ export default async function NotFound() {
         {signedIn ? (
           <Link href="/" style={btn}>[ GO TO HOME → ]</Link>
         ) : (
+          // A full load: signed out, / is the static landing (a rewrite in
+          // the middleware), which a client-side Link can't render.
+          // eslint-disable-next-line @next/next/no-html-link-for-pages
           <a href="/" style={btn}>[ BACK TO RIGHTDUE → ]</a>
         )}
         <Link href="/glossary" style={link}>[GLOSSARY]</Link>
