@@ -91,6 +91,11 @@ test('R6-2: the coarse-pointer 44px rule wins (base l-hit rule sits before it) a
   assert.match(block, /min-height: 44px;/);
   assert.match(block, /min-width: 44px;/);
   assert.match(block, /\.rd-site-footer a \{[^}]*min-height: 44px;/);
+  // Every button, select and button-like control, not only l-hit ones.
+  assert.match(block, /button,\s*select,\s*summary,\s*\[role='button'\] \{\s*min-height: 44px !important;/);
+  assert.match(block, /a\[href\] \{\s*min-height: 44px !important;/);
+  // Stand-alone links on Home take the l-hit box too.
+  assert.match(src('components/home/HomeDebtFree.tsx'), /<Link href="\/plan" className="l-hit">/);
   assert.match(css, /\.l-check-row > input\[type='checkbox'\][^{]*\{\s*flex-shrink: 0;/);
   // The Plan +N YRS buttons and Home's "Remind me next month" use the class.
   assert.match(src('components/plan/TenureWhatIf.tsx'), /onClick=\{\(\) => setMonths\(months === m \? 0 : m\)\}\s*className="l-hit"/);
@@ -153,4 +158,28 @@ test("R6-5: Activity's planned amount for a plan extra is the plan's whole payme
   const own = row({ ...entry, plannedExtra: undefined });
   assert.equal(own.planned, '₹10,000');
   assert.equal(own.effect.text, '−₹37,500 EXTRA OFF THE BALANCE');
+});
+
+test('UX50 A-12: IBM Plex Mono is self-hosted in three weights; no Google Fonts request on the app or the landing', () => {
+  const layout = src('app/layout.tsx');
+  assert.doesNotMatch(layout, /fonts\.googleapis|fonts\.gstatic/);
+  assert.match(layout, /rel="preload" href="\/fonts\/ibm-plex-mono-400-latin\.woff2" as="font" type="font\/woff2" crossOrigin=""/);
+  const css = src('styles/globals.css');
+  const faces = css.match(/@font-face \{[^}]*\}/g) || [];
+  const weights = new Set(faces.map((f) => f.match(/font-weight: (\d+)/)[1]));
+  assert.deepEqual([...weights].sort(), ['400', '600', '700'], 'three weights, 500 dropped');
+  for (const f of faces) {
+    assert.match(f, /font-family: 'IBM Plex Mono';/);
+    assert.match(f, /font-display: swap;/);
+    const file = f.match(/url\('\/fonts\/([^']+)'\)/)[1];
+    const bytes = fs.readFileSync(path.join(web, 'public/fonts', file));
+    assert.equal(bytes.subarray(0, 4).toString('latin1'), 'wOF2', `${file} is a woff2`);
+  }
+  // ₹ (U+20B9) is covered by the latin-ext face.
+  assert.ok(faces.some((f) => /U\+20AD-20C\d/.test(f)));
+  const welcome = fs.readFileSync(path.join(web, 'public/welcome.html'), 'utf8');
+  assert.doesNotMatch(welcome, /fonts\.googleapis|fonts\.gstatic/);
+  assert.match(welcome, /url\('\/fonts\/ibm-plex-mono-700-latin\.woff2'\)/);
+  // Signed-out visitors get the font files (not a redirect to /login).
+  assert.match(src('middleware.ts'), /\|fonts\/\)\.\*\)'/);
 });
