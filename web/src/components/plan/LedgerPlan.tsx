@@ -354,7 +354,7 @@ function ShortfallBanner({ plan }: { plan: PlanData }) {
       </dl>
       Your costs ({fc(costs)}) and minimum payments ({fc(minimums)}) come to more
       than your income ({fc(income)}). The schedule below is <strong>as things stand</strong>:
-      each short month is paid from your emergency fund while it lasts, then
+      each short month is {Number(plan.user.efund_balance ?? 0) > 0 ? 'paid from your emergency fund while it lasts, then ' : ''}
       borrowed on {card}, and any money freed later pays that borrowing back
       first, before any loan gets extra.
       {gap && gap.peak > 0 && gap.peakMonth && !gap.repaidMonth

@@ -12,6 +12,7 @@ import type { PlanData } from './PlanData';
 import { formatCurrencyWhole, type LoanPayload } from '@/lib/api';
 import { getCountryToday, localIsoDate, monthIndexToDate, MONTH_NAMES } from '@/lib/today';
 import { loanCurrency } from '@/lib/currency';
+import { CSV_START_LABEL, scheduleCsvFilename, scheduleCsvHeader } from '@/lib/schedule-csv';
 import { loanLabel } from '@/lib/loan-types';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import { loanClears, owedAtStart } from './plan-milestones';
@@ -53,11 +54,6 @@ function csvCell(v: string | number): string {
 
 /** A spreadsheet-safe column name: "pay_2_credit_card_hdfc_bank_inr". The
  *  position keeps two unnamed loans (or two from one bank) apart. */
-function payColumn(loan: PlanData['user']['loans'][number], i: number, country: PlanData['user']['country']): string {
-  const bank = (loan.bank || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-  const ccy = loanCurrency(loan, country).toLowerCase();
-  return ['pay', i + 1, loan.loan_type, bank, ccy].filter(Boolean).join('_');
-}
 
 /** Every month of the schedule as a CSV file (the table may be collapsed).
  *  Each loan's column is in that loan's currency; the totals are in the
@@ -65,21 +61,13 @@ function payColumn(loan: PlanData['user']['loans'][number], i: number, country: 
 function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData, start: ScheduleCsvRow) {
   const { loans, country } = plan.user;
   const ccy = plan.displayCurrency.toLowerCase();
-  const header = [
-    'month',
-    'date',
-    ...loans.map((l, i) => payColumn(l, i, country)),
-    `extra_${ccy}`,
-    `interest_${ccy}`,
-    `principal_${ccy}`,
-    `balance_${ccy}`,
-    'event',
-  ];
+  // UX50 B-33: headers in words, a dated filename, the opening row named.
+  const header = scheduleCsvHeader(loans, country, ccy);
   // The first line is what's owed at the start, as on screen.
   const lines = [start, ...rows].map((r) =>
     [
-      r.mo,
-      r.date,
+      r === start ? 0 : r.mo,
+      r === start ? CSV_START_LABEL : r.date,
       ...loans.map((_, i) => Math.round(Number(r.perLoan[i] ?? 0))),
       Math.round(r.extra),
       Math.round(r.interest),
@@ -96,7 +84,7 @@ function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData, start: Schedule
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'debt-plan-schedule.csv';
+  a.download = scheduleCsvFilename(localIsoDate(getCountryToday(country)));
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -374,7 +362,9 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
               {visibleRows.map((r) => (
                 <tr
                   key={r.mo}
-                  style={{ borderBottom: `1px dashed ${L_T.faint}`, background: r.event ? L_T.highlight : 'transparent' }}
+                  // UX50 B-16: in the events-only view every row is an event, so
+                  // none is highlighted; in the full view the events stand out.
+                  style={{ borderBottom: `1px dashed ${L_T.faint}`, background: expanded && r.event ? L_T.highlight : 'transparent' }}
                 >
                   <td style={{ padding: '7px 10px' }}>{String(r.mo).padStart(2, '0')}</td>
                   <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>{r.date}</td>
