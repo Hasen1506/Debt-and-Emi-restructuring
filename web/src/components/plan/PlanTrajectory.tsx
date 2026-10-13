@@ -17,6 +17,7 @@ import { L_T, LSectionHeader } from '@/components/ledger/primitives';
 import { LTrajectory, type LTrajMilestone, type LTrajPoint } from '@/components/ledger/LTrajectory';
 import { loanClears, owedAtStart } from './plan-milestones';
 import { chartEndMonth, linesCoincide } from '@/lib/plan-gap';
+import { minimumsClearMonth } from '@/lib/trajectory';
 
 const CHART_NAME: Record<string, string> = {
   credit_card: 'CARD',
@@ -63,8 +64,9 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
     // date with the gap borrowed, the same one the schedule shows. The axis
     // used to run to the end of the minimums line whenever the plan was short.
     const clears = plan.debtFreeMonth ?? null;
-    const lastMinOwed = withGap.filter((p) => p.minimums > 0.5).at(-1)?.month ?? 0;
-    const minClear = withGap.find((p) => p.month > lastMinOwed && p.minimums <= 0.5)?.month ?? null;
+    // Live re-test 3 R3-1: one never-clears answer for the line, its note and
+    // the screen-reader summary, in the plan and in the what-if.
+    const minClear = minimumsClearMonth(traj, plan.baselineNeverClears);
     // Both lines whole when the minimums finish within twice the plan;
     // otherwise the plan plus a quarter (at least six months).
     const end = chartEndMonth({

@@ -180,11 +180,22 @@ export function describeGap(
   return `the ${words.join(' and ')}`;
 }
 
-/** Live re-test 2 R2-2: Setup's line above Continue, naming what's wrong. */
-export function setupSummaryLine(f: { emiTooSmall: boolean; missing: boolean; fx: boolean }): string {
-  if (f.emiTooSmall && !f.missing) return 'A loan needs a fix: its EMI is too small to pay it off. It’s marked above.';
-  if (f.emiTooSmall) return 'Some loans need a fix: one EMI is too small to pay it off, and some are missing a number. They’re marked above.';
-  if (f.missing) return 'Some loans are missing a number. They’re marked above.';
+/** Live re-test 2 R2-2: Setup's line above Continue, naming what's wrong.
+ *  Live re-test 3 R3-4: a rate that can't be read ("8.5x") or is out of
+ *  range is `invalid`, never "missing a number"; `missing` is blank fields. */
+export function setupSummaryLine(f: { emiTooSmall: boolean; missing: boolean; fx: boolean; invalid?: boolean }): string {
+  const problems = [
+    f.emiTooSmall ? 'one EMI is too small to pay it off' : '',
+    f.invalid ? 'one rate isn’t a valid number' : '',
+    f.missing ? 'some are missing a number' : '',
+  ].filter(Boolean);
+  if (f.emiTooSmall && !f.invalid && !f.missing) return 'A loan needs a fix: its EMI is too small to pay it off. It’s marked above.';
+  if (f.invalid && !f.emiTooSmall && !f.missing) return 'A loan needs a fix: its rate isn’t a valid number. It’s marked above.';
+  if (f.missing && !f.emiTooSmall && !f.invalid) return 'Some loans are missing a number. They’re marked above.';
+  if (problems.length > 1) {
+    const list = problems.length === 2 ? problems.join(', and ') : `${problems.slice(0, -1).join(', ')}, and ${problems.at(-1)}`;
+    return `Some loans need a fix: ${list}. They’re marked above.`;
+  }
   if (f.fx) return 'Check the exchange rate marked above.';
   return 'Something above needs a fix. It’s marked above.';
 }

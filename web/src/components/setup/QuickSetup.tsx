@@ -39,7 +39,7 @@ import { loanCurrency, userDefaultCurrency, type CurrencyCode } from '@/lib/curr
 import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { deriveTenureMonths } from '@/lib/derived';
 import { HORIZON_MONTHS } from '@/lib/horizon';
-import { emiBelowInterest, loanDraftErrors, needsEmi, setupLoanName, setupSummaryLine } from '@/lib/loan-gaps';
+import { emiBelowInterest, loanDraftErrors, needsEmi, rateOutOfRange, setupLoanName, setupSummaryLine } from '@/lib/loan-gaps';
 import { newLoanId } from '@/lib/loan-ids';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { feeShown } from '@/lib/prepayment-fee';
@@ -93,6 +93,8 @@ interface LoanUi {
   estStart?: string;
   estTerm?: string;
   estError?: string | null;
+  /** The rate box holds text that isn't a number ("8.5x"); the loan gets ''. */
+  rateUnreadable?: boolean;
 }
 
 type FxQuote = FxRateResponse | 'loading' | 'failed';
@@ -239,6 +241,8 @@ export function QuickSetup() {
     }
     const draft = loanDraftErrors({ ...l, scheduled_emi: emiOf(l) });
     if (draft.rate) out.rate = draft.rate;
+    // Live re-test 3 R3-4: unreadable rate text is not a blank rate.
+    if (u.rateUnreadable && (l.nominal_rate ?? '').trim() === '') out.rate = 'unreadable';
     if (needsEmi(l.loan_type)) {
       if (u.byMonths) {
         const m = Number(u.months);
@@ -271,14 +275,20 @@ export function QuickSetup() {
     loans.every((l) => Object.keys(issuesOf(l)).length === 0) && Object.keys(fxErrors).length === 0;
   // Live re-test 2 R2-2: the summary names what's wrong. An EMI below the
   // month's interest isn't a missing number.
+  // Live re-test 3 R3-4: a rate that can't be read (or is out of range) is
+  // "not valid", not "missing"; only blank fields are missing numbers.
+  const summaryFlags = loans.map((l) => {
+    const issues = issuesOf(l);
+    if (Object.keys(issues).length === 0) return { emiTooSmall: false, invalid: false, missing: false };
+    const emiTooSmall = !!emiBelowInterest({ ...l, currency: loanCurrency(l, country) as 'INR' | 'USD' });
+    const invalid = (!!uiOf(l.id).rateUnreadable && (l.nominal_rate ?? '').trim() === '') || !!rateOutOfRange(l.nominal_rate);
+    const others = Object.keys(issues).filter((k) => !(invalid && k === 'rate') && !(emiTooSmall && k === 'emi'));
+    return { emiTooSmall, invalid, missing: !emiTooSmall && others.length > 0 };
+  });
   const step2Summary = setupSummaryLine({
-    emiTooSmall: loans.some(
-      (l) => Object.keys(issuesOf(l)).length > 0 && !!emiBelowInterest({ ...l, currency: loanCurrency(l, country) as 'INR' | 'USD' }),
-    ),
-    missing: loans.some((l) => {
-      const n = Object.keys(issuesOf(l)).length;
-      return n > 0 && !emiBelowInterest({ ...l, currency: loanCurrency(l, country) as 'INR' | 'USD' });
-    }),
+    emiTooSmall: summaryFlags.some((f) => f.emiTooSmall),
+    invalid: summaryFlags.some((f) => f.invalid),
+    missing: summaryFlags.some((f) => f.missing),
     fx: Object.keys(fxErrors).length > 0,
   });
 
@@ -982,6 +992,9 @@ function LoanBlock({
           kind="percent"
           value={loan.nominal_rate}
           onChange={(v) => onPatch({ nominal_rate: v, estimated_fields: withEstimate(loan, 'rate', false).estimated_fields })}
+          onUnreadable={(bad) => {
+            if (bad !== !!ui.rateUnreadable) onUi({ rateUnreadable: bad });
+          }}
           hint={
             estimated.has('rate')
               ? `Typical for this kind of loan: the middle of the published rates of the banks RightDue tracks, as of ${TYPICAL_RATE_AS_OF}. Yours may differ; your statement or loan app shows it.`
