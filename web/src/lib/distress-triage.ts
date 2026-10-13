@@ -168,7 +168,7 @@ export interface TriageLine extends TriageLoanIn {
  * monthly interest cost (required × rate) goes first, the cheaper one is
  * the one to let wait. Ties keep the input order.
  */
-export function protectOrder(loans: TriageLoanIn[], available: number): TriageLine[] {
+export function protectOrder<T extends TriageLoanIn>(loans: T[], available: number): Array<T & TriageLine> {
   const ordered = loans
     .map((l, i) => ({ l, i }))
     .filter(({ l }) => l.required > 0)
@@ -202,12 +202,37 @@ export function protectOrder(loans: TriageLoanIn[], available: number): TriageLi
   });
 }
 
+/** Months unpaid this page will count (UX50 R5-1: any number used to give a
+ *  16-digit figure). Past 3 months the account is an NPA (over 90 days),
+ *  and two years is already far past any sensible what-if. */
+export const MAX_MONTHS_UNPAID = 24;
+
+/** Read "Months unpaid": a whole number 0–MAX_MONTHS_UNPAID, else an error to show. */
+export function readMonthsUnpaid(raw: string): { months: number | null; error: string | null } {
+  const t = String(raw ?? '').trim();
+  if (t === '') return { months: null, error: 'Enter how many months, 0 to ' + MAX_MONTHS_UNPAID + '.' };
+  if (!/^\d+$/.test(t)) return { months: null, error: 'Use a whole number of months, 0 to ' + MAX_MONTHS_UNPAID + '.' };
+  const n = Number(t);
+  if (n > MAX_MONTHS_UNPAID) return { months: null, error: 'Up to ' + MAX_MONTHS_UNPAID + ' months. After 3 unpaid months the loan is already a default (NPA).' };
+  return { months: n, error: null };
+}
+
+/** Read a lender charge typed by the user: blank is null (unknown), else a non-negative amount. */
+export function readCharge(raw: string): { value: number | null; error: string | null } {
+  const t = String(raw ?? '').trim().replace(/^(₹|rs\.?)\s*/i, '').replace(/[,\s]/g, '');
+  if (t === '') return { value: null, error: null };
+  if (!/^\d*\.?\d+$/.test(t)) return { value: null, error: 'Type the amount in rupees, like 590.' };
+  const n = Number(t);
+  if (n > 1_000_000) return { value: null, error: 'That is more than ₹10 lakh for one charge. Check the amount.' };
+  return { value: n, error: null };
+}
+
 export interface MissCostIn {
-  /** The unpaid amount (the EMI or the part of it not paid). */
+  /** The amount not paid each month (the EMI, or the part of it not paid). */
   unpaid: number;
   /** The loan's own annual rate, percent. */
   ratePct: number;
-  /** Months it stays unpaid. */
+  /** Months in a row it stays unpaid: one missed instalment per month. */
   months: number;
   /** The lender's penal charge per missed instalment, from the KFS; null if not known. */
   penalCharge: number | null;
@@ -218,7 +243,9 @@ export interface MissCostIn {
 }
 
 export interface MissCost {
-  /** Interest on the unpaid amount at the loan's own rate (simple, month by month). */
+  /** Instalments missed in all (unpaid × months). */
+  arrears: number;
+  /** Interest on the overdue instalments at the loan's own rate (simple, month by month). */
   interest: number;
   penal: number;
   bounce: number;
@@ -228,25 +255,32 @@ export interface MissCost {
 }
 
 /**
- * What missing a payment adds, by the RBI penal-charges rule: interest on
- * the unpaid EMI at the contracted rate (never a penal rate), plus a flat
- * penal charge per missed instalment (no interest on it), plus the bounce
- * charge if an auto-debit fails. Penal and bounce amounts are the user's,
- * from the KFS; unknown ones are 0 and named in `unknown`.
+ * What missing payments adds, by the RBI penal-charges rule: interest on the
+ * overdue instalments at the contracted rate (never a penal rate), plus a
+ * flat penal charge per missed instalment (no interest on it), plus a bounce
+ * charge for each auto-debit that fails. Penal and bounce amounts are the
+ * user's, from the KFS; unknown ones are 0 and named in `unknown`.
+ *
+ * Missing N months in a row means N instalments are overdue, not one (UX50
+ * O-3). The first has been overdue N months by then, the last one month, so
+ * the interest is unpaid × monthly rate × (N + N−1 + … + 1) = × N(N+1)/2.
+ * One month is the same as before: one month's interest on one EMI.
  */
 export function missedPaymentCost(i: MissCostIn): MissCost {
-  const months = Math.max(0, Math.floor(i.months));
-  const unpaid = Math.max(0, i.unpaid);
-  const monthly = Math.max(0, i.ratePct) / 100 / 12;
-  // Each month the instalment stays unpaid it earns one month of interest at
-  // the loan's own rate; no compounding on penal charges (RBI 3(i)).
-  const interest = unpaid * monthly * months;
+  const raw = Number.isFinite(i.months) ? Math.floor(i.months) : 0;
+  const months = Math.min(MAX_MONTHS_UNPAID, Math.max(0, raw));
+  const unpaid = Number.isFinite(i.unpaid) ? Math.max(0, i.unpaid) : 0;
+  const monthly = Math.max(0, Number.isFinite(i.ratePct) ? i.ratePct : 0) / 100 / 12;
+  const monthsOverdue = (months * (months + 1)) / 2;
+  // No compounding, and no interest on penal charges (RBI 3(i)).
+  const interest = unpaid * monthly * monthsOverdue;
   const unknown: MissCost['unknown'] = [];
   if (i.penalCharge == null) unknown.push('penal');
   if (i.autoDebit && i.bounceCharge == null) unknown.push('bounce');
-  const penal = months > 0 ? (i.penalCharge ?? 0) : 0;
-  const bounce = months > 0 && i.autoDebit ? (i.bounceCharge ?? 0) : 0;
+  const penal = Math.max(0, i.penalCharge ?? 0) * months;
+  const bounce = i.autoDebit ? Math.max(0, i.bounceCharge ?? 0) * months : 0;
   return {
+    arrears: round2(unpaid * months),
     interest: round2(interest),
     penal: round2(penal),
     bounce: round2(bounce),
