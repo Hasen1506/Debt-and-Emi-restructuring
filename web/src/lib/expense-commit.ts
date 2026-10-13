@@ -62,7 +62,7 @@ export function commitExpenseReduction(
 
   const ccySym = profile.user.country === 'IN' ? '₹' : '$';
   const goalLabel = params.goalLabel ?? 'a goal';
-  const reasoning = `Cut ${ccySym}${Math.round(params.monthlyDelta).toLocaleString()}/mo to fund ${goalLabel}. Starts ${effectiveMonth}.`;
+  const reasoning = `Cut ${ccySym}${Math.round(params.monthlyDelta).toLocaleString(profile.user.country === 'IN' ? 'en-IN' : 'en-US')} a month to fund ${goalLabel}. Starts ${effectiveMonth}.`;
 
   const entries = logRecommendation(readDecisionsClient(), 'expense_commit', {
     context: `Expense reduction · ${goalLabel}`,

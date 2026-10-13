@@ -63,12 +63,46 @@ test('protect order: negative or zero money covers nothing; zero-due loans are l
 });
 
 test('missed payment: interest at the loan rate, flat penal charge, bounce only on auto-debit', () => {
-  // ₹35,000 at 8.5% for 2 months: 35000 × 0.085 / 12 × 2 = 495.83
+  // UX50 O-3: 2 months unpaid = 2 overdue EMIs (the first overdue 2 months,
+  // the second 1). 35000 × 0.085 / 12 × (2 + 1) = 743.75; penal and bounce
+  // once per missed instalment. (Was 495.83 / 500 / 590: one EMI only.)
   const c = t.missedPaymentCost({ unpaid: 35000, ratePct: 8.5, months: 2, penalCharge: 500, bounceCharge: 590, autoDebit: true });
-  assert.deepEqual([c.interest, c.penal, c.bounce, c.total], [495.83, 500, 590, 1585.83]);
+  assert.deepEqual([c.arrears, c.interest, c.penal, c.bounce, c.total], [70000, 743.75, 1000, 1180, 2923.75]);
   assert.deepEqual(c.unknown, []);
   const noAuto = t.missedPaymentCost({ unpaid: 35000, ratePct: 8.5, months: 2, penalCharge: 500, bounceCharge: 590, autoDebit: false });
   assert.equal(noAuto.bounce, 0);
+});
+
+test('UX50 O-3: N months unpaid charges interest on every overdue EMI, N(N+1)/2 EMI-months', () => {
+  const one = t.missedPaymentCost({ unpaid: 13000, ratePct: 14, months: 1, penalCharge: 0, bounceCharge: 0, autoDebit: false });
+  const three = t.missedPaymentCost({ unpaid: 13000, ratePct: 14, months: 3, penalCharge: 0, bounceCharge: 0, autoDebit: false });
+  // 13000 × 0.14/12 = 151.67 a month; 3 months → 6 EMI-months = 910.
+  assert.equal(one.interest, 151.67);
+  assert.equal(three.interest, 910);
+  assert.equal(three.arrears, 39000);
+  // Grows faster than linearly: a 3rd unpaid month costs more than the 1st.
+  assert.ok(three.interest > 3 * one.interest);
+});
+
+test('UX50 R5-1: months unpaid is bounded 0–24 in the reader and in the cost itself', () => {
+  assert.equal(t.MAX_MONTHS_UNPAID, 24);
+  assert.deepEqual(t.readMonthsUnpaid('3'), { months: 3, error: null });
+  assert.deepEqual(t.readMonthsUnpaid('0'), { months: 0, error: null });
+  for (const bad of ['', '25', '9999999999999', '-1', '1.5', 'abc', '1e9']) {
+    const r = t.readMonthsUnpaid(bad);
+    assert.equal(r.months, null, bad);
+    assert.ok(r.error, bad);
+  }
+  const huge = t.missedPaymentCost({ unpaid: 13000, ratePct: 14, months: 1e15, penalCharge: 500, bounceCharge: 500, autoDebit: true });
+  const cap = t.missedPaymentCost({ unpaid: 13000, ratePct: 14, months: 24, penalCharge: 500, bounceCharge: 500, autoDebit: true });
+  assert.deepEqual(huge, cap);
+  assert.ok(String(Math.round(cap.total)).length < 8);
+  const nan = t.missedPaymentCost({ unpaid: NaN, ratePct: NaN, months: NaN, penalCharge: null, bounceCharge: null, autoDebit: true });
+  assert.equal(nan.total, 0);
+  assert.deepEqual(t.readCharge(''), { value: null, error: null });
+  assert.deepEqual(t.readCharge('₹590'), { value: 590, error: null });
+  assert.ok(t.readCharge('-5').error);
+  assert.ok(t.readCharge('99999999').error);
 });
 
 test('missed payment: never invents a lender fee; unknowns count 0 and are named', () => {

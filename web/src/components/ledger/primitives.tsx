@@ -15,7 +15,7 @@
  *    you are off-system
  */
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { fitColumns } from '@/lib/grid';
@@ -462,39 +462,59 @@ export function LKpi({
 }
 
 // ─── LField ─────────────────────────────────────────────────────────────
+/** A labelled ledger field. The caption is a real <label for> (UX50 C-01:
+ *  a <div> caption left screen readers announcing "edit text, 80000").
+ *  `type="number"` renders a text input with a numeric keypad (C-06: no
+ *  spinner, no wheel-scroll changing the value); `inputMode` overrides. */
 export function LField({
   label,
   value,
   hint,
   prefix,
   onChange,
+  onBlur,
   placeholder,
   type = 'text',
+  inputMode,
+  error,
+  testId,
 }: {
   label: string;
   value: string;
   hint?: string;
   prefix?: string;
   onChange?: (v: string) => void;
+  onBlur?: () => void;
   placeholder?: string;
   type?: 'text' | 'number';
+  inputMode?: 'text' | 'decimal' | 'numeric';
+  /** Shown under the field and tied to it with aria-describedby / aria-invalid. */
+  error?: string | null;
+  testId?: string;
 }) {
+  const id = useId();
   const editable = typeof onChange === 'function';
+  const mode = inputMode ?? (type === 'number' ? 'decimal' : undefined);
+  const hintId = hint ? `${id}-hint` : undefined;
+  const errId = error ? `${id}-err` : undefined;
+  const described = [errId, hintId].filter(Boolean).join(' ') || undefined;
   return (
     <div>
-      <div
+      <label
+        htmlFor={editable ? id : undefined}
         style={{
-          fontSize: 9,
-          letterSpacing: '0.14em',
+          display: 'block',
+          fontSize: 11,
+          letterSpacing: '0.12em',
           color: L_T.muted,
           marginBottom: 4,
         }}
       >
         {label}
-      </div>
+      </label>
       <div
         style={{
-          borderBottom: `2px solid ${L_T.ink}`,
+          borderBottom: `2px solid ${error ? L_T.negative : L_T.ink}`,
           padding: '6px 2px',
           fontSize: 13,
           fontWeight: 600,
@@ -504,20 +524,27 @@ export function LField({
           background: 'transparent',
         }}
       >
-        {prefix && <span style={{ color: L_T.muted }}>{prefix}</span>}
+        {prefix && <span style={{ color: L_T.muted }} aria-hidden="true">{prefix}</span>}
         {editable ? (
           <input
-            type={type}
+            id={id}
+            type="text"
+            inputMode={mode}
             value={value}
             placeholder={placeholder}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={described}
+            data-testid={testId}
             onChange={(e) => onChange!(e.target.value)}
+            onBlur={onBlur}
+            className="l-field-input"
             style={{
               flex: 1,
               minWidth: 0,
+              minHeight: 28,
               border: 'none',
               padding: 0,
               fontFamily: L_MONO,
-              fontSize: 13,
               fontWeight: 600,
               color: L_T.ink,
               background: 'transparent',
@@ -527,13 +554,19 @@ export function LField({
           <span>{value}</span>
         )}
       </div>
+      {error && (
+        <div id={errId} role="alert" style={{ fontSize: 11, color: L_T.negative, marginTop: 4 }}>
+          {error}
+        </div>
+      )}
       {hint && (
         <div
+          id={hintId}
           style={{
-            fontSize: 9,
+            fontSize: 11,
             color: L_T.muted,
             marginTop: 4,
-            letterSpacing: '0.08em',
+            letterSpacing: '0.04em',
           }}
         >
           {hint}

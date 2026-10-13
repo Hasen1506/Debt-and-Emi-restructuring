@@ -1,6 +1,13 @@
 {
   "extends": "next/core-web-vitals",
   "rules": {
-    "react/no-unescaped-entities": "off"
+    "react/no-unescaped-entities": "off",
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "CallExpression[callee.property.name='toLocaleString'][arguments.length=0]",
+        "message": "Pass a locale ('en-IN' for ₹, 'en-US' for $), or use fmtMoney: a bare toLocaleString() groups ₹ as 1,440,000 on an en-US phone and on the server (UX50 C-20)."
+      }
+    ]
   }
 }

@@ -5,6 +5,9 @@ import { CashManagementSection } from '@/components/debts/CashManagementSection'
 import { LBracket, L_T } from '@/components/ledger/primitives';
 import { PORTFOLIO_INTRO } from '@/lib/portfolio-tab';
 
+/** Its own tab title (UX50 C-26 / E-15). */
+export const metadata = { title: 'Portfolio · RightDue' };
+
 /**
  * /portfolio: its own tab since sprint G10 (founder's cut-list decision 2:
  * "keep, as a new tab"). It used to be Profile's "What you own" page.

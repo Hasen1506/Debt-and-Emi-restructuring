@@ -7,7 +7,7 @@
  */
 
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
 import { hydrateFromServer, prepareAccountCache, serializeClientState, syncSliceToServer } from '@/lib/server-sync';
@@ -35,6 +35,7 @@ export default function LoginPage() {
   const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const codeRef = useRef<HTMLInputElement | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   // When the current request started (ms), for the waking-up progress.
   const [busySince, setBusySince] = useState<number | null>(null);
@@ -165,7 +166,14 @@ export default function LoginPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Verification failed.';
       // Strip the "/api/auth/verify-otp → 400: " prefix from FastAPI's error.
-      setError(msg.replace(/^\S+ → \d+: ?/, '') || 'Verification failed.');
+      const clean = msg.replace(/^\S+ → \d+: ?/, '') || 'Verification failed.';
+      // UX50 C-12: say what to do, and put the cursor back on the code with
+      // the wrong digits selected so typing replaces them.
+      setError(/incorrect code/i.test(clean) ? 'Incorrect code. Check the latest email from RightDue, or send a new code below.' : clean);
+      requestAnimationFrame(() => {
+        codeRef.current?.focus();
+        codeRef.current?.select();
+      });
     } finally {
       endBusy();
     }
@@ -243,8 +251,8 @@ export default function LoginPage() {
           </p>
           <button
             type="submit"
-            disabled={submitting || !email || (needsTurnstile && !turnstileToken)}
-            style={primaryStyle(submitting || !email || (needsTurnstile && !turnstileToken))}
+            disabled={submitting || (needsTurnstile && !turnstileToken)}
+            style={primaryStyle(submitting || (needsTurnstile && !turnstileToken))}
           >
             [ {submitting ? 'Sending…' : 'Agree and send code'} ]
           </button>
@@ -272,6 +280,8 @@ export default function LoginPage() {
             6-digit code
             <input
               type="text"
+              ref={codeRef}
+              aria-invalid={error ? true : undefined}
               inputMode="numeric"
               autoComplete="one-time-code"
               required
@@ -315,7 +325,7 @@ export default function LoginPage() {
         </div>
       )}
       {info && !wake?.show && <p style={infoText}>{info}</p>}
-      {error && <p style={errorText}>{error}</p>}
+      {error && <p role="alert" style={errorText}>{error}</p>}
     </section>
   );
 }
@@ -336,7 +346,7 @@ const form: React.CSSProperties = { display: 'flex', flexDirection: 'column', ga
 const label: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--muted)' };
 const input: React.CSSProperties = {
   padding: '10px 12px',
-  fontSize: 15,
+  fontSize: 16,
   border: '1px solid var(--border)',
   borderRadius: 6,
   background: 'var(--canvas)',

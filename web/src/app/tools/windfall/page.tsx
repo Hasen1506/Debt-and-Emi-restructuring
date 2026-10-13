@@ -2,6 +2,9 @@ import { WindfallTool } from './tool';
 import { LToolPageHeader } from '@/components/ledger/LToolPageHeader';
 import { loadPlanInputsFromCookies } from '@/components/plan/load-plan';
 
+/** Its own tab title (UX50 C-26 / E-15). */
+export const metadata = { title: 'Spare cash · RightDue' };
+
 export const dynamic = 'force-dynamic';
 
 export default async function WindfallPage() {

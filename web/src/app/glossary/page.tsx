@@ -2,6 +2,9 @@ import { loadCurrentProfileServer } from '@/lib/user-store';
 import { glossaryFor, GLOSSARY } from '@/lib/glossary';
 import { LShell, L_T } from '@/components/ledger/primitives';
 
+/** Its own tab title (UX50 C-26 / E-15). */
+export const metadata = { title: 'Glossary · RightDue' };
+
 /** /glossary: every technical term the app uses, in plain words (grill #43). */
 export const dynamic = 'force-dynamic';
 

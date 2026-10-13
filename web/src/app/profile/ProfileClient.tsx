@@ -99,6 +99,8 @@ import {
   computeAnnualTax,
   describeBracket,
   isAdvanceTaxApplicable,
+  IN_TAX_YEAR_LABEL,
+  inNewRegimeSlabLines,
 } from '@/lib/tax-brackets';
 import type { LoanTermsResponse } from '@/lib/api';
 import { RBI_PREPAYMENT_RULE } from '@/lib/prepayment-fee';
@@ -1458,20 +1460,14 @@ function ProfileEditor({
                     average rate.
                     <br />
                     <br />
-                    <strong>New regime (FY 2025-26):</strong>
+                    <strong>New regime ({IN_TAX_YEAR_LABEL}):</strong>
                     <br />
-                    • ₹0–4L: 0%
-                    <br />
-                    • ₹4–8L: 5%
-                    <br />
-                    • ₹8–12L: 10%
-                    <br />
-                    • ₹12–15L: 15%
-                    <br />
-                    • ₹15–20L: 20%
-                    <br />
-                    • Above ₹20L: 30%
-                    <br />
+                    {inNewRegimeSlabLines().map((line) => (
+                      <span key={line} data-testid="slab-line">
+                        • {line}
+                        <br />
+                      </span>
+                    ))}
                     <br />
                     The engine uses this to decide whether prepaying debt or
                     investing the surplus is better for you.
@@ -1493,7 +1489,7 @@ function ProfileEditor({
                 onChange={setTaxRegime}
                 options={[
                   { value: 'new' as TaxRegimeIN, label: 'New (default)' },
-                  { value: 'old' as TaxRegimeIN, label: 'Old (with 80C / HRA / 24b)' },
+                  { value: 'old' as TaxRegimeIN, label: 'Old (with 80C / HRA / 24(b))' },
                 ]}
                 info={
                   <>
@@ -1502,8 +1498,8 @@ function ProfileEditor({
                     <br />
                     <br />
                     <strong>Old regime:</strong> higher rates, but you can claim
-                    80C (₹1.5L), HRA, 80D, 80E, NPS top-up, and home-loan
-                    interest under section 24b (up to ₹2L on self-occupied
+                    80C (₹1.5 lakh), HRA, 80D, 80E, NPS top-up, and home-loan
+                    interest under section 24(b), now s.22 (up to ₹2 lakh on self-occupied
                     property). Pick whichever you've filed under — if you
                     pick old, the deductions panel below captures the numbers
                     we use to derive your true marginal rate.
@@ -3157,7 +3153,7 @@ function GrossIncomeField({
                     <strong>Form 12BB / declared deductions</strong> = the
                     investments you tell your employer in April that you{' '}
                     <em>plan</em> to make this year (PPF, ELSS, life insurance,
-                    NPS — collectively <strong>80C</strong>, capped at ₹1.5L)
+                    NPS — collectively <strong>80C</strong>, capped at ₹1.5 lakh)
                     so they withhold less TDS. If you under-invest vs declared,
                     they claw it back from Jan-Feb paychecks; if you over-invest,
                     you claim a refund via ITR in July.
@@ -3241,7 +3237,7 @@ function GrossIncomeField({
               Computed under{' '}
               <strong>{taxRegime === 'old' ? 'old' : 'new'} regime</strong>
               {taxRegime !== 'old' && (
-                <> · rebate u/s 87A keeps taxable income ≤ ₹12L tax-free</>
+                <> · rebate u/s 87A keeps taxable income ≤ ₹12 lakh tax-free</>
               )}
             </div>
           )}

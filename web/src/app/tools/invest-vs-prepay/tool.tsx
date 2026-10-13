@@ -323,7 +323,12 @@ export function InvestVsPrepayDeepTool() {
             value={loanRatePct}
             onChange={(v) => {
               setLoanRatePct(v);
-              setPicked(null);
+              // UX50 O-2: retyping the picked loan's own rate (or another
+              // loan's) keeps that loan named in the answer; only a rate no
+              // loan has turns it into "the loan".
+              const n = Number(v);
+              const same = v.trim() !== '' && Number.isFinite(n) ? loans.find((l) => Number(pctOf(l.effective)) === n) : undefined;
+              setPicked(same ? (picked !== null && loans.some((l) => l.index === picked && Number(pctOf(l.effective)) === n) ? picked : same.index) : null);
             }}
             hint="What it costs a year: compounded, with GST on a card, after any tax break"
             error={rateErrors.loan}
@@ -408,6 +413,13 @@ export function InvestVsPrepayDeepTool() {
                 },
               ]}
             />
+            {swings && !mc && (
+              <LNote style={{ margin: '16px 0 0' }}>
+                {rateErrors.inflation
+                  ? 'Fix "Prices rise a year" to see the 5,000 runs (beats the loan, keeps up with prices).'
+                  : 'Fix the years held and "Prices rise a year" (0 to 100%) to see the 5,000 runs.'}
+              </LNote>
+            )}
             {mc && (
               <div style={{ marginTop: 16 }}>
                 <LStepSub right="5,000 RUNS">Over {yearsHeld} years</LStepSub>
