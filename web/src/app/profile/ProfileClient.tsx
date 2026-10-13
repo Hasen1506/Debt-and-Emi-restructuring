@@ -3153,7 +3153,7 @@ function GrossIncomeField({
                     <strong>Form 12BB / declared deductions</strong> = the
                     investments you tell your employer in April that you{' '}
                     <em>plan</em> to make this year (PPF, ELSS, life insurance,
-                    NPS — collectively <strong>80C</strong>, capped at ₹1.5L)
+                    NPS — collectively <strong>80C</strong>, capped at ₹1.5 lakh)
                     so they withhold less TDS. If you under-invest vs declared,
                     they claw it back from Jan-Feb paychecks; if you over-invest,
                     you claim a refund via ITR in July.
@@ -3237,7 +3237,7 @@ function GrossIncomeField({
               Computed under{' '}
               <strong>{taxRegime === 'old' ? 'old' : 'new'} regime</strong>
               {taxRegime !== 'old' && (
-                <> · rebate u/s 87A keeps taxable income ≤ ₹12L tax-free</>
+                <> · rebate u/s 87A keeps taxable income ≤ ₹12 lakh tax-free</>
               )}
             </div>
           )}

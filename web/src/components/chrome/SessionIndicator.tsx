@@ -57,12 +57,15 @@ export function SessionIndicator() {
   const label = session.user.display_name || session.user.email;
   const shortLabel = label.length > 28 ? label.slice(0, 25) + '…' : label;
   return (
-    <span style={{ ...TEXT, display: 'inline-flex', maxWidth: '100%', alignItems: 'center', gap: 6, color: 'var(--muted)' }}>
+    <span className="rd-session" style={{ ...TEXT, display: 'inline-flex', flexWrap: 'wrap', maxWidth: '100%', alignItems: 'center', gap: 6, color: 'var(--muted)' }}>
+      {/* UX50 C-10: the email as typed (not upper-cased), so "which account
+          am I in?" has an answer; in the phone menu it gets its own line. */}
       <span
         title={label}
-        style={{ color: 'var(--ink)', maxWidth: 'min(220px, 45vw)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        className="rd-session-who"
+        style={{ color: 'var(--ink)', maxWidth: 'min(220px, 45vw)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'none', letterSpacing: '0.02em' }}
       >
-        {shortLabel.toUpperCase()}
+        {shortLabel}
       </span>
       <span aria-hidden style={{ opacity: 0.6 }}>·</span>
       <a href="/account" className="l-hit" style={{ ...TEXT, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
@@ -74,7 +77,7 @@ export function SessionIndicator() {
         onClick={onSignOut}
         disabled={signingOut}
         className="l-hit"
-        style={{ ...TEXT, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)' }}
+        style={{ ...TEXT, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)', whiteSpace: 'nowrap' }}
       >
         {signingOut ? '[SIGNING OUT…]' : '[SIGN OUT]'}
       </button>

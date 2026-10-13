@@ -116,6 +116,18 @@ test('UX50 F3: Can\u2019t pay fields are named, months are bounded, the letter i
   expect((await dl).suggestedFilename()).toBe('hardship-letter.txt');
   await page.screenshot({ path: `${process.env.F3_SHOTS ?? 'test-results'}/cant-pay-after-${browserName}.png`, fullPage: true });
 
+  // UX50 O-2: retyping the picked loan's own rate keeps it named in the answer.
+  await page.goto('/tools/invest-vs-prepay');
+  await expect(page).toHaveTitle(/Invest or prepay · RightDue/);
+  const rate = page.getByLabel(/The loan's rate, a year/);
+  const before = await rate.inputValue();
+  const verdict = page.locator('main');
+  await expect(verdict).toContainText(/personal loan/i);
+  await rate.fill('');
+  await rate.fill(before);
+  await expect(page.getByText(/the loan\./)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: new RegExp(`Personal loan · ${before.replace('.', '\\.')}%`) })).toHaveAttribute('aria-pressed', 'true');
+
   // C-08 + phone layout: axe on Can't pay and Activity at 390 (Activity's
   // narrow rows held buttons straight inside role=row).
   await page.setViewportSize({ width: 390, height: 844 });

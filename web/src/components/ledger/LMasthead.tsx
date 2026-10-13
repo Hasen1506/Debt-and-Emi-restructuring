@@ -200,6 +200,10 @@ export function LMasthead({
   .rd-mh-nav[data-menu="true"]{display:none !important}
   .rd-mh-nav[data-menu="true"][data-open="true"]{display:flex !important;flex-direction:column !important;align-items:flex-start !important;gap:12px !important}
   .rd-mh-nav[data-open="true"] .rd-mh-extras{margin-left:0 !important;justify-content:flex-start !important}
+  .rd-mh-nav[data-menu="true"][data-open="true"]{gap:0 !important}
+  .rd-mh-nav[data-open="true"] > a.l-hit{display:block !important;width:100%;padding:12px 0 !important;font-size:14px !important;border-bottom:1px solid var(--rule, #d4d0c4)}
+  .rd-mh-nav[data-open="true"] .rd-mh-extras{padding-top:12px;gap:12px !important}
+  .rd-mh-nav[data-open="true"] .rd-session-who{max-width:100% !important;white-space:normal !important;overflow-wrap:anywhere;flex-basis:100%}
 }`}</style>
       <div className="rd-mh-rule1" style={{ margin: '8px 0 0' }}>
         <LRule length={300} />

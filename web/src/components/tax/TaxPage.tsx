@@ -201,7 +201,7 @@ function RegimeSection({ user, month, onUse }: { user: UserPayload; month: strin
           <div style={{ marginTop: 16, paddingTop: 10, borderTop: `1px solid ${L_T.ruleSoft}` }}>
             <h3 style={{ margin: '0 0 6px', fontSize: 12, letterSpacing: '0.1em' }}>BEFORE A BIG DECISION: PLANNING A HOME LOAN?</h3>
             <p style={{ margin: '0 0 8px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
-              A self-occupied home loan is the usual reason the old regime starts to win: its interest (up to ₹2L) and principal (inside ₹1.5L of 80C) count only there. See its first year.
+              A self-occupied home loan is the usual reason the old regime starts to win: its interest (up to ₹2 lakh) and principal (inside ₹1.5 lakh of 80C) count only there. See its first year.
             </p>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <NumIn label="Loan amount (₹)" value={amount} onChange={setAmount} />
@@ -319,7 +319,7 @@ function LoanTaxCard({ loan, regime, month, onSave }: { loan: LoanPayload; regim
           value={share}
           onChange={setShare}
           hint={isHome
-            ? 'Co-borrower who co-owns the home: your part of the interest and principal. Each co-owner claims their own share, each with their own ₹2L and ₹1.5L limits. If they pay part of the EMI, enter only your part of the EMI on the loan.'
+            ? 'Co-borrower who co-owns the home: your part of the interest and principal. Each co-owner claims their own share, each with their own ₹2 lakh and ₹1.5 lakh limits. If they pay part of the EMI, enter only your part of the EMI on the loan.'
             : 'The part of the interest you pay. 80E goes to whoever took the loan and pays it from their taxable income.'}
         />
         {isHome && (
@@ -346,8 +346,8 @@ function LoanTaxCard({ loan, regime, month, onSave }: { loan: LoanPayload; regim
               From a bank, housing finance company, LIC, NHB or my employer (for the 80C principal)
             </label>
           </div>
-          {inst.gt(0) && <p style={{ margin: '6px 0 0', fontSize: 12 }}>This tax year’s part: {rupees(inst)} (one of five), counted inside the ₹2L limit.</p>}
-          {!fullCap && <p style={{ margin: '6px 0 0', fontSize: 12 }}>Finished late: the limit on a lived-in home’s interest is ₹30,000, not ₹2L ({sectionLabel('24(b)')}).</p>}
+          {inst.gt(0) && <p style={{ margin: '6px 0 0', fontSize: 12 }}>This tax year’s part: {rupees(inst)} (one of five), counted inside the ₹2 lakh limit.</p>}
+          {!fullCap && <p style={{ margin: '6px 0 0', fontSize: 12 }}>Finished late: the limit on a lived-in home’s interest is ₹30,000, not ₹2 lakh ({sectionLabel('24(b)')}).</p>}
         </details>
       )}
       <div style={{ marginTop: 8 }}>
@@ -374,7 +374,7 @@ function EightyCSection({ user, month, marginalRate }: { user: UserPayload; mont
       </LSectionHeader>
       <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6 }}>
         Your scheduled home-loan principal this year is about {rupees(principal)} (your share). With your other 80C items that leaves{' '}
-        <b>{rupees(room)}</b> of the ₹1.5L limit ({sectionLabel('80C')}).{' '}
+        <b>{rupees(room)}</b> of the ₹1.5 lakh limit ({sectionLabel('80C')}).{' '}
         {room.gt(0)
           ? `Prepaying up to ${rupees(room)} of home-loan principal this year also lowers your tax by about ${rupees(room.mul(Number(marginalRate || 0)))}, once.`
           : 'A prepayment won’t lower your tax this year: the limit is already used.'}
@@ -395,10 +395,10 @@ function WhyFive() {
         <span id="tx-why5">WHY FIVE INSTALMENTS?</span>
       </LSectionHeader>
       <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6 }}>
-        Interest you pay while the house is being built (often called pre-EMI) has no house to belong to yet, so the law doesn’t let you claim it in the years you pay it. Instead, all of it is added up and claimed in five equal parts: in the tax year the house is finished or bought, and the four years after (s.22(1)(c) of the Income-tax Act 2025; the Explanation to s.24(b) of the 1961 Act). From 1 April 2026 those parts count inside the same ₹2L yearly limit as the year’s own interest for a home you live in, so a big pre-EMI bill doesn’t raise the limit, it uses it up.
+        Interest you pay while the house is being built (often called pre-EMI) has no house to belong to yet, so the law doesn’t let you claim it in the years you pay it. Instead, all of it is added up and claimed in five equal parts: in the tax year the house is finished or bought, and the four years after (s.22(1)(c) of the Income-tax Act 2025; the Explanation to s.24(b) of the 1961 Act). From 1 April 2026 those parts count inside the same ₹2 lakh yearly limit as the year’s own interest for a home you live in, so a big pre-EMI bill doesn’t raise the limit, it uses it up.
       </p>
       <p style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.6 }}>
-        <b>Is the tax break old-regime only?</b> For a home you live in, and for education loans: yes, the new regime allows neither. For a let-out home, the interest comes off its rent in both regimes; only the old regime lets a loss beyond the rent (up to ₹2L) lower your salary’s tax.
+        <b>Is the tax break old-regime only?</b> For a home you live in, and for education loans: yes, the new regime allows neither. For a let-out home, the interest comes off its rent in both regimes; only the old regime lets a loss beyond the rent (up to ₹2 lakh) lower your salary’s tax.
       </p>
     </section>
   );
