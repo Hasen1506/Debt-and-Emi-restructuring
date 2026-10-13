@@ -136,7 +136,7 @@ the same PR. For a private soft launch, staying free is acceptable.
   client-side, or an HttpOnly cookie holding an encrypted blob; (3) drop
   `'unsafe-inline'` with a nonce CSP from `middleware.ts` (makes every page
   dynamic; measure memory on the 512 MB plan first). Do it before the public launch.
-  Shipped now: `script-src-attr 'none'` and `upgrade-insecure-requests`.
+  Shipped now: `script-src-attr 'none'` (inline handler attributes never run).
 - **Failure alerts on scheduled workflows (E-03c):** `db-backup.yml` opens an issue
   on failure; add the same `if: failure()` step to `market-data`, `policy-rates`,
   `rate-disclosures` and `notify`.

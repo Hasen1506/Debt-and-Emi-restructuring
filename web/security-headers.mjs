@@ -53,7 +53,8 @@ export function contentSecurityPolicy(env = process.env) {
     // This closes the commonest HTML-injection-to-script path even while
     // 'unsafe-inline' stays for Next's hydration scripts (see above).
     'script-src-attr': ["'none'"],
-    'upgrade-insecure-requests': [],
+    // No upgrade-insecure-requests: HSTS already keeps the site on HTTPS, and
+    // it would break local/E2E runs that call an http:// API origin.
   };
   return Object.entries(directives).map(([k, v]) => (v.length ? `${k} ${v.join(' ')}` : k)).join('; ');
 }

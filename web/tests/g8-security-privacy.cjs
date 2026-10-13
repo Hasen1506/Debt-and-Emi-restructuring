@@ -201,5 +201,5 @@ test('HSTS on every page and every /api response; inline handler attributes bloc
  assert.ok(api,'an /api rule'); assert.deepEqual(api.headers,[{key:'Strict-Transport-Security',value:HSTS}]);
  const csp=contentSecurityPolicy({});
  assert.match(csp,/script-src-attr 'none'/);
- assert.match(csp,/(^|; )upgrade-insecure-requests(;|$)/);
+ assert.doesNotMatch(csp,/upgrade-insecure-requests/,'would break http:// API origins in local and E2E runs');
 });
