@@ -12,9 +12,35 @@ export const test = base.extend<{ page: Page }>({
       (route) => route.abort('blockedbyclient'),
     );
     await page.clock.setFixedTime(FROZEN_NOW);
+    // page.goto, again when the app's own navigation cancelled it. Right
+    // after a page loads, the app may still be re-rendering it: session
+    // hydration calls router.refresh() when the account copy changed a
+    // cookie (seen ~200 ms after /plan's load), and Home refreshes for the
+    // activity cookie. In Firefox a goto sent while that RSC fetch is in
+    // flight cancels the fetch, Next falls back to a browser navigation of
+    // the current page, and that aborts the goto (CI run 38337335511:
+    // NS_BINDING_ABORTED / NS_ERROR_FAILURE on four specs; reproduced with
+    // router.refresh() + goto). Only that error is retried, after the
+    // interrupting navigation has loaded; the goto must still reach its URL
+    // and every assertion after it is unchanged.
+    const goto = page.goto.bind(page);
+    page.goto = async (url, options) => {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          return await goto(url, options);
+        } catch (err) {
+          if (attempt >= 3 || !NAVIGATION_ABORTED.test(String(err))) throw err;
+          base.info().annotations.push({ type: 'goto retried', description: `${url}: ${String(err).split('\n')[0]}` });
+          await page.waitForLoadState('load').catch(() => {});
+        }
+      }
+    };
     await use(page);
   },
 });
+
+/** page.goto errors that mean "another navigation replaced this one". */
+const NAVIGATION_ABORTED = /NS_BINDING_ABORTED|NS_ERROR_FAILURE|net::ERR_ABORTED|interrupted by another navigation|Navigation interrupted/;
 export { expect };
 
 /** The address a test signs in with. Firefox and WebKit run against one

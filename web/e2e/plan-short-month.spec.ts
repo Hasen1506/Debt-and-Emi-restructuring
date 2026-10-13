@@ -44,13 +44,19 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
     await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
     await page.waitForURL('**/plan');
-    await expect(page.getByText(/GAP CLOSES · AS THINGS STAND/)).toBeVisible();
-    await expect(page.getByText('DUE THIS MONTH', { exact: true })).toBeVisible();
-    await expect(page.getByText(/YOU CAN COVER ₹40,000 · SHORT ₹34,515/)).toBeVisible();
-    await expect(page.getByText(/borrowed on a card at 45% a year plus 18% GST/)).toBeVisible();
+    // The page's text, not the server's streamed copy of it: until React
+    // reveals it, the plan arrives in a hidden <div id="S:0"> at the end of
+    // <body>, and when the account copy's refresh renders the plan into
+    // #main first, both are in the DOM for a moment (CI run 38337335511:
+    // strict-mode "2 elements", the second outside #main and hidden).
+    const main = page.locator('#main');
+    await expect(main.getByText(/GAP CLOSES · AS THINGS STAND/)).toBeVisible();
+    await expect(main.getByText('DUE THIS MONTH', { exact: true })).toBeVisible();
+    await expect(main.getByText(/YOU CAN COVER ₹40,000 · SHORT ₹34,515/)).toBeVisible();
+    await expect(main.getByText(/borrowed on a card at 45% a year plus 18% GST/)).toBeVisible();
     await expect(page.getByRole('heading', { name: /MONTH BY MONTH · AS THINGS STAND/ })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'GAP OWED' })).toBeVisible();
-    await expect(page.getByText(/BORROWED ON A CARD AT 45%/).first()).toBeVisible();
+    await expect(main.getByText(/BORROWED ON A CARD AT 45%/).first()).toBeVisible();
   });
 
   await test.step('#26: a longer tenure on the home loan, through the engine', async () => {
@@ -71,7 +77,9 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
 
   await test.step('Home: what is due beside what the month covers', async () => {
     await page.goto('/');
-    await expect(page.getByText(/Due this month: ₹74,515 in EMIs and minimums\. After your costs you have ₹40,000 for them, so you're ₹34,515 short\./)).toBeVisible();
-    await expect(page.getByText(/GAP CLOSES · PLAN →/)).toBeVisible();
+    // Home streams its figures the same way: read them in #main.
+    const main = page.locator('#main');
+    await expect(main.getByText(/Due this month: ₹74,515 in EMIs and minimums\. After your costs you have ₹40,000 for them, so you're ₹34,515 short\./)).toBeVisible();
+    await expect(main.getByText(/GAP CLOSES · PLAN →/)).toBeVisible();
   });
 });
