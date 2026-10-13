@@ -39,7 +39,7 @@ export function HomeThisMonth({ line, progress }: { line: ThisMonthLine; progres
         ticked = [];
       }
       const p = thisMonthProgress(rows, alignToLoans(readActivityClient(), loans), ticked, month);
-      setText(progressLine(p, total, money) ?? line.text);
+      setText(progressLine(p, total, money, line.text));
     };
     read();
     const onStorage = (e: StorageEvent) => {

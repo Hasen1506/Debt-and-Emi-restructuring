@@ -58,11 +58,13 @@ export function thisMonthProgress(
   return { allPaid: rows.length > 0 && paidRows === rows.length, paidUser: Math.round(paidUser), touched };
 }
 
-/** The strip's sentence once something is logged; null leaves the plan's
- *  own sentence ("This month: pay …"). */
-export function progressLine(p: MonthProgress, total: number, money: (v: number) => string): string | null {
+/** The strip's sentence once something is logged. All paid: that, instead
+ *  of "pay …". Part paid: the plan's own sentence (what to pay and where the
+ *  extra goes) with what's logged and what's left after it. Nothing
+ *  logged: the plan's sentence as it is. */
+export function progressLine(p: MonthProgress, total: number, money: (v: number) => string, planText: string): string {
   if (p.allPaid) return `This month: all paid, ${money(Math.max(p.paidUser, total))} logged. Nothing more is due until next month.`;
-  if (p.touched === 0 || p.paidUser < 1) return null;
+  if (p.touched === 0 || p.paidUser < 1) return planText;
   const left = Math.max(0, total - p.paidUser);
-  return `This month: ${money(p.paidUser)} of ${money(total)} logged as paid so far; ${money(left)} still to pay.`;
+  return `${planText} ${money(p.paidUser)} of it is logged as paid; ${money(left)} still to pay.`;
 }

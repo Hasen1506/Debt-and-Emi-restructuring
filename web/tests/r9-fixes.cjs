@@ -212,26 +212,27 @@ test('O-3: once this month is logged, the Home strip says so instead of "pay ₹
     { key: 'pl', loanIndex: 1, minimum: 5200, amount: 5200, amountUser: 5200 },
   ];
   const money = (v) => `₹${v.toLocaleString('en-IN')}`;
+  const PLAN = 'This month: pay ₹54,000. Every EMI and card minimum (₹14,200), plus ₹39,800 extra on your credit card.';
   const e = (loanIndex, kind, amount, scheduledEmi, date = '2026-10-07') => ({ id: `${loanIndex}${kind}`, loanIndex, kind, date, amount: String(amount), scheduledEmi: String(scheduledEmi) });
   // Nothing logged: the plan's own sentence stays.
-  assert.equal(progressLine(thisMonthProgress(rows, [], [], '2026-10'), 54000, money), null);
+  assert.equal(progressLine(thisMonthProgress(rows, [], [], '2026-10'), 54000, money, PLAN), PLAN);
   // Last month's entries don't count.
-  assert.equal(progressLine(thisMonthProgress(rows, [e(1, 'paid_full', 5200, 5200, '2026-09-07')], [], '2026-10'), 54000, money), null);
+  assert.equal(progressLine(thisMonthProgress(rows, [e(1, 'paid_full', 5200, 5200, '2026-09-07')], [], '2026-10'), 54000, money, PLAN), PLAN);
   // One paid.
-  const one = progressLine(thisMonthProgress(rows, [e(1, 'paid_full', 5200, 5200)], [], '2026-10'), 54000, money);
-  assert.equal(one, 'This month: ₹5,200 of ₹54,000 logged as paid so far; ₹48,800 still to pay.');
+  const one = progressLine(thisMonthProgress(rows, [e(1, 'paid_full', 5200, 5200)], [], '2026-10'), 54000, money, PLAN);
+  assert.equal(one, `${PLAN} ₹5,200 of it is logged as paid; ₹48,800 still to pay.`);
   // Both paid (the re-test's case).
   const both = thisMonthProgress(rows, [e(1, 'paid_full', 5200, 5200), e(0, 'paid_extra', 48800, 9000)], [], '2026-10');
   assert.equal(both.allPaid, true);
-  assert.equal(progressLine(both, 54000, money), 'This month: all paid, ₹54,000 logged. Nothing more is due until next month.');
-  assert.doesNotMatch(progressLine(both, 54000, money), /pay ₹54,000/);
+  assert.equal(progressLine(both, 54000, money, PLAN), 'This month: all paid, ₹54,000 logged. Nothing more is due until next month.');
+  assert.doesNotMatch(progressLine(both, 54000, money, PLAN), /pay ₹54,000/);
   // A set-aside row counts once ticked.
   const withEf = [...rows, { key: 'ef', loanIndex: null, minimum: 0, amount: 1000, amountUser: 1000 }];
   assert.equal(thisMonthProgress(withEf, [e(1, 'paid_full', 5200, 5200), e(0, 'paid_extra', 48800, 9000)], [], '2026-10').allPaid, false);
   assert.equal(thisMonthProgress(withEf, [e(1, 'paid_full', 5200, 5200), e(0, 'paid_extra', 48800, 9000)], ['ef'], '2026-10').allPaid, true);
   // The strip is wired to it.
   assert.match(src('components/home/HomeDebtFree.tsx'), /<HomeThisMonth line=\{line\} progress=\{progress\} \/>/);
-  assert.match(src('components/home/HomeThisMonth.tsx'), /setText\(progressLine\(p, total, money\) \?\? line\.text\)/);
+  assert.match(src('components/home/HomeThisMonth.tsx'), /setText\(progressLine\(p, total, money, line\.text\)\)/);
   assert.match(src('components/home/PayThisMonth.tsx'), /window\.dispatchEvent\(new Event\(SET_ASIDE_EVENT\)\)/);
 });
 

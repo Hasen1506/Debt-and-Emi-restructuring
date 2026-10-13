@@ -54,7 +54,7 @@ test('setup asks the choices, Portfolio has its own tab, Sell to repay is a calc
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
     await page.waitForURL('**/plan');
     // A plan shows after one loan, with a way to add the next.
-    await expect(page.getByRole('link', { name: /Add another loan to the plan/ }).first()).toBeVisible();
+    await expect(page.getByRole('link', { name: /^\+ Loan: add another loan to the plan$/ }).first()).toBeVisible();
   });
 
   await test.step('Portfolio is its own tab', async () => {
