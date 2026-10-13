@@ -19,6 +19,11 @@ export const metadata: Metadata = {
   title: 'RightDue — Debt & EMI Optimiser',
   description:
     'A payoff plan for every loan you have, for India and the USA: what each loan really costs, what to pay this month, cheaper rates worth asking for, and the date you’ll be debt-free.',
+  // UX50 E-14: share cards for every page (icons: app/favicon.ico,
+  // app/icon.svg and app/apple-icon.png, by file convention).
+  metadataBase: new URL('https://rightdue.app'),
+  openGraph: { siteName: 'RightDue', type: 'website', locale: 'en_IN', images: [{ url: '/og.png', width: 1200, height: 630 }] },
+  twitter: { card: 'summary_large_image', images: ['/og.png'] },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

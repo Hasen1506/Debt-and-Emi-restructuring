@@ -19,6 +19,9 @@
  * facts and is the first thing a new visitor should be able to try. It used
  * to sit behind the auth gate despite saying so (BUG_REPORT M5).
  *
+ * Signed out, only the app's own pages (lib/app-routes.ts) go to /login;
+ * any other path falls through to Next's 404 (UX50 E-13).
+ *
  * The matcher excludes /login (the gate's escape hatch), /api, /art,
  * Next.js internals and static files, each anchored to a whole path
  * segment: an unanchored "login" also skipped /loginfoo, and the favicon
@@ -32,6 +35,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { renameRequestCookies } from './lib/storage-migration';
 import { LANDING_COUNTRY_COOKIE, senseCountry } from './lib/landing-country';
+import { isGatedAppPath } from './lib/app-routes';
 
 const SESSION_COOKIE = 'rightdue_session';
 const PROFILE_COOKIE = 'rightdue_user';
@@ -82,6 +86,10 @@ function gate(req: NextRequest, requestHeaders?: Headers): NextResponse {
       }
       return res;
     }
+    // UX50 E-13 / A-14: a path that isn't one of the app's pages (a typo,
+    // an old link, /robots.txt's neighbours) gets the real 404, not a
+    // sign-in wall that leads to a 404 after signing in.
+    if (!isGatedAppPath(url.pathname)) return next();
     const dest = url.clone();
     dest.pathname = '/login';
     dest.search = `?next=${encodeURIComponent(url.pathname + url.search)}`;
@@ -123,7 +131,7 @@ export function isPublicPage(pathname: string): boolean {
 
 export const config = {
   matcher: [
-    '/((?!(?:login|api|art)(?:/|$)|_next/static|_next/image|welcome\\.html$|favicon\\.ico$|icon\\.svg$|robots\\.txt$|sitemap\\.xml$|\\.well-known/).*)',
+    '/((?!(?:login|api|art)(?:/|$)|_next/static|_next/image|welcome\\.html$|favicon\\.ico$|icon\\.svg$|robots\\.txt$|sitemap\\.xml$|manifest\\.webmanifest$|og\\.png$|apple-touch-icon\\.png$|apple-icon\\.png$|icon-(?:192|512|maskable-512)\\.png$|og-loan-check\\.png$|\\.well-known/).*)',
   ],
 };
 

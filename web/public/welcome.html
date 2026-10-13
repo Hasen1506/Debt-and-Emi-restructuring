@@ -7,11 +7,29 @@
 <meta name="description" content="RightDue turns your loans, EMIs and credit cards into one plan: what to pay this month, on which loan, and the date you'll be debt-free. For India and the USA.">
 <meta property="og:title" content="RightDue — a payoff plan for every loan you have">
 <meta property="og:description" content="What each loan really costs, what to pay this month, and when you'll be debt-free. For India and the USA.">
-<meta property="og:url" content="https://rightdue.app">
+<meta property="og:url" content="https://rightdue.app/">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="RightDue">
+<meta property="og:locale" content="en_IN">
+<meta property="og:image" content="https://rightdue.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="RightDue: what to pay, on which loan, this month">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="RightDue — what to pay, on which loan, this month">
+<meta name="twitter:description" content="What each loan really costs, what to pay this month, and when you'll be debt-free. Free, for India and the USA.">
+<meta name="twitter:image" content="https://rightdue.app/og.png">
+<link rel="canonical" href="https://rightdue.app/">
+<meta name="theme-color" content="#fbfaf3">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"RightDue","url":"https://rightdue.app/","description":"A payoff plan for every loan, EMI and credit card: what to pay this month, on which loan, and the date you'll be debt-free.","applicationCategory":"FinanceApplication","operatingSystem":"Any (web browser)","inLanguage":"en","areaServed":[{"@type":"Country","name":"India"},{"@type":"Country","name":"United States"}],"offers":{"@type":"Offer","price":"0","priceCurrency":"INR"},"publisher":{"@type":"Organization","name":"RightDue","email":"vijeya@rightdue.app","foundingDate":"2026-06"}}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<!-- UX50 A-12: only the two weights the page uses (was 400;500;600;700). -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap">
 <script>
 /* Which country's page to show (sprint G10, grill #1): the visitor's own
    pick from the toggle first, then ?country=, then the country the server
@@ -48,8 +66,9 @@
   .skip{position:absolute;left:-999px}.skip:focus{left:16px;top:16px;background:var(--paper);padding:6px 10px;border:1px solid var(--ink);z-index:9}
   :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-  /* Masthead, as in the app */
-  .top{border-top:6px solid var(--ink)}
+  /* Masthead, as in the app. UX50 A-08: .topbar, not .top (the register's
+     first row was also .top and got this 6px slab). */
+  .topbar{border-top:6px solid var(--ink)}
   .mast{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px 0 14px;border-bottom:1px solid var(--ink)}
   .logo{font-weight:700;font-size:16px;letter-spacing:.12em;color:var(--ink)}
   .mast nav{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;letter-spacing:.1em}
@@ -68,6 +87,12 @@
   .kicker{font-size:11px;letter-spacing:.18em;color:var(--muted);margin-bottom:14px}
   h1{font-size:clamp(28px,4.4vw,46px);line-height:1.12;letter-spacing:-.01em;font-weight:700}
   h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--hl) 62%)}
+  h1{text-wrap:balance}
+  .lead-s{display:none}
+  /* Trust line under the CTAs (A-09). */
+  .trust{display:flex;flex-wrap:wrap;gap:4px 0;font-size:12px;color:var(--ink);margin-top:14px;list-style:none}
+  .trust li:not(:last-child)::after{content:"·";padding:0 8px;color:var(--muted)}
+  .trust a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px}
   .lead{font-size:15px;color:var(--soft);margin-top:16px;max-width:540px}
   .fine{font-size:11px;color:var(--muted);margin-top:12px}
 
@@ -80,8 +105,10 @@
   .row b{display:block}
   .row .sub{font-size:10px;letter-spacing:.06em;color:var(--muted)}
   .row .amt{font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
-  .row.top{background:var(--hl2);box-shadow:inset 3px 0 0 var(--accent);padding-left:6px;margin-left:-6px}
-  .stamp{font-size:10px;font-weight:700;letter-spacing:.1em;padding:4px 8px;border:1px solid var(--ink);min-width:74px;text-align:center;transition:background .3s,color .3s,border-color .3s}
+  /* The row the extra goes to: the same 8px bleed on both sides (A-08). */
+  .row.first{background:var(--hl2);box-shadow:inset 3px 0 0 var(--accent);margin:0 -8px;padding:10px 8px 10px 11px}
+  /* A decoration, not a button (A-24): dotted, untappable. */
+  .stamp{font-size:10px;font-weight:700;letter-spacing:.1em;padding:4px 8px;border:1px dotted var(--muted);color:var(--muted);min-width:74px;text-align:center;pointer-events:none;user-select:none;transition:background .3s,color .3s,border-color .3s}
   .stamp.paid{background:var(--pos);border-color:var(--pos);color:#fff}
   .tot{display:flex;justify-content:space-between;padding-top:10px;font-size:11px;letter-spacing:.1em;color:var(--muted)}
   .tot b{color:var(--ink);font-size:13px}
@@ -105,7 +132,7 @@
   /* One rate per loan */
   .rate{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:center}
   .big{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
-  .big .from{font-size:26px;color:var(--muted);text-decoration:line-through;text-decoration-color:var(--rule)}
+  .big .from{font-size:26px;color:var(--muted);text-decoration:line-through;text-decoration-color:var(--muted);text-decoration-thickness:2px}
   .big .to{font-size:clamp(44px,7vw,72px);font-weight:700;color:var(--neg);line-height:1}
   .math{font-size:12px;border-top:2px solid var(--ink)}
   .math div{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed var(--rule)}
@@ -115,12 +142,19 @@
   /* Chart */
   .chart{background:var(--paper);border:2px solid var(--ink);padding:10px 12px 6px}
   .chart svg{width:100%;height:auto;display:block}
-  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:10px;letter-spacing:.1em;color:var(--muted);margin-top:8px}
+  /* UX50 A-02: a sentence for a title, one line, payoffs on a strip under
+     the axis; a phone drawing and a list below 520px. */
+  .ctitle{font-size:15px;margin:4px 0 8px}
+  .ctitle b{color:var(--accent)}
+  .chart .cphone{display:none}
   .draw{stroke-dasharray:1200;stroke-dashoffset:1200}
   .in .draw{animation:draw 2.2s ease-out forwards}
   .fade-line{opacity:0}
   .in .fade-line{animation:fade 1.2s ease-out .3s forwards}
-  .mlist{display:none;font-size:12px;color:var(--soft);margin-top:8px}
+  .mlist{display:none;list-style:none;font-size:13px;color:var(--soft);margin:6px 0 4px}
+  .mlist li{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--rule)}
+  .mlist li b{color:var(--accent);white-space:nowrap}
+  .mlist li.df{border-bottom:0;font-weight:700;color:var(--ink)}
   .fill{opacity:0}
   .in .fill{animation:fade 1s ease-out 1.4s forwards}
   .mk{opacity:0}
@@ -131,25 +165,32 @@
 
   /* Tabs and tools */
   .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:2px solid var(--ink);background:var(--paper)}
+  /* A-18: the dashed rule sits straight under the paragraph, so it lines
+     up across a row; wrapped bullets hang. */
   .tab{padding:16px;border-left:1px solid var(--ink);display:flex;flex-direction:column;gap:6px}
   .tab:first-child,.tab:nth-child(3n+1){border-left:0}
   .tab:nth-child(n+4){border-top:1px solid var(--ink)}
   .tab .t{font-size:11px;font-weight:700;letter-spacing:.14em}
   .tab .t span{color:var(--accent)}
   .tab p{font-size:12px;color:var(--soft)}
-  .tab ul{list-style:none;font-size:11px;color:var(--muted);margin-top:auto;padding-top:6px;border-top:1px dashed var(--rule)}
+  .tab p{min-height:3.2em}
+  .tab ul{list-style:none;font-size:11px;color:var(--muted);margin-top:4px;padding-top:6px;border-top:1px dashed var(--rule)}
+  .tab li{padding-left:2ch;text-indent:-2ch}
   .tab li::before{content:"· "}
   .tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:8px}
-  .tool{display:block;border:1px solid var(--ink);background:var(--paper);padding:12px 14px;color:var(--ink);transition:transform .15s ease,box-shadow .15s ease}
+  .tool{display:flex;flex-direction:column;border:1px solid var(--ink);background:var(--paper);padding:12px 14px;color:var(--ink);transition:transform .15s ease,box-shadow .15s ease}
   .tool:hover{text-decoration:none;transform:translate(-2px,-2px);box-shadow:3px 3px 0 var(--ink)}
   .tool .nm{font-size:10px;letter-spacing:.14em;color:var(--muted)}
   .tool .q{font-weight:700;font-size:13px;margin:2px 0 4px}
   .tool .d{font-size:12px;color:var(--soft)}
-  .tool .tag{font-size:10px;letter-spacing:.1em;color:var(--accent);font-weight:700}
+  .tool .tag{font-size:10px;letter-spacing:.1em;color:var(--accent);font-weight:700;margin-top:auto;padding-top:8px}
+  .tool .tag.gated{color:var(--muted)}
 
   /* Steps */
   .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;counter-reset:s}
-  .step{border-top:2px solid var(--ink);padding-top:12px}
+  /* A-17: one heavy rule under the section header, light ones between steps. */
+  .step{border-top:1px dashed var(--rule);padding-top:12px}
+  #how .sh,#countries .sh{border-bottom:0;padding-bottom:0}
   .step::before{counter-increment:s;content:"0" counter(s) " /";font-size:11px;letter-spacing:.14em;color:var(--accent);font-weight:700}
   .step h3{font-size:14px;margin:6px 0 4px}
   .step p{font-size:12px;color:var(--soft)}
@@ -166,8 +207,18 @@
   /* A link inside a sentence is underlined, not told apart by colour alone. */
   .about a,.note a,.lead a,.fine a{text-decoration:underline}
   .note{font-size:11px;color:var(--muted);max-width:820px;line-height:1.7}
+  /* A-21: one line; the minimums-only ceiling opens on demand. */
+  .cmp{margin-top:10px;font-size:12px}
+  .cmp summary{cursor:pointer;list-style:none}
+  .cmp summary::-webkit-details-marker{display:none}
+  .cmp .how{color:var(--accent);text-decoration:underline;white-space:nowrap}
+  .cmp .how::after{content:" →"}
+  .cmp[open] .how::after{content:" ↑"}
+  .cmp p{margin-top:6px;font-size:11px}
   footer{border-top:2px solid var(--ink);padding:22px 0 36px;font-size:11px;letter-spacing:.06em;color:var(--muted)}
-  .foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}
+  .foot a{display:inline-block;padding:6px 0;min-height:24px}
+  .foot .links{display:flex;flex-wrap:wrap;gap:0 14px}
 
   /* Reveal on scroll */
   .rv{opacity:0;transform:translateY(16px);transition:opacity .6s ease,transform .6s ease}
@@ -187,8 +238,22 @@
   }
   @media (max-width:520px){
     .wrap{padding:0 16px}
-    .hero{padding:36px 0 32px;gap:28px}
-    .mast nav a.hide{display:none}
+    .hero{padding:28px 0 32px;gap:24px}
+    /* A-10: logo and SIGN IN on one row, the country toggle full width
+       under them; Loan Check is the second CTA, so it leaves the masthead. */
+    .mast{flex-wrap:wrap;row-gap:10px;padding:14px 0 12px}
+    .mast nav{display:contents}
+    .mast nav a.hide,.mast nav a.mhide{display:none}
+    .mast nav a.in{order:2;margin-left:auto;padding:6px 0}
+    .logo{order:1}
+    .ctry{order:3;width:100%}
+    .ctry button{flex:1;padding:8px}
+    /* A-11: a two-line lead and full-width CTAs bring the register up. */
+    .lead-l{display:none}
+    .lead-s{display:block}
+    .ctas{margin-top:18px}
+    .ctas .btn{flex:1 1 100%;text-align:center}
+    .foot .links{flex-direction:column;gap:0}
     .tabs{grid-template-columns:1fr}
     .tab,.tab:nth-child(even){border-left:0;border-top:1px solid var(--ink)}
     .tab:first-child{border-top:0}
@@ -197,10 +262,9 @@
     .row .stamp{grid-column:2 / -1;justify-self:start}
     .tools{grid-template-columns:1fr}
     section{padding:40px 0}
-    /* The chart shrinks to under half size on a phone: bigger axis text,
-       and the payoff dates as a line of text under it. */
-    .chart svg text{font-size:22px}
-    .chart svg .yl,.chart svg .ml,.chart svg .dl{display:none}
+    /* The phone gets its own drawing at 1:1 and the payoffs as a list. */
+    .chart .cdesk{display:none}
+    .chart .cphone{display:block}
     .mlist{display:block}
   }
   /* No motion for anyone who's asked for less: everything shown as is. */
@@ -215,14 +279,14 @@
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-<div class="top">
+<div class="topbar">
   <div class="wrap">
     <div class="mast">
       <a class="logo" href="/">RightDue</a>
       <nav aria-label="Page">
         <a class="hide" href="#cost">[THE REAL RATE]</a>
         <a class="hide" href="#app">[WHAT'S INSIDE]</a>
-        <a href="/tools/loan-check" data-c="IN">[LOAN CHECK]</a>
+        <a class="mhide" href="/tools/loan-check" data-c="IN">[LOAN CHECK]</a>
         <a class="in" href="/login">[SIGN IN]</a>
         <span class="ctry" role="group" aria-label="Show the page for">
           <button type="button" data-set-country="IN" aria-pressed="false">INDIA · ₹</button>
@@ -236,47 +300,54 @@
 <main id="main">
   <div class="wrap">
     <div class="hero">
-      <div class="rv">
+      <div>
         <div class="kicker" data-c="IN">FOR LOANS, EMIS AND CREDIT CARDS · INDIA</div>
         <div class="kicker" data-c="US">FOR MORTGAGES, AUTO LOANS AND CREDIT CARDS · USA</div>
-        <h1>What to pay, on which loan, <em>this month.</em></h1>
-        <p class="lead">Add your loans and cards once. RightDue works out what each one really costs, puts your spare cash where it saves the most, and gives you the date you'll be debt-free, month by month. A payoff plan: it doesn't lend, and it doesn't negotiate with your bank.</p>
+        <h1>What to pay, on which loan, <em>this&nbsp;month.</em></h1>
+        <p class="lead lead-l">Add your loans and cards once. RightDue works out what each one really costs, puts your spare cash where it saves the most, and gives you the date you'll be debt-free, month by month. A payoff plan: it doesn't lend, and it doesn't negotiate with your bank.</p>
+        <p class="lead lead-s">Add your loans once. See what each really costs, where spare cash saves most, and the month you'll be debt-free.</p>
         <div class="ctas">
           <a class="btn dark" href="/login">[ START YOUR PLAN → ]</a>
           <a class="btn" href="/tools/loan-check" data-c="IN">[ TRY LOAN CHECK ]</a>
           <a class="btn" href="#app" data-c="US">[ SEE WHAT'S INSIDE ]</a>
         </div>
+        <ul class="trust" aria-label="About RightDue">
+          <li>Free</li>
+          <li><a href="/privacy">No bank login, no card numbers</a></li>
+          <li><a href="/account">Email sign-in, delete any time</a></li>
+          <li><a href="/terms">Not a lender</a></li>
+        </ul>
         <p class="fine" data-c="IN">Loan Check needs no sign-in: is your bank passing on RBI rate cuts to your home loan?</p>
         <p class="fine" data-c="US">Federal, state and card rules for the USA. Have loans in India too? The NRI tools are inside.</p>
       </div>
 
-      <div class="card rv d2" id="register" aria-label="Example: this month's payments">
+      <div class="card" id="register" aria-label="Example: this month's payments">
         <div data-c="IN">
 <!-- gen:register-IN -->
         <h3>PAY THIS MONTH · OCTOBER <small>EXAMPLE</small></h3>
-        <div class="row top">
+        <div class="row first">
           <span class="n">01</span>
           <span><b>Credit card</b><span class="sub">₹12,500 MINIMUM + ₹13,500 EXTRA</span></span>
           <span class="amt">₹26,000</span>
-          <span class="stamp" data-stamp>MARK PAID</span>
+          <span class="stamp" data-stamp aria-hidden="true">MARK PAID</span>
         </div>
         <div class="row">
           <span class="n">02</span>
           <span><b>Personal loan</b><span class="sub">EMI</span></span>
           <span class="amt">₹9,500</span>
-          <span class="stamp" data-stamp>MARK PAID</span>
+          <span class="stamp" data-stamp aria-hidden="true">MARK PAID</span>
         </div>
         <div class="row">
           <span class="n">03</span>
           <span><b>HDFC car loan</b><span class="sub">EMI</span></span>
           <span class="amt">₹15,100</span>
-          <span class="stamp" data-stamp>MARK PAID</span>
+          <span class="stamp" data-stamp aria-hidden="true">MARK PAID</span>
         </div>
         <div class="row">
           <span class="n">04</span>
           <span><b>SBI home loan</b><span class="sub">EMI</span></span>
           <span class="amt">₹39,400</span>
-          <span class="stamp" data-stamp>MARK PAID</span>
+          <span class="stamp" data-stamp aria-hidden="true">MARK PAID</span>
         </div>
         <div class="tot"><span>TOTAL THIS MONTH</span><b>₹90,000</b></div>
 <!-- /gen:register-IN -->
@@ -285,29 +356,29 @@
         <div data-c="US">
 <!-- gen:register-US -->
         <h3>PAY THIS MONTH · OCTOBER <small>EXAMPLE</small></h3>
-        <div class="row top">
+        <div class="row first">
           <span class="n">01</span>
           <span><b>Credit card</b><span class="sub">$360 MINIMUM + $640 EXTRA</span></span>
           <span class="amt">$1,000</span>
-          <span class="stamp" data-stamp>MARK PAID</span>
+          <span class="stamp" data-stamp aria-hidden="true">MARK PAID</span>
         </div>
         <div class="row">
           <span class="n">02</span>
           <span><b>Personal loan</b><span class="sub">PAYMENT</span></span>
           <span class="amt">$250</span>
-          <span class="stamp" data-stamp>MARK PAID</span>
+          <span class="stamp" data-stamp aria-hidden="true">MARK PAID</span>
         </div>
         <div class="row">
           <span class="n">03</span>
           <span><b>Auto loan</b><span class="sub">PAYMENT</span></span>
           <span class="amt">$500</span>
-          <span class="stamp" data-stamp>MARK PAID</span>
+          <span class="stamp" data-stamp aria-hidden="true">MARK PAID</span>
         </div>
         <div class="row">
           <span class="n">04</span>
           <span><b>Mortgage</b><span class="sub">PAYMENT</span></span>
           <span class="amt">$1,650</span>
-          <span class="stamp" data-stamp>MARK PAID</span>
+          <span class="stamp" data-stamp aria-hidden="true">MARK PAID</span>
         </div>
         <div class="tot"><span>TOTAL THIS MONTH</span><b>$3,400</b></div>
 <!-- /gen:register-US -->
@@ -319,27 +390,29 @@
     <div class="kpis rv" aria-label="Example plan" data-c="IN">
 <!-- gen:kpis-IN -->
       <div class="kpi"><div class="l">OUTSTANDING</div><div class="v">₹47,30,000</div><div class="s">4 LOANS</div></div>
-      <div class="kpi"><div class="l">DEBT-FREE</div><div class="v">MAY 2032</div><div class="s">AT ₹90,000/MO</div></div>
+      <div class="kpi"><div class="l">DEBT-FREE BY</div><div class="v">MAY 2032</div><div class="s">AT ₹90,000/MO</div></div>
       <div class="kpi"><div class="l">INTEREST SAVED</div><div class="v" style="color:var(--pos)">₹42,504</div><div class="s">VS SMALLEST FIRST, SAME ₹90,000</div></div>
-      <div class="kpi"><div class="l">DEBT-FREE DATE</div><div class="v" style="color:var(--accent)">SAME MONTH</div><div class="s">VS SMALLEST FIRST</div></div>
+      <div class="kpi"><div class="l">EXTRA THIS MONTH</div><div class="v">₹13,500</div><div class="s">ALL OF IT TO THE CREDIT CARD</div></div>
 <!-- /gen:kpis-IN -->
     </div>
     <div class="kpis rv" aria-label="Example plan" data-c="US">
 <!-- gen:kpis-US -->
       <div class="kpi"><div class="l">OUTSTANDING</div><div class="v">$279,000</div><div class="s">4 LOANS</div></div>
-      <div class="kpi"><div class="l">DEBT-FREE</div><div class="v">NOV 2035</div><div class="s">AT $3,400/MO</div></div>
+      <div class="kpi"><div class="l">DEBT-FREE BY</div><div class="v">NOV 2035</div><div class="s">AT $3,400/MO</div></div>
       <div class="kpi"><div class="l">INTEREST SAVED</div><div class="v" style="color:var(--pos)">$753</div><div class="s">VS SMALLEST FIRST, SAME $3,400</div></div>
-      <div class="kpi"><div class="l">DEBT-FREE DATE</div><div class="v" style="color:var(--accent)">SAME MONTH</div><div class="s">VS SMALLEST FIRST</div></div>
+      <div class="kpi"><div class="l">EXTRA THIS MONTH</div><div class="v">$640</div><div class="s">ALL OF IT TO THE CREDIT CARD</div></div>
 <!-- /gen:kpis-US -->
     </div>
     <div data-c="IN">
 <!-- gen:due-note-IN -->
-      <p class="note" style="margin-top:10px">The savings above compare two ways of paying the same ₹90,000 a month. Paying only what&#39;s due (each EMI and the card&#39;s minimum, nothing extra) would take more than 40 years (the card&#39;s minimum shrinks with the balance, so it never quite clears): that is the most a plan can save, not what it saves most people, so it isn&#39;t the headline. Worked out by RightDue&#39;s engine from the loans shown; <a href="/glossary">what the terms mean</a>.</p>
+      <details class="note cmp"><summary>Compared with paying the same ₹90,000 a month, smallest balance first. <span class="how">How we compare</span></summary>
+      <p>Paying only what&#39;s due (each EMI and the card&#39;s minimum, nothing extra) would take more than 40 years (the card&#39;s minimum shrinks with the balance, so it never quite clears): that is the most a plan can save, not what it saves most people, so it isn&#39;t the headline. Worked out by RightDue&#39;s engine from the loans shown; <a href="/glossary">what the terms mean</a>.</p></details>
 <!-- /gen:due-note-IN -->
     </div>
     <div data-c="US">
 <!-- gen:due-note-US -->
-      <p class="note" style="margin-top:10px">The savings above compare two ways of paying the same $3,400 a month. Paying only what&#39;s due (each EMI and the card&#39;s minimum, nothing extra) would take until Sep 2050: that is the most a plan can save, not what it saves most people, so it isn&#39;t the headline. Worked out by RightDue&#39;s engine from the loans shown; <a href="/glossary">what the terms mean</a>.</p>
+      <details class="note cmp"><summary>Compared with paying the same $3,400 a month, smallest balance first. <span class="how">How we compare</span></summary>
+      <p>Paying only what&#39;s due (each EMI and the card&#39;s minimum, nothing extra) would take until Sep 2050: that is the most a plan can save, not what it saves most people, so it isn&#39;t the headline. Worked out by RightDue&#39;s engine from the loans shown; <a href="/glossary">what the terms mean</a>.</p></details>
 <!-- /gen:due-note-US -->
     </div>
   </div>
@@ -393,59 +466,82 @@
   <section id="plan" style="background:var(--paper);border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)">
     <div class="wrap">
       <div class="sh rv">YOUR PLAN · MONTH BY MONTH</div>
-      <p class="intro rv">One date, and every month's payments to get there. The dashed line is paying only what's due, nothing extra; each square is a loan paid off. Drawn by the engine from the example above.</p>
+      <p class="intro rv">What the example above owes in total, month by month, on its plan. Each square is a loan paid off. Drawn by the engine.</p>
       <div class="chart rv" id="chart">
         <div data-c="IN">
 <!-- gen:chart-IN -->
-        <svg viewBox="0 0 800 300" role="img" aria-label="Example: total debt falls from ₹47.3L now to zero in May 2032 on the plan; paying only what is due still leaves ₹23,35,851 owed in 2033.">
-          <g font-family="IBM Plex Mono, monospace" font-size="11" fill="#5e5e58">
-            <text x="8" y="16" letter-spacing="1.5">OUTSTANDING</text>
-            <text class="yl" x="8" y="48">₹47.3L</text>
-            <text class="yl" x="8" y="150">₹23.6L</text>
-            <text class="yl" x="8" y="262">₹0</text>
-            <text x="70" y="290">NOW</text>
-            <text x="425.8" y="290" text-anchor="middle">2030</text>
-            <text x="790.0" y="290" text-anchor="end">2033</text>
-          </g>
-          <line x1="70" y1="258" x2="790" y2="258" stroke="#0a0a0a" stroke-width="1"/>
-          <path class="fade-line" d="M70.0,44.0 L95.4,48.6 L120.8,53.2 L146.2,58.0 L171.6,62.9 L197.1,67.9 L222.5,72.8 L247.9,76.7 L273.3,80.7 L298.7,84.8 L324.1,88.9 L349.5,93.1 L374.9,97.4 L400.4,101.8 L425.8,106.3 L451.2,110.9 L476.6,115.5 L502.0,118.2 L527.4,120.9 L552.8,123.7 L578.2,126.5 L603.6,129.4 L629.1,132.4 L646.0,134.4 L654.5,135.4 L679.9,138.4 L705.3,141.5 L730.7,144.7 L756.1,147.9 L781.5,151.2" fill="none" stroke="#5e5e58" stroke-width="2" stroke-dasharray="6 5"/>
-          <path class="draw" d="M70.0,44.0 L95.4,50.5 L120.8,57.4 L146.2,64.8 L171.6,72.7 L197.1,80.9 L222.5,89.4 L247.9,98.1 L273.3,106.9 L298.7,116.0 L324.1,125.3 L349.5,134.7 L374.9,144.4 L400.4,154.3 L425.8,164.4 L451.2,174.7 L476.6,185.2 L502.0,195.9 L527.4,206.9 L552.8,218.1 L578.2,229.6 L603.6,241.3 L629.1,253.2 L646.0,258.0" fill="none" stroke="#0a0a0a" stroke-width="2.5"/>
-          <g font-family="IBM Plex Mono, monospace" font-size="11" font-weight="700" fill="#ab4f30" letter-spacing=".5">
-            <g class="mk a"><line class="dl" x1="188.6" y1="83.1" x2="188.6" y2="153" stroke="#ab4f30" stroke-dasharray="2 3"/><rect x="176.1" y="71.4" width="8" height="8" fill="#ab4f30"/><rect x="184.6" y="74.1" width="8" height="8" fill="#ab4f30"/><text class="ml" text-anchor="start"><tspan x="103.7" y="166.2">CREDIT CARD · OCT ’27</tspan><tspan x="103.7" y="180.2">PERSONAL LOAN · NOV ’27</tspan></text></g>
-            <g class="mk b"><line class="dl" x1="264.8" y1="109.0" x2="264.8" y2="133" stroke="#ab4f30" stroke-dasharray="2 3"/><rect x="260.8" y="100.0" width="8" height="8" fill="#ab4f30"/><text class="ml" text-anchor="start"><tspan x="198.4" y="146.2">CAR LOAN · AUG ’28</tspan></text></g>
-            <g class="mk d"><rect x="642.0" y="254.0" width="8" height="8" fill="#ab4f30"/><text class="ml" x="646.0" y="276.0" text-anchor="middle">DEBT-FREE · MAY ’32</text></g>
-          </g>
-          <text class="ml" x="785.5" y="171.2" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="11" fill="#5e5e58" letter-spacing=".5">ONLY WHAT&#39;S DUE: ₹23,35,851 LEFT →</text>
+        <p class="ctitle">Debt-free in <b>May 2032</b>, paying ₹90,000 a month.</p>
+        <svg class="cdesk" viewBox="0 0 800 313.5" role="img" aria-label="Example: the total owed falls from ₹47.3L in Oct 2026 to zero in May 2032. Credit card + personal loan paid off Oct–Nov ’27; HDFC car loan paid off Aug ’28; SBI home loan paid off May ’32.">
+            <line x1="84" y1="30.0" x2="680" y2="30.0" stroke="#e6e4da" stroke-width="1"/>
+            <line x1="84" y1="128.0" x2="680" y2="128.0" stroke="#e6e4da" stroke-width="1"/>
+            <path class="fill" d="M84.0,40.6 L92.8,42.4 L101.5,44.3 L110.3,46.2 L119.1,48.2 L127.8,50.2 L136.6,52.2 L145.4,54.3 L154.1,56.4 L162.9,58.6 L171.6,60.8 L180.4,63.1 L189.2,65.4 L197.9,67.8 L206.7,70.2 L215.5,72.6 L224.2,75.0 L233.0,77.5 L241.8,79.9 L250.5,82.4 L259.3,84.9 L268.1,87.4 L276.8,90.0 L285.6,92.5 L294.4,95.1 L303.1,97.7 L311.9,100.3 L320.6,103.0 L329.4,105.6 L338.2,108.3 L346.9,111.0 L355.7,113.7 L364.5,116.5 L373.2,119.2 L382.0,122.0 L390.8,124.8 L399.5,127.6 L408.3,130.4 L417.1,133.3 L425.8,136.1 L434.6,139.0 L443.4,141.9 L452.1,144.9 L460.9,147.8 L469.6,150.8 L478.4,153.8 L487.2,156.8 L495.9,159.8 L504.7,162.9 L513.5,166.0 L522.2,169.1 L531.0,172.2 L539.8,175.4 L548.5,178.5 L557.3,181.7 L566.1,184.9 L574.8,188.2 L583.6,191.4 L592.4,194.7 L601.1,198.0 L609.9,201.4 L618.6,204.7 L627.4,208.1 L636.2,211.5 L644.9,214.9 L653.7,218.4 L662.5,221.8 L671.2,225.3 L680.0,226.0 L680,226 L84,226 Z" fill="#fff3c4"/>
+            <line x1="84" y1="22" x2="84" y2="226" stroke="#0a0a0a" stroke-width="1"/>
+            <line x1="84" y1="226" x2="680" y2="226" stroke="#0a0a0a" stroke-width="1"/>
+            <line x1="84" y1="258" x2="680" y2="258" stroke="#e6e4da" stroke-width="1"/>
+            <path class="draw" d="M84.0,40.6 L92.8,42.4 L101.5,44.3 L110.3,46.2 L119.1,48.2 L127.8,50.2 L136.6,52.2 L145.4,54.3 L154.1,56.4 L162.9,58.6 L171.6,60.8 L180.4,63.1 L189.2,65.4 L197.9,67.8 L206.7,70.2 L215.5,72.6 L224.2,75.0 L233.0,77.5 L241.8,79.9 L250.5,82.4 L259.3,84.9 L268.1,87.4 L276.8,90.0 L285.6,92.5 L294.4,95.1 L303.1,97.7 L311.9,100.3 L320.6,103.0 L329.4,105.6 L338.2,108.3 L346.9,111.0 L355.7,113.7 L364.5,116.5 L373.2,119.2 L382.0,122.0 L390.8,124.8 L399.5,127.6 L408.3,130.4 L417.1,133.3 L425.8,136.1 L434.6,139.0 L443.4,141.9 L452.1,144.9 L460.9,147.8 L469.6,150.8 L478.4,153.8 L487.2,156.8 L495.9,159.8 L504.7,162.9 L513.5,166.0 L522.2,169.1 L531.0,172.2 L539.8,175.4 L548.5,178.5 L557.3,181.7 L566.1,184.9 L574.8,188.2 L583.6,191.4 L592.4,194.7 L601.1,198.0 L609.9,201.4 L618.6,204.7 L627.4,208.1 L636.2,211.5 L644.9,214.9 L653.7,218.4 L662.5,221.8 L671.2,225.3 L680.0,226.0" fill="none" stroke="#0a0a0a" stroke-width="2.5" stroke-linejoin="round"/>
+            <g font-family="IBM Plex Mono, monospace" font-size="12"><text x="76" y="34.0" text-anchor="end" fill="#5e5e58">₹50L</text><text x="76" y="132.0" text-anchor="end" fill="#5e5e58">₹25L</text><text x="76" y="230.0" text-anchor="end" fill="#5e5e58">₹0</text><text x="84" y="244" text-anchor="start" fill="#5e5e58">OCT ’26</text><text x="329.4" y="244" text-anchor="middle" fill="#5e5e58">2029</text><text x="434.6" y="244" text-anchor="middle" fill="#5e5e58">2030</text><text x="539.8" y="244" text-anchor="middle" fill="#5e5e58">2031</text><text x="644.9" y="244" text-anchor="middle" fill="#5e5e58">2032</text></g>
+            <g class="mk a" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><line x1="206.7" y1="76.7" x2="206.7" y2="254" stroke="#ab4f30" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/><line x1="206.7" y1="254" x2="206.7" y2="308" stroke="#ab4f30" stroke-width="1.5"/><text x="201.7" y="276.5" text-anchor="end" fill="#0a0a0a" font-weight="700">CREDIT CARD +</text><text x="201.7" y="290.5" text-anchor="end" fill="#0a0a0a" font-weight="700">PERSONAL LOAN</text><text x="201.7" y="304.5" text-anchor="end" fill="#ab4f30" font-weight="700">OCT–NOV ’27</text><rect x="202.2" y="65.7" width="9" height="9" fill="#ab4f30"/></g>
+            <g class="mk b" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><line x1="285.6" y1="99.0" x2="285.6" y2="254" stroke="#ab4f30" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/><line x1="285.6" y1="254" x2="285.6" y2="294" stroke="#ab4f30" stroke-width="1.5"/><text x="290.6" y="276.5" text-anchor="start" fill="#0a0a0a" font-weight="700">HDFC CAR LOAN</text><text x="290.6" y="290.5" text-anchor="start" fill="#ab4f30" font-weight="700">AUG ’28</text><rect x="281.1" y="88.0" width="9" height="9" fill="#ab4f30"/></g>
+            <g class="mk d" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><line x1="680.0" y1="232.5" x2="680.0" y2="254" stroke="#ab4f30" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/><line x1="680.0" y1="254" x2="680.0" y2="294" stroke="#ab4f30" stroke-width="1.5"/><text x="675.0" y="276.5" text-anchor="end" fill="#0a0a0a" font-weight="700">SBI HOME LOAN</text><text x="675.0" y="290.5" text-anchor="end" fill="#ab4f30" font-weight="700">MAY ’32 · DEBT-FREE</text><rect x="675.5" y="221.5" width="9" height="9" fill="#ab4f30"/></g>
+            <g class="mk d" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><text x="692" y="218" text-anchor="start" fill="#ab4f30" font-weight="700">₹0 · MAY ’32</text></g>
         </svg>
-        <p class="mlist">Paid off: credit card OCT ’27 · personal loan NOV ’27 · HDFC car loan AUG ’28 · debt-free MAY ’32. Paying only what&#39;s due: ₹23,35,851 still owed in 2033.</p>
+        <svg class="cphone" viewBox="0 0 330 168" aria-hidden="true">
+            <line x1="50" y1="14.0" x2="318" y2="14.0" stroke="#e6e4da" stroke-width="1"/>
+            <line x1="50" y1="73.0" x2="318" y2="73.0" stroke="#e6e4da" stroke-width="1"/>
+            <path class="fill" d="M50.0,20.4 L53.9,21.5 L57.9,22.6 L61.8,23.8 L65.8,25.0 L69.7,26.2 L73.6,27.4 L77.6,28.6 L81.5,29.9 L85.5,31.2 L89.4,32.6 L93.4,33.9 L97.3,35.3 L101.2,36.7 L105.2,38.2 L109.1,39.6 L113.1,41.1 L117.0,42.6 L120.9,44.1 L124.9,45.6 L128.8,47.1 L132.8,48.6 L136.7,50.1 L140.6,51.7 L144.6,53.2 L148.5,54.8 L152.5,56.4 L156.4,57.9 L160.4,59.5 L164.3,61.1 L168.2,62.8 L172.2,64.4 L176.1,66.1 L180.1,67.7 L184.0,69.4 L187.9,71.1 L191.9,72.7 L195.8,74.5 L199.8,76.2 L203.7,77.9 L207.6,79.6 L211.6,81.4 L215.5,83.2 L219.5,84.9 L223.4,86.7 L227.4,88.5 L231.3,90.3 L235.2,92.2 L239.2,94.0 L243.1,95.9 L247.1,97.7 L251.0,99.6 L254.9,101.5 L258.9,103.4 L262.8,105.3 L266.8,107.3 L270.7,109.2 L274.6,111.2 L278.6,113.2 L282.5,115.2 L286.5,117.2 L290.4,119.2 L294.4,121.2 L298.3,123.3 L302.2,125.3 L306.2,127.4 L310.1,129.5 L314.1,131.6 L318.0,132.0 L318,132 L50,132 Z" fill="#fff3c4"/>
+            <line x1="50" y1="6" x2="50" y2="132" stroke="#0a0a0a" stroke-width="1"/>
+            <line x1="50" y1="132" x2="318" y2="132" stroke="#0a0a0a" stroke-width="1"/>
+            <path class="draw" d="M50.0,20.4 L53.9,21.5 L57.9,22.6 L61.8,23.8 L65.8,25.0 L69.7,26.2 L73.6,27.4 L77.6,28.6 L81.5,29.9 L85.5,31.2 L89.4,32.6 L93.4,33.9 L97.3,35.3 L101.2,36.7 L105.2,38.2 L109.1,39.6 L113.1,41.1 L117.0,42.6 L120.9,44.1 L124.9,45.6 L128.8,47.1 L132.8,48.6 L136.7,50.1 L140.6,51.7 L144.6,53.2 L148.5,54.8 L152.5,56.4 L156.4,57.9 L160.4,59.5 L164.3,61.1 L168.2,62.8 L172.2,64.4 L176.1,66.1 L180.1,67.7 L184.0,69.4 L187.9,71.1 L191.9,72.7 L195.8,74.5 L199.8,76.2 L203.7,77.9 L207.6,79.6 L211.6,81.4 L215.5,83.2 L219.5,84.9 L223.4,86.7 L227.4,88.5 L231.3,90.3 L235.2,92.2 L239.2,94.0 L243.1,95.9 L247.1,97.7 L251.0,99.6 L254.9,101.5 L258.9,103.4 L262.8,105.3 L266.8,107.3 L270.7,109.2 L274.6,111.2 L278.6,113.2 L282.5,115.2 L286.5,117.2 L290.4,119.2 L294.4,121.2 L298.3,123.3 L302.2,125.3 L306.2,127.4 L310.1,129.5 L314.1,131.6 L318.0,132.0" fill="none" stroke="#0a0a0a" stroke-width="2.5" stroke-linejoin="round"/>
+            <g font-family="IBM Plex Mono, monospace" font-size="12"><text x="42" y="18.0" text-anchor="end" fill="#5e5e58">₹50L</text><text x="42" y="77.0" text-anchor="end" fill="#5e5e58">₹25L</text><text x="42" y="136.0" text-anchor="end" fill="#5e5e58">₹0</text><text x="50" y="152" text-anchor="start" fill="#5e5e58">OCT ’26</text><text x="207.6" y="152" text-anchor="middle" fill="#5e5e58">2030</text><text x="302.2" y="152" text-anchor="middle" fill="#5e5e58">2032</text></g>
+            <g class="mk a" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><rect x="100.2" y="33.2" width="10" height="10" fill="#ab4f30"/></g>
+            <g class="mk b" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><rect x="135.6" y="46.7" width="10" height="10" fill="#ab4f30"/></g>
+            <g class="mk d" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><rect x="313.0" y="127.0" width="10" height="10" fill="#ab4f30"/></g>
+        </svg>
+        <ol class="mlist" aria-label="When each loan is paid off">
+          <li><span>Credit card + personal loan</span><b>paid off Oct–Nov ’27</b></li>
+          <li><span>HDFC car loan</span><b>paid off Aug ’28</b></li>
+          <li><span>SBI home loan</span><b>paid off May ’32</b></li>
+          <li class="df"><span>Debt-free</span><b>May 2032</b></li>
+        </ol>
 <!-- /gen:chart-IN -->
         </div>
         <div data-c="US">
 <!-- gen:chart-US -->
-        <svg viewBox="0 0 800 300" role="img" aria-label="Example: total debt falls from $279k now to zero in Nov 2035 on the plan; paying only what is due still leaves $172,120 owed in 2038.">
-          <g font-family="IBM Plex Mono, monospace" font-size="11" fill="#5e5e58">
-            <text x="8" y="16" letter-spacing="1.5">OUTSTANDING</text>
-            <text class="yl" x="8" y="48">$279k</text>
-            <text class="yl" x="8" y="150">$140k</text>
-            <text class="yl" x="8" y="262">$0</text>
-            <text x="70" y="290">NOW</text>
-            <text x="427.4" y="290" text-anchor="middle">2032</text>
-            <text x="790.0" y="290" text-anchor="end">2038</text>
-          </g>
-          <line x1="70" y1="258" x2="790" y2="258" stroke="#0a0a0a" stroke-width="1"/>
-          <path class="fade-line" d="M70.0,44.0 L85.8,46.4 L101.5,48.8 L117.3,51.3 L133.1,53.8 L148.8,56.4 L164.6,58.9 L180.4,61.6 L196.1,63.9 L211.9,66.0 L227.7,68.1 L243.4,70.3 L259.2,72.5 L275.0,74.7 L290.7,77.0 L306.5,79.3 L322.3,81.6 L338.0,83.9 L353.8,85.4 L369.6,86.7 L385.3,87.9 L401.1,89.2 L416.9,90.5 L432.6,91.8 L448.4,93.1 L464.2,94.4 L479.9,95.7 L495.7,97.1 L511.5,98.5 L527.2,99.9 L543.0,101.3 L558.8,102.7 L574.5,104.2 L590.3,105.6 L606.1,107.1 L621.8,108.6 L637.6,110.1 L648.1,111.2 L653.4,111.7 L669.1,113.2 L684.9,114.8 L700.7,116.4 L716.4,118.1 L732.2,119.7 L748.0,121.4 L763.7,123.1 L779.5,124.8" fill="none" stroke="#5e5e58" stroke-width="2" stroke-dasharray="6 5"/>
-          <path class="draw" d="M70.0,44.0 L85.8,47.9 L101.5,52.0 L117.3,56.2 L133.1,60.6 L148.8,65.2 L164.6,69.9 L180.4,74.7 L196.1,79.5 L211.9,84.5 L227.7,89.5 L243.4,94.6 L259.2,99.8 L275.0,105.1 L290.7,110.5 L306.5,115.9 L322.3,121.5 L338.0,127.1 L353.8,132.8 L369.6,138.7 L385.3,144.6 L401.1,150.6 L416.9,156.7 L432.6,162.9 L448.4,169.2 L464.2,175.6 L479.9,182.2 L495.7,188.8 L511.5,195.5 L527.2,202.4 L543.0,209.3 L558.8,216.4 L574.5,223.6 L590.3,230.9 L606.1,238.3 L621.8,245.8 L637.6,253.5 L648.1,258.0" fill="none" stroke="#0a0a0a" stroke-width="2.5"/>
-          <g font-family="IBM Plex Mono, monospace" font-size="11" font-weight="700" fill="#ab4f30" letter-spacing=".5">
-            <g class="mk a"><line class="dl" x1="154.1" y1="71.8" x2="154.1" y2="157" stroke="#ab4f30" stroke-dasharray="2 3"/><rect x="139.6" y="59.7" width="8" height="8" fill="#ab4f30"/><rect x="150.1" y="62.8" width="8" height="8" fill="#ab4f30"/><text class="ml" text-anchor="start"><tspan x="72" y="170.2">CREDIT CARD · NOV ’27</tspan><tspan x="72" y="184.2">PERSONAL LOAN · JAN ’28</tspan></text></g>
-            <g class="mk b"><line class="dl" x1="201.4" y1="86.2" x2="201.4" y2="146" stroke="#ab4f30" stroke-dasharray="2 3"/><rect x="197.4" y="77.2" width="8" height="8" fill="#ab4f30"/><text class="ml" text-anchor="start"><tspan x="206.4" y="149.2">AUTO LOAN · OCT ’28</tspan></text></g>
-            <g class="mk d"><rect x="644.1" y="254.0" width="8" height="8" fill="#ab4f30"/><text class="ml" x="648.1" y="276.0" text-anchor="middle">DEBT-FREE · NOV ’35</text></g>
-          </g>
-          <text class="ml" x="783.5" y="144.8" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="11" fill="#5e5e58" letter-spacing=".5">ONLY WHAT&#39;S DUE: $172,120 LEFT →</text>
+        <p class="ctitle">Debt-free in <b>Nov 2035</b>, paying $3,400 a month.</p>
+        <svg class="cdesk" viewBox="0 0 800 313.5" role="img" aria-label="Example: the total owed falls from $279k in Oct 2026 to zero in Nov 2035. Credit card + personal loan paid off Nov ’27–Jan ’28; Auto loan paid off Oct ’28; Mortgage paid off Nov ’35.">
+            <line x1="84" y1="30.0" x2="680" y2="30.0" stroke="#e6e4da" stroke-width="1"/>
+            <line x1="84" y1="128.0" x2="680" y2="128.0" stroke="#e6e4da" stroke-width="1"/>
+            <path class="fill" d="M84.0,43.7 L89.4,44.8 L94.8,45.9 L100.3,47.1 L105.7,48.2 L111.1,49.4 L116.5,50.5 L121.9,51.7 L127.3,52.9 L132.8,54.1 L138.2,55.4 L143.6,56.6 L149.0,57.9 L154.4,59.2 L159.9,60.5 L165.3,61.8 L170.7,63.1 L176.1,64.4 L181.5,65.8 L186.9,67.1 L192.4,68.5 L197.8,69.8 L203.2,71.2 L208.6,72.6 L214.0,74.0 L219.5,75.4 L224.9,76.8 L230.3,78.2 L235.7,79.6 L241.1,81.0 L246.5,82.5 L252.0,83.9 L257.4,85.4 L262.8,86.8 L268.2,88.3 L273.6,89.8 L279.1,91.3 L284.5,92.8 L289.9,94.3 L295.3,95.8 L300.7,97.3 L306.1,98.8 L311.6,100.3 L317.0,101.9 L322.4,103.4 L327.8,105.0 L333.2,106.5 L338.7,108.1 L344.1,109.7 L349.5,111.3 L354.9,112.9 L360.3,114.5 L365.7,116.1 L371.2,117.7 L376.6,119.4 L382.0,121.0 L387.4,122.7 L392.8,124.3 L398.3,126.0 L403.7,127.7 L409.1,129.4 L414.5,131.1 L419.9,132.8 L425.3,134.5 L430.8,136.2 L436.2,138.0 L441.6,139.7 L447.0,141.5 L452.4,143.2 L457.9,145.0 L463.3,146.8 L468.7,148.6 L474.1,150.4 L479.5,152.2 L484.9,154.0 L490.4,155.8 L495.8,157.7 L501.2,159.5 L506.6,161.4 L512.0,163.3 L517.5,165.1 L522.9,167.0 L528.3,168.9 L533.7,170.9 L539.1,172.8 L544.5,174.7 L550.0,176.7 L555.4,178.6 L560.8,180.6 L566.2,182.5 L571.6,184.5 L577.1,186.5 L582.5,188.5 L587.9,190.6 L593.3,192.6 L598.7,194.6 L604.1,196.7 L609.6,198.7 L615.0,200.8 L620.4,202.9 L625.8,205.0 L631.2,207.1 L636.7,209.2 L642.1,211.4 L647.5,213.5 L652.9,215.6 L658.3,217.8 L663.7,220.0 L669.2,222.2 L674.6,224.4 L680.0,226.0 L680,226 L84,226 Z" fill="#fff3c4"/>
+            <line x1="84" y1="22" x2="84" y2="226" stroke="#0a0a0a" stroke-width="1"/>
+            <line x1="84" y1="226" x2="680" y2="226" stroke="#0a0a0a" stroke-width="1"/>
+            <line x1="84" y1="258" x2="680" y2="258" stroke="#e6e4da" stroke-width="1"/>
+            <path class="draw" d="M84.0,43.7 L89.4,44.8 L94.8,45.9 L100.3,47.1 L105.7,48.2 L111.1,49.4 L116.5,50.5 L121.9,51.7 L127.3,52.9 L132.8,54.1 L138.2,55.4 L143.6,56.6 L149.0,57.9 L154.4,59.2 L159.9,60.5 L165.3,61.8 L170.7,63.1 L176.1,64.4 L181.5,65.8 L186.9,67.1 L192.4,68.5 L197.8,69.8 L203.2,71.2 L208.6,72.6 L214.0,74.0 L219.5,75.4 L224.9,76.8 L230.3,78.2 L235.7,79.6 L241.1,81.0 L246.5,82.5 L252.0,83.9 L257.4,85.4 L262.8,86.8 L268.2,88.3 L273.6,89.8 L279.1,91.3 L284.5,92.8 L289.9,94.3 L295.3,95.8 L300.7,97.3 L306.1,98.8 L311.6,100.3 L317.0,101.9 L322.4,103.4 L327.8,105.0 L333.2,106.5 L338.7,108.1 L344.1,109.7 L349.5,111.3 L354.9,112.9 L360.3,114.5 L365.7,116.1 L371.2,117.7 L376.6,119.4 L382.0,121.0 L387.4,122.7 L392.8,124.3 L398.3,126.0 L403.7,127.7 L409.1,129.4 L414.5,131.1 L419.9,132.8 L425.3,134.5 L430.8,136.2 L436.2,138.0 L441.6,139.7 L447.0,141.5 L452.4,143.2 L457.9,145.0 L463.3,146.8 L468.7,148.6 L474.1,150.4 L479.5,152.2 L484.9,154.0 L490.4,155.8 L495.8,157.7 L501.2,159.5 L506.6,161.4 L512.0,163.3 L517.5,165.1 L522.9,167.0 L528.3,168.9 L533.7,170.9 L539.1,172.8 L544.5,174.7 L550.0,176.7 L555.4,178.6 L560.8,180.6 L566.2,182.5 L571.6,184.5 L577.1,186.5 L582.5,188.5 L587.9,190.6 L593.3,192.6 L598.7,194.6 L604.1,196.7 L609.6,198.7 L615.0,200.8 L620.4,202.9 L625.8,205.0 L631.2,207.1 L636.7,209.2 L642.1,211.4 L647.5,213.5 L652.9,215.6 L658.3,217.8 L663.7,220.0 L669.2,222.2 L674.6,224.4 L680.0,226.0" fill="none" stroke="#0a0a0a" stroke-width="2.5" stroke-linejoin="round"/>
+            <g font-family="IBM Plex Mono, monospace" font-size="12"><text x="76" y="34.0" text-anchor="end" fill="#5e5e58">$300k</text><text x="76" y="132.0" text-anchor="end" fill="#5e5e58">$150k</text><text x="76" y="230.0" text-anchor="end" fill="#5e5e58">$0</text><text x="84" y="244" text-anchor="start" fill="#5e5e58">OCT ’26</text><text x="300.7" y="244" text-anchor="middle" fill="#5e5e58">2030</text><text x="430.8" y="244" text-anchor="middle" fill="#5e5e58">2032</text><text x="560.8" y="244" text-anchor="middle" fill="#5e5e58">2034</text></g>
+            <g class="mk a" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><line x1="170.7" y1="69.6" x2="170.7" y2="254" stroke="#ab4f30" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/><line x1="170.7" y1="254" x2="170.7" y2="308" stroke="#ab4f30" stroke-width="1.5"/><text x="165.7" y="276.5" text-anchor="end" fill="#0a0a0a" font-weight="700">CREDIT CARD +</text><text x="165.7" y="290.5" text-anchor="end" fill="#0a0a0a" font-weight="700">PERSONAL LOAN</text><text x="165.7" y="304.5" text-anchor="end" fill="#ab4f30" font-weight="700">NOV ’27–JAN ’28</text><rect x="166.2" y="58.6" width="9" height="9" fill="#ab4f30"/></g>
+            <g class="mk b" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><line x1="219.5" y1="81.9" x2="219.5" y2="254" stroke="#ab4f30" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/><line x1="219.5" y1="254" x2="219.5" y2="294" stroke="#ab4f30" stroke-width="1.5"/><text x="224.5" y="276.5" text-anchor="start" fill="#0a0a0a" font-weight="700">AUTO LOAN</text><text x="224.5" y="290.5" text-anchor="start" fill="#ab4f30" font-weight="700">OCT ’28</text><rect x="215.0" y="70.9" width="9" height="9" fill="#ab4f30"/></g>
+            <g class="mk d" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><line x1="680.0" y1="232.5" x2="680.0" y2="254" stroke="#ab4f30" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/><line x1="680.0" y1="254" x2="680.0" y2="294" stroke="#ab4f30" stroke-width="1.5"/><text x="675.0" y="276.5" text-anchor="end" fill="#0a0a0a" font-weight="700">MORTGAGE</text><text x="675.0" y="290.5" text-anchor="end" fill="#ab4f30" font-weight="700">NOV ’35 · DEBT-FREE</text><rect x="675.5" y="221.5" width="9" height="9" fill="#ab4f30"/></g>
+            <g class="mk d" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><text x="692" y="218" text-anchor="start" fill="#ab4f30" font-weight="700">$0 · NOV ’35</text></g>
         </svg>
-        <p class="mlist">Paid off: credit card NOV ’27 · personal loan JAN ’28 · auto loan OCT ’28 · debt-free NOV ’35. Paying only what&#39;s due: $172,120 still owed in 2038.</p>
+        <svg class="cphone" viewBox="0 0 330 168" aria-hidden="true">
+            <line x1="50" y1="14.0" x2="318" y2="14.0" stroke="#e6e4da" stroke-width="1"/>
+            <line x1="50" y1="73.0" x2="318" y2="73.0" stroke="#e6e4da" stroke-width="1"/>
+            <path class="fill" d="M50.0,22.3 L52.4,22.9 L54.9,23.6 L57.3,24.3 L59.7,25.0 L62.2,25.7 L64.6,26.4 L67.1,27.1 L69.5,27.8 L71.9,28.5 L74.4,29.3 L76.8,30.0 L79.2,30.8 L81.7,31.6 L84.1,32.3 L86.5,33.1 L89.0,33.9 L91.4,34.7 L93.9,35.5 L96.3,36.3 L98.7,37.2 L101.2,38.0 L103.6,38.8 L106.0,39.6 L108.5,40.5 L110.9,41.3 L113.3,42.2 L115.8,43.0 L118.2,43.9 L120.7,44.7 L123.1,45.6 L125.5,46.5 L128.0,47.3 L130.4,48.2 L132.8,49.1 L135.3,50.0 L137.7,50.9 L140.1,51.8 L142.6,52.7 L145.0,53.6 L147.5,54.5 L149.9,55.4 L152.3,56.3 L154.8,57.3 L157.2,58.2 L159.6,59.1 L162.1,60.1 L164.5,61.0 L166.9,62.0 L169.4,62.9 L171.8,63.9 L174.3,64.9 L176.7,65.8 L179.1,66.8 L181.6,67.8 L184.0,68.8 L186.4,69.8 L188.9,70.8 L191.3,71.8 L193.7,72.8 L196.2,73.8 L198.6,74.9 L201.1,75.9 L203.5,76.9 L205.9,78.0 L208.4,79.0 L210.8,80.0 L213.2,81.1 L215.7,82.2 L218.1,83.2 L220.5,84.3 L223.0,85.4 L225.4,86.5 L227.9,87.6 L230.3,88.7 L232.7,89.8 L235.2,90.9 L237.6,92.0 L240.0,93.1 L242.5,94.2 L244.9,95.4 L247.3,96.5 L249.8,97.6 L252.2,98.8 L254.7,100.0 L257.1,101.1 L259.5,102.3 L262.0,103.5 L264.4,104.7 L266.8,105.8 L269.3,107.0 L271.7,108.2 L274.1,109.4 L276.6,110.7 L279.0,111.9 L281.5,113.1 L283.9,114.3 L286.3,115.6 L288.8,116.8 L291.2,118.1 L293.6,119.4 L296.1,120.6 L298.5,121.9 L300.9,123.2 L303.4,124.5 L305.8,125.8 L308.3,127.1 L310.7,128.4 L313.1,129.7 L315.6,131.0 L318.0,132.0 L318,132 L50,132 Z" fill="#fff3c4"/>
+            <line x1="50" y1="6" x2="50" y2="132" stroke="#0a0a0a" stroke-width="1"/>
+            <line x1="50" y1="132" x2="318" y2="132" stroke="#0a0a0a" stroke-width="1"/>
+            <path class="draw" d="M50.0,22.3 L52.4,22.9 L54.9,23.6 L57.3,24.3 L59.7,25.0 L62.2,25.7 L64.6,26.4 L67.1,27.1 L69.5,27.8 L71.9,28.5 L74.4,29.3 L76.8,30.0 L79.2,30.8 L81.7,31.6 L84.1,32.3 L86.5,33.1 L89.0,33.9 L91.4,34.7 L93.9,35.5 L96.3,36.3 L98.7,37.2 L101.2,38.0 L103.6,38.8 L106.0,39.6 L108.5,40.5 L110.9,41.3 L113.3,42.2 L115.8,43.0 L118.2,43.9 L120.7,44.7 L123.1,45.6 L125.5,46.5 L128.0,47.3 L130.4,48.2 L132.8,49.1 L135.3,50.0 L137.7,50.9 L140.1,51.8 L142.6,52.7 L145.0,53.6 L147.5,54.5 L149.9,55.4 L152.3,56.3 L154.8,57.3 L157.2,58.2 L159.6,59.1 L162.1,60.1 L164.5,61.0 L166.9,62.0 L169.4,62.9 L171.8,63.9 L174.3,64.9 L176.7,65.8 L179.1,66.8 L181.6,67.8 L184.0,68.8 L186.4,69.8 L188.9,70.8 L191.3,71.8 L193.7,72.8 L196.2,73.8 L198.6,74.9 L201.1,75.9 L203.5,76.9 L205.9,78.0 L208.4,79.0 L210.8,80.0 L213.2,81.1 L215.7,82.2 L218.1,83.2 L220.5,84.3 L223.0,85.4 L225.4,86.5 L227.9,87.6 L230.3,88.7 L232.7,89.8 L235.2,90.9 L237.6,92.0 L240.0,93.1 L242.5,94.2 L244.9,95.4 L247.3,96.5 L249.8,97.6 L252.2,98.8 L254.7,100.0 L257.1,101.1 L259.5,102.3 L262.0,103.5 L264.4,104.7 L266.8,105.8 L269.3,107.0 L271.7,108.2 L274.1,109.4 L276.6,110.7 L279.0,111.9 L281.5,113.1 L283.9,114.3 L286.3,115.6 L288.8,116.8 L291.2,118.1 L293.6,119.4 L296.1,120.6 L298.5,121.9 L300.9,123.2 L303.4,124.5 L305.8,125.8 L308.3,127.1 L310.7,128.4 L313.1,129.7 L315.6,131.0 L318.0,132.0" fill="none" stroke="#0a0a0a" stroke-width="2.5" stroke-linejoin="round"/>
+            <g font-family="IBM Plex Mono, monospace" font-size="12"><text x="42" y="18.0" text-anchor="end" fill="#5e5e58">$300k</text><text x="42" y="77.0" text-anchor="end" fill="#5e5e58">$150k</text><text x="42" y="136.0" text-anchor="end" fill="#5e5e58">$0</text><text x="50" y="152" text-anchor="start" fill="#5e5e58">OCT ’26</text><text x="176.7" y="152" text-anchor="middle" fill="#5e5e58">2031</text><text x="264.4" y="152" text-anchor="middle" fill="#5e5e58">2034</text></g>
+            <g class="mk a" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><rect x="84.0" y="28.9" width="10" height="10" fill="#ab4f30"/></g>
+            <g class="mk b" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><rect x="105.9" y="36.3" width="10" height="10" fill="#ab4f30"/></g>
+            <g class="mk d" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing=".5"><rect x="313.0" y="127.0" width="10" height="10" fill="#ab4f30"/></g>
+        </svg>
+        <ol class="mlist" aria-label="When each loan is paid off">
+          <li><span>Credit card + personal loan</span><b>paid off Nov ’27–Jan ’28</b></li>
+          <li><span>Auto loan</span><b>paid off Oct ’28</b></li>
+          <li><span>Mortgage</span><b>paid off Nov ’35</b></li>
+          <li class="df"><span>Debt-free</span><b>Nov 2035</b></li>
+        </ol>
 <!-- /gen:chart-US -->
         </div>
-        <div class="legend"><span>━ YOUR PLAN · CHEAPEST PATH (AVALANCHE)</span><span>╌ PAYING ONLY WHAT'S DUE</span><span style="color:var(--accent)">■ A LOAN PAID OFF</span></div>
       </div>
     </div>
   </section>
@@ -458,7 +554,7 @@
         <div class="tab rv"><div class="t"><span>01</span> HOME</div><p>Your month on one page: what comes in and goes out, what to pay now, and every loan you have.</p><ul><li>Pay this month, one tap to mark paid</li><li>Pay by UPI from the row (India)</li><li>Cheaper rates the plan found</li></ul></div>
         <div class="tab rv d1"><div class="t"><span>02</span> PLAN</div><p>The debt-free date and how you get there, with changes you can try before you make them.</p><ul><li>Month by month, as CSV or print</li><li>What if: spend less, a bonus, a rate change</li><li>What the next RBI or Fed decision means for you</li></ul></div>
         <div class="tab rv d2"><div class="t"><span>03</span> ACTIVITY</div><p>What you paid and what changed. Each entry re-runs the plan from what really happened.</p><ul><li>Missed or part-paid EMIs, with their fees</li><li>Balances move on by the EMIs since you entered them</li><li>Your real pace against the plan</li></ul></div>
-        <div class="tab rv d3"><div class="t"><span>04</span> GOALS &amp; TOOLS</div><p>What you're saving for, and a tool for each one-off decision.</p><ul><li>Goals funded around your debts, at the share you choose</li><li>Six tools: a bonus, a new loan, a sale, invest or prepay</li><li>Templates: a home, education, retiring early</li></ul></div>
+        <div class="tab rv d3"><div class="t"><span>04</span> GOALS &amp; TOOLS</div><p>What you're saving for, and a tool for each one-off decision.</p><ul><li>Goals funded around your debts, at the share you choose</li><li>Six tools, one question each (listed below)</li><li>Templates: a home, education, retiring early</li></ul></div>
         <div class="tab rv d4"><div class="t"><span>05</span> PORTFOLIO</div><p>What you own and what it's worth, next to what you owe.</p><ul><li>Deposits, funds, shares, gold, property, retirement, crypto</li><li>Shares and funds priced by ticker</li><li>What a sale you choose would do to a loan</li></ul></div>
         <div class="tab rv d4"><div class="t"><span>06</span> PROFILE</div><p>Everything the plan uses, set up in three steps and changed a part at a time.</p><ul><li>Income, spending and tax</li><li>Payoff order: cheapest path, smallest first, or your own</li><li>Loans in two currencies, for NRIs</li></ul></div>
       </div>
@@ -470,12 +566,12 @@
       <div class="sh rv">TOOLS · SIX, ONE QUESTION EACH</div>
       <p class="intro rv">Each answers one question against your own plan. Nothing changes until you choose to add it. Loan Check is for India; NRI prepay is for someone in the USA with loans in India.</p>
       <div class="tools">
-        <a class="tool rv" href="/login?next=%2Ftools%2Fwindfall"><div class="nm">SPARE CASH</div><div class="q">Got a bonus or spare cash?</div><div class="d">Splits it across your loans, emergency fund and goals, the best way or your way.</div></a>
-        <a class="tool rv d1" href="/login?next=%2Ftools%2Fnew-debt"><div class="nm">NEW DEBT CHECK</div><div class="q">A new loan, an EMI offer, or a big purchase?</div><div class="d">Checks it against your plan before you sign.</div></a>
-        <a class="tool rv d2" href="/login?next=%2Ftools%2Fliquidate"><div class="nm">SELL TO REPAY</div><div class="q">What would selling something do to a loan?</div><div class="d">A calculator: the tax and costs on a sale you choose, and what it leaves after the loan. It doesn't pick what to sell, and it isn't investment advice.</div></a>
-        <a class="tool rv" href="/login?next=%2Ftools%2Finvest-vs-prepay"><div class="nm">INVEST OR PREPAY</div><div class="q">Invest the money, or prepay a loan?</div><div class="d">A calculator: shares or funds in a normal and a bad year, against the loan's rate. An estimate to learn from, not investment advice.</div></a>
-        <a class="tool rv d1" href="/tools/loan-check" data-c="IN"><div class="nm">LOAN CHECK · NO SIGN-IN</div><div class="q">Is my bank passing on rate cuts?</div><div class="d">Your home-loan rate against every RBI repo move since you borrowed. If it isn't, a complaint letter to the bank, and the RBI Ombudsman after.</div><div class="tag">OPEN →</div></a>
-        <a class="tool rv d2" href="/login?next=%2Ftools%2Fnri-prepay"><div class="nm">NRI PREPAY</div><div class="q">Loan in India, savings in the USA?</div><div class="d">Prepay the Indian loan or keep the dollars, after the remittance cost, exchange-rate drift and tax on both sides.</div></a>
+        <a class="tool rv" href="/login?next=%2Ftools%2Fwindfall"><div class="nm">SPARE CASH</div><div class="q">Got a bonus or spare cash?</div><div class="d">Splits it across your loans, emergency fund and goals, the best way or your way.</div><div class="tag gated">SIGN IN TO USE →</div></a>
+        <a class="tool rv d1" href="/login?next=%2Ftools%2Fnew-debt"><div class="nm">NEW DEBT CHECK</div><div class="q">A new loan, an EMI offer, or a big purchase?</div><div class="d">Checks it against your plan before you sign.</div><div class="tag gated">SIGN IN TO USE →</div></a>
+        <a class="tool rv d2" href="/login?next=%2Ftools%2Fliquidate"><div class="nm">SELL TO REPAY</div><div class="q">What would selling something do to a loan?</div><div class="d">A calculator: the tax and costs on a sale you choose, and what it leaves after the loan. It doesn't pick what to sell, and it isn't investment advice.</div><div class="tag gated">SIGN IN TO USE →</div></a>
+        <a class="tool rv" href="/login?next=%2Ftools%2Finvest-vs-prepay"><div class="nm">INVEST OR PREPAY</div><div class="q">Invest the money, or prepay a loan?</div><div class="d">A calculator: shares or funds in a normal and a bad year, against the loan's rate. An estimate to learn from, not investment advice.</div><div class="tag gated">SIGN IN TO USE →</div></a>
+        <a class="tool rv d1" href="/tools/loan-check" data-c="IN"><div class="nm">LOAN CHECK · NO SIGN-IN</div><div class="q">Is my bank passing on rate cuts?</div><div class="d">Your home-loan rate against every RBI repo move since you borrowed. If it isn't, a complaint letter to the bank, and the RBI Ombudsman after.</div><div class="tag">OPEN · NO SIGN-IN →</div></a>
+        <a class="tool rv d2" href="/login?next=%2Ftools%2Fnri-prepay"><div class="nm">NRI PREPAY</div><div class="q">Loan in India, savings in the USA?</div><div class="d">Prepay the Indian loan or keep the dollars, after the remittance cost, exchange-rate drift and tax on both sides.</div><div class="tag gated">SIGN IN TO USE →</div></a>
       </div>
     </div>
   </section>
@@ -541,8 +637,8 @@
 
 <footer>
   <div class="wrap foot">
-    <div>© 2026 RIGHTDUE</div>
-    <div><a href="mailto:vijeya@rightdue.app">vijeya@rightdue.app</a> · <a href="/glossary">[GLOSSARY]</a> · <a href="/tools/loan-check" data-c="IN">[LOAN CHECK]</a> · <a href="/login">[SIGN IN]</a> · <a href="/privacy">[PRIVACY]</a> · <a href="/terms">[TERMS]</a></div>
+    <div>© 2026 RIGHTDUE · NOT A LENDER · MADE IN INDIA</div>
+    <nav class="links" aria-label="Footer"><a href="/glossary">[GLOSSARY]</a><a href="/tools/loan-check" data-c="IN">[LOAN CHECK]</a><a href="/login">[SIGN IN]</a><a href="/privacy">[PRIVACY]</a><a href="/terms">[TERMS]</a></nav>
   </div>
 </footer>
 
@@ -579,15 +675,17 @@
     }
     requestAnimationFrame(step);
   }
-  // The example register ticks itself off, row by row, then starts over.
+  // The example register ticks itself off once, row by row, and stays
+  // ticked (UX50 A-24: it used to loop forever).
   function stamps() {
     var s = [].slice.call(document.querySelectorAll('[data-stamp]')), i = 0;
     function tick() {
       if (i < s.length) { s[i].classList.add('paid'); s[i].textContent = 'PAID ✓'; i++; setTimeout(tick, 900); }
-      else setTimeout(function () { s.forEach(function (x) { x.classList.remove('paid'); x.textContent = 'MARK PAID'; }); i = 0; setTimeout(tick, 900); }, 2600);
     }
     setTimeout(tick, 1200);
   }
+  var reg = document.getElementById('register');
+  if (reg && !still) stamps();
   if (still || !('IntersectionObserver' in window)) {
     els.forEach(function (el) { el.classList.add('in'); });
     return;
@@ -597,7 +695,6 @@
       if (!en.isIntersecting) return;
       en.target.classList.add('in');
       [].slice.call(en.target.querySelectorAll('[data-count]')).forEach(count);
-      if (en.target.id === 'register') stamps();
       io.unobserve(en.target);
     });
   }, { threshold: 0.15 });

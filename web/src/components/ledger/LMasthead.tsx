@@ -220,6 +220,9 @@ export function LMasthead({
           alignItems: 'center',
         }}
       >
+        {/* UX50 A-16: /login had an empty band between two rules; it now
+            holds the way back to the landing. */}
+        {path === '/login' && <LBracket href="/">← RIGHTDUE.APP</LBracket>}
         {!signedOutPage && NAV.map(([label, key, href]) => (
           <LBracket
             key={key}
