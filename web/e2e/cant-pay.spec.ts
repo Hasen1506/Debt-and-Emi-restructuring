@@ -69,22 +69,23 @@ test('UX50 F3: Can\u2019t pay fields are named, months are bounded, the letter i
   await page.waitForURL('**/plan');
   await page.goto('/cant-pay');
   await expect(page).toHaveTitle(/Can.t pay this month · RightDue/);
+  const tb = (n: string | RegExp) => page.getByRole('textbox', { name: n, exact: typeof n === 'string' });
 
   // C-01: every field has a name; C-06: the amount shows Indian grouping.
-  const money = page.getByLabel('Money you have for loan payments this month');
+  const money = tb('Money you have for loan payments this month');
   await expect(money).toHaveValue('50,000');
   await expect(money).toHaveAttribute('inputmode', 'decimal');
   for (const name of ['Months unpaid', /Penal charge/, 'Bounce / NACH return charge', 'Lender', 'Your name', 'Reason (short and true)', 'You can pay a month', 'Loan account number']) {
-    await expect(page.getByLabel(name)).toBeVisible();
+    await expect(tb(name)).toBeVisible();
   }
   expect(await axeCritical(page), 'axe critical on /cant-pay').toEqual([]);
 
   // C-07: both pickers start on the loan that is short this month.
-  await expect(page.getByLabel('Loan to check')).toHaveValue(await page.getByLabel('Loan for the letter').inputValue());
-  await expect(page.getByLabel('Loan to check').locator('option:checked')).toHaveText(/Personal loan/);
+  await expect(page.getByRole('combobox', { name: 'Loan to check' })).toHaveValue(await page.getByRole('combobox', { name: 'Loan for the letter' }).inputValue());
+  await expect(page.getByRole('combobox', { name: 'Loan to check' }).locator('option:checked')).toHaveText(/Personal loan/);
 
   // R5-1: months bounded; a huge number names the field instead of a 16-digit figure.
-  const months = page.getByLabel('Months unpaid');
+  const months = tb('Months unpaid');
   await months.fill('9999999999999');
   await expect(page.getByText(/Up to 24 months/)).toBeVisible();
   await expect(months).toHaveAttribute('aria-invalid', 'true');
@@ -96,9 +97,9 @@ test('UX50 F3: Can\u2019t pay fields are named, months are bounded, the letter i
   await expect(page.getByTestId('cp-cost-total')).toContainText('₹1,400');
 
   // C-05/C-06: can-pay prefilled from section 1 (₹15,000 of the ₹20,000 EMI), letter filled and editable.
-  await expect(page.getByLabel('You can pay a month')).toHaveValue('15,000');
-  await page.getByLabel('Lender').fill('Axis Bank');
-  await page.getByLabel('Your name').fill('Meena R');
+  await expect(tb('You can pay a month')).toHaveValue('15,000');
+  await tb('Lender').fill('Axis Bank');
+  await tb('Your name').fill('Meena R');
   const letter = page.getByLabel(/The letter \(you can edit it here\)/);
   await expect(letter).toHaveValue(/To: Axis Bank/);
   await expect(letter).toHaveValue(/I can pay ₹15,000 a month/);
@@ -131,10 +132,10 @@ test('UX50 F3: Can\u2019t pay fields are named, months are bounded, the letter i
   // C-08 + phone layout: axe on Can't pay and Activity at 390 (Activity's
   // narrow rows held buttons straight inside role=row).
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.reload();
-  await expect(page.getByLabel('Months unpaid')).toBeVisible();
+  await page.goto('/cant-pay');
+  await expect(tb('Months unpaid')).toBeVisible();
   // C-02: 16px on a phone so iOS doesn't zoom.
-  expect(await page.getByLabel('Months unpaid').evaluate((el) => getComputedStyle(el).fontSize)).toBe('16px');
+  expect(await tb('Months unpaid').evaluate((el) => getComputedStyle(el).fontSize)).toBe('16px');
   expect(await axeCritical(page), 'axe critical on /cant-pay at 390').toEqual([]);
   await page.goto('/activity');
   await expect(page.locator('[role="row"]').first()).toBeVisible();
