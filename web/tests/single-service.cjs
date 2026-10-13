@@ -29,7 +29,8 @@ test('API paths reach FastAPI only as a fallback, so Next.js route handlers keep
  // Next's own /api handlers: none of them may be a FastAPI path.
  const own=fs.readdirSync(path.join(root,'app/api'));
  // healthz: Render's health check (live re-test 3 NEW-19), answered here.
- assert.deepEqual(own.sort(),['healthz','holdings','session']);
+ // client-error: browser error reports to Sentry (UX50 E-03), answered here.
+ assert.deepEqual(own.sort(),['client-error','healthz','holdings','session']);
  const apiDir=path.resolve(__dirname,'../../api'),py=[];
  (function walk(d){for(const e of fs.readdirSync(d,{withFileTypes:true})){if(e.name==='tests')continue;const f=path.join(d,e.name);if(e.isDirectory())walk(f);else if(f.endsWith('.py'))py.push(fs.readFileSync(f,'utf8'))}})(apiDir);
  const source=py.join('\n');

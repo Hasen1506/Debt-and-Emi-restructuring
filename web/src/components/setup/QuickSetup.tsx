@@ -604,7 +604,12 @@ export function QuickSetup() {
                 <a href="/profile" style={{ color: L_T.accent }}>All details are in Profile →</a>
               </>
             ) : (
-              <>Your numbers stay in this browser (and your account, if you sign in). You can change them any time in Profile.</>
+              // UX50 E-11: the notice at the time the figures are asked for (DPDP s.5).
+              <>
+                Your numbers stay in this browser. They&apos;re sent to our server only to work out your plan, and
+                aren&apos;t stored there unless you sign in and save. You can change them any time in Profile.{' '}
+                <a href="/privacy" style={{ color: L_T.accent }} data-testid="setup-privacy-line">Privacy notice →</a>
+              </>
             )}
           </p>
         </header>

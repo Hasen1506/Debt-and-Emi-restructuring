@@ -123,7 +123,7 @@ export function isPublicPage(pathname: string): boolean {
 
 export const config = {
   matcher: [
-    '/((?!(?:login|api|art)(?:/|$)|_next/static|_next/image|welcome\\.html$|favicon\\.ico$|icon\\.svg$|robots\\.txt$|sitemap\\.xml$).*)',
+    '/((?!(?:login|api|art)(?:/|$)|_next/static|_next/image|welcome\\.html$|favicon\\.ico$|icon\\.svg$|robots\\.txt$|sitemap\\.xml$|\\.well-known/).*)',
   ],
 };
 

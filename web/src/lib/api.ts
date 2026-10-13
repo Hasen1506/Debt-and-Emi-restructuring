@@ -1436,6 +1436,8 @@ export class ApiStatusError extends Error {
   }
 }
 
+let meInFlight: Promise<AuthUser> | null = null;
+
 async function get<T>(path: string): Promise<T> {
   const res = await apiFetch(path, {
     headers: { ...serverHeaders(), ...accountHeaders(path) },
@@ -1696,7 +1698,20 @@ export const api = {
   verifyOtp: (email: string, code: string) =>
     post<AuthUser>('/api/auth/verify-otp', { email, code }),
   logout: () => post<void>('/api/auth/logout', {}),
-  me: () => get<AuthUser>('/api/auth/me'),
+  // UX50 E-22: the session proxy answers 200 null when there is no session
+  // cookie; that is "signed out", the same as a 401. Concurrent callers
+  // (the masthead's indicator and the account notice) share one request.
+  me: (): Promise<AuthUser> => {
+    if (typeof window === 'undefined' || !meInFlight) {
+      meInFlight = get<AuthUser | null>('/api/auth/me')
+        .then((user) => {
+          if (!user) throw new ApiStatusError('/api/auth/me → 401', 401, '');
+          return user;
+        })
+        .finally(() => { meInFlight = null; });
+    }
+    return meInFlight!;
+  },
 
   // ─── per-user state (server-persisted JSON blob) ──────────────────────────
   getUserState: () => get<UserStatePayload>('/api/user/state'),

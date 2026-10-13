@@ -70,7 +70,8 @@ test('next.config.mjs sends the headers in production builds',async()=>{
   process.env.NODE_ENV='production';delete process.env.NEXT_PUBLIC_DISABLE_AUTH;
   const config=(await mjs('next.config.mjs','?g8-headers')).default;
   const rules=await config.headers();
-  assert.equal(rules.length,1);
+  // UX50 E-08 added a second, HSTS-only rule for /api/* (was 1 rule).
+  assert.equal(rules.length,2);
   assert.ok(rules[0].headers.some(h=>h.key==='Content-Security-Policy'&&/frame-ancestors 'none'/.test(h.value)));
  }finally{for(const k of Object.keys(process.env))if(!(k in saved))delete process.env[k];Object.assign(process.env,saved)}
 });
@@ -189,4 +190,16 @@ test('no finoptima event names or identifiers remain outside cookie/storage keys
 test('the landing page footer links the privacy notice and terms',()=>{
  const html=fs.readFileSync(path.join(web,'public/welcome.html'),'utf8');
  assert.match(html,/href="\/privacy"/);assert.match(html,/href="\/terms"/);
+});
+// UX50 E-08 / E-09
+test('HSTS on every page and every /api response; inline handler attributes blocked', async () => {
+ const {contentSecurityPolicy,securityHeaders,headerRules,HSTS}=await mjs('security-headers.mjs');
+ assert.equal(HSTS,'max-age=63072000; includeSubDomains; preload');
+ assert.equal(securityHeaders({}).find(h=>h.key==='Strict-Transport-Security').value,HSTS);
+ const rules=headerRules({NODE_ENV:'production'});
+ const api=rules.find(r=>r.source==='/api/:path*');
+ assert.ok(api,'an /api rule'); assert.deepEqual(api.headers,[{key:'Strict-Transport-Security',value:HSTS}]);
+ const csp=contentSecurityPolicy({});
+ assert.match(csp,/script-src-attr 'none'/);
+ assert.doesNotMatch(csp,/upgrade-insecure-requests/,'would break http:// API origins in local and E2E runs');
 });

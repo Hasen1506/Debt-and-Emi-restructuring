@@ -1,0 +1,94 @@
+name: Database backup
+
+# UX50 E-02: Neon Free keeps only ~6 hours of history and no scheduled
+# backups, and migrations run on every deploy. This takes a nightly
+# pg_dump (custom format) and keeps it OFF this public repo.
+#
+# Secrets (Settings > Secrets and variables > Actions), all optional:
+#   DATABASE_URL          read-only role on the Neon production branch.
+#                         Absent: the job says so and exits green.
+#   BACKUP_AGE_RECIPIENT  an age public key (age1...). Required to upload;
+#                         the private key never goes near GitHub.
+#   BACKUP_S3_BUCKET      private bucket (S3 or Cloudflare R2), e.g. rightdue-backups
+#   BACKUP_S3_ENDPOINT    R2/S3-compatible endpoint URL (leave empty for AWS S3)
+#   BACKUP_S3_ACCESS_KEY_ID / BACKUP_S3_SECRET_ACCESS_KEY  write-only key for that bucket
+# Without a bucket the dump is taken and checked (pg_restore --list), then
+# discarded: it is never uploaded as an artifact of this public repo.
+# Retention: a 14-day lifecycle rule on the bucket. Restore: docs/RUNBOOK.md.
+on:
+  schedule:
+    - cron: "40 20 * * *"   # 02:10 IST, after the evening's merges
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write   # only to open an issue when the backup fails
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+      S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+      S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+    steps:
+      - name: Check configuration
+        id: cfg
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::DATABASE_URL secret not set; no backup taken (see docs/RUNBOOK.md)."
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          if [ -n "$S3_BUCKET" ] && [ -n "$AGE_RECIPIENT" ] && [ -n "$AWS_ACCESS_KEY_ID" ]; then
+            echo "upload=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No private bucket or age key configured: the dump is checked and discarded, not kept."
+            echo "upload=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dump (Postgres 17 client, matches Neon)
+        if: steps.cfg.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          umask 077
+          stamp=$(date -u +%Y-%m-%dT%H%MZ)
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          docker run --rm -e DATABASE_URL -v "$PWD:/out" postgres:17 \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges --file=/out/rightdue.dump "$DATABASE_URL"'
+          docker run --rm -v "$PWD:/out" postgres:17 pg_restore --list /out/rightdue.dump > toc.txt
+          echo "Dump OK: $(stat -c %s rightdue.dump) bytes, $(grep -c 'TABLE DATA' toc.txt) tables with data."
+
+      - name: Encrypt and upload to the private bucket
+        if: steps.cfg.outputs.upload == 'true'
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq age > /dev/null
+          age -r "$AGE_RECIPIENT" -o "rightdue-$STAMP.dump.age" rightdue.dump
+          ep=(); [ -n "$S3_ENDPOINT" ] && ep=(--endpoint-url "$S3_ENDPOINT")
+          aws "${ep[@]}" s3 cp "rightdue-$STAMP.dump.age" "s3://$S3_BUCKET/nightly/rightdue-$STAMP.dump.age" --only-show-errors
+          echo "Uploaded nightly/rightdue-$STAMP.dump.age"
+
+      - name: Remove plaintext
+        if: always()
+        run: rm -f rightdue.dump ./*.dump.age toc.txt
+
+      - name: Open an issue if the backup failed
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: `Database backup failed (${new Date().toISOString().slice(0, 10)})`,
+              body: `The nightly backup failed: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });

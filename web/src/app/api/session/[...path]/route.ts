@@ -65,6 +65,13 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
   if (req.method !== 'GET') headers.set('Content-Type', 'application/json');
   // Either cookie name for one release (critique #58); the API is sent the new one.
   const token = sessionToken(req.cookies);
+  // UX50 E-22: a visitor with no session cookie is signed out; say so here
+  // with a 200 and null instead of asking the API for a 401, which showed
+  // as two red console errors on every signed-out page (and would flood
+  // browser error reports). api.me() still reads it as signed out.
+  if (path === 'auth/me' && !token) {
+    return Response.json(null, { status: 200, headers: { 'Cache-Control': 'no-store' } });
+  }
   if (token) headers.set('Cookie', `${SESSION_COOKIE}=${token}`);
   const expectedAccount = req.headers.get('x-account-id');
   if (path === 'user/state' && expectedAccount) headers.set('X-Account-Id', expectedAccount);
@@ -75,6 +82,15 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
   // Without it every sign-in shared one bucket: this server's address.
   const forwardedFor = req.headers.get('x-forwarded-for');
   if (forwardedFor) headers.set('X-Forwarded-For', forwardedFor);
+  // UX50 E-01: on Render the visitor is the CF-Connecting-IP written by
+  // Render's own Cloudflare edge (api/client_ip.py). Without copying it the
+  // API fell back to X-Forwarded-For, where the old hop count picked the
+  // rotating edge address, and sign-in was never limited.
+  const clientIpHeader = (process.env.CLIENT_IP_HEADER ?? (process.env.RENDER ? 'cf-connecting-ip' : '')).trim().toLowerCase();
+  if (clientIpHeader && !['none', 'off', '0', 'false'].includes(clientIpHeader)) {
+    const value = req.headers.get(clientIpHeader);
+    if (value) headers.set(clientIpHeader, value);
+  }
   // Never send INTERNAL_API_TOKEN: it would bypass the OTP rate limits.
   const base = serverApiBase();
   try {

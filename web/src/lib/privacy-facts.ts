@@ -13,7 +13,7 @@
  */
 
 export const NOTICE_VERSION = '2026-10-12';
-export const NOTICE_LAST_UPDATED = '12 October 2026';
+export const NOTICE_LAST_UPDATED = '13 October 2026';
 
 /** Who decides why and how the data is used (the "Data Fiduciary"). */
 export const DATA_FIDUCIARY = {
@@ -38,7 +38,9 @@ export const GRIEVANCE_REPLY_DAYS_MAX = 90;
 export const STORAGE = {
   database: 'Neon Postgres, AWS Asia Pacific (Singapore) region',
   appServer: 'Render, Oregon (USA) region',
-  network: 'Cloudflare, which carries traffic to rightdue.app through its worldwide network',
+  // UX50 E-10: DNS points straight at Render; our own Cloudflare zone is not
+  // in the path. Render's edge is operated by Cloudflare, so name that.
+  network: "Render's content network (operated by Cloudflare) carries traffic to rightdue.app",
   email: 'Resend, an email delivery service based in the USA, sends sign-in codes',
 };
 

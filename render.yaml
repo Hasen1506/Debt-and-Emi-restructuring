@@ -2,7 +2,7 @@
 # root) running FastAPI and Next.js together, so a visit wakes one instance
 # instead of two and the API is already up when the page has loaded.
 #
-#   browser ─▶ Cloudflare (rightdue.app) ─▶ Render ─▶ Next.js :$PORT
+#   browser ─▶ Render edge (Cloudflare-operated, Render's) ─▶ Render LB ─▶ Next.js :$PORT
 #                                                      └─▶ FastAPI 127.0.0.1:8000
 #
 # Next.js serves the pages, /api/session/*, /api/holdings/quote and
@@ -59,17 +59,23 @@ services:
       - key: OUTCOMES_IP_KEY
         generateValue: true
       # ── Client address for rate limits (api/client_ip.py) ──────────────
-      # How many proxies we run behind append to X-Forwarded-For. Chain for
-      # https://rightdue.app with Cloudflare proxying (orange cloud):
-      #   Cloudflare writes the visitor's address, Render appends the
-      #   Cloudflare edge's address -> the visitor is 2 back from the end.
-      # The Next.js proxy in the container (rewrites, and /api/session)
-      # passes X-Forwarded-For through UNCHANGED, so it adds no hop.
-      # Set "1" if rightdue.app is ever DNS-only (grey cloud) in Cloudflare.
-      # Caveat: requests sent straight to *.onrender.com skip Cloudflare and
-      # could pick their own bucket; that was already true before.
+      # UX50 E-01: rightdue.app's DNS points straight at Render (name.com NS,
+      # A 216.24.57.1); our own Cloudflare zone is NOT in the path. Render
+      # fronts every service with its own Cloudflare edge, then its load
+      # balancer, so the container sees
+      #   X-Forwarded-For: <visitor>, <Cloudflare edge>, <Render LB 10.x>
+      #   CF-Connecting-IP: <visitor>   (set by the edge; clients can't forge it)
+      # The API keys rate limits on CF-Connecting-IP whenever RENDER is set
+      # (Render sets it on every service), so this works with no env change.
+      # TRUSTED_PROXY_HOPS is only the fallback when that header is missing;
+      # 3 matches the chain above (the old "2" picked the rotating edge
+      # address, which is why no 429 was ever sent). Next.js passes
+      # X-Forwarded-For through unchanged and adds no hop.
+      # If rightdue.app is ever proxied through our own Cloudflare zone
+      # (orange cloud), CF-Connecting-IP still carries the visitor; leave it.
+      # CLIENT_IP_HEADER=none turns the header off (hop logic only).
       - key: TRUSTED_PROXY_HOPS
-        value: "2"
+        value: "3"
       # ── Cookies and CSRF (same origin now) ─────────────────────────────
       - key: COOKIE_SECURE
         value: "1"
