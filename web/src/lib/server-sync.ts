@@ -304,6 +304,11 @@ export const LOCAL_PER_USER_KEYS = [
   // A guest's last visit (guest-return LAST_SEEN_KEY): sign-out leaves this
   // browser empty, and the next person must not inherit "you were here".
   'rightdue_guest_last_seen',
+  // R8: Home's debt-free month marks (months-shaved) are this person's; the
+  // decision-log migration flag goes with the log it guards. Found when the
+  // US golden journey visited Home before signing out.
+  'rightdue_debt_free_marks',
+  'rightdue_decision_log_migrated_v1',
 ] as const;
 /** sessionStorage keys with one person's navigation or prompts. */
 export const SESSION_PER_USER_KEYS = ['rightdue_trail', 'rightdue_debtfree_prompt_dismissed'] as const;

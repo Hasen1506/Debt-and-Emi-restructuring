@@ -228,3 +228,11 @@ test('O-1: Can’t pay’s citation links are 44px tall on a touch screen', () =
   assert.match(coarse, /a\.rd-cite \{\s*display: inline-flex !important;\s*align-items: center;\s*min-height: 44px !important;/);
   assert.match(src('components/distress/CantPay.tsx'), /className="rd-cite"/);
 });
+
+test('R8: sign-out clears Home’s debt-free marks and the decision-log flag', () => {
+  const s = src('lib/server-sync.ts');
+  const list = s.slice(s.indexOf('export const LOCAL_PER_USER_KEYS'), s.indexOf('] as const;', s.indexOf('export const LOCAL_PER_USER_KEYS')));
+  assert.match(list, /'rightdue_debt_free_marks'/);
+  assert.match(list, /'rightdue_decision_log_migrated_v1'/);
+  assert.match(src('lib/months-shaved.ts'), /MONTHS_SHAVED_KEY = 'rightdue_debt_free_marks'/);
+});
