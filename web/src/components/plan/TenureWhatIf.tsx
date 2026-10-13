@@ -197,7 +197,7 @@ export function TenureWhatIf({
       ) : (
       <p style={{ margin: '8px 0 0', fontSize: 11, color: L_T.muted }}>
         Ask your lender; they decide. When a floating rate resets, RBI&apos;s rules say your lender must let you choose a
-        higher EMI, a longer tenure or both (
+        higher {pw.one}, a longer tenure or both (
         <a href={RBI_RESET_CIRCULAR_URL} target="_blank" rel="noreferrer">
           RBI circular of 18 Aug 2023, para 2(iii)
         </a>
