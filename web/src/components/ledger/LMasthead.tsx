@@ -190,13 +190,15 @@ export function LMasthead({
           </button>
         )}
       </div>
+      {/* Live re-test 3 R3-5: !important on align-items, or the nav's inline
+          alignItems:center wins and centres the page links in the open menu. */}
       <style>{`.rd-mh-menu{display:none}
 @media (max-width: 640px){
   .rd-masthead{padding-top:8px !important}
   .rd-mh-stamp,.rd-mh-rule1{display:none !important}
   .rd-mh-menu{display:inline-block}
   .rd-mh-nav[data-menu="true"]{display:none !important}
-  .rd-mh-nav[data-menu="true"][data-open="true"]{display:flex !important;flex-direction:column;align-items:flex-start;gap:12px !important}
+  .rd-mh-nav[data-menu="true"][data-open="true"]{display:flex !important;flex-direction:column !important;align-items:flex-start !important;gap:12px !important}
   .rd-mh-nav[data-open="true"] .rd-mh-extras{margin-left:0 !important;justify-content:flex-start !important}
 }`}</style>
       <div className="rd-mh-rule1" style={{ margin: '8px 0 0' }}>

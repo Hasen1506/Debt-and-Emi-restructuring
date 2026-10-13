@@ -25,7 +25,8 @@
 import { INFLATION_FORECAST, readInflationRateClient } from '@/lib/inflation-modeling';
 import { useEffect, useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
-import { Field } from '@/components/ToolPrimitives';
+import { Field, percentTextError } from '@/components/ToolPrimitives';
+import { formatTaxRate } from '@/lib/tax-profile';
 import { LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
 import { LFieldGrid, LNote, LStep, LStepSub, LSteps, LVerdict } from '@/components/ledger/LToolSteps';
 import {
@@ -135,7 +136,11 @@ export function InvestVsPrepayDeepTool() {
   const pctOf = (d: Decimal) => d.mul(100).toFixed(2);
   const [picked, setPicked] = useState<number | null>(loans[0]?.index ?? null);
   const [loanRatePct, setLoanRatePct] = useState(loans[0] ? pctOf(loans[0].effective) : '');
-  const profileMarginal = (Number(profile.marginalRate ?? 0.3) * 100).toFixed(0);
+  // Live re-test 3 NEW-18: the same tax rate, to one decimal, as Home,
+  // Plan, Profile and Tax (formatTaxRate); 16 here read against 15.6% there.
+  const profileMarginal = formatTaxRate(profile.marginalRate ?? 0.3).replace(/%$/, '');
+  // The calculation uses the profile's exact rate while the box still shows it.
+  const exactMarginalPct = new Decimal(profile.marginalRate ?? 0.3).mul(100).toString();
   const [marginalPct, setMarginalPct] = useState(profileMarginal);
   // Years held drives the simulation: shares even out over longer spells.
   const [yearsHeld, setYearsHeld] = useState('5');
@@ -172,13 +177,25 @@ export function InvestVsPrepayDeepTool() {
   const theLoan = pickedLoan ? `the ${loanName(pickedLoan)}` : 'the loan';
   const swings = inst.defaultVol > 0;
 
+  // Live re-test 3 R3-3: "abc" or "500" gets the same inline error as
+  // Setup's rate (R2-1), not a silent "enter the rate".
+  const rateErrors = {
+    loan: percentTextError(loanRatePct, { what: 'A loan rate' }),
+    marginal: percentTextError(marginalPct, { what: 'A tax rate' }),
+    ret: percentTextError(expReturnPct, { min: -99, what: 'A return' }),
+    vol: swings ? percentTextError(volPct, { max: 500, what: 'A swing' }) : null,
+    inflation: swings ? percentTextError(inflationPct, { min: -50, what: 'Inflation' }) : null,
+  };
+
   const result = useMemo(() => {
+    if (percentTextError(loanRatePct) || percentTextError(marginalPct) || percentTextError(expReturnPct, { min: -99 })
+      || percentTextError(volPct, { max: 500 })) return null;
     const loanIn = parseNum(loanRatePct);
-    const marginalIn = parseNum(marginalPct);
+    const marginalIn = marginalPct.trim() === profileMarginal ? D(exactMarginalPct) : parseNum(marginalPct);
     const returnIn = parseNum(expReturnPct);
     const volIn = parseNum(volPct);
     if (!loanIn || !marginalIn || !returnIn || !volIn || loanIn.lt(0) || loanIn.gt(100)
-      || marginalIn.lt(0) || marginalIn.gt(100) || returnIn.lte(-100) || returnIn.gt(1000)
+      || marginalIn.lt(0) || marginalIn.gt(100) || returnIn.lte(-100) || returnIn.gt(100)
       || volIn.lt(0) || volIn.gt(500)) return null;
     const loan = loanIn.div(100);
     const marginal = Decimal.min(1, Decimal.max(0, marginalIn.div(100)));
@@ -237,7 +254,7 @@ export function InvestVsPrepayDeepTool() {
     }
 
     return { preTax, taxRate, afterTax, downsideAfterTax, expectedSpread, downsideSpread, verdict, headline, explanation };
-  }, [loanRatePct, marginalPct, expReturnPct, volPct, inst, theLoan]);
+  }, [loanRatePct, marginalPct, expReturnPct, volPct, inst, theLoan, profileMarginal, exactMarginalPct]);
 
   // The simulation only adds something when the return swings.
   const mc = useMemo(() => {
@@ -300,12 +317,14 @@ export function InvestVsPrepayDeepTool() {
               setPicked(null);
             }}
             hint="What it costs a year: compounded, with GST on a card, after any tax break"
+            error={rateErrors.loan}
           />
           <Field
             label="Your tax rate (%)"
             value={marginalPct}
             onChange={setMarginalPct}
             hint={marginalPct === profileMarginal ? 'From your profile' : undefined}
+            error={rateErrors.marginal}
           />
         </LFieldGrid>
 
@@ -334,10 +353,11 @@ export function InvestVsPrepayDeepTool() {
               setExpReturnPct(v);
               setYieldConfirmed(true);
             }}
+            error={rateErrors.ret}
           />
-          {swings && <Field label="How much it swings a year (%)" value={volPct} onChange={setVolPct} hint="One standard deviation" />}
+          {swings && <Field label="How much it swings a year (%)" value={volPct} onChange={setVolPct} hint="One standard deviation" error={rateErrors.vol} />}
           {swings && <Field label="Years you'd hold it" kind="integer" value={yearsHeld} onChange={setYearsHeld} />}
-          {swings && <Field label="Prices rise a year (%)" value={inflationPct} onChange={setInflationPct} />}
+          {swings && <Field label="Prices rise a year (%)" value={inflationPct} onChange={setInflationPct} error={rateErrors.inflation} />}
         </LFieldGrid>
       </LStep>
 
@@ -415,7 +435,7 @@ export function InvestVsPrepayDeepTool() {
               v: pc(result.preTax.toNumber()),
               note: inst.compounding === 'quarterly' ? `${inst.name}, ${Number(expReturnPct).toFixed(2)}% added quarterly` : inst.name,
             },
-            { k: 'tax on it', v: pc(result.taxRate.toNumber()), note: taxNote },
+            { k: 'tax on it', v: formatTaxRate(result.taxRate), note: taxNote },
             { k: 'after tax', v: pc(result.afterTax.toNumber()) },
             ...(swings ? [{ k: 'in a bad year', v: pc(result.downsideAfterTax.toNumber()), note: `${Number(volPct).toFixed(1)}% below average, after tax` }] : []),
             {

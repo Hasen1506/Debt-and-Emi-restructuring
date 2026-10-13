@@ -39,6 +39,7 @@ class _Base(BaseModel):
 MAX_AMOUNT = D("1e12")          # ₹1 lakh crore / $1 trillion
 MAX_INT = 100_000
 MAX_MONTHS = 1200               # the plan horizon is 100 years
+MAX_TENURE_MONTHS = 480         # the longest loan the app takes (40 years)
 MAX_LOANS = 50
 MAX_ITEMS = 100
 MAX_TEXT = 200
@@ -1152,7 +1153,10 @@ class NewDebtRequest(_In):
     cash_price_elsewhere: Amount
     # A 1-month "loan" is a bill, not credit (live QA accepted it); the
     # shortest real EMI offers are 3 months (no-cost card EMI).
-    emi_offer_months: int = Field(..., ge=3, le=MAX_MONTHS)
+    # Live re-test 3 R3-2: the same 40-year ceiling as the app (tenure-rules.ts
+    # MAX_TENURE_MONTHS) and the engine, so 600 or 6016 months is a field
+    # error, not a figure.
+    emi_offer_months: int = Field(..., ge=3, le=MAX_TENURE_MONTHS)
     emi_offer_monthly_payment: Amount
     processing_fee: Amount = D("0")
     user_savings_after_efund: Amount = D("0")

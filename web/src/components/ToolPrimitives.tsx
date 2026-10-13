@@ -169,10 +169,14 @@ export function Field({
   error,
   currency = 'INR',
   findIt,
+  onUnreadable,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  /** Percent fields: told whether the typed text can't be read as a rate
+   *  ("8.5x"), since the caller only gets '' for it (live re-test 3 R3-4). */
+  onUnreadable?: (unreadable: boolean) => void;
   hint?: string;
   /** Where the borrower finds this number (lib/where-to-find), shown as
    *  "Find it: …" under the hint. */
@@ -237,6 +241,7 @@ export function Field({
     if (!isPercent) return onChange(raw);
     setPctText(raw);
     const f = percentTextToFraction(raw);
+    onUnreadable?.(f === null);
     // Never hand unreadable text ("8.5x") to the caller's Decimal math.
     onChange(f ?? '');
   };
@@ -256,10 +261,7 @@ export function Field({
   // (live QA: "abc" and "-100" got only the browser's red outline).
   // Live re-test 2 R2-1: "8.5x" is not a rate. Say so as it's typed
   // (it used to read as 0% until Continue, then "enter the rate").
-  const pctError =
-    isPercent && percentTextToFraction(pctText) === null
-      ? `“${pctText.trim()}” isn’t a valid rate. Type it like 8.5`
-      : null;
+  const pctError = isPercent ? unreadableRateError(pctText) : null;
   const shownError =
     pctError ??
     error ??
@@ -342,6 +344,30 @@ export function fractionToPercentText(v: string): string {
 }
 
 /** "8.5" or "8.5%" → "0.085"; null when it isn't a number yet. */
+/** Live re-test 2 R2-1: the message for rate text that isn't a number
+ *  ("8.5x", "abc"); null for a number or a blank. */
+export function unreadableRateError(text: string): string | null {
+  return percentTextToFraction(text) === null ? `“${text.trim()}” isn’t a valid rate. Type it like 8.5` : null;
+}
+
+/**
+ * Live re-test 3 R3-3: the same check for a field that keeps its value as
+ * percent text ("15.6"), plus a range. Null when blank or fine.
+ */
+export function percentTextError(
+  text: string,
+  { min = 0, max = 100, what = 'A rate' }: { min?: number; max?: number; what?: string } = {},
+): string | null {
+  const unreadable = unreadableRateError(text);
+  if (unreadable) return unreadable;
+  const t = text.trim().replace(/%$/, '').trim();
+  if (t === '' || t === '.') return null;
+  const n = Number(t.replace(/\.$/, ''));
+  if (n < min) return min === 0 ? `${what} can’t be negative.` : `${what} can’t be below ${min}%.`;
+  if (n > max) return `${what} above ${max}% isn’t accepted. Type it as a percent, like 8.5.`;
+  return null;
+}
+
 export function percentTextToFraction(v: string): string | null {
   // A trailing "." is mid-typing ("8." on the way to "8.5").
   const t = v.trim().replace(/%$/, '').trim().replace(/\.$/, '');

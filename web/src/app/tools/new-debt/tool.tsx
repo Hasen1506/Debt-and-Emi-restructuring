@@ -2,6 +2,7 @@
 
 import { whereToFind } from '@/lib/where-to-find';
 import { tenureError } from '@/lib/tenure-rules';
+import { bankEstimate, computeEMI } from '@/lib/new-debt-estimate';
 import { useEffect, useMemo, useState } from 'react';
 import { AddLoanAction, Field, ScoreChip, SubmitBar } from '@/components/ToolPrimitives';
 import { LBracket, LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
@@ -52,15 +53,6 @@ const TENURE_DEFAULT_BY_TYPE: Record<string, string> = {
   education_loan: '120',
   credit_card: '6',
 };
-
-/** Pure EMI: P * r * (1+r)^n / ((1+r)^n - 1), with r = annualRate / 12. */
-function computeEMI(principal: number, annualRate: number, months: number): number {
-  if (months <= 0) return 0;
-  const r = annualRate / 12;
-  if (r === 0) return principal / months;
-  const pow = Math.pow(1 + r, months);
-  return (principal * r * pow) / (pow - 1);
-}
 
 export function NewDebtTool() {
   const profile = useStoredProfile();
@@ -146,6 +138,12 @@ export function NewDebtTool() {
     return set;
   }, [profile.user]);
 
+  // Live re-test 3 R3-2: the months are checked as they're typed, and no
+  // bank's EMI or interest is worked out on months out of range (0 months
+  // gave ₹0 EMI and −₹3,00,000 interest; 6016 gave crores).
+  const tenureLive = tenure.trim() === '' ? null : tenureError(loanType, tenure);
+  const tenureOk = tenureError(loanType, tenure) === null;
+
   const bankComparison = useMemo(() => {
     if (!institutions) return null;
     return rankBanksForLoanType(
@@ -153,10 +151,10 @@ export function NewDebtTool() {
       loanType,
       knownBanks,
       Number(loanAmount),
-      Number(tenure),
+      tenureOk ? Number(tenure) : 0,
       Number(score) >= (country === 'IN' ? 750 : 740),
     );
-  }, [institutions, loanType, knownBanks, loanAmount, tenure, score, country]);
+  }, [institutions, loanType, knownBanks, loanAmount, tenure, tenureOk, score, country]);
 
   // The "active" bank — selectedBank if set, else the cheapest existing-relationship
   // bank, else the cheapest overall. Drives the EMI used in the verdict call.
@@ -335,7 +333,7 @@ export function NewDebtTool() {
                   hint="Same as above if there's no cash discount"
                 />
                 <Field label="Monthly payment on the offer" kind="money" currency={ccy} value={offerEmi} onChange={setOfferEmi} error={at('offerEmi')} hint="With its charges" />
-                <Field label="For how many months" kind="integer" value={tenure} onChange={setTenure} error={at('tenure')} />
+                <Field label="For how many months" kind="integer" value={tenure} onChange={setTenure} error={tenureLive ?? at('tenure')} />
               </LFieldGrid>
               <LNote style={{ margin: '8px 0 0' }}>
                 A &ldquo;no-cost&rdquo; EMI often hides its cost in a higher price than you&apos;d pay in cash.
@@ -344,7 +342,7 @@ export function NewDebtTool() {
           ) : (
             <LFieldGrid min={200}>
               <Field label="How much" kind="money" currency={ccy} value={loanAmount} onChange={setLoanAmount} error={at('loanAmount')} />
-              <Field label="For how many months" kind="integer" value={tenure} onChange={setTenure} error={at('tenure')} />
+              <Field label="For how many months" kind="integer" value={tenure} onChange={setTenure} error={tenureLive ?? at('tenure')} />
             </LFieldGrid>
           )}
 
@@ -361,7 +359,7 @@ export function NewDebtTool() {
                   selectedBank={activeBank?.name ?? ''}
                   onPick={setSelectedBank}
                   fmt={fmt}
-                  showMoney={Number(loanAmount) > 0}
+                  showMoney={Number(loanAmount) > 0 && tenureOk}
                 />
               ) : (
                 <LNote style={{ margin: '8px 0 0' }}>Loading bank rates…</LNote>
@@ -587,9 +585,7 @@ function rankBanksForLoanType(
     const median = (low + high) / 2;
     const isExisting = knownBanks.has(inst.name.toLowerCase());
     const principal = loanAmount > 0 ? loanAmount : 0;
-    const emi = computeEMI(principal, goodScore ? low : median, tenureMonths);
-    const totalPaid = emi * Math.max(tenureMonths, 0);
-    const totalInterest = totalPaid - principal;
+    const { emi, interest: totalInterest } = bankEstimate(principal, goodScore ? low : median, tenureMonths);
     rows.push({
       name: inst.name,
       low,

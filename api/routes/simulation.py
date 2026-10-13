@@ -279,6 +279,12 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
 # years, and never past the month what's owed reaches 100x the start.
 NEVER_CLEARS_HORIZON = 360
 SANE_MULTIPLE = D("100")
+# Live re-test 3 NEW-19: the engine stops a run once what's owed passes
+# twice the multiple the trajectory is cut at, so every month the response
+# keeps is computed exactly as before but a runaway plan no longer
+# simulates all 1,200 months (three times per Plan load). The margin keeps
+# the engine's stop strictly after the API's cut.
+ENGINE_STOP_MULTIPLE = 2 * SANE_MULTIPLE
 
 
 def _bounded(points: list[TrajectoryPoint], never_clears: bool) -> tuple[list[TrajectoryPoint], Optional[int], bool]:
@@ -325,7 +331,8 @@ def _gap_closed(user, req, kwargs, result) -> GapClosedOut | None:
         kw["goals"] = deepcopy(kw["goals"])
     closed = simulate_plan(
         user, strategy=req.strategy, horizon_months=req.horizon_months,
-        marginal_rate=req.marginal_rate, expense_delta=cut, **kw,
+        marginal_rate=req.marginal_rate, expense_delta=cut,
+        stop_owed_multiple=ENGINE_STOP_MULTIPLE, **kw,
     )
     return GapClosedOut(
         cut=cut.quantize(_CENT, rounding=ROUND_HALF_UP),
@@ -414,7 +421,7 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
     closed_kwargs = {**kwargs, "goals": deepcopy(goal_states)}
     result = simulate_plan(
         user, strategy=req.strategy, horizon_months=req.horizon_months,
-        marginal_rate=req.marginal_rate, **kwargs,
+        marginal_rate=req.marginal_rate, stop_owed_multiple=ENGINE_STOP_MULTIPLE, **kwargs,
     )
     stop = _non_amortising_response(user, result)
     if stop is not None:
@@ -494,6 +501,7 @@ def baseline(req: BaselineRequest) -> SimulateResponse:
             _to_engine_lifecycle(req.lifecycle_events) if req.lifecycle_events else None
         ),
         gap_as_debt=req.gap_as_debt,
+        stop_owed_multiple=ENGINE_STOP_MULTIPLE,
     )
     stop = _non_amortising_response(user, result)
     if stop is not None:
@@ -519,6 +527,9 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
     user = req.user.to_engine()
     plan = _plan_kwargs(req)
     sm = plan.pop("simulation_start_month")
+    # NEW-19: a runaway plan stops early in every run here too (base and
+    # each scenario); months kept are the same as a full run's.
+    plan["stop_owed_multiple"] = ENGINE_STOP_MULTIPLE
     base = simulate_plan(
         user, strategy=req.strategy, horizon_months=req.horizon_months,
         marginal_rate=req.marginal_rate, simulation_start_month=sm,

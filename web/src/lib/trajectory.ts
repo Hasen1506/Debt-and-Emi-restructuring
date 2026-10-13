@@ -52,6 +52,16 @@ export function planWithWhatIf(
   } as SimulateResponse;
   const scen = mergeTrajectories(sim, sim);
   const base = new Map(plan.trajectory.map((p) => [p.month, p]));
+  // Live re-test 3 R3-1: past the end of the plan's own (possibly cut)
+  // trajectory the minimums line carries its last value. Padding it with 0
+  // read as "paying only the minimums clears it" in the chart's summary.
+  const lastBase = plan.trajectory.at(-1);
+  const pad = (m: number): TrajectoryPoint =>
+    ({
+      month: m,
+      minimums: lastBase?.minimums ?? 0,
+      ...(lastBase?.minimumsGapDebt ? { minimumsGapDebt: lastBase.minimumsGapDebt } : {}),
+    }) as TrajectoryPoint;
   const n = Math.max(scen.length, plan.trajectory.length);
   const trajectory: TrajectoryPoint[] = [];
   for (let m = 1; m <= n; m++) {
@@ -59,7 +69,7 @@ export function planWithWhatIf(
     const b = base.get(m);
     const gap = s?.gapDebt ?? 0;
     trajectory.push({
-      ...(b ?? { month: m, minimums: 0 }),
+      ...(b ?? pad(m)),
       month: m,
       avalanche: s?.avalanche ?? 0,
       avalancheByCcy: s?.avalancheByCcy,
@@ -83,6 +93,25 @@ export function planWithWhatIf(
         ? { month: r.scenario_trajectory_cut_month ?? null, growsWithoutLimit: !!r.scenario_grows_without_limit }
         : null,
   };
+}
+
+/**
+ * Live re-test 3 R3-1: the month paying only the minimums clears the debt,
+ * or null when it never does. One answer for the chart's line, its
+ * screen-reader summary and the Plan's figures, for the plan and the
+ * what-if alike: null when the engine says the minimums never clear, or when
+ * the minimums line is still above zero at the last month it has.
+ */
+export function minimumsClearMonth(
+  trajectory: Pick<TrajectoryPoint, 'month' | 'minimums' | 'minimumsGapDebt'>[],
+  neverClears?: boolean,
+): number | null {
+  if (neverClears || trajectory.length === 0) return null;
+  const owed = (p: Pick<TrajectoryPoint, 'minimums' | 'minimumsGapDebt'>) => p.minimums + (p.minimumsGapDebt ?? 0);
+  const last = trajectory[trajectory.length - 1];
+  if (owed(last) > 0.5) return null;
+  const lastOwed = trajectory.filter((p) => owed(p) > 0.5).at(-1)?.month ?? 0;
+  return trajectory.find((p) => p.month > lastOwed && owed(p) <= 0.5)?.month ?? null;
 }
 
 interface MonthBucket {

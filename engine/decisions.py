@@ -392,9 +392,13 @@ def _card_emi_gst(cash_price: Decimal, monthly_emi: Decimal, months: int) -> lis
         principal = _pv(monthly_emi, rate, months)
     m, balance, out = rate / D("12"), principal, []
     for _ in range(months):
-        interest = balance * m
+        # Live re-test 3 (R3-2 property): interest is never negative and
+        # never more than the EMI, and a balance paid off stays at 0. EMIs
+        # far above a tiny price (₹2 a month on ₹1) used to give negative
+        # GST, or GST too large to round (a 500).
+        interest = min(max(D("0"), balance * m), monthly_emi)
         out.append(interest * GST_RATE_IN)
-        balance -= monthly_emi - interest
+        balance = max(D("0"), balance - (monthly_emi - interest))
     return out
 
 
