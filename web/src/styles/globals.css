@@ -453,6 +453,15 @@ button.l-hit {
   table {
     width: 100% !important;
   }
+  /* The schedule scrolls in a box on screen; on paper every row it holds
+     shows, and the "swipe sideways" hint goes. */
+  [role='region'] {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  .rd-scroll-hint {
+    display: none !important;
+  }
   a[href] {
     color: inherit !important;
     text-decoration: none !important;

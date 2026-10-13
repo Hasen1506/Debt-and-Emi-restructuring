@@ -1218,7 +1218,7 @@ function LoanBlock({
               emiTooSmall
                 ? issues.emi
                   ? undefined
-                  : (emiBelowInterest({ ...loan, currency: ccy }) ?? "At this EMI the balance doesn't go down. Check the EMI and the rate.")
+                  : (emiBelowInterest({ ...loan, currency: ccy }) ?? `At this ${paymentWords(country).one} the balance doesn't go down. Check the ${paymentWords(country).one} and the rate.`)
                 : tenure
                   ? `About ${tenure} months left, to ${monthIndexToCountryLabel(tenure, country)}`
                   : undefined

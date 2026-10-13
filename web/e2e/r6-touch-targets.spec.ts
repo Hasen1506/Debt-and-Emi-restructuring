@@ -5,6 +5,7 @@
  *    box (UX50 C-04) and at least 24px wide (WCAG 2.5.8); a checkbox or radio
  *    is a 20px square that its flex row can't squeeze. Links inside a line of
  *    running text are the WCAG 2.5.8 inline exception and are not counted.
+ *    R7-1: text inputs and textareas are measured too (44px tall).
  *  - R6-3: the Plan lump-sum box's placeholder fits.
  *  - R6-4: 0 months unpaid says nothing is unpaid.
  */
@@ -21,7 +22,10 @@ async function smallTargets(page: Page): Promise<Miss[]> {
   return page.evaluate(() => {
     const out: { what: string; w: number; h: number; why: string }[] = [];
     const nodes = Array.from(document.querySelectorAll<HTMLElement>(
-      'button, a[href], select, [role="button"], input[type="checkbox"], input[type="radio"]',
+      // Live re-test 7 R7-1: text boxes and textareas count too (Can't pay's
+      // were 28px, the Plan what-if boxes 30px).
+      'button, a[href], select, [role="button"], input[type="checkbox"], input[type="radio"], ' +
+        'input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="file"]), textarea',
     ));
     for (const el of nodes) {
       const r = el.getBoundingClientRect();
