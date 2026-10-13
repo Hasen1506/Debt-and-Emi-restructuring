@@ -148,7 +148,9 @@ test('B-12: a card marked paid moves on Home (an estimate until the statement)',
 
 test('B-13: Setup, Home and Plan tell one short-month story', () => {
   const qs = src('components/setup/QuickSetup.tsx');
-  assert.match(qs, /if the \$\{money\(shortfall\)\}\/mo gap closes · as things stand: \$\{asIs\}/);
+  // Live re-test 7 R7-2: the wording moved into lib/plan-gap's shortGapLine,
+  // shared with Plan and Home (tests/r7-fixes.cjs checks the words).
+  assert.match(qs, /shortGapLine\(\{/);
   assert.match(qs, /\['Vs paying only minimums', '—', 'needs a payoff date first'\]/);
   const home = src('components/home/HomeDebtFree.tsx');
   assert.match(home, /shortLine=\{/);

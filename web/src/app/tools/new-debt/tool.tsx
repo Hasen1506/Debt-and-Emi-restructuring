@@ -18,6 +18,7 @@ import {
 } from '@/lib/api';
 import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
 import { useFormErrors } from '@/lib/form-errors';
+import { creditScoreError, usableCreditScore } from '@/lib/r7-inputs';
 import { addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
 import { deriveMetrics } from '@/lib/derived';
@@ -89,6 +90,8 @@ export function NewDebtTool() {
   const [more, setMore] = useState(false);
   // The profile's score, or blank: no score, no score-impact estimate.
   const [score, setScore] = useState(scoreOnFile);
+  // R7-6: a typed score counts only once it's a whole number in range.
+  const okScore = usableCreditScore(score, country);
 
   const [resultValue, setV] = useState<NewDebtResponse | null>(null);
   const [impact, setImpact] = useState<ScoreImpactResponse | null>(null);
@@ -152,9 +155,9 @@ export function NewDebtTool() {
       knownBanks,
       Number(loanAmount),
       tenureOk ? Number(tenure) : 0,
-      Number(score) >= (country === 'IN' ? 750 : 740),
+      okScore !== '' && Number(okScore) >= (country === 'IN' ? 750 : 740),
     );
-  }, [institutions, loanType, knownBanks, loanAmount, tenure, tenureOk, score, country]);
+  }, [institutions, loanType, knownBanks, loanAmount, tenure, tenureOk, okScore, country]);
 
   // The "active" bank — selectedBank if set, else the cheapest existing-relationship
   // bank, else the cheapest overall. Drives the EMI used in the verdict call.
@@ -178,7 +181,7 @@ export function NewDebtTool() {
 
   // Banks keep the bottom of their range for scores of 750 and up (740 in
   // the US); below that, or with no score, the middle is the fair guess.
-  const goodScore = Number(score) >= (country === 'IN' ? 750 : 740);
+  const goodScore = okScore !== '' && Number(okScore) >= (country === 'IN' ? 750 : 740);
   const bankRate = (b: BankComparisonRow) => (goodScore ? b.low : b.median);
   const bankRateNote = goodScore ? 'best rate, for your score' : 'middle rate';
 
@@ -279,10 +282,10 @@ export function NewDebtTool() {
       setV(result);
       setChecked(fingerprint);
 
-      if (result.verdict === 'take' && score.trim() !== '' && Number(score) >= 300 && activeBank && !activeBank.isExisting) {
+      if (result.verdict === 'take' && okScore !== '' && activeBank && !activeBank.isExisting) {
         const impactResult = await api.scoreImpact({
           action: 'new_account',
-          current_score: Number(score),
+          current_score: Number(okScore),
           country,
         });
         setImpact(impactResult);
@@ -385,7 +388,7 @@ export function NewDebtTool() {
                   kind="integer"
                   value={score}
                   onChange={setScore}
-                  error={at('score')}
+                  error={at('score') ?? creditScoreError(score, country)}
                   findIt={whereToFind('creditScore', { country })}
                   hint={scoreOnFile !== '' && score === scoreOnFile ? 'From your profile' : 'For the effect of opening a new account'}
                 />

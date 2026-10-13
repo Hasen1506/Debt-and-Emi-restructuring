@@ -90,3 +90,34 @@ test('signed in: every tab and tool passes axe with no hydration errors', async 
     await check(page, path, errors);
   }
 });
+
+// Live re-test 7 R7-3: with no floating-rate loan the WHAT IF rate row is
+// disabled, and its explanation used to be faded to 2.63:1 with it.
+test('signed in, fixed-rate loans only: /plan with WHAT IF open passes axe', async ({ page }) => {
+  const errors = watchErrors(page);
+  await signIn(page, 'a11y-fixed@rightdue.app');
+  await page.getByLabel(/Take-home pay a month/).fill('95000');
+  await page.getByLabel(/Spending a month/).fill('41000');
+  await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();
+  await fillLoan(page, 0, { kind: /^card$/i, balance: '180000', rate: '39' });
+  await fillLoan(page, 1, { kind: /^personal$/i, balance: '60000', rate: '13', emi: '5200' });
+  await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
+  await makeSetupChoices(page);
+  await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
+  await page.waitForURL('**/plan');
+  await page.waitForTimeout(2500);
+  const whatIf = page.getByRole('button', { name: /WHAT IF/i }).first();
+  if (await whatIf.isVisible().catch(() => false)) await whatIf.click();
+  const reason = page.getByText('None of your loans has a floating rate, so a rate change doesn’t move the plan.');
+  await reason.scrollIntoViewIfNeeded();
+  await expect(reason).toBeVisible();
+  // The reason line is drawn at full strength: nothing above it is faded.
+  const faded = await reason.evaluate((el) => {
+    for (let n: HTMLElement | null = el as HTMLElement; n; n = n.parentElement) if (Number(getComputedStyle(n).opacity) < 1) return true;
+    return false;
+  });
+  expect(faded, 'the disabled row\'s explanation sits inside a faded wrapper').toBe(false);
+  const found = await axe(page);
+  expect(found, 'axe on /plan (fixed-rate loans, WHAT IF open)').toEqual([]);
+  expect.soft(errors, 'errors on /plan').toEqual([]);
+});

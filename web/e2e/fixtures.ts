@@ -143,7 +143,8 @@ export async function fillLoan(page: Page, index: number, loan: LoanInput) {
   await b.getByLabel(card ? 'Balance on the card' : 'Balance left to repay').fill(loan.balance);
   await b.getByLabel(card ? 'Card APR, % a year' : 'Interest rate, % a year').fill(loan.rate);
   if (!card) {
-    await b.getByLabel('EMI a month').fill(loan.emi!);
+    // R7-7: US Setup says "Monthly payment" where India says "EMI a month".
+    await b.getByRole('textbox', { name: /EMI a month|Monthly payment/ }).fill(loan.emi!);
     await b.getByRole('button', { name: /PAID ALREADY/ }).click();
   }
 }

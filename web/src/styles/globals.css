@@ -375,6 +375,15 @@ button.l-hit {
     align-items: center;
     min-height: 44px;
   }
+  /* Live re-test 7 R7-1: text boxes too. Can't pay's compact fields were
+     28px, the Plan what-if boxes 30px, Goals/tools/Setup 38px. Every text
+     input, select and textarea is at least 44px tall on a touch screen
+     (checkboxes, radios and sliders keep their own size). */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='hidden']):not([type='file']),
+  textarea,
+  select {
+    min-height: 44px !important;
+  }
 }
 /* R6-2: a long label must never squeeze the box in a check row. */
 .l-check-row > input[type='checkbox'],
@@ -399,5 +408,62 @@ button.l-hit {
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Live re-test 7 R7-4: printing (the Plan's [PRINT] button, Ctrl+P) gives
+   the figures, chart and tables, not the app around them: no navigation,
+   buttons, action cards, menus or what-if controls. Mark anything else to
+   leave off with data-print="hide". */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+  header,
+  nav,
+  .rd-mh-nav,
+  .rd-mh-extras,
+  .rd-site-footer,
+  button,
+  [role='button'],
+  [role='menu'],
+  [role='dialog'],
+  details > summary,
+  select,
+  input,
+  textarea,
+  a.l-hit,
+  [data-print='hide'] {
+    display: none !important;
+  }
+  main,
+  #main {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  svg,
+  figure,
+  table,
+  tr,
+  [data-print='keep'] {
+    break-inside: avoid;
+  }
+  table {
+    width: 100% !important;
+  }
+  /* The schedule scrolls in a box on screen; on paper every row it holds
+     shows, and the "swipe sideways" hint goes. */
+  [role='region'] {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  .rd-scroll-hint {
+    display: none !important;
+  }
+  a[href] {
+    color: inherit !important;
+    text-decoration: none !important;
   }
 }
