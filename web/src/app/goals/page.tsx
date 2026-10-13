@@ -12,6 +12,9 @@ import { GoalsPage as GoalLedger } from '@/components/goals/GoalsPage';
 import { ToolsList } from '@/components/goals/ToolsList';
 import { LShell, L_T } from '@/components/ledger/primitives';
 
+/** Its own tab title (UX50 C-26 / E-15). */
+export const metadata = { title: 'Goals · RightDue' };
+
 export const dynamic = 'force-dynamic';
 
 export default async function GoalsPage() {

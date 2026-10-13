@@ -309,3 +309,20 @@ function formatAmount(n: number, country: Country): string {
   }
   return n.toLocaleString('en-US');
 }
+
+/**
+ * The India new-regime slabs as lines for a popover, read from the same
+ * engine table the plan uses (UX50 C-18: the Profile tooltip was hand-typed
+ * with the old 12–15 / 15–20 / 30%-above-20 lakh slabs).
+ */
+export function inNewRegimeSlabLines(): string[] {
+  return IN_NEW_SLABS.map((s) => {
+    const pct = `${Math.round(s.rate * 1000) / 10}%`;
+    const lakh = (n: number) => String(Math.round((n / 1e5) * 100) / 100);
+    if (s.to === Infinity) return `Above ₹${lakh(s.from)} lakh: ${pct}`;
+    return `₹${lakh(s.from)}–${lakh(s.to)} lakh: ${pct}`;
+  });
+}
+
+/** The tax year the tables are for, as /tax names it ("2026-27"). */
+export const IN_TAX_YEAR_LABEL = 'tax year 2026-27';

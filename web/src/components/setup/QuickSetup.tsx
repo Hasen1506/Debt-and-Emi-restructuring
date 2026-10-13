@@ -656,6 +656,7 @@ export function QuickSetup() {
                     currency={userCcy}
                     value={takeHome}
                     onChange={setTakeHome}
+                    placeholder={userCcy === 'INR' ? 'e.g. 65,000 or 65k' : 'e.g. 6,500'}
                     hint={incomeType === 'salaried' ? 'After tax, what reaches your bank' : 'After business costs and tax'}
                     error={showErrors && !incomeOk ? 'Enter what reaches your bank each month.' : null}
                   />
@@ -666,6 +667,7 @@ export function QuickSetup() {
                   currency={userCcy}
                   value={spend}
                   onChange={setSpend}
+                  placeholder={userCcy === 'INR' ? 'e.g. 30,000 or 30k' : 'e.g. 3,000'}
                   hint="Rent, bills, food, travel: everything but loan and card payments"
                   error={showErrors && !spendOk ? 'Type a number, or leave it blank for none.' : null}
                 />
@@ -1018,6 +1020,7 @@ function LoanBlock({
           kind="money"
           currency={ccy}
           value={loan.outstanding}
+          placeholder={ccy === 'INR' ? (card ? 'e.g. 1,50,000' : 'e.g. 25,00,000 or 25L') : card ? 'e.g. 5,000' : 'e.g. 250,000'}
           onChange={(v) => onPatch({ outstanding: v, estimated_fields: withEstimate(loan, 'balance', false).estimated_fields })}
           hint={estimated.has('balance') ? 'An estimate from what you borrowed. Replace it with your statement’s figure when you can.' : undefined}
           error={issues.balance}

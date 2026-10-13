@@ -4,6 +4,9 @@ import { LToolPageHeader } from '@/components/ledger/LToolPageHeader';
 import { LBracket } from '@/components/ledger/primitives';
 import { newDebtMode } from '@/lib/new-debt-mode';
 
+/** Its own tab title (UX50 C-26 / E-15). */
+export const metadata = { title: 'New debt · RightDue' };
+
 /**
  * New debt check, with Big purchase merged in (roadmap PR I): one place
  * to check new debt before signing. "A loan or EMI offer" is the loan the

@@ -1,6 +1,9 @@
 import { LShell } from '@/components/ledger/primitives';
 import { TaxPage } from '@/components/tax/TaxPage';
 
+/** Its own tab title (UX50 C-26 / E-15). */
+export const metadata = { title: 'Tax · RightDue' };
+
 export const dynamic = 'force-dynamic';
 
 /**

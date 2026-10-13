@@ -157,3 +157,16 @@ export function amountForCaller(raw: string, currency: AmountCurrency = 'INR'): 
   const v = parseAmountText(raw, currency).value;
   return v === null ? '' : v;
 }
+
+/**
+ * A limit or slab edge in words, one way everywhere (UX50 C-19): "₹2 lakh",
+ * "₹1.5 lakh", "₹1 crore", "₹75,000" — never "₹2L", which a screen reader
+ * says as "rupees two L". Whole thousands under a lakh keep en-IN digits.
+ */
+export function formatScale(n: number): string {
+  if (!Number.isFinite(n)) return '';
+  const trim = (x: number) => String(Math.round(x * 100) / 100);
+  if (n >= 1e7) return `₹${trim(n / 1e7)} crore`;
+  if (n >= 1e5) return `₹${trim(n / 1e5)} lakh`;
+  return `₹${Math.round(n).toLocaleString('en-IN')}`;
+}

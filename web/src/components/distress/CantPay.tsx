@@ -352,7 +352,7 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
   // C-06: start from what section 1 says this loan gets: the part paid when
   // it is short, its EMI when covered. The user can change it.
   const suggested = pick.covered === 'full' ? pick.required : pick.pay;
-  const canPay = canPayText ?? groupIN(String(Math.round(suggested)));
+  const canPay = canPayText ?? (suggested > 0 ? groupIN(String(Math.round(suggested))) : '');
   const lender = lenderText ?? pick.bank;
   const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
   const canPayNum = num(canPay);

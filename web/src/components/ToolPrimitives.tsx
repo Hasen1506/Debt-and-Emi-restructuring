@@ -287,12 +287,15 @@ export function Field({
         onBlur={handleBlur}
         type={kind === 'date' ? 'date' : 'text'}
         inputMode={
-          kind === 'decimal' || isPercent ? 'decimal' : kind === 'integer' ? 'numeric' : 'text'
+          // Money opens the number pad too (UX50 C-03); the live hint still
+          // spells the scale ("= ₹25 lakh"), and "25L" typed on a full
+          // keyboard is still read.
+          kind === 'decimal' || isPercent || isMoney ? 'decimal' : kind === 'integer' ? 'numeric' : 'text'
         }
         autoComplete={kind === 'text' || isMoney ? 'off' : undefined}
         placeholder={
           placeholder ??
-          (isMoney ? (currency === 'INR' ? 'e.g. 25,00,000 or 25L' : 'e.g. 250,000 or 250k') : undefined)
+          (isMoney ? (currency === 'INR' ? 'e.g. 1,50,000' : 'e.g. 15,000') : undefined)
         }
         list={list}
         style={{

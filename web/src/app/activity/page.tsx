@@ -3,6 +3,9 @@ import { loadPlanFromCookies, loadPlanInputsFromCookies } from '@/components/pla
 import { payThisMonth } from '@/lib/pay-this-month';
 import { LedgerInsights } from '@/components/insights/LedgerInsights';
 
+/** Its own tab title (UX50 C-26 / E-15). */
+export const metadata = { title: 'Activity · RightDue' };
+
 export const dynamic = 'force-dynamic';
 
 export default async function ActivityRoute() {

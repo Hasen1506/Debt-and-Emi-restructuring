@@ -12,6 +12,7 @@
  * `ADD_LIFE_EVENT` (the rate-reset reminder opens "new rate" for its loan).
  */
 import { useEffect, useState, useTransition } from 'react';
+import { smoothOrAuto } from '@/lib/motion';
 import { useRouter } from 'next/navigation';
 import type { UserPayload } from '@/lib/api';
 import {
@@ -54,7 +55,7 @@ export function LifecycleEventsPanel({ user, configuredLoans = user.loans }: { u
       const d = (e as CustomEvent<{ kind?: LifecycleKind; loanIndex?: number }>).detail ?? {};
       open(d.kind, d.loanIndex);
       requestAnimationFrame(() =>
-        document.getElementById('life-events')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+        document.getElementById('life-events')?.scrollIntoView({ behavior: smoothOrAuto(), block: 'start' }),
       );
     };
     window.addEventListener(ADD_LIFE_EVENT, onAdd);

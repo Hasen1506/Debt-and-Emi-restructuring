@@ -14,6 +14,9 @@ export const metadata: Metadata = {
   twitter: { card: 'summary_large_image', images: ['/og-loan-check.png'] },
 };
 
+/** Its own tab title (UX50 C-26 / E-15). */
+export const metadata = { title: 'Loan check · RightDue' };
+
 export default function LoanCheckPage() {
   return (
     <LToolPageHeader id="loan-check">

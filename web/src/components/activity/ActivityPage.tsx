@@ -11,6 +11,7 @@
  * cookie (lib/lifecycle-events). Every save re-runs the plan.
  */
 import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 'react';
+import { smoothOrAuto } from '@/lib/motion';
 import { useRouter } from 'next/navigation';
 import { formatCurrencyWhole, type PlanRunArgs, type UserPayload } from '@/lib/api';
 import type { RolledLoan } from '@/lib/roll-forward';
@@ -272,7 +273,7 @@ export function ActivityPage({
   function jump(m: MonthGroup, i: number) {
     const opening = !isOpen(m, i);
     setOpen({ ...open, [m.month]: opening });
-    if (opening) requestAnimationFrame(() => document.getElementById(`month-${m.month}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    if (opening) requestAnimationFrame(() => document.getElementById(`month-${m.month}`)?.scrollIntoView({ behavior: smoothOrAuto(), block: 'start' }));
   }
 
   const count = valid.length + Object.keys(spend.reduce<Record<string, 1>>((a, e) => ({ ...a, [e.monthIso]: 1 }), {})).length;
@@ -575,7 +576,7 @@ function Row({ r, wide, onAct }: { r: HistoryRow; wide: boolean; onAct: (row: Hi
       </span>
       {/* Under the row, left-aligned and side by side: squeezed into the
           middle column, MARK PAID and OTHER AMOUNT stacked at the right. */}
-      <span style={{ gridColumn: '2 / -1', marginTop: 6 }}><Actions r={r} onAct={onAct} start /></span>
+      <span role="cell" style={{ gridColumn: '2 / -1', marginTop: 6 }}><Actions r={r} onAct={onAct} start /></span>
     </div>
   );
 }

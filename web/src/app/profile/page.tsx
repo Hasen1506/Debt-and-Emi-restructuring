@@ -3,6 +3,9 @@ import { loadProfileServer } from '@/lib/user-store';
 import { StrategyCompare, StrategyCompareLoading } from '@/components/personas/StrategyCompare';
 import { ProfileClient } from './ProfileClient';
 
+/** Its own tab title (UX50 C-26 / E-15). */
+export const metadata = { title: 'Profile · RightDue' };
+
 export const dynamic = 'force-dynamic';
 
 /**
