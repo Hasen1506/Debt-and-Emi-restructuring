@@ -305,6 +305,11 @@ export function LoanCheckTool() {
             />
           </LFieldGrid>
           <div>
+            {/* UX50 C-16: the KFS has the starting rate; the import was hidden in Profile → Loans → [EDIT]. */}
+            <p data-testid="loan-check-import-link" style={{ margin: '0 0 8px', fontSize: 12, lineHeight: 1.5 }}>
+              Have the KFS or sanction letter? It shows the starting rate.{' '}
+              <a href="/profile?step=loans" style={{ color: 'var(--accent)' }}>[IMPORT IT ON PROFILE →]</a>
+            </p>
             <LChipRow label="The rate it started at">
               <LChip on={startMode === 'headline'} onClick={() => setStartMode('headline')}>
                 One rate

@@ -145,3 +145,10 @@ test('R6B-9: choosing a strategy offline saves it, says so, and refreshes on rec
   assert.equal(m.isOfflineNow({ onLine: true }), false);
   assert.equal(m.isOfflineNow(undefined), false);
 });
+
+test('UX50 C-16: Loan check links to the KFS import beside the starting rate', () => {
+  const t = src('app/tools/loan-check/tool.tsx');
+  assert.match(t, /data-testid="loan-check-import-link"/);
+  assert.match(t, /href="\/profile\?step=loans"/);
+  assert.ok(t.indexOf('loan-check-import-link') < t.indexOf('label="The rate it started at"'));
+});
