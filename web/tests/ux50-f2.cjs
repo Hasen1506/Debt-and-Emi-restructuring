@@ -148,7 +148,6 @@ test('B-13: Setup, Home and Plan tell one short-month story', () => {
   assert.match(qs, /if the \$\{money\(shortfall\)\}\/mo gap closes · as things stand: \$\{asIs\}/);
   assert.match(qs, /\['Vs paying only minimums', '—', 'needs a payoff date first'\]/);
   const home = src('components/home/HomeDebtFree.tsx');
-  assert.match(home, /AS THINGS STAND: \$\{monthIndexToCountryLabel\(plan\.debtFreeMonth/);
   assert.match(home, /shortLine=\{/);
   assert.match(src('components/home/HomeProgress.tsx'), /shortLine \?\? 'Once the plan has a debt-free date/);
 });

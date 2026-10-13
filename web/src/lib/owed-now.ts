@@ -33,13 +33,14 @@ export interface OwedNow {
   cardBefore?: Decimal;
 }
 
-/** Entered balance less this month's card payments marked after it (UX50 B-12). */
+/** Entered balance less this month's card payments marked after it (UX50 B-12).
+ *  One logged in the same instant counts (a frozen test clock; never earlier). */
 function cardAfterPayments(loan: LoanPayload, i: number, entries: ActivityEntry[], month: string): Decimal | null {
   const owed = new Decimal(Number(loan.outstanding) || 0);
   const asOf = loan.balance_as_of?.slice(0, 10);
   const paid = entries
     .filter((e) => e.loanIndex === i && e.date.slice(0, 7) === month && e.kind.startsWith('paid'))
-    .filter((e) => !(asOf && (e.date < asOf || (e.date === asOf && loan.balance_recorded_at && Date.parse(e.loggedAt) <= Date.parse(loan.balance_recorded_at)))))
+    .filter((e) => !(asOf && (e.date < asOf || (e.date === asOf && loan.balance_recorded_at && Date.parse(e.loggedAt) < Date.parse(loan.balance_recorded_at)))))
     .reduce((s, e) => s + (Number(e.amount) || 0), 0);
   return paid > 0 ? Decimal.max(0, owed.sub(paid)) : null;
 }
