@@ -335,11 +335,14 @@ def _never_clears(result, user) -> bool:
     return owed and result.debt_free_month is None
 
 
-def _non_amortising_response(user) -> SimulateResponse | None:
-    """Live re-test NEW-3: a loan whose EMI doesn't cover its interest never
-    clears. Say so explicitly instead of running a 1,200-month schedule."""
+def _non_amortising_response(user, result) -> SimulateResponse | None:
+    """Live re-test NEW-3: a loan whose EMI doesn't cover its interest, in a
+    plan that never clears (no extra payment rescues it). Say so explicitly
+    and return no schedule, instead of a 1,200-month run whose compounded
+    totals the UI printed as 25-digit figures. A plan whose extra payments
+    do clear it is returned as normal."""
     bad = non_amortising_loans(user)
-    if not bad:
+    if not bad or result.debt_free_month is not None:
         return None
     return SimulateResponse(
         debt_free_month=None,
@@ -362,9 +365,6 @@ def _non_amortising_response(user) -> SimulateResponse | None:
 @router.post("/simulate", response_model=SimulateResponse)
 def simulate(req: SimulateRequest) -> SimulateResponse:
     user = req.user.to_engine()
-    stop = _non_amortising_response(user)
-    if stop is not None:
-        return stop
     # simulate_plan mutates these goal states (saved_so_far, saved_at_target);
     # afterwards they carry the end-of-trajectory state for the fill rates.
     # The snapshot builder below gets its own fresh copy.
@@ -376,6 +376,9 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         user, strategy=req.strategy, horizon_months=req.horizon_months,
         marginal_rate=req.marginal_rate, **kwargs,
     )
+    stop = _non_amortising_response(user, result)
+    if stop is not None:
+        return stop
     return SimulateResponse(
         **_gap_fields(result),
         gap_closed=_gap_closed(user, req, closed_kwargs, result),
@@ -446,9 +449,6 @@ def goals_tradeoff(req: GoalTradeoffRequest) -> GoalTradeoffResponse:
 @router.post("/baseline", response_model=SimulateResponse)
 def baseline(req: BaselineRequest) -> SimulateResponse:
     user = req.user.to_engine()
-    stop = _non_amortising_response(user)
-    if stop is not None:
-        return stop
     result = baseline_minimums_only(
         user, horizon_months=req.horizon_months, simple_mode=req.simple_mode,
         lifecycle_events=(
@@ -456,6 +456,9 @@ def baseline(req: BaselineRequest) -> SimulateResponse:
         ),
         gap_as_debt=req.gap_as_debt,
     )
+    stop = _non_amortising_response(user, result)
+    if stop is not None:
+        return stop
     return SimulateResponse(
         **_gap_fields(result),
         debt_free_month=result.debt_free_month,
@@ -476,13 +479,6 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
     """Runs baseline vs scenario and diffs them. Exactly one what-if knob
     should be set per request — if multiple are set, they stack."""
     user = req.user.to_engine()
-    if non_amortising_loans(user):
-        # Live re-test NEW-3: a loan that never clears; no 1,200-month runs.
-        return CompareResponse(
-            baseline_debt_free_month=None, scenario_debt_free_month=None,
-            months_pulled_forward=D("0"), interest_saved=D("0"), extra_invested=D("0"),
-            baseline_never_clears=True, scenario_never_clears=True,
-        )
     plan = _plan_kwargs(req)
     sm = plan.pop("simulation_start_month")
     base = simulate_plan(
@@ -542,6 +538,15 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
             simulation_start_month=sm, plan=plan,
         )
 
+    if non_amortising_loans(user) and base.debt_free_month is None:
+        # Live re-test NEW-3: a loan that never clears; no unbounded totals.
+        return CompareResponse(
+            baseline_debt_free_month=None, scenario_debt_free_month=scenario_result.debt_free_month,
+            months_pulled_forward=D("0"), interest_saved=D("0"), extra_invested=D("0"),
+            baseline_total_interest=D("0"), scenario_total_interest=D("0"),
+            baseline_never_clears=True,
+            scenario_never_clears=_never_clears(scenario_result, user),
+        )
     diff = compare(base, scenario_result)
     t = tenure
     return CompareResponse(

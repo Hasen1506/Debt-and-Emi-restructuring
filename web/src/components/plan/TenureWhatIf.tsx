@@ -83,6 +83,14 @@ export function TenureWhatIf({ plan }: { plan: PlanData }) {
     m ? monthIndexToCountryLabel(m, user.country) : 'not within 30 years';
   const extraInterest = r ? Number(r.scenario_total_interest ?? 0) - Number(r.baseline_total_interest ?? 0) : 0;
   const gapAfter = r ? Number(r.scenario_shortfall ?? 0) : 0;
+  // Live re-test NEW-2: a side that never clears has an unbounded interest
+  // total (25-digit figures); never print the difference then.
+  const owed = user.loans.reduce((s, l) => s + Math.max(0, Number(l.outstanding) || 0), 0);
+  const neverClears =
+    !!r &&
+    (!!r.baseline_never_clears || !!r.scenario_never_clears ||
+      r.baseline_debt_free_month == null || r.scenario_debt_free_month == null ||
+      !Number.isFinite(extraInterest) || Math.abs(extraInterest) > Math.max(1, owed) * 100);
 
   return (
     <section id="tenure-what-if" aria-labelledby="tenure-whatif" style={{ border: `1px solid ${L_T.ink}`, padding: '12px 16px', fontSize: 12, lineHeight: 1.7 }}>
@@ -138,7 +146,11 @@ export function TenureWhatIf({ plan }: { plan: PlanData }) {
             <>This month you&apos;d still be short {fc(gapAfter)}.</>
           )}{' '}
           Debt-free: {label(r.scenario_debt_free_month)} (as things stand: {label(r.baseline_debt_free_month)}).{' '}
-          {extraInterest >= 1
+          {neverClears
+            ? r.scenario_never_clears
+              ? "At this tenure the debt still doesn't clear, so there's no interest total to compare."
+              : 'As things stand the debt never clears; with this tenure it does.'
+            : extraInterest >= 1
             ? `About ${fc(extraInterest)} more interest over the plan.`
             : extraInterest <= -1
               ? `About ${fc(-extraInterest)} less interest over the plan, because the gap borrowing at card rates shrinks.`

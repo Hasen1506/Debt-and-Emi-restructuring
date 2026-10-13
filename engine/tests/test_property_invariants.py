@@ -246,3 +246,76 @@ def test_flat_rate_never_reads_cheaper_than_reducing(f, n):
     assert reducing >= f - D("0.0001")
     flat_emi = (1 + f * n / 12) / n
     assert abs(emi(D("1"), reducing, n) - flat_emi) <= D("0.00001")
+
+
+# ── Live re-test 13 Oct (NEW-2/NEW-3): finite and bounded, or flagged ───────
+#
+# A home loan typed 10x too large (₹2.5 crore at 8.6% with a ₹22,000 EMI)
+# ran a 1,200-month schedule and the UI printed 25-digit rupee figures.
+# For ANY input the plan is either a normal result (cleared before the
+# horizon, finite, totals within a sane multiple of what is owed) or it is
+# explicitly flagged: a loan non_amortising_loans() names, or a result whose
+# debt_free_month is None (the API reports that as never_clears).
+
+from engine.simulation import non_amortising_loans  # noqa: E402
+
+SANE_MULTIPLE = D(100)
+
+
+@st.composite
+def users_maybe_infeasible(draw):
+    """Users where one EMI loan may be scaled into infeasibility: balance x10
+    (the typo) or EMI cut to a fraction of the interest."""
+    u = draw(users(types=EMI_TYPES))
+    emi_idx = [i for i, l in enumerate(u.loans) if l.loan_type != LoanType.CREDIT_CARD and l.scheduled_emi > 0]
+    if emi_idx and draw(st.booleans()):
+        i = draw(st.sampled_from(emi_idx))
+        how = draw(st.sampled_from(["x10", "emi_cut"]))
+        l = u.loans[i]
+        if how == "x10":
+            l.outstanding = l.outstanding * 10
+        else:
+            l.scheduled_emi = max(D("1"), (l.outstanding * l.nominal_rate / 12 * D("0.5")).quantize(CENT))
+    return u
+
+
+@settings(max_examples=examples(60), deadline=None)
+@given(u=users_maybe_infeasible(), s=STRATEGIES)
+def test_plan_is_bounded_or_flagged_never_clears(u, s):
+    bad = non_amortising_loans(u)
+    for i, l in enumerate(u.loans):
+        interest = l.outstanding * l.nominal_rate / 12
+        if (l.loan_type != LoanType.CREDIT_CARD and l.outstanding > 0 and l.nominal_rate > 0
+                and 0 < l.scheduled_emi <= interest and not getattr(l, "forgiveness_track", None)):
+            assert i in [b.loan_index for b in bad], "EMI below interest must be flagged"
+    if bad:
+        return  # the API returns never_clears + non_amortising and no schedule
+    owed = _initial_user_ccy(u)
+    horizon = 360
+    for result in (simulate_plan(u, strategy=s, horizon_months=horizon), baseline_minimums_only(u, horizon_months=horizon)):
+        if result.debt_free_month is None:
+            continue  # flagged: the API says never_clears
+        # A normal result: cleared inside the horizon, finite and bounded.
+        assert result.debt_free_month <= horizon
+        assert result.total_interest_paid.is_finite()
+        assert result.total_interest_paid <= owed * SANE_MULTIPLE + 1, (result.total_interest_paid, owed)
+        peak = max((row.balance_in_user_currency for row in result.months), default=D(0))
+        assert peak <= owed * SANE_MULTIPLE + 1, (peak, owed)
+
+
+def test_live_retest_persona_10x_home_loan_is_flagged():
+    """₹2.5 crore at 8.6% with a ₹22,000 EMI: interest ≈ ₹1,79,167 a month."""
+    from engine.models import User  # noqa: F401
+    home = Loan(loan_type=LoanType.HOME, bank="", outstanding=D("25000000"), nominal_rate=D("0.086"),
+                rate_type="floating", tenure_months_remaining=0, scheduled_emi=D("22000"))
+    ok = Loan(loan_type=LoanType.HOME, bank="", outstanding=D("2500000"), nominal_rate=D("0.086"),
+              rate_type="floating", tenure_months_remaining=0, scheduled_emi=D("22000"))
+
+    class _U:  # non_amortising_loans reads only .loans
+        def __init__(self, loans):
+            self.loans = loans
+
+    bad = non_amortising_loans(_U([ok, home]))
+    assert [b.loan_index for b in bad] == [1]
+    assert bad[0].monthly_interest == D("179166.67")
+    assert non_amortising_loans(_U([ok])) == []
