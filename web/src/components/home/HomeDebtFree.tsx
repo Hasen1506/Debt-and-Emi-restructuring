@@ -24,7 +24,7 @@ import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
 import { homeThisMonthLine } from '@/lib/home-this-month';
-import { L_T, lStrip } from '@/components/ledger/primitives';
+import { HomeThisMonth } from './HomeThisMonth';
 
 // One engine run per request, shared by the value and its caption.
 const loadPlanOnce = cache(loadPlanFromCookies);
@@ -270,18 +270,7 @@ export async function HomeThisMonthStrip() {
   const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country));
   const line = homeThisMonthLine(payThisMonth(plan), plan.shortfall, fc);
   if (!line) return null;
-  return (
-    <section
-      aria-label="This month"
-      data-testid="home-this-month"
-      style={{ padding: '12px 14px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, ...lStrip(line.tone === 'short' ? 'negative' : 'accent') }}
-    >
-      <div style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
-      <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
-        {line.text} <LBracket href="#home-pay">{line.link}</LBracket>
-      </p>
-    </section>
-  );
+  return <HomeThisMonth line={line} />;
 }
 
 /** Cheaper rates the engine found for these loans (REDESIGN R2.4). */

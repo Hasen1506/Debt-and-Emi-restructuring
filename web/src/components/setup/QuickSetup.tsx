@@ -168,6 +168,9 @@ export function QuickSetup() {
   const [takeHome, setTakeHome] = useState('');
   const [spend, setSpend] = useState('');
   const [spendAtStart, setSpendAtStart] = useState('');
+  // UX50 B-28: the loan just removed, while it can be brought back.
+  const [removed, setRemoved] = useState<{ loan: LoanPayload; index: number; name: string } | null>(null);
+  const undoTimer = useRef<number | null>(null);
   // UX50 B-35: a typed ₹0 is used only once confirmed.
   const [zeroSpendOk, setZeroSpendOk] = useState(false);
 
@@ -839,9 +842,32 @@ export function QuickSetup() {
                   thisMonth={thisMonth}
                   onPatch={(p) => patchLoan(i, p)}
                   onUi={(p) => setUiOf(l.id, p)}
-                  onRemove={() => setLoans((cur) => cur.filter((_, j) => j !== i))}
+                  onRemove={() => {
+                    // UX50 B-28: a filled loan can be brought back for a few seconds.
+                    const filled = [l.outstanding, l.nominal_rate, l.scheduled_emi].some((v) => (v ?? '').trim() !== '');
+                    if (filled) {
+                      if (undoTimer.current) window.clearTimeout(undoTimer.current);
+                      setRemoved({ loan: l, index: i, name: setupLoanName(loans, i) });
+                      undoTimer.current = window.setTimeout(() => setRemoved(null), 8000);
+                    }
+                    setLoans((cur) => cur.filter((_, j) => j !== i));
+                  }}
                 />
               ))}
+              {removed && (
+                <p role="status" style={{ margin: '4px 0', fontSize: 13 }}>
+                  {removed.name} removed.{' '}
+                  <LBracket
+                    onClick={() => {
+                      const r = removed;
+                      setLoans((cur) => [...cur.slice(0, r.index), r.loan, ...cur.slice(r.index)]);
+                      setRemoved(null);
+                    }}
+                  >
+                    UNDO
+                  </LBracket>
+                </p>
+              )}
               <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', padding: '12px 0' }}>
                 <LBracket accent onClick={() => setLoans((cur) => [...cur, blankLoan()])}>
                   + ADD {loans.length === 0 ? 'A' : 'ANOTHER'} LOAN
