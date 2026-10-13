@@ -7,6 +7,7 @@
  * card dates, fees, holdings) lives in Profile, and is kept untouched when a
  * saved profile is edited here.
  */
+import { engineRequests, isAbortError, PREVIEW_DEBOUNCE_MS } from '@/lib/engine-requests';
 import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { SAFE_RATES } from '@/lib/invest-vs-prepay';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -436,29 +437,48 @@ export function QuickSetup() {
     const asOf = localIsoDate(getCountryToday(built.country));
     const stamped = stampBalanceDates(built.loans, prev?.loans ?? [], asOf);
     const user: UserPayload = { ...built, loans: prepareLoanPaymentTiming(rollBalancesForward(stamped, asOf.slice(0, 7)).loans, asOf.slice(0, 7)) };
+    // NEW-19: the API doesn't read the setup's own record of what was
+    // confirmed; left in, it would make every choice click look like a new
+    // baseline request.
+    const planUser: UserPayload = { ...user };
+    delete planUser.assumptions;
     let live = true;
     setPreview(null);
     setPreviewError(null);
     if (user.loans.length === 0) return;
-    Promise.all([
-      api.simulate({
-        user,
-        strategy: pickedStrategy ?? readStrategyClient(),
-        horizon_months: HORIZON_MONTHS,
-        marginal_rate: marginalRate,
-        simulation_start_month: getCountryMonth(user.country),
-        // Plan's emergency-fund split, so the two show the same numbers.
-        ef_top_up_rate:
-          Number(user.efund_target ?? 0) > 0 && Number(user.efund_balance ?? 0) < Number(user.efund_target)
-            ? (pickedSplit ?? readEfSplitClient())
-            : undefined,
-      }),
-      api.baseline({ user, horizon_months: HORIZON_MONTHS }),
-    ])
-      .then(([plan, minimums]) => live && setPreview({ plan, minimums, loans: user.loans }))
-      .catch(() => live && setPreviewError("The plan couldn't be worked out just now. You can still save, and Home will try again."));
+    // NEW-19: wait until the choices stop changing, cancel what a newer
+    // choice replaced, and reuse an identical run (the minimums-only
+    // baseline doesn't depend on the strategy or the split, so a strategy
+    // click doesn't re-run it).
+    const controller = new AbortController();
+    const simArgs = {
+      user: planUser,
+      strategy: pickedStrategy ?? readStrategyClient(),
+      horizon_months: HORIZON_MONTHS,
+      marginal_rate: marginalRate,
+      simulation_start_month: getCountryMonth(user.country),
+      // Plan's emergency-fund split, so the two show the same numbers.
+      ef_top_up_rate:
+        Number(user.efund_target ?? 0) > 0 && Number(user.efund_balance ?? 0) < Number(user.efund_target)
+          ? (pickedSplit ?? readEfSplitClient())
+          : undefined,
+    };
+    const baselineArgs = { user: planUser, horizon_months: HORIZON_MONTHS };
+    const timer = setTimeout(() => {
+      Promise.all([
+        engineRequests.run('simulate', simArgs, (signal) => api.simulate(simArgs, { signal }), controller.signal),
+        engineRequests.run('baseline', baselineArgs, (signal) => api.baseline(baselineArgs, { signal }), controller.signal),
+      ])
+        .then(([plan, minimums]) => live && setPreview({ plan, minimums, loans: user.loans }))
+        .catch((e) => {
+          if (!live || isAbortError(e)) return;
+          setPreviewError("The plan couldn't be worked out just now. You can still save, and Home will try again.");
+        });
+    }, PREVIEW_DEBOUNCE_MS);
     return () => {
       live = false;
+      clearTimeout(timer);
+      controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runKey]);

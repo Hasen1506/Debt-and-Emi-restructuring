@@ -22,6 +22,7 @@
  * is queued for v2 (see ROADMAP / project memory).
  */
 
+import { ivpAnswerNote } from '@/lib/ivp-answer-note';
 import { INFLATION_FORECAST, readInflationRateClient } from '@/lib/inflation-modeling';
 import { useEffect, useMemo, useState } from 'react';
 import Decimal from 'decimal.js';
@@ -186,6 +187,14 @@ export function InvestVsPrepayDeepTool() {
     vol: swings ? percentTextError(volPct, { max: 500, what: 'A swing' }) : null,
     inflation: swings ? percentTextError(inflationPct, { min: -50, what: 'Inflation' }) : null,
   };
+
+  // R4-1: name the field that stops the answer, not always the first two.
+  const answerNote = ivpAnswerNote([
+    { name: 'the loan’s rate', text: loanRatePct, error: rateErrors.loan },
+    { name: 'your tax rate', text: marginalPct, error: rateErrors.marginal },
+    { name: inst.asOf ? 'today’s rate' : 'what it earns a year', text: expReturnPct, error: rateErrors.ret },
+    { name: 'how much it swings', text: volPct, error: rateErrors.vol, shown: swings },
+  ]);
 
   const result = useMemo(() => {
     if (percentTextError(loanRatePct) || percentTextError(marginalPct) || percentTextError(expReturnPct, { min: -99 })
@@ -363,7 +372,7 @@ export function InvestVsPrepayDeepTool() {
 
       <LStep no="02" id="ivp-out" title="The answer" answer>
         {result === null ? (
-          <LNote style={{ margin: 0 }}>Enter the loan&apos;s rate and your tax rate to see the answer.</LNote>
+          <LNote style={{ margin: 0 }}>{answerNote}</LNote>
         ) : (
           <>
             <LVerdict tone={tone}>{needsYield ? `Close: it turns on today's ${inst.name} rate.` : result.headline}</LVerdict>

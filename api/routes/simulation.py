@@ -14,6 +14,7 @@ from engine.sensitivity import (
 from engine.surplus import allocate_surplus, compute_available_surplus
 from engine.tenure_whatif import stretch_tenure
 
+from api.engine_cache import engine_cache
 from api.schemas import (
     GoalContributionOut, GoalFinalOut, GoalIn, GoalTradeoffOut, GoalTradeoffRequest,
     GoalTradeoffResponse, SimulateRequest,
@@ -411,6 +412,11 @@ def _non_amortising_response(user, result) -> SimulateResponse | None:
 
 @router.post("/simulate", response_model=SimulateResponse)
 def simulate(req: SimulateRequest) -> SimulateResponse:
+    # NEW-19: identical bodies are answered from a bounded LRU (api/engine_cache).
+    return engine_cache.get_or_run("simulate", req, lambda: _simulate_uncached(req))
+
+
+def _simulate_uncached(req: SimulateRequest) -> SimulateResponse:
     user = req.user.to_engine()
     # simulate_plan mutates these goal states (saved_so_far, saved_at_target);
     # afterwards they carry the end-of-trajectory state for the fill rates.
@@ -494,6 +500,11 @@ def goals_tradeoff(req: GoalTradeoffRequest) -> GoalTradeoffResponse:
 
 @router.post("/baseline", response_model=SimulateResponse)
 def baseline(req: BaselineRequest) -> SimulateResponse:
+    # NEW-19: identical bodies are answered from a bounded LRU (api/engine_cache).
+    return engine_cache.get_or_run("baseline", req, lambda: _baseline_uncached(req))
+
+
+def _baseline_uncached(req: BaselineRequest) -> SimulateResponse:
     user = req.user.to_engine()
     result = baseline_minimums_only(
         user, horizon_months=req.horizon_months, simple_mode=req.simple_mode,
@@ -522,6 +533,11 @@ def baseline(req: BaselineRequest) -> SimulateResponse:
 
 @router.post("/sensitivity/compare", response_model=CompareResponse)
 def sensitivity_compare(req: CompareRequest) -> CompareResponse:
+    # NEW-19: identical bodies are answered from a bounded LRU (api/engine_cache).
+    return engine_cache.get_or_run("compare", req, lambda: _sensitivity_compare_uncached(req))
+
+
+def _sensitivity_compare_uncached(req: CompareRequest) -> CompareResponse:
     """Runs baseline vs scenario and diffs them. Exactly one what-if knob
     should be set per request — if multiple are set, they stack."""
     user = req.user.to_engine()

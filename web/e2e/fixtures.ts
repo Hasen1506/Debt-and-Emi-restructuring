@@ -165,9 +165,10 @@ export async function makeSetupChoices(page: Page) {
   await expect(notNow).toHaveAttribute('aria-pressed', 'true');
   const order = page.getByRole('button', { name: /^Cheapest path \(Avalanche\)/ });
   if ((await order.count()) && (await order.getAttribute('aria-pressed')) !== 'true') {
-    const rerun = page.waitForResponse(isPlanCall('/api/simulate'));
+    // NEW-19: the preview re-runs after a short pause, or answers from
+    // memory when the same plan was just worked out (no request then), so
+    // wait for the preview itself rather than for a /api/simulate.
     await order.click();
-    await rerun;
     await expect(order).toHaveAttribute('aria-pressed', 'true');
   }
   await planPreviewSettled(page);
