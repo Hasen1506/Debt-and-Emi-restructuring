@@ -80,3 +80,58 @@ test('R2-3: the tenure what-if only talks about a gap when the plan is short', (
   assert.match(still.gap, /still be short ₹10,000/);
   assert.doesNotMatch(src('components/plan/TenureWhatIf.tsx'), /gapAfter <= 0\.5 \?/);
 });
+
+test('NEW-6: Plan chart labels, leaders and the minimums note never collide (390 → 1920)', () => {
+  const { layoutTrajectoryLabels } = require(path.join(root, 'components', 'ledger', 'LTrajectory.tsx'));
+  // Persona A: ₹30.5L; card clears Jan '27 (m4), personal Aug '27 (m11), home Jul '30 (m46).
+  const N = 46;
+  const pts = Array.from({ length: N + 1 }, (_, m) => {
+    const av = m <= 4 ? 1 - m * 0.03 : m <= 11 ? 0.88 - (m - 4) * 0.028 : Math.max(0, 0.68 * (1 - (m - 11) / 35));
+    return { t: m / N, av, min: 1 - m * 0.0045 };
+  });
+  const ms = [
+    { t: 4 / N, v: pts[4].av, label: "CARD · JAN '27" },
+    { t: 11 / N, v: pts[11].av, label: "PERSONAL LOAN · AUG '27" },
+    { t: 1, v: 0, label: "HOME LOAN · JUL '30" },
+  ];
+  const note = "MINIMUMS: CLEAR MAR '62 →";
+  for (const w of [340, 358, 390, 480, 768, 1232, 1880]) {
+    const narrow = w < 480;
+    const h = narrow ? 220 : 260, left = narrow ? 58 : 76, right = 14, top = 34, bottom = 26;
+    const toX = (t) => left + t * (w - left - right);
+    const toY = (v) => h - bottom - v * (h - top - bottom);
+    const { note: n, labels } = layoutTrajectoryLabels({ points: pts, milestones: ms, minimumsNote: note, w, left, right, top, toX, toY });
+    const CW = 5.9;
+    const box = (x0, x1, y) => ({ x0, x1, y0: y - 9, y1: y + 2 });
+    const lineAt = (key, x) => {
+      for (let i = 1; i < pts.length; i++) {
+        const xa = toX(pts[i - 1].t), xb = toX(pts[i].t);
+        if (x >= xa && x <= xb) return toY(pts[i - 1][key] + ((x - xa) / (xb - xa || 1)) * (pts[i][key] - pts[i - 1][key]));
+      }
+      return null;
+    };
+    const hitsLine = (b) => {
+      for (let x = b.x0; x <= b.x1; x += 1) for (const k of ['av', 'min']) { const y = lineAt(k, x); if (y !== null && y >= b.y0 && y <= b.y1) return k; }
+      return null;
+    };
+    const boxes = labels.map((l) => box(l.x0, l.x1, l.y));
+    const nb = box(w - right - note.length * CW, w - right, n.y);
+    assert.equal(hitsLine(nb), null, `w=${w}: minimums note on a line (y=${n.y})`);
+    labels.forEach((l, i) => {
+      assert.equal(hitsLine(boxes[i]), null, `w=${w}: "${l.label}" on a line`);
+      const ov = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+      assert.ok(!ov(boxes[i], nb), `w=${w}: "${l.label}" on the note`);
+      labels.forEach((o, j) => {
+        if (j === i) return;
+        assert.ok(!ov(boxes[i], boxes[j]), `w=${w}: "${l.label}" on "${o.label}"`);
+        // Another label's raised leader and drop line must not cross this box.
+        const segs = [[o.markY, h - bottom]];
+        if (o.raised) segs.push(o.y < o.markY ? [o.y + 3, o.markY - 5] : [o.y - 10, o.markY + 5]);
+        for (const [a, b] of segs) {
+          const crosses = o.x >= boxes[i].x0 && o.x <= boxes[i].x1 && Math.max(a, b) >= boxes[i].y0 && Math.min(a, b) <= boxes[i].y1;
+          assert.ok(!crosses, `w=${w}: "${o.label}" leader crosses "${l.label}"`);
+        }
+      });
+    });
+  }
+});
