@@ -71,7 +71,7 @@ export function bracketLabel(rate: number): string {
 export function mcNote(yearsRaw: string, inflationRaw: string): string {
   const bad: string[] = [];
   if (yearsRaw.trim() === '' || yearsHeldError(yearsRaw)) bad.push('the years held (whole years, 1 to 100)');
-  if (inflationRaw.trim() === '' || inflationError(inflationRaw)) bad.push(`"Prices rise a year" (${INFLATION_MIN} to ${INFLATION_MAX}%)`);
+  if (inflationRaw.trim() === '' || inflationError(inflationRaw)) bad.push('"Prices rise a year"');
   if (bad.length === 0) return '';
   return `Fix ${bad.join(' and ')} to see the 5,000 runs (beats the loan, keeps up with prices).`;
 }

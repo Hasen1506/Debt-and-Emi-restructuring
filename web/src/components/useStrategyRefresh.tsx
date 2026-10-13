@@ -18,6 +18,19 @@ export function isOfflineNow(nav: { onLine?: boolean } | undefined = typeof navi
   return !!nav && nav.onLine === false;
 }
 
+/** A tiny static file: can the site be reached right now? (navigator.onLine
+ *  isn't reliable in every browser.) */
+const PROBE = '/icon-192.png';
+async function reachable(): Promise<boolean> {
+  if (isOfflineNow()) return false;
+  try {
+    const r = await fetch(PROBE, { method: 'HEAD', cache: 'no-store' });
+    return r.ok || r.status < 500;
+  } catch {
+    return false;
+  }
+}
+
 export function useStrategyRefresh(): {
   pending: boolean;
   offline: boolean;
@@ -28,25 +41,40 @@ export function useStrategyRefresh(): {
   const [offline, setOffline] = useState(false);
   const waiting = useRef(false);
 
-  useEffect(() => {
-    const back = () => {
-      setOffline(false);
-      if (!waiting.current) return;
-      waiting.current = false;
-      startTransition(() => router.refresh());
-    };
-    window.addEventListener('online', back);
-    return () => window.removeEventListener('online', back);
-  }, [router]);
-
-  const refresh = useCallback(() => {
-    if (isOfflineNow()) {
-      waiting.current = true;
-      setOffline(true);
-      return;
-    }
+  const redraw = useCallback(() => {
+    waiting.current = false;
+    setOffline(false);
     startTransition(() => router.refresh());
   }, [router]);
+
+  // Waiting for the connection: on the 'online' event, and every few
+  // seconds in case a browser doesn't send it.
+  useEffect(() => {
+    if (!offline) return;
+    let stop = false;
+    const check = async () => {
+      if (!stop && waiting.current && (await reachable()) && !stop) redraw();
+    };
+    const back = () => void check();
+    window.addEventListener('online', back);
+    const t = setInterval(back, 4000);
+    return () => {
+      stop = true;
+      window.removeEventListener('online', back);
+      clearInterval(t);
+    };
+  }, [offline, redraw]);
+
+  const refresh = useCallback(() => {
+    void (async () => {
+      if (!(await reachable())) {
+        waiting.current = true;
+        setOffline(true);
+        return;
+      }
+      redraw();
+    })();
+  }, [redraw]);
 
   return { pending, offline, refresh };
 }

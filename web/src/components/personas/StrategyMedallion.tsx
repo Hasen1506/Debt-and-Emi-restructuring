@@ -234,7 +234,11 @@ export function StrategyMedallion({
           </a>
         </div>
       )}
-      <OfflineStrategyNote show={offline} style={{ alignSelf: 'center', marginLeft: 10, maxWidth: 320 }} />
+      {/* A toast: the masthead row has no room for a sentence. */}
+      <OfflineStrategyNote
+        show={offline}
+        style={{ position: 'fixed', left: 16, bottom: 16, zIndex: 40, maxWidth: 420, padding: '10px 12px', background: L_T.paper, border: `1px solid ${L_T.negative}` }}
+      />
     </div>
   );
 }
