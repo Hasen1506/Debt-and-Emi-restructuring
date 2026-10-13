@@ -58,6 +58,8 @@ interface HomeProps {
   cheaper?: ReactNode;
   /** The calm view's one step, streamed in by the page. */
   oneStep?: ReactNode;
+  /** UX50 B-11: this month's instruction in one line, streamed in by the page. */
+  thisMonth?: ReactNode;
 }
 
 export function LedgerHome(props: HomeProps) {
@@ -69,7 +71,7 @@ export function LedgerHome(props: HomeProps) {
   return <LedgerHomeFull {...props} />;
 }
 
-function LedgerHomeFull({ profile, debtFree, register, cheaper }: HomeProps) {
+function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrencyWhole(v, ccy);
@@ -98,6 +100,7 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper }: HomeProps) {
         <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
           Your month on one page: what comes in and goes out, what to pay now, and every loan you have.
         </p>
+        {thisMonth}
         <ContextLine profile={profile} />
         <CashFlow profile={profile} m={m} />
 

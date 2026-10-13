@@ -14,6 +14,7 @@ import { formatCurrency } from '@/lib/api';
 import type { AgeBracket, AssetPayload, UserPayload } from '@/lib/api';
 import { formatLoanAmount, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import { loanLabel } from '@/lib/loan-types';
+import { requiredMonthly } from '@/lib/min-payment';
 import { placeLabel } from '@/lib/locations';
 
 const AGE_LABEL: Record<AgeBracket, string> = {
@@ -175,7 +176,10 @@ export function ProfileSummary({
                     <td style={cell}>{formatLoanAmount(Number(l.outstanding), l, user.country, user.fx_to_user_currency)}</td>
                     <td style={cell}>{(Number(l.nominal_rate) * 100).toFixed(2)}%</td>
                     <td style={cell}>
-                      {l.loan_type === 'credit_card' ? <Muted>minimum</Muted> : formatLoanAmount(Number(l.scheduled_emi), l, user.country, user.fx_to_user_currency)}
+                      {l.loan_type === 'credit_card' ? (
+                        // UX50 B-07: the card's minimum, in figures, as on Home and Plan.
+                        requiredMonthly(l, user.country).gt(0) ? <>{formatLoanAmount(requiredMonthly(l, user.country).toNumber(), l, user.country, user.fx_to_user_currency)} <Muted>min.</Muted></> : <Muted>minimum</Muted>
+                      ) : formatLoanAmount(Number(l.scheduled_emi), l, user.country, user.fx_to_user_currency)}
                     </td>
                   </tr>
                 ))}

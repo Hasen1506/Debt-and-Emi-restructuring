@@ -87,6 +87,15 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
     : null;
   // A gap that is never repaid only grows: its interest total is not a
   // number to plan with.
+  const tenureWhatIf = (
+    <TenureWhatIf
+      plan={plan}
+      onResult={(r, loanIndex, months) => {
+        setWhatIf(r && r.scenario_trajectory?.length ? { r, loanIndex, months } : null);
+        setShowBase(false);
+      }}
+    />
+  );
   const gapRunsAway = !!plan.gap?.firstBorrowMonth && !plan.debtFreeMonth;
   const clearLabel = shortStory
     ? shortStory.value
@@ -180,7 +189,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                         : interestSaved >= 1 && sane(interestSaved)
                           ? `${fc(interestSaved)} LESS THAN MINIMUMS`
                           : 'SAME AS PAYING MINIMUMS',
-                  tone: L_T.positive,
+                  // UX50 B-15: interest is a cost; not in the "good" colour.
+                  tone: L_T.ink,
                 },
             {
               l: 'TIME SAVED',
@@ -233,14 +243,10 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {!short && <PlanPace plan={plan} />}
 
         {plan.shortfall > 0 && <ShortfallBanner plan={plan} />}
-        {/* Live re-test L#26: offered whether or not this month is short. */}
-        <TenureWhatIf
-          plan={plan}
-          onResult={(r, loanIndex, months) => {
-            setWhatIf(r && r.scenario_trajectory?.length ? { r, loanIndex, months } : null);
-            setShowBase(false);
-          }}
-        />
+        {/* Live re-test L#26: offered whether or not this month is short.
+            UX50 B-15: up here only when short; otherwise after the chart and
+            the table (a longer tenure costs more for someone who isn't short). */}
+        {short && tenureWhatIf}
         {plan.futureShortfall && <div role="alert" style={{color:L_T.negative,fontSize:12}}>
           FUTURE FUNDING GAP · SHORT {fc(plan.futureShortfall.amount)} IN {monthIndexToCountryLabel(plan.futureShortfall.month,plan.user.country).toUpperCase()}.
           {plan.gap
@@ -276,6 +282,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {/* Month by month, collapsed to the months something happens;
             the next rate reset below */}
         <PlanSchedule plan={shownPlan} />
+        {!short && tenureWhatIf}
 
         {/* The next RBI / Fed decision, loan by loan, and whether to wait */}
         <RateDecisions plan={plan} />
@@ -354,7 +361,7 @@ function ShortfallBanner({ plan }: { plan: PlanData }) {
       </dl>
       Your costs ({fc(costs)}) and minimum payments ({fc(minimums)}) come to more
       than your income ({fc(income)}). The schedule below is <strong>as things stand</strong>:
-      each short month is paid from your emergency fund while it lasts, then
+      each short month is {Number(plan.user.efund_balance ?? 0) > 0 ? 'paid from your emergency fund while it lasts, then ' : ''}
       borrowed on {card}, and any money freed later pays that borrowing back
       first, before any loan gets extra.
       {gap && gap.peak > 0 && gap.peakMonth && !gap.repaidMonth

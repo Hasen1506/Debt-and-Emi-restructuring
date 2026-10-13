@@ -52,7 +52,8 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
       <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
         As entered in Profile, not linked to your bank: check them against a
         statement now and then. A loan moves on by its EMI once you mark it
-        paid; a card balance stays as entered until you update it.
+        paid; a card shows what you've paid this month off the balance you
+        entered, until you enter the next statement.
       </p>
       <StaleCardNudge user={user} />
       <FxRateLine user={user} nowMs={Date.now()} />
@@ -87,7 +88,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
             ),
             gaps.includes('emi') ? (
               missing('EMI')
-            ) : d.required.gt(0) ? (
+            ) : d.required.gt(0) && !(status && status !== 'paid') ? (
               `${isCard ? 'MINIMUM' : 'EMI'} ${fc(d.required.toFixed(0))}`
             ) : null,
             // Once this month's EMI is paid it's no longer one of the months left.
@@ -127,26 +128,40 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                 </div>
               </div>
               <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{fc(owed.toFixed(0))}</div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>
+                  {now.rows[d.index]?.cardBefore ? `≈ ${fc(owed.toFixed(0))}` : fc(owed.toFixed(0))}
+                </div>
+                {now.rows[d.index]?.cardBefore && (
+                  // UX50 B-12: the card moves when it's marked paid, as an
+                  // estimate until the next statement is entered.
+                  <div data-testid="card-paid-down" style={{ fontSize: 10, color: L_T.muted, maxWidth: 180, marginLeft: 'auto' }}>
+                    WAS {fc(now.rows[d.index]!.cardBefore!.toFixed(0))} · LESS THIS MONTH&apos;S PAYMENT, BEFORE INTEREST ·{' '}
+                    <a href="/profile?step=loans" style={{ color: L_T.accent }}>ENTER THE STATEMENT</a>
+                  </div>
+                )}
                 {ccy !== userCcy && !noFx && (
                   <div style={{ fontSize: 10, color: L_T.muted }}>
                     {convertedBalanceLine(formatCurrencyWhole(m.toUserCcy(owed, loan).toFixed(0), userCcy))}
                   </div>
                 )}
-                {status && (
-                  <div
-                    style={{
-                      fontSize: 10,
-                      letterSpacing: '0.08em',
-                      color: status === 'paid' ? L_T.positive : status === 'due' ? L_T.muted : L_T.negative,
-                    }}
-                  >
-                    {emiStatusLine(status, mon, nextMon, isCard ? 'MINIMUM' : 'EMI', !gaps.includes('emi') && d.required.gt(0) ? fc(d.required.toFixed(0)) : null)}
-                  </div>
-                )}
               </div>
+              {status && (
+                // UX50 B-06: the EMI status gets its own full-width line under
+                // the loan, so the details beside the balance don't wrap into
+                // a narrow column on a phone.
+                <div
+                  style={{
+                    gridColumn: '2 / -1',
+                    fontSize: 10,
+                    letterSpacing: '0.08em',
+                    color: status === 'paid' ? L_T.positive : status === 'due' ? L_T.muted : L_T.negative,
+                  }}
+                >
+                  {emiStatusLine(status, mon, nextMon, isCard ? 'MINIMUM' : 'EMI', !gaps.includes('emi') && d.required.gt(0) ? fc(d.required.toFixed(0)) : null)}
+                </div>
+              )}
               <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                {!gaps.includes('rate') && (
+                {!gaps.includes('rate') && d.effective.gt(0) && (
                   <LBracket onClick={() => setOpen(isOpen ? null : i)} label={`${isOpen ? 'Hide' : 'Show'} what the ${name} costs a year, line by line`}>
                     {isOpen ? 'HIDE' : `WHY ${fmtPct(d.effective)}? ↓`}
                   </LBracket>

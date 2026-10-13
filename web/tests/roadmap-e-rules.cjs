@@ -41,7 +41,8 @@ test('differential: the TypeScript rules order matches the engine on every fixtu
 
 test('Hybrid is migrated to "rules" with Hybrid\'s rule (cookie, synced slice, engine)', () => {
   const { normalizeStrategy, STRATEGIES, STRATEGY_LABEL } = lib('strategy.ts');
-  assert.deepEqual(STRATEGIES, ['avalanche', 'rules', 'snowball']);
+  // UX50 B-08: one order everywhere (cheapest, smallest, yours); was avalanche, rules, snowball.
+  assert.deepEqual(STRATEGIES, ['avalanche', 'snowball', 'rules']);
   assert.equal(normalizeStrategy('hybrid'), 'rules');
   assert.equal(normalizeStrategy('snowball'), 'snowball');
   assert.equal(normalizeStrategy('junk'), 'avalanche');

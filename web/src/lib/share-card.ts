@@ -32,7 +32,9 @@ export function shareLines(i: ShareInput): string[] {
   const lines: string[] = [];
   lines.push(i.debtFreeLabel ? `Debt-free by ${i.debtFreeLabel}` : 'Paying down my debts');
   if (i.monthsShaved > 0) lines.push(`${i.monthsShaved} month${i.monthsShaved === 1 ? '' : 's'} sooner than when I started`);
-  if (i.loansTotal > 0) lines.push(`${i.loansCleared} of ${i.loansTotal} loans cleared`);
+  // UX50 B-17: "0 of 3 cleared" on day one reads as a loss; say it started.
+  if (i.loansTotal > 0 && i.loansCleared > 0) lines.push(`${i.loansCleared} of ${i.loansTotal} loans cleared`);
+  else if (i.loansTotal > 0 && i.monthsShaved <= 0) lines.push('Started my payoff plan');
   return lines;
 }
 
@@ -51,7 +53,7 @@ export function shareCardSvg(i: ShareInput): string {
     .map((l, k) => `<text x="90" y="${610 + k * 70}" font-size="44" fill="#333">${esc(l)}</text>`)
     .join('');
   const pct = i.loansTotal > 0 ? Math.round((i.loansCleared / i.loansTotal) * 100) : 0;
-  const bar = i.loansTotal > 0
+  const bar = i.loansTotal > 0 && i.loansCleared > 0
     ? `<rect x="90" y="820" width="900" height="24" fill="#e5e1d8"/><rect x="90" y="820" width="${Math.round(9 * pct)}" height="24" fill="#1f6f43"/>`
     : '';
   return (
@@ -59,8 +61,8 @@ export function shareCardSvg(i: ShareInput): string {
     `<rect width="1080" height="1080" fill="#f6f3ec"/>` +
     `<rect x="40" y="40" width="1000" height="1000" fill="none" stroke="#111" stroke-width="6"/>` +
     `<text x="90" y="180" font-family="monospace" font-size="32" letter-spacing="6" fill="#666">RIGHTDUE · PROGRESS</text>` +
-    `<text x="90" y="470" font-family="Georgia, serif" font-size="84" font-weight="700" fill="#111">${esc(head)}</text>` +
-    `<g font-family="Georgia, serif">${sub}</g>${bar}` +
+    `<text x="90" y="470" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="72" font-weight="700" fill="#111">${esc(head)}</text>` +
+    `<g font-family="ui-monospace, Menlo, Consolas, monospace">${sub}</g>${bar}` +
     `<text x="90" y="960" font-family="monospace" font-size="26" fill="#666">No amounts shown · rightdue.app</text>` +
     `</svg>`
   );

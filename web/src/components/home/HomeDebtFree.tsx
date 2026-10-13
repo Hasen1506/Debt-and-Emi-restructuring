@@ -23,6 +23,8 @@ import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
+import { homeThisMonthLine } from '@/lib/home-this-month';
+import { HomeThisMonth } from './HomeThisMonth';
 
 // One engine run per request, shared by the value and its caption.
 const loadPlanOnce = cache(loadPlanFromCookies);
@@ -210,7 +212,7 @@ export async function HomePayThisMonth() {
             shortfall: plan.shortfall,
           }),
           (v) => fc(Math.round(v)),
-        )} Pay what you can, and call the bank before the due date.`
+        )} Pay every EMI and card minimum in full first: a missed one is reported to the credit bureaus and brings late fees. Find the gap from spending, or call the bank before the due date.`
       : plan.futureShortfall
         ? `From ${monthIndexToCountryLabel(plan.futureShortfall.month, country)}, the payments need more than you earn. See the plan.`
         : undefined;
@@ -239,12 +241,31 @@ export async function HomePayThisMonth() {
           currency: l.currency ?? userDefaultCurrency(country),
         }))}
         loansCleared={plan.user.loans.length - open.length}
+        shortLine={
+          // UX50 B-13: the same story as the Home and Plan headline.
+          plan.shortfall > 0
+            ? plan.gap?.closed?.debtFreeMonth
+              ? `Debt-free in ${monthIndexToCountryLabel(plan.gap.closed.debtFreeMonth, country)} if the ${fc(plan.shortfall)}/mo gap closes${plan.debtFreeMonth ? ` (as things stand: ${monthIndexToCountryLabel(plan.debtFreeMonth, country)})` : ''}. Once it closes, this counts the months you take off.`
+              : `No debt-free date while you're ${fc(plan.shortfall)} a month short. Once the gap closes, this counts the months you take off.`
+            : undefined
+        }
         pay={data}
         strategy={plan.strategy}
         monthLabel={monthLabel}
       />
     </>
   );
+}
+
+/** UX50 B-11: what to do this month, in one line at the top of Home. The
+ *  same engine run as the list below (cached per request). */
+export async function HomeThisMonthStrip() {
+  const plan = await loadPlanOnce();
+  if (plan.gaps.length > 0 || !plan.live) return null;
+  const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country));
+  const line = homeThisMonthLine(payThisMonth(plan), plan.shortfall, fc);
+  if (!line) return null;
+  return <HomeThisMonth line={line} />;
 }
 
 /** Cheaper rates the engine found for these loans (REDESIGN R2.4). */

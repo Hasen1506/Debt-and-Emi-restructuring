@@ -10,6 +10,7 @@ import {
   HomeDebtFreeValue,
   HomeMoveOneStep,
   HomePayThisMonth,
+  HomeThisMonthStrip,
 } from '@/components/home/HomeDebtFree';
 
 // Home streams the plan's date and this month's payments: the page paints
@@ -42,6 +43,11 @@ export default async function HomePage() {
         register={
           <Suspense fallback={<p aria-busy="true" style={{ fontSize: 12 }}>WORKING OUT THIS MONTH&apos;S PAYMENTS…</p>}>
             <HomePayThisMonth />
+          </Suspense>
+        }
+        thisMonth={
+          <Suspense fallback={null}>
+            <HomeThisMonthStrip />
           </Suspense>
         }
         cheaper={

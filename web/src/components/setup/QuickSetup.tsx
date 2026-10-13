@@ -55,8 +55,11 @@ import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIs
 import { loadProfileClient, type StoredProfile } from '@/lib/user-store';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward, stampBalanceDates, prepareLoanPaymentTiming } from '@/lib/roll-forward';
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
-import { HYDRATED_EVENT, flushPendingState } from '@/lib/server-sync';
+import { HYDRATED_EVENT, flushPendingState, signedInAccount } from '@/lib/server-sync';
 import { ONBOARDING_DONE_HREF } from '@/lib/onboarding-save';
+import { LAST_SEEN_KEY } from '@/lib/guest-return';
+import { formatAsOfDate } from '@/lib/loan-gaps';
+import { checkSpend, parseDraft, serializeDraft, SETUP_DRAFT_KEY, SPEND_COPY, stepFromParam, urlWithStep } from '@/lib/setup-draft';
 import { dateProfileRates } from '@/lib/fx-refresh';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
 import {
@@ -107,6 +110,30 @@ interface Preview {
   loans: LoanPayload[];
 }
 
+/** What Setup keeps in sessionStorage between Back, Forward and reload (B-10). */
+interface DraftState {
+  country?: Country;
+  isNriUs?: boolean;
+  incomeType?: IncomeType;
+  takeHome?: string;
+  spend?: string;
+  zeroSpendOk?: boolean;
+  loans?: LoanPayload[];
+  ui?: Record<string, LoanUi>;
+  fxRates?: Record<string, string>;
+  choices?: Choices;
+}
+
+function readDraft() {
+  try {
+    const d = parseDraft<DraftState>(window.sessionStorage.getItem(SETUP_DRAFT_KEY), Date.now());
+    if (!d) window.sessionStorage.removeItem(SETUP_DRAFT_KEY);
+    return d;
+  } catch {
+    return null;
+  }
+}
+
 function blankLoan(): LoanPayload {
   return {
     id: newLoanId(),
@@ -141,6 +168,11 @@ export function QuickSetup() {
   const [takeHome, setTakeHome] = useState('');
   const [spend, setSpend] = useState('');
   const [spendAtStart, setSpendAtStart] = useState('');
+  // UX50 B-28: the loan just removed, while it can be brought back.
+  const [removed, setRemoved] = useState<{ loan: LoanPayload; index: number; name: string } | null>(null);
+  const undoTimer = useRef<number | null>(null);
+  // UX50 B-35: a typed ₹0 is used only once confirmed.
+  const [zeroSpendOk, setZeroSpendOk] = useState(false);
 
   const [loans, setLoans] = useState<LoanPayload[]>([blankLoan()]);
   const [ui, setUi] = useState<Record<string, LoanUi>>({});
@@ -181,11 +213,51 @@ export function QuickSetup() {
         setFxRates(u.fx_to_user_currency ?? {});
         setChoices(choicesFrom(u, readEfSplitClient(), readStrategyClient()));
       }
+      // UX50 B-10: what was typed in this tab before a Back, Forward or
+      // reload comes back, on the step the URL names.
+      const draft = readDraft();
+      const urlStep = stepFromParam(new URLSearchParams(window.location.search).get('step'));
+      if (draft) {
+        const d = draft.state;
+        if (d.country) setCountry(d.country);
+        setIsNriUs(!!d.isNriUs);
+        if (d.incomeType) setIncomeType(d.incomeType);
+        setTakeHome(d.takeHome ?? '');
+        setSpend(d.spend ?? '');
+        setZeroSpendOk(!!d.zeroSpendOk);
+        if (Array.isArray(d.loans)) setLoans(d.loans.length > 0 || draft.step === 2 ? d.loans : [blankLoan()]);
+        setUi(d.ui ?? {});
+        setFxRates(d.fxRates ?? {});
+        if (d.choices) setChoices(d.choices);
+        setStep(Math.min(urlStep ?? draft.step, draft.step));
+      }
       setReady(true);
     }
     restore();
     window.addEventListener(HYDRATED_EVENT, restore);
     return () => window.removeEventListener(HYDRATED_EVENT, restore);
+  }, []);
+
+  // UX50 B-10: keep the draft in this tab while it is being typed.
+  const draftOn = useRef(true);
+  useEffect(() => {
+    if (!ready || !edited.current || !draftOn.current) return;
+    try {
+      const state: DraftState = { country, isNriUs, incomeType, takeHome, spend, zeroSpendOk, loans, ui, fxRates, choices };
+      window.sessionStorage.setItem(SETUP_DRAFT_KEY, serializeDraft(state, step, Date.now()));
+    } catch {
+      /* private mode or full: Back still works within the page */
+    }
+  }, [ready, country, isNriUs, incomeType, takeHome, spend, zeroSpendOk, loans, ui, fxRates, choices, step]);
+  // Back and Forward move between the steps instead of leaving Setup.
+  const goToRef = useRef<(n: number, fromHistory?: boolean) => void>(() => {});
+  useEffect(() => {
+    function onPop() {
+      const n = stepFromParam(new URLSearchParams(window.location.search).get('step'));
+      goToRef.current(n ?? 0, true);
+    }
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   // Move focus to the new step's heading so keyboard and screen-reader
@@ -211,7 +283,8 @@ export function QuickSetup() {
 
   // ── Step 1 checks ──
   const incomeOk = Number(income) > 0 && isAmount(income);
-  const spendOk = isAmount(spend);
+  const spendCheck = checkSpend(spend, zeroSpendOk);
+  const spendOk = spendCheck === 'ok';
   const step1Ok = incomeOk && spendOk;
   const leftBeforeEmis =
     incomeOk && spendOk ? new Decimal(income).sub(num(spend)) : null;
@@ -285,13 +358,18 @@ export function QuickSetup() {
     const emiTooSmall = !!emiBelowInterest({ ...l, currency: loanCurrency(l, country) as 'INR' | 'USD' });
     const invalid = (!!uiOf(l.id).rateUnreadable && (l.nominal_rate ?? '').trim() === '') || !!rateOutOfRange(l.nominal_rate);
     const others = Object.keys(issues).filter((k) => !(invalid && k === 'rate') && !(emiTooSmall && k === 'emi'));
-    return { emiTooSmall, invalid, missing: !emiTooSmall && others.length > 0 };
+    // UX50 B-36: an unanswered "has this month's EMI gone out?" is a
+    // question, not a missing number.
+    const numbers = others.filter((k) => k !== 'paid');
+    return { emiTooSmall, invalid, missing: !emiTooSmall && numbers.length > 0, unanswered: others.includes('paid') };
   });
   const step2Summary = setupSummaryLine({
     emiTooSmall: summaryFlags.some((f) => f.emiTooSmall),
     invalid: summaryFlags.some((f) => f.invalid),
     missing: summaryFlags.some((f) => f.missing),
     fx: Object.keys(fxErrors).length > 0,
+    unanswered: summaryFlags.filter((f) => f.unanswered).length,
+    monthName: thisMonthName,
   });
 
   // Today's rate for each foreign currency, once; the person can change it.
@@ -443,6 +521,13 @@ export function QuickSetup() {
     // baseline request.
     const planUser: UserPayload = { ...user };
     delete planUser.assumptions;
+    // R5-2: nor the moment each balance was typed (the API schema drops
+    // it), which made every request look new to the de-dup and memory.
+    planUser.loans = planUser.loans.map((l) => {
+      const c = { ...l };
+      delete c.balance_recorded_at;
+      return c;
+    });
     let live = true;
     setPreview(null);
     setPreviewError(null);
@@ -484,20 +569,28 @@ export function QuickSetup() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runKey]);
 
-  function goTo(next: number) {
+  function goTo(next: number, fromHistory = false) {
+    let to = next;
+    let errors = false;
     if (next > 0 && !step1Ok) {
-      setShowErrors(true);
-      setStep(0);
-      return;
+      to = 0;
+      errors = true;
+    } else if (next > 1 && !step2Ok) {
+      to = 1;
+      errors = true;
     }
-    if (next > 1 && !step2Ok) {
-      setShowErrors(true);
-      setStep(1);
-      return;
+    setShowErrors(errors);
+    setStep(to);
+    // UX50 B-10: one history entry per step, so Back goes to the step before.
+    try {
+      const href = urlWithStep(window.location.href, to);
+      if (fromHistory || to !== next) window.history.replaceState(window.history.state, '', href);
+      else if (to !== step) window.history.pushState(window.history.state, '', href);
+    } catch {
+      /* history unavailable: the buttons still work */
     }
-    setShowErrors(false);
-    setStep(next);
   }
+  goToRef.current = goTo;
 
   /** A country change never re-reads typed amounts in the new currency
    *  (live QA: ₹20 lakh became $2,000,000). Loans already entered keep
@@ -533,6 +626,11 @@ export function QuickSetup() {
     setLoans([]);
     setShowErrors(false);
     setStep(2);
+    try {
+      window.history.pushState(window.history.state, '', urlWithStep(window.location.href, 2));
+    } catch {
+      /* history unavailable */
+    }
   }
 
   async function save() {
@@ -560,6 +658,17 @@ export function QuickSetup() {
       setSaving(false);
       setSaveFailed(true);
       return;
+    }
+    // UX50 B-02: this visit is on record, so Home doesn't greet a plan
+    // made seconds ago with "Welcome back… is it yours?". The draft is done.
+    // Guests only: signed in, Home never asks, and sign-out must leave this
+    // browser empty (india/usa-journey "sign out clears this browser").
+    draftOn.current = false;
+    try {
+      if (!signedInAccount()) window.localStorage.setItem(LAST_SEEN_KEY, String(Date.now()));
+      window.sessionStorage.removeItem(SETUP_DRAFT_KEY);
+    } catch {
+      /* private mode */
     }
     try {
       window.localStorage.setItem(BALANCES_ENTERED_KEY, localIsoDate(new Date()));
@@ -669,8 +778,14 @@ export function QuickSetup() {
                   onChange={setSpend}
                   placeholder={userCcy === 'INR' ? 'e.g. 30,000 or 30k' : 'e.g. 3,000'}
                   hint="Rent, bills, food, travel: everything but loan and card payments"
-                  error={showErrors && !spendOk ? 'Type a number, or leave it blank for none.' : null}
+                  error={showErrors && (spendCheck === 'blank' || spendCheck === 'invalid') ? (spendCheck === 'blank' ? SPEND_COPY.blank : SPEND_COPY.invalid) : null}
                 />
+                {spendCheck === 'zero-unconfirmed' || (zeroSpendOk && checkSpend(spend, false) === 'zero-unconfirmed') ? (
+                  <label data-testid="zero-spend-confirm" className="l-check-row" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.5, color: showErrors && !zeroSpendOk ? L_T.negative : L_T.ink }}>
+                    <input type="checkbox" checked={zeroSpendOk} onChange={(e) => setZeroSpendOk(e.target.checked)} />
+                    <span>{SPEND_COPY.zero(userCcy === 'INR' ? '₹' : '$')} {SPEND_COPY.zeroConfirm(userCcy === 'INR' ? '₹' : '$')}</span>
+                  </label>
+                ) : null}
               </div>
               {leftBeforeEmis && (
                 <MoneyLine
@@ -729,9 +844,32 @@ export function QuickSetup() {
                   thisMonth={thisMonth}
                   onPatch={(p) => patchLoan(i, p)}
                   onUi={(p) => setUiOf(l.id, p)}
-                  onRemove={() => setLoans((cur) => cur.filter((_, j) => j !== i))}
+                  onRemove={() => {
+                    // UX50 B-28: a filled loan can be brought back for a few seconds.
+                    const filled = [l.outstanding, l.nominal_rate, l.scheduled_emi].some((v) => (v ?? '').trim() !== '');
+                    if (filled) {
+                      if (undoTimer.current) window.clearTimeout(undoTimer.current);
+                      setRemoved({ loan: l, index: i, name: setupLoanName(loans, i) });
+                      undoTimer.current = window.setTimeout(() => setRemoved(null), 8000);
+                    }
+                    setLoans((cur) => cur.filter((_, j) => j !== i));
+                  }}
                 />
               ))}
+              {removed && (
+                <p role="status" style={{ margin: '4px 0', fontSize: 13 }}>
+                  {removed.name} removed.{' '}
+                  <LBracket
+                    onClick={() => {
+                      const r = removed;
+                      setLoans((cur) => [...cur.slice(0, r.index), r.loan, ...cur.slice(r.index)]);
+                      setRemoved(null);
+                    }}
+                  >
+                    UNDO
+                  </LBracket>
+                </p>
+              )}
               <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', padding: '12px 0' }}>
                 <LBracket accent onClick={() => setLoans((cur) => [...cur, blankLoan()])}>
                   + ADD {loans.length === 0 ? 'A' : 'ANOTHER'} LOAN
@@ -792,6 +930,7 @@ export function QuickSetup() {
                 noLoans={activeLoans.length === 0}
                 country={country}
                 money={money}
+                hasFund={Number(buildUser().efund_balance ?? 0) > 0}
               />
               <SetupChoices
                 value={choices}
@@ -1036,7 +1175,7 @@ function LoanBlock({
           }}
           hint={
             estimated.has('rate')
-              ? `Typical for this kind of loan: the middle of the published rates of the banks RightDue tracks, as of ${TYPICAL_RATE_AS_OF}. Yours may differ; your statement or loan app shows it.`
+              ? `Typical for this kind of loan: the middle of the published rates of the banks RightDue tracks, as of ${formatAsOfDate(TYPICAL_RATE_AS_OF)}. Yours may differ; your statement or loan app shows it.`
               : card
                 ? 'A 3.5% monthly rate is 42% a year'
                 : undefined
@@ -1224,18 +1363,41 @@ function LoanBlock({
   );
 }
 
+/** UX50 B-19: a slow first answer (the calculator waking up) says so. */
+function PreviewWaiting() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setSlow(true), 4000);
+    return () => window.clearTimeout(t);
+  }, []);
+  return (
+    <div role="status" style={{ color: L_T.muted, margin: 0, lineHeight: 1.6 }}>
+      <p style={{ margin: 0 }}>Working out your plan…</p>
+      {slow && (
+        <p style={{ margin: '6px 0 0', fontSize: 13 }}>
+          Still working: the calculator wakes up after a quiet spell, which can take up to a minute. You can save
+          now; Plan finishes it.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function PlanPreview({
   preview,
   error,
   noLoans,
   country,
   money,
+  hasFund = false,
 }: {
   preview: Preview | null;
   error: string | null;
   noLoans: boolean;
   country: Country;
   money: (v: Decimal | string, ccy?: CurrencyCode) => string;
+  /** Savings set aside: a short month draws on them before a card (UX50 B-32). */
+  hasFund?: boolean;
 }) {
   if (noLoans) {
     return (
@@ -1246,13 +1408,7 @@ function PlanPreview({
     );
   }
   if (error) return <p role="alert" style={{ color: L_T.negative, margin: 0 }}>{error}</p>;
-  if (!preview) {
-    return (
-      <p role="status" style={{ color: L_T.muted, margin: 0 }}>
-        Working out your plan…
-      </p>
-    );
-  }
+  if (!preview) return <PreviewWaiting />;
   const { plan, minimums, loans } = preview;
   const shortfall = new Decimal(plan.shortfall || 0);
   // Month m of the plan is the m-th payment, as Home and Plan count it.
@@ -1267,30 +1423,49 @@ function PlanPreview({
     minimums.trajectory[0]?.payments_by_loan_index,
   );
   const moveLoan = move ? loans[move.index] : null;
+  // UX50 B-13: short this month, the same headline as Plan and Home: the
+  // date if the gap closes, with the date as things stand beside it; and no
+  // "years sooner" while there's no date to measure from (Plan says the same).
+  const short = shortfall.gt(0);
+  const closedMonth = plan.gap_closed?.debt_free_month ?? null;
+  const asIs = plan.debt_free_month != null ? monthIndexToCountryLabel(plan.debt_free_month, country) : 'not in sight';
+  const debtFreeRow: [string, ReactNode, string?] = short
+    ? [
+        'Debt-free',
+        closedMonth ? monthIndexToCountryLabel(closedMonth, country) : 'No date yet',
+        closedMonth
+          ? `if the ${money(shortfall)}/mo gap closes · as things stand: ${asIs}`
+          : `short ${money(shortfall)}/mo · as things stand: ${asIs}`,
+      ]
+    : [
+        'Debt-free',
+        plan.debt_free_month != null ? monthIndexToCountryLabel(plan.debt_free_month, country) : 'Not in sight',
+        plan.debt_free_month != null ? freeIn(plan.debt_free_month) : 'Payments don’t cover the interest yet',
+      ];
+  // UX50 B-04: paying only the minimums is the most a plan can save, not
+  // what it saves most people; said so, under its own name.
   const rows: Array<[string, ReactNode, string?]> = [
-    [
-      'Debt-free',
-      plan.debt_free_month != null ? monthIndexToCountryLabel(plan.debt_free_month, country) : 'Not in sight',
-      plan.debt_free_month != null ? freeIn(plan.debt_free_month) : 'Payments don’t cover the interest yet',
-    ],
+    debtFreeRow,
     ['Interest you’ll pay', money(plan.total_interest_paid), 'over the whole plan'],
-    [
-      'Vs paying minimums',
-      interestSaved.gt(0) ? `${money(interestSaved)} less` : 'about the same',
-      minimums.debt_free_month == null
-        ? 'minimums alone never clear it'
-        : monthsSaved && monthsSaved > 0
-          ? `${monthsSpan(monthsSaved)} sooner`
-          : undefined,
-    ],
+    short
+      ? ['Vs paying only minimums', '—', 'needs a payoff date first']
+      : [
+          'Vs paying only minimums',
+          interestSaved.gt(0) ? `${money(interestSaved)} less` : 'about the same',
+          minimums.debt_free_month == null
+            ? 'minimums alone never clear it'
+            : monthsSaved && monthsSaved > 0
+              ? `${monthsSpan(monthsSaved)} sooner · the most a plan can save, not a typical saving`
+              : undefined,
+        ],
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {shortfall.gt(0) && (
         <p role="alert" style={{ margin: 0, padding: '10px 12px', border: `1px solid ${L_T.negative}`, color: L_T.negative, lineHeight: 1.55 }}>
-          Your take-home is {money(shortfall)} a month short of spending plus minimum payments. The date below
-          pays that gap from your emergency fund, then borrows it on a card at card rates until it&apos;s repaid; Home
-          shows where to cut.
+          Your take-home is {money(shortfall)} a month short of spending plus minimum payments. The date below is
+          if you close that gap. As things stand, the plan {hasFund ? 'pays the gap from your emergency fund, then ' : ''}borrows it
+          on a card at card rates until it&apos;s repaid; Home shows which payments to protect.
         </p>
       )}
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>

@@ -183,7 +183,32 @@ export function describeGap(
 /** Live re-test 2 R2-2: Setup's line above Continue, naming what's wrong.
  *  Live re-test 3 R3-4: a rate that can't be read ("8.5x") or is out of
  *  range is `invalid`, never "missing a number"; `missing` is blank fields. */
-export function setupSummaryLine(f: { emiTooSmall: boolean; missing: boolean; fx: boolean; invalid?: boolean }): string {
+/** "2026-10-10" → "10 Oct 2026", as the rest of the app writes dates (UX50 B-36). */
+export function formatAsOfDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? '');
+  if (!m) return iso;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const mi = Number(m[2]) - 1;
+  if (mi < 0 || mi > 11) return iso;
+  return `${Number(m[3])} ${months[mi]} ${m[1]}`;
+}
+
+export function setupSummaryLine(f: {
+  emiTooSmall: boolean;
+  missing: boolean;
+  fx: boolean;
+  invalid?: boolean;
+  /** How many loans have an unanswered "has this month's EMI gone out?" (UX50 B-36). */
+  unanswered?: number;
+  monthName?: string;
+}): string {
+  const asked = f.unanswered ?? 0;
+  if (asked > 0 && !f.emiTooSmall && !f.invalid && !f.missing) {
+    const month = f.monthName ? `${f.monthName}’s` : 'this month’s';
+    return asked === 1
+      ? `One loan needs an answer: whether ${month} EMI has gone out. It’s marked above.`
+      : `${asked} loans need an answer: whether ${month} EMI has gone out. They’re marked above.`;
+  }
   const problems = [
     f.emiTooSmall ? 'one EMI is too small to pay it off' : '',
     f.invalid ? 'one rate isn’t a valid number' : '',
