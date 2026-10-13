@@ -145,7 +145,7 @@ export function AssumptionsClient() {
       <section aria-label="Emergency fund">
         <h2 style={{ fontSize: 13, letterSpacing: '0.12em' }}>EMERGENCY FUND</h2>
         {row('Months of cover', `${DEFAULT_EF_MONTHS} months`, box(efM, setEfM, 'Months of cover', 'months', String(DEFAULT_EF_MONTHS)),
-          spend > 0 ? `Target = months × your monthly spending (${sym}${Math.round(spend).toLocaleString()})` : undefined, errors.efM)}
+          spend > 0 ? `Target = months × your monthly spending (${sym}${Math.round(spend).toLocaleString(country === 'US' ? 'en-US' : 'en-IN')})` : undefined, errors.efM)}
         {row('Fixed monthly top-up', `${Math.round(Number(split) * 100)}% of spare cash (Plan slider)`, box(efAmt, setEfAmt, 'Fixed monthly top-up', sym, '—'),
           'A fixed amount each month until the fund is full, instead of a share of spare cash', errors.efAmt)}
       </section>

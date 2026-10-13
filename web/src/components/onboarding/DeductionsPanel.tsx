@@ -417,7 +417,7 @@ export function DeductionsPanel({
         >
           With these deductions applied to your gross of{' '}
           {ccySym}
-          {Number(grossAnnual || 0).toLocaleString()}, your derived marginal
+          {Number(grossAnnual || 0).toLocaleString(country === 'US' ? 'en-US' : 'en-IN')}, your derived marginal
           rate is roughly{' '}
           <strong style={{ color: 'var(--ink)' }}>
             {derived.mul(100).toFixed(1)}%

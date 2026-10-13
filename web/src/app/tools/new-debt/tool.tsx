@@ -666,7 +666,7 @@ function BankRateTable({
                       className="l-hit"
                       style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', color: L_T.ink, fontWeight: on ? 700 : 400, textAlign: 'left' }}
                     >
-                      {on ? '● ' : '○ '}
+                      <span aria-hidden="true">{on ? '● ' : '○ '}</span>
                       {row.name}
                     </button>
                     {row.isExisting && <span style={{ color: L_T.positive, fontSize: 10, letterSpacing: '0.1em', marginLeft: 6 }}>YOURS</span>}

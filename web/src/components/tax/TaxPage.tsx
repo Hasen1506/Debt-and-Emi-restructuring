@@ -48,13 +48,15 @@ export function TaxPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 28, width: '100%' }}>
       <header>
+        <div style={{ marginBottom: 8, whiteSpace: 'nowrap' }}>
+          <LBracket href="/profile">← WHOLE PROFILE</LBracket>
+        </div>
         <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>PROFILE · TAX</div>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>Tax and your loans</h1>
         <p style={{ color: L_T.inkSoft, fontSize: 13, margin: '8px 0 0', lineHeight: 1.6 }}>
           {isIN
             ? 'What your loans do for your tax, and which regime that makes cheaper this year. These are estimates from what you entered, not a tax return: check them against your Form 16 or with whoever files for you.'
-            : 'The tax details the plan uses for your mortgage and student-loan interest.'}{' '}
-          <LBracket href="/profile">← WHOLE PROFILE</LBracket>
+            : 'The tax details the plan uses for your mortgage and student-loan interest.'}
         </p>
         {isIN && (
           <p style={{ color: L_T.muted, fontSize: 11, margin: '6px 0 0', lineHeight: 1.6 }}>
@@ -117,7 +119,7 @@ function RateSection({ user, marginalRate, onConfirm }: { user: UserPayload; mar
           </p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <LBracket accent onClick={onConfirm} label={`Yes, ${formatTaxRate(rate)} is right`}>YES, {formatTaxRate(rate)} IS RIGHT</LBracket>
-            <LBracket href="/profile?step=income">ENTER GROSS PAY INSTEAD</LBracket>
+            <LBracket href="/profile?step=income">ADD YOUR GROSS PAY</LBracket>
           </div>
         </div>
       )}
@@ -151,7 +153,7 @@ function RegimeSection({ user, month, onUse }: { user: UserPayload; month: strin
       {income.source === 'none' ? (
         <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6 }}>
           Add your gross salary or business income in Profile and this compares the two regimes with your loans counted.{' '}
-          <LBracket href="/profile?step=income">ADD GROSS INCOME</LBracket>
+          <LBracket href="/profile?step=income">ADD YOUR GROSS PAY</LBracket>
         </p>
       ) : (
         <>
