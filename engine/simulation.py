@@ -1283,10 +1283,13 @@ def _simulate_plan(
             debt_free_month = m
             break
         if stop_owed_multiple is not None:
+            # Measured from the largest debt up to the last loan that
+            # arrives later (a future home loan), never before it: a plan
+            # that starts with nothing owed isn't "runaway" when it lands.
             owed_now = balance_user_ccy + gap_debt
-            if m == 1:
-                stop_cap = stop_owed_multiple * max(owed_now, D("1"))
-            elif owed_now > stop_cap:
+            if m <= last_arrival or m == 1:
+                stop_base = max(owed_now, stop_base if m > 1 else D("1"))
+            elif owed_now > stop_owed_multiple * stop_base:
                 break
 
     return SimulationResult(
