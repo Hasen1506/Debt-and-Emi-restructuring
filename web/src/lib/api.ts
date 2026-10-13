@@ -1334,11 +1334,14 @@ async function apiFetch(path: string, init: RequestInit): Promise<Response> {
       if (i < tries - 1 && !ours && [502, 503, 504].includes(res.status)) throw new Error(String(res.status));
       return res;
     } catch (e) {
+      // NEW-19: a request its caller cancelled is not retried or reworded.
+      if ((e as { name?: string })?.name === 'AbortError' || init.signal?.aborted) throw e;
       if (i >= tries - 1) {
         if (e instanceof TypeError || /^50[234]$/.test((e as Error).message)) throw new Error(WAKING_MESSAGE);
         throw e;
       }
       await new Promise((r) => setTimeout(r, 2000 * 2 ** i));
+      if (init.signal?.aborted) throw init.signal.reason ?? e;
     }
   }
 }
@@ -1382,13 +1385,14 @@ async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
 
 // ─── thin fetch helper ──────────────────────────────────────────────────────
 
-async function post<T>(path: string, body: unknown): Promise<T> {
+async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await apiFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
     cache: 'no-store',
     credentials: requestCredentials(path),
+    ...(signal ? { signal } : {}),
   });
   if (!res.ok) {
     const detail = await res.text();
@@ -1457,12 +1461,16 @@ async function putJson<T>(path: string, body: unknown, method: 'PUT' | 'PATCH' =
   return res.json() as Promise<T>;
 }
 
+/** Per-call options for the plan calculations. */
+export type RequestOptions = { signal?: AbortSignal };
+
 // ─── endpoints ──────────────────────────────────────────────────────────────
 
 export const api = {
   health: () => get<{ status: string }>('/api/health'),
 
-  simulate: (req: SimulateArgs) => post<SimulateResponse>('/api/simulate', req),
+  /** `opts.signal` cancels the request (NEW-19: a newer choice replaced it). */
+  simulate: (req: SimulateArgs, opts?: RequestOptions) => post<SimulateResponse>('/api/simulate', req, opts?.signal),
 
   /** Grill #24 (sprint G4): exact debt-free month + range with reasons. */
   sensitivityRange: (req: SimulateArgs) =>
@@ -1479,7 +1487,7 @@ export const api = {
     /** Same planned rate resets as the plan, so "saved vs minimums"
      *  compares like with like. */
     lifecycle_events?: LifecycleEventInput[];
-  }) => post<SimulateResponse>('/api/baseline', req),
+  }, opts?: RequestOptions) => post<SimulateResponse>('/api/baseline', req, opts?.signal),
 
   /** Both runs take the plan's own settings (PlanRunArgs), so the
    *  what-if's "before" is the plan /plan shows. */
@@ -1505,7 +1513,7 @@ export const api = {
     include_trajectory?: boolean;
     /** Calendar month (1-12) corresponding to sim month 1. */
     simulation_start_month?: number;
-  }) => post<CompareResponse>('/api/sensitivity/compare', req),
+  }, opts?: RequestOptions) => post<CompareResponse>('/api/sensitivity/compare', req, opts?.signal),
 
   newDebt: (req: {
     list_price: string;

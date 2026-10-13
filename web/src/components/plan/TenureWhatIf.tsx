@@ -9,6 +9,7 @@
  * EMI formula as everywhere else): the new EMI, whether this month's gap
  * closes, and what the extra months cost in interest. Nothing is saved.
  */
+import { engineRequests, isAbortError } from '@/lib/engine-requests';
 import { tenureWhatIfCopy } from '@/lib/tenure-whatif-copy';
 import { useEffect, useMemo, useState } from 'react';
 import { api, formatCurrencyWhole, type CompareResponse } from '@/lib/api';
@@ -61,24 +62,29 @@ export function TenureWhatIf({
       return;
     }
     let cancelled = false;
+    // NEW-19: a newer choice cancels the run it replaced; an identical run
+    // in flight or just answered is shared.
+    const controller = new AbortController();
     setState({ loading: true, result: null, error: null });
     const t = setTimeout(async () => {
       try {
-        const r = await api.sensitivity({
+        const req = {
           ...(plan.runArgs ?? { user, marginal_rate: plan.marginalRate }),
           strategy: plan.strategy,
           horizon_months: HORIZON_MONTHS,
           tenure_extension_loan_index: loanIdx,
           tenure_extension_months: months,
           include_trajectory: true,
-        });
+        };
+        const r = await engineRequests.run('compare', req, (signal) => api.sensitivity(req, { signal }), controller.signal);
         if (!cancelled) setState({ loading: false, result: r, error: null });
       } catch (e) {
-        if (!cancelled) setState({ loading: false, result: null, error: (e as Error).message });
+        if (!cancelled && !isAbortError(e)) setState({ loading: false, result: null, error: (e as Error).message });
       }
     }, 300);
     return () => {
       cancelled = true;
+      controller.abort();
       clearTimeout(t);
     };
     // baseKey stands in for the plan's run settings.

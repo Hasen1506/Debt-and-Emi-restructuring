@@ -10,6 +10,7 @@
  * physical limits (you can't "cut" more than you actually spend, and a
  * one-time payment can't exceed total outstanding).
  */
+import { engineRequests, isAbortError } from '@/lib/engine-requests';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Decimal from 'decimal.js';
 import { useRouter } from 'next/navigation';
@@ -264,46 +265,46 @@ export function WhatIfPanel({
   useDebouncedScenario(
     `${baseKey}|${surplusDelta}|${surplusStartMonth}`,
     setSurplus,
-    async () =>
+    async (signal: AbortSignal) =>
       surplusDelta === 0
         ? null
-        : api.sensitivity({
+        : sharedSensitivity({
             ...base,
             horizon_months: HORIZON_MONTHS,
             surplus_delta: String(surplusDelta),
             spending_cut: true,
             surplus_delta_start_month: surplusStartMonth,
-          }),
+          }, signal),
     surplusDelta !== 0,
   );
 
   useDebouncedScenario(
     `${baseKey}|${rateShockBps}`,
     setRate,
-    async () =>
+    async (signal: AbortSignal) =>
       rateShockBps === 0
         ? null
-        : api.sensitivity({
+        : sharedSensitivity({
             ...base,
             horizon_months: HORIZON_MONTHS,
             rate_shock_delta: (rateShockBps / 10_000).toFixed(4),
             rate_shock_floating_only: true,
-          }),
+          }, signal),
     rateShockBps !== 0,
   );
 
   useDebouncedScenario(
     `${baseKey}|${lumpAmount}|${lumpTarget}`,
     setLump,
-    async () =>
+    async (signal: AbortSignal) =>
       lumpAmount === 0 || lumpTarget < 0
         ? null
-        : api.sensitivity({
+        : sharedSensitivity({
             ...base,
             horizon_months: HORIZON_MONTHS,
             lump_sum_amount: String(lumpAmount),
             lump_sum_target_loan_index: lumpTarget,
-          }),
+          }, signal),
     lumpAmount !== 0 && lumpTarget >= 0,
   );
 
@@ -995,15 +996,22 @@ function TypableAmountInput({
   );
 }
 
+/** A what-if run, shared with an identical one in flight or just answered (NEW-19). */
+function sharedSensitivity(req: Parameters<typeof api.sensitivity>[0], signal: AbortSignal): Promise<CompareResponse> {
+  return engineRequests.run('compare', req, (s) => api.sensitivity(req, { signal: s }), signal);
+}
+
 function useDebouncedScenario(
   key: unknown,
   setState: (s: ScenarioState) => void,
-  fetcher: () => Promise<CompareResponse | null>,
+  fetcher: (signal: AbortSignal) => Promise<CompareResponse | null>,
   active: boolean,
 ) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     let cancelled = false;
+    // NEW-19: a newer slider value cancels the request it replaced.
+    const controller = new AbortController();
     if (timer.current) clearTimeout(timer.current);
     if (!active) {
       setState(INITIAL);
@@ -1012,7 +1020,7 @@ function useDebouncedScenario(
     setState({ loading: true, result: null, error: null });
     timer.current = setTimeout(async () => {
       try {
-        const r = await fetcher();
+        const r = await fetcher(controller.signal);
         if (cancelled) return;
         if (r === null) {
           setState({ loading: false, result: null, error: null });
@@ -1020,12 +1028,13 @@ function useDebouncedScenario(
           setState({ loading: false, result: r, error: null });
         }
       } catch (e) {
-        if (cancelled) return;
+        if (cancelled || isAbortError(e)) return;
         setState({ loading: false, result: null, error: (e as Error).message });
       }
     }, 350);
     return () => {
       cancelled = true;
+      controller.abort();
       if (timer.current) clearTimeout(timer.current);
     };
     // fetcher reference changes each render, intentionally ignore;
