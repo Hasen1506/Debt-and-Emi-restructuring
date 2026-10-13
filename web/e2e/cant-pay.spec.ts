@@ -35,8 +35,16 @@ test('India: Feeling overwhelmed → can\u2019t pay this month → protect order
   await page.waitForURL('**/plan');
 
   await page.goto('/');
-  await page.getByText('FEELING OVERWHELMED? ONE STEP AT A TIME').click();
-  await page.getByRole('link', { name: /CAN.T PAY THIS MONTH/ }).click();
+  // A click sent before the footer button hydrates is lost (WebKit in CI, run
+  // 38436167214: button focused, menu never opened). Click until the link shows,
+  // as fixtures.openProfileSection does; the assertions after are unchanged.
+  const overwhelmed = page.getByRole('button', { name: /FEELING OVERWHELMED\? ONE STEP AT A TIME/ });
+  const cantPayLink = page.getByRole('link', { name: /CAN.T PAY THIS MONTH/ });
+  await expect(async () => {
+    if (!(await cantPayLink.isVisible())) await overwhelmed.click({ timeout: 2_000 });
+    await expect(cantPayLink).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await cantPayLink.click();
   await page.waitForURL('**/cant-pay');
 
   const rows = page.getByTestId('cp-protect-row');
