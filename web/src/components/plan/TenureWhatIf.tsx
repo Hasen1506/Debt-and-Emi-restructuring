@@ -9,6 +9,7 @@
  * EMI formula as everywhere else): the new EMI, whether this month's gap
  * closes, and what the extra months cost in interest. Nothing is saved.
  */
+import { tenureWhatIfCopy } from '@/lib/tenure-whatif-copy';
 import { useEffect, useMemo, useState } from 'react';
 import { api, formatCurrencyWhole, type CompareResponse } from '@/lib/api';
 import { loanCurrency } from '@/lib/currency';
@@ -92,6 +93,19 @@ export function TenureWhatIf({ plan }: { plan: PlanData }) {
       r.baseline_debt_free_month == null || r.scenario_debt_free_month == null ||
       !Number.isFinite(extraInterest) || Math.abs(extraInterest) > Math.max(1, owed) * 100);
 
+  // Live re-test 2 R2-3: no "gap closes" / gap-borrowing reason unless short.
+  const copy = r
+    ? tenureWhatIfCopy({
+        baselineShortfall: Number(r.baseline_shortfall ?? 0),
+        scenarioShortfall: gapAfter,
+        freed: Number(r.tenure_old_emi ?? 0) - Number(r.tenure_new_emi ?? 0),
+        extraInterest,
+        neverClears,
+        scenarioNeverClears: !!r.scenario_never_clears,
+        money: fc,
+      })
+    : null;
+
   return (
     <section id="tenure-what-if" aria-labelledby="tenure-whatif" style={{ border: `1px solid ${L_T.ink}`, padding: '12px 16px', fontSize: 12, lineHeight: 1.7 }}>
       <div id="tenure-whatif" style={{ fontWeight: 700, letterSpacing: '0.08em' }}>
@@ -141,21 +155,11 @@ export function TenureWhatIf({ plan }: { plan: PlanData }) {
         <div role="status" style={{ marginTop: 8 }}>
           EMI {formatCurrencyWhole(r.tenure_old_emi ?? '0', lccy)} → <strong>{formatCurrencyWhole(r.tenure_new_emi, lccy)}</strong>{' '}
           ({r.tenure_old_months} → {r.tenure_new_months} months left).{' '}
-          {gapAfter <= 0.5 ? (
-            <strong style={{ color: L_T.positive }}>This month&apos;s gap closes.</strong>
-          ) : (
-            <>This month you&apos;d still be short {fc(gapAfter)}.</>
-          )}{' '}
+          {copy?.gap ? (
+            copy.gapCloses ? <strong style={{ color: L_T.positive }}>{copy.gap}</strong> : <>{copy.gap}</>
+          ) : null}{' '}
           Debt-free: {label(r.scenario_debt_free_month)} (as things stand: {label(r.baseline_debt_free_month)}).{' '}
-          {neverClears
-            ? r.scenario_never_clears
-              ? "At this tenure the debt still doesn't clear, so there's no interest total to compare."
-              : 'As things stand the debt never clears; with this tenure it does.'
-            : extraInterest >= 1
-            ? `About ${fc(extraInterest)} more interest over the plan.`
-            : extraInterest <= -1
-              ? `About ${fc(-extraInterest)} less interest over the plan, because the gap borrowing at card rates shrinks.`
-              : 'About the same interest over the plan.'}
+          {copy?.interest}
         </div>
       )}
       <p style={{ margin: '8px 0 0', fontSize: 11, color: L_T.muted }}>

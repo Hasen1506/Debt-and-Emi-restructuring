@@ -190,6 +190,10 @@ export function deriveTenureMonths(
   nominalAnnualRate: number | string | Decimal,
   emi: number | string | Decimal,
 ): number | null {
+  // Live re-test 2 R2-1: a blank or unreadable rate ("8.5x" is handed up
+  // as '') is unknown, not 0%: deriving months from it took the
+  // zero-interest branch and showed about half the real tenure.
+  if (typeof nominalAnnualRate === 'string' && !/^\s*-?\d*\.?\d+\s*$/.test(nominalAnnualRate)) return null;
   const P = safeDecimal(outstanding);
   const annualR = safeDecimal(nominalAnnualRate);
   const E = safeDecimal(emi);
