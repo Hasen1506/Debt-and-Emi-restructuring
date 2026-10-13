@@ -97,7 +97,7 @@ test('no shortfall: what-if copy, 390 px header and chart labels', async ({ page
     await menu.click();
     await expect(page.getByRole('button', { name: /CLOSE/ })).toHaveAttribute('aria-expanded', 'true');
     const nav = page.getByRole('navigation', { name: 'Main' });
-    await expect(nav.getByRole('link', { name: 'PROFILE' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: '[PROFILE]', exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(nav).toBeHidden();
     await expect(page.getByRole('button', { name: /MENU/ })).toBeFocused();
