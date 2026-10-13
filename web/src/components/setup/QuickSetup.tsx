@@ -39,7 +39,7 @@ import { loanCurrency, userDefaultCurrency, type CurrencyCode } from '@/lib/curr
 import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { deriveTenureMonths } from '@/lib/derived';
 import { HORIZON_MONTHS } from '@/lib/horizon';
-import { loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
+import { emiBelowInterest, loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
 import { newLoanId } from '@/lib/loan-ids';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { feeShown } from '@/lib/prepayment-fee';
@@ -984,7 +984,9 @@ function LoanBlock({
             onChange={(v) => onPatch({ scheduled_emi: v })}
             hint={
               emiTooSmall
-                ? "At this EMI the balance doesn't go down. Check the EMI and the rate."
+                ? issues.emi
+                  ? undefined
+                  : (emiBelowInterest({ ...loan, currency: ccy }) ?? "At this EMI the balance doesn't go down. Check the EMI and the rate.")
                 : tenure
                   ? `About ${tenure} months left, to ${monthIndexToCountryLabel(tenure, country)}`
                   : undefined

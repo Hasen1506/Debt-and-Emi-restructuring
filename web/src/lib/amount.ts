@@ -62,6 +62,7 @@ export const MAX_AMOUNT = new Decimal('1e12');
  *  a minus sign, letters with no number, or an impossible size. */
 export function isImmediateAmountError(raw: string, parsed: ParsedAmount): boolean {
   if (!parsed.error) return false;
+  if (isPartialScale(raw)) return false;
   const s = raw.trim().replace(/^(₹|\$|rs\.?|inr|usd)/i, '').replace(/[,\s_]/g, '');
   return s.startsWith('-') || /^[^\d.]/.test(s) || parsed.error.startsWith('That is more than');
 }
@@ -136,4 +137,23 @@ export function regroupWhileTyping(
     pos++;
   }
   return { text: next, caret: pos };
+}
+
+/** True while a scale word is half typed ("25 la", "1.5 cro", "2 mil"):
+ *  the person is still typing, so this is not an error yet (live re-test NEW-1). */
+export function isPartialScale(raw: string): boolean {
+  const s = raw.trim().toLowerCase().replace(/^(₹|\$|rs\.?|inr|usd)/, '').replace(/[,\s_]/g, '');
+  const m = /^(\d*\.?\d+)\.?([a-z]+)$/.exec(s);
+  if (!m) return false;
+  const w = m[2];
+  return !(w in SUFFIX) && Object.keys(SUFFIX).some((k) => k.startsWith(w));
+}
+
+/** What an amount field hands its caller for the typed text: plain digits
+ *  when readable, otherwise ''. Never the raw text ("25 la" or
+ *  "2,50,00,00,25,0000" used to reach Decimal math and crash the page,
+ *  live re-test NEW-1). */
+export function amountForCaller(raw: string, currency: AmountCurrency = 'INR'): string {
+  const v = parseAmountText(raw, currency).value;
+  return v === null ? '' : v;
 }

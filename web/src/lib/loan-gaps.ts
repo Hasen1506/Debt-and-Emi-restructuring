@@ -10,6 +10,7 @@
 import type { Country, LoanPayload, LoanType, UserPayload } from './api';
 import { dec } from './safe-decimal';
 import { loanToUser } from './currency';
+import { amountInWords, formatAmount } from './amount';
 
 /** 'fx': a loan in another currency with no exchange rate on file. Without
  *  one, ₹20 lakh read as $20 lakh (a $14,000 monthly shortfall). */
@@ -98,8 +99,42 @@ export function loanDraftErrors(
   }
   if (needsEmi(loan.loan_type) && dec(loan.scheduled_emi).lte(0)) {
     out.emi = 'Enter the monthly EMI the bank takes (on your statement or banking app).';
+  } else if (needsEmi(loan.loan_type) && !out.rate) {
+    const never = emiBelowInterest(loan);
+    if (never) out.emi = never;
   }
   return out;
+}
+
+/**
+ * A loan whose EMI is at or below the interest it earns each month never
+ * clears: the plan used to run it for 1,200 months and print 25-digit
+ * figures (live re-test NEW-3). Returns the message naming the numbers,
+ * with "did you mean ₹25 lakh?" when a balance a tenth the size would
+ * clear at this EMI (an extra 0 typed, NEW-4). Null when it amortises.
+ */
+export function emiBelowInterest(
+  loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'> & { currency?: 'INR' | 'USD' },
+): string | null {
+  if (!needsEmi(loan.loan_type)) return null;
+  const P = dec(loan.outstanding);
+  const rate = dec(loan.nominal_rate);
+  const E = dec(loan.scheduled_emi);
+  if (P.lte(0) || rate.lte(0) || E.lte(0)) return null;
+  const interest = P.mul(rate).div(12);
+  if (E.gt(interest)) return null;
+  const ccy = loan.currency === 'USD' ? 'USD' : 'INR';
+  const sym = ccy === 'INR' ? '₹' : '$';
+  const money = (d: typeof P) => `${sym}${formatAmount(d.toDecimalPlaces(0).toFixed(), ccy)}`;
+  const words = (d: typeof P) => amountInWords(d.toDecimalPlaces(0).toFixed(), ccy) ?? money(d);
+  const pct = rate.mul(100).toDecimalPlaces(2).toString();
+  const tenth = P.div(10);
+  const guess = E.gt(tenth.mul(rate).div(12)) ? ` (did you mean ${words(tenth)}?)` : '';
+  return (
+    `At ${pct}%, ${words(P)} earns ${money(interest)} interest a month, ` +
+    `${E.eq(interest.toDecimalPlaces(0)) || E.eq(interest) ? 'the same as' : 'more than'} the ${money(E)} EMI, so this loan would never be paid off. ` +
+    `Check the balance${guess}, the rate and the EMI.`
+  );
 }
 
 export interface ProfileGap {

@@ -948,6 +948,14 @@ class GoalTradeoffRequest(SimulateRequest):
     goal_ids: list[str] = Field(default_factory=list, max_length=50)
 
 
+class NonAmortisingOut(_Base):
+    # Live re-test NEW-3: an EMI loan whose EMI is at or below its monthly
+    # interest, so it never clears. The plan is not run on it.
+    loan_index: int
+    monthly_interest: Decimal
+    scheduled_emi: Decimal
+
+
 class GapClosedOut(_Base):
     # The plan with spending cut by this month's shortfall (live test #16).
     cut: Decimal
@@ -1003,6 +1011,13 @@ class SimulateResponse(_Base):
     # US mortgage insurance (grill #34): one row per loan whose PMI / FHA
     # MIP ends inside the plan, with the sim month it was last paid.
     pmi_events: list[PmiEventOut] = Field(default_factory=list)
+    # Live re-test NEW-2/NEW-3: True when the debt is not cleared within the
+    # horizon. Totals and peaks then describe a debt that grows without
+    # limit and must not be shown as a normal result.
+    never_clears: bool = False
+    # Loans whose EMI doesn't cover their interest. When non-empty the plan
+    # was NOT run (no 1,200-month schedule): trajectory is empty.
+    non_amortising: list[NonAmortisingOut] = Field(default_factory=list)
 
 
 class BaselineRequest(_In):
@@ -1077,6 +1092,10 @@ class CompareResponse(_Base):
     tenure_new_emi: Optional[Decimal] = None
     tenure_old_months: Optional[int] = None
     tenure_new_months: Optional[int] = None
+    # Live re-test NEW-2: either side never clears within the horizon, so
+    # interest_saved compares two unbounded totals and must not be shown.
+    baseline_never_clears: bool = False
+    scenario_never_clears: bool = False
 
 
 # ─────────────────────────────────────────────────────────────────────────────

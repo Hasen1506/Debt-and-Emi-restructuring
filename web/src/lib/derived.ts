@@ -8,6 +8,9 @@
  */
 import { dec } from './safe-decimal';
 import Decimal from 'decimal.js';
+// Typed values can be blank, half typed ("25 la") or NaN; dec() reads them
+// as 0 instead of throwing a DecimalError (live re-test NEW-1).
+import { dec as safeDecimal } from './safe-decimal';
 import type { LoanPayload, Country } from './api';
 import type { StoredProfile } from './user-store';
 import { marginalCost, userMarginalCosts, type MarginalCost } from './marginal-cost';
@@ -90,7 +93,7 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
       return {
         loan,
         index,
-        nominal: new Decimal(loan.nominal_rate || 0),
+        nominal: safeDecimal(loan.nominal_rate),
         effective: cost.annualCost,
         cost,
         outstanding: dec(loan.outstanding),
@@ -128,9 +131,9 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
     ? weightedEffSum.div(totalOutstanding)
     : new Decimal(0);
 
-  const monthlyIncome = new Decimal(user.monthly_income || 0);
-  const fixed = new Decimal(user.fixed_expenses || 0);
-  const variable = new Decimal(user.variable_expenses || 0);
+  const monthlyIncome = safeDecimal(user.monthly_income);
+  const fixed = safeDecimal(user.fixed_expenses);
+  const variable = safeDecimal(user.variable_expenses);
   const surplus = monthlyIncome.sub(fixed).sub(variable).sub(emi);
 
   return {
@@ -187,9 +190,9 @@ export function deriveTenureMonths(
   nominalAnnualRate: number | string | Decimal,
   emi: number | string | Decimal,
 ): number | null {
-  const P = new Decimal(outstanding || 0);
-  const annualR = new Decimal(nominalAnnualRate || 0);
-  const E = new Decimal(emi || 0);
+  const P = safeDecimal(outstanding);
+  const annualR = safeDecimal(nominalAnnualRate);
+  const E = safeDecimal(emi);
   if (P.lte(0) || E.lte(0)) return null;
   if (annualR.lte(0)) {
     // Zero-interest loan: pure division.
@@ -210,3 +213,4 @@ export function deriveTenureMonths(
   if (!Number.isFinite(n) || n <= 0 || n > 600) return null;
   return Math.ceil(n);
 }
+
