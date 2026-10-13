@@ -20,6 +20,7 @@
  *   • Vehicle / other: no tax benefit in either country.
  */
 
+import { localTerms } from './terms';
 import Decimal from 'decimal.js';
 import type { Country, FilingStatusUS, TaxRegimeIN } from './api';
 import { deductionTaxSaving } from './deductions';
@@ -525,7 +526,7 @@ function buildNotes(input: PurchaseInput, tax: TaxResult): string[] {
   n.push(tax.reason);
   if (input.type === 'home') {
     n.push(
-      'A longer loan lowers the EMI but adds interest. Most people pick 20 to 25 years.',
+      localTerms('A longer loan lowers the EMI but adds interest. Most people pick 20 to 25 years.', input.country),
     );
   }
   return n;

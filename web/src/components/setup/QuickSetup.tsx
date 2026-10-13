@@ -317,7 +317,7 @@ export function QuickSetup() {
     if (askPaid(l) && emiAnswer(l, thisMonth) === undefined) {
       out.paid = emiPaidError(thisMonthName);
     }
-    const draft = loanDraftErrors({ ...l, scheduled_emi: emiOf(l) });
+    const draft = loanDraftErrors({ ...l, scheduled_emi: emiOf(l), currency: loanCurrency(l, country) as 'INR' | 'USD' }, country);
     if (draft.rate) out.rate = draft.rate;
     // Live re-test 3 R3-4: unreadable rate text is not a blank rate.
     if (u.rateUnreadable && (l.nominal_rate ?? '').trim() === '') out.rate = 'unreadable';
@@ -364,7 +364,7 @@ export function QuickSetup() {
   const summaryFlags = loans.map((l) => {
     const issues = issuesOf(l);
     if (Object.keys(issues).length === 0) return { emiTooSmall: false, invalid: false, outOfRange: false, missing: false };
-    const emiTooSmall = !!emiBelowInterest({ ...l, currency: loanCurrency(l, country) as 'INR' | 'USD' });
+    const emiTooSmall = !!emiBelowInterest({ ...l, currency: loanCurrency(l, country) as 'INR' | 'USD' }, country);
     const invalid = (!!uiOf(l.id).rateUnreadable && (l.nominal_rate ?? '').trim() === '') || !!rateOutOfRange(l.nominal_rate);
     const others = Object.keys(issues).filter((k) => !(invalid && k === 'rate') && !(emiTooSmall && k === 'emi'));
     // UX50 B-36: an unanswered "has this month's EMI gone out?" is a
@@ -1218,7 +1218,7 @@ function LoanBlock({
               emiTooSmall
                 ? issues.emi
                   ? undefined
-                  : (emiBelowInterest({ ...loan, currency: ccy }) ?? `At this ${paymentWords(country).one} the balance doesn't go down. Check the ${paymentWords(country).one} and the rate.`)
+                  : (emiBelowInterest({ ...loan, currency: ccy }, country) ?? `At this ${paymentWords(country).one} the balance doesn't go down. Check the ${paymentWords(country).one} and the rate.`)
                 : tenure
                   ? `About ${tenure} months left, to ${monthIndexToCountryLabel(tenure, country)}`
                   : undefined

@@ -227,7 +227,7 @@ function Rule({ r }: { r: TriageRule }) {
       <div style={{ fontSize: 12, lineHeight: 1.7, marginTop: 4 }}>{r.plain}</div>
       <div style={{ fontSize: 10, color: L_T.muted, marginTop: 6 }}>
         Source:{' '}
-        <a href={r.url} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>
+        <a href={r.url} target="_blank" rel="noreferrer" className="rd-cite" style={{ color: 'inherit' }}>
           {r.source}
         </a>
         {r.from > TRIAGE_VERIFIED_ON ? ` · in force from ${r.from}` : ''}

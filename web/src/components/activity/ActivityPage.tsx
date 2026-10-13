@@ -10,6 +10,7 @@
  * cookie the plan reads (lib/activity-cookie); life events in their own
  * cookie (lib/lifecycle-events). Every save re-runs the plan.
  */
+import { localTerms, paymentWords } from '@/lib/terms';
 import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 'react';
 import { smoothOrAuto } from '@/lib/motion';
 import { useRouter } from 'next/navigation';
@@ -259,14 +260,14 @@ export function ActivityPage({
       const original = user.loans[row.ref.loanIndex];
       const index = currentLoanIndex({loanIndex:row.ref.loanIndex,loanId:original?.id},original,current.loans);
       if (!isOpenCurrentLoan(current.loans[index]) || !requiredMonthly(current.loans[index],current.country).eq(row.ref.configuredMinimum ?? row.ref.minimum ?? row.ref.amount))
-        throw new Error('A loan or payment changed. Reload before marking the EMIs paid.');
+        throw new Error(localTerms('A loan or payment changed. Reload before marking the EMIs paid.', user.country));
       next = addActivityEntry(
         next,
         dueEntry(row.ref, index, current.loans[index].id, today),
         current.loans,
       );
     }
-    saveEntries(next, 'EMIs marked paid.');
+    saveEntries(next, localTerms('EMIs marked paid.', user.country));
     } catch (e) { setError((e as Error).message); }
   }
 
@@ -290,7 +291,7 @@ export function ActivityPage({
         </LSectionHeader>
         {rolled.length > 0 && (
           <p style={{ margin: '0 0 8px', fontSize: 11, color: L_T.muted, lineHeight: 1.6 }}>
-            Balances move on with the EMIs due since you entered them:{' '}
+            {localTerms('Balances move on with the EMIs due since you entered them:', user.country)}{' '}
             {rolled.map((r, i) => {
               const loan = user.loans[r.index];
               if (!loan) return null;
@@ -298,7 +299,7 @@ export function ActivityPage({
               return (
                 <span key={r.index}>
                   {i > 0 && '; '}
-                  {loanLabel(loan)} {formatCurrencyWhole(r.entered, ccy)} in {monthLabel(r.from)} → <strong style={{ color: L_T.ink }}>{formatCurrencyWhole(r.now, ccy)}</strong> after {r.months} EMI{r.months === 1 ? '' : 's'}
+                  {loanLabel(loan)} {formatCurrencyWhole(r.entered, ccy)} in {monthLabel(r.from)} → <strong style={{ color: L_T.ink }}>{formatCurrencyWhole(r.now, ccy)}</strong> after {r.months} {r.months === 1 ? paymentWords(user.country).one : paymentWords(user.country).many}
                 </span>
               );
             })}
@@ -333,6 +334,7 @@ export function ActivityPage({
       {ready &&
         months.map((m, i) => (
           <Month
+            country={user.country}
             key={m.month}
             m={m}
             open={isOpen(m, i)}
@@ -372,7 +374,9 @@ function Month({
   onToggle,
   onAct,
   onMarkAll,
+  country,
 }: {
+  country?: string;
   m: MonthGroup;
   open: boolean;
   wide: boolean;
@@ -385,7 +389,7 @@ function Month({
   const logged = m.rows.length - due.length;
   // QA #26: a month's due rows in ₹ and $ side by side, and the plan's
   // extra (often the whole card) logged by MARK PAID as if routine.
-  const note = dueNote(due);
+  const note = dueNote(due, country);
   return (
     <section id={`month-${m.month}`} aria-labelledby={`month-${m.month}-h`} style={{ scrollMarginTop: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, borderTop: `2px solid ${L_T.ink}`, padding: '10px 0 6px' }}>
@@ -401,7 +405,7 @@ function Month({
           )}
           {open && emisDue > 1 && (
             <LBracket accent onClick={onMarkAll}>
-              MARK {emisDue} EMIS PAID
+              MARK {emisDue} {localTerms('EMIS', country)} PAID
             </LBracket>
           )}
           <LBracket onClick={onToggle} label={`${open ? 'Fold' : 'Open'} ${m.label}`}>
@@ -596,7 +600,7 @@ function dueEntry(
 }
 
 /** What to say above a month's due rows: mixed currencies, and the plan's extra. */
-export function dueNote(due: HistoryRow[]): string | null {
+export function dueNote(due: HistoryRow[], country?: string): string | null {
   const parts: string[] = [];
   const planned = due.map((r) => r.planned ?? '').join(' ');
   if (planned.includes('₹') && planned.includes('$')) {
@@ -605,7 +609,7 @@ export function dueNote(due: HistoryRow[]): string | null {
   const extras = due.filter((r) => r.ref.kind === 'due' && Number(r.ref.extra ?? 0) > 0).length;
   if (extras > 0) {
     parts.push(
-      `The plan puts extra money on ${extras === 1 ? 'one of these' : `${extras} of these`}. MARK PAID logs the full planned payment, extra included; use OTHER AMOUNT if you paid only the EMI or minimum.`,
+      `The plan puts extra money on ${extras === 1 ? 'one of these' : `${extras} of these`}. MARK PAID logs the full planned payment, extra included; use OTHER AMOUNT if you paid only the ${paymentWords(country ?? 'IN').one} or minimum.`,
     );
   }
   return parts.length ? parts.join(' ') : null;

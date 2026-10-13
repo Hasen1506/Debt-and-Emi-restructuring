@@ -63,8 +63,8 @@ test('NEW-3/NEW-4: an EMI at or below the monthly interest is blocked with the n
   assert.doesNotMatch(emiBelowInterest({ ...tenX, scheduled_emi: '1000' }), /did you mean/);
   // Cards have no EMI to check.
   assert.equal(emiBelowInterest({ ...tenX, loan_type: 'credit_card' }), null);
-  assert.match(src('components/setup/QuickSetup.tsx'), /emiBelowInterest\(\{ \.\.\.loan, currency: ccy \}\)/);
-  assert.match(src('app/profile/ProfileClient.tsx'), /emiBelowInterest\(loan\) \?/);
+  assert.match(src('components/setup/QuickSetup.tsx'), /emiBelowInterest\(\{ \.\.\.loan, currency: ccy \}, country\)/);
+  assert.match(src('app/profile/ProfileClient.tsx'), /emiBelowInterest\(loan, country\) \?/);
 });
 
 test('NEW-2/NEW-3: Plan never prints unbounded totals', () => {

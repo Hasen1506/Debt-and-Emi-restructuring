@@ -12,6 +12,7 @@
  * date and payments are streamed in by the page.
  */
 
+import { localTerms } from '@/lib/terms';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { formatTaxRate } from '@/lib/tax-profile';
 import type { StoredProfile } from '@/lib/user-store';
@@ -78,7 +79,7 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth }: Hom
   // Owed now: after the EMIs already marked paid this month (lib/owed-now).
   const owedRows = useOwedNow(profile.user.loans, profile.user.country).rows;
 
-  if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
+  if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} country={profile.user.country} />;
 
   // A loan with no rate or EMI on file: no rates until it's added.
   const gaps = projectionGaps(profile.user);
@@ -213,7 +214,7 @@ function CashFlow({ profile, m }: { profile: StoredProfile; m: DerivedMetrics })
       tone: L_T.ink,
       note: noFx
         ? 'Add the exchange rate in Profile'
-        : `Spending ${fc(spend)} + EMIs and card minimums ${fc(debts)}`,
+        : localTerms(`Spending ${fc(spend)} + EMIs and card minimums ${fc(debts)}`, profile.user.country),
     },
     {
       label: left < 0 ? 'SHORT' : 'LEFT',
@@ -279,7 +280,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrencyWhole(v, ccy);
-  if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} />;
+  if (m.loans.length === 0) return <EmptyState paidOff={(profile.user.loans?.length ?? 0) > 0} country={profile.user.country} />;
   const loudest = m.loudest!;
   const gaps = projectionGaps(profile.user);
   const amount = m.surplus.gt(0) ? Math.round(Number(m.surplus.toString())) : 0;
@@ -347,10 +348,10 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
             <span className="rd-one-step">{oneStep}</span>
             <span className="rd-one-step-fallback" data-testid="one-step-fallback">
               {m.surplus.lt(0)
-                ? 'PAY EVERY EMI AND CARD MINIMUM YOU CAN, SECURED LOANS (HOME, CAR, GOLD) FIRST. FOR WHAT YOU CAN’T COVER, CALL THE BANK BEFORE THE DUE DATE.'
+                ? localTerms(profile.user.country === 'US' ? 'PAY EVERY EMI AND CARD MINIMUM YOU CAN, SECURED LOANS (HOME, CAR) FIRST. FOR WHAT YOU CAN’T COVER, CALL THE LENDER BEFORE THE DUE DATE.' : 'PAY EVERY EMI AND CARD MINIMUM YOU CAN, SECURED LOANS (HOME, CAR, GOLD) FIRST. FOR WHAT YOU CAN’T COVER, CALL THE BANK BEFORE THE DUE DATE.', profile.user.country)
                 : amount > 0
                   ? `PAY ${fc(Math.min(amount, Number(m.toUserCcy(loudest.outstanding, loudest.loan))))} TO YOUR ${lender}${LOAN_TYPE_NAME[loudest.loan.loan_type].toUpperCase()}.`
-                  : `KEEP CURRENT EMIS RUNNING.`}
+                  : localTerms(`KEEP CURRENT EMIS RUNNING.`, profile.user.country)}
             </span>
           </div>
           <div style={{ fontSize: 12, color: L_T.muted, marginTop: 18, lineHeight: 1.7 }}>
@@ -434,7 +435,7 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
   );
 }
 
-function EmptyState({ paidOff }: { paidOff: boolean }) {
+function EmptyState({ paidOff, country }: { paidOff: boolean; country?: string }) {
   // paidOff: loans are on file but every balance is 0.
   return (
     <LShell>
@@ -444,7 +445,7 @@ function EmptyState({ paidOff }: { paidOff: boolean }) {
         <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
           {paidOff ? (
             <>
-              Every loan on file is paid off. Put the old EMIs to work:{' '}
+              {localTerms('Every loan on file is paid off. Put the old EMIs to work:', country)}{' '}
               <LBracket href="/goals">GOALS →</LBracket>{' '}
               <LBracket href="/portfolio">WHAT YOU OWN →</LBracket>{' '}
               <LBracket href="/profile?step=loans">ADD A LOAN →</LBracket>

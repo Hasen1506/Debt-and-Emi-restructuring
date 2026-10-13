@@ -41,6 +41,15 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
     expect(await planText(page)).toMatchSnapshot('usa-plan-schedule.txt');
   });
 
+  await test.step('R8-2: US pages say "monthly payment", never EMI', async () => {
+    for (const url of ['/plan', '/', '/activity']) {
+      await page.goto(url);
+      await expect(page.locator('#main')).toBeVisible();
+      const text = await page.locator('#main').innerText();
+      expect(text, url).not.toMatch(/\bEMIS?\b/);
+    }
+  });
+
   await test.step('Profile and /tax show the US details', async () => {
     // /tax is its own page again (sprint G2, grill #77).
     await page.goto('/profile');

@@ -98,6 +98,12 @@ Horizon = Annotated[int, Field(ge=1, le=MAX_MONTHS)]
 LoanIndex = Annotated[int, Field(ge=0, lt=MAX_LOANS)]
 # An effective APR (fees included) can pass 100% on a short BNPL plan.
 EffectiveRate = Annotated[Decimal, Field(ge=0, le=10)]
+# Live re-test 8 R8-6: a person's own assumptions, bounded so an absurd
+# typed value (a 99,999,999,999,999% pay rise) never reaches the engine.
+# Fractions of 1, like every rate here. The web form uses the same bounds
+# (web/src/lib/r8-inputs.ts ASSUMPTION_BOUNDS).
+TaxRate = Annotated[Decimal, Field(ge=0, le=D("0.6"))]
+FeeRate = Annotated[Decimal, Field(ge=0, le=D("0.1"))]
 
 
 class _In(_Base):
@@ -146,8 +152,8 @@ class LoanIn(_In):
     scheduled_emi: Amount
     # Both are yearly rates added to the loan's cost (M2: unbounded values
     # turned a 12% loan "not worth prepaying" or broke the maths).
-    processing_fee_amortised: Decimal = Field(D("0"), ge=0, le=1)
-    insurance_premium_pct: Decimal = Field(D("0"), ge=0, le=1)
+    processing_fee_amortised: FeeRate = D("0")
+    insurance_premium_pct: FeeRate = D("0")
     property_use: Optional[str] = None
     min_payment_override: Optional[Amount] = None
     currency: Optional[str] = None
@@ -494,7 +500,7 @@ class UserIn(_In):
     # Self-reported credit score — CIBIL (300-900) for India, FICO (300-850)
     # for US. Optional; engine doesn't consume it directly but it round-trips
     # so frontend rate-prediction chip can use the entered value across sessions.
-    credit_score: Optional[int] = None
+    credit_score: Optional[int] = Field(None, ge=300, le=900)
     savings_balance: Amount
     # Optional rich per-account cash breakdown (checking / savings / HYSA /
     # FD / other). Engine drops it — used by /debts display and (Phase 2+)
@@ -515,14 +521,14 @@ class UserIn(_In):
     pf: Optional[PFBalanceIn] = None
     filing_status: Optional[FilingStatusUS] = None
     state: Optional[str] = None
-    state_marginal_rate: Rate = D("0")
+    state_marginal_rate: TaxRate = D("0")
     itemises: bool = False
     efund_balance: Amount = D("0")
     efund_target: Amount = D("0")
     loans: list[LoanIn] = Field(default_factory=list, max_length=MAX_LOANS)
     assets: list[AssetIn] = Field(default_factory=list)
     investment_options: list[InvestmentOptionIn] = Field(default_factory=list)
-    annual_hike_rate: Decimal = Field(D("0"), ge=D("-0.5"), le=1)
+    annual_hike_rate: Decimal = Field(D("0"), ge=D("-0.5"), le=D("0.5"))
     hike_effective_month: int = Field(default=1, ge=1, le=12)
     # Optional list of hike phases. Each entry: [year_from, year_to, rate].
     # year_from is 1-based inclusive, year_to is 1-based exclusive, rate
@@ -530,8 +536,17 @@ class UserIn(_In):
     # uniformly. Validated for non-overlap on the frontend; engine picks
     # the first matching phase regardless.
     hike_schedule: list[tuple[int, int, Decimal]] = Field(default_factory=list)
-    business_cagr: Decimal = Field(D("0"), ge=D("-0.5"), le=1)
-    inflation_rate: Decimal = Field(D("0.046"), ge=D("-0.1"), le=1)
+
+    @field_validator("hike_schedule")
+    @classmethod
+    def _hike_phase_rates_bounded(cls, v):
+        # R8-6: each phase's rate has the same bounds as annual_hike_rate.
+        for _f, _t, rate in v:
+            if rate < D("-0.5") or rate > D("0.5"):
+                raise ValueError("a pay-rise phase must be between -50% and 50% a year")
+        return v
+    business_cagr: Decimal = Field(D("0"), ge=D("-0.5"), le=D("0.5"))
+    inflation_rate: Decimal = Field(D("0.046"), ge=D("-0.1"), le=D("0.5"))
     is_nri_us: bool = False
     fx_to_user_currency: Dict[str, Decimal] = Field(default_factory=dict)
     # Annualized FX drift per non-residence currency. Engine compounds
@@ -694,7 +709,7 @@ class SimulateRequest(_In):
     strategy: Strategy = Strategy.AVALANCHE
     horizon_months: Horizon = 360
     matched_contribution: Amount = D("0")
-    marginal_rate: Optional[Rate] = None
+    marginal_rate: Optional[TaxRate] = None
     simple_mode: bool = False
     # 1=Jan, 12=Dec. Calendar month corresponding to sim month 1. Anchors
     # hike firing to the user's actual today. Defaults to 1 → preserves
@@ -1046,7 +1061,7 @@ class CompareRequest(_In):
     their "before" date could differ from the plan's)."""
     user: UserIn
     horizon_months: Horizon = 360
-    marginal_rate: Optional[Rate] = None
+    marginal_rate: Optional[TaxRate] = None
     strategy: Strategy = Strategy.AVALANCHE
     simulation_start_month: int = Field(default=1, ge=1, le=12)
     matched_contribution: Amount = D("0")
@@ -1121,7 +1136,7 @@ class CompareResponse(_Base):
 class WindfallRequest(_In):
     amount: Amount
     user: UserIn
-    marginal_rate: Optional[Rate] = None
+    marginal_rate: Optional[TaxRate] = None
     strategy: Strategy = Strategy.AVALANCHE
 
 
@@ -1198,7 +1213,7 @@ class QuickRecomputeRequest(_In):
     target_loan_index: LoanIndex = 0
     strategy: Strategy = Strategy.AVALANCHE
     horizon_months: Horizon = 360
-    marginal_rate: Optional[Rate] = None
+    marginal_rate: Optional[TaxRate] = None
 
 
 class QuickRecomputeResponse(_Base):
@@ -1256,13 +1271,13 @@ class AssetLiquidationRequest(_In):
     surplus_reinvestment_yield: Optional[SignedRate] = None   # if absent, Gate 0 is skipped
     # Slab rate incl. surcharge + cess, used when the property was held 24
     # months or less (short-term). Derived from taxable_income if absent.
-    marginal_rate: Optional[Rate] = None
+    marginal_rate: Optional[TaxRate] = None
     # Whose tax rules apply to the sale. A US seller pays federal capital-
     # gains tax (with the §121 main-home exclusion when `asset.
     # us_section_121_eligible`), NIIT and state tax, not India's LTCG.
     country: Country = Country.IN
     filing_status: Optional[FilingStatusUS] = None
-    state_marginal_rate: Optional[Rate] = None
+    state_marginal_rate: Optional[TaxRate] = None
 
     @model_validator(mode="after")
     def _needs_purchase_date(self):
@@ -1392,7 +1407,7 @@ class LoanTermsResponse(_Base):
 
 class RestructuringRequest(_In):
     user: UserIn
-    marginal_rate: Optional[Rate] = None
+    marginal_rate: Optional[TaxRate] = None
     # The same inputs as /simulate: compare actual repayment schedules,
     # including the user's debt budget, goals and emergency-fund share.
     plan: Optional[SimulateRequest] = None
@@ -1510,7 +1525,7 @@ class LiquidationRankingsRequest(_In):
     # using the same effective-APR helper the UI already uses, so the ranker
     # uses consistent rates with what the user sees elsewhere.
     debt_effective_rates: dict[LoanIndex, EffectiveRate] = Field(..., max_length=MAX_LOANS)
-    marginal_rate: Rate = D("0.30")
+    marginal_rate: TaxRate = D("0.30")
     high_rate_threshold: Rate = D("0.20")
     horizon_years: Decimal = Field(D("5"), gt=0, le=100)
     surplus_reinvestment_yield: SignedRate = D("0.07")

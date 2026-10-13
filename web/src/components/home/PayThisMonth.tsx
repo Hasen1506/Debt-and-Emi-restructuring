@@ -423,14 +423,14 @@ export function PayThisMonth({
                         color: st.tag === 'PAID' || st.tag === 'EMI PAID' ? L_T.positive : L_T.negative,
                       }}
                     >
-                      · {st.tag === 'MISSED' ? 'NOT PAID' : st.tag}
+                      · {st.tag === 'MISSED' ? 'NOT PAID' : st.tag === 'EMI PAID' && country === 'US' ? 'PAYMENT PAID' : st.tag}
                       {st.tag !== 'MISSED' && st.amount !== row.amount ? ` ${fmt(st.amount, row.currency)}` : ''} ·{' '}
                       {dayLabel(st.date)}
                     </span>
                   )}
                 </div>
                 <div style={{ fontSize: 12, letterSpacing: '0.04em', color: L_T.inkSoft, marginTop: 4, lineHeight: 1.5 }}>
-                  {kindLine(row, fmt, owedNowFor(row))}
+                  {kindLine(row, fmt, owedNowFor(row), country)}
                   {row.dueDay ? ` · DUE ${row.dueDay} ${MONTH_NAMES_SHORT[Number(month.slice(5)) - 1].toUpperCase()}` : ''}
                 </div>
                 {reason && reason.key === row.key && !st && (
@@ -597,15 +597,17 @@ export function PayNotice({ title, children }: { title: string; children: ReactN
   );
 }
 
-function kindLine(row: PayRow, fmt: (v: number, ccy?: PayRow['currency']) => string, now?: { owed: number; cardBefore?: number }): string {
+function kindLine(row: PayRow, fmt: (v: number, ccy?: PayRow['currency']) => string, now?: { owed: number; cardBefore?: number }, country?: string): string {
+  // R8-2: a US borrower's word for the payment.
+  const emiTag = country === 'US' ? 'PAYMENT' : 'EMI';
   const min = row.loanIndex !== null && row.minimum > 0 ? fmt(row.minimum, row.currency) : '';
   switch (row.kind) {
     case 'emi':
-      return 'EMI';
+      return emiTag;
     case 'minimum':
       return 'CARD MINIMUM';
     case 'extra':
-      return `${row.minimum > 0 ? `${min} ${row.card ? 'MINIMUM' : 'EMI'} + ` : ''}${fmt(row.extra, row.currency)} EXTRA${
+      return `${row.minimum > 0 ? `${min} ${row.card ? 'MINIMUM' : emiTag} + ` : ''}${fmt(row.extra, row.currency)} EXTRA${
         ((t) => (t ? ` · ${t}` : ''))(owedAfterLabel(row, now, (v) => fmt(v, row.currency)))
       }`;
     case 'clears':

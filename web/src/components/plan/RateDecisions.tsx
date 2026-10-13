@@ -7,6 +7,7 @@
  * prepayment (a prepayment saves interest from the day it's made,
  * whatever the rate becomes).
  */
+import { localTerms } from '@/lib/terms';
 import { useEffect, useState } from 'react';
 import type { PlanData } from './PlanData';
 import { api, formatCurrencyWhole, type CentralRatesResponse, type LoanPayload, type Country } from '@/lib/api';
@@ -77,7 +78,7 @@ function RateDecisionMarket({ country, loans, data }: { country: Country; loans:
                 {m.follows === 'floating' && m.loan.rate_type_assumed === true ? ' (ASSUMED: CHECK YOUR LOAN LETTER)' : ''}
               </span>
             </div>
-            <div style={{ color: L_T.inkSoft }}>{moveWords(m, fc)}</div>
+            <div style={{ color: L_T.inkSoft }}>{moveWords(m, fc, country)}</div>
             <div style={{ color: L_T.muted }}>
               {whenItApplies(m, country, decision).replace(/^./, (c) => c.toUpperCase())}.
             </div>
@@ -102,7 +103,7 @@ function RateDecisionMarket({ country, loans, data }: { country: Country; loans:
   );
 }
 
-function moveWords(m: RateMove, fc: (v: number, l: LoanPayload) => string): string {
+function moveWords(m: RateMove, fc: (v: number, l: LoanPayload) => string, country?: string): string {
   const l = m.loan;
   if (m.follows === 'card') {
     return `A ${STEP} rise adds about ${fc(m.interestUp ?? 0, l)} a month in interest on today's balance; a cut takes about that off.`;
@@ -116,7 +117,7 @@ function moveWords(m: RateMove, fc: (v: number, l: LoanPayload) => string): stri
     more != null && more > 0
       ? `A ${STEP} rise: ${monthsSpan(more)} more at the same ${fc(Number(l.scheduled_emi), l)} EMI (what banks usually do)${emiUp ? `, or ${emiUp} more a month if you ask to keep the months` : ''}.`
       : months && months.up == null
-        ? `A ${STEP} rise would leave the EMI short of the interest: ask the bank to raise it.`
+        ? localTerms(`A ${STEP} rise would leave the EMI short of the interest: ask the bank to raise it.`, country)
         : emiUp
           ? `A ${STEP} rise: about ${emiUp} more a month.`
           : '';

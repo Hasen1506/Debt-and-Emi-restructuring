@@ -7,6 +7,7 @@
  * shows what the entry does to the plan — the debt-free month and the
  * interest — from the same engine run Plan uses.
  */
+import { localTerms, paymentWords } from '@/lib/terms';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Decimal from 'decimal.js';
 import { api, formatCurrencyWhole, type PlanRunArgs, type UserPayload } from '@/lib/api';
@@ -160,17 +161,17 @@ export function LogDialog({
     : status === 'off' && !typed ? new Decimal(loan?.outstanding || 0)
     : new Decimal(Number(typed) || 0);
   const fmt = (v: Decimal.Value) => formatCurrencyWhole(new Decimal(v).toFixed(0), lccy);
-  const usual = card ? `Minimum ${fmt(planned)}` : `EMI ${fmt(planned)}`;
+  const usual = card ? `Minimum ${fmt(planned)}` : `${country === 'US' ? 'Payment' : 'EMI'} ${fmt(planned)}`;
 
   const payProblems: Record<string, string | null> = {
-    timing: loan?.first_emi_month && date.slice(0, 7) < loan.first_emi_month && ['full', 'part', 'missed'].includes(status) ? 'The first EMI is not due yet. Choose “Paid extra” for an early prepayment.' : null,
+    timing: loan?.first_emi_month && date.slice(0, 7) < loan.first_emi_month && ['full', 'part', 'missed'].includes(status) ? localTerms('The first EMI is not due yet. Choose “Paid extra” for an early prepayment.', country) : null,
     loan: isOpenCurrentLoan(loan) ? null : 'Pick an open loan.',
     amount:
       status === 'missed' ? null
       : !amt.isFinite() || !amt.gt(0) ? 'Enter the amount.'
       : status === 'full' && planned.gt(0) && !amt.eq(planned) ? 'For a different amount, choose “Paid part of it” or “Paid extra”.'
       : status === 'off' && amt.lt(new Decimal(loan?.outstanding || 0)) ? 'That does not clear the balance. Choose a partial or extra payment.'
-      : status === 'part' && planned.gt(0) && amt.gte(planned) ? `That's the full ${card ? 'minimum' : 'EMI'} or more: pick “Paid in full” or “Paid extra”.`
+      : status === 'part' && planned.gt(0) && amt.gte(planned) ? `That's the full ${card ? 'minimum' : paymentWords(country).one} or more: pick “Paid in full” or “Paid extra”.`
       : null,
     date: !date ? 'Pick the date.' : date > today ? 'That’s after today. A payment you’re planning goes on Plan.' : null,
     newBalance: newBalance.trim() && !(Number(newBalance) >= 0) ? 'Enter the balance, or leave it blank.' : null,
@@ -422,7 +423,7 @@ export function LogDialog({
               {status !== 'missed' && (
                 <div style={{ flex: '1 1 200px' }}>
                   <Field
-                    label={status === 'extra' ? `Extra, on top of the ${card ? 'minimum' : 'EMI'}` : status === 'off' ? 'Amount that cleared it' : 'Amount paid'}
+                    label={status === 'extra' ? `Extra, on top of the ${card ? 'minimum' : paymentWords(country).one}` : status === 'off' ? 'Amount that cleared it' : 'Amount paid'}
                     kind="money"
                     currency={lccy}
                     value={amount}

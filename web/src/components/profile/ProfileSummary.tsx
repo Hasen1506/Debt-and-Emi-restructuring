@@ -164,7 +164,7 @@ export function ProfileSummary({
                   <th scope="col" style={{ ...cell, textAlign: 'left', fontWeight: 500 }}>LOAN</th>
                   <th scope="col" style={{ ...cell, fontWeight: 500 }}>OWED</th>
                   <th scope="col" style={{ ...cell, fontWeight: 500 }}>RATE</th>
-                  <th scope="col" style={{ ...cell, fontWeight: 500 }}>EMI</th>
+                  <th scope="col" style={{ ...cell, fontWeight: 500 }}>{user.country === 'US' ? 'PAYMENT' : 'EMI'}</th>
                 </tr>
               </thead>
               <tbody>

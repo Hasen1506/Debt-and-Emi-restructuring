@@ -10,7 +10,7 @@
 export type EmiStatus = 'first' | 'paid' | 'due' | 'part' | 'missed';
 
 /** `kind` is "EMI" for loans and "MINIMUM" for cards; `amount` is formatted, or null when unknown. */
-export function emiStatusLine(status: EmiStatus, mon: string, next: string, kind: 'EMI' | 'MINIMUM', amount: string | null): string {
+export function emiStatusLine(status: EmiStatus, mon: string, next: string, kind: 'EMI' | 'PAYMENT' | 'MINIMUM', amount: string | null): string {
   const what = amount ? `${kind} ${amount}` : kind;
   switch (status) {
     case 'first':

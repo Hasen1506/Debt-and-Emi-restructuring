@@ -9,6 +9,8 @@
  * EMI formula as everywhere else): the new EMI, whether this month's gap
  * closes, and what the extra months cost in interest. Nothing is saved.
  */
+import { loanMarket } from '@/lib/currency';
+import { paymentWords } from '@/lib/terms';
 import { engineRequests, isAbortError } from '@/lib/engine-requests';
 import { tenureWhatIfCopy } from '@/lib/tenure-whatif-copy';
 import { useEffect, useMemo, useState } from 'react';
@@ -99,6 +101,9 @@ export function TenureWhatIf({
   if (options.length === 0) return null;
   const loan = user.loans[loanIdx];
   const lccy = loan ? loanCurrency(loan, user.country) : ccy;
+  // R8-2/R8-3: the user's own word for the payment; RBI only for an Indian loan.
+  const pw = paymentWords(user.country);
+  const inIndia = loan ? loanMarket(loan, user.country) === 'IN' : user.country === 'IN';
   const r = state.result;
   const label = (m: number | null | undefined) =>
     m ? monthIndexToCountryLabel(m, user.country) : 'not within 30 years';
@@ -132,8 +137,8 @@ export function TenureWhatIf({
         WHAT IF THE BANK GAVE YOU A LONGER TENURE?
       </div>
       <p style={{ margin: '4px 0 8px', color: L_T.inkSoft }}>
-        A longer tenure (more months to repay) lowers the EMI, but you pay interest for longer. Pick a loan and how many
-        more months; the plan re-runs with the new EMI, and the chart and table below switch to it (a button there takes
+        A longer tenure (more months to repay) lowers the {pw.one}, but you pay interest for longer. Pick a loan and how many
+        more months; the plan re-runs with the new {pw.one}, and the chart and table below switch to it (a button there takes
         you back to your plan). Nothing is saved until you change the loan in Profile.
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', alignItems: 'center' }}>
@@ -142,7 +147,7 @@ export function TenureWhatIf({
           <select value={loanIdx} onChange={(e) => setLoanIdx(Number(e.target.value))} aria-label="Loan to stretch">
             {options.map(({ l, i }) => (
               <option key={i} value={i}>
-                {loanLabel(l)} · EMI {formatCurrencyWhole(l.scheduled_emi, loanCurrency(l, user.country))}
+                {loanLabel(l)} · {pw.one === 'EMI' ? 'EMI' : 'Payment'} {formatCurrencyWhole(l.scheduled_emi, loanCurrency(l, user.country))}
               </option>
             ))}
           </select>
@@ -174,7 +179,7 @@ export function TenureWhatIf({
       {state.error && <p role="alert" style={{ margin: '8px 0 0', color: L_T.negative }}>Couldn&apos;t run this: {state.error}</p>}
       {r && r.tenure_new_emi != null && (
         <div role="status" style={{ marginTop: 8 }}>
-          EMI {formatCurrencyWhole(r.tenure_old_emi ?? '0', lccy)} → <strong>{formatCurrencyWhole(r.tenure_new_emi, lccy)}</strong>{' '}
+          {pw.one === 'EMI' ? 'EMI' : 'Monthly payment'} {formatCurrencyWhole(r.tenure_old_emi ?? '0', lccy)} → <strong>{formatCurrencyWhole(r.tenure_new_emi, lccy)}</strong>{' '}
           ({r.tenure_old_months} → {r.tenure_new_months} months left).{' '}
           {copy?.gap ? (
             copy.gapCloses ? <strong style={{ color: L_T.positive }}>{copy.gap}</strong> : <>{copy.gap}</>
@@ -183,15 +188,23 @@ export function TenureWhatIf({
           {copy?.interest}
         </div>
       )}
+      {/* R8-3: RBI's reset rule applies to a loan from an Indian lender only. */}
+      {!inIndia ? (
+        <p style={{ margin: '8px 0 0', fontSize: 11, color: L_T.muted }}>
+          Ask your lender; they decide. A longer term is up to the lender&apos;s own policy and charges, so ask what it
+          costs and how it shows on your credit report.
+        </p>
+      ) : (
       <p style={{ margin: '8px 0 0', fontSize: 11, color: L_T.muted }}>
         Ask your lender; they decide. When a floating rate resets, RBI&apos;s rules say your lender must let you choose a
-        higher EMI, a longer tenure or both (
+        higher {pw.one}, a longer tenure or both (
         <a href={RBI_RESET_CIRCULAR_URL} target="_blank" rel="noreferrer">
           RBI circular of 18 Aug 2023, para 2(iii)
         </a>
         ). At other times a longer tenure is up to the lender&apos;s own policy and charges, so ask what it costs and how it
         shows on your credit report.
       </p>
+      )}
     </section>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { localTerms } from '@/lib/terms';
 import { whereToFind } from '@/lib/where-to-find';
 import { tenureError } from '@/lib/tenure-rules';
 import { bankEstimate, computeEMI } from '@/lib/new-debt-estimate';
@@ -230,7 +231,7 @@ export function NewDebtTool() {
       return;
     }
     if (card && !(Number(listPrice) > 0)) {
-      failField('listPrice', 'Enter the price on the EMI offer.');
+      failField('listPrice', localTerms('Enter the price on the EMI offer.', country));
       return;
     }
     if (card && !(Number(cashPrice) > 0)) {
@@ -316,7 +317,7 @@ export function NewDebtTool() {
       <LStep no="01" id="nd-in" title="The loan">
         <form onSubmit={check} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <LChipRow label="What kind?">
-            {LOAN_TYPE_OPTIONS.map((o) => (
+            {LOAN_TYPE_OPTIONS.map((o0) => ({ ...o0, label: localTerms(o0.label, country) })).map((o) => (
               <LChip key={o.value} on={loanType === o.value} onClick={() => setLoanType(o.value)}>
                 {o.label}
               </LChip>
@@ -325,7 +326,7 @@ export function NewDebtTool() {
           {isCard ? (
             <div>
               <LFieldGrid min={200}>
-                <Field label="Price on the EMI offer" kind="money" currency={ccy} value={listPrice} onChange={setListPrice} error={at('listPrice')} />
+                <Field label={localTerms('Price on the EMI offer', country)} kind="money" currency={ccy} value={listPrice} onChange={setListPrice} error={at('listPrice')} />
                 <Field
                   label="Price if you pay in full"
                   kind="money"
@@ -339,7 +340,7 @@ export function NewDebtTool() {
                 <Field label="For how many months" kind="integer" value={tenure} onChange={setTenure} error={tenureLive ?? at('tenure')} />
               </LFieldGrid>
               <LNote style={{ margin: '8px 0 0' }}>
-                A &ldquo;no-cost&rdquo; EMI often hides its cost in a higher price than you&apos;d pay in cash.
+                {localTerms('A “no-cost” EMI often hides its cost in a higher price than you’d pay in cash.', country)}
               </LNote>
             </div>
           ) : (
@@ -356,6 +357,7 @@ export function NewDebtTool() {
                 <LNote style={{ margin: '8px 0 0', color: L_T.negative }}>Couldn&apos;t load bank rates: {instErr}</LNote>
               ) : bankComparison ? (
                 <BankRateTable
+                  country={country}
                   noted={ratesNoted}
                   comparison={bankComparison}
                   loanType={loanType}
@@ -431,7 +433,7 @@ export function NewDebtTool() {
         <>
           <LStep no="02" id="nd-out" title="The answer" answer>
             <LVerdict tone={VERDICT[v.verdict].tone}>
-              {isCard && v.verdict === 'take' ? 'Take the EMI offer.' : VERDICT[v.verdict].text}
+              {localTerms(isCard && v.verdict === 'take' ? 'Take the EMI offer.' : VERDICT[v.verdict].text, country)}
             </LVerdict>
             <LNote>
               {v.detail}{' '}
@@ -447,7 +449,7 @@ export function NewDebtTool() {
             <LKpi
               items={[
                 { l: 'IT REALLY COSTS', v: formatPct(v.effective_apr, 1), s: Number(v.gst) >= 1 ? (Number(fee) > 0 ? 'a year, fee and GST included' : 'a year, GST included') : Number(fee) > 0 ? 'a year, fee included' : 'a year · no fee entered' },
-                { l: 'EMI', v: fmt(v.monthly_emi), s: `a month for ${tenure} months` },
+                { l: country === 'US' ? 'PAYMENT' : 'EMI', v: fmt(v.monthly_emi), s: `a month for ${tenure} months` },
                 {
                   l: 'MORE THAN CASH',
                   v: fmt(v.total_real_cost),
@@ -494,7 +496,7 @@ export function NewDebtTool() {
                   }
                   const saved = addLoanToProfile({
                     loan_type: isCard ? 'bnpl' : loanType,
-                    bank: isCard ? 'Quoted EMI offer' : activeBank!.name,
+                    bank: isCard ? localTerms('Quoted EMI offer', country) : activeBank!.name,
                     outstanding: isCard ? listPrice : loanAmount,
                     nominal_rate: isCard ? String(offerRate(Number(listPrice), Number(offerEmi), Number(tenure))) : String(quotedRate ?? bankRate(activeBank!)),
                     tenure_months_remaining: Number(tenure),
@@ -504,7 +506,7 @@ export function NewDebtTool() {
                   if (saved != null) setAdded(true);
                   else setErr('The loan could not be saved. Recheck it fits against your current profile.');
                 }}
-                label={isCard ? 'Add this EMI offer to my profile' : `Add the ${loanName({ bank: activeBank?.name ?? null, loan_type: loanType })} to my profile`}
+                label={isCard ? localTerms('Add this EMI offer to my profile', country) : `Add the ${loanName({ bank: activeBank?.name ?? null, loan_type: loanType })} to my profile`}
               />
             )}
             {isCard && v.verdict === 'take' && (
@@ -517,15 +519,15 @@ export function NewDebtTool() {
               { k: isCard ? 'price on the offer' : 'borrowed', v: fmt(v.list_price) },
               ...(isCard ? [{ k: 'price in cash', v: fmt(v.cash_price) }] : []),
               ...(usedRate != null ? [{ k: 'rate', v: formatPct(String(usedRate), 2), note: quotedRate != null ? 'the rate you were quoted' : activeBank ? `${activeBank.name}, ${goodScore ? `bottom of its range (score ${country === 'IN' ? 750 : 740}+)` : 'middle of its range'}` : 'typical, no published rate' }] : []),
-              { k: 'EMI', v: fmt(v.monthly_emi), note: `× ${tenure} months = ${fmt((Number(v.monthly_emi) * Number(tenure)).toFixed(0))}` },
+              { k: country === 'US' ? 'payment' : 'EMI', v: fmt(v.monthly_emi), note: `× ${tenure} months = ${fmt((Number(v.monthly_emi) * Number(tenure)).toFixed(0))}` },
               ...(Number(v.processing_fee) > 0 ? [{ k: 'processing fee', v: fmt(v.processing_fee) }] : []),
               {
                 k: 'more than cash',
                 v: fmt(v.total_real_cost),
-                note: 'EMIs + fee − price in cash',
+                note: localTerms('EMIs + fee − price in cash', country),
                 tone: Number(v.total_real_cost) > 0 ? ('neg' as const) : undefined,
               },
-              { k: 'it really costs', v: formatPct(v.effective_apr, 1), note: 'the yearly rate that turns the cash price into these EMIs' },
+              { k: 'it really costs', v: formatPct(v.effective_apr, 1), note: localTerms('the yearly rate that turns the cash price into these EMIs', country) },
               ...(monthlyRoom != null ? [{ k: 'room each month', v: fmt(monthlyRoom), note: 'income less costs and current payments' }] : []),
             ]}
           />
@@ -619,7 +621,9 @@ function BankRateTable({
   onPick,
   fmt,
   showMoney,
+  country,
 }: {
+  country?: string;
   /** When the advertised ranges were noted, "14 May 2026". */
   noted: string | null;
   comparison: BankComparison;
@@ -650,7 +654,7 @@ function BankRateTable({
               <th scope="col" style={th}>RATE</th>
               {showMoney && (
                 <>
-                  <th scope="col" style={th}>EMI</th>
+                  <th scope="col" style={th}>{country === 'US' ? 'PAYMENT' : 'EMI'}</th>
                   <th scope="col" style={th}>INTEREST</th>
                 </>
               )}

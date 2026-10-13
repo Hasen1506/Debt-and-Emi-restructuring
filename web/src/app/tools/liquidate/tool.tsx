@@ -1,5 +1,6 @@
 'use client';
 
+import { assetKindsFor } from '@/lib/r8-inputs';
 import { whereToFind } from '@/lib/where-to-find';
 import Decimal from 'decimal.js';
 import { dec } from '@/lib/safe-decimal';
@@ -165,7 +166,7 @@ export function LiquidateTool() {
 
   const [resultValue, setV] = useState<AssetLiquidationResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const { err, setErr, clear, fail, failField, at } = useFormErrors();
+  const { err, setErr, clear, fail, failField, at, clearField } = useFormErrors();
   const [applied, setApplied] = useState(false);
   const [resultProfileKey,setResultProfileKey] = useState('');
 
@@ -381,7 +382,8 @@ export function LiquidateTool() {
   }
 
   const ownAssets = ownAssetsInOrder(profile.user.assets);
-  const typeChips = SALE_ASSET_TYPES[country];
+  // R8-4: no gold or gold ETF chips for a US user (kept if already picked).
+  const typeChips = assetKindsFor(SALE_ASSET_TYPES[country], country, assetType);
 
   const loanChips = profile.user.loans
     .map((l, i) => ({ l, i }))
@@ -542,10 +544,10 @@ export function LiquidateTool() {
                 label="Its rate (%)"
                 kind="percent"
                 value={debtRate}
-                onChange={setDebtRate}
+                onChange={(v) => { setDebtRate(v); clearField('debtRate'); }}
                 // R7-5: checked as it's typed (0 to 100% a year, as Loan Check),
                 // so an absurd rate never reaches the API's fraction bound.
-                error={at('debtRate') ?? rateOutOfRange(debtRate)}
+                error={rateOutOfRange(debtRate) ?? at('debtRate')}
                 hint="After any tax break on it"
               />
               <Field

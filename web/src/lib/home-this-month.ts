@@ -3,6 +3,7 @@
  * ends on, at the top of Home, from the same Pay-this-month rows the list
  * below shows (no extra engine run).
  */
+import { localTerms } from './terms';
 import type { PayThisMonth } from './pay-this-month';
 
 export interface ThisMonthLine {
@@ -19,6 +20,17 @@ export function lowerName(name: string): string {
 }
 
 export function homeThisMonthLine(
+  data: PayThisMonth | null,
+  shortfall: number,
+  money: (v: number) => string,
+  country?: string,
+): ThisMonthLine | null {
+  const line = homeThisMonthLineIn(data, shortfall, money);
+  // R8-2: a US borrower reads "monthly payment", not "EMI".
+  return line ? { ...line, text: localTerms(line.text, country) } : null;
+}
+
+function homeThisMonthLineIn(
   data: PayThisMonth | null,
   shortfall: number,
   money: (v: number) => string,

@@ -114,5 +114,16 @@ export function useFormErrors() {
     setErr('Fix the highlighted field.');
   }, []);
 
-  return { err, setErr, clear, fail, failField, at };
+  /** R8-5: drop a field's stored error once its value changes, so a live
+   *  check (or nothing) shows instead of the stale message. */
+  const clearField = useCallback(
+    (key: string) => {
+      if (fieldErr?.field !== key) return;
+      setFieldErr(null);
+      setErr(null);
+    },
+    [fieldErr],
+  );
+
+  return { err, setErr, clear, fail, failField, at, clearField };
 }

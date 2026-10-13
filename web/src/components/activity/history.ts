@@ -4,6 +4,7 @@
  * spending, a life event — or, in the current month, a payment that's due
  * and not logged yet.
  */
+import { localTerms } from '@/lib/terms';
 import type { Country, LoanPayload, UserPayload } from '@/lib/api';
 import { formatCurrencyWhole } from '@/lib/api';
 import type { ActivityEntry } from '@/lib/activity';
@@ -292,7 +293,9 @@ export function buildHistory({
   }
 
   const byMonth = new Map<string, HistoryRow[]>([[thisMonth, []]]);
-  for (const r of rows) {
+  for (const r0 of rows) {
+    // R8-2: a US borrower reads "PAYMENT" and "monthly payment", not "EMI".
+    const r = user.country === 'US' ? usRow(r0) : r0;
     const m = r.date.slice(0, 7);
     if (m > thisMonth) continue;
     if (!byMonth.has(m)) byMonth.set(m, []);
@@ -307,4 +310,19 @@ export function buildHistory({
       // Due rows first (they want a tap), then newest first.
       rows: list.sort((a, b) => Number(!!b.pending) - Number(!!a.pending) || b.date.localeCompare(a.date)),
     }));
+}
+
+/** R8-2: a row's words for a US borrower. */
+function usRow(r: HistoryRow): HistoryRow {
+  const t = (v: string | undefined) => (v === undefined ? v : localTerms(v, 'US'));
+  return {
+    ...r,
+    type: r.type === 'EMI' ? 'PAYMENT' : t(r.type)!,
+    target: t(r.target)!,
+    planned: t(r.planned),
+    actual: t(r.actual),
+    status: t(r.status)!,
+    note: t(r.note),
+    effect: r.effect ? { ...r.effect, text: t(r.effect.text)! } : r.effect,
+  };
 }
