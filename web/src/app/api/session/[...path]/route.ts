@@ -75,6 +75,15 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
   // Without it every sign-in shared one bucket: this server's address.
   const forwardedFor = req.headers.get('x-forwarded-for');
   if (forwardedFor) headers.set('X-Forwarded-For', forwardedFor);
+  // UX50 E-01: on Render the visitor is the CF-Connecting-IP written by
+  // Render's own Cloudflare edge (api/client_ip.py). Without copying it the
+  // API fell back to X-Forwarded-For, where the old hop count picked the
+  // rotating edge address, and sign-in was never limited.
+  const clientIpHeader = (process.env.CLIENT_IP_HEADER ?? (process.env.RENDER ? 'cf-connecting-ip' : '')).trim().toLowerCase();
+  if (clientIpHeader && !['none', 'off', '0', 'false'].includes(clientIpHeader)) {
+    const value = req.headers.get(clientIpHeader);
+    if (value) headers.set(clientIpHeader, value);
+  }
   // Never send INTERNAL_API_TOKEN: it would bypass the OTP rate limits.
   const base = serverApiBase();
   try {

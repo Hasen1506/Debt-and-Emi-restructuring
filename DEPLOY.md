@@ -27,14 +27,28 @@ browser ─▶ Cloudflare (rightdue.app) ─▶ Render ─▶ Next.js  0.0.0.0:$
 
 ### Client address and rate limits
 
-`api/client_ip.py` reads `X-Forwarded-For` only as far back as
-`TRUSTED_PROXY_HOPS`. Through Cloudflare (orange cloud) the chain ends
-`…, <visitor>, <Cloudflare edge>` (Cloudflare writes the visitor, Render
-appends the edge), so `TRUSTED_PROXY_HOPS=2`. The Next.js proxy (the rewrite
-and the `/api/session` route) passes `X-Forwarded-For` through **unchanged**,
-so it adds no hop. Set it to `1` if rightdue.app is ever DNS-only (grey cloud).
-Requests sent straight to `*.onrender.com` bypass Cloudflare and could choose
-their own rate-limit bucket; that was already true of the old deploy.
+UX50 E-01 (rate limits never fired in production). rightdue.app's DNS points
+straight at Render (name.com nameservers, apex `A 216.24.57.1`); our own
+Cloudflare zone is not in the path. Render fronts every service with its own
+Cloudflare edge and then a load balancer, so the container receives
+
+```
+X-Forwarded-For:  <visitor>, <Cloudflare edge, changes per request>, <Render LB 10.x>
+CF-Connecting-IP: <visitor>      (written by the edge; a client-sent value is replaced)
+```
+
+`api/client_ip.py` keys every limit on `CF-Connecting-IP` when `RENDER` is set
+(Render sets it on every service), or on the header named by
+`CLIENT_IP_HEADER` (`none` turns it off). IPv6 visitors are keyed by their /64.
+Without that header it falls back to reading `X-Forwarded-For` only as far back
+as `TRUSTED_PROXY_HOPS`; **3** is right for the chain above. The old value, 2,
+picked the rotating edge address, so every request had a fresh bucket. Next.js
+passes `X-Forwarded-For` through unchanged (its rewrite proxy does not append),
+and `/api/session` copies `X-Forwarded-For` and `CF-Connecting-IP`.
+
+The API logs one INFO line at the first limited request saying which source it
+used (no addresses). Smoke check after a deploy (sends no email, the address is
+invalid): `scripts/smoke-rate-limit.sh` expects a 429 by the 6th request.
 
 ### Security and privacy settings (sprint G8)
 

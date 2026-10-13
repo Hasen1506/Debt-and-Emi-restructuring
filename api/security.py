@@ -17,8 +17,10 @@ One ASGI middleware, so it also covers requests FastAPI never routes.
   Buckets live in memory and reset when the free container restarts, so
   sign-in, account, admin and outcome routes also count against an
   hourly limit kept in Postgres (api/rate_buckets.py, grill #59).
-  The client IP is spoof-proof (api/client_ip.py): X-Forwarded-For is
-  read only as far back as TRUSTED_PROXY_HOPS proxies we run behind.
+  The client IP is spoof-proof (api/client_ip.py): on Render it is the
+  CF-Connecting-IP that Render's own Cloudflare edge writes (UX50 E-01);
+  otherwise X-Forwarded-For is read only as far back as
+  TRUSTED_PROXY_HOPS proxies we run behind.
   The Next.js server renders /plan by calling the API itself, for every
   user; it sends INTERNAL_API_TOKEN and is not limited. RATE_LIMITS=off
   turns limits off (tests).
@@ -75,6 +77,7 @@ class SecurityMiddleware:
         limits: Optional[list[tuple[str, Limit]]] = None,
         rate_limits: Optional[bool] = None,
         proxy_hops: Optional[int] = None,
+        ip_header: Any = _AUTO,
         internal_token: Optional[str] = None,
         max_body: Optional[int] = None,
         large_body_paths: Optional[dict[str, int]] = None,
@@ -86,6 +89,8 @@ class SecurityMiddleware:
         self.rate_limits = (rate_limits if rate_limits is not None else
                             os.environ.get("RATE_LIMITS", "on").lower() not in ("off", "0", "false", "no"))
         self.proxy_hops = proxy_hops if proxy_hops is not None else client_ip.proxy_hops()
+        # CLIENT_IP_HEADER / Render's CF-Connecting-IP (api/client_ip.py, E-01).
+        self.ip_header = client_ip.trusted_header() if ip_header is _AUTO else ip_header
         token = internal_token if internal_token is not None else os.environ.get("INTERNAL_API_TOKEN", "")
         self.internal_token = token.encode()
         self.max_body = max_body if max_body is not None else MAX_BODY_BYTES
@@ -106,7 +111,7 @@ class SecurityMiddleware:
 
     # ── who is asking ──────────────────────────────────────────────────────
     def client_ip(self, scope) -> str:
-        return client_ip.from_scope(scope, self.proxy_hops)
+        return client_ip.from_scope(scope, self.proxy_hops, self.ip_header)
 
     def _internal(self, headers: dict[bytes, bytes]) -> bool:
         sent = headers.get(b"x-internal-token")
@@ -147,7 +152,7 @@ class SecurityMiddleware:
         private = scope.get("path", "").startswith(("/api/auth/", "/api/user/"))
         api_path = scope.get("path", "").startswith("/api/")
         https = scope.get("scheme") == "https" or (
-            self.proxy_hops > 0 and headers.get(b"x-forwarded-proto", b"").split(b",")[-1].strip() == b"https"
+            (self.proxy_hops > 0 or bool(self.ip_header)) and headers.get(b"x-forwarded-proto", b"").split(b",")[-1].strip() == b"https"
         )
 
         async def send_with_headers(message):

@@ -39,7 +39,7 @@ stays where it is; only the app moves). Neither offers India.
 2. Sync the Blueprint. Render creates the new service in Singapore.
 3. Copy the environment from `rightdue`: `DATABASE_URL` (same Neon URL),
    `RESEND_API_KEY`, `RESEND_FROM`, `OUTCOMES_IP_KEY`, `INTERNAL_API_TOKEN`,
-   `WEB_ORIGIN` (with the new onrender.com host), `TRUSTED_PROXY_HOPS=2`,
+   `WEB_ORIGIN` (with the new onrender.com host), `TRUSTED_PROXY_HOPS=3` (fallback only; on Render the API reads CF-Connecting-IP),
    `COOKIE_SECURE=1`, and any of the optional flags in DEPLOY.md.
 4. Deploy, check `https://<new>.onrender.com/api/health` shows `"db": "enabled"`,
    sign in once on the onrender.com URL.
