@@ -56,6 +56,12 @@ BUREAUS = {
 }
 
 
+NO_ACCOUNTS_MESSAGE = (
+    "We couldn't read the accounts in this report yet. This happens with some report layouts, and it's on "
+    "our side, not yours. You can paste the report's text instead, or type your loans in."
+)
+
+
 class CreditReportReadError(ValueError):
     """The document can't be read (scan, not a PDF, password, …)."""
 
@@ -222,6 +228,23 @@ def _amount(raw: str) -> Optional[Decimal]:
     return _dec(nums[0]) if nums else None
 
 
+def inr(n: Decimal) -> str:
+    """₹ with Indian digit grouping: 3500 → ₹3,500; 3812450 → ₹38,12,450 (D-16)."""
+    n = n.quantize(D("0.01"))
+    whole, _, frac = format(abs(n), "f").partition(".")
+    if len(whole) > 3:
+        head, tail = whole[:-3], whole[-3:]
+        groups = []
+        while len(head) > 2:
+            groups.insert(0, head[-2:])
+            head = head[:-2]
+        if head:
+            groups.insert(0, head)
+        whole = ",".join(groups + [tail])
+    out = "₹" + whole + ("." + frac if frac and frac != "00" else "")
+    return ("-" if n < 0 else "") + out
+
+
 def _fmt(n: Decimal) -> str:
     n = n.quantize(D("0.01"))
     s = format(n.normalize(), "f")
@@ -250,17 +273,171 @@ def _loan_type(raw: str) -> tuple[Optional[str], str]:
     return None, ""
 
 
-# ---------------------------------------------------------------- parse
+
+# ---------------------------------------------------------------- layouts
+# Bureau PDFs are not all "Label: value". Many print the accounts as a table
+# (one header row, one row per account, columns aligned by spaces or "|"), and
+# a plain (non-layout) text extraction or a copy-paste from a PDF viewer turns
+# that table into one cell per line (all the headers, then each row's cells).
+# Some print a label alone on a line with its value on the next. These readers
+# turn each of those layouts into "Label: value | Label: value" lines that the
+# label reader below understands, and keep the original line as the source the
+# user is shown (D-01, UX50).
 _SECTION_END = re.compile(r"^(?:enquir(?:y|ies)|inquir(?:y|ies))(?:\s+(?:information|details|section))?\s*:?$", re.IGNORECASE)
+_KNOWN_LABELS = {s for s, _ in _ALL}
 
 
-def _blocks(lines: list[str]) -> list[list[tuple[str, str, str]]]:
+def _norm_label(cell: str) -> Optional[str]:
+    c = re.sub(r"\s+", " ", cell.strip().strip("|:#").strip()).lower()
+    c = c.replace("a/c", "account").replace("acct.", "account").replace("amt.", "amount")
+    if c in _KNOWN_LABELS:
+        return c
+    c2 = re.sub(r"\s*\((?:rs\.?|inr|₹|in rs\.?)\)$", "", c)  # "Current Balance (Rs)"
+    c2 = re.sub(r"^(?:rs\.?|₹)\s*", "", c2)
+    return c2 if c2 in _KNOWN_LABELS else None
+
+
+def _cells(raw: str) -> list[tuple[int, int, str]]:
+    """Cells of a table line: split on "|" when present, else on runs of 2+ spaces."""
+    out = []
+    if raw.count("|") >= 2:
+        pos = 0
+        for part in raw.split("|"):
+            if part.strip():
+                start = pos + (len(part) - len(part.lstrip()))
+                out.append((start, start + len(part.strip()), part.strip()))
+            pos += len(part) + 1
+        return out
+    for m in re.finditer(r"\S+(?: \S+)*", raw):
+        out.append((m.start(), m.end(), m.group(0)))
+    return out
+
+
+def _header(raw: str) -> Optional[list[tuple[int, int, Optional[str]]]]:
+    if ":" in raw or len(raw) > 1000:
+        return None
+    cells = _cells(raw)
+    if len(cells) < 3:
+        return None
+    labelled = [(a, b, _norm_label(t)) for a, b, t in cells]
+    known = [c for c in labelled if c[2]]
+    keys = {_LABEL_TO_KEY[c[2]] for c in known}
+    if len(known) >= 3 and len(known) * 10 >= len(labelled) * 6 and "lender" in keys and len(keys) == len(known):
+        return labelled
+    return None
+
+
+def _row_values(raw: str, header: list[tuple[int, int, Optional[str]]]) -> Optional[list[str]]:
+    cells = _cells(raw)
+    if len(cells) < 2:
+        return None
+    vals = [""] * len(header)
+    if len(cells) == len(header):
+        return [c[2] for c in cells]
+    for a, b, t in cells:
+        best, best_score = None, None
+        for i, (ha, hb, _) in enumerate(header):
+            overlap = min(b, hb) - max(a, ha)
+            score = (0, overlap) if overlap > 0 else (1, -min(abs(a - ha), abs(b - hb)))
+            score = (-score[0], score[1])
+            if best_score is None or score > best_score:
+                best, best_score = i, score
+        if best is not None:
+            vals[best] = (vals[best] + " " + t).strip()
+    return vals
+
+
+def _as_pairs(header_labels: list[Optional[str]], values: list[str]) -> str:
+    return " | ".join(f"{lab}: {v}" for lab, v in zip(header_labels, values) if lab and v)
+
+
+def _mask_cells(source: str, labels: list[Optional[str]], values: list[str]) -> str:
+    """The source row with its account number masked to the last four (least data)."""
+    for lab, v in zip(labels, values):
+        if lab and _LABEL_TO_KEY[lab] == "account_number" and v:
+            source = source.replace(v, _mask(v) or "")
+    return _PAN.sub("XXXXX0000X", source)
+
+
+def _logical_lines(text: str) -> list[tuple[str, str]]:
+    """(line to parse, line to show as the source). Table rows and stacked
+    layouts become "Label: value" lines; everything else passes through."""
+    text = text.replace("\r", "\n").replace("\u00a0", " ").replace("\u2013", "-").replace("\u2014", "-").replace("\t", "    ")
+    raws = [r.rstrip() for r in text.split("\n")]
+    raws = [r for r in raws if r.strip()]
+    out: list[tuple[str, str]] = []
+    i = 0
+    n = len(raws)
+    while i < n:
+        raw = raws[i]
+        tidy = re.sub(r"[ \t]+", " ", raw).strip()
+        # 1. A table header row, then one row per account.
+        head = _header(raw)
+        if head:
+            labels = [h[2] for h in head]
+            j = i + 1
+            rows = 0
+            while j < n and rows < MAX_ACCOUNTS:
+                r = raws[j]
+                if _SECTION_END.match(r.strip()) or _header(r) or _LABEL_RE.search(r):
+                    break
+                vals = _row_values(r, head)
+                if vals is None or sum(1 for v in vals if v) < 2:
+                    break
+                tidy_r = re.sub(r"[ \t]+", " ", r).strip()
+                out.append((_as_pairs(labels, vals), _mask_cells(tidy_r, labels, vals)))
+                rows += 1
+                j += 1
+            if rows:
+                i = j
+                continue
+        # 2. Stacked columns: 3+ label-only lines in a row, then the cells one per line.
+        if _norm_label(tidy) and ":" not in tidy:
+            k = i
+            labels = []
+            while k < n and _norm_label(raws[k]) and ":" not in raws[k] and len(labels) < 30:
+                labels.append(_norm_label(raws[k]))
+                k += 1
+            keys = [_LABEL_TO_KEY[lab] for lab in labels]
+            if len(labels) >= 3 and "lender" in keys and len(set(keys)) == len(keys):
+                j = k
+                rows = 0
+                while j + len(labels) <= n and rows < MAX_ACCOUNTS:
+                    chunk = [re.sub(r"[ \t]+", " ", x).strip() for x in raws[j:j + len(labels)]]
+                    # A value may itself look like a label ("Closed" in a status column), so only
+                    # the lender cell must not be one; a section heading or a "Label:" line ends the table.
+                    if _norm_label(chunk[0]) or any(_SECTION_END.match(x) or _LABEL_RE.search(x) for x in chunk):
+                        break
+                    out.append((_as_pairs(labels, chunk), _mask_cells(" | ".join(chunk), labels, chunk)))
+                    rows += 1
+                    j += len(labels)
+                if rows:
+                    i = j
+                    continue
+            # 3. Stacked pairs: a label alone on a line, its value on the next.
+            if i + 1 < n:
+                nxt = re.sub(r"[ \t]+", " ", raws[i + 1]).strip()
+                after = raws[i + 2].strip() if i + 2 < n else ""
+                # "Account Status" / "Closed" / "Date Reported": a label-looking line is the value
+                # when the line after it is a label again (or nothing).
+                value_like = not _norm_label(nxt) or not after or bool(_norm_label(after)) or bool(_SECTION_END.match(after))
+                if value_like and not _LABEL_RE.search(nxt) and not _SECTION_END.match(nxt):
+                    out.append((f"{tidy}: {nxt}", f"{tidy}: {nxt}"))
+                    i += 2
+                    continue
+        out.append((tidy, tidy))
+        i += 1
+    return out
+
+
+# ---------------------------------------------------------------- parse
+def _blocks(lines: list[tuple[str, str]]) -> list[list[tuple[str, str, str]]]:
     """Split into accounts: a new account starts at a lender label when the
     current one already has a lender."""
     blocks: list[list[tuple[str, str, str]]] = []
     cur: list[tuple[str, str, str]] = []
     have_lender = False
-    for line in lines:
+    for line, source in lines:
         if _SECTION_END.match(line):
             break  # enquiries and contact details follow the accounts; they aren't debts
         for key, value in _pairs(line):
@@ -270,7 +447,7 @@ def _blocks(lines: list[str]) -> list[list[tuple[str, str, str]]]:
                     cur = []
                 have_lender = True
             if have_lender:
-                cur.append((key, value, line))
+                cur.append((key, value, source))
     if cur:
         blocks.append(cur)
     return blocks[:MAX_ACCOUNTS]
@@ -326,7 +503,7 @@ def _account(block: list[tuple[str, str, str]], as_of: Optional[date]) -> Option
     if re.search(r"settled", status):
         acc.flags.append("Reported as settled, not closed. Lenders read 'settled' as paid less than owed; a full closure needs the balance paid and a letter.")
     if "overdue" in f and D(f["overdue"].value) > 0:
-        acc.flags.append(f"₹{f['overdue'].value} is shown overdue on this account. Check it against your own records.")
+        acc.flags.append(f"{inr(D(f['overdue'].value))} is shown overdue on this account. Check it against your own records.")
     if "joint" in owner:
         acc.flags.append("A joint account: add only your share of the EMI if someone else pays part of it.")
     if acc.is_guarantor:
@@ -349,11 +526,15 @@ def _account(block: list[tuple[str, str, str]], as_of: Optional[date]) -> Option
             "credit_limit": f["credit_limit"].value if "credit_limit" in f else None,
             "opened": f["opened"].value if "opened" in f else None,
             "account_last4": f["account_number"].value[-4:] if "account_number" in f else None,
+            # The date the lender reported this balance: the balance is as of then, not today (D-06).
+            "reported": f["reported"].value if "reported" in f else None,
             # What the report never carries, so the form asks for it (or the KFS import fills it).
-            "missing": [k for k, present in (
-                ("emi", "emi" in f), ("nominal_rate", "rate" in f), ("tenure_months", "tenure" in f),
-                ("rate_type", False), ("prepayment_fee", False),
-            ) if not present],
+            # A card has no EMI, tenure, rate type or KFS prepayment fee: only its APR is asked (D-07).
+            "missing": (["nominal_rate"] if "rate" not in f else []) if acc.loan_type == "credit_card" else [
+                k for k, present in (
+                    ("emi", "emi" in f), ("nominal_rate", "rate" in f), ("tenure_months", "tenure" in f),
+                    ("rate_type", False), ("prepayment_fee", False),
+                ) if not present],
         }
     return acc
 
@@ -370,6 +551,7 @@ def read_credit_report(text: str, as_of: Optional[date] = None) -> CreditReportR
     if len(text) > MAX_TEXT_CHARS:
         raise CreditReportReadError("The report text is too long to read. Upload the PDF instead.", "too_big")
     lines = _lines(text)
+    logical = _logical_lines(text)
     if len("".join(lines)) < 40:
         raise CreditReportReadError("There's no text here to read.", "empty")
     bureau = detect_bureau(text)
@@ -392,13 +574,10 @@ def read_credit_report(text: str, as_of: Optional[date] = None) -> CreditReportR
                 report_date = Found(d.isoformat(), line)
                 break
 
-    accounts = [a for a in (_account(b, as_of) for b in _blocks(lines)) if a]
+    accounts = [a for a in (_account(b, as_of) for b in _blocks(logical)) if a]
     if not accounts:
-        raise CreditReportReadError(
-            "No accounts were found in this report. If it's a summary page only, download the full report; "
-            "otherwise type your loans in.",
-            "no_accounts",
-        )
+        # Honest copy (D-02): when nothing is read, the likeliest cause is a layout we don't read yet.
+        raise CreditReportReadError(NO_ACCOUNTS_MESSAGE, "no_accounts")
     if report_date and as_of and (as_of - date.fromisoformat(report_date.value)).days > 90:
         warnings.append("This report is more than three months old; balances will have moved since. A fresh one is free once a year from each bureau.")
     return CreditReportResult(

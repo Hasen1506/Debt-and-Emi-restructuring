@@ -52,6 +52,7 @@ def test_cibil_home_loan_is_read_field_by_field():
         "loan_type": "home_loan", "lender": "SAMPLE HOUSING FINANCE", "outstanding": "3812450",
         "emi": "39500", "nominal_rate": "0.0865", "tenure_months": "240", "sanctioned_amount": "4500000",
         "credit_limit": None, "opened": "2021-03-15", "account_last4": "3456",
+        "reported": "2026-09-30",  # UX50 D-06: the balance is as of the lender's report date
         "missing": ["rate_type", "prepayment_fee"],
     }
     assert any("joint" in f.lower() for f in home["flags"])
@@ -80,7 +81,7 @@ def test_guarantor_written_off_settled_and_overdue_are_said_plainly():
     g = [a for a in exp["accounts"] if a["is_guarantor"]][0]
     assert g["loan"] is None and "guarantor" in g["flags"][0]
     crif = _read("crif")["accounts"][1]
-    assert any("written off" in f for f in crif["flags"]) and any("6300" in f for f in crif["flags"])
+    assert any("written off" in f for f in crif["flags"]) and any("₹6,300" in f for f in crif["flags"])  # UX50 D-16: en-IN grouping
     eq = _read("equifax")["accounts"][0]
     assert eq["loan"] is None  # a business loan isn't a type RightDue plans
     assert any("settled" in f for f in eq["flags"])

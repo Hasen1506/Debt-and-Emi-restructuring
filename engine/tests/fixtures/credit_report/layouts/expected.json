@@ -1,0 +1,26 @@
+[
+ {
+  "lender": "SAMPLE HFC",
+  "loan_type": "home_loan",
+  "outstanding": "3812450",
+  "emi": "39500",
+  "account_last4": "3456",
+  "reported": "2026-09-30"
+ },
+ {
+  "lender": "DEMO BANK",
+  "loan_type": "credit_card",
+  "outstanding": "64210",
+  "emi": null,
+  "account_last4": "4321",
+  "reported": "2026-09-30"
+ },
+ {
+  "lender": "QUICKPAY FINANCE",
+  "loan_type": "personal_loan",
+  "outstanding": "21000",
+  "emi": "3500",
+  "account_last4": "7766",
+  "reported": "2026-09-23"
+ }
+]
