@@ -79,7 +79,7 @@ test('R7-5: a rate bound from the API is said in percent, and Sell to repay chec
   const r = lib('r7-inputs.ts');
   assert.equal(r.fractionAsPercent('0.125'), '12.5%');
   const tool = src('app/tools/liquidate/tool.tsx');
-  assert.match(tool, /error=\{at\('debtRate'\) \?\? rateOutOfRange\(debtRate\)\}/);
+  assert.match(tool, /error=\{rateOutOfRange\(debtRate\) \?\? at\('debtRate'\)\}/);
   assert.match(tool, /const rateErr = rateOutOfRange\(debtRate\);/);
   const { rateOutOfRange } = lib('loan-gaps.ts');
   assert.ok(rateOutOfRange(String(99999999999999 / 100)));

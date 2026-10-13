@@ -10,6 +10,7 @@
  * this profile (no tax saving, no gap in the emergency fund, one currency)
  * aren't shown.
  */
+import { localTerms } from '@/lib/terms';
 import { useEffect, useState } from 'react';
 import { formatTaxRate } from '@/lib/tax-profile';
 import type { PlanData } from './PlanData';
@@ -75,7 +76,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
       key: 'order',
       label: 'PAYOFF ORDER',
       value: STRATEGY_LABEL[plan.strategy].toUpperCase(),
-      about: 'Which loan gets the money left after EMIs and minimums.',
+      about: localTerms('Which loan gets the money left after EMIs and minimums.', u.country),
       control: (
         <StrategySwitcher active={plan.strategy} variant="ledger" compare={plan.strategyCompare} country={u.country} user={plan.configuredUser} money={(n) => formatCurrencyWhole(String(n), ccy)} />
       ),
@@ -85,7 +86,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
       label: 'TO DEBTS',
       value: budget > 0 ? `${formatCurrencyWhole(String(budget), ccy)} A MONTH` : 'ALL SPARE CASH',
       about:
-        'How much you put toward debts each month, EMIs and minimums included. All your spare cash makes you debt-free soonest; a smaller total keeps the rest with you. Your call.',
+        localTerms('How much you put toward debts each month, EMIs and minimums included. All your spare cash makes you debt-free soonest; a smaller total keeps the rest with you. Your call.', u.country),
       control: (
         <DebtBudgetControl
           budget={plan.debtBudget ?? ''}
@@ -166,7 +167,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
       label: 'EMERGENCY FUND',
       value: `${efPct}% OF SPARE CASH`,
       about: 'Your emergency fund is below its target. This share of the spare cash goes to it until it is full; the rest pays debt.',
-      control: <EfSplitSlider active={plan.efSplit} hasGap variant="ledger" />,
+      control: <EfSplitSlider active={plan.efSplit} hasGap variant="ledger" country={u.country} />,
     });
   }
   if (twoCurrencies) {

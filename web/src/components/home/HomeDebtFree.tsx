@@ -3,6 +3,7 @@
  * run /plan shows, so the two can't disagree. Streamed in (the page wraps these in <Suspense>), so
  * the rest of home paints without waiting on the engine.
  */
+import { localTerms } from '@/lib/terms';
 import { dueVsAffordable, dueVsAffordableLine, shortGapLine } from '@/lib/plan-gap';
 import { userMarginalCosts, whyFirst } from '@/lib/marginal-cost';
 import { cache } from 'react';
@@ -110,7 +111,7 @@ const oneStepWords = cache(async (): Promise<string> => {
   const short = plan.live ? plan.shortfall : Math.max(0, -Number(m.surplus));
   if (short > 0) return 'PAY AT LEAST THE MINIMUMS. IF YOU CAN’T, CALL THE BANK BEFORE THE DUE DATE.';
   const move = thisMonthMove(plan);
-  if (m.surplus.lte(0) || !move) return 'KEEP CURRENT EMIS RUNNING.';
+  if (m.surplus.lte(0) || !move) return localTerms('KEEP CURRENT EMIS RUNNING.', profile.user.country);
   const first = move.targets[0];
   const loan = first ? profile.user.loans[first.index] : undefined;
   if (first && loan) {
@@ -119,7 +120,7 @@ const oneStepWords = cache(async (): Promise<string> => {
     return `PAY ${amount} EXTRA TO YOUR ${loan.bank ? `${loan.bank.toUpperCase()} ` : ''}${PRODUCT[loan.loan_type] ?? 'LOAN'}.`;
   }
   if (move.ef > 0) return `PUT ${fc(move.ef)} IN YOUR EMERGENCY FUND.`;
-  return 'KEEP CURRENT EMIS RUNNING.';
+  return localTerms('KEEP CURRENT EMIS RUNNING.', profile.user.country);
 });
 
 export async function HomeMoveOneStep() {
@@ -174,14 +175,13 @@ export async function HomePayThisMonth() {
     if (plan.live) {
       return (
         <PayNotice title={`Pay this month · ${monthLabel}`}>
-          No loan payment is due this month. Check each loan&apos;s first EMI date below.
+          {localTerms('No loan payment is due this month. Check each loan’s first EMI date below.', plan.user.country)}
         </PayNotice>
       );
     }
     return (
       <PayNotice title={`Pay this month · ${monthLabel}`}>
-        The plan engine can&apos;t be reached right now, so this month&apos;s payments aren&apos;t worked out. Your EMIs
-        are due as usual. <LBracket href="/plan">TRY THE PLAN →</LBracket>
+        {localTerms('The plan engine can’t be reached right now, so this month’s payments aren’t worked out. Your EMIs are due as usual.', plan.user.country)} <LBracket href="/plan">TRY THE PLAN →</LBracket>
       </PayNotice>
     );
   }
@@ -220,7 +220,7 @@ export async function HomePayThisMonth() {
             shortfall: plan.shortfall,
           }),
           (v) => fc(Math.round(v)),
-        )} Pay every EMI and card minimum in full first: a missed one is reported to the credit bureaus and brings late fees. Find the gap from spending, or call the bank before the due date.`
+        )} ${localTerms('Pay every EMI and card minimum', plan.user.country)} in full first: a missed one is reported to the credit bureaus and brings late fees. Find the gap from spending, or call the bank before the due date.`
       : plan.futureShortfall
         ? `From ${monthIndexToCountryLabel(plan.futureShortfall.month, country)}, the payments need more than you earn. See the plan.`
         : undefined;

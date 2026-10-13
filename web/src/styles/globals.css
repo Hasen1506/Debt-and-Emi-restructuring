@@ -369,6 +369,13 @@ button.l-hit {
   a[href] {
     min-height: 44px !important;
   }
+  /* R8 O-1: Can't pay's RBI citation links get a 44px row on a touch
+     screen too (they were 29px inline text). */
+  a.rd-cite {
+    display: inline-flex !important;
+    align-items: center;
+    min-height: 44px !important;
+  }
   /* R6-2: the app footer's links get a 44px row on a touch screen. */
   .rd-site-footer a {
     display: inline-flex;

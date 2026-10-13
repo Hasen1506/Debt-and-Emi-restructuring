@@ -953,7 +953,7 @@ function ProfileEditor({
 
   // Loans need what the projection needs; no loans at all is fine (goals,
   // portfolio and purchase planning work without one).
-  const loanErrors = loans.map((l) => loanDraftErrors(l));
+  const loanErrors = loans.map((l) => loanDraftErrors(l, country));
   // A new or changed balance on an EMI loan says whether this month's EMI
   // is already off it (lib/roll-forward).
   const thisMonth = localIsoDate(getCountryToday(country)).slice(0, 7);
@@ -2099,6 +2099,7 @@ function ProfileEditor({
                   />
                 )}
                 <TenureField
+                  country={country}
                   loan={l}
                   manualMode={manualTenureIdxs.has(i)}
                   onChangeTenure={(v) =>
@@ -3657,7 +3658,9 @@ function TenureField({
   manualMode,
   onChangeTenure,
   onSetManual,
+  country,
 }: {
+  country?: string;
   loan: LoanPayload;
   manualMode: boolean;
   onChangeTenure: (v: string) => void;
@@ -3778,9 +3781,9 @@ function TenureField({
               Worked out from the balance, rate and EMI above.
             </div>
           </>
-        ) : emiBelowInterest(loan) ? (
+        ) : emiBelowInterest(loan, country) ? (
           <span role="alert" style={{ color: 'var(--negative)' }}>
-            {emiBelowInterest(loan)}
+            {emiBelowInterest(loan, country)}
           </span>
         ) : (
           <>

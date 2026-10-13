@@ -97,7 +97,7 @@ export function DebtBudgetControl({
         </div>
       )}
       <p style={{ margin: 0, fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
-        EMIs and card minimums are {fmt(required)} this month; the plan always pays those. Anything you don&apos;t
+        {currency === 'USD' ? 'Monthly payments' : 'EMIs'} and card minimums are {fmt(required)} this month; the plan always pays those. Anything you don&apos;t
         put on debts stays with you to save or spend.
         {hasFundTarget
           ? ' Your emergency fund share is under its own chip.'

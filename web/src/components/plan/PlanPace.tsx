@@ -6,6 +6,7 @@
  * average is off by more than 5%, gives the date at that pace and lets
  * the user make it the plan's total.
  */
+import { localTerms } from '@/lib/terms';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { PlanData } from './PlanData';
@@ -61,9 +62,9 @@ export function PlanPace({ plan }: { plan: PlanData }) {
       <>
         You&apos;ve averaged {fc(avg)} a month over {pace.counted} months.
         {pace.projectionUnavailable === 'below_minimums'
-          ? ` That is below this month's EMIs and minimums (${fc(required)}). The simulator pays those minimums, so it cannot give a payoff date at your lower payments.`
+          ? ` That is below this month's ${localTerms('EMIs', plan.user.country)} and minimums (${fc(required)}). The simulator pays those minimums, so it cannot give a payoff date at your lower payments.`
           : pace.projectionUnavailable === 'future_minimums'
-            ? ' Future EMIs and minimums exceed that monthly total. The simulator pays them, so it cannot give a payoff date at your lower payments.'
+            ? localTerms(' Future EMIs and minimums exceed that monthly total.', plan.user.country) + ' The simulator pays them, so it cannot give a payoff date at your lower payments.'
           : pace.projectionUnavailable === 'unaffordable'
             ? " That's more than your take-home leaves after spending in some months, as Profile has them. If you keep paying it, your take-home is higher or your spending lower than Profile says: update them, and the date follows."
             : ' The pace projection could not be calculated. Try refreshing the plan.'}
@@ -91,7 +92,7 @@ export function PlanPace({ plan }: { plan: PlanData }) {
           <>At {fc(avg)} a month the debts wouldn&apos;t clear within the plan.</>
         )}{' '}
         {avg < required - 1
-          ? `That's under this month's EMIs and minimums (${fc(required)}): some were paid short.`
+          ? localTerms(`That's under this month's EMIs and minimums (${fc(required)}): some were paid short.`, plan.user.country)
           : 'Paying less than planned usually means spending ran over what Profile says. Make the plan the total you keep up, or update your spending.'}
       </>
     );

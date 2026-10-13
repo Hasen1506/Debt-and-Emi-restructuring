@@ -22,7 +22,10 @@ export function EfSplitSlider({
   active,
   hasGap,
   variant = 'inline',
+  country,
 }: {
+  /** R8-2: the user's country, for "EMIs" vs "monthly payments". */
+  country?: string;
   active: string;
   hasGap: boolean;
   variant?: 'inline' | 'ledger';
@@ -67,7 +70,7 @@ export function EfSplitSlider({
       <strong>How the split works.</strong> While your emergency fund is below
       its target, each month&apos;s spare cash is divided: this share goes to
       the fund, the rest pays debts down faster. Once the fund reaches the
-      target you set in Profile, all the spare cash goes to debts again. Your EMIs and card minimums are paid either way. How much
+      target you set in Profile, all the spare cash goes to debts again. Your {country === 'US' ? 'monthly payments' : 'EMIs'} and card minimums are paid either way. How much
       to keep aside is your call.
     </InfoTip>
   );

@@ -136,7 +136,7 @@ test("R6-5: a paid card's owed-after on Pay this month is the loans list's figur
   // The owed-now row comes from the same lib the loans list uses.
   const ui = src('components/home/PayThisMonth.tsx');
   assert.match(ui, /import \{ owedNow \} from '@\/lib\/owed-now';/);
-  assert.match(ui, /kindLine\(row, fmt, owedNowFor\(row\)\)/);
+  assert.match(ui, /kindLine\(row, fmt, owedNowFor\(row\), country\)/);
   assert.match(src('components/home/OpenPositions.tsx'), /LESS THIS MONTH&apos;S PAYMENT, BEFORE INTEREST/);
 });
 
