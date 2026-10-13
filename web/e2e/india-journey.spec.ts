@@ -97,7 +97,10 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
 
   await test.step('the plan is now in dollars (golden schedule)', async () => {
     await page.goto('/plan');
-    await expect(page.getByText('FILING SINGLE', { exact: false })).toBeVisible();
+    // The server's streamed Suspense segment (hidden div#S:0 outside #main)
+    // can briefly hold the same text (CI run 38406046382; same as
+    // plan-short-month, INT-log 09:xx): read it inside #main.
+    await expect(page.locator('#main').getByText('FILING SINGLE', { exact: false })).toBeVisible();
     await expect(page.getByText('$10,272').first()).toBeVisible();
     expect(await planText(page)).toMatchSnapshot('india-to-usa-plan-schedule.txt');
   });
