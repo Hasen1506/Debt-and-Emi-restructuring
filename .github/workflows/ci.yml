@@ -23,6 +23,7 @@ jobs:
   python:
     name: Engine + API unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20  # UX50 E-23: a stuck job must not run for hours
     services:
       postgres:
         image: postgres:17-alpine
@@ -53,6 +54,7 @@ jobs:
   property:
     name: Property-based invariants (Hypothesis)
     runs-on: ubuntu-latest
+    timeout-minutes: 20  # UX50 E-23: a stuck job must not run for hours
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -69,6 +71,7 @@ jobs:
   differential:
     name: Differential (reference + pre-PR-29 engine)
     runs-on: ubuntu-latest
+    timeout-minutes: 20  # UX50 E-23: a stuck job must not run for hours
     steps:
       - uses: actions/checkout@v4
         with:
@@ -87,6 +90,7 @@ jobs:
   web:
     name: Web typecheck, lint, build
     runs-on: ubuntu-latest
+    timeout-minutes: 20  # UX50 E-23: a stuck job must not run for hours
     defaults:
       run:
         working-directory: web
