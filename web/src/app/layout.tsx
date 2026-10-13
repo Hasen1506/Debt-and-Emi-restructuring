@@ -12,6 +12,8 @@ import { ProfileProvider } from '@/lib/use-profile';
 import { SaveFailedNotice } from '@/components/SaveFailedNotice';
 import { AccountSyncNotice } from '@/components/AccountSyncNotice';
 import { FxAutoRefresh } from '@/components/fx/FxAutoRefresh';
+import { SiteFooter } from '@/components/site/SiteFooter';
+import { BrowserErrorReporter } from '@/components/site/BrowserErrorReporter';
 
 export const metadata: Metadata = {
   title: 'RightDue — Debt & EMI Optimiser',
@@ -50,6 +52,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <ProfileProvider profile={profile}>{children}</ProfileProvider>
         </main>
         <LFooter />
+        {/* UX50 E-06/E-07: disclaimer, privacy, terms, report a problem. */}
+        <SiteFooter version={process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? null} />
+        {/* UX50 E-03: browser errors to Sentry only when a DSN is set. */}
+        <BrowserErrorReporter enabled={Boolean(process.env.SENTRY_DSN)} />
       </body>
     </html>
   );

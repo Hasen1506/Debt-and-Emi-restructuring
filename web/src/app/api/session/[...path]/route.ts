@@ -65,6 +65,13 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
   if (req.method !== 'GET') headers.set('Content-Type', 'application/json');
   // Either cookie name for one release (critique #58); the API is sent the new one.
   const token = sessionToken(req.cookies);
+  // UX50 E-22: a visitor with no session cookie is signed out; say so here
+  // with a 200 and null instead of asking the API for a 401, which showed
+  // as two red console errors on every signed-out page (and would flood
+  // browser error reports). api.me() still reads it as signed out.
+  if (path === 'auth/me' && !token) {
+    return Response.json(null, { status: 200, headers: { 'Cache-Control': 'no-store' } });
+  }
   if (token) headers.set('Cookie', `${SESSION_COOKIE}=${token}`);
   const expectedAccount = req.headers.get('x-account-id');
   if (path === 'user/state' && expectedAccount) headers.set('X-Account-Id', expectedAccount);
