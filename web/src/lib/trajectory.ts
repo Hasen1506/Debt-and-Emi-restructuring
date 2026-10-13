@@ -9,6 +9,81 @@
  */
 import type { SimulateResponse, TrajectoryPointRaw } from './api';
 import type { TrajectoryPoint } from './mock-data';
+import type { MonthlyPaymentBreakdown, PlanData } from '@/components/plan/PlanData';
+import type { CompareResponse } from './api';
+import { planGap } from './plan-gap';
+
+/** Each month's payments from a /simulate response (the schedule's rows). */
+export function extractMonthlyPayments(
+  scenario: Pick<SimulateResponse, 'trajectory'>,
+): MonthlyPaymentBreakdown[] {
+  return scenario.trajectory
+    .filter((p) => p.month >= 1)
+    .map((p) => {
+      const perLoan: Record<number, string> = {};
+      for (const [idx, amount] of Object.entries(p.payments_by_loan_index ?? {})) {
+        perLoan[Number(idx)] = amount;
+      }
+      return {
+        month: p.month,
+        perLoan,
+        totalPaid: Number(p.total_paid ?? 0),
+        extraPaid: Number(p.extra_paid ?? 0),
+      };
+    });
+}
+
+/**
+ * Live test L#26: the Plan as the tenure what-if would have it, for the
+ * chart and the table. The plan line, payments, gap borrowing and date come
+ * from the what-if's own trajectory (/sensitivity/compare with
+ * include_trajectory); the minimums line stays the plan's. The stretched
+ * loan shows its new EMI. Null when the response has no trajectory.
+ */
+export function planWithWhatIf(
+  plan: PlanData,
+  r: CompareResponse | null | undefined,
+  loanIndex: number,
+): PlanData | null {
+  if (!r?.scenario_trajectory || r.scenario_trajectory.length === 0) return null;
+  const sim = {
+    trajectory: r.scenario_trajectory,
+    debt_free_month: r.scenario_debt_free_month,
+  } as SimulateResponse;
+  const scen = mergeTrajectories(sim, sim);
+  const base = new Map(plan.trajectory.map((p) => [p.month, p]));
+  const n = Math.max(scen.length, plan.trajectory.length);
+  const trajectory: TrajectoryPoint[] = [];
+  for (let m = 1; m <= n; m++) {
+    const s = scen[m - 1];
+    const b = base.get(m);
+    const gap = s?.gapDebt ?? 0;
+    trajectory.push({
+      ...(b ?? { month: m, minimums: 0 }),
+      month: m,
+      avalanche: s?.avalanche ?? 0,
+      avalancheByCcy: s?.avalancheByCcy,
+      balancesByLoanIndex: s?.balancesByLoanIndex,
+      interest: s?.interest ?? 0,
+      ...(gap || b?.minimumsGapDebt ? { gapDebt: gap, minimumsGapDebt: b?.minimumsGapDebt ?? 0 } : { gapDebt: undefined }),
+    } as TrajectoryPoint);
+  }
+  const loans = plan.user.loans.map((l, i) =>
+    i === loanIndex && r.tenure_new_emi != null ? { ...l, scheduled_emi: String(r.tenure_new_emi) } : l,
+  );
+  return {
+    ...plan,
+    user: { ...plan.user, loans },
+    trajectory,
+    monthlyPayments: extractMonthlyPayments(sim),
+    debtFreeMonth: r.scenario_debt_free_month,
+    gap: planGap({ ...sim, gap_rate: plan.gap ? String(plan.gap.rate) : undefined } as SimulateResponse),
+    scheduleCut:
+      r.scenario_debt_free_month == null
+        ? { month: r.scenario_trajectory_cut_month ?? null, growsWithoutLimit: !!r.scenario_grows_without_limit }
+        : null,
+  };
+}
 
 interface MonthBucket {
   total: number;

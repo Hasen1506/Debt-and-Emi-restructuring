@@ -537,20 +537,24 @@ export function WindfallTool({
               My savings
             </LChip>
           </LChipRow>
-          <label style={{ fontSize: 12, color: L_T.muted, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {source === 'external' ? 'Date it came in' : 'Date you moved it'}
+          {/* Live re-test 2 NEW-9: the help sits outside the <label> (it was
+              part of the field's name) and a refused date sets aria-invalid. */}
+          <div style={{ fontSize: 12, color: L_T.muted, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label htmlFor="wf-date">{source === 'external' ? 'Date it came in' : 'Date you moved it'}</label>
             <input
+              id="wf-date"
               type="date"
               value={received}
               max={todayIso}
               onChange={(e) => { setReceived(e.target.value); setApplied(null); setLogged(null); }}
               aria-describedby="wf-date-help"
-              style={{ fontFamily: L_MONO, fontSize: 13, padding: '7px 8px', border: `1px solid ${L_T.ruleSoft}`, background: L_T.paper, color: L_T.ink }}
+              aria-invalid={receivedCheck.ok ? undefined : true}
+              style={{ fontFamily: L_MONO, fontSize: 13, padding: '7px 8px', border: `1px solid ${receivedCheck.ok ? L_T.ruleSoft : L_T.negative}`, background: L_T.paper, color: L_T.ink }}
             />
-            <span id="wf-date-help" style={{ fontSize: 11, lineHeight: 1.5 }}>
+            <span id="wf-date-help" role={receivedCheck.ok ? undefined : 'alert'} style={{ fontSize: 11, lineHeight: 1.5, color: receivedCheck.ok ? undefined : L_T.negative }}>
               {receivedWarning ?? 'Activity records the payment on this date, so it counts in the right month. Change it if you paid it on a later day.'}
             </span>
-          </label>
+          </div>
           {source === 'account' && accounts.length > 0 && (
             <label style={{ fontSize: 12, color: L_T.muted, display: 'flex', flexDirection: 'column', gap: 4 }}>
               From the account

@@ -1,5 +1,6 @@
 """POST /api/simulate · /api/baseline · /api/sensitivity/compare"""
 from copy import deepcopy
+from typing import Optional
 from decimal import ROUND_HALF_UP, Decimal, localcontext
 from fastapi import APIRouter, HTTPException
 
@@ -274,6 +275,34 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
     return points
 
 
+# Live re-test 2 NEW-2: a plan that never clears is shown for at most 30
+# years, and never past the month what's owed reaches 100x the start.
+NEVER_CLEARS_HORIZON = 360
+SANE_MULTIPLE = D("100")
+
+
+def _bounded(points: list[TrajectoryPoint], never_clears: bool) -> tuple[list[TrajectoryPoint], Optional[int], bool]:
+    """(points kept, month the run stops at or None, grows without limit).
+    A plan that clears is returned whole. One that never clears stops at
+    NEVER_CLEARS_HORIZON, or before the first month whose loans + gap
+    borrowing pass SANE_MULTIPLE x the month-1 total, so no figure the
+    schedule, chart or CSV prints can run to 20-30 digits."""
+    if not never_clears or not points:
+        return points, None, False
+    first = points[0]
+    start = (first.balance or D("0")) + (first.gap_debt or D("0"))
+    cap = SANE_MULTIPLE * max(start, D("1"))
+    kept: list[TrajectoryPoint] = []
+    for p in points:
+        owed = (p.balance or D("0")) + (p.gap_debt or D("0"))
+        if owed > cap:
+            return kept, (kept[-1].month if kept else 0), True
+        if p.month > NEVER_CLEARS_HORIZON:
+            return kept, NEVER_CLEARS_HORIZON, False
+        kept.append(p)
+    return kept, None, False
+
+
 def _gap_fields(result) -> dict:
     """Gap borrowing summary for a SimulateResponse (grill #38)."""
     g = result.gap_rate
@@ -335,6 +364,17 @@ def _never_clears(result, user) -> bool:
     return owed and result.debt_free_month is None
 
 
+def _bounded_fields(result, user) -> dict:
+    """trajectory + months_in_horizon + the NEW-2 cut, for a SimulateResponse."""
+    pts, cut, grows = _bounded(_to_trajectory(result, user.loans, user), _never_clears(result, user))
+    return dict(
+        trajectory=pts,
+        months_in_horizon=len(result.months),
+        trajectory_cut_month=cut,
+        grows_without_limit=grows,
+    )
+
+
 def _non_amortising_response(user, result) -> SimulateResponse | None:
     """Live re-test NEW-3: a loan whose EMI doesn't cover its interest, in a
     plan that never clears (no extra payment rescues it). Say so explicitly
@@ -385,8 +425,7 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         debt_free_month=result.debt_free_month,
         total_interest_paid=result.total_interest_paid,
         total_invested=result.total_invested,
-        trajectory=_to_trajectory(result, user.loans, user),
-        months_in_horizon=len(result.months),
+        **_bounded_fields(result, user),
         shortfall=result.months[0].shortfall if result.months else D("0"),
         surplus_allocation=_build_surplus_allocation(
             user,
@@ -464,8 +503,7 @@ def baseline(req: BaselineRequest) -> SimulateResponse:
         debt_free_month=result.debt_free_month,
         total_interest_paid=result.total_interest_paid,
         total_invested=result.total_invested,
-        trajectory=_to_trajectory(result, user.loans, user),
-        months_in_horizon=len(result.months),
+        **_bounded_fields(result, user),
         shortfall=result.months[0].shortfall if result.months else D("0"),
         # Baseline endpoint runs minimums-only — the engine doesn't route
         # any surplus, so no allocation breakdown to return.
@@ -565,4 +603,15 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
         scenario_total_interest=scenario_result.total_interest_paid,
         baseline_never_clears=_never_clears(base, user),
         scenario_never_clears=_never_clears(scenario_result, user),
+        **_scenario_trajectory(req, scenario_result, scenario_user if tenure is None else stretched, user),
     )
+
+
+def _scenario_trajectory(req, result, scenario_user, user) -> dict:
+    """Live test L#26: the what-if's own trajectory, bounded like /simulate."""
+    if not req.include_trajectory:
+        return {}
+    pts, cut, grows = _bounded(
+        _to_trajectory(result, scenario_user.loans, scenario_user), _never_clears(result, scenario_user),
+    )
+    return dict(scenario_trajectory=pts, scenario_trajectory_cut_month=cut, scenario_grows_without_limit=grows)

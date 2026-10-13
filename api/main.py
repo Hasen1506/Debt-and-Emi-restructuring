@@ -156,7 +156,11 @@ else:
 
 
 @app.get("/api/health")
-def health() -> dict[str, str]:
+async def health() -> dict[str, str]:
+    # Live re-test 2 NEW-19: async, so Render's health check is answered on
+    # the event loop and never queues behind the plan simulations in the
+    # sync threadpool (the free plan's 0.1 CPU failed it at 5 s under two
+    # users). It touches nothing slow: both lookups are cached in process.
     kind = outcomes_store.store().kind
     return {
         "status": "ok",

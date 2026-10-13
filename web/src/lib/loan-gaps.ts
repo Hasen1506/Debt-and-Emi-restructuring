@@ -7,6 +7,7 @@
  * paid down. Setup now asks for them; pages use this to say "add these"
  * instead of projecting from a profile saved before that.
  */
+import { LOAN_TYPE_NAME } from './loan-types';
 import type { Country, LoanPayload, LoanType, UserPayload } from './api';
 import { dec } from './safe-decimal';
 import { loanToUser } from './currency';
@@ -177,4 +178,32 @@ export function describeGap(
   }
   const words = missing.map((f) => GAP_WORDS[f]);
   return `the ${words.join(' and ')}`;
+}
+
+/** Live re-test 2 R2-2: Setup's line above Continue, naming what's wrong. */
+export function setupSummaryLine(f: { emiTooSmall: boolean; missing: boolean; fx: boolean }): string {
+  if (f.emiTooSmall && !f.missing) return 'A loan needs a fix: its EMI is too small to pay it off. It’s marked above.';
+  if (f.emiTooSmall) return 'Some loans need a fix: one EMI is too small to pay it off, and some are missing a number. They’re marked above.';
+  if (f.missing) return 'Some loans are missing a number. They’re marked above.';
+  if (f.fx) return 'Check the exchange rate marked above.';
+  return 'Something above needs a fix. It’s marked above.';
+}
+
+/** Live re-test 2 NEW-23: a Setup loan's header by its lender and type
+ *  ("HDFC Bank car loan", "Credit card"), numbered only when two read the
+ *  same ("Personal loan 2"). The lender's own capitals are kept. */
+export function setupLoanName(
+  loans: Array<{ loan_type: keyof typeof LOAN_TYPE_NAME; bank?: string | null }>,
+  i: number,
+): string {
+  const base = (l: { loan_type: keyof typeof LOAN_TYPE_NAME; bank?: string | null }) => {
+    const type = LOAN_TYPE_NAME[l.loan_type] ?? 'loan';
+    const bank = (l.bank ?? '').trim();
+    return bank ? `${bank} ${type}` : type.charAt(0).toUpperCase() + type.slice(1);
+  };
+  const me = base(loans[i]);
+  const same = loans.map(base).filter((n) => n === me).length;
+  if (same < 2) return me;
+  const nth = loans.slice(0, i + 1).map(base).filter((n) => n === me).length;
+  return `${me} ${nth}`;
 }

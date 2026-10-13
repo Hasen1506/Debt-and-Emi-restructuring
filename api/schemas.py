@@ -1018,6 +1018,13 @@ class SimulateResponse(_Base):
     # Loans whose EMI doesn't cover their interest. When non-empty the plan
     # was NOT run (no 1,200-month schedule): trajectory is empty.
     non_amortising: list[NonAmortisingOut] = Field(default_factory=list)
+    # Live re-test 2 NEW-2: when the plan never clears, the trajectory stops
+    # at the 30-year horizon, or earlier at the first month what's owed
+    # (loans + gap borrowing) passes 100x what's owed at the start. This is
+    # the month it stops at (None when the trajectory is the whole run), and
+    # whether it stopped because the debt grows without limit.
+    trajectory_cut_month: Optional[int] = None
+    grows_without_limit: bool = False
 
 
 class BaselineRequest(_In):
@@ -1064,6 +1071,9 @@ class CompareRequest(_In):
     tenure_extension_loan_index: Optional[LoanIndex] = None
     tenure_extension_months: Optional[Annotated[int, Field(ge=1, le=MAX_MONTHS)]] = None
     gap_as_debt: bool = True
+    # Live test L#26: also return the scenario's month-by-month trajectory,
+    # so the Plan chart and table can show the what-if.
+    include_trajectory: bool = False
 
     @model_validator(mode="after")
     def _valid_spending_cut(self) -> "CompareRequest":
@@ -1096,6 +1106,11 @@ class CompareResponse(_Base):
     # interest_saved compares two unbounded totals and must not be shown.
     baseline_never_clears: bool = False
     scenario_never_clears: bool = False
+    # Live test L#26: the scenario's trajectory (include_trajectory only),
+    # bounded the same way as /simulate's (NEW-2).
+    scenario_trajectory: Optional[list[TrajectoryPoint]] = None
+    scenario_trajectory_cut_month: Optional[int] = None
+    scenario_grows_without_limit: bool = False
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -39,7 +39,7 @@ import { loanCurrency, userDefaultCurrency, type CurrencyCode } from '@/lib/curr
 import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { deriveTenureMonths } from '@/lib/derived';
 import { HORIZON_MONTHS } from '@/lib/horizon';
-import { emiBelowInterest, loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
+import { emiBelowInterest, loanDraftErrors, needsEmi, setupLoanName, setupSummaryLine } from '@/lib/loan-gaps';
 import { newLoanId } from '@/lib/loan-ids';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { feeShown } from '@/lib/prepayment-fee';
@@ -269,6 +269,18 @@ export function QuickSetup() {
   }
   const step2Ok =
     loans.every((l) => Object.keys(issuesOf(l)).length === 0) && Object.keys(fxErrors).length === 0;
+  // Live re-test 2 R2-2: the summary names what's wrong. An EMI below the
+  // month's interest isn't a missing number.
+  const step2Summary = setupSummaryLine({
+    emiTooSmall: loans.some(
+      (l) => Object.keys(issuesOf(l)).length > 0 && !!emiBelowInterest({ ...l, currency: loanCurrency(l, country) as 'INR' | 'USD' }),
+    ),
+    missing: loans.some((l) => {
+      const n = Object.keys(issuesOf(l)).length;
+      return n > 0 && !emiBelowInterest({ ...l, currency: loanCurrency(l, country) as 'INR' | 'USD' });
+    }),
+    fx: Object.keys(fxErrors).length > 0,
+  });
 
   // Today's rate for each foreign currency, once; the person can change it.
   const foreignKey = foreignCcys.join(',');
@@ -656,6 +668,7 @@ export function QuickSetup() {
                 <LoanBlock
                   key={l.id ?? i}
                   index={i}
+                  name={setupLoanName(loans, i)}
                   loan={l}
                   country={country}
                   showCurrency={(country === 'US' && isNriUs) || loanCurrency(l, country) !== userCcy}
@@ -714,7 +727,7 @@ export function QuickSetup() {
               )}
               {showErrors && !step2Ok && (
                 <p role="alert" style={{ color: L_T.negative, margin: '10px 0 0' }}>
-                  Some loans are missing a number. They&apos;re marked above.
+                  {step2Summary}
                 </p>
               )}
               <Actions back={<LBracket onClick={() => goTo(0)}>← BACK</LBracket>}>
@@ -875,6 +888,7 @@ function Actions({ back, children }: { back?: ReactNode; children: ReactNode }) 
 
 function LoanBlock({
   index,
+  name: nameProp,
   loan,
   country,
   showCurrency,
@@ -890,6 +904,8 @@ function LoanBlock({
   onRemove,
 }: {
   index: number;
+  /** Live re-test 2 NEW-23: the loan's header, by type and lender. */
+  name?: string;
   loan: LoanPayload;
   country: Country;
   showCurrency: boolean;
@@ -913,7 +929,8 @@ function LoanBlock({
   const emiTooSmall =
     !card && !ui.byMonths && Number(loan.outstanding) > 0 && Number(loan.scheduled_emi) > 0 &&
     Number(loan.nominal_rate) > 0 && tenure === null;
-  const name = loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : `Loan ${index + 1}`;
+  // Live re-test 2 NEW-23: "Credit card", "HDFC car loan", not "LOAN 1".
+  const name = nameProp ?? setupLoanName([loan], 0) ?? `Loan ${index + 1}`;
   const setCurrency = (c: CurrencyCode) => onPatch({ currency: c });
   const find = (key: FindKey) => whereToFind(key, { country: ccy === 'INR' ? 'IN' : 'US', loanType: loan.loan_type });
   const estimated = new Set(loan.estimated_fields ?? []);

@@ -274,7 +274,7 @@ export function LoanCheckTool() {
               </div>
               <Field label="Still owed" kind="money" currency="INR" value={outstanding} error={at('outstanding')} onChange={setOutstanding} findIt={whereToFind('balance', IN)} />
               <Field label="Months left" value={months} error={at('months')} onChange={setMonths} kind="integer" placeholder="200" findIt={whereToFind('monthsLeft', IN)} />
-              <Field label="EMI (optional)" kind="money" currency="INR" value={emi} error={at('emi')} onChange={setEmi} hint="Blank: worked out for you" findIt={whereToFind('emi', IN)} />
+              <Field label="EMI (optional)" kind="money" currency="INR" value={emi} error={at('emi')} onChange={setEmi} placeholder="e.g. 22,000" hint="Blank: worked out for you" findIt={whereToFind('emi', IN)} />
             </LFieldGrid>
           )}
 

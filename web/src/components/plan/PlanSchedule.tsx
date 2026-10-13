@@ -20,7 +20,7 @@ import { resetDate } from '@/lib/rate-decision';
 import { ADD_LIFE_EVENT } from '@/components/lifecycle/LifecycleEventsPanel';
 import { GST_RATE_IN } from '@/lib/gst';
 import { reconcileSchedule, scheduleColumnHelp } from '@/lib/schedule-reconcile';
-import { gapEvents, gapRateWords } from '@/lib/plan-gap';
+import { boundedMoney, gapEvents, gapRateWords, saneCap, scheduleStop, scheduleStopLine } from '@/lib/plan-gap';
 
 const LOAN_SHORT: Record<string, string> = {
   home_loan: 'Home',
@@ -157,7 +157,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   const trajByMonth = new Map<number, number>(plan.trajectory.map((p) => [p.month, p.avalanche]));
   const interestByMonth = new Map<number, number | undefined>(plan.trajectory.map((p) => [p.month, p.interest]));
 
-  const rows: ScheduleCsvRow[] = plan.monthlyPayments.map((row) => {
+  const allRows: ScheduleCsvRow[] = plan.monthlyPayments.map((row) => {
     const d = monthIndexToDate(row.month, today);
     const date = `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${d.getFullYear()}`;
     const bal = trajByMonth.get(row.month) ?? 0;
@@ -200,7 +200,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
     const d = monthIndexToDate(1, today);
     return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${d.getFullYear()}`;
   })();
-  const totals = reconcileSchedule(rows, owedToday);
+  const totals = reconcileSchedule(allRows, owedToday);
   const gstApplies = plan.user.country === 'IN' && plan.user.loans.some((l) => l.loan_type === 'credit_card');
   const help: Record<string, string> = {
     ...scheduleColumnHelp(gstApplies, GST_RATE_IN.mul(100).toFixed(0)),
@@ -214,7 +214,20 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
     help['GAP OWED'] =
       'Short months are paid from your emergency fund, then borrowed on a card; this is what is owed on that borrowing at the month’s end. Spare cash pays it back before any loan gets extra.';
   }
-  const eventRows = rows.filter((r) => r.event);
+  // Live re-test 2 NEW-2: a plan that never clears stops at the horizon
+  // (or before what's owed passes 100x today) and says why, instead of
+  // 1,200 months of 30-digit GAP OWED figures. The CSV gets the same rows.
+  const cap = saneCap(owedToday);
+  const stop = scheduleStop({
+    rows: allRows.map((r) => ({ mo: r.mo, balance: r.balance, gapDebt: gapMonths[r.mo]?.debt ?? 0 })),
+    owedToday,
+    cut: plan.scheduleCut,
+  });
+  const rows = stop.lastMonth == null ? allRows : allRows.filter((r) => r.mo <= stop.lastMonth!);
+  const stopRow = stop.lastMonth != null ? rows.find((r) => r.mo === stop.lastMonth) : undefined;
+  const money = (v: number) => fc(v.toFixed(0));
+  const cell = (v: number) => boundedMoney(v, cap, money);
+  const eventRows = rows.filter((r) => r.event || r.mo === stop.lastMonth);
   const visibleRows = expanded ? rows : eventRows;
   const totalCount = rows.length || plan.trajectory.length;
 
@@ -249,7 +262,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
           </span>
         }
       >
-        MONTH BY MONTH{short ? ' · AS THINGS STAND' : ''} ·{' '}
+        MONTH BY MONTH{short ? ' · AS THINGS STAND' : ''}{stopRow ? ' · NEVER CLEARS' : ''} ·{' '}
         {expanded ? `${totalCount} MO` : `${eventRows.length} EVENT${eventRows.length === 1 ? '' : 'S'}`}
       </LSectionHeader>
       {visibleRows.length === 0 ? (
@@ -386,15 +399,15 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                   <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.accent, fontWeight: 700 }}>
                     {r.extra > 0 ? fc(r.extra.toFixed(0)) : '—'}
                   </td>
-                  <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.negative }}>{fc(r.interest.toFixed(0))}</td>
-                  <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.positive }}>{fc(r.principal.toFixed(0))}</td>
-                  <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>{fc(r.balance.toFixed(0))}</td>
+                  <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.negative }}>{cell(r.interest)}</td>
+                  <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.positive }}>{cell(r.principal)}</td>
+                  <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>{cell(r.balance)}</td>
                   {showGap && (
                     <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.negative, whiteSpace: 'nowrap' }}>
-                      {gapMonths[r.mo]?.debt ? fc(gapMonths[r.mo].debt.toFixed(0)) : '—'}
+                      {gapMonths[r.mo]?.debt ? cell(gapMonths[r.mo].debt) : '—'}
                       {gapMonths[r.mo]?.repaid ? (
                         <div style={{ fontSize: 9, letterSpacing: '0.06em', color: L_T.positive }}>
-                          {fc(gapMonths[r.mo].repaid.toFixed(0))} REPAID
+                          {cell(gapMonths[r.mo].repaid)} REPAID
                         </div>
                       ) : null}
                     </td>
@@ -404,7 +417,13 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             </tbody>
           </table>
         </div>
-        <ScheduleFooter totals={totals} fc={fc} gstApplies={gstApplies} />
+        {stopRow ? (
+          <div role="note" data-testid="schedule-stop" style={{ padding: '8px 0', fontSize: 11, lineHeight: 1.6, color: L_T.negative, fontWeight: 700 }}>
+            {scheduleStopLine(stop.growsWithoutLimit, stopRow.date)}
+          </div>
+        ) : (
+          <ScheduleFooter totals={totals} fc={fc} gstApplies={gstApplies} />
+        )}
         </>
       )}
       <RateResetAlert plan={plan} />

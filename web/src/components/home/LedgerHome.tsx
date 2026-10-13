@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { formatTaxRate } from '@/lib/tax-profile';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
@@ -153,7 +154,7 @@ function ContextLine({ profile }: { profile: StoredProfile }) {
       ? `${u.tax_regime === 'old' ? 'OLD' : 'NEW'} TAX REGIME`
       : `FILING ${FILING[u.filing_status ?? 'single'] ?? 'SINGLE'}`,
     // Worked out from take-home until gross pay is entered in Profile.
-    `TAX BRACKET ${Math.round(Number(profile.marginalRate || 0) * 100)}%${gross > 0 ? '' : ' (ESTIMATED)'}`,
+    `TAX BRACKET ${formatTaxRate(String(profile.marginalRate || 0))}${gross > 0 ? '' : ' (ESTIMATED)'}`,
     // The payoff order isn't repeated here: the masthead shows it and switches it.
   ];
   return (
@@ -279,7 +280,8 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
   const loudest = m.loudest!;
   const gaps = projectionGaps(profile.user);
   const amount = m.surplus.gt(0) ? Math.round(Number(m.surplus.toString())) : 0;
-  const lender = (loudest.loan.bank || 'your highest-rate lender').toUpperCase();
+  // Live re-test 2 R2-9: "TO YOUR YOUR HIGHEST-RATE LENDER" when no bank.
+  const lender = loudest.loan.bank ? `${loudest.loan.bank.toUpperCase()} ` : '';
   const income = Number(dec(profile.user.monthly_income));
   const costs = Number(dec(profile.user.fixed_expenses).add(dec(profile.user.variable_expenses)));
   const shortBreakdown = m.surplus.lt(0)
@@ -338,13 +340,13 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
             {/* Live re-test NEW-13: the server's step can arrive empty; the
                 line computed here shows whenever it does, so the heading
                 below always has an action above it. */}
-            <style>{`.rd-one-step:not(:empty) + .rd-one-step-fallback{display:none}`}</style>
+            <style>{`.rd-one-step:not(:empty):not(:has([aria-busy])) + .rd-one-step-fallback{display:none}`}</style>
             <span className="rd-one-step">{oneStep}</span>
             <span className="rd-one-step-fallback" data-testid="one-step-fallback">
               {m.surplus.lt(0)
                 ? 'PAY EVERY EMI AND CARD MINIMUM YOU CAN, SECURED LOANS (HOME, CAR, GOLD) FIRST. FOR WHAT YOU CAN’T COVER, CALL THE BANK BEFORE THE DUE DATE.'
                 : amount > 0
-                  ? `PAY ${fc(Math.min(amount, Number(m.toUserCcy(loudest.outstanding, loudest.loan))))} TO YOUR ${lender} ${LOAN_TYPE_NAME[loudest.loan.loan_type].toUpperCase()}.`
+                  ? `PAY ${fc(Math.min(amount, Number(m.toUserCcy(loudest.outstanding, loudest.loan))))} TO YOUR ${lender}${LOAN_TYPE_NAME[loudest.loan.loan_type].toUpperCase()}.`
                   : `KEEP CURRENT EMIS RUNNING.`}
             </span>
           </div>

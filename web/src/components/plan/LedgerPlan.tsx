@@ -15,6 +15,10 @@
  */
 
 import type { PlanData } from './PlanData';
+import { useState } from 'react';
+import type { CompareResponse } from '@/lib/api';
+import { planWithWhatIf } from '@/lib/trajectory';
+import { loanLabel } from '@/lib/loan-types';
 import { formatCurrencyWhole } from '@/lib/api';
 import {
   monthIndexToCountryLabel,
@@ -53,6 +57,12 @@ import { TenureWhatIf } from './TenureWhatIf';
 import { dueVsAffordable, gapRateWords, shortHeadline } from '@/lib/plan-gap';
 
 export function LedgerPlan({ plan }: { plan: PlanData }) {
+  // Live test L#26: the tenure what-if redraws the chart and table, with a
+  // clear toggle back to the plan as it is.
+  const [whatIf, setWhatIf] = useState<{ r: CompareResponse; loanIndex: number; months: number } | null>(null);
+  const [showBase, setShowBase] = useState(false);
+  const whatIfPlan = whatIf ? planWithWhatIf(plan, whatIf.r, whatIf.loanIndex) : null;
+  const shownPlan = whatIfPlan && !showBase ? whatIfPlan : plan;
   const ccy = plan.displayCurrency;
   const fc = (v: string | number) => formatCurrencyWhole(v, ccy);
   const interestSaved =
@@ -224,7 +234,13 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
 
         {plan.shortfall > 0 && <ShortfallBanner plan={plan} />}
         {/* Live re-test L#26: offered whether or not this month is short. */}
-        <TenureWhatIf plan={plan} />
+        <TenureWhatIf
+          plan={plan}
+          onResult={(r, loanIndex, months) => {
+            setWhatIf(r && r.scenario_trajectory?.length ? { r, loanIndex, months } : null);
+            setShowBase(false);
+          }}
+        />
         {plan.futureShortfall && <div role="alert" style={{color:L_T.negative,fontSize:12}}>
           FUTURE FUNDING GAP · SHORT {fc(plan.futureShortfall.amount)} IN {monthIndexToCountryLabel(plan.futureShortfall.month,plan.user.country).toUpperCase()}.
           {plan.gap
@@ -239,12 +255,27 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         <FxCachePersister rates={plan.fxRatesUsed} />
         <LifecycleArrivalPrompts user={plan.user} variant="ledger" />
 
-        <PlanTrajectory plan={plan} short={short} />
+        {whatIfPlan && whatIf && (
+          <div
+            role="status"
+            data-testid="whatif-toggle"
+            style={{ border: `2px solid ${L_T.accent}`, padding: '8px 12px', fontSize: 11, letterSpacing: '0.08em', display: 'flex', flexWrap: 'wrap', gap: '6px 14px', alignItems: 'center' }}
+          >
+            <strong style={{ color: showBase ? L_T.ink : L_T.accent }}>
+              {showBase
+                ? 'SHOWING YOUR PLAN AS IT IS'
+                : `SHOWING THE WHAT-IF · ${loanLabel(plan.user.loans[whatIf.loanIndex]).toUpperCase()} +${whatIf.months / 12} YR${whatIf.months > 12 ? 'S' : ''}`}
+            </strong>
+            <LBracket onClick={() => setShowBase((v) => !v)}>{showBase ? 'SHOW THE WHAT-IF' : 'BACK TO MY PLAN'}</LBracket>
+            <span style={{ color: L_T.muted }}>Nothing is saved.</span>
+          </div>
+        )}
+        <PlanTrajectory plan={shownPlan} short={short} />
         {!short && <DebtFreeRedirectPrompt plan={plan} />}
 
         {/* Month by month, collapsed to the months something happens;
             the next rate reset below */}
-        <PlanSchedule plan={plan} />
+        <PlanSchedule plan={shownPlan} />
 
         {/* The next RBI / Fed decision, loan by loan, and whether to wait */}
         <RateDecisions plan={plan} />

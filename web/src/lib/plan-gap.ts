@@ -194,3 +194,56 @@ export function gapEvents(gap: PlanGap | null, money: (v: number) => string, rat
   if (gap.repaidMonth) out.set(gap.repaidMonth, '✓ GAP BORROWING REPAID');
   return out;
 }
+
+/** Live re-test 2 NEW-2: no ₹ figure on the Plan above this many times
+ *  what's owed today; above it the debt "keeps growing". */
+export const SANE_MULTIPLE = 100;
+/** A plan that never clears shows at most this many months (30 years). */
+export const NEVER_CLEARS_HORIZON = 360;
+
+export function saneCap(owedToday: number): number {
+  return SANE_MULTIPLE * Math.max(owedToday, 1);
+}
+
+/** A money cell: the figure, or "KEEPS GROWING" above the sanity cap. */
+export function boundedMoney(v: number, cap: number, money: (v: number) => string): string {
+  return Number.isFinite(v) && v <= cap ? money(v) : 'KEEPS GROWING';
+}
+
+/**
+ * Live re-test 2 NEW-2: where the month-by-month schedule stops. A plan that
+ * clears is shown whole. One that never clears stops at the API's cut month
+ * (30 years), and never past the last month before loans + gap borrowing
+ * pass 100x what's owed today (a backstop for an older API, too).
+ */
+export function scheduleStop(args: {
+  rows: { mo: number; balance: number; gapDebt: number }[];
+  owedToday: number;
+  cut: { month: number | null; growsWithoutLimit: boolean } | null | undefined;
+}): { lastMonth: number | null; growsWithoutLimit: boolean } {
+  const { rows, owedToday, cut } = args;
+  const cap = saneCap(owedToday);
+  const limit = cut ? (cut.month ?? NEVER_CLEARS_HORIZON) : Infinity;
+  let prev: number | null = null;
+  for (const r of rows) {
+    if (r.balance + r.gapDebt > cap) return { lastMonth: prev ?? 0, growsWithoutLimit: true };
+    if (r.mo > limit) return { lastMonth: Math.min(limit, prev ?? limit), growsWithoutLimit: !!cut?.growsWithoutLimit };
+    prev = r.mo;
+  }
+  if (cut) return { lastMonth: prev, growsWithoutLimit: cut.growsWithoutLimit };
+  return { lastMonth: null, growsWithoutLimit: false };
+}
+
+/** The line under a schedule that stops (NEW-2). */
+export function scheduleStopLine(growsWithoutLimit: boolean, stopLabel: string): string {
+  return growsWithoutLimit
+    ? `GAP BORROWING GROWS WITHOUT LIMIT AT THIS INCOME · THE SCHEDULE STOPS AT ${stopLabel}, BEFORE THE FIGURES STOP MEANING ANYTHING. Close the monthly gap (spend less or bring in more), or try a longer tenure in the what-if, to get a date.`
+    : `THE DEBT DOESN’T CLEAR IN 30 YEARS AS THINGS STAND · THE SCHEDULE STOPS AT ${stopLabel}. Close the monthly gap (spend less or bring in more), or try a longer tenure in the what-if, to get a date.`;
+}
+
+/** Live re-test 2 R2-10: the plan and minimums lines are drawn one on top
+ *  of the other (a short month leaves nothing extra to pay), so the legend
+ *  shows one item and says so. Points are normalised 0..1. */
+export function linesCoincide(points: { av: number; min: number }[], tol = 0.005): boolean {
+  return points.length > 0 && points.every((p) => Math.abs(p.av - p.min) <= tol);
+}

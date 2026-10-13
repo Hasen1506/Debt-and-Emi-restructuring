@@ -254,7 +254,14 @@ export function Field({
   const moneyWords = moneyParsed?.value ? amountInWords(moneyParsed.value, currency) : null;
   // Letters, a minus sign or an impossible size are flagged as they're typed
   // (live QA: "abc" and "-100" got only the browser's red outline).
+  // Live re-test 2 R2-1: "8.5x" is not a rate. Say so as it's typed
+  // (it used to read as 0% until Continue, then "enter the rate").
+  const pctError =
+    isPercent && percentTextToFraction(pctText) === null
+      ? `“${pctText.trim()}” isn’t a valid rate. Type it like 8.5`
+      : null;
   const shownError =
+    pctError ??
     error ??
     (isMoney && moneyParsed?.error && (moneyTouched || isImmediateAmountError(moneyText, moneyParsed))
       ? moneyParsed.error

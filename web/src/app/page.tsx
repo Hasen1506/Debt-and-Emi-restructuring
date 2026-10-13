@@ -50,7 +50,9 @@ export default async function HomePage() {
           </Suspense>
         }
         oneStep={
-          <Suspense fallback={<span aria-busy="true">……</span>}>
+          // Live re-test 2 R2-9: no "……" while the step loads; the empty
+          // busy span lets the soft view show its own line meanwhile.
+          <Suspense fallback={<span aria-busy="true" />}>
             <HomeMoveOneStep />
           </Suspense>
         }

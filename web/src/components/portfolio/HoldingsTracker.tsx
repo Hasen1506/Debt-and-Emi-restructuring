@@ -452,7 +452,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
           display: 'flex',
           gap: 8,
           flexWrap: 'wrap',
-          alignItems: 'flex-end',
+          alignItems: 'flex-start', // Live re-test 2 NEW-18: inputs on one line; hints hang below
         }}
       >
         <Field label={user.country === 'IN' ? 'Ticker (NSE)' : 'Ticker'} hint={user.country === 'IN' ? 'e.g. RELIANCE' : 'e.g. AAPL'}>

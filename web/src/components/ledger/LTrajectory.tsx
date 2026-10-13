@@ -10,6 +10,130 @@
 import { useWidth } from '@/lib/use-width';
 import { L_T, L_MONO } from './primitives';
 
+/** A label's text box (baseline y): about 10 px above it, 3 below. */
+interface Box { x0: number; x1: number; y0: number; y1: number }
+const boxAt = (x0: number, x1: number, y: number): Box => ({ x0, x1, y0: y - 10, y1: y + 3 });
+const overlaps = (a: Box, b: Box, pad = 4) => a.x0 < b.x1 + pad && a.x1 > b.x0 - pad && a.y0 < b.y1 + 1 && a.y1 > b.y0 - 1;
+/** A vertical segment (a leader) crossing a box. */
+const crosses = (x: number, ya: number, yb: number, b: Box) =>
+  x >= b.x0 - 2 && x <= b.x1 + 2 && Math.max(ya, yb) >= b.y0 && Math.min(ya, yb) <= b.y1;
+
+/**
+ * Live re-test 2 NEW-6: every label's place on the Plan chart, collision
+ * free. The minimums note is placed first, clear of both lines (it used to
+ * sit on the dashed line at 390 px). Each milestone label then avoids both
+ * lines, every placed label and the note, every marker's dotted drop line,
+ * and every raised leader; its own raised leader must not run through a
+ * placed label either (the personal-loan leader crossed "CARD · JAN '27").
+ * Pure, so web/tests can check it at any width.
+ */
+export function layoutTrajectoryLabels(args: {
+  points: LTrajPoint[];
+  milestones: LTrajMilestone[];
+  minimumsNote?: string;
+  w: number;
+  left: number;
+  right: number;
+  top: number;
+  toX: (t: number) => number;
+  toY: (v: number) => number;
+}) {
+  const { points, milestones, minimumsNote, w, left, right, top, toX, toY } = args;
+  const last = points[points.length - 1];
+  const lineYAt = (key: 'av' | 'min', x: number): number | null => {
+    for (let i = 1; i < points.length; i++) {
+      const xa = toX(points[i - 1].t);
+      const xb = toX(points[i].t);
+      if (x >= Math.min(xa, xb) && x <= Math.max(xa, xb)) {
+        const f = xb === xa ? 0 : (x - xa) / (xb - xa);
+        return toY(points[i - 1][key] + f * (points[i][key] - points[i - 1][key]));
+      }
+    }
+    return null;
+  };
+  const clearOfLines = (b: Box) => {
+    for (let sx = b.x0 - 2; sx <= b.x1 + 2; sx += 2) {
+      for (const key of ['av', 'min'] as const) {
+        const ly = lineYAt(key, sx);
+        if (ly !== null && ly >= b.y0 - 1 && ly <= b.y1 + 1) return false;
+      }
+    }
+    return true;
+  };
+  // The axis title (OUTSTANDING, top left) counts as placed.
+  const boxes: Box[] = [boxAt(8, 8 + 'OUTSTANDING'.length * CHAR_W, 12)];
+  const leaders: Array<{ x: number; ya: number; yb: number }> = [];
+  // Every marker's dotted drop line, from the marker down to the axis.
+  milestones.forEach((m) => leaders.push({ x: toX(m.t), ya: toY(m.v) - 4, yb: toY(0) }));
+  const axisY = toY(0);
+
+  let note: { x: number; y: number } | null = null;
+  if (minimumsNote && last) {
+    const nw = minimumsNote.length * CHAR_W;
+    const x1 = w - right;
+    const end = toY(last.min);
+    const ys = [end - 6, end - 19, end - 32, end - 45, end + 16, end + 29, end + 42, top - 4, top + 9]
+      .filter((y) => y >= 12 && y <= axisY - 4);
+    const free = (y: number) => {
+      const b = boxAt(x1 - nw, x1, y);
+      return clearOfLines(b) && !boxes.some((o) => overlaps(o, b)) && !leaders.some((l) => crosses(l.x, l.ya, l.yb, b));
+    };
+    const y = ys.find(free) ?? ys.find((y) => clearOfLines(boxAt(x1 - nw, x1, y))) ?? Math.max(top - 4, end - 6);
+    note = { x: x1, y };
+    boxes.push(boxAt(x1 - nw, x1, y));
+  }
+
+  const labels = milestones.map((m, mi) => {
+    const x = toX(m.t);
+    const markY = toY(m.v);
+    const width = m.label.length * CHAR_W;
+    const natural: 'start' | 'end' | 'middle' = x - width / 2 < left ? 'start' : x + width / 2 > w - right ? 'end' : 'middle';
+    const span = (a: 'start' | 'end' | 'middle') => {
+      const x0 = a === 'start' ? x - 4 : a === 'end' ? x - width + 4 : x - width / 2;
+      return { x0, x1: x0 + width };
+    };
+    // The natural anchor first; then hang the label right or left of its
+    // marker, while it stays inside the chart (a narrow chart has little room).
+    const anchors = ([natural, 'start', 'end', 'middle'] as const).filter(
+      (a, i, all) => all.indexOf(a) === i && (a === natural || (span(a).x0 >= 4 && span(a).x1 <= w - 2)),
+    );
+    const leaderFor = (y: number) => (y < markY ? { ya: y + 3, yb: markY - 5 } : { ya: y - 10, yb: markY + 5 });
+    const isRaised = (y: number) => y < markY - 12 || y > markY + 18;
+    const ok = (a: 'start' | 'end' | 'middle', y: number, strict: boolean) => {
+      const { x0, x1 } = span(a);
+      const b = boxAt(x0, x1, y);
+      if (boxes.some((o) => overlaps(o, b))) return false;
+      if (!strict) return true;
+      if (!clearOfLines(b)) return false;
+      if (leaders.some((l, j) => j !== mi && crosses(l.x, l.ya, l.yb, b))) return false;
+      if (isRaised(y)) {
+        const own = leaderFor(y);
+        if (boxes.some((o) => crosses(x, own.ya, own.yb, o))) return false;
+      }
+      return true;
+    };
+    const above = Array.from({ length: 16 }, (_, k) => markY - 12 - k * 13).filter((y) => y >= 12);
+    const below = Array.from({ length: 16 }, (_, k) => markY + 18 + k * 13).filter((y) => y <= axisY - 6);
+    const candidates = [...above, ...below];
+    const pick = (strict: boolean) => {
+      for (const a of anchors) for (const c of candidates) if (ok(a, c, strict)) return { a, y: c };
+      return null;
+    };
+    const chosen = pick(true) ?? pick(false) ?? { a: natural, y: above[0] ?? 12 };
+    const anchor = chosen.a;
+    const y = chosen.y;
+    const { x0, x1 } = span(anchor);
+    boxes.push(boxAt(x0, x1, y));
+    const raised = isRaised(y);
+    if (raised) {
+      const own = leaderFor(y);
+      leaders.push({ x, ya: own.ya, yb: own.yb });
+    }
+    return { x, y, anchor: anchor as 'start' | 'end' | 'middle', raised, label: m.label, markY, x0, x1 };
+  });
+  return { note, labels };
+}
+
 // ─── LTrajectory ────────────────────────────────────────────────────────
 export interface LTrajPoint {
   // 0..1 normalised positions
@@ -81,62 +205,7 @@ export function LTrajectory({
     (_, i, all) => !narrow || i === 0 || i === all.length - 1 || i === Math.floor(all.length / 2),
   );
 
-  // Place each label: anchored to stay inside the chart, raised a row
-  // while it overlaps one already placed. Near the top (loans that clear
-  // early, while the balance is still high) there's no room above, so it
-  // drops below the line instead of stacking on the labels there.
-  // The axis title (OUTSTANDING, top left) counts as placed: a label for a
-  // loan that clears early used to sit on top of it.
-  const placed: Array<{ x0: number; x1: number; y: number }> = [{ x0: 8, x1: 8 + 'OUTSTANDING'.length * CHAR_W, y: 12 }];
-  // Live re-test NEW-6: a label must not sit on either line, on another
-  // marker's leader, or on the minimums note (the landing chart's rule,
-  // PR #49). Each line is sampled across the label's width.
-  const lineYAt = (key: 'av' | 'min', x: number): number | null => {
-    for (let i = 1; i < points.length; i++) {
-      const xa = toX(points[i - 1].t);
-      const xb = toX(points[i].t);
-      if (x >= Math.min(xa, xb) && x <= Math.max(xa, xb)) {
-        const f = xb === xa ? 0 : (x - xa) / (xb - xa);
-        return toY(points[i - 1][key] + f * (points[i][key] - points[i - 1][key]));
-      }
-    }
-    return null;
-  };
-  const markXs = milestones.map((m) => toX(m.t));
-  if (minimumsNote && last) {
-    const ny = Math.max(top - 4, toY(last.min) - 6);
-    placed.push({ x0: w - right - minimumsNote.length * CHAR_W, x1: w - right, y: ny });
-  }
-  const labels = milestones.map((m, mi) => {
-    const x = toX(m.t);
-    const markY = toY(m.v);
-    const width = m.label.length * CHAR_W;
-    const anchor = x - width / 2 < left ? 'start' : x + width / 2 > w - right ? 'end' : 'middle';
-    const x0 = anchor === 'start' ? x - 4 : anchor === 'end' ? x - width + 4 : x - width / 2;
-    const x1 = x0 + width;
-    const clearOfLabels = (y: number) => !placed.some((p) => Math.abs(p.y - y) < 12 && x0 < p.x1 + 8 && x1 > p.x0 - 8);
-    // Text box: baseline y, about 9 px tall.
-    const clearOfLines = (y: number) => {
-      for (let sx = x0 - 2; sx <= x1 + 2; sx += 3) {
-        for (const key of ['av', 'min'] as const) {
-          const ly = lineYAt(key, sx);
-          if (ly !== null && ly >= y - 11 && ly <= y + 4) return false;
-        }
-      }
-      // Another marker's dotted leader runs from its marker down to the axis.
-      return !markXs.some((mx, j) => j !== mi && mx >= x0 - 3 && mx <= x1 + 3 && y > toY(milestones[j].v) - 10);
-    };
-    const above = Array.from({ length: 14 }, (_, k) => markY - 12 - k * 13).filter((y) => y >= 12);
-    const below = Array.from({ length: 14 }, (_, k) => markY + 18 + k * 13).filter((y) => y <= toY(0) - 6);
-    const candidates = [...above, ...below];
-    const y =
-      candidates.find((c) => clearOfLabels(c) && clearOfLines(c)) ??
-      candidates.find(clearOfLabels) ??
-      above[0] ??
-      12;
-    placed.push({ x0, x1, y });
-    return { x, y, anchor, raised: y < markY - 12 || y > markY + 18, label: m.label, markY };
-  });
+  const { note, labels } = layoutTrajectoryLabels({ points, milestones, minimumsNote, w, left, right, top, toX, toY });
 
   return (
     <div ref={ref} style={{ border: `2px solid ${L_T.ink}`, padding: '8px 0 4px', background: L_T.paper }}>
@@ -180,10 +249,10 @@ export function LTrajectory({
         <path d={path('min')} stroke={L_T.muted} strokeWidth="1.4" fill="none" strokeDasharray="5 4" />
         <path d={path('av')} stroke={L_T.ink} strokeWidth="2.2" fill="none" />
         <line x1={left} x2={w - right} y1={toY(0)} y2={toY(0)} stroke={L_T.ink} strokeWidth={1.2} />
-        {minimumsNote && last && (
+        {minimumsNote && note && (
           <text
-            x={w - right}
-            y={Math.max(top - 4, toY(last.min) - 6)}
+            x={note.x}
+            y={note.y}
             fontFamily={L_MONO}
             fontSize="9.5"
             fill={L_T.muted}
