@@ -1462,7 +1462,7 @@ function PlanPreview({
       {shortfall.gt(0) && (
         <p role="alert" style={{ margin: 0, padding: '10px 12px', border: `1px solid ${L_T.negative}`, color: L_T.negative, lineHeight: 1.55 }}>
           Your take-home is {money(shortfall)} a month short of spending plus minimum payments. The date below is
-          if you close that gap. As things stand, the gap is {hasFund ? 'paid from your emergency fund, then ' : ''}borrowed
+          if you close that gap. As things stand, the plan {hasFund ? 'pays the gap from your emergency fund, then ' : ''}borrows it
           on a card at card rates until it&apos;s repaid; Home shows which payments to protect.
         </p>
       )}

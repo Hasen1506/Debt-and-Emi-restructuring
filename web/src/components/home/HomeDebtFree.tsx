@@ -50,12 +50,7 @@ export async function HomeDebtFreeCaption() {
       <Link href="/plan">
         {plan.gap?.closed?.debtFreeMonth ? 'IF THE ' : 'SHORT '}
         {formatCurrencyWhole(Math.round(plan.shortfall), userDefaultCurrency(plan.user.country))}/MO
-        {plan.gap?.closed?.debtFreeMonth ? ' GAP CLOSES' : ''}
-        {/* UX50 B-13: both dates, as on Plan. */}
-        {plan.gap?.closed?.debtFreeMonth && plan.debtFreeMonth
-          ? ` · AS THINGS STAND: ${monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()}`
-          : ''}{' '}
-        · PLAN →
+        {plan.gap?.closed?.debtFreeMonth ? ' GAP CLOSES' : ''} · PLAN →
       </Link>
     );
   }
