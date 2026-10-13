@@ -194,6 +194,10 @@ test.describe('owner fixes (signed in)', () => {
   // ── G5 loan-check (owner spec: web/e2e/loan-check.spec.ts; same flow) ──
   async function loanCheck(page: import('@playwright/test').Page, lender: string | { name: string; type: string }, spread = true) {
     await page.goto('/tools/loan-check');
+    // Signed in, the persona's saved home loan is picked and its numbers
+    // filled in (G5 prefill). These checks type their own loan.
+    const another = page.getByRole('group', { name: 'Which loan?' }).getByRole('button', { name: 'Another loan', exact: true });
+    await another.waitFor({ timeout: 5000 }).then(() => another.click(), () => {});
     const pick = page.getByTestId('lc-lender');
     await expect(pick.locator('option', { hasText: 'LIC Housing Finance' })).toHaveCount(1);
     if (typeof lender === 'string') await pick.selectOption({ label: lender });

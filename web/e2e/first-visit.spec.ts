@@ -1,7 +1,8 @@
 /**
  * Sprint L5: first visit and cold start.
  *  - A signed-out first visit to / gets the public landing (welcome.html),
- *    with no app data and no cookies set (live #1).
+ *    with no app data and no cookies set (live #1) beyond G10's
+ *    non-identifying rd_country=IN|US landing cookie.
  *  - Cold start: right after the servers come up, the landing, /login and
  *    the API health check each answer within a budget. On Render's free
  *    plan the real cold start is the instance wake-up (~50 s, G9 #49);
@@ -19,7 +20,12 @@ test('first visit: / is the public landing, no app state, no cookies', async ({ 
   await expect(page.getByRole('link', { name: /sign in|start|try/i }).first()).toBeVisible();
   // No app chrome: the five-tab nav belongs to signed-in pages.
   await expect(page.getByRole('link', { name: 'ACTIVITY', exact: true })).toHaveCount(0);
-  expect(await context.cookies()).toEqual([]);
+  // The one cookie a first visit may get is G10's non-identifying landing
+  // country (rd_country=IN|US, read by the static page to pick ₹ or $
+  // examples). No session, app or tracking cookie.
+  const cookies = await context.cookies();
+  expect(cookies.filter((c) => c.name !== 'rd_country')).toEqual([]);
+  for (const c of cookies) expect(c.value).toMatch(/^(IN|US)$/);
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
 });
 

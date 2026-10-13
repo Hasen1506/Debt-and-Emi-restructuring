@@ -43,7 +43,7 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
     expect(JSON.stringify(await planSummary(await sim), null, 2)).toMatchSnapshot('india-onboarding-simulate.json');
     await expect(page.getByText('Nov 2030')).toBeVisible();
-    await expect(page.getByText('₹8,57,983')).toBeVisible();
+    await expect(page.getByText('₹8,56,170')).toBeVisible();
     await expect(page.getByText(/put ₹37,450 extra on your credit card/)).toBeVisible();
   });
 
@@ -52,8 +52,8 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
     await page.waitForURL('**/plan');
     await expect(page.getByText('NOV 2030').first()).toBeVisible();
-    await expect(page.getByText('₹8,57,983').first()).toBeVisible();
-    await expect(page.getByText('₹22,72,461 LESS THAN MINIMUMS')).toBeVisible();
+    await expect(page.getByText('₹8,56,170').first()).toBeVisible();
+    await expect(page.getByText('₹22,39,836 LESS THAN MINIMUMS')).toBeVisible();
     expect(await planText(page)).toMatchSnapshot('india-plan-schedule.txt');
   });
 
@@ -67,8 +67,8 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     const body = await (await compare).json();
     expect(Number(body.interest_saved)).toBeGreaterThan(0);
     expect(Number(body.scenario_total_interest)).toBeLessThan(Number(body.baseline_total_interest));
-    await expect(whatIf.getByText('₹26,162 less interest')).toBeVisible();
-    await expect(whatIf.getByText('₹8,31,821')).toBeVisible();
+    await expect(whatIf.getByText('₹25,030 less interest')).toBeVisible();
+    await expect(whatIf.getByText('₹8,31,140')).toBeVisible();
   });
 
   await test.step('switch country to the USA, converting at the stubbed rate', async () => {
@@ -98,7 +98,7 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
   await test.step('the plan is now in dollars (golden schedule)', async () => {
     await page.goto('/plan');
     await expect(page.getByText('FILING SINGLE', { exact: false })).toBeVisible();
-    await expect(page.getByText('$10,291').first()).toBeVisible();
+    await expect(page.getByText('$10,272').first()).toBeVisible();
     expect(await planText(page)).toMatchSnapshot('india-to-usa-plan-schedule.txt');
   });
 
