@@ -99,7 +99,7 @@ export default function PrivacyPage() {
             Share prices for the portfolio tool: our server asks Yahoo Finance for the ticker symbols only, never who asked.
           </li>
           <li style={LI}>
-            Only when we switch them on: Sentry (error reports from our servers, with digits masked and none of your
+            Only when we switch them on: Sentry (error reports from our servers and, through our server, from your browser, with digits masked and none of your
             figures, email or address) and Cloudflare Turnstile (a check on the sign-in page that you are a person).
           </li>
         </ul>

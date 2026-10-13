@@ -26,6 +26,10 @@ export default function TermsPage() {
           </li>
           <li style={LI}>RightDue is not a lender, does not arrange or offer loans, and does not collect or move your money.</li>
           <li style={LI}>
+            RightDue takes no money from lenders, NBFCs or debt-relief firms: no referral fees, commissions or paid
+            placement. RightDue is run by {DATA_FIDUCIARY.operatedBy}.
+          </li>
+          <li style={LI}>
             Rates, rules and prices shown come from public sources, each with the date it was read. They can change or be
             wrong. Check anything important with your lender or a qualified adviser before you act on it.
           </li>
@@ -59,7 +63,13 @@ export default function TermsPage() {
             protection law.
           </li>
           <li style={LI}>If we change these terms, the date above changes; for a change that matters, we will tell you before it applies.</li>
-          <li style={LI}>These terms are governed by the laws of India.</li>
+          <li style={LI}>
+            RightDue is free, so to the extent the law allows, our total liability to you for anything arising from the
+            service is limited to ₹1,000 (or US$15 for users in the USA). This does not limit liability that the law
+            does not allow us to limit.
+          </li>
+          <li style={LI}>We reply to complaints within 30 days. Data-protection grievances follow the timeline in the privacy notice.</li>
+          <li style={LI}>These terms are governed by the laws of India, and courts at Chennai, Tamil Nadu have jurisdiction.</li>
         </ul>
 
         <h2 style={H2}>CONTACT</h2>

@@ -90,3 +90,19 @@ test('E-03: browser errors are reported only with a DSN, via our own route, filt
     if (saved === undefined) delete process.env.SENTRY_DSN; else process.env.SENTRY_DSN = saved;
   }
 });
+
+test('E-10/E-11/E-12: notice, landing and terms are accurate', () => {
+  const facts = src('lib/privacy-facts.ts');
+  assert.doesNotMatch(facts, /Cloudflare, which carries traffic/);
+  assert.match(facts, /Render's content network \(operated by Cloudflare\)/);
+  const landing = fs.readFileSync(path.join(repo, 'web/public/welcome.html'), 'utf8');
+  assert.doesNotMatch(landing, /bootstrapped company|partnerships/);
+  assert.match(landing, /sole proprietor/);
+  assert.match(landing, /Questions, problems or feedback/);
+  const terms = src('app/terms/page.tsx');
+  assert.match(terms, /takes no money from lenders, NBFCs or debt-relief firms/);
+  assert.match(terms, /courts at Chennai, Tamil Nadu have jurisdiction/);
+  assert.match(terms, /We reply to complaints within 30 days/);
+  assert.match(terms, /total liability/);
+  assert.match(src('components/setup/QuickSetup.tsx'), /aren&apos;t stored there unless you sign in and save/);
+});
