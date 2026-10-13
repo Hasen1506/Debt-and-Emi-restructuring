@@ -57,7 +57,9 @@ test('A-13 / E-14 / E-16: the landing head has icons, share card, canonical and 
   assert.equal(ld['@type'], 'WebApplication');
   assert.equal(ld.offers.price, '0');
   // A-12: only the weights the page uses.
-  assert.match(WELCOME, /IBM\+Plex\+Mono:wght@400;700&/);
+  // (R6: now self-hosted instead of the Google Fonts URL; still exactly 400 and 700.)
+  const weights = [...WELCOME.matchAll(/@font-face \{[^}]*font-family: 'IBM Plex Mono';[^}]*font-weight: (\d+);/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(weights)].sort(), ['400', '700']);
 });
 
 test('A-08 / A-12 / A-19 / A-20 / A-24 / A-25: landing HTML fixes', () => {
