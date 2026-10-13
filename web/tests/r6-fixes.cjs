@@ -183,3 +183,11 @@ test('UX50 A-12: IBM Plex Mono is self-hosted in three weights; no Google Fonts 
   // Signed-out visitors get the font files (not a redirect to /login).
   assert.match(src('middleware.ts'), /\|fonts\/\)\.\*\)'/);
 });
+
+test('UX50 C-09: /goals server-renders the new-goal form, so nothing jumps after hydration', () => {
+  const s = src('components/goals/GoalsPage.tsx');
+  assert.match(s, /const \[form, setForm\] = useState<FormState>\(\{ mode: 'new' \}\);/);
+  assert.match(s, /if \(g\.length > 0\) setForm\(null\);/);
+  assert.doesNotMatch(s, /if \(g\.length === 0\) setForm\(\{ mode: 'new' \}\);/);
+  assert.match(s, /\{goals\.length === 0 && \(\s*<p[^>]*>\s*No goals yet\./);
+});
