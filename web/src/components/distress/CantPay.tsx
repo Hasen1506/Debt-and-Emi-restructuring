@@ -93,7 +93,7 @@ export function CantPay() {
 
   return (
     <LShell>
-      <div style={{ padding: '24px 0 48px', display: 'flex', flexDirection: 'column', gap: 28, maxWidth: 820 }}>
+      <div style={{ padding: '24px 0 48px', display: 'flex', flexDirection: 'column', gap: 28, width: '100%' }}>
         <section aria-labelledby="cp-head">
           <h1 id="cp-head" style={{ fontSize: 20, margin: 0, letterSpacing: '0.02em' }}>
             CAN&apos;T PAY EVERYTHING THIS MONTH?
