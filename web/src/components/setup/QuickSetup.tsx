@@ -437,6 +437,11 @@ export function QuickSetup() {
     const asOf = localIsoDate(getCountryToday(built.country));
     const stamped = stampBalanceDates(built.loans, prev?.loans ?? [], asOf);
     const user: UserPayload = { ...built, loans: prepareLoanPaymentTiming(rollBalancesForward(stamped, asOf.slice(0, 7)).loans, asOf.slice(0, 7)) };
+    // NEW-19: the API doesn't read the setup's own record of what was
+    // confirmed; left in, it would make every choice click look like a new
+    // baseline request.
+    const planUser: UserPayload = { ...user };
+    delete planUser.assumptions;
     let live = true;
     setPreview(null);
     setPreviewError(null);
@@ -447,7 +452,7 @@ export function QuickSetup() {
     // click doesn't re-run it).
     const controller = new AbortController();
     const simArgs = {
-      user,
+      user: planUser,
       strategy: pickedStrategy ?? readStrategyClient(),
       horizon_months: HORIZON_MONTHS,
       marginal_rate: marginalRate,
@@ -458,7 +463,7 @@ export function QuickSetup() {
           ? (pickedSplit ?? readEfSplitClient())
           : undefined,
     };
-    const baselineArgs = { user, horizon_months: HORIZON_MONTHS };
+    const baselineArgs = { user: planUser, horizon_months: HORIZON_MONTHS };
     const timer = setTimeout(() => {
       Promise.all([
         engineRequests.run('simulate', simArgs, (signal) => api.simulate(simArgs, { signal }), controller.signal),
