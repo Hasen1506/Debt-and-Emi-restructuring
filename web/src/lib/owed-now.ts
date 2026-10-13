@@ -27,12 +27,31 @@ export interface OwedNow {
   /** This month's EMI, for EMI loans; null for cards and loans without one. */
   status: EmiStatus | null;
   owed: Decimal;
+  /** UX50 B-12: a card paid this month (marked in Activity after its balance
+   *  was entered): the entered balance, and `owed` is it less what was paid,
+   *  "about", until the next statement is entered. */
+  cardBefore?: Decimal;
+}
+
+/** Entered balance less this month's card payments marked after it (UX50 B-12). */
+function cardAfterPayments(loan: LoanPayload, i: number, entries: ActivityEntry[], month: string): Decimal | null {
+  const owed = new Decimal(Number(loan.outstanding) || 0);
+  const asOf = loan.balance_as_of?.slice(0, 10);
+  const paid = entries
+    .filter((e) => e.loanIndex === i && e.date.slice(0, 7) === month && e.kind.startsWith('paid'))
+    .filter((e) => !(asOf && (e.date < asOf || (e.date === asOf && loan.balance_recorded_at && Date.parse(e.loggedAt) <= Date.parse(loan.balance_recorded_at)))))
+    .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  return paid > 0 ? Decimal.max(0, owed.sub(paid)) : null;
 }
 
 export function owedNow(loans: LoanPayload[], entries: ActivityEntry[], month: string): OwedNow[] {
   return loans.map((loan, i) => {
     const owed = new Decimal(Number(loan.outstanding) || 0);
     const emi = Number(loan.scheduled_emi) || 0;
+    if (loan.loan_type === 'credit_card' && owed.gt(0)) {
+      const after = cardAfterPayments(loan, i, entries, month);
+      return after ? { status: null, owed: after, cardBefore: owed } : { status: null, owed };
+    }
     if (loan.loan_type === 'credit_card' || !(emi > 0) || !owed.gt(0)) return { status: null, owed };
     // Taken this month: nothing due until its first EMI.
     if (loan.first_emi_month && loan.first_emi_month > month) return { status: 'first', owed };

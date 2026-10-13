@@ -314,6 +314,21 @@ export function PayThisMonth({
   }, 0);
   const toGo = statuses.filter((s) => !s || s.tag !== 'PAID').length;
   const firstExtra = data.rows.find((r) => r.kind === 'extra' || r.kind === 'clears');
+  // UX50 B-01: one order and one number per loan on Home: this list
+  // follows "Your loans and cards" (the order the loans were entered), and
+  // each loan carries the number it has there. The extra's row is tagged
+  // in words instead of being moved to the top.
+  const openNo = new Map<number, number>();
+  loans.forEach((l, i) => {
+    if (Number(l.outstanding) > 0 && (l.planned_effective_month ?? 1) <= 1) openNo.set(i, openNo.size + 1);
+  });
+  const order = data.rows
+    .map((_, i) => i)
+    .sort((a, b) => {
+      const ka = data.rows[a].loanIndex ?? 1e6 + a;
+      const kb = data.rows[b].loanIndex ?? 1e6 + b;
+      return ka - kb;
+    });
 
   return (
     <section aria-labelledby="home-pay">
@@ -333,7 +348,7 @@ export function PayThisMonth({
         <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6 }}>
           {data.budget > 0
             ? `Your own total for debts: ${fmt(data.budget)} a month.`
-            : `${fmt(data.extraUser)} of it is extra, from your spare cash: all of it. You choose how much goes to debts.`}{' '}
+            : `${fmt(data.extraUser)} of this is extra: all of your spare cash this month. Prefer to keep some?`}{' '}
           <LBracket href="/plan?set=budget">{data.budget > 0 ? 'CHANGE IT' : 'SET YOUR OWN TOTAL'} →</LBracket>
         </p>
       )}
@@ -349,10 +364,16 @@ export function PayThisMonth({
       {ready && <EmailAnswers month={month} onMarkAllPaid={markAllPaid} />}
 
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: `2px solid ${L_T.ink}` }}>
-        {data.rows.map((row, i) => {
+        {order.map((i) => {
+          const row = data.rows[i];
           const st = statuses[i];
+          const no = row.loanIndex != null ? openNo.get(row.loanIndex) : undefined;
           const done = st?.tag === 'PAID';
           const foreign = row.currency !== userCcy;
+          // UX50 B-01: the strip says where this month's extra goes, in
+          // words, and stays (green) once it has been paid.
+          const isExtra = row === firstExtra;
+          const extraTag = isExtra ? (done ? 'EXTRA PAID' : 'EXTRA GOES HERE') : null;
           return (
             <li
               key={row.key}
@@ -364,15 +385,25 @@ export function PayThisMonth({
                 padding: '12px 10px 12px 8px',
                 borderBottom: `1px dashed ${L_T.ruleSoft}`,
                 fontSize: 12,
-                ...(row === firstExtra && !st ? lStrip('accent') : null),
+                ...(isExtra ? lStrip(done ? 'positive' : 'accent') : null),
               }}
+              data-extra={extraTag ? (done ? 'paid' : 'here') : undefined}
+              aria-label={extraTag ? `${row.name}, ${extraTag.toLowerCase()}` : undefined}
             >
               <span style={{ color: L_T.muted, fontVariantNumeric: 'tabular-nums' }}>
-                {String(i + 1).padStart(2, '0')}
+                {no ? String(no).padStart(2, '0') : '··'}
               </span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>
                   {row.name}
+                  {extraTag && (
+                    <span
+                      data-testid="extra-tag"
+                      style={{ marginLeft: 8, fontSize: 11, letterSpacing: '0.1em', color: done ? L_T.positive : L_T.accent }}
+                    >
+                      · {extraTag}
+                    </span>
+                  )}
                   {st && (
                     <span
                       style={{

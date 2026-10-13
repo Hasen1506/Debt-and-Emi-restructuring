@@ -52,7 +52,8 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
       <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
         As entered in Profile, not linked to your bank: check them against a
         statement now and then. A loan moves on by its EMI once you mark it
-        paid; a card balance stays as entered until you update it.
+        paid; a card shows what you've paid this month off the balance you
+        entered, until you enter the next statement.
       </p>
       <StaleCardNudge user={user} />
       <FxRateLine user={user} nowMs={Date.now()} />
@@ -127,7 +128,17 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                 </div>
               </div>
               <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{fc(owed.toFixed(0))}</div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>
+                  {now.rows[d.index]?.cardBefore ? `≈ ${fc(owed.toFixed(0))}` : fc(owed.toFixed(0))}
+                </div>
+                {now.rows[d.index]?.cardBefore && (
+                  // UX50 B-12: the card moves when it's marked paid, as an
+                  // estimate until the next statement is entered.
+                  <div data-testid="card-paid-down" style={{ fontSize: 10, color: L_T.muted, maxWidth: 180, marginLeft: 'auto' }}>
+                    WAS {fc(now.rows[d.index]!.cardBefore!.toFixed(0))} · LESS THIS MONTH&apos;S PAYMENT, BEFORE INTEREST ·{' '}
+                    <a href="/profile?step=loans" style={{ color: L_T.accent }}>ENTER THE STATEMENT</a>
+                  </div>
+                )}
                 {ccy !== userCcy && !noFx && (
                   <div style={{ fontSize: 10, color: L_T.muted }}>
                     {convertedBalanceLine(formatCurrencyWhole(m.toUserCcy(owed, loan).toFixed(0), userCcy))}
