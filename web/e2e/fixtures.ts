@@ -68,11 +68,40 @@ export async function fillLoan(page: Page, index: number, loan: LoanInput) {
 
 /** Setup's last step asks what only the person can decide (sprint G10,
  *  grill #22). The journeys keep their goldens: no emergency fund for now,
- *  and the cheapest path, which is what setup used to assume silently. */
+ *  and the cheapest path, which is what setup used to assume silently.
+ *
+ *  The plan preview above the choices is worked out again whenever the
+ *  order changes, and the figures arriving push the choices down the page.
+ *  A click sent while that happens can land on the preview instead (Firefox
+ *  in CI, run 38329023142: "Not now" missed, so SAVE stayed on setup). So:
+ *  wait for the preview to settle, and check each pick took. */
 export async function makeSetupChoices(page: Page) {
-  await page.getByRole('button', { name: /^Not now$/ }).click();
+  const notNow = page.getByRole('button', { name: /^Not now$/ });
+  await expect(notNow).toBeVisible();
+  await planPreviewSettled(page);
+  await notNow.click();
+  await expect(notNow).toHaveAttribute('aria-pressed', 'true');
   const order = page.getByRole('button', { name: /^Cheapest path \(Avalanche\)/ });
-  if (await order.count()) await order.click();
+  if ((await order.count()) && (await order.getAttribute('aria-pressed')) !== 'true') {
+    const rerun = page.waitForResponse(isPlanCall('/api/simulate'));
+    await order.click();
+    await rerun;
+    await expect(order).toHaveAttribute('aria-pressed', 'true');
+  }
+  await planPreviewSettled(page);
+}
+
+/** Setup's plan preview has finished loading (figures or an error shown). */
+export async function planPreviewSettled(page: Page) {
+  await expect(page.getByText('Working out your plan…')).toHaveCount(0);
+}
+
+/** After signIn: true when the account has no profile yet. The server
+ *  redirects such an account to /onboarding before the page loads, so the
+ *  landed URL says it; no timed probe needed. */
+export async function landedOnOnboarding(page: Page): Promise<boolean> {
+  await page.waitForLoadState('load');
+  return new URL(page.url()).pathname === '/onboarding';
 }
 
 /** A compact, stable summary of a /api/simulate or /api/baseline response. */

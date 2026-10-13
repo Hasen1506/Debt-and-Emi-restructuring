@@ -11,7 +11,7 @@
  *    with NEXT_PUBLIC_DISABLE_AUTH=true (how production served guests
  *    during the live test). CI builds the signed-in app, so they skip there.
  */
-import { expect, fillLoan, signIn, test, makeSetupChoices } from './fixtures';
+import { expect, fillLoan, landedOnOnboarding, signIn, test, makeSetupChoices } from './fixtures';
 import { setUpPersona } from './persona';
 
 const API = `http://127.0.0.1:${process.env.E2E_API_PORT ?? 8100}`;
@@ -197,7 +197,11 @@ test.describe('owner fixes (signed in)', () => {
     // Signed in, the persona's saved home loan is picked and its numbers
     // filled in (G5 prefill). These checks type their own loan.
     const another = page.getByRole('group', { name: 'Which loan?' }).getByRole('button', { name: 'Another loan', exact: true });
-    await another.waitFor({ timeout: 5000 }).then(() => another.click(), () => {});
+    // The persona always has one, so wait for it rather than probe for it.
+    if (!GUEST) {
+      await expect(another).toBeVisible();
+      await another.click();
+    }
     const pick = page.getByTestId('lc-lender');
     await expect(pick.locator('option', { hasText: 'LIC Housing Finance' })).toHaveCount(1);
     if (typeof lender === 'string') await pick.selectOption({ label: lender });
@@ -272,7 +276,7 @@ test.describe('L2 short month (signed in)', () => {
   const SHORT = 'golden-l5-short@rightdue.app';
   test.beforeEach(async ({ page }) => {
     await signIn(page, SHORT);
-    if (!(await expect(page).toHaveURL(/\/onboarding$/, { timeout: 5000 }).then(() => true, () => false))) return;
+    if (!(await landedOnOnboarding(page))) return;
     await page.getByLabel(/Take-home pay a month/).fill('70000');
     await page.getByLabel(/Spending a month/).fill('30000');
     await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();

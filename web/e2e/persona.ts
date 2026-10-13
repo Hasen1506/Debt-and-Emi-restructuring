@@ -2,14 +2,14 @@
  * EMIs are the standard formula, rounded up: ₹4L at 14% over 48 months =
  * ₹10,931; ₹25L at 8.6% over 240 months = ₹21,855. */
 import type { Page } from '@playwright/test';
-import { expect, fillLoan, signIn, makeSetupChoices } from './fixtures';
+import { fillLoan, landedOnOnboarding, signIn, makeSetupChoices } from './fixtures';
 
 export const PERSONA_EMAIL = 'golden-l5-persona@rightdue.app';
 
 export async function setUpPersona(page: Page, email = PERSONA_EMAIL) {
   await signIn(page, email);
   // A local rerun against a reused server finds the account already set up.
-  if (!(await expect(page).toHaveURL(/\/onboarding$/, { timeout: 5000 }).then(() => true, () => false))) return;
+  if (!(await landedOnOnboarding(page))) return;
   await page.getByLabel(/Take-home pay a month/).fill('120000');
   await page.getByLabel(/Spending a month/).fill('40000');
   await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();
