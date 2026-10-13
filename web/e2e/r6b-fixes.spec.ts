@@ -44,6 +44,10 @@ test('R6B: step-1 overspend warning, out-of-range APR, 404 title, strategy offli
   await expect(first).toBeVisible();
   const label = (await first.getAttribute('aria-label')) as string;
   const sw = page.getByRole('button', { name: label, exact: true });
+  // Let /plan finish loading first (Firefox: a click going offline mid-load
+  // waits on that navigation forever).
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByText('Working out your plan…')).toHaveCount(0);
   await context.setOffline(true);
   await sw.click();
   await expect(page.getByTestId('strategy-offline-note').first()).toBeVisible();
