@@ -57,6 +57,9 @@ import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward,
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
 import { HYDRATED_EVENT, flushPendingState } from '@/lib/server-sync';
 import { ONBOARDING_DONE_HREF } from '@/lib/onboarding-save';
+import { LAST_SEEN_KEY } from '@/lib/guest-return';
+import { formatAsOfDate } from '@/lib/loan-gaps';
+import { checkSpend, parseDraft, serializeDraft, SETUP_DRAFT_KEY, SPEND_COPY, stepFromParam, urlWithStep } from '@/lib/setup-draft';
 import { dateProfileRates } from '@/lib/fx-refresh';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
 import {
@@ -107,6 +110,30 @@ interface Preview {
   loans: LoanPayload[];
 }
 
+/** What Setup keeps in sessionStorage between Back, Forward and reload (B-10). */
+interface DraftState {
+  country?: Country;
+  isNriUs?: boolean;
+  incomeType?: IncomeType;
+  takeHome?: string;
+  spend?: string;
+  zeroSpendOk?: boolean;
+  loans?: LoanPayload[];
+  ui?: Record<string, LoanUi>;
+  fxRates?: Record<string, string>;
+  choices?: Choices;
+}
+
+function readDraft() {
+  try {
+    const d = parseDraft<DraftState>(window.sessionStorage.getItem(SETUP_DRAFT_KEY), Date.now());
+    if (!d) window.sessionStorage.removeItem(SETUP_DRAFT_KEY);
+    return d;
+  } catch {
+    return null;
+  }
+}
+
 function blankLoan(): LoanPayload {
   return {
     id: newLoanId(),
@@ -141,6 +168,8 @@ export function QuickSetup() {
   const [takeHome, setTakeHome] = useState('');
   const [spend, setSpend] = useState('');
   const [spendAtStart, setSpendAtStart] = useState('');
+  // UX50 B-35: a typed ₹0 is used only once confirmed.
+  const [zeroSpendOk, setZeroSpendOk] = useState(false);
 
   const [loans, setLoans] = useState<LoanPayload[]>([blankLoan()]);
   const [ui, setUi] = useState<Record<string, LoanUi>>({});
@@ -181,11 +210,51 @@ export function QuickSetup() {
         setFxRates(u.fx_to_user_currency ?? {});
         setChoices(choicesFrom(u, readEfSplitClient(), readStrategyClient()));
       }
+      // UX50 B-10: what was typed in this tab before a Back, Forward or
+      // reload comes back, on the step the URL names.
+      const draft = readDraft();
+      const urlStep = stepFromParam(new URLSearchParams(window.location.search).get('step'));
+      if (draft) {
+        const d = draft.state;
+        if (d.country) setCountry(d.country);
+        setIsNriUs(!!d.isNriUs);
+        if (d.incomeType) setIncomeType(d.incomeType);
+        setTakeHome(d.takeHome ?? '');
+        setSpend(d.spend ?? '');
+        setZeroSpendOk(!!d.zeroSpendOk);
+        if (Array.isArray(d.loans)) setLoans(d.loans.length > 0 || draft.step === 2 ? d.loans : [blankLoan()]);
+        setUi(d.ui ?? {});
+        setFxRates(d.fxRates ?? {});
+        if (d.choices) setChoices(d.choices);
+        setStep(Math.min(urlStep ?? draft.step, draft.step));
+      }
       setReady(true);
     }
     restore();
     window.addEventListener(HYDRATED_EVENT, restore);
     return () => window.removeEventListener(HYDRATED_EVENT, restore);
+  }, []);
+
+  // UX50 B-10: keep the draft in this tab while it is being typed.
+  const draftOn = useRef(true);
+  useEffect(() => {
+    if (!ready || !edited.current || !draftOn.current) return;
+    try {
+      const state: DraftState = { country, isNriUs, incomeType, takeHome, spend, zeroSpendOk, loans, ui, fxRates, choices };
+      window.sessionStorage.setItem(SETUP_DRAFT_KEY, serializeDraft(state, step, Date.now()));
+    } catch {
+      /* private mode or full: Back still works within the page */
+    }
+  }, [ready, country, isNriUs, incomeType, takeHome, spend, zeroSpendOk, loans, ui, fxRates, choices, step]);
+  // Back and Forward move between the steps instead of leaving Setup.
+  const goToRef = useRef<(n: number, fromHistory?: boolean) => void>(() => {});
+  useEffect(() => {
+    function onPop() {
+      const n = stepFromParam(new URLSearchParams(window.location.search).get('step'));
+      goToRef.current(n ?? 0, true);
+    }
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   // Move focus to the new step's heading so keyboard and screen-reader
@@ -211,7 +280,8 @@ export function QuickSetup() {
 
   // ── Step 1 checks ──
   const incomeOk = Number(income) > 0 && isAmount(income);
-  const spendOk = isAmount(spend);
+  const spendCheck = checkSpend(spend, zeroSpendOk);
+  const spendOk = spendCheck === 'ok';
   const step1Ok = incomeOk && spendOk;
   const leftBeforeEmis =
     incomeOk && spendOk ? new Decimal(income).sub(num(spend)) : null;
@@ -285,13 +355,18 @@ export function QuickSetup() {
     const emiTooSmall = !!emiBelowInterest({ ...l, currency: loanCurrency(l, country) as 'INR' | 'USD' });
     const invalid = (!!uiOf(l.id).rateUnreadable && (l.nominal_rate ?? '').trim() === '') || !!rateOutOfRange(l.nominal_rate);
     const others = Object.keys(issues).filter((k) => !(invalid && k === 'rate') && !(emiTooSmall && k === 'emi'));
-    return { emiTooSmall, invalid, missing: !emiTooSmall && others.length > 0 };
+    // UX50 B-36: an unanswered "has this month's EMI gone out?" is a
+    // question, not a missing number.
+    const numbers = others.filter((k) => k !== 'paid');
+    return { emiTooSmall, invalid, missing: !emiTooSmall && numbers.length > 0, unanswered: others.includes('paid') };
   });
   const step2Summary = setupSummaryLine({
     emiTooSmall: summaryFlags.some((f) => f.emiTooSmall),
     invalid: summaryFlags.some((f) => f.invalid),
     missing: summaryFlags.some((f) => f.missing),
     fx: Object.keys(fxErrors).length > 0,
+    unanswered: summaryFlags.filter((f) => f.unanswered).length,
+    monthName: thisMonthName,
   });
 
   // Today's rate for each foreign currency, once; the person can change it.
@@ -443,6 +518,13 @@ export function QuickSetup() {
     // baseline request.
     const planUser: UserPayload = { ...user };
     delete planUser.assumptions;
+    // R5-2: nor the moment each balance was typed (the API schema drops
+    // it), which made every request look new to the de-dup and memory.
+    planUser.loans = planUser.loans.map((l) => {
+      const c = { ...l };
+      delete c.balance_recorded_at;
+      return c;
+    });
     let live = true;
     setPreview(null);
     setPreviewError(null);
@@ -484,20 +566,28 @@ export function QuickSetup() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runKey]);
 
-  function goTo(next: number) {
+  function goTo(next: number, fromHistory = false) {
+    let to = next;
+    let errors = false;
     if (next > 0 && !step1Ok) {
-      setShowErrors(true);
-      setStep(0);
-      return;
+      to = 0;
+      errors = true;
+    } else if (next > 1 && !step2Ok) {
+      to = 1;
+      errors = true;
     }
-    if (next > 1 && !step2Ok) {
-      setShowErrors(true);
-      setStep(1);
-      return;
+    setShowErrors(errors);
+    setStep(to);
+    // UX50 B-10: one history entry per step, so Back goes to the step before.
+    try {
+      const href = urlWithStep(window.location.href, to);
+      if (fromHistory || to !== next) window.history.replaceState(window.history.state, '', href);
+      else if (to !== step) window.history.pushState(window.history.state, '', href);
+    } catch {
+      /* history unavailable: the buttons still work */
     }
-    setShowErrors(false);
-    setStep(next);
   }
+  goToRef.current = goTo;
 
   /** A country change never re-reads typed amounts in the new currency
    *  (live QA: ₹20 lakh became $2,000,000). Loans already entered keep
@@ -533,6 +623,11 @@ export function QuickSetup() {
     setLoans([]);
     setShowErrors(false);
     setStep(2);
+    try {
+      window.history.pushState(window.history.state, '', urlWithStep(window.location.href, 2));
+    } catch {
+      /* history unavailable */
+    }
   }
 
   async function save() {
@@ -560,6 +655,15 @@ export function QuickSetup() {
       setSaving(false);
       setSaveFailed(true);
       return;
+    }
+    // UX50 B-02: this visit is on record, so Home doesn't greet a plan
+    // made seconds ago with "Welcome back… is it yours?". The draft is done.
+    draftOn.current = false;
+    try {
+      window.localStorage.setItem(LAST_SEEN_KEY, String(Date.now()));
+      window.sessionStorage.removeItem(SETUP_DRAFT_KEY);
+    } catch {
+      /* private mode */
     }
     try {
       window.localStorage.setItem(BALANCES_ENTERED_KEY, localIsoDate(new Date()));
@@ -669,8 +773,14 @@ export function QuickSetup() {
                   onChange={setSpend}
                   placeholder={userCcy === 'INR' ? 'e.g. 30,000 or 30k' : 'e.g. 3,000'}
                   hint="Rent, bills, food, travel: everything but loan and card payments"
-                  error={showErrors && !spendOk ? 'Type a number, or leave it blank for none.' : null}
+                  error={showErrors && (spendCheck === 'blank' || spendCheck === 'invalid') ? (spendCheck === 'blank' ? SPEND_COPY.blank : SPEND_COPY.invalid) : null}
                 />
+                {spendCheck === 'zero-unconfirmed' || (zeroSpendOk && checkSpend(spend, false) === 'zero-unconfirmed') ? (
+                  <label data-testid="zero-spend-confirm" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.5, color: showErrors && !zeroSpendOk ? L_T.negative : L_T.ink }}>
+                    <input type="checkbox" checked={zeroSpendOk} onChange={(e) => setZeroSpendOk(e.target.checked)} />
+                    <span>{SPEND_COPY.zero(userCcy === 'INR' ? '₹' : '$')} {SPEND_COPY.zeroConfirm(userCcy === 'INR' ? '₹' : '$')}</span>
+                  </label>
+                ) : null}
               </div>
               {leftBeforeEmis && (
                 <MoneyLine
@@ -1036,7 +1146,7 @@ function LoanBlock({
           }}
           hint={
             estimated.has('rate')
-              ? `Typical for this kind of loan: the middle of the published rates of the banks RightDue tracks, as of ${TYPICAL_RATE_AS_OF}. Yours may differ; your statement or loan app shows it.`
+              ? `Typical for this kind of loan: the middle of the published rates of the banks RightDue tracks, as of ${formatAsOfDate(TYPICAL_RATE_AS_OF)}. Yours may differ; your statement or loan app shows it.`
               : card
                 ? 'A 3.5% monthly rate is 42% a year'
                 : undefined
