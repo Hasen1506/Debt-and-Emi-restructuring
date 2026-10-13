@@ -10,8 +10,8 @@
  * Switching writes the cookie and refreshes, so Home and Plan redraw in
  * the new order, the same as the switch on Plan.
  */
-import { useEffect, useRef, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { OfflineStrategyNote, useStrategyRefresh } from '@/components/useStrategyRefresh';
 import { STRATEGIES, writeStrategyClient, type StrategyName } from '@/lib/strategy';
 import { L_MONO, L_T } from '@/components/ledger/primitives';
 import { PERSONA, PersonaMedallion } from './Persona';
@@ -39,8 +39,8 @@ export function StrategyMedallion({
   /** The loans in the one order all three strategies agree on, or null. */
   sameOrder?: string[] | null;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  // R6B-9: offline, the choice is saved and the refresh waits for the connection.
+  const { pending, offline, refresh } = useStrategyRefresh();
   // Shown at once; the refresh brings the server's copy back in line.
   const [current, setCurrent] = useState(strategy);
   useEffect(() => setCurrent(strategy), [strategy]);
@@ -84,7 +84,7 @@ export function StrategyMedallion({
     if (sameOrder && box.current) setNote(place(box.current, 300));
     setCurrent(s);
     writeStrategyClient(s);
-    startTransition(() => router.refresh());
+    refresh();
   }
 
   const p = PERSONA[current];
@@ -234,6 +234,7 @@ export function StrategyMedallion({
           </a>
         </div>
       )}
+      <OfflineStrategyNote show={offline} style={{ alignSelf: 'center', marginLeft: 10, maxWidth: 320 }} />
     </div>
   );
 }

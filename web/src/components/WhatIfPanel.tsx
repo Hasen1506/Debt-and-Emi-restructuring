@@ -11,7 +11,8 @@
  * one-time payment can't exceed total outstanding).
  */
 import { engineRequests, isAbortError } from '@/lib/engine-requests';
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
+import { parseWhatIfBox } from '@/lib/r6b-inputs';
 import Decimal from 'decimal.js';
 import { useRouter } from 'next/navigation';
 import {
@@ -930,29 +931,31 @@ function TypableAmountInput({
     return value.toLocaleString(currency === 'INR' ? 'en-IN' : 'en-US');
   }, [draft, value, mode, currency]);
 
+  // Live re-test 6B R6B-2: the same amount parser as every other money box
+  // ("5L", "₹2,00,000", "1.5 cr"); unreadable text stays in the box with an
+  // inline error instead of silently becoming 0, and a clamp is said aloud.
+  const [boxError, setBoxError] = useState<string | null>(null);
+  const [boxNote, setBoxNote] = useState<string | null>(null);
+  const errId = useId();
   function commit(raw: string) {
+    const r = parseWhatIfBox(raw, mode, currency, min, max, step);
+    if (r.value === null) {
+      setDraft(raw);
+      setBoxError(r.error);
+      setBoxNote(null);
+      return;
+    }
     setDraft(null);
-    if (raw.trim() === '') {
-      onChange(0);
-      return;
-    }
-    // Strip commas / ₹ / spaces; keep optional leading '-'
-    const cleaned = raw.replace(/[^\d.-]/g, '');
-    const n = Number(cleaned);
-    if (!Number.isFinite(n)) {
-      onChange(0);
-      return;
-    }
-    // The range has coarse steps; a typed money amount may be exact to cents.
-    const stepped = mode === 'bps' && step > 0 ? Math.round(n / step) * step : Number(n.toFixed(2));
-    const clamped = Math.min(max, Math.max(min, stepped));
-    onChange(clamped);
+    setBoxError(null);
+    setBoxNote(r.note);
+    onChange(r.value);
   }
 
   return (
     <span
       style={{
         display: 'inline-flex',
+        flexWrap: 'wrap',
         alignItems: 'baseline',
         gap: 2,
         fontFamily: 'inherit',
@@ -968,17 +971,23 @@ function TypableAmountInput({
         inputMode={mode === 'bps' ? 'numeric' : 'decimal'}
         value={display}
         placeholder={placeholder}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setBoxNote(null);
+        }}
         onBlur={(e) => commit(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
           if (e.key === 'Escape') {
             setDraft(null);
+            setBoxError(null);
             (e.target as HTMLInputElement).blur();
           }
         }}
         disabled={disabled}
         aria-label={`${label}${mode === 'bps' ? ', basis points' : ''}`}
+        aria-invalid={boxError ? true : undefined}
+        aria-describedby={boxError || boxNote ? errId : undefined}
         style={{
           width: mode === 'bps' ? 70 : 104,
           padding: '4px 6px',
@@ -995,6 +1004,15 @@ function TypableAmountInput({
           {unit}
         </span>
       )}
+      {boxError ? (
+        <span id={errId} role="alert" data-testid="whatif-box-error" style={{ display: 'block', flexBasis: '100%', fontSize: 11, color: L_T.negative }}>
+          {boxError}
+        </span>
+      ) : boxNote ? (
+        <span id={errId} role="status" style={{ display: 'block', flexBasis: '100%', fontSize: 11, color: L_T.muted }}>
+          {boxNote}
+        </span>
+      ) : null}
     </span>
   );
 }

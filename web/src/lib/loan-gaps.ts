@@ -198,6 +198,9 @@ export function setupSummaryLine(f: {
   missing: boolean;
   fx: boolean;
   invalid?: boolean;
+  /** Live re-test 6B R6B-7: the bad rate is a number, just out of range
+   *  (−42, 4200): say "out of range", not "isn't a valid number". */
+  outOfRange?: boolean;
   /** How many loans have an unanswered "has this month's EMI gone out?" (UX50 B-36). */
   unanswered?: number;
   monthName?: string;
@@ -211,11 +214,14 @@ export function setupSummaryLine(f: {
   }
   const problems = [
     f.emiTooSmall ? 'one EMI is too small to pay it off' : '',
-    f.invalid ? 'one rate isn’t a valid number' : '',
+    f.invalid ? (f.outOfRange ? 'one rate is out of range' : 'one rate isn’t a valid number') : '',
     f.missing ? 'some are missing a number' : '',
   ].filter(Boolean);
   if (f.emiTooSmall && !f.invalid && !f.missing) return 'A loan needs a fix: its EMI is too small to pay it off. It’s marked above.';
-  if (f.invalid && !f.emiTooSmall && !f.missing) return 'A loan needs a fix: its rate isn’t a valid number. It’s marked above.';
+  if (f.invalid && !f.emiTooSmall && !f.missing)
+    return f.outOfRange
+      ? 'A loan needs a fix: its rate is out of range (0 to 100% a year). It’s marked above.'
+      : 'A loan needs a fix: its rate isn’t a valid number. It’s marked above.';
   if (f.missing && !f.emiTooSmall && !f.invalid) return 'Some loans are missing a number. They’re marked above.';
   if (problems.length > 1) {
     const list = problems.length === 2 ? problems.join(', and ') : `${problems.slice(0, -1).join(', ')}, and ${problems.at(-1)}`;

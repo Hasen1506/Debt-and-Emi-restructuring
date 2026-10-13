@@ -6,8 +6,8 @@
  * user's own debts. A card switches to that order, the same as the
  * masthead's medallion.
  */
-import { useEffect, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { OfflineStrategyNote, useStrategyRefresh } from '@/components/useStrategyRefresh';
 import { STRATEGIES, writeStrategyClient, type StrategyName } from '@/lib/strategy';
 import { L_MONO, L_T } from '@/components/ledger/primitives';
 import { PERSONA, PersonaScene } from './Persona';
@@ -30,8 +30,8 @@ export function StrategyTriptych({
   figures?: Record<StrategyName, StrategyFigures>;
   note?: string;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  // R6B-9: offline, the choice is saved and the refresh waits for the connection.
+  const { pending, offline, refresh } = useStrategyRefresh();
   const [current, setCurrent] = useState(active);
   useEffect(() => setCurrent(active), [active]);
 
@@ -39,7 +39,7 @@ export function StrategyTriptych({
     if (s === current) return;
     setCurrent(s);
     writeStrategyClient(s);
-    startTransition(() => router.refresh());
+    refresh();
   }
 
   return (
@@ -47,6 +47,7 @@ export function StrategyTriptych({
       <p style={{ margin: 0, color: L_T.muted, lineHeight: 1.55 }}>
         Every order pays all the minimums. They differ in which debt gets the extra first.
       </p>
+      <OfflineStrategyNote show={offline} />
       <div
         style={{
           display: 'grid',
