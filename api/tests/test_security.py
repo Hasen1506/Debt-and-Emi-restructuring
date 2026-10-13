@@ -61,7 +61,7 @@ def test_hsts_only_behind_https():
     c, _ = _app(proxy_hops=1)
     assert "strict-transport-security" not in c.get("/api/read").headers
     r = c.get("/api/read", headers={"x-forwarded-proto": "https"})
-    assert r.headers["strict-transport-security"] == "max-age=15552000"
+    assert r.headers["strict-transport-security"] == "max-age=63072000; includeSubDomains"  # UX50 E-08: was 15552000 (180 d); now 2 y like the pages
     c, _ = _app(proxy_hops=0)      # not behind a proxy we trust: the header is ignored
     assert "strict-transport-security" not in c.get("/api/read", headers={"x-forwarded-proto": "https"}).headers
 

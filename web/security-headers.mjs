@@ -48,13 +48,25 @@ export function contentSecurityPolicy(env = process.env) {
     'base-uri': ["'self'"],
     'form-action': ["'self'"],
     'frame-ancestors': ["'none'"],
+    // UX50 E-09: inline event-handler attributes (onclick="…") never run;
+    // React and welcome.html attach handlers in script, so nothing uses them.
+    // This closes the commonest HTML-injection-to-script path even while
+    // 'unsafe-inline' stays for Next's hydration scripts (see above).
+    'script-src-attr': ["'none'"],
+    'upgrade-insecure-requests': [],
   };
-  return Object.entries(directives).map(([k, v]) => `${k} ${v.join(' ')}`).join('; ');
+  return Object.entries(directives).map(([k, v]) => (v.length ? `${k} ${v.join(' ')}` : k)).join('; ');
 }
+
+// UX50 E-08: HSTS on every response, pages included (only /api/* had it).
+// Two years, subdomains (send.rightdue.app is mail-only; www redirects over
+// HTTPS) and preload, so the domain can be submitted at hstspreload.org.
+export const HSTS = 'max-age=63072000; includeSubDomains; preload';
 
 /** @param {Record<string, string | undefined>} env */
 export function securityHeaders(env = process.env) {
   return [
+    { key: 'Strict-Transport-Security', value: HSTS },
     { key: 'Content-Security-Policy', value: contentSecurityPolicy(env) },
     // Older browsers that ignore frame-ancestors.
     { key: 'X-Frame-Options', value: 'DENY' },
@@ -69,5 +81,10 @@ export function securityHeaders(env = process.env) {
  *  (FastAPI sets its own stricter policy on those, api/security.py). */
 export function headerRules(env = process.env) {
   if (env.NODE_ENV !== 'production') return [];
-  return [{ source: '/((?!api/).*)', headers: securityHeaders(env) }];
+  return [
+    { source: '/((?!api/).*)', headers: securityHeaders(env) },
+    // Next's own /api routes (session, quote, healthz) and the FastAPI
+    // replies proxied through it: HSTS only; the API sets its own CSP.
+    { source: '/api/:path*', headers: [{ key: 'Strict-Transport-Security', value: HSTS }] },
+  ];
 }

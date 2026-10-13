@@ -18,6 +18,13 @@
  *   HTTP 400 for bad input, 404 for unknown ticker, 502 for upstream issues.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { clientIp, TokenBucket } from '../../../../lib/client-ip';
+
+// UX50 E-20: FastAPI's limiter never sees this Next.js route, so it keeps its
+// own per-visitor bucket: 30 quotes a minute, bursts of 30. A portfolio
+// refresh asks once per holding; a loop over tickers would otherwise make
+// this server a Yahoo scraper and get its address blocked for everyone.
+export const quoteLimiter = new TokenBucket(30, 30);
 
 // 5-minute cache. The route runs on the Next.js server (not edge), so
 // `fetch` honors `next.revalidate`.
@@ -40,6 +47,13 @@ interface YahooChartResponse {
 }
 
 export async function GET(req: NextRequest) {
+  const wait = quoteLimiter.take(clientIp(req.headers));
+  if (wait !== null) {
+    return NextResponse.json(
+      { error: 'Too many price requests. Wait a minute and try again.' },
+      { status: 429, headers: { 'Retry-After': String(wait), 'Cache-Control': 'no-store' } },
+    );
+  }
   const ticker = req.nextUrl.searchParams.get('ticker')?.trim().toUpperCase();
   if (!ticker) {
     return NextResponse.json({ error: 'ticker is required' }, { status: 400 });
