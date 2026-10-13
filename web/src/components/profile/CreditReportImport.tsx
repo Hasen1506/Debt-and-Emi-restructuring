@@ -184,8 +184,8 @@ export function CreditReportImport({
       </div>
       <p className="muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.5 }}>
         Your free credit report lists every loan and card in your name, even ones you&apos;ve forgotten. Upload
-        it and we&apos;ll fill in what it shows; you check each one. Read on RightDue&apos;s server by fixed rules,
-        then deleted. Never stored or shared. Your name, PAN and date of birth are not read into the app.
+        it and we&apos;ll fill in what it shows; you check each one. It is read on RightDue&apos;s server by fixed
+        rules, then deleted: never stored or shared. Your name, PAN and date of birth are not read into the app.
       </p>
 
       <div style={{ fontSize: 12 }}>

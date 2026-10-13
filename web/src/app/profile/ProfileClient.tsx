@@ -1556,8 +1556,7 @@ function ProfileEditor({
               />
             )}
             {country === 'IN' && (
-              <SmsImport
-                loans={loans}
+              <SmsImport loans={loans}
                 onPatchLoan={updateLoan}
                 onAddLoan={(patch) => setLoans((cur) => [...cur, { ...blankLoan(), ...patch } as LoanPayload])}
               />

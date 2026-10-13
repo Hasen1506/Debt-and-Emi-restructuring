@@ -34,4 +34,22 @@ The steps above add up to months, not weeks, *after* a licence is held: licence,
 3. **Much later:** incorporate, then seek a SEBI or RBI registration that fits the product.
 
 ## Credit bureaus (for comparison)
-Bureau data goes to members: Credit Institutions, or Specified Users under the Credit Information Companies (Regulation) Act, 2005 (https://www.transunioncibil.com/become-a-member). Experian's membership asks for a CIN, PAN, GST and an "RBI Certificate" (https://stg1.experian.in/business/bureau-membership). TransUnion CIBIL's API marketplace has a "DTC Consumer Connect" product for members (https://apimarketplace.transunioncibil.com/). So an automatic bureau pull also needs membership or a member partner.
+Bureau data goes to members: Credit Institutions, or Specified Users under the Credit Information Companies (Regulation) Act, 2005 (https://www.transunioncibil.com/become-a-member). Experian's membership asks for a CIN, PAN, GST and an "RBI Certificate" (https://stg1.experian.in/business/bureau-membership). TransUnion CIBIL's API marketplace has a "DTC Consumer Connect" product for members (https://apimarketplace.transunioncibil.com/). As a Specified User that needs membership. There is also a consumer-consent route for non-members (RBI CIC Directions 2025 para 24, below), so "membership or a member partner" was too strict.
+
+
+## 2026 update (UX50 D-20, checked October 2026)
+
+- **AA still carries no loan or card data.** Sahamati's circular to FIPs of 4 Sep 2026 lists the FI types banks must enable as `DEPOSIT`, `TERM_DEPOSIT`, `RECURRING_DEPOSIT` (NBFC-D: TD, RD), go-live by 30 Nov 2026. No loan or credit-card FI type. https://sahamati.org.in/wp-content/uploads/2026/09/Circular-to-FIPs-on-Enabling-all-FI-Types.pdf
+- **RightDue can't be an FIU.** An FIU must be registered with and regulated by a financial-sector regulator (RBI, SEBI, IRDAI, PFRDA), and Sahamati asks every entity to be an FIP first, then an FIU (reciprocity). https://sahamati.org.in/financial-information-user-fiu
+- **Sahamati membership fees:** Category A ₹5 lakh, B ₹1.25 lakh, C ₹25,000 a year. https://sahamati.org.in/benefits-fees-of-re-members/
+- **Bureau, Specified User route (CIC Directions 2025 para 14(3)):** a company incorporated in India, ₹2 crore net worth, three years processing credit information, CISA-audited IT. Not feasible now. https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12926
+- **Bureau, consumer-consent route (para 24):** a CIC may share an individual's credit report with an entity that is not a Specified User, on the individual's documented consent and under an agreement. The CIC does due diligence; the entity uses the report only for the consented purpose, keeps it at most 6 months (or until consent is withdrawn), stores it in India, and has an annual CISA IS audit. Para 24(2)(i) forbids passing the report on, so RightDue must be the named consented entity, not a reseller's downstream. Same source as above.
+- `setu-aa.com` (Setu's old AA pricing page) is now a parked domain: don't cite it.
+
+### Phased plan (no paid bureau or AA API is integrated today)
+
+1. **Now:** the user's own credit-report PDF (free; Experian gives one any time, each bureau one a year), read on the server and never stored; KFS per loan; pasted SMS. Shipped as an optional, beta card in setup's "What you owe" step and in Profile → Loans.
+2. **Next:** a statement-forwarding address (no Gmail OAuth or CASA), a PWA share target for SMS and PDFs, in-browser OCR for scans.
+3. **Later, after incorporating:** a para 24 consumer-consented bureau pull (OTP consent, about ₹30 a pull at reseller rates, an annual CISA audit, deletion within 6 months, India hosting). Needs founder sign-off, a company entity and a CIC or reseller agreement with RightDue as the named entity.
+4. **Optional, much later:** AA for income and assets only, via a regulated partner (e.g. a SEBI RIA).
+5. **Avoid:** an Android READ_SMS app, Gmail restricted scopes, DigiLocker, becoming an FIU, scraping portals with user credentials.

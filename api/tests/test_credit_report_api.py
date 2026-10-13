@@ -54,7 +54,9 @@ def test_problems_are_one_plain_message(client):
     r = client.post("/api/credit-report/read", json={})
     assert r.status_code == 422 and r.json()["detail"]["field"] == "text"
     r = client.post("/api/credit-report/read", json={"text": "nothing to see here at all, just a long enough line of words"})
-    assert r.status_code == 422 and "No accounts" in r.json()["detail"]["message"]
+    # UX50 D-02: honest copy (the cause is usually our parser, not the user's document), plus a kind for the form.
+    assert r.status_code == 422 and "couldn't read the accounts" in r.json()["detail"]["message"]
+    assert r.json()["detail"]["kind"] == "no_accounts"
 
 
 def test_pdf_routes_run_in_the_threadpool_not_the_event_loop():

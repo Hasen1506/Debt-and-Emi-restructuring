@@ -52,7 +52,8 @@ test('wiring: imports never save by themselves; copy is honest about the server'
   assert.doesNotMatch(imp, /saveProfile|persist|localStorage|sessionStorage|api\.save|syncUser|document\.cookie/);
   assert.match(imp, /read on RightDue&apos;s server/);
   assert.match(imp, /never\s+stored/);
-  assert.match(imp, /type="password"/);
+  // UX50 D-12: the password field has a show/hide toggle, so it is a password field unless shown.
+  assert.match(imp, /type=\{showPw \? 'text' : 'password'\}/);
   assert.match(imp, /autoComplete="off"/);
   assert.doesNotMatch(imp, /on your device|stays on your phone|local only/i);
   const sms = src('components/profile/SmsImport.tsx');
