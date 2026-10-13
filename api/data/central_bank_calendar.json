@@ -1,38 +1,48 @@
 {
-  "$schema_note": "Schedule of MPC (RBI) and FOMC (Fed) meeting dates. Update annually in January when central banks publish the next year's calendar. Source: rbi.org.in / federalreserve.gov.",
-  "last_updated": "2026-10-09",
-  "meetings": {
+  "$schema_note": "Scheduled policy decisions of the RBI MPC and the Fed FOMC. 'date' is the decision day (the last day of the meeting). Only published schedules are listed: RBI announces each financial year's MPC dates in March (Section 45ZI, RBI Act); the Fed announces the next year's tentative FOMC dates around August-September. Add the next year when it is published, never before. Checked by api/tests/test_central_bank_calendar.py against engine/tests/fixtures/rbi_extracts/central_bank_calendars.txt.",
+  "last_updated": "2026-10-12",
+  "sources": {
     "IN": [
-      {"date": "2026-02-06", "outcome_rate": "0.0525", "note": "Feb MPC"},
-      {"date": "2026-04-08", "outcome_rate": "0.0525", "note": "Apr MPC"},
-      {"date": "2026-06-05", "outcome_rate": "0.0525", "note": "Jun MPC"},
-      {"date": "2026-08-05", "outcome_rate": "0.0525", "note": "Aug MPC"},
-      {"date": "2026-10-07", "outcome_rate": "0.0550", "note": "Oct MPC (hike)"},
-      {"date": "2026-12-05", "outcome_rate": null, "note": "Dec MPC"},
-      {"date": "2027-02-04", "outcome_rate": null, "note": "Feb MPC"},
-      {"date": "2027-04-08", "outcome_rate": null, "note": "Apr MPC"},
-      {"date": "2027-06-03", "outcome_rate": null, "note": "Jun MPC"},
-      {"date": "2027-08-05", "outcome_rate": null, "note": "Aug MPC"},
-      {"date": "2027-10-07", "outcome_rate": null, "note": "Oct MPC"},
-      {"date": "2027-12-09", "outcome_rate": null, "note": "Dec MPC"}
+      "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=62422 (MPC schedule 2026-27, 23 Mar 2026)",
+      "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=62169 (MPC resolution, 4-6 Feb 2026)",
+      "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=63742 (MPC resolution, 5-7 Oct 2026)"
     ],
     "US": [
-      {"date": "2026-01-28", "outcome_rate": "0.0375", "note": "Jan FOMC"},
-      {"date": "2026-03-18", "outcome_rate": "0.0375", "note": "Mar FOMC + SEP"},
-      {"date": "2026-04-29", "outcome_rate": "0.0375", "note": "Apr FOMC"},
-      {"date": "2026-06-17", "outcome_rate": "0.0375", "note": "Jun FOMC + SEP"},
-      {"date": "2026-07-29", "outcome_rate": "0.0375", "note": "Jul FOMC"},
-      {"date": "2026-09-16", "outcome_rate": "0.0400", "note": "Sep FOMC + SEP (hike)"},
-      {"date": "2026-10-28", "outcome_rate": null, "note": "Oct FOMC"},
-      {"date": "2026-12-09", "outcome_rate": null, "note": "Dec FOMC + SEP"},
-      {"date": "2027-01-27", "outcome_rate": null, "note": "Jan FOMC"},
-      {"date": "2027-03-17", "outcome_rate": null, "note": "Mar FOMC + SEP"},
-      {"date": "2027-04-28", "outcome_rate": null, "note": "Apr FOMC"},
-      {"date": "2027-06-16", "outcome_rate": null, "note": "Jun FOMC + SEP"},
-      {"date": "2027-07-28", "outcome_rate": null, "note": "Jul FOMC"},
-      {"date": "2027-09-22", "outcome_rate": null, "note": "Sep FOMC + SEP"},
-      {"date": "2027-11-03", "outcome_rate": null, "note": "Nov FOMC"},
-      {"date": "2027-12-15", "outcome_rate": null, "note": "Dec FOMC + SEP"}
+      "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm (2026 meetings)",
+      "https://www.federalreserve.gov/newsevents/pressreleases/monetary20250905a.htm (tentative 2027 schedule, 5 Sep 2025)"
+    ]
+  },
+  "next_check": {
+    "IN": "March 2027: RBI publishes the 2027-28 MPC schedule",
+    "US": "Around September 2026-2027: the Fed publishes the 2028 tentative schedule"
+  },
+  "meetings": {
+    "IN": [
+      {"date": "2026-02-06", "outcome_rate": "0.0525", "note": "Feb MPC (4-6 Feb 2026), unchanged", "status": "held"},
+      {"date": "2026-04-08", "outcome_rate": "0.0525", "note": "Apr MPC (6-8 Apr 2026), unchanged", "status": "held"},
+      {"date": "2026-06-05", "outcome_rate": "0.0525", "note": "Jun MPC (3-5 Jun 2026), unchanged", "status": "held"},
+      {"date": "2026-08-05", "outcome_rate": "0.0525", "note": "Aug MPC (3-5 Aug 2026), unchanged", "status": "held"},
+      {"date": "2026-10-07", "outcome_rate": "0.0550", "note": "Oct MPC (5-7 Oct 2026), raised 25 bps", "status": "held"},
+      {"date": "2026-12-04", "outcome_rate": null, "note": "Dec MPC (2-4 Dec 2026)", "status": "scheduled"},
+      {"date": "2027-02-05", "outcome_rate": null, "note": "Feb MPC (3-5 Feb 2027)", "status": "scheduled"}
+    ],
+    "US": [
+      {"date": "2026-01-28", "outcome_rate": "0.0375", "note": "Jan FOMC (27-28 Jan)", "status": "held"},
+      {"date": "2026-03-18", "outcome_rate": "0.0375", "note": "Mar FOMC + SEP (17-18 Mar)", "status": "held"},
+      {"date": "2026-04-29", "outcome_rate": "0.0375", "note": "Apr FOMC (28-29 Apr)", "status": "held"},
+      {"date": "2026-06-17", "outcome_rate": "0.0375", "note": "Jun FOMC + SEP (16-17 Jun)", "status": "held"},
+      {"date": "2026-07-29", "outcome_rate": "0.0375", "note": "Jul FOMC (28-29 Jul)", "status": "held"},
+      {"date": "2026-09-16", "outcome_rate": "0.0400", "note": "Sep FOMC + SEP (15-16 Sep), raised", "status": "held"},
+      {"date": "2026-10-28", "outcome_rate": null, "note": "Oct FOMC (27-28 Oct)", "status": "scheduled"},
+      {"date": "2026-12-09", "outcome_rate": null, "note": "Dec FOMC + SEP (8-9 Dec)", "status": "scheduled"},
+      {"date": "2027-01-27", "outcome_rate": null, "note": "Jan FOMC (26-27 Jan), tentative", "status": "tentative"},
+      {"date": "2027-03-17", "outcome_rate": null, "note": "Mar FOMC (16-17 Mar), tentative", "status": "tentative"},
+      {"date": "2027-04-28", "outcome_rate": null, "note": "Apr FOMC (27-28 Apr), tentative", "status": "tentative"},
+      {"date": "2027-06-09", "outcome_rate": null, "note": "Jun FOMC (8-9 Jun), tentative", "status": "tentative"},
+      {"date": "2027-07-28", "outcome_rate": null, "note": "Jul FOMC (27-28 Jul), tentative", "status": "tentative"},
+      {"date": "2027-09-15", "outcome_rate": null, "note": "Sep FOMC (14-15 Sep), tentative", "status": "tentative"},
+      {"date": "2027-10-27", "outcome_rate": null, "note": "Oct FOMC (26-27 Oct), tentative", "status": "tentative"},
+      {"date": "2027-12-08", "outcome_rate": null, "note": "Dec FOMC (7-8 Dec), tentative", "status": "tentative"}
     ]
   }
 }

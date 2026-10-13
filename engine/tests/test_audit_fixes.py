@@ -90,7 +90,7 @@ def test_rate_rise_raises_the_emi_instead_of_growing_the_balance():
     """RBI's 2023 reset rules forbid negative amortisation: a rise must
     raise the EMI (or tenure), never let the balance climb."""
     u = _user(Country.IN, [_floating_home(drift="0.03")], income="200000", expenses="170000")
-    r = simulate_plan(u, horizon_months=360)
+    r = simulate_plan(u, horizon_months=360, gap_as_debt=False)  # this test is about the EMI rule, not the cash gap (grill #38 gap borrowing)
     balances = [_balance(row) for row in r.months]
     assert all(b2 <= b1 for b1, b2 in zip(balances, balances[1:]))
     assert r.debt_free_month is not None and r.debt_free_month <= 245
@@ -110,7 +110,7 @@ def test_lifecycle_rate_rise_also_reprices_the_emi():
         kind=LifecycleEventKind.FLOATING_RATE_RESET, effective_month=13,
         loan_index=0, new_rate=D("0.20"),
     )
-    r = simulate_plan(u, horizon_months=360, lifecycle_events=[ev])
+    r = simulate_plan(u, horizon_months=360, lifecycle_events=[ev], gap_as_debt=False)  # this test is about the EMI rule, not the cash gap (grill #38 gap borrowing)
     balances = [_balance(row) for row in r.months]
     assert all(b2 <= b1 for b1, b2 in zip(balances, balances[1:]))
     assert r.debt_free_month is not None and r.debt_free_month <= 241
@@ -128,7 +128,9 @@ def test_interest_plus_percent_card_minimum_includes_the_interest():
     u = _user(Country.US, [card])
     b = baseline_minimums_only(u, horizon_months=1)
     assert b.months[0].payments_by_loan_index[0] == D("150")
-    assert _balance(b.months[0]) == D("4950")
+    # The $150 paid on the due date stops interest on that part for the last
+    # third of the cycle (average daily balance, sprint G1): $99 interest.
+    assert _balance(b.months[0]) == D("4949")
     assert compute_minimum_payment(card, Country.US, interest_accrued=D("100")) == D("150")
 
 
@@ -314,7 +316,9 @@ def test_job_loss_slider_moves_the_plan():
     assert shock.debt_free_month > base.debt_free_month
     assert shock.total_interest_paid > base.total_interest_paid
     assert all(row.available_surplus == 0 for row in shock.months[:6])
-    assert shock.months[6].available_surplus > 0
+    # Pay is back: it first repays what the shock months borrowed (grill #38).
+    assert shock.months[6].available_surplus + shock.months[6].gap_repaid > 0
+    assert any(row.gap_borrowed > 0 for row in shock.months[:6])
 
 
 def test_rate_shock_raises_the_emi():
@@ -322,7 +326,7 @@ def test_rate_shock_raises_the_emi():
 
     home = Loan(LoanType.HOME, "x", D("3000000"), D("0.085"), "floating", 240, D("26035"))
     u = _user(Country.IN, [home], income="100000", expenses="73965")
-    r = with_rate_shock(u, D("0.04"), horizon_months=480)
+    r = with_rate_shock(u, D("0.04"), horizon_months=480, plan={"gap_as_debt": False})  # this test is about the EMI rule, not the cash gap (grill #38 gap borrowing)
     balances = [_balance(row) for row in r.months]
     assert all(b2 <= b1 for b1, b2 in zip(balances, balances[1:]))
     assert r.debt_free_month is not None and r.debt_free_month <= 241

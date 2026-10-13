@@ -17,15 +17,15 @@ test('editing assets retains tracked holdings and a failed save keeps the user o
   const file=path.join(root,'app/profile/assets/page.tsx');delete require.cache[require.resolve(file)];const Page=require(file).default;
   const render=()=>{index=0;return Page()};render();effects.splice(0).forEach(fn=>fn());let tree=render();
   function flatten(node){return Array.isArray(node)?node.flatMap(flatten):node&&typeof node==='object'?[node,...flatten(node.props?.children)]:[]}
-  const save=flatten(tree).find(n=>n.type==='button'&&n.props.children==='SAVE · OPEN LIQUIDATE');assert.ok(save);save.props.onClick();
+  const save=flatten(tree).find(n=>n.type==='button'&&n.props.children==='SAVE · BACK TO PORTFOLIO');assert.ok(save);save.props.onClick();
   assert.deepEqual(saved.user.assets[0],asset);assert.deepEqual(pushes,[]);tree=render();assert.ok(flatten(tree).some(n=>n.props?.role==='alert'));
-  allowSave=true;flatten(tree).find(n=>n.type==='button'&&n.props.children==='SAVE · OPEN LIQUIDATE').props.onClick();assert.deepEqual(pushes,['/tools/liquidate']);
+  allowSave=true;flatten(tree).find(n=>n.type==='button'&&n.props.children==='SAVE · BACK TO PORTFOLIO').props.onClick();assert.deepEqual(pushes,['/portfolio']);
  }finally{Module._load=load}
 });
 
 test('queued saves from the previous account never reach the newly signed-in account',async()=>{
- const data=new Map([['finoptima_account_id','A']]);global.localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)};const original=global.fetch;let release,started;const entered=new Promise(r=>started=r),seen=[];
+ const data=new Map([['rightdue_account_id','A']]);global.localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)};const original=global.fetch;let release,started;const entered=new Promise(r=>started=r),seen=[];
  global.fetch=async(url,opts)=>{seen.push(JSON.parse(opts.body).data);if(seen.length===1){started();await new Promise(r=>release=r)}return Response.json({data:{}})};
- try{const sync=require(path.join(root,'lib/server-sync.ts'));const first=sync.syncSliceToServer('goals',[{id:'A-first'}]);await entered;const queued=sync.syncSliceToServer('profile',{user:'A-private'});data.set('finoptima_account_id','B');release();await Promise.all([first,queued]);assert.deepEqual(seen,[{goals:[{id:'A-first'}]}]);await sync.syncSliceToServer('strategy','snowball');assert.deepEqual(seen[1],{strategy:'snowball'});}
+ try{const sync=require(path.join(root,'lib/server-sync.ts'));const first=sync.syncSliceToServer('goals',[{id:'A-first'}]);await entered;const queued=sync.syncSliceToServer('profile',{user:'A-private'});data.set('rightdue_account_id','B');release();await Promise.all([first,queued]);assert.deepEqual(seen,[{goals:[{id:'A-first'}]}]);await sync.syncSliceToServer('strategy','snowball');assert.deepEqual(seen[1],{strategy:'snowball'});}
  finally{global.fetch=original;delete global.localStorage}
 });

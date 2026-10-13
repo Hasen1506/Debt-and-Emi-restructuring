@@ -16,6 +16,7 @@ import { STRATEGY_LABEL } from '@/lib/strategy';
 import { L_T, LSectionHeader } from '@/components/ledger/primitives';
 import { LTrajectory, type LTrajMilestone, type LTrajPoint } from '@/components/ledger/LTrajectory';
 import { loanClears, owedAtStart } from './plan-milestones';
+import { chartEndMonth } from '@/lib/plan-gap';
 
 const CHART_NAME: Record<string, string> = {
   credit_card: 'CARD',
@@ -48,19 +49,30 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
     // The line starts at what's owed now (Home's OUTSTANDING), not after
     // this month's payments: its top read ₹48.51L against ₹48.80L owed.
     const start = traj[0].month === 1 ? owedAtStart(plan) : 0;
-    const series = start > 0 ? [{ month: 0, avalanche: start, minimums: start }, ...traj] : traj;
+    // Total debt includes gap borrowing (grill #38): a short month goes on
+    // a card, and that card balance is debt too.
+    const withGap = traj.map((p) =>
+      p.gapDebt || p.minimumsGapDebt
+        ? { ...p, avalanche: p.avalanche + (p.gapDebt ?? 0), minimums: p.minimums + (p.minimumsGapDebt ?? 0) }
+        : p,
+    );
+    const series = start > 0 ? [{ month: 0, avalanche: start, minimums: start }, ...withGap] : withGap;
     const first = series[0].month;
     const lastAll = traj[traj.length - 1].month;
-    const clears = !short && plan.debtFreeMonth ? plan.debtFreeMonth : null;
-    const lastMinOwed = traj.filter((p) => p.minimums > 0.5).at(-1)?.month ?? 0;
-    const minClear = traj.find((p) => p.month > lastMinOwed && p.minimums <= 0.5)?.month ?? null;
+    // The engine's date, short or not (live test #17): when short it is the
+    // date with the gap borrowed, the same one the schedule shows. The axis
+    // used to run to the end of the minimums line whenever the plan was short.
+    const clears = plan.debtFreeMonth ?? null;
+    const lastMinOwed = withGap.filter((p) => p.minimums > 0.5).at(-1)?.month ?? 0;
+    const minClear = withGap.find((p) => p.month > lastMinOwed && p.minimums <= 0.5)?.month ?? null;
     // Both lines whole when the minimums finish within twice the plan;
     // otherwise the plan plus a quarter (at least six months).
-    const end = !clears
-      ? lastAll
-      : minClear && minClear <= clears * 2
-        ? Math.max(minClear, clears)
-        : Math.min(lastAll, Math.max(clears + 6, Math.ceil(clears * 1.25)));
+    const end = chartEndMonth({
+      planClears: clears,
+      minClear,
+      lastMonth: lastAll,
+      growingGapFrom: !clears ? plan.gap?.firstBorrowMonth ?? null : null,
+    });
     const shown = series.filter((p) => p.month <= end);
     const span = Math.max(1, end - first);
     const tOf = (m: number) => (m - first) / span;
@@ -90,19 +102,26 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
       .map(([m, names]) => ({
         t: tOf(m),
         v: norm(avAt(m)),
-        label: `${m === clears ? 'DEBT-FREE' : names.join(' + ')} · ${shortDate(m)}`,
+        label: `${m === clears ? (short ? 'DEBT-FREE AS THINGS STAND' : 'DEBT-FREE') : names.join(' + ')} · ${shortDate(m)}`,
       }));
     if (clears && !byMonth.has(clears) && clears <= end) {
-      milestones.push({ t: tOf(clears), v: 0, label: `DEBT-FREE · ${shortDate(clears)}` });
+      milestones.push({ t: tOf(clears), v: 0, label: `${short ? 'DEBT-FREE AS THINGS STAND' : 'DEBT-FREE'} · ${shortDate(clears)}` });
+    }
+    const repaid = plan.gap?.repaidMonth;
+    if (repaid && repaid <= end && !byMonth.has(repaid) && repaid !== clears) {
+      milestones.push({ t: tOf(repaid), v: norm(avAt(repaid)), label: `GAP BORROWING REPAID · ${shortDate(repaid)}` });
+      milestones.sort((a, b) => a.t - b.t);
     }
 
     const lastShown = shown[shown.length - 1];
     const minimumsNote =
-      lastShown && lastShown.minimums > 0.5
-        ? minClear
-          ? `MINIMUMS: CLEAR ${shortDate(minClear)} →`
-          : 'MINIMUMS NEVER CLEAR IT →'
-        : undefined;
+      !clears && plan.gap?.firstBorrowMonth
+        ? 'GAP BORROWING KEEPS GROWING →'
+        : lastShown && lastShown.minimums > 0.5
+          ? minClear
+            ? `MINIMUMS: CLEAR ${shortDate(minClear)} →`
+            : 'MINIMUMS NEVER CLEAR IT →'
+          : undefined;
 
     const xLabels = [0, 0.25, 0.5, 0.75, 1].map((f) => {
       const m = first + Math.round(f * span);
@@ -164,6 +183,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
               <span style={{ display: 'inline-block', width: 14, borderTop: `2px dashed ${L_T.muted}`, verticalAlign: 'middle', marginRight: 6 }} />,
               'PAYING ONLY MINIMUMS',
             )}
+            {plan.gap?.firstBorrowMonth != null && <span>BOTH LINES INCLUDE GAP BORROWING</span>}
             {view.milestones.length > 0 &&
               key(
                 <span style={{ display: 'inline-block', width: 8, height: 8, background: L_T.accent, verticalAlign: 'middle', marginRight: 6 }} />,

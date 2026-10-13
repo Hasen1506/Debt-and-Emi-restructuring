@@ -22,7 +22,7 @@ export function undoPlanDecision(_entries: DecisionEntry[], requested: DecisionE
   if (entry.kind === 'ef_split_change') {
     const previous = Number(entry.snapshot.efSplit ?? DEFAULT_EF_SPLIT);
     const value = Number.isFinite(previous) && previous >= 0 && previous <= 1 ? previous.toFixed(2) : DEFAULT_EF_SPLIT;
-    writes.push({cookie:'finoptima_ef_split',digest:value,value,slice:'ef_split'});
+    writes.push({cookie:'rightdue_ef_split',digest:value,value,slice:'ef_split'});
   } else {
     const goals = readGoalsClient();
     const expected = entry.result.goal as Goal | undefined;
@@ -43,7 +43,7 @@ export function undoPlanDecision(_entries: DecisionEntry[], requested: DecisionE
     }
   }
   const next = entries.map(e => e.id === entry.id ? {...e,reverted:true} : e);
-  writes.push({key:'finoptima_decisions',value:next,slice:'decisions'});
+  writes.push({key:'rightdue_decisions',value:next,slice:'decisions'});
   persistClientSlices(writes);
   return next;
 }

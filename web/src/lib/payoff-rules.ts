@@ -23,7 +23,7 @@ export interface PayoffRules {
   custom_order: number[];
 }
 
-export const RULES_COOKIE = 'finoptima_payoff_rules';
+export const RULES_COOKIE = 'rightdue_payoff_rules';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 /** engine/ordering.py HYBRID_SMALL_BALANCE_IN / _US. */

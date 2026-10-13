@@ -54,18 +54,18 @@ def login(client, codes):
     assert client.post('/api/auth/request-otp', json={'email': email}).status_code == 204
     response = client.post('/api/auth/verify-otp', json={'email': email, 'code': codes[-1]})
     assert response.status_code == 200
-    return response.cookies['finoptima_session']
+    return response.cookies['rightdue_session']
 
 
 def test_logout_clears_cookie_and_revokes_only_the_current_session(auth_client):
     client, codes = auth_client
     first, second = login(client, codes), login(client, codes)
-    response = client.post('/api/auth/logout', headers={'Cookie': f'finoptima_session={first}'})
+    response = client.post('/api/auth/logout', headers={'Cookie': f'rightdue_session={first}'})
     assert response.status_code == 204
     assert response.content == b''
     assert 'Max-Age=0' in response.headers['set-cookie']
-    assert client.get('/api/auth/me', headers={'Cookie': f'finoptima_session={first}'}).status_code == 401
-    assert client.get('/api/auth/me', headers={'Cookie': f'finoptima_session={second}'}).status_code == 200
+    assert client.get('/api/auth/me', headers={'Cookie': f'rightdue_session={first}'}).status_code == 401
+    assert client.get('/api/auth/me', headers={'Cookie': f'rightdue_session={second}'}).status_code == 200
 
 
 def test_code_is_single_use_and_anonymous_logout_also_expires_cookie(auth_client):
@@ -73,7 +73,7 @@ def test_code_is_single_use_and_anonymous_logout_also_expires_cookie(auth_client
     login(client, codes)
     response = client.post('/api/auth/verify-otp', json={'email': 'session-test@example.com', 'code': codes[-1]})
     assert response.status_code == 400
-    response = client.post('/api/auth/logout', headers={'Cookie': 'finoptima_session=invalid'})
+    response = client.post('/api/auth/logout', headers={'Cookie': 'rightdue_session=invalid'})
     assert response.status_code == 204
     assert 'Max-Age=0' in response.headers['set-cookie']
 
@@ -125,8 +125,8 @@ def test_database_session_digest_is_not_a_bearer_credential(auth_client):
     stored = client.portal.call(stored_session)
     assert stored.token != token
     assert stored.token.startswith('sha256:')
-    assert client.get('/api/auth/me', headers={'Cookie': f'finoptima_session={stored.token}'}).status_code == 401
-    assert client.get('/api/auth/me', headers={'Cookie': f'finoptima_session={token}'}).status_code == 200
+    assert client.get('/api/auth/me', headers={'Cookie': f'rightdue_session={stored.token}'}).status_code == 401
+    assert client.get('/api/auth/me', headers={'Cookie': f'rightdue_session={token}'}).status_code == 200
 
 
 def test_legacy_sessions_remain_usable_but_expire_at_the_exact_deadline(auth_client, monkeypatch):
@@ -141,7 +141,7 @@ def test_legacy_sessions_remain_usable_but_expire_at_the_exact_deadline(auth_cli
             return existing.expires_at
 
     expiry = client.portal.call(add_legacy_session)
-    headers = {'Cookie': 'finoptima_session=legacy-cookie'}
+    headers = {'Cookie': 'rightdue_session=legacy-cookie'}
     assert client.get('/api/auth/me', headers=headers).status_code == 200
     monkeypatch.setattr(dependencies, 'utc_now', lambda: expiry)
     assert client.get('/api/auth/me', headers=headers).status_code == 401
@@ -160,3 +160,16 @@ def test_wrong_guesses_count_across_codes_for_the_day(auth_client):
     response = client.post('/api/auth/verify-otp', json={'email': email, 'code': codes[-1]})
     assert response.status_code == 429
     assert 'today' in response.json()['detail']
+
+
+def test_a_session_under_the_old_cookie_name_still_works_and_logout_clears_both(auth_client):
+    """Critique #58: finoptima_session → rightdue_session, both read for one release."""
+    client, codes = auth_client
+    token = login(client, codes)
+    client.cookies.clear()
+    assert client.get('/api/auth/me', headers={'Cookie': f'finoptima_session={token}'}).status_code == 200
+    response = client.post('/api/auth/logout', headers={'Cookie': f'finoptima_session={token}'})
+    cleared = response.headers.get_list('set-cookie')
+    assert any(c.startswith('rightdue_session=') and 'Max-Age=0' in c for c in cleared)
+    assert any(c.startswith('finoptima_session=') and 'Max-Age=0' in c for c in cleared)
+    assert client.get('/api/auth/me', headers={'Cookie': f'finoptima_session={token}'}).status_code == 401

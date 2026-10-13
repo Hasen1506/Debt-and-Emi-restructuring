@@ -44,7 +44,7 @@ export function saveProfileWithPaidEmis(profile: Parameters<typeof saveProfileCl
     );
     changed = true;
   });
-  const key = 'finoptima_activity';
+  const key = 'rightdue_activity';
   let before: string | null;
   try { before = localStorage.getItem(key); } catch { return false; }
   try {

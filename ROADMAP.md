@@ -13,7 +13,7 @@
 > **HAVE** is already in the repo today.
 
 > **Redesign (1–2 Oct 2026, done):** the move to the Ledger V2 design and the
-> strategy personas is recorded in [REDESIGN.md](REDESIGN.md), with the
+> strategy personas is recorded in [REDESIGN.md](docs/history/REDESIGN.md), with the
 > before/after walkthroughs. The design files are in `design/`.
 
 ---
@@ -42,7 +42,7 @@
   - Decision engines: windfall, new-debt, quick-recompute, cash-yield, right-time-to-borrow (`engine/decisions.py`)
   - Central-bank rates + MPC/FOMC calendar, **static JSON with manual admin update** (`api/routes/rates.py`, `api/data/central_bank_calendar.json`)
   - Rate cards "verified May 2026" (`engine/rate_cards.py`, `web/src/lib/rate-cards.json`)
-  - Ledger skin screens, plus the list of sub-features the skin dropped (`LEDGER_MISSING.md`)
+  - Ledger skin screens, plus the list of sub-features the skin dropped (`docs/planning/LEDGER_MISSING.md`)
 - **Not present at all:** Loan Check, lender letters, lender-outcome network,
   offer comparison, live rate feeds, Playwright / axe / fuzz / load test suites, CI.
 - **Rebuilt so far (26 Sep 2026, branch `claude/vibrant-bardeen-5bsiyj`):**
@@ -53,7 +53,7 @@
   headers and rate limits (6.4), field errors on every tool.
   **685 tests passing.** Still missing: US letters, cross-browser and load
   suites (6.1, 6.5), verified outcome reports, a manual screen-reader run.
-- **Bug hunt and user-view audit (26 Sep 2026): see [`AUDIT.md`](AUDIT.md).**
+- **Bug hunt and user-view audit (26 Sep 2026): see [`AUDIT.md`](docs/history/AUDIT.md).**
   Fixed: the /plan chart and every date a month late, 10 engine bugs
   (payoff order vs investing, runaway floating rates, card minimums, tax
   shields, currency totals), 8 tool and slider bugs, three disagreeing tax
@@ -102,7 +102,7 @@
     less, and its headline updates on each change;
   - Goals tells a debt-free user the monthly amount instead of pointing at an
     empty /plan.
-- **Redesign done (1–2 Oct 2026, [REDESIGN.md](REDESIGN.md), R0–R7).** Five
+- **Redesign done (1–2 Oct 2026, [REDESIGN.md](docs/history/REDESIGN.md), R0–R7).** Five
   tabs (Home, Plan, Activity, Goals & Tools, Profile) in the Ledger V2 style.
   - Setup is 3 screens instead of 6, and amounts take `1.2L` or `50k`.
   - Home lists every payment this month and marks two paid in 2 taps.
@@ -129,7 +129,11 @@
 ## 2 · What makes the product hard to copy
 
 Goals, trackers and payoff maths are not unique; anyone can build those.
-These four things are the moat, and every phase below serves one of them:
+These four things are what we are building toward, and every phase below
+serves one of them. Honestly, none is a moat yet (grill #15): the outcome
+scorecard needs 5 reports per lender and there are no users, and anyone can
+re-read the same public rates. What we can claim today is that the data is
+**correct and dated**.
 
 1. **Shared lender outcomes.** After sending a letter, users record what the
    lender did (fixed in full, partly, refused, no reply, days taken, new rate)
@@ -147,8 +151,12 @@ These four things are the moat, and every phase below serves one of them:
 3. **Neutrality.** The app earns nothing from lenders. Loan marketplaces can't
    say "don't refinance, ask for the reset you're owed", because refinancing
    is how they get paid.
-4. **Data that stays current by itself.** Rates refresh from official
-   sources every 6 hours (Phase 5), never hand-edited JSON.
+4. **Data that is correct and dated.** Every figure carries its source and
+   the day it was last checked; scheduled jobs re-read the official sources
+   at the pace each one actually changes (policy rates weekly, as they move
+   only at RBI/FOMC meetings; Phase 5), never hand-edited JSON. Until there
+   are users, seed the outcomes data by personally helping the first ~30
+   Loan Check users send their letters.
 
 ### Will banks reply? (product principle)
 
@@ -355,11 +363,12 @@ under every Loan Check result):
 - [x] Reports are matched to one bank on the rate-card list
       (`engine/lenders.py`: "HDFC", "HDFC Bank Ltd." → HDFC Bank). A bank not
       on the list is refused, so an invented bank can never get a record.
-- [x] Label the scorecard **"unverified"** until reports are verified. **Owner
-      decision still pending:** show it labelled (the default,
-      `SCORECARD_MODE=labelled`) or hide it (`SCORECARD_MODE=hidden` in
-      `render.yaml`) until verification exists.
-- [ ] Verified reports: signed-in reporters, or an uploaded bank reply.
+- [x] Label the scorecard **"unverified"** until reports are verified. Owner
+      decision (Oct 2026, critique #55): hidden by default
+      (`SCORECARD_MODE=hidden`); `verified` shows only checked reports.
+- [x] Verified reports, first step: a report whose bank-reply text names the
+      bank and the new rate is stored as verified (the text itself is never
+      stored). A consistency check, not proof. Signed-in reporters: open.
 - [ ] Monthly "which banks pass on rate cuts" index (after enough data).
 
 **Abuse controls** (each was a real finding last time):
@@ -395,7 +404,10 @@ under every Loan Check result):
 
 - [x] Current rates no longer come from hand-edited JSON: the verified table
       in `engine/policy_rates.py` plus decisions the feeds find after it
-      (`api/rates_feed.py`, fetched **every 6 hours** in a background thread).
+      (`api/rates_feed.py`). Since grill #61 they are fetched by a **weekly
+      GitHub Action** (`policy-rates.yml`, `scripts/fetch_policy_rates.py`) into
+      the committed `api/data/policy_rates_live.json`; the old 6-hourly thread
+      in a container that sleeps after 15 minutes is gone.
       The `current_rates` block is gone from `central_bank_calendar.json`; its
       meeting list is still kept by hand (used to date new decisions and for
       the "decision in N days" hint).
@@ -421,13 +433,14 @@ under every Loan Check result):
       `/api/rates/feed-health`: both sources should say `ok`. Then save the real
       RBI page over the fixture. If RBI blocks the fetch or changes the page,
       feed health says so and the app keeps the verified table.
-- [x] `GET /api/rates/feed-health`: last good fetch per source, age, error,
-      value; **503** once a source has gone 24 hours without a good fetch.
+- [x] `GET /api/rates/feed-health`: last good check per source, age, value;
+      **503** when a scheduled meeting passed 7+ days ago with no check after
+      it, or the last good check is over 45 days old (weekly cadence, #61).
 - [ ] Uptime alerting on `feed-health` (e.g. a free external monitor that
       alerts on any non-200). **Owner to set up** after deploy.
-- [x] Fallback: a failed feed keeps the last good value (saved across
-      restarts in `api/data/rates_live.json`, not committed), feed health shows
-      the error and age, and nothing crashes.
+- [x] Fallback: a failed fetch keeps the last good value (committed in
+      `api/data/policy_rates_live.json`, so it survives deploys), the weekly
+      run goes red, and nothing crashes.
 - [x] Show the as-of date everywhere a policy rate is quoted: Loan Check says
       "RBI repo rate as of … Source: …", the central-bank hint card shows it.
   - [x] **Found and fixed:** the rate-card "as of" badge printed
@@ -587,7 +600,7 @@ The honest status before the crash: *a working, tested demo, not ready to launch
 - [ ] Uptime alerting on `/api/rates/feed-health` (Phase 5).
 - [ ] Trademark search and domain for **RightDue**.
 - [ ] CSP + anti-framing headers switched on (Phase 6.4).
-- [ ] Deferred Ledger-skin items: walk `LEDGER_MISSING.md` and decide per item (re-introduce / v2 / drop).
+- [ ] Deferred Ledger-skin items: walk `docs/planning/LEDGER_MISSING.md` and decide per item (re-introduce / v2 / drop).
 
 ---
 
@@ -861,21 +874,23 @@ cd web && npm run typecheck && npm run lint && npm run build
 CI runs exactly these on every push (`.github/workflows/ci.yml`).
 
 Leave `DATABASE_URL` unset and set `NEXT_PUBLIC_DISABLE_AUTH=true` for
-trial mode (no login, no sync). `CORS_ORIGINS` defaults to `http://localhost:3000`.
+trial mode (no login, no sync). A production build (`next build`, the Docker
+image) refuses that unless `RIGHTDUE_ALLOW_DISABLED_AUTH=1` is set too, so it
+can't reach a public deploy by mistake (`web/auth-guard.mjs`, grill #66). `CORS_ORIGINS` defaults to `http://localhost:3000`.
 
 Other API settings (all optional):
 
 | Variable | Default | What it does |
 |---|---|---|
-| `RATES_FEED` | `on` | `off` stops fetching FRED/RBI (tests set it) |
-| `RATES_STORE_PATH` | `api/data/rates_live.json` | where the last good rates are kept |
+| `RATES_FEED` | `on` | `off` skips the committed policy-rate file (tests set it) |
+| `RATES_STORE_PATH` | `api/data/policy_rates_live.json` | the committed file the weekly job writes and the API reads at start |
 | `RATE_LIMITS` | `on` | `off` turns the per-IP limits off (tests set it) |
 | `TRUSTED_PROXY_HOPS` | `0` | proxies in front of the API; `1` on Render |
 | `INTERNAL_API_TOKEN` | unset | shared with the web server so its calls aren't limited |
 | `MAX_BODY_BYTES` | `262144` | request-size cap |
 | `OUTCOMES_DATABASE_URL` | `DATABASE_URL`, else `api/data/outcomes.sqlite3` | where shared outcome reports live |
 | `OUTCOMES_IP_KEY` | random per process | key for the hashed client address (daily report limits) |
-| `SCORECARD_MODE` | `labelled` | `hidden` keeps lender figures back until reports can be verified |
+| `SCORECARD_MODE` | `hidden` | `hidden` keeps lender figures back; `verified` shows only reports checked against the bank's reply; `labelled` shows all, marked unverified |
 
 The full fuzz: `FUZZ_N=20000 FUZZ_FULL=1 python -m pytest api/tests/test_api_fuzz.py -q`.
 

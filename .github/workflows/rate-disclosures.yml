@@ -2,7 +2,9 @@ name: Rate disclosures
 
 # Weekly: read each bank's published loan-rate disclosure (the range and mean
 # of rates on loans contracted last quarter, RBI 22 Jan 2015 para 2(a)) and
-# commit a dated JSON when the figures changed. See
+# propose a dated JSON as a PR when the figures changed (merged once the data
+# tests pass; .github/actions/data-pr, grill #65). Banks publish quarterly;
+# the weekly check costs about a runner-minute and commits only on change. See
 # scripts/fetch_rate_disclosures.py and engine/rate_disclosures.py.
 # A bank whose page can't be read is left out of that day's file; nothing is
 # guessed or carried over.
@@ -13,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: rate-disclosures
@@ -22,6 +25,8 @@ jobs:
   fetch:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,14 +39,10 @@ jobs:
         run: python scripts/fetch_rate_disclosures.py
       - name: The data still passes its checks
         run: python -m pytest engine/tests/test_rate_disclosures.py -q
-      - name: Commit a new dated file, if any
-        run: |
-          if [ -n "$(git status --porcelain -- api/data/rate_disclosures web/src/lib/rate-disclosures.json)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add api/data/rate_disclosures web/src/lib/rate-disclosures.json
-            git commit -m "data: banks' loan-rate disclosures as of $(date -u +%Y-%m-%d)"
-            git push
-          else
-            echo "No change in the banks' figures."
-          fi
+      - name: Propose the new figures, if any
+        uses: ./.github/actions/data-pr
+        with:
+          bot: rate-disclosures
+          paths: api/data/rate_disclosures web/src/lib/rate-disclosures.json
+          title: "data: banks' loan-rate disclosures as of ${{ github.run_started_at }}"
+          mode: ${{ vars.DATA_PR_MODE || 'merge' }}

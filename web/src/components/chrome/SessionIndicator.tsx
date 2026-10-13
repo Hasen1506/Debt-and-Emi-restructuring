@@ -5,7 +5,8 @@
  * States:
  *   - loading → renders nothing (avoids a flash of "Sign in")
  *   - anon    → "[SIGN IN]" link to /login?next=<current path>
- *   - authed  → "USER@EXAMPLE.COM · [SIGN OUT]" (sign-out calls
+ *   - authed  → "USER@EXAMPLE.COM · [YOUR DATA] · [SIGN OUT]" ("Your data"
+ *               is /account: download or delete, grill #51; sign-out calls
  *               /api/auth/logout, then a full load of /login so server
  *               components re-render)
  */
@@ -63,6 +64,10 @@ export function SessionIndicator() {
       >
         {shortLabel.toUpperCase()}
       </span>
+      <span aria-hidden style={{ opacity: 0.6 }}>·</span>
+      <a href="/account" className="l-hit" style={{ ...TEXT, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+        [YOUR DATA]
+      </a>
       <span aria-hidden style={{ opacity: 0.6 }}>·</span>
       <button
         type="button"

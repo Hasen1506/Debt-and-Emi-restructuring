@@ -20,7 +20,8 @@ from api.routes.loan_check import (
 from api.schemas import _Base
 from engine.complaint_deadlines import Reply, Timeline, TimelineInputError, india_timeline
 from engine.complaints_in import (
-    ACCOUNT, ADDRESS, BANK_NAME, BANK_REFERENCE, EMAIL, NAME, OPTIONAL_LINES, PHONE,
+    ACCOUNT, ADDRESS, BANK_NAME, BANK_REFERENCE, DRAFT_NOTICE, EMAIL, NAME, OPTIONAL_LINES, PHONE,
+    SELF_CHECK,
     Letter, NothingToClaim, OmbudsmanComplaint, grievance_letter,
     io_followup_letter, ombudsman_complaint,
 )
@@ -120,6 +121,9 @@ class ComplaintResponse(_Base):
     io_followup: Optional[LetterOut]
     ombudsman: Optional[OmbudsmanOut]
     placeholders: Placeholders
+    # Critique #54: every letter is a draft the borrower checks and sends.
+    draft_notice: str = DRAFT_NOTICE
+    self_check: list[str] = list(SELF_CHECK)
 
 
 def _letter_out(x: Letter) -> LetterOut:

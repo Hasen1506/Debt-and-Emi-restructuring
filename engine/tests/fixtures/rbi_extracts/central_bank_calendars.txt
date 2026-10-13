@@ -1,0 +1,30 @@
+# RBI press release 2025-2026/2306, Meeting Schedule of the Monetary Policy Committee for 2026-2027, 23 Mar 2026
+# Source: https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=62422
+# Retrieved: 12 Oct 2026 (HTML page, fetched with curl)
+# Excerpts only: the paragraphs Loan Check cites, copied verbatim.
+
+ Date : Mar 23, 2026 
+ Meeting Schedule of the Monetary Policy Committee for 2026-2027 
+ As per Section 45ZI of Reserve Bank of India Act, 1934, it has been decided that the Monetary Policy Committee will meet during the 2026-27 on the dates indicated below:
+ Dates of meetings of Monetary Policy Committee for 2026-27 
+ April 6, 7 and 8, 2026 
+ June 3, 4 and 5, 2026 
+ August 3, 4 and 5, 2026 
+ October 5, 6 and 7, 2026 
+ December 2, 3 and 4, 2026 
+ February 3, 4 and 5, 2027 
+ (Brij Raj) 
+ Chief General Manager
+ Press Release: 2025-2026/2306
+
+# Fed: FOMC tentative 2027 schedule, press release 5 Sep 2025, https://www.federalreserve.gov/newsevents/pressreleases/monetary20250905a.htm
+ The Federal Open Market Committee on Friday announced its tentative meeting schedule for 2027:
+ Tuesday, January 26, and Wednesday, January 27
+ Tuesday, March 16, and Wednesday, March 17
+ Tuesday, April 27, and Wednesday, April 28
+ Tuesday, June 8, and Wednesday, June 9
+ Tuesday, July 27, and Wednesday, July 28
+ Tuesday, September 14, and Wednesday, September 15
+ Tuesday, October 26, and Wednesday, October 27
+ Tuesday, December 7, and Wednesday, December 8
+ Tuesday, January 25, and Wednesday, January 26, 2028

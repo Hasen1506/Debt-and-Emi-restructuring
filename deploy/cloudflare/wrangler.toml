@@ -1,0 +1,14 @@
+# Cloudflare Worker for the instant landing page (grill #49). Free plan.
+# NOT deployed by CI. To turn it on (DEPLOY.md, "Instant landing page"):
+#   npx wrangler login && npx wrangler deploy --config deploy/cloudflare/wrangler.toml
+# Only these two routes run the Worker; every other path goes straight to
+# Render as today, so the free plan's 100,000 requests/day is plenty.
+name = "rightdue-landing"
+main = "landing-worker.mjs"
+compatibility_date = "2026-10-01"
+workers_dev = false
+
+routes = [
+  { pattern = "rightdue.app/", zone_name = "rightdue.app" },
+  { pattern = "rightdue.app/welcome.html", zone_name = "rightdue.app" },
+]

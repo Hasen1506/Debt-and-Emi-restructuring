@@ -64,8 +64,8 @@ export function LedgerPortfolio({
           >
             Nothing on file yet. Add what you own at its value (FDs, funds,
             gold, property, PF), or track shares and funds by ticker below,
-            priced for you. Then &ldquo;Should I sell something to clear a
-            loan?&rdquo; can weigh selling one against what the loan costs.
+            priced for you. Then the Sell to repay calculator can fill in a
+            sale from any of them.
             <div style={{ marginTop: 12 }}>
               <a
                 href="/profile/assets"
@@ -131,7 +131,7 @@ export function LedgerPortfolio({
       </section>
 
       <section>
-        <SectionLabel>HOLDINGS · BY VALUE</SectionLabel>
+        <SectionLabel>HOLDINGS · LARGEST FIRST</SectionLabel>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr
@@ -224,7 +224,7 @@ export function LedgerPortfolio({
               letterSpacing: '0.12em',
             }}
           >
-            SHOULD I SELL ONE TO CLEAR A LOAN? &rsaquo;
+            WORK OUT A SALE AGAINST A LOAN &rsaquo;
           </a>
         </div>
       </section>

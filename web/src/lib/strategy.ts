@@ -17,7 +17,7 @@ export type StrategyName = 'avalanche' | 'rules' | 'snowball';
 
 export const STRATEGIES: StrategyName[] = ['avalanche', 'rules', 'snowball'];
 export const DEFAULT_STRATEGY: StrategyName = 'avalanche';
-const COOKIE_NAME = 'finoptima_strategy';
+const COOKIE_NAME = 'rightdue_strategy';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 function isStrategy(v: string | null | undefined): v is StrategyName {
@@ -64,9 +64,23 @@ export const STRATEGY_LABEL: Record<StrategyName, string> = {
   snowball: 'Snowball',
 };
 
+/** Each strategy's name in plain words, shown beside or under the name
+ *  (sprint G10, grill #78; founder: "Avalanche means cheapest path
+ *  forward, Snowball smallest first"). */
+export const STRATEGY_PLAIN: Record<StrategyName, string> = {
+  avalanche: 'Cheapest path',
+  rules: 'Your own order',
+  snowball: 'Smallest first',
+};
+
+/** The name with its plain words: "Avalanche (cheapest path)". */
+export function strategyName(s: StrategyName): string {
+  return `${STRATEGY_LABEL[s]} (${STRATEGY_PLAIN[s].toLowerCase()})`;
+}
+
 /** One line on the order: the personas' rule, then what it costs or buys. */
 export const STRATEGY_SHORT: Record<StrategyName, string> = {
-  avalanche: 'Where the next payment saves the most, for the least interest.',
-  rules: 'Your own order: pin a loan, clear small balances first, or set the order. The rest by highest rate.',
-  snowball: 'Smallest balance first. Debts close sooner, for more interest.',
+  avalanche: 'Cheapest path: extra money goes where it saves the most interest first, usually the highest rate. The least interest overall.',
+  rules: 'Your own order: put a loan first, clear small balances first, or set the whole order. The rest follows the cheapest path.',
+  snowball: 'Smallest first: extra money clears the smallest balance first. Loans close sooner; it usually costs a little more interest.',
 };

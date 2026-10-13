@@ -1,0 +1,9 @@
+# RBI (Small Finance Banks - Interest Rates on Advances) Directions, 2025. RBI/DOR/2025-26/192, DOR.CRE.REC.111./13.03.000/2025-26, 28 Nov 2025
+# Source: https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13117
+# Retrieved: 12 Oct 2026 (HTML page, fetched with curl)
+# Excerpts only: the paragraphs Loan Check cites, copied verbatim.
+
+ 3. These Directions shall be applicable to Small Finance Banks (hereinafter collectively referred to as 'banks' and individually as a 'bank').
+ 24. All floating rate personal or retail loans (housing, auto, etc.), and floating rate loans extended by banks to Micro, Small and Medium Enterprises (MSME) shall be benchmarked to an External Benchmark Rate.
+ 32. A bank is free to decide the spread over the external benchmark. However, credit risk premium may undergo change only when borrower’s credit assessment undergoes a substantial change, as agreed upon in the loan contract. Further, other components of spread including operating cost could be altered once in three years.
+ 37. The interest rate under external benchmark shall be reset at least once in three months.

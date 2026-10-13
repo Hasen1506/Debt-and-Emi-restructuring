@@ -1,0 +1,2650 @@
+{
+ "min_payment": [
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "SBI Card",
+    "outstanding": "150",
+    "nominal_rate": "0.1382",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "152",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "SBI Card",
+    "outstanding": "3000",
+    "nominal_rate": "0.4696",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "339",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "SBI Card",
+    "outstanding": "85000",
+    "nominal_rate": "0.3223",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "6944",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "SBI Card",
+    "outstanding": "213291",
+    "nominal_rate": "0.3938",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "18924",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "SBI Card",
+    "outstanding": "4242",
+    "nominal_rate": "0.3608",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "363",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "SBI Card",
+    "outstanding": "413796",
+    "nominal_rate": "0.4593",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "39379",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Axis Bank",
+    "outstanding": "150",
+    "nominal_rate": "0.2028",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "153",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Axis Bank",
+    "outstanding": "3000",
+    "nominal_rate": "0.4399",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "200",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Axis Bank",
+    "outstanding": "85000",
+    "nominal_rate": "0.3215",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "4250",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Axis Bank",
+    "outstanding": "206579",
+    "nominal_rate": "0.1469",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "10329",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Axis Bank",
+    "outstanding": "26432",
+    "nominal_rate": "0.3168",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "1322",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Axis Bank",
+    "outstanding": "89645",
+    "nominal_rate": "0.3561",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "4482",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Yes Bank",
+    "outstanding": "150",
+    "nominal_rate": "0.3143",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "155",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Yes Bank",
+    "outstanding": "3000",
+    "nominal_rate": "0.1499",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "200",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Yes Bank",
+    "outstanding": "85000",
+    "nominal_rate": "0.2434",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "4250",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Yes Bank",
+    "outstanding": "229445",
+    "nominal_rate": "0.2195",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "11472",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Yes Bank",
+    "outstanding": "60189",
+    "nominal_rate": "0.3271",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "3009",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Yes Bank",
+    "outstanding": "385824",
+    "nominal_rate": "0.3551",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "19291",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "IndusInd Bank",
+    "outstanding": "150",
+    "nominal_rate": "0.3729",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "156",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "IndusInd Bank",
+    "outstanding": "3000",
+    "nominal_rate": "0.1542",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "200",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "IndusInd Bank",
+    "outstanding": "85000",
+    "nominal_rate": "0.2607",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "4250",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "IndusInd Bank",
+    "outstanding": "325016",
+    "nominal_rate": "0.2848",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "16251",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "IndusInd Bank",
+    "outstanding": "32898",
+    "nominal_rate": "0.4325",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "1645",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "IndusInd Bank",
+    "outstanding": "152724",
+    "nominal_rate": "0.2412",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "7636",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "RBL Bank",
+    "outstanding": "150",
+    "nominal_rate": "0.122",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "100",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "RBL Bank",
+    "outstanding": "3000",
+    "nominal_rate": "0.3859",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "150",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "RBL Bank",
+    "outstanding": "85000",
+    "nominal_rate": "0.2659",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "4250",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "RBL Bank",
+    "outstanding": "153427",
+    "nominal_rate": "0.3249",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "7671",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "RBL Bank",
+    "outstanding": "321283",
+    "nominal_rate": "0.1753",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "16064",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "RBL Bank",
+    "outstanding": "17870",
+    "nominal_rate": "0.2883",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "894",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "AmEx India",
+    "outstanding": "150",
+    "nominal_rate": "0.4193",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "100",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "AmEx India",
+    "outstanding": "3000",
+    "nominal_rate": "0.1345",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "100",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "AmEx India",
+    "outstanding": "85000",
+    "nominal_rate": "0.2642",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "2208",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "AmEx India",
+    "outstanding": "472464",
+    "nominal_rate": "0.4577",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "21264",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "AmEx India",
+    "outstanding": "39092",
+    "nominal_rate": "0.3702",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "1423",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "AmEx India",
+    "outstanding": "154176",
+    "nominal_rate": "0.1482",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "3084",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "HDFC Bank",
+    "outstanding": "150",
+    "nominal_rate": "0.4043",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "156",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "HDFC Bank",
+    "outstanding": "3000",
+    "nominal_rate": "0.1583",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "200",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "HDFC Bank",
+    "outstanding": "85000",
+    "nominal_rate": "0.2753",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "4250",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "HDFC Bank",
+    "outstanding": "166115",
+    "nominal_rate": "0.1347",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "8306",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "HDFC Bank",
+    "outstanding": "101497",
+    "nominal_rate": "0.2921",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "5075",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "HDFC Bank",
+    "outstanding": "432405",
+    "nominal_rate": "0.2437",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "21620",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Kotak Mahindra",
+    "outstanding": "150",
+    "nominal_rate": "0.3807",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "156",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Kotak Mahindra",
+    "outstanding": "3000",
+    "nominal_rate": "0.2939",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "287",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Kotak Mahindra",
+    "outstanding": "85000",
+    "nominal_rate": "0.1887",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "5827",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Kotak Mahindra",
+    "outstanding": "470444",
+    "nominal_rate": "0.1492",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "30424",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Kotak Mahindra",
+    "outstanding": "216194",
+    "nominal_rate": "0.1513",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "14026",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Kotak Mahindra",
+    "outstanding": "88431",
+    "nominal_rate": "0.3036",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "7062",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "ICICI Bank",
+    "outstanding": "150",
+    "nominal_rate": "0.1792",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "100",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "ICICI Bank",
+    "outstanding": "3000",
+    "nominal_rate": "0.2031",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "150",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "ICICI Bank",
+    "outstanding": "85000",
+    "nominal_rate": "0.2153",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "4250",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "ICICI Bank",
+    "outstanding": "14451",
+    "nominal_rate": "0.2833",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "723",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "ICICI Bank",
+    "outstanding": "168446",
+    "nominal_rate": "0.1286",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "8422",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "ICICI Bank",
+    "outstanding": "449776",
+    "nominal_rate": "0.3888",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "22489",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "",
+    "outstanding": "150",
+    "nominal_rate": "0.1312",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "152",
+    "source": "default"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "",
+    "outstanding": "3000",
+    "nominal_rate": "0.3286",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "200",
+    "source": "default"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "",
+    "outstanding": "85000",
+    "nominal_rate": "0.203",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "4250",
+    "source": "default"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "",
+    "outstanding": "116655",
+    "nominal_rate": "0.3827",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "5833",
+    "source": "default"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "",
+    "outstanding": "427742",
+    "nominal_rate": "0.1614",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "21387",
+    "source": "default"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "",
+    "outstanding": "222736",
+    "nominal_rate": "0.1411",
+    "country": "IN"
+   },
+   "out": {
+    "estimated": "11137",
+    "source": "default"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Chase",
+    "outstanding": "150",
+    "nominal_rate": "0.3915",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "40",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Chase",
+    "outstanding": "3000",
+    "nominal_rate": "0.3964",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "129",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Chase",
+    "outstanding": "85000",
+    "nominal_rate": "0.4443",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "3997",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Chase",
+    "outstanding": "8556",
+    "nominal_rate": "0.2989",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "299",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Chase",
+    "outstanding": "71637",
+    "nominal_rate": "0.4497",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "3401",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Chase",
+    "outstanding": "104368",
+    "nominal_rate": "0.342",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "4018",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Bank of America",
+    "outstanding": "150",
+    "nominal_rate": "0.3846",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "35",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Bank of America",
+    "outstanding": "3000",
+    "nominal_rate": "0.2016",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "80",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Bank of America",
+    "outstanding": "85000",
+    "nominal_rate": "0.3768",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "3519",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Bank of America",
+    "outstanding": "310754",
+    "nominal_rate": "0.4213",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "14018",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Bank of America",
+    "outstanding": "162870",
+    "nominal_rate": "0.2736",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "5342",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Bank of America",
+    "outstanding": "90771",
+    "nominal_rate": "0.2522",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "2815",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Citibank",
+    "outstanding": "150",
+    "nominal_rate": "0.2437",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "41",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Citibank",
+    "outstanding": "3000",
+    "nominal_rate": "0.155",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "69",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Citibank",
+    "outstanding": "85000",
+    "nominal_rate": "0.4051",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "3719",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Citibank",
+    "outstanding": "235336",
+    "nominal_rate": "0.3282",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "8790",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Citibank",
+    "outstanding": "77913",
+    "nominal_rate": "0.4075",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "3425",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Citibank",
+    "outstanding": "294212",
+    "nominal_rate": "0.3658",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "11911",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Capital One",
+    "outstanding": "150",
+    "nominal_rate": "0.178",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "25",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Capital One",
+    "outstanding": "3000",
+    "nominal_rate": "0.3259",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "111",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Capital One",
+    "outstanding": "85000",
+    "nominal_rate": "0.2674",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "2744",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Capital One",
+    "outstanding": "404303",
+    "nominal_rate": "0.2853",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "13655",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Capital One",
+    "outstanding": "236168",
+    "nominal_rate": "0.2821",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "7914",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Capital One",
+    "outstanding": "426183",
+    "nominal_rate": "0.3284",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "15925",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Discover",
+    "outstanding": "150",
+    "nominal_rate": "0.2437",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "35",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Discover",
+    "outstanding": "3000",
+    "nominal_rate": "0.1666",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "62",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Discover",
+    "outstanding": "85000",
+    "nominal_rate": "0.1555",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "1700",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Discover",
+    "outstanding": "166306",
+    "nominal_rate": "0.2757",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "3841",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Discover",
+    "outstanding": "209530",
+    "nominal_rate": "0.4255",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "7450",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Discover",
+    "outstanding": "19416",
+    "nominal_rate": "0.4257",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "709",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "American Express",
+    "outstanding": "150",
+    "nominal_rate": "0.3008",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "40",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "American Express",
+    "outstanding": "3000",
+    "nominal_rate": "0.15",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "68",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "American Express",
+    "outstanding": "85000",
+    "nominal_rate": "0.2642",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "2721",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "American Express",
+    "outstanding": "10439",
+    "nominal_rate": "0.1554",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "240",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "American Express",
+    "outstanding": "390123",
+    "nominal_rate": "0.2089",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "10693",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "American Express",
+    "outstanding": "61129",
+    "nominal_rate": "0.1217",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "1231",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Goldman Sachs",
+    "outstanding": "150",
+    "nominal_rate": "0.1665",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "25",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Goldman Sachs",
+    "outstanding": "3000",
+    "nominal_rate": "0.3374",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "114",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Goldman Sachs",
+    "outstanding": "85000",
+    "nominal_rate": "0.2452",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "2587",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Goldman Sachs",
+    "outstanding": "487492",
+    "nominal_rate": "0.2974",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "16957",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Goldman Sachs",
+    "outstanding": "35433",
+    "nominal_rate": "0.1323",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "745",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Goldman Sachs",
+    "outstanding": "305054",
+    "nominal_rate": "0.3232",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "11267",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Synchrony",
+    "outstanding": "150",
+    "nominal_rate": "0.3322",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "25",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Synchrony",
+    "outstanding": "3000",
+    "nominal_rate": "0.1252",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "105",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Synchrony",
+    "outstanding": "85000",
+    "nominal_rate": "0.268",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "2975",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Synchrony",
+    "outstanding": "189608",
+    "nominal_rate": "0.1259",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "6636",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Synchrony",
+    "outstanding": "336500",
+    "nominal_rate": "0.3837",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "14125",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "Synchrony",
+    "outstanding": "111369",
+    "nominal_rate": "0.2795",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "3898",
+    "source": "bank"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "",
+    "outstanding": "150",
+    "nominal_rate": "0.1789",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "35",
+    "source": "default"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "",
+    "outstanding": "3000",
+    "nominal_rate": "0.241",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "90",
+    "source": "default"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "",
+    "outstanding": "85000",
+    "nominal_rate": "0.4744",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "4210",
+    "source": "default"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "",
+    "outstanding": "29378",
+    "nominal_rate": "0.4227",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "1329",
+    "source": "default"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "",
+    "outstanding": "176975",
+    "nominal_rate": "0.4377",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "8225",
+    "source": "default"
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "bank": "",
+    "outstanding": "281914",
+    "nominal_rate": "0.4161",
+    "country": "US"
+   },
+   "out": {
+    "estimated": "12595",
+    "source": "default"
+   }
+  }
+ ],
+ "prepayment_fee_default": [
+  {
+   "in": {
+    "loan_type": "home_loan",
+    "rate_type": "floating",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "assumed",
+    "reason": "Assumed 0%: RBI bars prepayment charges on floating-rate loans to individuals (not for business) (RBI Directions, 2 July 2025)."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "home_loan",
+    "rate_type": "floating",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "home_loan",
+    "rate_type": "fixed",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "home_loan",
+    "rate_type": "fixed",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "auto_loan",
+    "rate_type": "floating",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "assumed",
+    "reason": "Assumed 0%: RBI bars prepayment charges on floating-rate loans to individuals (not for business) (RBI Directions, 2 July 2025)."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "auto_loan",
+    "rate_type": "floating",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "auto_loan",
+    "rate_type": "fixed",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "auto_loan",
+    "rate_type": "fixed",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "personal_loan",
+    "rate_type": "floating",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "assumed",
+    "reason": "Assumed 0%: RBI bars prepayment charges on floating-rate loans to individuals (not for business) (RBI Directions, 2 July 2025)."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "personal_loan",
+    "rate_type": "floating",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "personal_loan",
+    "rate_type": "fixed",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "personal_loan",
+    "rate_type": "fixed",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "rate_type": "floating",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "rate_type": "floating",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "rate_type": "fixed",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "credit_card",
+    "rate_type": "fixed",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "education_loan",
+    "rate_type": "floating",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "assumed",
+    "reason": "Assumed 0%: RBI bars prepayment charges on floating-rate loans to individuals (not for business) (RBI Directions, 2 July 2025)."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "education_loan",
+    "rate_type": "floating",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "education_loan",
+    "rate_type": "fixed",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "education_loan",
+    "rate_type": "fixed",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "gold_loan",
+    "rate_type": "floating",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "assumed",
+    "reason": "Assumed 0%: RBI bars prepayment charges on floating-rate loans to individuals (not for business) (RBI Directions, 2 July 2025)."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "gold_loan",
+    "rate_type": "floating",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "gold_loan",
+    "rate_type": "fixed",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "gold_loan",
+    "rate_type": "fixed",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "bnpl",
+    "rate_type": "floating",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "assumed",
+    "reason": "Assumed 0%: RBI bars prepayment charges on floating-rate loans to individuals (not for business) (RBI Directions, 2 July 2025)."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "bnpl",
+    "rate_type": "floating",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "bnpl",
+    "rate_type": "fixed",
+    "market": "IN"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  },
+  {
+   "in": {
+    "loan_type": "bnpl",
+    "rate_type": "fixed",
+    "market": "US"
+   },
+   "out": {
+    "pct": "0",
+    "status": "unknown",
+    "reason": "Not known, so no fee is assumed. If you can, check your loan agreement or Key Facts Statement for a prepayment charge."
+   }
+  }
+ ],
+ "goal_rule": [
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "72990"
+    },
+    "remaining": "706725",
+    "months": 116,
+    "spare": "101090"
+   },
+   "out": {
+    "amount": "72990"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "58092"
+    },
+    "remaining": "47187",
+    "months": 2,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "324226",
+    "months": 33,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "1654826",
+    "months": 56,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "777625",
+    "months": 61,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "179325",
+    "months": 116,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "57502"
+    },
+    "remaining": "440213",
+    "months": 4,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "642115",
+    "months": 14,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "3339"
+    },
+    "remaining": "11620",
+    "months": 64,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "293009",
+    "months": 94,
+    "spare": "105340"
+   },
+   "out": {
+    "amount": "3117.117021276595744680851064"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.36"
+    },
+    "remaining": "984538",
+    "months": 4,
+    "spare": "3735"
+   },
+   "out": {
+    "amount": "1344.60"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "1564869",
+    "months": 6,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.63"
+    },
+    "remaining": "1488831",
+    "months": 84,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "60747"
+    },
+    "remaining": "1270861",
+    "months": 29,
+    "spare": "114658"
+   },
+   "out": {
+    "amount": "60747"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.57"
+    },
+    "remaining": "1524216",
+    "months": 11,
+    "spare": "175253"
+   },
+   "out": {
+    "amount": "99894.21"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.82"
+    },
+    "remaining": "531862",
+    "months": 115,
+    "spare": "184561"
+   },
+   "out": {
+    "amount": "151340.02"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.57"
+    },
+    "remaining": "806524",
+    "months": 94,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "75062",
+    "months": 61,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "220338",
+    "months": 80,
+    "spare": "40671"
+   },
+   "out": {
+    "amount": "2754.225"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "59120"
+    },
+    "remaining": "265777",
+    "months": 87,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.97"
+    },
+    "remaining": "1561583",
+    "months": 71,
+    "spare": "130500"
+   },
+   "out": {
+    "amount": "126585.00"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "20562"
+    },
+    "remaining": "1733743",
+    "months": 23,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.53"
+    },
+    "remaining": "1096848",
+    "months": 94,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.32"
+    },
+    "remaining": "1464833",
+    "months": 88,
+    "spare": "104672"
+   },
+   "out": {
+    "amount": "33495.04"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "77490"
+    },
+    "remaining": "1004513",
+    "months": 30,
+    "spare": "32255"
+   },
+   "out": {
+    "amount": "32255"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "66053"
+    },
+    "remaining": "645910",
+    "months": 89,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "38698"
+    },
+    "remaining": "1256013",
+    "months": 62,
+    "spare": "47839"
+   },
+   "out": {
+    "amount": "38698"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "528060",
+    "months": 73,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.44"
+    },
+    "remaining": "239215",
+    "months": 69,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "29573"
+    },
+    "remaining": "301769",
+    "months": 23,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "549634",
+    "months": 52,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.64"
+    },
+    "remaining": "1247616",
+    "months": 4,
+    "spare": "61190"
+   },
+   "out": {
+    "amount": "39161.60"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.09"
+    },
+    "remaining": "515044",
+    "months": 32,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "74927"
+    },
+    "remaining": "169661",
+    "months": 24,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.51"
+    },
+    "remaining": "1521588",
+    "months": 48,
+    "spare": "47339"
+   },
+   "out": {
+    "amount": "24142.89"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.34"
+    },
+    "remaining": "1693595",
+    "months": 92,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "483427",
+    "months": 57,
+    "spare": "197251"
+   },
+   "out": {
+    "amount": "8481.175438596491228070175439"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.38"
+    },
+    "remaining": "1677048",
+    "months": 10,
+    "spare": "97156"
+   },
+   "out": {
+    "amount": "36919.28"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "2395"
+    },
+    "remaining": "372775",
+    "months": 118,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "7386"
+    },
+    "remaining": "656165",
+    "months": 108,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "36599"
+    },
+    "remaining": "1738347",
+    "months": 115,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.78"
+    },
+    "remaining": "1792342",
+    "months": 45,
+    "spare": "44089"
+   },
+   "out": {
+    "amount": "34389.42"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "75550"
+    },
+    "remaining": "1024694",
+    "months": 86,
+    "spare": "179821"
+   },
+   "out": {
+    "amount": "75550"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.23"
+    },
+    "remaining": "348350",
+    "months": 97,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.32"
+    },
+    "remaining": "684167",
+    "months": 33,
+    "spare": "76614"
+   },
+   "out": {
+    "amount": "24516.48"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "1228779",
+    "months": 40,
+    "spare": "40924"
+   },
+   "out": {
+    "amount": "30719.475"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.93"
+    },
+    "remaining": "1157743",
+    "months": 83,
+    "spare": "61253"
+   },
+   "out": {
+    "amount": "56965.29"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "27066"
+    },
+    "remaining": "1268210",
+    "months": 84,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "631263",
+    "months": 23,
+    "spare": "129791"
+   },
+   "out": {
+    "amount": "27446.21739130434782608695652"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.98"
+    },
+    "remaining": "61128",
+    "months": 72,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.57"
+    },
+    "remaining": "261000",
+    "months": 59,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.13"
+    },
+    "remaining": "56207",
+    "months": 12,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.9"
+    },
+    "remaining": "1200605",
+    "months": 56,
+    "spare": "101708"
+   },
+   "out": {
+    "amount": "91537.2"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "11697",
+    "months": 12,
+    "spare": "140876"
+   },
+   "out": {
+    "amount": "974.75"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "68628"
+    },
+    "remaining": "753364",
+    "months": 48,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.22"
+    },
+    "remaining": "748198",
+    "months": 89,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "surplus_pct",
+     "pct": "0.28"
+    },
+    "remaining": "575384",
+    "months": 64,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "schedule"
+    },
+    "remaining": "332359",
+    "months": 11,
+    "spare": "22979"
+   },
+   "out": {
+    "amount": "22979"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "22946"
+    },
+    "remaining": "1689220",
+    "months": 17,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  },
+  {
+   "in": {
+    "rule": {
+     "kind": "fixed",
+     "amount": "73319"
+    },
+    "remaining": "1233997",
+    "months": 11,
+    "spare": "0"
+   },
+   "out": {
+    "amount": "0"
+   }
+  }
+ ]
+}

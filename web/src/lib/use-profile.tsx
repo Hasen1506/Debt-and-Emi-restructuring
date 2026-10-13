@@ -39,7 +39,7 @@ function clientSnapshot(): StoredProfile {
 }
 
 function subscribe(callback: () => void) {
-  const events = ['finoptima:profile-changed', 'finoptima:hydrated', 'storage', 'focus'];
+  const events = ['rightdue:profile-changed', 'rightdue:hydrated', 'storage', 'focus'];
   events.forEach(e => window.addEventListener(e, callback));
   return () => events.forEach(e => window.removeEventListener(e, callback));
 }
@@ -54,7 +54,7 @@ export function useStoredProfile(): StoredProfile {
 let currentCache: {key: string; profile: StoredProfile} | null = null;
 function currentSnapshot(): StoredProfile {
   const profile = clientSnapshot();
-  const raw = document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '';
+  const raw = document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '';
   const month = countryMonthKey(profile.user.country);
   const key = profileCookieKey() + raw + month;
   if (!currentCache || currentCache.key !== key) {

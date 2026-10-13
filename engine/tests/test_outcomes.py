@@ -6,7 +6,8 @@ import pytest
 from engine import lenders
 from engine.models import Country
 from engine.outcomes import (
-    MIN_REPORTS, Outcome, OutcomeInputError, OutcomeReport, headline, make_report, score, scorecard,
+    MIN_REPORTS, Outcome, OutcomeInputError, OutcomeReport, bank_reply_matches, headline, make_report,
+    score, scorecard,
 )
 
 D = Decimal
@@ -41,7 +42,9 @@ def test_names_people_type_find_one_bank(typed, expected):
     "HDFC Bank Fake", "Indian", "Yes",
 ])
 def test_unknown_names_find_none(typed):
-    assert lenders.resolve(typed) is None
+    # HFCs are known lenders now (Loan Check needs their type), but outcome
+    # reports stay bank-only: the refund rule binds banks.
+    assert lenders.resolve_bank(typed) is None
 
 
 def test_only_india_for_now():
@@ -136,3 +139,32 @@ def test_scorecard_groups_by_lender():
     card = scorecard(rows)
     assert card["IN_SBI"].reports == 2 and not card["IN_SBI"].shown
     assert card["IN_HDFC"].reports == 5 and card["IN_HDFC"].shown
+
+
+# ── bank-reply check (critique #71) ─────────────────────────────────────────
+
+REPLY = ("Dear Customer, with reference to your complaint, HDFC Bank has revised the rate of "
+         "interest on your home loan to 8.70% p.a. with effect from 1 November 2026.")
+
+
+def test_reply_naming_the_bank_and_rate_verifies():
+    r = make_report("HDFC", Outcome.FIXED_FULL, 12, D("0.0925"), D("0.0870"), REPLY)
+    assert r.verified
+
+
+@pytest.mark.parametrize("text", [
+    None, "", REPLY.replace("HDFC Bank", "SBI"), REPLY.replace("8.70%", "8.75%"),
+    REPLY.replace("8.70%", "18.70%"), "HDFC Bank rate 8.70",   # no % sign
+])
+def test_reply_that_does_not_match_stays_unverified(text):
+    r = make_report("HDFC", Outcome.FIXED_FULL, 12, D("0.0925"), D("0.0870"), text)
+    assert not r.verified
+
+
+def test_refusal_is_never_verified_by_a_reply():
+    r = make_report("HDFC", Outcome.REFUSED, 20, D("0.0925"), None, REPLY)
+    assert not r.verified
+
+
+def test_rate_written_as_per_cent_matches():
+    assert bank_reply_matches("State Bank of India: new rate 8.7 per cent", "IN_SBI", D("0.087"))

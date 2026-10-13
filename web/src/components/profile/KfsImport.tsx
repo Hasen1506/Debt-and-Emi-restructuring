@@ -4,14 +4,14 @@
  * "Import from Key Facts Statement / sanction letter" (roadmap PR G).
  *
  * The user uploads the KFS as a PDF or pastes its text. The API reads it
- * (POST /api/kfs/read; plain-text rules, no outside service, nothing
- * stored) and this panel shows every field it can fill, each editable and
+ * (POST /api/kfs/read; read on RightDue's server by plain-text rules, no
+ * outside service, never stored; a PDF password is used once and never kept) and this panel shows every field it can fill, each editable and
  * marked "from your KFS", "worked out from your KFS" or "you entered", with
  * the EMI / APR cross-checks in plain words. "Add this loan" puts it in the
  * Profile form; nothing is saved until the user saves the Profile.
  */
 import { useState } from 'react';
-import { api, type LoanPayload, type LoanType } from '@/lib/api';
+import { api, ApiFieldError, type LoanPayload, type LoanType } from '@/lib/api';
 import {
   bytesToBase64,
   editRow,
@@ -66,22 +66,32 @@ export function KfsImport({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<KfsReadResponse | null>(null);
   const [rows, setRows] = useState<ReviewRow[]>([]);
+  // G6 (#18): a password-protected PDF. The password is sent once with the
+  // file, used in memory on the server, and cleared here after the read.
+  const [file, setFile] = useState<Uint8Array | null>(null);
+  const [password, setPassword] = useState('');
+  const [needsPassword, setNeedsPassword] = useState(false);
 
   function reset() {
     setText('');
     setError(null);
     setResult(null);
     setRows([]);
+    setFile(null);
+    setPassword('');
+    setNeedsPassword(false);
   }
 
-  async function read(req: { text?: string; pdf_base64?: string }) {
+  async function read(req: { text?: string; pdf_base64?: string; password?: string }) {
     setBusy(true);
     setError(null);
     try {
       const res = await api.kfsRead({ ...req, as_of: todayIso });
       setResult(res);
       setRows(reviewRows(res));
+      setPassword('');
     } catch (e) {
+      if (e instanceof ApiFieldError && e.field === 'password') setNeedsPassword(true);
       setError(e instanceof Error ? e.message : 'The document could not be read.');
     } finally {
       setBusy(false);
@@ -95,6 +105,7 @@ export function KfsImport({
       return;
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
+    setFile(bytes);
     await read({ pdf_base64: bytesToBase64(bytes) });
   }
 
@@ -120,8 +131,8 @@ export function KfsImport({
       <p className="muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.5 }}>
         Loans sanctioned from 1 Oct 2024 come with a Key Facts Statement stating the rate, APR and every
         charge (<a href={KFS_CIRCULAR_URL} target="_blank" rel="noreferrer">{KFS_CIRCULAR}</a>). Upload it as a
-        PDF or paste its text. It is read on RightDue&apos;s server by fixed rules, not sent to anyone else,
-        and not kept. You check every figure before it goes into your loans.
+        PDF (with its password, if it has one) or paste its text. It is read on RightDue&apos;s server by
+        fixed rules, never stored, and not sent to anyone else. The password is used once and never kept. You check every figure before it goes into your loans.
       </p>
 
       {!result && (
@@ -136,6 +147,36 @@ export function KfsImport({
               onChange={(e) => onFile(e.target.files?.[0])}
             />
           </label>
+          {needsPassword && file && (
+            <div style={{ display: 'grid', gap: 4 }}>
+              <label style={{ fontSize: 13, display: 'grid', gap: 4 }}>
+                The PDF&apos;s password
+                <input
+                  type="password"
+                  autoComplete="off"
+                  data-testid="kfs-password"
+                  value={password}
+                  maxLength={64}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </label>
+              <span className="muted" style={{ fontSize: 12 }}>
+                The bank&apos;s email or letter says which format it uses, often your date of birth or part of
+                your name, PAN or mobile number.
+              </span>
+              <div>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  data-testid="kfs-unlock"
+                  disabled={busy || !password}
+                  onClick={() => read({ pdf_base64: bytesToBase64(file), password })}
+                >
+                  {busy ? 'Opening…' : 'Open the PDF'}
+                </button>
+              </div>
+            </div>
+          )}
           <label style={{ fontSize: 13, display: 'grid', gap: 4 }}>
             Or paste the text
             <textarea

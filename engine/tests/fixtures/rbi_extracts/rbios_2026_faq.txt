@@ -1,0 +1,27 @@
+# RBI FAQs on the Reserve Bank - Integrated Ombudsman Scheme, 2026 (updated 1 Jul 2026)
+# Source: https://www.rbi.org.in/commonman/English/Scripts/FAQs.aspx?Id=3407
+# Retrieved: 12 Oct 2026 (HTML page, fetched with curl)
+# Excerpts only: the paragraphs Loan Check cites, copied verbatim.
+
+ The Reserve Bank - Integrated Ombudsman Scheme, 2026 (RB-IOS, 2026 / the Scheme) is a cost-free, expeditious and non-adversarial alternate grievance redress mechanism for customer complaints involving deficiency in service by Regulated Entities covered under the Scheme. It comes into force with effect from July 1, 2026.
+ 13. Which Regulated Entities are covered under RB-IOS, 2026?
+ The following REs of RBI are covered under the RB-IOS, 2026:
+ Banks: all Commercial Banks, Regional Rural Banks, State Co-operative Banks, Central Co-operative Banks, Scheduled Primary (Urban) Co-operative Banks, and Non-Scheduled Primary (Urban) Co-operative Banks with deposit size of Rs 50 crore and above as on the date of the audited balance sheet of the previous financial year.
+ NBFCs: all NBFCs registered with RBI, excluding Housing Finance Companies, Core Investment Companies, IDF-NBFCs, NBFC-IFCs, NOFHCs, Primary Dealers and Mortgage Guarantee Companies, which either are authorized to accept deposits or have customer interface with asset size of Rs 100 crore and above as on the date of the audited balance sheet of the previous financial year.
+ Non-bank Prepaid Payment Instrument Issuers.
+ The following types of complaints are not maintainable under the Reserve Bank – Integrated Ombudsman Scheme, 2026, and may be rejected at the outset or at any stage of examination, as applicable:
+ Complaints not addressed directly to the RBI Ombudsman, including communications where RBI is merely marked in copy.
+ Complaints not filed by the complainant personally or through an authorised representative, other than an advocate unless the advocate is the aggrieved person.
+ Complaints with incomplete information as required under the Scheme.
+ Complaints that are abusive, frivolous or vexatious.
+ Complaints where the complainant has not first approached the concerned Regulated Entity with proof of such complaint.
+ Complaints filed before the expiry of 30 days or the time specified by RBI, NPCI or Card Network guidelines, if applicable, whichever is higher, unless the complainant has received a reply/resolution and is dissatisfied.
+ Complaints filed beyond 90 days from the date on which the applicable timeline expires or from the date of the last communication from the Regulated Entity, whichever is later.
+ Complaints relating to the same grievance that is pending, settled or dealt with by the Office of the RBI Ombudsman.
+ Complaints relating to the same grievance pending before, or settled/dealt with on merits by, any Court, Tribunal, Arbitrator or other judicial/quasi-judicial forum. Criminal proceedings pending or decided before a Court or Tribunal or police investigation initiated in a criminal offence are not treated as the same grievance for this purpose.
+ Complaints where the complaint to the Regulated Entity was made after expiry of the limitation period under the Limitation Act, 1963.
+ Matters relating to commercial judgment or decision of a Regulated Entity.
+ Disputes between a vendor and a Regulated Entity.
+ The complainant must first approach the concerned Regulated Entity. A complaint can be filed before the RBI Ombudsman if the complainant has not received any reply within 30 days or within the time specified by RBI, NPCI or Card Network guidelines, if any, whichever is higher, after the Regulated Entity received the complaint; or if the complainant is not satisfied with the reply/resolution provided by the Regulated Entity.
+ The complaint must be made to the RBI Ombudsman within 90 days from the date on which the above timeline expires or the date of the last communication from the concerned Regulated Entity, whichever is later. Further, the complaint to the Regulated Entity must have been made before expiry of the period of limitation prescribed under the Limitation Act, 1963.
+ There is no limit on the amount involved in a dispute that can be brought before the RBI Ombudsman for settlement or passing of an Award. However, for any consequential loss suffered by the complainant, the RBI Ombudsman has the power to provide compensation up to Rs 30 lakh. In addition, the RBI Ombudsman may provide compensation up to Rs 3 lakh for loss of the complainant’s time, expenses incurred, harassment / mental anguish suffered, etc.

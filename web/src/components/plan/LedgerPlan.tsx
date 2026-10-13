@@ -49,6 +49,8 @@ import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
 import { PlanNotes } from './PlanNotes';
 import { PlanAssumptions } from './PlanAssumptions';
 import { PlanGivens } from './PlanGivens';
+import { TenureWhatIf } from './TenureWhatIf';
+import { dueVsAffordable, gapRateWords, shortHeadline } from '@/lib/plan-gap';
 
 export function LedgerPlan({ plan }: { plan: PlanData }) {
   const ccy = plan.displayCurrency;
@@ -58,8 +60,24 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   // Short of cash this month: the schedule below pays minimums the user
   // can't fund, so its date isn't one to plan around.
   const short = plan.shortfall > 0 || !!plan.futureShortfall;
-  const clearLabel = short
-    ? 'NO DATE YET'
+  const label = (m: number) => monthIndexToCountryLabel(m, plan.user.country).toUpperCase();
+  // Live test #16: one story. Short, the headline is the date if the gap
+  // closes, with the date as things stand (gap borrowed, the schedule's
+  // date) beside it, each named.
+  const shortStory = short
+    ? shortHeadline({
+        shortfall: plan.shortfall,
+        asIsMonth: plan.debtFreeMonth,
+        closedMonth: plan.gap?.closed?.debtFreeMonth,
+        label,
+        money: (v) => fc(Math.round(v)),
+      })
+    : null;
+  // A gap that is never repaid only grows: its interest total is not a
+  // number to plan with.
+  const gapRunsAway = !!plan.gap?.firstBorrowMonth && !plan.debtFreeMonth;
+  const clearLabel = shortStory
+    ? shortStory.value
     : plan.debtFreeMonth
       ? monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()
       : 'NOT IN LIFETIME';
@@ -112,11 +130,11 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         <LKpi
           cols={4}
           items={[
-            short
+            shortStory
               ? {
                   l: 'DEBT-FREE',
                   v: clearLabel,
-                  s: plan.shortfall > 0 ? `SHORT ${fc(Math.round(plan.shortfall))}/MO` : 'FUTURE PAYMENTS NEED FUNDING',
+                  s: shortStory.sub,
                   tone: L_T.negative,
                 }
               : {
@@ -126,12 +144,24 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                     ? `IN ${monthsSpan(plan.debtFreeMonth).toUpperCase()}`
                     : 'RAISE SURPLUS OR CUT SPEND TO CLEAR',
                 },
-            {
-              l: 'TOTAL INTEREST',
-              v: fc(plan.totalInterest),
-              s: interestSaved >= 1 ? `${fc(interestSaved)} LESS THAN MINIMUMS` : 'SAME AS PAYING MINIMUMS',
-              tone: L_T.positive,
-            },
+            gapRunsAway
+              ? {
+                  l: 'TOTAL INTEREST',
+                  v: '—',
+                  s: 'THE GAP BORROWING KEEPS GROWING',
+                  tone: L_T.negative,
+                }
+              : {
+                  l: 'TOTAL INTEREST',
+                  v: fc(plan.totalInterest),
+                  s:
+                    plan.gap && plan.gap.totalInterest >= 1
+                      ? `INCL. ${fc(Math.round(plan.gap.totalInterest))} ON GAP BORROWING`
+                      : interestSaved >= 1
+                        ? `${fc(interestSaved)} LESS THAN MINIMUMS`
+                        : 'SAME AS PAYING MINIMUMS',
+                  tone: L_T.positive,
+                },
             {
               l: 'TIME SAVED',
               v: !short && plan.monthsSaved > 0 ? monthsSpan(plan.monthsSaved).toUpperCase() : '—',
@@ -144,11 +174,26 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                   : 'MINIMUMS ALONE NEVER CLEAR IT',
               tone: L_T.accent,
             },
-            {
-              l: 'PAYING THIS MONTH',
-              v: fc(monthlyOutlay),
-              s: 'EMIS + MINIMUMS + EXTRA',
-            },
+            plan.shortfall > 0
+              ? (() => {
+                  // Live test #24: what's due beside what the month covers.
+                  const d = dueVsAffordable({
+                    income: dec(plan.user.monthly_income).toNumber(),
+                    costs: dec(plan.user.fixed_expenses).add(dec(plan.user.variable_expenses)).toNumber(),
+                    shortfall: plan.shortfall,
+                  });
+                  return {
+                    l: 'DUE THIS MONTH',
+                    v: fc(Math.round(d.due)),
+                    s: `YOU CAN COVER ${fc(Math.round(d.canCover))} · SHORT ${fc(Math.round(d.short))}`,
+                    tone: L_T.negative,
+                  };
+                })()
+              : {
+                  l: 'PAYING THIS MONTH',
+                  v: fc(monthlyOutlay),
+                  s: 'EMIS + MINIMUMS + EXTRA',
+                },
           ]}
         />
         {/* A four-screen page: one tap to the part you came for */}
@@ -160,15 +205,20 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           <LBracket href="#life-events">LIFE EVENTS</LBracket>
           <LBracket href="#notes">NOTES</LBracket>
           <LBracket href="#what-if">WHAT IF</LBracket>
+          {/* Setup shows a plan after one loan; the rest are added from here (sprint G10, grill #16b). */}
+          <LBracket accent href="/onboarding?step=loans" label="Add another loan to the plan">+ LOAN</LBracket>
         </nav>
 
         {/* What actually reached the debts, beside what the plan puts in */}
         {!short && <PlanPace plan={plan} />}
 
         {plan.shortfall > 0 && <ShortfallBanner plan={plan} />}
+        {plan.shortfall > 0 && <TenureWhatIf plan={plan} />}
         {plan.futureShortfall && <div role="alert" style={{color:L_T.negative,fontSize:12}}>
           FUTURE FUNDING GAP · SHORT {fc(plan.futureShortfall.amount)} IN {monthIndexToCountryLabel(plan.futureShortfall.month,plan.user.country).toUpperCase()}.
-          The forecast assumes all minimum payments are funded. Revise the planned loan, income or expenses before relying on a payoff date.
+          {plan.gap
+            ? ` The forecast pays that gap from your emergency fund, then borrows the rest on a card at ${gapRateWords(plan.gap.rate)} a year and pays it back first. Revise the planned loan, income or expenses before relying on a payoff date.`
+            : ' Revise the planned loan, income or expenses before relying on a payoff date.'}
         </div>}
         {plan.user.loans.some(l=>l.planned_effective_month) && <div style={{fontSize:12}}>
           Forecast includes planned loans: {plan.user.loans.filter(l=>l.planned_effective_month).map(l=>
@@ -238,20 +288,49 @@ function ShortfallBanner({ plan }: { plan: PlanData }) {
   const costs = dec(plan.user.fixed_expenses).add(dec(plan.user.variable_expenses)).toNumber();
   // The engine's minimums, so the three figures add up to its shortfall.
   const minimums = Math.max(0, plan.shortfall + income - costs);
+  const d = dueVsAffordable({ income, costs, shortfall: plan.shortfall });
+  const gap = plan.gap;
+  const ccy = plan.displayCurrency;
+  const card = gap
+    ? `${gap.basis === 'your_card' ? 'your dearest card' : 'a card'} at ${gapRateWords(gap.rate)} a year${ccy === 'INR' ? ' plus 18% GST on the interest' : ''}`
+    : 'a card';
   return (
     <section
       role="status"
       style={{ border: `2px solid ${L_T.negative}`, padding: '14px 18px', fontSize: 12, lineHeight: 1.7 }}
     >
       <div style={{ fontWeight: 700, color: L_T.negative, letterSpacing: '0.08em', marginBottom: 6 }}>
-        SHORT {fc(plan.shortfall)} A MONTH · NO PAYOFF DATE YET
+        SHORT {fc(plan.shortfall)} A MONTH
       </div>
+      <dl style={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', gap: '2px 18px', margin: '0 0 8px' }}>
+        <dt>Due this month (EMIs and minimums)</dt>
+        <dd style={{ margin: 0, textAlign: 'right', fontWeight: 700 }}>{fc(d.due)}</dd>
+        <dt>What your income covers after costs</dt>
+        <dd style={{ margin: 0, textAlign: 'right', fontWeight: 700 }}>{fc(d.canCover)}</dd>
+        <dt>Short</dt>
+        <dd style={{ margin: 0, textAlign: 'right', fontWeight: 700, color: L_T.negative }}>{fc(d.short)}</dd>
+      </dl>
       Your costs ({fc(costs)}) and minimum payments ({fc(minimums)}) come to more
-      than your income ({fc(income)}). The schedule below assumes the minimums get
-      paid anyway; each month they can&apos;t be, the balance grows and late fees
-      start. First close the gap: cut costs (try the what-if below), raise income,
-      or ask the bank for a lower payment (a longer tenure, or moving a card
-      balance to a cheaper loan).
+      than your income ({fc(income)}). The schedule below is <strong>as things stand</strong>:
+      each short month is paid from your emergency fund while it lasts, then
+      borrowed on {card}, and any money freed later pays that borrowing back
+      first, before any loan gets extra.
+      {gap && gap.peak > 0 && gap.peakMonth
+        ? ` The borrowing peaks at ${fc(gap.peak)} in ${monthIndexToCountryLabel(gap.peakMonth, plan.user.country)}${gap.repaidMonth ? ` and is repaid by ${monthIndexToCountryLabel(gap.repaidMonth, plan.user.country)}` : ' and is never repaid at this income'}.`
+        : ''}{' '}
+      Missing a payment instead costs late fees and hurts your credit score. Close
+      the gap first: cut costs (try the what-if below), raise income, or ask the
+      bank for a lower payment (try a longer tenure below, or move a card balance
+      to a cheaper loan).
+      {gap?.closed && (
+        <div style={{ marginTop: 6 }}>
+          With the gap closed ({fc(gap.closed.cut)} a month less spending), you&apos;d be debt-free{' '}
+          {gap.closed.debtFreeMonth ? `in ${monthIndexToCountryLabel(gap.closed.debtFreeMonth, plan.user.country)}` : 'later than 30 years from now'}.
+        </div>
+      )}
+      {gap?.basis === 'default' && gap.source && (
+        <div style={{ marginTop: 6, fontSize: 10, color: L_T.muted }}>Card rate used: {gap.source}.</div>
+      )}
     </section>
   );
 }

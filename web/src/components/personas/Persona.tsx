@@ -27,21 +27,24 @@ export interface PersonaInfo {
 export const PERSONA: Record<StrategyName, PersonaInfo> = {
   avalanche: {
     name: 'Avalanche',
-    tag: 'UPHILL',
+    // Plain words under the name (sprint G10, grill #78).
+    tag: 'CHEAPEST PATH',
     figure: 'Sisyphus pushing a boulder up to the summit',
-    rule: 'Highest rate first.',
+    // The engine orders by what the next payment saves (marginal cost),
+    // which is the highest rate unless a fee, tax break or lock-in changes it.
+    rule: 'Where extra money saves the most interest first: usually the highest rate.',
     feel: 'The hard climb, and the least interest.',
   },
   rules: {
     name: 'Your rules',
-    tag: 'THE RIDGE',
+    tag: 'YOUR OWN ORDER',
     figure: 'Atlas on the ridge, a boulder in one hand and a snowball in the other',
     rule: 'Your own order: pinned loans, small balances, then the highest rate.',
     feel: 'Your call, with its cost against Avalanche shown.',
   },
   snowball: {
     name: 'Snowball',
-    tag: 'DOWNHILL',
+    tag: 'SMALLEST FIRST',
     figure: 'A snowball let go at the top, growing as it rolls downhill',
     rule: 'Smallest balance first.',
     feel: 'Debts close sooner; it costs more interest.',

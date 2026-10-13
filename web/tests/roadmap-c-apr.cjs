@@ -41,22 +41,25 @@ test('differential: the TypeScript true annual cost matches the engine on every 
   }
 });
 
-test('one rate for a loan: a 42% Indian card costs 62.52% a year on its row, in its breakdown and by its cash flows', () => {
+test('one rate for a loan: a 42% Indian card costs 60.31% a year on its row and in its breakdown (GST never compounds)', () => {
   const { computeBreakdown } = lib('effective-apr.ts');
   const { loanMarginalCost } = lib('marginal-cost.ts');
   const { trueApr, trueAprInputsFromBreakdown } = lib('true-apr.ts');
   const loan = { id: 'c', bank: 'HDFC', loan_type: 'credit_card', outstanding: '50000', nominal_rate: '0.42', currency: 'INR' };
-  // GST is billed monthly and compounds with the interest: (1 + 3.5% × 1.18)^12 − 1.
+  // Interest compounds monthly; GST is 18% of it and is never charged interest
+  // (RBI Credit Card MD 2022 para 9(b)(ii), FAQ 7): 51.11% × 1.18 = 60.31%.
   const mc = loanMarginalCost(loan, 'IN', '0.3', 'new');
-  assert.equal(mc.annualCost.toFixed(4), '0.6252');
-  // The cash-flow figure (engine/true_apr.py's twin) agrees when nothing was paid upfront.
+  assert.equal(mc.annualCost.toFixed(4), '0.6031');
+  // The cash-flow IRR (engine/true_apr.py's twin) counts GST paid in cash each
+  // month with the minimum, so it reads higher (62.52%); sprint G1 left that
+  // view to the founder (answers/G1.md, DECISIONS NEEDED).
   const b = computeBreakdown(loan, '0.3', 'IN', undefined);
   assert.ok(Math.abs(trueApr(trueAprInputsFromBreakdown(loan, b.lines)).apr - 0.6252) < 0.0001);
   // The breakdown a row opens shows that one figure, not the old simple sum (49.56%).
   const { EffectiveAprBreakdown } = require(path.join(root, 'components/EffectiveAprBreakdown.tsx'));
   const html = renderToStaticMarkup(React.createElement(EffectiveAprBreakdown, { loan, marginalTaxRate: '0.3', country: 'IN', taxRegime: 'new' }));
   assert.match(html, /What it costs you a year/);
-  assert.match(html, /= 62\.52%/);
+  assert.match(html, /= 60\.31%/);
   assert.doesNotMatch(html, /49\.56%/);
   // A loan with an upfront fee: the yearly cost leaves it out (already paid) and the note gives the all-in figure.
   const pl = { id: 'p', bank: 'SBI', loan_type: 'personal_loan', outstanding: '300000', nominal_rate: '0.14', currency: 'INR', tenure_months_remaining: 36, processing_fee_amortised: '0.01' };
@@ -78,7 +81,7 @@ test('Home and Plan rank and show loans by that cost: the dearest flag is the av
   assert.equal(m.loudest.index, payoffOrders(user, '0.3').avalanche[0]);
   assert.equal(m.loudest.index, 1);
   assert.equal(m.loans[1].effective.toFixed(4), m.loans[1].cost.annualCost.toFixed(4));
-  for (const f of ['components/home/OpenPositions.tsx', 'components/plan/PlanNotes.tsx', 'components/WhatIfPanel.tsx', 'app/tools/liquidate/PortfolioRanker.tsx']) {
+  for (const f of ['components/home/OpenPositions.tsx', 'components/plan/PlanNotes.tsx', 'components/WhatIfPanel.tsx']) {
     assert.doesNotMatch(src_(f), /computeBreakdown\([^)]*\)\.effective|b\.effective|\{ effective \} = computeBreakdown/, f);
   }
 });

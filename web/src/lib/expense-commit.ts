@@ -79,13 +79,13 @@ export function commitExpenseReduction(
       goalId: params.goalId ?? '',
     },
   });
-  const before = localStorage.getItem('finoptima_decision_log');
+  const before = localStorage.getItem('rightdue_decision_log');
   try {
-    localStorage.setItem('finoptima_decision_log', JSON.stringify(entries));
+    localStorage.setItem('rightdue_decision_log', JSON.stringify(entries));
     if (!saveProfileClient({ ...profile, user: updatedUser })) throw new Error('The spending change could not be saved.');
   } catch {
     try {
-      if (before == null) localStorage.removeItem('finoptima_decision_log'); else localStorage.setItem('finoptima_decision_log', before);
+      if (before == null) localStorage.removeItem('rightdue_decision_log'); else localStorage.setItem('rightdue_decision_log', before);
     } catch { /* A blocked unchanged decision key must still return a failed commit. */ }
     return null;
   }

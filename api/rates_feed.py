@@ -1,4 +1,4 @@
-"""Live central-bank rates, refreshed every 6 hours.
+"""Central-bank policy rates fetched by a weekly GitHub Action, not by the app.
 
 Two sources, both official and free:
 
@@ -15,13 +15,21 @@ Two sources, both official and free:
 
 A fetch is accepted only if it agrees with the verified table in
 engine/policy_rates.py where the two overlap, and every new decision is
-plausible (see policy_rates.apply_live). Anything else is logged as a
-failed fetch: the last good value stays in use, `GET /api/rates/feed-health`
-says how old it is, and nothing crashes.
+plausible (see policy_rates.apply_live).
 
-Last good values are kept in RATES_STORE_PATH (default
-api/data/rates_live.json, not committed) so a restart does not forget
-them. RATES_FEED=off turns fetching off (tests, CI, offline work).
+**Where it runs (grill #61).** Policy rates change only at scheduled
+meetings (RBI MPC 6 a year, FOMC 8 a year), so the app no longer fetches
+in a background thread inside a container that sleeps after 15 minutes
+and loses its disk on every restart. `.github/workflows/policy-rates.yml`
+runs `scripts/fetch_policy_rates.py` every Monday; it proposes a change to
+the committed file `api/data/policy_rates_live.json` only when a rate
+moved, when it is the first check after a scheduled meeting, or after 30
+days (a heartbeat). The app reads that file once at start.
+
+`GET /api/rates/feed-health` calls a source stale when a scheduled meeting
+passed more than MEETING_GRACE ago without a check after it, or when its
+last good check is older than MAX_AGE. RATES_FEED=off skips the file
+(tests, CI).
 """
 from __future__ import annotations
 
@@ -48,17 +56,20 @@ D = Decimal
 
 FRED_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DFEDTARU,DFEDTARL"
 RBI_URL = "https://www.rbi.org.in/"
-REFRESH_EVERY = timedelta(hours=6)
-# A source is "stale" once it has gone this long without a good fetch
-# (four missed refreshes). Feed health then answers 503 for alerting.
-STALE_AFTER = timedelta(hours=24)
+# Feed health: a meeting passed this long ago with no check after it, or a
+# last good check older than MAX_AGE, makes a source "stale" (503).
+MEETING_GRACE = timedelta(days=7)
+MAX_AGE = timedelta(days=45)
+# The weekly job proposes a commit at least this often even when nothing
+# changed, so the file's age proves the job is still running.
+HEARTBEAT = timedelta(days=30)
 TIMEOUT_SECONDS = 20
 MAX_BYTES = 3_000_000
 USER_AGENT = "RightDue-rates/1.0 (+https://github.com/Hasen1506/Debt-and-Emi-restructuring)"
 # How far back a new RBI rate is matched to a scheduled MPC meeting.
 MPC_MATCH_DAYS = 14
 _CALENDAR = Path(__file__).parent / "data" / "central_bank_calendar.json"
-_DEFAULT_STORE = Path(__file__).parent / "data" / "rates_live.json"
+_DEFAULT_STORE = Path(__file__).parent / "data" / "policy_rates_live.json"
 
 
 class FeedError(Exception):
@@ -251,8 +262,10 @@ class SourceState:
     detail: dict[str, str] = field(default_factory=dict)
     changes: list[tuple[date, Decimal]] = field(default_factory=list)
 
-    def to_json(self) -> dict:
-        return {
+    def to_json(self, committed: bool = False) -> dict:
+        """The stored form. `committed` drops the per-run fields (attempt
+        time, error) so an unchanged check leaves the committed file alone."""
+        out = {
             "last_attempt": self.last_attempt.isoformat() if self.last_attempt else None,
             "last_success": self.last_success.isoformat() if self.last_success else None,
             "error": self.error,
@@ -261,6 +274,9 @@ class SourceState:
             "detail": self.detail,
             "changes": [[d.isoformat(), str(r)] for d, r in self.changes],
         }
+        if committed:
+            del out["last_attempt"], out["error"]
+        return out
 
     def load(self, raw: dict) -> None:
         ts = lambda v: datetime.fromisoformat(v) if v else None  # noqa: E731
@@ -290,6 +306,7 @@ class RatesFeed:
                                os.environ.get("RBI_RATES_URL", RBI_URL)),
         }
         self._lock = threading.Lock()
+        self.loaded_at: Optional[datetime] = None
 
     # Last good values survive a restart.
     def load(self) -> None:
@@ -310,11 +327,14 @@ class RatesFeed:
                     log.warning("stored %s rates rejected: %s", key, e)
                     self.sources[key] = SourceState(s.key, s.country, s.label, s.url)
 
-    def _save(self) -> None:
+    def stored(self, committed: bool = False) -> dict:
+        return {k: s.to_json(committed) for k, s in self.sources.items()}
+
+    def _save(self, committed: bool = False) -> None:
         try:
             self.store_path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.store_path.with_suffix(".tmp")
-            tmp.write_text(json.dumps({k: s.to_json() for k, s in self.sources.items()}, indent=2))
+            tmp.write_text(json.dumps(self.stored(committed), indent=2) + "\n")
             tmp.replace(self.store_path)
         except OSError as e:
             log.warning("rates store not saved: %s", e)
@@ -326,8 +346,9 @@ class RatesFeed:
         return rbi_reading(text, self.now().date(), _meetings("IN"),
                            policy_rates.history(Country.IN))
 
-    def refresh(self) -> None:
-        """Fetch every source once. Never raises."""
+    def refresh(self, save: bool = True) -> None:
+        """Fetch every source once. Never raises. `save=False` leaves the
+        store alone (the weekly script decides whether to write)."""
         with self._lock:
             for s in self.sources.values():
                 s.last_attempt = self.now()
@@ -341,23 +362,35 @@ class RatesFeed:
                     continue
                 s.last_success, s.error = s.last_attempt, None
                 s.current, s.as_of, s.detail, s.changes = r.current, r.as_of, r.detail, r.changes
-            self._save()
+            if save:
+                self._save()
+
+    def status_of(self, s: SourceState, today: date) -> tuple[str, Optional[str]]:
+        """("ok" | "stale" | "never", why) for one source."""
+        checked = s.as_of or (s.last_success.date() if s.last_success else None)
+        if checked is None:
+            return "never", "no good check on file"
+        if today - checked > MAX_AGE:
+            return "stale", f"last good check {checked}, over {MAX_AGE.days} days ago"
+        missed = missed_meeting(_meetings(s.country.value), checked, today)
+        if missed:
+            return "stale", f"no check since the {missed} meeting"
+        return "ok", None
 
     def health(self, enabled: bool) -> dict:
         now = self.now()
         out = []
         for s in self.sources.values():
-            if s.last_success is None:
-                status = "never" if enabled else "off"
-            elif now - s.last_success > STALE_AFTER:
-                status = "stale"
+            if not enabled and s.last_success is None:
+                status, why = "off", None
             else:
-                status = "ok"
+                status, why = self.status_of(s, now.date())
             out.append({
                 "source": s.key,
                 "label": s.label,
                 "country": s.country.value,
                 "status": status,
+                "stale_reason": why,
                 "last_attempt": s.last_attempt.isoformat() if s.last_attempt else None,
                 "last_success": s.last_success.isoformat() if s.last_success else None,
                 "age_hours": (round((now - s.last_success).total_seconds() / 3600, 1)
@@ -374,7 +407,48 @@ class RatesFeed:
             overall = "ok"
         else:
             overall = "degraded"
-        return {"status": overall, "checked_at": now.isoformat(), "sources": out}
+        return {"status": overall, "checked_at": now.isoformat(), "checked_by": CHECKED_BY,
+                "sources": out}
+
+
+CHECKED_BY = "weekly GitHub Action (.github/workflows/policy-rates.yml)"
+
+
+def missed_meeting(meetings: list[date], checked: date, today: date) -> Optional[date]:
+    """The first scheduled meeting that ended more than MEETING_GRACE ago
+    with no check after it, if any. A check on the meeting day itself does
+    not count: the decision may be announced later that day."""
+    for m in meetings:
+        if checked <= m and m + MEETING_GRACE < today:
+            return m
+    return None
+
+
+def should_commit(old: dict, new: dict, today: date) -> tuple[bool, str]:
+    """Whether the weekly job should propose `new` (the committed form).
+
+    Yes when a rate or a decision changed, on the first check after a
+    scheduled meeting (it records "checked, no change"), when a source has
+    no committed entry, or after HEARTBEAT. Otherwise no, so an ordinary
+    week makes no commit and no redeploy.
+    """
+    countries = {"fred": "US", "rbi": "IN"}
+    for key, entry in new.items():
+        if entry.get("as_of") is None:
+            continue                        # never fetched well: nothing to propose
+        was = old.get(key) or {}
+        if not was.get("as_of"):
+            return True, f"{key}: first good check"
+        for field_ in ("current", "changes", "detail"):
+            if was.get(field_) != entry.get(field_):
+                return True, f"{key}: {field_} changed"
+        before, after = date.fromisoformat(was["as_of"]), date.fromisoformat(entry["as_of"])
+        for m in _meetings(countries.get(key, "")):
+            if before <= m < after:
+                return True, f"{key}: first check after the {m} meeting"
+        if after - before >= HEARTBEAT:
+            return True, f"{key}: {HEARTBEAT.days}-day heartbeat"
+    return False, "no change"
 
 
 def source_label(country: Country) -> str:
@@ -390,24 +464,17 @@ def enabled() -> bool:
 
 
 feed = RatesFeed(Path(os.environ.get("RATES_STORE_PATH", _DEFAULT_STORE)))
-_stop = threading.Event()
 
 
 def start() -> None:
-    """Load the last good values, then refresh now and every 6 hours."""
+    """Read the committed rates file once. No thread, no network: the
+    weekly GitHub Action does the fetching (grill #61)."""
     if not enabled():
         log.info("RATES_FEED is off; using the verified rate table only.")
         return
     feed.load()
-    _stop.clear()
-
-    def loop() -> None:
-        while not _stop.is_set():
-            feed.refresh()
-            _stop.wait(REFRESH_EVERY.total_seconds())
-
-    threading.Thread(target=loop, name="rates-feed", daemon=True).start()
+    feed.loaded_at = feed.now()
 
 
 def stop() -> None:
-    _stop.set()
+    """Nothing to stop any more; kept so api.main's lifespan is unchanged."""

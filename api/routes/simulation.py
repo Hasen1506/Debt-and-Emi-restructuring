@@ -1,7 +1,7 @@
 """POST /api/simulate · /api/baseline · /api/sensitivity/compare"""
 from copy import deepcopy
-from decimal import ROUND_HALF_UP, Decimal
-from fastapi import APIRouter
+from decimal import ROUND_HALF_UP, Decimal, localcontext
+from fastapi import APIRouter, HTTPException
 
 from engine.simulation import simulate_plan, baseline_minimums_only, goal_tradeoff
 from engine.models import LifecycleEvent, LifecycleEventKind, User
@@ -11,12 +11,14 @@ from engine.sensitivity import (
     with_strategy, with_lump_sum, compare,
 )
 from engine.surplus import allocate_surplus, compute_available_surplus
+from engine.tenure_whatif import stretch_tenure
 
 from api.schemas import (
     GoalContributionOut, GoalFinalOut, GoalIn, GoalTradeoffOut, GoalTradeoffRequest,
     GoalTradeoffResponse, SimulateRequest,
     SimulateResponse, SurplusAllocationOut, TrajectoryPoint,
     BaselineRequest, CompareRequest, CompareResponse, LifecycleEventIn,
+    GapClosedOut,
 )
 
 
@@ -218,6 +220,16 @@ router = APIRouter(tags=["simulation"])
 _CENT = Decimal("0.01")
 
 
+def _cents(x: Decimal) -> Decimal:
+    """Round to paise/cents. A short month borrowed at card rate that never
+    closes compounds past 28 digits over a 100-year horizon (₹1e26+), where
+    a plain quantize raises InvalidOperation and the plan 500s; round in a
+    wider context instead."""
+    with localcontext() as ctx:
+        ctx.prec = max(ctx.prec, 80)
+        return x.quantize(_CENT, rounding=ROUND_HALF_UP)
+
+
 def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
     """Flatten SimulationResult.months → trajectory points. Balance is the sum
     across all loans at each month — that's what the chart wants.
@@ -231,7 +243,7 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
     # Money is rounded to paise/cents here (BUG_REPORT Low): values used to
     # come back as '958583.3333333333333333333333' and every client rounded.
     def q(v):
-        return v.quantize(_CENT, rounding=ROUND_HALF_UP) if v is not None else None
+        return _cents(v) if v is not None else None
 
     def qd(d):
         return {k: q(v) for k, v in d.items()}
@@ -253,8 +265,44 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
             total_paid=q(row.total_payment_nominal),
             extra_paid=q(row.extra_paid),
             shortfall=q(row.shortfall),
+            gap_debt=q(row.gap_debt),
+            gap_interest=q(row.gap_interest),
+            gap_borrowed=q(row.gap_borrowed),
+            gap_repaid=q(row.gap_repaid),
+            gap_from_savings=q(row.gap_from_savings),
         ))
     return points
+
+
+def _gap_fields(result) -> dict:
+    """Gap borrowing summary for a SimulateResponse (grill #38)."""
+    g = result.gap_rate
+    return dict(
+        gap_rate=g.annual_rate if g else None,
+        gap_rate_basis=g.basis if g else None,
+        gap_rate_source=g.source if g else None,
+        total_gap_interest=_cents(result.total_gap_interest),
+    )
+
+
+def _gap_closed(user, req, kwargs, result) -> GapClosedOut | None:
+    """Live test #16: the plan with this month's gap closed (spending cut
+    by the month-1 shortfall), for "<date> if the ₹X gap closes"."""
+    if not result.months or result.months[0].shortfall <= 0:
+        return None
+    cut = result.months[0].shortfall
+    kw = dict(kwargs)
+    if kw.get("goals") is not None:
+        kw["goals"] = deepcopy(kw["goals"])
+    closed = simulate_plan(
+        user, strategy=req.strategy, horizon_months=req.horizon_months,
+        marginal_rate=req.marginal_rate, expense_delta=cut, **kw,
+    )
+    return GapClosedOut(
+        cut=cut.quantize(_CENT, rounding=ROUND_HALF_UP),
+        debt_free_month=closed.debt_free_month,
+        total_interest_paid=closed.total_interest_paid.quantize(_CENT, rounding=ROUND_HALF_UP),
+    )
 
 
 def _plan_kwargs(req: SimulateRequest | CompareRequest) -> dict:
@@ -277,6 +325,7 @@ def _plan_kwargs(req: SimulateRequest | CompareRequest) -> dict:
         ef_top_up_rate=req.ef_top_up_rate,
         goals=_build_goal_states(req.goals) if req.goals else None,
         debt_budget=req.debt_budget,
+        gap_as_debt=req.gap_as_debt,
     )
 
 
@@ -288,11 +337,15 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
     # The snapshot builder below gets its own fresh copy.
     kwargs = _plan_kwargs(req)
     goal_states = kwargs["goals"]
+    # A fresh copy for the gap-closed run (simulate_plan fills goal states).
+    closed_kwargs = {**kwargs, "goals": deepcopy(goal_states)}
     result = simulate_plan(
         user, strategy=req.strategy, horizon_months=req.horizon_months,
         marginal_rate=req.marginal_rate, **kwargs,
     )
     return SimulateResponse(
+        **_gap_fields(result),
+        gap_closed=_gap_closed(user, req, closed_kwargs, result),
         debt_free_month=result.debt_free_month,
         total_interest_paid=result.total_interest_paid,
         total_invested=result.total_invested,
@@ -319,7 +372,25 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         ),
         payoff_order_method=result.payoff_order_method,
         payoff_order_note=result.payoff_order_note,
+        pmi_events=_pmi_events(result, user),
     )
+
+
+def _pmi_events(result, user) -> list:
+    """When the plan's PMI / FHA MIP ends (grill #34): a lifecycle event."""
+    from api.schemas import PmiEventOut
+    from engine.us_loans import mortgage_insurance_kind
+    out = []
+    for idx, m in sorted(result.pmi_end_months.items()):
+        kind = mortgage_insurance_kind(user.loans[idx]) or "pmi"
+        note = (
+            f"PMI ends after month {m}: the balance reaches 80% of the home's original value, so you can "
+            "ask your servicer in writing to cancel it (CFPB)."
+            if kind == "pmi" else
+            f"FHA mortgage insurance ends after month {m}, the months of MIP you entered."
+        )
+        out.append(PmiEventOut(loan_index=idx, last_paid_month=m, kind=kind, note=note))
+    return out
 
 
 @router.post("/goals/tradeoff", response_model=GoalTradeoffResponse)
@@ -346,8 +417,10 @@ def baseline(req: BaselineRequest) -> SimulateResponse:
         lifecycle_events=(
             _to_engine_lifecycle(req.lifecycle_events) if req.lifecycle_events else None
         ),
+        gap_as_debt=req.gap_as_debt,
     )
     return SimulateResponse(
+        **_gap_fields(result),
         debt_free_month=result.debt_free_month,
         total_interest_paid=result.total_interest_paid,
         total_invested=result.total_invested,
@@ -375,6 +448,7 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
 
     scenario_user = deepcopy(user)
     scenario_result = base
+    tenure = None
     if req.surplus_delta is not None:
         scenario_result = with_surplus_delta(
             scenario_user, req.surplus_delta, strategy=req.strategy,
@@ -402,6 +476,19 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
             marginal_rate=req.marginal_rate,
             simulation_start_month=sm, plan=plan,
         )
+    elif req.tenure_extension_loan_index is not None and req.tenure_extension_months is not None:
+        # Live test #26: the same plan with one loan over a longer tenure.
+        try:
+            stretched, tenure = stretch_tenure(
+                scenario_user, req.tenure_extension_loan_index, req.tenure_extension_months,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        kw = {**plan, "goals": deepcopy(plan["goals"])}
+        scenario_result = simulate_plan(
+            stretched, strategy=req.strategy, horizon_months=req.horizon_months,
+            marginal_rate=req.marginal_rate, simulation_start_month=sm, **kw,
+        )
     elif req.lump_sum_amount is not None and req.lump_sum_target_loan_index is not None:
         scenario_result = with_lump_sum(
             scenario_user, req.lump_sum_amount, req.lump_sum_target_loan_index,
@@ -411,7 +498,14 @@ def sensitivity_compare(req: CompareRequest) -> CompareResponse:
         )
 
     diff = compare(base, scenario_result)
+    t = tenure
     return CompareResponse(
+        baseline_shortfall=base.months[0].shortfall if base.months else D("0"),
+        scenario_shortfall=scenario_result.months[0].shortfall if scenario_result.months else D("0"),
+        tenure_old_emi=t.old_emi.quantize(_CENT, rounding=ROUND_HALF_UP) if t else None,
+        tenure_new_emi=t.new_emi.quantize(_CENT, rounding=ROUND_HALF_UP) if t else None,
+        tenure_old_months=t.old_tenure if t else None,
+        tenure_new_months=t.new_tenure if t else None,
         baseline_debt_free_month=diff["debt_free_month_baseline"],
         scenario_debt_free_month=diff["debt_free_month_scenario"],
         months_pulled_forward=diff["months_pulled_forward"],

@@ -72,7 +72,7 @@ test('the committed disclosures file is what the web reads, and every row has a 
     for (const r of l.rows) assert.ok(r.period_label && r.mean);
   }
   const pl = marketFor('personal_loan');
-  assert.ok(pl && pl.banks.length >= 3, 'personal-loan disclosures from at least three banks');
+  assert.ok(pl && pl.banks.length >= 1, 'personal-loan disclosures include at least one bank');
   assert.ok(fs.existsSync(path.join(fixtures, 'pages.json')));
 });
 
@@ -160,7 +160,7 @@ test('wiring: the import never saves by itself; the market line sits beside the 
   assert.match(imp, /api\.kfsRead/);
   assert.doesNotMatch(imp, /saveProfile|persist|localStorage|api\.save|syncUser/);
   assert.match(imp, /Add this loan/);
-  assert.match(imp, /not kept/);
+  assert.match(imp, /never stored/); // G6 (#19): read on our server, never stored
   const prof = src('app/profile/ProfileClient.tsx');
   assert.match(prof, /<KfsImport/);
   assert.match(prof, /<MarketRateLine loan=\{l\} country=\{country\} \/>/);

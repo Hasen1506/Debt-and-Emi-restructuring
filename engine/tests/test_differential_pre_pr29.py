@@ -63,6 +63,9 @@ def run_legacy(legacy_dir: Path, cases: list[dict]) -> list[dict]:
 
 
 def both(legacy_dir, cases):
+    # Every older domain compares with the gap assumed free, as the old
+    # engine did; gap borrowing (#38) has its own DIRECTION test below.
+    cases = [{"gap_as_debt": False, **c} for c in cases]
     old = run_legacy(legacy_dir, cases)
     new = [run_case(c) for c in cases]
     return list(zip(cases, old, new))
@@ -116,7 +119,7 @@ def test_single_loan_untouched_inputs_are_identical(legacy_dir):
     cases = []
     for _ in range(400):
         country = rng.choice(["IN", "US"])
-        lt = rng.choice(EMI_TYPES + (["credit_card"] if country == "US" else []))
+        lt = rng.choice(EMI_TYPES)  # cards: average daily balance since G1 (test_card_interest_on_the_average_daily_balance)
         loans = [_loan(rng, lt)]
         cases.append({"country": country, "income": _income(rng, loans, rng.random() < 0.8), "loans": loans,
                       "strategy": rng.choice(["avalanche", "snowball", "hybrid"]),
@@ -145,7 +148,7 @@ def test_multi_loan_baseline_is_identical(legacy_dir):
     cases = []
     for _ in range(250):
         country = rng.choice(["IN", "US"])
-        types = EMI_TYPES + (["credit_card"] if country == "US" else [])
+        types = EMI_TYPES  # cards: average daily balance since G1, see test_card_interest_on_the_average_daily_balance
         loans = [_loan(rng, rng.choice(types)) for _ in range(rng.randint(2, 5))]
         cases.append({"country": country, "income": _income(rng, loans, rng.random() < 0.7), "loans": loans,
                       "modes": ["baseline"]})
@@ -162,7 +165,7 @@ def test_multi_loan_plan_differs_only_by_the_cascade_fix(legacy_dir):
     cases, identical = [], 0
     for _ in range(250):
         country = rng.choice(["IN", "US"])
-        types = EMI_TYPES + (["credit_card"] if country == "US" else [])
+        types = EMI_TYPES  # cards: average daily balance since G1, see test_card_interest_on_the_average_daily_balance
         loans = [_loan(rng, rng.choice(types)) for _ in range(rng.randint(2, 4))]
         cases.append({"country": country, "income": _income(rng, loans, True), "loans": loans,
                       "strategy": rng.choice(["avalanche", "snowball", "hybrid"]), "modes": ["plan"]})
@@ -181,8 +184,10 @@ def test_multi_loan_plan_differs_only_by_the_cascade_fix(legacy_dir):
 
 def test_indian_card_interest_carries_18pct_gst(legacy_dir):
     """DIFFERENCE P2-13: Indian card finance charges now carry 18% GST in the
-    cash flow. First-month interest is exactly 1.18x the old engine's, and
-    the card never costs less in total."""
+    cash flow. Since sprint G1 the charge is on the average daily balance
+    (the payment stops interest on its part for the last third of the
+    cycle), so first-month interest is between 1.18 × 2/3 and 1.18 times the
+    old engine's whole-month figure."""
     rng = random.Random(SEED + 3)
     cases = []
     for _ in range(200):
@@ -192,8 +197,26 @@ def test_indian_card_interest_carries_18pct_gst(legacy_dir):
         cases.append({"country": "IN", "income": _income(rng, [card], True), "loans": [card], "modes": ["baseline"]})
     for case, old, new in both(legacy_dir, cases):
         o, n = old["baseline"], new["baseline"]
-        assert abs(D(n["months"][0][1]) - D(o["months"][0][1]) * D("1.18")) <= D("1e-6"), case
-        assert D(n["total_interest"]) >= D(o["total_interest"]) - EXACT, case
+        first_old, first_new = D(o["months"][0][1]), D(n["months"][0][1])
+        assert first_new <= first_old * D("1.18") + D("1e-6"), case
+        assert first_new >= first_old * D("1.18") * 2 / 3 - D("1e-6"), case
+
+
+def test_card_interest_on_the_average_daily_balance(legacy_dir):
+    """DIFFERENCE G1-ADB (sprint G1, grill #25): a US card's interest is on
+    the average daily balance; the payment made on the due date stops
+    interest on the paid part for the last third of the cycle (RBI MD 2022
+    FAQ 6 for India; the same daily-balance method US issuers use). It can
+    only be lower than the old whole-month charge, month by month."""
+    rng = random.Random(SEED + 9)
+    cases = []
+    for _ in range(150):
+        card = _loan(rng, "credit_card", min_bps=100)
+        cases.append({"country": "US", "income": _income(rng, [card], True), "loans": [card], "modes": ["baseline"]})
+    for case, old, new in both(legacy_dir, cases):
+        o, n = old["baseline"], new["baseline"]
+        assert D(n["months"][0][1]) <= D(o["months"][0][1]) + D("1e-6"), case
+        assert D(n["total_interest"]) <= D(o["total_interest"]) + EXACT, case
 
 
 def test_moratorium_interest_is_capitalised(legacy_dir):
@@ -276,3 +299,37 @@ def test_prepayment_fee_gate_never_prepays_at_a_loss(legacy_dir):
         assert D(new["plan"]["total_interest"]) <= D(new["baseline"]["total_interest"]) + D("0.01"), case
         old_losses += D(old["plan"]["total_interest"]) > D(old["baseline"]["total_interest"]) + D("0.01")
     assert old_losses > 0, "the seeded profiles should include the losses the old engine made"
+
+
+def test_short_months_are_borrowed_at_card_rates(legacy_dir):
+    """DIFFERENCE #38 (gap borrowing): a month whose income can't cover
+    costs plus minimums was assumed funded for free. Now the gap is
+    borrowed at a card rate and repaid first. With income below the
+    minimums the plan can only cost MORE and finish LATER (or never);
+    with income above them nothing changes."""
+    rng = random.Random(SEED + 38)
+    cases = []
+    for _ in range(150):
+        country = rng.choice(["IN", "US"])
+        loans = [_loan(rng) for _ in range(rng.randint(1, 3))]
+        cases.append({"country": country, "income": _income(rng, loans, rng.random() < 0.5), "loans": loans,
+                      "strategy": rng.choice(["avalanche", "snowball"]), "modes": ["plan"],
+                      "gap_as_debt": True})
+    # Against the same engine with the gap assumed free, which is what the
+    # IDENTICAL domains above pin to the old engine.
+    new = [run_case(c) for c in cases]
+    free = [run_case({**c, "gap_as_debt": False}) for c in cases]
+    changed = 0
+    for case, n, f in zip(cases, new, free):
+        n, f = n["plan"], f["plan"]
+        need = sum(D(l["emi"]) for l in case["loans"])
+        assert D(n["total_interest"]) >= D(f["total_interest"]) - EXACT, case
+        if f["debt_free_month"] is not None and n["debt_free_month"] is not None:
+            assert n["debt_free_month"] >= f["debt_free_month"], case
+        if D(case["income"]) >= need:
+            # Never short: identical to the free-gap run.
+            assert n["debt_free_month"] == f["debt_free_month"], case
+            assert abs(D(n["total_interest"]) - D(f["total_interest"])) <= EXACT, case
+        else:
+            changed += 1
+    assert changed > 0

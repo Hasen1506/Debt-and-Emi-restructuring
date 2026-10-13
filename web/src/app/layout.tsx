@@ -16,7 +16,7 @@ import { FxAutoRefresh } from '@/components/fx/FxAutoRefresh';
 export const metadata: Metadata = {
   title: 'RightDue — Debt & EMI Optimiser',
   description:
-    'Personal debt restructuring & payoff optimiser for India and USA. Refinance opportunities, an avalanche/snowball schedule that beats minimums, and invest-vs-prepay calls — in one plan.',
+    'A payoff plan for every loan you have, for India and the USA: what each loan really costs, what to pay this month, cheaper rates worth asking for, and the date you’ll be debt-free.',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

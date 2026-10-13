@@ -119,9 +119,9 @@ test('payoff milestones include instant arrivals, and never infer clearance from
     assert.deepEqual(loanClears({ ...plan, user: { loans: [loan('not-yet', { planned_effective_month: 10 })] } }), []);
 });
 function stores(u, block = false) {
-    const jar = new Map([['finoptima_user', encodeURIComponent(JSON.stringify(u))], ['finoptima_marginal', '.24'], ['finoptima_score', '780']]);
+    const jar = new Map([['rightdue_user', encodeURIComponent(JSON.stringify(u))], ['rightdue_marginal', '.24'], ['rightdue_score', '780']]);
     const data = new Map();
-    global.document = { get cookie() { return [...jar].map(([k, v]) => `${k}=${v}`).join('; '); }, set cookie(value) { const [pair, ...attrs] = value.split(';'); const split = pair.indexOf('='); const key = pair.slice(0, split); if (block && key.startsWith('finoptima_user'))
+    global.document = { get cookie() { return [...jar].map(([k, v]) => `${k}=${v}`).join('; '); }, set cookie(value) { const [pair, ...attrs] = value.split(';'); const split = pair.indexOf('='); const key = pair.slice(0, split); if (block && key.startsWith('rightdue_user'))
             return; if (attrs.some(a => a.trim() === 'max-age=0'))
             jar.delete(key);
         else
@@ -150,16 +150,16 @@ test('spending commits preserve metadata, reject future and stale cuts, and roll
         for (const invalid of [-1, 0, 5001, Infinity, NaN])
             assert.throws(() => commitSpendingCut(u, invalid, 1));
         const blocked = stores(u, true);
-        blocked.data.set('finoptima_commitments', '[]');
+        blocked.data.set('rightdue_commitments', '[]');
         assert.throws(() => commitSpendingCut(u, 100, 1), /could not be saved/);
-        assert.equal(blocked.data.get('finoptima_commitments'), '[]');
+        assert.equal(blocked.data.get('rightdue_commitments'), '[]');
         assert.equal(loadProfileClient().user.variable_expenses, '5000');
         const quota = stores(u);
         global.localStorage.setItem = () => { throw new Error('quota'); };
         assert.throws(() => commitSpendingCut(u, 100, 1), /quota/);
         assert.equal(loadProfileClient().user.variable_expenses, '5000');
         assert.equal(quota.data.size, 0);
-        assert.equal(store.jar.get('finoptima_score'), '780');
+        assert.equal(store.jar.get('rightdue_score'), '780');
         const cents = user({ fixed_expenses: '5000.11' });
         stores(cents);
         commitSpendingCut(cents, 1234.56, 1);
@@ -211,11 +211,11 @@ test('goal spending cut returns failure after quota even with an existing decisi
     const { commitExpenseReduction } = lib('expense-commit.ts');
     const u = user();
     const { jar, data } = stores(u);
-    data.set('finoptima_decision_log', '[]');
+    data.set('rightdue_decision_log', '[]');
     localStorage.setItem = () => { throw Error('quota'); };
     assert.equal(commitExpenseReduction({ monthlyDelta: 1000 }), null);
-    assert.deepEqual(JSON.parse(decodeURIComponent(jar.get('finoptima_user'))), u);
-    assert.equal(data.get('finoptima_decision_log'), '[]');
+    assert.deepEqual(JSON.parse(decodeURIComponent(jar.get('rightdue_user'))), u);
+    assert.equal(data.get('rightdue_decision_log'), '[]');
     delete global.document;
     delete global.window;
     delete global.localStorage;

@@ -355,6 +355,20 @@ function LedgerHomeSoft({ profile, oneStep }: { profile: StoredProfile; oneStep?
           >
             OR · <LBracket href="/plan">SEE THE FULL STATEMENT</LBracket>
           </div>
+          {/* Sprint L4: the distress triage, one tap from the soft view. */}
+          <div
+            style={{
+              fontSize: 10,
+              color: L_T.muted,
+              letterSpacing: '0.14em',
+              textAlign: 'center',
+              marginTop: 10,
+            }}
+          >
+            <LBracket href="/cant-pay" accent>
+              CAN&apos;T PAY THIS MONTH? WHAT TO PROTECT FIRST →
+            </LBracket>
+          </div>
           <div
             style={{
               fontSize: 10,

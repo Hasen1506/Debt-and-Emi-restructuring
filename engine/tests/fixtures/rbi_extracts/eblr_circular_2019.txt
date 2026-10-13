@@ -1,0 +1,33 @@
+# RBI circular External Benchmark Based Lending, RBI/2019-20/53 DBR.DIR.BC.No.14/13.03.00/2019-20, 4 Sep 2019 (repealed 28 Nov 2025; its rules carried into the 2025 Directions)
+# Source: https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=11677&Mode=0
+# Retrieved: 12 Oct 2026 (HTML page, fetched with curl)
+# Excerpts only: the paragraphs Loan Check cites, copied verbatim.
+
+ External Benchmark Based Lending 
+ RBI/2019-20/53
+ DBR.DIR.BC.No.14/13.03.00/2019-20
+ September 04, 2019
+ All Scheduled Commercial Banks (excluding RRBs)
+ All Small Finance Banks
+ All Local Area Banks
+ 2. As a step in that direction, it was announced in the fifth bi-monthly Monetary Policy Statement for 2018-19 under ‘Statement on Developmental and Regulatory Policies’ dated December 05, 2018 , that all new floating rate personal or retail loans and floating rate loans to Micro and Small Enterprises extended by banks from April 1, 2019 shall be linked to external benchmarks. Subsequently, it was announced in the first bi-monthly Monetary Policy Statement for 2019-20 under ‘Statement on Developmental and Regulatory Policies’ dated April 04, 2019 to hold further consultations with stakeholders and work out an effective mechanism for transmission of rates. Based on the consultations with stakeholders, it has now been decided to link all new floating rate personal or retail loans (housing, auto, etc.) and floating rate loans to Micro and Small Enterprises extended by banks with effect from October 01, 2019 to external benchmarks.
+ 3. Accordingly, RBI instructions contained in Master Direction on Interest Rate on Advances issued vide DBR.Dir.No.85/13.03.00/2015-16 dated March 03, 2016 are amended as under:
+ 3.1 The existing paragraph No. 7 of the aforesaid Master Direction stands replaced as under:
+ (a) All new floating rate personal or retail loans (housing, auto, etc.) and floating rate loans to Micro and Small Enterprises extended by banks from October 01, 2019 shall be benchmarked to one of the following:
+ - Reserve Bank of India policy repo rate
+ - Government of India 3-Months Treasury Bill yield published by the Financial Benchmarks India Private Ltd (FBIL)
+ - Government of India 6-Months Treasury Bill yield published by the FBIL
+ - Any other benchmark market interest rate published by the FBIL.
+ (b) Banks are free to offer such external benchmark linked loans to other types of borrowers as well.
+ (c) In order to ensure transparency, standardisation, and ease of understanding of loan products by borrowers, a bank must adopt a uniform external benchmark within a loan category; in other words, the adoption of multiple benchmarks by the same bank is not allowed within a loan category.
+ 3.2 A new paragraph No.8(e) is added to the aforesaid Master Direction as given below:
+ Spread under External Benchmark
+ Banks are free to decide the spread over the external benchmark. However, credit risk premium may undergo change only when borrower’s credit assessment undergoes a substantial change, as agreed upon in the loan contract. Further, other components of spread including operating cost could be altered once in three years.
+ 3.3 A new paragraph No. 9(ii) is added to the aforesaid Master Direction as given below:
+ Reset of Interest Rates under External Benchmark
+ The interest rate under external benchmark shall be reset at least once in three months.
+ 3.4 A new paragraph No. 11(ii) is added to the aforesaid Master Direction as given below:
+ Transition to External Benchmark from MCLR/Base Rate/BPLR
+ Existing loans and credit limits linked to the MCLR/Base Rate/BPLR shall continue till repayment or renewal, as the case may be.
+ Provided that floating rate term loans sanctioned to borrowers who, in terms of extant guidelines, are eligible to prepay a floating rate loan without pre-payment charges, shall be eligible for switchover to External Benchmark without any charges/fees, except reasonable administrative/ legal costs. The final rate charged to this category of borrowers, post switchover to external benchmark, shall be same as the rate charged for a new loan of the same category, type, tenor and amount, at the time of origination of the loan.
+ Provided that other existing borrowers shall have the option to move to External Benchmark at mutually acceptable terms.

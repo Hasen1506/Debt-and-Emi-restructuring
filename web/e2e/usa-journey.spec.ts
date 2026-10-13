@@ -4,7 +4,7 @@
  * reads the plan, checks /tax, signs out; then signs in again on a clean
  * browser and gets the saved plan back from the account.
  */
-import { expect, fillLoan, isPlanCall, planSummary, planText, signIn, test } from './fixtures';
+import { expect, fillLoan, isPlanCall, planSummary, planText, signIn, test, makeSetupChoices } from './fixtures';
 
 const EMAIL = 'golden-usa@rightdue.app';
 
@@ -34,18 +34,20 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
   });
 
   await test.step('saved plan (golden schedule)', async () => {
+    await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
     await page.waitForURL('**/plan');
     await expect(page.getByText('FILING SINGLE', { exact: false })).toBeVisible();
     expect(await planText(page)).toMatchSnapshot('usa-plan-schedule.txt');
   });
 
-  await test.step('/tax opens Profile with the US details', async () => {
-    // /tax is Profile's tax section now (REDESIGN V5).
-    await page.goto('/tax');
-    await page.waitForURL('**/profile#pf-tax');
+  await test.step('Profile and /tax show the US details', async () => {
+    // /tax is its own page again (sprint G2, grill #77).
+    await page.goto('/profile');
     await expect(page.getByText(/^USA(,| with|$)/).first()).toBeVisible();
     await expect(page.getByText(/^Single( ·|$)/).first()).toBeVisible();
+    await page.goto('/tax');
+    await expect(page.getByRole('heading', { name: /Tax and your loans/i })).toBeVisible();
   });
 
   let debtFree = '';

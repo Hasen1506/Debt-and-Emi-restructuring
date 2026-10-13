@@ -1,0 +1,11 @@
+SYNTHETIC SAMPLE - not a real credit report (RightDue test fixture)
+CRIF High Mark Credit Information Services - Credit Report
+PERFORM CONSUMER 2.2 SCORE: 705
+Date of Issue: 03-10-2026
+Account Information
+Lender: SAMPLE GOLD FINANCE | Type: Gold Loan | Acct No: GL4400
+Ownership: Individual | Disbursed Date: 01-06-2026 | Disbursed Amt: 1,20,000
+Current Bal: 1,24,500 | Overdue Amt: 0 | Status: Active
+Lender: MICRO NBFC | Type: Two-Wheeler Loan | Acct No: TW7788
+Ownership: Individual | Disbursed Date: 15-02-2025 | Disbursed Amt: 90,000
+Current Bal: 41,000 | Installment Amt: 3,150 | Overdue Amt: 6,300 | Status: Written-off

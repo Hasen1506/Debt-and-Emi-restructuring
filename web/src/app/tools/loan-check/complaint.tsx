@@ -26,6 +26,9 @@ import {
 import { EMPTY_BORROWER, fillLetter, missingDetails, type Borrower } from '@/lib/complaint-fill';
 import { parsePercentInput } from '@/lib/rate-input';
 import { ShareOutcome } from './outcome';
+// G7: follow-up reminders (calendar file; email when the server has them on).
+import { DeadlineReminders } from '@/components/home/DeadlineReminders';
+import { getCountryToday, localIsoDate } from '@/lib/today';
 
 const TRACK_KEY = 'rightdue.complaint.in.v1';
 
@@ -106,6 +109,8 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
   const [res, setRes] = useState<ComplaintResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Critique #54: copy / download unlock only once every check is ticked.
+  const [ticked, setTicked] = useState<boolean[]>([]);
 
   async function load(t: Track) {
     setBusy(true);
@@ -169,6 +174,8 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
   }
 
   const ph = res.placeholders;
+  const checks = res.self_check ?? [];
+  const allTicked = checks.length === 0 || checks.every((_, i) => ticked[i]);
   const missing = missingDetails(who, res.letter.text, ph);
   const fill = (text: string) => fillLetter(text, ph, who);
   const t = res.timeline;
@@ -177,6 +184,21 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Card>
         <LSectionHeader>Write the complaint</LSectionHeader>
+        {res.draft_notice && (
+          <p
+            role="note"
+            data-testid="lc-draft-notice"
+            style={{
+              margin: '8px 0 0',
+              padding: '8px 12px',
+              border: '1px dashed var(--accent)',
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            {res.draft_notice}
+          </p>
+        )}
         <p style={{ margin: '6px 0 14px', fontSize: 14 }}>
           The letter asks the bank to reset your rate and refund{' '}
           {formatCurrency(res.letter.claim_amount, 'INR')}, the missed rate cut only.
@@ -217,10 +239,42 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
           </p>
         )}
 
+        {checks.length > 0 && (
+          <fieldset
+            data-testid="lc-self-check"
+            style={{ border: '1px solid var(--border)', padding: '10px 14px', margin: '14px 0 0' }}
+          >
+            <legend style={{ fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+              Before you send: check each one
+            </legend>
+            {checks.map((c, i) => (
+              <label key={c} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, margin: '4px 0' }}>
+                <input
+                  type="checkbox"
+                  checked={!!ticked[i]}
+                  onChange={(e) =>
+                    setTicked((t) => {
+                      const next = [...t];
+                      next[i] = e.target.checked;
+                      return next;
+                    })
+                  }
+                />
+                <span>{c}</span>
+              </label>
+            ))}
+            {!allTicked && (
+              <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+                Copy and download unlock once every box is ticked.
+              </p>
+            )}
+          </fieldset>
+        )}
         <LetterBox
-          label="Complaint letter"
+          label="Complaint letter (draft)"
           text={fill(res.letter.text)}
-          filename="complaint-letter.txt"
+          filename="complaint-letter-draft.txt"
+          locked={!allTicked}
         />
         <p style={{ fontSize: 13, margin: '10px 0 0' }}>
           Send it through the bank&apos;s online grievance form or its grievance email,
@@ -321,6 +375,12 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
                 {n}
               </p>
             ))}
+            <DeadlineReminders
+              items={t.milestones}
+              source="complaint"
+              todayIso={localIsoDate(getCountryToday('IN'))}
+              title={`Complaint to ${request.lender || 'the lender'}`}
+            />
           </div>
         )}
       </Card>
@@ -333,14 +393,15 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
         <Card>
           <LSectionHeader>Ask for the Internal Ombudsman&apos;s review</LSectionHeader>
           <p style={{ margin: '6px 0 0', fontSize: 14 }}>
-            A bank that rejects a complaint, even in part, must pass it to its Internal
-            Ombudsman before giving a final answer. Send this follow-up the same way as
+            A bank that rejects a complaint, or resolves it only in part, must pass it
+            automatically to its Internal Ombudsman before giving a final answer. Send this follow-up the same way as
             the complaint.
           </p>
           <LetterBox
-            label="Internal Ombudsman follow-up"
+            label="Internal Ombudsman follow-up (draft)"
             text={fill(res.io_followup.text)}
-            filename="internal-ombudsman-followup.txt"
+            filename="internal-ombudsman-followup-draft.txt"
+            locked={!allTicked}
           />
         </Card>
       )}
@@ -404,7 +465,17 @@ export function ComplaintPanel({ request }: { request: LoanCheckRequest }) {
   );
 }
 
-function LetterBox({ label, text, filename }: { label: string; text: string; filename?: string }) {
+function LetterBox({
+  label,
+  text,
+  filename,
+  locked = false,
+}: {
+  label: string;
+  text: string;
+  filename?: string;
+  locked?: boolean;
+}) {
   const [copied, setCopied] = useState<string | null>(null);
 
   async function copy() {
@@ -429,11 +500,11 @@ function LetterBox({ label, text, filename }: { label: string; text: string; fil
     <div style={{ marginTop: 14 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
         <h3 style={{ fontSize: 12, margin: 0, flex: '1 1 auto', letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</h3>
-        <button type="button" className="btn" onClick={copy}>
+        <button type="button" className="btn" onClick={copy} disabled={locked}>
           Copy
         </button>
         {filename && (
-          <button type="button" className="btn" onClick={download}>
+          <button type="button" className="btn" onClick={download} disabled={locked}>
             Download .txt
           </button>
         )}
@@ -478,12 +549,46 @@ export function Citations({ items }: { items: LoanCheckCitation[] }) {
       )}
       <ul style={{ paddingLeft: 18, margin: '6px 0 0' }}>
         {items.map((c, i) => (
-          <li key={i} style={{ marginBottom: 6 }}>
-            <strong>{c.rule}.</strong> {c.requirement}{' '}
-            <span className="muted">Source: {c.source}.</span>
+          <li key={i} style={{ marginBottom: 10 }}>
+            <strong>{c.rule}.</strong> {c.requirement}
+            <RuleQuote c={c} />
           </li>
         ))}
       </ul>
     </details>
+  );
+}
+
+/** The rule's own words, its paragraph and a link, when it was checked
+ *  against the text (critique #40); otherwise the source line. */
+export function RuleQuote({ c }: { c: LoanCheckCitation }) {
+  if (!c.verified_against_text || !c.clause) {
+    return <span className="muted"> Source: {c.source}.</span>;
+  }
+  const checked = c.checked_on
+    ? new Date(`${c.checked_on}T00:00:00Z`).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC',
+      })
+    : '';
+  return (
+    <>
+      <blockquote
+        style={{ margin: '6px 0 0', padding: '4px 10px', borderLeft: '3px solid var(--border)', fontSize: 12 }}
+      >
+        &ldquo;{c.clause}&rdquo;
+      </blockquote>
+      <span className="muted" style={{ display: 'block', fontSize: 11, marginTop: 2 }}>
+        {c.paragraph ? `${c.paragraph}. ` : ''}
+        {c.url && (
+          <a href={c.url} target="_blank" rel="noopener noreferrer">
+            Read it on the regulator&apos;s site
+          </a>
+        )}
+        {checked && ` · wording checked ${checked}`}
+      </span>
+    </>
   );
 }

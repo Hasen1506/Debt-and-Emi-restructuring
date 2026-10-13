@@ -56,7 +56,7 @@ export function undoSpendingCut(id: string): CommitmentEntry[] {
 
 function persistCut(stored: ReturnType<typeof loadProfileClient>, key: 'fixed_expenses' | 'variable_expenses',
   expenses: string, budgetBefore: string, budgetAfter: string, next: CommitmentEntry[]) {
-  const storageKey = 'finoptima_commitments';
+  const storageKey = 'rightdue_commitments';
   const before = localStorage.getItem(storageKey);
   try {
     const serialized = JSON.stringify(next);

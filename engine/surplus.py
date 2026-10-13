@@ -138,6 +138,9 @@ def compute_total_minimums(
     # surplus counted a smaller card minimum than was actually paid.
     # A paid-off loan (nothing outstanding) has no EMI left; counting it cut
     # the /plan surplus snapshot below the simulator's own month 1.
+    # US mortgage insurance (PMI / FHA MIP) is paid with the mortgage until
+    # it ends (engine/us_loans.py, grill #34).
+    from engine.us_loans import pmi_due
     return sum(
         (
             to_user_currency(
@@ -145,7 +148,7 @@ def compute_total_minimums(
                     l, user.country,
                     interest_accrued=monthly_interest_charge(l, user.country),
                     simple_mode=simple_mode,
-                ),
+                ) + pmi_due(l),
                 l,
                 user,
             )

@@ -4,23 +4,26 @@ Central-bank policy rates (RBI repo + Fed funds) and the published MPC /
 FOMC meeting calendar.
 
 Current rates come from engine/policy_rates.py: the verified table plus
-decisions the live feeds found since (api/rates_feed.py, every 6 hours).
-Each rate carries `as_of`, the day it was last known to be current, so
-screens can show it. The meeting calendar is
-`api/data/central_bank_calendar.json`, updated once a year.
+decisions the weekly GitHub Action found since (api/rates_feed.py reads
+the committed api/data/policy_rates_live.json at start). Each rate carries
+`as_of`, the day it was last known to be current, so screens can show it.
+The meeting calendar is `api/data/central_bank_calendar.json`, updated
+once a year; outcomes an admin records are kept in Postgres
+(api/rate_outcomes_store.py) and laid over it.
 
 (`/rates/odds`, Polymarket's odds for the coming decisions, was retired with
 the Right time tool in roadmap PR I.)
 
-`/admin/rate-update` records a meeting's outcome in the calendar's
-meeting list. It does not change the rate history: corrections to that go
+`/admin/rate-update` records a meeting's outcome in the database (it used
+to write the calendar file on the container's disk, lost on every deploy:
+grill #61). It does not change the rate history: corrections to that go
 in the verified table, where they are reviewed.
 """
 
 import hmac
 import json
 import os
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from typing import Optional
@@ -28,7 +31,7 @@ from typing import Optional
 from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import JSONResponse
 
-from api import rates_feed
+from api import rate_outcomes_store, rates_feed
 from api.schemas import _Base, _In
 from engine import policy_rates
 from engine.models import Country
@@ -80,8 +83,24 @@ def _load_calendar() -> dict:
         raise HTTPException(status_code=500, detail=f"Calendar JSON malformed: {e}")
 
 
-def _save_calendar(data: dict) -> None:
-    _DATA_FILE.write_text(json.dumps(data, indent=2, sort_keys=False))
+async def _with_outcomes(cal: dict) -> dict:
+    """The calendar with admin-recorded outcomes (database) laid over it."""
+    st = rate_outcomes_store.store()
+    if st is None:
+        return cal
+    try:
+        stored = await st.all()
+    except Exception:  # noqa: BLE001 - a database hiccup must not hide the calendar
+        return cal
+    if not stored:
+        return cal
+    meetings = {
+        c: [dict(m, **({"outcome_rate": str(stored[(c, m["date"])][0])} if (c, m["date"]) in stored else {}),
+                 **({"note": stored[(c, m["date"])][1]} if (c, m["date"]) in stored and stored[(c, m["date"])][1] else {}))
+            for m in ms]
+        for c, ms in cal.get("meetings", {}).items()
+    }
+    return dict(cal, meetings=meetings)
 
 
 def _upcoming_for(country: str, calendar: dict, today: date) -> tuple[list[MeetingEntry], Optional[str], Optional[int]]:
@@ -120,11 +139,11 @@ def _country_entry(country: Country, cal: dict, today: date) -> CountryRateEntry
 
 
 @router.get("/rates/central", response_model=CentralRatesResponse)
-def get_central_rates() -> CentralRatesResponse:
+async def get_central_rates() -> CentralRatesResponse:
     """Current policy rates + upcoming meeting schedule for RBI + Fed.
     Clients should cache for ~1 hour; meeting decisions land 6-8x/year
     per central bank so the data is intentionally slow-moving."""
-    cal = _load_calendar()
+    cal = await _with_outcomes(_load_calendar())
     today = date.today()
     return CentralRatesResponse(
         last_updated=cal.get("last_updated", ""),
@@ -146,14 +165,16 @@ def get_feed_health() -> JSONResponse:
 
 
 @router.post("/admin/rate-update")
-def post_rate_update(
+async def post_rate_update(
     req: RateUpdateRequest,
     x_admin_token: str = Header(default=""),
 ) -> dict:
-    """Dev-only: record a meeting's outcome in the calendar's meeting
-    list. Current rates come from the feeds and the verified table, not
-    from here. Token check is via X-Admin-Token header matched against
-    ADMIN_RATE_UPDATE_TOKEN env var.
+    """Admin only: record a scheduled meeting's outcome, in the database.
+
+    Current rates come from the weekly feed and the verified table, not
+    from here. The token is the X-Admin-Token header, matched against
+    ADMIN_RATE_UPDATE_TOKEN. 404 when the date is not a meeting on the
+    calendar; 503 when there is no database to keep the edit in.
     """
     expected = os.environ.get("ADMIN_RATE_UPDATE_TOKEN", "")
     if not expected or not hmac.compare_digest(x_admin_token.encode(), expected.encode()):
@@ -161,23 +182,26 @@ def post_rate_update(
     if req.country not in ("IN", "US"):
         raise HTTPException(status_code=400, detail="country must be IN or US.")
     try:
-        date.fromisoformat(req.decision_date)
+        day = date.fromisoformat(req.decision_date)
     except ValueError:
         raise HTTPException(status_code=400, detail="decision_date must be YYYY-MM-DD.")
+    if not (Decimal("0") <= req.new_rate <= policy_rates.MAX_RATE):
+        raise HTTPException(status_code=400, detail="new_rate must be a fraction between 0 and 0.20, e.g. 0.0625.")
 
     cal = _load_calendar()
-    # Mark the meeting outcome in-place if we have it on file.
-    for m in cal.get("meetings", {}).get(req.country, []):
-        if m["date"] == req.decision_date:
-            m["outcome_rate"] = str(req.new_rate)
-            if req.note:
-                m["note"] = req.note
-            break
-
-    cal["last_updated"] = datetime.utcnow().date().isoformat()
-    _save_calendar(cal)
+    if not any(m["date"] == req.decision_date for m in cal.get("meetings", {}).get(req.country, [])):
+        raise HTTPException(status_code=404, detail="No scheduled meeting on that date in the calendar.")
+    st = rate_outcomes_store.store()
+    if st is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No database (DATABASE_URL unset), so the outcome could not be kept. "
+                   "Edits are no longer written to the container's disk, which a redeploy wipes.",
+        )
+    await st.record(req.country, day, req.new_rate, req.note)
     return {
         "country": req.country,
         "new_rate": str(req.new_rate),
         "decision_date": req.decision_date,
+        "stored_in": "database",
     }

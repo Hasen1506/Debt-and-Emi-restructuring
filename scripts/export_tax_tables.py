@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT))
 
 from engine.models import FilingStatusUS  # noqa: E402
 from engine.tax import india, usa  # noqa: E402
-from engine.tax.gst import GST_RATE_IN  # noqa: E402
+from engine.tax.gst import GST_APPLIES, GST_RATE_IN  # noqa: E402
 
 OUT_PATH = ROOT / "web" / "src" / "lib" / "tax-tables.json"
 
@@ -58,11 +58,33 @@ def build() -> dict:
                     "max": _num(india.REBATE_87A_OLD),
                 },
             },
+            # Old regime for residents aged 60-79 and 80+ (Finance Act 2026,
+            # First Schedule Part I-B, Paragraph A (II), (III)).
+            "old_60_79": {"slabs": _slabs(india.OLD_REGIME_SLABS_60_79)},
+            "old_80_plus": {"slabs": _slabs(india.OLD_REGIME_SLABS_80_PLUS)},
+            # Loan-related deductions (engine/tax/india.py, sprint G2).
+            "deductions": {
+                "sec24b_self_occupied_cap": _num(india.SEC24B_SELF_OCCUPIED_CAP),
+                "sec24b_other_cap": _num(india.SEC24B_OTHER_CAP),
+                "let_out_standard_deduction": _num(india.LET_OUT_STANDARD_DEDUCTION),
+                "hp_loss_set_off_cap": _num(india.HP_LOSS_SET_OFF_CAP),
+                "sec80c_cap": _num(india.SEC80C_CAP),
+                "sec80ccd1b_cap": _num(india.SEC80CCD1B_CAP),
+                "sec80e_tax_years": india.SEC80E_TAX_YEARS,
+                "pre_construction_instalments": india.PRE_CONSTRUCTION_INSTALMENTS,
+            },
+            # 1961 section → Income-tax Act 2025 section.
+            "section_map": dict(india.SECTION_MAP),
+            "law_as_of": india.TAX_LAW_AS_OF,
+            "law_source": india.TAX_LAW_SOURCE,
+            "rates_source": india.TAX_RATES_SOURCE,
             "surcharge": _slabs(india.SURCHARGE_BANDS),
             "surcharge_cap_new_regime": _num(india.SURCHARGE_CAP_NEW_REGIME),
             "cess": _num(india.CESS_RATE),
             # GST on card interest, fees and charges (engine/tax/gst.py).
             "gst": _num(GST_RATE_IN),
+            # Which charges carry it (grill #27): one table for engine and web.
+            "gst_applies": dict(GST_APPLIES),
         },
         "us": {
             status.value: {

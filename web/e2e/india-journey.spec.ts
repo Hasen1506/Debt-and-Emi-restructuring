@@ -7,7 +7,7 @@
  * Every figure asserted here comes from the real engine on fixed inputs:
  * fixed FX (1 USD = ₹83.25), fixed day (7 Oct 2026), fixed OTP.
  */
-import { expect, fillLoan, isPlanCall, money, planSummary, planText, signIn, test } from './fixtures';
+import { expect, fillLoan, isPlanCall, money, planSummary, planText, signIn, test, makeSetupChoices, openProfileSection } from './fixtures';
 
 const EMAIL = 'golden-india@rightdue.app';
 
@@ -43,16 +43,17 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
     expect(JSON.stringify(await planSummary(await sim), null, 2)).toMatchSnapshot('india-onboarding-simulate.json');
     await expect(page.getByText('Nov 2030')).toBeVisible();
-    await expect(page.getByText('₹8,57,983')).toBeVisible();
+    await expect(page.getByText('₹8,56,170')).toBeVisible();
     await expect(page.getByText(/put ₹37,450 extra on your credit card/)).toBeVisible();
   });
 
   await test.step('save and open the plan (golden schedule)', async () => {
+    await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
     await page.waitForURL('**/plan');
     await expect(page.getByText('NOV 2030').first()).toBeVisible();
-    await expect(page.getByText('₹8,57,983').first()).toBeVisible();
-    await expect(page.getByText('₹22,72,461 LESS THAN MINIMUMS')).toBeVisible();
+    await expect(page.getByText('₹8,56,170').first()).toBeVisible();
+    await expect(page.getByText('₹22,39,836 LESS THAN MINIMUMS')).toBeVisible();
     expect(await planText(page)).toMatchSnapshot('india-plan-schedule.txt');
   });
 
@@ -66,13 +67,13 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     const body = await (await compare).json();
     expect(Number(body.interest_saved)).toBeGreaterThan(0);
     expect(Number(body.scenario_total_interest)).toBeLessThan(Number(body.baseline_total_interest));
-    await expect(whatIf.getByText('₹26,162 less interest')).toBeVisible();
-    await expect(whatIf.getByText('₹8,31,821')).toBeVisible();
+    await expect(whatIf.getByText('₹25,030 less interest')).toBeVisible();
+    await expect(whatIf.getByText('₹8,31,140')).toBeVisible();
   });
 
   await test.step('switch country to the USA, converting at the stubbed rate', async () => {
     await page.goto('/profile');
-    await page.getByRole('button', { name: 'Edit Where you live and tax' }).click();
+    await openProfileSection(page, 'Where you live and tax');
     await page.getByLabel('Country', { exact: true }).selectOption('US');
     const dialog = page.getByRole('dialog', { name: 'Change country' });
     await expect(dialog.getByText('Your amounts are in ₹. The USA uses $.')).toBeVisible();
@@ -97,14 +98,14 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
   await test.step('the plan is now in dollars (golden schedule)', async () => {
     await page.goto('/plan');
     await expect(page.getByText('FILING SINGLE', { exact: false })).toBeVisible();
-    await expect(page.getByText('$10,291').first()).toBeVisible();
+    await expect(page.getByText('$10,272').first()).toBeVisible();
     expect(await planText(page)).toMatchSnapshot('india-to-usa-plan-schedule.txt');
   });
 
-  await test.step('/tax opens Profile with the US filing details', async () => {
-    // /tax is Profile's tax section now (REDESIGN V5).
-    await page.goto('/tax');
-    await page.waitForURL('**/profile#pf-tax');
+  await test.step('Profile and /tax show the US filing details', async () => {
+    // /tax is its own page again (sprint G2, grill #77); Profile's tax
+    // section links to it.
+    await page.goto('/profile');
     await expect(page.getByText(/^USA(,| with|$)/).first()).toBeVisible();
     await expect(page.getByText(/^Single( ·|$)/).first()).toBeVisible();
     // Roadmap PR A: the bracket is re-estimated for the US from the $1,801.80
@@ -112,10 +113,13 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     // is how a high earner ended up on a stale 0% (lib/marginal-rate).
     await expect(page.getByText('10.0%')).toBeVisible();
     await expect(page.getByText('20.8%')).toHaveCount(0);
+    await page.goto('/tax');
+    await expect(page.getByRole('heading', { name: /Tax and your loans/i })).toBeVisible();
+    await expect(page.getByText('20.8%')).toHaveCount(0);
   });
 
   await test.step('sign out clears this browser', async () => {
-    expect((await context.cookies()).map((c) => c.name)).toContain('finoptima_user');
+    expect((await context.cookies()).map((c) => c.name)).toContain('rightdue_user');
     await page.getByRole('button', { name: /SIGN OUT/ }).click();
     await page.waitForURL('**/login');
     await expect.poll(async () => (await context.cookies()).map((c) => c.name)).toEqual([]);

@@ -3,6 +3,7 @@
 import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { SAFE_RATES } from '@/lib/invest-vs-prepay';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { HYDRATED_EVENT, REMOTE_APPLIED_EVENT } from '@/lib/server-sync';
 import { DEFAULT_EF_SPLIT, efMonthsToFill, readEfSplitClient } from '@/lib/ef-split';
 import { profileMarginalRate } from '@/lib/marginal-rate';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -100,11 +101,18 @@ import {
   isAdvanceTaxApplicable,
 } from '@/lib/tax-brackets';
 import type { LoanTermsResponse } from '@/lib/api';
-import { feeShown, RBI_PREPAYMENT_RULE } from '@/lib/prepayment-fee';
+import { RBI_PREPAYMENT_RULE } from '@/lib/prepayment-fee';
+import { asksBusinessPurpose, feeShownWithPurpose as feeShown, PURPOSE_HELP, PURPOSE_QUESTION } from '@/lib/loan-purpose';
+import { cleanCity, stateFor, statesFor, STATE_HELP } from '@/lib/locations';
+import { NICKNAME_MAX } from '@/lib/loan-types';
 import { dropKfsFields, kfsNote } from '@/lib/kfs';
 import { KfsImport } from '@/components/profile/KfsImport';
+import { CreditReportImport } from '@/components/profile/CreditReportImport';
+import { SmsImport } from '@/components/profile/SmsImport';
 import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { MarketRateLine } from '@/components/profile/MarketRateLine';
+import { UsLoanFields, UsStateField } from '@/components/profile/UsLoanFields';
+import { usLoanFieldsFor } from '@/lib/us-loans';
 
 /**
  * Format a loan-terms suggestion label. Honest about provenance:
@@ -210,6 +218,20 @@ export function ProfileClient({ payoffOrder }: { payoffOrder: ReactNode }) {
     section: searchParams.get('step') ? parseStepParam(searchParams.get('step')) : (null as number | null),
     saved: false,
   }));
+  // Account data from another device just replaced this browser's copy (the
+  // account copy loaded after a reload, a save refused as stale, or "use
+  // this device's version"): draw the summary again from it. The form reads
+  // the profile once when it mounts, so without this it kept showing the
+  // old figure. An open form is left alone (critique #63).
+  useEffect(() => {
+    const redraw = () => setView((v) => (v.section === null ? { ...v, key: v.key + 1 } : v));
+    window.addEventListener(REMOTE_APPLIED_EVENT, redraw);
+    window.addEventListener(HYDRATED_EVENT, redraw);
+    return () => {
+      window.removeEventListener(REMOTE_APPLIED_EVENT, redraw);
+      window.removeEventListener(HYDRATED_EVENT, redraw);
+    };
+  }, []);
   const done = (saved: boolean) => {
     if (searchParams.get('step')) router.replace('/profile', { scroll: false });
     setView((v) => ({ key: v.key + 1, section: null, saved }));
@@ -271,6 +293,9 @@ function ProfileEditor({
   const [ageBracket, setAgeBracket] = useState<AgeBracket | ''>('');
   const [country, setCountry] = useState<Country>('IN');
   const [isNriUs, setIsNriUs] = useState(false);
+  // Where they live (live test #5): optional, by country.
+  const [homeState, setHomeState] = useState('');
+  const [city, setCity] = useState('');
   const [incomeType, setIncomeType] = useState<IncomeType>('salaried');
   const [monthlyIncome, setMonthlyIncome] = useState('');
   const [fixedExpenses, setFixedExpenses] = useState('');
@@ -309,6 +334,7 @@ function ProfileEditor({
   // Optional US state marginal rate (decimal). Added on top of federal
   // marginal_rate when present so combined math reflects state burden.
   const [stateMarginalRate, setStateMarginalRate] = useState('');
+  const [usState, setUsState] = useState('');
   const [annualHikeRate, setAnnualHikeRate] = useState('');
   // Optional hike phases for users who want varied rates over time (e.g.
   // "first 2yrs 7%, next 4yrs 10%, job switch at year 6"). Empty list →
@@ -335,6 +361,9 @@ function ProfileEditor({
   // Set when Continue is pressed with a loan missing its rate or EMI.
   const [showLoanErrors, setShowLoanErrors] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+  // Why SAVE CHANGES did not save (live-test #2/#27): it used to do nothing,
+  // or jump to Loans, with no word, so a blocked save looked like a lost one.
+  const [saveBlocked, setSaveBlocked] = useState<string | null>(null);
   // Exchange rate per foreign loan currency ("0.012" = $ per ₹1), filled
   // from today's quote when it loads and editable. Required: without it a
   // ₹20 lakh loan was added to dollars at parity.
@@ -390,6 +419,8 @@ function ProfileEditor({
     if (u.age_bracket) setAgeBracket(u.age_bracket);
     setCountry(u.country);
     setIsNriUs(!!u.is_nri_us);
+    setHomeState(stateFor(u.country, u.state));
+    setCity(cleanCity(u.city));
     if (u.fx_to_user_currency) setFxRates(u.fx_to_user_currency);
     setOwnEfMonths(efMonths(u));
     setIncomeType(u.income_type);
@@ -415,6 +446,7 @@ function ProfileEditor({
     if (u.country === 'IN' && u.tax_regime) setTaxRegime(u.tax_regime);
     if (u.country === 'US' && u.filing_status) setFilingStatus(u.filing_status);
     if (u.state_marginal_rate) setStateMarginalRate(u.state_marginal_rate);
+    if (u.state) setUsState(u.state);
     setAnnualHikeRate(u.annual_hike_rate ?? '');
     if (u.hike_schedule && u.hike_schedule.length > 0) {
       setHikeSchedule(
@@ -608,6 +640,11 @@ function ProfileEditor({
         })),
       primary_bank: primaryBank,
       other_banks: otherBanks,
+      // One `state` (integration L3 x G3): India uses L3's state list; the
+      // US uses G3's two-letter state field, which drives the mortgage-interest
+      // state-tax rule (lib/us-loans).
+      state: (country === 'US' ? usState : stateFor(country, homeState)) || undefined,
+      city: cleanCity(city) || undefined,
       location_tier: 'urban',
       tax_regime: country === 'IN' ? taxRegime : undefined,
       filing_status: country === 'US' ? filingStatus : undefined,
@@ -650,6 +687,8 @@ function ProfileEditor({
             ...(l.min_payment_override && l.min_payment_override.trim() !== ''
               ? { min_payment_override: num(l.min_payment_override) }
               : {}),
+            // US-only fields leave with US-market loans only (lib/us-loans).
+            ...usLoanFieldsFor(l, country),
           };
         }),
       investment_options: [
@@ -756,8 +795,10 @@ function ProfileEditor({
     if (!loansComplete) {
       onOpen(3);
       setShowLoanErrors(true);
+      setSaveBlocked('Not saved yet: a loan needs a fix first. The Loans part is open with what to change; then save again.');
       return;
     }
+    setSaveBlocked(null);
     const score = Number(creditScore);
     // Foreign loans carry the exchange rate entered on the Loans step
     // (loansComplete requires one), so every page converts at the same rate.
@@ -1056,7 +1097,23 @@ function ProfileEditor({
                   { value: 'US' as Country, label: 'USA' },
                 ]}
               />
-              <div />
+              {country === 'IN' && (
+                <Select
+                  label="State (optional)"
+                  value={stateFor(country, homeState)}
+                  onChange={(v: string) => setHomeState(v)}
+                  options={[{ value: '', label: 'Not set' }, ...statesFor(country).map((st) => ({ value: st, label: st }))]}
+                  hint={STATE_HELP[country]}
+                />
+              )}
+              <Field
+                label="City (optional)"
+                kind="text"
+                value={city}
+                onChange={(v) => setCity(v.slice(0, 60))}
+                placeholder={country === 'IN' ? 'e.g. Chennai' : 'e.g. Austin'}
+                hint="For your own reference. Nothing is worked out from it."
+              />
             </div>
             {pendingCountry && (
               <CountrySwitchPanel
@@ -1194,6 +1251,11 @@ function ProfileEditor({
                 onExtraIncomeAnnualTaxChange={setExtraIncomeAnnualTax}
               />
             </div>
+            {country === 'US' && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <UsStateField value={usState} onChange={setUsState} />
+              </div>
+            )}
             {!showDetailedExpenses ? (
               <div style={{ gridColumn: '1 / -1' }}>
                 <Field
@@ -1474,6 +1536,14 @@ function ProfileEditor({
                 onAdd={(loan) => setLoans((cur) => [...cur, loan])}
               />
             )}
+            {country === 'IN' && (
+              <CreditReportImport
+                blankLoan={blankLoan}
+                todayIso={localIsoDate(getCountryToday(country))}
+                onAdd={(added) => setLoans((cur) => [...cur, ...added])}
+              />
+            )}
+            {country === 'IN' && <SmsImport loans={loans} onPatchLoan={updateLoan} />}
             {loans.map((l, i) => (
               <div
                 key={i}
@@ -1519,6 +1589,14 @@ function ProfileEditor({
                       manually — free text is accepted.
                     </>
                   }
+                />
+                <Field
+                  label="Nickname (optional)"
+                  kind="text"
+                  value={l.nickname ?? ''}
+                  onChange={(v) => updateLoan(i, { nickname: v.slice(0, NICKNAME_MAX) || undefined })}
+                  placeholder="e.g. Dad's car loan"
+                  hint="Your own name for it. Shown with the lender everywhere this loan appears."
                 />
                 <Field
                   label="Outstanding balance"
@@ -1758,6 +1836,42 @@ function ProfileEditor({
                     />
                   </>
                 )}
+                {asksBusinessPurpose(l, country) && (
+                  <div style={{ gridColumn: '1 / -1' }} data-testid="business-purpose">
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{PURPOSE_QUESTION}</div>
+                    <div role="group" aria-label={PURPOSE_QUESTION} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {([
+                        [false, 'No, a personal loan'],
+                        [true, 'Yes, for a business'],
+                      ] as const).map(([v, text]) => {
+                        const on = l.business_purpose === v;
+                        return (
+                          <button
+                            key={String(v)}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => updateLoan(i, { business_purpose: v })}
+                            style={{
+                              padding: '7px 14px',
+                              borderRadius: 999,
+                              border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+                              background: on ? 'var(--accent)' : 'var(--card)',
+                              color: on ? '#fff' : 'var(--ink)',
+                              fontSize: 13,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {text}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="muted" style={{ fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
+                      {l.business_purpose === undefined ? 'Not answered yet, so the app treats it as a personal loan. ' : ''}
+                      {PURPOSE_HELP}
+                    </div>
+                  </div>
+                )}
                 {l.loan_type !== 'credit_card' && (
                   <>
                 <Field
@@ -1955,6 +2069,9 @@ function ProfileEditor({
                       }
                     />
                   </div>
+                )}
+                {loanMarket(l, country) === 'US' && (
+                  <UsLoanFields loan={l} onChange={(p) => updateLoan(i, p)} />
                 )}
                 {l.loan_type === 'credit_card' && (
                   <Field
@@ -2575,6 +2692,11 @@ function ProfileEditor({
             Confirm or cancel the country change above before saving.
           </p>
         )}
+        {saveBlocked && (
+          <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
+            {saveBlocked}
+          </p>
+        )}
         {saveFailed && (
           <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
             Your profile wasn&apos;t saved: this browser didn&apos;t keep it. Check
@@ -2594,7 +2716,12 @@ function ProfileEditor({
         >
           <LBracket onClick={() => onDone(false)}>CANCEL</LBracket>
           <span style={{ opacity: canAdvance ? 1 : 0.4 }}>
-            <LButton onClick={canAdvance ? save : undefined}>SAVE CHANGES</LButton>
+            <LButton onClick={canAdvance ? save : () => setSaveBlocked(
+              step === 1 ? 'Not saved yet: choose a country, and confirm or cancel a country change first.'
+                : step === 2 ? 'Not saved yet: take-home pay must be more than 0, and spending 0 or more.'
+                  : step === 4 ? 'Not saved yet: savings must be 0 or more.'
+                    : 'Not saved yet: check the fields above.',
+            )}>SAVE CHANGES</LButton>
           </span>
         </div>
       </Card>
@@ -3364,7 +3491,7 @@ function EfTierPicker({
 
   const tiers = [
     { id: 'lean' as const, label: 'Lean', months: 3, descr: '3 months of expenses' },
-    { id: 'std' as const, label: 'Standard', months: 6, descr: '6 months — recommended' },
+    { id: 'std' as const, label: 'Standard', months: 6, descr: '6 months of expenses' },
     { id: 'cons' as const, label: 'Conservative', months: 9, descr: '9 months — high risk or dependents' },
     ...(ownMonths !== 3 && ownMonths !== 6 && ownMonths !== 9
       ? [{ id: 'own' as const, label: 'Yours', months: ownMonths, descr: `${ownMonths} months, as set in Assumptions` }]

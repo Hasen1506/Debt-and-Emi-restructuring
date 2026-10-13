@@ -2,11 +2,19 @@
 // the same container and Next.js proxies the API paths to it, so the browser
 // only ever talks to one origin and only one service has to wake up.
 // Read at build time: rewrites are written into the build's route manifest.
+import { assertAuthEnabledForProduction } from './auth-guard.mjs';
+import { headerRules } from './security-headers.mjs';
+
+// Grill #66: never build a production bundle with sign-in switched off.
+assertAuthEnabledForProduction(process.env);
+
 const API_INTERNAL_URL = (process.env.API_INTERNAL_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Don't advertise the framework (X-Powered-By), grill #58.
+  poweredByHeader: false,
   typedRoutes: false,
   // The Docker image runs the minimal standalone server (smaller and lighter
   // on the 512 MB free plan). Off elsewhere so `next start` (CI, E2E, local)
@@ -28,7 +36,11 @@ const nextConfig = {
       fallback: [{ source: '/api/:path*', destination: `${API_INTERNAL_URL}/api/:path*` }],
     };
   },
-  // Old addresses keep working after the five-tab redesign (REDESIGN.md).
+  // CSP, frame-ancestors and hardening headers on every page (grill #58).
+  async headers() {
+    return headerRules(process.env);
+  },
+  // Old addresses keep working after the five-tab redesign (docs/history/REDESIGN.md).
   async redirects() {
     return [
       { source: '/insights', destination: '/activity', permanent: false },
@@ -42,10 +54,8 @@ const nextConfig = {
       // Roadmap PR I: Big purchase is a mode of New debt check; Right time is retired.
       { source: '/tools/purchase', destination: '/tools/new-debt?mode=purchase', permanent: false },
       { source: '/tools/right-time', destination: '/tools/new-debt', permanent: false },
-      // Tax is Profile's "Where you live and tax" section since V5. A
-      // server redirect, not a page that redirects while rendering:
-      // Firefox aborted that navigation midway.
-      { source: '/tax', destination: '/profile#pf-tax', permanent: false },
+      // /tax is its own page again (sprint G2, grill #77): the regime
+      // comparison and each loan's tax inputs. No redirect.
     ];
   },
 };

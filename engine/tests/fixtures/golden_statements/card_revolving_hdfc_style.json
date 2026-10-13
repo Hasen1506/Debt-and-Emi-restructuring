@@ -1,0 +1,149 @@
+{
+ "id": "card_revolving_hdfc_style",
+ "loan_type": "credit_card",
+ "rate_type": "fixed",
+ "bank_style": "HDFC credit card, revolving with new spend",
+ "simulated": true,
+ "principal": "150000",
+ "start_rate": "0.45",
+ "monthly_spend": "20000",
+ "payment": "30000",
+ "convention": "daily balance x 45%/365 from each transaction date; 18% GST on interest; spend on cycle day 10, payment on day 20",
+ "sources": [
+  "https://www.hdfc.bank.in/content/dam/hdfcbankpws/in/en/personal-banking/discover-products/cards/statement_related_payment_info.pdf"
+ ],
+ "rows": [
+  {
+   "month": 1,
+   "period": "2026-11",
+   "days": 30,
+   "rate": "0.45",
+   "spend": "20000",
+   "interest": "5658.90",
+   "gst": "1018.60",
+   "paid": "30000",
+   "closing_balance": "146677.50"
+  },
+  {
+   "month": 2,
+   "period": "2026-12",
+   "days": 31,
+   "rate": "0.45",
+   "spend": "20000",
+   "interest": "5704.52",
+   "gst": "1026.81",
+   "paid": "30000",
+   "closing_balance": "143408.83"
+  },
+  {
+   "month": 3,
+   "period": "2027-01",
+   "days": 31,
+   "rate": "0.45",
+   "spend": "20000",
+   "interest": "5579.60",
+   "gst": "1004.33",
+   "paid": "30000",
+   "closing_balance": "139992.76"
+  },
+  {
+   "month": 4,
+   "period": "2027-02",
+   "days": 28,
+   "rate": "0.45",
+   "spend": "20000",
+   "interest": "4968.24",
+   "gst": "894.28",
+   "paid": "30000",
+   "closing_balance": "135855.28"
+  },
+  {
+   "month": 5,
+   "period": "2027-03",
+   "days": 31,
+   "rate": "0.45",
+   "spend": "20000",
+   "interest": "5290.91",
+   "gst": "952.36",
+   "paid": "30000",
+   "closing_balance": "132098.55"
+  },
+  {
+   "month": 6,
+   "period": "2027-04",
+   "days": 30,
+   "rate": "0.45",
+   "spend": "20000",
+   "interest": "4996.80",
+   "gst": "899.42",
+   "paid": "30000",
+   "closing_balance": "127994.77"
+  },
+  {
+   "month": 7,
+   "period": "2027-05",
+   "days": 31,
+   "rate": "0.45",
+   "spend": "20000",
+   "interest": "4990.49",
+   "gst": "898.29",
+   "paid": "30000",
+   "closing_balance": "123883.55"
+  },
+  {
+   "month": 8,
+   "period": "2027-06",
+   "days": 30,
+   "rate": "0.45",
+   "spend": "20000",
+   "interest": "4692.95",
+   "gst": "844.73",
+   "paid": "30000",
+   "closing_balance": "119421.23"
+  },
+  {
+   "month": 9,
+   "period": "2027-07",
+   "days": 31,
+   "rate": "0.45",
+   "spend": "20000",
+   "interest": "4662.81",
+   "gst": "839.31",
+   "paid": "30000",
+   "closing_balance": "114923.35"
+  },
+  {
+   "month": 10,
+   "period": "2027-08",
+   "days": 31,
+   "rate": "0.45",
+   "spend": "20000",
+   "interest": "4490.91",
+   "gst": "808.36",
+   "paid": "30000",
+   "closing_balance": "110222.62"
+  },
+  {
+   "month": 11,
+   "period": "2027-09",
+   "days": 30,
+   "rate": "0.45",
+   "spend": "20000",
+   "interest": "4187.69",
+   "gst": "753.78",
+   "paid": "30000",
+   "closing_balance": "105164.09"
+  },
+  {
+   "month": 12,
+   "period": "2027-10",
+   "days": 31,
+   "rate": "0.45",
+   "spend": "20000",
+   "interest": "4117.92",
+   "gst": "741.23",
+   "paid": "30000",
+   "closing_balance": "100023.24"
+  }
+ ]
+}

@@ -1,0 +1,22 @@
+# RBI (Commercial Banks - Interest Rates on Advances) Directions, 2025. RBI/DOR/2025-26/161, DOR.CRE.REC.80./13.03.000/2025-26, 28 Nov 2025
+# Source: https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13149
+# Retrieved: 12 Oct 2026 (HTML page, fetched with curl)
+# Excerpts only: the paragraphs Loan Check cites, copied verbatim.
+
+ 3. These Directions shall be applicable to Commercial Banks (hereinafter collectively referred to as 'banks' and individually as a 'bank')
+ For the purpose of these Directions, 'Commercial Banks' mean banking companies (other than Small Finance Banks, Payment Banks, and Local Area Banks), corresponding new banks, and the State Bank of India, as defined respectively under clauses (c), (da) and (nc) of Section 5 of the Banking Regulation Act,1949.
+ B. External Benchmark
+ 25. All floating rate personal or retail loans (housing, auto, etc.), and floating rate loans extended by banks to Micro, Small and Medium Enterprises (MSME) shall be benchmarked to an External Benchmark Rate.
+ 26. A bank is free to offer such external benchmark linked loans to other types of borrowers as well.
+ 27. In order to ensure transparency, standardisation, and ease of understanding of loan products by borrowers, a bank must adopt a uniform external benchmark within a loan category; in other words, the adoption of multiple benchmarks by the same bank is not allowed within a loan category.
+ A.3 Spread under External Benchmark
+ 33. A bank is free to decide the spread over the external benchmark. However, credit risk premium may undergo change only when borrower’s credit assessment undergoes a substantial change, as agreed upon in the loan contract. Further, other components of spread including operating cost could be altered once in three years.
+ Provided that the other spread components may be reduced by banks for a loan category earlier than three years for customer retention, on justifiable grounds, in a non-discriminatory manner, and in terms of the bank's policy.
+ B. Reset of interest rates
+ B.2 Reset of interest rates under External Benchmarks
+ 38. The interest rate under external benchmark shall be reset at least once in three months.
+ D. Transition to External Benchmarks from Marginal Cost of Funds based Lending Rate (MCLR) / Base Rate / Benchmark Prime Lending Rate (BPLR)
+ 41. Existing loans and credit limits linked to the MCLR / Base Rate / BPLR shall continue till repayment or renewal, as the case may be.
+ Provided that floating rate term loans sanctioned to borrowers who, in terms of extant guidelines, are eligible to prepay a floating rate loan without pre-payment charges, shall be eligible for switchover to External Benchmark without any charges / fees, except reasonable administrative / legal costs. The final rate charged to this category of borrowers, post switchover to external benchmark, shall be same as the rate charged for a new loan of the same category, type, tenor and amount, at the time of origination of the loan.
+ Provided that other existing borrowers shall have the option to move to External Benchmark at mutually acceptable terms.
+ Provided that the switch-over shall not be treated as a foreclosure of existing facility.

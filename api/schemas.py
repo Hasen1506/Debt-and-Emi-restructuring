@@ -168,6 +168,8 @@ class LoanIn(_In):
     prepayment_penalty_pct: Decimal = Field(D("0"), ge=0, le=D("0.1"))
     prepay_lock_in_months: Months = 0
     part_payment_freq_months: Optional[int] = Field(None, ge=1, le=MAX_MONTHS)
+    # Lender's minimum part-payment (grill #30); extra below it is set aside.
+    min_prepay_amount: Amount = D("0")
     pre_emi_months_remaining: Months = 0
     # Sim month of the first EMI (a loan taken this month: 2). The web
     # derives it from the loan's calendar first EMI month.
@@ -178,6 +180,41 @@ class LoanIn(_In):
     # Optional UI-only labelling for credit cards. Engine ignores both.
     card_last_6: Optional[str] = None
     cardholder_name: Optional[str] = None
+    # India tax inputs (sprint G2): see engine/models.py:Loan. The web's Tax
+    # page sets them; omitted = the whole loan is the user's, no window /
+    # pre-construction / rent known, the full ₹2L cap.
+    tax_share: Decimal = Field(D("1"), ge=0, le=1)
+    tax_deduction_months_left: Optional[int] = Field(None, ge=0, le=MAX_MONTHS)
+    pre_construction_interest_annual: Amount = D("0")
+    annual_rent: Optional[Amount] = None
+    sec24_full_cap: bool = True
+    # US-only (engine/us_loans.py, grill #33/#34). Student loans: "federal" |
+    # "private" (blank = treated as federal); forgiveness track "pslf" |
+    # "idr" holds extra payments off the loan. Mortgages: monthly PMI / FHA
+    # MIP, the home's original value, the insurance kind, FHA months left.
+    student_loan_kind: Optional[str] = None
+    forgiveness_track: Optional[str] = None
+    pmi_monthly: Amount = D("0")
+    original_home_value: Optional[Amount] = None
+    mortgage_insurance_kind: Optional[str] = None
+    pmi_months_remaining: Optional[int] = Field(None, ge=0, le=MAX_MONTHS)
+
+    @field_validator("student_loan_kind", "forgiveness_track", "mortgage_insurance_kind", mode="before")
+    @classmethod
+    def _us_enums(cls, v: Any, info) -> Any:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        if not isinstance(v, str):
+            raise ValueError(f"{info.field_name} must be text")
+        t = v.strip().lower().replace("-", "_")
+        allowed = {
+            "student_loan_kind": ("federal", "private"),
+            "forgiveness_track": ("pslf", "idr", "none"),
+            "mortgage_insurance_kind": ("pmi", "fha_mip"),
+        }[info.field_name]
+        if t not in allowed:
+            raise ValueError(f"{info.field_name} must be one of {', '.join(allowed)}")
+        return None if t == "none" else t
 
     @field_validator("statement_day", "due_day", mode="before")
     @classmethod
@@ -243,10 +280,22 @@ class LoanIn(_In):
             rate_drift_annualized=self.rate_drift_annualized,
             prepayment_penalty_pct=self.prepayment_penalty_pct,
             prepay_lock_in_months=self.prepay_lock_in_months,
+            min_prepay_amount=self.min_prepay_amount,
             part_payment_freq_months=self.part_payment_freq_months,
             pre_emi_months_remaining=self.pre_emi_months_remaining,
             first_payment_month=self.first_payment_month,
             rate_basis=self.rate_basis,
+            tax_share=self.tax_share,
+            tax_deduction_months_left=self.tax_deduction_months_left,
+            pre_construction_interest_annual=self.pre_construction_interest_annual,
+            annual_rent=self.annual_rent,
+            sec24_full_cap=self.sec24_full_cap,
+            student_loan_kind=self.student_loan_kind,
+            forgiveness_track=self.forgiveness_track,
+            pmi_monthly=self.pmi_monthly,
+            original_home_value=self.original_home_value,
+            mortgage_insurance_kind=self.mortgage_insurance_kind,
+            pmi_months_remaining=self.pmi_months_remaining,
         )
 
 
@@ -527,6 +576,9 @@ class UserIn(_In):
     # breakdown. See `DeductionsIn` for field semantics.
     deductions: Optional["DeductionsIn"] = None
     income_streams: list[IncomeStreamIn] = Field(default_factory=list)
+    # Sprint G2 (#20): True once the user said the tax rate the plan uses
+    # (estimated from take-home) is right. UI-only; the engine drops it.
+    tax_rate_confirmed: Optional[bool] = None
 
     def _itemised(self) -> tuple[bool, Decimal]:
         """US only: does this person itemise, and what share of their
@@ -675,6 +727,10 @@ class SimulateRequest(_In):
     # can render slices without re-computing client-side. Empty list
     # means "no active goals" (cascade gets full surplus).
     goals: list[GoalIn] = Field(default_factory=list)
+    # Grill #38: a short month is paid from the emergency fund, then
+    # borrowed at a card rate and repaid first (engine/gap_debt.py). False
+    # keeps the old "the gap is found somewhere, free" assumption.
+    gap_as_debt: bool = True
 
 
 class TrajectoryPoint(_Base):
@@ -710,6 +766,14 @@ class TrajectoryPoint(_Base):
     extra_paid: Decimal = Field(default=D("0"))
     # Income short of costs plus minimum payments this month (0 when covered).
     shortfall: Decimal = Field(default=D("0"))
+    # Gap borrowing (grill #38), user's currency: owed at the month's end,
+    # this month's interest on it, borrowed and repaid this month, and the
+    # part of the gap the emergency fund covered.
+    gap_debt: Decimal = Field(default=D("0"))
+    gap_interest: Decimal = Field(default=D("0"))
+    gap_borrowed: Decimal = Field(default=D("0"))
+    gap_repaid: Decimal = Field(default=D("0"))
+    gap_from_savings: Decimal = Field(default=D("0"))
     # Per-goal contribution this month, keyed by goal id. Populated only
     # when `goals` was passed to /simulate. Lets achievability subtract
     # higher-priority goals' actual draws (which expire after their
@@ -884,6 +948,20 @@ class GoalTradeoffRequest(SimulateRequest):
     goal_ids: list[str] = Field(default_factory=list, max_length=50)
 
 
+class GapClosedOut(_Base):
+    # The plan with spending cut by this month's shortfall (live test #16).
+    cut: Decimal
+    debt_free_month: Optional[int]
+    total_interest_paid: Decimal
+
+
+class PmiEventOut(_Base):
+    loan_index: int
+    last_paid_month: int
+    kind: str                                # "pmi" | "fha_mip"
+    note: str
+
+
 class SimulateResponse(_Base):
     # 1 = this month. 0 = nothing is owed now (no loans, or all at 0);
     # None = not cleared within the horizon.
@@ -910,6 +988,21 @@ class SimulateResponse(_Base):
     # alone, the plain-words "why this loan first" line.
     payoff_order_method: Optional[str] = None
     payoff_order_note: Optional[str] = None
+    # Gap borrowing (grill #38): the yearly rate before GST, whether it is
+    # the user's own card ("your_card") or the country default ("default"),
+    # where the default comes from, and its interest over the plan (already
+    # inside total_interest_paid).
+    gap_rate: Optional[Decimal] = None
+    gap_rate_basis: Optional[str] = None
+    gap_rate_source: Optional[str] = None
+    total_gap_interest: Decimal = D("0")
+    # Live test #16: when this month is short, the same plan with the gap
+    # closed (spending cut by this month's shortfall), so the headline can
+    # say "<date> if the ₹X gap closes" beside the as-things-stand date.
+    gap_closed: Optional[GapClosedOut] = None
+    # US mortgage insurance (grill #34): one row per loan whose PMI / FHA
+    # MIP ends inside the plan, with the sim month it was last paid.
+    pmi_events: list[PmiEventOut] = Field(default_factory=list)
 
 
 class BaselineRequest(_In):
@@ -919,6 +1012,7 @@ class BaselineRequest(_In):
     # Planned rate resets, so the minimums-only comparison sees the same
     # rates as the plan it is compared with.
     lifecycle_events: list[LifecycleEventIn] = Field(default_factory=list, max_length=500)
+    gap_as_debt: bool = True
 
 
 class CompareRequest(_In):
@@ -951,6 +1045,10 @@ class CompareRequest(_In):
     alt_strategy: Optional[Strategy] = None
     lump_sum_amount: Optional[Amount] = None
     lump_sum_target_loan_index: Optional[LoanIndex] = None
+    # Live test #26: one loan re-amortised over this many more months.
+    tenure_extension_loan_index: Optional[LoanIndex] = None
+    tenure_extension_months: Optional[Annotated[int, Field(ge=1, le=MAX_MONTHS)]] = None
+    gap_as_debt: bool = True
 
     @model_validator(mode="after")
     def _valid_spending_cut(self) -> "CompareRequest":
@@ -970,6 +1068,15 @@ class CompareResponse(_Base):
     # Total interest on each side, for a before/after picture.
     baseline_total_interest: Optional[Decimal] = None
     scenario_total_interest: Optional[Decimal] = None
+    # This month's cash gap on each side (0 when covered), so a what-if
+    # that closes it can say so (live test #26).
+    baseline_shortfall: Optional[Decimal] = None
+    scenario_shortfall: Optional[Decimal] = None
+    # Tenure what-if only: the loan's EMI and remaining months before and after.
+    tenure_old_emi: Optional[Decimal] = None
+    tenure_new_emi: Optional[Decimal] = None
+    tenure_old_months: Optional[int] = None
+    tenure_new_months: Optional[int] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1312,7 +1419,7 @@ class RestructuringHeldBackOut(_Base):
     kind: str
     affected_loan_indices: list[int]
     target_bank: Optional[str] = None
-    reason: str                              # "credit_score" | "plan_clears" | "costs_more"
+    reason: str                              # "credit_score" | "plan_clears" | "costs_more" | "federal_protections"
     note: str
 
 
@@ -1375,3 +1482,24 @@ class LiquidationRankingsRequest(_In):
 class LiquidationRankingsResponse(_Base):
     recommendations: list[LiquidationRecommendationOut]
     considered_but_skipped: list[LiquidationRecommendationOut]
+
+
+class RangeScenarioOut(_Base):
+    id: str
+    label: str
+    why: str
+    debt_free_month: Optional[int] = None
+    shift_months: Optional[int] = None
+
+
+class RangeResponse(_Base):
+    """Grill #24 (sprint G4): exact debt-free month plus earliest/latest.
+    `None` months = not paid off inside the horizon (open_ended)."""
+    exact: Optional[int] = None
+    earliest: Optional[int] = None
+    latest: Optional[int] = None
+    scenarios: list[RangeScenarioOut]
+    has_floating: bool
+    open_ended: bool
+    rate_band: Decimal
+    income_months: int

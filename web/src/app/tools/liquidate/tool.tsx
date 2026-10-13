@@ -23,8 +23,11 @@ import { loanCurrency, loanToUser, userDefaultCurrency } from '@/lib/currency';
 import { SAFE_RATES, formatAsOf } from '@/lib/invest-vs-prepay';
 import { loanLabel, loanName } from '@/lib/loan-types';
 import { DecisionLogControls } from '@/components/DecisionLogControls';
-import { PortfolioRanker } from './PortfolioRanker';
 import { assetTypeLabel } from '@/components/portfolio/portfolioSummary';
+import { assetReturn as assumedReturn } from '@/lib/assumptions';
+import { LIQUIDATE_DISCLAIMER, LIQUIDATE_DISCLAIMER_US } from '@/lib/disclaimers';
+import { Term } from '@/components/Term';
+import { SALE_ASSET_TYPES, saleSummary, ownAssetsInOrder, needsOwnGrowth } from '@/lib/sale-calculator';
 import { requiredMonthly } from '@/lib/min-payment';
 import { INFLATION_FORECAST, inflationRateFor, readInflationRateClient } from '@/lib/inflation-modeling';
 
@@ -65,6 +68,15 @@ const FIELDS: Record<string, string> = {
   surplus_reinvestment_yield: 'leftoverYield',
 };
 
+/**
+ * Sell to repay, as a calculator (sprint G10, founder's cut-list decision 1).
+ *
+ * The person picks what they would sell; the page works out the tax, the
+ * selling costs and what is left after the loan, and sets keeping it beside
+ * selling it on their own assumptions. It never ranks their holdings and
+ * never says "sell" or "keep": naming the asset to sell is the line SEBI's
+ * Investment Adviser rules draw (grill #50).
+ */
 export function LiquidateTool() {
   const profile = useStoredProfile();
   const country = profile.user.country;
@@ -86,6 +98,8 @@ export function LiquidateTool() {
   // What is being sold. A sale worked out here is a property unless it was
   // opened from the ranker, where shares, funds or gold keep their own tax.
   const [assetType, setAssetType] = useState('real_estate');
+  // Which of the person's own assets this was filled from, if any.
+  const [fromAsset, setFromAsset] = useState<number | null>(null);
   const [assetName, setAssetName] = useState('');
   const isProperty = assetType === 'real_estate';
 
@@ -129,7 +143,11 @@ export function LiquidateTool() {
   const [taxableIncome, setTaxableIncome] = useState(incomeOnFile);
 
   // ─── Advanced (asset-return, hold horizon, leftover yield, inflation) ─
-  const [assetReturn, setAssetReturn] = useState('0.06');
+  // Growth if kept: the person's own assumption for this kind of asset
+  // (Profile → Assumptions), else the app's default, shown beside the
+  // answer rather than hidden. Crypto has no default: they enter one.
+  const growthFor = (type: string) => (needsOwnGrowth(profile.user, type) ? '' : String(assumedReturn(profile.user, type)));
+  const [assetReturn, setAssetReturn] = useState(() => growthFor('real_estate'));
   const [holdYears, setHoldYears] = useState('5');
   const [leftoverYield, setLeftoverYield] = useState<string>(DEFAULT_LEFTOVER_YIELD[country]);
   const [inflation, setInflation] = useState<string>(INFLATION_FORECAST[country].rate);
@@ -251,6 +269,7 @@ export function LiquidateTool() {
       ['debtBalance', debtBalance, 'Enter the debt this would clear.'],
       ['debtRate', debtRate, 'Enter that loan’s interest rate.'],
       ['taxableIncome', taxableIncome, 'Enter your taxable income for the year: it sets the tax on the sale.'],
+      ['assetReturn', assetReturn, 'Enter how much a year you expect it to grow if you keep it.'],
       ...(isUS && isProperty
         ? [['mainHome', mainHome, 'Say whether this is your main home: it sets the tax on the sale.'] as [string, string, string]]
         : []),
@@ -268,7 +287,7 @@ export function LiquidateTool() {
     clear();
     setApplied(false);
     try {
-      const requestProfileKey = JSON.stringify(loadProfileClient().user) + (document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '');
+      const requestProfileKey = JSON.stringify(loadProfileClient().user) + (document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '');
       const isoDate = normalizePurchaseDate(purchaseDate);
       if (!isoDate) {
         throw new Error('Enter when you bought it as a year (2018), a month (2018-06) or a date (2018-06-15).');
@@ -331,87 +350,69 @@ export function LiquidateTool() {
 
   const hasAssets = (profile.user.assets?.length ?? 0) > 0;
 
-  // Drill-in handler: pre-fill the sandbox form from a ranker recommendation.
-  // Only supports real-estate fully (sandbox is RE-focused). For other types
-  // we still pre-fill what we can and let the user see the existing UI.
-  function drillIn(rec: LiquidationRecommendation) {
-    if (!profile.user.assets) return;
-    const asset = profile.user.assets[rec.asset_index];
+  /** Pick a kind of asset; the growth rate follows it unless typed. */
+  function pickType(type: string) {
+    setAssetType(type);
+    setFromAsset(null);
+    setAssetName('');
+    setAssetReturn(growthFor(type));
+  }
+
+  /** Fill the form from one of the person's own assets (their choice). */
+  function fillFrom(i: number) {
+    const asset = profile.user.assets?.[i];
     if (!asset) return;
+    setFromAsset(i);
     setAssetType(asset.asset_type);
     setAssetName(asset.label ?? '');
-    if (asset.purchase_price) setPurchasePrice(asset.purchase_price);
-    if (asset.purchase_date) {
-      // Normalise to YYYY-only acceptance the form already supports.
-      setPurchaseDate(asset.purchase_date.slice(0, 10) || asset.purchase_date);
-    }
-    if (asset.current_market_value) setSalePrice(asset.current_market_value);
-    if (asset.state) setState(asset.state);
-    setTargetIdx(String(rec.target_loan_index));
-    setDebtBalance(rec.debt_balance);
-    setDebtRate(rec.debt_effective_rate);
-    const recLoan = profile.user.loans[rec.target_loan_index];
-    setDebtPayment(recLoan ? monthlyDue(recLoan) : '');
-    setConvertedFrom(null);
-    // Scroll the sandbox section into view.
-    if (typeof document !== 'undefined') {
-      document.getElementById('sandbox-section')?.scrollIntoView({
-        behavior: 'smooth', block: 'start',
-      });
-    }
+    setPurchasePrice(asset.purchase_price || '');
+    setPurchaseDate((asset.purchase_date || '').slice(0, 10));
+    setSalePrice(asset.current_market_value || '');
+    setState(asset.state || undefined);
+    setSaleMode('whole');
+    setAssetReturn(asset.expected_return_pct ? String(asset.expected_return_pct) : growthFor(asset.asset_type));
   }
+
+  const ownAssets = ownAssetsInOrder(profile.user.assets);
+  const typeChips = SALE_ASSET_TYPES[country];
 
   const loanChips = profile.user.loans
     .map((l, i) => ({ l, i }))
     .filter(({ l }) => Number(l.outstanding) > 0)
     .sort((x, y) => Number(y.l.nominal_rate) - Number(x.l.nominal_rate));
   const target = targetIdx !== '' ? profile.user.loans[Number(targetIdx)] : undefined;
-  // How much of what the sale raises goes to the loan: a small share means
-  // the answer is about the asset, not the loan.
-  const loanShare = v && Number(v.net_proceeds) > 0 ? Number(debtBalance || 0) / Number(v.net_proceeds) : 1;
   const pctText = (f: string) => `${(Number(f) * 100).toFixed(2)}%`;
-  const gate = (ok: boolean) => (
-    <span aria-hidden style={{ color: ok ? L_T.positive : L_T.negative, fontWeight: 700, marginRight: 8 }}>
-      {ok ? '✓' : '✗'}
-    </span>
-  );
   const sellingCosts = v ? Number(effectiveSalePrice) - Number(v.ltcg_tax) - Number(v.net_proceeds) : 0;
   const proceedsInLoan = v && target ? new Decimal(v.net_proceeds).div(loanFx(target) ?? 1).toFixed(2) : null;
 
   return (
     <LSteps>
-      {hasAssets ? (
-        <PortfolioRanker
-          user={profile.user}
-          marginalRate={profile.marginalRate}
-          isLive={profile.isLive}
-          onDrillIn={drillIn}
-        />
-      ) : (
-        <LNote style={{ margin: 0 }}>
-          <a href="/profile/assets" style={{ color: L_T.accent }}>Add your assets</a> (shares, funds, gold, property) to rank
-          each one against each loan, after tax and costs. Or work out a property sale below.
-        </LNote>
-      )}
+      <LNote style={{ margin: 0, color: L_T.ink }}>{isUS ? LIQUIDATE_DISCLAIMER_US : LIQUIDATE_DISCLAIMER}</LNote>
 
-      <LStep no="01" id="sandbox-section" title={isProperty ? "The property you'd sell" : "What you'd sell"}>
+      <LStep no="01" id="sandbox-section" title="What you'd sell">
         <form onSubmit={check} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {!isProperty && (
+          {ownAssets.length > 0 && (
+            <LChipRow label="Fill in from what you own (in the order you added them)">
+              {ownAssets.map(({ a, i }) => (
+                <LChip key={i} on={fromAsset === i} onClick={() => fillFrom(i)}>
+                  {a.label || assetTypeLabel(country, a.asset_type)}
+                </LChip>
+              ))}
+            </LChipRow>
+          )}
+          {!hasAssets && (
             <LNote style={{ margin: 0 }}>
-              {assetName || assetTypeLabel(country, assetType)}, from your assets: taxed as{' '}
-              {assetTypeLabel(country, assetType).toLowerCase()}, not as property.{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  setAssetType('real_estate');
-                  setAssetName('');
-                }}
-                style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: L_T.accent, textDecoration: 'underline', cursor: 'pointer' }}
-              >
-                Work out a property instead
-              </button>
+              Or <a href="/profile/assets" style={{ color: L_T.accent }}>add what you own</a> on Portfolio, and fill this in from it.
             </LNote>
           )}
+          <LChipRow label="What kind of asset?">
+            {typeChips.map(([type, label]) => (
+              <LChip key={type} on={assetType === type} onClick={() => pickType(type)}>
+                {label}
+              </LChip>
+            ))}
+          </LChipRow>
+          {assetName && <LNote style={{ margin: 0 }}>{assetName}: taxed as {assetTypeLabel(country, assetType).toLowerCase()}.</LNote>}
           <LFieldGrid min={200}>
             <Field
               label="What you paid"
@@ -431,11 +432,11 @@ export function LiquidateTool() {
               error={at('purchaseDate')}
               placeholder="2018 or 2018-06"
               hint={
-                !isProperty
-                  ? 'Just the year is fine'
-                  : isUS
-                    ? 'Just the year is fine. Held over a year: a long-term gain'
-                    : 'Just the year is fine. Held over 2 years: a long-term gain; bought before 23 Jul 2024, indexed cost can apply'
+                isUS
+                  ? 'Just the year is fine. Held over a year: a long-term gain'
+                  : isProperty
+                    ? 'Just the year is fine. Held over 2 years: a long-term gain; bought before 23 Jul 2024, indexed cost can apply'
+                    : 'Just the year is fine. It sets whether the gain is short- or long-term'
               }
             />
           </LFieldGrid>
@@ -565,8 +566,13 @@ export function LiquidateTool() {
             <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
             {!more && (
               <span style={{ fontSize: 11, color: L_T.muted, marginLeft: 8 }}>
-                Grows {formatPct(assetReturn, 1)} a year · {holdYears} years · spare cash earns {formatPct(leftoverYield, 1)}
+                {assetReturn.trim() === ''
+                  ? 'Enter how much it grows a year if you keep it'
+                  : `Your assumptions: it grows ${formatPct(assetReturn, 1)} a year · ${holdYears} years · spare cash earns ${formatPct(leftoverYield, 1)}`}
               </span>
+            )}
+            {at('assetReturn') && !more && (
+              <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: L_T.negative }}>{at('assetReturn')}</p>
             )}
             {more && (
               <div style={{ marginTop: 10 }}>
@@ -577,7 +583,7 @@ export function LiquidateTool() {
                     value={assetReturn}
                     onChange={setAssetReturn}
                     error={at('assetReturn')}
-                    hint={isUS ? 'What homes near yours have done' : 'Property in India: about 5–7%'}
+                    hint="Your own estimate. Change the default on Profile → Assumptions"
                   />
                   <Field label="Years you'd keep it" value={holdYears} onChange={setHoldYears} error={at('holdYears')} />
                   <Field
@@ -611,29 +617,14 @@ export function LiquidateTool() {
             )}
           </div>
 
-          <SubmitBar busy={busy} error={err} label="Should I sell?" />
+          <SubmitBar busy={busy} error={err} label="Work it out" />
         </form>
       </LStep>
 
       {v && (
         <>
-          <LStep no="02" id="liq-out" title="The answer" answer>
-            <LVerdict tone={v.recommend_liquidation ? 'pos' : null}>
-              {v.recommend_liquidation
-                ? loanShare < 0.25
-                  ? 'Selling pays, but mostly not because of the loan.'
-                  : 'Sell it and clear the loan.'
-                : 'Keep it.'}
-            </LVerdict>
-            <LNote>
-              {v.rationale}
-              {v.recommend_liquidation && loanShare < 0.25 && (
-                <>
-                  {' '}The loan is {Math.max(1, Math.round(loanShare * 100))}% of what the sale raises: the rest of the answer is
-                  this asset against spare cash at {formatPct(leftoverYield, 1)}.
-                </>
-              )}
-            </LNote>
+          <LStep no="02" id="liq-out" title="What selling it would do" answer>
+            <LVerdict>{saleSummary(v, fmt, Number(debtBalance || 0))}</LVerdict>
             <LKpi
               items={[
                 { l: 'YOU GET', v: fmt(v.net_proceeds), s: 'after tax and selling costs' },
@@ -642,36 +633,35 @@ export function LiquidateTool() {
                   l: 'LEFT AFTER THE LOAN',
                   v: fmt(v.net_benefit),
                   s: 'and its interest while selling',
-                  tone: Number(v.net_benefit) > 0 ? L_T.positive : L_T.negative,
+                  tone: Number(v.net_benefit) < 0 ? L_T.negative : undefined,
                 },
-                { l: 'IT REALLY EARNS', v: formatPct(v.asset_real_return_net, 2), s: 'a year, after prices and costs' },
+                { l: 'IT REALLY EARNS', v: formatPct(v.asset_real_return_net, 2), s: 'a year if kept, after prices and costs' },
               ]}
             />
 
             {v.wealth_edge != null && (
               <div style={{ marginTop: 18 }}>
-                <LStepSub right={`SPARE CASH AT ${formatPct(leftoverYield, 1).toUpperCase()}`}>{`In ${v.horizon_years ?? holdYears} years`}</LStepSub>
+                <LStepSub right={`SPARE CASH AT ${formatPct(leftoverYield, 1).toUpperCase()}`}>{`On your assumptions, in ${v.horizon_years ?? holdYears} years`}</LStepSub>
                 <div style={{ marginTop: 10 }}>
                   <LKpi
                     items={[
                       {
-                        l: 'KEEP IT',
+                        l: 'IF YOU KEEP IT',
                         v: fmt(v.wealth_hold ?? '0'),
                         s: v.wealth_basis === 'amortising' ? 'and pay the loan down' : 'loan left unpaid',
                       },
-                      { l: 'SELL IT', v: fmt(v.wealth_sell ?? '0'), s: 'clear the loan, invest the rest' },
+                      { l: 'IF YOU SELL IT', v: fmt(v.wealth_sell ?? '0'), s: 'clear the loan, the rest saved' },
                       {
-                        l: Number(v.wealth_edge) >= 0 ? 'SELLING AHEAD BY' : 'KEEPING AHEAD BY',
+                        l: 'DIFFERENCE',
                         v: fmt(String(Math.abs(Number(v.wealth_edge)))),
-                        s: v.wealth_edge_needed != null ? `selling needs ${fmt(v.wealth_edge_needed)}` : undefined,
-                        tone: Number(v.wealth_edge) > 0 ? L_T.positive : L_T.negative,
+                        s: Number(v.wealth_edge) > 0 ? 'more if sold' : Number(v.wealth_edge) < 0 ? 'more if kept' : 'the same either way',
                       },
                     ]}
                   />
                 </div>
                 <LNote style={{ margin: '10px 0 0' }}>
                   {v.wealth_basis === 'amortising'
-                    ? `Both ways pay ${fmt(debtPayment)} a month: to the loan until it's gone, then into savings.`
+                    ? `Both ways pay ${fmt(debtPayment)} a month: to the loan until it's gone, then into savings. Kept, it grows ${formatPct(assetReturn, 1)} a year: that's your estimate, and the answer moves with it.`
                     : 'With no monthly payment, keeping it lets the loan grow unpaid. Enter the payment for the usual case.'}
                 </LNote>
               </div>
@@ -679,28 +669,21 @@ export function LiquidateTool() {
 
             {partialSaleHint && (
               <LNote style={{ margin: '14px 0 0', color: L_T.ink }}>
-                You&apos;d have {fmt(partialSaleHint.surplus)} left after clearing the loan. If it can be split, selling about{' '}
-                {(Number(partialSaleHint.fractionNeeded) * 100).toFixed(0)}% clears the loan and keeps the rest: pick PART OF IT above.
+                You&apos;d have {fmt(partialSaleHint.surplus)} left after clearing the loan. Selling about{' '}
+                {(Number(partialSaleHint.fractionNeeded) * 100).toFixed(0)}% would cover the loan alone: pick PART OF IT above to work that out.
               </LNote>
             )}
 
+            <p style={{ margin: '14px 0 0', fontSize: 12, color: L_T.muted }}>
+              Terms: <Term id="ltcg" />{!isUS && <> · <Term id="indexation" /> · <Term id="vda" /></>}
+            </p>
             <div style={{ marginTop: 18 }}>
-              <LStepSub right="ALL MUST PASS">The tests</LStepSub>
-              <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, fontSize: 13, lineHeight: 1.8 }}>
-                {v.gate_0_wealth_edge !== null && (
-                  <li>
-                    {gate(v.gate_0_wealth_edge)}Selling leaves you better off by 10% of its value
-                  </li>
-                )}
-                <li>
-                  {gate(v.gate_1_net_benefit)}What&apos;s left after the loan is at least 10% of its value
-                </li>
-                <li>
-                  {gate(v.gate_2_high_rate)}The loan costs over 20% a year
-                </li>
-                <li>
-                  {gate(v.gate_3_spread)}The loan costs 3 points more than the asset earns
-                </li>
+              <LStepSub>What these numbers leave out</LStepSub>
+              <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, lineHeight: 1.7, color: L_T.inkSoft }}>
+                <li>What it means to you, and whether you&apos;ll need it later (a home, gold for a wedding, money for retiring).</li>
+                <li>Prices can fall as well as rise: the growth rate is your estimate, not a forecast.</li>
+                <li>Rent or other income it pays you, unless you entered it on Portfolio.</li>
+                <li>Whether waiting (past a holding period, or a lock-in) would change the tax.</li>
               </ul>
             </div>
 
@@ -714,18 +697,18 @@ export function LiquidateTool() {
 
             <DecisionLogControls
               kind="liquidation"
-              context={v.recommend_liquidation ? 'Sell asset — recommended' : 'Sell asset — hold instead'}
+              context={`Sale worked out: ${assetName || assetTypeLabel(country, assetType)}`}
               estimatedAmount={v.net_proceeds}
               reasoning={v.rationale}
               source="tools/liquidate"
               ccySym={userCcy === 'INR' ? '₹' : '$'}
             />
-            {v.recommend_liquidation && target && proceedsInLoan && profile.isLive && (
+            {target && proceedsInLoan && profile.isLive && Number(proceedsInLoan) > 0 && (
               <ApplyAction
                 applied={applied}
                 onApply={() => {
                   if (applied || busy || checked !== fingerprint) return;
-                  const currentKey = JSON.stringify(loadProfileClient().user) + (document.cookie.match(/(?:^|; )finoptima_activity_deltas=([^;]*)/)?.[1] ?? '');
+                  const currentKey = JSON.stringify(loadProfileClient().user) + (document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '');
                   if (currentKey !== resultProfileKey) {
                     setErr('Your balances changed. Check the sale again before logging the payment.');
                     return;

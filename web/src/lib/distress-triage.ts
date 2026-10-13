@@ -1,0 +1,338 @@
+/**
+ * "I can't pay this month" triage (sprint L4; critique #3, add #2).
+ *
+ * Pure functions, no network: which payment to protect first, what a
+ * missed payment costs, how lateness grows, and a hardship-request letter.
+ * Every rule cited here was checked against the RBI text on rbi.org.in on
+ * 12 Oct 2026 (TRIAGE_RULES carries the link, date and the words relied
+ * on). Lender-specific numbers (a penal charge, a bounce charge) are never
+ * guessed: the user types them from the KFS or schedule of charges, and a
+ * blank one counts as 0 with "check your KFS" beside it.
+ */
+import type { LoanType } from './api';
+
+export const TRIAGE_VERIFIED_ON = '2026-10-12';
+
+export interface TriageRule {
+  id: string;
+  title: string;
+  /** The rule in plain words, close to the RBI text. */
+  plain: string;
+  /** The instrument, with its number and date. */
+  source: string;
+  url: string;
+  /** In force from (ISO date). */
+  from: string;
+}
+
+export const TRIAGE_RULES: Record<string, TriageRule> = {
+  penal: {
+    id: 'penal',
+    title: 'Penal charges, not penal interest',
+    plain:
+      'A lender may charge a fixed penal charge for a missed payment, but not "penal interest" added to your rate, and no interest on the penal charge itself. It must be reasonable, written in your loan agreement / KFS, and named in any reminder. For a personal (non-business) loan it can be no higher than for a business borrower. Interest on the unpaid EMI at your normal rate still runs. This rule does not cover credit cards.',
+    source:
+      'RBI, Fair Lending Practice – Penal Charges in Loan Accounts, RBI/2023-24/53, 18 Aug 2023 (paras 3(i)–(vii), 5); in force for new loans from 1 Apr 2024 (RBI/2023-24/102); carried into the Responsible Business Conduct Directions, 2025',
+    url: 'https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12527',
+    from: '2024-04-01',
+  },
+  card_past_due: {
+    id: 'card_past_due',
+    title: 'Credit cards: 3 days, then reported',
+    plain:
+      'A card is reported "past due" to the credit bureaus, and a late fee charged, only when it stays unpaid for more than three days after the statement due date. The late fee is on the amount still unpaid after the due date, not the whole bill. Paying at least the minimum due by then avoids both.',
+    source: 'RBI (Commercial Banks – Credit Cards and Debit Cards: Issuance and Conduct) Directions, 2025',
+    url: 'https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13155',
+    from: '2025-11-28',
+  },
+  card_overlimit: {
+    id: 'card_overlimit',
+    title: 'Credit cards: no over-limit without your consent',
+    plain:
+      'Spending beyond the card limit needs your prior, explicit consent, and you can switch over-limit off in the bank\u2019s app. Without your consent there can be no over-limit and no over-limit charge. Interest and fees don\u2019t count toward the limit for this.',
+    source: 'RBI Credit Cards Directions, 2025; RBI FAQ on the card Directions (Query 10–11)',
+    url: 'https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13155',
+    from: '2025-11-28',
+  },
+  sma: {
+    id: 'sma',
+    title: 'How lateness is tracked',
+    plain:
+      'From the first day a payment is overdue the lender marks the loan a "special mention account" (SMA): SMA-0 for 1–30 days overdue, SMA-1 for 31–60 days, SMA-2 for 61–90 days.',
+    source: 'RBI, Prudential Framework for Resolution of Stressed Assets, 7 Jun 2019, para 6',
+    url: 'https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=11580&Mode=0',
+    from: '2019-06-07',
+  },
+  restructuring: {
+    id: 'restructuring',
+    title: 'What a formal restructuring means',
+    plain:
+      'Restructuring is the lender giving you concessions because of financial difficulty: a longer period, a smaller instalment, a lower rate. Each lender decides under its own Board-approved policy; it is not automatic. A loan that is up to date when it is restructured is immediately classed as a non-performing asset (NPA), so ask for a simple pause or a longer tenure first.',
+    source: 'RBI, Prudential Framework for Resolution of Stressed Assets, 7 Jun 2019, para 9 and Annex 1 paras 1, 4',
+    url: 'https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=11580&Mode=0',
+    from: '2019-06-07',
+  },
+  reset_choice: {
+    id: 'reset_choice',
+    title: 'Floating-rate loans: your choice at a rate reset',
+    plain:
+      'When the rate on a floating-rate EMI loan is reset, you must be given the choice of a higher EMI, a longer tenure, or both, and the option to prepay.',
+    source: 'RBI, Reset of Floating Interest Rate on EMI based Personal Loans, 18 Aug 2023',
+    url: 'https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12529',
+    from: '2023-08-18',
+  },
+  recovery: {
+    id: 'recovery',
+    title: 'Your rights with recovery agents',
+    plain:
+      'No intimidation or harassment of any kind, no public humiliation, no messages to your family, referees or friends, no threatening or anonymous calls, no repeated calls, no calls before 8:00 a.m. or after 7:00 p.m., and no false or misleading statements.',
+    source:
+      'RBI, Outsourcing of Financial Services – Responsibilities of regulated entities employing Recovery Agents, RBI/2022-23/108, 12 Aug 2022 (para 2); carried into the Responsible Business Conduct Directions, 2025',
+    url: 'https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12378',
+    from: '2022-08-12',
+  },
+  recovery_2027: {
+    id: 'recovery_2027',
+    title: 'Stronger recovery rules from 1 January 2027',
+    plain:
+      'The bank must tell you the recovery agency\u2019s details at least a day before a first visit; agents must show an ID card and an authorisation letter; contact only between 08:00 and 19:00 unless you ask otherwise, and at a place of your choice; no calls or visits at a bereavement, medical emergency or wedding; a receipt for every payment; calls recorded; and every recovery letter must name the bank\u2019s grievance officer. The bank\u2019s policy must include a structured way of handling financial distress before escalating.',
+    source:
+      'RBI (Commercial Banks – Responsible Business Conduct) Fourth Amendment Directions, 2026, 6 Aug 2026, paras 454D, 454L–454AA (same rules issued for NBFCs, HFCs, co-operative, small finance and regional rural banks)',
+    url: 'https://www.rbi.org.in/scripts/NotificationUser.aspx?Id=13665&Mode=0',
+    from: '2027-01-01',
+  },
+  settlement: {
+    id: 'settlement',
+    title: 'Settlement: what it costs you later',
+    plain:
+      'A settlement (paying less than you owe to close the loan) is the lender\u2019s choice under its own policy. After one, the same lender must wait at least 12 months before lending to you again, and the account is reported as settled rather than paid in full, which lowers your credit score. Try a pause, a longer tenure or a lower EMI first.',
+    source: 'RBI, Framework for Compromise Settlements and Technical Write-offs, RBI/2023-24/40, 8 Jun 2023 (para 11)',
+    url: 'https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12513&Mode=0',
+    from: '2023-06-08',
+  },
+};
+
+/** Which group a loan's payment falls in, most protected first. */
+export type ProtectTier = 'secured' | 'card_minimum' | 'unsecured';
+
+const TIER_OF: Record<LoanType, ProtectTier> = {
+  home_loan: 'secured',
+  auto_loan: 'secured',
+  gold_loan: 'secured',
+  credit_card: 'card_minimum',
+  personal_loan: 'unsecured',
+  education_loan: 'unsecured',
+  bnpl: 'unsecured',
+};
+const TIER_RANK: Record<ProtectTier, number> = { secured: 0, card_minimum: 1, unsecured: 2 };
+/** Inside the secured group: the home before the car before the gold. */
+const SECURED_RANK: Partial<Record<LoanType, number>> = { home_loan: 0, auto_loan: 1, gold_loan: 2 };
+
+export function protectTier(t: LoanType): ProtectTier {
+  return TIER_OF[t];
+}
+
+export const TIER_REASON: Record<ProtectTier, string> = {
+  secured:
+    'Secured: the lender can take the asset (your home, car or gold) if this goes unpaid. Protect it first.',
+  card_minimum:
+    'Pay at least the minimum due: more than 3 days late and the card is reported past due and a late fee is charged. Keep spending inside the limit.',
+  unsecured:
+    'Unsecured: no asset at risk. If something has to wait, it is safer here, but tell the lender before the due date.',
+};
+
+export interface TriageLoanIn {
+  key: string;
+  label: string;
+  loan_type: LoanType;
+  /** This month's required payment (EMI, or the card's minimum due), in the user's currency. */
+  required: number;
+  /** Annual rate, percent. */
+  ratePct: number;
+}
+
+export interface TriageLine extends TriageLoanIn {
+  tier: ProtectTier;
+  reason: string;
+  /** Whether it fits in the money available, taken in protect order. */
+  covered: 'full' | 'part' | 'none';
+  /** How much of `required` the available money covers. */
+  pay: number;
+  short: number;
+}
+
+/**
+ * Orders this month's payments by what to protect first, then fills them
+ * from `available` in that order. Secured (home, car, gold) first; then
+ * card minimums; then other unsecured loans. Inside a tier, the larger
+ * monthly interest cost (required × rate) goes first, the cheaper one is
+ * the one to let wait. Ties keep the input order.
+ */
+export function protectOrder(loans: TriageLoanIn[], available: number): TriageLine[] {
+  const ordered = loans
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => l.required > 0)
+    .sort((a, b) => {
+      const ta = TIER_OF[a.l.loan_type];
+      const tb = TIER_OF[b.l.loan_type];
+      if (TIER_RANK[ta] !== TIER_RANK[tb]) return TIER_RANK[ta] - TIER_RANK[tb];
+      if (ta === 'secured') {
+        const sa = SECURED_RANK[a.l.loan_type] ?? 9;
+        const sb = SECURED_RANK[b.l.loan_type] ?? 9;
+        if (sa !== sb) return sa - sb;
+      }
+      const ca = a.l.ratePct;
+      const cb = b.l.ratePct;
+      if (ca !== cb) return cb - ca;
+      return a.i - b.i;
+    });
+  let left = Math.max(0, available);
+  return ordered.map(({ l }) => {
+    const pay = Math.min(left, l.required);
+    left -= pay;
+    const tier = TIER_OF[l.loan_type];
+    return {
+      ...l,
+      tier,
+      reason: TIER_REASON[tier],
+      pay: round2(pay),
+      short: round2(l.required - pay),
+      covered: pay >= l.required ? 'full' : pay > 0 ? 'part' : 'none',
+    };
+  });
+}
+
+export interface MissCostIn {
+  /** The unpaid amount (the EMI or the part of it not paid). */
+  unpaid: number;
+  /** The loan's own annual rate, percent. */
+  ratePct: number;
+  /** Months it stays unpaid. */
+  months: number;
+  /** The lender's penal charge per missed instalment, from the KFS; null if not known. */
+  penalCharge: number | null;
+  /** The bank's charge for a returned NACH / auto-debit, from its schedule of charges; null if not known. */
+  bounceCharge: number | null;
+  /** Whether the EMI is collected by auto-debit (NACH / ECS / standing instruction). */
+  autoDebit: boolean;
+}
+
+export interface MissCost {
+  /** Interest on the unpaid amount at the loan's own rate (simple, month by month). */
+  interest: number;
+  penal: number;
+  bounce: number;
+  total: number;
+  /** Which lender figures the user hasn't given (counted as 0). */
+  unknown: Array<'penal' | 'bounce'>;
+}
+
+/**
+ * What missing a payment adds, by the RBI penal-charges rule: interest on
+ * the unpaid EMI at the contracted rate (never a penal rate), plus a flat
+ * penal charge per missed instalment (no interest on it), plus the bounce
+ * charge if an auto-debit fails. Penal and bounce amounts are the user's,
+ * from the KFS; unknown ones are 0 and named in `unknown`.
+ */
+export function missedPaymentCost(i: MissCostIn): MissCost {
+  const months = Math.max(0, Math.floor(i.months));
+  const unpaid = Math.max(0, i.unpaid);
+  const monthly = Math.max(0, i.ratePct) / 100 / 12;
+  // Each month the instalment stays unpaid it earns one month of interest at
+  // the loan's own rate; no compounding on penal charges (RBI 3(i)).
+  const interest = unpaid * monthly * months;
+  const unknown: MissCost['unknown'] = [];
+  if (i.penalCharge == null) unknown.push('penal');
+  if (i.autoDebit && i.bounceCharge == null) unknown.push('bounce');
+  const penal = months > 0 ? (i.penalCharge ?? 0) : 0;
+  const bounce = months > 0 && i.autoDebit ? (i.bounceCharge ?? 0) : 0;
+  return {
+    interest: round2(interest),
+    penal: round2(penal),
+    bounce: round2(bounce),
+    total: round2(interest + penal + bounce),
+    unknown,
+  };
+}
+
+/** The SMA stage for a number of days overdue (RBI Prudential Framework, para 6). */
+export function smaStage(daysOverdue: number): 'current' | 'SMA-0' | 'SMA-1' | 'SMA-2' | 'over 90 days' {
+  if (daysOverdue <= 0) return 'current';
+  if (daysOverdue <= 30) return 'SMA-0';
+  if (daysOverdue <= 60) return 'SMA-1';
+  if (daysOverdue <= 90) return 'SMA-2';
+  return 'over 90 days';
+}
+
+export type HardshipAsk = 'pause' | 'lower_emi' | 'longer_tenure' | 'waive_penal' | 'restructure';
+
+export const HARDSHIP_ASK_TEXT: Record<HardshipAsk, string> = {
+  pause: 'a short pause (moratorium) of the EMI for the next one to three months, with the instalments added at the end',
+  lower_emi: 'a lower EMI for the next few months',
+  longer_tenure: 'a longer tenure so that the EMI comes down',
+  waive_penal: 'a waiver of any penal charges for this period',
+  restructure: 'a formal restructuring under your Board-approved policy (I understand this is reported to credit bureaus and can change how the loan is classified)',
+};
+
+export interface HardshipLetterIn {
+  name: string;
+  lender: string;
+  loanLabel: string;
+  accountRef: string;
+  reason: string;
+  /** What the user can pay a month for now. */
+  canPay: string;
+  asks: HardshipAsk[];
+  floating: boolean;
+  dateText: string;
+}
+
+export const LETTER_SELF_CHECK = [
+  'The loan account number and your name match the lender\u2019s records.',
+  'The reason is true and short; attach proof if you have it (a termination letter, a hospital bill).',
+  'The amount you say you can pay is one you can really keep paying.',
+  'You keep a copy, and send it by email or through the lender\u2019s complaint / service channel so there is a dated record.',
+  'You don\u2019t sign any new agreement until you have read the changed terms in writing.',
+];
+
+export const DRAFT_MARK = 'DRAFT \u2014 CHECK BEFORE SENDING. Not legal advice; RightDue drafts it from what you typed.';
+
+/** A plain hardship / restructuring request. Marked as a draft. */
+export function hardshipLetter(i: HardshipLetterIn): string {
+  const asks = i.asks.length ? i.asks : (['pause', 'longer_tenure'] as HardshipAsk[]);
+  const lines = [
+    DRAFT_MARK,
+    '',
+    i.dateText,
+    '',
+    `To: ${i.lender || '[lender]'}, loan servicing / grievance redressal officer`,
+    `Subject: Request for hardship relief on my ${i.loanLabel}${i.accountRef ? `, account ${i.accountRef}` : ''}`,
+    '',
+    'Dear Sir / Madam,',
+    '',
+    `I am writing before my next due date because I am unable to pay the full instalment on this loan for now. The reason: ${i.reason || '[a short, true reason]'}.`,
+    '',
+    `I want to keep this loan in good standing. I can pay ${i.canPay || '[amount]'} a month for now. I request:`,
+    ...asks.map((a, n) => `  ${n + 1}. ${HARDSHIP_ASK_TEXT[a]}`),
+    '',
+  ];
+  if (i.floating) {
+    lines.push(
+      'As this is a floating-rate loan, I also note that at a rate reset RBI requires that I be given the choice of a higher EMI, a longer tenure or both (RBI, Reset of Floating Interest Rate on EMI based Personal Loans, 18 Aug 2023).',
+      '',
+    );
+  }
+  lines.push(
+    'If any penal charge is levied in the meantime, please tell me the amount and the reason, as required by RBI\u2019s circular on Penal Charges in Loan Accounts (18 Aug 2023).',
+    '',
+    'Please reply in writing with the options available to me and their effect on my EMI, tenure and credit report. Until then, please contact me only between 8 a.m. and 7 p.m.',
+    '',
+    'Yours faithfully,',
+    i.name || '[your name]',
+  );
+  return lines.join('\n');
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}

@@ -14,7 +14,7 @@ from api.auth import routes as auth
 from api.auth.session import hash_otp
 from api.db.connection import database_engine
 from api.db.database import Base, get_db
-from api.db.models import OtpCode, Session, User
+from api.db.models import OtpChallenge, Session, User
 from api.outcomes_store import LimitReached, OutcomeStore, metadata
 from api.routes.user_state import router as state_router
 from engine.outcomes import Outcome, OutcomeReport
@@ -56,7 +56,7 @@ async def database(raw):
         await engine.dispose()
 
 
-def test_concurrent_first_requests_create_one_user_and_one_usable_code(test_url, monkeypatch):
+def test_concurrent_first_requests_create_one_usable_code_and_no_user_until_verified(test_url, monkeypatch):
     codes = []
     monkeypatch.setattr(auth, 'send_otp_email', lambda email, code: codes.append(code))
     sequence = iter(('123456', '654321'))
@@ -68,14 +68,16 @@ def test_concurrent_first_requests_create_one_user_and_one_usable_code(test_url,
             responses = await asyncio.gather(*(client.post('/api/auth/request-otp', json={'email': email}) for _ in range(2)))
             assert [r.status_code for r in responses] == [204, 204]
             async with sessions() as session:
-                assert len((await session.execute(select(User))).scalars().all()) == 1
-                active = (await session.execute(select(OtpCode).where(OtpCode.used_at.is_(None)))).scalar_one()
+                # Grill #59: requesting a code creates no account.
+                assert (await session.execute(select(User))).scalars().all() == []
+                active = (await session.execute(select(OtpChallenge).where(OtpChallenge.used_at.is_(None)))).scalar_one()
                 usable = next(code for code in codes if hash_otp(code) == active.code_hash)
             # Race two consumers of exactly the same latest challenge.
             results = await asyncio.gather(*(client.post('/api/auth/verify-otp', json={'email': email, 'code': usable}) for _ in range(2)))
             assert sorted(r.status_code for r in results) == [200, 400]
             async with sessions() as session:
                 assert len((await session.execute(select(Session))).scalars().all()) == 1
+                assert len((await session.execute(select(User))).scalars().all()) == 1
     asyncio.run(run())
 
 
@@ -90,7 +92,7 @@ def test_concurrent_wrong_codes_cannot_lose_attempt_increments(test_url, monkeyp
             responses = await asyncio.gather(*(client.post('/api/auth/verify-otp', json={'email': email, 'code': '000000'}) for _ in range(8)))
             assert sorted(r.status_code for r in responses) == [400] * 5 + [429] * 3
             async with sessions() as session:
-                assert (await session.execute(select(OtpCode))).scalar_one().attempts == 5
+                assert (await session.execute(select(OtpChallenge))).scalar_one().attempts == 5
     asyncio.run(run())
 
 
@@ -129,4 +131,33 @@ def test_outcome_limits_hold_across_independent_server_workers(test_url):
                                                for i, report in enumerate(reports)), return_exceptions=True)
             assert sum(isinstance(r, int) for r in responses) == 8
             assert sum(isinstance(r, LimitReached) for r in responses) == 4
+    asyncio.run(run())
+
+
+def test_persisted_rate_buckets_count_exactly_under_concurrency(test_url):
+    """Grill #59: the Postgres counter is one atomic upsert, so concurrent
+    requests from one address can't slip past the hourly limit."""
+    from datetime import datetime, timezone
+    from api.rate_buckets import DbRateCounter, WindowLimit
+
+    async def run():
+        async with database(test_url) as (client, sessions, engine):
+            counter = DbRateCounter(sessions, key=b'k', limits=[('/api/auth/request-otp', WindowLimit(limit=10))])
+            now = datetime(2026, 10, 12, 10, 0, tzinfo=timezone.utc)
+            results = await asyncio.gather(*(counter.hit('198.51.100.1', '/api/auth/request-otp', now) for _ in range(25)))
+            assert sum(r is None for r in results) == 10
+    asyncio.run(run())
+
+
+def test_concurrent_requests_cannot_pass_the_global_daily_cap(test_url, monkeypatch):
+    monkeypatch.setattr(auth, 'send_otp_email', lambda email, code: None)
+    monkeypatch.setattr(auth, 'OTP_GLOBAL_DAILY_CAP', 3)
+
+    async def run():
+        async with database(test_url) as (client, sessions, engine):
+            # Different emails take different advisory locks, so a few may
+            # race past the count; the cap is a budget guard, and the
+            # overshoot is bounded by concurrency, not by an attacker's rate.
+            responses = [await client.post('/api/auth/request-otp', json={'email': f'g{i}@example.com'}) for i in range(5)]
+            assert [r.status_code for r in responses] == [204, 204, 204, 503, 503]
     asyncio.run(run())

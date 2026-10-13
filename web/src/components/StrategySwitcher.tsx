@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import {
   STRATEGIES,
   STRATEGY_LABEL,
+  STRATEGY_PLAIN,
   STRATEGY_SHORT,
   writeStrategyClient,
   type StrategyName,
@@ -44,7 +45,7 @@ export type StrategyCompare = Record<
 const STRATEGY_EXPLAINER: Record<StrategyName, React.ReactNode> = {
   avalanche: (
     <>
-      <strong>Avalanche</strong> — pay minimums on every loan, then throw all
+      <strong>Avalanche (cheapest path)</strong> — pay minimums on every loan, then throw all
       extra cash at the loan where the <em>next</em> payment saves the most: its
       interest compounded monthly, plus GST on card interest, minus any tax
       break the payment gives up and any prepayment fee. Fees already paid
@@ -56,7 +57,7 @@ const STRATEGY_EXPLAINER: Record<StrategyName, React.ReactNode> = {
   ),
   snowball: (
     <>
-      <strong>Snowball</strong> — pay minimums, then throw extra at the
+      <strong>Snowball (smallest first)</strong> — pay minimums, then throw extra at the
       <em> smallest balance</em> first. You'll pay slightly more interest than
       Avalanche, but you'll close out loans faster and feel quick wins. Pick
       this if motivation matters more than optimal math.
@@ -64,7 +65,7 @@ const STRATEGY_EXPLAINER: Record<StrategyName, React.ReactNode> = {
   ),
   rules: (
     <>
-      <strong>Your rules</strong> — your own order: pin a loan to the front,
+      <strong>Your rules (your own order)</strong> — pin a loan to the front,
       clear any loan under an amount first, or set the whole order. Whatever
       the rules don&apos;t place goes by what the next payment saves (as Avalanche). The plan shows
       what your rules cost against Avalanche. (This replaces Hybrid, which is
@@ -230,7 +231,7 @@ export function StrategySwitcher({
                   textDecorationStyle: 'dotted',
                 }}
               >
-                [{STRATEGY_LABEL[s].toUpperCase()}]
+                [{STRATEGY_LABEL[s].toUpperCase()} · {STRATEGY_PLAIN[s].toUpperCase()}]
               </button>
             </span>
           );

@@ -93,7 +93,9 @@ def test_m1_moratorium_interest_is_capitalised():
                first_payment_month=13)
     u = _user(Country.IN, [edu], income="20000", expenses="20000")
     r = simulate_plan(u, horizon_months=14)
-    assert r.months[11].balances_by_loan_index[0] > D("1100000")
+    # Simple interest on the principal through an education loan's moratorium
+    # (SBI Student Loan MITC; sprint G1): 12 × ₹8,333.33 = ₹1,00,000 added.
+    assert r.months[11].balances_by_loan_index[0] == pytest.approx(D("1100000"), abs=D("0.01"))
 
 
 def test_m1_loan_taken_this_month_does_not_double_count():
@@ -211,7 +213,9 @@ def test_p2_09_income_shock_lasts_its_full_window():
     reset = LifecycleEvent(LifecycleEventKind.SALARY_RESET, 3, new_monthly_take_home=D("120000"))
     r = with_income_shock(u, 6, horizon_months=60, plan={"lifecycle_events": [reset]})
     assert all(r.months[i].available_surplus == 0 for i in range(6))
-    assert r.months[6].available_surplus > D("70000")   # the planned raise applies after
+    # The planned raise applies after; it first repays the gap the shock
+    # months borrowed (grill #38), so count both.
+    assert r.months[6].available_surplus + r.months[6].gap_repaid > D("70000")
 
 
 # P2-10 ─────────────────────────────────────────────────────────────────────
@@ -235,7 +239,13 @@ def test_p2_13_indian_card_interest_carries_gst():
     card = Loan(LoanType.CREDIT_CARD, "x", D("100000"), D("0.42"), "fixed", 0, D("0"))
     u = _user(Country.IN, [card], income="40000", expenses="30000")
     r = simulate_plan(u, horizon_months=2)
-    assert r.months[0].interest_paid_month == pytest.approx(D("4130"))
+    # 3.5% a month + 18% GST on the average daily balance (sprint G1): the
+    # payment, made on the due date, stops interest on the paid part for the
+    # last third of the cycle.
+    paid = r.months[0].payments_by_loan_index[0]
+    want = (D("100000") - paid / 3) * D("0.035") * D("1.18")
+    assert r.months[0].interest_paid_month == pytest.approx(want)
+    assert r.months[0].interest_paid_month > (D("100000") - paid / 3) * D("0.035")   # GST is in it
 
 
 # P2-14 ─────────────────────────────────────────────────────────────────────

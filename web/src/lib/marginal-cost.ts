@@ -5,7 +5,7 @@
  * engine/tests/fixtures/marginal_cost_cases.json) keeps the two equal.
  *
  *   marginal cost = interest, compounded monthly       (1 + r/12)^12 − 1
- *                 + GST on that interest, compounding  (Indian credit cards: 18%)
+ *                 + GST on that interest, not compounding (Indian credit cards: 18%)
  *                 − tax benefit the prepayment gives up (24(b) / 80E / US mortgage
  *                                                        and student-loan interest)
  *                 − prepayment fee                     fee% × 12 / months left
@@ -17,7 +17,10 @@
 import Decimal from 'decimal.js';
 import type { LoanPayload, UserPayload } from './api';
 import { usMortgageShieldShare } from './deductions';
-import { GST_RATE_IN } from './gst';
+import { GST_RATE_IN, gstApplies } from './gst';
+import { taxShare } from './india-tax-loans';
+import TAX from './tax-tables.json';
+import { usMortgageMarginalRate } from './us-loans';
 
 const D = (v: string | number | Decimal) => new Decimal(v);
 
@@ -58,9 +61,11 @@ export function marginalCost(
   lockInMonths = 0,
 ): MarginalCost {
   const interest = compounded(nominalRate);
-  // GST is billed on each month's interest and compounds with it (as the
-  // simulation and true APR have it): a 42% card costs 62.6% a year, not 60.31%.
-  const gst = cardGst ? compounded(D(nominalRate).times(GST_ON_CARD_INTEREST_IN.plus(1))).minus(interest) : D(0);
+  // GST is 18% of the year's interest and is never itself charged interest:
+  // RBI Credit Card Master Direction 2022, para 9(b)(ii) and FAQ 7 ("unpaid
+  // charges/levies/taxes shall not be capitalized"). 42% → 51.11% + 9.20% = 60.31%.
+  // https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12300 (read 2026-10-12)
+  const gst = cardGst ? interest.times(GST_ON_CARD_INTEREST_IN) : D(0);
   const taxBenefit = interest.times(D(shieldFraction));
   const k = monthsLeft > 0 ? monthsLeft : OPEN_ENDED_MONTHS;
   const feePct = D(prepaymentFeePct || 0);
@@ -69,6 +74,14 @@ export function marginalCost(
   const total = annualCost.minus(fee);
   const lock = Math.max(0, Math.trunc(lockInMonths));
   return { interest, gst, taxBenefit, fee, lockInMonths: lock, annualCost, total, locked: lock > 0, orderKey: lock > 0 ? total.minus(LOCKED_OFFSET) : total };
+}
+
+/** India-only inputs to marginalShield (engine: share, let_out, cap, deduction_open). */
+export interface IndiaShieldOptions {
+  share?: Decimal.Value;
+  letOut?: boolean;
+  cap?: Decimal.Value | null;
+  deductionOpen?: boolean;
 }
 
 /** Tax saved on the NEXT unit of interest, as a share of it (see the engine's
@@ -83,16 +96,62 @@ export function marginalShield(
   interestTotal: Decimal.Value = 0,
   debtTotal: Decimal.Value = 0,
   phaseoutFactor: Decimal.Value = 1,
+  india: IndiaShieldOptions = {},
 ): Decimal {
   const m = D(marginalRate || 0);
   if (country === 'IN') {
-    if (loanType === 'home_loan') return regime === 'old' && D(interestTotal).lt(IN_HOME_INTEREST_CAP) ? m : D(0);
-    if (loanType === 'education_loan') return regime === 'old' ? m : D(0);
+    // Sprint G2, as the engine: the user's share (co-borrower), a let-out
+    // home checked against its own room, the ₹30k cap, the 80E window.
+    const sh = Decimal.max(0, Decimal.min(1, D(india.share ?? 1)));
+    if (loanType === 'home_loan') {
+      if (india.letOut) return india.cap != null && D(interestTotal).lt(D(india.cap)) ? m.times(sh) : D(0);
+      const limit = india.cap != null ? D(india.cap) : IN_HOME_INTEREST_CAP;
+      return regime === 'old' && D(interestTotal).lt(limit) ? m.times(sh) : D(0);
+    }
+    if (loanType === 'education_loan') return regime === 'old' && india.deductionOpen !== false ? m.times(sh) : D(0);
     return D(0);
   }
   if (loanType === 'home_loan') return itemises && D(itemisedShare).gt(0) && D(debtTotal).lt(US_MORTGAGE_DEBT_LIMIT) ? m : D(0);
   if (loanType === 'education_loan') return D(interestTotal).lt(US_STUDENT_INTEREST_CAP) ? m.times(D(phaseoutFactor)) : D(0);
   return D(0);
+}
+
+/** The prepayment fee as charged: an Indian lender adds 18% GST on it
+ *  (engine marginal_cost.prepayment_fee_with_gst; grill #27). */
+export function prepaymentFeeWithGst(feePct: Decimal.Value, india: boolean): Decimal {
+  const f = D(feePct || 0);
+  return india && gstApplies('prepayment_fee') ? f.plus(f.times(GST_RATE_IN)) : f;
+}
+
+/** A home loan's year of interest (+ pre-construction instalment) in the user's share. */
+function indiaOwnInterest(l: LoanPayload): Decimal {
+  return D(l.outstanding || 0).times(D(l.nominal_rate || 0)).plus(D(l.pre_construction_interest_annual || 0)).times(taxShare(l));
+}
+
+/** As the engine's _india_shield_kwargs, for today (sim month 1). */
+export function indiaShieldOptions(l: LoanPayload, regime: string, homeInterest: Decimal.Value, month = 1): IndiaShieldOptions {
+  const o: IndiaShieldOptions = { share: taxShare(l) };
+  if (l.loan_type === 'home_loan') {
+    if (l.property_use === 'let_out') {
+      const used = regime === 'old' ? Decimal.min(D(homeInterest), D(TAX.in.deductions.sec24b_self_occupied_cap)) : D(0);
+      o.letOut = true;
+      o.cap = letOutRoom(regime, l.annual_rent, taxShare(l), used);
+    } else if (l.sec24_full_cap === false) {
+      o.cap = D(TAX.in.deductions.sec24b_other_cap);
+    }
+  } else if (l.loan_type === 'education_loan' && l.tax_deduction_months_left != null) {
+    o.deductionOpen = month <= l.tax_deduction_months_left;
+  }
+  return o;
+}
+
+/** engine/tax/india.let_out_room: rent after municipal tax and 30%, in the
+ *  user's share, plus what's left of the old regime's ₹2L set-off. */
+export function letOutRoom(regime: string, annualRent: Decimal.Value | null | undefined, share: Decimal.Value, setOffUsed: Decimal.Value = 0): Decimal {
+  const rent = annualRent == null || annualRent === '' ? D(0) : D(annualRent);
+  const rentPart = rent.gt(0) ? rent.times(D(share)).times(D(1).minus(TAX.in.deductions.let_out_standard_deduction)) : D(0);
+  const setOff = regime === 'old' ? Decimal.max(0, D(TAX.in.deductions.hp_loss_set_off_cap).minus(D(setOffUsed))) : D(0);
+  return rentPart.plus(setOff);
 }
 
 function marketOf(loan: Pick<LoanPayload, 'currency'>, country: string): string {
@@ -111,7 +170,11 @@ export function userMarginalCosts(user: UserPayload, marginalRate: string, indic
   const homes = loans.filter((l) => l.loan_type === 'home_loan' && sameMarket(l));
   const edu = loans.filter((l) => l.loan_type === 'education_loan' && sameMarket(l));
   const interestOf = (ls: LoanPayload[]) => ls.reduce((s, l) => s.plus(D(l.outstanding || 0).times(D(l.nominal_rate || 0))), D(0));
-  const homeInterest = interestOf(homes);
+  // India: the user's share of self-occupied interest + pre-construction
+  // instalments, which share one ₹2L cap (engine _shield_context).
+  const homeInterest = own === 'IN'
+    ? homes.filter((l) => l.property_use !== 'let_out').reduce((s, l) => s.plus(indiaOwnInterest(l)), D(0))
+    : interestOf(homes);
   const homeDebt = homes.reduce((s, l) => s.plus(D(l.outstanding || 0)), D(0));
   const eduInterest = interestOf(edu);
   // US: the share of mortgage interest above the standard deduction (the
@@ -121,12 +184,20 @@ export function userMarginalCosts(user: UserPayload, marginalRate: string, indic
   for (const i of idx) {
     const l = loans[i];
     if (!l || !open(l)) continue;
+    const regime = user.tax_regime ?? 'new';
+    const india = own === 'IN' ? indiaShieldOptions(l, regime, homeInterest) : {};
+    const total = india.letOut ? indiaOwnInterest(l) : l.loan_type === 'home_loan' ? homeInterest : eduInterest;
+    // A US mortgage saves no state tax in a no-income-tax state or one that
+    // disallows mortgage interest (lib/us-loans, engine _home_rate, #79).
+    const rate = own === 'US' && l.loan_type === 'home_loan'
+      ? usMortgageMarginalRate(marginalRate, user.state, user.state_marginal_rate ?? 0).toString()
+      : marginalRate;
     const shield = marginalShield(
-      l.loan_type, own, marginalRate, user.tax_regime ?? 'new', itemisedShare.gt(0), itemisedShare,
-      l.loan_type === 'home_loan' ? homeInterest : eduInterest, homeDebt, 1,
+      l.loan_type, own, rate, regime, itemisedShare.gt(0), itemisedShare,
+      total, homeDebt, 1, india,
     );
     const cardGst = l.loan_type === 'credit_card' && marketOf(l, own) === 'IN';
-    out.set(i, marginalCost(l.nominal_rate || 0, cardGst, shield, l.prepayment_penalty_pct || 0, Number(l.tenure_months_remaining || 0), Number(l.prepay_lock_in_months || 0)));
+    out.set(i, marginalCost(l.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(l.prepayment_penalty_pct || 0, marketOf(l, own) === 'IN'), Number(l.tenure_months_remaining || 0), Number(l.prepay_lock_in_months || 0)));
   }
   return out;
 }
@@ -144,9 +215,11 @@ export function loanMarginalCost(
   const share = itemises === true ? D(1) : itemises === false ? D(0) : D(itemises);
   const interest = D(loan.outstanding || 0).times(D(loan.nominal_rate || 0));
   const own = marketOf(loan, country) === country;
-  const shield = own ? marginalShield(loan.loan_type, country, marginalRate, regime, share.gt(0), share, interest, D(loan.outstanding || 0), 1) : D(0);
+  const india = own && country === 'IN' ? indiaShieldOptions(loan, regime, loan.property_use === 'let_out' ? 0 : indiaOwnInterest(loan)) : {};
+  const total = country === 'IN' && loan.loan_type === 'home_loan' ? indiaOwnInterest(loan) : interest;
+  const shield = own ? marginalShield(loan.loan_type, country, marginalRate, regime, share.gt(0), share, total, D(loan.outstanding || 0), 1, india) : D(0);
   const cardGst = loan.loan_type === 'credit_card' && marketOf(loan, country) === 'IN';
-  return marginalCost(loan.nominal_rate || 0, cardGst, shield, loan.prepayment_penalty_pct || 0, Number(loan.tenure_months_remaining || 0), Number(loan.prepay_lock_in_months || 0));
+  return marginalCost(loan.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(loan.prepayment_penalty_pct || 0, marketOf(loan, country) === 'IN'), Number(loan.tenure_months_remaining || 0), Number(loan.prepay_lock_in_months || 0));
 }
 
 const pct = (v: Decimal) => `${v.times(100).toFixed(2)}%`;
@@ -154,11 +227,11 @@ const pct = (v: Decimal) => `${v.times(100).toFixed(2)}%`;
 /** The breakdown lines for "why this loan first". */
 export function whyFirstLines(mc: MarginalCost): { label: string; value: string; sign: '+' | '−' | '=' }[] {
   const lines: { label: string; value: string; sign: '+' | '−' | '=' }[] = [{ label: 'Interest, compounded monthly', value: pct(mc.interest), sign: '+' }];
-  if (mc.gst.gt(0)) lines.push({ label: 'GST on the interest (18%), compounding with it', value: pct(mc.gst), sign: '+' });
+  if (mc.gst.gt(0)) lines.push({ label: 'GST on the interest (18%); RBI bars interest on it', value: pct(mc.gst), sign: '+' });
   if (mc.taxBenefit.gt(0)) lines.push({ label: 'Tax break you’d give up', value: pct(mc.taxBenefit), sign: '−' });
   if (mc.fee.gt(0)) {
     lines.push({ label: 'What it costs you a year', value: pct(mc.annualCost), sign: '=' });
-    lines.push({ label: 'Prepayment fee, over the months left', value: pct(mc.fee), sign: '−' });
+    lines.push({ label: 'Prepayment fee (with 18% GST in India), over the months left', value: pct(mc.fee), sign: '−' });
   }
   lines.push({ label: 'Each extra payment here saves', value: `${pct(mc.total)} a year`, sign: '=' });
   return lines;

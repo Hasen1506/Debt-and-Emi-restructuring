@@ -30,8 +30,8 @@ export interface MonthlySpendEntry {
   loggedAt: string;
 }
 
-const STORAGE_KEY = 'finoptima_monthly_spend';
-const DIGEST_COOKIE = 'finoptima_monthly_spend_digest';
+const STORAGE_KEY = 'rightdue_monthly_spend';
+const DIGEST_COOKIE = 'rightdue_monthly_spend_digest';
 
 function safeParse(raw: string | null): MonthlySpendEntry[] {
   if (!raw) return [];

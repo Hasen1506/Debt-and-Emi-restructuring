@@ -38,6 +38,7 @@ saves over the plan.
 from __future__ import annotations
 
 import itertools
+from copy import copy
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Callable
@@ -265,3 +266,57 @@ def _fee_note(user, chosen_res, blind_res, saving: Decimal, n: int) -> str | Non
         f"your {_label(displaced)}, which saves about {money} over the plan, fees included, compared with "
         f"going by rate alone."
     )
+
+
+# ── A fee nobody knows (grill #29, sprint G1) ───────────────────────────────
+# A blank fee on a fixed-rate loan (or a card, a US loan, a business loan RBI's
+# rule doesn't clearly cover) is "Not known": the plan runs it at 0%. That can
+# send the extra into a fee that is really there. So the plan is run twice,
+# at 0% and at an illustrative high fee, and the user is asked for the fee
+# only when the answer changes which loan the extra goes to first.
+#
+# 4% is illustrative, not a lender figure or an average: it is a stress test
+# high enough to flip the order when a fee could matter. GST (18%) is added on
+# top for an Indian loan, as a lender would. Copy must call it illustrative.
+ILLUSTRATIVE_HIGH_FEE = D("0.04")
+
+
+@dataclass(frozen=True)
+class UnknownFeeCheck:
+    ask_fee: bool                  # True: the first loan to prepay changes, ask for the fee
+    loans: list[int]               # the unknown-fee loans (positions) that were stressed
+    first_at_zero: int | None      # first loan to get extra with the fee at 0%
+    first_at_high: int | None      # ... with the illustrative high fee
+    note: str | None
+
+
+def first_extra_target(res) -> int | None:
+    """Position of the first loan the plan sends extra money to."""
+    for row in res.months:
+        if getattr(row, "extra_to_loan_index", None) is not None:
+            return row.extra_to_loan_index
+    return None
+
+
+def unknown_fee_check(user, unknown_fee_loans: list[int], run: Callable[[object], object],
+                      high_fee: Decimal = ILLUSTRATIVE_HIGH_FEE) -> UnknownFeeCheck:
+    """`unknown_fee_loans`: positions of loans whose fee the user left blank
+    and no rule fixes ("Not known"). `run(user) -> SimulationResult`."""
+    idx = [i for i in unknown_fee_loans
+           if 0 <= i < len(user.loans) and user.loans[i].outstanding > 0
+           and not (user.loans[i].prepayment_penalty_pct or D("0")) > 0]
+    if not idx:
+        return UnknownFeeCheck(False, [], None, None, None)
+    at_zero = first_extra_target(run(user))
+    stressed = copy(user)
+    stressed.loans = [copy(l) for l in user.loans]
+    for i in idx:
+        stressed.loans[i].prepayment_penalty_pct = high_fee
+    at_high = first_extra_target(run(stressed))
+    ask = at_zero != at_high
+    note = None
+    if ask and at_zero is not None:
+        note = (f"Your {_label(user.loans[at_zero])} would get the extra first if it has no prepayment fee, "
+                f"but not if it charges one (we tried an illustrative {_pct(high_fee)}). "
+                "Check its loan agreement or Key Facts Statement for the prepayment charge and add it.")
+    return UnknownFeeCheck(ask, idx, at_zero, at_high, note)

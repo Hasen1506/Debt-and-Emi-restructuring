@@ -12,7 +12,9 @@ api/data/rates_live.json
 api/data/rates_live.tmp
 # Shared outcome reports when no DATABASE_URL is set (api/outcomes_store.py).
 api/data/outcomes.sqlite3*
+api/data/notify.sqlite3*
 # Playwright (web/e2e) run output
 web/test-results/
 web/playwright-report/
 web/blob-report/
+.verify-all/

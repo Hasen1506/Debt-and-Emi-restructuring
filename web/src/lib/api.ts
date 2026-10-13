@@ -4,6 +4,7 @@
  * `formatINR` / `formatUSD` for display.
  */
 import type { KfsReadResponse } from './kfs';
+import type { CreditReportReadResponse } from './credit-report';
 import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
 import { authErrorMessage } from './auth-error';
@@ -44,6 +45,8 @@ export type LoanType =
   | 'bnpl';
 export type LiquidityClass = 'liquid' | 'locked' | 'age_gated';
 export type IncomeType = 'salaried' | 'business_owner';
+/** Lender types for the prepayment-fee rule (engine/prepayment_fee.py LENDER_TYPES). */
+export type LenderType = 'bank' | 'small_finance_bank' | 'cooperative_bank' | 'nbfc' | 'hfc' | 'other';
 export type TaxRegimeIN = 'new' | 'old';
 export type FilingStatusUS = 'single' | 'mfj' | 'hoh';
 
@@ -52,6 +55,10 @@ export interface LoanPayload {
    *  entries name their loan by it, so removing another loan can't move
    *  their payments. The API ignores it. */
   id?: string;
+  /** Fields the person said "I don't know" to at setup, filled with a
+   *  labelled estimate (lib/setup-estimates, sprint G10). Client-only;
+   *  the API ignores it. */
+  estimated_fields?: string[];
   /** Display metadata for an upcoming lifecycle loan; never persisted to the profile. */
   planned_effective_month?: number;
   /** The lender's UPI ID for repayments, entered by the user (roadmap PR H,
@@ -84,6 +91,30 @@ export interface LoanPayload {
    *  Statement (roadmap PR G, lib/kfs). Editing a field removes it. The
    *  API ignores it. */
   kfs_fields?: string[];
+  /** "Is this loan for a business?" (grill #28 / live test #11; same field
+   *  as sprint L3's). Unset = not answered, read as a personal loan. The API
+   *  ignores it; lib/prepayment-fee reads it for the blank-fee default. */
+  business_purpose?: boolean;
+  /** Who lent it (grill #28): which RBI pre-payment rule can apply. The API ignores it. */
+  lender_type?: LenderType;
+  /** Year the loan was sanctioned or last renewed: RBI's 2025 Directions
+   *  cover business loans only from 1 Jan 2026. The API ignores it. */
+  sanction_year?: number;
+  /** Amount sanctioned (₹): the ₹50 lakh line in para 5(ii)(b). The API ignores it. */
+  sanctioned_amount?: string;
+  /** Smallest part-payment the lender accepts (grill #30). Extra below it is
+   *  set aside until it reaches this amount. Blank = any amount. */
+  min_prepay_amount?: string;
+  /** Last four characters of the lender's account number, from a credit
+   *  report import (G6, lib/credit-report). Lets a pasted EMI SMS be matched
+   *  to this loan (lib/sms-parser). The API ignores it. */
+  account_last4?: string;
+  /** 'credit_report' when the loan was added from a credit-report import; the
+   *  form then says which figures the report didn't carry. The API ignores it. */
+  imported_from?: 'credit_report';
+  /** The user's own name for the loan ("Dad's car loan"), optional (live
+   *  test #4, sprint L3). Shown with the lender and type; the API ignores it. */
+  nickname?: string;
   loan_type: LoanType;
   bank: string;
   outstanding: string;
@@ -94,6 +125,32 @@ export interface LoanPayload {
   processing_fee_amortised?: string;
   insurance_premium_pct?: string;
   property_use?: string;
+  // ── India tax (sprint G2; lib/india-tax-loans, the Tax page) ──
+  /** The user's share of this loan for tax, '0'-'1' (a co-borrower who
+   *  co-owns the home). Omitted = '1'. */
+  tax_share?: string;
+  /** Education loan: 'YYYY-MM' interest was first paid. The s.129 [80E]
+   *  window is that April-March tax year and the next seven. Web-only;
+   *  sent to the engine as `tax_deduction_months_left`. */
+  edu_interest_start?: string;
+  /** Engine field, derived from `edu_interest_start` for each plan run. */
+  tax_deduction_months_left?: number;
+  /** Home loan: interest paid before the house was bought or finished, in
+   *  total, and the 'YYYY-MM' it was finished. Web-only; one fifth a year for
+   *  five tax years from that year is sent as `pre_construction_interest_annual`. */
+  pre_construction_interest_total?: string;
+  construction_completed?: string;
+  pre_construction_interest_annual?: string;
+  /** Home loan, let out: the year's rent for the whole house. */
+  annual_rent?: string;
+  /** Home loan, self-occupied: false when the house wasn't finished within
+   *  5 years of borrowing (cap ₹30,000, s.22(2)(b)). Omitted = true. */
+  sec24_full_cap?: boolean;
+  /** Home loan: false when the lender isn't one Schedule XV para 3(a)(iii)
+   *  lists for the 80C / s.123 principal deduction (banks, co-operative
+   *  banks, LIC, NHB, housing finance companies, some employers): a loan
+   *  from a relative, for one. Omitted = true. Web-only. */
+  principal_80c_eligible?: boolean;
   /** Optional user override for credit-card minimum payment. When set, the
    *  bank-specific formula is bypassed. Ignored for non-card loans. */
   min_payment_override?: string;
@@ -150,6 +207,19 @@ export interface LoanPayload {
    *  loans) gets converted to its reducing-balance equivalent at the
    *  engine boundary so the math stays apples-to-apples with bank quotes. */
   rate_basis?: 'flat' | 'reducing';
+  /** US student loans (lib/us-loans, grill #33): 'federal' | 'private';
+   *  blank is treated as federal, so it is never refinanced privately. */
+  student_loan_kind?: 'federal' | 'private';
+  /** US federal student loans: 'pslf' | 'idr' holds extra payments off the
+   *  loan (they'd only shrink what's forgiven). */
+  forgiveness_track?: 'pslf' | 'idr';
+  /** US mortgages (grill #34): monthly PMI / FHA MIP paid with the payment. */
+  pmi_monthly?: string;
+  /** The home's original value: the lower of price and appraisal at purchase. */
+  original_home_value?: string;
+  mortgage_insurance_kind?: 'pmi' | 'fha_mip';
+  /** FHA MIP months left; blank = for the life of the loan. */
+  pmi_months_remaining?: number;
   /** Last 6 digits of the credit-card number (optional). Stored as a
    *  string ('XXXXXX'). UI-only — engine doesn't consume it. Used to
    *  render a recognisable card chip on /portfolio and Holdings. */
@@ -243,6 +313,15 @@ export interface UserPayload {
    *  Captured at onboarding step 4, displayed on /debts. */
   cash_accounts?: CashAccountPayload[];
   primary_bank: string;
+  /** Where the user lives (live test #5, sprint L3), optional. `state` is an
+   *  Indian state / union territory or a US state, by its full name; the
+   *  engine reads it as the default state for a property's stamp duty or
+   *  selling costs when the asset has none. `city` is for the user's own
+   *  reference; the engine ignores it. A US user's state is its two-letter
+   *  code (sprint G3, lib/us-loans: mortgage interest saves no state tax in
+   *  a no-income-tax state or one that disallows it, #79). */
+  state?: string;
+  city?: string;
   location_tier?: string;
   /** Banks the user holds savings/current accounts at without an active
    *  loan. Used by new-debt / refinance suggestions to prefer existing
@@ -302,7 +381,7 @@ export interface UserPayload {
   asset_returns?: Record<string, string>;
   liquidation_costs?: Record<string, string>;
   /** Web-only assumptions (emergency-fund months and fixed top-up, goal buffer); the API ignores them. */
-  assumptions?: { ef_months?: number | null; ef_save_amount?: string | null; goal_buffer_pct?: string | null };
+  assumptions?: { ef_months?: number | null; ef_save_amount?: string | null; goal_buffer_pct?: string | null; confirmed?: string[]; confirmed_at?: string };
   /** Annual tax (₹/$) on income that's NOT covered by employer TDS —
    *  rental, FD interest > ₹40k, capital gains, freelance side-income.
    *  Salaried users opt in by entering a number here; the tax sleeve
@@ -327,6 +406,9 @@ export interface UserPayload {
    *  dollars as strings, optional everywhere. Drives a more accurate
    *  derived marginal_rate when gross income is on file. */
   deductions?: DeductionsPayload;
+  /** Sprint G2 (#20): the user confirmed the tax rate estimated from
+   *  take-home pay. UI-only. */
+  tax_rate_confirmed?: boolean;
 }
 
 export type IncomeStreamKind =
@@ -466,6 +548,14 @@ export interface TrajectoryPointRaw {
   extra_paid?: string;
   /** Income short of costs plus minimums this month ('0' when covered). */
   shortfall?: string;
+  /** Gap borrowing (grill #38), user's currency: owed at the month's end,
+   *  this month's interest on it, borrowed / repaid this month, and the
+   *  part of the gap the emergency fund covered. */
+  gap_debt?: string;
+  gap_interest?: string;
+  gap_borrowed?: string;
+  gap_repaid?: string;
+  gap_from_savings?: string;
 }
 
 export interface GoalContributionRaw {
@@ -558,6 +648,15 @@ export interface SimulateResponse {
    *  above), and plain words when a fee changed the order. */
   payoff_order_method?: 'exact' | 'local' | null;
   payoff_order_note?: string | null;
+  /** Grill #38: the yearly rate a short month is borrowed at (before GST),
+   *  'your_card' or 'default', where the default comes from, and the
+   *  interest on it over the plan (inside total_interest_paid). */
+  gap_rate?: string | null;
+  gap_rate_basis?: 'your_card' | 'default' | null;
+  gap_rate_source?: string | null;
+  total_gap_interest?: string;
+  /** Live test #16: this plan with this month's gap closed. */
+  gap_closed?: { cut: string; debt_free_month: number | null; total_interest_paid: string } | null;
 }
 
 export interface CompareResponse {
@@ -569,6 +668,14 @@ export interface CompareResponse {
   /** Total interest on each side (plan, and plan with the change). */
   baseline_total_interest?: string | null;
   scenario_total_interest?: string | null;
+  /** This month's cash gap on each side ('0' when covered). */
+  baseline_shortfall?: string | null;
+  scenario_shortfall?: string | null;
+  /** Tenure what-if (live test #26): the loan's EMI and months, before and after. */
+  tenure_old_emi?: string | null;
+  tenure_new_emi?: string | null;
+  tenure_old_months?: number | null;
+  tenure_new_months?: number | null;
 }
 
 export interface NewDebtResponse {
@@ -630,8 +737,9 @@ export interface CashYieldResponse {
 export type AssetType =
   | 'savings_balance' | 'fixed_deposit'
   | 'equity_stocks' | 'equity_mf' | 'debt_mf'
-  | 'gold_physical' | 'sgb'
+  | 'gold_physical' | 'gold_etf' | 'sgb'
   | 'real_estate' | 'ppf' | 'epf' | 'nps'
+  | 'crypto'
   | 'other';
 
 export interface AssetPayload {
@@ -884,6 +992,24 @@ export interface CrossBorderResponse {
 // ─── Loan Check ─────────────────────────────────────────────────────────────
 
 export type LoanBenchmark = 'repo' | 'mclr' | 'base_rate' | 'unknown';
+/** Which RBI rules bind the lender (engine/lenders.py). */
+export type LoanLenderType =
+  | 'commercial_bank'
+  | 'small_finance_bank'
+  | 'regional_rural_bank'
+  | 'cooperative_bank'
+  | 'hfc'
+  | 'nbfc'
+  | 'unknown';
+export type SpreadChanged = 'no' | 'yes' | 'unsure';
+
+export interface LoanCheckLender {
+  id: string;
+  name: string;
+  type: LoanLenderType;
+  has_rate_card: boolean;
+  rule_applies: boolean;
+}
 
 export interface LoanCheckRequest {
   lender?: string;
@@ -897,6 +1023,9 @@ export interface LoanCheckRequest {
   emi?: string;
   benchmark: LoanBenchmark;
   last_reset?: string;              // "YYYY-MM"
+  lender_type?: LoanLenderType;
+  spread_changed?: SpreadChanged;
+  spread_change?: string;           // signed fraction, with spread_changed 'yes'
 }
 
 export interface LoanCheckCitation {
@@ -904,10 +1033,26 @@ export interface LoanCheckCitation {
   requirement: string;
   source: string;
   verified_against_text: boolean;
+  /** The rule's own words, verbatim (fragments joined with " … "). */
+  clause?: string;
+  paragraph?: string;
+  url?: string;
+  checked_on?: string;              // "YYYY-MM-DD"
+}
+
+export interface LoanCheckResetWatch {
+  headline: string;
+  detail: string;
+  check_by: string | null;          // "YYYY-MM-DD"
+  last_change: string | null;
+  last_change_from: string | null;
+  last_change_to: string | null;
+  next_meeting: string | null;
+  citations: LoanCheckCitation[];
 }
 
 export interface LoanCheckFinding {
-  kind: 'missed_rate_cut' | 'pricing_gap' | 'old_benchmark';
+  kind: 'missed_rate_cut' | 'pricing_gap' | 'old_benchmark' | 'below_expected' | 'rule_not_binding';
   headline: string;
   detail: string;
   claimable: boolean;
@@ -936,6 +1081,14 @@ export interface LoanCheckResponse {
   rates_as_of: string;
   rates_source: string;
   stale_rates_warning: string | null;
+  verdict: 'missed_rate_cut' | 'matches' | 'below_expected' | 'old_benchmark' | 'rule_not_binding';
+  gap: string | null;               // current − expected, signed
+  lender_name: string | null;
+  lender_type: LoanLenderType;
+  lender_type_source: 'stated' | 'from_name' | 'assumed';
+  rule_applies: boolean;
+  new_borrower_note: string;
+  reset_watch: LoanCheckResetWatch | null;
 }
 
 export type ComplaintReply = 'none' | 'fixed' | 'partly' | 'rejected';
@@ -1015,6 +1168,10 @@ export interface ComplaintResponse {
   io_followup: ComplaintLetter | null;
   ombudsman: OmbudsmanComplaint | null;
   placeholders: ComplaintPlaceholders;
+  /** "Draft. Check before sending." Every letter is a draft (critique #54). */
+  draft_notice: string;
+  /** What the borrower ticks before copy / download is offered. */
+  self_check: string[];
 }
 
 // ─── Offer comparison (the lender's reply) ─────────────────────────────────
@@ -1088,6 +1245,8 @@ export interface OutcomeReportRequest {
   days_taken: number;
   rate_before: string;
   rate_after?: string;
+  /** Text of the bank's reply; checked on the server, never stored. */
+  bank_reply_text?: string;
 }
 
 export interface OutcomeReportResponse {
@@ -1095,6 +1254,7 @@ export interface OutcomeReportResponse {
   reports_for_lender: number;
   min_reports: number;
   message: string;
+  verified?: boolean;
 }
 
 export interface LenderScore {
@@ -1234,11 +1394,24 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 function accountHeaders(path: string): Record<string, string> {
   if (path === '/api/user/state' && typeof window !== 'undefined') {
     try {
-      const account = localStorage.getItem('finoptima_account_id');
+      const account = localStorage.getItem('rightdue_account_id');
       if (account) return { 'X-Account-Id': account };
     } catch { /* Browser storage may be unavailable. */ }
   }
   return {};
+}
+
+/** A non-2xx answer, with its HTTP status and body, so a caller can tell a
+ *  signed-out 401 from an offline device (live-test #2/#33). The message
+ *  keeps the old "path → status" form. */
+export class ApiStatusError extends Error {
+  constructor(message: string, public status: number, public body: string = '') {
+    super(message);
+  }
+  /** The JSON `detail` FastAPI sent, or null. */
+  detail(): unknown {
+    try { return (JSON.parse(this.body) as { detail?: unknown }).detail ?? null; } catch { return null; }
+  }
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -1247,7 +1420,7 @@ async function get<T>(path: string): Promise<T> {
     cache: 'no-store',
     credentials: requestCredentials(path),
   });
-  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  if (!res.ok) throw new ApiStatusError(`${path} → ${res.status}`, res.status, await res.text().catch(() => ''));
   return res.json() as Promise<T>;
 }
 
@@ -1261,7 +1434,7 @@ async function putJson<T>(path: string, body: unknown, method: 'PUT' | 'PATCH' =
   });
   if (!res.ok) {
     const detail = await res.text();
-    throw new Error(`${path} → ${res.status}: ${detail}`);
+    throw new ApiStatusError(`${path} → ${res.status}: ${detail}`, res.status, detail);
   }
   if (res.status === 204) return undefined as unknown as T;
   return res.json() as Promise<T>;
@@ -1273,6 +1446,10 @@ export const api = {
   health: () => get<{ status: string }>('/api/health'),
 
   simulate: (req: SimulateArgs) => post<SimulateResponse>('/api/simulate', req),
+
+  /** Grill #24 (sprint G4): exact debt-free month + range with reasons. */
+  sensitivityRange: (req: SimulateArgs) =>
+    post<import('./payoff-range').PayoffRange>('/api/sensitivity/range', req),
 
   /** Roadmap PR F: the interest cost of funding each goal before high-interest debt. */
   goalsTradeoff: (req: SimulateArgs & { goal_ids?: string[] }) =>
@@ -1304,6 +1481,9 @@ export const api = {
     alt_strategy?: Strategy;
     lump_sum_amount?: string;
     lump_sum_target_loan_index?: number;
+    /** Live test #26: re-amortise this loan over this many more months. */
+    tenure_extension_loan_index?: number;
+    tenure_extension_months?: number;
     /** Calendar month (1-12) corresponding to sim month 1. */
     simulation_start_month?: number;
   }) => post<CompareResponse>('/api/sensitivity/compare', req),
@@ -1357,8 +1537,11 @@ export const api = {
   }) => postWithFieldErrors<CashYieldResponse>('/api/cash-yield', req),
 
   /** Read a Key Facts Statement / sanction letter (roadmap PR G). Saves nothing. */
-  kfsRead: (req: { text?: string; pdf_base64?: string; as_of?: string }) =>
+  kfsRead: (req: { text?: string; pdf_base64?: string; password?: string; as_of?: string }) =>
     postWithFieldErrors<KfsReadResponse>('/api/kfs/read', req),
+  /** G6: read a user-downloaded credit report (CIBIL/Experian/CRIF/Equifax). Saves nothing. */
+  creditReportRead: (req: { text?: string; pdf_base64?: string; password?: string; as_of?: string }) =>
+    postWithFieldErrors<CreditReportReadResponse>('/api/credit-report/read', req),
 
   loanCheck: (req: LoanCheckRequest) =>
     postWithFieldErrors<LoanCheckResponse>('/api/loan-check', req),
@@ -1376,6 +1559,7 @@ export const api = {
     get<LenderScore>(`/api/outcomes/scorecard/lender?name=${encodeURIComponent(name)}`),
 
   outcomeLenders: () => get<{ id: string; name: string }[]>('/api/outcomes/lenders'),
+  loanCheckLenders: () => get<LoanCheckLender[]>('/api/loan-check/lenders'),
 
   scoreImpact: (req: {
     action: ScoreAction;
@@ -1477,8 +1661,10 @@ export const api = {
     ),
 
   // ─── auth ─────────────────────────────────────────────────────────────────
-  requestOtp: (email: string) =>
-    post<void>('/api/auth/request-otp', { email }),
+  /** `turnstileToken`: Cloudflare Turnstile's one-time token, sent only
+   *  when the check is on (NEXT_PUBLIC_TURNSTILE_SITE_KEY, grill #59). */
+  requestOtp: (email: string, turnstileToken?: string) =>
+    post<void>('/api/auth/request-otp', turnstileToken ? { email, turnstile_token: turnstileToken } : { email }),
   verifyOtp: (email: string, code: string) =>
     post<AuthUser>('/api/auth/verify-otp', { email, code }),
   logout: () => post<void>('/api/auth/logout', {}),
@@ -1488,8 +1674,17 @@ export const api = {
   getUserState: () => get<UserStatePayload>('/api/user/state'),
   putUserState: (data: Record<string, unknown>) =>
     putJson<UserStatePayload>('/api/user/state', { data }),
-  patchUserState: (data: Record<string, unknown>) =>
-    putJson<UserStatePayload>('/api/user/state', { data }, 'PATCH'),
+  /** `baseVersion`: the state version this device last read (critique #63);
+   *  a slice changed elsewhere since then answers 412. `force` keeps this
+   *  device's copy after the person chose it. `deviceId`: this browser's id,
+   *  so its own earlier writes never count as "another device". */
+  patchUserState: (data: Record<string, unknown>, baseVersion?: number | null, force = false, deviceId?: string | null) =>
+    putJson<UserStatePayload>('/api/user/state', {
+      data,
+      ...(baseVersion != null ? { base_version: baseVersion } : {}),
+      ...(force ? { force: true } : {}),
+      ...(deviceId ? { device_id: deviceId } : {}),
+    }, 'PATCH'),
 
   marketLowest: (country: 'IN' | 'US', loanType: string) =>
     get<{ country: string; loan_type: string; bank: string | null; low: string | null }>(
@@ -1570,6 +1765,8 @@ export interface LifecycleEventInput {
 export interface UserStatePayload {
   data: Record<string, unknown> | null;
   updated_at: string | null;
+  /** Write counter (critique #63); absent from an older API. */
+  version?: number;
 }
 
 export interface RateRangePayload {

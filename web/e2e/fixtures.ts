@@ -12,9 +12,91 @@ export const test = base.extend<{ page: Page }>({
       (route) => route.abort('blockedbyclient'),
     );
     await page.clock.setFixedTime(FROZEN_NOW);
+    // page.goto and page.reload go through settleNavigation (below): a
+    // goto the app's own refresh aborted is sent again, and a navigation
+    // Playwright stranded in Firefox is released.
+    const goto = page.goto.bind(page);
+    const reload = page.reload.bind(page);
+    page.goto = (url, options) => settleNavigation(page, url, options, (o) => goto(url, o));
+    page.reload = (options) => settleNavigation(page, null, options, (o) => reload(o));
     await use(page);
   },
 });
+
+/** page.goto errors that mean "another navigation replaced this one". */
+const NAVIGATION_ABORTED = /NS_BINDING_ABORTED|NS_ERROR_FAILURE|net::ERR_ABORTED|interrupted by another navigation|Navigation interrupted/;
+
+/** How long one navigation attempt may take. Every page here loads in a
+ *  few seconds; a 120 s test timeout is not a navigation budget. */
+const ATTEMPT_MS = 30_000;
+
+type NavOptions = { timeout?: number; waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' | 'commit'; referer?: string };
+
+/**
+ * One page.goto / page.reload, settled. Two failures that are the browser
+ * driver's or the app's re-render, not the page under test, are retried
+ * (at most 3 attempts, each recorded as a test annotation); anything else
+ * is thrown as it was, and the caller's assertions are unchanged.
+ *
+ * 1. Aborted by another navigation. Right after a page loads, the app may
+ *    still be re-rendering it: session hydration calls router.refresh()
+ *    when the account copy changed a cookie (~200 ms after /plan's load),
+ *    and Home refreshes for the activity cookie. In Firefox a goto sent
+ *    while that RSC fetch is in flight cancels the fetch, Next falls back
+ *    to a browser navigation of the current page, and that aborts the goto
+ *    (CI run 38337335511; reproduced with router.refresh() + goto). Sent
+ *    again once the interrupting navigation has loaded (bounded wait).
+ * 2. Stranded. In Firefox, Playwright sometimes never settles a goto whose
+ *    page did load: new document, readyState "complete", nothing in flight
+ *    (microsoft/playwright#42183, ~1 in 100-200 navigations on CI). CI run
+ *    38343729134: product-surface:11 goto('/') - the landing fully drawn
+ *    (US example, toggle pressed), its two requests done (document 200,
+ *    fonts.googleapis aborted by our route) - waited for "load" until the
+ *    120 s test timeout. A superseding navigation releases it. So an
+ *    attempt gets ATTEMPT_MS; on its timeout, if the page is complete at
+ *    the URL asked for, the navigation is issued again. A page that really
+ *    did not load still fails, with the original timeout error.
+ */
+export async function settleNavigation(
+  page: Page,
+  url: string | null,
+  options: NavOptions | undefined,
+  navigate: (options: NavOptions) => Promise<Response | null>,
+): Promise<Response | null> {
+  const attemptOptions = { ...options, timeout: options?.timeout ?? ATTEMPT_MS };
+  const what = url ?? 'reload';
+  for (let attempt = 1; ; attempt++) {
+    const urlBefore = page.url();
+    try {
+      return await navigate(attemptOptions);
+    } catch (err) {
+      const message = String(err);
+      if (attempt >= 3) throw err;
+      if (NAVIGATION_ABORTED.test(message)) {
+        base.info().annotations.push({ type: 'goto retried', description: `${what}: ${message.split('\n')[0]}` });
+        await page.waitForLoadState('load', { timeout: ATTEMPT_MS }).catch(() => {});
+        continue;
+      }
+      if (/Timeout \d+ms exceeded/.test(message) && (await loadedAt(page, url ?? urlBefore))) {
+        base.info().annotations.push({ type: 'goto stranded', description: `${what}: page loaded but ${message.split('\n')[0]} (playwright#42183); navigating again` });
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+/** True when the page has finished loading a document at `target`. */
+async function loadedAt(page: Page, target: string): Promise<boolean> {
+  const want = new URL(target, base.info().project.use.baseURL ?? page.url());
+  const state = await Promise.race([
+    page.evaluate(() => ({ ready: document.readyState, href: location.href })).catch(() => null),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
+  ]);
+  if (!state || state.ready !== 'complete') return false;
+  const have = new URL(state.href);
+  return have.origin === want.origin && have.pathname === want.pathname && have.search === want.search;
+}
 export { expect };
 
 /** The address a test signs in with. Firefox and WebKit run against one
@@ -64,6 +146,60 @@ export async function fillLoan(page: Page, index: number, loan: LoanInput) {
     await b.getByLabel('EMI a month').fill(loan.emi!);
     await b.getByRole('button', { name: /PAID ALREADY/ }).click();
   }
+}
+
+/** Setup's last step asks what only the person can decide (sprint G10,
+ *  grill #22). The journeys keep their goldens: no emergency fund for now,
+ *  and the cheapest path, which is what setup used to assume silently.
+ *
+ *  The plan preview above the choices is worked out again whenever the
+ *  order changes, and the figures arriving push the choices down the page.
+ *  A click sent while that happens can land on the preview instead (Firefox
+ *  in CI, run 38329023142: "Not now" missed, so SAVE stayed on setup). So:
+ *  wait for the preview to settle, and check each pick took. */
+export async function makeSetupChoices(page: Page) {
+  const notNow = page.getByRole('button', { name: /^Not now$/ });
+  await expect(notNow).toBeVisible();
+  await planPreviewSettled(page);
+  await notNow.click();
+  await expect(notNow).toHaveAttribute('aria-pressed', 'true');
+  const order = page.getByRole('button', { name: /^Cheapest path \(Avalanche\)/ });
+  if ((await order.count()) && (await order.getAttribute('aria-pressed')) !== 'true') {
+    const rerun = page.waitForResponse(isPlanCall('/api/simulate'));
+    await order.click();
+    await rerun;
+    await expect(order).toHaveAttribute('aria-pressed', 'true');
+  }
+  await planPreviewSettled(page);
+}
+
+/** Profile: open one part of the form with its [EDIT] and check it opened.
+ *  /profile draws its summary again once the account copy arrives (session
+ *  hydration remounts the editor), and the rows can move while it does. A
+ *  click sent in that moment is lost: WebKit in CI, run 38333832010, stayed
+ *  on the summary for the whole two minutes. So click until the part's own
+ *  heading shows; what the test asserts afterwards is unchanged. */
+export async function openProfileSection(page: Page, section: string) {
+  const edit = page.getByRole('button', { name: `Edit ${section}`, exact: true });
+  const opened = page.getByRole('heading', { level: 1, name: section, exact: true });
+  await expect(edit.or(opened).first()).toBeVisible();
+  await expect(async () => {
+    if (!(await opened.isVisible()) && (await edit.isVisible())) await edit.click({ timeout: 2_000 });
+    await expect(opened).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
+/** Setup's plan preview has finished loading (figures or an error shown). */
+export async function planPreviewSettled(page: Page) {
+  await expect(page.getByText('Working out your plan…')).toHaveCount(0);
+}
+
+/** After signIn: true when the account has no profile yet. The server
+ *  redirects such an account to /onboarding before the page loads, so the
+ *  landed URL says it; no timed probe needed. */
+export async function landedOnOnboarding(page: Page): Promise<boolean> {
+  await page.waitForLoadState('load');
+  return new URL(page.url()).pathname === '/onboarding';
 }
 
 /** A compact, stable summary of a /api/simulate or /api/baseline response. */

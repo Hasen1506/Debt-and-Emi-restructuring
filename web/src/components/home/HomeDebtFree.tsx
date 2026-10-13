@@ -3,6 +3,7 @@
  * run /plan shows, so the two can't disagree. Streamed in (the page wraps these in <Suspense>), so
  * the rest of home paints without waiting on the engine.
  */
+import { dueVsAffordable, dueVsAffordableLine } from '@/lib/plan-gap';
 import { userMarginalCosts, whyFirst } from '@/lib/marginal-cost';
 import { cache } from 'react';
 import Link from 'next/link';
@@ -11,6 +12,8 @@ import { loadPlanFromCookies } from '@/components/plan/load-plan';
 import { MONTH_NAMES, getCountryToday, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { payThisMonth } from '@/lib/pay-this-month';
 import { PayNotice, PayThisMonth } from './PayThisMonth';
+import { HomeProgress } from './HomeProgress';
+import { localIsoDate } from '@/lib/today';
 import { HomeRestructure } from './HomeRestructure';
 import { LBracket } from '@/components/ledger/primitives';
 import { thisMonthMove } from '@/lib/this-month';
@@ -26,6 +29,9 @@ const loadPlanOnce = cache(loadPlanFromCookies);
 
 export async function HomeDebtFreeValue() {
   const plan = await loadPlanOnce();
+  // Short this month: the date if the gap closes, as on Plan (live test #16).
+  if (plan.gaps.length === 0 && plan.shortfall > 0 && plan.gap?.closed?.debtFreeMonth)
+    return <>{monthIndexToCountryLabel(plan.gap.closed.debtFreeMonth, plan.user.country).toUpperCase()}</>;
   if (plan.gaps.length > 0 || plan.shortfall > 0 || plan.futureShortfall) return <>NO DATE YET</>;
   if (!plan.live) return <Link href="/plan">SEE PLAN →</Link>;
   // 0 = nothing owed now; null = not cleared within the horizon.
@@ -37,14 +43,16 @@ export async function HomeDebtFreeValue() {
 export async function HomeDebtFreeCaption() {
   const plan = await loadPlanOnce();
   if (plan.gaps.length > 0) return <Link href="/profile?step=loans">ADD LOAN DETAILS →</Link>;
-  if (plan.futureShortfall) return <Link href="/plan">FUTURE PAYMENTS NEED FUNDING · SEE PLAN →</Link>;
   if (plan.shortfall > 0) {
     return (
       <Link href="/plan">
-        SHORT {formatCurrencyWhole(Math.round(plan.shortfall), userDefaultCurrency(plan.user.country))}/MO · PLAN →
+        {plan.gap?.closed?.debtFreeMonth ? 'IF THE ' : 'SHORT '}
+        {formatCurrencyWhole(Math.round(plan.shortfall), userDefaultCurrency(plan.user.country))}/MO
+        {plan.gap?.closed?.debtFreeMonth ? ' GAP CLOSES' : ''} · PLAN →
       </Link>
     );
   }
+  if (plan.futureShortfall) return <Link href="/plan">FUTURE PAYMENTS NEED FUNDING · SEE PLAN →</Link>;
   if (!plan.live) return <>DATE + MONTHLY SCHEDULE</>;
   if (plan.debtFreeMonth === 0) return <>NOTHING OWED</>;
   if (!plan.debtFreeMonth) return <Link href="/plan">RAISE SURPLUS · SEE PLAN →</Link>;
@@ -192,21 +200,50 @@ export async function HomePayThisMonth() {
           )} of interest a year.`,
         }
       : undefined;
+  // Live test #24: what's due beside what the month can cover.
   const alert =
     plan.shortfall > 0
-      ? `Short ${fc(plan.shortfall)} this month: income doesn't cover spending and the minimums below. Pay what you can, and call the bank before the due date.`
+      ? `${dueVsAffordableLine(
+          dueVsAffordable({
+            income: Number(plan.user.monthly_income) || 0,
+            costs: (Number(plan.user.fixed_expenses) || 0) + (Number(plan.user.variable_expenses) || 0),
+            shortfall: plan.shortfall,
+          }),
+          (v) => fc(Math.round(v)),
+        )} Pay what you can, and call the bank before the due date.`
       : plan.futureShortfall
         ? `From ${monthIndexToCountryLabel(plan.futureShortfall.month, country)}, the payments need more than you earn. See the plan.`
         : undefined;
+  // G7: progress under the register (months shaved, share card, prompts).
+  const open = plan.user.loans.filter((l) => Number(l.outstanding) > 0);
+  const datedPlan = plan.live && plan.shortfall <= 0 && !plan.futureShortfall ? plan.debtFreeMonth : null;
   return (
-    <PayThisMonth
-      data={data}
-      loans={plan.user.loans}
-      country={country}
-      monthLabel={monthLabel}
-      reason={reason}
-      alert={alert}
-    />
+    <>
+      <PayThisMonth
+        data={data}
+        loans={plan.user.loans}
+        country={country}
+        monthLabel={monthLabel}
+        reason={reason}
+        alert={alert}
+      />
+      <HomeProgress
+        country={country}
+        todayIso={localIsoDate(today)}
+        debtFreeMonth={datedPlan}
+        loans={open.map((l) => ({
+          type: LOAN_TYPE_NAME[l.loan_type],
+          outstanding: Number(l.outstanding),
+          ratePct: l.nominal_rate ? Math.round(Number(l.nominal_rate) * 10000) / 100 : null,
+          emi: Number(l.scheduled_emi) > 0 ? Number(l.scheduled_emi) : null,
+          currency: l.currency ?? userDefaultCurrency(country),
+        }))}
+        loansCleared={plan.user.loans.length - open.length}
+        pay={data}
+        strategy={plan.strategy}
+        monthLabel={monthLabel}
+      />
+    </>
   );
 }
 

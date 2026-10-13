@@ -17,6 +17,11 @@ Rules every letter follows (tested by the fuzz suite):
   never negative.
 - Personal details are placeholders unless given. The web app fills them in
   the browser, so a name and account number need not reach the server.
+- Nothing is sent for the borrower. Every letter is a draft: the screen
+  shows DRAFT_NOTICE and asks the borrower to tick SELF_CHECK before it
+  offers copy or download (critique #54). A lawyer's review of the three
+  templates is the right fix and is recorded in docs/BOTTLENECKS.md; until
+  then the citations are tied to the RBI's own words (engine/citations.py).
 """
 from __future__ import annotations
 
@@ -28,7 +33,7 @@ from typing import Optional
 
 from engine.citations import (
     EBLR_CIRCULAR_2019, EBLR_RESET, EBLR_SPREAD, INTEREST_RATES_DIRECTIONS_2025,
-    IO_DIRECTIONS_2023, IO_ESCALATION, RBIOS_2026, RBIOS_ACCESS, RBIOS_COMPENSATION,
+    IO_DIRECTIONS_2026, IO_ESCALATION, RBIOS_2026, RBIOS_ACCESS, RBIOS_COMPENSATION,
     Citation,
 )
 from engine.complaint_deadlines import REPLY_DAYS_IN, Reply, Timeline
@@ -55,6 +60,26 @@ CRPC_EMAIL = "crpc@rbi.org.in"
 CRPC_POST = (
     "Centralised Receipt and Processing Centre, Reserve Bank of India, "
     "Central Vista, Sector 17, Chandigarh – 160017"
+)
+
+
+DRAFT_NOTICE = (
+    "Draft. Check before sending. RightDue wrote this from the numbers you "
+    "entered; it has not been reviewed by a lawyer, and RightDue never sends "
+    "it for you."
+)
+
+# What the borrower confirms before the screen offers copy or download.
+SELF_CHECK: tuple[str, ...] = (
+    "The bank name, loan account number and my contact details are right.",
+    "The starting rate and month match my sanction letter or loan agreement.",
+    "The current rate matches my latest statement or rate-change letter.",
+    "I checked whether the bank told me in writing that my spread changed, "
+    "and entered it if so.",
+    "The loan is from a bank (not a housing finance company or NBFC) and is "
+    "linked to the RBI repo rate, or was required to be.",
+    "I read the rules quoted with the letter and they match my situation.",
+    "I will keep a copy and the date it was sent or received.",
 )
 
 
@@ -171,11 +196,22 @@ def _missed(result: LoanCheckResult) -> Finding:
             "rate. The fix is to ask for a switch to the repo-linked rate, not "
             "a complaint about missed cuts."
         )
+    if "rule_not_binding" in kinds:
+        raise NothingToClaim(
+            "The RBI repo-rate rule binds banks, not housing finance companies, "
+            "NBFCs, regional rural banks or co-operative banks, so there is no "
+            "rate-cut refund to claim. Loan Check lists what does apply."
+        )
+    if "below_expected" in kinds:
+        raise NothingToClaim(
+            "The rate is below what the repo moves imply: that is in the "
+            "borrower's favour, so there is nothing to claim."
+        )
     if "pricing_gap" in kinds:
         raise NothingToClaim(
-            "The lender has passed on RBI rate changes. Paying more than new "
-            "borrowers is not something a bank has to refund; ask for a switch "
-            "to its current rate instead."
+            "The rate follows the RBI repo rate. Paying more than new "
+            "borrowers is not something a bank has to refund; ask for a lower "
+            "spread or a switch to its current rate instead."
         )
     raise NothingToClaim("The rate matches the RBI repo rate, so there is nothing to claim.")
 
@@ -242,12 +278,13 @@ def _rate_story(inp: LoanCheckInput, result: LoanCheckResult, f: Finding) -> lis
         f"rate charged, {_pct(inp.current_rate)}, is {_pct(f.rate_gap)} higher."
     )
     rule = (
-        f"Under the {INTEREST_RATES_DIRECTIONS_2025}, which carry forward "
-        f"{EBLR_CIRCULAR_2019}, the rate on a loan linked to an external "
-        f"benchmark must be reset at least once in three months, and the spread "
-        f"over the benchmark may change only in limited cases: the credit risk "
-        f"premium when the borrower's credit assessment changes substantially, "
-        f"and other parts of the spread once in three years."
+        f"Under paragraphs 38 and 33 of the {INTEREST_RATES_DIRECTIONS_2025}, "
+        f"which carry forward {EBLR_CIRCULAR_2019}, the rate on a loan linked "
+        f"to an external benchmark must be reset at least once in three months, "
+        f"and the spread over the benchmark may change only in limited cases: "
+        f"the credit risk premium when the borrower's credit assessment "
+        f"undergoes a substantial change, as agreed in the loan contract, and "
+        f"other parts of the spread once in three years."
     )
     return [facts, calc, rule]
 
@@ -308,10 +345,10 @@ def grievance_letter(
 
     closing = [
         "Please register this as a complaint and share the complaint reference "
-        "number. If the Bank rejects it wholly or in part, the Internal "
-        "Ombudsman directions require the Bank to refer it to its Internal "
-        f"Ombudsman and to give a final decision within {REPLY_DAYS_IN} days of "
-        "receiving it. If there is no reply within that time, or the reply does "
+        "number. If the Bank resolves it only in part or rejects it, the "
+        "Internal Ombudsman directions require the Bank to escalate it to its "
+        f"Internal Ombudsman and to give a final decision within {REPLY_DAYS_IN} "
+        "days of receiving it. If there is no reply within that time, or the reply does "
         "not resolve the complaint, it will be taken to the RBI Ombudsman under "
         f"the {RBIOS_2026}.",
     ]
@@ -383,11 +420,11 @@ def io_followup_letter(
         f"The complaint is that the rate on the loan has not followed the RBI "
         f"repo rate: it should be about {_pct(result.expected_rate)} but is "
         f"{_pct(inp.current_rate)}{claim}.",
-        f"Under the {IO_DIRECTIONS_2023}, a complaint that the Bank rejects "
-        f"wholly or partly must be escalated by the Bank to its Internal "
-        f"Ombudsman, and the final decision must reach the complainant within "
-        f"{REPLY_DAYS_IN} days of the Bank receiving the complaint: in this "
-        f"case by {_long(decision_due)}.",
+        f"Under clause 14 of the {IO_DIRECTIONS_2026}, a complaint that the "
+        f"Bank partially resolves or wholly rejects must be escalated "
+        f"automatically to its Internal Ombudsman for review, and the final "
+        f"decision must reach the complainant within {REPLY_DAYS_IN} days of "
+        f"the Bank receiving the complaint: in this case by {_long(decision_due)}.",
     ]
     letter = Letter(
         kind="io_followup",

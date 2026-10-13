@@ -105,7 +105,7 @@ export interface CashEventsSlice {
   primaryAccountName?: string;
 }
 
-const STORAGE_KEY = 'finoptima_cash_events';
+const STORAGE_KEY = 'rightdue_cash_events';
 
 const EMPTY: CashEventsSlice = { confirmations: [] };
 

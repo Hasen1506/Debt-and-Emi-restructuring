@@ -1,0 +1,17 @@
+# RBI (Commercial Banks - Internal Ombudsman) Directions, 2026. RBI/CEPD/2025-26/381, CEPD.PRD.No.S1027/13.01.019/2025-26, 14 Jan 2026
+# Source: https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=13271
+# Retrieved: 12 Oct 2026 (HTML page, fetched with curl)
+# Excerpts only: the paragraphs Loan Check cites, copied verbatim.
+
+ 3. Applicability
+ (1) These Directions shall be applicable to Commercial Banks (hereinafter collectively referred to as 'banks' and individually as a 'bank') having 10 or more banking outlets in India as on March 31, 2025, whether such bank is incorporated in India or outside India.
+ For the purpose of these Directions, 'Commercial Banks' mean banking companies (other than Small Finance Banks, Payment Banks, and Local Area Banks), corresponding new banks, and the State Bank of India, as defined respectively under clauses (c), (da), and (nc) of Section 5 of the Banking Regulation Act, 1949, but does not include a bank in resolution or winding up or under directions.
+ 14. Procedure for Complaint Redress by Internal Ombudsman / Deputy Internal Ombudsman
+ (1) A fully automated Complaints Management System shall be put in place by the bank and access to the System shall be provided to the IO / Dy. IO. All complaints that are partially resolved or wholly rejected by the bank's internal grievance redress mechanism shall be auto escalated to the office of the IO for review;
+ in case of complaints, for which Reserve Bank of India, National Payments Corporation of India, or card network guidelines prescribe a timeline for resolution, sufficiently in advance such that IO / Dy. IO gets at least 10 days for review of such complaints to enable final decision to be communicated to the complainants within the timelines prescribed by Reserve Bank of India, National Payments Corporation of India, or card network, as applicable;
+ in all other cases, within 20 days of receipt.
+ (2) The bank shall provide only three categories i.e. 'Fully Resolved', 'Partially Resolved' and 'Wholly Rejected' in its Complaint Management System for recording the decision on the complaints before escalation to the office of IO. The complaints outside the purview of the IO/ Dy. IO under the clauses 14(5)(c) to 14(5)(e) are exempted from such classification.
+ (9) The bank shall ensure that the final decision is communicated to the complainant within a period of 30 days from the date of receipt of complaint by the bank.
+ Chapter - VI
+ Repeal Provisions
+ 17. Repeal of the existing Schemes

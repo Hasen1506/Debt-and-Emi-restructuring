@@ -92,3 +92,33 @@ def test_bad_tracking_dates(client, kw, field):
     r = client.post("/api/complaints/in", json=_payload(**kw))
     assert r.status_code == 422, r.text
     assert r.json()["detail"]["field"] == field
+
+
+# ── Sprint G5: draft step (critique #54) and verified rules (#40) ──────────
+
+def test_every_letter_comes_back_as_a_draft_with_a_self_check(client):
+    body = client.post("/api/complaints/in", json=_payload()).json()
+    assert body["draft_notice"].startswith("Draft. Check before sending.")
+    assert "never sends" in body["draft_notice"]
+    assert len(body["self_check"]) >= 5
+    assert any("spread" in item for item in body["self_check"])
+    assert any("housing finance company" in item for item in body["self_check"])
+    # No claim of professional review anywhere in the letter or the notice.
+    for text in (body["letter"]["text"], body["draft_notice"]):
+        assert "reviewed by" not in text.replace("has not been reviewed by", "")
+
+
+def test_letters_cite_the_2026_internal_ombudsman_directions(client):
+    body = client.post("/api/complaints/in", json=_payload(
+        sent_on="2026-09-01", reply="rejected", reply_on="2026-09-10")).json()
+    text = body["io_followup"]["text"]
+    assert "Internal Ombudsman) Directions, 2026" in text and "clause 14" in text
+    assert "2023" not in text
+    assert all(c["verified_against_text"] for c in body["letter"]["citations"])
+    assert "paragraphs 38 and 33" in body["letter"]["text"]
+
+
+def test_hfc_gets_no_letter(client):
+    r = client.post("/api/complaints/in", json=_payload(lender="LIC Housing Finance"))
+    assert r.status_code == 422
+    assert "housing finance" in r.json()["detail"]["message"]

@@ -51,11 +51,13 @@ class AssetType(str, Enum):
     EQUITY_MF = "equity_mf"
     DEBT_MF = "debt_mf"
     GOLD_PHYSICAL = "gold_physical"
+    GOLD_ETF = "gold_etf"           # listed units: long-term after 12 months (sprint G10)
     SGB = "sgb"
     REAL_ESTATE = "real_estate"
     PPF = "ppf"
     EPF = "epf"
     NPS = "nps"
+    CRYPTO = "crypto"               # virtual digital asset: 30% in India (sprint G10)
     OTHER = "other"
 
 
@@ -122,6 +124,11 @@ class Loan:
     prepayment_penalty_pct: Decimal = Decimal("0")
     prepay_lock_in_months: int = 0
     part_payment_freq_months: Optional[int] = None
+    # Smallest part-payment the lender accepts (grill #30, sprint G1), in the
+    # loan's currency. Extra below it is set aside month to month until it
+    # reaches this amount (MonthRow.set_aside_for_prepay). 0 = any amount.
+    # From the loan agreement / KFS; no lender figure is ever assumed.
+    min_prepay_amount: Decimal = Decimal("0")
     # Pre-EMI broken-period interest. Used for under-construction home
     # loans: lender disburses tranches before possession, charging
     # interest-only on the disbursed amount until full possession. EMI
@@ -147,6 +154,39 @@ class Loan:
     # the comparison with bank loans stays apples-to-apples. Engine itself
     # never reads this field — it's a frontend / schema concern.
     rate_basis: str = "reducing"   # "flat" | "reducing"
+    # ── India tax inputs (sprint G2; engine/tax/india.py) ────────────────────
+    # The user's share of this loan for tax: a co-borrower who is also a
+    # co-owner claims their own share of the interest (s.24 of the 2025 Act
+    # [1961: s.26] gives each co-owner the relief "as if individually
+    # entitled") and of the principal in s.123 / 80C. 1 = the whole loan.
+    tax_share: Decimal = Decimal("1")
+    # Education loan, s.129 / 80E: months (from sim month 1) the deduction
+    # can still be claimed; None = not known, 0 = the 8-year window has ended.
+    tax_deduction_months_left: Optional[int] = None
+    # Home loan, s.22(1)(c): this year's one-fifth of the interest paid
+    # before the house was bought or finished (whole loan, before share).
+    pre_construction_interest_annual: Decimal = Decimal("0")
+    # Home loan, let out: the year's rent (whole house); None = not given.
+    annual_rent: Optional[Decimal] = None
+    # Home loan, self-occupied: False when the house wasn't finished within
+    # 5 years of borrowing, which cuts the cap to ₹30,000 (s.22(2)(b)).
+    sec24_full_cap: bool = True
+    # ── US-only fields (engine/us_loans.py; grill #33, #34) ──────────────────
+    # Student loans: "federal" | "private" | None (not marked; treated as
+    # federal, so never refinanced privately). `forgiveness_track` "pslf" |
+    # "idr" holds extra payments off the loan (they'd shrink what's forgiven).
+    student_loan_kind: Optional[str] = None
+    forgiveness_track: Optional[str] = None
+    # Mortgages: monthly mortgage insurance paid on top of the payment, the
+    # home's original value (lower of price and appraisal at purchase), and
+    # its kind: "pmi" (conventional; ends at 80% of original value on
+    # request) or "fha_mip" (runs `pmi_months_remaining` months, or for the
+    # loan's life when blank). The simulator counts PMI as a monthly cost
+    # until it ends.
+    pmi_monthly: Decimal = Decimal("0")
+    original_home_value: Optional[Decimal] = None
+    mortgage_insurance_kind: Optional[str] = None
+    pmi_months_remaining: Optional[int] = None
 
 
 class LifecycleEventKind(str, Enum):

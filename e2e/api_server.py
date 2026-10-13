@@ -74,6 +74,12 @@ def install_stubs() -> None:
 
     auth_routes.generate_otp = lambda: E2E_OTP
     auth_routes.send_otp_email = lambda to, code: None
+    # The journeys sign the same persona in once per test, far more than the
+    # per-email (5 / 10 min, 20 / day) and global (90 / day) code caps from
+    # G8's OTP hardening allow. api/tests covers those caps; lift them here.
+    auth_routes.OTP_MAX_REQUESTS = 10_000
+    auth_routes.OTP_MAX_REQUESTS_DAILY = 10_000
+    auth_routes.OTP_GLOBAL_DAILY_CAP = 10_000
 
     async def fixed_fetch(base: str, quote: str):
         if base == quote:
@@ -103,6 +109,10 @@ def main() -> None:
     async def reset() -> None:
         async with database.engine.begin() as conn:
             await conn.run_sync(database.Base.metadata.drop_all)
+            # Start-up migrates the schema (api/db/migrations): forget the
+            # applied revision too, or it would find nothing left to run.
+            from sqlalchemy import text
+            await conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
         await database.engine.dispose()
 
     asyncio.run(reset())

@@ -36,8 +36,8 @@ export interface GoalContributionEntry {
   loggedAt: string;
 }
 
-const STORAGE_KEY = 'finoptima_goal_contributions';
-const DIGEST_COOKIE = 'finoptima_goal_contributions_digest';
+const STORAGE_KEY = 'rightdue_goal_contributions';
+const DIGEST_COOKIE = 'rightdue_goal_contributions_digest';
 
 function safeParse(raw: string | null): GoalContributionEntry[] {
   if (!raw) return [];

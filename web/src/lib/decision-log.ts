@@ -86,18 +86,18 @@ export interface DecisionEntry {
   outcome?: DecisionOutcome;
 }
 
-// Distinct from `decisions.ts`'s `finoptima_decisions` key — that ledger
+// Distinct from `decisions.ts`'s `rightdue_decisions` key — that ledger
 // tracks user-made plan choices with snapshot/undo. This one tracks
 // app-issued advisory recommendations + calibration data. They used to
 // share a key and silently clobber each other.
-const STORAGE_KEY = 'finoptima_decision_log';
-const LEGACY_KEY = 'finoptima_decisions';
-const MIGRATION_FLAG = 'finoptima_decision_log_migrated_v1';
+const STORAGE_KEY = 'rightdue_decision_log';
+const LEGACY_KEY = 'rightdue_decisions';
+const MIGRATION_FLAG = 'rightdue_decision_log_migrated_v1';
 
 /**
- * One-shot salvage from the legacy `finoptima_decisions` key. Before the
+ * One-shot salvage from the legacy `rightdue_decisions` key. Before the
  * key rename, this module wrote decision-log entries under
- * `finoptima_decisions` — the same key `decisions.ts` uses for plan-
+ * `rightdue_decisions` — the same key `decisions.ts` uses for plan-
  * choice entries, so the two silently clobbered each other depending on
  * write order. Now that the keys are split, walk the legacy key one
  * time at first read, salvage anything that matches the decision-log

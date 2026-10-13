@@ -14,6 +14,7 @@
  * deductions on the bracket.
  */
 
+import { SALT_CAP_COPY } from '@/lib/us-loans';
 import { useMemo } from 'react';
 import type {
   AgeBracket,
@@ -137,7 +138,7 @@ export function DeductionsPanel({
               for your filing status, we use the itemized total. Otherwise
               the standard wins automatically — no penalty for filling these in.
               <div style={{ marginTop: 8 }}>
-                <strong>SALT cap</strong> ($10k state + local) — apply it
+                <strong>SALT cap.</strong> {SALT_CAP_COPY} Apply it
                 yourself before entering, we trust the input.
               </div>
             </>
@@ -190,23 +191,24 @@ export function DeductionsPanel({
             }
           />
           <Field
-            label={`80C investments (${ccySym}/yr)`}
+            label={`80C (now s.123) investments (${ccySym}/yr)`}
             kind="money"
             currency={ccy}
             value={ded.sec_80c_annual ?? ''}
             onChange={(v) => update({ sec_80c_annual: v || undefined })}
-            hint="PPF, ELSS, life premium, principal repayment — capped at ₹1.5L"
+            hint="PF, PPF, ELSS, life premium, tuition: not your home-loan principal. Capped at ₹1.5L"
             info={
               <>
-                Sum of <strong>PPF + ELSS + life-insurance premium + home-loan
-                principal repayment + 5-yr FD + NSC + ULIP + Sukanya</strong>.
-                We cap at ₹1.5L at compute time, so entering more is harmless
-                — the excess simply isn&apos;t deducted.
+                Sum of <strong>employee PF + PPF + ELSS + life-insurance premium
+                + children&apos;s tuition + 5-yr FD + NSC + ULIP + Sukanya</strong>.
+                Leave out your home-loan principal: the Tax page adds it from
+                your loan, so it isn&apos;t counted twice. We cap the total at
+                ₹1.5L (s.123 of the Income-tax Act 2025, 80C before).
               </>
             }
           />
           <Field
-            label={`80D health insurance (${ccySym}/yr)`}
+            label={`80D (now s.126) health insurance (${ccySym}/yr)`}
             kind="money"
             currency={ccy}
             value={ded.sec_80d_annual ?? ''}
@@ -287,12 +289,11 @@ export function DeductionsPanel({
             onChange={(v) =>
               update({ itemized_deductions_other: v || undefined })
             }
-            hint="Sum of state/local tax (capped at $10k), charity, medical (>7.5% AGI)"
+            hint="Sum of state/local tax (capped at $40,400 for 2026), charity, medical (>7.5% AGI)"
             info={
               <>
-                <strong>SALT cap of $10k</strong> applies to state + local
-                income tax + property tax combined — apply the cap yourself
-                before entering. Add charity + qualified medical (over 7.5%
+                <strong>SALT cap.</strong> {SALT_CAP_COPY} Apply the cap
+                yourself before entering. Add charity + qualified medical (over 7.5%
                 of AGI) here too.
               </>
             }

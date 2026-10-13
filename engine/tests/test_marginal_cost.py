@@ -55,11 +55,12 @@ def _first_extra_target(user: User, marg: str = "0.3") -> int:
 def test_formula_components_for_an_indian_card():
     mc = marginal_cost(D("0.36"), True, D("0"), D("0"), 0)
     assert mc.interest == (D("1.03") ** 12 - 1)               # 42.58%, compounded monthly
-    # GST on each month's interest, carried and compounding with it:
-    # (1 + 3% × 1.18)^12 − 1 = 51.81% in all (interest × 18% gave 50.24%).
-    assert mc.gst == (D("1") + D("0.03") * D("1.18")) ** 12 - 1 - mc.interest
+    # GST is 18% of the year's interest and is never charged interest itself
+    # (RBI Credit Card MD 2022 para 9(b)(ii), FAQ 7): 42.58% × 1.18 = 50.24%
+    # (compounding the GST had it at 51.81%).
+    assert mc.gst == mc.interest * D("0.18")
     assert mc.total == mc.interest + mc.gst
-    assert round(mc.total, 4) == D("0.5181")
+    assert round(mc.total, 4) == D("0.5024")
 
 
 def test_tax_benefit_and_fee_are_subtracted_and_lock_in_ranks_last():

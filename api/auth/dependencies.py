@@ -7,7 +7,7 @@ from fastapi import Cookie, Depends, HTTPException, status
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.auth.session import SESSION_COOKIE_NAME, hash_session_token, utc_now
+from api.auth.session import LEGACY_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME, hash_session_token, utc_now
 from api.db.database import get_db
 from api.db.models import Session, User
 
@@ -39,15 +39,17 @@ async def _load_user_from_cookie(
 async def current_user_optional(
     db: Annotated[AsyncSession, Depends(get_db)],
     session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
+    legacy_cookie: Annotated[Optional[str], Cookie(alias=LEGACY_SESSION_COOKIE_NAME)] = None,
 ) -> Optional[User]:
-    return await _load_user_from_cookie(session_cookie, db)
+    return await _load_user_from_cookie(session_cookie or legacy_cookie, db)
 
 
 async def current_user(
     db: Annotated[AsyncSession, Depends(get_db)],
     session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
+    legacy_cookie: Annotated[Optional[str], Cookie(alias=LEGACY_SESSION_COOKIE_NAME)] = None,
 ) -> User:
-    user = await _load_user_from_cookie(session_cookie, db)
+    user = await _load_user_from_cookie(session_cookie or legacy_cookie, db)
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     return user

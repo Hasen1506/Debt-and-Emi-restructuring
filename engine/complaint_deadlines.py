@@ -4,11 +4,13 @@ Every clock runs from the day the lender *received* the complaint. If the
 receipt date is not known, the day it was sent is used and the timeline
 says so; for a posted letter the real dates are later by the delivery time.
 
-India (RB-IOS 2026 and the Internal Ombudsman directions; see
-engine/citations.py):
-- the bank's final reply is due 30 days after receipt;
-- a wholly or partly rejected complaint must pass through the bank's
-  Internal Ombudsman inside those same 30 days;
+India (RB-IOS 2026 and the Commercial Banks – Internal Ombudsman
+Directions, 2026; see engine/citations.py, checked 12 Oct 2026):
+- the bank's final reply is due 30 days after receipt (IO Directions
+  clause 14(9));
+- a partially resolved or wholly rejected complaint is escalated
+  automatically to the bank's Internal Ombudsman inside those same 30 days
+  (clause 14(1));
 - the RBI Ombudsman is open once a final reply leaves the complaint
   unresolved, or once 30 days pass with no reply;
 - it must be reached within 90 days of the later of the end of the reply
