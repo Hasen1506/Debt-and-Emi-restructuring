@@ -34,6 +34,16 @@ def _frozen_rate_cards(request):
 
 
 @pytest.fixture(autouse=True)
+def _fresh_engine_cache():
+    """NEW-19: a plan cached by one test (other pinned rates, other
+    monkeypatches) must not answer the next."""
+    from api.engine_cache import engine_cache
+    engine_cache.clear()
+    yield
+    engine_cache.clear()
+
+
+@pytest.fixture(autouse=True)
 def _fresh_fx_cache():
     """A quote cached by one test must not answer the next."""
     from api.routes import fx
