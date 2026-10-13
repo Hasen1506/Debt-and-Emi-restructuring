@@ -222,7 +222,9 @@ export function LMasthead({
       >
         {/* UX50 A-16: /login had an empty band between two rules; it now
             holds the way back to the landing. */}
-        {path === '/login' && <LBracket href="/">← RIGHTDUE.APP</LBracket>}
+        {/* No prefetch: a signed-out prefetch of / is the landing rewrite,
+            which sets the landing's country cookie after sign-out. */}
+        {path === '/login' && <LBracket href="/" prefetch={false}>← RIGHTDUE.APP</LBracket>}
         {!signedOutPage && NAV.map(([label, key, href]) => (
           <LBracket
             key={key}
