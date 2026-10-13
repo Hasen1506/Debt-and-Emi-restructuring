@@ -7,6 +7,7 @@
  * passed in; it is left out when there's no debt to order.
  */
 import { useEffect, type ReactNode } from 'react';
+import { formatTaxRate } from '@/lib/tax-profile';
 import Decimal from 'decimal.js';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import { formatCurrency } from '@/lib/api';
@@ -107,7 +108,7 @@ export function ProfileSummary({
                   }`,
                 ],
             ...(Number(marginalRate) > 0 || marginalRate === '0'
-              ? [['Tax on your next ' + (user.country === 'IN' ? 'rupee' : 'dollar'), `${(Number(marginalRate) * 100).toFixed(1)}%`] as [string, ReactNode]]
+              ? [['Tax on your next ' + (user.country === 'IN' ? 'rupee' : 'dollar'), formatTaxRate(marginalRate)] as [string, ReactNode]]
               : []),
           ]}
         />

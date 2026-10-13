@@ -135,3 +135,44 @@ test('NEW-6: Plan chart labels, leaders and the minimums note never collide (390
     });
   }
 });
+
+test('NEW-17: the mobile header is one row with a MENU button that controls the nav', () => {
+  const s = src('components/ledger/LMasthead.tsx');
+  assert.match(s, /aria-controls="rd-main-nav"/);
+  assert.match(s, /aria-expanded=\{menuOpen\}/);
+  assert.match(s, /id="rd-main-nav"/);
+  assert.match(s, /e\.key === 'Escape'/);
+  assert.match(s, /@media \(max-width: 640px\)/);
+});
+
+test('small fixes: R2-2, NEW-23, R2-7, NEW-18, R2-10, NEW-9, R2-9, R2-6, R2-8', () => {
+  const { setupSummaryLine, setupLoanName } = lib('loan-gaps.ts');
+  assert.match(setupSummaryLine({ emiTooSmall: true, missing: false, fx: false }), /EMI is too small/);
+  assert.doesNotMatch(setupSummaryLine({ emiTooSmall: true, missing: false, fx: false }), /missing/);
+  assert.match(setupSummaryLine({ emiTooSmall: false, missing: true, fx: false }), /missing a number/);
+  const loans = [
+    { loan_type: 'credit_card' }, { loan_type: 'personal_loan' }, { loan_type: 'auto_loan', bank: 'HDFC' },
+    { loan_type: 'personal_loan' },
+  ];
+  assert.deepEqual(loans.map((_, i) => setupLoanName(loans, i)), ['Credit card', 'Personal loan 1', 'HDFC car loan', 'Personal loan 2']);
+  const { readIncome, MIX_LABEL, formatTaxRate } = lib('tax-profile.ts');
+  assert.equal(MIX_LABEL[readIncome({ income_type: 'salaried', country: 'IN' }).mix], 'Salary only');
+  assert.equal(readIncome({ income_type: 'salaried', country: 'IN' }).source, 'none');
+  assert.equal(formatTaxRate('0.156'), '15.6%');
+  assert.equal(formatTaxRate('0.3'), '30%');
+  for (const f of ['components/home/LedgerHome.tsx', 'components/plan/PlanAssumptions.tsx']) {
+    assert.doesNotMatch(src(f), /TAX BRACKET \$\{Math\.round/);
+  }
+  const { linesCoincide } = lib('plan-gap.ts');
+  assert.equal(linesCoincide([{ av: 1, min: 1 }, { av: 0.9, min: 0.9 }]), true);
+  assert.equal(linesCoincide([{ av: 1, min: 1 }, { av: 0.5, min: 0.9 }]), false);
+  assert.match(src('components/plan/PlanTrajectory.tsx'), /THE SAME AS PAYING ONLY MINIMUMS/);
+  const wf = src('app/tools/windfall/tool.tsx');
+  assert.match(wf, /<label htmlFor="wf-date">/);
+  assert.match(wf, /aria-invalid=\{receivedCheck\.ok \? undefined : true\}/);
+  const home = src('components/home/LedgerHome.tsx');
+  assert.doesNotMatch(home, /your highest-rate lender/);
+  assert.doesNotMatch(src('app/page.tsx'), /……/);
+  assert.match(src('app/tools/loan-check/tool.tsx'), /placeholder="e\.g\. 22,000"/);
+  assert.doesNotMatch(src('components/distress/CantPay.tsx'), /schedule of charges"/);
+});

@@ -11,6 +11,7 @@
  * aren't shown.
  */
 import { useEffect, useState } from 'react';
+import { formatTaxRate } from '@/lib/tax-profile';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole } from '@/lib/api';
 import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
@@ -184,7 +185,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
     u.country === 'IN'
       ? `${u.tax_regime === 'old' ? 'OLD' : 'NEW'} TAX REGIME`
       : `FILING ${FILING[u.filing_status ?? 'single'] ?? 'SINGLE'}`,
-    `TAX BRACKET ${Math.round(Number(plan.marginalRate || 0) * 100)}%${gross > 0 ? '' : ' (ESTIMATED)'}`,
+    `TAX BRACKET ${formatTaxRate(String(plan.marginalRate || 0))}${gross > 0 ? '' : ' (ESTIMATED)'}`,
   ];
   const current = chips.find((c) => c.key === open);
 

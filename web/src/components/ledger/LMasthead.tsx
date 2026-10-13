@@ -105,6 +105,23 @@ export function LMasthead({
   const section = sectionFromPath(path);
   const signedOutPage = isSignedOutPage(path);
   const [time, setTime] = useState<string>('');
+  // Live re-test 2 NEW-17: on a phone the nav, strategy, country and
+  // sign-in sit behind one MENU button, so the header is one row (it was
+  // 204 px and four rows at 390). Closes on navigation and on Escape.
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => setMenuOpen(false), [path]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMenuOpen(false);
+        document.getElementById('rd-menu-button')?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
+  const hasMenu = !signedOutPage;
   // Remembers this page so the next one can offer a way back to it.
   useEffect(() => {
     recordPage(path + window.location.search);
@@ -120,6 +137,7 @@ export function LMasthead({
 
   return (
     <header
+      className="rd-masthead"
       style={{
         borderTop: `6px solid ${L_T.ink}`,
         padding: '14px clamp(16px, 4vw, 32px) 0',
@@ -131,7 +149,7 @@ export function LMasthead({
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'baseline',
+          alignItems: 'center',
           gap: 12,
           flexWrap: 'wrap',
         }}
@@ -145,15 +163,51 @@ export function LMasthead({
         >
           RightDue
         </div>
-        <div style={{ fontSize: 10, color: L_T.muted, letterSpacing: '0.1em' }}>
+        <div className="rd-mh-stamp" style={{ fontSize: 10, color: L_T.muted, letterSpacing: '0.1em' }}>
           {stamp(country)} · {time || '--:--'} {tzLabel(country)}
         </div>
+        {hasMenu && (
+          <button
+            id="rd-menu-button"
+            type="button"
+            className="rd-mh-menu"
+            aria-expanded={menuOpen}
+            aria-controls="rd-main-nav"
+            onClick={() => setMenuOpen((v) => !v)}
+            style={{
+              fontFamily: L_MONO,
+              fontSize: 10,
+              letterSpacing: '0.14em',
+              background: 'transparent',
+              border: 'none',
+              color: L_T.ink,
+              padding: '6px 0 6px 8px',
+              minHeight: 32,
+              cursor: 'pointer',
+            }}
+          >
+            [{menuOpen ? '✕ CLOSE' : '☰ MENU'}]
+          </button>
+        )}
       </div>
-      <div style={{ margin: '8px 0 0' }}>
+      <style>{`.rd-mh-menu{display:none}
+@media (max-width: 640px){
+  .rd-masthead{padding-top:8px !important}
+  .rd-mh-stamp,.rd-mh-rule1{display:none !important}
+  .rd-mh-menu{display:inline-block}
+  .rd-mh-nav[data-menu="true"]{display:none !important}
+  .rd-mh-nav[data-menu="true"][data-open="true"]{display:flex !important;flex-direction:column;align-items:flex-start;gap:12px !important}
+  .rd-mh-nav[data-open="true"] .rd-mh-extras{margin-left:0 !important;justify-content:flex-start !important}
+}`}</style>
+      <div className="rd-mh-rule1" style={{ margin: '8px 0 0' }}>
         <LRule length={300} />
       </div>
       <nav
+        id="rd-main-nav"
         aria-label="Main"
+        className="rd-mh-nav"
+        data-menu={hasMenu ? 'true' : 'false'}
+        data-open={menuOpen ? 'true' : 'false'}
         style={{
           display: 'flex',
           gap: 'clamp(8px, 2.4vw, 22px)',
@@ -175,7 +229,7 @@ export function LMasthead({
             {label}
           </LBracket>
         ))}
-        <span style={{ marginLeft: 'auto', display: 'inline-flex', flexWrap: 'wrap', maxWidth: '100%', gap: 10, alignItems: 'center', justifyContent: 'flex-end' }}>
+        <span className="rd-mh-extras" style={{ marginLeft: 'auto', display: 'inline-flex', flexWrap: 'wrap', maxWidth: '100%', gap: 10, alignItems: 'center', justifyContent: 'flex-end' }}>
           {!signedOutPage && strategy && <StrategyMedallion strategy={strategy} sameOrder={sameOrder ?? null} />}
           {!signedOutPage && (
             <LBracket href="/profile?step=country" label={`Country: ${country === 'IN' ? 'India' : 'USA'}. Change it in Profile`}>{localePin}</LBracket>

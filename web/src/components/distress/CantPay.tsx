@@ -254,7 +254,7 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
           value={bounce}
           onChange={setBounce}
           type="number"
-          placeholder="bank's schedule of charges"
+          placeholder="see bank's charges"
         />
       </div>
       <label style={{ fontSize: 11, display: 'block', marginTop: 6 }}>

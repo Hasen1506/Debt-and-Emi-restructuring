@@ -16,7 +16,7 @@ import { STRATEGY_LABEL } from '@/lib/strategy';
 import { L_T, LSectionHeader } from '@/components/ledger/primitives';
 import { LTrajectory, type LTrajMilestone, type LTrajPoint } from '@/components/ledger/LTrajectory';
 import { loanClears, owedAtStart } from './plan-milestones';
-import { chartEndMonth } from '@/lib/plan-gap';
+import { chartEndMonth, linesCoincide } from '@/lib/plan-gap';
 
 const CHART_NAME: Record<string, string> = {
   credit_card: 'CARD',
@@ -175,15 +175,27 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
             aria-hidden="true"
             style={{ display: 'flex', gap: '6px 18px', fontSize: 10, color: L_T.muted, marginTop: 8, letterSpacing: '0.1em', flexWrap: 'wrap' }}
           >
-            {key(
-              <span style={{ display: 'inline-block', width: 14, height: 3, background: L_T.ink, verticalAlign: 'middle', marginRight: 6 }} />,
-              `${strategy.toUpperCase()} · YOUR PLAN`,
+            {linesCoincide(view.points) ? (
+              // Live re-test 2 R2-10: one line on screen, so one legend item.
+              <span data-testid="legend-same-line">
+                {key(
+                  <span style={{ display: 'inline-block', width: 14, height: 3, background: L_T.ink, verticalAlign: 'middle', marginRight: 6 }} />,
+                  `${strategy.toUpperCase()} · YOUR PLAN, THE SAME AS PAYING ONLY MINIMUMS`,
+                )}
+              </span>
+            ) : (
+              <>
+                {key(
+                  <span style={{ display: 'inline-block', width: 14, height: 3, background: L_T.ink, verticalAlign: 'middle', marginRight: 6 }} />,
+                  `${strategy.toUpperCase()} · YOUR PLAN`,
+                )}
+                {key(
+                  <span style={{ display: 'inline-block', width: 14, borderTop: `2px dashed ${L_T.muted}`, verticalAlign: 'middle', marginRight: 6 }} />,
+                  'PAYING ONLY MINIMUMS',
+                )}
+              </>
             )}
-            {key(
-              <span style={{ display: 'inline-block', width: 14, borderTop: `2px dashed ${L_T.muted}`, verticalAlign: 'middle', marginRight: 6 }} />,
-              'PAYING ONLY MINIMUMS',
-            )}
-            {plan.gap?.firstBorrowMonth != null && <span>BOTH LINES INCLUDE GAP BORROWING</span>}
+            {plan.gap?.firstBorrowMonth != null && <span>{linesCoincide(view.points) ? 'THE LINE INCLUDES GAP BORROWING' : 'BOTH LINES INCLUDE GAP BORROWING'}</span>}
             {view.milestones.length > 0 &&
               key(
                 <span style={{ display: 'inline-block', width: 8, height: 8, background: L_T.accent, verticalAlign: 'middle', marginRight: 6 }} />,

@@ -24,7 +24,7 @@ import { useStoredProfile } from '@/lib/use-profile';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { countryMonthKey } from '@/lib/today';
 import { compareRegimes, firstYearSplit, switchRuleText, type RegimeComparison } from '@/lib/regime-compare';
-import { MIX_LABEL, readIncome, regimeInputsFromUser, taxRateStatus } from '@/lib/tax-profile';
+import { MIX_LABEL, formatTaxRate, readIncome, regimeInputsFromUser, taxRateStatus } from '@/lib/tax-profile';
 import { loanTaxLine, nextYearSplit, preConstructionInstalment, sec80cRoom, sectionLabel, taxShare } from '@/lib/india-tax-loans';
 import { LBracket, LChip, LChipRow, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import TAX from '@/lib/tax-tables.json';
@@ -99,7 +99,7 @@ function RateSection({ user, marginalRate, onConfirm }: { user: UserPayload; mar
           ...(user.country === 'US'
             ? [['Filing as', ({ single: 'Single', mfj: 'Married, filing jointly', hoh: 'Head of household' } as Record<string, string>)[user.filing_status ?? 'single']] as [string, ReactNode]]
             : []),
-          [`Tax on your next ${user.country === 'IN' ? 'rupee' : 'dollar'}`, <>{pct(rate)}{status === 'estimated' && <Muted> · estimate</Muted>}</>],
+          [`Tax on your next ${user.country === 'IN' ? 'rupee' : 'dollar'}`, <>{formatTaxRate(rate)}{status === 'estimated' && <Muted> · estimate</Muted>}</>],
           ['How you earn', MIX_LABEL[income.mix]],
           ...(user.country === 'IN' ? [['Regime the plan uses', user.tax_regime === 'old' ? 'Old regime' : 'New regime (the default)'] as [string, ReactNode]] : []),
         ]}
@@ -113,10 +113,10 @@ function RateSection({ user, marginalRate, onConfirm }: { user: UserPayload; mar
       {status === 'estimated' && (
         <div style={{ marginTop: 10, padding: '10px 12px', border: `1px solid ${L_T.ink}`, background: L_T.highlightSoft }}>
           <p style={{ margin: '0 0 8px', fontSize: 12, lineHeight: 1.6 }}>
-            {pct(rate)} is worked out from your take-home pay, so it’s a guess: it doesn’t know your PF, insurance or other income. Is {pct(rate)} right?
+            {formatTaxRate(rate)} is worked out from your take-home pay, so it’s a guess: it doesn’t know your PF, insurance or other income. Is {formatTaxRate(rate)} right?
           </p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <LBracket accent onClick={onConfirm} label={`Yes, ${pct(rate)} is right`}>YES, {pct(rate)} IS RIGHT</LBracket>
+            <LBracket accent onClick={onConfirm} label={`Yes, ${formatTaxRate(rate)} is right`}>YES, {formatTaxRate(rate)} IS RIGHT</LBracket>
             <LBracket href="/profile?step=income">ENTER GROSS PAY INSTEAD</LBracket>
           </div>
         </div>
@@ -309,7 +309,9 @@ function LoanTaxCard({ loan, regime, month, onSave }: { loan: LoanPayload; regim
       <p style={{ margin: '0 0 8px', fontSize: 11, color: L_T.muted }}>
         Next 12 EMIs: about {rupees(year.interest)} interest and {rupees(year.principal)} principal (whole loan).
       </p>
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      {/* Live re-test 2 NEW-18: top-aligned, so the Lived in / Let out chips sit
+          level with the share field instead of below its long hint. */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <NumIn
           label="Your share for tax (%)"
           value={share}

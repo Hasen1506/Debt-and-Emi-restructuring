@@ -423,13 +423,22 @@ def chart_labels(ch: dict) -> list[str]:
             for i, m in enumerate(ms)]
 
 
+def _lower_first(name: str) -> str:
+    """Live re-test 2 R2-5: "Credit card" → "credit card", but "HDFC car
+    loan" keeps the lender's capitals."""
+    first, _, rest = name.partition(" ")
+    if len(first) > 1 and first.isupper():
+        return name
+    return first[:1].lower() + first[1:] + (" " + rest if rest else "")
+
+
 def gen_chart(c: str, f: dict) -> str:
     x = f[c]
     ch = x["chart"]
     labels, mlist = chart_labels(ch), []
     for i, m in enumerate(ch["markers"]):
         last = i == len(ch["markers"]) - 1
-        mlist.append(f'{m["loan"].lower() if not last else "debt-free"} {mon(m["label"])}')
+        mlist.append(f'{_lower_first(m["loan"]) if not last else "debt-free"} {mon(m["label"])}')
     owed = float(x["outstanding"])
     left = money(c, ch["due_left_at_edge"])
     lay = layout_chart(ch, labels, left)
@@ -449,8 +458,10 @@ def gen_chart(c: str, f: dict) -> str:
         f'            <text class="yl" x="8" y="150">{short_owed(c, owed / 2)}</text>\n'
         f'            <text class="yl" x="8" y="262">{"₹0" if c == "IN" else "$0"}</text>\n'
         f'            <text x="70" y="290">NOW</text>\n'
-        f'            <text x="{ch["axis"]["mid"]["x"] - 16}" y="290">{ch["axis"]["mid"]["label"]}</text>\n'
-        f'            <text x="{ch["axis"]["end"]["x"] - 40}" y="290">{ch["axis"]["end"]["label"]}</text>\n'
+        # Live re-test 2 R2-4: anchored by their middle / right edge, so the
+        # phone's 22px axis text can't run past the 800-wide viewBox.
+        f'            <text x="{ch["axis"]["mid"]["x"]}" y="290" text-anchor="middle">{ch["axis"]["mid"]["label"]}</text>\n'
+        f'            <text x="{min(ch["axis"]["end"]["x"], 796)}" y="290" text-anchor="end">{ch["axis"]["end"]["label"]}</text>\n'
         f'          </g>\n'
         f'          <line x1="70" y1="258" x2="790" y2="258" stroke="#0a0a0a" stroke-width="1"/>\n'
         f'          <path class="fade-line" d="{ch["due_path"]}" fill="none" stroke="#5e5e58" stroke-width="2" stroke-dasharray="6 5"/>\n'

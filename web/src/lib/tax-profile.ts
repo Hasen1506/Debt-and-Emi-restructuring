@@ -47,7 +47,11 @@ export function readIncome(user: UserPayload, asOf: Date = new Date()): IncomeRe
   const salary = D(user.annual_gross_salary);
   const business = D(user.annual_business_income);
   if (salary.gt(0) || business.gt(0)) return { mix: mixOf(salary, business), salary, business, other: new Decimal(0), source: 'gross' };
-  return { mix: 'unknown', salary: new Decimal(0), business: new Decimal(0), other: new Decimal(0), source: 'none' };
+  // Live re-test 2 R2-7: Setup's "How you earn" (Salaried is pre-selected
+  // and saved as income_type) still says how they earn, with no amounts.
+  const fromSetup: IncomeMix =
+    user.income_type === 'salaried' ? 'salary' : user.income_type === 'business_owner' ? 'business' : 'unknown';
+  return { mix: fromSetup, salary: new Decimal(0), business: new Decimal(0), other: new Decimal(0), source: 'none' };
 }
 
 function mixOf(salary: Decimal, business: Decimal): IncomeMix {
@@ -140,4 +144,11 @@ export function regimeInputsFromUser(user: UserPayload, currentMonth: string): {
     homeLoans: homeLoanYears(user.loans, currentMonth),
   };
   return { inputs, hasBusiness: income.business.gt(0), assumptions };
+}
+
+/** Live re-test 2 NEW-18: one way to print the tax rate everywhere (Home,
+ *  Plan, Profile and Tax said 16% and 15.6% for the same 0.156). */
+export function formatTaxRate(rate: Decimal.Value | null | undefined): string {
+  const v = new Decimal(rate == null || rate === '' ? 0 : rate).mul(100).toDecimalPlaces(1);
+  return `${v.isInteger() ? v.toFixed(0) : v.toFixed(1)}%`;
 }

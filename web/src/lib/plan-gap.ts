@@ -240,3 +240,10 @@ export function scheduleStopLine(growsWithoutLimit: boolean, stopLabel: string):
     ? `GAP BORROWING GROWS WITHOUT LIMIT AT THIS INCOME · THE SCHEDULE STOPS AT ${stopLabel}, BEFORE THE FIGURES STOP MEANING ANYTHING. Close the monthly gap (spend less or bring in more), or try a longer tenure in the what-if, to get a date.`
     : `THE DEBT DOESN’T CLEAR IN 30 YEARS AS THINGS STAND · THE SCHEDULE STOPS AT ${stopLabel}. Close the monthly gap (spend less or bring in more), or try a longer tenure in the what-if, to get a date.`;
 }
+
+/** Live re-test 2 R2-10: the plan and minimums lines are drawn one on top
+ *  of the other (a short month leaves nothing extra to pay), so the legend
+ *  shows one item and says so. Points are normalised 0..1. */
+export function linesCoincide(points: { av: number; min: number }[], tol = 0.005): boolean {
+  return points.length > 0 && points.every((p) => Math.abs(p.av - p.min) <= tol);
+}
