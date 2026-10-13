@@ -146,7 +146,7 @@ export function LifecycleEventsPanel({ user, configuredLoans = user.loans }: { u
                       {status}
                     </span>
                     {e.status === 'planned' && due && (
-                      <LBracket accent onClick={() => act(e.id, 'confirmed')} label={`${label} on ${dayLabel(e.effectiveDate)} happened`}>
+                      <LBracket accent onClick={() => act(e.id, 'confirmed')} label={`It happened: ${label} on ${dayLabel(e.effectiveDate)}`}>
                         IT HAPPENED
                       </LBracket>
                     )}

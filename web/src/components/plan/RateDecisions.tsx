@@ -18,6 +18,7 @@ import { isOpenCurrentLoan } from '@/lib/plan-controls';
 import { RATE_STEP, dayLabel, followsCentralBank, rateMove, whenItApplies, type RateMove } from '@/lib/rate-decision';
 import { monthsSpan } from '@/lib/today';
 import { L_T } from '@/components/ledger/primitives';
+import { isAbortError } from '@/lib/engine-requests';
 
 const STEP = `${(RATE_STEP * 100).toFixed(2)}%`;
 
@@ -26,15 +27,22 @@ export function RateDecisions({ plan }: { plan: PlanData }) {
   const loans = plan.user.loans.filter(isOpenCurrentLoan);
   const [data, setData] = useState<CentralRatesResponse | null>(null);
   useEffect(() => {
-    let cancelled = false;
+    // Re-test 9 O-1: WebKit logged an error when this request was cut off
+    // by a navigation. Leaving the page (or this view) now aborts it, and an
+    // aborted request is dropped quietly: it isn't an error.
+    const ctrl = new AbortController();
+    const stop = () => ctrl.abort();
+    window.addEventListener('pagehide', stop);
     api
-      .centralRates()
-      .then((res) => !cancelled && setData(res))
-      .catch(() => {
-        /* said without the date */
+      .centralRates(ctrl.signal)
+      .then((res) => !ctrl.signal.aborted && setData(res))
+      .catch((e: unknown) => {
+        if (ctrl.signal.aborted || isAbortError(e)) return;
+        /* otherwise said without the date */
       });
     return () => {
-      cancelled = true;
+      window.removeEventListener('pagehide', stop);
+      ctrl.abort();
     };
   }, []);
   if (loans.length === 0) return null;

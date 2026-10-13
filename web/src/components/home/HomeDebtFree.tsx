@@ -271,9 +271,17 @@ export async function HomeThisMonthStrip() {
   const plan = await loadPlanOnce();
   if (plan.gaps.length > 0 || !plan.live) return null;
   const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country));
-  const line = homeThisMonthLine(payThisMonth(plan), plan.shortfall, fc, plan.user.country);
-  if (!line) return null;
-  return <HomeThisMonth line={line} />;
+  const data = payThisMonth(plan);
+  const line = homeThisMonthLine(data, plan.shortfall, fc, plan.user.country);
+  if (!line || !data) return null;
+  // Re-test 9 O-3: the strip notices payments logged this month.
+  const progress = {
+    rows: data.rows.map(({ key, loanIndex, minimum, amount, amountUser }) => ({ key, loanIndex, minimum, amount, amountUser })),
+    loans: plan.user.loans,
+    country: plan.user.country,
+    total: data.total,
+  };
+  return <HomeThisMonth line={line} progress={progress} />;
 }
 
 /** Cheaper rates the engine found for these loans (REDESIGN R2.4). */

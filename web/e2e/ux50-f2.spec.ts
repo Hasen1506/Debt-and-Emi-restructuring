@@ -69,7 +69,7 @@ test('UX50 B-35/B-10/B-02/B-11/B-01/B-12: Setup keeps its place, Home says what 
   if (shots) await page.screenshot({ path: `${shots}/after-ux50-home-1366.png`, fullPage: true });
 
   // B-12: mark the card paid; its balance and the total move.
-  await page.getByRole('button', { name: /^Mark Credit card paid/ }).first().click();
+  await page.getByRole('button', { name: /^Mark paid: Credit card/ }).first().click();
   await expect(page.locator('#main li[data-extra="paid"]').getByTestId('extra-tag')).toHaveText('· EXTRA PAID');
   await expect(page.locator('#main').getByTestId('card-paid-down')).toContainText('WAS ₹85,000');
   if (shots) await page.screenshot({ path: `${shots}/after-ux50-home-paid-1366.png`, fullPage: true });

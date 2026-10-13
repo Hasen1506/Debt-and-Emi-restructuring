@@ -19,6 +19,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Field } from '@/components/ToolPrimitives';
+import { localTerms } from '@/lib/terms';
 import { MonthYearPicker } from '@/components/MonthYearPicker';
 import { LChip, LChipRow, LKpi, LMathBlock, L_T } from '@/components/ledger/primitives';
 import { LFieldGrid, LNote, LStep, LStepSub, LSteps, LVerdict } from '@/components/ledger/LToolSteps';
@@ -297,7 +298,7 @@ export function PurchaseTool() {
                   kind="integer"
                   value={tenureYears}
                   onChange={fieldTouch('tenureYears', setTenureYears)}
-                  hint={type === 'vehicle' ? 'Longer: you owe more than it’s worth' : 'Longer: lower EMI, more interest'}
+                  hint={type === 'vehicle' ? 'Longer: you owe more than it’s worth' : localTerms('Longer: lower EMI, more interest', country)}
                 />
                 <Field
                   label="Rate (%)"
@@ -336,12 +337,13 @@ export function PurchaseTool() {
           rate={Number(rate)}
           monthlySurplus={monthlySurplus}
           goalSlipRows={goalSlipRows}
+          country={country}
           log={
             <DecisionLogControls
               kind="new_loan"
               context={`${type} purchase — ${analysis.feasibility} on current surplus`}
               estimatedAmount={String(analysis.loan.tcoPostTax)}
-              reasoning={`Down ${fmt(analysis.downPayment.amount)}, EMI ${fmt(analysis.loan.monthlyEmi)} a month over ${analysis.loan.tenureYears} years`}
+              reasoning={localTerms(`Down ${fmt(analysis.downPayment.amount)}, EMI ${fmt(analysis.loan.monthlyEmi)} a month over ${analysis.loan.tenureYears} years`, country)}
               source="tools/purchase"
               ccySym={ccy === 'INR' ? '₹' : '$'}
             />
@@ -370,6 +372,7 @@ function AnalysisPanel({
   rate,
   monthlySurplus,
   goalSlipRows,
+  country,
   log,
 }: {
   analysis: PurchaseAnalysis;
@@ -380,8 +383,11 @@ function AnalysisPanel({
   rate: number;
   monthlySurplus: number;
   goalSlipRows: ReturnType<typeof materialSlips>;
+  /** R9-1: US says "monthly payment", not "EMI". */
+  country: 'IN' | 'US';
   log: React.ReactNode;
 }) {
+  const t = (text: string) => localTerms(text, country);
   const v = VERDICT[a.feasibility];
   const months = a.loan.tenureYears * 12;
   const taxSaved = Math.max(0, a.downPayment.amount + a.loan.monthlyEmi * months - a.loan.tcoPostTax);
@@ -399,7 +405,7 @@ function AnalysisPanel({
             ? 'No loan needed.'
             : share === Infinity
               ? 'Nothing is left each month after your costs and payments.'
-              : `The EMI takes ${Math.round(share * 100)}% of what's left each month; up to 40% is comfortable.`}
+              : t(`The EMI takes ${Math.round(share * 100)}% of what's left each month; up to 40% is comfortable.`)}
           {marginalRate > 0 ? '' : ' No tax rate on file, so any tax break reads as zero.'}
         </LNote>
         <LKpi
@@ -410,7 +416,7 @@ function AnalysisPanel({
               s: a.downPayment.remainingToSave > 0 ? `save ${fmt(a.downPayment.monthlySavingRequired)} a month` : 'from savings',
               tone: a.downPayment.coverableBySurplus ? undefined : L_T.negative,
             },
-            { l: 'EMI', v: fmt(a.loan.monthlyEmi), s: `a month for ${a.loan.tenureYears} years` },
+            { l: t('EMI'), v: fmt(a.loan.monthlyEmi), s: `a month for ${a.loan.tenureYears} years` },
             {
               l: 'TOTAL INTEREST',
               v: fmt(a.loan.totalInterestOverTenure),
@@ -419,7 +425,7 @@ function AnalysisPanel({
             {
               l: 'LEFT EACH MONTH',
               v: fmt(a.affordability.surplusAfterEmi),
-              s: 'after the EMI',
+              s: t('after the EMI'),
               tone: a.affordability.surplusAfterEmi < 0 ? L_T.negative : L_T.positive,
             },
           ]}
@@ -437,13 +443,13 @@ function AnalysisPanel({
                 <LKpi
                   items={[
                     ...(levers.lowerPriceTo != null
-                      ? [{ l: 'A PRICE UP TO', v: fmt(Math.round(levers.lowerPriceTo)), s: 'saves in time, EMI under 40%' }]
+                      ? [{ l: 'A PRICE UP TO', v: fmt(Math.round(levers.lowerPriceTo)), s: t('saves in time, EMI under 40%') }]
                       : []),
                     ...(levers.extendTargetByMonths != null
                       ? [{ l: 'BUY LATER BY', v: `${levers.extendTargetByMonths} month${levers.extendTargetByMonths === 1 ? '' : 's'}`, s: 'to save the down payment' }]
                       : []),
                     ...(levers.increaseDownPaymentToPct != null
-                      ? [{ l: 'PUT DOWN', v: `${Math.ceil(levers.increaseDownPaymentToPct * 100)}%`, s: 'so the EMI fits' }]
+                      ? [{ l: 'PUT DOWN', v: `${Math.ceil(levers.increaseDownPaymentToPct * 100)}%`, s: t('so the EMI fits') }]
                       : []),
                   ]}
                 />
@@ -503,18 +509,18 @@ function AnalysisPanel({
           ...(a.loan.principal > 0
             ? [
                 { k: 'borrowed', v: fmt(a.loan.principal) },
-                { k: 'EMI', v: fmt(a.loan.monthlyEmi), note: `${rate}% over ${months} months` },
+                { k: t('EMI'), v: fmt(a.loan.monthlyEmi), note: `${rate}% over ${months} months` },
                 { k: 'total interest', v: fmt(a.loan.totalInterestOverTenure) },
               ]
             : []),
           ...(taxSaved >= 1 ? [{ k: 'tax saved', v: fmt(taxSaved), note: 'over the loan', tone: 'pos' as const }] : []),
           taxSaved >= 1
-            ? { k: 'all in, after tax', v: fmt(a.loan.tcoPostTax), note: 'down payment + EMIs − tax saved' }
-            : { k: 'all in', v: fmt(a.loan.tcoPostTax), note: 'down payment + EMIs' },
+            ? { k: 'all in, after tax', v: fmt(a.loan.tcoPostTax), note: t('down payment + EMIs − tax saved') }
+            : { k: 'all in', v: fmt(a.loan.tcoPostTax), note: t('down payment + EMIs') },
           {
             k: 'left each month',
             v: fmt(a.affordability.surplusAfterEmi),
-            note: `${fmt(monthlySurplus)} now, less the EMI`,
+            note: t(`${fmt(monthlySurplus)} now, less the EMI`),
             tone: a.affordability.surplusAfterEmi < 0 ? ('neg' as const) : undefined,
           },
         ]}

@@ -51,6 +51,11 @@ export interface PayThisMonth {
   leftOver: number;
   /** The extra on top of EMIs and minimums, in the user's currency. */
   extraUser: number;
+  /** R9-3: every EMI and card minimum this month, in the user's currency,
+   *  rounded once (as Home's cash flow rounds them). total = duesUser +
+   *  extraUser + the set-aside rows, and never more than take-home less
+   *  spending. */
+  duesUser: number;
   /** The user's own monthly total for debts; 0 = all spare cash. */
   budget: number;
 }
@@ -122,16 +127,71 @@ export function payThisMonth(plan: PlanData): PayThisMonth | null {
     setAside.push({ key: 'goals', loanIndex: null, name: 'Goals', kind: 'goals', card: false, amount: goals, currency: userCcy, amountUser: goals, minimum: 0, extra: goals });
   }
   const rows = [...loanRows, ...setAside];
-  const total = rows.reduce((s, r) => s + r.amountUser, 0);
-  const extrasUser = loanRows.reduce(
+  const { duesUser, extraUser } = reconcileMonth(plan, first.perLoan, loanRows, ef + goals);
+  const total = duesUser + extraUser + ef + goals;
+  const surplus = Math.round(a?.surplus ?? plan.surplus);
+  const unplaced = surplus - extraUser - ef - goals;
+  // Rounding leaves a few rupees either way; only a real remainder is shown.
+  const leftOver = unplaced >= Math.max(1, surplus * 0.01) ? unplaced : 0;
+  return { rows, total, leftOver, extraUser, duesUser, budget: Number(plan.debtBudget || 0) };
+}
+
+/**
+ * R9-3: this month's whole-rupee (or dollar) parts. Each loan's payment is
+ * rounded on its own row, and with many loans those roundings added up to
+ * ₹1 more than take-home less spending (Home said "pay ₹24,00,001" beside
+ * a cash flow that left ₹16,25,849). The EMIs and minimums are rounded
+ * once, as the cash flow rounds them, and the extra is capped at what's
+ * left after them and the set-aside; any rupee taken off comes off the
+ * largest extra row so the list adds up to the same total.
+ */
+function reconcileMonth(
+  plan: PlanData,
+  perLoan: Record<string, string | number>,
+  loanRows: PayRow[],
+  setAsideUser: number,
+): { duesUser: number; extraUser: number } {
+  const { loans, country } = plan.user;
+  const minimumsUser = loanRows.reduce((s, r) => {
+    const loan = loans[r.loanIndex as number];
+    // Unrounded, as the cash flow adds them (a ₹5,200.40 EMI is not ₹5,200).
+    const raw = Math.min(Number(perLoan[String(r.loanIndex)] ?? r.amount), Number(plan.firstMonthMinimums[r.loanIndex as number] ?? 0));
+    return s + (loanToUser(raw, loan, country, plan.fxRatesUsed) ?? raw);
+  }, 0);
+  const duesUser = Math.round(minimumsUser);
+  const rowExtras = loanRows.reduce(
     (s, r) => s + (r.amount > 0 ? Math.round((r.extra / r.amount) * r.amountUser) : 0),
     0,
   );
-  const surplus = Math.round(a?.surplus ?? plan.surplus);
-  const unplaced = surplus - extrasUser - ef - goals;
-  // Rounding leaves a few rupees either way; only a real remainder is shown.
-  const leftOver = unplaced >= Math.max(1, surplus * 0.01) ? unplaced : 0;
-  return { rows, total, leftOver, extraUser: extrasUser, budget: Number(plan.debtBudget || 0) };
+  const income = Number(plan.user.monthly_income || 0);
+  const spend = Number(plan.user.fixed_expenses || 0) + Number(plan.user.variable_expenses || 0);
+  const available = Math.round(income - spend);
+  // No take-home on file (or short): nothing to cap against here; the
+  // shortfall path says what to do instead.
+  if (!(income > 0) || plan.shortfall > 0) return { duesUser, extraUser: rowExtras };
+  const room = Math.max(0, available - duesUser - setAsideUser);
+  const extraUser = Math.min(rowExtras, room);
+  let over = rowExtras - extraUser;
+  if (over > 0) {
+    const userCcy = userDefaultCurrency(country);
+    const extraRows = loanRows
+      // A payoff row stays whole: a rupee less would leave it owing.
+      .filter((r) => r.kind === 'extra' && r.extra >= 1 && r.currency === userCcy)
+      .sort((x, y) => y.extra - x.extra);
+    for (const r of extraRows) {
+      if (over <= 0) break;
+      const cut = Math.min(over, r.extra);
+      r.extra -= cut;
+      r.amount -= cut;
+      r.amountUser -= cut;
+      if (r.extra < 1) {
+        r.extra = 0;
+        r.kind = r.card ? 'minimum' : 'emi';
+      }
+      over -= cut;
+    }
+  }
+  return { duesUser, extraUser };
 }
 
 /** R6-5: one "owed after" for a card on Home. Once a payment on the card is

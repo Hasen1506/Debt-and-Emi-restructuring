@@ -49,8 +49,9 @@ function homeThisMonthLineIn(
   const extra = Math.round(data.extraUser);
   const top = loanRows.find((r) => r.kind === 'extra' || r.kind === 'clears');
   const setAside = data.rows.filter((r) => r.loanIndex === null).reduce((s, r) => s + r.amountUser, 0);
-  const dues = Math.max(0, Math.round(data.total - extra - setAside));
-  const total = Math.round(data.total);
+  // R9-3: the parts are whole rupees already; the total is their sum.
+  const dues = data.duesUser ?? Math.max(0, Math.round(data.total - extra - setAside));
+  const total = dues + extra + setAside;
   if (extra >= 1 && top) {
     const several = loanRows.filter((r) => r.kind === 'extra' || r.kind === 'clears').length > 1;
     return {

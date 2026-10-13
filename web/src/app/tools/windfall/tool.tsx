@@ -120,7 +120,7 @@ async function runPlan(args: PlanRunArgs, strategy: StrategyName): Promise<Run> 
 }
 
 function block(l: LoanPayload): string | undefined {
-  if ((l.pre_emi_months_remaining ?? 0) > 0) return 'still in its pre-EMI period';
+  if ((l.pre_emi_months_remaining ?? 0) > 0) return l.currency === 'USD' ? 'still before its first monthly payment' : 'still in its pre-EMI period';
   const n = l.prepay_lock_in_months ?? 0;
   if (n > 0) return `locked for ${n} more month${n === 1 ? '' : 's'}`;
   return undefined;

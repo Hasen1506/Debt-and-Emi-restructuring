@@ -36,6 +36,7 @@ import {
   L_MONO,
 } from '@/components/ledger/primitives';
 import { deriveMetrics } from '@/lib/derived';
+import { payThisMonth } from '@/lib/pay-this-month';
 import { dec } from '@/lib/safe-decimal';
 import { describeGap, emiBelowInterest, type ProfileGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
@@ -106,7 +107,11 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   // What the plan pays the banks this month (EMIs, card minimums and the
   // extra), in the user's currency. Summing scheduled EMIs mixed ₹ and $,
   // counted paid-off loans and missed card minimums with no EMI set.
+  // R9-3: the same whole-rupee EMIs + minimums + extra Home's "This month"
+  // strip says, so Plan, Home and the cash flow agree to the rupee.
+  const ptm = payThisMonth(plan);
   const monthlyOutlay =
+    (ptm ? ptm.duesUser + ptm.extraUser : undefined) ??
     plan.monthlyPayments.find((p) => p.month === 1)?.totalPaid ??
     deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate } as StoredProfile)
       .emiBurden.toNumber() +
@@ -237,7 +242,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           <LBracket href="#notes">NOTES</LBracket>
           <LBracket href="#what-if">WHAT IF</LBracket>
           {/* Setup shows a plan after one loan; the rest are added from here (sprint G10, grill #16b). */}
-          <LBracket accent href="/onboarding?step=loans" label="Add another loan to the plan">+ LOAN</LBracket>
+          <LBracket accent href="/onboarding?step=loans" label="+ Loan: add another loan to the plan">+ LOAN</LBracket>
         </nav>
 
         {/* What actually reached the debts, beside what the plan puts in */}

@@ -2,6 +2,7 @@ import { NewDebtTool } from './tool';
 import { PurchaseTool } from '../purchase/tool';
 import { LToolPageHeader } from '@/components/ledger/LToolPageHeader';
 import { LBracket } from '@/components/ledger/primitives';
+import { NewDebtOfferLabel } from './mode-nav';
 import { newDebtMode } from '@/lib/new-debt-mode';
 
 /** Its own tab title (UX50 C-26 / E-15). */
@@ -19,7 +20,7 @@ export default async function NewDebtPage({ searchParams }: { searchParams?: Pro
   return (
     <LToolPageHeader id="new-debt">
       <nav aria-label="What are you checking?" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', margin: '0 0 16px' }}>
-        <LBracket href="/tools/new-debt" active={mode === 'offer'} current={mode === 'offer'}>A LOAN OR EMI OFFER</LBracket>
+        <LBracket href="/tools/new-debt" active={mode === 'offer'} current={mode === 'offer'}><NewDebtOfferLabel /></LBracket>
         <LBracket href="/tools/new-debt?mode=purchase" active={mode === 'purchase'} current={mode === 'purchase'}>A BIG PURCHASE (HOME, CAR)</LBracket>
       </nav>
       {mode === 'purchase' ? <PurchaseTool /> : <NewDebtTool />}

@@ -36,10 +36,10 @@ import { PaydayEmail } from './PaydayEmail';
 import { EmailAnswers } from './EmailAnswers';
 import { LBracket, LSectionHeader, L_T, lPayBtn, lStrip } from '@/components/ledger/primitives';
 import { payoffBreakdown } from '@/lib/schedule-reconcile';
+// Fund and goal ticks, per month: they aren't loan payments, so they
+// aren't Activity entries.
+import { SET_ASIDE_EVENT, SET_ASIDE_KEY } from '@/lib/this-month-progress';
 
-/** Fund and goal ticks, per month: they aren't loan payments, so they
- *  aren't Activity entries. */
-const SET_ASIDE_KEY = 'rightdue_set_aside';
 
 // EMI PAID: the EMI or minimum has gone out, the plan's extra on it hasn't.
 type Status = { tag: 'PAID' | 'EMI PAID' | 'PARTIAL' | 'MISSED'; amount: number; date: string; undoable: boolean };
@@ -183,6 +183,7 @@ export function PayThisMonth({
       setTicked(next);
       try {
         window.localStorage.setItem(SET_ASIDE_KEY, JSON.stringify({ month, keys: next }));
+        window.dispatchEvent(new Event(SET_ASIDE_EVENT));
       } catch {
         /* the tick lasts this visit */
       }
@@ -255,6 +256,7 @@ export function PayThisMonth({
       setTicked(next);
       try {
         window.localStorage.setItem(SET_ASIDE_KEY, JSON.stringify({ month, keys: next }));
+        window.dispatchEvent(new Event(SET_ASIDE_EVENT));
       } catch {
         /* nothing stored */
       }
@@ -458,9 +460,12 @@ export function PayThisMonth({
                       type="button"
                       onClick={() => attempt(() => markPaid(row))}
                       aria-label={
-                        st
-                          ? `Mark the extra on ${row.name} paid, ${fmt(row.amount - st.amount, row.currency)}`
-                          : `Mark ${row.name} paid, ${fmt(row.amount, row.currency)}`
+                        // R9-2 (WCAG 2.5.3): the spoken name starts with the words on the button.
+                        row.loanIndex === null
+                          ? `Set aside ${fmt(row.amount, row.currency)}: ${row.name}`
+                          : st
+                            ? `Mark extra paid: ${row.name}, ${fmt(row.amount - st.amount, row.currency)}`
+                            : `Mark paid: ${row.name}, ${fmt(row.amount, row.currency)}`
                       }
                       style={lPayBtn(true)}
                     >
@@ -474,7 +479,7 @@ export function PayThisMonth({
                       <button
                         type="button"
                         onClick={() => openOther(row)}
-                        aria-label={`Paid a different amount on ${row.name}`}
+                        aria-label={`Other amount: paid a different amount on ${row.name}`}
                         style={lPayBtn(false)}
                       >
                         OTHER AMOUNT

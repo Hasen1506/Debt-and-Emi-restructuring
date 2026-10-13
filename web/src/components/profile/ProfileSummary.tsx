@@ -224,7 +224,7 @@ export function ProfileSummary({
           step={6}
           right={
             <span style={{ display: 'inline-flex', gap: 12 }}>
-              <LBracket href="/portfolio" label="See what you own: holdings, cash and what selling would do">SEE ALL</LBracket>
+              <LBracket href="/portfolio" label="See all you own: holdings, cash and what selling would do">SEE ALL</LBracket>
               <LBracket accent href="/profile/assets" label="Edit what you own">EDIT</LBracket>
             </span>
           }
@@ -249,7 +249,7 @@ export function ProfileSummary({
 
       {payoffOrder && (
         <section id="strategy" aria-labelledby="pf-order" style={{ scrollMarginTop: 16 }}>
-          <LSectionHeader step={7} right={<LBracket accent href="/plan" label="See the payoff order on Plan">SEE ON PLAN</LBracket>}>
+          <LSectionHeader step={7} right={<LBracket accent href="/plan" label="See on Plan: the payoff order">SEE ON PLAN</LBracket>}>
             <span id="pf-order">Payoff order</span>
           </LSectionHeader>
           {payoffOrder}
