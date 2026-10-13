@@ -159,7 +159,7 @@ test('small fixes: R2-2, NEW-23, R2-7, NEW-18, R2-10, NEW-9, R2-9, R2-6, R2-8', 
   assert.equal(MIX_LABEL[readIncome({ income_type: 'salaried', country: 'IN' }).mix], 'Salary only');
   assert.equal(readIncome({ income_type: 'salaried', country: 'IN' }).source, 'none');
   assert.equal(formatTaxRate('0.156'), '15.6%');
-  assert.equal(formatTaxRate('0.3'), '30%');
+  assert.equal(formatTaxRate('0.3'), '30.0%');
   for (const f of ['components/home/LedgerHome.tsx', 'components/plan/PlanAssumptions.tsx']) {
     assert.doesNotMatch(src(f), /TAX BRACKET \$\{Math\.round/);
   }

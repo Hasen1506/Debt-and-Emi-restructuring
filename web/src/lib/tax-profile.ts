@@ -149,6 +149,6 @@ export function regimeInputsFromUser(user: UserPayload, currentMonth: string): {
 /** Live re-test 2 NEW-18: one way to print the tax rate everywhere (Home,
  *  Plan, Profile and Tax said 16% and 15.6% for the same 0.156). */
 export function formatTaxRate(rate: Decimal.Value | null | undefined): string {
-  const v = new Decimal(rate == null || rate === '' ? 0 : rate).mul(100).toDecimalPlaces(1);
-  return `${v.isInteger() ? v.toFixed(0) : v.toFixed(1)}%`;
+  // One decimal, always: what Profile and Tax already showed ("10.0%").
+  return `${new Decimal(rate == null || rate === '' ? 0 : rate).mul(100).toFixed(1)}%`;
 }
