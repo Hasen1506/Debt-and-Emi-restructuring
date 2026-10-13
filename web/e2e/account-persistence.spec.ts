@@ -81,7 +81,10 @@ test('sign-in ended elsewhere: the save is kept here, the notice says why, and s
   await page.getByRole('button', { name: /send code/i }).click();
   await page.getByPlaceholder('••••••').fill(OTP);
   await page.getByRole('button', { name: /verify and sign in/i }).click();
-  await page.waitForURL('**/profile');
+  // The login page leaves with window.location.assign. Firefox can report that
+  // full load as NS_BINDING_ABORTED to waitForURL even though it completes,
+  // so assert where the page ended up instead of waiting on the load event.
+  await expect(page).toHaveURL(/\/profile(\?|$)/, { timeout: 15_000 });
   await takeHome(page, '₹70,000');
   await expect(notice(page)).toHaveCount(0);
   expect(await accountTakeHome(context)).toBe('70000');
