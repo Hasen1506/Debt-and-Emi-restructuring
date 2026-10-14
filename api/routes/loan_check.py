@@ -474,6 +474,34 @@ _DECISION_SOURCES = {
 }
 
 
+class RbiLatestResponse(_Base):
+    decision: DecisionOut
+    next_meeting: Optional[str]
+    rates_as_of: str
+    rates_source: str
+
+
+def _latest_decision(as_of: date) -> DecisionOut:
+    hist = [(d, r) for d, r in policy_rates.history(Country.IN) if d <= as_of]
+    (last_day, last_rate), prev = hist[-1], hist[-2][1]
+    return DecisionOut(
+        decided=last_day.isoformat(), repo_from=prev, repo_to=last_rate, move=last_rate - prev,
+        source_url=_DECISION_SOURCES.get(last_day, "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx"),
+        reach_by=(last_day + timedelta(days=91)).isoformat(),
+    )
+
+
+@router.get("/rbi-decision/latest", response_model=RbiLatestResponse)
+def rbi_decision_latest(as_of: Optional[str] = None) -> RbiLatestResponse:
+    """The last RBI repo decision and the next meeting, for the public page's header."""
+    day = parse_date("as_of", as_of) if as_of else date.today()
+    return RbiLatestResponse(
+        decision=_latest_decision(day), next_meeting=_iso(next_rbi_meeting(day)),
+        rates_as_of=policy_rates.rates_as_of(Country.IN).isoformat(),
+        rates_source=rates_feed.source_label(Country.IN),
+    )
+
+
 @router.post("/rbi-decision", response_model=RbiDecisionResponse)
 def rbi_decision(req: RbiDecisionRequest) -> RbiDecisionResponse:
     """The last RBI repo decision applied to one loan, and the next meeting's
@@ -519,12 +547,7 @@ def rbi_decision(req: RbiDecisionRequest) -> RbiDecisionResponse:
                              None)
         scenarios.append(ScenarioOut(move=m, impact=move_out(x)))
     return RbiDecisionResponse(
-        decision=DecisionOut(
-            decided=last_day.isoformat(), repo_from=prev, repo_to=last_rate, move=move,
-            source_url=_DECISION_SOURCES.get(
-                last_day, "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx"),
-            reach_by=(last_day + timedelta(days=91)).isoformat(),
-        ),
+        decision=_latest_decision(as_of),
         applied_to=applied,
         impact=move_out(im),
         next_meeting=_iso(next_rbi_meeting(as_of)),

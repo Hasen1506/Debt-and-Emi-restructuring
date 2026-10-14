@@ -116,3 +116,11 @@ def test_rbi_decision_input_errors(client, body, field):
     base.update(body)
     r = client.post("/api/rbi-decision", json=base)
     assert r.status_code == 422
+
+
+def test_rbi_decision_latest(client):
+    r = client.get("/api/rbi-decision/latest", params={"as_of": AS_OF})
+    assert r.status_code == 200
+    b = r.json()
+    assert b["decision"]["decided"] == "2026-10-07" and b["next_meeting"] == "2026-12-04"
+    assert b["decision"]["reach_by"] == "2027-01-06"
