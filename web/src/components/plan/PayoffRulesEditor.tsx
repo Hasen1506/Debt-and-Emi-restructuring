@@ -96,8 +96,8 @@ export function PayoffRulesEditor({
     [o[at], o[to]] = [o[to], o[at]];
     save({ ...rules, custom_order: o });
   };
-  const box: React.CSSProperties = { fontSize: 11, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' };
-  const btn: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', padding: '0 6px', cursor: pending ? 'wait' : 'pointer', fontFamily: 'var(--font-mono)', fontSize: 11 };
+  const box: React.CSSProperties = { fontSize: 'var(--fs-small)', color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' };
+  const btn: React.CSSProperties = { background: 'transparent', border: '1px solid var(--border)', padding: '0 6px', cursor: pending ? 'wait' : 'pointer', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-small)' };
 
   return (
     <div aria-label="Your payoff rules" role="group" style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 6, borderLeft: '2px solid var(--accent)' }}>
@@ -117,7 +117,7 @@ export function PayoffRulesEditor({
           disabled={pending || !smallOn || rules.custom_order.length > 0}
           onChange={(e) => setRules({ ...rules, small_first_below: e.target.value })}
           onBlur={() => save({ ...rules, small_first_below: Number(rules.small_first_below) > 0 ? String(Number(rules.small_first_below)) : null })}
-          style={{ width: 90, fontSize: 11 }}
+          style={{ width: 90, fontSize: 'var(--fs-small)' }}
         />
         first, smallest first
       </label>
@@ -153,7 +153,7 @@ export function PayoffRulesEditor({
           </button>
         )}
       </div>
-      <div style={{ fontSize: 11, color: cost && cost.extraInterest >= 1 ? 'var(--negative, #b42318)' : 'var(--muted)' }} aria-live="polite">
+      <div style={{ fontSize: 'var(--fs-small)', color: cost && cost.extraInterest >= 1 ? 'var(--negative, #b42318)' : 'var(--muted)' }} aria-live="polite">
         {pending ? 'Working it out…' : rulesCostWords(cost, money, avalancheMonth, user.country)}
       </div>
     </div>

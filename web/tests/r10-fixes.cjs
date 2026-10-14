@@ -47,7 +47,8 @@ test('R10-2: every button and link name in the app starts with its visible words
   assert.ok(results.length >= 50, `checked ${results.length}`);
   assert.deepEqual(results.filter((r) => !r.ok).map((r) => `${r.file}:${r.line} [${r.visible}] "${r.names.join(' / ')}"`), []);
   // The ones the re-test named.
-  assert.match(src('components/personas/StrategyMedallion.tsx'), /aria-label=\{`Payoff order: \$\{p\.name\}, \$\{p\.tag\.toLowerCase\(\)\}\. Change it`\}/);
+  // Audit 80+ B20: the medallion is gone; the payoff order is a labelled radio group.
+  assert.match(src('components/chrome/PayoffOrderSwitch.tsx'), /role="radiogroup"\s+aria-labelledby="rd-payoff-order-label"/);
   assert.match(src('components/home/OpenPositions.tsx'), /`Why \$\{fmtPct\(d\.effective\)\}\? What the \$\{name\} costs a year, line by line`/);
   assert.match(src('components/profile/ProfileSummary.tsx'), /'Old vs new regime, loan by loan: open the Tax page' : 'Tax page'/);
   assert.match(src('components/goals/GoalsPage.tsx'), /label=\{`\$\{funded \? 'Archive' : 'Cancel goal'\}: \$\{goal\.label\}`\}/);
@@ -276,7 +277,8 @@ test('Home interest: the tile reads the plan’s month-1 interest (as Plan and i
   assert.match(src('app/page.tsx'), /<HomeInterestValue \/>/);
   const l = src('components/home/LedgerHome.tsx');
   assert.doesNotMatch(l, /'CHARGED THIS MONTH'/);
-  assert.match(l, /\{ l: 'INTEREST', v: interest\.v, s: interest\.s, tone: L_T\.negative \}/);
+  // Audit 80+ B19: planned interest is in ink; red is kept for a shortfall.
+  assert.match(l, /\{ l: 'INTEREST', v: interest\.v, s: interest\.s, tone: L_T\.ink \}/);
   // The CSV and Plan table read the same trajectory interest.
   assert.match(src('lib/trajectory.ts'), /interest: s\?\.interest \?\? 0/);
 });

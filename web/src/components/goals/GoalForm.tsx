@@ -145,7 +145,7 @@ export function GoalForm({
   const toneColor = tone === 'pos' ? L_T.positive : tone === 'neg' ? L_T.negative : tone === 'accent' ? L_T.accent : L_T.ink;
   const select: React.CSSProperties = {
     fontFamily: L_MONO,
-    fontSize: 13,
+    fontSize: 'var(--fs-body)',
     padding: '7px 8px',
     border: `1px solid ${show('targetMonth') ? L_T.negative : L_T.ruleSoft}`,
     background: L_T.paper,
@@ -158,7 +158,7 @@ export function GoalForm({
       aria-label={editing ? `Edit ${initial?.label || 'goal'}` : 'New goal'}
       style={{ border: `1px solid ${L_T.ink}`, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 14, background: L_T.bg }}
     >
-      <div style={{ fontSize: 11, letterSpacing: '0.16em', fontWeight: 700 }}>{editing ? 'EDIT GOAL' : 'NEW GOAL'}</div>
+      <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.16em', fontWeight: 700 }}>{editing ? 'EDIT GOAL' : 'NEW GOAL'}</div>
 
       <LChipRow label="1 · What it's for">
         {GOAL_KINDS.map(({ kind, label }) => (
@@ -196,7 +196,7 @@ export function GoalForm({
       </div>
 
       <div role="group" aria-label="3 · By when" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <span style={{ fontSize: 12, color: L_T.muted }}>3 · By when</span>
+        <span style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>3 · By when</span>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           {quick.map((n) => {
             const v = addMonths(today, n);
@@ -206,7 +206,7 @@ export function GoalForm({
               </LChip>
             );
           })}
-          <span style={{ fontSize: 12, color: L_T.muted, margin: '0 4px' }}>or</span>
+          <span style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, margin: '0 4px' }}>or</span>
           <select aria-label="Month" value={tm} onChange={(e) => setYM(ty || String(today.getFullYear() + 1), e.target.value)} style={select}>
             <option value="">Month</option>
             {MONTH_NAMES_SHORT.map((m, i) => (
@@ -225,7 +225,7 @@ export function GoalForm({
           </select>
         </div>
         {show('targetMonth') && (
-          <span role="alert" style={{ fontSize: 11, color: L_T.negative }}>
+          <span role="alert" style={{ fontSize: 'var(--fs-small)', color: L_T.negative }}>
             {show('targetMonth')}
           </span>
         )}
@@ -254,7 +254,7 @@ export function GoalForm({
       <div>
         <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
         {!more && (
-          <span style={{ fontSize: 11, color: L_T.muted, marginLeft: 8 }}>
+          <span style={{ fontSize: 'var(--fs-small)', color: L_T.muted, marginLeft: 8 }}>
             {[
               !editing && 'already saved',
               goal.keptIn ? KEPT_IN_LABEL[goal.keptIn].toLowerCase() : 'where it’s kept',
@@ -325,18 +325,18 @@ export function GoalForm({
       )}
 
       {line && (
-        <div aria-live="polite" style={{ fontSize: 12, borderTop: `1px dashed ${L_T.ruleSoft}`, paddingTop: 10, lineHeight: 1.6 }}>
+        <div aria-live="polite" style={{ fontSize: 'var(--fs-dense)', borderTop: `1px dashed ${L_T.ruleSoft}`, paddingTop: 10, lineHeight: 1.6 }}>
           <strong>
             {line.state === 'funded'
               ? 'Already covered by what’s saved.'
               : `Put aside ${fmt(line.monthly)} a month${line.startIndex > 0 ? ` from ${monthLabel(addMonths(today, line.startIndex))}` : ''} until ${monthLabel(goal.targetMonth)}.`}
           </strong>{' '}
-          <span style={{ color: toneColor, fontWeight: 700, letterSpacing: '0.08em', fontSize: 11 }}>{GOAL_STATE_LABEL[line.state]}</span>
+          <span style={{ color: toneColor, fontWeight: 700, letterSpacing: '0.08em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)' }}>{GOAL_STATE_LABEL[line.state]}</span>
           {line.startIndex > 0 && (
-            <div style={{ color: L_T.muted, fontSize: 11 }}>Until then your spare cash clears debts first, which costs less interest.</div>
+            <div style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>Until then your spare cash clears debts first, which costs less interest.</div>
           )}
           {line.state === 'short' && (
-            <div style={{ color: L_T.muted, fontSize: 11 }}>
+            <div style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>
               Your spare cash covers {fmt(line.rec?.reachable ?? 0)} of {fmt(line.required)} by then. Save it, then open the goal for ways to close the gap.
             </div>
           )}
@@ -349,7 +349,7 @@ export function GoalForm({
           onClick={submit}
           style={{
             fontFamily: L_MONO,
-            fontSize: 11,
+            fontSize: 'var(--fs-label)',
             fontWeight: 700,
             letterSpacing: '0.12em',
             padding: '9px 14px',
@@ -359,7 +359,7 @@ export function GoalForm({
             cursor: 'pointer',
           }}
         >
-          [ {editing ? 'SAVE' : 'ADD GOAL'} ]
+          <span aria-hidden="true">[ </span>{editing ? 'SAVE' : 'ADD GOAL'}<span aria-hidden="true"> ]</span>
         </button>
         <LBracket onClick={onCancel}>CANCEL</LBracket>
       </div>
@@ -417,7 +417,7 @@ function FundingRulePicker({ goal, picked, patch, currency, error }: { goal: Goa
         />
       )}
       {picked && rule.kind === 'after_debt' && typeof rule.afterLoanIndex === 'number' && (
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 'var(--fs-dense)' }}>
           Which loan
           <select aria-label="Which loan" value={rule.afterLoanIndex} onChange={(e) => set({ ...rule, kind: 'after_debt', afterLoanIndex: Number(e.target.value) })}>
             {open.map(({ l, i }) => (
@@ -434,7 +434,7 @@ function FundingRulePicker({ goal, picked, patch, currency, error }: { goal: Goa
         {picked ? `${fundingRuleLabel(rule, loans, user.country, currency)}.` : 'Your call: the plan doesn’t pick one for you.'}
         {rule.kind !== 'after_debt' && high.length > 0 && ' Saving before your high-interest debt is paid off costs interest; the goal shows how much once saved.'}
       </p>
-      {error && <span role="alert" style={{ fontSize: 11, color: L_T.negative }}>{error}</span>}
+      {error && <span role="alert" style={{ fontSize: 'var(--fs-small)', color: L_T.negative }}>{error}</span>}
     </div>
   );
 }

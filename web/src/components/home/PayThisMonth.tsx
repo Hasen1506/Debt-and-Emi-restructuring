@@ -344,18 +344,18 @@ export function PayThisMonth({
     <section aria-labelledby="home-pay">
       <LSectionHeader
         right={
-          <span style={{ fontSize: 11, color: L_T.muted, letterSpacing: '0.08em' }}>
+          <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.muted, letterSpacing: '0.08em' }}>
             {ready ? `${fmt(paidUser)} OF ${fmt(data.total)} PAID · ${toGo === 0 ? 'ALL DONE' : `${toGo} TO GO`}` : ' '}
           </span>
         }
       >
         <span id="home-pay">Pay this month · {monthLabel}</span>
       </LSectionHeader>
-      <p style={{ margin: '0 0 10px', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
+      <p style={{ margin: '0 0 10px', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
         What the plan pays this month. Mark each one once it has gone out; it&apos;s recorded in Activity.
       </p>
       {(data.extraUser > 0 || data.budget > 0) && (
-        <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6 }}>
+        <p style={{ margin: '0 0 10px', fontSize: 'var(--fs-dense)', lineHeight: 1.6 }}>
           {data.budget > 0
             ? `Your own total for debts: ${fmt(data.budget)} a month.`
             : `${fmt(data.extraUser)} of this is extra: all of your spare cash this month. Prefer to keep some?`}{' '}
@@ -363,13 +363,13 @@ export function PayThisMonth({
         </p>
       )}
       {alert && (
-        <p style={{ margin: '0 0 12px', padding: '8px 12px', fontSize: 12, lineHeight: 1.6, ...lStrip('negative') }}>
+        <p style={{ margin: '0 0 12px', padding: '8px 12px', fontSize: 'var(--fs-dense)', lineHeight: 1.6, ...lStrip('negative') }}>
           {alert}{' '}
           {/* UX50 B-14: what to say to the bank, one tap away. */}
           <LBracket href="/cant-pay">WHAT TO SAY TO THE BANK →</LBracket>
         </p>
       )}
-      <p role="status" aria-live="polite" style={{ margin: 0, fontSize: 12, color: L_T.positive, minHeight: said ? 18 : 0 }}>
+      <p role="status" aria-live="polite" style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.positive, minHeight: said ? 18 : 0 }}>
         {said}
       </p>
       {error && <p role="alert" style={{ color: L_T.negative }}>{error}</p>}
@@ -396,7 +396,7 @@ export function PayThisMonth({
                 rowGap: 6,
                 padding: '12px 10px 12px 8px',
                 borderBottom: `1px dashed ${L_T.ruleSoft}`,
-                fontSize: 12,
+                fontSize: 'var(--fs-dense)',
                 ...(isExtra ? lStrip(done ? 'positive' : 'accent') : null),
               }}
               data-extra={extraTag ? (done ? 'paid' : 'here') : undefined}
@@ -406,12 +406,12 @@ export function PayThisMonth({
                 {no ? String(no).padStart(2, '0') : '··'}
               </span>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>
+                <div style={{ fontWeight: 700, fontSize: 'var(--fs-body)' }}>
                   {row.name}
                   {extraTag && (
                     <span
                       data-testid="extra-tag"
-                      style={{ marginLeft: 8, fontSize: 11, letterSpacing: '0.1em', color: done ? L_T.positive : L_T.accent }}
+                      style={{ marginLeft: 8, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', color: done ? L_T.positive : L_T.accent }}
                     >
                       · {extraTag}
                     </span>
@@ -420,7 +420,7 @@ export function PayThisMonth({
                     <span
                       style={{
                         marginLeft: 8,
-                        fontSize: 11,
+                        fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
                         letterSpacing: '0.1em',
                         color: st.tag === 'PAID' || st.tag === 'EMI PAID' ? L_T.positive : L_T.negative,
                       }}
@@ -431,19 +431,19 @@ export function PayThisMonth({
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 12, letterSpacing: '0.04em', color: L_T.inkSoft, marginTop: 4, lineHeight: 1.5 }}>
+                <div style={{ fontSize: 'var(--fs-dense)', letterSpacing: '0.04em', color: L_T.inkSoft, marginTop: 4, lineHeight: 1.5 }}>
                   {kindLine(row, fmt, owedNowFor(row), country)}
                   {row.dueDay ? ` · DUE ${row.dueDay} ${MONTH_NAMES_SHORT[Number(month.slice(5)) - 1].toUpperCase()}` : ''}
                 </div>
                 {reason && reason.key === row.key && !st && (
-                  <div style={{ fontSize: 12, color: L_T.muted, marginTop: 4, lineHeight: 1.5 }}>{reason.text}</div>
+                  <div style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, marginTop: 4, lineHeight: 1.5 }}>{reason.text}</div>
                 )}
               </div>
               <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                 <div style={{ fontWeight: 700, fontSize: 18, textDecoration: done ? 'line-through' : 'none', color: done ? L_T.muted : L_T.ink }}>
                   {fmt(row.amount, row.currency)}
                 </div>
-                {foreign && <div style={{ fontSize: 11, color: L_T.muted }}>≈ {fmt(row.amountUser)}</div>}
+                {foreign && <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>≈ {fmt(row.amountUser)}</div>}
               </div>
               <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 {!ready ? null : st && st.tag !== 'EMI PAID' ? (
@@ -541,7 +541,7 @@ export function PayThisMonth({
                     )}
                     <LBracket onClick={() => setOpen(null)}>CANCEL</LBracket>
                   </span>
-                  <div style={{ flexBasis: '100%', fontSize: 11, color: L_T.muted }}>
+                  <div style={{ flexBasis: '100%', fontSize: 'var(--fs-small)', color: L_T.muted }}>
                     Another date, a late fee from your statement, or the card&apos;s new balance:{' '}
                     <a href="/activity#activity-ledger" style={{ color: L_T.accent }}>
                       log it in Activity
@@ -561,15 +561,15 @@ export function PayThisMonth({
             padding: '12px 10px 12px 46px',
             borderTop: `2px solid ${L_T.ink}`,
             fontWeight: 700,
-            fontSize: 12,
+            fontSize: 'var(--fs-dense)',
           }}
         >
-          <span style={{ color: L_T.muted, letterSpacing: '0.1em', fontSize: 11, fontWeight: 400 }}>TOTAL THIS MONTH</span>
+          <span style={{ color: L_T.muted, letterSpacing: '0.1em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', fontWeight: 400 }}>TOTAL THIS MONTH</span>
           <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 18 }}>{fmt(data.total)}</span>
         </li>
       </ol>
       {data.leftOver > 0 && (
-        <p style={{ margin: '10px 0 0', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
+        <p style={{ margin: '10px 0 0', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
           {data.budget > 0
             ? `${fmt(data.leftOver)} stays with you this month, outside your total for debts.`
             : `${fmt(data.leftOver)} is left over: no loan costs more than a safe return, so the plan keeps it. Save or invest it.`}
@@ -601,7 +601,7 @@ export function PayNotice({ title, children }: { title: string; children: ReactN
   return (
     <section aria-label={title}>
       <LSectionHeader>{title}</LSectionHeader>
-      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.7, color: L_T.ink }}>{children}</p>
+      <p style={{ margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.7, color: L_T.ink }}>{children}</p>
     </section>
   );
 }

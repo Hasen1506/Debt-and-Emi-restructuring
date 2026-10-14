@@ -401,7 +401,7 @@ export function NewDebtTool() {
           <div>
             <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
             {!more && (
-              <span style={{ fontSize: 11, color: L_T.muted, marginLeft: 8 }}>
+              <span style={{ fontSize: 'var(--fs-small)', color: L_T.muted, marginLeft: 8 }}>
                 {Number(fee) > 0 ? `Processing fee ${fmt(fee)}` : 'Processing fee'}
                 {!isCard && (quotedRate != null ? ` · quoted ${formatPct(String(quotedRate), 2)}` : ' · a rate you were quoted')}
               </span>
@@ -642,12 +642,12 @@ function BankRateTable({
       </LNote>
     );
   }
-  const th: React.CSSProperties = { textAlign: 'right', padding: '6px 8px', fontWeight: 700, fontSize: 10, letterSpacing: '0.12em', color: L_T.muted };
+  const th: React.CSSProperties = { textAlign: 'right', padding: '6px 8px', fontWeight: 700, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted };
   const td: React.CSSProperties = { padding: '7px 8px', textAlign: 'right', whiteSpace: 'nowrap' };
   return (
     <>
       <div role="region" aria-label="Bank rates" tabIndex={0} style={{ overflowX: 'auto', marginTop: 6 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-dense)' }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${L_T.ink}` }}>
               <th scope="col" style={{ ...th, textAlign: 'left' }}>BANK</th>
@@ -676,7 +676,7 @@ function BankRateTable({
                       <span aria-hidden="true">{on ? '● ' : '○ '}</span>
                       {row.name}
                     </button>
-                    {row.isExisting && <span style={{ color: L_T.positive, fontSize: 10, letterSpacing: '0.1em', marginLeft: 6 }}>YOURS</span>}
+                    {row.isExisting && <span style={{ color: L_T.positive, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', marginLeft: 6 }}>YOURS</span>}
                   </td>
                   <td style={td}>
                     {formatPct(String(row.low), 2)}–{formatPct(String(row.high), 2)}

@@ -57,8 +57,12 @@ test('setup asks the choices, Portfolio has its own tab, Sell to repay is a calc
     await expect(page.getByRole('link', { name: /^\+ Loan: add another loan to the plan$/ }).first()).toBeVisible();
   });
 
-  await test.step('Portfolio is its own tab', async () => {
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: '[PORTFOLIO]' }).click();
+  await test.step('Portfolio sits in Assets & tax, behind More (audit 80+ A20)', async () => {
+    const nav = page.getByRole('navigation', { name: 'Main' });
+    const menu = page.getByRole('button', { name: /menu/i });
+    if (await menu.isVisible()) await menu.click();
+    await nav.getByRole('button', { name: /^\+?\s*More/ }).click();
+    await page.locator('#rd-more-panel').getByRole('link', { name: /^Assets & tax/ }).click();
     await page.waitForURL('**/portfolio');
     await expect(page.getByText(/What you hold and what it’s worth/)).toBeVisible();
   });

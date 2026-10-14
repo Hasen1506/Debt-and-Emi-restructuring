@@ -115,7 +115,7 @@ export function ProfileSummary({
           ]}
         />
         {/* What the tax details change, and (India) which law the section numbers come from. */}
-        <p style={{ margin: '8px 0 0', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.inkSoft }}>
           {user.country === 'IN'
             ? 'The plan uses these for the tax break on home-loan and education-loan interest and to weigh paying early against investing, after tax. The Income-tax Act, 2025 renumbered the sections from 1 April 2026 with the same limits (24(b) is now s.22, 80C s.123, 80E s.129, the new regime s.202).'
             : 'The plan uses these for the mortgage and student-loan interest deductions and to weigh paying early against investing, after tax.'}{' '}
@@ -159,9 +159,9 @@ export function ProfileSummary({
           <Rows rows={[['Loans', <Muted key="n">None</Muted>]]} />
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-dense)' }}>
               <thead>
-                <tr style={{ color: L_T.muted, fontSize: 10, letterSpacing: '0.12em', textAlign: 'right' }}>
+                <tr style={{ color: L_T.muted, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', textAlign: 'right' }}>
                   <th scope="col" style={{ ...cell, textAlign: 'left', fontWeight: 500 }}>LOAN</th>
                   <th scope="col" style={{ ...cell, fontWeight: 500 }}>OWED</th>
                   <th scope="col" style={{ ...cell, fontWeight: 500 }}>RATE</th>

@@ -16,7 +16,7 @@ export function SiteFooter({ version }: { version?: string | null }) {
     <footer
       className="rd-site-footer"
       aria-label="About RightDue"
-      style={{ borderTop: `1px solid ${L_T.ruleSoft}`, padding: '14px clamp(16px, 4vw, 32px) 22px', fontSize: 11, lineHeight: 1.6, color: L_T.muted, background: L_T.bg }}
+      style={{ borderTop: `1px solid ${L_T.ruleSoft}`, padding: '14px clamp(16px, 4vw, 32px) 22px', fontSize: 'var(--fs-small)', lineHeight: 1.6, color: L_T.muted, background: L_T.bg }}
     >
       <style>{`@media print{.rd-site-footer{display:none !important}}`}</style>
       <p style={{ margin: '0 0 6px', maxWidth: 760 }}>

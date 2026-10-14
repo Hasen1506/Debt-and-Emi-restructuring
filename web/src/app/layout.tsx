@@ -15,6 +15,7 @@ import { ConsentNotice } from '@/components/auth/ConsentNotice';
 import { FxAutoRefresh } from '@/components/fx/FxAutoRefresh';
 import { SiteFooter } from '@/components/site/SiteFooter';
 import { BrowserErrorReporter } from '@/components/site/BrowserErrorReporter';
+import { UsefulMark } from '@/components/site/UsefulMark';
 import { EARLY_LEAVE_SCRIPT } from '@/lib/page-abort';
 
 export const metadata: Metadata = {
@@ -37,10 +38,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <head>
-        {/* One family: the ledger look is IBM Plex Mono throughout, self-hosted
-            (UX50 A-12; @font-face in styles/globals.css). */}
+        {/* The ledger look: IBM Plex Mono for figures and labels, IBM Plex
+            Sans for body text, self-hosted (UX50 A-12, audit 80+ B5;
+            @font-face in styles/globals.css). */}
         <link rel="preload" href="/fonts/ibm-plex-mono-400-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
         <link rel="preload" href="/fonts/ibm-plex-mono-700-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
+        {/* Audit 80+ B5: body text is IBM Plex Sans. */}
+        <link rel="preload" href="/fonts/ibm-plex-sans-400-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
         {/* R12-1: note a leave that starts before the app's scripts have
             loaded (lib/page-abort.ts reads it), so the half-hydrated page
             doesn't start requests the navigation then cuts off. */}
@@ -53,7 +57,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <SecureCookies />
         <SessionHydrator />
         <FxAutoRefresh />
-        <LMasthead country={profile.user.country} strategy={hasDebt ? strategy : null} sameOrder={sameOrder} />
+        <LMasthead
+          country={profile.user.country}
+          strategy={hasDebt ? strategy : null}
+          sameOrder={sameOrder}
+          navUser={{ country: profile.user.country, is_nri_us: profile.user.is_nri_us === true }}
+        />
         <SaveFailedNotice />
         <AccountSyncNotice />
         {/* audit80 D2: one-tap agreement when the notice or terms changed. */}
@@ -66,6 +75,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <SiteFooter version={process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? null} />
         {/* UX50 E-03: browser errors to Sentry only when a DSN is set. */}
         <BrowserErrorReporter enabled={Boolean(process.env.SENTRY_DSN)} />
+        {/* Audit 80+ E11: performance.mark('rd-useful') at first actionable content. */}
+        <UsefulMark />
       </body>
     </html>
   );

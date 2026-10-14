@@ -96,7 +96,7 @@ export function ThemedHeadline({
   return (
     <div
       style={{
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
         fontWeight: t.fontWeight,
         lineHeight: 1.55,
         marginTop: 4,

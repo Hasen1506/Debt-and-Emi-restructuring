@@ -759,7 +759,7 @@ export function QuickSetup() {
     <LShell>
       <div onInputCapture={() => { edited.current = true; }} onClickCapture={() => { edited.current = true; }} style={{ display: 'flex', flexDirection: 'column', gap: 22, width: '100%' }}>
         <header>
-          <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
+          <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
             SETUP · 3 STEPS · ABOUT 2 MINUTES
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>
@@ -799,7 +799,7 @@ export function QuickSetup() {
                 )}
               </ChipRow>
               {countryNote && (
-                <p role="status" style={{ margin: 0, fontSize: 13, color: L_T.negative }}>{countryNote}</p>
+                <p role="status" style={{ margin: 0, fontSize: 'var(--fs-body)', color: L_T.negative }}>{countryNote}</p>
               )}
               <ChipRow label="How you earn">
                 <Chip on={incomeType === 'salaried'} onClick={() => setIncomeType('salaried')}>Salaried</Chip>
@@ -810,9 +810,9 @@ export function QuickSetup() {
               <div style={grid2}>
                 {fromStreams ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <span style={{ fontSize: 12, color: L_T.muted }}>Take-home a month</span>
+                    <span style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>Take-home a month</span>
                     <span style={{ fontSize: 16, fontWeight: 700 }}>{money(income)}</span>
-                    <span style={{ fontSize: 11, color: L_T.muted }}>
+                    <span style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>
                       From your income sources. <a href="/profile?step=income" style={{ color: L_T.accent }}>Change them in Profile</a>
                     </span>
                   </div>
@@ -840,7 +840,7 @@ export function QuickSetup() {
                   error={showErrors && (spendCheck === 'blank' || spendCheck === 'invalid') ? (spendCheck === 'blank' ? SPEND_COPY.blank : SPEND_COPY.invalid) : null}
                 />
                 {spendCheck === 'zero-unconfirmed' || (zeroSpendOk && checkSpend(spend, false) === 'zero-unconfirmed') ? (
-                  <label data-testid="zero-spend-confirm" className="l-check-row" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.5, color: showErrors && !zeroSpendOk ? L_T.negative : L_T.ink }}>
+                  <label data-testid="zero-spend-confirm" className="l-check-row" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 'var(--fs-body)', lineHeight: 1.5, color: showErrors && !zeroSpendOk ? L_T.negative : L_T.ink }}>
                     <input type="checkbox" checked={zeroSpendOk} onChange={(e) => setZeroSpendOk(e.target.checked)} />
                     <span>{SPEND_COPY.zero(userCcy === 'INR' ? '₹' : '$')} {SPEND_COPY.zeroConfirm(userCcy === 'INR' ? '₹' : '$')}</span>
                   </label>
@@ -859,7 +859,7 @@ export function QuickSetup() {
                 <p
                   role="status"
                   data-testid="spend-over-income"
-                  style={{ margin: 0, padding: '10px 12px', border: `1px solid ${L_T.negative}`, color: L_T.negative, fontSize: 13, lineHeight: 1.55 }}
+                  style={{ margin: 0, padding: '10px 12px', border: `1px solid ${L_T.negative}`, color: L_T.negative, fontSize: 'var(--fs-body)', lineHeight: 1.55 }}
                 >
                   You spend {money(leftBeforeEmis.neg())} a month more than you take home, before any {paymentWords(country).one}. Check both
                   numbers. If they&apos;re right, the plan can&apos;t give a payoff date: it borrows the gap on a card
@@ -874,7 +874,7 @@ export function QuickSetup() {
 
           {step === 1 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              <p style={{ color: L_T.muted, margin: '4px 0 6px', fontSize: 12 }}>
+              <p style={{ color: L_T.muted, margin: '4px 0 6px', fontSize: 'var(--fs-dense)' }}>
                 {country === 'US'
                   ? 'Keep your latest statements handy: each number below says where it is printed.'
                   : 'Keep your Key Facts Statement (KFS) or latest loan statement handy: each number below says where it is printed.'}{' '}
@@ -891,7 +891,7 @@ export function QuickSetup() {
                 />
               )}
               {!prev && (
-                <p style={{ color: L_T.inkSoft, margin: '0 0 6px', fontSize: 12 }}>
+                <p style={{ color: L_T.inkSoft, margin: '0 0 6px', fontSize: 'var(--fs-dense)' }}>
                   One loan is enough to start: you&apos;ll see your plan next, and can add the rest from Plan with + LOAN.
                 </p>
               )}
@@ -928,7 +928,7 @@ export function QuickSetup() {
                 />
               ))}
               {removed && (
-                <p role="status" style={{ margin: '4px 0', fontSize: 13 }}>
+                <p role="status" style={{ margin: '4px 0', fontSize: 'var(--fs-body)' }}>
                   {removed.name} removed.{' '}
                   <LBracket
                     onClick={() => {
@@ -1082,7 +1082,7 @@ function StepStrip({ step, onGo }: { step: number; onGo: (n: number) => void }) 
                 className="l-hit"
                 style={{
                   fontFamily: L_MONO,
-                  fontSize: 11,
+                  fontSize: 'var(--fs-label)',
                   letterSpacing: '0.08em',
                   background: 'none',
                   borderWidth: '0 0 2px',
@@ -1126,14 +1126,14 @@ function MoneyLine({
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: L_T.muted }}>
+        <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', textTransform: 'uppercase', color: L_T.muted }}>
           {label}
         </span>
         <span style={{ fontSize: 16, fontWeight: 700, color: tone === 'negative' ? L_T.negative : L_T.ink }}>
           {value}
         </span>
       </div>
-      {note && <div style={{ fontSize: 11, color: tone === 'negative' ? L_T.negative : L_T.muted, marginTop: 4 }}>{note}</div>}
+      {note && <div style={{ fontSize: 'var(--fs-small)', color: tone === 'negative' ? L_T.negative : L_T.muted, marginTop: 4 }}>{note}</div>}
     </div>
   );
 }
@@ -1215,7 +1215,7 @@ function LoanBlock({
       style={{ padding: '14px 0 16px', borderBottom: `1px dashed ${L_T.ruleSoft}`, display: 'flex', flexDirection: 'column', gap: 12 }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
-        <span style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{name}</span>
+        <span style={{ fontWeight: 700, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{name}</span>
         <LBracket onClick={onRemove}>REMOVE</LBracket>
       </div>
       <ChipRow label="Kind of loan">
@@ -1344,14 +1344,14 @@ function LoanBlock({
           type="button"
           aria-expanded={ui.more}
           onClick={() => onUi({ more: !ui.more })}
-          style={{ fontFamily: L_MONO, fontSize: 10, letterSpacing: '0.14em', color: L_T.muted, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+          style={{ fontFamily: L_MONO, fontSize: 'var(--fs-label)', letterSpacing: '0.14em', color: L_T.muted, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
         >
-          [{ui.more ? '−' : '+'} MORE TERMS · OPTIONAL]
+          <span aria-hidden="true">[</span>{ui.more ? '−' : '+'} MORE TERMS · OPTIONAL<span aria-hidden="true">]</span>
         </button>
       </div>
       {!card && ui.estOpen && (
         <div role="group" aria-label="Work out the balance" style={{ ...grid2, padding: '10px 12px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}` }}>
-          <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12, color: L_T.inkSoft }}>
+          <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 'var(--fs-dense)', color: L_T.inkSoft }}>
             From what you borrowed, when it started and its term, at the rate above. It assumes every {paymentWords(country).one} was paid on time
             and nothing extra: an estimate, marked as one, until you enter the real balance.
           </p>
@@ -1378,7 +1378,7 @@ function LoanBlock({
             >
               USE THIS ESTIMATE
             </LBracket>
-            {ui.estError && <span role="alert" style={{ fontSize: 12, color: L_T.negative }}>{ui.estError}</span>}
+            {ui.estError && <span role="alert" style={{ fontSize: 'var(--fs-dense)', color: L_T.negative }}>{ui.estError}</span>}
           </div>
         </div>
       )}
@@ -1445,7 +1445,7 @@ function LoanBlock({
               hint="Blank if you've stopped using it"
             />
           )}
-          <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 11, color: L_T.muted }}>
+          <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 'var(--fs-small)', color: L_T.muted }}>
             Fees, rate resets, card dates and the rest are in Profile.
           </p>
         </div>
@@ -1465,7 +1465,7 @@ function PreviewWaiting() {
     <div role="status" style={{ color: L_T.muted, margin: 0, lineHeight: 1.6 }}>
       <p style={{ margin: 0 }}>Working out your plan…</p>
       {slow && (
-        <p style={{ margin: '6px 0 0', fontSize: 13 }}>
+        <p style={{ margin: '6px 0 0', fontSize: 'var(--fs-body)' }}>
           Still working: the calculator wakes up after a quiet spell, which can take up to a minute. You can save
           now; Plan finishes it.
         </p>
@@ -1595,12 +1595,12 @@ function PlanPreview({
         <tbody>
           {rows.map(([k, v, note]) => (
             <tr key={k} style={{ borderBottom: `1px dashed ${L_T.ruleSoft}` }}>
-              <th scope="row" style={{ textAlign: 'left', fontWeight: 500, color: L_T.muted, padding: '10px 0', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+              <th scope="row" style={{ textAlign: 'left', fontWeight: 500, color: L_T.muted, padding: '10px 0', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
                 {k}
               </th>
               <td style={{ textAlign: 'right', padding: '10px 0' }}>
                 <div style={{ fontSize: 16, fontWeight: 700 }}>{v}</div>
-                {note && <div style={{ fontSize: 11, color: L_T.muted }}>{note}</div>}
+                {note && <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>{note}</div>}
               </td>
             </tr>
           ))}
@@ -1613,7 +1613,7 @@ function PlanPreview({
         </details>
       )}
       <div style={{ padding: '12px 14px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, ...lStrip('accent') }}>
-        <div style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
+        <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
         {move && moveLoan ? (
           <div style={{ fontSize: 14, lineHeight: 1.5 }}>
             {country === 'US' ? 'Make every payment' : `Pay every ${paymentWords(country).one}`} and card minimum, then put{' '}
@@ -1646,7 +1646,7 @@ function PlanFootnotes({
 }) {
   const strategy = picked ?? readStrategyClient();
   return (
-    <ul style={{ margin: 0, paddingLeft: 18, color: L_T.muted, fontSize: 11, lineHeight: 1.7 }}>
+    <ul style={{ margin: 0, paddingLeft: 18, color: L_T.muted, fontSize: 'var(--fs-small)', lineHeight: 1.7 }}>
       {!noLoans && (
         <li>
           Order: <strong style={{ color: L_T.ink }}>{strategyName(strategy)}</strong>. {STRATEGY_SHORT[strategy]} Switch

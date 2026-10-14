@@ -177,18 +177,18 @@ export function CreditReportImport({
       style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 12, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-        <strong>Fill from your credit report <span className="muted" style={{ fontSize: 11 }}>BETA · works with most CIBIL and Experian PDFs</span></strong>
+        <strong>Fill from your credit report <span className="muted" style={{ fontSize: 'var(--fs-small)' }}>BETA · works with most CIBIL and Experian PDFs</span></strong>
         <button type="button" className="btn-ghost" data-testid="cr-close" onClick={close}>
           Close
         </button>
       </div>
-      <p className="muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.5 }}>
+      <p className="muted" style={{ margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.5 }}>
         Your free credit report lists every loan and card in your name, even ones you&apos;ve forgotten. Upload
         it and we&apos;ll fill in what it shows; you check each one. It is read on RightDue&apos;s server by fixed
         rules, then deleted: never stored or shared. Your name, PAN and date of birth are not read into the app.
       </p>
 
-      <div style={{ fontSize: 12 }}>
+      <div style={{ fontSize: 'var(--fs-dense)' }}>
         <button type="button" className="btn-ghost" data-testid="cr-guide-open" aria-expanded={guide} onClick={() => setGuide(!guide)}>
           Don&apos;t have it? Get it free from Experian in about 3 minutes
         </button>
@@ -210,14 +210,14 @@ export function CreditReportImport({
       </div>
 
       {busy && (
-        <p className="muted" role="status" data-testid="cr-progress" style={{ margin: 0, fontSize: 12 }}>
+        <p className="muted" role="status" data-testid="cr-progress" style={{ margin: 0, fontSize: 'var(--fs-dense)' }}>
           Reading your report on our server (up to 15 seconds; the first try after a quiet spell can take longer).
         </p>
       )}
 
       {!result && (
         <>
-          <label style={{ fontSize: 13 }}>
+          <label style={{ fontSize: 'var(--fs-body)' }}>
             PDF{' '}
             <input
               type="file"
@@ -234,7 +234,7 @@ export function CreditReportImport({
           </p>
           {needsPassword && file && (
             <div style={{ display: 'grid', gap: 4 }}>
-              <label style={{ fontSize: 13, display: 'grid', gap: 4 }}>
+              <label style={{ fontSize: 'var(--fs-body)', display: 'grid', gap: 4 }}>
                 The PDF&apos;s password
                 <input
                   type={showPw ? 'text' : 'password'}
@@ -246,16 +246,16 @@ export function CreditReportImport({
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </label>
-              <label style={{ fontSize: 12 }}>
+              <label style={{ fontSize: 'var(--fs-dense)' }}>
                 <input type="checkbox" data-testid="cr-show-password" checked={showPw} onChange={(e) => setShowPw(e.target.checked)} />{' '}
                 Show password
               </label>
               {error && (
-                <p id="cr-pw-error" role="alert" data-testid="cr-error" style={{ margin: 0, fontSize: 13, color: 'var(--danger, #b00020)' }}>
+                <p id="cr-pw-error" role="alert" data-testid="cr-error" style={{ margin: 0, fontSize: 'var(--fs-body)', color: 'var(--danger, #b00020)' }}>
                   {error}
                 </p>
               )}
-              <span id="cr-pw-help" className="muted" style={{ fontSize: 12 }}>
+              <span id="cr-pw-help" className="muted" style={{ fontSize: 'var(--fs-dense)' }}>
                 The bureau&apos;s download page or email says which format it uses. It is used once to open the
                 file and never kept.
               </span>
@@ -270,7 +270,7 @@ export function CreditReportImport({
               </button>
             </div>
           )}
-          <label style={{ fontSize: 13, display: 'grid', gap: 4 }}>
+          <label style={{ fontSize: 'var(--fs-body)', display: 'grid', gap: 4 }}>
             Or paste the report&apos;s text
             <textarea
               rows={5}
@@ -292,7 +292,7 @@ export function CreditReportImport({
       )}
 
       {error && !(needsPassword && file && !result) && (
-        <div role="alert" data-testid="cr-error" style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+        <div role="alert" data-testid="cr-error" style={{ display: 'grid', gap: 6, fontSize: 'var(--fs-body)' }}>
           <p style={{ margin: 0, color: 'var(--danger, #b00020)' }}>{error}</p>
           {noAccounts && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -310,14 +310,14 @@ export function CreditReportImport({
 
       {result && (
         <div data-testid="cr-result" style={{ display: 'grid', gap: 8 }}>
-          <p style={{ margin: 0, fontSize: 13 }}>
+          <p style={{ margin: 0, fontSize: 'var(--fs-body)' }}>
             {result.bureau_name ?? 'Credit report'}
             {result.report_date ? `, dated ${result.report_date.value}` : ''}
             {result.score ? ` · score ${result.score.value}` : ''}: {result.accounts.length} account
             {result.accounts.length === 1 ? '' : 's'}, {result.open_loans} you can add.
           </p>
           {result.warnings.map((w) => (
-            <p key={w} className="muted" style={{ margin: 0, fontSize: 12 }}>{w}</p>
+            <p key={w} className="muted" style={{ margin: 0, fontSize: 'var(--fs-dense)' }}>{w}</p>
           ))}
           {result.accounts.map((a, i) => {
             const f = a.fields;
@@ -327,11 +327,11 @@ export function CreditReportImport({
                 data-testid="cr-account"
                 style={{
                   display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 2, padding: 8, border: '1px solid var(--border)', borderRadius: 6,
-                  opacity: a.loan ? 1 : 0.7, fontSize: 13,
+                  opacity: a.loan ? 1 : 0.7, fontSize: 'var(--fs-body)',
                 }}
               >
                 {matches[i] >= 0 && a.loan && (
-                  <span data-testid="cr-duplicate" style={{ fontSize: 12, display: 'grid', gap: 4 }}>
+                  <span data-testid="cr-duplicate" style={{ fontSize: 'var(--fs-dense)', display: 'grid', gap: 4 }}>
                     <strong>Already in your loans: {loanLabel(existing[matches[i]])}.</strong>
                     {mergePatch(existing[matches[i]], loanFromAccount(a.loan, blankLoan(), todayIso))
                       .filter((d) => d.field !== 'balance_as_of')
@@ -373,7 +373,7 @@ export function CreditReportImport({
                   {f.account_number ? ` · ${f.account_number.value}` : ''}
                   {!a.is_open ? ' · closed' : ''}
                 </span>
-                <span className="muted" style={{ fontSize: 12 }}>
+                <span className="muted" style={{ fontSize: 'var(--fs-dense)' }}>
                   Balance {rupees(f.balance?.value)}
                   {f.emi ? ` · EMI ${rupees(f.emi.value)}` : ''}
                   {f.rate ? ` · ${Math.round(Number(f.rate.value) * 10000) / 100}%` : ''}
@@ -382,14 +382,14 @@ export function CreditReportImport({
                   {f.reported ? ` · as of ${f.reported.value}` : ''}
                 </span>
                 {f.balance && (
-                  <span className="muted" style={{ fontSize: 11 }}>From your report: &ldquo;{f.balance.source}&rdquo;</span>
+                  <span className="muted" style={{ fontSize: 'var(--fs-small)' }}>From your report: &ldquo;{f.balance.source}&rdquo;</span>
                 )}
-                {f.account_type?.note && <span style={{ fontSize: 12 }}>{f.account_type.note}</span>}
+                {f.account_type?.note && <span style={{ fontSize: 'var(--fs-dense)' }}>{f.account_type.note}</span>}
                 {a.flags.map((fl) => (
-                  <span key={fl} style={{ fontSize: 12 }}>{fl}</span>
+                  <span key={fl} style={{ fontSize: 'var(--fs-dense)' }}>{fl}</span>
                 ))}
                 {a.loan && missingSentence(a.loan) && (
-                  <span className="muted" style={{ fontSize: 12 }}>{missingSentence(a.loan)}</span>
+                  <span className="muted" style={{ fontSize: 'var(--fs-dense)' }}>{missingSentence(a.loan)}</span>
                 )}
               </label>
             );

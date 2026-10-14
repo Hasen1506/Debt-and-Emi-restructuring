@@ -298,7 +298,7 @@ export function ActivityPage({
           </p>
         )}
         {rolled.length > 0 && (
-          <p style={{ margin: '0 0 8px', fontSize: 11, color: L_T.muted, lineHeight: 1.6 }}>
+          <p style={{ margin: '0 0 8px', fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.6 }}>
             {localTerms('Balances move on with the EMIs due since you entered them:', user.country)}{' '}
             {rolled.map((r, i) => {
               const loan = user.loans[r.index];
@@ -314,12 +314,12 @@ export function ActivityPage({
             . Update a balance in Profile if your statement says otherwise.
           </p>
         )}
-        <p role="status" style={{ margin: 0, fontSize: 12, minHeight: said || refreshing ? undefined : 0, color: L_T.positive }}>
+        <p role="status" style={{ margin: 0, fontSize: 'var(--fs-dense)', minHeight: said || refreshing ? undefined : 0, color: L_T.positive }}>
           {said}
           {refreshing && <span style={{ color: L_T.muted }}> Re-running the plan…</span>}
         </p>
         {error && (
-          <p role="alert" style={{ margin: '4px 0 0', fontSize: 12, color: L_T.negative }}>
+          <p role="alert" style={{ margin: '4px 0 0', fontSize: 'var(--fs-dense)', color: L_T.negative }}>
             {error}
           </p>
         )}
@@ -330,7 +330,7 @@ export function ActivityPage({
           aria-label="Months"
           style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'baseline', padding: '8px 0', borderTop: `1px dashed ${L_T.faint}`, borderBottom: `1px dashed ${L_T.faint}` }}
         >
-          <span style={{ fontSize: 9, letterSpacing: '0.14em', color: L_T.muted, marginRight: 4 }}>JUMP →</span>
+          <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.14em', color: L_T.muted, marginRight: 4 }}>JUMP →</span>
           {months.map((m, i) => (
             <LBracket key={m.month} active={isOpen(m, i)} onClick={() => jump(m, i)} label={`${m.label}, ${m.rows.length} rows, ${isOpen(m, i) ? 'open: fold it' : 'folded: open it'}`}>
               {m.label} · {m.rows.length}
@@ -354,7 +354,7 @@ export function ActivityPage({
         ))}
 
       {ready && user.loans.length === 0 && spend.length === 0 && (
-        <p style={{ margin: 0, fontSize: 12, color: L_T.muted }}>
+        <p style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.muted }}>
           No loans on file. Log your spending here, or add a loan in Profile to track its payments.
         </p>
       )}
@@ -401,13 +401,13 @@ function Month({
   return (
     <section id={`month-${m.month}`} aria-labelledby={`month-${m.month}-h`} style={{ scrollMarginTop: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, borderTop: `2px solid ${L_T.ink}`, padding: '10px 0 6px' }}>
-        <h3 id={`month-${m.month}-h`} style={{ margin: 0, fontSize: 12, letterSpacing: '0.18em', fontWeight: 700 }}>
+        <h3 id={`month-${m.month}-h`} style={{ margin: 0, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.18em', fontWeight: 700 }}>
           {m.label}
           {m.current && <span style={{ color: L_T.accent }}> · THIS MONTH</span>}
         </h3>
         <span style={{ display: 'inline-flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
           {m.rows.length > 0 && (
-            <span style={{ fontSize: 10, letterSpacing: '0.1em', fontWeight: 700, color: due.length ? L_T.accent : L_T.positive }}>
+            <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', fontWeight: 700, color: due.length ? L_T.accent : L_T.positive }}>
               {due.length ? `${due.length} TO LOG` : `${logged} LOGGED`}
             </span>
           )}
@@ -422,19 +422,19 @@ function Month({
         </span>
       </div>
       {open && note && (
-        <p role="note" style={{ margin: '0 0 6px', fontSize: 10, color: L_T.muted, lineHeight: 1.5 }}>
+        <p role="note" style={{ margin: '0 0 6px', fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.5 }}>
           {note}
         </p>
       )}
       {open &&
         (m.rows.length === 0 ? (
-          <p style={{ margin: 0, padding: '8px 0', fontSize: 12, color: L_T.muted }}>Nothing logged this month yet.</p>
+          <p style={{ margin: 0, padding: '8px 0', fontSize: 'var(--fs-dense)', color: L_T.muted }}>Nothing logged this month yet.</p>
         ) : (
-          <div role="table" aria-label={`${m.label} activity`} style={{ fontSize: 11 }}>
+          <div role="table" aria-label={`${m.label} activity`} style={{ fontSize: 'var(--fs-small)' }}>
             {wide && (
               <div role="row" style={{ ...gridWide, borderTop: `1px solid ${L_T.ink}`, borderBottom: `1px dashed ${L_T.faint}` }}>
                 {['DATE', 'WHAT', 'PLANNED', 'PAID', 'STATUS', 'EFFECT', ''].map((h, i) => (
-                  <span key={i} role="columnheader" style={{ padding: '6px 0', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', color: L_T.muted, textAlign: i >= 2 && i <= 3 ? 'right' : 'left' }}>
+                  <span key={i} role="columnheader" style={{ padding: '6px 0', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.08em', color: L_T.muted, textAlign: i >= 2 && i <= 3 ? 'right' : 'left' }}>
                     {h}
                   </span>
                 ))}
@@ -466,12 +466,12 @@ const gridNarrow: CSSProperties = {
 function DateCell({ date, pending }: { date: string; pending?: boolean }) {
   const mon = MONTH_NAMES_SHORT[Number(date.slice(5, 7)) - 1].toUpperCase();
   if (date.length < 10) {
-    return <span style={{ fontSize: 9, letterSpacing: '0.12em', color: L_T.muted, fontWeight: 600 }}>{pending ? 'DUE' : mon}</span>;
+    return <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, fontWeight: 600 }}>{pending ? 'DUE' : mon}</span>;
   }
   return (
     <span style={{ whiteSpace: 'nowrap' }}>
       <span style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{date.slice(8, 10)}</span>
-      <span style={{ fontSize: 9, color: L_T.muted, letterSpacing: '0.12em', marginLeft: 4, fontWeight: 600 }}>{mon}</span>
+      <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.muted, letterSpacing: '0.12em', marginLeft: 4, fontWeight: 600 }}>{mon}</span>
     </span>
   );
 }
@@ -544,13 +544,13 @@ function Row({ r, wide, onAct }: { r: HistoryRow; wide: boolean; onAct: (row: Hi
   };
   const what = (
     <span style={{ minWidth: 0 }}>
-      <span style={{ display: 'block', fontSize: 9, letterSpacing: '0.14em', fontWeight: 700, color: L_T.accent }}>{r.type}</span>
+      <span style={{ display: 'block', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.14em', fontWeight: 700, color: L_T.accent }}>{r.type}</span>
       <span style={{ fontWeight: 700, overflowWrap: 'anywhere' }}>{r.target}</span>
-      {r.note && <span style={{ display: 'block', fontSize: 10, color: L_T.muted, marginTop: 2 }}>{r.note}</span>}
+      {r.note && <span style={{ display: 'block', fontSize: 'var(--fs-small)', color: L_T.muted, marginTop: 2 }}>{r.note}</span>}
     </span>
   );
   const status = (
-    <span style={{ fontSize: 9, letterSpacing: '0.12em', fontWeight: 700, color: TONE[r.tone] }}>{r.status}</span>
+    <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', fontWeight: 700, color: TONE[r.tone] }}>{r.status}</span>
   );
   const effect = r.effect ? <span style={{ fontWeight: 600, color: TONE[r.effect.tone] }}>{r.effect.text}</span> : null;
 
@@ -575,7 +575,7 @@ function Row({ r, wide, onAct }: { r: HistoryRow; wide: boolean; onAct: (row: Hi
       <span role="cell" style={{ minWidth: 0 }}>
         {what}
         {(differs || effect) && (
-          <span style={{ display: 'block', marginTop: 3, fontSize: 10, color: L_T.muted }}>
+          <span style={{ display: 'block', marginTop: 3, fontSize: 'var(--fs-small)', color: L_T.muted }}>
             {differs && `planned ${r.planned}`}
             {differs && effect && ' · '}
             {effect}

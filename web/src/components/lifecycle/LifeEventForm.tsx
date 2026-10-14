@@ -211,12 +211,12 @@ export function LifeEventForm({
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         {kind === 'floating_rate_reset' && (
           <>
-            <label style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+            <label style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--fs-dense)' }}>
               Loan
               <select
                 value={loanIdx}
                 onChange={(e) => { const index = Number(e.target.value); setLoanRef({ loanIndex: index, loanId: user.loans[index]?.id, legacy: configuredLoans[index] }); setSaveError(''); }}
-                style={{ fontFamily: 'inherit', fontSize: 13, padding: '8px 10px', border: `1px solid ${L_T.ink}`, background: L_T.paper }}
+                style={{ fontFamily: 'inherit', fontSize: 'var(--fs-body)', padding: '8px 10px', border: `1px solid ${L_T.ink}`, background: L_T.paper }}
               >
                 {loanIdx < 0 && <option value={-1}>Select an open loan</option>}
                 {openLoans.map(({ l, i }) => (

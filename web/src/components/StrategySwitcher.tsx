@@ -126,7 +126,7 @@ function CompareRow({
         gridTemplateColumns: '120px 1fr auto',
         gap: 8,
         fontFamily: mono ? 'var(--font-mono)' : undefined,
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
         padding: '2px 0',
         color: isActive ? 'var(--ink)' : 'var(--muted)',
         fontWeight: isActive ? 600 : 400,
@@ -185,7 +185,7 @@ export function StrategySwitcher({
           alignItems: 'center',
           gap: 12,
           fontFamily: 'var(--font-mono)',
-          fontSize: 11,
+          fontSize: 'var(--fs-label)',
           letterSpacing: '0.08em',
           color: 'var(--muted)',
         }}
@@ -228,7 +228,7 @@ export function StrategySwitcher({
                   textDecorationStyle: 'dotted',
                 }}
               >
-                [{STRATEGY_LABEL[s].toUpperCase()} · {STRATEGY_PLAIN[s].toUpperCase()}]
+                <span aria-hidden="true">[</span>{STRATEGY_LABEL[s].toUpperCase()} · {STRATEGY_PLAIN[s].toUpperCase()}<span aria-hidden="true">]</span>
               </button>
             </span>
           );
@@ -239,7 +239,7 @@ export function StrategySwitcher({
             letterSpacing: '0.02em',
             fontWeight: 400,
             textTransform: 'none',
-            fontSize: 11,
+            fontSize: 'var(--fs-small)',
           }}
         >
           {pending ? 'Working it out…' : STRATEGY_SHORT[active]}
@@ -247,7 +247,7 @@ export function StrategySwitcher({
       </div>
       <OfflineStrategyNote show={offline} />
       {compare && allSame(compare) && (
-        <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+        <div style={{ fontSize: 'var(--fs-small)', color: 'var(--muted)' }}>
           All three clear your debt in the same month at the same cost, so the
           choice doesn&apos;t matter for your loans.
         </div>
@@ -293,12 +293,12 @@ export function StrategySwitcher({
         display: 'inline-flex',
         flexDirection: 'column',
         gap: 6,
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
       }}
     >
       <span
         className="muted"
-        style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        style={{ fontSize: 'var(--fs-dense)', display: 'inline-flex', alignItems: 'center', gap: 6 }}
       >
         Payoff strategy
         <InfoTip>
@@ -328,7 +328,7 @@ export function StrategySwitcher({
               disabled={pending}
               style={{
                 padding: '6px 14px',
-                fontSize: 13,
+                fontSize: 'var(--fs-body)',
                 background: selected ? 'var(--accent)' : 'transparent',
                 color: selected ? 'var(--canvas)' : 'var(--ink)',
                 border: 'none',
@@ -344,7 +344,7 @@ export function StrategySwitcher({
       </div>
       <span
         className="muted"
-        style={{ fontSize: 12, lineHeight: 1.5, maxWidth: 480 }}
+        style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.5, maxWidth: 480 }}
       >
         {pending ? 'Working it out…' : STRATEGY_SHORT[active]}
       </span>

@@ -128,7 +128,7 @@ export function KfsImport({
           Close
         </button>
       </div>
-      <p className="muted" style={{ margin: 0, fontSize: 12, lineHeight: 1.5 }}>
+      <p className="muted" style={{ margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.5 }}>
         Loans sanctioned from 1 Oct 2024 come with a Key Facts Statement stating the rate, APR and every
         charge (<a href={KFS_CIRCULAR_URL} target="_blank" rel="noreferrer">{KFS_CIRCULAR}</a>). Upload it as a
         PDF (with its password, if it has one) or paste its text. It is read on RightDue&apos;s server by
@@ -137,7 +137,7 @@ export function KfsImport({
 
       {!result && (
         <>
-          <label style={{ fontSize: 13 }}>
+          <label style={{ fontSize: 'var(--fs-body)' }}>
             PDF{' '}
             <input
               type="file"
@@ -149,7 +149,7 @@ export function KfsImport({
           </label>
           {needsPassword && file && (
             <div style={{ display: 'grid', gap: 4 }}>
-              <label style={{ fontSize: 13, display: 'grid', gap: 4 }}>
+              <label style={{ fontSize: 'var(--fs-body)', display: 'grid', gap: 4 }}>
                 The PDF&apos;s password
                 <input
                   type="password"
@@ -160,7 +160,7 @@ export function KfsImport({
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </label>
-              <span className="muted" style={{ fontSize: 12 }}>
+              <span className="muted" style={{ fontSize: 'var(--fs-dense)' }}>
                 The bank&apos;s email or letter says which format it uses, often your date of birth or part of
                 your name, PAN or mobile number.
               </span>
@@ -177,7 +177,7 @@ export function KfsImport({
               </div>
             </div>
           )}
-          <label style={{ fontSize: 13, display: 'grid', gap: 4 }}>
+          <label style={{ fontSize: 'var(--fs-body)', display: 'grid', gap: 4 }}>
             Or paste the text
             <textarea
               data-testid="kfs-text"
@@ -202,19 +202,19 @@ export function KfsImport({
       )}
 
       {error && (
-        <p role="alert" style={{ margin: 0, color: 'var(--danger, #b00020)', fontSize: 13 }}>
+        <p role="alert" style={{ margin: 0, color: 'var(--danger, #b00020)', fontSize: 'var(--fs-body)' }}>
           {error}
         </p>
       )}
 
       {result && (
         <div data-testid="kfs-review" style={{ display: 'grid', gap: 10 }}>
-          <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+          <p className="muted" style={{ margin: 0, fontSize: 'var(--fs-dense)' }}>
             Check each figure against your document and change anything that&apos;s wrong. Nothing is saved
             until you add the loan and save your profile.
           </p>
           {result.checks.length > 0 && (
-            <ul data-testid="kfs-checks" style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.5 }}>
+            <ul data-testid="kfs-checks" style={{ margin: 0, paddingLeft: 18, fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>
               {result.checks.map((c) => (
                 <li key={c.kind} style={{ color: c.ok ? 'inherit' : 'var(--danger, #b00020)' }}>
                   {c.ok ? '✓ ' : '⚠ '}
@@ -224,12 +224,12 @@ export function KfsImport({
             </ul>
           )}
           {result.warnings.map((w) => (
-            <p key={w} className="muted" style={{ margin: 0, fontSize: 12 }}>{w}</p>
+            <p key={w} className="muted" style={{ margin: 0, fontSize: 'var(--fs-dense)' }}>{w}</p>
           ))}
           <div style={{ display: 'grid', gap: 8 }}>
             {rows.map((r) => (
               <div key={r.key} data-testid={`kfs-row-${r.key}`} style={{ display: 'grid', gap: 2 }}>
-                <label style={{ fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <label style={{ fontSize: 'var(--fs-body)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <span style={{ minWidth: 150 }}>
                     {r.label}
                     {r.kind === 'percent' ? ' (%)' : ''}
@@ -258,13 +258,13 @@ export function KfsImport({
                   <span
                     data-testid={`kfs-tag-${r.key}`}
                     className="muted"
-                    style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}
+                    style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.04em' }}
                   >
                     {r.value === '' && r.provenance === 'user' ? 'not found, type it in' : provenanceLabel(r.provenance)}
                   </span>
                 </label>
                 {r.source && r.provenance !== 'user' && (
-                  <span className="muted" style={{ fontSize: 11, paddingLeft: 158 }}>
+                  <span className="muted" style={{ fontSize: 'var(--fs-small)', paddingLeft: 158 }}>
                     {r.provenance === 'kfs' ? '“' + r.source + '”' : r.source}
                   </span>
                 )}

@@ -30,13 +30,20 @@ test.describe('guards on main', () => {
     }
   });
 
-  test('L#30 [main] six-item nav (Portfolio since G10), each tab opens without a dead end', async ({ page }) => {
+  test('L#30 [main] four core tabs + More (audit 80+ A20), each opens without a dead end', async ({ page }) => {
     await page.goto('/');
     const nav = page.getByRole('navigation', { name: 'Main' });
-    for (const [name, path] of [['HOME', '/'], ['PLAN', '/plan'], ['ACTIVITY', '/activity'], ['GOALS & TOOLS', '/goals'], ['PORTFOLIO', '/portfolio'], ['PROFILE', '/profile']] as const) {
-      // LBracket renders "[HOME]": match the bracketed name inside the main nav.
-      await nav.getByRole('link', { name: `[${name}]`, exact: true }).click();
+    // The brackets are drawn aria-hidden (E13): the link names are the words.
+    for (const [name, path] of [['Home', '/'], ['Plan', '/plan'], ['Activity', '/activity'], ['Profile', '/profile']] as const) {
+      await nav.getByRole('link', { name, exact: true }).click();
       await expect(page).toHaveURL(new RegExp(`${path === '/' ? '/$' : path}`));
+      await expect(page.getByText(/This page could not be found|Application error/i)).toHaveCount(0);
+    }
+    // Goals & tools and Assets & tax (Portfolio + Tax merged) sit behind More.
+    for (const [name, path] of [['Goals & tools', '/goals'], ['Assets & tax', '/portfolio']] as const) {
+      await nav.getByRole('button', { name: /^\+?\s*More/ }).click();
+      await page.locator('#rd-more-panel').getByRole('link', { name: new RegExp(`^${name}`) }).click();
+      await expect(page).toHaveURL(new RegExp(path));
       await expect(page.getByText(/This page could not be found|Application error/i)).toHaveCount(0);
     }
   });

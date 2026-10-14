@@ -94,7 +94,7 @@ export function RateRangeHint({
       <div
         className="muted"
         style={{
-          fontSize: 11,
+          fontSize: 'var(--fs-small)',
           marginTop: 4,
           lineHeight: 1.55,
         }}
@@ -120,7 +120,7 @@ export function RateRangeHint({
                 type="button"
                 onClick={() => onUsePrediction(prediction.rate)}
                 style={{
-                  fontSize: 11,
+                  fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
                   padding: '2px 8px',
                   border: '1px solid var(--accent)',
                   borderRadius: 4,
@@ -157,12 +157,12 @@ export function RateRangeHint({
         background: 'var(--canvas)',
         border: '1px dashed var(--border)',
         borderRadius: 6,
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
         lineHeight: 1.5,
         color: 'var(--ink)',
       }}
     >
-      <div style={{ color: 'var(--muted)', fontSize: 11, marginBottom: 2 }}>
+      <div style={{ color: 'var(--muted)', fontSize: 'var(--fs-small)', marginBottom: 2 }}>
         Versus published range
       </div>
       <div>

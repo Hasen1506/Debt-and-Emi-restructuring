@@ -291,11 +291,11 @@ export default function LoginPage() {
             disabled={submitting || !adult || (needsTurnstile && !turnstileToken)}
             style={primaryStyle(submitting || !adult || (needsTurnstile && !turnstileToken))}
           >
-            [ {submitting ? 'Sending…' : 'Agree and send code'} ]
+            <span aria-hidden="true">[ </span>{submitting ? 'Sending…' : 'Agree and send code'}<span aria-hidden="true"> ]</span>
           </button>
           {googleOn && (
             <>
-              <div aria-hidden="true" style={{ textAlign: 'center', fontSize: 11, color: 'var(--muted)', letterSpacing: '0.14em' }}>OR</div>
+              <div aria-hidden="true" style={{ textAlign: 'center', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: 'var(--muted)', letterSpacing: '0.14em' }}>OR</div>
               <a
                 href={googleStartHref(next, undefined, agreement)}
                 aria-disabled={!adult}
@@ -303,9 +303,9 @@ export default function LoginPage() {
                 data-testid="google-signin"
                 style={{ ...primary, background: 'transparent', color: 'var(--ink)', border: '1px solid var(--ink)', textAlign: 'center', textDecoration: 'none' }}
               >
-                [ Continue with Google ]
+                <span aria-hidden="true">[ </span>Continue with Google<span aria-hidden="true"> ]</span>
               </a>
-              <p style={{ ...infoText, marginTop: 0, fontSize: 11 }}>
+              <p style={{ ...infoText, marginTop: 0, fontSize: 'var(--fs-small)' }}>
                 Google tells RightDue only your email address, which Google has checked is yours. Nothing else from your Google account is read or kept.
               </p>
             </>
@@ -334,7 +334,7 @@ export default function LoginPage() {
             />
           </label>
           <button type="submit" disabled={submitting || code.length !== 6} style={primaryStyle(submitting || code.length !== 6)}>
-            [ {submitting ? 'Verifying…' : 'Verify and sign in'} ]
+            <span aria-hidden="true">[ </span>{submitting ? 'Verifying…' : 'Verify and sign in'}<span aria-hidden="true"> ]</span>
           </button>
           <TurnstileBox onToken={setTurnstileToken} resetKey={turnstileReset} />
           <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 4 }}>
@@ -388,7 +388,7 @@ const stepper: React.CSSProperties = { listStyle: 'none', display: 'flex', flexW
 const stepItem: React.CSSProperties = { whiteSpace: 'nowrap' };
 const subtitle: React.CSSProperties = { color: 'var(--muted)', marginTop: 4, marginBottom: 20, fontSize: 14 };
 const form: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14 };
-const label: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--muted)' };
+const label: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--fs-body)', color: 'var(--muted)' };
 const input: React.CSSProperties = {
   padding: '10px 12px',
   fontSize: 16,
@@ -404,7 +404,7 @@ const primary: React.CSSProperties = {
   border: 'none',
   borderRadius: 0,
   fontFamily: 'var(--font-mono)',
-  fontSize: 12,
+  fontSize: 'var(--fs-label)',
   fontWeight: 700,
   letterSpacing: '0.14em',
   textTransform: 'uppercase',
@@ -421,11 +421,11 @@ const ghost: React.CSSProperties = {
   border: 'none',
   borderRadius: 0,
   fontFamily: 'var(--font-mono)',
-  fontSize: 10,
+  fontSize: 'var(--fs-label)',
   letterSpacing: '0.14em',
   textTransform: 'uppercase',
   cursor: 'pointer',
 };
-const noticeText: React.CSSProperties = { margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--muted)' };
-const infoText: React.CSSProperties = { marginTop: 14, fontSize: 13, color: 'var(--muted)' };
-const errorText: React.CSSProperties = { marginTop: 14, fontSize: 13, color: 'var(--negative, #c53030)' };
+const noticeText: React.CSSProperties = { margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.5, color: 'var(--muted)' };
+const infoText: React.CSSProperties = { marginTop: 14, fontSize: 'var(--fs-body)', color: 'var(--muted)' };
+const errorText: React.CSSProperties = { marginTop: 14, fontSize: 'var(--fs-body)', color: 'var(--negative, #c53030)' };

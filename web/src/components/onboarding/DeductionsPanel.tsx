@@ -107,7 +107,7 @@ export function DeductionsPanel({
       <div
         style={{
           fontWeight: 600,
-          fontSize: 14,
+          fontSize: 'var(--fs-body)',
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
@@ -145,7 +145,7 @@ export function DeductionsPanel({
           )}
         </InfoTip>
       </div>
-      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+      <div className="muted" style={{ fontSize: 'var(--fs-dense)', marginTop: 4 }}>
         {country === 'IN'
           ? 'All annual rupees. We apply statutory caps (1.5L on 80C, etc.) below.'
           : 'All annual dollars. We compare to the standard deduction for your filing status.'}
@@ -325,12 +325,12 @@ export function DeductionsPanel({
             background: 'var(--card)',
             border: '1px solid var(--border)',
             borderRadius: 6,
-            fontSize: 12,
+            fontSize: 'var(--fs-dense)',
           }}
         >
           <div
             style={{
-              fontSize: 11,
+              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
               color: 'var(--muted-ink)',
               textTransform: 'uppercase',
               letterSpacing: '0.06em',
@@ -408,7 +408,7 @@ export function DeductionsPanel({
           className="muted"
           style={{
             marginTop: 10,
-            fontSize: 12,
+            fontSize: 'var(--fs-dense)',
             padding: '6px 10px',
             background: 'var(--card)',
             border: '1px dashed var(--border)',

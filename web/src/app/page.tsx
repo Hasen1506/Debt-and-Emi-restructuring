@@ -5,6 +5,7 @@ import { readLifecycleServer } from '@/lib/lifecycle-events';
 import { loadStrategyServer } from '@/lib/strategy';
 import { LedgerHome } from '@/components/home/LedgerHome';
 import { GuestWelcomeBack } from '@/components/home/GuestWelcomeBack';
+import { HomeThisMonthPlaceholder } from '@/components/home/HomeThisMonth';
 import {
   HomeCheaperRates,
   HomeDebtFreeCaption,
@@ -25,6 +26,7 @@ export const metadata: Metadata = { title: 'Home · RightDue' };
 export default async function HomePage() {
   const [profile, strategy] = await Promise.all([loadCurrentProfileServer(), loadStrategyServer()]);
   const plannedLoans=(await readLifecycleServer()).filter(e=>e.status==='planned' && e.kind==='property_buy');
+  const hasOpenLoans = profile.user.loans.some((l) => Number(l.outstanding) > 0);
   const showPlannedSummary=plannedLoans.length>0 && !profile.user.loans.some(l=>Number(l.outstanding)>0);
   // The ledger layout shows no page title; screen readers still need one.
   return (
@@ -60,12 +62,15 @@ export default async function HomePage() {
           ),
         }}
         register={
-          <Suspense fallback={<p aria-busy="true" style={{ fontSize: 12 }}>WORKING OUT THIS MONTH&apos;S PAYMENTS…</p>}>
+          <Suspense fallback={<p aria-busy="true" style={{ fontSize: 'var(--fs-dense)' }}>WORKING OUT THIS MONTH&apos;S PAYMENTS…</p>}>
             <HomePayThisMonth />
           </Suspense>
         }
         thisMonth={
-          <Suspense fallback={null}>
+          // Audit 80+ E10: the strip's place is held while the plan streams
+          // in (it shows whenever there's a loan to pay), so the sections
+          // under it don't jump down.
+          <Suspense fallback={hasOpenLoans ? <HomeThisMonthPlaceholder /> : null}>
             <HomeThisMonthStrip />
           </Suspense>
         }
@@ -87,7 +92,7 @@ export default async function HomePage() {
           </Suspense>
         }
       />
-      {showPlannedSummary && <section style={{padding:'16px 0',fontSize:12}}>
+      {showPlannedSummary && <section style={{padding:'16px 0',fontSize: 'var(--fs-dense)'}}>
         <p>PLANNED LOANS · {plannedLoans.map(e=>e.kind==='property_buy' ? `${e.loanDraft.bank || 'New loan'} from ${e.effectiveDate}` : '').join('; ')}</p>
         <p>FORECAST · <Suspense fallback={<span>WORKING OUT YOUR DATE</span>}><HomeDebtFreeValue /></Suspense></p>
         <p><Suspense fallback={<span>WORKING OUT YOUR PLAN</span>}><HomeDebtFreeCaption /></Suspense></p>

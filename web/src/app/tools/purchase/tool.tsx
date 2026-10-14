@@ -315,13 +315,13 @@ export function PurchaseTool() {
           </div>
 
           {country === 'US' && type === 'home' && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: L_T.muted }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--fs-dense)', color: L_T.muted }}>
               <input type="checkbox" checked={itemisesUS} onChange={(e) => setItemisesUS(e.target.checked)} />
               I itemise deductions (Schedule A beats the standard deduction)
             </label>
           )}
           {inputError && (
-            <p role="alert" style={{ margin: 0, fontSize: 12, color: L_T.negative }}>
+            <p role="alert" style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.negative }}>
               {inputError}
             </p>
           )}
@@ -461,7 +461,7 @@ function AnalysisPanel({
         {goalSlipRows.length > 0 && (
           <div style={{ marginTop: 18 }}>
             <LStepSub right="WHAT'S LEFT HELD STEADY">Your goals</LStepSub>
-            <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 13, lineHeight: 1.6 }}>
+            <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
               {goalSlipRows.map((r) => (
                 <li key={r.goalId}>
                   <strong style={{ color: r.breaksDeadline ? L_T.negative : L_T.ink }}>{r.goalLabel}</strong>
@@ -477,7 +477,7 @@ function AnalysisPanel({
         )}
 
         {(a.warnings.length > 0 || a.notes.length > 0) && (
-          <ul style={{ margin: '16px 0 0', paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: L_T.muted }}>
+          <ul style={{ margin: '16px 0 0', paddingLeft: 18, fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.muted }}>
             {a.warnings.map((w, i) => (
               <li key={`w${i}`} style={{ color: L_T.accent }}>
                 {w}

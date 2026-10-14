@@ -1068,7 +1068,7 @@ function ProfileEditor({
       <Card>
         {step === 0 && (
           <div style={{ display: 'grid', gap: 14 }}>
-            <div className="muted" style={{ fontSize: 13, lineHeight: 1.55 }}>
+            <div className="muted" style={{ fontSize: 'var(--fs-body)', lineHeight: 1.55 }}>
               Both optional. Leave them blank to stay anonymous; the plan is the same.
             </div>
             <Field
@@ -1081,7 +1081,7 @@ function ProfileEditor({
             <div>
               <div
                 style={{
-                  fontSize: 12,
+                  fontSize: 'var(--fs-dense)',
                   color: 'var(--muted)',
                   marginBottom: 6,
                 }}
@@ -1106,7 +1106,7 @@ function ProfileEditor({
                         }`,
                         background: selected ? 'var(--accent)' : 'var(--card)',
                         color: selected ? '#fff' : 'var(--ink)',
-                        fontSize: 13,
+                        fontSize: 'var(--fs-body)',
                         cursor: 'pointer',
                       }}
                     >
@@ -1117,7 +1117,7 @@ function ProfileEditor({
               </div>
               <div
                 className="muted"
-                style={{ fontSize: 11, marginTop: 6, lineHeight: 1.5 }}
+                style={{ fontSize: 'var(--fs-small)', marginTop: 6, lineHeight: 1.5 }}
               >
                 Used for age-based limits in tax deductions and, later, nudges
                 such as emergency-fund-first under 25.
@@ -1171,7 +1171,7 @@ function ProfileEditor({
               />
             )}
             {switchNote && (
-              <p role="status" style={{ margin: 0, fontSize: 13, color: L_T.positive }}>{switchNote}</p>
+              <p role="status" style={{ margin: 0, fontSize: 'var(--fs-body)', color: L_T.positive }}>{switchNote}</p>
             )}
             {country === 'US' && (
               <label
@@ -1183,7 +1183,7 @@ function ProfileEditor({
                   border: '1px dashed var(--dash)',
                   borderRadius: 6,
                   cursor: 'pointer',
-                  fontSize: 13,
+                  fontSize: 'var(--fs-body)',
                   lineHeight: 1.55,
                 }}
               >
@@ -1197,7 +1197,7 @@ function ProfileEditor({
                   <strong>I&apos;m an NRI on a US work visa</strong> with debts back
                   in India (home loan, family obligations).
                   <br />
-                  <span className="muted" style={{ fontSize: 12 }}>
+                  <span className="muted" style={{ fontSize: 'var(--fs-dense)' }}>
                     Turns on per-loan currency tagging (INR / USD) and auto-fills
                     the NRI prepay tool. You stay US-resident for tax purposes.
                   </span>
@@ -1341,7 +1341,7 @@ function ProfileEditor({
                     color: 'var(--accent)',
                     padding: 0,
                     marginTop: 6,
-                    fontSize: 11,
+                    fontSize: 'var(--fs-small)',
                     letterSpacing: '0.04em',
                     textDecoration: 'underline',
                     cursor: 'pointer',
@@ -1407,7 +1407,7 @@ function ProfileEditor({
                       color: 'var(--muted)',
                       padding: 0,
                       marginTop: 6,
-                      fontSize: 11,
+                      fontSize: 'var(--fs-small)',
                       letterSpacing: '0.04em',
                       textDecoration: 'underline',
                       cursor: 'pointer',
@@ -1561,7 +1561,7 @@ function ProfileEditor({
 
         {step === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+            <p className="muted" style={{ margin: 0, fontSize: 'var(--fs-body)' }}>
               For each loan or card: what you owe, the interest rate and the
               monthly EMI. No loans? Remove them and save: goals, portfolio
               and purchase planning work without one.
@@ -1589,7 +1589,7 @@ function ProfileEditor({
               />
             )}
             {unsavedImports > 0 && (
-              <p role="status" data-testid="import-unsaved" style={{ margin: 0, fontSize: 13, position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg, #fff)', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+              <p role="status" data-testid="import-unsaved" style={{ margin: 0, fontSize: 'var(--fs-body)', position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg, #fff)', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
                 {unsavedImports} imported loan{unsavedImports === 1 ? '' : 's'} not saved yet. Check the figures, then save at the bottom.
               </p>
             )}
@@ -1607,7 +1607,7 @@ function ProfileEditor({
                 }}
               >
                 {l.imported_from && (
-                  <p data-testid="import-chip" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12 }}>
+                  <p data-testid="import-chip" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 'var(--fs-dense)' }}>
                     <span style={{ border: '1px solid currentColor', padding: '1px 6px' }}>
                       {l.imported_from === 'credit_report' ? 'From your credit report' : l.imported_from === 'kfs' ? 'From your KFS' : 'From a bank SMS'}
                     </span>
@@ -1623,7 +1623,7 @@ function ProfileEditor({
                   </p>
                 )}
                 {kfsNote(l) && (
-                  <p data-testid="kfs-note" className="muted" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12 }}>
+                  <p data-testid="kfs-note" className="muted" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 'var(--fs-dense)' }}>
                     {kfsNote(l)}
                   </p>
                 )}
@@ -1904,7 +1904,7 @@ function ProfileEditor({
                 )}
                 {asksBusinessPurpose(l, country) && (
                   <div style={{ gridColumn: '1 / -1' }} data-testid="business-purpose">
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{PURPOSE_QUESTION}</div>
+                    <div style={{ fontSize: 'var(--fs-dense)', color: 'var(--muted)', marginBottom: 6 }}>{PURPOSE_QUESTION}</div>
                     <div role="group" aria-label={PURPOSE_QUESTION} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {([
                         [false, 'No, a personal loan'],
@@ -1923,7 +1923,7 @@ function ProfileEditor({
                               border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
                               background: on ? 'var(--accent)' : 'var(--card)',
                               color: on ? '#fff' : 'var(--ink)',
-                              fontSize: 13,
+                              fontSize: 'var(--fs-body)',
                               cursor: 'pointer',
                             }}
                           >
@@ -1932,7 +1932,7 @@ function ProfileEditor({
                         );
                       })}
                     </div>
-                    <div className="muted" style={{ fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
+                    <div className="muted" style={{ fontSize: 'var(--fs-small)', marginTop: 6, lineHeight: 1.5 }}>
                       {l.business_purpose === undefined ? 'Not answered yet, so the app treats it as a personal loan. ' : ''}
                       {PURPOSE_HELP}
                     </div>
@@ -2363,7 +2363,7 @@ function ProfileEditor({
                     style={{
                       gridColumn: '1 / -1',
                       padding: '6px 10px',
-                      fontSize: 12,
+                      fontSize: 'var(--fs-dense)',
                       background: 'transparent',
                       color: 'var(--negative)',
                       border: '1px solid var(--negative)',
@@ -2382,7 +2382,7 @@ function ProfileEditor({
               onClick={addLoan}
               style={{
                 padding: '8px 14px',
-                fontSize: 13,
+                fontSize: 'var(--fs-body)',
                 background: 'transparent',
                 color: 'var(--accent)',
                 border: '1px solid var(--accent)',
@@ -2413,7 +2413,7 @@ function ProfileEditor({
               );
             })}
             {showLoanErrors && !loansComplete && (
-              <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--negative)' }}>
+              <p role="alert" style={{ margin: 0, fontSize: 'var(--fs-body)', color: 'var(--negative)' }}>
                 Fill in the fields marked above so the plan can work out your
                 payments.
                 {loanErrors.some((e) => Object.keys(e).length > 0) &&
@@ -2495,7 +2495,7 @@ function ProfileEditor({
                       background: 'transparent',
                       border: '1px solid var(--border)',
                       color: 'var(--accent)',
-                      fontSize: 12,
+                      fontSize: 'var(--fs-dense)',
                       cursor: 'pointer',
                       padding: '6px 10px',
                       borderRadius: 6,
@@ -2503,7 +2503,7 @@ function ProfileEditor({
                   >
                     + Split by account (recommended)
                   </button>
-                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                  <div className="muted" style={{ fontSize: 'var(--fs-small)', marginTop: 4 }}>
                     Tracking each account with its APY lets the advisor compare
                     idle cash against debt payoff (e.g. 0.01% checking vs 24%
                     card).
@@ -2514,7 +2514,7 @@ function ProfileEditor({
 
             {cashAccounts.length > 0 && (
               <div>
-                <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+                <div className="muted" style={{ fontSize: 'var(--fs-dense)', marginBottom: 8 }}>
                   <strong style={{ color: 'var(--ink)' }}>Cash accounts.</strong>{' '}
                   Each one — checking, savings, HYSA, FD. APY can be 0 if you
                   don't know it; you can update later.
@@ -2625,7 +2625,7 @@ function ProfileEditor({
                     background: 'transparent',
                     border: '1px dashed var(--border)',
                     color: 'var(--accent)',
-                    fontSize: 12,
+                    fontSize: 'var(--fs-dense)',
                     cursor: 'pointer',
                     padding: '6px 10px',
                     borderRadius: 6,
@@ -2633,7 +2633,7 @@ function ProfileEditor({
                 >
                   + Add another account
                 </button>
-                <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+                <div className="muted" style={{ fontSize: 'var(--fs-small)', marginTop: 8 }}>
                   Total optimizable (excluding checking):{' '}
                   <strong style={{ color: 'var(--ink)' }}>
                     {formatCurrency(
@@ -2753,7 +2753,7 @@ function ProfileEditor({
                   )
                 }
               />
-              <div className="muted" style={{ fontSize: 12, alignSelf: 'end' }}>
+              <div className="muted" style={{ fontSize: 'var(--fs-dense)', alignSelf: 'end' }}>
                 Cheaper rates on Home use it to leave out offers lenders seldom give at your score. Skip if you don&apos;t know it.
               </div>
             </div>
@@ -2761,17 +2761,17 @@ function ProfileEditor({
         )}
 
         {pendingCountry && (
-          <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
+          <p role="alert" style={{ margin: '16px 0 0', fontSize: 'var(--fs-body)', color: 'var(--negative)' }}>
             Confirm or cancel the country change above before saving.
           </p>
         )}
         {saveBlocked && (
-          <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
+          <p role="alert" style={{ margin: '16px 0 0', fontSize: 'var(--fs-body)', color: 'var(--negative)' }}>
             {saveBlocked}
           </p>
         )}
         {saveFailed && (
-          <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
+          <p role="alert" style={{ margin: '16px 0 0', fontSize: 'var(--fs-body)', color: 'var(--negative)' }}>
             Your profile wasn&apos;t saved: this browser didn&apos;t keep it. Check
             that cookies are allowed for this site and try again. Nothing you
             entered here is lost while this page stays open.

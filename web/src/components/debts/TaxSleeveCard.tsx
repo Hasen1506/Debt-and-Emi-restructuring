@@ -186,7 +186,7 @@ export function TaxSleeveCard({
               borderRadius: 4,
               padding: '5px 10px',
               cursor: 'pointer',
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               fontWeight: 600,
             }}
           >
@@ -210,7 +210,7 @@ export function TaxSleeveCard({
                 borderRadius: 4,
                 padding: '5px 10px',
                 cursor: 'pointer',
-                fontSize: 12,
+                fontSize: 'var(--fs-dense)',
               }}
             >
               {slice.paidInstallments.includes(cycleKey(fullSchedule[nextIdx - 1]))

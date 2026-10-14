@@ -19,7 +19,7 @@ export function LStepHead({ no, id, accent, children }: { no: string; id: string
     >
       <span
         style={{
-          fontSize: 11,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           fontWeight: 700,
           letterSpacing: '0.08em',
           color: accent ? '#fff' : L_T.ink,
@@ -30,7 +30,7 @@ export function LStepHead({ no, id, accent, children }: { no: string; id: string
       >
         {no}
       </span>
-      <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{children}</span>
+      <span style={{ fontSize: 14, fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{children}</span>
     </h2>
   );
 }
@@ -50,8 +50,8 @@ export function LStepSub({ right, children }: { right?: string; children: ReactN
         borderBottom: `1px solid ${L_T.faint}`,
       }}
     >
-      <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{children}</span>
-      {right && <span style={{ fontSize: 9, color: L_T.muted, letterSpacing: '0.12em' }}>{right}</span>}
+      <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{children}</span>
+      {right && <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.muted, letterSpacing: '0.12em' }}>{right}</span>}
     </div>
   );
 }
@@ -124,7 +124,7 @@ export function LVerdict({ tone, children }: { tone?: 'pos' | 'neg' | 'accent' |
 
 /** A muted line under a verdict or a field group. */
 export function LNote({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return <p style={{ margin: '0 0 12px', fontSize: 12, lineHeight: 1.6, color: L_T.muted, ...style }}>{children}</p>;
+  return <p style={{ margin: '0 0 12px', fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.muted, ...style }}>{children}</p>;
 }
 
 /** The page's column of steps. */
