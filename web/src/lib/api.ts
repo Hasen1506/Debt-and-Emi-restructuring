@@ -2033,13 +2033,3 @@ export function formatCurrencyCompact(value: string | number | Decimal, currency
 export function formatPct(value: string | number | Decimal, digits = 2): string {
   return `${new Decimal(value).mul(100).toFixed(digits)}%`;
 }
-
-export function monthIndexToLabel(
-  monthIndex: number | null,
-  start: Date = new Date(),
-): string {
-  if (monthIndex === null) return '—';
-  // Month 1 is the current month, so month N is N − 1 months away.
-  const d = new Date(start.getFullYear(), start.getMonth() + monthIndex - 1, 1);
-  return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-}

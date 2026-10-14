@@ -32,15 +32,6 @@ function isTaxReinvest(v: string | null | undefined): v is TaxReinvestSetting {
   return v === 'on' || v === 'off';
 }
 
-// ─── Client-side ────────────────────────────────────────────────────────────
-
-export function readTaxReinvestClient(): TaxReinvestSetting {
-  if (typeof document === 'undefined') return DEFAULT_TAX_REINVEST;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_NAME}=([^;]*)`));
-  const v = match ? decodeURIComponent(match[1]) : null;
-  return isTaxReinvest(v) ? v : DEFAULT_TAX_REINVEST;
-}
-
 export function writeTaxReinvestClient(value: TaxReinvestSetting) {
   if (typeof document === 'undefined') return;
   document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;

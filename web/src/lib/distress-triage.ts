@@ -128,10 +128,6 @@ const TIER_RANK: Record<ProtectTier, number> = { secured: 0, card_minimum: 1, un
 /** Inside the secured group: the home before the car before the gold. */
 const SECURED_RANK: Partial<Record<LoanType, number>> = { home_loan: 0, auto_loan: 1, gold_loan: 2 };
 
-export function protectTier(t: LoanType): ProtectTier {
-  return TIER_OF[t];
-}
-
 export const TIER_REASON: Record<ProtectTier, string> = {
   secured:
     'Secured: the lender can take the asset (your home, car or gold) if this goes unpaid. Protect it first.',

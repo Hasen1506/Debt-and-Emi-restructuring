@@ -26,15 +26,6 @@ function isFxDrift(v: string | null | undefined): v is FxDriftSetting {
   return v === 'on' || v === 'off';
 }
 
-// ─── Client-side ────────────────────────────────────────────────────────────
-
-export function readFxDriftClient(): FxDriftSetting {
-  if (typeof document === 'undefined') return DEFAULT_FX_DRIFT;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_NAME}=([^;]*)`));
-  const v = match ? decodeURIComponent(match[1]) : null;
-  return isFxDrift(v) ? v : DEFAULT_FX_DRIFT;
-}
-
 export function writeFxDriftClient(value: FxDriftSetting) {
   if (typeof document === 'undefined') return;
   document.cookie = `${COOKIE_NAME}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;

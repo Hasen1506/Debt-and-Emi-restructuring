@@ -228,16 +228,6 @@ export function summariseDeductions(
 }
 
 /**
- * US: does this person itemise? Mirrors `UserIn._itemises` on the API:
- * yes if their itemisable deductions beat the standard deduction. With
- * no deductions entered, mortgage interest is estimated from their US
- * home loans. Always false outside the US.
- */
-export function usItemises(user: UserPayload): boolean {
-  return usMortgageShieldShare(user).gt(0);
-}
-
-/**
  * US: the share (0–1) of mortgage interest that lowers tax. Only itemised
  * deductions above the standard deduction save anything: a $350k mortgage
  * at 6.75% ($23,625 of interest, $16,100 standard) saves tax on $7,525, a

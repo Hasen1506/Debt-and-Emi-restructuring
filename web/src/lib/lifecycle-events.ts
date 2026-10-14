@@ -26,7 +26,6 @@ import { localIsoDate } from './today';
 import type { LoanPayload, UserPayload } from './api';
 import { deriveMarginalRateForUser } from './deductions';
 import { resolveLoanIndex } from './loan-ids';
-import { LOAN_TYPE_NAME, loanLabel } from './loan-types';
 import { nextMonth } from './roll-forward';
 
 const COOKIE_NAME = 'rightdue_lifecycle';
@@ -481,20 +480,6 @@ export function pendingArrivals(
   return events.filter(
     (e) => e.status === 'planned' && e.effectiveDate <= todayIso,
   );
-}
-
-export function describeEvent(e: LifecycleEvent): string {
-  if (e.kind === 'salary_reset') {
-    return `Income → ${e.newAnnualGross}/yr gross`;
-  }
-  if (e.kind === 'floating_rate_reset') {
-    const pct = (Number(e.newRate) * 100).toFixed(2);
-    return `Loan ${e.loanIndex + 1} rate → ${pct}%`;
-  }
-  // property_buy
-  const draft = e.loanDraft;
-  const name = draft.bank?.trim() ? loanLabel(draft) : `New ${LOAN_TYPE_NAME[draft.loan_type]}`;
-  return `${name} (${draft.outstanding})`;
 }
 
 /** Estimated income-tax-only net. Payroll/PF/insurance deductions require the override. */

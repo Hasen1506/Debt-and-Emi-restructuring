@@ -76,32 +76,6 @@ export function deriveMonthlyIncome(
   return activeGrossAnnual(active, asOf).div(12);
 }
 
-/**
- * Annualised non-TDS liability across active streams — the tax sleeve
- * target derived from streams. Each stream contributes
- * `gross_annual × marginal_rate × (1 − tds_pct)` to the sleeve.
- *
- * Returns null when no streams exist; the legacy `extra_income_annual_tax`
- * input remains the fallback.
- */
-export function deriveNonTdsLiability(
-  streams: IncomeStreamPayload[] | undefined,
-  marginalRate: Decimal | string,
-  asOf: Date = new Date(),
-): Decimal | null {
-  const active = activeStreams(streams, asOf);
-  if (active.length === 0) return null;
-  const marg = D(marginalRate);
-  let total = D(0);
-  for (const s of active) {
-    const gross = D(s.gross_annual);
-    const tds = D(s.tds_pct);
-    const liability = gross.mul(marg).mul(D(1).minus(tds));
-    if (liability.gt(0)) total = total.plus(liability);
-  }
-  return total;
-}
-
 /** Quick check — does the user have any historical (closed) streams? */
 export function hasHistoricalTransitions(
   streams: IncomeStreamPayload[] | undefined,
@@ -269,26 +243,6 @@ export function activeSlabGrossAnnual(
     (s, x) => s.plus(streamSlabContribution(x)),
     D(0),
   );
-}
-
-/**
- * Flat tax owed on capital-gains streams — added to slab tax for the
- * total annual liability. Conservative default: LTCG 20% with indexation
- * (India) / LTCG 20% (US). Users with STCG-heavy streams can override
- * via the treatment-flat-rate override (future field, not yet exposed).
- * Country gate: India and US use the same 20% rate by happy coincidence
- * for LTCG on most asset classes; equity-specific rates handled later.
- */
-export function activeCapitalGainsFlatTax(
-  streams: IncomeStreamPayload[] | undefined,
-  asOf: Date = new Date(),
-): Decimal {
-  return activeStreams(streams, asOf)
-    .filter(
-      (s) =>
-        (s.tax_treatment ?? defaultTaxTreatment(s.kind)) === 'capital_gains',
-    )
-    .reduce((sum, s) => sum.plus(D(s.gross_annual).mul('0.2')), D(0));
 }
 
 /** TDS-default by kind — pre-fills when the user picks a kind. */

@@ -24,12 +24,6 @@ export function currencySymbol(currency: CurrencyCode): string {
   return currency === 'INR' ? '₹' : '$';
 }
 
-/** Convenience: prefix derived directly from country, when the caller doesn't
- *  already have a CurrencyCode in scope. */
-export function countryCurrencySymbol(country: Country): string {
-  return currencySymbol(userDefaultCurrency(country));
-}
-
 /** Each loan's display currency: explicit tag if present, else user default. */
 export function loanCurrency(loan: LoanPayload, country: Country): CurrencyCode {
   return (loan.currency as CurrencyCode | undefined) ?? userDefaultCurrency(country);
@@ -193,11 +187,6 @@ export function derivePerCurrencyMetrics(
   }
 
   return out as Record<CurrencyCode, PerCurrencyMetrics>;
-}
-
-/** Convenience: true when the loan list spans more than one currency. */
-export function isHybridCurrency(loans: LoanPayload[], country: Country): boolean {
-  return currenciesInPlay(loans, country).length > 1;
 }
 
 // ensureFxRates moved to lib/fx-refresh.ts, where it is wired to app open

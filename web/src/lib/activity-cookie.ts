@@ -281,11 +281,6 @@ export function refreshActivityCookieClient(loans: LoanPayload[], country: Count
   return (document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '') !== before;
 }
 
-export function clearActivityCookieClient(): void {
-  if (typeof document === 'undefined') return;
-  document.cookie = `${COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`;
-}
-
 // ─── Server read ───────────────────────────────────────────────────────────
 
 export async function loadActivityDeltasServer(): Promise<ActivityDelta[]> {

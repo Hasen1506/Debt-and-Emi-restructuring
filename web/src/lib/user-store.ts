@@ -231,20 +231,6 @@ export function clearProfileClient() {
   }
 }
 
-// ─── FX rate cache ──────────────────────────────────────────────────────────
-
-export function loadFxCacheClient(): FxCacheEntry | null {
-  const raw = readClientCookie(FX_COOKIE);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as FxCacheEntry;
-    if (typeof parsed.ts !== 'number' || !parsed.rates) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
 /** A signed-in account owns the cache again (see `profileCleared`). */
 export function resumeProfileClient() {
   profileCleared = false;
@@ -254,10 +240,6 @@ export function saveFxCacheClient(rates: Record<string, string>) {
   if (profileCleared) return;
   const entry: FxCacheEntry = { rates, ts: Date.now() };
   writeClientCookie(FX_COOKIE, JSON.stringify(entry));
-}
-
-export function isFxCacheFresh(entry: FxCacheEntry | null): entry is FxCacheEntry {
-  return entry != null && Date.now() - entry.ts < FX_CACHE_TTL_MS;
 }
 
 // ─── Server-side ────────────────────────────────────────────────────────────
@@ -396,24 +378,4 @@ export function serializeProfileForServer(profile: StoredProfile): Record<string
       creditScore: profile.creditScore,
     },
   };
-}
-
-/**
- * Read the FX-rate cache cookie server-side. Returns the entry only when it
- * exists and is younger than the TTL — callers don't need to repeat the
- * staleness check. Returns null on a missing or expired cache so the caller
- * can decide whether to refetch.
- */
-export async function loadFxCacheServer(): Promise<FxCacheEntry | null> {
-  const { cookies } = await import('next/headers');
-  const raw = (await cookies()).get(FX_COOKIE)?.value;
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as FxCacheEntry;
-    if (typeof parsed.ts !== 'number' || !parsed.rates) return null;
-    if (Date.now() - parsed.ts >= FX_CACHE_TTL_MS) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
 }
