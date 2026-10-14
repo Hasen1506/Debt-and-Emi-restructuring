@@ -14,6 +14,7 @@ import { AccountSyncNotice } from '@/components/AccountSyncNotice';
 import { FxAutoRefresh } from '@/components/fx/FxAutoRefresh';
 import { SiteFooter } from '@/components/site/SiteFooter';
 import { BrowserErrorReporter } from '@/components/site/BrowserErrorReporter';
+import { EARLY_LEAVE_SCRIPT } from '@/lib/page-abort';
 
 export const metadata: Metadata = {
   title: 'RightDue — Debt & EMI Optimiser',
@@ -39,6 +40,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             (UX50 A-12; @font-face in styles/globals.css). */}
         <link rel="preload" href="/fonts/ibm-plex-mono-400-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
         <link rel="preload" href="/fonts/ibm-plex-mono-700-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
+        {/* R12-1: note a leave that starts before the app's scripts have
+            loaded (lib/page-abort.ts reads it), so the half-hydrated page
+            doesn't start requests the navigation then cuts off. */}
+        <script dangerouslySetInnerHTML={{ __html: EARLY_LEAVE_SCRIPT }} />
       </head>
       <body>
         <a href="#main" className="skip-link">
