@@ -644,3 +644,22 @@ def test_health_says_whether_sentry_is_on_without_the_dsn(monkeypatch):
     with TestClient(app) as c:
         body = c.get("/api/health").json()
     assert body["sentry"] == "on" and "publickey" not in str(body)
+
+
+# ── render.yaml: the W8 settings are declared, never with a value ─────────
+def test_render_blueprint_declares_trust_settings_without_values():
+    """Secrets and switches the founder fills in are listed with sync: false
+    (so a Blueprint sync never overwrites or invents them), and none of them
+    carries a value or a generated one in the file."""
+    import pathlib
+
+    import yaml
+
+    spec = yaml.safe_load((pathlib.Path(__file__).resolve().parents[2] / "render.yaml").read_text())
+    env = {e["key"]: e for e in spec["services"][0]["envVars"]}
+    for key in ("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY", "OTP_HASH_KEY", "SENTRY_DSN",
+                "DATABASE_URL", "RESEND_API_KEY"):
+        assert key in env, key
+        assert env[key].get("sync") is False, key
+        assert "value" not in env[key] and "generateValue" not in env[key], key
+    assert "ALLOW_SCHEMA_DRIFT" not in env, "the drift escape hatch is never on by default"
