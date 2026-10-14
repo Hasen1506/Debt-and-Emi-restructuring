@@ -27,11 +27,6 @@ export function rateLine(nominal: Decimal.Value, effective: Decimal.Value): stri
   return `${main} \u00b7 about ${fmtPct(e)} ${ALL_IN}`;
 }
 
-/** What the all-in rate adds, in words, for the WHY line. */
-export function allInWhat(country: string, isCard: boolean): string {
-  return country === 'IN' && isCard ? 'interest compounded monthly, plus 18% GST on it' : 'interest compounded monthly';
-}
-
 /** Home's "why this loan first", with the one all-in figure only (the
  *  breakdown stays in whyFirstLines, behind WHY on the loan row). */
 export function whyFirstShort(total: Decimal.Value, nominal: Decimal.Value): string {
