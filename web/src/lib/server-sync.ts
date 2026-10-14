@@ -295,6 +295,7 @@ export function clearPendingSync(): void {
   try { localStorage.removeItem(DEVICE_KEY); } catch { /* storage blocked */ }
   for (const key of storageKeys(localStorage)) {
     if (key.startsWith('rightdue_pending_sync_') || key.startsWith('rightdue_state_version_') || key.startsWith('rightdue_sync_conflict_')) localStorage.removeItem(key);
+    else if (LOCAL_PER_USER_PREFIXES.some((p) => key.startsWith(p))) localStorage.removeItem(key);
   }
 }
 
@@ -311,7 +312,24 @@ export const LOCAL_PER_USER_KEYS = [
   // US golden journey visited Home before signing out.
   'rightdue_debt_free_marks',
   'rightdue_decision_log_migrated_v1',
+  // Audit 80+ (integration): A1's Loan Check findings (amounts + lender) and
+  // A4's typed return are this person's too.
+  'rightdue_loan_check_findings',
+  'rightdue_low_rate_return',
+  // Pre-existing gap found by the guard below: UPI "did it go through?"
+  // checks hold payee names, amounts, VPAs and UTRs.
+  'rightdue_upi_checks',
 ] as const;
+
+/** Prefixes of per-user keys cleared on sign-out: B22's "seen this page's
+ *  intro" marks (FirstVisitIntro), so the next person on a shared computer
+ *  sees the intros and the browser is left empty. */
+export const LOCAL_PER_USER_PREFIXES = ['rd_intro_seen_'] as const;
+
+/** Device-level keys kept on sign-out on purpose: counts-only funnel
+ *  dedupe (A15; no user data, clearing would double-count this browser)
+ *  and the page trail used for back links. */
+export const LOCAL_DEVICE_KEYS = ['rightdue_funnel_once', 'rightdue_first_plan_ym', 'rightdue_trail'] as const;
 /** sessionStorage keys with one person's navigation or prompts. */
 export const SESSION_PER_USER_KEYS = ['rightdue_trail', 'rightdue_debtfree_prompt_dismissed'] as const;
 

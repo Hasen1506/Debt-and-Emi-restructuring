@@ -75,3 +75,39 @@ test('A1 x W4: Loan Check remembers its findings for the disagree card', () => {
   assert.match(src, /import \{ rememberLoanCheck \} from '@\/lib\/loan-check-memory'/);
   assert.match(src, /setResult\(res\);\s*(\/\/[^\n]*\n\s*)*rememberLoanCheck\(res\);/);
 });
+
+// Integration phase 3: the golden journey's "sign out clears this browser"
+// failed on W6's rd_intro_seen_plan. Class guard: every key a module writes to
+// localStorage is cleared on sign-out by lib/server-sync.ts (a slice target,
+// LOCAL_PER_USER_KEYS, a cleared prefix) or kept there on purpose
+// (LOCAL_DEVICE_KEYS / account + device id).
+test('every localStorage key written anywhere is cleared on sign-out or declared device-level', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.join(__dirname, '..', 'src');
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : /\.tsx?$/.test(e.name) ? [path.join(d, e.name)] : []));
+  const sync = fs.readFileSync(path.join(root, 'lib', 'server-sync.ts'), 'utf8');
+  const listOf = (name) => {
+    const at = sync.indexOf(`export const ${name}`);
+    assert.ok(at >= 0, name);
+    return [...sync.slice(at, sync.indexOf('] as const;', at)).matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]);
+  };
+  const perUser = listOf('LOCAL_PER_USER_KEYS');
+  const prefixes = [...listOf('LOCAL_PER_USER_PREFIXES'), 'rightdue_pending_sync_', 'rightdue_state_version_', 'rightdue_sync_conflict_'];
+  const device = [...listOf('LOCAL_DEVICE_KEYS'), 'rightdue_account_id', 'rightdue_device_id'];
+  const slices = [...sync.matchAll(/kind: 'localStorage',\s*name: '([a-z0-9_]+)'/g)].map((m) => m[1]);
+  const bad = [];
+  for (const f of walk(root)) {
+    const text = fs.readFileSync(f, 'utf8');
+    if (!/localStorage\.setItem\(/.test(text) || f.endsWith(path.join('lib', 'server-sync.ts'))) continue;
+    for (const [, key] of text.matchAll(/'((?:rightdue|rd)_[a-z0-9_]+)'/g)) {
+      // Cookie names live in the same modules; only keys that this file never
+      // writes to document.cookie under that name are localStorage keys.
+      if (new RegExp(`cookie[^\\n]*${key}|${key}[^\\n]*cookie`, 'i').test(text) && !slices.includes(key)) continue;
+      const ok = perUser.includes(key) || device.includes(key) || slices.includes(key) || prefixes.some((p) => key.startsWith(p));
+      if (!ok) bad.push(`${path.relative(root, f)}: ${key}`);
+    }
+  }
+  assert.deepEqual(bad, []);
+  assert.ok(perUser.includes('rightdue_upi_checks') && perUser.includes('rightdue_loan_check_findings'));
+});
