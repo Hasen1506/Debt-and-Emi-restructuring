@@ -172,6 +172,10 @@ export function ruleRunRate(
   let rate = remaining / monthsLeft;
   if (rule?.kind === 'fixed' && rule.amount != null && rule.amount !== '') rate = Number(rule.amount);
   else if (rule?.kind === 'surplus_pct' && rule.pct != null && rule.pct !== '') rate = Math.max(0, spare) * Number(rule.pct);
+  // Audit 80+ programmable diversion, as engine/goals.py: the floor pauses a
+  // lean month; the cap limits any month.
+  if (Number(rule?.pauseBelow) > 0 && spare < Number(rule!.pauseBelow)) return 0;
+  if (Number(rule?.cap) > 0) rate = Math.min(rate, Number(rule!.cap));
   return Math.min(rate, remaining);
 }
 
