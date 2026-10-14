@@ -129,6 +129,7 @@ def compute_total_minimums(
     user: User,
     loans: list[Loan],
     simple_mode: bool = False,
+    minimums: dict[int, Decimal] | None = None,
 ) -> Decimal:
     """Sum of bank-specific minimum payments across all loans, converted
     into the user's residence currency. The pure-INR or pure-USD case is
@@ -140,15 +141,18 @@ def compute_total_minimums(
     # the /plan surplus snapshot below the simulator's own month 1.
     # US mortgage insurance (PMI / FHA MIP) is paid with the mortgage until
     # it ends (engine/us_loans.py, grill #34).
+    # `minimums` (by id(loan)): the simulator's own figures for this month
+    # (a maturity's balloon, a card's minimum at the interest it is charged;
+    # Audit C2/C3/C13), so surplus and shortfall see what is actually paid.
     from engine.us_loans import pmi_due
     return sum(
         (
             to_user_currency(
-                compute_minimum_payment(
+                (minimums[id(l)] if minimums is not None and id(l) in minimums else compute_minimum_payment(
                     l, user.country,
                     interest_accrued=monthly_interest_charge(l, user.country),
                     simple_mode=simple_mode,
-                ) + pmi_due(l),
+                )) + pmi_due(l),
                 l,
                 user,
             )
@@ -186,6 +190,7 @@ def compute_shortfall(
     user: User,
     loans: list[Loan],
     simple_mode: bool = False,
+    minimums: dict[int, Decimal] | None = None,
 ) -> Decimal:
     """How much income falls short of costs plus the minimum payments, in
     the user's currency; 0 when it covers them.
@@ -196,7 +201,7 @@ def compute_shortfall(
     need = (
         user.fixed_expenses
         + user.variable_expenses
-        + compute_total_minimums(user, loans, simple_mode=simple_mode)
+        + compute_total_minimums(user, loans, simple_mode=simple_mode, minimums=minimums)
     )
     return max(D("0"), need - user.monthly_income)
 
@@ -208,12 +213,13 @@ def compute_available_surplus(
     simple_mode: bool = False,
     months_to_efund_target: int = 12,
     efund_monthly: Decimal | None = None,
+    minimums: dict[int, Decimal] | None = None,
 ) -> Decimal:
     """Monthly surplus available for extra debt payments. Floored at zero.
 
     `efund_monthly` overrides the emergency-fund top-up for this month
     (the simulator passes a fixed amount so the fund actually fills)."""
-    total_minimums = compute_total_minimums(user, loans, simple_mode=simple_mode)
+    total_minimums = compute_total_minimums(user, loans, simple_mode=simple_mode, minimums=minimums)
     if efund_monthly is None:
         efund_monthly = compute_efund_monthly(user, months_to_efund_target)
     surplus = (

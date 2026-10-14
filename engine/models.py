@@ -114,8 +114,11 @@ class Loan:
     #     Charges on Loans Directions, 2 July 2025, para 5(i)), unknown and
     #     not assumed otherwise (engine/prepayment_fee.py). With a fee, the
     #     Avalanche order is searched (engine/fee_order.py).
-    #   • prepay_lock_in_months   — number of sim-months from start during
-    #     which any extra principal payment is rejected. Surplus that
+    #   • prepay_lock_in_months   — months from TODAY (sim month 1; for a
+    #     planned loan, from its arrival) during which any extra principal
+    #     payment is rejected. The API derives it from the calendar month
+    #     the lock-in ends (LoanIn.prepay_lock_in_until), so a saved loan's
+    #     lock-in runs down as time passes (Audit C4). Surplus that
     #     can't go anywhere flows to the next-priority loan via the
     #     ranker cascade.
     #   • part_payment_freq_months — restricts how often above-schedule
@@ -187,6 +190,25 @@ class Loan:
     original_home_value: Optional[Decimal] = None
     mortgage_insurance_kind: Optional[str] = None
     pmi_months_remaining: Optional[int] = None
+    # ── The contract over time (Audit 80+ Section C; engine/contract.py) ──────
+    # What a floating-rate rise does: "extend" (hold the EMI, lengthen the
+    # tenure), "raise_emi" (keep the end date), "mix" (half and half). None =
+    # the market default: extend for an Indian loan (founder decision, C1),
+    # raise_emi for a US loan. RBI's reset circular (18 Aug 2023, para
+    # 2(iii)) gives the borrower all three choices.
+    on_rate_rise: Optional[str] = None
+    # Most months the loan may have left after an extension: the lender's
+    # maximum tenure or the borrower's age limit, counted from today. None =
+    # 360 for an Indian home loan (SBI's 30-year maximum), no extension for
+    # anything else (the EMI rises instead).
+    max_tenure_months: Optional[int] = None
+    # "emi" | "interest_only" | "bullet" (C2). None = "emi", except a gold
+    # loan with no EMI, which is a bullet (RBI gold directions 2025 para
+    # 6(i)). A bullet accrues simple interest and repays principal plus
+    # interest in its last month; an interest-only loan pays the interest
+    # monthly and the principal in its last month. Every loan with a tenure
+    # pays what is left in its last contractual month (C3, C6).
+    repayment: Optional[str] = None
 
 
 class LifecycleEventKind(str, Enum):
@@ -416,3 +438,7 @@ class User:
     # back to 1.0 (parity), which is correct for the common single-
     # currency case where the helper is a no-op.
     fx_to_user_currency: Dict[str, Decimal] = field(default_factory=dict)
+    # Most the user could borrow to cover short months (their cards' spare
+    # limit), user currency (Audit C11). None = 3 months of take-home pay,
+    # an assumption the plan labels. Past it the plan is marked infeasible.
+    gap_credit_limit: Optional[Decimal] = None

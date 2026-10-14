@@ -211,9 +211,9 @@ def compare(
 # central-bank decisions drive, not as random noise, and each scenario is a
 # sentence a person can check. Five simulator runs, not five thousand.
 #
-# Caveat carried into the copy: on a rate rise the engine raises the EMI to
-# keep the end date (_reset_rate, unchanged this sprint). Many Indian lenders
-# extend the tenure instead, which would push the later edge out further.
+# On a rate rise an Indian loan now holds its EMI and extends its tenure
+# (Audit 80+ C1, engine/contract.py; US loans and loans set to "raise_emi"
+# keep the end date), so the later edge reflects the longer tenure.
 
 RANGE_RATE_BAND = D("0.01")      # ±1 percentage point on floating loans
 RANGE_INCOME_MONTHS = 1          # ±1 month of take-home pay

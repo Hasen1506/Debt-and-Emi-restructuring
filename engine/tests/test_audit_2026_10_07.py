@@ -73,7 +73,11 @@ def test_h3_surplus_kept_when_the_target_loan_is_locked_in():
                   prepay_lock_in_months=12)
     u = _user(Country.IN, [locked], income="92000", expenses="30000")
     r = simulate_plan(u, horizon_months=24)
-    assert all(r.months[i].invested_this_month > D("30000") for i in range(11))
+    # Audit 80+ C5: the cash is saved for the loan ("saved for the lock-in
+    # to end") rather than counted as invested, and paid in at month 13.
+    assert all(r.months[i].held_for_lock_in - (r.months[i - 1].held_for_lock_in if i else 0) > D("30000")
+               for i in range(11))
+    assert r.months[12].held_for_lock_in == 0 and r.months[12].extra_paid > r.months[11].held_for_lock_in
 
 
 # H4 ────────────────────────────────────────────────────────────────────────
@@ -256,8 +260,9 @@ def test_p2_14_pre_emi_minimum_is_interest_only():
     assert compute_total_minimums(u, [home]) == pytest.approx(D("30000"))
     r = simulate_plan(u, horizon_months=8)
     first = r.months[0]
-    # Every rupee of the ₹60,000 is either paid or saved.
-    assert first.total_payment_nominal + first.invested_this_month == pytest.approx(D("60000"))
+    # Every rupee of the ₹60,000 is either paid or saved (Audit C5: saved for
+    # the loan while it can't take a prepayment yet).
+    assert first.total_payment_nominal + first.invested_this_month + first.held_for_lock_in == pytest.approx(D("60000"))
 
 
 # P2-15 ─────────────────────────────────────────────────────────────────────
