@@ -104,7 +104,7 @@ def test_c8_grep_gate_effective_rate_callers():
             if "/tests/" in rel or rel in allowed:
                 continue
             code = re.sub(r'"""[\s\S]*?"""|#.*', "", p.read_text(encoding="utf-8"))
-            if re.search(r"(?<![\w.])effective_rate\(", code):
+            if re.search(r"(?<!\w)effective_rate\(", code):
                 bad.append(rel)
     assert not bad, f"use marginal_cost.user_forward_rates for forward decisions: {bad}"
 
