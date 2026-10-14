@@ -66,6 +66,9 @@ DEFAULT_LIMITS: list[tuple[str, Limit]] = [
     ("/api/outcomes", Limit(per_minute=6, burst=10)),           # plus 10 a day (outcomes_store)
     ("/api/kfs/", Limit(per_minute=10, burst=10)),              # reads up to 4 MB of PDF
     ("/api/credit-report/", Limit(per_minute=10, burst=10)),    # same size of PDF (G6)
+    # A15: funnel counters get their own bucket so a burst of setup-field
+    # events never uses up the plan's own calls (and vice versa).
+    ("/api/funnel", Limit(per_minute=60, burst=40)),
     ("/api/", Limit(per_minute=120, burst=60)),
 ]
 
