@@ -9,7 +9,7 @@ borrower's name and account number never have to leave their device.
 """
 from datetime import date
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter
 from pydantic import Field
@@ -22,8 +22,8 @@ from engine.complaint_deadlines import Reply, Timeline, TimelineInputError, indi
 from engine.complaints_in import (
     ACCOUNT, ADDRESS, BANK_NAME, BANK_REFERENCE, DRAFT_NOTICE, EMAIL, NAME, OPTIONAL_LINES, PHONE,
     SELF_CHECK,
-    Letter, NothingToClaim, OmbudsmanComplaint, grievance_letter,
-    io_followup_letter, ombudsman_complaint,
+    Letter, NoResetChoiceIssue, NothingToClaim, OmbudsmanComplaint, grievance_letter,
+    io_followup_letter, ombudsman_complaint, reset_choice_letter,
 )
 
 router = APIRouter(tags=["complaints"])
@@ -215,3 +215,32 @@ def complaint_in(req: ComplaintRequest) -> ComplaintResponse:
         ombudsman=_ombudsman_out(omb) if omb else None,
         placeholders=Placeholders(),
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EMI raised or tenure extended without the choice (audit 80+ A11)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ResetChoiceRequest(LoanCheckRequest):
+    # What the borrower wants applied: a higher EMI (same end date), a longer
+    # tenure (same EMI), or "undecided" (ask for the options first).
+    preference: Literal["emi", "tenure", "undecided"] = "undecided"
+
+
+class ResetChoiceResponse(_Base):
+    letter: LetterOut
+    placeholders: Placeholders
+    draft_notice: str = DRAFT_NOTICE
+
+
+@router.post("/complaints/in/reset-choice", response_model=ResetChoiceResponse)
+def reset_choice(req: ResetChoiceRequest) -> ResetChoiceResponse:
+    """A letter for "my EMI (or tenure) was raised after the rate rise and I
+    was never offered the choice". Re-runs Loan Check so the finding and
+    figures are the server's own; claims no money."""
+    inp, result = run_loan_check(req)
+    try:
+        letter = reset_choice_letter(inp, result, preference=req.preference)
+    except NoResetChoiceIssue as e:
+        raise bad("choice_offered", str(e))
+    return ResetChoiceResponse(letter=_letter_out(letter), placeholders=Placeholders())

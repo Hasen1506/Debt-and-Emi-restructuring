@@ -8,7 +8,7 @@ typed into a Firefox month box made the rate-cut finding disappear.)
 """
 import json
 import re
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal, Optional
@@ -20,10 +20,12 @@ from api import rates_feed
 from api.schemas import _Base
 from engine import lenders as lender_registry
 from engine.lenders import LenderType
+from engine import policy_rates
 from engine.loan_check import (
-    Benchmark, LoanCheckInput, LoanCheckInputError, LoanCheckResult, SpreadChange, TOLERANCE,
-    check_loan,
+    BankAction, Benchmark, ChoiceOffered, LoanCheckInput, LoanCheckInputError, LoanCheckResult,
+    SpreadChange, TOLERANCE, check_loan,
 )
+from engine.rate_reset import rate_move_impact
 from engine.models import Country
 
 D = Decimal
@@ -54,6 +56,23 @@ class LoanCheckRequest(_Base):
     # change as a signed fraction (+0.0025 = raised by 0.25 points).
     spread_changed: SpreadChange = SpreadChange.UNSURE
     spread_change: Optional[Decimal] = None
+    # Hike cycle (audit 80+ A11): what the lender did after the last rise,
+    # and whether it offered the EMI / tenure / prepay choice.
+    bank_action: BankAction = BankAction.UNKNOWN
+    choice_offered: ChoiceOffered = ChoiceOffered.UNSURE
+    # The borrower's rate history from statements, for the rises-vs-cuts check.
+    rate_history: list["RateHistoryIn"] = Field(default_factory=list, max_length=60)
+    # MCLR / base rate: the repo-linked rate the bank quotes for a switch, and its cost.
+    switch_rate: Optional[Decimal] = None
+    switch_cost: Optional[Decimal] = None
+
+
+class RateHistoryIn(_Base):
+    month: str                             # "YYYY-MM" the rate took effect
+    rate: Decimal                          # fraction
+
+
+LoanCheckRequest.model_rebuild()
 
 
 class CitationOut(_Base):
@@ -97,6 +116,63 @@ class RepoChangeOut(_Base):
     new_rate: Decimal
 
 
+class RateMoveOut(_Base):
+    rate_before: Decimal
+    rate_after: Decimal
+    outstanding: Decimal
+    emi_before: Decimal
+    months_before: int
+    interest_before: Decimal
+    emi_after: Decimal
+    emi_change: Decimal
+    interest_emi_option: Decimal
+    months_after: Optional[int]
+    months_change: Optional[int]
+    interest_tenure_option: Optional[Decimal]
+    tenure_option_possible: bool
+    prepay_to_keep_both: Decimal
+    tenure_premium: Optional[Decimal]
+
+
+class RateRiseOut(_Base):
+    decided: str
+    repo_from: Decimal
+    repo_to: Decimal
+    status: str                     # applied | pending | if_passed_on
+    reach_by: Optional[str]
+    impact: RateMoveOut
+
+
+class SwitchOut(_Base):
+    current_rate: Decimal
+    switch_rate: Decimal
+    switch_cost: Decimal
+    interest_saved_12m: Decimal
+    interest_saved_rest: Decimal
+    net_saving_rest: Decimal
+    months_saved: int
+    payback_months: Optional[int]
+
+
+class MoveReachedOut(_Base):
+    decided: str
+    repo_from: Decimal
+    repo_to: Decimal
+    reached: Optional[str]
+    lag_months: Optional[int]
+    late_months: int
+
+
+class PassThroughOut(_Base):
+    moves: list[MoveReachedOut]
+    avg_rise_lag: Optional[Decimal]
+    avg_cut_lag: Optional[Decimal]
+    late_cuts: int
+    late_cut_interest: Decimal
+    asymmetric: bool
+    notes: list[str]
+
+
 class LoanCheckResponse(_Base):
     status: str
     summary: str
@@ -122,6 +198,9 @@ class LoanCheckResponse(_Base):
     rule_applies: bool
     new_borrower_note: str
     reset_watch: Optional[ResetWatchOut]
+    rate_rise: Optional[RateRiseOut] = None
+    switch: Optional[SwitchOut] = None
+    pass_through: Optional[PassThroughOut] = None
 
 
 def bad(field: str, message: str) -> HTTPException:
@@ -216,7 +295,20 @@ def run_loan_check(req: LoanCheckRequest) -> tuple[LoanCheckInput, LoanCheckResu
         spread_changed=req.spread_changed,
         spread_change=req.spread_change,
         next_policy_meeting=next_rbi_meeting(as_of),
+        bank_action=req.bank_action,
+        choice_offered=req.choice_offered,
+        rate_history=[
+            (_parse_month("rate_history", "Rate change month", h.month), h.rate)
+            for h in req.rate_history
+        ],
+        switch_rate=req.switch_rate,
+        switch_cost=req.switch_cost,
     )
+    for h in req.rate_history:
+        if h.rate > 1:
+            raise bad("rate_history", f"Rate {h.rate} looks like a percentage. Send it as a fraction (8.55% is 0.0855).")
+    if req.switch_rate is not None and req.switch_rate > 1:
+        raise bad("switch_rate", f"Rate {req.switch_rate} looks like a percentage. Send it as a fraction.")
     if req.spread_change is not None and abs(req.spread_change) >= 1:
         raise bad("spread_change", f"Spread change {req.spread_change} looks like a percentage. "
                                    f"Send it as a fraction (0.25 points is 0.0025).")
@@ -293,6 +385,153 @@ def loan_check(req: LoanCheckRequest) -> LoanCheckResponse:
         rule_applies=result.rule_applies,
         new_borrower_note=result.new_borrower_note,
         reset_watch=reset_watch_out(result.reset_watch),
+        rate_rise=rate_rise_out(result.rate_rise),
+        switch=SwitchOut(**vars(result.switch)) if result.switch else None,
+        pass_through=pass_through_out(result.pass_through),
+    )
+
+
+def _iso(d) -> Optional[str]:
+    return d.isoformat() if d else None
+
+
+def move_out(im) -> RateMoveOut:
+    return RateMoveOut(**vars(im))
+
+
+def rate_rise_out(rr) -> Optional[RateRiseOut]:
+    if rr is None:
+        return None
+    return RateRiseOut(
+        decided=rr.decided.isoformat(), repo_from=rr.repo_from, repo_to=rr.repo_to,
+        status=rr.status, reach_by=_iso(rr.reach_by), impact=move_out(rr.impact),
+    )
+
+
+def pass_through_out(pt) -> Optional[PassThroughOut]:
+    if pt is None:
+        return None
+    return PassThroughOut(
+        moves=[
+            MoveReachedOut(decided=m.decided.isoformat(), repo_from=m.repo_from, repo_to=m.repo_to,
+                           reached=_iso(m.reached), lag_months=m.lag_months, late_months=m.late_months)
+            for m in pt.moves
+        ],
+        avg_rise_lag=pt.avg_rise_lag, avg_cut_lag=pt.avg_cut_lag, late_cuts=pt.late_cuts,
+        late_cut_interest=pt.late_cut_interest, asymmetric=pt.asymmetric, notes=pt.notes,
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Public "RBI decision: what happens to your EMI" page (audit 80+ A19)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Hypothetical next moves the page shows side by side. These are scenarios,
+# not forecasts: RightDue shows no odds (prediction markets are blocked in
+# India under the Promotion and Regulation of Online Gaming Act, 2025; see
+# docs/LOAN-CHECK-HIKE-CYCLE.md).
+NEXT_MOVE_SCENARIOS = (D("0"), D("0.0025"), D("0.0050"))
+
+
+class RbiDecisionRequest(_Base):
+    outstanding: Decimal = Field(gt=0, le=D("10000000000"))
+    current_rate: Decimal = Field(ge=D("0.01"), le=D("0.30"))
+    tenure_months_remaining: int = Field(ge=1, le=480)
+    emi: Optional[Decimal] = Field(None, gt=0)
+    # Has the last decision already reached the loan's rate?
+    reached: Literal["yes", "no", "unsure"] = "unsure"
+    as_of: Optional[str] = None            # "YYYY-MM-DD"; defaults to today
+
+
+class DecisionOut(_Base):
+    decided: str
+    repo_from: Decimal
+    repo_to: Decimal
+    move: Decimal                          # signed
+    source_url: str
+    reach_by: str                          # decision + 91 days (3-month reset window)
+
+
+class ScenarioOut(_Base):
+    move: Decimal
+    impact: Optional[RateMoveOut]          # None for "no change"
+
+
+class RbiDecisionResponse(_Base):
+    decision: DecisionOut
+    applied_to: str                        # "rate_after" | "rate_before"
+    impact: RateMoveOut
+    next_meeting: Optional[str]
+    scenarios: list[ScenarioOut]
+    rates_as_of: str
+    rates_source: str
+    notes: list[str]
+
+
+# Where each decision's text is on rbi.org.in (the calendar file names it).
+_DECISION_SOURCES = {
+    date(2026, 10, 7): "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=63742",
+}
+
+
+@router.post("/rbi-decision", response_model=RbiDecisionResponse)
+def rbi_decision(req: RbiDecisionRequest) -> RbiDecisionResponse:
+    """The last RBI repo decision applied to one loan, and the next meeting's
+    possible moves, without sign-in. Runs the same reset arithmetic as Loan
+    Check (engine/rate_reset.py)."""
+    if req.current_rate > 1:
+        raise bad("current_rate", "Send the rate as a fraction (8.55% is 0.0855).")
+    as_of = parse_date("as_of", req.as_of) if req.as_of else date.today()
+    hist = [(d, r) for d, r in policy_rates.history(Country.IN) if d <= as_of]
+    (last_day, last_rate), prev = hist[-1], hist[-2][1]
+    move = last_rate - prev
+    notes: list[str] = []
+    if req.reached == "yes":
+        before, after, applied = req.current_rate - move, req.current_rate, "rate_after"
+        emi = None
+    else:
+        before, after, applied = req.current_rate, req.current_rate + move, "rate_before"
+        emi = req.emi
+        if req.reached == "unsure":
+            notes.append(
+                "Taken as not yet on your rate. If your statement already shows the new rate, "
+                "choose 'yes': the figures then run from your old rate."
+            )
+    if before <= 0 or after <= 0:
+        raise bad("current_rate", "The rate is too low for this move. Check the number.")
+    if emi is not None and emi > req.outstanding:
+        raise bad("emi", "EMI must not be more than the outstanding balance.")
+    try:
+        im = rate_move_impact(req.outstanding, before, after, req.tenure_months_remaining, emi)
+    except ValueError as e:
+        raise bad("input", str(e))
+    if not im.tenure_option_possible:
+        notes.append(
+            "At the new rate your EMI would not cover the month's interest, so the bank must "
+            "raise the EMI: a longer tenure alone is not allowed to make the balance grow."
+        )
+    scenarios = []
+    for m in NEXT_MOVE_SCENARIOS:
+        if m == 0:
+            scenarios.append(ScenarioOut(move=m, impact=None))
+            continue
+        x = rate_move_impact(req.outstanding, after, after + m, req.tenure_months_remaining,
+                             None)
+        scenarios.append(ScenarioOut(move=m, impact=move_out(x)))
+    return RbiDecisionResponse(
+        decision=DecisionOut(
+            decided=last_day.isoformat(), repo_from=prev, repo_to=last_rate, move=move,
+            source_url=_DECISION_SOURCES.get(
+                last_day, "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx"),
+            reach_by=(last_day + timedelta(days=91)).isoformat(),
+        ),
+        applied_to=applied,
+        impact=move_out(im),
+        next_meeting=_iso(next_rbi_meeting(as_of)),
+        scenarios=scenarios,
+        rates_as_of=policy_rates.rates_as_of(Country.IN).isoformat(),
+        rates_source=rates_feed.source_label(Country.IN),
+        notes=notes,
     )
 
 
