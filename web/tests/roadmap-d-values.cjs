@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -82,7 +83,7 @@ test('wired: Plan\'s top-up, a new goal\'s buffer, the EF tier, goal projections
   // the buffer came from the preset, and returns/costs/margin were constants.
   assert.match(src('components/plan/load-plan.ts'), /efTopUpShare\(adjustedUser, efSplit, surplus\)/);
   assert.match(src('components/goals/GoalForm.tsx'), /bufferPct: goalBuffer\(loadProfileClient\(\)\.user, p\.bufferPct\)/);
-  const profile = src('app/profile/ProfileClient.tsx');
+  const profile = profileSource();
   assert.match(profile, /ownMonths=\{ownEfMonths\}/);
   assert.match(profile, /id: 'own' as const, label: 'Yours', months: ownMonths/);
   assert.match(profile, /href="\/profile\/assumptions"/);

@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -93,7 +94,7 @@ test('a PA mortgage saves only federal tax in the on-screen payoff order too', (
 });
 
 test('the Profile loan card shows the US fields for US-market loans', () => {
-  const p = src('app/profile/ProfileClient.tsx');
+  const p = profileSource();
   assert.match(p, /loanMarket\(l, country\) === 'US' && \(\s*<UsLoanFields/);
   assert.match(p, /<UsStateField value=\{usState\}/);
   assert.match(p, /\.\.\.usLoanFieldsFor\(l, country\)/);

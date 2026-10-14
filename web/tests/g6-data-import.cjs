@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 // G6: the credit-report and SMS imports never save by themselves, say honestly
 // where the document is read (#19), keep the password out of storage (#18),
 // and send SMS nowhere.
@@ -62,7 +63,7 @@ test('wiring: imports never save by themselves; copy is honest about the server'
   const kfs = src('components/profile/KfsImport.tsx');
   assert.match(kfs, /data-testid="kfs-password"/);
   assert.doesNotMatch(kfs, /local only/i);
-  const prof = src('app/profile/ProfileClient.tsx');
+  const prof = profileSource();
   assert.match(prof, /<CreditReportImport/);
   assert.match(prof, /<SmsImport loans=\{loans\}/);
   assert.match(src('lib/api.ts'), /creditReportRead: \(req/);

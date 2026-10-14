@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -162,7 +163,7 @@ test('R8-6: assumptions are bounded on the form, on save, in the API, and clampe
   assert.equal(clampTaxRate('0.95'), '0.6');
   assert.equal(clampTaxRate('0.3'), '0.3');
   // Profile wires the checks and blocks SAVE.
-  const p = src('app/profile/ProfileClient.tsx');
+  const p = profileSource();
   for (const w of [
     "error={assumptionError('payRise', annualHikeRate)}",
     "error={assumptionError('tax', marginalRate)}",
@@ -192,7 +193,7 @@ test('R8-7: lock-in and part-payment gap keep the typed text and take whole mont
   assert.match(wholeMonthsError('0', PART_PAY_FREQ_RANGE), /from 1 to 120/);
   assert.equal(wholeMonthsValue('abc', LOCK_IN_RANGE), undefined);
   assert.equal(wholeMonthsValue('6', LOCK_IN_RANGE), 6);
-  const p = src('app/profile/ProfileClient.tsx');
+  const p = profileSource();
   assert.doesNotMatch(p, /prepay_lock_in_months: v === '' \? undefined : Number\(v\)/);
   assert.doesNotMatch(p, /part_payment_freq_months: v === '' \? undefined : Number\(v\)/);
   assert.match(p, /wholeMonthsValue\(v, LOCK_IN_RANGE\)/);
@@ -200,7 +201,7 @@ test('R8-7: lock-in and part-payment gap keep the typed text and take whole mont
 });
 
 test('R8-8: Profile credit score uses the R7-6 check', () => {
-  const p = src('app/profile/ProfileClient.tsx');
+  const p = profileSource();
   assert.match(p, /error=\{creditScoreError\(creditScore, country\)\}/);
   assert.match(p, /credit_score: usableCreditScore\(creditScore, country\) \|\| undefined/);
 });
