@@ -48,10 +48,6 @@ export function TaxPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 28, width: '100%' }}>
       <header>
-        <div style={{ marginBottom: 8, whiteSpace: 'nowrap' }}>
-          <LBracket href="/profile">← WHOLE PROFILE</LBracket>
-        </div>
-        <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>PROFILE · TAX</div>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>Tax and your loans</h1>
         <p style={{ color: L_T.inkSoft, fontSize: 'var(--fs-body)', margin: '8px 0 0', lineHeight: 1.6 }}>
           {isIN

@@ -4,12 +4,14 @@ import { LedgerPortfolio } from '@/components/portfolio/LedgerPortfolio';
 import { CashManagementSection } from '@/components/debts/CashManagementSection';
 import { LBracket, L_T } from '@/components/ledger/primitives';
 import { PORTFOLIO_INTRO } from '@/lib/portfolio-tab';
+import { AssetsTaxNav } from '@/components/chrome/AssetsTaxNav';
 
 /** Its own tab title (UX50 C-26 / E-15). */
-export const metadata = { title: 'Portfolio · RightDue' };
+export const metadata = { title: 'Assets & tax: what you own · RightDue' };
 
 /**
- * /portfolio: its own tab since sprint G10 (founder's cut-list decision 2:
+ * /portfolio: "What you own", the first half of the Assets & tax section
+ * behind More (audit 80+ A20; it was its own tab since sprint G10 (founder's cut-list decision 2:
  * "keep, as a new tab"). It used to be Profile's "What you own" page.
  *
  * What the user holds and what it's worth (FDs, funds, gold, property,
@@ -25,9 +27,9 @@ export default async function PortfolioPage() {
   const summary = summarisePortfolio(profile.user.assets, profile.user.country);
   return (
     <>
+      <AssetsTaxNav current="/portfolio" />
       <header style={{ marginBottom: 22, maxWidth: 820 }}>
-        <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>PORTFOLIO · WHAT YOU OWN</div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>Portfolio</h1>
+        <h1 style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-h1)', fontWeight: 700, margin: 0, lineHeight: 1.25 }}>What you own</h1>
         <p style={{ color: L_T.inkSoft, fontSize: 'var(--fs-body)', margin: '8px 0 0', lineHeight: 1.6 }}>
           {PORTFOLIO_INTRO}{' '}
           <LBracket href="/profile/assets">+ ADD OR EDIT</LBracket>
