@@ -381,7 +381,13 @@ GAP_ROUNDING = {"INR": D("100"), "USD": D("1")}
 # assumption, labelled as such; User.gap_credit_limit overrides it.
 GAP_LIMIT_MONTHS_OF_PAY = D("3")
 MAX_RATE_RISE_EVENTS = 24
-PAYOFF_EPSILON = D("1e-9")
+# Half the smallest coin (paisa / cent). A balance under this after a payment
+# is rounding in a rounded EMI (W9 finding: Rs 480.39 against an exact
+# 480.3901... leaves Rs 0.001 after 12 EMIs), not a debt: the last instalment
+# absorbs it and the loan closes that month, as a lender's final EMI does.
+# Before this an exact `== 0` kept the loan open and the debt-free month was
+# a month late. INR and USD both have 1/100 minor units.
+DUST = D("0.005")
 
 
 def _marginal_rate(user: User, marginal_rate_override: Decimal | None) -> Decimal:
@@ -1309,13 +1315,16 @@ def _simulate_plan(
                 principal_this = pay - interest_this
             # A payoff (a maturity or final instalment, C2/C3) is balance +
             # interest; (a + b) - b can miss a by 1E-25 at Decimal precision,
-            # which left a phantom balance and a month-later "debt-free".
-            if principal_this >= l.outstanding - PAYOFF_EPSILON:
+            # which left a phantom balance and a month-later "debt-free";
+            # a rounded EMI can miss it by a tenth of a paisa (DUST).
+            if principal_this >= l.outstanding - DUST:
                 # Loan clears; cascade the unused portion (in user ccy so
                 # we can route it to a different-ccy loan cleanly).
                 refund = principal_this - l.outstanding
                 principal_this = l.outstanding
-                cascade_surplus += to_user_currency(refund, l, user)
+                # A negative refund is sub-paisa dust (DUST): the last
+                # instalment carries it; nothing is taken from other loans.
+                cascade_surplus += to_user_currency(max(refund, D("0")), l, user)
                 l.outstanding = D("0")
                 cleared.append(id(l))
                 # Refund came off this loan's payment — it never actually

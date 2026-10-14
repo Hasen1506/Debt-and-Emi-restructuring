@@ -112,11 +112,8 @@ def test_no_figure_is_nan_infinite_or_negative(u, s):
                 assert _finite_non_negative(v), f"{name} month {row.month_index}: {field} = {v}"
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "W9 finding for W1 (engine/simulation.py): a sub-paisa residue left by a "
-    "rounded EMI keeps the loan 'outstanding' one more month, so the debt-free "
-    "month is reported a month late and the last month pays ~Rs 0.001. Remove "
-    "this marker when the engine clears balances under half a paisa."))
+# W9 finding, fixed at integration (engine/simulation.py DUST): a balance under
+# half a paisa after a rounded EMI closes the loan that month.
 def test_debt_free_month_is_not_late_by_sub_paisa_dust():
     """Hand check: Rs 5,760 at 0.15% p.a. over 12 months. Exact annuity EMI is
     5760*r/(1-(1+r)^-12) with r=0.0015/12 = Rs 480.3901..., the bank rounds to
