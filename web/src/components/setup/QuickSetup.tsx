@@ -25,6 +25,9 @@ import {
   lStrip,
 } from '@/components/ledger/primitives';
 import { api, formatCurrencyWhole } from '@/lib/api';
+import { FX_WAIT_LABEL, fxGate } from '@/lib/fx-gate';
+import { defaultDriftForLoanCurrency, readFxDriftClient } from '@/lib/fx-drift';
+import { UsStudentChips } from '@/components/setup/UsStudentChips';
 import type {
   Country,
   FxRateResponse,
@@ -346,20 +349,10 @@ export function QuickSetup() {
   const foreignCcys = Array.from(
     new Set(activeLoans.map((l) => loanCurrency(l, country)).filter((c) => c !== userCcy)),
   );
-  const fxErrors: Record<string, string> = {};
-  for (const c of foreignCcys) {
-    const r = Number(fxRates[c]);
-    if (!(r > 0)) {
-      fxErrors[c] =
-        fxQuotes[c] === 'failed'
-          ? `Today's rate couldn't be fetched. Enter what 1 ${c} is worth in ${userCcy} (your bank's app shows it).`
-          : `Enter what 1 ${c} is worth in ${userCcy}.`;
-    } else if (r > 100000) {
-      fxErrors[c] = `That rate looks too large. Check the direction: 1 ${c} in ${userCcy}.`;
-    }
-  }
-  const step2Ok =
-    loans.every((l) => Object.keys(issuesOf(l)).length === 0) && Object.keys(fxErrors).length === 0;
+  // E6 (audit 80): a rate still being fetched is pending, not an error.
+  const { pending: fxPending, errors: fxErrors } = fxGate(foreignCcys, fxRates, fxQuotes, userCcy);
+  const loansOk = loans.every((l) => Object.keys(issuesOf(l)).length === 0);
+  const step2Ok = loansOk && Object.keys(fxErrors).length === 0 && fxPending.length === 0;
   // Live re-test 2 R2-2: the summary names what's wrong. An EMI below the
   // month's interest isn't a missing number.
   // Live re-test 3 R3-4: a rate that can't be read (or is out of range) is
@@ -542,6 +535,16 @@ export function QuickSetup() {
       delete c.balance_recorded_at;
       return c;
     });
+    // E5: the same rupee slide Plan and Home apply (load-plan.ts), so step 3
+    // shows the numbers they will.
+    if (readFxDriftClient() === 'on') {
+      const drift: Record<string, string> = {};
+      for (const ccy of Object.keys(planUser.fx_to_user_currency ?? {})) {
+        const r = defaultDriftForLoanCurrency(ccy, planUser.country);
+        if (r !== '0') drift[ccy] = r;
+      }
+      if (Object.keys(drift).length > 0) planUser.fx_drift_annualized = drift;
+    }
     let live = true;
     setPreview(null);
     setPreviewError(null);
@@ -605,6 +608,24 @@ export function QuickSetup() {
     }
   }
   goToRef.current = goTo;
+
+  // E6: Continue tapped while today's rate is on its way waits for it, then
+  // moves on (or shows the "couldn't be fetched" error if the fetch failed).
+  const [continueQueued, setContinueQueued] = useState(false);
+  const fxWaiting = fxPending.length > 0;
+  useEffect(() => {
+    if (continueQueued && !fxWaiting) {
+      setContinueQueued(false);
+      goToRef.current?.(2);
+    }
+  }, [continueQueued, fxWaiting]);
+  function continueToPlan() {
+    if (fxWaiting && loansOk && Object.keys(fxErrors).length === 0) {
+      setContinueQueued(true);
+      return;
+    }
+    goTo(2);
+  }
 
   /** A country change never re-reads typed amounts in the new currency
    *  (live QA: ₹20 lakh became $2,000,000). Loans already entered keep
@@ -937,13 +958,20 @@ export function QuickSetup() {
                   }`}
                 />
               )}
-              {showErrors && !step2Ok && (
+              {continueQueued && fxWaiting && (
+                <p role="status" data-testid="fx-waiting" style={{ color: L_T.inkSoft, margin: '10px 0 0' }}>
+                  Getting today&apos;s exchange rate. Your plan opens as soon as it arrives.
+                </p>
+              )}
+              {showErrors && !step2Ok && !fxWaiting && (
                 <p role="alert" style={{ color: L_T.negative, margin: '10px 0 0' }}>
                   {step2Summary}
                 </p>
               )}
               <Actions back={<LBracket onClick={() => goTo(0)}>← BACK</LBracket>}>
-                <LButton onClick={() => goTo(2)}>CONTINUE · SEE YOUR PLAN</LButton>
+                <LButton onClick={continueToPlan} disabled={continueQueued}>
+                  {fxWaiting ? FX_WAIT_LABEL : 'CONTINUE · SEE YOUR PLAN'}
+                </LButton>
               </Actions>
             </div>
           )}
@@ -1172,6 +1200,9 @@ function LoanBlock({
           <Chip on={ccy === 'INR'} onClick={() => setCurrency('INR')}>₹ Rupees</Chip>
           <Chip on={ccy === 'USD'} onClick={() => setCurrency('USD')}>$ Dollars</Chip>
         </ChipRow>
+      )}
+      {loan.loan_type === 'education_loan' && ccy === 'USD' && (
+        <UsStudentChips loan={loan} onPatch={onPatch} />
       )}
       <div style={grid2}>
         <BankCombobox

@@ -424,6 +424,8 @@ export function NriPrepayTool() {
         <LStep no="02" id="nri-out" title="The answer" answer>
           <LVerdict tone={VERDICT_TONE[v.verdict]}>{VERDICT_LABEL[v.verdict]}</LVerdict>
           <LNote>{v.rationale}</LNote>
+          {/* E5 (audit 80): the transfer cost is shown, never silent. */}
+          {v.comparison_line && <LNote>{v.comparison_line}</LNote>}
           <LKpi
             items={[
               { l: 'THE LOAN COSTS YOU', v: pct(v.effective_loan_cost_in_user_currency), s: `a year, in ${userCurrency}`, tone: L_T.negative },

@@ -26,7 +26,7 @@ const s = (v) => (v == null ? null : v.toString());
 
 test('differential: student-loan holds and explainers equal the engine', () => {
   const u = lib('us-loans.ts');
-  assert.equal(cases.student.length, 27);
+  assert.equal(cases.student.length, 45); // E7: + 'none' and 'unsure' answers
   for (const c of cases.student) {
     assert.equal(u.forgivenessPrepayBlock(c.loan), c.block, JSON.stringify(c.loan));
     assert.deepEqual(u.studentLoanExplainer(c.loan), c.explainer, JSON.stringify(c.loan));

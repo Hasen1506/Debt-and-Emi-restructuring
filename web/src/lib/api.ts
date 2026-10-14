@@ -213,8 +213,10 @@ export interface LoanPayload {
    *  blank is treated as federal, so it is never refinanced privately. */
   student_loan_kind?: 'federal' | 'private';
   /** US federal student loans: 'pslf' | 'idr' holds extra payments off the
-   *  loan (they'd only shrink what's forgiven). */
-  forgiveness_track?: 'pslf' | 'idr';
+   *  loan (they'd only shrink what's forgiven). E7 (audit 80): 'none' = the
+   *  user said it isn't heading for forgiveness (extra allowed); 'unsure' or
+   *  no answer holds extra until they say. */
+  forgiveness_track?: 'pslf' | 'idr' | 'none' | 'unsure';
   /** US mortgages (grill #34): monthly PMI / FHA MIP paid with the payment. */
   pmi_monthly?: string;
   /** The home's original value: the lower of price and appraisal at purchase. */
@@ -1006,6 +1008,11 @@ export interface CrossBorderResponse {
   rationale: string;
   loan_emi_user_currency: string;
   loan_emi_user_currency_y5: string;
+  /** E5 (audit 80): the transfer cost used and what a prepayment returns. */
+  remittance_cost_used?: string;
+  prepay_return_after_remittance?: string;
+  comparison_line?: string;
+  comparison_caveats?: string[];
 }
 
 // ─── Loan Check ─────────────────────────────────────────────────────────────
@@ -1652,6 +1659,10 @@ export const api = {
     manual_fx_rate?: string;
     manual_fx_drift_annual?: string;
     inflation_user_country?: string;
+    /** E5: share of the amount sent; omitted = the World Bank corridor average. */
+    remittance_cost_pct?: string;
+    funds_in_india?: boolean;
+    use_published_savings_rate?: boolean;
   }) => postWithFieldErrors<CrossBorderResponse>('/api/cross-border-decision', req),
 
   restructuring: (req: {

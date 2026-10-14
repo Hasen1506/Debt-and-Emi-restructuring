@@ -14,6 +14,7 @@
  * (REDESIGN R2).
  */
 
+import { NriPrepayLine } from './NriPrepayLine';
 import { localTerms, paymentWords } from '@/lib/terms';
 import type { PlanData } from './PlanData';
 import { useState } from 'react';
@@ -283,6 +284,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           </div>
         )}
         <PlanTrajectory plan={shownPlan} short={short} />
+        <NriPrepayLine user={plan.user} drift={plan.fxDrift} />
         {!short && (
           <div data-print="hide">
             <DebtFreeRedirectPrompt plan={plan} />
