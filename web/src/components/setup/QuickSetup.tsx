@@ -31,6 +31,7 @@ import type {
   IncomeType,
   LoanPayload,
   LoanType,
+  SimulateArgs,
   SimulateResponse,
   UserPayload,
 } from '@/lib/api';
@@ -46,6 +47,8 @@ import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { feeShown } from '@/lib/prepayment-fee';
 import { readEfSplitClient, writeEfSplitClient } from '@/lib/ef-split';
 import { SetupChoices } from '@/components/setup/SetupChoices';
+import { InsightsPanel } from '@/components/insights/InsightsPanel';
+import { orderChoice, type PlanInsights } from '@/lib/insights';
 import { SetupImportCard } from '@/components/setup/SetupImportCard';
 import { applyChoices, choicesFrom, missingChoices, type SetupChoices as Choices } from '@/lib/setup-choices';
 import { emiFromMonths, marginalRateFromTakeHome } from '@/lib/quick-setup';
@@ -114,6 +117,8 @@ interface Preview {
   loans: LoanPayload[];
   /** What the engine ran on (R10-4: Home's whole-rupee split reads it). */
   planUser: UserPayload;
+  /** The run itself, for the plan-insight cards (audit 80+ A1/A2/A5/A6). */
+  simArgs: SimulateArgs;
 }
 
 /** What Setup keeps in sessionStorage between Back, Forward and reload (B-10). */
@@ -189,6 +194,8 @@ export function QuickSetup() {
   // Choices only the person can make (lib/setup-choices, grill #22).
   const [choices, setChoices] = useState<Choices>({ efMonths: null, efSplit: null, strategy: null });
   const [choiceErrors, setChoiceErrors] = useState(false);
+  // Audit 80+ A2: whether the payoff order changes anything for these loans.
+  const [orderInfo, setOrderInfo] = useState<ReturnType<typeof orderChoice> | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const stepRef = useRef<HTMLElement>(null);
   const firstRender = useRef(true);
@@ -569,7 +576,7 @@ export function QuickSetup() {
         engineRequests.run('simulate', simArgs, (signal) => api.simulate(simArgs, { signal }), controller.signal),
         engineRequests.run('baseline', baselineArgs, (signal) => api.baseline(baselineArgs, { signal }), controller.signal),
       ])
-        .then(([plan, minimums]) => live && setPreview({ plan, minimums, loans: user.loans, planUser }))
+        .then(([plan, minimums]) => live && setPreview({ plan, minimums, loans: user.loans, planUser, simArgs }))
         .catch((e) => {
           if (!live || isAbortError(e)) return;
           setPreviewError("The plan couldn't be worked out just now. You can still save, and Home will try again.");
@@ -951,6 +958,12 @@ export function QuickSetup() {
           {step === 2 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <PlanPreview
+                onInsights={(i) => {
+                  // A2: ask only when the orders differ; otherwise pick the cheapest.
+                  const o = orderChoice(i ? i.order : undefined);
+                  setOrderInfo(i ? o : null);
+                  if (i && !o.ask && o.preselect) setChoices((c) => (c.strategy == null ? { ...c, strategy: o.preselect } : c));
+                }}
                 preview={preview}
                 error={previewError}
                 noLoans={activeLoans.length === 0}
@@ -966,6 +979,7 @@ export function QuickSetup() {
                 }}
                 showErrors={choiceErrors}
                 hasLoans={activeLoans.length > 0}
+                orderInfo={orderInfo}
                 monthlySpend={Number(num(spend))}
                 money={(v) => money(v)}
               />
@@ -1418,7 +1432,9 @@ function PlanPreview({
   country,
   money,
   hasFund = false,
+  onInsights,
 }: {
+  onInsights?: (i: PlanInsights | null) => void;
   preview: Preview | null;
   error: string | null;
   noLoans: boolean;
@@ -1459,7 +1475,9 @@ function PlanPreview({
   const debtFreeRow: [string, ReactNode, string?] = short
     ? [
         'Debt-free',
-        closedMonth ? monthIndexToCountryLabel(closedMonth, country) : 'No date yet',
+        // Audit 80+ A5: the gap is the headline (the card above); the date it
+        // would take to close it is demoted to the note.
+        'No date yet',
         shortGapLine({
           shortfall: shortfall.toNumber(),
           asIsMonth: plan.debt_free_month ?? null,
@@ -1504,6 +1522,13 @@ function PlanPreview({
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Audit 80+ A1/A5/A6: first on Step 3. The order doesn't change these cards. */}
+      <InsightsPanel
+        runArgs={{ ...preview.simArgs, strategy: undefined }}
+        variant="setup"
+        closedDebtFreeMonth={closedMonth}
+        onInsights={onInsights}
+      />
       {shortfall.gt(0) && (
         <p role="alert" style={{ margin: 0, padding: '10px 12px', border: `1px solid ${L_T.negative}`, color: L_T.negative, lineHeight: 1.55 }}>
           Your take-home is {money(shortfall)} a month short of spending plus minimum payments. The date below is

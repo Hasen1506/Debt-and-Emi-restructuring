@@ -10,6 +10,7 @@ import {
   HomeDebtFreeCaption,
   HomeDebtFreeValue,
   HomeInterestCaption,
+  HomeInsights,
   HomeInterestValue,
   HomeMoveOneStep,
   HomePayThisMonth,
@@ -71,6 +72,11 @@ export default async function HomePage() {
         cheaper={
           <Suspense fallback={null}>
             <HomeCheaperRates />
+          </Suspense>
+        }
+        insights={
+          <Suspense fallback={null}>
+            <HomeInsights />
           </Suspense>
         }
         oneStep={
