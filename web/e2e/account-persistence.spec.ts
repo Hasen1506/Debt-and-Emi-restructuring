@@ -136,14 +136,21 @@ test('a browser still holding finoptima_* cookies keeps its session and data, an
   await oldPage.goto('/profile');
   await expect(oldPage).toHaveURL(/\/profile$/);
   await takeHome(oldPage, '₹1,20,000');
-  // Polled, not read once. Firefox, CI run 38488716548 attempt 1: a single
-  // read right after the page drew still listed finoptima_activity_deltas
-  // and finoptima_marginal, which the /profile response expires (the same
-  // tree passed on the PR run and in WebKit; not reproduced locally). A
-  // name that is really left behind still fails here after the timeout.
-  const names = async () => (await old.cookies()).map((c) => c.name);
-  await expect.poll(names).toEqual(expect.arrayContaining(['rightdue_session', 'rightdue_user']));
-  await expect.poll(async () => (await names()).filter((n) => n.startsWith('finoptima_'))).toEqual([]);
+  // What the browser sends from now on, not what Firefox's cookie list
+  // reports. CI run 38488716548 (and 1 in 12 local Firefox runs): the
+  // /profile response expired all five finoptima_* names and every later
+  // request carried none, yet old.cookies() still listed some of them 15 s
+  // later. The rename is the browser sending only rightdue_* names.
+  const probe = '/api/session/auth/me?rename-check=1';
+  const [sentRequest, me] = await Promise.all([
+    oldPage.waitForRequest((r) => r.url().endsWith(probe)),
+    oldPage.evaluate((url) => fetch(url, { credentials: 'include', cache: 'no-store' }).then((r) => r.json()), probe),
+  ]);
+  const sent = ((await sentRequest.headerValue('cookie')) ?? '').split(/;\s*/).map((c) => c.split('=')[0]);
+  expect(sent).toEqual(expect.arrayContaining(['rightdue_session', 'rightdue_user']));
+  expect(sent.filter((n) => n.startsWith('finoptima_'))).toEqual([]);
+  expect(me.email).toBe(testEmail('l1-rename@rightdue.app'));
+  expect(await oldPage.evaluate(() => document.cookie.split(/;\s*/).filter((c) => c.startsWith('finoptima_')))).toEqual([]);
   expect((await old.cookies()).find((c) => c.name === 'rightdue_session')!.httpOnly).toBe(true);
   expect((await (await old.request.get('/api/session/auth/me')).json()).email).toBe(testEmail('l1-rename@rightdue.app'));
   await old.close();
