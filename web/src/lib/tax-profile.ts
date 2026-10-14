@@ -148,6 +148,51 @@ export function regimeInputsFromUser(user: UserPayload, currentMonth: string): {
 
 /** Live re-test 2 NEW-18: one way to print the tax rate everywhere (Home,
  *  Plan, Profile and Tax said 16% and 15.6% for the same 0.156). */
+/**
+ * B14 / E9: the marginal rate the way a taxpayer recognises it. India's
+ * rates are slab × (1 + surcharge) × 1.04 cess (engine/tax/india.py
+ * marginal_rate), so 26.0% is "25% slab + 4% cess" and 0 inside the s.156
+ * rebate is "no income tax on your pay". US: the federal bracket (plus the
+ * state rate when one is set). `estimated`: worked out from take-home.
+ */
+export function taxRateLabel(
+  rate: Decimal.Value | null | undefined,
+  country: 'IN' | 'US' | string,
+  opts: { estimated?: boolean; regime?: 'old' | 'new' | null; stateRate?: Decimal.Value | null } = {},
+): string {
+  const r = new Decimal(rate == null || rate === '' ? 0 : rate);
+  const est = opts.estimated ? ' (estimated)' : '';
+  if (country === 'IN') {
+    if (r.lte(0)) {
+      return `No income tax on your pay${opts.regime ? ` (${opts.regime} regime${opts.estimated ? ', estimated' : ''})` : est}`;
+    }
+    const base = r.div('1.04');
+    for (const sur of ['0', '0.10', '0.15', '0.25', '0.37']) {
+      const slab = base.div(new Decimal(1).add(sur));
+      const pct = slab.mul(100);
+      if (pct.sub(pct.round()).abs().lt('0.05') && [5, 10, 15, 20, 25, 30].includes(pct.round().toNumber())) {
+        const surTxt = sur === '0' ? '' : ` + ${new Decimal(sur).mul(100).toFixed(0)}% surcharge`;
+        return `${pct.round().toFixed(0)}% slab${surTxt} + 4% cess = ${r.mul(100).toFixed(1)}% on your next rupee${est}`;
+      }
+    }
+    return `${formatTaxRate(r)} on your next rupee${est}`;
+  }
+  const state = new Decimal(opts.stateRate == null || opts.stateRate === '' ? 0 : opts.stateRate);
+  if (r.lte(0)) return `No federal income tax at the margin${est}`;
+  if (state.gt(0) && r.gt(state)) {
+    return `${r.sub(state).mul(100).toFixed(0)}% federal bracket + ${state.mul(100).toFixed(1)}% state${est}`;
+  }
+  return `${r.mul(100).toFixed(0)}% federal bracket${est}`;
+}
+
+/** "25% slab" / "24% bracket": the slab inside a marginal rate (E9). */
+export function taxSlabShort(rate: Decimal.Value, country: 'IN' | 'US' | string): string {
+  const full = taxRateLabel(rate, country);
+  const m = full.match(/^(\d+)% (slab|federal bracket)/);
+  if (m) return country === 'IN' ? `${m[1]}% slab` : `${m[1]}% bracket`;
+  return country === 'IN' ? 'no-tax' : `${formatTaxRate(rate)}`;
+}
+
 export function formatTaxRate(rate: Decimal.Value | null | undefined): string {
   // One decimal, always: what Profile and Tax already showed ("10.0%").
   return `${new Decimal(rate == null || rate === '' ? 0 : rate).mul(100).toFixed(1)}%`;

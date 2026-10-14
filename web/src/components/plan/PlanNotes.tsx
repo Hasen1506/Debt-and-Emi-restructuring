@@ -17,7 +17,10 @@ import type { PlanData } from './PlanData';
 import { formatCurrencyWhole } from '@/lib/api';
 import { computeBreakdown, fmt as fmtPct } from '@/lib/effective-apr';
 import { userMarginalCosts } from '@/lib/marginal-cost';
-import { usMortgageShieldShare } from '@/lib/deductions';
+import { grossFromTakeHome, usMortgageShieldShare } from '@/lib/deductions';
+import { readIncome, regimeInputsFromUser, taxSlabShort } from '@/lib/tax-profile';
+import { compareRegimes } from '@/lib/regime-compare';
+import { countryMonthKey } from '@/lib/today';
 import { compareToLoan, formatAsOf, pct, safeBenchmarks } from '@/lib/invest-vs-prepay';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { loanToUserDecimal } from '@/lib/currency';
@@ -40,6 +43,31 @@ function loanName(l: PlanData['user']['loans'][number]): string {
 }
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/** C21: when the stored regime is new but old would cost less tax this
+ *  year with the loans counted (lib/regime-compare, the Tax page's own
+ *  comparison), a note with the amount and a link to Tax. Gross pay comes
+ *  from Profile, else is estimated from take-home (labelled). */
+export function oldRegimeWouldSave(user: PlanData['user']): Note | null {
+  if (user.country !== 'IN' || (user.tax_regime ?? 'new') !== 'new') return null;
+  if (!user.loans.some((l) => l.loan_type === 'home_loan' || l.loan_type === 'education_loan')) return null;
+  const { inputs, hasBusiness } = regimeInputsFromUser(user, countryMonthKey('IN'));
+  const typed = readIncome(user).source !== 'none';
+  if (!typed) {
+    const gross = grossFromTakeHome(user);
+    if (gross.lte(0)) return null;
+    if (user.income_type === 'business_owner') inputs.businessIncome = gross;
+    else inputs.salary = gross;
+  }
+  const cmp = compareRegimes(inputs, hasBusiness);
+  if (cmp.better !== 'old' || cmp.oldSaves.lt(1000)) return null;
+  return {
+    eyebrow: 'TAX REGIME',
+    title: `The old regime would cost you about ${formatCurrencyWhole(cmp.oldSaves.toFixed(0), 'INR')} less tax this year${typed ? '' : ' (estimated from take-home)'}`,
+    body: `Your plan runs on the new regime, where home-loan (self-occupied) and education-loan interest lower no tax, so the payoff order gives them no tax break. Counted in the old regime, your loans are worth ${formatCurrencyWhole(cmp.loansWorthInOld.toFixed(0), 'INR')} of tax a year. Nothing changes until you choose.${hasBusiness ? ' With business income you can move back to the new regime only once.' : ' Salaried: you choose each year in your return.'}`,
+    link: { href: '/tax', label: 'COMPARE ON TAX' },
+  };
+}
+
 function buildNotes(plan: PlanData): Note[] {
   const { user } = plan;
   const ccy = plan.displayCurrency;
@@ -55,6 +83,12 @@ function buildNotes(plan: PlanData): Note[] {
     .map((i) => ({ loan: user.loans[i], mc: costs.get(i)!, b: computeBreakdown(user.loans[i], plan.marginalRate, user.country, regime, itemises) }))
     .sort((a, b) => b.mc.orderKey.cmp(a.mc.orderKey));
   const notes: Note[] = [];
+
+  // 0. C21: the plan's own regime comparison disagrees with the regime it
+  // runs on. Shown, never switched: the choice is the user's (and a
+  // business owner can switch back only once).
+  const regimeNote = oldRegimeWouldSave(user);
+  if (regimeNote) notes.push(regimeNote);
 
   // 1. Prepay or put it aside: the dearest loan against the best safe rate.
   const top = ranked[0];
@@ -136,7 +170,8 @@ function buildNotes(plan: PlanData): Note[] {
   if (t) {
     notes.push({
       eyebrow: 'TAX BRACKET',
-      title: `Pay rises take you from the ${(t.from.marginalRate * 100).toFixed(0)}% to the ${(t.to.marginalRate * 100).toFixed(0)}% bracket in year ${t.year}`,
+      // E9: name the slab ("25% slab"), not slab × cess ("26%").
+      title: `Pay rises take you from the ${taxSlabShort(t.from.marginalRate, user.country)} to the ${taxSlabShort(t.to.marginalRate, user.country)} in year ${t.year}`,
       body: `At about ${formatCurrencyWhole(t.incomeAtTransition.toFixed(0), ccy)} a year. Each rise above that keeps less after tax, which the plan allows for.${plan.bracketTransitions.length > 1 ? ` ${plan.bracketTransitions.length - 1} more change${plan.bracketTransitions.length > 2 ? 's' : ''} later in the plan.` : ''}`,
     });
   }

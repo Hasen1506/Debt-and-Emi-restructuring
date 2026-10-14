@@ -31,6 +31,7 @@ import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
 import type { AgeBracket, Country, DeductionsPayload, FilingStatusUS, IncomeType, TaxRegimeIN, UserPayload } from './api';
 import { activeSlabGrossAnnual } from './income-streams';
+import { computeAnnualTax } from './tax-brackets';
 import {
   US_STANDARD_DEDUCTION as US_STD_NUM,
   federalTaxUS,
@@ -341,15 +342,44 @@ export function deriveMarginalRate(args: {
  *      capital-gains splits properly via `activeSlabGrossAnnual`).
  *   2. `annual_income` (the engine field — used when streams are absent).
  */
+/** Annual gross pay whose take-home (after income tax) is the monthly
+ *  take-home on file; bisection, as lib/quick-setup.ts does (C9). */
+export function grossFromTakeHome(user: UserPayload): Decimal {
+  const monthly = D(user.monthly_income || 0).gt(0) ? D(user.monthly_income) : D(user.annual_income || 0).div(12);
+  const net = monthly.mul(12).toNumber();
+  if (!Number.isFinite(net) || net <= 0) return D(0);
+  const left = (gross: number) =>
+    gross - Number(computeAnnualTax(user.country, user.tax_regime, user.income_type, gross, user.filing_status).toString());
+  let lo = net;
+  let hi = net * 3;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (left(mid) < net) lo = mid;
+    else hi = mid;
+  }
+  return D(Math.round(hi));
+}
+
 export function deriveMarginalRateForUser(user: UserPayload, fallback = '0'): string {
   const slabFromStreams = user.income_streams && user.income_streams.length > 0
     ? activeSlabGrossAnnual(user.income_streams)
     : D(0);
-  // Fall back to annual_income only when streams aren't configured —
-  // capital-gains splits live in streams, not on the scalar field.
+  // Streams first (capital-gains splits live there), then gross pay the
+  // user typed (Form 16 / W-2 / ITR). Audit C9: `annual_income` is take-home
+  // × 12 (QuickSetup), not gross, so reading it as gross lowered the bracket
+  // after any life event (31.2% → 20.8% at ₹80k/mo, old regime). With no
+  // gross on file, solve gross from take-home exactly as QuickSetup's
+  // estimate does (lib/quick-setup.ts marginalRateFromTakeHome).
+  const typedGross = D(
+    (user.income_type === 'business_owner'
+      ? user.annual_business_income || user.annual_gross_salary
+      : user.annual_gross_salary || user.annual_business_income) || 0,
+  );
   const grossAnnual = slabFromStreams.gt(0)
     ? slabFromStreams
-    : D(user.annual_income);
+    : typedGross.gt(0)
+      ? typedGross
+      : grossFromTakeHome(user);
   // No income on the profile: keep the caller's rate rather than a 0% that
   // would read as "no tax" (lib/marginal-rate).
   if (grossAnnual.lte(0)) return fallback;
