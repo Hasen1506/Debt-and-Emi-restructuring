@@ -256,7 +256,7 @@ export function CreditReportImport({
               </span>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn btn-primary"
                 data-testid="cr-unlock"
                 disabled={busy || !password}
                 onClick={() => read({ pdf_base64: bytesToBase64(file), password })}
@@ -390,7 +390,7 @@ export function CreditReportImport({
             );
           })}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="btn-primary" data-testid="cr-add" disabled={!adds && !updates} onClick={add}>
+            <button type="button" className="btn btn-primary" data-testid="cr-add" disabled={!adds && !updates} onClick={add}>
               {adds ? `Add ${adds} to my loans` : ''}
               {adds && updates ? ', ' : ''}
               {updates ? `update ${updates}` : ''}

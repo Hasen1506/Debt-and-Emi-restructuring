@@ -56,7 +56,7 @@ export function SetupImportCard({
       </p>
       {mode === 'choose' && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" className="btn-primary" style={btn} data-testid="setup-import-upload" onClick={() => setMode('upload')}>
+          <button type="button" className="btn btn-primary" style={btn} data-testid="setup-import-upload" onClick={() => setMode('upload')}>
             Upload credit report PDF
           </button>
           <button type="button" className="btn-ghost" style={{ ...btn, border: '1px solid currentColor' }} data-testid="setup-import-type" onClick={() => setMode('typed')}>

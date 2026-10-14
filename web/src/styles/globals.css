@@ -177,6 +177,43 @@ optgroup {
   filter: brightness(0.92);
 }
 
+/* R12-2: the secondary, ghost button (the Profile → Loans import openers,
+   Close, Read the text, Start again). It was used but never defined, so
+   those rendered as grey bevelled browser-default buttons. Same mono,
+   uppercase ledger type as .btn, a quieter border, no fill. Long labels
+   wrap; 44px on a touch screen (the coarse-pointer block below); the
+   global :focus-visible ring applies. */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  max-width: 100%;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.12em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.btn-ghost:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .chip {
   display: inline-flex;
   align-items: center;

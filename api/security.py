@@ -27,6 +27,7 @@ One ASGI middleware, so it also covers requests FastAPI never routes.
 """
 from __future__ import annotations
 
+import asyncio
 import hmac
 import json
 import os
@@ -37,6 +38,12 @@ from typing import Any, Callable, Optional
 from api import client_ip
 
 MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", 256 * 1024))
+# Live re-test 12 O-1: a 413 sent before the body was read made Render's
+# edge answer 502 now and then (it saw the connection close mid-upload).
+# So the rest of an oversized body is read and thrown away, up to this
+# much (and this long), before the 413 goes out with Connection: close.
+DRAIN_MAX_BYTES = int(os.environ.get("DRAIN_MAX_BYTES", 16 * 1024 * 1024))
+DRAIN_MAX_SECONDS = float(os.environ.get("DRAIN_MAX_SECONDS", 10))
 # A KFS PDF (engine/kfs.MAX_PDF_BYTES, 4 MB) as base64 in JSON.
 KFS_BODY_BYTES = 6 * 1024 * 1024
 LARGE_BODY_PATHS = {"/api/kfs/read": KFS_BODY_BYTES, "/api/credit-report/read": KFS_BODY_BYTES}
@@ -173,6 +180,30 @@ class SecurityMiddleware:
             await send_with_headers({"type": "http.response.start", "status": status, "headers": hdrs})
             await send_with_headers({"type": "http.response.body", "body": body})
 
+        async def drain(read: int = 0) -> bool:
+            """Read and discard the rest of the body (bounded). False when
+            the client went away, so there is nobody to answer."""
+            async def run() -> bool:
+                n = read
+                while n <= DRAIN_MAX_BYTES:
+                    message = await receive()
+                    if message["type"] == "http.disconnect":
+                        return False
+                    n += len(message.get("body", b""))
+                    if not message.get("more_body", False):
+                        break
+                return True
+            try:
+                return await asyncio.wait_for(run(), DRAIN_MAX_SECONDS)
+            except asyncio.TimeoutError:
+                return True
+
+        async def too_large(read: int = 0, done: bool = False):
+            if not done and not await drain(read):
+                return
+            status, hdrs, body = _json(413, "The request is too large.")
+            return await reply(status, hdrs + [(b"connection", b"close")], body)
+
         cap = max(self.max_body, self.large_body_paths.get(scope.get("path", ""), 0))
         if write:
             length = headers.get(b"content-length")
@@ -182,7 +213,7 @@ class SecurityMiddleware:
                 except ValueError:
                     return await reply(*_json(400, "The request's length could not be read."))
                 if too_big:
-                    return await reply(*_json(413, "The request is too large."))
+                    return await too_large()
             if self.rate_limits and not self._internal(headers):
                 ip, path = self.client_ip(scope), scope.get("path", "")
                 wait = self._take(ip, path)
@@ -206,7 +237,7 @@ class SecurityMiddleware:
             chunk = message.get("body", b"")
             size += len(chunk)
             if size > cap:
-                return await reply(*_json(413, "The request is too large."))
+                return await too_large(size, done=not message.get("more_body", False))
             chunks.append(chunk)
             if not message.get("more_body", False):
                 break

@@ -16,6 +16,8 @@ import {
   GOAL_PRESETS,
   KEPT_IN_LABEL,
   blankGoal,
+  goalAmountBlurError,
+  goalAmountError,
   type Goal,
   type GoalFundingSource,
   type GoalKeptIn,
@@ -84,6 +86,8 @@ export function GoalForm({
   const [saved, setSaved] = useState('');
   const [more, setMore] = useState(false);
   const [tried, setTried] = useState(false);
+  // O-4: the amount is checked once the person leaves the box, not only at ADD.
+  const [amountLeft, setAmountLeft] = useState(false);
   const fmt = (n: number) => formatCurrencyWhole(n, currency);
   const patch = (p: Partial<Goal>) => setGoal((g) => ({ ...g, ...p }));
 
@@ -109,7 +113,7 @@ export function GoalForm({
   const thisMonth = addMonths(today, 0);
   const errors = {
     label: goal.label.trim() ? null : 'Name it, e.g. "Home down payment".',
-    amount: Number(goal.amount) > 0 ? null : 'Enter how much it needs, e.g. 15L.',
+    amount: goalAmountError(goal.amount),
     targetMonth: !/^\d{4}-\d{2}$/.test(goal.targetMonth)
       ? 'Pick when you need it.'
       : goal.targetMonth <= thisMonth
@@ -180,7 +184,8 @@ export function GoalForm({
           currency={currency}
           value={goal.amount}
           onChange={(v) => patch({ amount: v })}
-          error={show('amount')}
+          onBlur={() => setAmountLeft(true)}
+          error={show('amount') ?? goalAmountBlurError(goal.amount, amountLeft)}
           hint={
             Number(goal.amount) > 0 && Number(goal.bufferPct) > 0
               ? `+${Math.round(Number(goal.bufferPct) * 100)}% buffer: ${fmt(Number(goal.amount) * (1 + Number(goal.bufferPct)))}`

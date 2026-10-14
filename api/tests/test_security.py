@@ -138,3 +138,133 @@ def test_internal_calls_are_not_limited():
 def test_limits_off():
     c, _ = _app(rate_limits=False)
     assert {c.post("/api/echo", json={}).status_code for _ in range(10)} == {200}
+
+
+# ── oversized bodies: read to the end before the 413 (live re-test 12 O-1) ──
+
+import asyncio  # noqa: E402
+
+import api.security as security  # noqa: E402
+
+
+def _drive(mw_kw: dict, messages: list, content_length: int | None = None):
+    """Run SecurityMiddleware on one POST with these receive() messages.
+    Returns (messages read, what was sent, how many reads came before the reply)."""
+    async def app(scope, receive, send):  # never reached for a 413
+        raise AssertionError("the app must not see an oversized body")
+
+    mw = SecurityMiddleware(app, rate_limits=False, **mw_kw)
+    headers = [(b"content-type", b"application/json")]
+    if content_length is not None:
+        headers.append((b"content-length", str(content_length).encode()))
+    scope = {"type": "http", "method": "POST", "path": "/api/echo", "headers": headers,
+             "scheme": "http", "client": ("1.2.3.4", 1)}
+    queue, read, sent, reads_at_reply = list(messages), [], [], []
+
+    async def receive():
+        if not queue:
+            await asyncio.sleep(3600)  # a client that sends nothing more
+        m = queue.pop(0)
+        read.append(m)
+        return m
+
+    async def send(m):
+        if m["type"] == "http.response.start":
+            reads_at_reply.append(len(read))
+        sent.append(m)
+
+    asyncio.run(mw(scope, receive, send))
+    return read, sent, reads_at_reply
+
+
+def _body(n_chunks: int, size: int):
+    return [{"type": "http.request", "body": b"x" * size, "more_body": i < n_chunks - 1} for i in range(n_chunks)]
+
+
+def test_oversized_declared_body_is_read_to_the_end_before_the_413():
+    msgs = _body(10, 500)                      # 5,000 bytes against a 1,000 cap
+    read, sent, at = _drive({"max_body": 1000}, msgs, content_length=5000)
+    assert len(read) == 10, "the whole upload was taken before answering"
+    assert at == [10]
+    start = sent[0]
+    assert start["status"] == 413
+    hdrs = dict(start["headers"])
+    assert hdrs[b"connection"] == b"close"
+    assert hdrs[b"x-content-type-options"] == b"nosniff"
+    assert b"too large" in sent[1]["body"]
+
+
+def test_oversized_body_without_a_length_is_drained_too():
+    read, sent, at = _drive({"max_body": 1000}, _body(10, 500))
+    assert len(read) == 10 and at == [10]
+    assert sent[0]["status"] == 413 and dict(sent[0]["headers"])[b"connection"] == b"close"
+    # Over the cap on the very last chunk: nothing more is read (it would hang).
+    read, sent, _ = _drive({"max_body": 1000}, _body(1, 1500))
+    assert len(read) == 1 and sent[0]["status"] == 413
+
+
+def test_draining_stops_at_its_byte_cap_and_when_the_client_leaves(monkeypatch):
+    monkeypatch.setattr(security, "DRAIN_MAX_BYTES", 3000)
+    read, sent, _ = _drive({"max_body": 1000}, _body(100, 500), content_length=50000)
+    assert len(read) <= 8, "a huge upload isn't read forever"
+    assert sent[0]["status"] == 413
+    # The client hung up mid-upload: nobody to answer, nothing sent.
+    gone = _body(3, 500)[:2] + [{"type": "http.disconnect"}]
+    read, sent, _ = _drive({"max_body": 1000}, gone, content_length=5000)
+    assert sent == []
+
+
+def test_draining_gives_up_after_its_time_cap(monkeypatch):
+    monkeypatch.setattr(security, "DRAIN_MAX_SECONDS", 0.05)
+    # Two chunks, then the client stalls: answered anyway once the time is up.
+    read, sent, _ = _drive({"max_body": 1000}, _body(10, 500)[:2], content_length=5000)
+    assert sent[0]["status"] == 413
+
+
+def test_oversized_body_over_a_real_socket_gets_a_clean_413():
+    """uvicorn on a real socket: a 2 MB upload against the 256 KB cap is
+    answered 413 after the server took all of it, and the connection is
+    closed cleanly (no reset while the client is still sending)."""
+    import socket
+    import threading
+
+    import uvicorn
+
+    app = FastAPI()
+
+    @app.post("/api/echo")
+    async def echo(body: dict) -> dict:
+        return {"n": len(body)}
+
+    app.add_middleware(SecurityMiddleware, rate_limits=False)
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(app, log_level="warning", lifespan="off"))
+    t = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+    t.start()
+    try:
+        import time as _t
+        for _ in range(100):
+            if server.started:
+                break
+            _t.sleep(0.05)
+        body = b'{"a":"' + b"x" * (2 * 1024 * 1024) + b'"}'
+        c = socket.create_connection(("127.0.0.1", port), timeout=10)
+        c.sendall(b"POST /api/echo HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\n"
+                  + f"Content-Length: {len(body)}\r\n\r\n".encode())
+        c.sendall(body)  # would raise ConnectionResetError if the server hung up early
+        data = b""
+        while True:
+            part = c.recv(65536)
+            if not part:
+                break
+            data += part
+        c.close()
+        head = data.split(b"\r\n\r\n", 1)[0].lower()
+        assert head.startswith(b"http/1.1 413")
+        assert b"connection: close" in head
+        assert b"The request is too large." in data
+    finally:
+        server.should_exit = True
+        t.join(timeout=5)

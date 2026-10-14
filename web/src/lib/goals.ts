@@ -132,6 +132,22 @@ export const KEPT_IN_LABEL: Record<GoalKeptIn, string> = {
 };
 
 /** A goal the plan still saves for. */
+/** What a goal's amount needs, or null when it is fine. */
+export const GOAL_AMOUNT_ERROR = 'Enter how much it needs, e.g. 15L.';
+export function goalAmountError(amount: string): string | null {
+  return Number(amount) > 0 ? null : GOAL_AMOUNT_ERROR;
+}
+
+/**
+ * Re-test 12 O-4: the amount box's own message once the person has left it.
+ * A figure that reads as 0 (or less) is flagged then, not only at ADD; a
+ * box left blank isn't (tabbing past it isn't a mistake yet).
+ */
+export function goalAmountBlurError(amount: string, left: boolean): string | null {
+  if (!left || amount.trim() === '') return null;
+  return goalAmountError(amount);
+}
+
 export function isOpenGoal(g: Goal): boolean {
   return !g.status || g.status === 'active';
 }
