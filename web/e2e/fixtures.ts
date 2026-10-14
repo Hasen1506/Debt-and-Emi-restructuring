@@ -118,8 +118,17 @@ export function testEmail(email: string): string {
 /** audit80 D7 (W8): "Agree and send code" stays disabled until the 18+ box
  *  is ticked; every sign-in in the suite goes through here. */
 export async function confirmAgeAndSend(page: Page) {
-  await page.getByTestId('age-confirm').check();
-  await page.getByRole('button', { name: /send code/i }).click();
+  const box = page.getByTestId('age-confirm');
+  const send = page.getByRole('button', { name: /send code/i });
+  // A tick that lands while the page hydrates can show ticked with the
+  // button still disabled (the page now reads it on mount); toggle again
+  // until the button agrees, then send.
+  await expect(async () => {
+    if (await box.isChecked()) await box.uncheck({ timeout: 2_000 });
+    await box.check({ timeout: 2_000 });
+    await expect(send).toBeEnabled({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await send.click();
 }
 
 export async function signIn(page: Page, address: string) {

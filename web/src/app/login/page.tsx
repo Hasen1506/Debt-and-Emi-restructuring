@@ -53,6 +53,11 @@ export default function LoginPage() {
   const needsTurnstile = Boolean(TURNSTILE_SITE_KEY);
   // audit80 D7: an explicit 18+ declaration, stored with the consent (D2).
   const [adult, setAdult] = useState(false);
+  // A tick made before the page hydrated is in the DOM but not in state, so
+  // the button stayed disabled with the box shown ticked (golden India E2E,
+  // cold server). Read it once on mount.
+  const adultRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (adultRef.current?.checked) setAdult(true); }, []);
   const agreement = { notice_version: NOTICE_VERSION, terms_version: TERMS_VERSION, age_confirmed: adult };
 
   // Tick once a second while a request is pending or the resend cooldown runs.
@@ -279,6 +284,7 @@ export default function LoginPage() {
             <input
               type="checkbox"
               required
+              ref={adultRef}
               checked={adult}
               onChange={(e) => setAdult(e.target.checked)}
               data-testid="age-confirm"
