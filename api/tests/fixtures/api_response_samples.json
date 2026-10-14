@@ -1,33 +1,39 @@
 {
  "IN /api/baseline": {
-  "debt_free_month": null,
+  "debt_free_month": 80,
   "gap_closed": null,
+  "gap_limit": "240000.00",
+  "gap_limit_assumed": true,
   "gap_rate": "0.42",
   "gap_rate_basis": "your_card",
   "gap_rate_source": "the highest rate on a card on your profile",
   "goal_finals": [],
   "grows_without_limit": false,
-  "months_in_horizon": 120,
-  "never_clears": true,
+  "infeasible_from_month": null,
+  "loan_warnings": [],
+  "maturities": [],
+  "months_in_horizon": 80,
+  "never_clears": false,
   "non_amortising": [],
   "payoff_order_method": null,
   "payoff_order_note": null,
   "pmi_events": [],
+  "rate_rise_events": [],
   "shortfall": "0",
   "surplus_allocation": null,
   "total_gap_interest": "0.00",
-  "total_interest_paid": "244985.6515863427472107896563",
+  "total_interest_paid": "116168.2085018311201389057404",
   "total_invested": "0",
   "trajectory": [
    {
     "available_surplus": "0.00",
-    "balance": "352683.70",
+    "balance": "350246.99",
     "balances_by_currency": {
-     "INR": "352683.70"
+     "INR": "350246.99"
     },
     "balances_by_loan_index": {
      "0": "293247.00",
-     "1": "59436.70"
+     "1": "56999.99"
     },
     "extra_paid": "0.00",
     "gap_borrowed": "0.00",
@@ -36,25 +42,27 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
-    "interest_paid": "5936.70",
+    "held_for_lock_in": "0.00",
+    "interest_paid": "5903.61",
     "invested": "0.00",
     "month": 1,
     "payments_by_loan_index": {
      "0": "10253.00",
-     "1": "3000.00"
+     "1": "5403.62"
     },
     "shortfall": "0.00",
-    "total_paid": "13253.00"
+    "total_paid": "15656.62",
+    "unfunded_shortfall": "0.00"
    },
    {
     "available_surplus": "0.00",
-    "balance": "345293.90",
+    "balance": "340565.19",
     "balances_by_currency": {
-     "INR": "345293.90"
+     "INR": "340565.19"
     },
     "balances_by_loan_index": {
      "0": "286415.22",
-     "1": "58878.69"
+     "1": "54149.97"
     },
     "extra_paid": "0.00",
     "gap_borrowed": "0.00",
@@ -63,25 +71,27 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
-    "interest_paid": "5835.04",
+    "held_for_lock_in": "0.00",
+    "interest_paid": "5704.64",
     "invested": "0.00",
     "month": 2,
     "payments_by_loan_index": {
      "0": "10253.00",
-     "1": "2971.84"
+     "1": "5133.44"
     },
     "shortfall": "0.00",
-    "total_paid": "13224.84"
+    "total_paid": "15386.44",
+    "unfunded_shortfall": "0.00"
    },
    {
     "available_surplus": "0.00",
-    "balance": "337829.64",
+    "balance": "330946.19",
     "balances_by_currency": {
-     "INR": "337829.64"
+     "INR": "330946.19"
     },
     "balances_by_loan_index": {
      "0": "279503.73",
-     "1": "58325.92"
+     "1": "51442.46"
     },
     "extra_paid": "0.00",
     "gap_borrowed": "0.00",
@@ -90,18 +100,21 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
-    "interest_paid": "5732.67",
+    "held_for_lock_in": "0.00",
+    "interest_paid": "5510.77",
     "invested": "0.00",
     "month": 3,
     "payments_by_loan_index": {
      "0": "10253.00",
-     "1": "2943.93"
+     "1": "4876.77"
     },
     "shortfall": "0.00",
-    "total_paid": "13196.93"
+    "total_paid": "15129.77",
+    "unfunded_shortfall": "0.00"
    }
   ],
-  "trajectory_cut_month": null
+  "trajectory_cut_month": null,
+  "unfunded_shortfall": "0.00"
  },
  "IN /api/sensitivity/compare": {
   "baseline_debt_free_month": 8,
@@ -118,7 +131,7 @@
   "scenario_total_interest": "19899.46761801606294644870485",
   "scenario_trajectory": [
    {
-    "available_surplus": "36747.00",
+    "available_surplus": "34343.38",
     "balance": "314419.15",
     "balances_by_currency": {
      "INR": "314419.15"
@@ -127,13 +140,14 @@
      "0": "292235.33",
      "1": "22183.82"
     },
-    "extra_paid": "36747.00",
+    "extra_paid": "34343.38",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
     "gap_from_savings": "0.00",
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "5419.15",
     "invested": "0.00",
     "month": 1,
@@ -142,10 +156,11 @@
      "1": "39747.00"
     },
     "shortfall": "0.00",
-    "total_paid": "50000.00"
+    "total_paid": "50000.00",
+    "unfunded_shortfall": "0.00"
    },
    {
-    "available_surplus": "38637.81",
+    "available_surplus": "37749.12",
     "balance": "268439.36",
     "balances_by_currency": {
      "INR": "268439.36"
@@ -154,13 +169,14 @@
      "0": "268439.36",
      "1": "0.00"
     },
-    "extra_paid": "38637.81",
+    "extra_paid": "37749.12",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
     "gap_from_savings": "0.00",
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "4020.21",
     "invested": "0.00",
     "month": 2,
@@ -169,7 +185,8 @@
      "1": "22794.61"
     },
     "shortfall": "0.00",
-    "total_paid": "50000.00"
+    "total_paid": "50000.00",
+    "unfunded_shortfall": "0.00"
    },
    {
     "available_surplus": "39747.00",
@@ -188,6 +205,7 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "3131.79",
     "invested": "0.00",
     "month": 3,
@@ -195,7 +213,8 @@
      "0": "50000.00"
     },
     "shortfall": "0.00",
-    "total_paid": "50000.00"
+    "total_paid": "50000.00",
+    "unfunded_shortfall": "0.00"
    }
   ],
   "scenario_trajectory_cut_month": null,
@@ -207,34 +226,40 @@
  "IN /api/simulate": {
   "debt_free_month": 8,
   "gap_closed": null,
+  "gap_limit": "240000.00",
+  "gap_limit_assumed": true,
   "gap_rate": "0.42",
   "gap_rate_basis": "your_card",
   "gap_rate_source": "the highest rate on a card on your profile",
   "goal_finals": [],
   "grows_without_limit": false,
+  "infeasible_from_month": null,
+  "loan_warnings": [],
+  "maturities": [],
   "months_in_horizon": 8,
   "never_clears": false,
   "non_amortising": [],
   "payoff_order_method": null,
   "payoff_order_note": null,
   "pmi_events": [],
+  "rate_rise_events": [],
   "shortfall": "0",
   "surplus_allocation": {
    "any_goal_short": false,
-   "debt_slice": "36747.00",
+   "debt_slice": "34343.37560335333333333333333",
    "ef_preempted": false,
    "ef_slice": "0",
    "ef_split": "0",
    "goal_contributions": [],
    "goal_slice": "0",
-   "surplus": "36747.00"
+   "surplus": "34343.37560335333333333333333"
   },
   "total_gap_interest": "0.00",
   "total_interest_paid": "19996.70229739750088769247725",
   "total_invested": "20003.29770260249911230752277",
   "trajectory": [
    {
-    "available_surplus": "36747.00",
+    "available_surplus": "34343.38",
     "balance": "315430.82",
     "balances_by_currency": {
      "INR": "315430.82"
@@ -243,13 +268,14 @@
      "0": "293247.00",
      "1": "22183.82"
     },
-    "extra_paid": "36747.00",
+    "extra_paid": "34343.38",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
     "gap_from_savings": "0.00",
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "5430.82",
     "invested": "0.00",
     "month": 1,
@@ -258,10 +284,11 @@
      "1": "39747.00"
     },
     "shortfall": "0.00",
-    "total_paid": "50000.00"
+    "total_paid": "50000.00",
+    "unfunded_shortfall": "0.00"
    },
    {
-    "available_surplus": "38637.81",
+    "available_surplus": "37749.12",
     "balance": "269462.83",
     "balances_by_currency": {
      "INR": "269462.83"
@@ -270,13 +297,14 @@
      "0": "269462.83",
      "1": "0.00"
     },
-    "extra_paid": "38637.81",
+    "extra_paid": "37749.12",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
     "gap_from_savings": "0.00",
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "4032.01",
     "invested": "0.00",
     "month": 2,
@@ -285,7 +313,8 @@
      "1": "22794.61"
     },
     "shortfall": "0.00",
-    "total_paid": "50000.00"
+    "total_paid": "50000.00",
+    "unfunded_shortfall": "0.00"
    },
    {
     "available_surplus": "39747.00",
@@ -304,6 +333,7 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "3143.73",
     "invested": "0.00",
     "month": 3,
@@ -311,29 +341,37 @@
      "0": "50000.00"
     },
     "shortfall": "0.00",
-    "total_paid": "50000.00"
+    "total_paid": "50000.00",
+    "unfunded_shortfall": "0.00"
    }
   ],
-  "trajectory_cut_month": null
+  "trajectory_cut_month": null,
+  "unfunded_shortfall": "0.00"
  },
  "US /api/baseline": {
-  "debt_free_month": 49,
+  "debt_free_month": 48,
   "gap_closed": null,
+  "gap_limit": "21000.00",
+  "gap_limit_assumed": true,
   "gap_rate": "0.2236",
   "gap_rate_basis": "default",
   "gap_rate_source": "Federal Reserve G.19: credit card plans, accounts assessed interest, Aug 2026 (released 7 Oct 2026)",
   "goal_finals": [],
   "grows_without_limit": false,
-  "months_in_horizon": 49,
+  "infeasible_from_month": null,
+  "loan_warnings": [],
+  "maturities": [],
+  "months_in_horizon": 48,
   "never_clears": false,
   "non_amortising": [],
   "payoff_order_method": null,
   "payoff_order_note": null,
   "pmi_events": [],
+  "rate_rise_events": [],
   "shortfall": "0",
   "surplus_allocation": null,
   "total_gap_interest": "0.00",
-  "total_interest_paid": "2689.799431702058797290196467",
+  "total_interest_paid": "2689.788995892684802608314632",
   "total_invested": "0",
   "trajectory": [
    {
@@ -352,6 +390,7 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "105.00",
     "invested": "0.00",
     "month": 1,
@@ -359,7 +398,8 @@
      "0": "431.00"
     },
     "shortfall": "0.00",
-    "total_paid": "431.00"
+    "total_paid": "431.00",
+    "unfunded_shortfall": "0.00"
    },
    {
     "available_surplus": "0.00",
@@ -377,6 +417,7 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "103.10",
     "invested": "0.00",
     "month": 2,
@@ -384,7 +425,8 @@
      "0": "431.00"
     },
     "shortfall": "0.00",
-    "total_paid": "431.00"
+    "total_paid": "431.00",
+    "unfunded_shortfall": "0.00"
    },
    {
     "available_surplus": "0.00",
@@ -402,6 +444,7 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "101.19",
     "invested": "0.00",
     "month": 3,
@@ -409,10 +452,12 @@
      "0": "431.00"
     },
     "shortfall": "0.00",
-    "total_paid": "431.00"
+    "total_paid": "431.00",
+    "unfunded_shortfall": "0.00"
    }
   ],
-  "trajectory_cut_month": null
+  "trajectory_cut_month": null,
+  "unfunded_shortfall": "0.00"
  },
  "US /api/sensitivity/compare": {
   "baseline_debt_free_month": 6,
@@ -444,6 +489,7 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "99.17",
     "invested": "0.00",
     "month": 1,
@@ -451,7 +497,8 @@
      "0": "3500.00"
     },
     "shortfall": "0.00",
-    "total_paid": "3500.00"
+    "total_paid": "3500.00",
+    "unfunded_shortfall": "0.00"
    },
    {
     "available_surplus": "3069.00",
@@ -469,6 +516,7 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "79.33",
     "invested": "0.00",
     "month": 2,
@@ -476,7 +524,8 @@
      "0": "3500.00"
     },
     "shortfall": "0.00",
-    "total_paid": "3500.00"
+    "total_paid": "3500.00",
+    "unfunded_shortfall": "0.00"
    },
    {
     "available_surplus": "3069.00",
@@ -494,6 +543,7 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "59.37",
     "invested": "0.00",
     "month": 3,
@@ -501,7 +551,8 @@
      "0": "3500.00"
     },
     "shortfall": "0.00",
-    "total_paid": "3500.00"
+    "total_paid": "3500.00",
+    "unfunded_shortfall": "0.00"
    }
   ],
   "scenario_trajectory_cut_month": null,
@@ -513,17 +564,23 @@
  "US /api/simulate": {
   "debt_free_month": 6,
   "gap_closed": null,
+  "gap_limit": "21000.00",
+  "gap_limit_assumed": true,
   "gap_rate": "0.2236",
   "gap_rate_basis": "default",
   "gap_rate_source": "Federal Reserve G.19: credit card plans, accounts assessed interest, Aug 2026 (released 7 Oct 2026)",
   "goal_finals": [],
   "grows_without_limit": false,
+  "infeasible_from_month": null,
+  "loan_warnings": [],
+  "maturities": [],
   "months_in_horizon": 6,
   "never_clears": false,
   "non_amortising": [],
   "payoff_order_method": null,
   "payoff_order_note": null,
   "pmi_events": [],
+  "rate_rise_events": [],
   "shortfall": "0",
   "surplus_allocation": {
    "any_goal_short": false,
@@ -555,6 +612,7 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "105.00",
     "invested": "0.00",
     "month": 1,
@@ -562,7 +620,8 @@
      "0": "3500.00"
     },
     "shortfall": "0.00",
-    "total_paid": "3500.00"
+    "total_paid": "3500.00",
+    "unfunded_shortfall": "0.00"
    },
    {
     "available_surplus": "3069.00",
@@ -580,6 +639,7 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "85.20",
     "invested": "0.00",
     "month": 2,
@@ -587,7 +647,8 @@
      "0": "3500.00"
     },
     "shortfall": "0.00",
-    "total_paid": "3500.00"
+    "total_paid": "3500.00",
+    "unfunded_shortfall": "0.00"
    },
    {
     "available_surplus": "3069.00",
@@ -605,6 +666,7 @@
     "gap_interest": "0.00",
     "gap_repaid": "0.00",
     "goal_contributions": {},
+    "held_for_lock_in": "0.00",
     "interest_paid": "65.28",
     "invested": "0.00",
     "month": 3,
@@ -612,9 +674,11 @@
      "0": "3500.00"
     },
     "shortfall": "0.00",
-    "total_paid": "3500.00"
+    "total_paid": "3500.00",
+    "unfunded_shortfall": "0.00"
    }
   ],
-  "trajectory_cut_month": null
+  "trajectory_cut_month": null,
+  "unfunded_shortfall": "0.00"
  }
 }
