@@ -3,6 +3,7 @@
  * call sites convert with decimal.js when arithmetic is needed and with
  * `formatINR` / `formatUSD` for display.
  */
+import { pageScoped } from './page-abort';
 import type { KfsReadResponse } from './kfs';
 import type { CreditReportReadResponse } from './credit-report';
 import Decimal from 'decimal.js';
@@ -1704,7 +1705,8 @@ export const api = {
   // (the masthead's indicator and the account notice) share one request.
   me: (): Promise<AuthUser> => {
     if (typeof window === 'undefined' || !meInFlight) {
-      meInFlight = get<AuthUser | null>('/api/auth/me')
+      // R10-3: cut off cleanly when the page starts to unload.
+      meInFlight = pageScoped((signal) => get<AuthUser | null>('/api/auth/me', signal))
         .then((user) => {
           if (!user) throw new ApiStatusError('/api/auth/me → 401', 401, '');
           return user;
@@ -1748,7 +1750,7 @@ export const api = {
 
   /** R9 O-1: pass a signal so leaving the page cancels it cleanly. */
   centralRates: (signal?: AbortSignal) =>
-    get<CentralRatesResponse>('/api/rates/central', signal),
+    pageScoped((s) => get<CentralRatesResponse>('/api/rates/central', s), signal),
 };
 
 export interface LoanTermsResponse {

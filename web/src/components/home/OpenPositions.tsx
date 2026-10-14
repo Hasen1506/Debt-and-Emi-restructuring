@@ -165,7 +165,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
               )}
               <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 {!gaps.includes('rate') && d.effective.gt(0) && (
-                  <LBracket onClick={() => setOpen(isOpen ? null : i)} label={`${isOpen ? 'Hide' : 'Show'} what the ${name} costs a year, line by line`}>
+                  <LBracket onClick={() => setOpen(isOpen ? null : i)} label={isOpen ? `Hide what the ${name} costs a year, line by line` : `Why ${fmtPct(d.effective)}? What the ${name} costs a year, line by line`}>
                     {isOpen ? 'HIDE' : `WHY ${fmtPct(d.effective)}? ↓`}
                   </LBracket>
                 )}

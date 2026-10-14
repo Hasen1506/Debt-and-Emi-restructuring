@@ -5,6 +5,7 @@
  * UI stays hidden.
  */
 import { browserApiBase } from './api-base';
+import { pageScoped } from './page-abort';
 
 export interface NotifyFlags { payday_email: boolean; deadline_reminders: boolean; reply_done: boolean }
 export interface NotifyAnswer { id: number; kind: 'ack_all' | 'ack_some' | 'ack_cant' | 'reply_done' | 'reply_not'; month: string; day: string }
@@ -31,7 +32,11 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 let flagsCache: Promise<NotifyFlags> | null = null;
 
 export function notifyFlags(): Promise<NotifyFlags> {
-  flagsCache ??= call<NotifyFlags>('/flags').catch(() => ({ payday_email: false, deadline_reminders: false, reply_done: false }));
+  // R10-3: the page-wide signal cuts this off when the page starts to unload.
+  flagsCache ??= pageScoped((signal) => call<NotifyFlags>('/flags', signal ? { signal } : undefined)).catch((e: unknown) => {
+    if ((e as { name?: string })?.name === 'AbortError') flagsCache = null; // cut off: ask again next time
+    return { payday_email: false, deadline_reminders: false, reply_done: false };
+  });
   return flagsCache;
 }
 

@@ -7,6 +7,7 @@
  */
 import type { Page } from '@playwright/test';
 import { expect, fillLoan, signIn, test, makeSetupChoices } from './fixtures';
+import { isWebKitNavigationNoise } from './browser-noise';
 
 const AXE = require.resolve('axe-core/axe.min.js');
 
@@ -20,7 +21,8 @@ function watchErrors(page: Page): string[] {
     // navigation, as "…?_rsc=… due to access control checks" (link
     // prefetches) or "…/api/… due to access control checks" (a fetch the
     // page catches, such as Plan's rate-decision dates).
-    if (/(_rsc=|\/api\/).*access control checks/.test(e.message)) return;
+    // R10-3: the same rule the app's error reporter uses.
+    if (isWebKitNavigationNoise(e.message)) return;
     errors.push(`pageerror: ${e.message}`);
   });
   page.on('console', (m) => {

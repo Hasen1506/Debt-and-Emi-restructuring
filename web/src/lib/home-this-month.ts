@@ -66,3 +66,21 @@ function homeThisMonthLineIn(
     link: 'GO TO PAYMENTS ↓',
   };
 }
+
+/**
+ * Re-test 10 observation: Home's INTEREST tile. With a live plan it is the
+ * plan's month-1 interest (what Plan's table and CSV show for this month);
+ * without one, today's balance × rate ÷ 12, labelled as such.
+ */
+export function homeInterestLine(a: {
+  planInterest: number | null;
+  monthLabel: string;
+  fallback: number;
+  money: (v: number) => string;
+}): { value: string; caption: string } {
+  const money = (v: number) => a.money(Math.round(v));
+  if (a.planInterest != null) {
+    return { value: `${money(a.planInterest)}/MO`, caption: `CHARGED IN ${a.monthLabel.toUpperCase()} · AS ON PLAN` };
+  }
+  return { value: `${money(a.fallback)}/MO`, caption: "AT TODAY'S BALANCES AND RATES" };
+}

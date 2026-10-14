@@ -556,7 +556,7 @@ export function WhatIfPanel({
                     </span>
                     <LBracket
                       onClick={() => undoCommitment(c.id)}
-                      label={c.spendingSnapshot ? 'Undo this spending cut and its debt-budget change' : 'Remove from this list (the change itself stays)'}
+                      label={c.spendingSnapshot ? 'Undo cut: this spending cut and its debt-budget change' : 'Remove from list (the change itself stays)'}
                     >
                       {c.spendingSnapshot ? 'UNDO CUT' : 'REMOVE FROM LIST'}
                     </LBracket>

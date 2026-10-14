@@ -61,6 +61,9 @@ interface HomeProps {
   oneStep?: ReactNode;
   /** UX50 B-11: this month's instruction in one line, streamed in by the page. */
   thisMonth?: ReactNode;
+  /** Re-test 10: this month's interest from the plan (as Plan and its CSV
+   *  show it), streamed in by the page. */
+  interest?: { v: ReactNode; s: ReactNode };
 }
 
 export function LedgerHome(props: HomeProps) {
@@ -72,7 +75,7 @@ export function LedgerHome(props: HomeProps) {
   return <LedgerHomeFull {...props} />;
 }
 
-function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth }: HomeProps) {
+function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, interest }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrencyWhole(v, ccy);
@@ -121,12 +124,14 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth }: Hom
                 : { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
               fxMissing
                 ? { l: 'INTEREST', v: '—', s: 'NEEDS THE EXCHANGE RATE' }
-                : {
-                    l: 'INTEREST',
-                    v: `${fc(m.monthlyInterest.toFixed(0))}/MO`,
-                    s: 'CHARGED THIS MONTH',
-                    tone: L_T.negative,
-                  },
+                : interest
+                  ? { l: 'INTEREST', v: interest.v, s: interest.s, tone: L_T.negative }
+                  : {
+                      l: 'INTEREST',
+                      v: `${fc(m.monthlyInterest.toFixed(0))}/MO`,
+                      s: "AT TODAY'S BALANCES AND RATES",
+                      tone: L_T.negative,
+                    },
               gaps.length > 0
                 ? { l: 'COST OF DEBT', v: '—', s: 'ADD YOUR LOAN DETAILS' }
                 : { l: 'COST OF DEBT', v: `${fmtPct(m.blendedEffective)}/YR`, s: 'AVERAGE · COMPOUNDED, AFTER TAX' },

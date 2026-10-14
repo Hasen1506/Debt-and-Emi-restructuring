@@ -24,7 +24,7 @@ import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
-import { homeThisMonthLine } from '@/lib/home-this-month';
+import { homeInterestLine, homeThisMonthLine } from '@/lib/home-this-month';
 import { HomeThisMonth } from './HomeThisMonth';
 
 // One engine run per request, shared by the value and its caption.
@@ -296,4 +296,32 @@ export async function HomeCheaperRates() {
       totalAnnualSaving={plan.totalAnnualSaving}
     />
   );
+}
+
+/**
+ * Re-test 10 observation: Home's INTEREST tile said ₹6,500/MO "charged this
+ * month" (balance × rate ÷ 12 today) while Plan and its CSV said October's
+ * interest is ₹6,929. The engine's figure is the one the bank charges: a
+ * card's interest on its average daily balance with 18% GST on it (India).
+ * The tile now reads that same month-1 figure, so the two agree; with no
+ * live plan it falls back to today's balance × rate and says so.
+ */
+export async function HomeInterestValue() {
+  const { value } = await homeInterest();
+  return <>{value}</>;
+}
+
+export async function HomeInterestCaption() {
+  const { caption } = await homeInterest();
+  return <>{caption}</>;
+}
+
+async function homeInterest(): Promise<{ value: string; caption: string }> {
+  const plan = await loadPlanOnce();
+  const ccy = userDefaultCurrency(plan.user.country);
+  const money = (v: number) => formatCurrencyWhole(v, ccy);
+  const first = plan.live && plan.gaps.length === 0 ? plan.trajectory.find((p) => p.month === 1) : undefined;
+  if (first?.interest != null) return homeInterestLine({ planInterest: first.interest, monthLabel: monthIndexToCountryLabel(1, plan.user.country), fallback: 0, money });
+  const m = deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate, creditScore: null, isLive: plan.profileIsLive });
+  return homeInterestLine({ planInterest: null, monthLabel: '', fallback: m.monthlyInterest.toNumber(), money });
 }

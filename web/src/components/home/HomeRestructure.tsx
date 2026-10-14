@@ -167,7 +167,7 @@ export function HomeRestructure({
               <div style={{ gridColumn: '2 / -1' }}>
                 <LBracket
                   onClick={() => setOpen(isOpen ? null : i)}
-                  label={`${isOpen ? 'Hide' : 'Show'} details: ${loanNames(o)}`}
+                  label={`${isOpen ? 'Hide details' : 'Details'}: ${loanNames(o)}`}
                 >
                   {isOpen ? 'HIDE DETAILS' : 'DETAILS ↓'}
                 </LBracket>

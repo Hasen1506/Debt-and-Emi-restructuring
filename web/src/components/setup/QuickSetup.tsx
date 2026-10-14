@@ -48,7 +48,8 @@ import { readEfSplitClient, writeEfSplitClient } from '@/lib/ef-split';
 import { SetupChoices } from '@/components/setup/SetupChoices';
 import { SetupImportCard } from '@/components/setup/SetupImportCard';
 import { applyChoices, choicesFrom, missingChoices, type SetupChoices as Choices } from '@/lib/setup-choices';
-import { emiFromMonths, firstExtraPayment, marginalRateFromTakeHome } from '@/lib/quick-setup';
+import { emiFromMonths, marginalRateFromTakeHome } from '@/lib/quick-setup';
+import { setupExtraMove } from '@/lib/setup-this-month';
 import { estimateBalance, monthsSince, typicalRate, TYPICAL_RATE_AS_OF, withEstimate } from '@/lib/setup-estimates';
 import { readStrategyClient, strategyName, STRATEGY_SHORT, writeStrategyClient, type StrategyName } from '@/lib/strategy';
 import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
@@ -111,6 +112,8 @@ interface Preview {
   plan: SimulateResponse;
   minimums: SimulateResponse;
   loans: LoanPayload[];
+  /** What the engine ran on (R10-4: Home's whole-rupee split reads it). */
+  planUser: UserPayload;
 }
 
 /** What Setup keeps in sessionStorage between Back, Forward and reload (B-10). */
@@ -566,7 +569,7 @@ export function QuickSetup() {
         engineRequests.run('simulate', simArgs, (signal) => api.simulate(simArgs, { signal }), controller.signal),
         engineRequests.run('baseline', baselineArgs, (signal) => api.baseline(baselineArgs, { signal }), controller.signal),
       ])
-        .then(([plan, minimums]) => live && setPreview({ plan, minimums, loans: user.loans }))
+        .then(([plan, minimums]) => live && setPreview({ plan, minimums, loans: user.loans, planUser }))
         .catch((e) => {
           if (!live || isAbortError(e)) return;
           setPreviewError("The plan couldn't be worked out just now. You can still save, and Home will try again.");
@@ -1434,7 +1437,7 @@ function PlanPreview({
   }
   if (error) return <p role="alert" style={{ color: L_T.negative, margin: 0 }}>{error}</p>;
   if (!preview) return <PreviewWaiting />;
-  const { plan, minimums, loans } = preview;
+  const { plan, minimums, loans, planUser } = preview;
   const shortfall = new Decimal(plan.shortfall || 0);
   // Month m of the plan is the m-th payment, as Home and Plan count it.
   const freeIn = (m: number) => (m <= 1 ? 'this month' : `in ${monthsSpan(m)}`);
@@ -1443,10 +1446,9 @@ function PlanPreview({
     plan.debt_free_month != null && minimums.debt_free_month != null
       ? minimums.debt_free_month - plan.debt_free_month
       : null;
-  const move = firstExtraPayment(
-    plan.trajectory[0]?.payments_by_loan_index,
-    minimums.trajectory[0]?.payments_by_loan_index,
-  );
+  // R10-4: Home's own whole-rupee split, so Setup's last sentence and
+  // Home's "This month" name the same extra to the rupee.
+  const move = setupExtraMove(plan, minimums, planUser);
   const moveLoan = move ? loans[move.index] : null;
   // UX50 B-13: short this month, the same headline as Plan and Home: the
   // date if the gap closes, with the date as things stand beside it; and no
@@ -1530,7 +1532,7 @@ function PlanPreview({
         {move && moveLoan ? (
           <div style={{ fontSize: 14, lineHeight: 1.5 }}>
             Pay every {paymentWords(country).one} and card minimum, then put{' '}
-            <strong>{money(move.extra, loanCurrency(moveLoan, country))}</strong> extra on your{' '}
+            <strong>{money(String(move.extra), loanCurrency(moveLoan, country))}</strong> extra on your{' '}
             <strong>{moveLoan.bank ? `${moveLoan.bank} ` : ''}{LOAN_TYPE_NAME[moveLoan.loan_type]}</strong>.
           </div>
         ) : (
