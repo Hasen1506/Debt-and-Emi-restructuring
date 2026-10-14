@@ -283,7 +283,8 @@ def build_digest(
         f"- I can't pay this month: {links['cant_pay']}",
         *([reply_line] if reply_line else []),
         "",
-        f"Open your plan: {links['open_app']}",
+        f"60-second payday check (paste the bank SMS or tap paid, and watch your months-left move): "
+        f"{links['open_app']}",
         "",
         "These amounts come from RightDue's engine and the numbers you entered. "
         "They are estimates, not financial advice.",
@@ -312,7 +313,8 @@ def build_digest(
         f"<a style='{btn}' href='{e(links['some_paid'])}'>Paid some of it</a>"
         f"<a style='{btn}' href='{e(links['cant_pay'])}'>I can't pay this month</a></p>"
         + (f"<p>{e(reply_line)}</p>" if reply_line else "")
-        + f"<p><a href='{e(links['open_app'])}'>Open your plan</a></p>"
+        + f"<p><a href='{e(links['open_app'])}'>Do the 60-second payday check</a>: paste the bank SMS or "
+        f"tap paid, and watch your months-left move.</p>"
         f"<p style='font-size:12px;color:#666'>These amounts come from RightDue's engine and the "
         f"numbers you entered. They are estimates, not financial advice.<br>"
         f"You get this because you turned on payday emails. "

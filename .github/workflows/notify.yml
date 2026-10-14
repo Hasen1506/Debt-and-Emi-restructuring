@@ -1,10 +1,17 @@
-name: Notifications (payday email, deadline reminders)
+name: Notifications (payday email, deadline reminders, rate-move email)
 
 # Off until the repository variable NOTIFY_ENABLED is "true" (Settings →
 # Secrets and variables → Actions → Variables). Also needs the secret
 # NOTIFY_CRON_SECRET (same value as the server's) and the variable
 # PUBLIC_APP_URL (e.g. https://rightdue.app). One curl a day: well under a
 # minute of Actions time. See docs/retention/PAYDAY-EMAIL.md.
+#
+# GitHub may start scheduled runs late (sometimes an hour or more at busy
+# times). For an on-time send, also (or instead) point an HTTP cron such as
+# cron-job.org at the same endpoint: POST https://rightdue.app/api/notify/run
+# with the header "Authorization: Bearer <NOTIFY_CRON_SECRET>", daily 09:00
+# Asia/Kolkata. Two schedulers are safe: the server lets one run at a time
+# and answers 409 to the other; each email is sent once per month/decision.
 on:
   schedule:
     - cron: "30 3 * * *"     # 09:00 IST
@@ -29,6 +36,8 @@ jobs:
           for i in 1 2 3 4 5 6; do
             code=$(curl -s -o /tmp/out -w '%{http_code}' -X POST -H "Authorization: Bearer $SECRET" "$URL/api/notify/run" || true)
             [ "$code" = "200" ] && { cat /tmp/out; exit 0; }
+            # 409: another scheduler (cron-job.org) is running right now; nothing to do.
+            [ "$code" = "409" ] && { echo "another run holds the lock"; exit 0; }
             echo "attempt $i: HTTP $code"; sleep 20
           done
           exit 1
