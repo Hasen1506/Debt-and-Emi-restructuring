@@ -434,8 +434,13 @@ def test_simulate_reports_this_months_shortfall(client, india_user_payload):
     })
     assert r.status_code == 200, r.text
     body = r.json()
-    assert D(body["shortfall"]) == D("9000")
-    assert D(body["trajectory"][0]["shortfall"]) == D("9000")
+    # Costs − income = ₹4,000, plus Axis's MITC minimum (interest + GST in
+    # full + 2% of ₹1,00,000; W2 C14, interest on the average daily balance
+    # per W1 C13): ≈ ₹5,475 → ≈ ₹9,475 (was a flat 5% → ₹9,000).
+    m1 = body["trajectory"][0]
+    assert abs(D(body["shortfall"]) - D(m1["shortfall"])) < D("0.01")   # trajectory is rounded to paise
+    assert abs(D(m1["shortfall"]) - (D("4000") + D(m1["total_paid"]))) < D("0.01")
+    assert D("9400") < D(body["shortfall"]) < D("9540")
 
 
 def test_simulate_shortfall_is_zero_when_covered(client, india_user_payload):

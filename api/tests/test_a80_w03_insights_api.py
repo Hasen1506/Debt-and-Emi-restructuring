@@ -43,9 +43,11 @@ def test_plan_insights_p_ok(client):
 
 def test_plan_insights_p_short_gap_is_the_headline(client):
     j = client.post("/api/insights/plan", json=body(85000, 42000)).json()
-    assert D(j["gap"]["gap"]) == D("5500") and len(j["gap"]["ways"]) == 3
+    # ₹10,307: HDFC's sourced card minimum (W2 C14 x W1 C13; engine golden
+    # test_consolidation_golden_p_short has the hand check).
+    assert D(j["gap"]["gap"]) == D("10307") and len(j["gap"]["ways"]) == 3
     assert j["low_rate_phase_month"] is None
-    assert all(D(w["closes"]) <= D("5500") for w in j["gap"]["ways"])
+    assert all(D(w["closes"]) <= D("10307") for w in j["gap"]["ways"])
 
 
 def test_consolidation_with_own_quote(client):
@@ -140,9 +142,20 @@ def test_low_rate_share_is_monotone_and_starts_at_the_phase(client):
 
 
 def test_low_rate_share_no_effect_while_expensive_debt_remains(client):
-    # Short this month: the card never clears inside the phase window, so no keeping.
+    # Short this month (P-short): the card, then card-rate gap debt, stay open
+    # for years. Nothing is kept while any of it is open: both plans are
+    # identical month by month until the gap debt is repaid. (Integration:
+    # with HDFC's sourced minimum (W2 C14) the card clears and only the home
+    # loan is left in year ~11, so the share may act after that; before C14
+    # neither plan cleared and this test compared two None dates.)
     a, k = _sim(client, None, take=85000, spend=42000), _sim(client, "1", take=85000, spend=42000)
-    assert a["debt_free_month"] == k["debt_free_month"]
+    gap_open = [r["month"] for r in a["trajectory"] if D(r["gap_debt"]) > 0]
+    assert gap_open, "P-short borrows to cover the gap"
+    last = max(gap_open)
+    for p0, p1 in zip(a["trajectory"][:last], k["trajectory"][:last]):
+        assert D(p0["balance"]) == D(p1["balance"]), p0["month"]
+    assert k["debt_free_month"] is None or (a["debt_free_month"] is not None
+                                            and k["debt_free_month"] >= a["debt_free_month"])
 
 
 @pytest.mark.parametrize("bad", ["-0.1", "1.5", "abc"])
