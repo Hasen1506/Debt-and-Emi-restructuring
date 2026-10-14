@@ -297,6 +297,9 @@ export function clearPendingSync(): void {
     if (key.startsWith('rightdue_pending_sync_') || key.startsWith('rightdue_state_version_') || key.startsWith('rightdue_sync_conflict_')) localStorage.removeItem(key);
     else if (LOCAL_PER_USER_PREFIXES.some((p) => key.startsWith(p))) localStorage.removeItem(key);
   }
+  // The intros hidden on this page (lib/intro-seen) show again for whoever
+  // signs in next on this tab.
+  try { document.getElementById('rd-intro-seen')?.remove(); } catch { /* no DOM */ }
 }
 
 /** localStorage keys that hold one person's data but are not synced slices. */

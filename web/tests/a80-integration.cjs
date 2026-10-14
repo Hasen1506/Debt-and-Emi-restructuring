@@ -115,3 +115,37 @@ test('every localStorage key written anywhere is cleared on sign-out or declared
   assert.deepEqual(bad, []);
   assert.ok(perUser.includes('rightdue_upi_checks') && perUser.includes('rightdue_loan_check_findings'));
 });
+
+// Integration phase 4 (E10 × B22 × A1): Home CLS at 390 px was 0.81 (budget
+// 0.1) — W6's intro appeared after mount at the top and W3's insight cards
+// (~1,500 px) streamed in above "This month". Class guard: the intro is
+// always server-rendered and hidden before paint by the <head> script, and
+// nothing that streams in with no reserved space sits above Home's first
+// screen (This month, context, cash flow, Where you stand).
+test('E10: page intros never render late, and Home streams insights below the first screen', () => {
+  const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
+  const intro = read('components/FirstVisitIntro.tsx');
+  assert.ok(!/return null/.test(intro), 'FirstVisitIntro must render on the server (hidden by CSS when seen)');
+  assert.ok(!/useState/.test(intro), 'no mount-time show/hide state');
+  assert.match(intro, /data-intro=\{id\}/);
+  assert.match(read('app/layout.tsx'), /__html: INTRO_HIDE_SCRIPT/);
+  const seen = read('lib/intro-seen.ts');
+  assert.match(seen, /INTRO_SEEN_PREFIX = 'rd_intro_seen_'/);
+  const home = read('components/home/LedgerHome.tsx');
+  const at = (s) => { const i = home.indexOf(s); assert.ok(i >= 0, s); return i; };
+  assert.ok(at('{insights}') > at('id="home-status"'), 'insights after "Where you stand"');
+  assert.ok(at('{thisMonth}') < at('<CashFlow'), 'This month stays first');
+  // The hide script itself: run it against a fake storage + document.
+  const style = { id: '', textContent: '' };
+  const store = { rd_intro_seen_home: '1', rd_intro_seen_plan: '1', other: 'x' };
+  const keys = Object.keys(store);
+  const ctx = {
+    localStorage: { length: keys.length, key: (i) => keys[i] },
+    document: { createElement: () => style, head: { appendChild: () => {} } },
+  };
+  const m = { exports: require(path.join(root, 'lib/intro-seen.ts')) };
+  new Function('localStorage', 'document', m.exports.INTRO_HIDE_SCRIPT)(ctx.localStorage, ctx.document);
+  assert.equal(style.id, 'rd-intro-seen');
+  assert.equal(style.textContent, '[data-intro="home"]{display:none}[data-intro="plan"]{display:none}');
+  assert.equal(m.exports.introHideRule('a"b'), '[data-intro="ab"]{display:none}');
+});

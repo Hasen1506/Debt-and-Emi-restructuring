@@ -17,6 +17,7 @@ import { SiteFooter } from '@/components/site/SiteFooter';
 import { BrowserErrorReporter } from '@/components/site/BrowserErrorReporter';
 import { UsefulMark } from '@/components/site/UsefulMark';
 import { EARLY_LEAVE_SCRIPT } from '@/lib/page-abort';
+import { INTRO_HIDE_SCRIPT } from '@/lib/intro-seen';
 
 export const metadata: Metadata = {
   title: 'RightDue — Debt & EMI Optimiser',
@@ -49,6 +50,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             loaded (lib/page-abort.ts reads it), so the half-hydrated page
             doesn't start requests the navigation then cuts off. */}
         <script dangerouslySetInnerHTML={{ __html: EARLY_LEAVE_SCRIPT }} />
+        {/* B22 × E10: hide the page intros this browser has seen before the
+            first paint (lib/intro-seen), so they never move the page. */}
+        <script dangerouslySetInnerHTML={{ __html: INTRO_HIDE_SCRIPT }} />
       </head>
       <body>
         <a href="#main" className="skip-link">

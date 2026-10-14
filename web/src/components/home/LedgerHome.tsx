@@ -108,7 +108,6 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
         <FirstVisitIntro id="home" style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6, color: L_T.inkSoft }}>
           Your month on one page: what comes in and goes out, what to pay now, and every loan you have.
         </FirstVisitIntro>
-        {insights}
         {thisMonth}
         <ContextLine profile={profile} />
         <CashFlow profile={profile} m={m} />
@@ -148,6 +147,12 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
             ]}
           />
         </section>
+
+        {/* Audit 80+ A1 (W3) insight cards. They stream in after the plan
+            and can be ~1,500 px tall on a phone; above "This month" they
+            pushed the whole page down (Home CLS 0.81 at 390 px, budget 0.1,
+            E10). Here they land below the first screen. */}
+        {insights}
 
         {register}
         {cheaper}
