@@ -133,7 +133,8 @@ test('Your data downloads the export, deletes with the typed email, and clears o
 });
 test('a header link opens Your data for a signed-in user',()=>{
  const src=fs.readFileSync(path.join(root,'components/chrome/SessionIndicator.tsx'),'utf8');
- assert.match(src,/href="\/account"[\s\S]*\[YOUR DATA\]/);
+ // Audit 80+ E13: brackets are drawn aria-hidden, so the name is the words.
+ assert.match(src,/href="\/account"[\s\S]*YOUR DATA/);
 });
 
 // ── #59 ────────────────────────────────────────────────────────────────────

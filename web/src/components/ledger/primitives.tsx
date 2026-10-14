@@ -60,7 +60,7 @@ export function LRule({
         fontFamily: L_MONO,
         color: color ?? L_T.ink,
         fontWeight: weight,
-        fontSize: 'var(--fs-small)',
+        fontSize: 'var(--fs-label)',
         lineHeight: 1,
       }}
     >
@@ -99,8 +99,8 @@ export function LBracket({
 }) {
   const base: CSSProperties = {
     fontFamily: L_MONO,
-    fontSize: 'var(--fs-label)',
-    letterSpacing: '0.14em',
+    fontSize: 13,
+    letterSpacing: '0.08em',
     color: accent ? L_T.accent : active ? L_T.ink : L_T.muted,
     fontWeight: active ? 700 : 500,
     textDecoration: active ? 'underline' : 'none',
@@ -113,7 +113,16 @@ export function LBracket({
     padding: 0,
     ...style,
   };
-  const inner = <>[{children}]</>;
+  // Audit 80+ E13: the brackets are drawn, not spoken ("left bracket …
+  // right bracket" in screen readers): aria-hidden keeps them out of the
+  // accessible name, which is the words alone.
+  const inner = (
+    <>
+      <span aria-hidden="true">[</span>
+      {children}
+      <span aria-hidden="true">]</span>
+    </>
+  );
   if (href) {
     if (href.startsWith('/') && !href.startsWith('//')) return (
       <Link href={href} prefetch={prefetch} className="l-hit" style={base} aria-current={current ? 'page' : undefined} aria-label={label}>
@@ -144,8 +153,10 @@ export function LShell({ children }: { children: ReactNode }) {
         width: '100%',
         background: L_T.bg,
         color: L_T.ink,
-        fontFamily: L_MONO,
-        fontSize: 'var(--fs-dense)',
+        // Audit 80+ B5: body text in IBM Plex Sans at 16px; figures, labels
+        // and tables set the mono themselves.
+        fontFamily: 'var(--font-sans)',
+        fontSize: 'var(--fs-body)',
         lineHeight: 1.55,
         fontFeatureSettings: '"tnum"',
         display: 'flex',
@@ -179,8 +190,9 @@ export function LSectionHeader({
         marginBottom: 10,
         paddingBottom: 6,
         borderBottom: `2px solid ${L_T.ink}`,
-        fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
-        letterSpacing: '0.16em',
+        fontSize: 14,
+        fontFamily: 'var(--font-mono)',
+        letterSpacing: '0.1em',
         flexWrap: 'wrap',
         gap: 8,
       }}
@@ -412,15 +424,21 @@ export function LKpi({
   items,
   cols,
   mobile,
+  label,
 }: {
   items: LKpiItem[];
   cols?: number;
   mobile?: boolean;
+  /** Names the figures as a group (audit 80+ E13: a term list a screen
+   *  reader can move through, not one run of text). */
+  label?: string;
 }) {
   const n = cols ?? (mobile ? 2 : items.length);
   return (
-    <div
+    <dl
+      aria-label={label}
       style={{
+        margin: 0,
         display: 'grid',
         gridTemplateColumns: lGridColumns(n, 140),
         // Rules drawn by the cells, not an ink background showing through
@@ -431,19 +449,22 @@ export function LKpi({
     >
       {items.map((m, i) => (
         <div key={i} style={{ background: L_T.bg, padding: '10px 14px', borderRight: `1px solid ${L_T.ink}`, borderBottom: `1px solid ${L_T.ink}` }}>
-          <div
+          <dt
             style={{
               fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
               color: L_T.muted,
-              letterSpacing: '0.12em',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
               marginBottom: 4,
             }}
           >
             {m.l}
-          </div>
-          <div
+          </dt>
+          <dd
             style={{
-              fontSize: mobile ? 15 : 17,
+              margin: 0,
+              fontFamily: 'var(--font-mono)',
+              fontSize: mobile ? 18 : 'var(--fs-figure)',
               fontWeight: 700,
               color: m.tone ?? L_T.ink,
               letterSpacing: '-0.01em',
@@ -451,13 +472,13 @@ export function LKpi({
             }}
           >
             {m.v}
-          </div>
+          </dd>
           {m.s !== undefined && m.s !== null && m.s !== '' && (
-            <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted, marginTop: 4 }}>{m.s}</div>
+            <dd style={{ margin: '4px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>{m.s}</dd>
           )}
         </div>
       ))}
-    </div>
+    </dl>
   );
 }
 
@@ -504,9 +525,9 @@ export function LField({
         htmlFor={editable ? id : undefined}
         style={{
           display: 'block',
-          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
-          letterSpacing: '0.12em',
-          color: L_T.muted,
+          fontSize: 'var(--fs-small)',
+          fontWeight: 600,
+          color: L_T.inkSoft,
           marginBottom: 4,
         }}
       >
@@ -517,6 +538,7 @@ export function LField({
           borderBottom: `2px solid ${error ? L_T.negative : L_T.ink}`,
           padding: '6px 2px',
           fontSize: 'var(--fs-body)',
+          fontFamily: 'var(--font-mono)',
           fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
@@ -566,7 +588,6 @@ export function LField({
             fontSize: 'var(--fs-small)',
             color: L_T.muted,
             marginTop: 4,
-            letterSpacing: '0.04em',
           }}
         >
           {hint}
@@ -772,9 +793,9 @@ export function LButton({
     color: L_T.bg,
     border: 'none',
     fontFamily: L_MONO,
-    fontSize: 'var(--fs-label)',
+    fontSize: 13,
     fontWeight: 700,
-    letterSpacing: '0.14em',
+    letterSpacing: '0.1em',
     cursor: 'pointer',
     textDecoration: 'none',
     display: 'inline-block',
@@ -784,7 +805,9 @@ export function LButton({
   if (href) {
     return (
       <a href={href} style={base}>
-        [ {children} ]
+        <span aria-hidden="true">[ </span>
+        {children}
+        <span aria-hidden="true"> ]</span>
       </a>
     );
   }
@@ -796,7 +819,9 @@ export function LButton({
       aria-busy={disabled || undefined}
       style={{ ...base, cursor: disabled ? 'progress' : 'pointer' }}
     >
-      [ {children} ]
+      <span aria-hidden="true">[ </span>
+      {children}
+      <span aria-hidden="true"> ]</span>
     </button>
   );
 }
@@ -832,8 +857,10 @@ export function LFooter({ mobile }: { mobile?: boolean }) {
     window.location.reload();
   }
   if (!onHome) return null;
+  // Audit 80+ E13: a <div>, not a second <footer> landmark (the site footer
+  // is the page's one contentinfo).
   return (
-    <footer
+    <div
       style={{
         borderTop: `1px solid ${L_T.ink}`,
         padding: mobile ? '8px 18px' : '10px 32px',
@@ -848,7 +875,7 @@ export function LFooter({ mobile }: { mobile?: boolean }) {
       <LBracket accent onClick={toggleTone}>
         {tone === 'OVERWHELMED' ? '← BACK TO THE FULL VIEW' : 'FEELING OVERWHELMED? ONE STEP AT A TIME'}
       </LBracket>
-    </footer>
+    </div>
   );
 }
 
@@ -903,10 +930,8 @@ export function LChip({ on, onClick, children }: { on: boolean; onClick: () => v
       aria-pressed={on}
       onClick={onClick}
       style={{
-        fontFamily: L_MONO,
-        fontSize: 'var(--fs-label)',
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
+        fontFamily: 'var(--font-sans)',
+        fontSize: 'var(--fs-small)',
         padding: '7px 12px',
         border: `1px solid ${on ? L_T.ink : L_T.ruleSoft}`,
         background: on ? L_T.ink : L_T.paper,

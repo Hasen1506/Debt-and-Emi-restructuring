@@ -4,6 +4,7 @@
  *
  * States:
  *   - loading → renders nothing (avoids a flash of "Sign in")
+ *   (Brackets are drawn aria-hidden: audit 80+ E13.)
  *   - anon    → "[SIGN IN]" link to /login?next=<current path>
  *   - authed  → "USER@EXAMPLE.COM · [YOUR DATA] · [SIGN OUT]" ("Your data"
  *               is /account: download or delete, grill #51; sign-out calls
@@ -17,7 +18,7 @@ import { useState } from 'react';
 const TEXT: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 'var(--fs-label)',
-  letterSpacing: '0.14em',
+  letterSpacing: '0.1em',
 };
 
 export function SessionIndicator() {
@@ -36,7 +37,7 @@ export function SessionIndicator() {
     const next = pathname && pathname !== '/login' ? `?next=${encodeURIComponent(pathname)}` : '';
     return (
       <a href={`/login${next}`} className="l-hit" style={{ ...TEXT, color: 'var(--accent)', textDecoration: 'none' }}>
-        [SIGN IN]
+        <span aria-hidden="true">[</span>SIGN IN<span aria-hidden="true">]</span>
       </a>
     );
   }
@@ -69,7 +70,7 @@ export function SessionIndicator() {
       </span>
       <span aria-hidden style={{ opacity: 0.6 }}>·</span>
       <a href="/account" className="l-hit" style={{ ...TEXT, color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-        [YOUR DATA]
+        <span aria-hidden="true">[</span>YOUR DATA<span aria-hidden="true">]</span>
       </a>
       <span aria-hidden style={{ opacity: 0.6 }}>·</span>
       <button
@@ -79,7 +80,9 @@ export function SessionIndicator() {
         className="l-hit"
         style={{ ...TEXT, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent)', whiteSpace: 'nowrap' }}
       >
-        {signingOut ? '[SIGNING OUT…]' : '[SIGN OUT]'}
+        <span aria-hidden="true">[</span>
+        {signingOut ? 'SIGNING OUT…' : 'SIGN OUT'}
+        <span aria-hidden="true">]</span>
       </button>
       {error && <span role="alert" style={{ letterSpacing: 0, color: 'var(--negative)' }}>{error}</span>}
     </span>
