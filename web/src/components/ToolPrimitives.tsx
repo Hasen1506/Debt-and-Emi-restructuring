@@ -245,6 +245,23 @@ export function Field({
     // Never hand unreadable text ("8.5x") to the caller's Decimal math.
     onChange(f ?? '');
   };
+  // Text typed before hydration (a slow phone, or WebKit in CI) lands only in
+  // the server-rendered DOM: React wasn't listening yet, so no onChange ran,
+  // and the next re-render puts the empty state back ("50,000" vanished on
+  // /tools/windfall, so LOG IT never appeared: CI FLAKES 2). On mount, adopt
+  // what the person typed. Only an edit counts (value differs from the
+  // server-rendered default), and for fields the browser may refill on reload
+  // only when the person is in that box, so a restored form doesn't
+  // overwrite saved numbers.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el || el.value === el.defaultValue || el.value === shown) return;
+    const typedHere = document.activeElement === el;
+    if (!typedHere && el.autocomplete !== 'off') return;
+    handleChange(el.value, el.selectionStart);
+    // Mount only: after hydration React's onChange sees every edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const handleFocus = () => {
     if (hasSuggestion && suggestion) onChange(suggestion.value);
   };

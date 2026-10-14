@@ -51,14 +51,19 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     await makeSetupChoices(page);
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
     await page.waitForURL('**/plan');
-    await expect(page.getByText('NOV 2030').first()).toBeVisible();
-    await expect(page.getByText('₹8,56,170').first()).toBeVisible();
-    await expect(page.getByText('₹22,39,836 LESS THAN MINIMUMS')).toBeVisible();
+    // Read the plan inside #main: until React reveals a streamed Suspense
+    // boundary, its content also sits in a hidden <div hidden id="S:n"> at
+    // the end of <body> (React 19.2 batches reveals by up to ~300 ms), and
+    // strict mode counts hidden matches (main CI 38501695634, CI FLAKES 2).
+    const main = page.locator('#main');
+    await expect(main.getByText('NOV 2030').first()).toBeVisible();
+    await expect(main.getByText('₹8,56,170').first()).toBeVisible();
+    await expect(main.getByText('₹22,39,836 LESS THAN MINIMUMS')).toBeVisible();
     expect(await planText(page)).toMatchSnapshot('india-plan-schedule.txt');
   });
 
   await test.step('what-if: a ₹50,000 lump sum on the card', async () => {
-    const whatIf = page.locator('#what-if');
+    const whatIf = page.locator('#main #what-if');
     const compare = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().endsWith('/api/sensitivity/compare') && r.ok());
     // The amount box commits on Enter/blur (typing alone only edits a draft).
     const lump = whatIf.getByRole('textbox', { name: 'Pay a lump sum' });
@@ -114,7 +119,7 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     // Roadmap PR A: the bracket is re-estimated for the US from the $1,801.80
     // take-home (10%). It used to keep India's 20.8% after the switch, which
     // is how a high earner ended up on a stale 0% (lib/marginal-rate).
-    await expect(page.getByText('10.0%')).toBeVisible();
+    await expect(page.locator('#main').getByText('10.0%')).toBeVisible();
     await expect(page.getByText('20.8%')).toHaveCount(0);
     await page.goto('/tax');
     await expect(page.getByRole('heading', { name: /Tax and your loans/i })).toBeVisible();

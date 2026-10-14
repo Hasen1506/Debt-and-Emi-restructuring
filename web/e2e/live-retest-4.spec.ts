@@ -80,7 +80,7 @@ test('NEW-19: rapid Setup choices settle into one plan request pair', async ({ p
   await plus5.click();
   await page.getByRole('button', { name: '+10 YRS' }).click();
   await plus5.click();
-  await expect(page.getByTestId('whatif-toggle')).toContainText(/\+5 YRS/);
+  await expect(page.locator('#main').getByTestId('whatif-toggle')).toContainText(/\+5 YRS/);
   await page.waitForTimeout(800);
   const compares = sent.slice(atPlan).filter((s) => s.path === '/api/sensitivity/compare');
   expect(compares).toHaveLength(1);
