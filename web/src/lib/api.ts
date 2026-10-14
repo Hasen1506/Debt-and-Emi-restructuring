@@ -10,6 +10,7 @@ import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
 import { authErrorMessage } from './auth-error';
 import { apiBase } from './api-base';
+import { parseAuthUser, parseCompareResponse, parseSimulateResponse } from './boundary';
 
 // The browser calls the API on its own origin (Next.js proxies /api/* to
 // FastAPI in the same container); the web server calls it directly at
@@ -1503,11 +1504,10 @@ export const api = {
   health: () => get<{ status: string }>('/api/health'),
 
   /** `opts.signal` cancels the request (NEW-19: a newer choice replaced it). */
-  simulate: (req: SimulateArgs, opts?: RequestOptions) => post<SimulateResponse>('/api/simulate', req, opts?.signal),
+  simulate: (req: SimulateArgs, opts?: RequestOptions) => post<unknown>('/api/simulate', req, opts?.signal).then((v) => parseSimulateResponse('/api/simulate', v)),
 
   /** Grill #24 (sprint G4): exact debt-free month + range with reasons. */
-  sensitivityRange: (req: SimulateArgs) =>
-    post<import('./payoff-range').PayoffRange>('/api/sensitivity/range', req),
+  sensitivityRange: (req: SimulateArgs) => post<import('./payoff-range').PayoffRange>('/api/sensitivity/range', req),
 
   /** Roadmap PR F: the interest cost of funding each goal before high-interest debt. */
   goalsTradeoff: (req: SimulateArgs & { goal_ids?: string[] }) =>
@@ -1520,7 +1520,7 @@ export const api = {
     /** Same planned rate resets as the plan, so "saved vs minimums"
      *  compares like with like. */
     lifecycle_events?: LifecycleEventInput[];
-  }, opts?: RequestOptions) => post<SimulateResponse>('/api/baseline', req, opts?.signal),
+  }, opts?: RequestOptions) => post<unknown>('/api/baseline', req, opts?.signal).then((v) => parseSimulateResponse('/api/baseline', v)),
 
   /** Both runs take the plan's own settings (PlanRunArgs), so the
    *  what-if's "before" is the plan /plan shows. */
@@ -1546,7 +1546,7 @@ export const api = {
     include_trajectory?: boolean;
     /** Calendar month (1-12) corresponding to sim month 1. */
     simulation_start_month?: number;
-  }, opts?: RequestOptions) => post<CompareResponse>('/api/sensitivity/compare', req, opts?.signal),
+  }, opts?: RequestOptions) => post<unknown>('/api/sensitivity/compare', req, opts?.signal).then((v) => parseCompareResponse(v)),
 
   newDebt: (req: {
     list_price: string;
@@ -1726,7 +1726,7 @@ export const api = {
   requestOtp: (email: string, turnstileToken?: string) =>
     post<void>('/api/auth/request-otp', turnstileToken ? { email, turnstile_token: turnstileToken } : { email }),
   verifyOtp: (email: string, code: string) =>
-    post<AuthUser>('/api/auth/verify-otp', { email, code }),
+    post<unknown>('/api/auth/verify-otp', { email, code }).then((v) => parseAuthUser(v)),
   logout: () => post<void>('/api/auth/logout', {}),
   // UX50 E-22: the session proxy answers 200 null when there is no session
   // cookie; that is "signed out", the same as a 401. Concurrent callers

@@ -135,3 +135,27 @@ def test_json_routes_declare_a_response_model():
         "These JSON routes have no response model, so the web app can only cast their body: "
         f"{sorted(missing)}. Add response_model=... (or, if it really cannot have one, add it to UNTYPED with a reason)."
     )
+
+
+def _shape(x):
+    """Keys and JSON types only, so an engine change that moves a number does
+    not make the samples stale, but a renamed, added or re-typed field does."""
+    if isinstance(x, dict):
+        return {k: _shape(v) for k, v in sorted(x.items())}
+    if isinstance(x, list):
+        return [_shape(x[0])] if x else []
+    return type(x).__name__
+
+
+def test_api_samples_are_current():
+    """web/tests/boundary.cjs checks the web's parsers against these samples
+    (Audit 80 E19); they must have the shape the API returns today."""
+    from pathlib import Path
+
+    from scripts.export_api_samples import OUT_PATH, build
+    committed = json.loads(Path(OUT_PATH).read_text(encoding="utf-8"))
+    fresh = build()
+    assert _shape(fresh) == _shape(committed), (
+        "API response shape changed: run `python scripts/export_api_samples.py` and check "
+        "web/src/lib/boundary.ts still describes it (npm test runs tests/boundary.cjs)."
+    )

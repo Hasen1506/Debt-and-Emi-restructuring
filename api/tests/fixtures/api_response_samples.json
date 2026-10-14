@@ -1,0 +1,620 @@
+{
+ "IN /api/baseline": {
+  "debt_free_month": null,
+  "gap_closed": null,
+  "gap_rate": "0.42",
+  "gap_rate_basis": "your_card",
+  "gap_rate_source": "the highest rate on a card on your profile",
+  "goal_finals": [],
+  "grows_without_limit": false,
+  "months_in_horizon": 120,
+  "never_clears": true,
+  "non_amortising": [],
+  "payoff_order_method": null,
+  "payoff_order_note": null,
+  "pmi_events": [],
+  "shortfall": "0",
+  "surplus_allocation": null,
+  "total_gap_interest": "0.00",
+  "total_interest_paid": "244985.6515863427472107896563",
+  "total_invested": "0",
+  "trajectory": [
+   {
+    "available_surplus": "0.00",
+    "balance": "352683.70",
+    "balances_by_currency": {
+     "INR": "352683.70"
+    },
+    "balances_by_loan_index": {
+     "0": "293247.00",
+     "1": "59436.70"
+    },
+    "extra_paid": "0.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "5936.70",
+    "invested": "0.00",
+    "month": 1,
+    "payments_by_loan_index": {
+     "0": "10253.00",
+     "1": "3000.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "13253.00"
+   },
+   {
+    "available_surplus": "0.00",
+    "balance": "345293.90",
+    "balances_by_currency": {
+     "INR": "345293.90"
+    },
+    "balances_by_loan_index": {
+     "0": "286415.22",
+     "1": "58878.69"
+    },
+    "extra_paid": "0.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "5835.04",
+    "invested": "0.00",
+    "month": 2,
+    "payments_by_loan_index": {
+     "0": "10253.00",
+     "1": "2971.84"
+    },
+    "shortfall": "0.00",
+    "total_paid": "13224.84"
+   },
+   {
+    "available_surplus": "0.00",
+    "balance": "337829.64",
+    "balances_by_currency": {
+     "INR": "337829.64"
+    },
+    "balances_by_loan_index": {
+     "0": "279503.73",
+     "1": "58325.92"
+    },
+    "extra_paid": "0.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "5732.67",
+    "invested": "0.00",
+    "month": 3,
+    "payments_by_loan_index": {
+     "0": "10253.00",
+     "1": "2943.93"
+    },
+    "shortfall": "0.00",
+    "total_paid": "13196.93"
+   }
+  ],
+  "trajectory_cut_month": null
+ },
+ "IN /api/sensitivity/compare": {
+  "baseline_debt_free_month": 8,
+  "baseline_never_clears": false,
+  "baseline_shortfall": "0",
+  "baseline_total_interest": "19996.70229739750088769247725",
+  "extra_invested": "1097.23467938143794124377250",
+  "interest_saved": "97.23467938143794124377240",
+  "months_pulled_forward": "0",
+  "scenario_debt_free_month": 8,
+  "scenario_grows_without_limit": false,
+  "scenario_never_clears": false,
+  "scenario_shortfall": "0",
+  "scenario_total_interest": "19899.46761801606294644870485",
+  "scenario_trajectory": [
+   {
+    "available_surplus": "36747.00",
+    "balance": "314419.15",
+    "balances_by_currency": {
+     "INR": "314419.15"
+    },
+    "balances_by_loan_index": {
+     "0": "292235.33",
+     "1": "22183.82"
+    },
+    "extra_paid": "36747.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "5419.15",
+    "invested": "0.00",
+    "month": 1,
+    "payments_by_loan_index": {
+     "0": "10253.00",
+     "1": "39747.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "50000.00"
+   },
+   {
+    "available_surplus": "38637.81",
+    "balance": "268439.36",
+    "balances_by_currency": {
+     "INR": "268439.36"
+    },
+    "balances_by_loan_index": {
+     "0": "268439.36",
+     "1": "0.00"
+    },
+    "extra_paid": "38637.81",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "4020.21",
+    "invested": "0.00",
+    "month": 2,
+    "payments_by_loan_index": {
+     "0": "27205.39",
+     "1": "22794.61"
+    },
+    "shortfall": "0.00",
+    "total_paid": "50000.00"
+   },
+   {
+    "available_surplus": "39747.00",
+    "balance": "221571.15",
+    "balances_by_currency": {
+     "INR": "221571.15"
+    },
+    "balances_by_loan_index": {
+     "0": "221571.15",
+     "1": "0.00"
+    },
+    "extra_paid": "39747.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "3131.79",
+    "invested": "0.00",
+    "month": 3,
+    "payments_by_loan_index": {
+     "0": "50000.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "50000.00"
+   }
+  ],
+  "scenario_trajectory_cut_month": null,
+  "tenure_new_emi": null,
+  "tenure_new_months": null,
+  "tenure_old_emi": null,
+  "tenure_old_months": null
+ },
+ "IN /api/simulate": {
+  "debt_free_month": 8,
+  "gap_closed": null,
+  "gap_rate": "0.42",
+  "gap_rate_basis": "your_card",
+  "gap_rate_source": "the highest rate on a card on your profile",
+  "goal_finals": [],
+  "grows_without_limit": false,
+  "months_in_horizon": 8,
+  "never_clears": false,
+  "non_amortising": [],
+  "payoff_order_method": null,
+  "payoff_order_note": null,
+  "pmi_events": [],
+  "shortfall": "0",
+  "surplus_allocation": {
+   "any_goal_short": false,
+   "debt_slice": "36747.00",
+   "ef_preempted": false,
+   "ef_slice": "0",
+   "ef_split": "0",
+   "goal_contributions": [],
+   "goal_slice": "0",
+   "surplus": "36747.00"
+  },
+  "total_gap_interest": "0.00",
+  "total_interest_paid": "19996.70229739750088769247725",
+  "total_invested": "20003.29770260249911230752277",
+  "trajectory": [
+   {
+    "available_surplus": "36747.00",
+    "balance": "315430.82",
+    "balances_by_currency": {
+     "INR": "315430.82"
+    },
+    "balances_by_loan_index": {
+     "0": "293247.00",
+     "1": "22183.82"
+    },
+    "extra_paid": "36747.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "5430.82",
+    "invested": "0.00",
+    "month": 1,
+    "payments_by_loan_index": {
+     "0": "10253.00",
+     "1": "39747.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "50000.00"
+   },
+   {
+    "available_surplus": "38637.81",
+    "balance": "269462.83",
+    "balances_by_currency": {
+     "INR": "269462.83"
+    },
+    "balances_by_loan_index": {
+     "0": "269462.83",
+     "1": "0.00"
+    },
+    "extra_paid": "38637.81",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "4032.01",
+    "invested": "0.00",
+    "month": 2,
+    "payments_by_loan_index": {
+     "0": "27205.39",
+     "1": "22794.61"
+    },
+    "shortfall": "0.00",
+    "total_paid": "50000.00"
+   },
+   {
+    "available_surplus": "39747.00",
+    "balance": "222606.56",
+    "balances_by_currency": {
+     "INR": "222606.56"
+    },
+    "balances_by_loan_index": {
+     "0": "222606.56",
+     "1": "0.00"
+    },
+    "extra_paid": "39747.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "3143.73",
+    "invested": "0.00",
+    "month": 3,
+    "payments_by_loan_index": {
+     "0": "50000.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "50000.00"
+   }
+  ],
+  "trajectory_cut_month": null
+ },
+ "US /api/baseline": {
+  "debt_free_month": 49,
+  "gap_closed": null,
+  "gap_rate": "0.2236",
+  "gap_rate_basis": "default",
+  "gap_rate_source": "Federal Reserve G.19: credit card plans, accounts assessed interest, Aug 2026 (released 7 Oct 2026)",
+  "goal_finals": [],
+  "grows_without_limit": false,
+  "months_in_horizon": 49,
+  "never_clears": false,
+  "non_amortising": [],
+  "payoff_order_method": null,
+  "payoff_order_note": null,
+  "pmi_events": [],
+  "shortfall": "0",
+  "surplus_allocation": null,
+  "total_gap_interest": "0.00",
+  "total_interest_paid": "2689.799431702058797290196467",
+  "total_invested": "0",
+  "trajectory": [
+   {
+    "available_surplus": "0.00",
+    "balance": "17674.00",
+    "balances_by_currency": {
+     "USD": "17674.00"
+    },
+    "balances_by_loan_index": {
+     "0": "17674.00"
+    },
+    "extra_paid": "0.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "105.00",
+    "invested": "0.00",
+    "month": 1,
+    "payments_by_loan_index": {
+     "0": "431.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "431.00"
+   },
+   {
+    "available_surplus": "0.00",
+    "balance": "17346.10",
+    "balances_by_currency": {
+     "USD": "17346.10"
+    },
+    "balances_by_loan_index": {
+     "0": "17346.10"
+    },
+    "extra_paid": "0.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "103.10",
+    "invested": "0.00",
+    "month": 2,
+    "payments_by_loan_index": {
+     "0": "431.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "431.00"
+   },
+   {
+    "available_surplus": "0.00",
+    "balance": "17016.28",
+    "balances_by_currency": {
+     "USD": "17016.28"
+    },
+    "balances_by_loan_index": {
+     "0": "17016.28"
+    },
+    "extra_paid": "0.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "101.19",
+    "invested": "0.00",
+    "month": 3,
+    "payments_by_loan_index": {
+     "0": "431.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "431.00"
+   }
+  ],
+  "trajectory_cut_month": null
+ },
+ "US /api/sensitivity/compare": {
+  "baseline_debt_free_month": 6,
+  "baseline_never_clears": false,
+  "baseline_shortfall": "0",
+  "baseline_total_interest": "330.6168819030093537004886830",
+  "extra_invested": "-2465.673899790470182693544244",
+  "interest_saved": "34.3261002095298173064557611",
+  "months_pulled_forward": "1",
+  "scenario_debt_free_month": 5,
+  "scenario_grows_without_limit": false,
+  "scenario_never_clears": false,
+  "scenario_shortfall": "0",
+  "scenario_total_interest": "296.2907816934795363940329219",
+  "scenario_trajectory": [
+   {
+    "available_surplus": "3069.00",
+    "balance": "13599.17",
+    "balances_by_currency": {
+     "USD": "13599.17"
+    },
+    "balances_by_loan_index": {
+     "0": "13599.17"
+    },
+    "extra_paid": "3069.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "99.17",
+    "invested": "0.00",
+    "month": 1,
+    "payments_by_loan_index": {
+     "0": "3500.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "3500.00"
+   },
+   {
+    "available_surplus": "3069.00",
+    "balance": "10178.50",
+    "balances_by_currency": {
+     "USD": "10178.50"
+    },
+    "balances_by_loan_index": {
+     "0": "10178.50"
+    },
+    "extra_paid": "3069.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "79.33",
+    "invested": "0.00",
+    "month": 2,
+    "payments_by_loan_index": {
+     "0": "3500.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "3500.00"
+   },
+   {
+    "available_surplus": "3069.00",
+    "balance": "6737.87",
+    "balances_by_currency": {
+     "USD": "6737.87"
+    },
+    "balances_by_loan_index": {
+     "0": "6737.87"
+    },
+    "extra_paid": "3069.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "59.37",
+    "invested": "0.00",
+    "month": 3,
+    "payments_by_loan_index": {
+     "0": "3500.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "3500.00"
+   }
+  ],
+  "scenario_trajectory_cut_month": null,
+  "tenure_new_emi": null,
+  "tenure_new_months": null,
+  "tenure_old_emi": null,
+  "tenure_old_months": null
+ },
+ "US /api/simulate": {
+  "debt_free_month": 6,
+  "gap_closed": null,
+  "gap_rate": "0.2236",
+  "gap_rate_basis": "default",
+  "gap_rate_source": "Federal Reserve G.19: credit card plans, accounts assessed interest, Aug 2026 (released 7 Oct 2026)",
+  "goal_finals": [],
+  "grows_without_limit": false,
+  "months_in_horizon": 6,
+  "never_clears": false,
+  "non_amortising": [],
+  "payoff_order_method": null,
+  "payoff_order_note": null,
+  "pmi_events": [],
+  "shortfall": "0",
+  "surplus_allocation": {
+   "any_goal_short": false,
+   "debt_slice": "3069",
+   "ef_preempted": false,
+   "ef_slice": "0",
+   "ef_split": "0",
+   "goal_contributions": [],
+   "goal_slice": "0",
+   "surplus": "3069"
+  },
+  "total_gap_interest": "0.00",
+  "total_interest_paid": "330.6168819030093537004886830",
+  "total_invested": "2669.383118096990646299511321",
+  "trajectory": [
+   {
+    "available_surplus": "3069.00",
+    "balance": "14605.00",
+    "balances_by_currency": {
+     "USD": "14605.00"
+    },
+    "balances_by_loan_index": {
+     "0": "14605.00"
+    },
+    "extra_paid": "3069.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "105.00",
+    "invested": "0.00",
+    "month": 1,
+    "payments_by_loan_index": {
+     "0": "3500.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "3500.00"
+   },
+   {
+    "available_surplus": "3069.00",
+    "balance": "11190.20",
+    "balances_by_currency": {
+     "USD": "11190.20"
+    },
+    "balances_by_loan_index": {
+     "0": "11190.20"
+    },
+    "extra_paid": "3069.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "85.20",
+    "invested": "0.00",
+    "month": 2,
+    "payments_by_loan_index": {
+     "0": "3500.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "3500.00"
+   },
+   {
+    "available_surplus": "3069.00",
+    "balance": "7755.47",
+    "balances_by_currency": {
+     "USD": "7755.47"
+    },
+    "balances_by_loan_index": {
+     "0": "7755.47"
+    },
+    "extra_paid": "3069.00",
+    "gap_borrowed": "0.00",
+    "gap_debt": "0.00",
+    "gap_from_savings": "0.00",
+    "gap_interest": "0.00",
+    "gap_repaid": "0.00",
+    "goal_contributions": {},
+    "interest_paid": "65.28",
+    "invested": "0.00",
+    "month": 3,
+    "payments_by_loan_index": {
+     "0": "3500.00"
+    },
+    "shortfall": "0.00",
+    "total_paid": "3500.00"
+   }
+  ],
+  "trajectory_cut_month": null
+ }
+}
