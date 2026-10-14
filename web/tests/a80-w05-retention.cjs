@@ -140,3 +140,33 @@ test('A13: rate-move opt-in lists floating rupee loans; bank home/car/education 
   assert.equal(r.extraTarget, 2);                          // the card, as Pay this month says
   assert.deepEqual(retentionInputs(loans, pay, 'US').rateLoans, []);
 });
+
+// ── 390 px: the opt-ins and the renamed link fit a phone ───────────────────
+// (The Playwright journey e2e/a80-w05-retention.spec.ts measures this in a
+// real browser at 390 px; this guards the class of defect without a stack:
+// a fixed width wider than a phone's content box, or a flex row that can't wrap.)
+
+const PHONE_CONTENT = 390 - 2 * 16;
+const RETENTION_UI = ['components/home/PaydayEmail.tsx', 'components/home/HomeProgress.tsx',
+  ...fs.readdirSync(path.join(root, 'components/retention')).map((f) => `components/retention/${f}`)];
+
+test('390px: no retention control has a fixed width wider than a phone, and every flex row wraps', () => {
+  for (const f of RETENTION_UI) {
+    const s = src(f);
+    for (const m of s.matchAll(/\b(width|minWidth)\s*:\s*(\d+)/g))
+      assert.ok(Number(m[2]) <= PHONE_CONTENT, `${f}: ${m[0]} is wider than ${PHONE_CONTENT}px`);
+    for (const m of s.matchAll(/\bflex\s*:\s*'(\d+) (\d+) (\d+)px'/g))
+      assert.ok(Number(m[3]) <= PHONE_CONTENT && m[2] !== '0', `${f}: flex basis ${m[0]} can't shrink to a phone`);
+    for (const m of s.matchAll(/\{\{[^{}]*display:\s*'flex'[^{}]*\}\}/g))
+      assert.match(m[0], /flexWrap:\s*'wrap'|flexDirection:\s*'column'/, `${f}: a flex row that never wraps: ${m[0].slice(0, 80)}`);
+  }
+});
+
+test('390px: the Playwright journey exists and every test id it uses is rendered by the components', () => {
+  const spec = fs.readFileSync(path.resolve(__dirname, '../e2e/a80-w05-retention.spec.ts'), 'utf8');
+  assert.match(spec, /width: 390/);
+  assert.match(spec, /Hide until next month/);
+  const all = RETENTION_UI.map(src).join('\n');
+  for (const [, id] of spec.matchAll(/(?:getByTestId|expectOnScreen\(page,)\s*\(?'([a-z-]+)'/g))
+    assert.ok(all.includes(`data-testid="${id}"`), `no component renders data-testid="${id}"`);
+});
