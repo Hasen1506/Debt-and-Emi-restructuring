@@ -94,6 +94,7 @@ test('R7-7: US Setup says monthly payment, not EMI, and has no gold loan', async
   await expect(page.getByRole('textbox', { name: 'EMI a month' })).toHaveCount(0);
   await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   await expect(page).toHaveURL(/step=plan/);
-  await expect(page.getByText(/Pay every monthly payment and card minimum/).first()).toBeVisible();
+  // Audit 80 (W6) US wording: "Make every payment and card minimum".
+  await expect(page.getByText(/Make every payment and card minimum/).first()).toBeVisible();
   await expect(page.getByText(/Pay every EMI/)).toHaveCount(0);
 });

@@ -39,18 +39,22 @@ test('setup asks the choices, Portfolio has its own tab, Sell to repay is a calc
     await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
   });
 
-  await test.step('saving without the choices asks for them', async () => {
-    await expect(page.getByRole('heading', { name: /CHOICES ONLY YOU CAN MAKE/ })).toBeVisible();
-    await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
-    await expect(page.getByText('Pick how many months of spending to keep aside, or Not now.')).toBeVisible();
-    await expect(page.getByText('Pick the order your loans are paid off in.')).toBeVisible();
-    await expect(page).toHaveURL(/\/onboarding/);
+  await test.step('the choices start on a sensible default (audit 80 B6), so saving never blocks', async () => {
+    // Was "CHOICES ONLY YOU CAN MAKE" + Save asking for each pick; W6 B6
+    // starts on Cheapest path and emergency fund "Not now".
+    await expect(page.getByRole('heading', { name: /YOUR CALL · CHANGE ANY TIME/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Not now$/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByText('Pick how many months of spending to keep aside, or Not now.')).toHaveCount(0);
+    await expect(page.getByText('Pick the order your loans are paid off in.')).toHaveCount(0);
   });
 
   await test.step('pick them: 6 months, 30%, cheapest path', async () => {
     await page.getByRole('button', { name: /^6 months/ }).click();
     await page.getByRole('button', { name: /^30%, the rest to loans/ }).click();
-    await page.getByRole('button', { name: /^Cheapest path \(Avalanche\)/ }).click();
+    // One loan: the order can't change the plan, so (A2, W3) the order
+    // question may be one line instead of chips; it already starts Cheapest.
+    const cheapest = page.getByRole('button', { name: /^Cheapest path \(Avalanche\)/ });
+    if (await cheapest.isVisible()) await expect(cheapest).toHaveAttribute('aria-pressed', 'true');
     await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
     await page.waitForURL('**/plan');
     // A plan shows after one loan, with a way to add the next.
