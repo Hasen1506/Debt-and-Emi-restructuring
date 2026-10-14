@@ -116,7 +116,50 @@ the same PR. For a private soft launch, staying free is acceptable.
 - After HSTS has been live a few weeks without problems, submit rightdue.app at
   https://hstspreload.org (the header already carries `preload`).
 
-## 8. Planned, not built yet
+## 8. Edge caching of build files (R11-2, founder action)
+
+What the live site sends today (checked 2026-10-14 with `curl -sI`):
+
+- `/_next/static/chunks/*.js`: `cache-control: public, max-age=31536000, immutable`
+  (Next.js's default for hashed build files; `next.config.mjs` and
+  `security-headers.mjs` don't override it), but `cf-cache-status: DYNAMIC` and
+  `x-render-origin-server: Render`: every chunk request goes to the Render instance.
+- Pages (`/`): `cache-control: public, max-age=0`, `cf-cache-status: DYNAMIC` (correct:
+  pages carry per-user data and must not be edge-cached).
+
+Why it matters: the Cloudflare in front of the site is **Render's own edge**, not a
+zone in our account (`rightdue.app` NS are name.com; apex A `216.24.57.1`, `www` CNAME
+`rightdue.onrender.com`). A short Render/edge blip answers `502` with no
+`x-render-origin-server` header; on a shared chunk during a client navigation that is
+a `ChunkLoadError` (the app reloads once to recover, R10-3), on `auth/me` it briefly
+shows the signed-out state (the browser now retries that GET once, R11-2).
+
+Recommended (founder decides; nothing has been changed):
+
+1. **Put the domain behind our own Cloudflare zone** (free plan): add `rightdue.app`
+   to the Cloudflare account, copy every record from name.com first (apex A
+   `216.24.57.1`, `www` CNAME `rightdue.onrender.com`, the Resend/`send` records, MX,
+   SPF/DKIM/DMARC, CAA from section 7), then switch the nameservers at name.com.
+   Proxy (orange cloud) only the apex and `www`; leave the mail records DNS-only.
+   SSL/TLS mode **Full (strict)** (Render serves a valid certificate). Check the
+   Render dashboard still shows the custom domains as verified afterwards.
+2. **Cache Rule** (Caching → Cache Rules → Create rule):
+   - When: `URI Path` *starts with* `/_next/static/` (hostname `rightdue.app` or
+     `www.rightdue.app`).
+   - Then: **Eligible for cache**; Edge TTL **Use cache-control header if present**
+     (respects `max-age=31536000, immutable`); Browser TTL **Respect origin**.
+   - Do **not** cache `/`, `/api/*`, `/_next/data/*`, or any `?_rsc=` request; the
+     default (no rule) already bypasses them for HTML and JSON.
+   - Verify: `curl -sI https://rightdue.app/_next/static/chunks/<any>.js` twice; the
+     second answer should show `cf-cache-status: HIT`.
+3. Optional, same zone: Cache Rule for `/fonts/*` and `/favicon*`/`/icon*` with
+   Edge TTL 1 day.
+4. Without step 1 there is no rule to set: Render web services have no CDN cache
+   for responses (only Render static sites do). In that case rely on the client
+   retries and the one-time chunk reload, and if 502s recur ask Render support with
+   the `rndr-id`/`cf-ray` and time (e.g. 2026-10-14 08:35 and 09:15 IST).
+
+## 9. Planned, not built yet
 
 - **Funnel counts (E-05).** Design in `docs/SETUP-FUNNEL.md`. Smallest build with
   no paid service: `POST /api/funnel {event}` (8 allow-listed events:

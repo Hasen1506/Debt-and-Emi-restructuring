@@ -15,6 +15,13 @@
 
 let controller: AbortController | null = null;
 let installed = false;
+/** When an unprompted leave began (ms), or 0: no leave under way. */
+let leavingSince = 0;
+/** How long a leave nobody cancelled may take before we assume it was
+ *  called off (a download link, Stop) and ask again. A slow next page
+ *  (the /plan render) commits well inside this, so a re-asked request
+ *  isn't cut off and logged by WebKit after all. */
+export const LEAVE_GRACE_MS = 5000;
 
 function install(): void {
   if (installed || typeof window === 'undefined') return;
@@ -24,17 +31,27 @@ function install(): void {
     controller = new AbortController();
     c?.abort();
   };
-  // beforeunload: one task later, once every listener has run, so a
-  // "leave this page?" prompt (Profile's unsaved changes) that kept the
-  // person here doesn't cut their requests off. The old page keeps running
-  // tasks while the next one loads, so this still lands before WebKit
-  // cancels the fetches itself. pagehide: at once.
+  // beforeunload: at once (R11-1). WebKit cancels and logs in-flight
+  // fetches when the next page commits, which can be before a task queued
+  // here would run, so a deferred abort came too late. If a "leave this
+  // page?" prompt (Profile's unsaved changes) keeps the person here, the
+  // requests cut off now are asked again by pageScoped() a second later.
+  // pagehide: at once too (bfcache, and browsers that skip beforeunload).
   window.addEventListener('beforeunload', (e) => {
+    abortNow();
+    leavingSince = Date.now();
+    // Once every listener has run: a prompt that kept the person here
+    // means the requests can be asked again after the usual second.
     setTimeout(() => {
-      if (!e.defaultPrevented) abortNow();
+      const kept = e.defaultPrevented || (typeof e.returnValue === 'string' && e.returnValue !== '');
+      if (kept) leavingSince = 0;
     }, 0);
   });
   window.addEventListener('pagehide', abortNow);
+  // Back from the back/forward cache: this page is in use again.
+  window.addEventListener('pageshow', () => {
+    leavingSince = 0;
+  });
 }
 
 /** The signal that is aborted when this page starts to unload; undefined on the server. */
@@ -67,7 +84,10 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /**
  * Run a request with the page signal (and the caller's own, if any). When
  * the page signal cut it off and the caller didn't cancel, wait a second
- * (a real unload never gets there) and ask again.
+ * and ask again: the leave was cancelled by a "leave this page?" prompt or
+ * the page came back from the back/forward cache. While a leave nobody
+ * cancelled is still under way (the next page is slow), keep waiting, up
+ * to LEAVE_GRACE_MS, so the new request isn't cut off in turn.
  */
 export async function pageScoped<T>(run: (signal: AbortSignal | undefined) => Promise<T>, own?: AbortSignal, retryAfterMs = 1000): Promise<T> {
   for (;;) {
@@ -77,6 +97,9 @@ export async function pageScoped<T>(run: (signal: AbortSignal | undefined) => Pr
     } catch (e) {
       if (own?.aborted || !page?.aborted) throw e;
       await sleep(retryAfterMs);
+      while (leavingSince && Date.now() - leavingSince < LEAVE_GRACE_MS && !own?.aborted) {
+        await sleep(Math.min(250, retryAfterMs));
+      }
       if (own?.aborted) throw e;
     }
   }
