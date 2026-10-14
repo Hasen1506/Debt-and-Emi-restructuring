@@ -29,53 +29,62 @@ branch_labels = None
 depends_on = None
 
 
+def _missing(name: str) -> bool:
+    # Same guard as 0003/0005: a database made by the old create_all (stamped
+    # at the baseline by run_migrations) already has these tables.
+    return name not in sa.inspect(op.get_bind()).get_table_names()
+
+
 def _columns(table: str) -> set[str]:
     return {c["name"] for c in sa.inspect(op.get_bind()).get_columns(table)}
 
 
 def upgrade() -> None:
-    op.create_table(
-        "consent_events",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True)),
-        sa.Column("email", sa.String(320), nullable=False),
-        sa.Column("action", sa.String(16), nullable=False),
-        sa.Column("notice_version", sa.String(32), nullable=False),
-        sa.Column("terms_version", sa.String(32), nullable=False),
-        sa.Column("purpose", sa.String(200), nullable=False),
-        sa.Column("age_confirmed", sa.Boolean, nullable=False),
-        sa.Column("channel", sa.String(16), nullable=False),
-        sa.Column("at", sa.DateTime(timezone=True), nullable=False),
-    )
-    op.create_index("ix_consent_events_user_id", "consent_events", ["user_id"])
-    op.create_index("ix_consent_events_email", "consent_events", ["email"])
-    op.create_index("ix_consent_events_at", "consent_events", ["at"])
+    if _missing("consent_events"):
+        op.create_table(
+            "consent_events",
+            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+            sa.Column("user_id", postgresql.UUID(as_uuid=True)),
+            sa.Column("email", sa.String(320), nullable=False),
+            sa.Column("action", sa.String(16), nullable=False),
+            sa.Column("notice_version", sa.String(32), nullable=False),
+            sa.Column("terms_version", sa.String(32), nullable=False),
+            sa.Column("purpose", sa.String(200), nullable=False),
+            sa.Column("age_confirmed", sa.Boolean, nullable=False),
+            sa.Column("channel", sa.String(16), nullable=False),
+            sa.Column("at", sa.DateTime(timezone=True), nullable=False),
+        )
+        op.create_index("ix_consent_events_user_id", "consent_events", ["user_id"])
+        op.create_index("ix_consent_events_email", "consent_events", ["email"])
+        op.create_index("ix_consent_events_at", "consent_events", ["at"])
 
-    op.create_table(
-        "auth_log_tombstones",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("email", sa.String(320), nullable=False),
-        sa.Column("kind", sa.String(16), nullable=False),
-        sa.Column("started_at", sa.DateTime(timezone=True)),
-        sa.Column("used_at", sa.DateTime(timezone=True)),
-        sa.Column("ended_at", sa.DateTime(timezone=True)),
-        sa.Column("wrong_guesses", sa.Integer, nullable=False),
-        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=False),
-    )
-    op.create_index("ix_auth_log_tombstones_email", "auth_log_tombstones", ["email"])
-    op.create_index("ix_auth_log_tombstones_deleted_at", "auth_log_tombstones", ["deleted_at"])
+    if _missing("auth_log_tombstones"):
+        op.create_table(
+            "auth_log_tombstones",
+            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+            sa.Column("email", sa.String(320), nullable=False),
+            sa.Column("kind", sa.String(16), nullable=False),
+            sa.Column("started_at", sa.DateTime(timezone=True)),
+            sa.Column("used_at", sa.DateTime(timezone=True)),
+            sa.Column("ended_at", sa.DateTime(timezone=True)),
+            sa.Column("wrong_guesses", sa.Integer, nullable=False),
+            sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=False),
+        )
+        op.create_index("ix_auth_log_tombstones_email", "auth_log_tombstones", ["email"])
+        op.create_index("ix_auth_log_tombstones_deleted_at", "auth_log_tombstones", ["deleted_at"])
 
-    op.create_table(
-        "access_log",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True)),
-        sa.Column("action", sa.String(16), nullable=False),
-        sa.Column("route", sa.String(120), nullable=False),
-        sa.Column("outcome", sa.String(16), nullable=False),
-        sa.Column("at", sa.DateTime(timezone=True), nullable=False),
-    )
-    op.create_index("ix_access_log_user_id", "access_log", ["user_id"])
-    op.create_index("ix_access_log_at", "access_log", ["at"])
+    if _missing("access_log"):
+        op.create_table(
+            "access_log",
+            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+            sa.Column("user_id", postgresql.UUID(as_uuid=True)),
+            sa.Column("action", sa.String(16), nullable=False),
+            sa.Column("route", sa.String(120), nullable=False),
+            sa.Column("outcome", sa.String(16), nullable=False),
+            sa.Column("at", sa.DateTime(timezone=True), nullable=False),
+        )
+        op.create_index("ix_access_log_user_id", "access_log", ["user_id"])
+        op.create_index("ix_access_log_at", "access_log", ["at"])
 
     have = _columns("sessions")
     if "device_label" not in have:
