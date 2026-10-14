@@ -32,7 +32,12 @@ test('A5 at 390: short this month, the gap is the headline on Setup and Home', a
 
   await fitsThePhone(page, 'gap-headline');
   await expect(page.getByTestId('gap-amount').first()).toHaveText('₹34,515');
-  await expect(page.getByTestId('gap-headline').first().locator('li')).toHaveCount(3);
+  // No card here, so no "move the card" way: a longer tenure on the biggest
+  // stretchable EMI, then spend less / earn more (engine gap_ways, up to 3).
+  const gapCard = page.getByTestId('gap-headline').first();
+  await expect(gapCard.locator('li')).toHaveCount(2);
+  await expect(gapCard.getByTestId('gap-way-stretch')).toBeVisible();
+  await expect(gapCard.getByTestId('gap-way-spend')).toBeVisible();
   await expect(page.getByTestId('gap-conditional-date').first()).toBeVisible();
   // The big figure in the preview is the gap too, not a conditional date.
   await expect(page.getByText(/^₹34,515\/mo short$/).first()).toBeVisible();
