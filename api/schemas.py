@@ -747,6 +747,10 @@ class SimulateRequest(_In):
     # borrowed at a card rate and repaid first (engine/gap_debt.py). False
     # keeps the old "the gap is found somewhere, free" assumption.
     gap_as_debt: bool = True
+    # Audit 80+ A4: the share of the extra the user chose to keep once every
+    # loan left costs under 10% a year (engine/prepay_invest.py). Omitted:
+    # the plan prepays everything, as before. Never set by RightDue.
+    low_rate_invest_share: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
 
 
 class TrajectoryPoint(_Base):
@@ -1084,6 +1088,7 @@ class CompareRequest(_In):
     ef_top_up_rate: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
     goals: list[GoalIn] = Field(default_factory=list)
     debt_budget: Optional[Amount] = None
+    low_rate_invest_share: Optional[Decimal] = Field(default=None, ge=D("0"), le=D("1"))
     # what-if knobs
     surplus_delta: Optional[Decimal] = None
     # A saved expense change, rather than an increase in take-home pay.

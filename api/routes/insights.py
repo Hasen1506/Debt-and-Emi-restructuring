@@ -257,13 +257,15 @@ def _runner(req: SimulateRequest, user):
     settings; goals are copied per run (the engine fills them in)."""
     kw = _plan_kwargs(req)
     goals = kw.pop("goals")
+    chosen = kw.pop("low_rate_invest", None)        # the user's saved split (A4)
+    _unset = object()
 
-    def run(u, strategy=None, low_rate_invest=None):
+    def run(u, strategy=None, low_rate_invest=_unset):
         return simulate_plan(
             u, strategy=strategy or req.strategy, horizon_months=req.horizon_months,
             marginal_rate=req.marginal_rate, stop_owed_multiple=ENGINE_STOP_MULTIPLE,
             goals=deepcopy(goals) if goals is not None else None,
-            low_rate_invest=low_rate_invest, **kw,
+            low_rate_invest=chosen if low_rate_invest is _unset else low_rate_invest, **kw,
         )
     return run
 

@@ -366,7 +366,17 @@ def _plan_kwargs(req: SimulateRequest | CompareRequest) -> dict:
         goals=_build_goal_states(req.goals) if req.goals else None,
         debt_budget=req.debt_budget,
         gap_as_debt=req.gap_as_debt,
+        **_low_rate_kwargs(req),
     )
+
+
+def _low_rate_kwargs(req) -> dict:
+    """Audit 80+ A4: the user's own prepay/keep split, once only cheap debt is left."""
+    share = getattr(req, "low_rate_invest_share", None)
+    if share is None:
+        return {}
+    from engine.prepay_invest import LOW_RATE_THRESHOLD
+    return {"low_rate_invest": (LOW_RATE_THRESHOLD, share)}
 
 
 def _never_clears(result, user) -> bool:

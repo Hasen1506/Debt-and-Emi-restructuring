@@ -52,6 +52,7 @@ import { ActivityImpactBanner } from './ActivityImpactBanner';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
 import { PlanSchedule } from './PlanSchedule';
 import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
+import { PrepayKeepSplit } from '@/components/insights/PrepayKeepSplit';
 import { PlanNotes } from './PlanNotes';
 import { PlanAssumptions } from './PlanAssumptions';
 import { PlanGivens } from './PlanGivens';
@@ -286,6 +287,12 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {!short && (
           <div data-print="hide">
             <DebtFreeRedirectPrompt plan={plan} />
+          </div>
+        )}
+        {/* Audit 80+ A4: once only cheap debt is left, prepay, keep or split: the user's call. */}
+        {!short && plan.runArgs && (
+          <div id="prepay-keep-split" data-print="hide" style={{ scrollMarginTop: 16 }}>
+            <PrepayKeepSplit runArgs={{ ...plan.runArgs, strategy: plan.strategy }} />
           </div>
         )}
 

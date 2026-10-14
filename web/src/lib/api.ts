@@ -1972,6 +1972,9 @@ export interface SimulateArgs {
   /** The user's monthly total for debts (EMIs + minimums + extra), in
    *  their currency. Omitted: all spare cash goes to debts. */
   debt_budget?: string;
+  /** Audit 80+ A4: the share of the extra the user chose to keep once only
+   *  loans under 10% a year are left (lib/low-rate-choice). Omitted: prepay all. */
+  low_rate_invest_share?: string;
   /** True when an active preempting goal exists (e.g. wedding, medical).
    *  The engine routes 100% surplus to the goal_slice in the allocation
    *  response when set. Default false preserves legacy behaviour. */
@@ -1996,6 +1999,10 @@ export interface SimulateArgs {
     funding_amount?: string | null;
     funding_pct?: string | null;
     after_loan_index?: number | null;
+    /** Audit 80+ programmable diversion (engine/goals.py). */
+    funding_end_month_index?: number | null;
+    funding_cap?: string | null;
+    pause_below?: string | null;
   }[];
 }
 
@@ -2043,3 +2050,6 @@ export function monthIndexToLabel(
   const d = new Date(start.getFullYear(), start.getMonth() + monthIndex - 1, 1);
   return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 }
+
+/** Audit 80+ W3: the field-error POST for lib/insights (kept out of `api` to keep this file's diff small). */
+export { postWithFieldErrors as postEngineWithFieldErrors };
