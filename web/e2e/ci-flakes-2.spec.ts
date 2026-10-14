@@ -30,8 +30,9 @@ test('a figure typed before the page hydrates is kept (spare cash, CI FLAKES 2)'
   await page.goto('/tools/windfall', { waitUntil: 'domcontentloaded' });
   const box = page.getByLabel('Amount, after tax');
   await box.fill('50000');
+  // Let the scripts through. The handler stays (unroute would settle the
+  // held requests itself, and their continue() would then throw).
   release();
-  await page.unroute(chunks);
 
   // Hydrated and kept: the box regroups the digits, the split is worked out
   // and the log button shows.
