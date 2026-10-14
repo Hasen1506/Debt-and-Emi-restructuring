@@ -283,7 +283,7 @@ export function ActivityPage({
   return (
     <div ref={ref} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* What this page is for, in one line (each tab opens with one) */}
-      <FirstVisitIntro id="activity" style={{ margin: '0 0 8px', fontSize: 13, color: L_T.inkSoft, lineHeight: 1.6 }}>
+      <FirstVisitIntro id="activity" style={{ margin: '0 0 8px', fontSize: 'var(--fs-body)', color: L_T.inkSoft, lineHeight: 1.6 }}>
         What you paid and what changed, by month. Each entry re-runs the plan from what really happened.
       </FirstVisitIntro>
       <section aria-labelledby="activity-h">
@@ -292,7 +292,7 @@ export function ActivityPage({
           <span id="activity-h">Activity · {count === 0 ? 'nothing logged yet' : `${count} ${count === 1 ? 'entry' : 'entries'}`}</span>
         </LSectionHeader>
         {count === 0 && (
-          <p data-testid="activity-empty" style={{ margin: '0 0 8px', fontSize: 13, lineHeight: 1.6 }}>
+          <p data-testid="activity-empty" style={{ margin: '0 0 8px', fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
             Nothing logged yet. When this month&apos;s payments go out, mark them here or on Home; the plan then moves on
             from what really happened.
           </p>

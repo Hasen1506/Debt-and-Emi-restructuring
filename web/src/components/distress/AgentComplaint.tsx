@@ -11,7 +11,7 @@ import { useState, type CSSProperties } from 'react';
 import { LSectionHeader, LField, L_T, LBracket } from '@/components/ledger/primitives';
 import { agentComplaintLetter } from '@/lib/distress-triage';
 
-const captionStyle: CSSProperties = { fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, display: 'block', marginBottom: 4 };
+const captionStyle: CSSProperties = { fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, display: 'block', marginBottom: 4 };
 
 export function AgentComplaintSection({
   name = '',
@@ -58,7 +58,7 @@ export function AgentComplaintSection({
         <span id="cp-agent">BEING HARASSED BY A RECOVERY AGENT? (COMPLAINT)</span>
       </LSectionHeader>
       {!open ? (
-        <p style={{ fontSize: 12, lineHeight: 1.7 }}>
+        <p style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.7 }}>
           A different letter from the one above: it goes to the lender&apos;s grievance officer, says what happened and
           when, and cites RBI&apos;s rules.{' '}
           <button type="button" onClick={() => setOpen(true)} data-testid="cp-agent-open"
@@ -86,13 +86,13 @@ export function AgentComplaintSection({
           </div>
           <label htmlFor="cp-agent-text" style={captionStyle}>The complaint (draft)</label>
           <textarea id="cp-agent-text" data-testid="cp-agent-text" readOnly value={letter} rows={14}
-            style={{ width: '100%', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.6, padding: 10, border: `1px solid ${L_T.ink}`, background: 'transparent', color: L_T.ink }} />
+            style={{ width: '100%', fontFamily: 'inherit', fontSize: 'var(--fs-body)', lineHeight: 1.6, padding: 10, border: `1px solid ${L_T.ink}`, background: 'transparent', color: L_T.ink }} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 10 }}>
             <button type="button" onClick={copy} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 700, cursor: 'pointer', color: L_T.ink }}>[ COPY ]</button>
             <LBracket href={`mailto:?subject=${encodeURIComponent('Complaint about recovery agent conduct')}&body=${encodeURIComponent(letter)}`}>EMAIL IT</LBracket>
           </div>
-          <p role="status" aria-live="polite" style={{ fontSize: 11, color: L_T.positive, minHeight: 16, margin: '6px 0 0' }}>{said}</p>
-          <p style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.7 }}>
+          <p role="status" aria-live="polite" style={{ fontSize: 'var(--fs-small)', color: L_T.positive, minHeight: 16, margin: '6px 0 0' }}>{said}</p>
+          <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.7 }}>
             Write down every call (date, time, number) and keep screenshots. If someone threatens violence, that is a police
             matter as well.
           </p>

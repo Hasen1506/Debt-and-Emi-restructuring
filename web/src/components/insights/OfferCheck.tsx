@@ -22,7 +22,7 @@ const KIND_LABEL: Record<OfferBody['kind'], string> = {
 
 function field(label: string, value: string, set: (v: string) => void, hint?: string) {
   return (
-    <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <label style={{ fontSize: 'var(--fs-dense)', display: 'flex', flexDirection: 'column', gap: 4 }}>
       {label}
       <input
         inputMode="decimal"
@@ -103,9 +103,9 @@ export function OfferCheck({
       </LChipRow>
       {purpose === 'repay' && (
         <fieldset style={{ border: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <legend style={{ fontSize: 12, marginBottom: 4 }}>Which ones would it pay off?</legend>
+          <legend style={{ fontSize: 'var(--fs-dense)', marginBottom: 4 }}>Which ones would it pay off?</legend>
           {loanNames.map((l) => (
-            <label key={l.index} style={{ fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', minHeight: 32 }}>
+            <label key={l.index} style={{ fontSize: 'var(--fs-body)', display: 'flex', gap: 8, alignItems: 'center', minHeight: 32 }}>
               <input
                 type="checkbox"
                 checked={repay.includes(l.index)}
@@ -143,11 +143,11 @@ export function OfferCheck({
       <div>
         <LButton onClick={() => void check()} disabled={busy}>{busy ? 'CHECKING…' : 'CHECK IT AGAINST MY PLAN'}</LButton>
       </div>
-      {err && <p role="alert" style={{ margin: 0, fontSize: 12, color: L_T.negative }}>{err}</p>}
+      {err && <p role="alert" style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.negative }}>{err}</p>}
       {res && (
         <div data-testid="offer-result" style={{ padding: '12px 14px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, ...lStrip(tone) }}>
-          <p data-testid="offer-headline" style={{ margin: 0, fontSize: 14, fontWeight: 700, lineHeight: 1.5 }}>{res.headline}</p>
-          <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, lineHeight: 1.6 }}>
+          <p data-testid="offer-headline" style={{ margin: 0, fontSize: 'var(--fs-body)', fontWeight: 700, lineHeight: 1.5 }}>{res.headline}</p>
+          <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 'var(--fs-dense)', lineHeight: 1.6 }}>
             <li>
               True cost {(Number(res.apr) * 100).toFixed(1)}% a year (APR, fee and GST in): EMI {money(res.monthly_emi)}, {money(res.total_cost)} paid
               beyond what you get.
@@ -160,7 +160,7 @@ export function OfferCheck({
             )}
             {res.notes.map((n) => <li key={n.slice(0, 30)}>{n}</li>)}
           </ul>
-          <p style={{ margin: '8px 0 0', fontSize: 12, fontWeight: 600 }}>{res.neutrality}</p>
+          <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-dense)', fontWeight: 600 }}>{res.neutrality}</p>
         </div>
       )}
     </section>

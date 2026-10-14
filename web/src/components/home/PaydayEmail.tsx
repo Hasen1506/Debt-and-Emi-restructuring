@@ -64,7 +64,7 @@ export function PaydayEmail({ data, country, todayIso }: { data: PayThisMonth; c
   }
 
   return (
-    <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }} data-testid="payday-email">
+    <div style={{ marginTop: 12, fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.inkSoft, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }} data-testid="payday-email">
       {on ? (
         <>
           <span>Payday email: on, day {day} of each month. Tap &ldquo;All paid&rdquo; in it and we&apos;ll ask here before recording anything.</span>

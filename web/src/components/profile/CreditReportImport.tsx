@@ -228,7 +228,7 @@ export function CreditReportImport({
             />
           </label>
           {/* audit80 D3: say what leaves the device, next to the button. */}
-          <p className="muted" data-testid="cr-privacy" style={{ margin: 0, fontSize: 12 }}>
+          <p className="muted" data-testid="cr-privacy" style={{ margin: 0, fontSize: 'var(--fs-dense)' }}>
             The report (with your PAN, date of birth and address) and its password are read once on our server in
             Oregon, USA, and are not saved or logged. <a href="/privacy">Privacy notice</a>.
           </p>

@@ -55,7 +55,7 @@ export function RateMoveEmail({ loans }: { loans: RateWatchLoan[] }) {
   }
 
   return (
-    <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }} data-testid="rate-move-email">
+    <div style={{ marginTop: 12, fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.inkSoft }} data-testid="rate-move-email">
       {on ? (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <span>Rate-move email: on. You’ll hear from us after each RBI policy decision.</span>

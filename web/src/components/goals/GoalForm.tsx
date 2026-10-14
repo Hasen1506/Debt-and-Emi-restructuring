@@ -430,7 +430,7 @@ function FundingRulePicker({ goal, picked, patch, currency, error }: { goal: Goa
         <AfterDebtThen rule={rule} set={set} currency={currency} />
       )}
       {picked && <FundingLimits rule={rule} patch={(p) => patch({ fundingRule: { ...rule, ...p } })} currency={currency} />}
-      <p data-testid="goal-rule-label" style={{ fontSize: 11, color: L_T.muted, margin: '6px 0 0' }}>
+      <p data-testid="goal-rule-label" style={{ fontSize: 'var(--fs-small)', color: L_T.muted, margin: '6px 0 0' }}>
         {picked ? `${fundingRuleLabel(rule, loans, user.country, currency)}.` : 'Your call: the plan doesn’t pick one for you.'}
         {rule.kind !== 'after_debt' && high.length > 0 && ' Saving before your high-interest debt is paid off costs interest; the goal shows how much once saved.'}
       </p>
@@ -473,7 +473,7 @@ export function FundingLimits({ rule, patch, currency }: { rule: Rule; patch: (p
   const thisYear = new Date().getFullYear();
   return (
     <details data-testid="goal-limits" open={set} style={{ marginTop: 8 }}>
-      <summary style={{ fontSize: 12, cursor: 'pointer', minHeight: 24 }}>Limits (optional): a monthly most, a pause in lean months, a stop month</summary>
+      <summary style={{ fontSize: 'var(--fs-dense)', cursor: 'pointer', minHeight: 24 }}>Limits (optional): a monthly most, a pause in lean months, a stop month</summary>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 10, marginTop: 8 }}>
         <Field
           label="At most a month"

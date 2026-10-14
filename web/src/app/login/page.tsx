@@ -243,8 +243,8 @@ export default function LoginPage() {
         {phase === 'email' ? copy.sub : copy.code}
       </p>
       {frame === 'start' && phase === 'email' && (
-        <div data-testid="login-preview" style={{ margin: '0 0 18px', fontSize: 13, lineHeight: 1.55 }}>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>In about two minutes you&rsquo;ll see:</div>
+        <div data-testid="login-preview" style={{ margin: '0 0 18px', fontSize: 'var(--fs-body)', lineHeight: 1.55 }}>
+          <div style={{ fontSize: 'var(--fs-dense)', color: 'var(--muted)', marginBottom: 4 }}>In about two minutes you&rsquo;ll see:</div>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
             {START_PREVIEW.map((l) => <li key={l}>{l}</li>)}
           </ul>
@@ -348,7 +348,7 @@ export default function LoginPage() {
         </form>
       )}
 
-      <p style={{ ...infoText, fontSize: 12 }} data-testid="login-cant-pay">
+      <p style={{ ...infoText, fontSize: 'var(--fs-dense)' }} data-testid="login-cant-pay">
         Behind on a payment, or getting recovery calls? <a href="/cant-pay">Your rights and a letter to your lender</a>, no sign-in needed.
       </p>
 
@@ -384,9 +384,9 @@ const card: React.CSSProperties = {
   borderRadius: 0,
 };
 const title: React.CSSProperties = { margin: 0, fontSize: 22, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' };
-const stepper: React.CSSProperties = { listStyle: 'none', display: 'flex', flexWrap: 'wrap', gap: '4px 12px', padding: 0, margin: '0 0 12px', fontSize: 12, fontFamily: 'var(--font-mono)' };
+const stepper: React.CSSProperties = { listStyle: 'none', display: 'flex', flexWrap: 'wrap', gap: '4px 12px', padding: 0, margin: '0 0 12px', fontSize: 'var(--fs-dense)', fontFamily: 'var(--font-mono)' };
 const stepItem: React.CSSProperties = { whiteSpace: 'nowrap' };
-const subtitle: React.CSSProperties = { color: 'var(--muted)', marginTop: 4, marginBottom: 20, fontSize: 14 };
+const subtitle: React.CSSProperties = { color: 'var(--muted)', marginTop: 4, marginBottom: 20, fontSize: 'var(--fs-body)' };
 const form: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14 };
 const label: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--fs-body)', color: 'var(--muted)' };
 const input: React.CSSProperties = {

@@ -41,7 +41,7 @@ export function ConsentNotice() {
 
   return (
     <section role="region" aria-label="Updated privacy notice" data-testid="consent-notice"
-      style={{ border: '1px solid var(--ink)', background: 'var(--card, transparent)', padding: '12px 14px', margin: '12px auto', maxWidth: 760, fontSize: 13, lineHeight: 1.5 }}>
+      style={{ border: '1px solid var(--ink)', background: 'var(--card, transparent)', padding: '12px 14px', margin: '12px auto', maxWidth: 760, fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>
       <p style={{ margin: 0 }}>
         We updated our <a href={PRIVACY_PATH}>privacy notice</a> and <a href={TERMS_PATH}>terms</a> ({NOTICE_LAST_UPDATED}).
         Please read them and agree to keep using your account. If you don&apos;t agree, you can download or delete your
@@ -52,7 +52,7 @@ export function ConsentNotice() {
         I am 18 or older.
       </label>
       <button type="button" onClick={agree} disabled={!adult || busy} data-testid="consent-agree"
-        style={{ marginTop: 8, padding: '8px 12px', background: 'var(--ink)', color: 'var(--canvas)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: adult && !busy ? 'pointer' : 'not-allowed', opacity: adult && !busy ? 1 : 0.45 }}>
+        style={{ marginTop: 8, padding: '8px 12px', background: 'var(--ink)', color: 'var(--canvas)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-label)', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: adult && !busy ? 'pointer' : 'not-allowed', opacity: adult && !busy ? 1 : 0.45 }}>
         {busy ? 'Saving…' : 'I agree'}
       </button>
       {error && <p role="alert" style={{ margin: '8px 0 0', color: 'var(--negative, #b42318)' }}>{error}</p>}

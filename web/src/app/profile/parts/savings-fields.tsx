@@ -36,7 +36,7 @@ export function EfLiquidityWarning({
         background: 'var(--soft-bg, rgba(220, 130, 0, 0.06))',
         border: '1px solid var(--warning)',
         borderRadius: 6,
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
         lineHeight: 1.55,
       }}
     >
@@ -86,7 +86,7 @@ export function EfTierPicker({
     Number(monthlyExpenses || 0) + Number(variableExpenses || 0);
   if (totalMonthlyExpenses <= 0) {
     return (
-      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+      <div className="muted" style={{ fontSize: 'var(--fs-dense)', marginTop: 4 }}>
         Enter your monthly spending (Income and spending) to see tier recommendations.
       </div>
     );
@@ -131,7 +131,7 @@ export function EfTierPicker({
     >
       <div
         className="muted"
-        style={{ fontSize: 12, marginBottom: 8, lineHeight: 1.5 }}
+        style={{ fontSize: 'var(--fs-dense)', marginBottom: 8, lineHeight: 1.5 }}
       >
         Tier shortcuts — sets <strong style={{ color: 'var(--ink)' }}>EF target</strong>{' '}
         to N × your stated monthly expenses
@@ -161,18 +161,18 @@ export function EfTierPicker({
                 borderRadius: 6,
                 cursor: 'pointer',
                 textAlign: 'left',
-                fontSize: 12,
+                fontSize: 'var(--fs-dense)',
                 lineHeight: 1.45,
               }}
             >
-              <div style={{ fontWeight: 600, fontSize: 13 }}>
+              <div style={{ fontWeight: 600, fontSize: 'var(--fs-body)' }}>
                 {t.label} · {t.months} months
               </div>
               <div style={{ opacity: 0.8 }}>{t.descr}</div>
-              <div style={{ marginTop: 4, fontSize: 11 }}>
+              <div style={{ marginTop: 4, fontSize: 'var(--fs-small)' }}>
                 Target: {formatCurrency(String(target), currency)}
               </div>
-              <div style={{ fontSize: 11, opacity: 0.85 }}>
+              <div style={{ fontSize: 'var(--fs-small)', opacity: 0.85 }}>
                 {fill === 0
                   ? 'Already met — no waterfall delay'
                   : fill === Infinity
@@ -219,7 +219,7 @@ export function OtherBanksField({
       <div>
         <div
           style={{
-            fontSize: 11,
+            fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
             color: 'var(--muted)',
@@ -228,7 +228,7 @@ export function OtherBanksField({
         >
           Other banks &amp; cards you already use
         </div>
-        <div className="muted" style={{ fontSize: 12, lineHeight: 1.55 }}>
+        <div className="muted" style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.55 }}>
           Add any bank where you hold a savings, current, NRE/NRO account,
           credit card, or debit card — anything beyond your primary bank,
           loan or no loan. Tools &rsaquo; New-debt and refinance suggestions
@@ -255,7 +255,7 @@ export function OtherBanksField({
                 background: 'var(--soft-bg)',
                 border: '1px solid var(--border)',
                 borderRadius: 999,
-                fontSize: 12,
+                fontSize: 'var(--fs-dense)',
               }}
             >
               {b}
@@ -268,7 +268,7 @@ export function OtherBanksField({
                   border: 'none',
                   color: 'var(--muted)',
                   cursor: 'pointer',
-                  fontSize: 14,
+                  fontSize: 'var(--fs-body)',
                   lineHeight: 1,
                   padding: 0,
                 }}
@@ -301,7 +301,7 @@ export function OtherBanksField({
             border: 'none',
             borderRadius: 6,
             cursor: draft.trim() ? 'pointer' : 'not-allowed',
-            fontSize: 13,
+            fontSize: 'var(--fs-body)',
             opacity:
               !draft.trim() || draft.trim() === primaryBank || value.includes(draft.trim())
                 ? 0.4

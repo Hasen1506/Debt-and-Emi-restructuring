@@ -34,8 +34,8 @@ export function SetupChoices({
   return (
     <section aria-labelledby="choices-h" style={{ border: `1px solid ${L_T.ink}`, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 14, background: L_T.paper }}>
       <div>
-        <h3 id="choices-h" style={{ margin: 0, fontSize: 12, letterSpacing: "0.14em" }}>YOUR CALL · CHANGE ANY TIME</h3>
-        <p style={{ margin: '4px 0 0', fontSize: 12, color: L_T.muted, lineHeight: 1.55 }}>
+        <h3 id="choices-h" style={{ margin: 0, fontSize: 'var(--fs-dense)', letterSpacing: "0.14em" }}>YOUR CALL · CHANGE ANY TIME</h3>
+        <p style={{ margin: '4px 0 0', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.55 }}>
           Already set to a sensible start, so you can save now. Change any of them here, or later on Plan or Profile.
         </p>
       </div>
@@ -47,7 +47,7 @@ export function SetupChoices({
             </Chip>
           ))}
         </ChipRow>
-        <p style={{ margin: '4px 0 0', fontSize: 11, color: L_T.muted }}>
+        <p style={{ margin: '4px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>
           <Term id="emergency_fund">What&apos;s an emergency fund?</Term> Many people keep 3 to 6 months
           {hasLoans ? '; with a steady job and costly debt, some start smaller.' : '.'}
         </p>
@@ -67,14 +67,14 @@ export function SetupChoices({
       )}
       {hasLoans && orderInfo && !orderInfo.ask && (
         <div data-testid="order-same">
-          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
+          <p style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.55 }}>
             <strong>{orderInfo.line}</strong> The plan uses the{' '}
             {STRATEGY_PLAIN[value.strategy ?? 'avalanche'].toLowerCase()}; you can change the order on Plan.
           </p>
         </div>
       )}
       {hasLoans && (!orderInfo || orderInfo.ask) && (<div data-testid="order-ask">
-        {orderInfo?.line && <p style={{ margin: '0 0 6px', fontSize: 12, color: L_T.inkSoft }}>{orderInfo.line}</p>}
+        {orderInfo?.line && <p style={{ margin: '0 0 6px', fontSize: 'var(--fs-dense)', color: L_T.inkSoft }}>{orderInfo.line}</p>}
         <ChipRow label="Which loan gets your extra money first?">
           {ORDER.map((s) => (
             <Chip key={s} on={value.strategy === s} onClick={() => onChange({ ...value, strategy: s })}>

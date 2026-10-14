@@ -154,7 +154,7 @@ export default function AccountDataPage() {
                       {d.last_seen_at ? `, last used ${when(d.last_seen_at)}` : ''}
                     </span>
                     <button type="button" onClick={() => onSignOutDevice(d)} disabled={busy !== null}
-                      style={{ ...BUTTON, padding: '4px 8px', fontSize: 10 }}>
+                      style={{ ...BUTTON, padding: '4px 8px', fontSize: 'var(--fs-small)' }}>
                       Sign out
                     </button>
                   </li>

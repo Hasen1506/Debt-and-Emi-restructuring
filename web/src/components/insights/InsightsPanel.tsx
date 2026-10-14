@@ -92,14 +92,14 @@ export function InsightsPanel({
         />
       )}
       {variant === 'home' && data.low_rate_phase_month != null && !choseLowRate && (
-        <p data-testid="low-rate-nudge" style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <p data-testid="low-rate-nudge" style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6, color: L_T.inkSoft }}>
           From {label(data.low_rate_phase_month)} only loans under {(Number(data.low_rate_threshold) * 100).toFixed(0)}% a year are
           left. Prepay them, keep the spare cash, or split? <LBracket href="/plan#prepay-keep-split">DECIDE ON PLAN →</LBracket>
         </p>
       )}
       {variant === 'home' && open.length > 0 && (
         <details>
-          <summary style={{ cursor: 'pointer', fontSize: 12, letterSpacing: '0.08em', minHeight: 24 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', minHeight: 24 }}>
             GOT A TOP-UP, LOAN OR NO-COST EMI OFFER? CHECK IT BEFORE YOU SIGN
           </summary>
           <div style={{ marginTop: 10 }}>

@@ -61,7 +61,7 @@ const toggleStyle = (on: boolean): CSSProperties => ({
   border: `1px solid ${L_T.ink}`,
   padding: '6px 12px',
   font: 'inherit',
-  fontSize: 12,
+  fontSize: 'var(--fs-dense)',
   fontWeight: 700,
   cursor: 'pointer',
   minHeight: 32,
@@ -98,7 +98,7 @@ export function CantPayPublic() {
           <h1 id="cp-head" style={{ fontSize: 20, margin: 0, letterSpacing: '0.02em' }}>
             CAN&apos;T PAY EVERYTHING THIS MONTH?
           </h1>
-          <p style={{ fontSize: 14, lineHeight: 1.6, marginTop: 8 }}>
+          <p style={{ fontSize: 'var(--fs-body)', lineHeight: 1.6, marginTop: 8 }}>
             No sign-in needed. What to pay first, a letter to your lender and your rights. Nothing you type here is
             sent or saved.
           </p>
@@ -112,10 +112,10 @@ export function CantPayPublic() {
           <LSectionHeader step={1}>
             <span id="cp-protect">WHAT TO PROTECT FIRST</span>
           </LSectionHeader>
-          <ol style={{ paddingLeft: 18, margin: 0, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, lineHeight: 1.6 }}>
+          <ol style={{ paddingLeft: 18, margin: 0, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
             {PUBLIC_PROTECT[country].map((t) => <li key={t}>{t}</li>)}
           </ol>
-          <p style={{ fontSize: 13, lineHeight: 1.6, marginTop: 12 }} data-testid="cp-public-signin">
+          <p style={{ fontSize: 'var(--fs-body)', lineHeight: 1.6, marginTop: 12 }} data-testid="cp-public-signin">
             Want this worked out for <em>your</em> loans, with what each one gets from the money you have this month?{' '}
             <LBracket href={signIn}>SIGN IN FREE →</LBracket>
           </p>
@@ -129,7 +129,7 @@ export function CantPayPublic() {
           step={2}
           loanPicker={
             <label style={{ display: 'block', marginBottom: 10 }}>
-              <span style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, display: 'block', marginBottom: 4 }}>Kind of loan</span>
+              <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, display: 'block', marginBottom: 4 }}>Kind of loan</span>
               <select value={k.type} onChange={(e) => setKind(e.target.value as LoanType)} data-testid="cp-letter-kind">
                 {kinds.map((x) => <option key={x.type} value={x.type}>{x.label}</option>)}
               </select>
@@ -146,7 +146,7 @@ export function CantPayPublic() {
               </LSectionHeader>
               <Rule r={TRIAGE_RULES.recovery} />
               <Rule r={TRIAGE_RULES.recovery_2027} />
-              <p style={{ fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
+              <p style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.7 }}>
                 If an agent breaks these rules: write to the lender&apos;s grievance officer with dates and times (the
                 complaint above). If it isn&apos;t fixed in 30 days, the RBI Ombudsman complaint route (cms.rbi.org.in)
                 is free.
@@ -166,7 +166,7 @@ export function CantPayPublic() {
               </LSectionHeader>
               <Rule r={TRIAGE_RULES.settlement} />
               <Rule r={TRIAGE_RULES.restructuring} />
-              <p style={{ fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
+              <p style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.7 }}>
                 Debt-settlement firms usually ask you to stop paying and save instead, then negotiate. That pushes every
                 account into default first. RightDue earns nothing from lenders or settlement firms.
               </p>
@@ -181,7 +181,7 @@ export function CantPayPublic() {
           </section>
         )}
 
-        <p style={{ fontSize: 11, color: L_T.muted }}>
+        <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>
           {isIN ? <>Rules checked against the RBI text on {TRIAGE_VERIFIED_ON}.</> : <>Collector rules from the CFPB&apos;s Regulation F, read 14 Oct 2026.</>}{' '}
           A calculator and a draft, not legal advice.
         </p>

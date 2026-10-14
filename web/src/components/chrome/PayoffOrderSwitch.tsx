@@ -98,7 +98,7 @@ export function PayoffOrderSwitch({
               className="rd-payoff-seg"
               style={{
                 fontFamily: L_MONO,
-                fontSize: 13,
+                fontSize: 'var(--fs-body)',
                 fontWeight: on ? 700 : 500,
                 padding: '4px 10px',
                 minHeight: 30,

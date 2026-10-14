@@ -46,7 +46,7 @@ export function UsStudentChips({
         </ChipRow>
       )}
       {held && (
-        <p role="note" style={{ margin: 0, fontSize: 12 }}>
+        <p role="note" style={{ margin: 0, fontSize: 'var(--fs-dense)' }}>
           Extra held off this loan: it {held}.
         </p>
       )}

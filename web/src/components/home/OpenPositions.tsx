@@ -121,7 +121,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                 <div style={{ fontWeight: 700 }}>
                   {name.charAt(0).toUpperCase() + name.slice(1)}
                   {isDearest && (
-                    <span style={{ marginLeft: 8, fontSize: 10, letterSpacing: '0.12em', color: L_T.accent }}>
+                    <span style={{ marginLeft: 8, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.accent }}>
                       · COSTLIEST
                     </span>
                   )}

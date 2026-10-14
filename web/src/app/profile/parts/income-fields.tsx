@@ -138,7 +138,7 @@ function GrossIncomeField({
             background: 'var(--canvas)',
             border: '1px dashed var(--border)',
             borderRadius: 6,
-            fontSize: 12,
+            fontSize: 'var(--fs-dense)',
             lineHeight: 1.5,
             color: 'var(--ink)',
           }}
@@ -176,7 +176,7 @@ function GrossIncomeField({
             )}
           </div>
           {country === 'IN' && (
-            <div style={{ color: 'var(--muted)', marginTop: 2, fontSize: 11 }}>
+            <div style={{ color: 'var(--muted)', marginTop: 2, fontSize: 'var(--fs-small)' }}>
               Computed under{' '}
               <strong>{taxRegime === 'old' ? 'old' : 'new'} regime</strong>
               {taxRegime !== 'old' && (
@@ -191,7 +191,7 @@ function GrossIncomeField({
                 padding: '6px 8px',
                 background: 'var(--soft-bg, rgba(255,180,0,0.08))',
                 borderLeft: '2px solid var(--warning)',
-                fontSize: 11,
+                fontSize: 'var(--fs-small)',
                 color: 'var(--ink)',
               }}
             >
@@ -263,7 +263,7 @@ export function AdvancedTaxDetails({
       <summary
         style={{
           cursor: 'pointer',
-          fontSize: 12,
+          fontSize: 'var(--fs-dense)',
           color: 'var(--accent)',
           padding: '6px 0',
           letterSpacing: '0.02em',
@@ -282,7 +282,7 @@ export function AdvancedTaxDetails({
           borderRadius: 6,
         }}
       >
-        <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--muted)', lineHeight: 1.55 }}>
+        <div style={{ gridColumn: '1 / -1', fontSize: 'var(--fs-dense)', color: 'var(--muted)', lineHeight: 1.55 }}>
           Optional. Leave blank if you just want a plan from your take-home —
           the engine will use the manual marginal-rate field at the bottom of
           this step. Fill these to get the tax-sleeve card, deduction

@@ -22,7 +22,7 @@ export default function RbiDecisionPage() {
   return (
     <LShell>
       <header style={{ marginBottom: 18, maxWidth: 820 }}>
-        <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
+        <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
           RBI DECISION · NO SIGN-IN
         </div>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>

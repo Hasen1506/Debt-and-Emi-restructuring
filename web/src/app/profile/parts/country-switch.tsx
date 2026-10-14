@@ -33,7 +33,7 @@ export function CountrySwitchPanel({
     <div
       role="dialog"
       aria-label="Change country"
-      style={{ border: `1px solid ${L_T.negative}`, padding: '12px 14px', display: 'grid', gap: 10, fontSize: 13, lineHeight: 1.55 }}
+      style={{ border: `1px solid ${L_T.negative}`, padding: '12px 14px', display: 'grid', gap: 10, fontSize: 'var(--fs-body)', lineHeight: 1.55 }}
     >
       <strong>Your amounts are in {sFrom}. {name(to) === 'the USA' ? 'The USA' : 'India'} uses {sTo}.</strong>
       <span>

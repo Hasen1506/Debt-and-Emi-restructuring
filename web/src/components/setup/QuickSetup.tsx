@@ -1607,7 +1607,7 @@ function PlanPreview({
         </tbody>
       </table>
       {worstCase && (
-        <details data-testid="setup-worst-case" style={{ fontSize: 12, color: L_T.muted }}>
+        <details data-testid="setup-worst-case" style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>
           <summary style={{ cursor: 'pointer' }}>{WORST_CASE_LABEL}</summary>
           <p style={{ margin: '6px 0 0', lineHeight: 1.55 }}>{worstCase}</p>
         </details>
@@ -1615,13 +1615,13 @@ function PlanPreview({
       <div style={{ padding: '12px 14px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, ...lStrip('accent') }}>
         <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
         {move && moveLoan ? (
-          <div style={{ fontSize: 14, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>
             {country === 'US' ? 'Make every payment' : `Pay every ${paymentWords(country).one}`} and card minimum, then put{' '}
             <strong>{money(String(move.extra), loanCurrency(moveLoan, country))}</strong> extra on your{' '}
             <strong>{moveLoan.bank ? `${moveLoan.bank} ` : ''}{LOAN_TYPE_NAME[moveLoan.loan_type]}</strong>.
           </div>
         ) : (
-          <div style={{ fontSize: 14, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>
             {country === 'US' ? 'Make every payment' : `Pay every ${paymentWords(country).one}`} and card minimum. Nothing is left over for extra payments this month.
           </div>
         )}

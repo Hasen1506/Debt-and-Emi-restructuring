@@ -63,7 +63,7 @@ function timeNow(country: Country): string {
   });
 }
 
-const TAB_STYLE = { fontSize: 13, letterSpacing: 'var(--nav-tracking, 0.12em)', textTransform: 'uppercase' } as const;
+const TAB_STYLE = { fontSize: 13, fontFamily: 'var(--font-mono)', letterSpacing: 'var(--nav-tracking, 0.12em)', textTransform: 'uppercase' } as const;
 
 /** `strategy` shows the payoff order switch; left out when there is no
  *  debt to order. */

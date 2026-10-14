@@ -10,7 +10,7 @@ import { PROFILE_SECTIONS } from '@/components/profile/ProfileSummary';
 export function BackLink({ back }: { back: { href: string; name: string } }) {
   return (
     <div>
-      <LBracket href={back.href} style={{ fontSize: 12 }}>{`← BACK TO ${back.name.toUpperCase()}`}</LBracket>
+      <LBracket href={back.href} style={{ fontSize: 'var(--fs-dense)' }}>{`← BACK TO ${back.name.toUpperCase()}`}</LBracket>
     </div>
   );
 }
@@ -20,7 +20,7 @@ export function BackLink({ back }: { back: { href: string; name: string } }) {
 export function SectionTabs({ step, onOpen, onAll }: { step: number; onOpen: (n: number) => void; onAll: () => void }) {
   const tab = (on: boolean): React.CSSProperties => ({
     fontFamily: 'inherit',
-    fontSize: 11,
+    fontSize: 'var(--fs-label)',
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     padding: '8px 12px',
@@ -55,11 +55,11 @@ const SECTION_TAB = ['YOU', 'COUNTRY AND TAX', 'INCOME', 'LOANS', 'SAVINGS AND B
 export function ProfileHeader({ title, editing, children }: { title: string; editing?: boolean; children: React.ReactNode }) {
   return (
     <header>
-      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
+      <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
         PROFILE{editing ? ' · EDIT' : ''}
       </div>
       <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>{title}</h1>
-      <p style={{ color: L_T.inkSoft, fontSize: 13, margin: '8px 0 0', lineHeight: 1.6 }}>{children}</p>
+      <p style={{ color: L_T.inkSoft, fontSize: 'var(--fs-body)', margin: '8px 0 0', lineHeight: 1.6 }}>{children}</p>
     </header>
   );
 }

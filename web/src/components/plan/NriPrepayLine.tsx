@@ -51,10 +51,10 @@ export function NriPrepayLine({ user, drift }: { user: UserPayload; drift: 'on' 
   }, [key]);
   if (!loan || !line) return null;
   return (
-    <section data-testid="nri-prepay-line" aria-label="Prepaying a rupee loan from dollars" style={{ fontSize: 13, lineHeight: 1.5 }}>
+    <section data-testid="nri-prepay-line" aria-label="Prepaying a rupee loan from dollars" style={{ fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>
       <p style={{ margin: 0 }}>{line.text}</p>
       {line.caveats.length > 0 && (
-        <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12, color: L_T.muted }}>
+        <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 'var(--fs-dense)', color: L_T.muted }}>
           {line.caveats.map((c) => (
             <li key={c}>{c}</li>
           ))}

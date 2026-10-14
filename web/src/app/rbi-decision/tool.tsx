@@ -83,7 +83,7 @@ export function RbiDecisionTool() {
   const next = res?.next_meeting ?? latest?.next_meeting;
   return (
     <LSteps>
-      <section data-testid="mpc-latest" aria-label="The latest RBI decision" style={{ fontSize: 13, lineHeight: 1.7, maxWidth: 820 }}>
+      <section data-testid="mpc-latest" aria-label="The latest RBI decision" style={{ fontSize: 'var(--fs-body)', lineHeight: 1.7, maxWidth: 820 }}>
         {d ? (
           <p style={{ margin: 0 }}>
             On <strong>{day(d.decided)}</strong> the RBI moved the repo rate from {formatPct(d.repo_from, 2)} to{' '}
@@ -117,12 +117,12 @@ export function RbiDecisionTool() {
               {busy ? 'WORKING…' : 'SHOW MY EMI'}
             </button>
             {err && (
-              <p role="alert" style={{ margin: '8px 0 0', fontSize: 12, color: L_T.negative }}>
+              <p role="alert" style={{ margin: '8px 0 0', fontSize: 'var(--fs-dense)', color: L_T.negative }}>
                 {err}
               </p>
             )}
           </div>
-          <p style={{ margin: 0, fontSize: 11, color: L_T.muted }}>Nothing you type here is saved.</p>
+          <p style={{ margin: 0, fontSize: 'var(--fs-small)', color: L_T.muted }}>Nothing you type here is saved.</p>
         </form>
       </LStep>
 
@@ -133,17 +133,17 @@ export function RbiDecisionTool() {
             {res.notes.map((n) => (
               <LNote key={n}>{n}</LNote>
             ))}
-            <p style={{ fontSize: 12, lineHeight: 1.6, margin: '12px 0 0' }}>
+            <p style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6, margin: '12px 0 0' }}>
               Your lender must tell you of any rise in EMI or tenure immediately and let you choose: a higher EMI, a
               longer tenure, a mix, a fixed rate where it offers one, or prepaying. If it changed your loan without
               asking, <a href="/tools/loan-check" style={{ color: L_T.accent }}>Loan Check</a> writes the letter.
             </p>
             {res.next_meeting && (
               <div data-testid="mpc-scenarios" style={{ marginTop: 16 }}>
-                <p style={{ fontSize: 12, fontWeight: 700, margin: '0 0 6px' }}>
+                <p style={{ fontSize: 'var(--fs-dense)', fontWeight: 700, margin: '0 0 6px' }}>
                   If the RBI moves again on {day(res.next_meeting)}
                 </p>
-                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.7 }}>
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 'var(--fs-dense)', lineHeight: 1.7 }}>
                   {res.scenarios.map((s) => (
                     <li key={s.move}>
                       {s.impact == null
@@ -156,7 +156,7 @@ export function RbiDecisionTool() {
                     </li>
                   ))}
                 </ul>
-                <p style={{ fontSize: 11, color: L_T.muted, margin: '6px 0 0' }}>
+                <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted, margin: '6px 0 0' }}>
                   Scenarios, not a forecast: RightDue doesn&apos;t predict RBI decisions.
                 </p>
               </div>
@@ -165,7 +165,7 @@ export function RbiDecisionTool() {
         </LStep>
       )}
 
-      <section data-testid="mpc-bridge" aria-label="Next steps" style={{ border: `1px dashed ${L_T.ink}`, padding: '14px 16px', fontSize: 13, lineHeight: 1.6 }}>
+      <section data-testid="mpc-bridge" aria-label="Next steps" style={{ border: `1px dashed ${L_T.ink}`, padding: '14px 16px', fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
         <p style={{ margin: 0 }}>
           Want us to watch this loan, and your other EMIs, after every RBI decision?{' '}
           <a data-testid="mpc-start-plan" href={PLAN_HREF_MPC} style={{ color: L_T.accent, fontWeight: 700 }}>
@@ -180,7 +180,7 @@ export function RbiDecisionTool() {
             [SHARE ON WHATSAPP]
           </a>
         </p>
-        <p style={{ margin: '6px 0 0', fontSize: 11, color: L_T.muted }}>
+        <p style={{ margin: '6px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>
           RBI rates: {latest?.rates_source ?? 'rbi.org.in'}. Updated within a few hours of each RBI decision.
         </p>
       </section>
@@ -192,8 +192,8 @@ function Choices({ title, r }: { title: string; r: RbiDecisionResponse }) {
   const rows = impactRows(r.impact);
   return (
     <div role="region" aria-label="Your choices" tabIndex={0} style={{ overflowX: 'auto' }}>
-      <table style={{ borderCollapse: 'collapse', fontSize: 12, minWidth: 300, width: '100%' }}>
-        <caption style={{ textAlign: 'left', fontSize: 12, fontWeight: 700, paddingBottom: 6 }}>{title}</caption>
+      <table style={{ borderCollapse: 'collapse', fontSize: 'var(--fs-dense)', minWidth: 300, width: '100%' }}>
+        <caption style={{ textAlign: 'left', fontSize: 'var(--fs-dense)', fontWeight: 700, paddingBottom: 6 }}>{title}</caption>
         <thead>
           <tr>
             <th scope="col" style={th}>Choice</th>
@@ -222,7 +222,7 @@ const submit: React.CSSProperties = {
   background: L_T.ink,
   color: L_T.bg,
   padding: '10px 16px',
-  fontSize: 12,
+  fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
   letterSpacing: '0.12em',
   fontWeight: 700,
   cursor: 'pointer',
@@ -233,7 +233,7 @@ const th: React.CSSProperties = {
   padding: '6px 12px 6px 0',
   borderBottom: '1px solid var(--border)',
   fontWeight: 500,
-  fontSize: 10,
+  fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
   letterSpacing: '0.12em',
   color: 'var(--muted)',
 };

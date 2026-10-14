@@ -178,19 +178,19 @@ export function CantPay() {
                           : `${fc(l.short)} SHORT`}
                     </span>
                     )}
-                    <div style={{ color: L_T.muted, fontSize: 11 }}>{l.reason}</div>
+                    <div style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>{l.reason}</div>
                   </li>
                 ))}
               </ol>
               {hasAvailable && available < due && !isIN && (
-                <p style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.7, marginTop: 12 }}>
+                <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.7, marginTop: 12 }}>
                   For anything short: call or write to the lender <em>before</em> the due date (letter below) and ask for its
                   hardship program. A payment that fails on autopay can add a returned-payment fee, so ask first. A longer term
                   lowers the payment: try it on <LBracket href="/plan#tenure-what-if">PLAN → LONGER TERM WHAT-IF</LBracket>.
                 </p>
               )}
               {hasAvailable && available < due && isIN && (
-                <p style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.7, marginTop: 12 }}>
+                <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.7, marginTop: 12 }}>
                   For anything short: tell the lender <em>before</em> the due date (letter below). If the EMI is
                   auto-debited (NACH, a standing bank mandate), a failed debit adds the bank&apos;s return charge on top,
                   so ask the lender first. A longer tenure lowers the EMI: try it on{' '}
@@ -242,7 +242,7 @@ export function CantPay() {
         </section>
         </>)}
 
-        <p style={{ fontSize: 10, color: L_T.muted }}>
+        <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>
           {isIN ? <>Rules checked against the RBI text on {TRIAGE_VERIFIED_ON}.</> : <>Collector rules from the CFPB&apos;s Regulation F, read 14 Oct 2026.</>} A calculator and a draft, not legal advice.
         </p>
       </div>

@@ -105,7 +105,7 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
         }}
       >
         {/* What this page is for, in one line (each tab opens with one) */}
-        <FirstVisitIntro id="home" style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <FirstVisitIntro id="home" style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6, color: L_T.inkSoft }}>
           Your month on one page: what comes in and goes out, what to pay now, and every loan you have.
         </FirstVisitIntro>
         {insights}

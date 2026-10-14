@@ -170,7 +170,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {/* What the plan assumes (editable chips), the data and guesses it
             rests on, then what it comes to */}
         {/* What this page is for, in one line (each tab opens with one) */}
-        <FirstVisitIntro id="plan" style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <FirstVisitIntro id="plan" style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6, color: L_T.inkSoft }}>
           When you&apos;ll be debt-free and how: the date, each month&apos;s payments, and changes you can try before you make them.
         </FirstVisitIntro>
         <PlanAssumptions plan={plan} />
@@ -248,7 +248,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           ]}
         />
         {worstCase && (
-          <details data-testid="plan-worst-case" style={{ fontSize: 12, color: L_T.muted }}>
+          <details data-testid="plan-worst-case" style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>
             <summary style={{ cursor: 'pointer' }}>{WORST_CASE_LABEL}</summary>
             <p style={{ margin: '6px 0 0', lineHeight: 1.55 }}>{worstCase}</p>
           </details>
@@ -324,7 +324,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             spare cash is under 10% of take-home; otherwise folded to one line. */}
         {!short && tightMonth && tenureWhatIf}
         {!short && !tightMonth && (
-          <details data-testid="tenure-fold" data-print="hide" style={{ fontSize: 12 }}>
+          <details data-testid="tenure-fold" data-print="hide" style={{ fontSize: 'var(--fs-dense)' }}>
             <summary style={{ cursor: 'pointer', color: L_T.muted }}>A longer tenure from the bank? Only worth it in a tight month</summary>
             {tenureWhatIf}
           </details>

@@ -77,7 +77,7 @@ function RangeLine({ o, fc }: { o: RestructuringOpportunity; fc: (v: string | nu
   const lo = Number(d.saving_at_range_low ?? 0);
   const hi = Number(d.saving_at_range_high ?? 0);
   return (
-    <div data-testid="cheaper-range" style={{ fontSize: 11, lineHeight: 1.55, color: L_T.inkSoft, marginTop: 4 }}>
+    <div data-testid="cheaper-range" style={{ fontSize: 'var(--fs-small)', lineHeight: 1.55, color: L_T.inkSoft, marginTop: 4 }}>
       {o.target_bank ?? 'The bank'} quotes {formatPct(d.range_low)} to {formatPct(d.range_high)}; this uses the middle.{' '}
       Year one: {hi > 0 ? fc(hi) : 'no saving'} at the top of the range to {fc(lo)} at the bottom, depending on your score.
     </div>
@@ -120,7 +120,7 @@ export function HomeRestructure({
       <LSectionHeader
         right={
           opportunities.length > 0 ? (
-            <span style={{ fontSize: 11, color: L_T.positive, fontWeight: 700, letterSpacing: '0.08em' }}>
+            <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.positive, fontWeight: 700, letterSpacing: '0.08em' }}>
               ABOUT {formatCurrencyWhole(totalAnnualSaving, userCcy)} IN YEAR 1
             </span>
           ) : undefined

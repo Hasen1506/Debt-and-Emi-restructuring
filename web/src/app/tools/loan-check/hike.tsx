@@ -87,7 +87,7 @@ export function RateHistoryRows({
   return (
     <div data-testid="lc-rate-history" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 520 }}>
       <LStepSub>Your rate changes (optional)</LStepSub>
-      <p style={{ margin: 0, fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
+      <p style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
         Each time your rate moved: the month and the new rate, from your statements or the bank&apos;s
         SMS. We check whether rises reached your loan faster than cuts.
       </p>
@@ -105,7 +105,7 @@ export function RateHistoryRows({
           <LBracket onClick={() => onChange([...rows, { month: '', rate: '' }])}>+ ADD A RATE CHANGE</LBracket>
         </div>
       )}
-      {error && <p role="alert" style={{ margin: 0, fontSize: 12, color: L_T.negative }}>{error}</p>}
+      {error && <p role="alert" style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.negative }}>{error}</p>}
     </div>
   );
 }
@@ -125,12 +125,12 @@ export function RateRiseCard({ rr }: { rr: LoanCheckRateRise }) {
   return (
     <LStep no="03" id="lc-rise" title="Rate up: your new EMI or tenure" answer>
       <div data-testid="lc-rate-rise">
-        <p style={{ fontSize: 13, margin: '0 0 6px', lineHeight: 1.6 }}>
+        <p style={{ fontSize: 'var(--fs-body)', margin: '0 0 6px', lineHeight: 1.6 }}>
           The RBI raised the repo rate from {formatPct(rr.repo_from, 2)} to {formatPct(rr.repo_to, 2)} on {day(rr.decided)}. {when}
         </p>
         <div role="region" aria-label="Your choices after the rate rise" tabIndex={0} style={{ overflowX: 'auto', marginTop: 10 }}>
-          <table style={{ borderCollapse: 'collapse', fontSize: 12, minWidth: 320, width: '100%' }}>
-            <caption style={{ textAlign: 'left', fontSize: 11, color: L_T.muted, paddingBottom: 6 }}>
+          <table style={{ borderCollapse: 'collapse', fontSize: 'var(--fs-dense)', minWidth: 320, width: '100%' }}>
+            <caption style={{ textAlign: 'left', fontSize: 'var(--fs-small)', color: L_T.muted, paddingBottom: 6 }}>
               Worked on today&apos;s balance of {inr(im.outstanding)}; interest is the change over the rest of the loan.
             </caption>
             <thead>
@@ -154,7 +154,7 @@ export function RateRiseCard({ rr }: { rr: LoanCheckRateRise }) {
           </table>
         </div>
         {im.tenure_premium && Number(im.tenure_premium) > 0 && (
-          <p data-testid="lc-best-step" style={{ fontSize: 12, margin: '10px 0 0', lineHeight: 1.6 }}>
+          <p data-testid="lc-best-step" style={{ fontSize: 'var(--fs-dense)', margin: '10px 0 0', lineHeight: 1.6 }}>
             <strong>Best step:</strong> if you can afford {inr(im.emi_change)} more a month, raise the EMI: it costs{' '}
             {inr(im.tenure_premium)} less interest than a longer tenure. If cash is tight, keep the EMI and take the
             longer tenure. Either way it is your choice, and your lender must offer it.
@@ -168,12 +168,12 @@ export function RateRiseCard({ rr }: { rr: LoanCheckRateRise }) {
 /** A11c: when each repo move reached the loan. */
 export function PassThroughCard({ pt }: { pt: LoanCheckPassThrough }) {
   return (
-    <details data-testid="lc-pass-through" style={{ border: `1px solid ${L_T.ruleSoft}`, padding: '12px 16px', fontSize: 12 }} open={pt.asymmetric}>
-      <summary style={{ cursor: 'pointer', letterSpacing: '0.12em', fontSize: 11 }}>
+    <details data-testid="lc-pass-through" style={{ border: `1px solid ${L_T.ruleSoft}`, padding: '12px 16px', fontSize: 'var(--fs-dense)' }} open={pt.asymmetric}>
+      <summary style={{ cursor: 'pointer', letterSpacing: '0.12em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)' }}>
         RISES VS CUTS: WHEN EACH RBI MOVE REACHED YOUR LOAN
       </summary>
       <div role="region" aria-label="When each RBI move reached your loan" tabIndex={0} style={{ overflowX: 'auto', marginTop: 10 }}>
-        <table style={{ borderCollapse: 'collapse', fontSize: 12, minWidth: 320 }}>
+        <table style={{ borderCollapse: 'collapse', fontSize: 'var(--fs-dense)', minWidth: 320 }}>
           <thead>
             <tr>
               <th scope="col" style={th}>RBI decision</th>
@@ -258,13 +258,13 @@ export function ResetChoicePanel({ request }: { request: LoanCheckRequest }) {
         <p style={{ margin: '10px 0 0' }}>
           <LBracket onClick={write} accent>{busy ? 'WRITING…' : letter ? 'REWRITE THE LETTER' : 'WRITE THE LETTER'}</LBracket>
         </p>
-        {err && <p role="alert" style={{ color: L_T.negative, fontSize: 12 }}>{err}</p>}
+        {err && <p role="alert" style={{ color: L_T.negative, fontSize: 'var(--fs-dense)' }}>{err}</p>}
         {letter && (
           <>
-            <p role="note" style={{ fontSize: 12, color: L_T.accent, margin: '12px 0 6px' }}>{notice}</p>
+            <p role="note" style={{ fontSize: 'var(--fs-dense)', color: L_T.accent, margin: '12px 0 6px' }}>{notice}</p>
             <pre
               data-testid="lc-reset-letter-text"
-              style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12, lineHeight: 1.6, border: `1px solid ${L_T.ruleSoft}`, padding: 12, margin: 0 }}
+              style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 'var(--fs-dense)', lineHeight: 1.6, border: `1px solid ${L_T.ruleSoft}`, padding: 12, margin: 0 }}
             >
               {text}
             </pre>
@@ -290,7 +290,7 @@ export function PlanBridge({ r }: { r: LoanCheckResponse }) {
     <section
       data-testid="lc-bridge"
       aria-label="Keep watching this loan"
-      style={{ border: `1px dashed ${L_T.ink}`, padding: '14px 16px', fontSize: 13, lineHeight: 1.6 }}
+      style={{ border: `1px dashed ${L_T.ink}`, padding: '14px 16px', fontSize: 'var(--fs-body)', lineHeight: 1.6 }}
     >
       <p style={{ margin: 0 }}>{bridgeLine(r)}</p>
       <p style={{ margin: '8px 0 0', display: 'flex', flexWrap: 'wrap', gap: 14 }}>
@@ -307,7 +307,7 @@ export function PlanBridge({ r }: { r: LoanCheckResponse }) {
           [SEND TO A FRIEND WITH A HOME LOAN (WHATSAPP)]
         </a>
       </p>
-      <p style={{ margin: '6px 0 0', fontSize: 11, color: L_T.muted }}>
+      <p style={{ margin: '6px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>
         The message has no amounts, rates or lender name: only a link to this free check.
       </p>
     </section>
@@ -319,7 +319,7 @@ const th: React.CSSProperties = {
   padding: '6px 12px 6px 0',
   borderBottom: '1px solid var(--border)',
   fontWeight: 500,
-  fontSize: 10,
+  fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
   letterSpacing: '0.12em',
   color: 'var(--muted)',
 };

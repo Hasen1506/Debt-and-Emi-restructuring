@@ -112,7 +112,7 @@ export function HikeScheduleEditor({
         background: 'var(--canvas)',
         border: '1px dashed var(--border)',
         borderRadius: 6,
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
         lineHeight: 1.5,
       }}
     >
@@ -135,7 +135,7 @@ export function HikeScheduleEditor({
             border: 'none',
             color: 'var(--accent)',
             padding: 0,
-            fontSize: 11,
+            fontSize: 'var(--fs-small)',
             letterSpacing: '0.04em',
             textDecoration: 'underline',
             cursor: 'pointer',
@@ -151,7 +151,7 @@ export function HikeScheduleEditor({
         ({fallbackRate || '0'}%).
       </div>
       {phases.length === 0 && (
-        <div style={{ color: 'var(--muted)', fontStyle: 'italic', fontSize: 11 }}>
+        <div style={{ color: 'var(--muted)', fontStyle: 'italic', fontSize: 'var(--fs-small)' }}>
           None added: the plan uses the yearly rise above for every year.
         </div>
       )}
@@ -176,7 +176,7 @@ export function HikeScheduleEditor({
               padding: '4px 6px',
               border: '1px solid var(--border)',
               borderRadius: 4,
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               fontFamily: 'inherit',
             }}
           />
@@ -190,7 +190,7 @@ export function HikeScheduleEditor({
               padding: '4px 6px',
               border: '1px solid var(--border)',
               borderRadius: 4,
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               fontFamily: 'inherit',
             }}
           />
@@ -203,14 +203,14 @@ export function HikeScheduleEditor({
               padding: '4px 6px',
               border: '1px solid var(--border)',
               borderRadius: 4,
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               fontFamily: 'inherit',
             }}
           />
           <span
             style={{
               color: issues[i] ? 'var(--negative)' : 'var(--muted)',
-              fontSize: 11,
+              fontSize: 'var(--fs-small)',
             }}
           >
             {issues[i]
@@ -229,7 +229,7 @@ export function HikeScheduleEditor({
               color: 'var(--muted)',
               cursor: 'pointer',
               padding: '0 4px',
-              fontSize: 14,
+              fontSize: 'var(--fs-body)',
             }}
           >
             ×
@@ -243,7 +243,7 @@ export function HikeScheduleEditor({
             padding: '6px 8px',
             background: 'var(--soft-bg, rgba(255,180,0,0.08))',
             borderLeft: '2px solid var(--warning)',
-            fontSize: 11,
+            fontSize: 'var(--fs-small)',
             color: 'var(--ink)',
           }}
         >
@@ -275,7 +275,7 @@ export function TenureField({
         <label
           style={{
             display: 'block',
-            fontSize: 11,
+            fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
             color: 'var(--muted)',
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
@@ -286,7 +286,7 @@ export function TenureField({
         </label>
         <div
           style={{
-            fontSize: 13,
+            fontSize: 'var(--fs-body)',
             color: 'var(--muted)',
             lineHeight: 1.5,
             padding: '8px 10px',
@@ -339,7 +339,7 @@ export function TenureField({
             color: 'var(--accent)',
             padding: 0,
             marginTop: 4,
-            fontSize: 11,
+            fontSize: 'var(--fs-small)',
             letterSpacing: '0.04em',
             textDecoration: 'underline',
             cursor: 'pointer',
@@ -356,7 +356,7 @@ export function TenureField({
       <label
         style={{
           display: 'block',
-          fontSize: 11,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           color: 'var(--muted)',
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
@@ -367,7 +367,7 @@ export function TenureField({
       </label>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 'var(--fs-body)',
           color: derived == null ? 'var(--muted)' : 'var(--ink)',
           lineHeight: 1.5,
           padding: '8px 10px',
@@ -379,7 +379,7 @@ export function TenureField({
         {derived != null ? (
           <>
             ≈ <strong>{derived}</strong> months at this EMI
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+            <div style={{ fontSize: 'var(--fs-small)', color: 'var(--muted)', marginTop: 4 }}>
               Worked out from the balance, rate and EMI above.
             </div>
           </>
@@ -403,7 +403,7 @@ export function TenureField({
           color: 'var(--accent)',
           padding: 0,
           marginTop: 4,
-          fontSize: 11,
+          fontSize: 'var(--fs-small)',
           letterSpacing: '0.04em',
           textDecoration: 'underline',
           cursor: 'pointer',
@@ -438,7 +438,7 @@ export function MinPaymentExplainer({
         background: 'var(--card)',
         border: '1px solid var(--border)',
         borderRadius: 'var(--radius-md)',
-        fontSize: 13,
+        fontSize: 'var(--fs-body)',
         lineHeight: 1.55,
         display: 'flex',
         flexDirection: 'column',
@@ -448,7 +448,7 @@ export function MinPaymentExplainer({
       <div>
         <div
           style={{
-            fontSize: 11,
+            fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
             color: 'var(--muted)',

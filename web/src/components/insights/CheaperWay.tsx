@@ -103,7 +103,7 @@ export function CheaperWay({
       <LSectionHeader>
         <span id="cheaper-h">Cheaper way to carry this</span>
       </LSectionHeader>
-      <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
+      <p style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
         Your {cards} {data.cards.length > 1 ? 'cost' : 'costs'}{' '}
         <strong>{cost.map((c) => pct(c)).join(' and ')} a year</strong> (interest compounded monthly, plus 18% GST). Here is
         the same balance as a fixed-EMI personal loan, on your own plan:
@@ -115,10 +115,10 @@ export function CheaperWay({
             data-testid={`cheaper-scenario-${s.rate_basis}`}
             style={{ padding: '10px 12px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, ...lStrip(Number(s.saving) > 0 ? 'positive' : 'negative') }}
           >
-            <div style={{ fontSize: 11, letterSpacing: '0.1em', color: L_T.muted }}>
+            <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', color: L_T.muted }}>
               {BASIS[s.rate_basis].toUpperCase()} · {pct(s.rate)} · {s.tenure_months} MONTHS
             </div>
-            <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
+            <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 'var(--fs-body)', lineHeight: 1.55 }}>
               <li>
                 EMI <strong>{money(s.emi)}</strong> a month, against a card minimum of {money(s.card_minimum_now)}:{' '}
                 {Number(s.cash_freed) >= 0 ? (
@@ -156,11 +156,11 @@ export function CheaperWay({
           </div>
         ))}
         {data.scenarios.length === 0 && (
-          <p style={{ margin: 0, fontSize: 13 }}>Enter a rate you’ve been quoted to see the numbers.</p>
+          <p style={{ margin: 0, fontSize: 'var(--fs-body)' }}>Enter a rate you’ve been quoted to see the numbers.</p>
         )}
       </div>
       {data.published && data.scenarios.some((s) => s.rate_basis !== 'yours') && (
-        <p style={{ margin: 0, fontSize: 11, color: L_T.muted, lineHeight: 1.5 }}>
+        <p style={{ margin: 0, fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.5 }}>
           Rates banks actually charged on personal loans, {data.published.period}, from {data.published.banks} banks’ own
           pages (as RBI requires them to publish). Your rate depends on your credit score and income; a bank’s “from” rate
           isn’t used as yours.
@@ -168,7 +168,7 @@ export function CheaperWay({
       )}
       {runArgs && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label style={{ fontSize: 12, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+          <label style={{ fontSize: 'var(--fs-dense)', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
             Got a quote? Rate a year (%)
             <input
               inputMode="decimal"
@@ -176,7 +176,7 @@ export function CheaperWay({
               value={rate}
               onChange={(e) => setRate(e.target.value.replace(/[^\d.]/g, ''))}
               placeholder="e.g. 15.5"
-              style={{ width: 90, padding: '6px 8px', border: `1px solid ${L_T.ink}`, fontFamily: 'inherit', fontSize: 14 }}
+              style={{ width: 90, padding: '6px 8px', border: `1px solid ${L_T.ink}`, fontFamily: 'inherit', fontSize: 'var(--fs-body)' }}
             />
             Fee (%)
             <input
@@ -185,7 +185,7 @@ export function CheaperWay({
               value={fee}
               onChange={(e) => setFee(e.target.value.replace(/[^\d.]/g, ''))}
               placeholder="from the KFS"
-              style={{ width: 90, padding: '6px 8px', border: `1px solid ${L_T.ink}`, fontFamily: 'inherit', fontSize: 14 }}
+              style={{ width: 90, padding: '6px 8px', border: `1px solid ${L_T.ink}`, fontFamily: 'inherit', fontSize: 'var(--fs-body)' }}
             />
           </label>
           <LChipRow label="Over how long?">
@@ -198,12 +198,12 @@ export function CheaperWay({
           <div>
             <LButton onClick={() => void requote()} disabled={busy}>{busy ? 'WORKING…' : 'CHECK MY QUOTE'}</LButton>
           </div>
-          {err && <p role="alert" style={{ margin: 0, fontSize: 12, color: L_T.negative }}>{err}</p>}
+          {err && <p role="alert" style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.negative }}>{err}</p>}
         </div>
       )}
       <details>
-        <summary style={{ cursor: 'pointer', fontSize: 12, minHeight: 24 }}>How moving a card to a loan works in India</summary>
-        <ul data-testid="cheaper-explainer" style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, lineHeight: 1.6 }}>
+        <summary style={{ cursor: 'pointer', fontSize: 'var(--fs-dense)', minHeight: 24 }}>How moving a card to a loan works in India</summary>
+        <ul data-testid="cheaper-explainer" style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 'var(--fs-dense)', lineHeight: 1.6 }}>
           {CONSOLIDATION_EXPLAINER.map((e) => (
             <li key={e.text.slice(0, 24)}>
               {e.text}
@@ -219,7 +219,7 @@ export function CheaperWay({
           ))}
         </ul>
       </details>
-      <p data-testid="cheaper-neutral" style={{ margin: 0, fontSize: 12, fontWeight: 600 }}>{data.neutrality}</p>
+      <p data-testid="cheaper-neutral" style={{ margin: 0, fontSize: 'var(--fs-dense)', fontWeight: 600 }}>{data.neutrality}</p>
       <LBracket href="#offer-check">GOT AN OFFER ALREADY? CHECK IT ↓</LBracket>
     </section>
   );
