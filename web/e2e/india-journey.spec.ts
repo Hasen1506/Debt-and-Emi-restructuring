@@ -7,7 +7,7 @@
  * Every figure asserted here comes from the real engine on fixed inputs:
  * fixed FX (1 USD = ₹83.25), fixed day (7 Oct 2026), fixed OTP.
  */
-import { expect, fillLoan, isPlanCall, money, planSummary, planText, signIn, test, makeSetupChoices, openProfileSection } from './fixtures';
+import { expect, fillLoan, isSetupPlanCall, money, planSummary, planText, signIn, test, makeSetupChoices, openProfileSection } from './fixtures';
 
 const EMAIL = 'golden-india@rightdue.app';
 
@@ -39,7 +39,7 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
   });
 
   await test.step('onboarding: plan preview (golden)', async () => {
-    const sim = page.waitForResponse(isPlanCall('/api/simulate'));
+    const sim = page.waitForResponse(isSetupPlanCall());
     await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
     expect(JSON.stringify(await planSummary(await sim), null, 2)).toMatchSnapshot('india-onboarding-simulate.json');
     await expect(page.getByText('Nov 2030')).toBeVisible();

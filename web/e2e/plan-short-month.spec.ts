@@ -10,7 +10,7 @@
  *  - #24: "due" beside what the month can cover, on Plan and on Home;
  *  - #26: a longer-tenure what-if runs the engine and shows the new EMI.
  */
-import { expect, fillLoan, isPlanCall, signIn, test, makeSetupChoices } from './fixtures';
+import { expect, fillLoan, isSetupPlanCall, signIn, test, makeSetupChoices } from './fixtures';
 
 const EMAIL = 'golden-short-month@rightdue.app';
 
@@ -27,7 +27,7 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
 
   let sim: { shortfall: string; gap_rate: string; total_gap_interest: string; trajectory: Record<string, string>[] };
   await test.step('the plan preview borrows the gap instead of assuming it', async () => {
-    const res = page.waitForResponse(isPlanCall('/api/simulate'));
+    const res = page.waitForResponse(isSetupPlanCall());
     await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
     sim = await (await res).json();
     // ₹70,000 − ₹30,000 = ₹40,000 against ₹74,515 of EMIs: ₹34,515 short.

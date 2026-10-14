@@ -180,13 +180,18 @@ export async function makeSetupChoices(page: Page) {
   await notNow.click();
   await expect(notNow).toHaveAttribute('aria-pressed', 'true');
   const order = page.getByRole('button', { name: /^Cheapest path \(Avalanche\)/ });
-  if ((await order.count()) && (await order.getAttribute('aria-pressed')) !== 'true') {
-    // NEW-19: the preview re-runs after a short pause, or answers from
-    // memory when the same plan was just worked out (no request then), so
-    // wait for the preview itself rather than for a /api/simulate.
-    await order.click();
-    await expect(order).toHaveAttribute('aria-pressed', 'true');
-  }
+  // Audit 80+ A2 (W3): when the order doesn't change the plan, the order
+  // question is replaced by one line (data-testid order-same) once the
+  // preview's order check arrives, so the chips can vanish between a count()
+  // and a click. Retry until either the line shows or Cheapest is pressed.
+  // NEW-19: the preview re-runs after a short pause, or answers from memory
+  // when the same plan was just worked out, so wait for the preview itself.
+  await expect(async () => {
+    await planPreviewSettled(page);
+    if (await page.getByTestId('order-same').isVisible()) return;
+    if ((await order.getAttribute('aria-pressed', { timeout: 2_000 })) !== 'true') await order.click({ timeout: 2_000 });
+    await expect(order).toHaveAttribute('aria-pressed', 'true', { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
   await planPreviewSettled(page);
 }
 
@@ -235,6 +240,23 @@ export async function planSummary(res: Response) {
 
 export function isPlanCall(path: '/api/simulate' | '/api/baseline') {
   return (r: Response) => r.request().method() === 'POST' && new URL(r.url()).pathname === path && r.ok();
+}
+
+/** Setup's preview of the plan itself. Since audit 80+ B4/A22 (W6) Setup
+ *  also runs the same loans smallest-first ("what you'd likely do") in
+ *  parallel; whichever answered first used to become the golden, so the
+ *  snapshot flipped between runs. The plan call is the one that isn't that
+ *  snowball baseline (the journeys keep the cheapest path). */
+export function isSetupPlanCall() {
+  const plan = isPlanCall('/api/simulate');
+  return (r: Response) => {
+    if (!plan(r)) return false;
+    try {
+      return (r.request().postDataJSON() as { strategy?: string } | null)?.strategy !== 'snowball';
+    } catch {
+      return true;
+    }
+  };
 }
 
 /** Headline figures and the month-by-month table on /plan, as plain text. */
