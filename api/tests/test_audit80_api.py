@@ -136,3 +136,22 @@ def test_c11_gap_limit_and_infeasible_month(client, india_user_payload):
     assert body["infeasible_from_month"] is not None
     assert D(body["shortfall"]) == D("5253")
     assert max(D(p["gap_debt"]) for p in body["trajectory"]) <= D("150000")
+
+
+@pytest.mark.parametrize("path", ["/api/simulate", "/api/baseline"])
+@pytest.mark.parametrize("spend, infeasible", [("45000", True), ("30000", False)])
+def test_c11_a_plan_that_only_clears_with_unfundable_money_is_never_clears(
+        client, india_user_payload, path, spend, infeasible):
+    """Class guard: once the gap limit is hit the engine stops borrowing, so
+    a debt-free date from then on is paid with money nobody has. Every plan
+    endpoint flags such a run never_clears (not shown as a normal result);
+    a fundable plan keeps its date."""
+    user = {**india_user_payload, "monthly_income": "50000", "annual_income": "600000",
+            "fixed_expenses": spend, "variable_expenses": "0", "efund_balance": "0", "efund_target": "0",
+            "loans": [_loan(outstanding="500000", nominal_rate="0.12", tenure_months_remaining=60,
+                            scheduled_emi="10253")]}
+    body = client.post(path, json={"user": user, "horizon_months": 120}).json()
+    assert (body["infeasible_from_month"] is not None) is infeasible
+    assert body["never_clears"] is infeasible
+    if not infeasible:
+        assert body["debt_free_month"] is not None
