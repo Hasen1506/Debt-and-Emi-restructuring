@@ -346,12 +346,16 @@ def _extra_interest(
 
 
 def find_lender(name: Optional[str]):
-    """Rate card for `name`, matched case- and space-insensitively."""
+    """Rate card for `name`, matched case- and space-insensitively.
+
+    Only a card read off the lender's own page counts (audit 80+ A21): an
+    extrapolated Tier-B/C card is "typical, unverified" and is never quoted
+    to a borrower as what their lender charges new borrowers."""
     if not name:
         return None
     key = " ".join(name.split()).lower()
     for card_name, card in ALL_INSTITUTIONS.items():
-        if card_name.lower() == key and card.country == Country.IN:
+        if card_name.lower() == key and card.country == Country.IN and not card.is_indicative:
             return card
     return None
 
