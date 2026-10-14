@@ -216,12 +216,14 @@ class LoanIn(_In):
         t = v.strip().lower().replace("-", "_")
         allowed = {
             "student_loan_kind": ("federal", "private"),
-            "forgiveness_track": ("pslf", "idr", "none"),
+            # E7: "none" (not on PSLF/IDR) and "unsure" are answers too;
+            # no value at all means never asked (extra held until answered).
+            "forgiveness_track": ("pslf", "idr", "none", "unsure"),
             "mortgage_insurance_kind": ("pmi", "fha_mip"),
         }[info.field_name]
         if t not in allowed:
             raise ValueError(f"{info.field_name} must be one of {', '.join(allowed)}")
-        return None if t == "none" else t
+        return t
 
     @field_validator("statement_day", "due_day", mode="before")
     @classmethod

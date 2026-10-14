@@ -1410,7 +1410,7 @@ def non_amortising_loans(user: User) -> list[NonAmortisingLoan]:
     for i, loan in enumerate(user.loans):
         if loan.loan_type == LoanType.CREDIT_CARD:
             continue
-        if getattr(loan, "forgiveness_track", None):
+        if getattr(loan, "forgiveness_track", None) in ("pslf", "idr", "unsure"):
             continue
         P, r, E = loan.outstanding, loan.nominal_rate, loan.scheduled_emi
         if P <= 0 or r <= 0 or E <= 0:

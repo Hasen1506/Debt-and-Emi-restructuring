@@ -34,6 +34,13 @@ flat→reducing) or a ten-thousandth (month-by-month schedules).
 | #38 gap borrowing (sprint L2) | A month short of cash is paid from the emergency fund, then borrowed at a card rate (`engine/gap_debt.py`) and repaid first | The gap was assumed found somewhere, free | Gap borrowing charges card interest (GST on Indian cards) and must be repaid before the plan is debt-free | Never short: identical. Short: total interest never lower, debt-free never sooner. The older domains run with `gap_as_debt=False` | `test_short_months_are_borrowed_at_card_rates` |
 | Prepayment fee gate (this PR) | A loan whose prepayment fee costs more than the interest the extra payment saves is not prepaid | Prepaid anyway, so the "optimised" plan could cost more than paying minimums | Prepays only when (1 − fee) × (1 + r)^k > 1, k = months the extra would otherwise have grown | The new plan never costs more than its own minimums-only baseline; the old engine did in some seeded profiles | `test_prepayment_fee_gate_never_prepays_at_a_loss` |
 
+- **E7 (audit 80, 14 Oct 2026): US student loans with no PSLF/IDR answer.**
+  A US education loan whose `forgiveness_track` is unset or `"unsure"` gets its
+  required payment only; extra is held until the user says it isn't heading
+  for forgiveness (`"none"`). The minimums baseline is unchanged; the plan can
+  only keep such a loan longer. `test_differential_pre_pr29.py` checks these
+  cases on the baseline only (`_us_student_loan_held`).
+
 ### Also changed in this PR, covered by the property suite rather than the differential one
 
 * **Shortfall leftover.** In a month short of cash, the unused part of a
