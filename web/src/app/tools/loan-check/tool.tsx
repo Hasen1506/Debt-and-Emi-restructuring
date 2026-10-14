@@ -1,5 +1,6 @@
 'use client';
 
+import { LoanCheckSignals } from '@/components/retention/LoanCheckSignals';
 import { whereToFind } from '@/lib/where-to-find';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Decimal from 'decimal.js';
@@ -414,6 +415,7 @@ export function LoanCheckTool() {
 
       <div aria-live="polite" ref={resultRef} tabIndex={-1} style={{ outline: 'none' }}>
         {result && <LoanCheckResult r={result} />}
+        {result && <LoanCheckSignals r={result} />}
       </div>
       {result?.reset_watch && <ResetWatchCard w={result.reset_watch} />}
       {result && checked && result.findings.some((f) => f.claimable) && (

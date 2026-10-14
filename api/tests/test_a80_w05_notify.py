@@ -213,7 +213,7 @@ def test_payday_email_links_to_the_ritual(env):
     opt_in(env, "u1")
     env["clock"]["today"] = date(2026, 11, 1)
     env["client"].post("/api/notify/run", headers=AUTH)
-    assert "https://rightdue.test/?ritual=payday&m=2026-11#pay-this-month" in env["sent"][0].text
+    assert "https://rightdue.test/?ritual=payday&m=2026-11#home-pay" in env["sent"][0].text
     assert "60-second payday check" in env["sent"][0].text
 
 

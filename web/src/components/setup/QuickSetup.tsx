@@ -7,6 +7,7 @@
  * card dates, fees, holdings) lives in Profile, and is kept untouched when a
  * saved profile is edited here.
  */
+import { track } from '@/lib/funnel';
 import { engineRequests, isAbortError, PREVIEW_DEBOUNCE_MS } from '@/lib/engine-requests';
 import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { SAFE_RATES } from '@/lib/invest-vs-prepay';
@@ -695,6 +696,7 @@ export function QuickSetup() {
     // /onboarding from before the profile existed, so the button looked
     // dead and nothing said the save had worked (live QA, 7 Oct).
     setJustSaved(true);
+    track('plan_saved', { country: built.country === 'US' ? 'US' : 'IN' }); // A15: a count, nothing else
     await Promise.race([flushPendingState().catch(() => false), new Promise((r) => setTimeout(r, 4000))]);
     window.location.assign(ONBOARDING_DONE_HREF);
   }

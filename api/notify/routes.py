@@ -374,7 +374,7 @@ def _links(user_id: str, month: str) -> dict[str, str]:
         "cant_pay": f"{base}/ack?t={tokens.sign(user_id, month, 'cant')}",
         # A14: the payday ritual opens Home on "Pay this month" with the
         # 60-second check (paste the bank SMS or tap paid; the counter moves).
-        "open_app": f"{flags.app_url()}/?ritual=payday&m={month}#pay-this-month",
+        "open_app": f"{flags.app_url()}/?ritual=payday&m={month}#home-pay",
         "unsubscribe": f"{base}/unsubscribe?t={tokens.sign(user_id, '-', 'unsub')}",
     }
 

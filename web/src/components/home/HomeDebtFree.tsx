@@ -14,6 +14,7 @@ import { MONTH_NAMES, getCountryToday, monthIndexToCountryLabel, monthsSpan } fr
 import { payThisMonth } from '@/lib/pay-this-month';
 import { PayNotice, PayThisMonth } from './PayThisMonth';
 import { HomeProgress } from './HomeProgress';
+import { retentionInputs } from '@/lib/retention-inputs';
 import { localIsoDate } from '@/lib/today';
 import { HomeRestructure } from './HomeRestructure';
 import { LBracket } from '@/components/ledger/primitives';
@@ -260,6 +261,7 @@ export async function HomePayThisMonth() {
         pay={data}
         strategy={plan.strategy}
         monthLabel={monthLabel}
+        {...retentionInputs(plan.user.loans, data, country)}
       />
     </>
   );
