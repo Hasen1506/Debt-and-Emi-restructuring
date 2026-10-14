@@ -54,6 +54,12 @@ function install(): void {
   });
 }
 
+// R12-1: listen from the moment this module loads, not from the first
+// request. On a page that is still hydrating when the person leaves, the
+// first page-scoped request can come after beforeunload; installing then
+// would miss the leave, and that request would be cut off and logged.
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') install();
+
 /** The signal that is aborted when this page starts to unload; undefined on the server. */
 export function pageSignal(): AbortSignal | undefined {
   if (typeof window === 'undefined' || typeof window.addEventListener !== 'function' || typeof AbortController === 'undefined') return undefined;
@@ -87,20 +93,41 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  * and ask again: the leave was cancelled by a "leave this page?" prompt or
  * the page came back from the back/forward cache. While a leave nobody
  * cancelled is still under way (the next page is slow), keep waiting, up
- * to LEAVE_GRACE_MS, so the new request isn't cut off in turn.
+ * to LEAVE_GRACE_MS, so the new request isn't cut off in turn. The same
+ * wait comes before the first try (R12-1).
  */
 export async function pageScoped<T>(run: (signal: AbortSignal | undefined) => Promise<T>, own?: AbortSignal, retryAfterMs = 1000): Promise<T> {
   for (;;) {
+    // R12-1: a request this page starts while it is leaving (it is still
+    // hydrating while the next page loads) would get the fresh, live
+    // signal and be cut off and logged by WebKit. So the first try waits
+    // too, until the leave is called off (the prompt's Stay, a bfcache
+    // pageshow) or LEAVE_GRACE_MS passes. If the page does go, it never runs.
+    await whileLeaving(own, Math.min(LEAVE_POLL_MS, retryAfterMs));
+    if (own?.aborted) throw abortReason(own);
     const page = pageSignal();
     try {
       return await run(anySignal(page, own));
     } catch (e) {
       if (own?.aborted || !page?.aborted) throw e;
       await sleep(retryAfterMs);
-      while (leavingSince && Date.now() - leavingSince < LEAVE_GRACE_MS && !own?.aborted) {
-        await sleep(Math.min(250, retryAfterMs));
-      }
       if (own?.aborted) throw e;
     }
   }
+}
+
+/** How often a held request looks again whether the leave is over. */
+const LEAVE_POLL_MS = 100;
+
+/** True while an unprompted leave is under way (and inside the grace). */
+export function isLeaving(): boolean {
+  return !!leavingSince && Date.now() - leavingSince < LEAVE_GRACE_MS;
+}
+
+async function whileLeaving(own: AbortSignal | undefined, pollMs: number): Promise<void> {
+  while (isLeaving() && !own?.aborted) await sleep(pollMs);
+}
+
+function abortReason(signal: AbortSignal): unknown {
+  return signal.reason ?? Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' });
 }

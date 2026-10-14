@@ -167,7 +167,7 @@ export function KfsImport({
               <div>
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="btn btn-primary"
                   data-testid="kfs-unlock"
                   disabled={busy || !password}
                   onClick={() => read({ pdf_base64: bytesToBase64(file), password })}
@@ -190,7 +190,7 @@ export function KfsImport({
           <div>
             <button
               type="button"
-              className="btn-primary"
+              className="btn btn-primary"
               data-testid="kfs-read"
               disabled={busy || text.trim() === ''}
               onClick={() => read({ text })}
@@ -274,7 +274,7 @@ export function KfsImport({
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               type="button"
-              className="btn-primary"
+              className="btn btn-primary"
               data-testid="kfs-add"
               onClick={() => {
                 onAdd(loanFromReview(rows, blankLoan(), todayIso));

@@ -118,7 +118,7 @@ export function SmsImport({
       <div>
         <button
           type="button"
-          className="btn-primary"
+          className="btn btn-primary"
           data-testid="sms-read"
           disabled={!text.trim()}
           onClick={() => { setParsed(parseSmsBatch(text)); setDone([]); }}

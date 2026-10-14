@@ -241,7 +241,6 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               style={input}
-              className="login-input"
               placeholder="you@example.com"
             />
           </label>

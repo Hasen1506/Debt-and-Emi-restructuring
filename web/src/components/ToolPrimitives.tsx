@@ -170,10 +170,13 @@ export function Field({
   currency = 'INR',
   findIt,
   onUnreadable,
+  onBlur,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  /** Told when the person leaves the box (after a money figure is regrouped). */
+  onBlur?: () => void;
   /** Percent fields: told whether the typed text can't be read as a rate
    *  ("8.5x"), since the caller only gets '' for it (live re-test 3 R3-4). */
   onUnreadable?: (unreadable: boolean) => void;
@@ -266,11 +269,13 @@ export function Field({
     if (hasSuggestion && suggestion) onChange(suggestion.value);
   };
   const handleBlur = () => {
-    if (!isMoney) return;
-    setMoneyTouched(true);
-    // "25L" becomes "25,00,000" once the person moves on.
-    const p = parseAmountText(moneyText, currency).value;
-    if (p) setMoneyText(groupDigits(p, currency));
+    if (isMoney) {
+      setMoneyTouched(true);
+      // "25L" becomes "25,00,000" once the person moves on.
+      const p = parseAmountText(moneyText, currency).value;
+      if (p) setMoneyText(groupDigits(p, currency));
+    }
+    onBlur?.();
   };
   const moneyParsed = isMoney ? parseAmountText(moneyText, currency) : null;
   const moneyWords = moneyParsed?.value ? amountInWords(moneyParsed.value, currency) : null;
