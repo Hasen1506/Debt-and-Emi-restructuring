@@ -471,7 +471,7 @@ function MonthCards({
     <ol className="rd-month-cards" aria-label="Month by month" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
       <li style={{ padding: '10px 0', borderTop: `2px solid ${L_T.ink}`, borderBottom: `1px solid ${L_T.ink}` }}>
         <h3 style={{ margin: 0, fontSize: 'var(--fs-body)', fontWeight: 600 }}>Owed at the start of {sentence(startLabel)}</h3>
-        <p style={{ ...fig, fontSize: 'var(--fs-body)', marginTop: 2 }}>{fc(owedToday.toFixed(0))}</p>
+        <p style={{ ...fig, fontSize: 'var(--fs-body)', marginTop: 2 }}>{fc(Math.round(owedToday))}</p>
       </li>
       {rows.map((r) => {
         const paid = totalByMonth.get(r.mo) ?? r.interest + r.principal;
@@ -488,7 +488,7 @@ function MonthCards({
             <dl style={{ margin: '6px 0 0', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
               <div>
                 <dt style={term}>Paid</dt>
-                <dd style={fig}>{fc(paid.toFixed(0))}</dd>
+                <dd style={fig}>{fc(Math.round(paid))}</dd>
               </div>
               <div>
                 <dt style={term}>Interest</dt>
@@ -501,13 +501,13 @@ function MonthCards({
             </dl>
             {(shares.length > 0 || r.extra > 0 || gap?.debt) && (
               <details style={{ marginTop: 6 }}>
-                <summary style={{ cursor: 'pointer', fontSize: 'var(--fs-small)', color: L_T.inkSoft }}>Each loan{r.extra > 0 ? ` · ${fc(r.extra.toFixed(0))} extra` : ''}</summary>
+                <summary style={{ cursor: 'pointer', fontSize: 'var(--fs-small)', color: L_T.inkSoft }}>Each loan{r.extra > 0 ? ` · ${fc(Math.round(r.extra))} extra` : ''}</summary>
                 <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-table)' }}>
                   {shares.map((x) => (
                     <li key={x.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                       <span>{x.name}</span>
                       <span>
-                        {formatCurrencyWhole(Number(x.v).toFixed(0), x.ccy)}
+                        {formatCurrencyWhole(Math.round(Number(x.v)), x.ccy)}
                         {x.final ? <span style={{ color: L_T.positive }}> · final</span> : null}
                       </span>
                     </li>
