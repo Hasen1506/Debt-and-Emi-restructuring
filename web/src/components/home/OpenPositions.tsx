@@ -119,7 +119,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                   {name.charAt(0).toUpperCase() + name.slice(1)}
                   {isDearest && (
                     <span style={{ marginLeft: 8, fontSize: 10, letterSpacing: '0.12em', color: L_T.negative }}>
-                      · DEAREST
+                      · COSTLIEST
                     </span>
                   )}
                 </div>

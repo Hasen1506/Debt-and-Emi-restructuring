@@ -48,7 +48,7 @@ import { feeShown } from '@/lib/prepayment-fee';
 import { readEfSplitClient, writeEfSplitClient } from '@/lib/ef-split';
 import { SetupChoices } from '@/components/setup/SetupChoices';
 import { SetupImportCard } from '@/components/setup/SetupImportCard';
-import { applyChoices, choicesFrom, missingChoices, type SetupChoices as Choices } from '@/lib/setup-choices';
+import { applyChoices, choicesFrom, missingChoices, startingChoices, type SetupChoices as Choices } from '@/lib/setup-choices';
 import { emiFromMonths, marginalRateFromTakeHome } from '@/lib/quick-setup';
 import { setupExtraMove } from '@/lib/setup-this-month';
 import { estimateBalance, monthsSince, typicalRate, TYPICAL_RATE_AS_OF, withEstimate } from '@/lib/setup-estimates';
@@ -58,6 +58,7 @@ import { loadProfileClient, type StoredProfile } from '@/lib/user-store';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward, stampBalanceDates, prepareLoanPaymentTiming } from '@/lib/roll-forward';
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
 import { disambiguateLoans } from '@/lib/loan-types';
+import { balancePlaceholder, emiPlaceholder } from '@/lib/placeholders';
 import { HYDRATED_EVENT, flushPendingState, signedInAccount } from '@/lib/server-sync';
 import { ONBOARDING_DONE_HREF } from '@/lib/onboarding-save';
 import { LAST_SEEN_KEY } from '@/lib/guest-return';
@@ -191,7 +192,7 @@ export function QuickSetup() {
 
   const [preview, setPreview] = useState<Preview | null>(null);
   // Choices only the person can make (lib/setup-choices, grill #22).
-  const [choices, setChoices] = useState<Choices>({ efMonths: null, efSplit: null, strategy: null });
+  const [choices, setChoices] = useState<Choices>(startingChoices({ efMonths: null, efSplit: null, strategy: null }));
   const [choiceErrors, setChoiceErrors] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const stepRef = useRef<HTMLElement>(null);
@@ -221,7 +222,7 @@ export function QuickSetup() {
         setLoans(addOne ? [...loansWithIds, blankLoan()] : loansWithIds.length > 0 ? loansWithIds : [blankLoan()]);
         if (addOne) setStep(1);
         setFxRates(u.fx_to_user_currency ?? {});
-        setChoices(choicesFrom(u, readEfSplitClient(), readStrategyClient()));
+        setChoices(startingChoices(choicesFrom(u, readEfSplitClient(), readStrategyClient())));
       }
       // UX50 B-10: what was typed in this tab before a Back, Forward or
       // reload comes back, on the step the URL names.
@@ -238,7 +239,7 @@ export function QuickSetup() {
         if (Array.isArray(d.loans)) setLoans(d.loans.length > 0 || draft.step === 2 ? d.loans : [blankLoan()]);
         setUi(d.ui ?? {});
         setFxRates(d.fxRates ?? {});
-        if (d.choices) setChoices(d.choices);
+        if (d.choices) setChoices(startingChoices(d.choices));
         setStep(Math.min(urlStep ?? draft.step, draft.step));
       }
       setReady(true);
@@ -1199,7 +1200,7 @@ function LoanBlock({
           kind="money"
           currency={ccy}
           value={loan.outstanding}
-          placeholder={ccy === 'INR' ? (card ? 'e.g. 1,50,000' : 'e.g. 25,00,000 or 25L') : card ? 'e.g. 5,000' : 'e.g. 250,000'}
+          placeholder={balancePlaceholder(loan.loan_type, ccy)}
           onChange={(v) => onPatch({ outstanding: v, estimated_fields: withEstimate(loan, 'balance', false).estimated_fields })}
           hint={estimated.has('balance') ? 'An estimate from what you borrowed. Replace it with your statement’s figure when you can.' : undefined}
           error={issues.balance}
@@ -1229,6 +1230,7 @@ function LoanBlock({
             kind="money"
             currency={ccy}
             value={loan.scheduled_emi}
+            placeholder={emiPlaceholder(loan.loan_type, ccy)}
             onChange={(v) => onPatch({ scheduled_emi: v })}
             hint={
               emiTooSmall

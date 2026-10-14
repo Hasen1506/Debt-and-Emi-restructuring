@@ -30,9 +30,9 @@ export function SetupChoices({
   return (
     <section aria-labelledby="choices-h" style={{ border: `1px solid ${L_T.ink}`, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 14, background: L_T.paper }}>
       <div>
-        <h3 id="choices-h" style={{ margin: 0, fontSize: 12, letterSpacing: "0.14em" }}>YOUR CALL · CHOICES ONLY YOU CAN MAKE</h3>
+        <h3 id="choices-h" style={{ margin: 0, fontSize: 12, letterSpacing: "0.14em" }}>YOUR CALL · CHANGE ANY TIME</h3>
         <p style={{ margin: '4px 0 0', fontSize: 12, color: L_T.muted, lineHeight: 1.55 }}>
-          The plan won&apos;t pick these for you. Change any of them later on Plan or Profile.
+          Already set to a sensible start, so you can save now. Change any of them here, or later on Plan or Profile.
         </p>
       </div>
       <div>
@@ -44,8 +44,8 @@ export function SetupChoices({
           ))}
         </ChipRow>
         <p style={{ margin: '4px 0 0', fontSize: 11, color: L_T.muted }}>
-          <Term id="emergency_fund">What&apos;s an emergency fund?</Term> Many people keep 3 to 6 months; with a steady job and
-          dear debt, some start smaller.
+          <Term id="emergency_fund">What&apos;s an emergency fund?</Term> Many people keep 3 to 6 months
+          {hasLoans ? '; with a steady job and costly debt, some start smaller.' : '.'}
         </p>
         {err('ef_months')}
       </div>
@@ -65,7 +65,7 @@ export function SetupChoices({
         <ChipRow label="Which loan gets your extra money first?">
           {ORDER.map((s) => (
             <Chip key={s} on={value.strategy === s} onClick={() => onChange({ ...value, strategy: s })}>
-              {STRATEGY_PLAIN[s]} ({STRATEGY_LABEL[s]})
+              {STRATEGY_PLAIN[s]} ({STRATEGY_LABEL[s]}){s === 'avalanche' ? ' · recommended, change any time' : ''}
             </Chip>
           ))}
         </ChipRow>

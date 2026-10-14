@@ -23,6 +23,17 @@ export interface SetupChoices {
 }
 
 export const EF_MONTH_CHOICES = [0, 3, 6, 12] as const;
+
+/**
+ * Audit 80 B6: what step 3 starts on, so SAVE always works. The order starts
+ * on the cheapest path, marked "recommended · change any time"; the fund
+ * starts on "Not now" (a target of 0, i.e. no fund assumed). Both stay
+ * visible and one tap changes them. FOUNDER: grill #22 asked that these be
+ * the user's choice; they still are, but no longer a forced one.
+ */
+export function startingChoices(c: SetupChoices): SetupChoices {
+  return { efMonths: c.efMonths ?? 0, efSplit: c.efSplit, strategy: c.strategy ?? 'avalanche' };
+}
 export const EF_SPLIT_CHOICES = ['0.20', '0.30', '0.50', '1.00'] as const;
 
 /** What's still to pick, in screen order; the split is asked only when
