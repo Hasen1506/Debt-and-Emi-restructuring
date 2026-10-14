@@ -113,6 +113,7 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
             <span id="home-status">Where you stand</span>
           </LSectionHeader>
           <LKpi
+            label="Where you stand"
             cols={4}
             items={[
               // With no exchange rate the ₹ and $ can't be added up.
@@ -125,12 +126,14 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
               fxMissing
                 ? { l: 'INTEREST', v: '—', s: 'NEEDS THE EXCHANGE RATE' }
                 : interest
-                  ? { l: 'INTEREST', v: interest.v, s: interest.s, tone: L_T.negative }
+                  ? // Audit 80+ B19: this month's expected interest is a planned
+                    // figure, in ink; red is for what needs acting on.
+                    { l: 'INTEREST', v: interest.v, s: interest.s, tone: L_T.ink }
                   : {
                       l: 'INTEREST',
                       v: `${fc(m.monthlyInterest.toFixed(0))}/MO`,
                       s: "AT TODAY'S BALANCES AND RATES",
-                      tone: L_T.negative,
+                      tone: L_T.ink,
                     },
               gaps.length > 0
                 ? { l: 'COST OF DEBT', v: '—', s: 'ADD YOUR LOAN DETAILS' }

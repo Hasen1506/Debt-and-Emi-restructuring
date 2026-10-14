@@ -81,11 +81,11 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
               missing('RATE')
             ) : d.effective.sub(d.nominal).abs().lt(0.00005) ? (
               // No fees, GST or tax saving: one rate.
-              <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>
+              <span style={{ color: isDearest ? L_T.accent : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>
             ) : (
               <>
                 {fmtPct(d.nominal)} →{' '}
-                <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>{' '}
+                <span style={{ color: isDearest ? L_T.accent : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>{' '}
                 A YEAR
               </>
             ),
@@ -108,7 +108,9 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                 padding: '12px 10px 12px 8px',
                 borderBottom: `1px dashed ${L_T.ruleSoft}`,
                 fontSize: 'var(--fs-dense)',
-                ...(isDearest ? lStrip('negative') : null),
+                // Audit 80+ B19: the dearest loan is where the extra goes, a plan,
+                // not a problem: one accent, not red.
+                ...(isDearest ? lStrip('accent') : null),
               }}
             >
               <span style={{ color: L_T.muted }}>{String(i + 1).padStart(2, '0')}</span>
@@ -116,12 +118,12 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                 <div style={{ fontWeight: 700 }}>
                   {name.charAt(0).toUpperCase() + name.slice(1)}
                   {isDearest && (
-                    <span style={{ marginLeft: 8, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.negative }}>
+                    <span style={{ marginLeft: 8, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.accent }}>
                       · DEAREST
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', color: L_T.muted, marginTop: 3, lineHeight: 1.6 }}>
+                <div style={{ fontSize: 'var(--fs-small)', fontFamily: 'var(--font-mono)', color: L_T.muted, marginTop: 3, lineHeight: 1.6 }}>
                   {parts.map((p, k) => (
                     <span key={k}>
                       {k > 0 && ' · '}
