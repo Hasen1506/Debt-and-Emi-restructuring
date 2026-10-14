@@ -65,12 +65,3 @@ export function PersonaScene({ strategy, height = 160 }: { strategy: StrategyNam
     </svg>
   );
 }
-
-/** The small square scene for the masthead. */
-export function PersonaMedallion({ strategy, size = 40 }: { strategy: StrategyName; size?: number }) {
-  return (
-    <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden style={{ display: 'block', flex: 'none' }}>
-      <use href={`${ART}#med-${strategy}`} width="40" height="40" />
-    </svg>
-  );
-}
