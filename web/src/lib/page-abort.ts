@@ -19,20 +19,27 @@ let installed = false;
 function install(): void {
   if (installed || typeof window === 'undefined') return;
   installed = true;
-  const leave = (e: Event) => {
-    // A listener that asked "leave this page?" has already run.
-    if (e.type === 'beforeunload' && e.defaultPrevented) return;
+  const abortNow = () => {
     const c = controller;
     controller = new AbortController();
     c?.abort();
   };
-  window.addEventListener('beforeunload', leave);
-  window.addEventListener('pagehide', leave);
+  // beforeunload: one task later, once every listener has run, so a
+  // "leave this page?" prompt (Profile's unsaved changes) that kept the
+  // person here doesn't cut their requests off. The old page keeps running
+  // tasks while the next one loads, so this still lands before WebKit
+  // cancels the fetches itself. pagehide: at once.
+  window.addEventListener('beforeunload', (e) => {
+    setTimeout(() => {
+      if (!e.defaultPrevented) abortNow();
+    }, 0);
+  });
+  window.addEventListener('pagehide', abortNow);
 }
 
 /** The signal that is aborted when this page starts to unload; undefined on the server. */
 export function pageSignal(): AbortSignal | undefined {
-  if (typeof window === 'undefined' || typeof AbortController === 'undefined') return undefined;
+  if (typeof window === 'undefined' || typeof window.addEventListener !== 'function' || typeof AbortController === 'undefined') return undefined;
   install();
   controller ??= new AbortController();
   return controller.signal;
