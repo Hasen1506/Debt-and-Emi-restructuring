@@ -893,8 +893,8 @@ export function AddLoanAction({
         }}
       >
         Added to your profile.{' '}
-        <a href="/plan" className="l-hit" style={DONE_LINK}>[PLAN →]</a>{' '}
-        <a href="/profile?step=loans" className="l-hit" style={DONE_LINK}>[EDIT IN PROFILE →]</a>
+        <a href="/plan" className="l-hit" style={DONE_LINK}><span aria-hidden="true">[</span>PLAN →<span aria-hidden="true">]</span></a>{' '}
+        <a href="/profile?step=loans" className="l-hit" style={DONE_LINK}><span aria-hidden="true">[</span>EDIT IN PROFILE →<span aria-hidden="true">]</span></a>
       </div>
     );
   }
@@ -939,8 +939,8 @@ export function ApplyAction({
         }}
       >
         Logged.{' '}
-        <a href="/activity" className="l-hit" style={DONE_LINK}>[ACTIVITY →]</a>{' '}
-        <a href="/plan" className="l-hit" style={DONE_LINK}>[PLAN →]</a>
+        <a href="/activity" className="l-hit" style={DONE_LINK}><span aria-hidden="true">[</span>ACTIVITY →<span aria-hidden="true">]</span></a>{' '}
+        <a href="/plan" className="l-hit" style={DONE_LINK}><span aria-hidden="true">[</span>PLAN →<span aria-hidden="true">]</span></a>
       </div>
     );
   }

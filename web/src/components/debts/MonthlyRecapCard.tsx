@@ -307,7 +307,7 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
               cursor: 'pointer',
             }}
           >
-            [Use defaults]
+            <span aria-hidden="true">[</span>Use defaults<span aria-hidden="true">]</span>
           </button>
         )}
       </div>

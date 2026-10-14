@@ -68,7 +68,7 @@ export function ToolStrip({ user, title, except }: { user: ToolUser; title: stri
   if (tools.length === 0) return null;
   return (
     <nav aria-label={title} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <LSectionHeader right={<a href="/goals#tools" style={{ color: L_T.accent, fontSize: 'var(--fs-small)' }}>[ALL TOOLS →]</a>}>
+      <LSectionHeader right={<a href="/goals#tools" style={{ color: L_T.accent, fontSize: 'var(--fs-small)' }}><span aria-hidden="true">[</span>ALL TOOLS →<span aria-hidden="true">]</span></a>}>
         {title}
       </LSectionHeader>
       <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexWrap: 'wrap', gap: 8 }}>

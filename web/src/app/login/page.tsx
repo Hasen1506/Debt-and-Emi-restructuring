@@ -267,7 +267,7 @@ export default function LoginPage() {
                 data-testid="google-signin"
                 style={{ ...primary, background: 'transparent', color: 'var(--ink)', border: '1px solid var(--ink)', textAlign: 'center', textDecoration: 'none' }}
               >
-                [ Continue with Google ]
+                <span aria-hidden="true">[ </span>Continue with Google<span aria-hidden="true"> ]</span>
               </a>
               <p style={{ ...infoText, marginTop: 0, fontSize: 'var(--fs-small)' }}>
                 Google tells RightDue only your email address, which Google has checked is yours. Nothing else from your Google account is read or kept.

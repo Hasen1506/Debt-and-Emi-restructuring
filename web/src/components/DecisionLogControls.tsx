@@ -418,7 +418,7 @@ export function DecisionLogControls({
             height: 30,
           }}
         >
-          [ Save ]
+          <span aria-hidden="true">[ </span>Save<span aria-hidden="true"> ]</span>
         </button>
       </div>
       </div>

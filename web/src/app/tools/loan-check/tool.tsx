@@ -308,7 +308,7 @@ export function LoanCheckTool() {
             {/* UX50 C-16: the KFS has the starting rate; the import was hidden in Profile → Loans → [EDIT]. */}
             <p data-testid="loan-check-import-link" style={{ margin: '0 0 8px', fontSize: 'var(--fs-dense)', lineHeight: 1.5 }}>
               Have the KFS or sanction letter? It shows the starting rate.{' '}
-              <a href="/profile?step=loans" style={{ color: 'var(--accent)' }}>[IMPORT IT ON PROFILE →]</a>
+              <a href="/profile?step=loans" style={{ color: 'var(--accent)' }}><span aria-hidden="true">[</span>IMPORT IT ON PROFILE →<span aria-hidden="true">]</span></a>
             </p>
             <LChipRow label="The rate it started at">
               <LChip on={startMode === 'headline'} onClick={() => setStartMode('headline')}>

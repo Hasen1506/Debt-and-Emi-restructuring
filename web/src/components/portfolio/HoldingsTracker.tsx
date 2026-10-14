@@ -517,7 +517,7 @@ export function HoldingsTracker({ user, marginalRate, variant }: Props) {
             letterSpacing: '0.14em',
           }}
         >
-          [ ADD HOLDING ]
+          <span aria-hidden="true">[ </span>ADD HOLDING<span aria-hidden="true"> ]</span>
         </button>
       </div>
 
