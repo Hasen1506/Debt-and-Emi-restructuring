@@ -11,7 +11,6 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { loadProfileClient } from '@/lib/user-store';
 import { hydrateFromServer, prepareAccountCache, serializeClientState, syncSliceToServer } from '@/lib/server-sync';
-import { notifySessionChanged } from '@/lib/session-events';
 import { SIGN_IN_STARTING_MESSAGE } from '@/lib/auth-error';
 import { safeRedirect } from '@/lib/safe-redirect';
 import { RESEND_COOLDOWN_S, wakeProgress } from '@/lib/wake-progress';
@@ -115,10 +114,15 @@ export default function LoginPage() {
     // New users (or first-time signups) have nothing on the server —
     // push their existing cookie state up if any.
     if (!hydrated) await migrateCookieStateIfNeeded();
-    notifySessionChanged();
     // A full page load, not router.push: the router may hold a copy of the
     // destination fetched while signed out (for / that's the landing page),
     // and WebKit showed it instead of asking the server again.
+    // No session-changed event first: the next page starts its own session
+    // and hydration. The event made <SessionHydrator/> hydrate again and
+    // router.refresh() this page; in Firefox this navigation cancels that
+    // refresh's fetch, Next falls back to a browser navigation of /login
+    // itself, and that replaced this one: signed in, but back on the
+    // sign-in form (CI run 38488716548, account-persistence :61).
     window.location.assign(redirectTo);
   }
 

@@ -136,10 +136,14 @@ test('a browser still holding finoptima_* cookies keeps its session and data, an
   await oldPage.goto('/profile');
   await expect(oldPage).toHaveURL(/\/profile$/);
   await takeHome(oldPage, '₹1,20,000');
-  const names = (await old.cookies()).map((c) => c.name);
-  expect(names).toContain('rightdue_session');
-  expect(names).toContain('rightdue_user');
-  expect(names.filter((n) => n.startsWith('finoptima_'))).toEqual([]);
+  // Polled, not read once. Firefox, CI run 38488716548 attempt 1: a single
+  // read right after the page drew still listed finoptima_activity_deltas
+  // and finoptima_marginal, which the /profile response expires (the same
+  // tree passed on the PR run and in WebKit; not reproduced locally). A
+  // name that is really left behind still fails here after the timeout.
+  const names = async () => (await old.cookies()).map((c) => c.name);
+  await expect.poll(names).toEqual(expect.arrayContaining(['rightdue_session', 'rightdue_user']));
+  await expect.poll(async () => (await names()).filter((n) => n.startsWith('finoptima_'))).toEqual([]);
   expect((await old.cookies()).find((c) => c.name === 'rightdue_session')!.httpOnly).toBe(true);
   expect((await (await old.request.get('/api/session/auth/me')).json()).email).toBe(testEmail('l1-rename@rightdue.app'));
   await old.close();
