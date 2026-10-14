@@ -214,7 +214,7 @@ optgroup {
   background: transparent;
   color: var(--ink);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-label); /* audit 80+ B5: 12px floor */
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -250,7 +250,7 @@ optgroup {
   background: transparent;
   color: var(--ink);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-label); /* audit 80+ B5: 12px floor */
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: 0.12em;
@@ -277,7 +277,7 @@ optgroup {
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-label); /* audit 80+ B5: 12px floor */
   color: var(--muted);
   background: transparent;
   letter-spacing: 0.08em;
@@ -597,8 +597,3 @@ button.l-hit {
   min-height: calc(100svh - 120px);
 }
 
-/* Audit 80+ E10: Setup holds a screen's height while its form loads. */
-.rd-setup-shell {
-  min-height: calc(100vh - 120px);
-  min-height: calc(100svh - 120px);
-}
