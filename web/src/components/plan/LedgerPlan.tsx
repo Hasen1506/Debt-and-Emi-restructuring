@@ -14,6 +14,7 @@
  * (REDESIGN R2).
  */
 
+import { FirstVisitIntro } from '@/components/FirstVisitIntro';
 import { localTerms, paymentWords } from '@/lib/terms';
 import type { PlanData } from './PlanData';
 import { useState } from 'react';
@@ -100,6 +101,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
     />
   );
   const gapRunsAway = !!plan.gap?.firstBorrowMonth && !plan.debtFreeMonth;
+  const takeHome = Number(plan.user.monthly_income) || 0;
+  const tightMonth = takeHome <= 0 || plan.surplus < 0.1 * takeHome;
   const clearLabel = shortStory
     ? shortStory.value
     : plan.debtFreeMonth
@@ -163,9 +166,9 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {/* What the plan assumes (editable chips), the data and guesses it
             rests on, then what it comes to */}
         {/* What this page is for, in one line (each tab opens with one) */}
-        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <FirstVisitIntro id="plan" style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
           When you&apos;ll be debt-free and how: the date, each month&apos;s payments, and changes you can try before you make them.
-        </p>
+        </FirstVisitIntro>
         <PlanAssumptions plan={plan} />
         <PlanGivens plan={plan} />
         <LKpi
@@ -300,7 +303,9 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {/* Month by month, collapsed to the months something happens;
             the next rate reset below */}
         <PlanSchedule plan={shownPlan} />
-        {!short && tenureWhatIf}
+        {/* Audit 80 B15: "a longer tenure?" is distress framing; for a healthy
+            plan it shows only when spare cash is under 10% of take-home. */}
+        {!short && tightMonth && tenureWhatIf}
 
         {/* The next RBI / Fed decision, loan by loan, and whether to wait */}
         <RateDecisions plan={plan} />
@@ -310,19 +315,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           <LifecycleEventsPanel user={plan.user} configuredLoans={plan.configuredUser.loans} />
         </div>
 
-        {/* Prepay or save, the home loan's tax saving, a bracket change */}
-        <PlanNotes plan={plan} />
-
-        {plan.advanceTaxSchedule && (
-          <AdvanceTaxPanel
-            schedule={plan.advanceTaxSchedule}
-            country={plan.user.country}
-            displayCurrency={plan.displayCurrency}
-            monthlyPenaltyCost={plan.advanceTaxPenaltyMonthly}
-            variant="ledger"
-          />
-        )}
-
+        {/* Audit 80 B15: What if sits above Notes. */}
         {/* What if: real engine runs against this plan, nothing saved until asked */}
         <section id="what-if" data-print="hide" style={{ scrollMarginTop: 16 }}>
           <LSectionHeader>What if</LSectionHeader>
@@ -337,6 +330,20 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             runArgs={plan.runArgs}
           />
         </section>
+
+        {/* Prepay or save, the home loan's tax saving, a bracket change */}
+        <PlanNotes plan={plan} />
+
+        {plan.advanceTaxSchedule && (
+          <AdvanceTaxPanel
+            schedule={plan.advanceTaxSchedule}
+            country={plan.user.country}
+            displayCurrency={plan.displayCurrency}
+            monthlyPenaltyCost={plan.advanceTaxPenaltyMonthly}
+            variant="ledger"
+          />
+        )}
+
       </div>
     </LShell>
   );

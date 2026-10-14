@@ -10,6 +10,7 @@
  * cookie the plan reads (lib/activity-cookie); life events in their own
  * cookie (lib/lifecycle-events). Every save re-runs the plan.
  */
+import { FirstVisitIntro } from '@/components/FirstVisitIntro';
 import { localTerms, paymentWords } from '@/lib/terms';
 import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 'react';
 import { smoothOrAuto } from '@/lib/motion';
@@ -282,13 +283,20 @@ export function ActivityPage({
   return (
     <div ref={ref} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* What this page is for, in one line (each tab opens with one) */}
-      <p style={{ margin: '0 0 8px', fontSize: 13, color: L_T.inkSoft, lineHeight: 1.6 }}>
+      <FirstVisitIntro id="activity" style={{ margin: '0 0 8px', fontSize: 13, color: L_T.inkSoft, lineHeight: 1.6 }}>
         What you paid and what changed, by month. Each entry re-runs the plan from what really happened.
-      </p>
+      </FirstVisitIntro>
       <section aria-labelledby="activity-h">
         <LSectionHeader right={<LBracket accent onClick={() => setDialog({})}>+ LOG AN ENTRY</LBracket>}>
-          <span id="activity-h">Activity · {count} {count === 1 ? 'entry' : 'entries'}</span>
+          {/* Audit 80 B25: no "0 entries" above "2 to log". */}
+          <span id="activity-h">Activity · {count === 0 ? 'nothing logged yet' : `${count} ${count === 1 ? 'entry' : 'entries'}`}</span>
         </LSectionHeader>
+        {count === 0 && (
+          <p data-testid="activity-empty" style={{ margin: '0 0 8px', fontSize: 13, lineHeight: 1.6 }}>
+            Nothing logged yet. When this month&apos;s payments go out, mark them here or on Home; the plan then moves on
+            from what really happened.
+          </p>
+        )}
         {rolled.length > 0 && (
           <p style={{ margin: '0 0 8px', fontSize: 11, color: L_T.muted, lineHeight: 1.6 }}>
             {localTerms('Balances move on with the EMIs due since you entered them:', user.country)}{' '}

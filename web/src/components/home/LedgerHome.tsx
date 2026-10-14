@@ -12,6 +12,7 @@
  * date and payments are streamed in by the page.
  */
 
+import { FirstVisitIntro } from '@/components/FirstVisitIntro';
 import { localTerms } from '@/lib/terms';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { formatTaxRate } from '@/lib/tax-profile';
@@ -102,9 +103,9 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
         }}
       >
         {/* What this page is for, in one line (each tab opens with one) */}
-        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <FirstVisitIntro id="home" style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
           Your month on one page: what comes in and goes out, what to pay now, and every loan you have.
-        </p>
+        </FirstVisitIntro>
         {thisMonth}
         <ContextLine profile={profile} />
         <CashFlow profile={profile} m={m} />
