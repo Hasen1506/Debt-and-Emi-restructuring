@@ -7,6 +7,11 @@ What is kept, and for how long:
 - otp_codes (legacy rows from before grill #59): same rule.
 - sessions: deleted AUTH_LOG_RETENTION after they expired or were signed out.
 - rate_buckets: deleted a day after their window ends.
+- auth_log_tombstones (audit80 D6): sign-in records of a deleted account,
+  deleted AUTH_LOG_RETENTION after the account was deleted.
+- access_log (audit80 D8): deleted AUTH_LOG_RETENTION after the access.
+- consent_events (audit80 D2): kept while the account exists; for a
+  deleted account, deleted AUTH_LOG_RETENTION after its withdrawal.
 
 Why a year: once in force (14 May 2027), DPDP Rules 2025 r.6(1)(e) and
 r.8(3) ask a Data Fiduciary to keep logs of processing for one year to
@@ -23,11 +28,11 @@ import time
 from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import and_, delete, or_, update
+from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.auth.session import AUTH_LOG_RETENTION, utc_now
-from api.db.models import OtpChallenge, OtpCode, RateBucket, Session
+from api.db.models import AccessLog, AuthLogTombstone, ConsentEvent, OtpChallenge, OtpCode, RateBucket, Session, User
 
 log = logging.getLogger(__name__)
 
@@ -59,6 +64,18 @@ async def purge(db: AsyncSession, now: Optional[datetime] = None) -> dict[str, i
     counts["sessions"] = res.rowcount or 0
     res = await db.execute(delete(RateBucket).where(RateBucket.expires_at < now - RATE_BUCKET_GRACE))
     counts["rate_buckets"] = res.rowcount or 0
+    res = await db.execute(delete(AuthLogTombstone).where(AuthLogTombstone.deleted_at < cutoff))
+    counts["auth_log_tombstones"] = res.rowcount or 0
+    res = await db.execute(delete(AccessLog).where(AccessLog.at < cutoff))
+    counts["access_log"] = res.rowcount or 0
+    withdrawn_long_ago = (
+        select(ConsentEvent.user_id).where(ConsentEvent.action == "withdrawn").where(ConsentEvent.at < cutoff)
+    )
+    res = await db.execute(delete(ConsentEvent).where(
+        ConsentEvent.user_id.in_(withdrawn_long_ago),
+        ConsentEvent.user_id.not_in(select(User.id)),
+    ))
+    counts["consent_events"] = res.rowcount or 0
     await db.commit()
     return counts
 
