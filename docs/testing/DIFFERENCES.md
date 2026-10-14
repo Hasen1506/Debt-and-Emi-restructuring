@@ -41,6 +41,9 @@ flat→reducing) or a ten-thousandth (month-by-month schedules).
   for forgiveness (`"none"`). The minimums baseline is unchanged; the plan can
   only keep such a loan longer. `test_differential_pre_pr29.py` checks these
   cases on the baseline only (`_us_student_loan_held`).
+  `test_differential_reference.py::test_plan_with_surplus_matches_reference`
+  gives such a loan no extra in the reference (the spare is kept, as when
+  prepaying isn't worth it).
 
 ### Also changed in this PR, covered by the property suite rather than the differential one
 

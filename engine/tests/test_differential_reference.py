@@ -21,6 +21,7 @@ import pytest
 from engine.formulas import emi, flat_to_reducing, remaining_balance
 from engine.models import Country, IncomeType, Loan, LoanType, User
 from engine.simulation import baseline_minimums_only, simulate_plan
+from engine.us_loans import forgiveness_prepay_block
 
 D = Decimal
 SEED = 20261007
@@ -194,6 +195,11 @@ def test_plan_with_surplus_matches_reference():
         # The gate weighs the loan at its compounded annual cost (no fund, so
         # the hurdle is the 0.5pp margin alone).
         worth = (1 + loan.nominal_rate / 12) ** 12 - 1 > D("0.005")
+        # DIFFERENCE E7 (audit 80, W10): a US student loan with no PSLF/IDR
+        # answer gets its required payment only; the spare is kept, as when
+        # prepaying isn't worth it (docs/testing/DIFFERENCES.md).
+        if forgiveness_prepay_block(loan, country) is not None:
+            worth = False
         ref = ref_amortise(_f(loan.outstanding), _f(loan.nominal_rate), _f(loan.scheduled_emi),
                            extra=(lambda m, s=_f(spare): s) if worth else (lambda m: F(0)),
                            term=loan.tenure_months_remaining)
