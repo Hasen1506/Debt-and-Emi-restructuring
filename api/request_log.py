@@ -78,6 +78,8 @@ class RequestLogMiddleware:
             await self.app(scope, receive, capture)
         finally:
             # Healthchecks every few seconds would drown everything else.
-            if scope.get("path") not in ("/api/health", "/api/healthz"):
+            # (Render's check, /api/healthz, is answered by Next.js and never
+            # reaches FastAPI; web/tests/single-service.cjs keeps it that way.)
+            if scope.get("path") != "/api/health":
                 self.logger.info(line(scope.get("method", "?"), safe_path(scope), status_code,
                                       (time.perf_counter() - start) * 1000))
