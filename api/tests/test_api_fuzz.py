@@ -299,7 +299,9 @@ def test_hostile_values_never_crash(client, india_user_payload):
 
 @pytest.mark.parametrize("mutate, field, words", [
     (lambda b: b["user"]["loans"][0].update(outstanding="-500000"), "user.loans.0.outstanding", "negative"),
-    (lambda b: b["user"]["loans"][0].update(nominal_rate="9.5"), "user.loans.0.nominal_rate", "send 0.095 for 9.5%"),
+    # Audit C12: loan rates are accepted up to 1,000% a year (10), so 9.5
+    # (950%) is now a valid instant-loan rate; the typo guard bites above 10.
+    (lambda b: b["user"]["loans"][0].update(nominal_rate="10.5"), "user.loans.0.nominal_rate", "send 0.105 for 10.5%"),
     (lambda b: b["user"].update(loans=b["user"]["loans"] * 250), "user.loans", "at most 50"),
     (lambda b: b["user"]["loans"][0].update(outstanding="1E+999999"), "user.loans.0.outstanding", "1,000,000,000,000"),
     (lambda b: b["user"]["loans"][0].update(tenure_months_remaining=10**18), "user.loans.0.tenure_months_remaining", ""),
