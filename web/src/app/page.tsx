@@ -5,6 +5,7 @@ import { readLifecycleServer } from '@/lib/lifecycle-events';
 import { loadStrategyServer } from '@/lib/strategy';
 import { LedgerHome } from '@/components/home/LedgerHome';
 import { GuestWelcomeBack } from '@/components/home/GuestWelcomeBack';
+import { HomeThisMonthPlaceholder } from '@/components/home/HomeThisMonth';
 import {
   HomeCheaperRates,
   HomeDebtFreeCaption,
@@ -24,6 +25,7 @@ export const metadata: Metadata = { title: 'Home · RightDue' };
 export default async function HomePage() {
   const [profile, strategy] = await Promise.all([loadCurrentProfileServer(), loadStrategyServer()]);
   const plannedLoans=(await readLifecycleServer()).filter(e=>e.status==='planned' && e.kind==='property_buy');
+  const hasOpenLoans = profile.user.loans.some((l) => Number(l.outstanding) > 0);
   const showPlannedSummary=plannedLoans.length>0 && !profile.user.loans.some(l=>Number(l.outstanding)>0);
   // The ledger layout shows no page title; screen readers still need one.
   return (
@@ -64,7 +66,10 @@ export default async function HomePage() {
           </Suspense>
         }
         thisMonth={
-          <Suspense fallback={null}>
+          // Audit 80+ E10: the strip's place is held while the plan streams
+          // in (it shows whenever there's a loan to pay), so the sections
+          // under it don't jump down.
+          <Suspense fallback={hasOpenLoans ? <HomeThisMonthPlaceholder /> : null}>
             <HomeThisMonthStrip />
           </Suspense>
         }
