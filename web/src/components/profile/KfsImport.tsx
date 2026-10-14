@@ -120,7 +120,7 @@ export function KfsImport({
   return (
     <section
       data-testid="kfs-import"
-      style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 12, display: 'grid', gap: 10 }}
+      style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 12, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
         <strong>Import from your Key Facts Statement</strong>

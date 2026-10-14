@@ -46,7 +46,7 @@ export function SetupImportCard({
     <section
       data-testid="setup-import-card"
       aria-labelledby="setup-import-title"
-      style={{ border: '1px solid currentColor', padding: 12, margin: '0 0 12px', display: 'grid', gap: 8 }}
+      style={{ border: '1px solid currentColor', padding: 12, margin: '0 0 12px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8 }}
     >
       <strong id="setup-import-title">Fill your loans in faster <span style={{ fontSize: 11, opacity: 0.7 }}>BETA</span></strong>
       <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5 }}>

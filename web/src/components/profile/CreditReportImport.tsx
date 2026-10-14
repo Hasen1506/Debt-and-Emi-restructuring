@@ -174,7 +174,7 @@ export function CreditReportImport({
   return (
     <section
       data-testid="cr-import"
-      style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 12, display: 'grid', gap: 10 }}
+      style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 12, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
         <strong>Fill from your credit report <span className="muted" style={{ fontSize: 11 }}>BETA · works with most CIBIL and Experian PDFs</span></strong>
@@ -321,7 +321,7 @@ export function CreditReportImport({
                 key={i}
                 data-testid="cr-account"
                 style={{
-                  display: 'grid', gap: 2, padding: 8, border: '1px solid var(--border)', borderRadius: 6,
+                  display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 2, padding: 8, border: '1px solid var(--border)', borderRadius: 6,
                   opacity: a.loan ? 1 : 0.7, fontSize: 13,
                 }}
               >

@@ -349,6 +349,14 @@ select[aria-invalid="true"] {
   border-color: var(--negative) !important;
 }
 
+/* R13-1: a file picker's "Choose File / No file chosen" text sizes it (327px
+   at the 16px phone font) and it had no max-width, so it pushed the credit
+   report and KFS panels past their border and the page scrolled sideways at
+   320px. Never wider than its container. */
+input[type='file'] {
+  max-width: 100%;
+}
+
 /* UX50 C-01/C-02: LField input type size. 13px on a desktop; on a phone
    every field is 16px, the size under which iOS Safari zooms the page on
    focus and never zooms back. (No maximum-scale: pinch zoom stays.) */
