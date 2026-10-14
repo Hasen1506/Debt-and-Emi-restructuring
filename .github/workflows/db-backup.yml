@@ -1,20 +1,23 @@
 name: Database backup
 
-# UX50 E-02: Neon Free keeps only ~6 hours of history and no scheduled
-# backups, and migrations run on every deploy. This takes a nightly
-# pg_dump (custom format) and keeps it OFF this public repo.
+# UX50 E-02 / audit80 D14: Neon Free keeps only ~6 hours of history and no
+# scheduled backups, and migrations run on every deploy. This takes a nightly
+# pg_dump (custom format), PROVES it restores (into a throwaway Postgres 17
+# in this runner), encrypts it with age and keeps it in a private bucket,
+# OFF this public repo.
 #
-# Secrets (Settings > Secrets and variables > Actions), all optional:
-#   DATABASE_URL          read-only role on the Neon production branch.
-#                         Absent: the job says so and exits green.
-#   BACKUP_AGE_RECIPIENT  an age public key (age1...). Required to upload;
-#                         the private key never goes near GitHub.
-#   BACKUP_S3_BUCKET      private bucket (S3 or Cloudflare R2), e.g. rightdue-backups
-#   BACKUP_S3_ENDPOINT    R2/S3-compatible endpoint URL (leave empty for AWS S3)
-#   BACKUP_S3_ACCESS_KEY_ID / BACKUP_S3_SECRET_ACCESS_KEY  write-only key for that bucket
-# Without a bucket the dump is taken and checked (pg_restore --list), then
-# discarded: it is never uploaded as an artifact of this public repo.
-# Retention: a 14-day lifecycle rule on the bucket. Restore: docs/RUNBOOK.md.
+# Why it used to be green with no backup: see scripts/backup_preflight.sh.
+# Now it is RED, and opens an issue, whenever a backup was not taken and
+# kept, unless the repo VARIABLE BACKUP_DISABLED=1 says backups are off on
+# purpose.
+#
+# Secrets (Settings > Secrets and variables > Actions > Secrets), ALL required:
+#   DATABASE_URL          read-only role on the Neon production branch
+#   BACKUP_AGE_RECIPIENT  an age public key (age1...); the private key never goes near GitHub
+#   BACKUP_S3_BUCKET      private bucket (Cloudflare R2 or S3), e.g. rightdue-backups
+#   BACKUP_S3_ENDPOINT    R2: https://<account id>.r2.cloudflarestorage.com
+#   BACKUP_S3_ACCESS_KEY_ID / BACKUP_S3_SECRET_ACCESS_KEY  key limited to that bucket
+# Retention: a 14-day lifecycle rule on the bucket. Restore: docs/RUNBOOK.md §2.
 on:
   schedule:
     - cron: "40 20 * * *"   # 02:10 IST, after the evening's merges
@@ -31,7 +34,7 @@ concurrency:
 jobs:
   backup:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
@@ -40,21 +43,17 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: auto
+      BACKUP_DISABLED: ${{ vars.BACKUP_DISABLED }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+
+      # Fails (red + issue) when any secret is missing; exits 0 with
+      # run=false only when BACKUP_DISABLED=1 on purpose.
       - name: Check configuration
         id: cfg
-        run: |
-          if [ -z "$DATABASE_URL" ]; then
-            echo "::notice::DATABASE_URL secret not set; no backup taken (see docs/RUNBOOK.md)."
-            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          echo "run=true" >> "$GITHUB_OUTPUT"
-          if [ -n "$S3_BUCKET" ] && [ -n "$AGE_RECIPIENT" ] && [ -n "$AWS_ACCESS_KEY_ID" ]; then
-            echo "upload=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::No private bucket or age key configured: the dump is checked and discarded, not kept."
-            echo "upload=false" >> "$GITHUB_OUTPUT"
-          fi
+        run: bash scripts/backup_preflight.sh
 
       - name: Dump (Postgres 17 client, matches Neon)
         if: steps.cfg.outputs.run == 'true'
@@ -66,29 +65,71 @@ jobs:
           docker run --rm -e DATABASE_URL -v "$PWD:/out" postgres:17 \
             sh -c 'pg_dump --format=custom --no-owner --no-privileges --file=/out/rightdue.dump "$DATABASE_URL"'
           docker run --rm -v "$PWD:/out" postgres:17 pg_restore --list /out/rightdue.dump > toc.txt
-          echo "Dump OK: $(stat -c %s rightdue.dump) bytes, $(grep -c 'TABLE DATA' toc.txt) tables with data."
+          tables=$(grep -c 'TABLE DATA' toc.txt || true)
+          echo "Dump OK: $(stat -c %s rightdue.dump) bytes, $tables tables with data."
+          [ "$tables" -gt 0 ] || { echo "::error::The dump has no table data."; exit 1; }
+
+      # The restore test: a dump nobody has restored is a hope, not a backup.
+      # Restores into an empty Postgres 17 container on this runner (never
+      # production) and checks the account tables and the Alembic version
+      # are there. Prints counts only, never data.
+      - name: Restore test (throwaway Postgres 17)
+        if: steps.cfg.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          pw=$(openssl rand -hex 16)
+          docker run -d --name restore-check -e POSTGRES_PASSWORD="$pw" postgres:17 > /dev/null
+          for _ in $(seq 1 60); do
+            docker exec restore-check pg_isready -U postgres -q && break
+            sleep 1
+          done
+          docker cp rightdue.dump restore-check:/tmp/rightdue.dump
+          # No --exit-on-error: Neon-only roles/extensions may warn; the
+          # checks below decide.
+          docker exec restore-check pg_restore --no-owner --no-privileges -U postgres -d postgres /tmp/rightdue.dump || true
+          q() { docker exec restore-check psql -U postgres -d postgres -tAc "$1"; }
+          rev=$(q "SELECT version_num FROM alembic_version")
+          users=$(q "SELECT count(*) FROM users")
+          states=$(q "SELECT count(*) FROM user_state")
+          echo "Restored: alembic $rev, $users users, $states saved plans."
+          [ -n "$rev" ] || { echo "::error::Restore test: no alembic_version."; exit 1; }
+          echo "RESTORED_REV=$rev" >> "$GITHUB_ENV"
+          docker rm -f restore-check > /dev/null
 
       - name: Encrypt and upload to the private bucket
-        if: steps.cfg.outputs.upload == 'true'
+        if: steps.cfg.outputs.run == 'true'
         run: |
           set -euo pipefail
           sudo apt-get install -y -qq age > /dev/null
           age -r "$AGE_RECIPIENT" -o "rightdue-$STAMP.dump.age" rightdue.dump
-          ep=(); [ -n "$S3_ENDPOINT" ] && ep=(--endpoint-url "$S3_ENDPOINT")
-          aws "${ep[@]}" s3 cp "rightdue-$STAMP.dump.age" "s3://$S3_BUCKET/nightly/rightdue-$STAMP.dump.age" --only-show-errors
-          echo "Uploaded nightly/rightdue-$STAMP.dump.age"
+          key="nightly/rightdue-$STAMP.dump.age"
+          aws --endpoint-url "$S3_ENDPOINT" s3 cp "rightdue-$STAMP.dump.age" "s3://$S3_BUCKET/$key" --only-show-errors
+          # Prove it landed (size > 0) before calling the night a success.
+          size=$(aws --endpoint-url "$S3_ENDPOINT" s3api head-object --bucket "$S3_BUCKET" --key "$key" --query ContentLength --output text)
+          [ "${size:-0}" -gt 0 ] || { echo "::error::Upload not found in the bucket."; exit 1; }
+          echo "Uploaded $key ($size bytes, alembic $RESTORED_REV)." | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Remove plaintext
         if: always()
-        run: rm -f rightdue.dump ./*.dump.age toc.txt
+        run: |
+          rm -f rightdue.dump ./*.dump.age toc.txt
+          docker rm -f restore-check > /dev/null 2>&1 || true
 
       - name: Open an issue if the backup failed
         if: failure()
         uses: actions/github-script@v7
         with:
           script: |
-            await github.rest.issues.create({
-              owner: context.repo.owner, repo: context.repo.repo,
-              title: `Database backup failed (${new Date().toISOString().slice(0, 10)})`,
-              body: `The nightly backup failed: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            const title = 'Database backup failed';
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const day = new Date().toISOString().slice(0, 10);
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo, state: 'open', per_page: 50,
             });
+            const existing = open.find((i) => i.title.startsWith(title));
+            const body = `No backup was taken and kept on ${day}: ${url}\n\nIf secrets are missing, the run log names them. Setup: docs/RUNBOOK.md §2.`;
+            if (existing) {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body });
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title: `${title} (${day})`, body });
+            }

@@ -16,6 +16,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write        # data-pr starts CI on the PR branch (audit80 D17)
+  issues: write         # failure issue (audit80 D18)
 
 concurrency:
   group: rate-disclosures
@@ -46,3 +48,9 @@ jobs:
           paths: api/data/rate_disclosures web/src/lib/rate-disclosures.json
           title: "data: banks' loan-rate disclosures as of ${{ github.run_started_at }}"
           mode: ${{ vars.DATA_PR_MODE || 'merge' }}
+      # audit80 D18: a failed scheduled run opens (or comments on) an issue.
+      - name: Open an issue if this run failed
+        if: failure()
+        uses: ./.github/actions/failure-issue
+        with:
+          title: "Rate-disclosure refresh failed"
