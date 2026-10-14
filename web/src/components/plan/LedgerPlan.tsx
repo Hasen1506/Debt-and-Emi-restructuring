@@ -76,9 +76,9 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   // can't fund, so its date isn't one to plan around.
   const short = plan.shortfall > 0 || !!plan.futureShortfall;
   const label = (m: number) => monthIndexToCountryLabel(m, plan.user.country).toUpperCase();
-  // Live test #16: one story. Short, the headline is the date if the gap
-  // closes, with the date as things stand (gap borrowed, the schedule's
-  // date) beside it, each named.
+  // Live test #16: one story, each date named. Audit 80+ A5: short, the
+  // headline is the gap; the date if it closes and the date as things stand
+  // (gap borrowed, the schedule's date) are in the line under it.
   const shortStory = short
     ? shortHeadline({
         shortfall: plan.shortfall,

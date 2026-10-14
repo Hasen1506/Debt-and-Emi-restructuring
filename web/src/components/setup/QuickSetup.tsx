@@ -1475,9 +1475,9 @@ function PlanPreview({
   const debtFreeRow: [string, ReactNode, string?] = short
     ? [
         'Debt-free',
-        // Audit 80+ A5: the gap is the headline (the card above); the date it
-        // would take to close it is demoted to the note.
-        'No date yet',
+        // Audit 80+ A5: the gap is the headline (and the card above); the date
+        // it would take to close it is demoted to the note.
+        `${money(shortfall)}/mo short`,
         shortGapLine({
           shortfall: shortfall.toNumber(),
           asIsMonth: plan.debt_free_month ?? null,

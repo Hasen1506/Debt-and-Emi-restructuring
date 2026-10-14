@@ -4,7 +4,7 @@
  * the rest of home paints without waiting on the engine.
  */
 import { localTerms } from '@/lib/terms';
-import { dueVsAffordable, dueVsAffordableLine, shortGapLine } from '@/lib/plan-gap';
+import { dueVsAffordable, dueVsAffordableLine, shortGapLine, shortValue } from '@/lib/plan-gap';
 import { userMarginalCosts, whyFirst } from '@/lib/marginal-cost';
 import { cache } from 'react';
 import Link from 'next/link';
@@ -33,8 +33,10 @@ const loadPlanOnce = cache(loadPlanFromCookies);
 
 export async function HomeDebtFreeValue() {
   const plan = await loadPlanOnce();
-  // Audit 80+ A5: short this month, the headline is the gap (Home's gap card),
-  // not the date it would take to close it; that date is demoted to the caption.
+  // Audit 80+ A5: short this month, the headline is the gap, not the date it
+  // would take to close it; that date is demoted to the caption (shortGapLine).
+  if (plan.gaps.length === 0 && plan.shortfall > 0)
+    return <>{shortValue(plan.shortfall, (v) => formatCurrencyWhole(v, userDefaultCurrency(plan.user.country)))}</>;
   if (plan.gaps.length > 0 || plan.shortfall > 0 || plan.futureShortfall) return <>NO DATE YET</>;
   if (!plan.live) return <Link href="/plan" className="l-hit">SEE PLAN →</Link>;
   // 0 = nothing owed now; null = not cleared within the horizon.

@@ -70,11 +70,13 @@ test('#16: a short plan names both dates, so headline and table tell one story',
   const label = (m) => `M${m}`;
   const money = (v) => `₹${v}`;
   const h = gap.shortHeadline({ shortfall: 11138, asIsMonth: 104, closedMonth: 92, label, money });
-  assert.equal(h.value, 'M92');
-  assert.match(h.sub, /IF THE ₹11138\/MO GAP CLOSES/);
+  // Audit 80+ A5 (golden updated on purpose): the big figure is the gap; the
+  // gap-closed date moved into the line.
+  assert.equal(h.value, '₹11138/MO SHORT');
+  assert.match(h.sub, /IF THE ₹11138\/MO GAP CLOSES: M92/);
   assert.match(h.sub, /AS THINGS STAND: M104/);
   const never = gap.shortHeadline({ shortfall: 11138, asIsMonth: null, closedMonth: null, label, money });
-  assert.equal(never.value, 'NO DATE YET');
+  assert.equal(never.value, '₹11138/MO SHORT');
   assert.match(never.sub, /AS THINGS STAND: NOT IN 30 YEARS/);
 });
 
