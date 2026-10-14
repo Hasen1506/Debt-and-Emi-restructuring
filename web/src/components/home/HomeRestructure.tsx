@@ -69,6 +69,21 @@ function targetText(o: RestructuringOpportunity): string {
   return formatPct(o.target_rate);
 }
 
+/** E1 (audit 80+): the bank's published range and where the user could
+ *  land in it, instead of its floor quoted as theirs. */
+function RangeLine({ o, fc }: { o: RestructuringOpportunity; fc: (v: string | number) => string }) {
+  const d = o.detail ?? {};
+  if (!d.range_low || !d.range_high) return null;
+  const lo = Number(d.saving_at_range_low ?? 0);
+  const hi = Number(d.saving_at_range_high ?? 0);
+  return (
+    <div data-testid="cheaper-range" style={{ fontSize: 11, lineHeight: 1.55, color: L_T.inkSoft, marginTop: 4 }}>
+      {o.target_bank ?? 'The bank'} quotes {formatPct(d.range_low)} to {formatPct(d.range_high)}; this uses the middle.{' '}
+      Year one: {hi > 0 ? fc(hi) : 'no saving'} at the top of the range to {fc(lo)} at the bottom, depending on your score.
+    </div>
+  );
+}
+
 export function HomeRestructure({
   opportunities,
   heldBack = [],
@@ -106,7 +121,7 @@ export function HomeRestructure({
         right={
           opportunities.length > 0 ? (
             <span style={{ fontSize: 11, color: L_T.positive, fontWeight: 700, letterSpacing: '0.08em' }}>
-              UP TO {formatCurrencyWhole(totalAnnualSaving, userCcy)} IN YEAR 1
+              ABOUT {formatCurrencyWhole(totalAnnualSaving, userCcy)} IN YEAR 1
             </span>
           ) : undefined
         }
@@ -157,6 +172,7 @@ export function HomeRestructure({
                   {o.plan_clears_in_months ? ` · YOUR PLAN CLEARS IT IN ${o.plan_clears_in_months} MO` : ''}
                 </div>
                 <OfferSource o={o} score={score} />
+                <RangeLine o={o} fc={fc} />
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: saving > 0 ? L_T.positive : L_T.negative }}>
