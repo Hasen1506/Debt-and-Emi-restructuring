@@ -4,7 +4,7 @@
  * the rest of home paints without waiting on the engine.
  */
 import { localTerms } from '@/lib/terms';
-import { dueVsAffordable, dueVsAffordableLine, shortGapLine } from '@/lib/plan-gap';
+import { dueVsAffordable, dueVsAffordableLine, shortGapLine, shortValue } from '@/lib/plan-gap';
 import { userMarginalCosts, whyFirst } from '@/lib/marginal-cost';
 import { cache } from 'react';
 import Link from 'next/link';
@@ -26,15 +26,17 @@ import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
 import { homeInterestLine, homeThisMonthLine } from '@/lib/home-this-month';
 import { HomeThisMonth } from './HomeThisMonth';
+import { InsightsPanel } from '@/components/insights/InsightsPanel';
 
 // One engine run per request, shared by the value and its caption.
 const loadPlanOnce = cache(loadPlanFromCookies);
 
 export async function HomeDebtFreeValue() {
   const plan = await loadPlanOnce();
-  // Short this month: the date if the gap closes, as on Plan (live test #16).
-  if (plan.gaps.length === 0 && plan.shortfall > 0 && plan.gap?.closed?.debtFreeMonth)
-    return <>{monthIndexToCountryLabel(plan.gap.closed.debtFreeMonth, plan.user.country).toUpperCase()}</>;
+  // Audit 80+ A5: short this month, the headline is the gap, not the date it
+  // would take to close it; that date is demoted to the caption (shortGapLine).
+  if (plan.gaps.length === 0 && plan.shortfall > 0)
+    return <>{shortValue(plan.shortfall, (v) => formatCurrencyWhole(v, userDefaultCurrency(plan.user.country)))}</>;
   if (plan.gaps.length > 0 || plan.shortfall > 0 || plan.futureShortfall) return <>NO DATE YET</>;
   if (!plan.live) return <Link href="/plan" className="l-hit">SEE PLAN →</Link>;
   // 0 = nothing owed now; null = not cleared within the horizon.
@@ -324,4 +326,13 @@ async function homeInterest(): Promise<{ value: string; caption: string }> {
   if (first?.interest != null) return homeInterestLine({ planInterest: first.interest, monthLabel: monthIndexToCountryLabel(1, plan.user.country), fallback: 0, money });
   const m = deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate, creditScore: null, isLive: plan.profileIsLive });
   return homeInterestLine({ planInterest: null, monthLabel: '', fallback: m.monthlyInterest.toNumber(), money });
+}
+
+/** Audit 80+ A1/A5/A6 (+ the A4 nudge and "Don't sign that"): first on Home. */
+export async function HomeInsights() {
+  const plan = await loadPlanOnce();
+  if (!plan.live || !plan.runArgs || plan.gaps.length > 0) return null;
+  return (
+    <InsightsPanel runArgs={{ ...plan.runArgs, strategy: plan.strategy }} variant="home" closedDebtFreeMonth={plan.gap?.closed?.debtFreeMonth ?? null} />
+  );
 }

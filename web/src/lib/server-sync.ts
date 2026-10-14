@@ -58,6 +58,7 @@ const SLICE_TARGETS: Record<string, SliceTarget> = {
   decisions:         { kind: 'localStorage', name: 'rightdue_decisions' },
   ef_split:          { kind: 'cookie',       name: 'rightdue_ef_split' },
   debt_budget:       { kind: 'cookie',       name: 'rightdue_debt_budget' },
+  low_rate_share:    { kind: 'cookie',       name: 'rightdue_low_rate_share' },  // audit 80+ A4
   // Profile slice is handled separately by user-store.ts (it spans 3
   // cookies and predates this file).
 };

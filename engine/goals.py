@@ -50,6 +50,8 @@ QueuedReason = Literal[
     "partial_fill",      # got something, but below run-rate
     "deferred",          # before funding_start_month_index — intentional
     "waiting_on_debt",   # funding rule "after debt X clears" (roadmap PR F) — intentional
+    "ended",             # past the goal's own "until" month (audit A80, programmable diversion) — intentional
+    "paused",            # the month's spare cash is under the goal's floor (audit A80) — intentional
 ]
 
 # Funding rules (roadmap PR F):
@@ -60,6 +62,18 @@ QueuedReason = Literal[
 #                 position in user.loans), or until every high-interest loan
 #                 has cleared (`after_loan_index` None); then the run-rate.
 #                 This is "debt first", the default for a new goal.
+#
+# Programmable diversion (audit 80+, founder: "how much to divert must be
+# programmable, handle many scenarios"). Every rule above can also carry:
+#   funding_end_month_index — "until": nothing from this 0-based sim month on
+#                 (the goal stops taking money even if it isn't full);
+#   funding_cap — the most it takes in any month (₹), whatever the rule asks;
+#   pause_below — skip any month whose spare cash is under this (₹), so a
+#                 lean month goes wholly to the debts;
+#   after_debt + funding_amount / funding_pct — once the debt clears, a fixed
+#                 amount or a share of spare cash instead of the run-rate.
+# A goal never borrows: in a short month (income under costs + minimums)
+# there is no spare cash, so every goal takes nothing (property-tested).
 FundingRule = Literal["schedule", "fixed", "surplus_pct", "after_debt"]
 FUNDING_RULES = ("schedule", "fixed", "surplus_pct", "after_debt")
 
@@ -130,6 +144,10 @@ class GoalState:
     funding_amount: Decimal | None = None
     funding_pct: Decimal | None = None
     after_loan_index: int | None = None
+    # Programmable diversion (audit 80+); see FUNDING_RULES above.
+    funding_end_month_index: int | None = None
+    funding_cap: Decimal | None = None
+    pause_below: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -247,6 +265,14 @@ def serial_fill_allocation(
                 )
             )
             continue
+        # "Until" a month (audit 80+): intentional, like `deferred`.
+        if g.funding_end_month_index is not None and current_sim_month >= g.funding_end_month_index:
+            contributions.append(GoalContribution(goal_id=g.id, amount=D("0"), run_rate=D("0"), queued_reason="ended"))
+            continue
+        # A floor on the month's spare cash (audit 80+): a lean month goes to the debts.
+        if g.pause_below is not None and g.pause_below > 0 and month_surplus < g.pause_below:
+            contributions.append(GoalContribution(goal_id=g.id, amount=D("0"), run_rate=D("0"), queued_reason="paused"))
+            continue
         # "After debt X clears" (roadmap PR F): idle until it has. Like
         # `deferred`, intentional, so not counted as falling short.
         if g.funding_rule == "after_debt" and debt_cleared is not None and not debt_cleared(g.after_loan_index):
@@ -262,10 +288,12 @@ def serial_fill_allocation(
         run_rate = remaining_required / D(months_remaining)
         # What this goal's rule asks for this month. The run-rate lands it
         # on its date; a fixed amount or a share of spare cash may not.
-        if g.funding_rule == "fixed" and g.funding_amount is not None:
+        if g.funding_rule in ("fixed", "after_debt") and g.funding_amount is not None:
             run_rate = g.funding_amount
-        elif g.funding_rule == "surplus_pct" and g.funding_pct is not None:
+        elif g.funding_rule in ("surplus_pct", "after_debt") and g.funding_pct is not None:
             run_rate = month_surplus * g.funding_pct
+        if g.funding_cap is not None and g.funding_cap >= 0:
+            run_rate = min(run_rate, g.funding_cap)
         # Cap target at remaining_required so a near-finished goal in
         # its last month doesn't try to grab more than it needs.
         target = min(run_rate, remaining_required)

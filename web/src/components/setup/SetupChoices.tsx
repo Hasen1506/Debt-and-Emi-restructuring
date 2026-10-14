@@ -5,6 +5,7 @@ import { LChip as Chip, LChipRow as ChipRow, L_T } from '@/components/ledger/pri
 import { Term } from '@/components/Term';
 import { CHOICE_ERROR, EF_MONTH_CHOICES, EF_SPLIT_CHOICES, missingChoices, type SetupChoices as Choices } from '@/lib/setup-choices';
 import { STRATEGIES, STRATEGY_PLAIN, STRATEGY_LABEL, type StrategyName } from '@/lib/strategy';
+import type { orderChoice } from '@/lib/insights';
 
 const ORDER: StrategyName[] = STRATEGIES;
 
@@ -15,7 +16,10 @@ export function SetupChoices({
   hasLoans,
   monthlySpend,
   money,
+  orderInfo = null,
 }: {
+  /** Audit 80+ A2: from the engine; null until it answers (then the order is asked as before). */
+  orderInfo?: ReturnType<typeof orderChoice> | null;
   value: Choices;
   onChange: (c: Choices) => void;
   showErrors: boolean;
@@ -61,7 +65,16 @@ export function SetupChoices({
           {err('ef_split')}
         </div>
       )}
-      {hasLoans && (<div>
+      {hasLoans && orderInfo && !orderInfo.ask && (
+        <div data-testid="order-same">
+          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
+            <strong>{orderInfo.line}</strong> The plan uses the{' '}
+            {STRATEGY_PLAIN[value.strategy ?? 'avalanche'].toLowerCase()}; you can change the order on Plan.
+          </p>
+        </div>
+      )}
+      {hasLoans && (!orderInfo || orderInfo.ask) && (<div data-testid="order-ask">
+        {orderInfo?.line && <p style={{ margin: '0 0 6px', fontSize: 12, color: L_T.inkSoft }}>{orderInfo.line}</p>}
         <ChipRow label="Which loan gets your extra money first?">
           {ORDER.map((s) => (
             <Chip key={s} on={value.strategy === s} onClick={() => onChange({ ...value, strategy: s })}>

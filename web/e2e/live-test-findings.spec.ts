@@ -295,7 +295,8 @@ test.describe('L2 short month (signed in)', () => {
   test('L#16 [L2] a short plan names the date if the gap closes and as things stand', async ({ page }) => {
     await page.goto('/plan');
     // #main: not the hidden streamed copy (see plan-short-month.spec.ts).
-    await expect(page.locator('#main').getByText(/GAP CLOSES · AS THINGS STAND/)).toBeVisible();
+    // Audit 80+ A5: the headline is the gap; the gap-closed date is named in the line.
+    await expect(page.locator('#main').getByText(/GAP CLOSES: (?:[A-Z]{3} \d{4}) · AS THINGS STAND/)).toBeVisible();
   });
   // No DOM hook for the last axis tick; chartEndMonth is covered by
   // web/tests/l2-plan-logic.cjs "#17".

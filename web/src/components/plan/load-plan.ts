@@ -316,6 +316,8 @@ export async function loadPlanInputs(
   const efTarget = Number(adjustedUser.efund_target ?? '0');
   const efSplit = await (await import('@/lib/ef-split')).loadEfSplitServer();
   const debtBudget = await (await import('@/lib/debt-budget')).loadDebtBudgetServer();
+  // Audit 80+ A4: the user's own prepay/keep split for when only cheap debt is left.
+  const lowRateShare = await (await import('@/lib/low-rate-choice')).loadLowRateShareServer();
   const { goalsForSimulateServer } = await import('@/lib/goals');
   const { readContributionTotalsServer } = await import(
     '@/lib/goal-contributions'
@@ -363,6 +365,7 @@ export async function loadPlanInputs(
     lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
     ef_top_up_rate: efTopUpRate,
     debt_budget: debtBudget || undefined,
+    low_rate_invest_share: lowRateShare || undefined,
     // Per-goal payload — engine runs serial-fill per month with
     // goal-expiry awareness, threads saved_so_far across iterations,
     // and returns per-goal slices + end-of-trajectory fill rates.

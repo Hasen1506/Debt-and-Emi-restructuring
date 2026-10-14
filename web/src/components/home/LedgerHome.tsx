@@ -64,6 +64,8 @@ interface HomeProps {
   /** Re-test 10: this month's interest from the plan (as Plan and its CSV
    *  show it), streamed in by the page. */
   interest?: { v: ReactNode; s: ReactNode };
+  /** Audit 80+ A1/A5/A6: the plan-insight cards, first on the page. */
+  insights?: ReactNode;
 }
 
 export function LedgerHome(props: HomeProps) {
@@ -75,7 +77,7 @@ export function LedgerHome(props: HomeProps) {
   return <LedgerHomeFull {...props} />;
 }
 
-function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, interest }: HomeProps) {
+function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, interest, insights }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrencyWhole(v, ccy);
@@ -104,6 +106,7 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
         <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
           Your month on one page: what comes in and goes out, what to pay now, and every loan you have.
         </p>
+        {insights}
         {thisMonth}
         <ContextLine profile={profile} />
         <CashFlow profile={profile} m={m} />

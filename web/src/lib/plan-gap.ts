@@ -109,10 +109,12 @@ export function gapRateWords(rate: number): string {
  * so the headline and the table tell one story.
  */
 export function shortHeadline(args: ShortStoryArgs): { value: string; sub: string } {
-  const { shortfall, asIsMonth, closedMonth, label } = args;
+  const { shortfall, asIsMonth, label, money } = args;
   const line = shortGapLine(args);
   if (line && shortfall > 0) {
-    return { value: closedMonth ? label(closedMonth) : 'NO DATE YET', sub: line.toUpperCase() };
+    // Audit 80+ A5: short this month, the big figure is the gap, not the
+    // date it would take to close it (that date is demoted to the line).
+    return { value: shortValue(shortfall, money), sub: line.toUpperCase() };
   }
   // Only a later month is short: the engine's date already borrows for it.
   return { value: asIsMonth ? label(asIsMonth) : 'NO DATE YET', sub: 'A LATER MONTH IS SHORT · GAP BORROWED' };
@@ -135,15 +137,23 @@ export const AS_IS_NEVER = 'not in 30 years';
  * (live re-test 7 R7-2: Setup said "not in sight", Plan "NOT IN 30 YEARS"
  * and Home left the as-is date out). Short this month:
  *   "if the ₹X/mo gap closes · as things stand: <date>"
+ * Audit 80+ A5 (Vijay: "makes sense -> do"): the gap-closed date moved
+ * from the headline into this line, "if the ₹X/mo gap closes: <date> · ...".
  * and with no gap-closed date either:
  *   "short ₹X/mo · as things stand: <date>"
  * Sentence case; Plan and Home set it in capitals. Null when not short.
  */
+/** Audit 80+ A5: the headline figure when this month is short ("₹5,500/MO SHORT"). */
+export function shortValue(shortfall: number, money: (v: number) => string): string {
+  return `${money(Math.round(shortfall))}/MO SHORT`;
+}
+
 export function shortGapLine(args: ShortStoryArgs): string | null {
   const { shortfall, asIsMonth, closedMonth, label, money } = args;
   if (!(shortfall > 0)) return null;
   const asIs = asIsMonth ? label(asIsMonth) : AS_IS_NEVER;
-  if (closedMonth) return `if the ${money(shortfall)}/mo gap closes · as things stand: ${asIs}`;
+  // Audit 80+ A5: the gap-closed date lives here now (the headline is the gap).
+  if (closedMonth) return `if the ${money(shortfall)}/mo gap closes: ${label(closedMonth)} · as things stand: ${asIs}`;
   // Live re-test L#16: the gap-closed run has no date either (later
   // months fall short again), so say so instead of half a template.
   return `short ${money(shortfall)}/mo · as things stand: ${asIs}${asIsMonth ? '' : ' · no date even if this month’s gap closes'}`;

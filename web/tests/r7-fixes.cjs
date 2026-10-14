@@ -32,15 +32,16 @@ test('R7-2: one phrase for the short-month date, used by Setup, Plan and Home', 
   const label = (m) => `Mar ${2026 + m}`;
   const money = (v) => `₹${v.toLocaleString('en-IN')}`;
   // Founder rule (answers L2 #16): "<date> if the ₹X/mo gap closes · as things stand <date>".
-  assert.equal(g.shortGapLine({ shortfall: 24000, asIsMonth: 4, closedMonth: 3, label, money }), 'if the ₹24,000/mo gap closes · as things stand: Mar 2030');
-  assert.equal(g.shortGapLine({ shortfall: 24000, asIsMonth: null, closedMonth: 3, label, money }), 'if the ₹24,000/mo gap closes · as things stand: not in 30 years');
+  // Audit 80+ A5 (golden updated on purpose): the gap-closed date is named in the line, not the headline.
+  assert.equal(g.shortGapLine({ shortfall: 24000, asIsMonth: 4, closedMonth: 3, label, money }), 'if the ₹24,000/mo gap closes: Mar 2029 · as things stand: Mar 2030');
+  assert.equal(g.shortGapLine({ shortfall: 24000, asIsMonth: null, closedMonth: 3, label, money }), 'if the ₹24,000/mo gap closes: Mar 2029 · as things stand: not in 30 years');
   assert.equal(g.shortGapLine({ shortfall: 24000, asIsMonth: null, closedMonth: null, label, money }), 'short ₹24,000/mo · as things stand: not in 30 years · no date even if this month’s gap closes');
   assert.equal(g.shortGapLine({ shortfall: 0, asIsMonth: 4, closedMonth: 3, label, money }), null);
   assert.equal(g.AS_IS_NEVER, 'not in 30 years');
   // Plan's headline is the same line in capitals.
   const h = g.shortHeadline({ shortfall: 24000, asIsMonth: null, closedMonth: 3, label, money });
-  assert.equal(h.sub, 'IF THE ₹24,000/MO GAP CLOSES · AS THINGS STAND: NOT IN 30 YEARS');
-  assert.equal(h.value, 'Mar 2029');
+  assert.equal(h.sub, 'IF THE ₹24,000/MO GAP CLOSES: MAR 2029 · AS THINGS STAND: NOT IN 30 YEARS');
+  assert.equal(h.value, '₹24,000/MO SHORT');
   // Each surface calls the helper; nobody keeps its own wording.
   const qs = src('components/setup/QuickSetup.tsx');
   assert.match(qs, /shortGapLine\(\{/);

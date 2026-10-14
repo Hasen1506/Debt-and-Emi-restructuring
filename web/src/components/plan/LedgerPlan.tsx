@@ -52,6 +52,7 @@ import { ActivityImpactBanner } from './ActivityImpactBanner';
 import { AdvanceTaxPanel } from './AdvanceTaxPanel';
 import { PlanSchedule } from './PlanSchedule';
 import { DebtFreeRedirectPrompt } from './DebtFreeRedirectPrompt';
+import { PrepayKeepSplit } from '@/components/insights/PrepayKeepSplit';
 import { PlanNotes } from './PlanNotes';
 import { PlanAssumptions } from './PlanAssumptions';
 import { PlanGivens } from './PlanGivens';
@@ -75,9 +76,9 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   // can't fund, so its date isn't one to plan around.
   const short = plan.shortfall > 0 || !!plan.futureShortfall;
   const label = (m: number) => monthIndexToCountryLabel(m, plan.user.country).toUpperCase();
-  // Live test #16: one story. Short, the headline is the date if the gap
-  // closes, with the date as things stand (gap borrowed, the schedule's
-  // date) beside it, each named.
+  // Live test #16: one story, each date named. Audit 80+ A5: short, the
+  // headline is the gap; the date if it closes and the date as things stand
+  // (gap borrowed, the schedule's date) are in the line under it.
   const shortStory = short
     ? shortHeadline({
         shortfall: plan.shortfall,
@@ -286,6 +287,12 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {!short && (
           <div data-print="hide">
             <DebtFreeRedirectPrompt plan={plan} />
+          </div>
+        )}
+        {/* Audit 80+ A4: once only cheap debt is left, prepay, keep or split: the user's call. */}
+        {!short && plan.runArgs && (
+          <div id="prepay-keep-split" data-print="hide" style={{ scrollMarginTop: 16 }}>
+            <PrepayKeepSplit runArgs={{ ...plan.runArgs, strategy: plan.strategy }} />
           </div>
         )}
 

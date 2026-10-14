@@ -134,6 +134,8 @@ app.include_router(outcomes.router, prefix="/api")
 # G7: loan-cleared letter (no sign-in) and notifications (each route 404s
 # while its flag is off; the signed-in ones need DATABASE_URL).
 app.include_router(closure.router, prefix="/api")
+from api.routes import insights  # noqa: E402  (audit 80+ A1/A2/A4/A5/A6, offer check)
+app.include_router(insights.router, prefix="/api")
 app.include_router(notify_routes.router, prefix="/api")
 
 # DB-bound routers — only mounted when DATABASE_URL is configured.
