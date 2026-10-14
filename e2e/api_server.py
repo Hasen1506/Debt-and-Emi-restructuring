@@ -80,6 +80,9 @@ def install_stubs() -> None:
     auth_routes.OTP_MAX_REQUESTS = 10_000
     auth_routes.OTP_MAX_REQUESTS_DAILY = 10_000
     auth_routes.OTP_GLOBAL_DAILY_CAP = 10_000
+    # Audit 80+ D8 (W8): an existing account gets 5 codes a day; the visual
+    # and guard suites sign one persona in once per test (7+ a day).
+    auth_routes.OTP_ACCOUNT_DAILY_CAP = 10_000
 
     async def fixed_fetch(base: str, quote: str):
         if base == quote:
