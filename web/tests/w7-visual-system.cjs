@@ -66,6 +66,10 @@ test('B5: no inline or stylesheet font size under 12px anywhere in the app', () 
     for (const m of text.matchAll(/fontSize:\s*'?(\d+(?:\.\d+)?)(px)?'?\s*[,}\n]/g)) {
       if (Number(m[1]) < 12) bad.push(`${rel}:${lineOf(text, m.index)} fontSize ${m[1]}`);
     }
+    // SVG chart annotations (axis, markers): 11px floor.
+    for (const m of text.matchAll(/fontSize=\{?"?(\d+(?:\.\d+)?)"?\}?/g)) {
+      if (Number(m[1]) < 11) bad.push(`${rel}:${lineOf(text, m.index)} svg fontSize ${m[1]}`);
+    }
     for (const m of text.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)) {
       if (Number(m[1]) < 12) bad.push(`${rel}:${lineOf(text, m.index)} font-size ${m[1]}px`);
     }

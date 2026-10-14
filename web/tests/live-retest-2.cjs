@@ -97,12 +97,13 @@ test('NEW-6: Plan chart labels, leaders and the minimums note never collide (390
   const note = "MINIMUMS: CLEAR MAR '62 →";
   for (const w of [340, 358, 390, 480, 768, 1232, 1880]) {
     const narrow = w < 480;
-    const h = narrow ? 220 : 260, left = narrow ? 58 : 76, right = 14, top = 34, bottom = 26;
+    const h = narrow ? 220 : 260, left = narrow ? 64 : 82, right = 14, top = 34, bottom = 26;
     const toX = (t) => left + t * (w - left - right);
     const toY = (v) => h - bottom - v * (h - top - bottom);
     const { note: n, labels } = layoutTrajectoryLabels({ points: pts, milestones: ms, minimumsNote: note, w, left, right, top, toX, toY });
-    const CW = 5.9;
-    const box = (x0, x1, y) => ({ x0, x1, y0: y - 9, y1: y + 2 });
+    // Audit 80+ B5: labels are 11px mono (0.6em ≈ 6.6px a glyph).
+    const CW = 6.6;
+    const box = (x0, x1, y) => ({ x0, x1, y0: y - 10, y1: y + 2 });
     const lineAt = (key, x) => {
       for (let i = 1; i < pts.length; i++) {
         const xa = toX(pts[i - 1].t), xb = toX(pts[i].t);
@@ -126,7 +127,7 @@ test('NEW-6: Plan chart labels, leaders and the minimums note never collide (390
         assert.ok(!ov(boxes[i], boxes[j]), `w=${w}: "${l.label}" on "${o.label}"`);
         // Another label's raised leader and drop line must not cross this box.
         const segs = [[o.markY, h - bottom]];
-        if (o.raised) segs.push(o.y < o.markY ? [o.y + 3, o.markY - 5] : [o.y - 10, o.markY + 5]);
+        if (o.raised) segs.push(o.y < o.markY ? [o.y + 3, o.markY - 5] : [o.y - 11, o.markY + 5]);
         for (const [a, b] of segs) {
           const crosses = o.x >= boxes[i].x0 && o.x <= boxes[i].x1 && Math.max(a, b) >= boxes[i].y0 && Math.min(a, b) <= boxes[i].y1;
           assert.ok(!crosses, `w=${w}: "${o.label}" leader crosses "${l.label}"`);
