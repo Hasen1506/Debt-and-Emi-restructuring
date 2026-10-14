@@ -35,12 +35,25 @@ BRACKETS_2026 = {
         (D("640600"),   D("0.35")),
         (D("Infinity"), D("0.37")),
     ],
+    # Rev. Proc. 2025-32 §4.01 Table 4, married filing separately (C17):
+    # the single table up to $256,225, then 35% only to $384,350.
+    # https://www.irs.gov/pub/irs-drop/rp-25-32.pdf (checked 14 Oct 2026)
+    FilingStatusUS.MFS: [
+        (D("12400"),    D("0.10")),
+        (D("50400"),    D("0.12")),
+        (D("105700"),   D("0.22")),
+        (D("201775"),   D("0.24")),
+        (D("256225"),   D("0.32")),
+        (D("384350"),   D("0.35")),
+        (D("Infinity"), D("0.37")),
+    ],
 }
 
 STANDARD_DEDUCTION_2026 = {
     FilingStatusUS.SINGLE: D("16100"),
     FilingStatusUS.MFJ:    D("32200"),
     FilingStatusUS.HOH:    D("24150"),
+    FilingStatusUS.MFS:    D("16100"),   # irs.gov 2026 inflation-adjustment release: "single taxpayers and married individuals filing separately"
 }
 
 # OBBBA §70120 raised the SALT cap to $40,000 for 2025, +1% a year: $40,400
@@ -71,6 +84,12 @@ LTCG_BRACKETS_2026 = {
         (D("579600"),   D("0.15")),
         (D("Infinity"), D("0.20")),
     ],
+    # MFS: half the joint thresholds (Rev. Proc. 2025-32 §4.03).
+    FilingStatusUS.MFS: [
+        (D("49450"),    D("0.00")),
+        (D("306850"),   D("0.15")),
+        (D("Infinity"), D("0.20")),
+    ],
 }
 
 # Net Investment Income Tax (IRC §1411) — 3.8% on investment income above MAGI threshold
@@ -79,6 +98,7 @@ NIIT_THRESHOLD_2026 = {
     FilingStatusUS.SINGLE: D("200000"),
     FilingStatusUS.MFJ:    D("250000"),
     FilingStatusUS.HOH:    D("200000"),
+    FilingStatusUS.MFS:    D("125000"),   # IRC §1411(b)(2), not indexed
 }
 
 # Collectibles (gold, art, coins) — capped at 28% LTCG under §1(h)(4)
@@ -91,6 +111,52 @@ STUDENT_LOAN_PHASEOUT_2026 = {
     FilingStatusUS.HOH:    (D("85000"), D("100000")),
     FilingStatusUS.MFJ:    (D("175000"), D("205000")),
 }
+# IRC §221(e)(2): a married taxpayer gets the deduction only on a joint
+# return, so married filing separately gets none (IRS Topic 456,
+# https://www.irs.gov/taxtopics/tc456, read 14 Oct 2026). C17.
+
+
+def mortgage_debt_limit(filing_status: FilingStatusUS | None, before_2017_12_16: bool = False) -> Decimal:
+    """IRC §163(h)(3)(F)(i)(II), made permanent by OBBBA: interest on up to
+    $750,000 of acquisition debt ($375,000 married filing separately); debt
+    incurred on or before 15 Dec 2017 keeps $1,000,000 ($500,000 MFS),
+    §163(h)(3)(F)(i)(IV). https://www.law.cornell.edu/uscode/text/26/163
+    (read 14 Oct 2026). C17."""
+    full = D("1000000") if before_2017_12_16 else D("750000")
+    return full / 2 if filing_status == FilingStatusUS.MFS else full
+
+
+# IRC §163(h)(4) as added by OBBBA (P.L. 119-21 §70203), C16: interest on a
+# loan taken after 31 Dec 2024 to buy a NEW personal-use car, van, SUV,
+# pickup or motorcycle (< 14,000 lb) with final assembly in the US, secured
+# by a first lien, is not "personal interest" for tax years 2025-2028. Up to
+# $10,000 a year, cut by $200 for each $1,000 (or part) of MAGI above
+# $100,000 ($200,000 joint): gone at $150,000 / $250,000. Deductible whether
+# or not the taxpayer itemises (IRS FS-2025-03). The statute has no
+# married-filing-separately carve-out, so MFS uses the $100,000 line.
+# https://www.law.cornell.edu/uscode/text/26/163 (h)(4);
+# https://www.irs.gov/newsroom/one-big-beautiful-bill-act-tax-deductions-for-working-americans-and-seniors
+# (both read 14 Oct 2026).
+AUTO_INTEREST_CAP = D("10000")
+AUTO_INTEREST_FIRST_YEAR = 2025
+AUTO_INTEREST_LAST_YEAR = 2028
+
+
+def auto_loan_interest_deduction(interest_paid: Decimal, magi: Decimal | None,
+                                 filing_status: FilingStatusUS | None, tax_year: int = 2026) -> Decimal:
+    """Deductible qualified passenger vehicle loan interest for a year.
+    `magi` None = unknown: the full amount (callers label it estimated)."""
+    if interest_paid <= 0 or not (AUTO_INTEREST_FIRST_YEAR <= tax_year <= AUTO_INTEREST_LAST_YEAR):
+        return D("0")
+    allowed = min(interest_paid, AUTO_INTEREST_CAP)
+    if magi is None:
+        return allowed
+    line = D("200000") if filing_status == FilingStatusUS.MFJ else D("100000")
+    over = magi - line
+    if over <= 0:
+        return allowed
+    steps = (over / D("1000")).to_integral_value(rounding="ROUND_CEILING")
+    return max(D("0"), allowed - steps * D("200"))
 
 
 # IRC §164(b)(7) as added by P.L. 119-21 §70120 (read 2026-10-12 at
@@ -138,7 +204,7 @@ def student_loan_interest_deduction(
     interest_paid: Decimal, magi: Decimal, filing_status: FilingStatusUS,
 ) -> Decimal:
     """Above-the-line §221 deduction: up to $2,500, phased out by MAGI."""
-    if interest_paid <= 0:
+    if interest_paid <= 0 or filing_status == FilingStatusUS.MFS:
         return D("0")
     lo, hi = STUDENT_LOAN_PHASEOUT_2026[filing_status]
     allowed = min(interest_paid, STUDENT_LOAN_INTEREST_MAX)
@@ -265,7 +331,7 @@ def itemisation_benefit(
     std = STANDARD_DEDUCTION_2026[filing_status]
     itemisable = (
         mortgage_interest_paid
-        + min(salt_taxes_paid, salt_cap(magi))
+        + min(salt_taxes_paid, salt_cap_for_year(2026, magi, filing_status == FilingStatusUS.MFS))
         + charitable_giving
     )
     if itemisable > std:

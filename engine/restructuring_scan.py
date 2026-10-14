@@ -23,8 +23,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Callable, Literal, Optional
 
-from engine.marginal_cost import compounded
-from engine.formulas import effective_rate, emi
+from engine.marginal_cost import compounded, user_forward_rates
+from engine.formulas import emi
 from engine.lenders import resolve as resolve_lender
 from engine.loan_check import _inr
 from engine.models import Country, IncomeType, Loan, LoanType, User
@@ -807,14 +807,15 @@ def fit_to_plan(
     clears = next((m for m in range(1, horizon + 1) if closing(m) <= D("1")), None)
     monthly = opp.rate_gap / D("12")
 
+    _fwd0 = user_forward_rates(user.loans, user, D("0"))
+
     def month_saving(m: int, target: Decimal = opp.target_rate) -> Decimal:
         if opp.kind != "consolidation":
             return monthly * opening(m)
         # A card can clear before a cheaper personal loan. Its opening
         # share of the blended rate must not survive against that loan.
         return sum((
-            (effective_rate(user.loans[i], D("0"), user.country, user.tax_regime,
-                            user.itemises, user.itemised_share) - target)
+            (_fwd0[id(user.loans[i])] - target)
             * (user.loans[i].outstanding if m == 1 else
                plan_balances[i][min(m - 1, len(plan_balances[i])) - 1]) / D("12")
             for i in idx
@@ -1012,10 +1013,9 @@ def scan(
     the user's credit score makes unlikely, or that the plan (when
     `plan_balances` is given) makes pointless, is listed in `held_back`
     with the reason instead."""
-    rates = {
-        id(l): effective_rate(l, marginal_rate, user.country, user.tax_regime, user.itemises, user.itemised_share)
-        for l in user.loans
-    }
+    # C8: refinance / balance-transfer ranking is a forward decision: the
+    # forward rate (marginal shield, no sunk fee), not effective_rate.
+    rates = user_forward_rates(user.loans, user, marginal_rate)
     known = _known_banks(user)
     baseline = None
     if plan_options is not None:

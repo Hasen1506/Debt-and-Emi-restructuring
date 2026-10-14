@@ -85,7 +85,7 @@ def remaining_balance(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def country_cap_home_loan(country: Country, regime: TaxRegimeIN, property_use: str,
-                          loan: Loan | None = None) -> Decimal:
+                          loan: Loan | None = None, set_off_used: Decimal = D("0")) -> Decimal:
     """Home-loan interest that lowers tax on the user's income in a year
     (India; P2-06, sprint G2). Income-tax Act 2025 numbers, 1961 in brackets.
 
@@ -97,17 +97,21 @@ def country_cap_home_loan(country: Country, regime: TaxRegimeIN, property_use: s
       the old regime (s.109(1)(b), [71(3A)]) and not at all in the new one
       (s.202(2)(b)(ii)). With `loan.annual_rent` the rent part counts;
       without it only the set-off does ("simplified" in the app).
+      `set_off_used` (C7): the part of the one ₹2L s.109(1)(b) set-off the
+      self-occupied homes already take; a let-out loss only gets the rest.
+      Without it a self-occupied + let-out pair counted ₹4L of set-off.
     """
     if country != Country.IN:
         return D("Infinity")
     from engine.tax import india
     share = max(D("0"), min(D("1"), loan.tax_share)) if loan is not None else D("1")
     if property_use == "let_out":
-        return india.let_out_room(regime, loan.annual_rent if loan is not None else None, share)
+        return india.let_out_room(regime, loan.annual_rent if loan is not None else None, share,
+                                  set_off_used=set_off_used)
     return india.self_occupied_cap(regime, loan.sec24_full_cap if loan is not None else True)
 
 
-US_MORTGAGE_DEBT_LIMIT = D("750000")      # IRC §163(h)(3)(F), post-2017 loans
+US_MORTGAGE_DEBT_LIMIT = D("750000")      # IRC §163(h)(3)(F), post-2017 loans; MFS / pre-2018: engine/tax/usa.mortgage_debt_limit
 US_STUDENT_LOAN_INTEREST_MAX = D("2500")  # IRC §221
 
 
@@ -129,7 +133,7 @@ def gst_component(loan_type: LoanType, nominal_rate: Decimal,
 
 
 DEDUCTIBLE_LOAN_TYPES_IN = {LoanType.HOME, LoanType.EDUCATION}
-DEDUCTIBLE_LOAN_TYPES_US = {LoanType.HOME, LoanType.EDUCATION}    # mortgage: itemisers; student loan: above the line
+DEDUCTIBLE_LOAN_TYPES_US = {LoanType.HOME, LoanType.EDUCATION, LoanType.AUTO}    # mortgage: itemisers; student loan: above the line; car: §163(h)(4) if qualified (C16)
 
 
 def tax_shield_fraction(
@@ -144,11 +148,14 @@ def tax_shield_fraction(
     us_student_interest_total: Decimal | None = None,
     magi: Decimal | None = None,
     filing_status=None,
+    hp_set_off_used: Decimal | None = None,
+    us_auto_interest_total: Decimal | None = None,
 ) -> Decimal:
     """Share of each unit of this loan's interest the user gets back in tax
     (0 – marginal rate): §4.1's shield, used by `effective_rate` and by the
     marginal cost of prepaying (engine/marginal_cost.py, roadmap PR J).
     See `effective_rate` for the rules."""
+    from engine.models import FilingStatusUS
     nominal = loan.nominal_rate
     annual_interest = loan.outstanding * nominal
     regime = tax_regime or TaxRegimeIN.NEW
@@ -158,6 +165,18 @@ def tax_shield_fraction(
         shield_pct = D("0")
     elif country == Country.IN and loan.loan_type == LoanType.EDUCATION and regime == TaxRegimeIN.NEW:
         shield_pct = D("0")
+    elif country == Country.US and loan.loan_type == LoanType.AUTO:
+        # IRC §163(h)(4) (OBBBA, 2025-2028; C16): only a loan the user marked
+        # qualified; $10,000 a year across such loans, MAGI phase-out.
+        if not loan.us_auto_interest_qualified:
+            shield_pct = D("0")
+        else:
+            from engine.tax.usa import auto_loan_interest_deduction
+            total = max(annual_interest, us_auto_interest_total or D("0"))
+            allowed = auto_loan_interest_deduction(total, magi, filing_status)
+            shield_pct = (allowed / total) * marginal_tax_rate if total > 0 else D("0")
+    elif country == Country.US and loan.loan_type == LoanType.EDUCATION and filing_status == FilingStatusUS.MFS:
+        shield_pct = D("0")    # §221(e)(2): no deduction on a separate return (C17)
     elif country == Country.US and loan.loan_type == LoanType.EDUCATION:
         total = max(annual_interest, us_student_interest_total or D("0"))
         allowed = min(total, US_STUDENT_LOAN_INTEREST_MAX)
@@ -178,7 +197,15 @@ def tax_shield_fraction(
         # pre-construction instalments across them).
         share = max(D("0"), min(D("1"), loan.tax_share))
         use = loan.property_use or "self_occupied"
-        cap = country_cap_home_loan(country, regime, use, loan)
+        used = D("0")
+        if use == "let_out" and regime == TaxRegimeIN.OLD and home_interest_total:
+            # `home_interest_total` is the self-occupied pool (simulation.
+            # tax_caps_context); its deduction comes first out of the ₹2L.
+            from engine.tax import india
+            used = min(home_interest_total, india.self_occupied_cap(regime, True))
+        if hp_set_off_used is not None:
+            used = hp_set_off_used
+        cap = country_cap_home_loan(country, regime, use, loan, set_off_used=used)
         own = (annual_interest + loan.pre_construction_interest_annual) * share
         total = own if use == "let_out" else max(own, home_interest_total or D("0"))
         if cap <= 0 or total <= 0:
@@ -191,9 +218,11 @@ def tax_shield_fraction(
         share = itemised_share if country == Country.US else loan.tax_share
         shield_pct = marginal_tax_rate * max(D("0"), min(D("1"), share))
         if country == Country.US and loan.loan_type == LoanType.HOME:
+            from engine.tax.usa import mortgage_debt_limit
+            limit = mortgage_debt_limit(filing_status, loan.mortgage_before_2017_12_16)
             debt = max(loan.outstanding, mortgage_debt_total or D("0"))
-            if debt > US_MORTGAGE_DEBT_LIMIT:
-                shield_pct = shield_pct * US_MORTGAGE_DEBT_LIMIT / debt
+            if debt > limit:
+                shield_pct = shield_pct * limit / debt
 
     return shield_pct
 
@@ -210,8 +239,17 @@ def effective_rate(
     us_student_interest_total: Decimal | None = None,
     magi: Decimal | None = None,
     filing_status=None,
+    hp_set_off_used: Decimal | None = None,
+    us_auto_interest_total: Decimal | None = None,
 ) -> Decimal:
     """§4.1 effective rate = nominal × [1 − shield_fraction × marginal_rate] + fees + GST.
+
+    WHAT THIS LOAN COSTS IN TOTAL (C8): it counts sunk costs (the upfront
+    processing fee, spread over the tenure, and insurance) and the AVERAGE
+    tax shield. Use it for "true APR / total cost" displays only. Forward
+    decisions (payoff order, windfall, refinance / balance-transfer ranking,
+    invest-vs-prepay) use engine/marginal_cost.py (`user_marginal_costs`,
+    `user_forward_rates`); engine/tests/test_tax_w02.py grep-gates callers.
 
     Tax shield only applies to home loan (Sec 24(b) India / IRC §163 US) and
     education loan (Sec 80E India, interest-only). Non-deductible loan types
@@ -243,6 +281,7 @@ def effective_rate(
     shield_pct = tax_shield_fraction(
         loan, marginal_tax_rate, country, tax_regime, itemises, itemised_share,
         home_interest_total, mortgage_debt_total, us_student_interest_total, magi, filing_status,
+        hp_set_off_used, us_auto_interest_total,
     )
     base = nominal * (D("1") - shield_pct)
 
