@@ -684,53 +684,6 @@ export function Select<T extends string>({
   );
 }
 
-export function Stat({
-  label,
-  value,
-  color = 'var(--ink)',
-}: {
-  label: ReactNode;
-  value: ReactNode;
-  color?: string;
-}) {
-  return (
-    <div>
-      <div className="muted" style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-        {label}
-      </div>
-      <div className="num" style={{ fontSize: 18, fontWeight: 700, color, marginTop: 2 }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-export function VerdictHeader({
-  label,
-  color,
-  detail,
-}: {
-  label: string;
-  color: string;
-  detail: string;
-}) {
-  return (
-    <>
-      <div role="status" style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.4, color }}>{label}</div>
-      <div className="muted" style={{ fontSize: 12, lineHeight: 1.6, marginTop: 6 }}>
-        {detail}
-      </div>
-      <hr
-        style={{
-          border: 0,
-          borderTop: '1px solid var(--border)',
-          margin: '12px 0',
-        }}
-      />
-    </>
-  );
-}
-
 const BAND_LABEL: Record<string, string> = {
   poor: 'Poor',
   fair: 'Fair',
@@ -842,23 +795,6 @@ export function SubmitBar({
         </span>
       )}
     </div>
-  );
-}
-
-/**
- * Lightweight CTA used by tools whose recommendation is "take on a new
- * loan" — i.e. New debt check (and its big-purchase mode). Unlike `ApplyAction` (which writes
- * a payment event to Activity), this just deep-links to the setup form so
- * the user can add the loan to their profile properly.
- */
-export function AddToSetupAction({ label }: { label: string }) {
-  return (
-    <a
-      href="/profile?step=loans"
-      style={{ ...ACTION_BUTTON, display: 'inline-block', textDecoration: 'none' }}
-    >
-      [ {label} ]
-    </a>
   );
 }
 

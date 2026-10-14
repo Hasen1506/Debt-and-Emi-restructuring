@@ -23,8 +23,8 @@
 import Decimal from 'decimal.js';
 import type { Country, DeductionsPayload, FilingStatusUS, LoanPayload, TaxRegimeIN } from './api';
 import { pickUSDeduction } from './deductions';
-import { loanCurrency, type CurrencyCode } from './currency';
-import { loanTaxLine, preConstructionInstalment, sec80eMonthsLeft, taxShare } from './india-tax-loans';
+import type { CurrencyCode } from './currency';
+import { preConstructionInstalment, sec80eMonthsLeft, taxShare } from './india-tax-loans';
 import { letOutRoom } from './marginal-cost';
 import TAX from './tax-tables.json';
 
@@ -41,75 +41,6 @@ export interface LoanYear1Interest {
    *  "Mortgage interest itemised deduction (Schedule A)". Null when
    *  not eligible. */
   deductionContext: string | null;
-}
-
-/**
- * Walk the standard amortization for 12 months and sum interest.
- * Returns a Decimal in the loan's own currency. Stops accruing once
- * the balance hits zero (small EMIs against a large balance will run
- * the full 12 months; large EMIs against a small balance will burn
- * down the loan partway through).
- */
-function amortizeYear1Interest(loan: LoanPayload): Decimal {
-  const balance0 = new Decimal(loan.outstanding || 0);
-  const rateAnnual = new Decimal(loan.nominal_rate || 0);
-  const monthlyRate = rateAnnual.div(12);
-  const emi = new Decimal(loan.scheduled_emi || 0);
-
-  if (loan.loan_type === 'credit_card') {
-    // Approximate: balance × rate × 1 year. Accurate when the user pays
-    // at/near minimum (balance stays roughly flat). Underestimates if
-    // they're paying more aggressively — fine, this row is informational.
-    return balance0.mul(rateAnnual);
-  }
-
-  if (balance0.lte(0) || monthlyRate.lte(0) || emi.lte(0)) {
-    return new Decimal(0);
-  }
-
-  let balance = balance0;
-  let interest = new Decimal(0);
-  for (let m = 0; m < 12; m++) {
-    if (balance.lte(0)) break;
-    const monthInterest = balance.mul(monthlyRate);
-    const monthPrincipal = emi.sub(monthInterest);
-    if (monthPrincipal.lte(0)) {
-      // EMI doesn't cover interest — degenerate input (under-amortising).
-      // Accrue interest as if balance stays flat; this is wrong but bounded.
-      interest = interest.add(monthInterest);
-      continue;
-    }
-    interest = interest.add(monthInterest);
-    balance = balance.sub(monthPrincipal);
-  }
-  return interest;
-}
-
-/**
- * Per-loan year-1 interest + deduction eligibility for a user.
- *
- * Returns one entry per loan, in the same order. Caller renders or sums
- * as needed (e.g. India Sec 24 sums interest across HOME loans only,
- * US Schedule A sums across HOME and AUTO mortgage interest only).
- */
-export function projectYear1Interest(
-  user: { country: Country; loans: LoanPayload[]; tax_regime?: TaxRegimeIN },
-): LoanYear1Interest[] {
-  return user.loans.map((loan, idx) => {
-    const interest = amortizeYear1Interest(loan);
-    const { eligible, context } = describeDeduction(
-      user.country,
-      user.tax_regime,
-      loan,
-    );
-    return {
-      loanIndex: idx,
-      currency: loanCurrency(loan, user.country),
-      year1Interest: interest,
-      deductionEligible: eligible,
-      deductionContext: context,
-    };
-  });
 }
 
 // ─── Multi-year projection for auto-reinvest ────────────────────────────────
@@ -374,51 +305,4 @@ export function projectAnnualTaxSavings(
     });
   }
   return out;
-}
-
-/**
- * Country- AND regime-specific deduction rules, in plain words with both
- * section numbers (India: Income-tax Act 2025 and 1961; lib/india-tax-loans).
- *
- * India — the new regime (s.202, 1961 s.115BAC) is the default:
- *   • Old regime: home-loan interest s.22 [24(b)] up to ₹2L self-occupied,
- *     principal in s.123 [80C]; education-loan interest s.129 [80E], no cap,
- *     8 tax years. Auto / personal / cards: none.
- *   • New regime: only a let-out home's interest, against its rent.
- *   The Tax page compares the two with the loans counted (lib/regime-compare).
- *
- * US — single regime, deductions stable:
- *   • Home loan interest: Schedule A itemised, $750k cap (TCJA).
- *   • Student loan interest: above-the-line, $2,500/yr (income phase-out).
- *   • Auto / personal / cards: no deduction.
- */
-function describeDeduction(
-  country: Country,
-  regime: TaxRegimeIN | undefined,
-  loan: LoanPayload,
-): { eligible: boolean; context: string | null } {
-  if (country === 'IN') {
-    const isNew = regime !== 'old';
-    const month = new Date().toISOString().slice(0, 7);
-    const line = loanTaxLine(loan, isNew ? 'new' : 'old', month);
-    if (line == null) return { eligible: false, context: null };
-    const eligible = loan.loan_type === 'home_loan'
-      ? !isNew || loan.property_use === 'let_out'
-      : !isNew && sec80eMonthsLeft(loan.edu_interest_start, month) !== 0;
-    return { eligible, context: line };
-  }
-  // US — no regime split.
-  if (loan.loan_type === 'home_loan') {
-    return {
-      eligible: true,
-      context: 'Schedule A itemised: mortgage interest deductible (post-2017 $750k cap).',
-    };
-  }
-  if (loan.loan_type === 'education_loan') {
-    return {
-      eligible: true,
-      context: 'Student loan interest deduction: up to $2,500/yr above-the-line (income phase-out).',
-    };
-  }
-  return { eligible: false, context: null };
 }

@@ -252,35 +252,6 @@ export function EligibilityCaveat({
 }
 
 /**
- * Small "you already bank with this lender" tag rendered next to the
- * opportunity's target bank when `target_is_existing_relationship` is true.
- */
-export function RelationshipBadge({
-  variant = 'existing',
-}: {
-  variant?: 'existing' | 'ledger' | 'editorial';
-}) {
-  return (
-    <span
-      style={{
-        marginLeft: 6,
-        padding: '2px 6px',
-        fontSize: 10,
-        letterSpacing: '0.06em',
-        textTransform: 'uppercase',
-        background: 'var(--positive-soft, rgba(0,150,80,0.1))',
-        color: 'var(--positive)',
-        borderRadius: variant === 'ledger' ? 0 : 4,
-        fontWeight: 600,
-        fontFamily: variant === 'ledger' ? 'var(--font-mono)' : undefined,
-      }}
-    >
-      your bank
-    </span>
-  );
-}
-
-/**
  * "Rate as of {date}" tag rendered next to opportunity rows when the
  * recommendation draws from a rate-card lookup. Visibly grounds the
  * number in a date so users can judge freshness without clicking

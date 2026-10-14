@@ -118,15 +118,6 @@ export function recordDecision(entries: DecisionEntry[], draft: Omit<DecisionEnt
   return next;
 }
 
-export function markReverted(
-  entries: DecisionEntry[],
-  id: string,
-): DecisionEntry[] {
-  const next = entries.map((e) => (e.id === id ? { ...e, reverted: true } : e));
-  writeDecisionsClient(next);
-  return next;
-}
-
 export function isWithinUndoWindow(entry: DecisionEntry): boolean {
   if (entry.reverted) return false;
   const at = Date.parse(entry.at);

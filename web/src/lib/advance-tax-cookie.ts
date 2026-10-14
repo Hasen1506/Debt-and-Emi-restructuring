@@ -12,32 +12,15 @@
  * place; auto-mint-missed detection runs at /plan render time.
  */
 import {
-  buildSchedule,
   detectMissedInstalments,
   type AdvanceTaxSchedule,
   type AdvanceTaxInstalment,
 } from './advance-tax';
-import type { Country } from './api';
 import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
 
 const COOKIE_NAME = 'rightdue_advance_tax';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
-
-// ─── Client-side ────────────────────────────────────────────────────────────
-
-export function readScheduleClient(): AdvanceTaxSchedule | null {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_NAME}=([^;]*)`));
-  if (!match) return null;
-  try {
-    const parsed = JSON.parse(decodeURIComponent(match[1])) as AdvanceTaxSchedule;
-    if (!parsed.instalments || !Array.isArray(parsed.instalments)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
 
 export function writeScheduleClient(schedule: AdvanceTaxSchedule | null) {
   if (typeof document === 'undefined') return;
@@ -126,21 +109,4 @@ export function markMissedInstalments(
         : inst,
     ),
   };
-}
-
-/**
- * Build a fresh schedule for a user. Used when the cookie is missing
- * OR when annualLiability changed (e.g. user updated gross income).
- *
- * Caller checks if a new schedule should replace the cookie — typically
- * yes when fiscal year rolls over OR annualLiability differs by > some
- * tolerance. We don't auto-replace on every render (that'd lose the
- * user's mark-paid history).
- */
-export function freshSchedule(
-  country: Country,
-  annualLiability: Decimal,
-  today: Date,
-): AdvanceTaxSchedule | null {
-  return buildSchedule(country, annualLiability, today);
 }

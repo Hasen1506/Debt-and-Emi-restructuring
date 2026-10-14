@@ -34,16 +34,7 @@ export const BUSINESS_BANK_REASON =
 export const BUSINESS_SMALL_REASON =
   'Assumed 0%: RBI bars prepayment charges on floating-rate business loans up to ₹50 lakh from small finance banks, sanctioned from 1 January 2026 (RBI Directions, 2 July 2025, para 5(ii)(b)).';
 export const OTHER_LENDER_REASON =
-  "Not known: RBI's no-prepayment-charge rule covers banks, co-operative banks and NBFCs/HFCs, not other lenders. Check your loan agreement.";
-export const LENDER_TYPE_LABELS: Record<LenderType, string> = {
-  bank: 'Bank (a commercial bank such as SBI, HDFC, ICICI)',
-  small_finance_bank: 'Small finance bank or regional rural bank',
-  cooperative_bank: 'Co-operative bank',
-  nbfc: 'NBFC (a non-bank lender such as Bajaj Finance)',
-  hfc: 'Housing finance company (HFC, such as LIC Housing Finance)',
-  other: 'Someone else (employer, chit fund, private lender)',
-};
-export const RULE_START_YEAR = 2026;
+  "Not known: RBI's no-prepayment-charge rule covers banks, co-operative banks and NBFCs/HFCs, not other lenders. Check your loan agreement.";export const RULE_START_YEAR = 2026;
 export const SMALL_LENDER_BUSINESS_CAP = 5000000;
 
 export const UNKNOWN_REASON =

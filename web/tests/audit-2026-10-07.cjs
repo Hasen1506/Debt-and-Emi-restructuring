@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 // Regression tests for the 2026-10-07 audit fixes (BUG_REPORT, PASS2, live QA).
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),Module=require('node:module'),ts=require('typescript'),test=require('node:test');
 const root=path.resolve(__dirname,'../src'),resolve=Module._resolveFilename,load=Module._load;
@@ -172,5 +173,5 @@ test('no UTC date is used as today in the three places PASS2 named',()=>{
 test('mixed-currency months say how they add up',()=>{
  assert.match(read('components/plan/PlanSchedule.tsx'),/TOTAL \(\$\{ccy\}\)/);
  const page=read('components/activity/ActivityPage.tsx');assert.match(page,/export function dueNote/);
- assert.match(read('app/profile/ProfileClient.tsx'),/const currency = loanCurrency\(loan, country\);/);
+ assert.match(profileSource(),/const currency = loanCurrency\(loan, country\);/);
 });

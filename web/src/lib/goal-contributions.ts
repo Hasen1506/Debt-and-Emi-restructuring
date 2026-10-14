@@ -113,13 +113,6 @@ export function totalsByGoal(
   return out;
 }
 
-export function totalSavedForGoal(
-  entries: GoalContributionEntry[],
-  goalId: string,
-): number {
-  return totalsByGoal(entries)[goalId] ?? 0;
-}
-
 // ─── Server-side cookie reader ─────────────────────────────────────────────
 
 /** Read the cookie-digest mirror of per-goal totals server-side. Used

@@ -59,13 +59,6 @@ export function inflationError(raw: string): string | null {
   return null;
 }
 
-/** R6B-5: a tax bracket shown to one decimal ("31.2%", "30%"). */
-export function bracketLabel(rate: number): string {
-  if (!Number.isFinite(rate)) return '';
-  const pct = rate <= 1 ? rate * 100 : rate;
-  return `${Number(pct.toFixed(1))}%`;
-}
-
 /** R6B-4: the line where the 5,000 runs would be names only the field(s)
  *  that stop them, never a field that is fine. */
 export function mcNote(yearsRaw: string, inflationRaw: string): string {

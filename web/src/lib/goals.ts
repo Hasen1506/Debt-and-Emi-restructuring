@@ -543,13 +543,6 @@ export async function goalsForSimulateServer(
   return goalsForSimulate(rows, today, currentlySaved);
 }
 
-export async function readGoalsServer(): Promise<Goal[]> {
-  // No server-side reads yet — slice persistence happens client-first
-  // via syncSliceToServer. Server pages that need goals can re-hydrate
-  // via the profile API once auth lands. Pre-auth: empty.
-  return [];
-}
-
 // ─── Factories ─────────────────────────────────────────────────────────────
 
 export function newGoalId(): string {

@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -82,7 +83,7 @@ test('wired: app open refreshes, Home shows the dated rate with a Refresh button
 test('Profile save dates its rates, so a typed rate is not overwritten by the next app-open refresh', () => {
   // Before: Profile saved the new rate under the old fx_meta (or none), so a
   // rate typed in Profile looked >24 h old and FxAutoRefresh replaced it.
-  const profile = src('app/profile/ProfileClient.tsx');
+  const profile = profileSource();
   assert.match(profile, /import \{ dateProfileRates \} from '@\/lib\/fx-refresh'/);
   assert.match(profile, /const userWithFx = dateProfileRates\(/);
   const { dateProfileRates, fxDueForRefresh } = lib('fx-refresh.ts');

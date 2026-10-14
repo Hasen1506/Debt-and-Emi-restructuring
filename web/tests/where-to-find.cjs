@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 // Where to find each figure: KFS, statement, disclosures (X5).
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -52,7 +53,7 @@ test('a card is read off the card statement, not a KFS', () => {
 
 test('loan forms show where to find each figure', () => {
   const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
-  const profile = read('app/profile/ProfileClient.tsx');
+  const profile = profileSource();
   for (const key of ['balance', 'rate', 'rateType', 'emi', 'prepayFee', 'lockIn', 'dueDay']) {
     assert.ok(profile.includes(`findFor(l, country, '${key}')`), `Profile ${key}`);
   }

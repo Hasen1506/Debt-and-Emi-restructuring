@@ -1,0 +1,30 @@
+{
+  "_comment": "First-load JS (gzip kB) per route. Fails at +10 kB or over 300 kB. Re-baseline with --write and say why in the PR.",
+  "routes": {
+    "/": 210.6,
+    "/_not-found": 102.6,
+    "/account": 130,
+    "/activity": 193.6,
+    "/cant-pay": 165.1,
+    "/glossary": 156.1,
+    "/goals": 198.4,
+    "/login": 153,
+    "/onboarding": 214.8,
+    "/plan": 245.4,
+    "/portfolio": 190.3,
+    "/privacy": 109.6,
+    "/profile": 247.8,
+    "/profile/assets": 144.2,
+    "/profile/assumptions": 146.8,
+    "/tax": 156.3,
+    "/terms": 109.6,
+    "/tools/cash-yield": 102.6,
+    "/tools/invest-vs-prepay": 172.9,
+    "/tools/liquidate": 187.8,
+    "/tools/loan-check": 175.7,
+    "/tools/new-debt": 206.5,
+    "/tools/nri-prepay": 183.6,
+    "/tools/recompute": 102.6,
+    "/tools/windfall": 187.2
+  }
+}

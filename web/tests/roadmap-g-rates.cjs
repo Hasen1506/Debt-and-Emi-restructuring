@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -161,7 +162,7 @@ test('wiring: the import never saves by itself; the market line sits beside the 
   assert.doesNotMatch(imp, /saveProfile|persist|localStorage|api\.save|syncUser/);
   assert.match(imp, /Add this loan/);
   assert.match(imp, /never stored/); // G6 (#19): read on our server, never stored
-  const prof = src('app/profile/ProfileClient.tsx');
+  const prof = profileSource();
   assert.match(prof, /<KfsImport/);
   assert.match(prof, /<MarketRateLine loan=\{l\} country=\{country\} \/>/);
   assert.match(prof, /dropKfsFields\(l, patch\)/);

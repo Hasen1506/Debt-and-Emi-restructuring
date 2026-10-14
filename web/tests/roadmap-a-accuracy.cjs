@@ -1,3 +1,4 @@
+const { profileSource } = require('./lib/profile-source.cjs'); // Audit 80 E15: Profile is split into parts/
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -72,7 +73,7 @@ test('Profile: the emergency-fund time-to-fill follows the Plan slider, not a fi
   assert.equal(efMonthsToFill(60000, 0, 10000, '0.6'), 10);
   assert.equal(efMonthsToFill(60000, 0, 10000, '0'), Infinity);
   assert.equal(efMonthsToFill(60000, 70000, 10000, '0.3'), 0);
-  assert.doesNotMatch(src('app/profile/ProfileClient.tsx'), /surplus \* 0\.3\b/);
+  assert.doesNotMatch(profileSource(), /surplus \* 0\.3\b/);
 });
 
 test('Tax bracket: a stale 0% estimate is replaced after switching India → US with the same take-home', () => {
