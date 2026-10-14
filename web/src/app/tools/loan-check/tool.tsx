@@ -11,6 +11,7 @@ import { LenderRecord } from './outcome';
 import { RateProblem } from './rate-problem';
 import { HikeQuestions, PassThroughCard, PlanBridge, RateHistoryRows, RateRiseCard, ResetChoicePanel } from './hike';
 import { historyToRequest, type HistoryRow } from '@/lib/loan-check-hike';
+import { rememberLoanCheck } from '@/lib/loan-check-memory';
 import {
   Field,
   Select,
@@ -225,6 +226,9 @@ export function LoanCheckTool() {
       };
       const res = await api.loanCheck(req);
       setResult(res);
+      // Audit 80+ A1: keep the findings on this device so the plan's
+      // "where we disagree, worth ₹X" card can count them.
+      rememberLoanCheck(res);
       setChecked(req);
       setCheckedKey(fingerprint);
       requestAnimationFrame(() => resultRef.current?.focus());

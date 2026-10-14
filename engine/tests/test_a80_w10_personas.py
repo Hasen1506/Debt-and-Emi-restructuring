@@ -66,9 +66,6 @@ def test_chennai_card_revolver():
     assert snow.total_interest_paid >= r.total_interest_paid
 
 
-@pytest.mark.xfail(strict=True, raises=ImportError,
-                   reason="W3 owns A6: engine/consolidation.py ('cheaper way to carry this' card) "
-                          "is on hark/a80-w03-product, not merged here")
 def test_chennai_gets_a_consolidation_finding():
     from engine import consolidation  # noqa: F401
 
@@ -92,9 +89,6 @@ def test_bengaluru_salaried():
     assert r.debt_free_month == 109               # golden (regression pin)
 
 
-@pytest.mark.xfail(strict=True,
-                   reason="W1 owns C1: tenure-first on a rate rise is on hark/a80-w01-engine; "
-                          "today the EMI jumps to ₹46,497.78")
 def test_bengaluru_rate_rise_keeps_emi_by_default():
     """Audit C1 repro: ₹50 L, 8.5%, 240 m, EMI ₹43,391.16; rate to 9.5% in
     month 13. Hand check of today's (wrong) behaviour: emi(bal₁₂, 9.5%,
@@ -106,9 +100,6 @@ def test_bengaluru_rate_rise_keeps_emi_by_default():
     assert abs(r.months[13].payments_by_loan_index[0] - D("43391.16")) < D("1")
 
 
-@pytest.mark.xfail(strict=True, raises=ImportError,
-                   reason="W3 owns A4: engine/prepay_invest.py (prepay / keep / split) is on "
-                          "hark/a80-w03-product, not merged here")
 def test_bengaluru_gets_prepay_or_keep_split_once_only_cheap_debt_left():
     from engine import prepay_invest  # noqa: F401
 
@@ -179,13 +170,19 @@ def test_p_short_is_short_by_exactly_income_minus_outgo():
     mins = compute_total_minimums(u, u.loans)
     expected = D("85000") - D("42000") - mins
     assert expected < 0
-    assert abs(r.months[0].shortfall - (-expected)) < D("1")
+    # Integration (W1 C13 + W10): the card's "% + interest" minimum now carries
+    # the interest actually charged on the average daily balance when the
+    # minimum is paid on the due date, not a full month on the opening
+    # balance, so month 1 asks a little less than the static minimum
+    # (₹148.75 here). The shortfall is still exactly what the month paid
+    # minus what was left after spending, and never more than the static gap.
+    m1 = r.months[0]
+    assert m1.available_surplus == 0
+    assert abs(m1.shortfall - (m1.total_payment_nominal - (D("85000") - D("42000")))) < D("0.01")
+    assert D("0") <= (-expected) - m1.shortfall < D("500")
     assert r.debt_free_month is None
 
 
-@pytest.mark.xfail(strict=True,
-                   reason="W1 owns C11: gap borrowing has no credit limit here, so a ₹10k/month "
-                          "shortfall prints crore-scale card debt; W1 caps it (default 3 months' take-home)")
 def test_p_short_gap_debt_stays_within_a_card_limit():
     u = _user("85000", "42000", a_loans())
     r = simulate_plan(u, Strategy.AVALANCHE, horizon_months=120)
