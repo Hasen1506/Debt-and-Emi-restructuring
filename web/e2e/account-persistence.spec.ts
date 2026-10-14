@@ -136,10 +136,25 @@ test('a browser still holding finoptima_* cookies keeps its session and data, an
   await oldPage.goto('/profile');
   await expect(oldPage).toHaveURL(/\/profile$/);
   await takeHome(oldPage, '₹1,20,000');
-  const names = (await old.cookies()).map((c) => c.name);
-  expect(names).toContain('rightdue_session');
-  expect(names).toContain('rightdue_user');
-  expect(names.filter((n) => n.startsWith('finoptima_'))).toEqual([]);
+  // What the browser sends from now on, not what Firefox's cookie list
+  // reports. CI run 38488716548 (and 1 in 12 local Firefox runs): the
+  // /profile response expired all five finoptima_* names and every later
+  // request carried none, yet old.cookies() still listed some of them 15 s
+  // later. The rename is the browser sending only rightdue_* names.
+  const probe = '/api/session/auth/me?rename-check=1';
+  const [sentRequest, me] = await Promise.all([
+    oldPage.waitForRequest((r) => r.url().endsWith(probe)),
+    oldPage.evaluate((url) => fetch(url, { credentials: 'include', cache: 'no-store' }).then((r) => r.json()), probe),
+  ]);
+  // WebKit's driver does not report the Cookie request header (PR #71 run
+  // 38495246706); its cookie list never showed the stale entries, so it is
+  // read there instead.
+  const header = await sentRequest.headerValue('cookie');
+  const sent = header ? header.split(/;\s*/).map((c) => c.split('=')[0]) : (await old.cookies()).map((c) => c.name);
+  expect(sent).toEqual(expect.arrayContaining(['rightdue_session', 'rightdue_user']));
+  expect(sent.filter((n) => n.startsWith('finoptima_'))).toEqual([]);
+  expect(me.email).toBe(testEmail('l1-rename@rightdue.app'));
+  expect(await oldPage.evaluate(() => document.cookie.split(/;\s*/).filter((c) => c.startsWith('finoptima_')))).toEqual([]);
   expect((await old.cookies()).find((c) => c.name === 'rightdue_session')!.httpOnly).toBe(true);
   expect((await (await old.request.get('/api/session/auth/me')).json()).email).toBe(testEmail('l1-rename@rightdue.app'));
   await old.close();

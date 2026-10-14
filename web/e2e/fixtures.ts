@@ -29,6 +29,8 @@ const NAVIGATION_ABORTED = /NS_BINDING_ABORTED|NS_ERROR_FAILURE|net::ERR_ABORTED
 /** How long one navigation attempt may take. Every page here loads in a
  *  few seconds; a 120 s test timeout is not a navigation budget. */
 const ATTEMPT_MS = 30_000;
+/** How long to wait for the navigation that aborted ours to load. */
+const REPLACED_NAV_MS = 10_000;
 
 type NavOptions = { timeout?: number; waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' | 'commit'; referer?: string };
 
@@ -74,6 +76,12 @@ export async function settleNavigation(
       if (attempt >= 3) throw err;
       if (NAVIGATION_ABORTED.test(message)) {
         base.info().annotations.push({ type: 'goto retried', description: `${what}: ${message.split('\n')[0]}` });
+        // Wait for the navigation that replaced ours to load. Checking the
+        // load state alone returned at once (the old document's "load" had
+        // fired), so all three attempts were spent within 100 ms while the
+        // app's fallback navigation was still in flight (local Firefox run,
+        // reload after a Profile save: three NS_BINDING_ABORTED in 90 ms).
+        await page.waitForEvent('load', { timeout: REPLACED_NAV_MS }).catch(() => {});
         await page.waitForLoadState('load', { timeout: ATTEMPT_MS }).catch(() => {});
         continue;
       }

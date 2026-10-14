@@ -11,6 +11,7 @@
  */
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { onSignInPage } from '@/lib/session-events';
 import {
   flushPendingState,
   getSyncState,
@@ -77,7 +78,7 @@ export function AccountSyncNotice() {
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     const update = () => setState(getSyncState());
-    const remote = () => router.refresh();
+    const remote = () => { if (!onSignInPage()) router.refresh(); };
     const online = () => { if (getSyncState().status === 'failed') void flushPendingState(); };
     window.addEventListener(SYNC_CHANGED_EVENT, update);
     window.addEventListener(REMOTE_APPLIED_EVENT, remote);

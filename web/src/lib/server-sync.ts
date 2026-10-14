@@ -20,7 +20,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { SESSION_CHANGED_EVENT } from './session-events';
+import { onSignInPage, SESSION_CHANGED_EVENT } from './session-events';
 import { writeProfileCookieClient, profileCookieHolds, clearProfileClient, resumeProfileClient, serializeProfileForServer, type StoredProfile } from './user-store';
 import { writeLifecycleClient, readLifecycleClient, type LifecycleEvent } from './lifecycle-events';
 import { migrateLegacyClientStorage } from './storage-migration';
@@ -666,7 +666,7 @@ export function SessionHydrator(): null {
         // the server reads. Refreshing every time drew each page twice
         // (Plan's simulation too), and in WebKit the refresh cancelled a
         // link followed in the meantime.
-        if (cookieSnapshot() !== before) router.refresh();
+        if (cookieSnapshot() !== before && !onSignInPage()) router.refresh();
       } catch {
         // 401 (signed out): nothing to hydrate, but changes still queued for
         // the account that was signed in here are shown as such.
@@ -676,7 +676,7 @@ export function SessionHydrator(): null {
     void hydrate();
     const accountChanged = (event: StorageEvent) => {
       if (event.key === ACCOUNT_KEY) {
-        router.refresh();
+        if (!onSignInPage()) router.refresh();
         void hydrate();
       }
     };
