@@ -430,8 +430,16 @@ def _simulate_plan(
     income_shock_months: int = 0,
     gap_as_debt: bool = True,
     stop_owed_multiple: Decimal | None = None,
+    low_rate_invest: tuple[Decimal, Decimal] | None = None,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`.
+
+    `low_rate_invest` (audit 80+ A4; default None: off, every caller
+    unchanged) is (threshold, share): in a month when every open loan's
+    yearly cost (the marginal cost the order uses: compounded, after GST
+    and tax) is under `threshold`, `share` of the extra is kept by the user
+    (booked in `invested_this_month`) instead of prepaid. The user picks
+    the share on Plan (engine/prepay_invest.py); the plan never picks it.
 
     `stop_owed_multiple` (default None: off, every caller before NEW-19
     unchanged) ends the run early once what's owed (loans in the user's
@@ -969,6 +977,12 @@ def _simulate_plan(
             # still before its first EMI: the surplus is saved, not lost.
             invested_this_month = surplus
             extra_for_debt = D("0")
+
+        if (low_rate_invest is not None and extra_for_debt > 0 and active
+                and all(costs[id(l)].annual_cost < low_rate_invest[0] for l in active if id(l) in costs)):
+            kept = (extra_for_debt * max(D("0"), min(D("1"), low_rate_invest[1])))
+            invested_this_month += kept
+            extra_for_debt -= kept
 
         if debt_budget is not None and extra_for_debt > 0:
             budget = debt_budget

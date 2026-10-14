@@ -40,6 +40,9 @@ def _build_goal_states(goals: list[GoalIn]) -> list[GoalState]:
             funding_amount=g.funding_amount,
             funding_pct=g.funding_pct,
             after_loan_index=g.after_loan_index,
+            funding_end_month_index=g.funding_end_month_index,
+            funding_cap=g.funding_cap,
+            pause_below=g.pause_below,
         )
         for g in goals
     ]

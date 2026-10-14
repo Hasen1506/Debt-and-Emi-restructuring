@@ -834,6 +834,13 @@ class GoalIn(_In):
     funding_amount: Optional[Amount] = None
     funding_pct: Optional[Rate] = None
     after_loan_index: Optional[Annotated[int, Field(ge=0, le=99)]] = None
+    # Programmable diversion (audit 80+, engine/goals.py): "until" a 0-based
+    # sim month, a monthly cap, and a floor on the month's spare cash below
+    # which the goal pauses. With "after_debt", funding_amount or
+    # funding_pct sets what it takes once the debt clears.
+    funding_end_month_index: Optional[Months] = None
+    funding_cap: Optional[Amount] = None
+    pause_below: Optional[Amount] = None
 
     @model_validator(mode="after")
     def _validate_funding_rule(self) -> "GoalIn":
@@ -841,6 +848,11 @@ class GoalIn(_In):
             raise ValueError("funding_amount: a fixed monthly amount above zero is needed for the 'fixed' rule")
         if self.funding_rule == "surplus_pct" and (self.funding_pct is None or self.funding_pct <= 0 or self.funding_pct > 1):
             raise ValueError("funding_pct: a share of spare cash between 0 and 1 is needed for the 'surplus_pct' rule")
+        if self.funding_pct is not None and not (0 < self.funding_pct <= 1):
+            raise ValueError("funding_pct: a share of spare cash between 0 and 1")
+        if self.funding_end_month_index is not None and self.funding_start_month_index is not None \
+                and self.funding_end_month_index <= self.funding_start_month_index:
+            raise ValueError("funding_end_month_index: the goal must stop after it starts")
         return self
 
     @model_validator(mode="after")
