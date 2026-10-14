@@ -44,11 +44,15 @@ test('C11: capped plans never headline a debt-free date', () => {
           const all = `${h.value} ${h.sub}`;
           assert.ok(!all.includes(label(asIs)), all);
           assert.match(h.value, /\/MO SHORT$/, all);
-          assert.ok(all.includes(`NOT FUNDABLE AS IT STANDS FROM ${label(infeasibleFrom)}`), all);
+          // "not fundable as it stands from <m>" on its own; after "as things
+          // stand:" just "not fundable from <m>" (the phrase said once).
+          assert.ok(all.includes(`NOT FUNDABLE AS IT STANDS FROM ${label(infeasibleFrom)}`) || all.includes(`AS THINGS STAND: NOT FUNDABLE FROM ${label(infeasibleFrom)}`), all);
+          assert.ok(!/AS THINGS STAND: NOT FUNDABLE AS IT STANDS/.test(all), all);
           const line = gap.shortGapLine(args);
           if (shortfall > 0) {
             assert.ok(!line.includes(label(asIs)), line);
-            assert.ok(line.includes(`not fundable as it stands from ${label(infeasibleFrom)}`), line);
+            assert.ok(line.includes(`as things stand: not fundable from ${label(infeasibleFrom)}`), line);
+            assert.ok(!/as it stands/.test(line), line); // said once, not twice
           } else assert.equal(line, null);
         }
 });

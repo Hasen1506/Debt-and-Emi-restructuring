@@ -147,6 +147,12 @@ export function notFundable(month: number, label: (m: number) => string): string
   return `not fundable as it stands from ${label(month)}`;
 }
 
+/** The same words after "as things stand:" (which already says "as it
+ *  stands"), so the line doesn't repeat itself. */
+function notFundableAsIs(month: number, label: (m: number) => string): string {
+  return `not fundable from ${label(month)}`;
+}
+
 /** Live re-test 7 R7-2: the words for "no date as things stand", one
  *  phrase for Setup, Plan and Home (the plan looks 30 years ahead). */
 export const AS_IS_NEVER = 'not in 30 years';
@@ -170,7 +176,7 @@ export function shortValue(shortfall: number, money: (v: number) => string): str
 export function shortGapLine(args: ShortStoryArgs): string | null {
   const { shortfall, asIsMonth, closedMonth, label, money, infeasibleFrom } = args;
   if (!(shortfall > 0)) return null;
-  const asIs = infeasibleFrom != null ? notFundable(infeasibleFrom, label) : asIsMonth ? label(asIsMonth) : AS_IS_NEVER;
+  const asIs = infeasibleFrom != null ? notFundableAsIs(infeasibleFrom, label) : asIsMonth ? label(asIsMonth) : AS_IS_NEVER;
   // Audit 80+ A5: the gap-closed date lives here now (the headline is the gap).
   if (closedMonth) return `if the ${money(shortfall)}/mo gap closes: ${label(closedMonth)} · as things stand: ${asIs}`;
   // Live re-test L#16: the gap-closed run has no date either (later

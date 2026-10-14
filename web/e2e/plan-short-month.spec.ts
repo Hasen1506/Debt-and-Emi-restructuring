@@ -43,7 +43,7 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
     // Step 3; the date it would take to close it is named in the note.
     await expect(page.getByTestId('gap-headline').first()).toBeVisible();
     await expect(page.getByText(/^₹34,515\/mo short$/).first()).toBeVisible();
-    await expect(page.getByText(/^if the ₹34,515\/mo gap closes: [A-Z][a-z]{2} \d{4} · as things stand: (?:[A-Z][a-z]{2} \d{4}|not in 30 years)$/).first()).toBeVisible();
+    await expect(page.getByText(/^if the ₹34,515\/mo gap closes: [A-Z][a-z]{2} \d{4} · as things stand: (?:[A-Z][a-z]{2} \d{4}|not in 30 years|not fundable from [A-Z][a-z]{2} \d{4})$/).first()).toBeVisible();
   });
 
   await test.step('Plan: both dates named, due beside what the month covers', async () => {
