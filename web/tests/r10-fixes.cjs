@@ -58,17 +58,22 @@ test('R10-3: one page signal, aborted on beforeunload/pagehide, renewed for late
     const { pageSignal, pageScoped, anySignal } = lib('page-abort.ts');
     const a = pageSignal();
     assert.equal(pageSignal(), a, 'shared');
-    // A "leave this page?" prompt (defaultPrevented) keeps requests alive.
+    // R11-1 changed this: beforeunload aborts at once (no task later), even
+    // when a "leave this page?" prompt keeps the person here; the prompt
+    // case recovers through pageScoped()'s re-ask (tests/r11-fixes.cjs).
     const ask = new Event('beforeunload', { cancelable: true });
     win.addEventListener('beforeunload', (e) => e.preventDefault(), { once: true });
     win.dispatchEvent(ask);
-    const tick = () => new Promise((r) => setTimeout(r, 5));
-    await tick();
     assert.equal(ask.defaultPrevented, true);
-    assert.equal(a.aborted, false);
-    win.dispatchEvent(new Event('beforeunload', { cancelable: true }));
-    await tick();
     assert.equal(a.aborted, true);
+    const a2 = pageSignal();
+    assert.notEqual(a2, a);
+    assert.equal(a2.aborted, false);
+    win.dispatchEvent(new Event('beforeunload', { cancelable: true }));
+    assert.equal(a2.aborted, true);
+    // Let the leave settle (a plain Event's returnValue isn't a string):
+    // a pageshow says the page is in use again.
+    win.dispatchEvent(new Event('pageshow'));
     const b = pageSignal();
     assert.notEqual(b, a);
     assert.equal(b.aborted, false);

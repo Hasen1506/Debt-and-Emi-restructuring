@@ -1439,8 +1439,36 @@ export class ApiStatusError extends Error {
 
 let meInFlight: Promise<AuthUser> | null = null;
 
+/** R11-2: wait before the one extra try of a GET (ms). */
+export const GET_RETRY_MS = 400;
+
+/**
+ * R11-2: a GET reads and changes nothing, so the browser asks once more,
+ * GET_RETRY_MS later, when the hosting edge answers 502/503/504 or the
+ * network drops (a short Cloudflare/Render blip). apiFetch already rides
+ * these out (4 retries) for the other GETs, such as rates/central; this
+ * covers the ones it leaves alone: auth/me and user/state, whose blip
+ * briefly showed a guest the signed-out state. Never a POST, never a
+ * request its caller (or the page leaving) cancelled, never on the server.
+ */
+async function getFetch(path: string, init: RequestInit): Promise<Response> {
+  const again = typeof window !== 'undefined' && !retryable(path, 'GET');
+  try {
+    const res = await apiFetch(path, init);
+    if (!again || ![502, 503, 504].includes(res.status)) return res;
+    await res.body?.cancel().catch(() => undefined);
+  } catch (e) {
+    const name = (e as { name?: string })?.name;
+    const network = e instanceof TypeError || (e as Error)?.message === WAKING_MESSAGE;
+    if (!again || !network || name === 'AbortError' || init.signal?.aborted) throw e;
+  }
+  await new Promise((r) => setTimeout(r, GET_RETRY_MS));
+  if (init.signal?.aborted) throw init.signal.reason ?? Object.assign(new Error('Aborted'), { name: 'AbortError' });
+  return apiFetch(path, init);
+}
+
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await apiFetch(path, {
+  const res = await getFetch(path, {
     headers: { ...serverHeaders(), ...accountHeaders(path) },
     cache: 'no-store',
     credentials: requestCredentials(path),
