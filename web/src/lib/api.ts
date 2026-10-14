@@ -197,11 +197,26 @@ export interface LoanPayload {
    *  semantics. All optional; defaults model the "no penalties / no
    *  restrictions / immediate-EMI" case.
    *  • prepayment_penalty_pct  — '0.02' = 2% of the prepay amount fee
-   *  • prepay_lock_in_months   — months from disbursal before prepay allowed
+   *  • prepay_lock_in_months   — months of lock-in as typed (counted from
+   *    `prepay_lock_in_until`'s stamp; see lib/roll-forward stampBalanceDates)
    *  • part_payment_freq_months — minimum gap between extra payments
    *  • pre_emi_months_remaining — interest-only window before EMI starts */
   prepayment_penalty_pct?: string;
   prepay_lock_in_months?: number;
+  /** Audit 80+ C4: 'YYYY-MM', the first month extra payments are allowed.
+   *  Stamped when the lock-in is typed, so it runs down as months pass
+   *  (the API derives the months left from it). */
+  prepay_lock_in_until?: string;
+  /** Audit 80+ C1: what a rate rise does ('extend' holds the EMI and
+   *  lengthens the tenure, the Indian default; 'raise_emi'; 'mix') and the
+   *  most months the loan may have left after an extension. */
+  on_rate_rise?: 'extend' | 'raise_emi' | 'mix';
+  max_tenure_months?: number;
+  /** Audit 80+ C2: 'emi' | 'interest_only' | 'bullet' (a gold loan with no
+   *  EMI is a bullet). */
+  repayment?: 'emi' | 'interest_only' | 'bullet';
+  /** Audit 80+ C15: a flat-rate loan's original tenure, for its true rate. */
+  original_tenure_months?: number;
   part_payment_freq_months?: number;
   pre_emi_months_remaining?: number;
   /** How the lender quoted the rate. "reducing" (bank loans, default)

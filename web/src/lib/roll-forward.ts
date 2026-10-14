@@ -155,8 +155,43 @@ export function stampBalanceDates(next: LoanPayload[], prev: LoanPayload[], toda
     const afterEmi = same ? before.balance_after_emi : loan.balance_after_emi;
     if (afterEmi === undefined) delete out.balance_after_emi;
     else out.balance_after_emi = afterEmi;
+    const until = lockInUntil(loan, before, today);
+    if (until) out.prepay_lock_in_until = until;
+    else delete out.prepay_lock_in_until;
     return out;
   });
+}
+
+/** 'YYYY-MM' plus n months. */
+export function addMonths(month: string, n: number): string {
+  const [y, m] = month.split('-').map(Number);
+  const k = y * 12 + (m - 1) + n;
+  return `${Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, '0')}`;
+}
+
+/** Audit 80+ C4: the calendar month a loan's lock-in ends, so it runs down
+ *  instead of restarting every time the plan is loaded. Typed (or changed)
+ *  months count from today; unchanged months keep the month already
+ *  stamped; a profile saved before this stamp counts from the month its
+ *  balance was entered (the API does the same for unstamped payloads). */
+export function lockInUntil(loan: LoanPayload, before: LoanPayload | undefined, today: string): string | undefined {
+  const months = Math.max(0, Math.floor(Number(loan.prepay_lock_in_months || 0)));
+  if (!(months > 0)) return undefined;
+  const prevMonths = Math.max(0, Math.floor(Number(before?.prepay_lock_in_months || 0)));
+  if (before && prevMonths === months) {
+    if (before.prepay_lock_in_until) return before.prepay_lock_in_until;
+    const from = (before.balance_as_of ?? today).slice(0, 7);
+    return addMonths(from, months);
+  }
+  if (loan.prepay_lock_in_until && !before) return loan.prepay_lock_in_until;
+  return addMonths(today.slice(0, 7), months);
+}
+
+/** Months from `currentMonth` during which extra payments are refused. */
+export function lockInMonthsLeft(loan: Pick<LoanPayload, 'prepay_lock_in_months' | 'prepay_lock_in_until'>, currentMonth: string): number {
+  if (loan.prepay_lock_in_until && /^\d{4}-\d{2}$/.test(loan.prepay_lock_in_until))
+    return Math.max(0, monthsBetween(currentMonth, loan.prepay_lock_in_until));
+  return Math.max(0, Number(loan.prepay_lock_in_months || 0));
 }
 
 /** True when this loan's balance, as being edited, needs the "has this
