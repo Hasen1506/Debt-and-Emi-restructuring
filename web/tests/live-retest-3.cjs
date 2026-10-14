@@ -122,7 +122,11 @@ test('R3-4: Setup says a rate is not valid, not "missing a number"', () => {
 
 test('R3-5: the open mobile menu keeps every item left-aligned', () => {
   const mh = src('components/ledger/LMasthead.tsx');
-  assert.match(mh, /\[data-open="true"\]\{display:flex !important;flex-direction:column !important;align-items:flex-start !important/);
+  // Audit 80+ B26: items stretch full width (bigger tap rows) with their text
+  // left-aligned; either way nothing is centred.
+  assert.match(mh, /\[data-open="true"\]\{display:flex !important;flex-direction:column !important;align-items:(flex-start|stretch) !important/);
+  assert.doesNotMatch(mh, /\[data-open="true"\][^}]*align-items:center/);
+  assert.match(mh, /\[data-open="true"\] > a\.l-hit[^{]*\{[^}]*text-align:left/);
 });
 
 test('NEW-19: Render checks health on a Next.js route that never proxies to FastAPI', () => {

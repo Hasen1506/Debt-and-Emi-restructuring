@@ -91,16 +91,16 @@ test('no shortfall: what-if copy, 390 px header and chart labels', async ({ page
     const header = page.locator('header.rd-masthead');
     const box = await header.boundingBox();
     expect(box!.height).toBeLessThan(90);
-    const menu = page.getByRole('button', { name: /MENU/ });
+    const menu = page.getByRole('button', { name: /menu/i });
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeHidden();
     await menu.click();
-    await expect(page.getByRole('button', { name: /CLOSE/ })).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByRole('button', { name: /close/i })).toHaveAttribute('aria-expanded', 'true');
     const nav = page.getByRole('navigation', { name: 'Main' });
-    await expect(nav.getByRole('link', { name: '[PROFILE]', exact: true })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Profile', exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(nav).toBeHidden();
-    await expect(page.getByRole('button', { name: /MENU/ })).toBeFocused();
+    await expect(page.getByRole('button', { name: /menu/i })).toBeFocused();
   });
 
   await test.step('NEW-6: chart labels and the minimums note never overlap at 390', async () => {

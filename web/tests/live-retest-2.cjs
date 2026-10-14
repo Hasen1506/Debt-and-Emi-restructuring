@@ -141,7 +141,7 @@ test('NEW-17: the mobile header is one row with a MENU button that controls the 
   assert.match(s, /aria-controls="rd-main-nav"/);
   assert.match(s, /aria-expanded=\{menuOpen\}/);
   assert.match(s, /id="rd-main-nav"/);
-  assert.match(s, /e\.key === 'Escape'/);
+  assert.match(s, /e\.key [!=]== 'Escape'/);
   assert.match(s, /@media \(max-width: 640px\)/);
 });
 
