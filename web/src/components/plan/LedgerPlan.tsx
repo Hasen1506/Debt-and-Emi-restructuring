@@ -303,9 +303,15 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {/* Month by month, collapsed to the months something happens;
             the next rate reset below */}
         <PlanSchedule plan={shownPlan} />
-        {/* Audit 80 B15: "a longer tenure?" is distress framing; for a healthy
-            plan it shows only when spare cash is under 10% of take-home. */}
+        {/* Audit 80 B15: "a longer tenure?" is distress framing. Open when
+            spare cash is under 10% of take-home; otherwise folded to one line. */}
         {!short && tightMonth && tenureWhatIf}
+        {!short && !tightMonth && (
+          <details data-testid="tenure-fold" data-print="hide" style={{ fontSize: 12 }}>
+            <summary style={{ cursor: 'pointer', color: L_T.muted }}>A longer tenure from the bank? Only worth it in a tight month</summary>
+            {tenureWhatIf}
+          </details>
+        )}
 
         {/* The next RBI / Fed decision, loan by loan, and whether to wait */}
         <RateDecisions plan={plan} />

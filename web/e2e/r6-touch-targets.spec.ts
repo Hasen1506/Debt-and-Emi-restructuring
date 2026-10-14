@@ -87,6 +87,8 @@ test('R6-2/R6-3/R6-4: touch targets at 390px, the lump-sum placeholder and 0 mon
   await page.waitForURL('**/plan');
 
   // Plan, with the what-if open (the +N YRS buttons and the lump-sum box).
+  // Audit 80 B15: a healthy plan folds the longer-tenure card.
+  await page.getByTestId('tenure-fold').locator('summary').click();
   await expect(page.locator('#tenure-what-if').first()).toBeVisible();
   const whatIf = page.getByRole('button', { name: /WHAT IF/i }).first();
   if (await whatIf.isVisible().catch(() => false)) await whatIf.click();

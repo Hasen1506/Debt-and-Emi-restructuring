@@ -80,6 +80,8 @@ test('no shortfall: what-if copy, 390 px header and chart labels', async ({ page
   const main = page.locator('#main');
 
   await test.step('R2-3: no gap sentence when nothing is short', async () => {
+    // Audit 80 B15: a healthy plan folds the longer-tenure card.
+    await main.getByTestId('tenure-fold').locator('summary').click();
     await page.getByRole('button', { name: '+5 YRS' }).click();
     const status = main.locator('#tenure-what-if [role=status]');
     await expect(status).toContainText(/EMI ₹22,000 →/);
