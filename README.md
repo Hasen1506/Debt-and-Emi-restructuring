@@ -15,8 +15,8 @@ estimates, not financial advice. Live at https://rightdue.app.
 | `web/` | The Next.js app. `web/public/welcome.html` is the public landing page. |
 | `e2e/`, `web/e2e/` | Playwright journeys and the local API they run against. |
 | `scripts/` | Data refreshers, exporters for golden fixtures, audit helpers. |
-| `docs/` | Working notes: rates, payoff order, hosting, privacy and retention. `docs/planning/` holds the original specs; `docs/history/` the audit and redesign records. |
-| `design/` | Design references (the Ledger skin handoff, wireframes, the visual refresh). Not shipped. |
+| `docs/` | Working notes: rates, payoff order, hosting, privacy and retention. `docs/planning/module-02-design-spec.md` is the engine's formula reference. Old planning notes, audit records and design mock-ups were moved out of the tree: [docs/ARCHIVE.md](docs/ARCHIVE.md) lists them and how to restore any of them. |
+| `docs/CODE-HEALTH.md` | Size budgets, what the repo's lines are, where app state lives, and how CI is kept cheap. |
 | `ROADMAP.md` | What is done and what is next. |
 | `DEPLOY.md` | How the single Render service is deployed, and every setting it reads. |
 

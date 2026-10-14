@@ -1,0 +1,18 @@
+# Audit 80 E14 (W9). Generated files: GitHub collapses them in PR diffs and
+# leaves them out of the language stats, so a reviewer sees code, not dumps.
+# Each one is rewritten by the script named beside it; never edit by hand.
+engine/tests/fixtures/*_cases.json      linguist-generated=true
+engine/tests/fixtures/mirror_cases.json linguist-generated=true
+web/src/lib/rate-cards.json             linguist-generated=true
+web/src/lib/tax-tables.json             linguist-generated=true
+web/src/lib/landing-example.json        linguist-generated=true
+web/src/lib/rate-disclosures.json       linguist-generated=true
+web/src/lib/market-data.json            linguist-generated=true
+api/data/rate_disclosures/*.json        linguist-generated=true
+web/package-lock.json                   linguist-generated=true
+# Binary assets: never diff or merge as text.
+*.ico   binary
+*.png   binary
+*.woff2 binary
+*.pdf   binary
+*.gz    binary

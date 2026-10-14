@@ -40,7 +40,7 @@ const nextConfig = {
   async headers() {
     return headerRules(process.env);
   },
-  // Old addresses keep working after the five-tab redesign (docs/history/REDESIGN.md).
+  // Old addresses keep working after the five-tab redesign (docs/history/REDESIGN.md, archived: docs/ARCHIVE.md).
   async redirects() {
     return [
       { source: '/insights', destination: '/activity', permanent: false },

@@ -1,5 +1,5 @@
 /**
- * The three payoff strategies as personas (design/strategy-personas).
+ * The three payoff strategies as personas (design/strategy-personas, archived: docs/ARCHIVE.md).
  *
  * The art is authored once, in public/art/personas.svg: a 480×240 scene
  * per strategy (the Profile cards, drawn at their 2:1) and a 40×40

@@ -18,3 +18,24 @@ web/test-results/
 web/playwright-report/
 web/blob-report/
 .verify-all/
+# Audit 80 E14/E22 (W9): generated output must never be committed.
+# node_modules without a slash also matches a symlinked install.
+node_modules
+*.tsbuildinfo
+.hypothesis/
+.coverage
+coverage/
+htmlcov/
+# Playwright / test output anywhere in the tree (not only web/)
+test-results/
+playwright-report/
+blob-report/
+# Ad-hoc audit and perf runs (screenshots, traces, HAR, JSON dumps)
+audit-out/
+out-*.json
+*.har
+*.trace.zip
+*.webm
+screenshots/
+# next build size report written by scripts/route_size_budget.mjs
+web/.route-sizes.json
