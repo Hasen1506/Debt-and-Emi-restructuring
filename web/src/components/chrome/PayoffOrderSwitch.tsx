@@ -98,7 +98,7 @@ export function PayoffOrderSwitch({
               className="rd-payoff-seg"
               style={{
                 fontFamily: L_MONO,
-                fontSize: 'var(--fs-body)',
+                fontSize: 'var(--fs-small)', // 14px: W7 kept this header switch compact (was a raw 13)
                 fontWeight: on ? 700 : 500,
                 padding: '4px 10px',
                 minHeight: 30,

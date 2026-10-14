@@ -73,7 +73,7 @@ def convert(src: str) -> tuple[str, int]:
         out.append(src[last:m.start()])
         out.append(rep)
         last = m.end()
-        n += 1
+        n += rep != m.group(0)  # a kept 13-14px label is not a change (rerun-safe count)
     out.append(src[last:])
     return ''.join(out), n
 

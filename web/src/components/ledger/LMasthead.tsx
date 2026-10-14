@@ -247,8 +247,7 @@ export function LMasthead({
               onClick={() => setMoreOpen((v) => !v)}
               className="l-hit"
               style={{
-                fontFamily: L_MONO,
-                ...TAB_STYLE,
+                ...TAB_STYLE, // carries the mono face (type-scale codemod)
                 color: section === 'more' ? L_T.ink : L_T.muted,
                 fontWeight: section === 'more' ? 700 : 500,
                 textDecoration: section === 'more' ? 'underline' : 'none',
