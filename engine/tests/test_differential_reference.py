@@ -50,18 +50,26 @@ def ref_balance_after(p: F, annual: F, n: int, k: int) -> F:
 
 
 def ref_amortise(p: F, annual: F, payment: F, gst: F = F(0), months: int = 480,
-                 extra=lambda m: F(0), card: bool = False):
+                 extra=lambda m: F(0), card: bool = False, term: int | None = None):
     """Rows of (balance_after, interest, invested) for a single loan paid
     `payment` (+ `extra(m)`) a month; interest carries `gst` on top.
     `card`: a revolving card's average daily balance (sprint G1): the
     payment, made on the due date, stops interest on the paid part for the
-    last third of the cycle; the payment is capped at what is owed."""
+    last third of the cycle; the payment is capped at what is owed.
+    `term`: the loan's last contractual month, which pays whatever is left
+    (Audit 80+ C3/C6: an EMI rounded to the paisa used to leave a residual
+    and a 241st payment; banks adjust the final instalment). The 4th item
+    of a row is that top-up above `payment` + `extra(m)`."""
     r, b, rows = annual / 12, p, []
     for m in range(1, months + 1):
         if b <= 0:
             break
         interest = b * r * (1 + gst)
         pay = payment + extra(m)
+        topup = F(0)
+        if term is not None and m >= term:
+            topup = max(F(0), b + interest - pay)
+            pay += topup
         if card:
             pay = min(pay, b + interest)
             interest = (b - min(pay, b) / 3) * r * (1 + gst)
@@ -71,7 +79,7 @@ def ref_amortise(p: F, annual: F, payment: F, gst: F = F(0), months: int = 480,
             invested = principal - b
             principal = b
         b -= principal
-        rows.append((b, interest, invested))
+        rows.append((b, interest, invested, topup))
     return rows
 
 
@@ -161,10 +169,15 @@ def test_minimum_only_schedule_matches_reference(chunk):
     for i, (country, loan, _rng) in enumerate(_emi_loans(900)):
         if i % 3 != chunk:
             continue
-        res = baseline_minimums_only(_user(country, loan, loan.scheduled_emi), horizon_months=480)
-        ref = ref_amortise(_f(loan.outstanding), _f(loan.nominal_rate), _f(loan.scheduled_emi))
+        # Pay is exactly the EMI, so the last month's top-up (C3/C6) is a
+        # shortfall; schedules are compared without gap borrowing, which
+        # would add a month to repay it (the reference has no cash side).
+        res = baseline_minimums_only(_user(country, loan, loan.scheduled_emi), horizon_months=480,
+                                     gap_as_debt=False)
+        ref = ref_amortise(_f(loan.outstanding), _f(loan.nominal_rate), _f(loan.scheduled_emi),
+                           term=loan.tenure_months_remaining)
         assert len(res.months) == len(ref), (loan, len(res.months), len(ref))
-        for row, (bal, interest, _inv) in zip(res.months, ref):
+        for row, (bal, interest, _inv, _top) in zip(res.months, ref):
             assert _close(row.balances_by_loan_index[0], bal, F(1, 10**4)), (loan, row.month_index)
             assert _close(row.interest_paid_month, interest, F(1, 10**4)), (loan, row.month_index)
         assert _close(res.total_interest_paid, sum(x[1] for x in ref), F(1, 10**3))
@@ -177,17 +190,20 @@ def test_plan_with_surplus_matches_reference():
     for country, loan, rng in _emi_loans(600):
         spare = D(rng.randint(0, 200_000))
         income = loan.scheduled_emi + spare
-        res = simulate_plan(_user(country, loan, income), horizon_months=480)
+        res = simulate_plan(_user(country, loan, income), horizon_months=480, gap_as_debt=False)
         # The gate weighs the loan at its compounded annual cost (no fund, so
         # the hurdle is the 0.5pp margin alone).
         worth = (1 + loan.nominal_rate / 12) ** 12 - 1 > D("0.005")
         ref = ref_amortise(_f(loan.outstanding), _f(loan.nominal_rate), _f(loan.scheduled_emi),
-                           extra=(lambda m, s=_f(spare): s) if worth else (lambda m: F(0)))
+                           extra=(lambda m, s=_f(spare): s) if worth else (lambda m: F(0)),
+                           term=loan.tenure_months_remaining)
         assert len(res.months) == len(ref), (loan, spare, len(res.months), len(ref))
-        for row, (bal, interest, invested) in zip(res.months, ref):
+        for row, (bal, interest, invested, topup) in zip(res.months, ref):
             assert _close(row.balances_by_loan_index[0], bal, F(1, 10**4)), (loan, spare, row.month_index)
             assert _close(row.interest_paid_month, interest, F(1, 10**4))
-            want_inv = invested if worth else invested + _f(spare)
+            # Not worth prepaying: the spare is invested, less any part of
+            # it the final instalment's top-up used (C3/C6).
+            want_inv = invested if worth else max(F(0), invested + _f(spare) - topup)
             assert _close(row.invested_this_month, want_inv, F(1, 10**4)), (loan, spare, row.month_index)
 
 
@@ -209,6 +225,6 @@ def test_card_with_fixed_minimum_matches_reference_including_gst():
         gst = F(18, 100) if country == Country.IN else F(0)
         ref = ref_amortise(_f(p), _f(r), _f(minimum), gst=gst, card=True)
         assert len(res.months) == len(ref)
-        for row, (bal, interest, _inv) in zip(res.months, ref):
+        for row, (bal, interest, _inv, _top) in zip(res.months, ref):
             assert _close(row.balances_by_loan_index[0], bal, F(1, 10**4)), (country, p, r, minimum, row.month_index)
             assert _close(row.interest_paid_month, interest, F(1, 10**4))

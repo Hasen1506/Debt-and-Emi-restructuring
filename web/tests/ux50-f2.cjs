@@ -172,6 +172,9 @@ test('B-08, B-16, B-17, B-26, B-33: one order, quieter table, honest share and t
   assert.equal(csv.scheduleCsvFilename('2026-10-13'), 'rightdue-plan-2026-10-13.csv');
   assert.deepEqual(
     csv.scheduleCsvHeader([{ loan_type: 'home_loan' }, { loan_type: 'credit_card', bank: 'HDFC Bank' }, { loan_type: 'home_loan' }], 'IN', 'inr'),
-    ['Month', 'Date', 'Home loan 1 (₹)', 'HDFC Bank credit card (₹)', 'Home loan 2 (₹)', 'Extra (₹)', 'Interest (₹)', 'Principal (₹)', 'Owed after (₹)', 'Event'],
+    // Audit 80+ C19: paid columns, then each loan's opening balance in its own column.
+    ['Month', 'Date', 'Home loan 1 paid (₹)', 'HDFC Bank credit card paid (₹)', 'Home loan 2 paid (₹)',
+     'Home loan 1 owed at start (₹)', 'HDFC Bank credit card owed at start (₹)', 'Home loan 2 owed at start (₹)',
+     'Extra (₹)', 'Interest (₹)', 'Principal (₹)', 'Owed after (₹)', 'Event'],
   );
 });

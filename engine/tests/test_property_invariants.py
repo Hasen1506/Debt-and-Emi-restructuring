@@ -87,13 +87,29 @@ def test_plan_never_costs_more_interest_than_minimums(u, s):
 
 # ── 4. Prepaying never increases total interest ─────────────────────────────
 
+def _assert_no_dearer(before, after):
+    """More money in never costs more. While both plans are fundable that is
+    plain interest. Once the gap limit is hit (Audit C11) what can't be
+    borrowed is counted as unfunded and stops compounding, so extra money
+    that keeps the card under its limit for longer can move a few rupees from
+    "unfunded" to "interest": the honest cost of a capped plan is interest
+    plus what was left unfunded, and that must not rise."""
+    if before.infeasible_from_month is None and after.infeasible_from_month is None:
+        assert after.total_interest_paid <= before.total_interest_paid + CENT
+    else:
+        cost = lambda r: r.total_interest_paid + r.unfunded_shortfall_total  # noqa: E731
+        assert cost(after) <= cost(before) + CENT
+        if before.infeasible_from_month is None:
+            # Extra money never makes a fundable plan unfundable.
+            assert after.infeasible_from_month is None
+
 @settings(max_examples=examples(200))
 @given(u=users(), amount=money(1, 3_000_000), data=st.data())
 def test_lump_sum_prepayment_never_increases_interest(u, amount, data):
     idx = data.draw(st.integers(0, len(u.loans) - 1))
     before = simulate_plan(u)
     after = with_lump_sum(u, amount, idx)
-    assert after.total_interest_paid <= before.total_interest_paid + CENT
+    _assert_no_dearer(before, after)
     if before.debt_free_month is not None:
         assert after.debt_free_month is not None
         assert after.debt_free_month <= before.debt_free_month
@@ -104,7 +120,7 @@ def test_lump_sum_prepayment_never_increases_interest(u, amount, data):
 def test_extra_monthly_payment_never_increases_interest(u, extra, start):
     before = simulate_plan(u)
     after = simulate_plan(u, income_delta=extra, income_delta_from_month=start)
-    assert after.total_interest_paid <= before.total_interest_paid + CENT
+    _assert_no_dearer(before, after)
 
 
 @settings(max_examples=examples(100))
@@ -112,7 +128,7 @@ def test_extra_monthly_payment_never_increases_interest(u, extra, start):
 def test_reinvested_refund_never_increases_interest(u, amount, month):
     before = simulate_plan(u)
     after = simulate_plan(u, reinvest_events=[(month, amount)])
-    assert after.total_interest_paid <= before.total_interest_paid + CENT
+    _assert_no_dearer(before, after)
 
 
 # ── 5. No currency is mixed without an exchange rate ────────────────────────

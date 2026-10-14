@@ -90,8 +90,62 @@ def _rate(v: Decimal) -> Decimal:
     return v
 
 
+def _loan_rate(v: Decimal) -> Decimal:
+    """A loan's yearly rate (Audit C12): instant-loan apps and short BNPL
+    plans price above 100% a year (often 1% a day, ~365%), so they're
+    accepted up to 1,000% a year (10), the same ceiling as EffectiveRate.
+    The web asks "that's 120% a year, right?" before sending one."""
+    if v < 0:
+        raise ValueError("a rate can't be negative")
+    if v > MAX_LOAN_RATE:
+        raise ValueError(
+            f"rates are fractions of 1: send {v / 100:f} for {v:f}%. "
+            f"Rates above 1,000% a year are not accepted"
+        )
+    return v
+
+
+MAX_LOAN_RATE = D("10")
+
+
+def _year_month(v: Any) -> Any:
+    """'YYYY-MM' (a longer ISO date is cut to its month); blank = None."""
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return None
+    if isinstance(v, date):
+        return v.strftime("%Y-%m")
+    if not isinstance(v, str):
+        raise ValueError("must be a month as YYYY-MM")
+    t = v.strip()[:7]
+    try:
+        y, m = int(t[:4]), int(t[5:7])
+    except ValueError:
+        raise ValueError("must be a month as YYYY-MM") from None
+    if len(t) != 7 or t[4] != "-" or not (1 <= m <= 12) or not (1900 <= y <= 2200):
+        raise ValueError("must be a month as YYYY-MM")
+    return t
+
+
+def _months_between(a: str, b: str) -> int:
+    """Whole months from 'YYYY-MM' a to b (negative when b is earlier)."""
+    return (int(b[:4]) - int(a[:4])) * 12 + int(b[5:7]) - int(a[5:7])
+
+
+def _add_months(a: str, n: int) -> str:
+    k = int(a[:4]) * 12 + int(a[5:7]) - 1 + n
+    return f"{k // 12:04d}-{k % 12 + 1:02d}"
+
+
+def current_month() -> str:
+    """This calendar month, 'YYYY-MM', in India time (the app's default
+    zone). Tests freeze it by patching this function."""
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).strftime("%Y-%m")
+
+
 Amount = Annotated[Decimal, AfterValidator(_amount)]
 Rate = Annotated[Decimal, AfterValidator(_rate)]
+LoanRate = Annotated[Decimal, AfterValidator(_loan_rate)]
 SignedRate = Annotated[Decimal, Field(ge=-1, le=1)]
 Months = Annotated[int, Field(ge=0, le=MAX_MONTHS)]
 Horizon = Annotated[int, Field(ge=1, le=MAX_MONTHS)]
@@ -146,7 +200,7 @@ class LoanIn(_In):
     loan_type: LoanType
     bank: str = Field(..., max_length=120)
     outstanding: Amount
-    nominal_rate: Rate
+    nominal_rate: LoanRate
     rate_type: str = "floating"
     tenure_months_remaining: Months
     scheduled_emi: Amount
@@ -205,6 +259,100 @@ class LoanIn(_In):
     original_home_value: Optional[Amount] = None
     mortgage_insurance_kind: Optional[str] = None
     pmi_months_remaining: Optional[int] = Field(None, ge=0, le=MAX_MONTHS)
+    # ── The contract over time (Audit 80+ Section C; engine/contract.py) ──
+    # C1: what a rate rise does ("extend" | "raise_emi" | "mix"; blank = the
+    # market default: extend in India, raise_emi in the US) and the most
+    # months the loan may have left after an extension (lender's maximum
+    # tenure or the borrower's age limit, from today).
+    on_rate_rise: Optional[str] = None
+    max_tenure_months: Optional[int] = Field(None, ge=1, le=MAX_TENURE_MONTHS)
+    # C2: "emi" | "interest_only" | "bullet" (blank: a gold loan with no EMI
+    # is a bullet, anything else an EMI loan).
+    repayment: Optional[str] = None
+    # C4: the calendar month extra payments are first allowed ('YYYY-MM').
+    # The lock-in then runs down as months pass. Without it, a typed
+    # `prepay_lock_in_months` is counted from the loan's start month
+    # (`loan_start_month`) when given, else from the month the balance was
+    # entered (`balance_as_of`, which the web stamps on every loan), else
+    # from today (old payloads).
+    prepay_lock_in_until: Optional[str] = None
+    loan_start_month: Optional[str] = None
+    balance_as_of: Optional[str] = None
+    # C15: a flat-rate loan's original tenure. Its true reducing rate is
+    # solved from the original terms, not the months left.
+    original_tenure_months: Optional[int] = Field(None, ge=1, le=MAX_TENURE_MONTHS)
+
+    @field_validator("prepay_lock_in_until", "loan_start_month", "balance_as_of", mode="before")
+    @classmethod
+    def _months(cls, v: Any) -> Any:
+        return _year_month(v)
+
+    @field_validator("on_rate_rise", "repayment", mode="before")
+    @classmethod
+    def _contract_enums(cls, v: Any, info) -> Any:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        if not isinstance(v, str):
+            raise ValueError(f"{info.field_name} must be text")
+        t = v.strip().lower().replace("-", "_")
+        allowed = {"on_rate_rise": ("extend", "raise_emi", "mix"),
+                   "repayment": ("emi", "interest_only", "bullet")}[info.field_name]
+        if t not in allowed:
+            raise ValueError(f"{info.field_name} must be one of {', '.join(allowed)}")
+        return t
+
+    def lock_in_months_left(self, today: str | None = None) -> int:
+        """Months from this month during which extra payments are refused
+        (Audit C4). Sim month m is calendar month today + (m - 1), so a
+        lock-in ending before `until` covers the first (until - today)
+        months."""
+        today = today or current_month()
+        until = self.prepay_lock_in_until
+        if until is None and self.prepay_lock_in_months > 0:
+            start = self.loan_start_month or self.balance_as_of
+            if start is None:
+                return self.prepay_lock_in_months      # legacy: from today
+            until = _add_months(start, self.prepay_lock_in_months)
+        if until is None:
+            return 0
+        return max(0, min(MAX_MONTHS, _months_between(today, until)))
+
+    def reducing_rate(self) -> tuple[Decimal, Optional[str]]:
+        """The reducing-balance rate the engine runs on, and a warning when
+        a flat rate had to be converted on a guess (Audit C15).
+
+        A flat rate is converted over the loan's original tenure when it is
+        given (the true rate doesn't change as the loan ages). Otherwise it
+        is solved from the balance, EMI and months left when those agree
+        with a flat quote (a reducing rate between the flat rate and three
+        times it). Only failing both is the months left used, with a
+        warning to add the original tenure."""
+        if self.rate_basis != "flat" or self.nominal_rate <= 0:
+            return self.nominal_rate, None
+        if self.original_tenure_months:
+            return flat_to_reducing(self.nominal_rate, self.original_tenure_months), None
+        from engine.contract import implied_reducing_rate
+        if self.outstanding > 0 and self.scheduled_emi > 0 and self.tenure_months_remaining > 0:
+            r = implied_reducing_rate(self.outstanding, self.scheduled_emi, self.tenure_months_remaining)
+            if r is not None and self.nominal_rate <= r <= self.nominal_rate * 3:
+                return r, None
+        if self.tenure_months_remaining > 0:
+            return flat_to_reducing(self.nominal_rate, self.tenure_months_remaining), (
+                "This flat rate was converted over the months left, which reads lower than the loan's "
+                "true rate as it ages. Add the loan's original tenure for the exact rate.")
+        return self.nominal_rate, None
+
+    def contract_warnings(self) -> list[str]:
+        """Plain warnings about this loan's terms (Audit C3, C15)."""
+        from engine.contract import contract_mismatch
+        out = []
+        _, flat_note = self.reducing_rate()
+        if flat_note:
+            out.append(flat_note)
+        mismatch = contract_mismatch(self.to_engine())
+        if mismatch:
+            out.append(mismatch)
+        return out
 
     @field_validator("student_loan_kind", "forgiveness_track", "mortgage_insurance_kind", mode="before")
     @classmethod
@@ -265,11 +413,7 @@ class LoanIn(_In):
         # reducing-balance equivalent so the engine math (which assumes
         # reducing) stays consistent. No-op for the default "reducing"
         # case which covers all bank quotes.
-        effective_rate = self.nominal_rate
-        if self.rate_basis == "flat" and self.tenure_months_remaining > 0:
-            effective_rate = flat_to_reducing(
-                self.nominal_rate, self.tenure_months_remaining,
-            )
+        effective_rate, _ = self.reducing_rate()
         return Loan(
             loan_type=self.loan_type, bank=self.bank,
             outstanding=self.outstanding, nominal_rate=effective_rate,
@@ -286,7 +430,7 @@ class LoanIn(_In):
             next_reset_month=self.next_reset_month,
             rate_drift_annualized=self.rate_drift_annualized,
             prepayment_penalty_pct=self.prepayment_penalty_pct,
-            prepay_lock_in_months=self.prepay_lock_in_months,
+            prepay_lock_in_months=self.lock_in_months_left(),
             min_prepay_amount=self.min_prepay_amount,
             part_payment_freq_months=self.part_payment_freq_months,
             pre_emi_months_remaining=self.pre_emi_months_remaining,
@@ -303,6 +447,9 @@ class LoanIn(_In):
             original_home_value=self.original_home_value,
             mortgage_insurance_kind=self.mortgage_insurance_kind,
             pmi_months_remaining=self.pmi_months_remaining,
+            on_rate_rise=self.on_rate_rise,
+            max_tenure_months=self.max_tenure_months,
+            repayment=self.repayment,
         )
 
 
@@ -516,6 +663,9 @@ class UserIn(_In):
     extra_income_annual_tax: Optional[Amount] = None
     primary_bank: str
     location_tier: str = "urban"
+    # Audit C11: most the user could borrow to cover short months (spare
+    # card limit), their currency. Blank = 3 months of take-home pay.
+    gap_credit_limit: Optional[Amount] = None
     other_banks: list[str] = Field(default_factory=list)
     tax_regime: Optional[TaxRegimeIN] = None
     pf: Optional[PFBalanceIn] = None
@@ -662,6 +812,7 @@ class UserIn(_In):
             prepay_hurdle=self.prepay_hurdle,
             asset_returns=dict(self.asset_returns),
             liquidation_costs=dict(self.liquidation_costs),
+            gap_credit_limit=self.gap_credit_limit,
         )
 
 
@@ -790,6 +941,12 @@ class TrajectoryPoint(_Base):
     gap_borrowed: Decimal = Field(default=D("0"))
     gap_repaid: Decimal = Field(default=D("0"))
     gap_from_savings: Decimal = Field(default=D("0"))
+    # Audit C5: extra saved for a loan still in its prepayment lock-in (the
+    # running pot at the month's end), shown as "saved for the lock-in to
+    # end", never as invested. Audit C11: the part of this month's shortfall
+    # that couldn't be borrowed (past the gap limit).
+    held_for_lock_in: Decimal = Field(default=D("0"))
+    unfunded_shortfall: Decimal = Field(default=D("0"))
     # Per-goal contribution this month, keyed by goal id. Populated only
     # when `goals` was passed to /simulate. Lets achievability subtract
     # higher-priority goals' actual draws (which expire after their
@@ -964,6 +1121,51 @@ class GoalTradeoffRequest(SimulateRequest):
     goal_ids: list[str] = Field(default_factory=list, max_length=50)
 
 
+class RateRiseOptionOut(_Base):
+    mode: str                  # "extend" | "raise_emi" | "mix"
+    emi: Decimal
+    months_left: int
+    total_interest: Decimal
+    emi_change: Decimal
+    months_change: int
+    capped: bool = False       # the lender's maximum tenure bound
+
+
+class RateRiseEventOut(_Base):
+    """Audit C1 / A13: one floating-rate rise in the plan. `applied` is what
+    the plan did (tenure-first for an Indian loan unless the loan says
+    otherwise); `options` both outcomes; `recommended` the most valuable
+    step ("extend" | "raise_emi" | "keep_emi_and_prepay") and why."""
+    month: int
+    loan_index: int
+    old_rate: Decimal
+    new_rate: Decimal
+    old_emi: Decimal
+    months_left_before: int
+    applied: str
+    options: list[RateRiseOptionOut]
+    extra_interest_if_extended: Decimal
+    recommended: str
+    reason: str
+    source_url: str = "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12529"
+
+
+class MaturityOut(_Base):
+    """Audit C2/C3: a bullet / interest-only loan's maturity, or a material
+    balloon in an EMI loan's last month. `short`: the month couldn't fund it
+    (renew or repay)."""
+    loan_index: int
+    month: int
+    kind: str
+    amount_due: Decimal
+    short: bool
+
+
+class LoanWarningOut(_Base):
+    loan_index: int
+    message: str
+
+
 class NonAmortisingOut(_Base):
     # Live re-test NEW-3: an EMI loan whose EMI is at or below its monthly
     # interest, so it never clears. The plan is not run on it.
@@ -1041,6 +1243,21 @@ class SimulateResponse(_Base):
     # whether it stopped because the debt grows without limit.
     trajectory_cut_month: Optional[int] = None
     grows_without_limit: bool = False
+    # Audit C1: rate rises with both outcomes and the recommended step.
+    rate_rise_events: list[RateRiseEventOut] = Field(default_factory=list)
+    # Audit C2/C3: maturities and balloons.
+    maturities: list[MaturityOut] = Field(default_factory=list)
+    # Audit C3/C15: loans whose terms don't agree, in plain words.
+    loan_warnings: list[LoanWarningOut] = Field(default_factory=list)
+    # Audit C11: gap borrowing's limit (user currency; `gap_limit_assumed`
+    # when it's the 3-months-of-pay default), the first month a shortfall
+    # couldn't be borrowed (the plan isn't fundable as it stands from then),
+    # and what couldn't be borrowed in total. Lead with the monthly gap
+    # (`shortfall`), not compounded totals.
+    gap_limit: Optional[Decimal] = None
+    gap_limit_assumed: bool = False
+    infeasible_from_month: Optional[int] = None
+    unfunded_shortfall: Decimal = D("0")
 
 
 class BaselineRequest(_In):

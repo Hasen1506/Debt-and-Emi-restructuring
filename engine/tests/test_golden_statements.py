@@ -82,7 +82,12 @@ def engine_balances(fx: dict) -> list[D]:
         loan = Loan(loan_type=kind, bank="SBI", outstanding=D(fx["principal"]),
                     nominal_rate=D(fx["start_rate"]), rate_type=fx["rate_type"],
                     tenure_months_remaining=int(fx["tenure_months"]), scheduled_emi=D(fx["emi"]),
-                    currency="INR")
+                    currency="INR",
+                    # The simulated SBI statement re-amortises a rise to the
+                    # original maturity: the borrower chose a higher EMI (RBI
+                    # reset circular para 2(iii)). The engine's Indian default
+                    # since Audit 80+ C1 is tenure-first, so say so here.
+                    on_rate_rise="raise_emi" if fx["rate_type"] == "floating" else None)
         if mor:
             loan.first_payment_month = mor + 1
         for month, rate in (fx.get("rate_changes") or {}).items():
