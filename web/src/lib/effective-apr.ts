@@ -76,6 +76,10 @@ export function computeBreakdown(
    *  `usMortgageShieldShare(user)`. true = all of it: screens without a
    *  user (the onboarding preview) show the itemiser's figure, as labelled. */
   itemises: boolean | Decimal = true,
+  /** C7 (audit 80): the user's other loans, so a let-out home's loss gets
+   *  only the part of the one ₹2L set-off (s.109(1)(b)) that self-occupied
+   *  homes leave, plus 70% of its rent. Without it the loan is alone. */
+  allLoans?: LoanPayload[],
 ): Breakdown {
   const usShare = itemises === true ? D(1) : itemises === false ? D(0) : Decimal.min(1, Decimal.max(0, itemises));
   const nominal = D(loan.nominal_rate || '0');
@@ -116,9 +120,22 @@ export function computeBreakdown(
     let cap: Decimal;
     if (loan.loan_type === 'home_loan' && country === 'IN') {
       cap = homeLoan24bCap(taxRegime ?? 'new', loan.property_use ?? 'self_occupied');
+      if (loan.property_use === 'let_out') {
+        // Engine let_out_room: rent after municipal tax and 30%, plus what
+        // is left of the ₹2L set-off after self-occupied homes (old regime).
+        const share = Decimal.min(1, Decimal.max(0, D(loan.tax_share ?? '1')));
+        const rentPart = D(loan.annual_rent || '0').mul(share).mul('0.7');
+        const soPool = (allLoans ?? [])
+          .filter((l) => l !== loan && l.loan_type === 'home_loan' && (l.property_use ?? 'self_occupied') !== 'let_out' && D(l.outstanding || '0').gt(0))
+          .reduce((a, l) => a.add(D(l.outstanding || '0').mul(D(l.nominal_rate || '0')).mul(D(l.tax_share ?? '1'))), D(0));
+        const setOff = (taxRegime ?? 'new') === 'old' ? Decimal.max(0, D('200000').sub(Decimal.min(soPool, D('200000')))) : D(0);
+        cap = rentPart.add(setOff);
+      }
       if (cap.isZero()) {
         shieldPct = D('0');
-        shieldNote = 'New regime: section 24b cap is ₹0';
+        shieldNote = loan.property_use === 'let_out'
+          ? 'No rent entered and no house-property set-off left: the interest lowers no tax'
+          : 'New regime: section 24b cap is ₹0';
       } else if (cap.eq(D('Infinity'))) {
         shieldPct = marginal;
       } else {

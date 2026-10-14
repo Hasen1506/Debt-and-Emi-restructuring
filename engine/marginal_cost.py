@@ -54,6 +54,10 @@ class MarginalCost:
     fee: Decimal           # prepayment fee, annualised over months left (subtracted)
     lock_in_months: int    # months before an extra payment is allowed (0 = open)
     total: Decimal
+    # India, old regime (C10): tax a unit of home-loan principal prepaid
+    # saves this tax year under s.123 [80C] while its ₹1.5L room is unused
+    # (added to `total`; a one-off saving, counted as a year's rate).
+    principal_80c: Decimal = D("0")
 
     @property
     def locked(self) -> bool:
@@ -108,7 +112,9 @@ def marginal_cost(
     # 1 October 2022). So a 42% card costs (1 + 0.42/12)^12 - 1 = 51.11% of
     # interest + 18% of that = 9.20% GST = 60.31% a year, not the 62.52%
     # that compounding the GST gave. Source:
-    # https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12300 (read 2026-10-12)
+    # https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12300 (read 2026-10-12); C22: since
+    # 28 Nov 2025 the same text is in the consolidated Commercial Banks card
+    # Directions 2025, id=13155 (NBFC: id=12956, checked 14 Oct 2026).
     gst = interest * GST_ON_CARD_INTEREST_IN if card_gst else D("0")
     tax_benefit = interest * shield_fraction
     k = months_left if months_left > 0 else OPEN_ENDED_MONTHS
@@ -131,6 +137,7 @@ def marginal_shield(
     let_out: bool = False,
     cap: Decimal | None = None,
     deduction_open: bool = True,
+    us_auto_qualified: bool = False,
 ) -> Decimal:
     """Tax saved on the NEXT unit of this loan's interest, as a share of it.
 
@@ -169,10 +176,17 @@ def marginal_shield(
             return marginal_rate * sh if regime == "old" and deduction_open else D("0")
         return D("0")
     if lt == "home_loan":
-        ok = itemises and itemised_share > 0 and debt_total < US_MORTGAGE_DEBT_LIMIT
+        limit = US_MORTGAGE_DEBT_LIMIT if cap is None else cap     # C17: MFS / pre-2018 limit via `cap`
+        ok = itemises and itemised_share > 0 and debt_total < limit
         return marginal_rate if ok else D("0")
     if lt == "education_loan":
         return marginal_rate * phaseout_factor if interest_total < US_STUDENT_INTEREST_CAP else D("0")
+    if lt == "auto_loan":
+        # IRC §163(h)(4), C16: only a loan the user marked qualified
+        # (`us_auto_qualified`), while the year's qualified interest is under
+        # $10,000; `phaseout_factor` is the MAGI phase-out share.
+        from engine.tax.usa import AUTO_INTEREST_CAP
+        return marginal_rate * phaseout_factor if us_auto_qualified and interest_total < AUTO_INTEREST_CAP else D("0")
     return D("0")
 
 
@@ -219,14 +233,52 @@ def _shield_context(loans: list[Loan], user):
     home_debt = sum((l.outstanding for l in homes), D("0"))
     edu_interest = sum((l.outstanding * l.nominal_rate for l in edu), D("0"))
     phaseout = D("1")
-    magi = user.annual_gross_salary or user.annual_business_income or None
-    if own == Country.US and edu and magi is not None and edu_interest > 0:
+    # C20: gross on file, else solved from take-home (engine/tax/income.py);
+    # None used to skip the §221 phase-out for every high earner.
+    from engine.tax.income import user_gross
+    magi = user_gross(user)[0] if own == Country.US else None
+    if own == Country.US and edu and (user.filing_status == FilingStatusUS.MFS):
+        phaseout = D("0")      # §221(e)(2): none on a separate return (C17)
+    elif own == Country.US and edu and magi is not None and edu_interest > 0:
         from engine.tax.usa import student_loan_interest_deduction
         allowed = student_loan_interest_deduction(min(edu_interest, US_STUDENT_INTEREST_CAP), magi,
                                                   user.filing_status or FilingStatusUS.SINGLE)
         phaseout = allowed / min(edu_interest, US_STUDENT_INTEREST_CAP)
     regime = (user.tax_regime.value if user.tax_regime is not None else "new")
     return home_interest, home_debt, edu_interest, phaseout, regime
+
+
+def _us_auto_context(loans: list[Loan], user) -> tuple[Decimal, Decimal]:
+    """(qualified car-loan interest this year, MAGI phase-out share) for
+    IRC §163(h)(4) (C16)."""
+    from engine.tax.income import user_gross
+    from engine.tax.usa import auto_loan_interest_deduction, AUTO_INTEREST_CAP
+    if user.country != Country.US:
+        return D("0"), D("0")
+    total = sum((l.outstanding * l.nominal_rate for l in loans
+                 if l.loan_type == LoanType.AUTO and l.outstanding > 0 and l.us_auto_interest_qualified
+                 and (l.currency or "USD").upper() == "USD"), D("0"))
+    if total <= 0:
+        return D("0"), D("0")
+    base = min(total, AUTO_INTEREST_CAP)
+    return total, auto_loan_interest_deduction(base, user_gross(user)[0], user.filing_status) / base
+
+
+def _sec80c_room_left(loans: list[Loan], user, regime: str, prepaid_this_year: Decimal) -> Decimal:
+    """C10: unused s.123 [80C] room this tax year for home-loan principal
+    prepaid, old regime only, and only when the user told us their other
+    80C items (`user.sec80c_other`; None = unknown, nothing assumed). The
+    scheduled principal of the year (12 × EMI − interest, the user's share)
+    comes off first, then what the plan already prepaid this tax year."""
+    if user.country != Country.IN or regime != "old" or user.sec80c_other is None:
+        return D("0")
+    from engine.tax import india
+    sched = D("0")
+    for l in loans:
+        if l.loan_type == LoanType.HOME and l.outstanding > 0 and l.principal_80c_eligible \
+                and (l.currency or "INR").upper() == "INR" and l.pre_emi_months_remaining <= 0:
+            sched += max(D("0"), l.scheduled_emi * 12 - l.outstanding * l.nominal_rate) * l.tax_share
+    return max(D("0"), india.sec80c_room(user.sec80c_other, sched) - max(D("0"), prepaid_this_year))
 
 
 def _india_shield_args(l: Loan, own: Country, regime: str, interest_total: Decimal, month: int) -> tuple:
@@ -268,28 +320,68 @@ def _home_rate(l: Loan, user, marginal_rate: Decimal) -> Decimal:
 
 
 def user_marginal_costs(loans: list[Loan], user, marginal_rate: Decimal, month: int = 1,
-                        start_month: dict[int, int] | None = None) -> dict[int, MarginalCost]:
+                        start_month: dict[int, int] | None = None,
+                        home_prepaid_this_tax_year: Decimal = D("0")) -> dict[int, MarginalCost]:
     """{id(loan): MarginalCost} for the open loans in `loans`, as of sim-month
-    `month` (1 = today). Shared by the simulation, Spare cash and the API."""
+    `month` (1 = today). Shared by the simulation, Spare cash and the API.
+    `home_prepaid_this_tax_year`: home-loan principal the plan already
+    prepaid since April (uses up the 80C room, C10)."""
+    from engine.models import FilingStatusUS
+    from engine.tax.usa import mortgage_debt_limit
     own = user.country
     home_interest, home_debt, edu_interest, phaseout, regime = _shield_context(loans, user)
+    auto_interest, auto_phaseout = _us_auto_context(loans, user)
+    room_80c = _sec80c_room_left(loans, user, regime, home_prepaid_this_tax_year)
     out: dict[int, MarginalCost] = {}
     for l in loans:
         if l.outstanding <= 0:
             continue
         is_home = l.loan_type == LoanType.HOME
-        shield = marginal_shield(
-            l.loan_type, own.value, _home_rate(l, user, marginal_rate), regime, bool(user.itemises), user.itemised_share,
-            *_india_shield_args(l, own, regime, home_interest if is_home else edu_interest, month),
-            home_debt, phaseout, **_india_shield_kwargs(l, own, regime, home_interest, month),
-        )
+        if own == Country.US and l.loan_type == LoanType.AUTO:
+            shield = marginal_shield(l.loan_type, own.value, marginal_rate, regime, interest_total=auto_interest,
+                                     phaseout_factor=auto_phaseout, us_auto_qualified=l.us_auto_interest_qualified)
+        else:
+            us_kw = ({"cap": mortgage_debt_limit(user.filing_status, l.mortgage_before_2017_12_16)}
+                     if own == Country.US and is_home else {})
+            shield = marginal_shield(
+                l.loan_type, own.value, _home_rate(l, user, marginal_rate), regime, bool(user.itemises), user.itemised_share,
+                *_india_shield_args(l, own, regime, home_interest if is_home else edu_interest, month),
+                home_debt, phaseout, **_india_shield_kwargs(l, own, regime, home_interest, month), **us_kw,
+            )
         start = (start_month or {}).get(id(l), 1)
         elapsed = max(0, month - start)
         months_left = l.tenure_months_remaining - max(0, month - l.first_payment_month) if l.tenure_months_remaining > 0 else 0
-        out[id(l)] = loan_marginal_cost(
+        mc = loan_marginal_cost(
             l, shield, own, months_left=months_left,
             lock_in_months=max(0, l.prepay_lock_in_months - elapsed),
         )
+        if room_80c > 0 and is_home and l.principal_80c_eligible and (l.currency or "INR").upper() == "INR" \
+                and l.pre_emi_months_remaining <= 0:
+            credit = marginal_rate * max(D("0"), min(D("1"), l.tax_share))
+            mc = MarginalCost(mc.interest, mc.gst, mc.tax_benefit, mc.fee, mc.lock_in_months,
+                              mc.total + credit, credit)
+        out[id(l)] = mc
+    return out
+
+
+def user_forward_rates(loans: list[Loan], user, marginal_rate: Decimal) -> dict[int, Decimal]:
+    """{id(loan): what the NEXT year of this debt costs, as a nominal rate}
+    (C8): nominal × (1 − marginal tax shield) + GST on card interest. No
+    sunk processing fee or insurance, and the shield at the margin (a
+    deduction cap that already binds gives nothing). Same scale as a
+    lender's quoted rate, so refinance / balance-transfer offers and the
+    windfall rationale compare like with like. `formulas.effective_rate`
+    stays for "what this loan costs in total" (True APR)."""
+    mcs = user_marginal_costs(loans, user, marginal_rate)
+    out: dict[int, Decimal] = {}
+    from engine.formulas import loan_market
+    for l in loans:
+        nominal = l.nominal_rate
+        mc = mcs.get(id(l))
+        shield = (mc.tax_benefit / mc.interest) if mc is not None and mc.interest > 0 else D("0")
+        gst = nominal * GST_ON_CARD_INTEREST_IN if (
+            l.loan_type == LoanType.CREDIT_CARD and loan_market(l, user.country) == Country.IN) else D("0")
+        out[id(l)] = nominal * (D("1") - shield) + gst
     return out
 
 
@@ -320,6 +412,8 @@ def why_first(mc: MarginalCost) -> str:
         parts.append(f"− {pct(mc.tax_benefit)} tax break you'd give up")
     if mc.fee > 0:
         parts.append(f"− {pct(mc.fee)} prepayment fee")
+    if mc.principal_80c > 0:
+        parts.append(f"+ {pct(mc.principal_80c)} 80C tax saving on the principal (old regime, while 80C has room this year)")
     s = f"The next payment here saves {pct(mc.total)} a year: " + " ".join(parts)
     if mc.locked:
         s += f"; locked against prepayment for {mc.lock_in_months} more month{'' if mc.lock_in_months == 1 else 's'}"

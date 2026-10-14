@@ -254,10 +254,7 @@ def test_business_owner_with_buffer_never_borrows_on_a_card():
     assert sum(m.gap_borrowed for m in r.months) == 0
 
 
-@pytest.mark.xfail(strict=True,
-                   reason="W2 owns advance tax for business income: a presumptive-scheme business "
-                          "(Income-tax Act 2025 s.58, s.408(2)) pays 100% by 15 March, but "
-                          "web/src/lib/advance-tax.ts only knows the 4-instalment schedule")
+# Presumptive scheme (s.58, s.408(2)): one instalment by 15 March. Fixed by W2 (advance-tax.ts).
 def test_business_owner_presumptive_scheme_single_instalment():
     src = (REPO / "web/src/lib/advance-tax.ts").read_text(encoding="utf-8").lower()
     assert "presumptive" in src and ("408(2)" in src or "44ad" in src)

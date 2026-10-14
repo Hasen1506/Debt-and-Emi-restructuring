@@ -17,8 +17,7 @@ from engine.decisions import (
     DecisionInputError, allocate_windfall, evaluate_new_debt, quick_recompute,
     cash_yield_check, money, prepay_block,
 )
-from engine.formulas import effective_rate
-from engine.marginal_cost import user_marginal_costs
+from engine.marginal_cost import user_forward_rates, user_marginal_costs
 from engine.models import Country, FilingStatusUS, TaxRegimeIN
 from engine.tax.india import marginal_rate as india_marginal_rate
 from engine.simulation import simulate_plan
@@ -45,10 +44,9 @@ def _bad(e: DecisionInputError) -> HTTPException:
 def windfall(req: WindfallRequest) -> WindfallResponse:
     user = req.user.to_engine()
     marg = req.marginal_rate if req.marginal_rate is not None else D("0")
-    rates = {
-        id(l): effective_rate(l, marg, user.country, user.tax_regime, user.itemises, user.itemised_share)
-        for l in user.loans
-    }
+    # C8: forward decision, so the forward rate (marginal shield, no sunk
+    # processing fee / insurance), not formulas.effective_rate (total cost).
+    rates = user_forward_rates(user.loans, user, marg)
     # Cash recommendations and fees are in residence currency. Normalize the
     # ranking balances/payment maths before comparing a cash amount with a
     # foreign loan; return the original loan's index for Activity.

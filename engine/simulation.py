@@ -143,11 +143,17 @@ def tax_caps_context(loans: list[Loan], user: User) -> dict:
         return Country.IN if c == "INR" else Country.US if c == "USD" else own_market
     homes = [l for l in loans if l.loan_type == LoanType.HOME and l.outstanding > 0 and market(l) == own_market]
     edu = [l for l in loans if l.loan_type == LoanType.EDUCATION and l.outstanding > 0 and market(l) == own_market]
-    magi = user.annual_gross_salary or user.annual_business_income or None
+    # MAGI for the US phase-outs: gross on file, else solved from take-home
+    # (C20; it used to be None, which skipped the §221 phase-out).
+    from engine.tax.income import user_gross
+    magi = user_gross(user)[0] if user.country == Country.US else (user.annual_gross_salary or user.annual_business_income or None)
+    autos = [l for l in loans if l.loan_type == LoanType.AUTO and l.outstanding > 0 and market(l) == own_market
+             and l.us_auto_interest_qualified]
     return {
         "home_interest_total": _home_interest_pool(homes, own_market),
         "mortgage_debt_total": sum((l.outstanding for l in homes), D("0")),
         "us_student_interest_total": sum((l.outstanding * l.nominal_rate for l in edu), D("0")),
+        "us_auto_interest_total": sum((l.outstanding * l.nominal_rate for l in autos), D("0")),
         "magi": magi,
         "filing_status": user.filing_status,
     }
@@ -684,6 +690,8 @@ def _simulate_plan(
     # Set-aside for a lender's minimum part-payment (grill #30): extra below
     # the minimum waits here, in user currency, until it is big enough.
     prepay_pot = D("0")
+    # C10: home-loan principal prepaid since April (uses up the 80C room).
+    home_prepaid_fy = D("0")
     # Education-loan moratorium interest accrued so far (simple, not compounded).
     moratorium_accrued: dict[int, Decimal] = {}
     pmi_end_months: dict[int, int] = {}
@@ -799,6 +807,8 @@ def _simulate_plan(
     total_gap_interest = D("0")
 
     for m in range(1, horizon_months + 1):
+        if m > 1 and (simulation_start_month - 1 + m - 1) % 12 + 1 == 4:
+            home_prepaid_fy = D("0")     # a new Indian tax year: fresh 80C room
         # Lifecycle events fire at the very start of month m, before any
         # other month-mutating logic. A salary_reset at m=12 replaces
         # `income` immediately; subsequent annual-hike compounding picks
@@ -1131,7 +1141,7 @@ def _simulate_plan(
         # sat at its minimum, because a small 7% car loan came first.
         # Payoff order: the marginal cost of the next unit prepaid (roadmap
         # PR J), not the all-in effective rate (which counts sunk fees).
-        costs = user_marginal_costs(active, user, marg, m, loan_start_month)
+        costs = user_marginal_costs(active, user, marg, m, loan_start_month, home_prepaid_fy)
         order_keys = {k: mc.order_key for k, mc in costs.items()}
         ranked = rank_loans(active, order_keys, strategy, country=user.country,
                             balance_of=lambda l: to_user_currency(l.outstanding, l, user),
@@ -1263,6 +1273,8 @@ def _simulate_plan(
                     penalised = (target, effective_prepay, penalty_in_loan_ccy / extra_in_loan_ccy)
                 last_part_payment_month[id(target)] = m
                 extra_target_index = loan_position[id(target)]
+                if target.loan_type == LoanType.HOME:
+                    home_prepaid_fy += to_user_currency(effective_prepay, target, user)
 
         # Amortise each loan; track cascade
         interest_paid = D("0")
@@ -1405,7 +1417,7 @@ def _simulate_plan(
                 # cleared this month — those drop out automatically).
                 reinvest_ranked = rank_loans(
                     remaining_active,
-                    {k: mc.order_key for k, mc in user_marginal_costs(remaining_active, user, marg, m, loan_start_month).items()},
+                    {k: mc.order_key for k, mc in user_marginal_costs(remaining_active, user, marg, m, loan_start_month, home_prepaid_fy).items()},
                     strategy,
                     country=user.country,
                     balance_of=lambda l: to_user_currency(l.outstanding, l, user),

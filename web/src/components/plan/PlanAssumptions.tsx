@@ -12,7 +12,7 @@
  */
 import { localTerms } from '@/lib/terms';
 import { useEffect, useState } from 'react';
-import { formatTaxRate } from '@/lib/tax-profile';
+import { taxRateLabel } from '@/lib/tax-profile';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole } from '@/lib/api';
 import { MONTH_NAMES, FY_ANCHOR_MONTH, monthIndexToCountryLabel } from '@/lib/today';
@@ -187,7 +187,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
     u.country === 'IN'
       ? `${u.tax_regime === 'old' ? 'OLD' : 'NEW'} TAX REGIME`
       : `FILING ${FILING[u.filing_status ?? 'single'] ?? 'SINGLE'}`,
-    `TAX BRACKET ${formatTaxRate(String(plan.marginalRate || 0))}${gross > 0 ? '' : ' (ESTIMATED)'}`,
+    `TAX: ${taxRateLabel(String(plan.marginalRate || 0), u.country, { estimated: !(gross > 0), regime: u.country === 'IN' ? (u.tax_regime ?? 'new') : null, stateRate: u.state_marginal_rate }).toUpperCase()}`,
   ];
   const current = chips.find((c) => c.key === open);
 

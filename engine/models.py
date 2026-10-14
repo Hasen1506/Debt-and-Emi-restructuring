@@ -20,6 +20,9 @@ class FilingStatusUS(str, Enum):
     SINGLE = "single"
     MFJ = "mfj"
     HOH = "hoh"
+    # Married filing separately (C17): half the MFJ mortgage-debt limit,
+    # no §221 student-loan deduction (IRC §221(e)(2); IRS Topic 456).
+    MFS = "mfs"
 
 
 class IncomeType(str, Enum):
@@ -174,6 +177,9 @@ class Loan:
     # Home loan, self-occupied: False when the house wasn't finished within
     # 5 years of borrowing, which cuts the cap to ₹30,000 (s.22(2)(b)).
     sec24_full_cap: bool = True
+    # Home loan: the lender is one Schedule XV para 3(a)(iii) lists (banks,
+    # HFCs, employer…), so principal repaid counts under s.123 [80C] (C10).
+    principal_80c_eligible: bool = True
     # ── US-only fields (engine/us_loans.py; grill #33, #34) ──────────────────
     # Student loans: "federal" | "private" | None (not marked; treated as
     # federal, so never refinanced privately). `forgiveness_track` "pslf" |
@@ -209,6 +215,15 @@ class Loan:
     # monthly and the principal in its last month. Every loan with a tenure
     # pays what is left in its last contractual month (C3, C6).
     repayment: Optional[str] = None
+    # US mortgage taken on or before 15 Dec 2017: keeps the $1M ($500k MFS)
+    # acquisition-debt limit of IRC §163(h)(3)(B)(ii) instead of $750k (C17).
+    mortgage_before_2017_12_16: bool = False
+    # US car loan whose interest is "qualified passenger vehicle loan
+    # interest", IRC §163(h)(4) (OBBBA, P.L. 119-21 §70203; C16): taken after
+    # 31 Dec 2024 for a NEW personal-use vehicle with final assembly in the
+    # US, secured by a first lien. Only the user can tell (VIN plant); False
+    # = not claimed. Tax years 2025-2028 only.
+    us_auto_interest_qualified: bool = False
 
 
 class LifecycleEventKind(str, Enum):
@@ -402,6 +417,10 @@ class User:
     # uniformly (legacy behaviour preserved).
     hike_schedule: list[tuple[int, int, Decimal]] = field(default_factory=list)
     business_cagr: Decimal = Decimal("0")
+    # India, old regime: s.123 [80C] items other than home-loan principal
+    # this tax year (EPF, PPF, ELSS, life cover, tuition). None = not asked,
+    # so no 80C room is assumed for a home-loan prepayment (C10).
+    sec80c_other: Optional[Decimal] = None
     inflation_rate: Decimal = Decimal("0.046")    # RBI MPC Apr 2026: CPI 4.6% FY26-27
     # NRI on a US work visa. Tax-resident in the US (W-2 / 1099 income, USD)
     # while still servicing Indian-origin debts (home loan, family obligations).

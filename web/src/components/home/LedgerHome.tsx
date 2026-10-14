@@ -15,7 +15,7 @@
 import { FirstVisitIntro } from '@/components/FirstVisitIntro';
 import { localTerms } from '@/lib/terms';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { formatTaxRate } from '@/lib/tax-profile';
+import { taxRateLabel } from '@/lib/tax-profile';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
@@ -170,7 +170,8 @@ function ContextLine({ profile }: { profile: StoredProfile }) {
       ? `${u.tax_regime === 'old' ? 'OLD' : 'NEW'} TAX REGIME`
       : `FILING ${FILING[u.filing_status ?? 'single'] ?? 'SINGLE'}`,
     // Worked out from take-home until gross pay is entered in Profile.
-    `TAX BRACKET ${formatTaxRate(String(profile.marginalRate || 0))}${gross > 0 ? '' : ' (ESTIMATED)'}`,
+    // B14 / E9: "30% slab + 4% cess", or "no income tax on your pay", not "26.0%" / "0.0%".
+    `TAX: ${taxRateLabel(String(profile.marginalRate || 0), u.country, { estimated: !(gross > 0), regime: u.country === 'IN' ? (u.tax_regime ?? 'new') : null, stateRate: u.state_marginal_rate }).toUpperCase()}`,
     // The payoff order isn't repeated here: the masthead shows it and switches it.
   ];
   return (

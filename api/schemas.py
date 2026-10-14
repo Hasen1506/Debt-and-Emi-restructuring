@@ -249,6 +249,10 @@ class LoanIn(_In):
     pre_construction_interest_annual: Amount = D("0")
     annual_rent: Optional[Amount] = None
     sec24_full_cap: bool = True
+    # C10 / C16 / C17 (audit 80): engine/models.py:Loan.
+    principal_80c_eligible: bool = True
+    mortgage_before_2017_12_16: bool = False
+    us_auto_interest_qualified: bool = False
     # US-only (engine/us_loans.py, grill #33/#34). Student loans: "federal" |
     # "private" (blank = treated as federal); forgiveness track "pslf" |
     # "idr" holds extra payments off the loan. Mortgages: monthly PMI / FHA
@@ -443,6 +447,9 @@ class LoanIn(_In):
             pre_construction_interest_annual=self.pre_construction_interest_annual,
             annual_rent=self.annual_rent,
             sec24_full_cap=self.sec24_full_cap,
+            principal_80c_eligible=self.principal_80c_eligible,
+            mortgage_before_2017_12_16=self.mortgage_before_2017_12_16,
+            us_auto_interest_qualified=self.us_auto_interest_qualified,
             student_loan_kind=self.student_loan_kind,
             forgiveness_track=self.forgiveness_track,
             pmi_monthly=self.pmi_monthly,
@@ -670,6 +677,9 @@ class UserIn(_In):
     gap_credit_limit: Optional[Amount] = None
     other_banks: list[str] = Field(default_factory=list)
     tax_regime: Optional[TaxRegimeIN] = None
+    # Old regime: this tax year's s.123 [80C] items other than home-loan
+    # principal (EPF, PPF, ELSS, …). None = not asked (C10).
+    sec80c_other: Optional[Amount] = None
     pf: Optional[PFBalanceIn] = None
     filing_status: Optional[FilingStatusUS] = None
     state: Optional[str] = None
@@ -793,6 +803,7 @@ class UserIn(_In):
             primary_bank=self.primary_bank, location_tier=self.location_tier,
             other_banks=list(self.other_banks),
             tax_regime=self.tax_regime,
+            sec80c_other=self.sec80c_other,
             pf=self.pf.to_engine() if self.pf else None,
             filing_status=self.filing_status, state=self.state,
             state_marginal_rate=self.state_marginal_rate,

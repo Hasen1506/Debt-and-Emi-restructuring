@@ -39,14 +39,25 @@ interface BankFormula {
   compute(outstanding: Decimal, interest: Decimal): Decimal;
 }
 
+/** HDFC / ICICI rule; `i` is interest with 18% GST in (engine
+ *  pct_of_balance_and_interest). */
+function pctOfBalanceAndInterest(o: Decimal, i: Decimal, floor: string): Decimal {
+  const fc = i.div(new Decimal(1).add(GST_RATE_IN));
+  const gst = i.sub(fc);
+  const core = Decimal.max(fc.add(o).mul('0.05'), fc.add(o.mul('0.05')));
+  return Decimal.max(gst.add(core), new Decimal(floor));
+}
+
 const INDIA: Record<string, BankFormula> = {
+  // C14 (audit 80): SBI Card, Axis, HDFC and ICICI from their MITCs, read
+  // 14 Oct 2026 (engine/minimum_payments.py FORMULA_SOURCE has the URLs).
   'SBI Card': {
-    description: '5% of the balance or ₹200, whichever is higher, plus interest + fees',
-    compute: (o, i) => Decimal.max(o.mul('0.05'), new Decimal('200')).add(i),
+    description: 'interest + GST + fees + EMIs in full, plus 2% of the balance; at least ₹200 (SBI Card MITC)',
+    compute: (o, i) => Decimal.max(i.add(o.mul('0.02')), new Decimal('200')),
   },
   'Axis Bank': {
-    description: '5% of the balance or ₹200, whichever is higher',
-    compute: (o) => Decimal.max(o.mul('0.05'), new Decimal('200')),
+    description: 'interest + taxes + fees + instalments in full, plus 2% of the balance; at least ₹100 (Axis MITC)',
+    compute: (o, i) => Decimal.max(i.add(o.mul('0.02')), new Decimal('100')),
   },
   'Yes Bank': {
     description: '5% of the balance or ₹200, whichever is higher',
@@ -66,8 +77,8 @@ const INDIA: Record<string, BankFormula> = {
   },
   'HDFC Bank': {
     description:
-      "5% of the balance (or ₹200) plus the month's EMIs, over-limit and past-due amounts",
-    compute: (o) => Decimal.max(o.mul('0.05'), new Decimal('200')),
+      'GST, EMIs and fees in full, plus the larger of 5% of (interest + balance) and interest + 5% of the balance; at least ₹200 (HDFC, from June 2025)',
+    compute: (o, i) => pctOfBalanceAndInterest(o, i, '200'),
   },
   'Kotak Mahindra': {
     description: '5% of the balance (or ₹200) plus interest and fees',
@@ -75,8 +86,8 @@ const INDIA: Record<string, BankFormula> = {
   },
   'ICICI Bank': {
     description:
-      'interest and fees plus 1% of the balance, or 5% of the balance, whichever is higher, and at least ₹100',
-    compute: (o, i) => Decimal.max(i.add(o.mul('0.01')), o.mul('0.05'), new Decimal('100')),
+      'GST, EMIs and fees in full, plus the larger of 5% of (interest + balance) and interest + 5% of the balance (ICICI, from 1 Mar 2026)',
+    compute: (o, i) => pctOfBalanceAndInterest(o, i, '100'),
   },
 };
 

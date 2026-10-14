@@ -62,6 +62,10 @@ from decimal import Decimal
 
 RBI_RULE = "RBI (Pre-payment Charges on Loans) Directions, 2025, para 5(i), 2 July 2025"
 RBI_AS_OF = "2026-10-12"   # text read from the RBI page on this date
+# C22 (14 Oct 2026): the Pre-payment Charges on Loans Directions, 2025 (2 Jul 2025, in force for loans
+# from 1 Jan 2026) were not found inside the 28 Nov 2025 consolidated Directions read (Commercial
+# Banks – Interest Rates on Advances id=13149; NBFC – Credit Facilities id=12957), so the standalone
+# notification stays the citation. Re-check when RBI next updates its Master Directions.
 RBI_URL = "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12878&Mode=0"
 
 ASSUMED_REASON = (

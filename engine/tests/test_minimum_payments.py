@@ -19,32 +19,38 @@ def _card(bank: str, outstanding: Decimal) -> Loan:
 
 
 def test_sbi_card_5pct_plus_interest_fees():
-    """SBI: max(5% TAD, ₹200) + interest + fees. On ₹50k with ₹1k interest: 2500+1000=₹3500."""
+    """SBI Card MITC (C14, read 14 Oct 2026): 100% of GST, EMI, fees and
+    finance charges + 2% of the remaining balance, ₹200 at least. On ₹50k
+    with ₹1k interest (GST in): 1,000 + 1,000 = ₹2,000."""
     card = _card("SBI Card", D("50000"))
     mp = compute_minimum_payment(card, Country.IN, interest_accrued=D("1000"), fees=D("0"))
-    assert mp == D("3500")
+    assert mp == D("2000")
 
 
 def test_axis_5pct_floor_200():
-    """Axis: max(5% outstanding, ₹200). ₹50k → ₹2500. ₹1000 → ₹200 (floor)."""
-    assert compute_minimum_payment(_card("Axis Bank", D("50000")), Country.IN) == D("2500")
-    assert compute_minimum_payment(_card("Axis Bank", D("1000")), Country.IN) == D("200")
+    """Axis MITC (C14): interest, fees, taxes, instalments + 2% of the
+    balance, ₹100 at least. ₹50k → ₹1,000. ₹1,000 → ₹100 (floor)."""
+    assert compute_minimum_payment(_card("Axis Bank", D("50000")), Country.IN) == D("1000")
+    assert compute_minimum_payment(_card("Axis Bank", D("1000")), Country.IN) == D("100")
 
 
 def test_icici_three_way_picks_max():
     """ICICI: max(interest+fees+1%principal, 5% outstanding, ₹100).
     On ₹50k with ₹1500 interest and 1% principal = ₹500 → option_a = ₹2000, option_b = ₹2500 → ₹2500."""
+    # C14: ICICI MITC from 1 Mar 2026 (HDFC's rule). ₹1,500 interest incl.
+    # GST = 1,271.19 finance charge + 228.81 GST; 5% of (FC + 50k) = 2,563.56
+    # < FC + 5% of 50k = 3,771.19; + GST = ₹4,000.00.
     card = _card("ICICI Bank", D("50000"))
     mp = compute_minimum_payment(card, Country.IN, interest_accrued=D("1500"))
-    assert mp == D("2500")
+    assert mp.quantize(D("0.01")) == D("4000.00")
 
 
 def test_icici_three_way_picks_interest_arm():
     """ICICI: if interest is very high, interest+1%principal arm wins."""
     card = _card("ICICI Bank", D("50000"))
     mp = compute_minimum_payment(card, Country.IN, interest_accrued=D("5000"))
-    # option_a = 5000 + 0 + 500 = 5500; option_b = 2500 → 5500 wins
-    assert mp == D("5500")
+    # FC 4,237.29 + 2,500 + GST 762.71 = 7,500
+    assert mp.quantize(D("0.01")) == D("7500.00")
 
 
 def test_hdfc_compound_includes_emi_overlimit_pastdue():
@@ -94,7 +100,7 @@ def test_synchrony_greatest_of_three():
 def test_floor_never_exceeds_what_is_owed():
     """A $35 floor on a $20 balance is a bill for the $20 and its interest."""
     assert compute_minimum_payment(_card("Chase", D("20")), Country.US, interest_accrued=D("0.40")) == D("20.40")
-    assert compute_minimum_payment(_card("Axis Bank", D("150")), Country.IN) == D("150")
+    assert compute_minimum_payment(_card("Axis Bank", D("80")), Country.IN) == D("80")
 
 
 def test_simple_mode_uses_country_default():

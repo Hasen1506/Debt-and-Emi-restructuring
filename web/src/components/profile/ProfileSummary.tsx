@@ -103,7 +103,7 @@ export function ProfileSummary({
               ? ['Tax regime', user.tax_regime === 'old' ? 'Old regime' : 'New regime']
               : [
                   'Filing as',
-                  `${{ single: 'Single', mfj: 'Married, filing jointly', hoh: 'Head of household' }[user.filing_status ?? 'single']}${
+                  `${{ single: 'Single', mfj: 'Married, filing jointly', hoh: 'Head of household', mfs: 'Married, filing separately' }[user.filing_status ?? 'single']}${
                     Number(user.state_marginal_rate) > 0
                       ? ` · state tax ${(Number(user.state_marginal_rate) * 100).toFixed(1)}%`
                       : ''
