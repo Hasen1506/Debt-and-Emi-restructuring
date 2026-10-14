@@ -26,6 +26,8 @@ export const LEAVE_GRACE_MS = 5000;
 function install(): void {
   if (installed || typeof window === 'undefined') return;
   installed = true;
+  // A leave that began before this module loaded (EARLY_LEAVE_SCRIPT).
+  leavingSince = earlyLeave() || leavingSince;
   const abortNow = () => {
     const c = controller;
     controller = new AbortController();
@@ -56,6 +58,21 @@ function install(): void {
   window.addEventListener('pageshow', (e) => {
     if ((e as PageTransitionEvent).persisted) leavingSince = 0;
   });
+}
+
+/**
+ * R12-1: inline in the document head (app/layout.tsx), so it runs before
+ * any of the app's scripts. A person can leave a page that is still
+ * loading before this module has even been evaluated; the inline listener
+ * remembers when, and install() picks it up. Only a bfcache restore clears it.
+ */
+export const EARLY_LEAVE_SCRIPT =
+  "addEventListener('beforeunload',function(){window.__rdLeavingSince=Date.now()});" +
+  "addEventListener('pageshow',function(e){if(e.persisted)window.__rdLeavingSince=0})";
+
+function earlyLeave(): number {
+  const v = (window as unknown as { __rdLeavingSince?: unknown }).__rdLeavingSince;
+  return typeof v === 'number' && v > 0 ? v : 0;
 }
 
 // R12-1: listen from the moment this module loads, not from the first

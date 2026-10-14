@@ -83,6 +83,38 @@ test('R12-1 (main CI 38517942574): the first load\'s own pageshow, fired after t
   }
 });
 
+test('R12-1: a leave that began before the app\'s scripts loaded (inline head listener) holds the first requests too', async () => {
+  const vm = require('node:vm');
+  const win = new EventTarget();
+  global.window = win;
+  try {
+    // The inline head script, run in a window-like context before the module.
+    const { EARLY_LEAVE_SCRIPT } = fresh('page-abort.ts');
+    const early = new EventTarget();
+    // Fire the leave on a fresh window that only has the inline listener.
+    const ctx2 = { window: early, addEventListener: early.addEventListener.bind(early), Date };
+    vm.runInNewContext(EARLY_LEAVE_SCRIPT, ctx2);
+    early.dispatchEvent(new Event('beforeunload', { cancelable: true }));
+    assert.ok(early.__rdLeavingSince > 0, 'the inline listener noted the leave');
+    early.dispatchEvent(new Event('pageshow')); // first load finishing: not a restore
+    assert.ok(early.__rdLeavingSince > 0);
+    // Now the app's module loads on that window, mid-leave.
+    global.window = early;
+    const { pageScoped, isLeaving } = fresh('page-abort.ts');
+    assert.equal(isLeaving(), true);
+    let n = 0;
+    const p = pageScoped(async () => { n++; return 'rates'; }, undefined, 10);
+    await tick(150);
+    assert.equal(n, 0, 'held');
+    early.dispatchEvent(bfcacheShow());
+    assert.equal(await p, 'rates');
+    // It is in the document head, ahead of the app's scripts.
+    assert.match(src('app/layout.tsx'), /<head>[\s\S]*<script dangerouslySetInnerHTML=\{\{ __html: EARLY_LEAVE_SCRIPT \}\} \/>[\s\S]*<\/head>/);
+  } finally {
+    delete global.window;
+  }
+});
+
 test('R12-1: …or until LEAVE_GRACE_MS has passed (a leave that never happened: a download, Stop)', async () => {
   const win = new EventTarget();
   global.window = win;
