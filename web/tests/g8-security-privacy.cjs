@@ -198,7 +198,13 @@ test('HSTS on every page and every /api response; inline handler attributes bloc
  assert.equal(securityHeaders({}).find(h=>h.key==='Strict-Transport-Security').value,HSTS);
  const rules=headerRules({NODE_ENV:'production'});
  const api=rules.find(r=>r.source==='/api/:path*');
- assert.ok(api,'an /api rule'); assert.deepEqual(api.headers,[{key:'Strict-Transport-Security',value:HSTS}]);
+ assert.ok(api,'an /api rule');
+ // audit80 D23: Next's own /api routes never reach FastAPI, so the rule carries the full API policy.
+ const h=Object.fromEntries(api.headers.map(x=>[x.key,x.value]));
+ assert.equal(h['Strict-Transport-Security'],HSTS);
+ assert.equal(h['X-Content-Type-Options'],'nosniff');
+ assert.equal(h['Content-Security-Policy'],"default-src 'none'; frame-ancestors 'none'");
+ assert.equal(h['X-Frame-Options'],'DENY');
  const csp=contentSecurityPolicy({});
  assert.match(csp,/script-src-attr 'none'/);
  assert.doesNotMatch(csp,/upgrade-insecure-requests/,'would break http:// API origins in local and E2E runs');
