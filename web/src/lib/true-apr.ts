@@ -32,7 +32,8 @@ function monthlyIrr(x: Required<TrueAprInputs>): number {
   const r = x.nominal / 12;
   if (!x.months || x.months <= 0) return r * (1 + x.gst_on_interest) * (1 - x.shield) + x.insurance_rate / 12;
   const n = Math.trunc(x.months);
-  const disc = 1 - (1 + r) ** -n;
+  // 1 − (1+r)^−n without cancellation at tiny rates (same as engine/true_apr.py).
+  const disc = -Math.expm1(-n * Math.log1p(r));
   const emi = disc === 0 ? 1 / n : r / disc;
   const flows: number[] = [];
   let bal = 1;

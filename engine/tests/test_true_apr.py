@@ -5,6 +5,7 @@ import importlib.util
 from decimal import Decimal as D
 from pathlib import Path
 
+import pytest
 from hypothesis import given, strategies as st
 
 from engine.formulas import effective_rate
@@ -66,3 +67,13 @@ def test_components_add_up(nominal, months, fee, gst, shield):
     t = true_apr(TrueAprInputs(nominal, months, fee_rate=fee, gst_on_interest=gst, gst_on_fee=gst, shield=shield))
     assert abs(t.nominal + t.compounding + t.gst + t.fees + t.tax - t.apr) < 1e-9
     assert t.compounding >= -1e-9 and t.tax <= 1e-9
+
+
+@pytest.mark.parametrize("nominal", [1.192092896e-07, 1e-9, 1e-6, 1e-4])
+@pytest.mark.parametrize("months", [1, 2, 12, 240])
+def test_tiny_rates_never_give_negative_compounding(nominal, months):
+    """W5's Hypothesis finding: 1 − (1+r)^−n cancelled at r ≈ 1e-8 and gave
+    compounding −7e-8. Compounding is never negative at any positive rate."""
+    t = true_apr(TrueAprInputs(nominal, months))
+    assert t.compounding >= -1e-12
+    assert abs(t.nominal + t.compounding - t.apr) < 1e-12

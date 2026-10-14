@@ -18,6 +18,7 @@ order — see docs/IDEAS.md.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 
@@ -51,7 +52,10 @@ def _monthly_irr(x: TrueAprInputs) -> float:
     if not x.months or x.months <= 0:
         return r * (1.0 + x.gst_on_interest) * (1.0 - x.shield) + x.insurance_rate / 12.0
     n = int(x.months)
-    disc = 1.0 - (1.0 + r) ** -n
+    # 1 − (1+r)^−n via expm1/log1p: the plain form cancels at tiny rates
+    # (r ≈ 1e-8 lost half its digits and gave a negative "compounding",
+    # W5 Hypothesis finding true_apr(TrueAprInputs(1.192092896e-07, 1))).
+    disc = -math.expm1(-n * math.log1p(r))
     emi = 1.0 / n if disc == 0 else r / disc
     flows = []
     bal = 1.0
