@@ -319,6 +319,12 @@ export const LOCAL_PER_USER_KEYS = [
   // Pre-existing gap found by the guard below: UPI "did it go through?"
   // checks hold payee names, amounts, VPAs and UTRs.
   'rightdue_upi_checks',
+  // A15 (W5): the month this person first had a plan here (drives the
+  // month-2 Plus door). It's about the person, not the device, and the US
+  // golden "sign out clears this browser" found it left behind (it's
+  // written even with the funnel off). return_month2 stays counted once per
+  // device by rightdue_funnel_once.
+  'rightdue_first_plan_ym',
 ] as const;
 
 /** Prefixes of per-user keys cleared on sign-out: B22's "seen this page's
@@ -329,7 +335,7 @@ export const LOCAL_PER_USER_PREFIXES = ['rd_intro_seen_'] as const;
 /** Device-level keys kept on sign-out on purpose: counts-only funnel
  *  dedupe (A15; no user data, clearing would double-count this browser)
  *  and the page trail used for back links. */
-export const LOCAL_DEVICE_KEYS = ['rightdue_funnel_once', 'rightdue_first_plan_ym', 'rightdue_trail'] as const;
+export const LOCAL_DEVICE_KEYS = ['rightdue_funnel_once', 'rightdue_trail'] as const;
 /** sessionStorage keys with one person's navigation or prompts. */
 export const SESSION_PER_USER_KEYS = ['rightdue_trail', 'rightdue_debtfree_prompt_dismissed'] as const;
 
