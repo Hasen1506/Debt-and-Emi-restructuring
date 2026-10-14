@@ -80,7 +80,7 @@ function buildNotes(plan: PlanData): Note[] {
   const costs = userMarginalCosts(user, plan.marginalRate, openIdx);
   const ranked = openIdx
     .filter((i) => costs.has(i))
-    .map((i) => ({ loan: user.loans[i], mc: costs.get(i)!, b: computeBreakdown(user.loans[i], plan.marginalRate, user.country, regime, itemises) }))
+    .map((i) => ({ loan: user.loans[i], mc: costs.get(i)!, b: computeBreakdown(user.loans[i], plan.marginalRate, user.country, regime, itemises, user.loans) }))
     .sort((a, b) => b.mc.orderKey.cmp(a.mc.orderKey));
   const notes: Note[] = [];
 

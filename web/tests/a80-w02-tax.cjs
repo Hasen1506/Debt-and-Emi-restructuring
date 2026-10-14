@@ -107,3 +107,20 @@ test('Advance tax: presumptive pays once by 15 Mar (s.408(2)); s.425 [234C] fixe
   assert.deepEqual(re.instalments.map((i) => i.amountDue), ['15000', '52500', '45000', '37500']);
   assert.equal(rebaseSchedule(q1, new Decimal(105000)), q1);   // within 10%: left alone
 });
+
+test('C7 (web True APR): a let-out home gets only the set-off the self-occupied home leaves', () => {
+  const { computeBreakdown } = lib('effective-apr.ts');
+  const so = { loan_type: 'home_loan', outstanding: '3000000', nominal_rate: '0.09', property_use: 'self_occupied', scheduled_emi: '27000', tenure_months_remaining: 240 };
+  const lo = { loan_type: 'home_loan', outstanding: '5000000', nominal_rate: '0.09', property_use: 'let_out', scheduled_emi: '45000', tenure_months_remaining: 240 };
+  const shield = (b) => (b.lines.find((l) => l.label === 'Tax shield') || { value: new Decimal(0) }).value;
+  const all = [so, lo];
+  const sSo = shield(computeBreakdown(so, '0.312', 'IN', 'old', true, all));
+  const sLo = shield(computeBreakdown(lo, '0.312', 'IN', 'old', true, all));
+  // ₹ of tax saved = shield × balance; together at most 31.2% of ₹2L = ₹62,400.
+  const saved = sSo.mul(3000000).add(sLo.mul(5000000));
+  assert.ok(saved.lte(62400.5), `saved ${saved}`);
+  assert.equal(sLo.toNumber(), 0);
+  // With ₹3L rent the let-out home's interest still lowers tax on that rent (both regimes).
+  const rented = { ...lo, annual_rent: '300000' };
+  assert.ok(shield(computeBreakdown(rented, '0.208', 'IN', 'new', true, all)).gt(0));
+});
