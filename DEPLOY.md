@@ -56,13 +56,19 @@ All optional; the defaults are safe. Set them on the `rightdue` service.
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `OTP_GLOBAL_DAILY_CAP` | `90` | Sign-in codes sent per 24 h across **all** emails. Keep it under the email plan's quota (Resend Free: 100 a day, 3,000 a month, resend.com/pricing, 12 Oct 2026). When reached, sign-in shows "paused for today". |
+| `OTP_GLOBAL_DAILY_CAP` | `60` | Sign-in codes for **new sign-ups** per 24 h across all emails (audit 80+ D13: existing accounts no longer count against it, so nobody can lock returning users out). Keep it, plus the account codes below, under the email plan's quota (Resend Free: 100 a day, 3,000 a month, resend.com/pricing, 12 Oct 2026). When reached, new sign-ups see "paused for today"; a warning is logged at half. |
+| `OTP_ACCOUNT_DAILY_CAP` | `5` | Codes per day for one **existing** account's address (D13). |
+| `OTP_NEW_PER_NETWORK_DAILY` | `5` | New-sign-up codes one network (/24 IPv4, /48 IPv6, keyed hash) may trigger per day (D13). |
+| `OTP_HASH_KEY` | `INTERNAL_API_TOKEN` | Key for the HMAC of stored sign-in codes (D25). Declared in render.yaml, `sync: false`. Changing it voids only codes already sent (10 minutes). |
+| `ALLOW_SCHEMA_DRIFT` | unset | Emergency only. In production the app refuses to start when the schema doesn't match the models (D26); `1` overrides. |
+| `REQUEST_LOG` | `on` | One path-only line per request (no query string, D24); `off` silences it. |
+| `PDF_CHILD_MEMORY_MB` | `160` | Memory cap for the one-at-a-time PDF parser child process (D15). |
 | `AUTH_LOG_RETENTION_DAYS` | `365` | How long sign-in records (codes sent, ended sessions) are kept, then purged (docs/privacy-and-retention.md). |
 | `RATE_LIMIT_STORE` | `db` | `db`: sign-in, account, admin and outcome routes also count against an hourly limit in Postgres, so a restart can't reset it. `memory`: in-memory buckets only. |
 | `RATE_BUCKET_KEY` | `OUTCOMES_IP_KEY` | Key for the hash of client addresses in `rate_buckets`. |
 | `TURNSTILE_SECRET_KEY` | unset (off) | Cloudflare Turnstile on code requests. Needs `NEXT_PUBLIC_TURNSTILE_SITE_KEY` too (below). |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | unset (off) | Build-time (Docker build arg): shows the Turnstile box on /login and allows `challenges.cloudflare.com` in the CSP. |
-| `SENTRY_DSN` | unset (off) | Scrubbed server error reports from the API and the web server (docs/monitoring.md). |
+| `SENTRY_DSN` | unset (off) | Scrubbed server error reports from the API and the web server (docs/monitoring.md). `/api/health` shows `"sentry": "on"/"off"` (D19). |
 | `RIGHTDUE_ALLOW_DISABLED_AUTH` | unset | Never on a public deploy. A production build or container start refuses `NEXT_PUBLIC_DISABLE_AUTH=true` unless this is `1` (web/auth-guard.mjs, deploy/start.sh). |
 
 **Turnstile, step by step.** Cloudflare dashboard → Turnstile → Add widget:
@@ -76,7 +82,16 @@ secret key into `TURNSTILE_SECRET_KEY`, then **Clear build cache & deploy**
 local preview tools still work. A new third-party script, frame or API
 origin must be added there.
 
-**Regions**: docs/region-colocation.md (no change made).
+**Regions**: docs/region-colocation.md (no change made). Region is fixed per
+service; co-locating with Neon in Singapore works on the Free plan too (D9).
+
+**Backups** (D14): `.github/workflows/db-backup.yml` needs six GitHub Actions
+secrets and is red until they exist (RUNBOOK §2). Set the repo variable
+`BACKUP_DISABLED=1` only if you decide on purpose to run without backups.
+
+**Rollback on Free** reaches only the two most recent previous deploys
+(https://render.com/docs/free); `git revert` + merge is the main path
+(RUNBOOK §1).
 
 ### Cutover from the old two services
 
@@ -145,7 +160,10 @@ on the free plan.
 ## Updating
 
 Any push to the tracked branch triggers a redeploy automatically. To roll
-back, use **Manual Deploy** → pick a previous commit in the Render dashboard.
+back, `git revert` the merge and merge the revert (RUNBOOK §1). Render's own
+Rollback works only for the two most recent previous deploys on Free.
+Recommended: Render → Settings → Auto-Deploy → **After CI checks pass**, and
+protect `main` with the CI checks required (D17).
 
 ## Keeping the figures current
 
@@ -215,8 +233,9 @@ When the data-check issue asks for a rate card to be re-read: update
 
 Render's free instance sleeps after 15 minutes idle and takes about a minute
 to wake (https://render.com/docs/free). `deploy/cloudflare/landing-worker.mjs`
-is a free-plan Cloudflare Worker that runs **only** on `rightdue.app/` and
-`rightdue.app/welcome.html`:
+is a free-plan Cloudflare Worker that runs **only** on `rightdue.app/`,
+`rightdue.app/welcome.html`, and (audit 80+ D20) `rightdue.app/robots.txt` and
+`rightdue.app/sitemap.xml`:
 
 - signed-out visitors get `welcome.html` from Cloudflare's edge cache at
   once, and the Worker pings `/api/health` in the background so Render is
@@ -228,9 +247,14 @@ is a free-plan Cloudflare Worker that runs **only** on `rightdue.app/` and
   the app;
 - the cache is kept per country bucket (IN / US / other) for the
   country-aware landing.
+- `/robots.txt` and `/sitemap.xml` are answered by the Worker itself, from the
+  same lists as `web/src/app/robots.ts` / `sitemap.ts` (`web/tests/a80-w08-trust.cjs`
+  fails if they drift), and never reach or wake Render. On Render Free a
+  sleeping service otherwise answers `/robots.txt` with "Disallow: /"
+  (https://render.com/docs/free).
 
 Workers Free allows 100,000 requests a day
-(https://developers.cloudflare.com/workers/platform/pricing/). Only these two
+(https://developers.cloudflare.com/workers/platform/pricing/). Only these four
 routes count against it. To turn it on (a Cloudflare account change, so it's
 the owner's call):
 

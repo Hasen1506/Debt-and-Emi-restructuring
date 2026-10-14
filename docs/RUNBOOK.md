@@ -1,21 +1,37 @@
 # RightDue operations runbook
 
-Written for UX50 critique E (launch readiness, 13 Oct 2026). Short on purpose:
+Written for UX50 critique E (launch readiness, 13 Oct 2026); updated 14 Oct
+2026 for audit 80+ Section D (D13-D26). Short on purpose:
 what to do when something breaks, and the settings only the founder can change.
 
 ## 1. Deploys and rollback
 
 - Every merge to `main` deploys `rightdue` on Render (Docker, `render.yaml`).
   Alembic migrations run at container start (`api/db/database.py init_db()`).
+- **Schema drift guard (D26):** in production (`RENDER` set) the app refuses
+  to start when the database schema doesn't match the models after
+  migrations, and the deploy log names what is missing. Emergency escape:
+  `ALLOW_SCHEMA_DRIFT=1` on the service (remove it as soon as fixed).
+- Data bots (market data, policy rates, rate disclosures) open a PR and use
+  `gh pr merge --auto --squash`: they merge only after CI passes, and never
+  push straight to `main` (D17).
 - **Recommended (founder, Render dashboard):** Settings → Build & Deploy →
   Auto-Deploy → **"After CI checks pass"**, so a red `main` never goes live (E-18a).
   Also GitHub → Settings → Branches → protect `main`, require the `CI` checks
   (the data-PR auto-merge workflows then need the checks to pass too).
 
 ### Rolling back code
-1. Render → `rightdue` → Events → pick the last good deploy → **Rollback**.
-2. Then `git revert -m 1 <merge sha>` on a branch, PR, merge, so `main` matches
-   what is live (otherwise the next merge re-deploys the bad change).
+**On the Free plan Render can roll back only to the two most recent previous
+deploys** (https://render.com/docs/free, "Rollbacks (only to the two most
+recent previous deploys)", read 14 Oct 2026). With several merges a day the
+last good build is often out of reach, so the **main path is git**:
+1. `git revert -m 1 <merge sha>` (or `git revert <sha>` for a squash merge) on
+   a branch, open a PR, let CI pass, merge. Render deploys the reverted code.
+   This always works, whatever the plan.
+2. Faster, only if the last good deploy is one of the two most recent: Render →
+   `rightdue` → Events → that deploy → **Rollback**, then still do step 1 so
+   `main` matches what is live (otherwise the next merge re-deploys the bad
+   change).
 
 ### Rolling back a schema change
 Render's rollback restores old code, **not** the old schema. Before rolling back a
@@ -30,11 +46,20 @@ deploy that ran a migration:
 
 - Neon Free: instant restore of about the last **6 hours** (or 1 GB of changes),
   no scheduled backups. Neon Launch (~$15/month) gives up to 7 days.
-- `.github/workflows/db-backup.yml` runs nightly at 02:10 IST: `pg_dump
-  --format=custom` (Postgres 17 client), checked with `pg_restore --list`,
-  encrypted with `age`, uploaded to a **private** bucket. It never uploads to this
-  public repo's artifacts. It skips green when `DATABASE_URL` is not set and
-  opens an issue when it fails.
+- **Status 14 Oct 2026: no backup has ever been taken.** The old job went
+  green with every step skipped because the secrets were never added (audit
+  80+ D14; run 38486711137: Dump skipped, Upload skipped, conclusion
+  success). Why, in detail: the header of `scripts/backup_preflight.sh`.
+- `.github/workflows/db-backup.yml` runs nightly at 02:10 IST: preflight
+  (`scripts/backup_preflight.sh`), `pg_dump --format=custom` (Postgres 17
+  client), `pg_restore --list`, then a **restore test** into a throwaway
+  Postgres 17 container (checks the core tables came back), then `age`
+  encryption and upload to a **private** bucket. It never uploads to this
+  public repo's artifacts.
+- **It fails red** (and opens or updates a "Database backup failed" issue)
+  when any of the six secrets is missing, unless the repo **variable**
+  `BACKUP_DISABLED=1` says backups are off on purpose. Until the founder adds
+  the secrets, expect a red nightly run: that is the alarm working.
 - **To switch it on (founder):**
   1. Neon: create a read-only role (`CREATE ROLE backup LOGIN PASSWORD '…'; GRANT
      pg_read_all_data TO backup;`) on the `production` branch.
@@ -45,7 +70,9 @@ deploy that ran a migration:
   4. GitHub → Settings → Secrets → Actions: `DATABASE_URL` (the read-only role's
      URL), `BACKUP_AGE_RECIPIENT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT` (R2:
      `https://<account>.r2.cloudflarestorage.com`), `BACKUP_S3_ACCESS_KEY_ID`,
-     `BACKUP_S3_SECRET_ACCESS_KEY`. Run the workflow once by hand.
+     `BACKUP_S3_SECRET_ACCESS_KEY`. Run the workflow once by hand (Actions →
+     Database backup → Run workflow) and check it is green with every step
+     run, not skipped.
 - **Restore (test once on the `dev-neon-setup` branch first):**
   ```
   aws s3 cp s3://<bucket>/nightly/rightdue-<stamp>.dump.age . [--endpoint-url …]
@@ -54,6 +81,14 @@ deploy that ran a migration:
   ```
   Restore into a new Neon branch, check it, then point `DATABASE_URL` at it (or
   restore over production during a quiet hour). Delete the plaintext dump after.
+- **Restore drill (D14 step 4, founder, after the first good nightly):** on
+  your own machine, `bash scripts/restore_drill.sh` with the variables in its
+  header (a READ key for the bucket, the age private key file, and
+  `TARGET_DATABASE_URL` = the `dev-neon-setup` branch; set
+  `PRODUCTION_DATABASE_HOST` so it refuses production). It downloads the
+  newest nightly, decrypts, restores, prints row counts, and asks you to type
+  the database name first. Then record the date here.
+- **Last restore drill:** never (as of 14 Oct 2026). Repeat every 3 months.
 - The old Render `rightdue-db` recovery copy expires on 1 Nov 2026.
 
 ## 3. Staging (E-18b, recommendation)
@@ -71,7 +106,22 @@ deploy that ran a migration:
   reports: the browser posts to our own `/api/client-error`, which masks digits
   and forwards to Sentry, so the CSP needs no change. Without `SENTRY_DSN` both
   are no-ops. Optional: `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE`. Check with a
-  deliberate test error after setting it.
+  deliberate test error after setting it. `/api/health` reports
+  `"sentry": "on"|"off"` (never the DSN), so anyone can confirm it (D19).
+  **Record here:** Sentry on since ____; test error seen on ____.
+- **Scheduled-job failures (D18):** `market-data`, `policy-rates` and
+  `rate-disclosures` open or update an issue when they fail
+  (`.github/actions/failure-issue`); `db-backup` has its own failure-issue step.
+  `notify.yml` (W5's area) does not yet. Watch the repo's issues.
+- **Security gate (D22):** `.github/workflows/security.yml` runs `npm audit
+  --omit=dev --audit-level=high`, `pip-audit -r requirements.txt` and gitleaks.
+  Founder: GitHub → Settings → Code security → turn on secret scanning and
+  push protection (free on public repos).
+- **Sign-in circuit (D13):** the global daily cap (`OTP_GLOBAL_DAILY_CAP`, 60)
+  now counts only codes for **new** sign-ups; existing accounts have their own
+  cap of `OTP_ACCOUNT_DAILY_CAP` (5) a day per address, and one network can
+  start at most `OTP_NEW_PER_NETWORK_DAILY` (5) new sign-ups a day. A warning
+  is logged (and reaches Sentry when on) at 50% of the global cap.
 - **Uptime:** UptimeRobot (free) keyword monitor on
   `https://rightdue.app/api/health` for `"db":"enabled"` and on `/api/healthz`.
   On the free Render plan use a **20-minute** interval or none: a 5-minute ping
@@ -86,18 +136,40 @@ See DEPLOY.md, "Client address and rate limits". In short: on Render the API key
 limits on `CF-Connecting-IP` (written by Render's own Cloudflare edge). Env:
 `CLIENT_IP_HEADER` (default `cf-connecting-ip` when `RENDER` is set; `none` to
 disable), `TRUSTED_PROXY_HOPS` fallback (`3` for Render's chain), `RATE_LIMITS`
-(must be unset or `on` in production). Turn on Turnstile before a public post:
-`TURNSTILE_SECRET_KEY` + `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (build arg).
+(must be unset or `on` in production). **Turn on Turnstile before a public
+post (D13):** Cloudflare → Turnstile → Add widget (`rightdue.app`, Managed);
+in Render set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (build-time: **Clear build
+cache & deploy**) and `TURNSTILE_SECRET_KEY`. Both are declared in
+`render.yaml` with `sync: false`. Check: /login shows the widget and the live
+CSP lists `https://challenges.cloudflare.com` in `script-src` and `frame-src`.
+`OTP_HASH_KEY` (D25, optional): a long random value keys the stored code
+HMAC; without it `INTERNAL_API_TOKEN` is used.
 
 ## 6. Hosting plan (E-04, founder decision)
 
 Today: Render Free in **Oregon**, Neon in **Singapore**: every query crosses the
 Pacific (~170–200 ms), the instance sleeps after 15 min (30–60 s cold start), and
 all free services in the workspace share 750 instance-hours a month.
-Recommendation before a public launch: Render Starter in **Singapore** next to
-Neon (`docs/region-colocation.md`), delete the old `finoptima-web` /
-`finoptima-api` services, and update the privacy notice's "App server" line in
-the same PR. For a private soft launch, staying free is acceptable.
+Region is fixed per service at creation; moving means a new service
+(`docs/region-colocation.md`, D9). **Co-location doesn't need the paid plan**:
+Render Free in **Singapore** next to Neon (confirm Free is offered there in the
+dashboard first). Starter ($7/month, always on) is the separate choice that
+also removes sleeping, the robots.txt "disallow all" while asleep (D20) and the
+two-deploy rollback limit. Delete the old `finoptima-web` / `finoptima-api`
+services, and update the privacy notice's "App server" line in the same PR.
+
+**Search engines while asleep (D20).** While a Free service is spun down,
+Render answers `/robots.txt` itself with `User-agent: * / Disallow: /`, without
+reaching the app (https://render.com/docs/free, read 14 Oct 2026). Mitigation
+in code: the landing Worker (`deploy/cloudflare/landing-worker.mjs`) now also
+answers `/robots.txt` and `/sitemap.xml` at the edge, from the same lists as
+`web/src/app/robots.ts` and `sitemap.ts` (a web test keeps them equal), and
+never wakes Render for them. It needs `rightdue.app` in our own Cloudflare zone
+(§8 step 1) and `npx wrangler deploy --config deploy/cloudflare/wrangler.toml`
+(DEPLOY.md, "Instant landing page"). Then check Google Search Console's
+robots.txt report after a week. Without the zone, the only fixes are a paid
+plan or keeping the service awake (a ping every <15 min uses ~744 of the 750
+monthly hours, so nothing else in the workspace could run).
 
 ## 7. Email DNS (E-17, founder, name.com)
 
@@ -170,7 +242,13 @@ Recommended (founder decides; nothing has been changed):
   `navigator.sendBeacon`; a weekly Action posts the counts to an issue. Add a line
   to the privacy notice. Alternative: Cloudflare Web Analytics (free, cookieless)
   needs its host in CSP `script-src`/`connect-src` and the notice.
-- **Profile out of script-readable storage (E-09b, decision #10 Option B).** Today
+- **Profile out of script-readable storage (E-09b, decision #10 Option B; audit
+  80+ D16).** Shipped 14 Oct 2026 (safe part): account copies of the profile
+  and mirrored slices are written with a 30-day lifetime (the sign-in) instead of
+  365 days (`web/src/lib/readable-cookie-age.ts`), and wiped when the session
+  ends (D21). Individual stores that write their own cookie (strategy, ef-split,
+  debt-budget, …) still use a year. Not shipped, and still needed before a
+  public post: Today
   the profile lives in readable `rightdue_*` cookies and localStorage so pages can
   render it on the server for guests. Moving it is not contained (server-sync,
   user-store, every server page's `loadProfileServer`), so: (1) for signed-in users
@@ -180,6 +258,5 @@ Recommended (founder decides; nothing has been changed):
   `'unsafe-inline'` with a nonce CSP from `middleware.ts` (makes every page
   dynamic; measure memory on the 512 MB plan first). Do it before the public launch.
   Shipped now: `script-src-attr 'none'` (inline handler attributes never run).
-- **Failure alerts on scheduled workflows (E-03c):** `db-backup.yml` opens an issue
-  on failure; add the same `if: failure()` step to `market-data`, `policy-rates`,
-  `rate-disclosures` and `notify`.
+- **Failure alerts on scheduled workflows (E-03c):** done for market-data,
+  policy-rates, rate-disclosures and db-backup (D18, §4); `notify.yml` still to add.
