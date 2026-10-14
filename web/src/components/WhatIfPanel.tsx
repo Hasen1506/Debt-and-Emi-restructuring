@@ -511,7 +511,7 @@ export function WhatIfPanel({
           }}
         >
           <span>{toast}</span>
-          <LBracket onClick={() => setToast(null)} label="Dismiss">
+          <LBracket onClick={() => setToast(null)} label="OK, dismiss">
             OK
           </LBracket>
         </div>

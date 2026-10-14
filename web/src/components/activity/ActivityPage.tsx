@@ -484,16 +484,16 @@ function Actions({ r, onAct, start }: { r: HistoryRow; onAct: (row: HistoryRow, 
       )}
       {r.ref.kind === 'entry' && (
         <>
-          <LBracket onClick={() => onAct(r, 'edit')} label={`Change ${what}`}>
+          <LBracket onClick={() => onAct(r, 'edit')} label={`Edit ${what}`}>
             EDIT
           </LBracket>
-          <LBracket onClick={() => onAct(r, 'undo')} label={`Remove ${what}`}>
+          <LBracket onClick={() => onAct(r, 'undo')} label={`Undo ${what}`}>
             UNDO
           </LBracket>
         </>
       )}
       {r.ref.kind === 'spend' && (
-        <LBracket onClick={() => onAct(r, 'undo')} label={`Remove spending for ${what}`}>
+        <LBracket onClick={() => onAct(r, 'undo')} label={`Undo spending for ${what}`}>
           UNDO
         </LBracket>
       )}
@@ -505,7 +505,7 @@ function Actions({ r, onAct, start }: { r: HistoryRow; onAct: (row: HistoryRow, 
       {r.ref.kind === 'cut' && (
         <>
           {!r.ref.held && (
-            <LBracket accent onClick={() => onAct(r, 'held')} label={`${r.target}: the cut held`}>
+            <LBracket accent onClick={() => onAct(r, 'held')} label={`It held: ${r.target}`}>
               IT HELD
             </LBracket>
           )}
@@ -516,7 +516,7 @@ function Actions({ r, onAct, start }: { r: HistoryRow; onAct: (row: HistoryRow, 
       )}
       {r.ref.kind === 'life' &&
         (r.ref.due ? (
-          <LBracket accent onClick={() => onAct(r, 'happened')} label={`${r.target}: it happened`}>
+          <LBracket accent onClick={() => onAct(r, 'happened')} label={`It happened: ${r.target}`}>
             IT HAPPENED
           </LBracket>
         ) : (

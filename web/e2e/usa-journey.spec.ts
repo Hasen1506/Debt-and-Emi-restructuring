@@ -41,8 +41,11 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
     expect(await planText(page)).toMatchSnapshot('usa-plan-schedule.txt');
   });
 
-  await test.step('R8-2: US pages say "monthly payment", never EMI', async () => {
-    for (const url of ['/plan', '/', '/activity']) {
+  await test.step('R8-2 / R9-1: US pages and every US tool say "monthly payment", never EMI', async () => {
+    // R9-1: every tool a US borrower can open (Loan Check is India-only; NRI
+    // prepay is about an Indian loan), and New debt in both modes (Big
+    // purchase lives at ?mode=purchase).
+    for (const url of ['/plan', '/', '/activity', '/tools/new-debt', '/tools/new-debt?mode=purchase', '/tools/windfall', '/tools/liquidate', '/tools/invest-vs-prepay']) {
       await page.goto(url);
       await expect(page.locator('#main')).toBeVisible();
       const text = await page.locator('#main').innerText();

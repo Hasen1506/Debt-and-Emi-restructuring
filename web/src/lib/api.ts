@@ -1438,11 +1438,12 @@ export class ApiStatusError extends Error {
 
 let meInFlight: Promise<AuthUser> | null = null;
 
-async function get<T>(path: string): Promise<T> {
+async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await apiFetch(path, {
     headers: { ...serverHeaders(), ...accountHeaders(path) },
     cache: 'no-store',
     credentials: requestCredentials(path),
+    ...(signal ? { signal } : {}),
   });
   if (!res.ok) throw new ApiStatusError(`${path} → ${res.status}`, res.status, await res.text().catch(() => ''));
   return res.json() as Promise<T>;
@@ -1745,8 +1746,9 @@ export const api = {
         `&bank=${encodeURIComponent(bank)}&rate_type=${rateType}`,
     ),
 
-  centralRates: () =>
-    get<CentralRatesResponse>('/api/rates/central'),
+  /** R9 O-1: pass a signal so leaving the page cancels it cleanly. */
+  centralRates: (signal?: AbortSignal) =>
+    get<CentralRatesResponse>('/api/rates/central', signal),
 };
 
 export interface LoanTermsResponse {

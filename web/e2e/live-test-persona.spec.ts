@@ -30,7 +30,7 @@ test('Persona: Chennai, ₹1.2L take-home, 3 loans: set up, saved, plan dated, s
 
   await test.step('#22: Home shows what to pay with zero clicks; one click marks it paid, with Undo', async () => {
     await page.goto('/');
-    const mark = page.getByRole('button', { name: /^Mark Credit card paid/ }).first();
+    const mark = page.getByRole('button', { name: /^Mark paid: Credit card/ }).first();
     await expect(mark).toBeVisible();
     await mark.click();
     await expect(page.getByRole('button', { name: /^Undo: Credit card not paid/ }).first()).toBeVisible();
@@ -39,6 +39,6 @@ test('Persona: Chennai, ₹1.2L take-home, 3 loans: set up, saved, plan dated, s
   await test.step('#21: Activity lists that payment as an editable, undoable row', async () => {
     await page.goto('/activity');
     await expect(page.getByText(/Credit card/).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Change Credit card/ }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Edit Credit card/ }).first()).toBeVisible();
   });
 });

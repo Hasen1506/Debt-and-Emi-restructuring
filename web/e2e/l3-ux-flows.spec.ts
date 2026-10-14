@@ -77,7 +77,10 @@ test('L3: nickname, city/state, business purpose, cost lines, spare cash date an
     await page.goto('/activity');
     await expect(page.getByText(/Spare cash: ₹[\d,]+ to TEST my card/).first()).toBeVisible();
     // The row's own controls name its date.
-    await expect(page.getByRole('button', { name: /^Change TEST my card.*, 2026-10-03$/ }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Edit TEST my card.*, 2026-10-03$/ }).first()).toBeVisible();
+    // R9-2 (WCAG 2.5.3): the spoken names start with the words on the buttons.
+    await expect(page.getByRole('button', { name: /^Undo TEST my card.*, 2026-10-03$/ }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /^(Change|Remove) / })).toHaveCount(0);
   });
 });
 

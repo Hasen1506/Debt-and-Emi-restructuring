@@ -314,7 +314,7 @@ function RowLedger({
             </>
           ) : (
             <>
-              <LBracket active onClick={() => onPay(String(owed))} disabled={pending} label={`Mark Q${row.ordinal} paid in full`}>
+              <LBracket active onClick={() => onPay(String(owed))} disabled={pending} label={`Mark paid: Q${row.ordinal} in full`}>
                 MARK PAID
               </LBracket>
               <LBracket onClick={() => setOther(true)}>OTHER AMOUNT</LBracket>

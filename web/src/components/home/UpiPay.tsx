@@ -82,7 +82,7 @@ export function UpiPay({
             if (rowKey && month) savePending({ key: rowKey, name, amount, vpa: to, openedAt: new Date().toISOString(), month });
           }}
           style={{ ...lPayBtn(false), textDecoration: 'none' }}
-          aria-label={`Pay ${name} ${formatCurrencyWhole(amount, 'INR')} via UPI to ${to}`}
+          aria-label={`Pay via UPI: ${name} ${formatCurrencyWhole(amount, 'INR')} to ${to}`}
         >
           PAY VIA UPI
         </a>
@@ -149,7 +149,7 @@ export function UpiPay({
     return (
       // A quiet link until a UPI ID is saved: two full buttons per row
       // (MARK PAID, OTHER AMOUNT) are enough to scan down a list of four.
-      <button type="button" onClick={() => setEditing(true)} style={{ background: 'none', border: 0, padding: '4px 0', minHeight: 24, color: L_T.inkSoft, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, letterSpacing: '0.06em' }} aria-label={`Pay ${name} via UPI: add the lender's UPI ID`}>
+      <button type="button" onClick={() => setEditing(true)} style={{ background: 'none', border: 0, padding: '4px 0', minHeight: 24, color: L_T.inkSoft, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, letterSpacing: '0.06em' }} aria-label={`Pay via UPI: ${name}, add the lender's UPI ID`}>
         PAY VIA UPI
       </button>
     );
