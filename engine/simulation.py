@@ -659,12 +659,18 @@ def _simulate_plan(
         # up from the new base. A floating_rate_reset mutates the loan's
         # nominal_rate so the effective_rate / ranking / amortisation
         # math from this month forward sees the new value.
+        # A reset states what the user earns from this month, so the annual
+        # hike due in the same month must not be stacked on top of it
+        # (audit 80 W10: a new job's pay was raised by the old job's hike).
+        salary_reset_now = False
         for ev in lifecycle_by_month.get(m, []):
             if ev.kind == LifecycleEventKind.SALARY_RESET:
                 if ev.new_monthly_take_home is not None:
                     income = ev.new_monthly_take_home
+                    salary_reset_now = True
                 elif ev.new_annual_gross is not None:
                     income = estimated_take_home(user, ev.new_annual_gross)
+                    salary_reset_now = True
             elif ev.kind == LifecycleEventKind.PROPERTY_BUY and id(ev) in upcoming:
                 upcoming[id(ev)].outstanding = ev.loan_draft.outstanding
             elif ev.kind == LifecycleEventKind.FLOATING_RATE_RESET:
@@ -727,7 +733,7 @@ def _simulate_plan(
             # year_idx is 1-based: m=first_hike → year 1, +12 → year 2, etc.
             year_idx = (m - first_hike) // 12 + 1
             rate = _resolve_hike_rate(user, year_idx)
-            if rate > 0:
+            if rate > 0 and not salary_reset_now:
                 income = income * (D("1") + rate)
 
         # Deferred surplus delta — kicks in at the user's chosen month.
