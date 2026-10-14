@@ -89,7 +89,7 @@ export function RbiDecisionTool() {
             On <strong>{day(d.decided)}</strong> the RBI moved the repo rate from {formatPct(d.repo_from, 2)} to{' '}
             <strong>{formatPct(d.repo_to, 2)}</strong> ({moveWords(d.move)}).{' '}
             <a href={d.source_url} target="_blank" rel="noopener noreferrer" style={{ color: L_T.accent }}>
-              [RBI&apos;S STATEMENT]
+              <span aria-hidden="true">[</span>RBI&apos;S STATEMENT<span aria-hidden="true">]</span>
             </a>{' '}
             A repo-linked home loan must be reset at least once in three months, so it should reach your rate by about{' '}
             {day(d.reach_by)}.{next ? ` The next RBI decision is due on ${day(next)}.` : ''}
@@ -169,15 +169,15 @@ export function RbiDecisionTool() {
         <p style={{ margin: 0 }}>
           Want us to watch this loan, and your other EMIs, after every RBI decision?{' '}
           <a data-testid="mpc-start-plan" href={PLAN_HREF_MPC} style={{ color: L_T.accent, fontWeight: 700 }}>
-            [START YOUR PLAN (2 MINUTES) →]
+            <span aria-hidden="true">[</span>START YOUR PLAN (2 MINUTES) →<span aria-hidden="true">]</span>
           </a>
         </p>
         <p style={{ margin: '8px 0 0', display: 'flex', flexWrap: 'wrap', gap: 14 }}>
           <a data-testid="mpc-loan-check" href="/tools/loan-check" style={{ color: L_T.accent }}>
-            [FULL LOAN CHECK: DID YOUR BANK PASS ON PAST CUTS? →]
+            <span aria-hidden="true">[</span>FULL LOAN CHECK: DID YOUR BANK PASS ON PAST CUTS? →<span aria-hidden="true">]</span>
           </a>
           <a href={whatsappHref(shareText('rbi-decision'))} target="_blank" rel="noopener noreferrer" style={{ color: L_T.accent }}>
-            [SHARE ON WHATSAPP]
+            <span aria-hidden="true">[</span>SHARE ON WHATSAPP<span aria-hidden="true">]</span>
           </a>
         </p>
         <p style={{ margin: '6px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>

@@ -295,7 +295,7 @@ export function PlanBridge({ r }: { r: LoanCheckResponse }) {
       <p style={{ margin: 0 }}>{bridgeLine(r)}</p>
       <p style={{ margin: '8px 0 0', display: 'flex', flexWrap: 'wrap', gap: 14 }}>
         <a data-testid="lc-start-plan" href={PLAN_HREF} style={{ color: L_T.accent, fontWeight: 700 }}>
-          [START YOUR PLAN (2 MINUTES) →]
+          <span aria-hidden="true">[</span>START YOUR PLAN (2 MINUTES) →<span aria-hidden="true">]</span>
         </a>
         <a
           data-testid="lc-share-whatsapp"
@@ -304,7 +304,7 @@ export function PlanBridge({ r }: { r: LoanCheckResponse }) {
           rel="noopener noreferrer"
           style={{ color: L_T.accent }}
         >
-          [SEND TO A FRIEND WITH A HOME LOAN (WHATSAPP)]
+          <span aria-hidden="true">[</span>SEND TO A FRIEND WITH A HOME LOAN (WHATSAPP)<span aria-hidden="true">]</span>
         </a>
       </p>
       <p style={{ margin: '6px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>

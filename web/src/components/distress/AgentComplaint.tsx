@@ -63,7 +63,7 @@ export function AgentComplaintSection({
           when, and cites RBI&apos;s rules.{' '}
           <button type="button" onClick={() => setOpen(true)} data-testid="cp-agent-open"
             style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 700, cursor: 'pointer', color: 'inherit', textDecoration: 'underline' }}>
-            [ WRITE THE COMPLAINT ]
+            <span aria-hidden="true">[ </span>WRITE THE COMPLAINT<span aria-hidden="true"> ]</span>
           </button>
         </p>
       ) : (
@@ -88,7 +88,7 @@ export function AgentComplaintSection({
           <textarea id="cp-agent-text" data-testid="cp-agent-text" readOnly value={letter} rows={14}
             style={{ width: '100%', fontFamily: 'inherit', fontSize: 'var(--fs-body)', lineHeight: 1.6, padding: 10, border: `1px solid ${L_T.ink}`, background: 'transparent', color: L_T.ink }} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 10 }}>
-            <button type="button" onClick={copy} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 700, cursor: 'pointer', color: L_T.ink }}>[ COPY ]</button>
+            <button type="button" onClick={copy} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 700, cursor: 'pointer', color: L_T.ink }}><span aria-hidden="true">[ </span>COPY<span aria-hidden="true"> ]</span></button>
             <LBracket href={`mailto:?subject=${encodeURIComponent('Complaint about recovery agent conduct')}&body=${encodeURIComponent(letter)}`}>EMAIL IT</LBracket>
           </div>
           <p role="status" aria-live="polite" style={{ fontSize: 'var(--fs-small)', color: L_T.positive, minHeight: 16, margin: '6px 0 0' }}>{said}</p>

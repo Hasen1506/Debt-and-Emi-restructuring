@@ -62,7 +62,11 @@ export function moreGroups(user: NavUser): MoreGroup[] {
     },
     {
       title: 'Tools',
-      links: toolsFor(user).map((t) => ({ label: t.name, href: t.href, sub: t.question })),
+      links: [
+        ...toolsFor(user).map((t) => ({ label: t.name, href: t.href, sub: t.question })),
+        // Audit 80+ A19 (W4): the public page on the RBI's latest repo decision; India only.
+        ...(india ? [{ label: 'RBI rate decision', href: '/rbi-decision', sub: 'What the latest repo move does to your EMI' }] : []),
+      ],
     },
     {
       title: 'Help',
@@ -81,6 +85,7 @@ export function sectionFromPath(path: string): LedgerSection | null {
   if (p.startsWith('/activity')) return 'activity';
   if (
     p.startsWith('/goals') ||
+    p.startsWith('/rbi-decision') ||
     p === '/tools' ||
     isToolPage(p) ||
     p.startsWith('/portfolio') ||

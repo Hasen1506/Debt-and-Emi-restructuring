@@ -107,6 +107,13 @@ test('B26/A20: four core tabs; every other app section sits in More and lights M
       assert.equal(nav.sectionFromPath(p), 'more', `${l.href} lights More`);
       assert.ok(l.label && !/[[\]]/.test(l.label), `${l.href} has a plain label`);
     }
+    // Integration (phase 3): pages added by other workstreams are reachable too:
+    // the public RBI decision page (W4 A19, India only), Can't pay (W6 A17) and Assets & tax's Tax.
+    assert.equal(hrefs.includes('/rbi-decision'), u.country === 'IN', `${JSON.stringify(u)} RBI decision link`);
+    for (const p of hrefs.filter((h) => !h.startsWith('/tools/') && h !== '/plan')) {
+      assert.ok(fs.existsSync(path.join(root, 'app', p, 'page.tsx')), `${p} has a page`);
+    }
+    assert.equal(nav.sectionFromPath('/tax'), 'more');
     // Each tool page linked exists.
     for (const p of hrefs.filter((h) => h.startsWith('/tools/'))) {
       assert.ok(fs.existsSync(path.join(root, 'app', p, 'page.tsx')), `${p} has a page`);
