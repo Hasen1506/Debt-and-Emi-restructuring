@@ -272,6 +272,8 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
             gap_borrowed=q(row.gap_borrowed),
             gap_repaid=q(row.gap_repaid),
             gap_from_savings=q(row.gap_from_savings),
+            held_for_lock_in=q(row.held_for_lock_in),
+            unfunded_shortfall=q(row.unfunded_shortfall),
         ))
     return points
 
@@ -310,14 +312,44 @@ def _bounded(points: list[TrajectoryPoint], never_clears: bool) -> tuple[list[Tr
     return kept, None, False
 
 
-def _gap_fields(result) -> dict:
-    """Gap borrowing summary for a SimulateResponse (grill #38)."""
+def _gap_fields(result, user_in=None) -> dict:
+    """Gap borrowing summary for a SimulateResponse (grill #38, Audit C11)."""
     g = result.gap_rate
     return dict(
         gap_rate=g.annual_rate if g else None,
         gap_rate_basis=g.basis if g else None,
         gap_rate_source=g.source if g else None,
         total_gap_interest=_cents(result.total_gap_interest),
+        gap_limit=_cents(result.gap_limit) if result.gap_limit is not None else None,
+        gap_limit_assumed=user_in is not None and user_in.gap_credit_limit is None and result.gap_limit is not None,
+        infeasible_from_month=result.infeasible_from_month,
+        unfunded_shortfall=_cents(result.unfunded_shortfall_total),
+    )
+
+
+def _contract_fields(result, user_in) -> dict:
+    """Audit C1-C3/C15: rate-rise options, maturities, loan warnings."""
+    from api.schemas import LoanWarningOut, MaturityOut, RateRiseEventOut, RateRiseOptionOut
+    rises = []
+    for ev in result.rate_rise_events:
+        o = ev.options
+        rises.append(RateRiseEventOut(
+            month=ev.month_index, loan_index=ev.loan_index, old_rate=o.old_rate, new_rate=o.new_rate,
+            old_emi=_cents(o.old_emi), months_left_before=o.months_left_before, applied=o.applied,
+            options=[RateRiseOptionOut(mode=x.mode, emi=x.emi, months_left=x.months_left,
+                                       total_interest=x.total_interest, emi_change=x.emi_change,
+                                       months_change=x.months_change, capped=x.capped)
+                     for x in o.options.values()],
+            extra_interest_if_extended=_cents(o.extra_interest_if_extended),
+            recommended=o.recommended, reason=o.reason,
+        ))
+    warnings = [LoanWarningOut(loan_index=i, message=msg)
+                for i, l in enumerate(user_in.loans) for msg in l.contract_warnings()]
+    return dict(
+        rate_rise_events=rises,
+        maturities=[MaturityOut(loan_index=x.loan_index, month=x.month_index, kind=x.kind,
+                                amount_due=x.amount_due, short=x.short) for x in result.maturities],
+        loan_warnings=warnings,
     )
 
 
@@ -433,7 +465,8 @@ def _simulate_uncached(req: SimulateRequest) -> SimulateResponse:
     if stop is not None:
         return stop
     return SimulateResponse(
-        **_gap_fields(result),
+        **_gap_fields(result, req.user),
+        **_contract_fields(result, req.user),
         gap_closed=_gap_closed(user, req, closed_kwargs, result),
         debt_free_month=result.debt_free_month,
         total_interest_paid=result.total_interest_paid,
@@ -518,7 +551,7 @@ def _baseline_uncached(req: BaselineRequest) -> SimulateResponse:
     if stop is not None:
         return stop
     return SimulateResponse(
-        **_gap_fields(result),
+        **_gap_fields(result, req.user),
         debt_free_month=result.debt_free_month,
         total_interest_paid=result.total_interest_paid,
         total_invested=result.total_invested,
