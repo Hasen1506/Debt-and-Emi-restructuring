@@ -15,7 +15,6 @@ import { FxAutoRefresh } from '@/components/fx/FxAutoRefresh';
 import { SiteFooter } from '@/components/site/SiteFooter';
 import { BrowserErrorReporter } from '@/components/site/BrowserErrorReporter';
 import { UsefulMark } from '@/components/site/UsefulMark';
-import { UsefulMark } from '@/components/site/UsefulMark';
 import { EARLY_LEAVE_SCRIPT } from '@/lib/page-abort';
 
 export const metadata: Metadata = {
@@ -73,7 +72,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <SiteFooter version={process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? null} />
         {/* UX50 E-03: browser errors to Sentry only when a DSN is set. */}
         <BrowserErrorReporter enabled={Boolean(process.env.SENTRY_DSN)} />
-        <UsefulMark />
+        {/* Audit 80+ E11: performance.mark('rd-useful') at first actionable content. */}
         <UsefulMark />
       </body>
     </html>
