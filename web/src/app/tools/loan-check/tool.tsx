@@ -9,6 +9,8 @@ import { EMPTY_CHOICE, LenderPicker, choiceFromName, resolveChoice, useLoanCheck
 import { OfferPanel } from './offers';
 import { LenderRecord } from './outcome';
 import { RateProblem } from './rate-problem';
+import { HikeQuestions, PassThroughCard, PlanBridge, RateHistoryRows, RateRiseCard, ResetChoicePanel } from './hike';
+import { historyToRequest, type HistoryRow } from '@/lib/loan-check-hike';
 import {
   Field,
   Select,
@@ -21,6 +23,7 @@ import {
   api,
   formatCurrency,
   formatPct,
+  type LoanBankAction,
   type LoanBenchmark,
   type LoanCheckFinding,
   type LoanCheckRequest,
@@ -52,6 +55,9 @@ const FIELDS: Record<string, string> = {
   tenure_months_remaining: 'months',
   emi: 'emi',
   last_reset: 'lastReset',
+  rate_history: 'rateHistory',
+  switch_rate: 'switchRate',
+  switch_cost: 'switchCost',
 };
 
 const BENCHMARK_OPTIONS: { value: LoanBenchmark; label: string }[] = [
@@ -117,6 +123,12 @@ export function LoanCheckTool() {
   );
   const [emi, setEmi] = useState(homeLoan?.scheduled_emi ?? '');
   const [lastReset, setLastReset] = useState('');
+  // Hike cycle (audit 80+ A11).
+  const [bankAction, setBankAction] = useState<LoanBankAction>('unknown');
+  const [choiceOffered, setChoiceOffered] = useState<'yes' | 'no' | 'unsure'>('unsure');
+  const [historyRows, setHistoryRows] = useState<HistoryRow[]>([]);
+  const [switchRate, setSwitchRate] = useState('');
+  const [switchCost, setSwitchCost] = useState('');
 
   function pickLoan(i: number | null) {
     setLoanIdx(i);
@@ -132,7 +144,7 @@ export function LoanCheckTool() {
   useEffect(() => { if (loanIdx != null) pickLoan(loanIdx); }, [profile.user.loans]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [resultValue, setResult] = useState<LoanCheckResponse | null>(null);
-  const fingerprint = JSON.stringify([loanIdx,choice,spreadChanged,spreadChange,loanStart,benchmark,startMode,startRate,startBench,startSpread,currentRate,outstanding,months,emi,lastReset,profile.user]);
+  const fingerprint = JSON.stringify([loanIdx,choice,spreadChanged,spreadChange,loanStart,benchmark,startMode,startRate,startBench,startSpread,currentRate,outstanding,months,emi,lastReset,bankAction,choiceOffered,historyRows,switchRate,switchCost,profile.user]);
   const [checkedKey, setCheckedKey] = useState('');
   const result = checkedKey === fingerprint ? resultValue : null;
   // The request behind `result`, reused by the complaint panel.
@@ -145,6 +157,9 @@ export function LoanCheckTool() {
   const pBench = parsePercentInput(startBench, { min: 1, max: 20 });
   const pSpread = parseSpreadInput(startSpread);
   const pCurrent = parsePercentInput(currentRate);
+  const pSwitch = parsePercentInput(switchRate);
+  const parsedHistory = historyToRequest(historyRows);
+  const onOldBenchmark = benchmark === 'mclr' || benchmark === 'base_rate';
   const pSpreadChange = parseSpreadChange(spreadChange);
 
   // What is still missing before the check can run. Shown next to the
@@ -167,7 +182,9 @@ export function LoanCheckTool() {
   const hasInputError =
     (startMode === 'headline' ? !!pStart.error : !!pBench.error || !!pSpread.error) ||
     !!pCurrent.error ||
-    (spreadChanged === 'yes' && !!pSpreadChange.error);
+    (spreadChanged === 'yes' && !!pSpreadChange.error) ||
+    !!parsedHistory.error ||
+    (onOldBenchmark && !!pSwitch.error);
 
   async function check(e: React.FormEvent) {
     e.preventDefault();
@@ -200,6 +217,11 @@ export function LoanCheckTool() {
         emi: emi ? emi.replace(/,/g, '') : undefined,
         benchmark,
         last_reset: lastReset || undefined,
+        bank_action: bankAction,
+        choice_offered: choiceOffered,
+        rate_history: parsedHistory.history.length ? parsedHistory.history : undefined,
+        switch_rate: onOldBenchmark ? (pSwitch.fraction ?? undefined) : undefined,
+        switch_cost: onOldBenchmark && switchCost ? switchCost.replace(/,/g, '') : undefined,
       };
       const res = await api.loanCheck(req);
       setResult(res);
@@ -381,6 +403,33 @@ export function LoanCheckTool() {
             )}
           </div>
 
+          <HikeQuestions
+            action={bankAction}
+            onAction={setBankAction}
+            offered={choiceOffered}
+            onOffered={setChoiceOffered}
+          />
+
+          {onOldBenchmark && (
+            <div data-testid="lc-switch-fields">
+              <LStepSub>Switching to the repo-linked rate (optional)</LStepSub>
+              <LFieldGrid min={200}>
+                <div>
+                  <Field
+                    label="Repo-linked rate your bank quotes (%)"
+                    value={switchRate}
+                    onChange={setSwitchRate}
+                    placeholder="8.15"
+                    error={at('switchRate') ?? pSwitch.error}
+                    hint="Blank: the top of its published range"
+                  />
+                  <RateProblem parsed={pSwitch} onFix={setSwitchRate} fixOnly />
+                </div>
+                <Field label="Switch charge (₹)" kind="money" currency="INR" value={switchCost} onChange={setSwitchCost} error={at('switchCost')} hint="Its administrative or legal charge, if quoted" />
+              </LFieldGrid>
+            </div>
+          )}
+
           <div>
             <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
             {!more && (
@@ -401,6 +450,11 @@ export function LoanCheckTool() {
                 />
               </div>
             )}
+            {more && (
+              <div style={{ marginTop: 14 }}>
+                <RateHistoryRows rows={historyRows} onChange={setHistoryRows} error={at('rateHistory') ?? parsedHistory.error} />
+              </div>
+            )}
           </div>
 
           <div>
@@ -415,7 +469,12 @@ export function LoanCheckTool() {
       <div aria-live="polite" ref={resultRef} tabIndex={-1} style={{ outline: 'none' }}>
         {result && <LoanCheckResult r={result} />}
       </div>
+      {result?.rate_rise && <RateRiseCard rr={result.rate_rise} />}
       {result?.reset_watch && <ResetWatchCard w={result.reset_watch} />}
+      {result?.pass_through && <PassThroughCard pt={result.pass_through} />}
+      {result && checked && result.findings.some((f) => f.kind === 'choice_not_offered') && (
+        <ResetChoicePanel request={checked} />
+      )}
       {result && checked && result.findings.some((f) => f.claimable) && (
         <>
           <LenderRecord lender={checked.lender} />
@@ -423,6 +482,7 @@ export function LoanCheckTool() {
         </>
       )}
       {result && checked && <OfferPanel request={checked} />}
+      {result && <PlanBridge r={result} />}
     </LSteps>
   );
 }
@@ -635,7 +695,13 @@ function FindingCard({ f }: { f: LoanCheckFinding }) {
           ? 'In your favour, nothing to claim'
           : f.kind === 'rule_not_binding'
             ? 'Information, not a refund claim'
-            : 'A switch, not a refund claim';
+            : f.kind === 'rate_rise'
+              ? 'The rate rise: your choice, not a refund claim'
+              : f.kind === 'choice_not_offered'
+                ? 'Your right to choose: a letter, not a refund claim'
+                : f.kind === 'asymmetric_pass_through'
+                  ? 'Worth asking about, not a refund claim yet'
+                  : 'A switch, not a refund claim';
   return (
     <div style={{ marginTop: 18 }}>
       <LStepSub>{tag}</LStepSub>

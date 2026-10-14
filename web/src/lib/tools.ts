@@ -76,8 +76,10 @@ export const TOOLS: ToolMeta[] = [
     id: 'loan-check',
     tag: 'LC',
     name: 'Loan check',
-    question: 'Is my bank passing on rate cuts?',
-    sub: 'Your home-loan rate against every RBI repo move since you borrowed.',
+    // Audit 80+ A11: re-pitched for the hike cycle (RBI +0.25% to 5.50% on
+    // 7 Oct 2026, https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=63742).
+    question: 'Rate up: what happens to my EMI?',
+    sub: 'Your new EMI or tenure, the choice your bank must offer you, and whether past cuts were passed on.',
     href: '/tools/loan-check',
     // Indian floating-rate home loans against RBI repo moves only.
     countries: ['IN'],

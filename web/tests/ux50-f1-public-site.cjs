@@ -22,7 +22,7 @@ const WELCOME = fs.readFileSync(path.resolve(__dirname, '../public/welcome.html'
 
 test('E-13: every app page folder is gated; public pages and unknown paths are not', () => {
   const { isGatedAppPath, GATED_ROOTS } = require(path.join(root, 'lib/app-routes.ts'));
-  const PUBLIC = new Set(['login', 'glossary', 'privacy', 'terms', 'account', 'api']);
+  const PUBLIC = new Set(['login', 'glossary', 'privacy', 'terms', 'account', 'api', 'rbi-decision']);  // audit 80+ A19: the public MPC page
   const dirs = fs.readdirSync(path.join(root, 'app'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
   for (const d of dirs) if (!PUBLIC.has(d)) assert.ok(GATED_ROOTS.includes(d), `app/${d} is a page folder but isn't in GATED_ROOTS`);
   for (const p of ['/', '/plan', '/plan/x', '/profile/assets', '/tools/windfall', '/onboarding', '/tax', '/cant-pay']) assert.ok(isGatedAppPath(p), p);
@@ -39,7 +39,7 @@ test('E-13 / E-16: robots, sitemap and manifest', () => {
   assert.ok(robots.rules[0].allow.includes('/tools/loan-check'));
   for (const p of ['/api/', '/plan', '/profile', '/activity', '/account']) assert.ok(robots.rules[0].disallow.includes(p), p);
   const sm = require(path.join(root, 'app/sitemap.ts')).default().map((e) => e.url);
-  assert.deepEqual(sm, ['https://rightdue.app/', 'https://rightdue.app/tools/loan-check', 'https://rightdue.app/glossary', 'https://rightdue.app/privacy', 'https://rightdue.app/terms']);
+  assert.deepEqual(sm, ['https://rightdue.app/', 'https://rightdue.app/tools/loan-check', 'https://rightdue.app/rbi-decision', 'https://rightdue.app/glossary', 'https://rightdue.app/privacy', 'https://rightdue.app/terms']);
   const mf = require(path.join(root, 'app/manifest.ts')).default();
   assert.equal(mf.start_url, '/');
   assert.equal(mf.display, 'standalone');
