@@ -15,12 +15,17 @@
 
 import type { Country, IncomeType, LoanType } from '@/lib/api';
 import {
+  getInstitution,
   getRateRange,
   formatRange,
   describePosition,
   predictUserRate,
-  RATE_CARDS_AS_OF,
 } from '@/lib/rate-cards';
+
+// Audit 80+ A21: a Tier-B/C card was extrapolated from its peers, never read
+// off the lender's page. Say so wherever it shows, and never offer it as a
+// click-to-fill rate.
+export const UNVERIFIED_LABEL = 'typical, unverified';
 
 // Mirrors engine/restructuring_scan._COLLATERAL_BACKED — secured products
 // price off the asset, not income type, so we don't add the SE caveat there.
@@ -60,6 +65,9 @@ export function RateRangeHint({
 }) {
   const range = getRateRange(bank, loanType);
   if (!range) return null;
+  const card = getInstitution(bank);
+  const unverified = !card || card.is_indicative;
+  const provenance = unverified ? UNVERIFIED_LABEL : `checked ${card.last_verified}`;
 
   const showPosition = Boolean(userRate && Number(userRate) > 0);
   const positionInfo = showPosition ? describePosition(userRate!, bank, range) : null;
@@ -77,7 +85,7 @@ export function RateRangeHint({
   // (we never silently override an entered value), and only when caller
   // provides enough inputs (income + country at minimum).
   const prediction =
-    !showPosition && country && monthlyIncome && monthlyIncome > 0 && incomeType
+    !unverified && !showPosition && country && monthlyIncome && monthlyIncome > 0 && incomeType
       ? predictUserRate(range, country, incomeType, monthlyIncome, creditScore)
       : null;
 
@@ -92,7 +100,7 @@ export function RateRangeHint({
         }}
       >
         Typical <strong>{bank}</strong> range: {formatRange(range)}{' '}
-        <span style={{ opacity: 0.7 }}>(as of {RATE_CARDS_AS_OF})</span>
+        <span data-testid="rate-range-provenance" style={{ opacity: 0.7 }}>({provenance})</span>
         {positionInfo && (
           <>
             <br />
@@ -160,7 +168,7 @@ export function RateRangeHint({
       <div>
         <strong>{bank}</strong> typically quotes{' '}
         <span className="num">{formatRange(range)}</span> for this product
-        (verified {RATE_CARDS_AS_OF}).
+        ({provenance}).
       </div>
       {positionInfo && (
         <div style={{ marginTop: 4, color: 'var(--muted)' }}>

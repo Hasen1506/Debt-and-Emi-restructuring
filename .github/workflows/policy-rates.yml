@@ -1,17 +1,28 @@
 name: Policy rates
 
-# Weekly: re-read the RBI repo rate (rbi.org.in) and the Fed funds target
-# (FRED) and propose api/data/policy_rates_live.json as a PR only when it
-# should change: a new decision, the first check after a scheduled MPC/FOMC
-# meeting, or a 30-day heartbeat (scripts/fetch_policy_rates.py, grill #61).
+# Weekly, plus each RBI MPC decision day: re-read the RBI repo rate
+# (rbi.org.in) and the Fed funds target (FRED) and propose
+# api/data/policy_rates_live.json as a PR only when it should change: a
+# new decision, the first check after a scheduled MPC/FOMC meeting, or a
+# 30-day heartbeat (scripts/fetch_policy_rates.py, grill #61).
 # Replaces the API's old 6-hourly background thread. Rates change only at
-# meetings (RBI 6 a year, Fed 8), so a weekly check lags a decision by at
-# most ~5 days; press "Run workflow" the day after a meeting to record it at
-# once. A source that can't be read turns the run red (GitHub emails the
-# owner) and the last good values stay in use.
+# meetings (RBI 6 a year, Fed 8). The weekly check would lag a decision by
+# up to ~5 days, so an extra run fires at 12:00 IST on each scheduled MPC
+# decision day (audit 80+ A19, docs/RATE-SOURCES.md). Those cron lines are
+# generated from api/data/central_bank_calendar.json by
+# scripts/policy_rate_schedule.py (a test fails if they drift); the `gate`
+# job skips the fetch when a line fires on the same date in a later year.
+# Cost: ~52 weekly + 6 MPC runs a year, ~2 runner-minutes each. Press
+# "Run workflow" after an FOMC meeting to record the Fed at once. A source
+# that can't be read turns the run red (GitHub emails the owner) and the
+# last good values stay in use.
 on:
   schedule:
     - cron: "0 3 * * 1"   # Mondays 03:00 UTC (08:30 IST)
+    # BEGIN generated MPC decision days (scripts/policy_rate_schedule.py write)
+    - cron: "30 6 4 12 *"   # RBI MPC decision 04 Dec 2026, 12:00 IST
+    - cron: "30 6 5 2 *"   # RBI MPC decision 05 Feb 2027, 12:00 IST
+    # END generated MPC decision days
   workflow_dispatch:
 
 permissions:
@@ -23,7 +34,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  gate:
+    # Seconds of work: is this a weekly/manual run or a real decision day?
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/policy_rate_schedule.py
+            api/data/central_bank_calendar.json
+          sparse-checkout-cone-mode: false
+      - id: gate
+        run: python3 scripts/policy_rate_schedule.py gate --event "${{ github.event_name }}" --schedule "${{ github.event.schedule }}"
+
   fetch:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

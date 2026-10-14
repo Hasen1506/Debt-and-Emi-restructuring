@@ -118,6 +118,7 @@ export function isPublicTool(pathname: string): boolean {
   return (
     pathname === '/tools/loan-check' ||
     pathname.startsWith('/tools/loan-check/') ||
+    pathname === '/rbi-decision' ||   // audit 80+ A19: the public MPC page
     pathname === '/glossary'
   );
 }

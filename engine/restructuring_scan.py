@@ -46,16 +46,20 @@ def _displayed_rate_for(
     r: RateRange, loan_type: LoanType, income_type: Optional[IncomeType],
     fit: Optional[str] = None,
 ) -> Decimal:
-    """Pick the realistic indicative rate for `income_type` on `loan_type`:
-    salaried → best end; business_owner → mid-of-band on unsecured products,
-    best end on collateral-backed products. A credit score below the range
-    lenders keep their best rate for (`fit == "higher"`) gets the middle of
-    the band too."""
-    if fit == "higher":
-        return r.median
-    if income_type == IncomeType.BUSINESS_OWNER and loan_type not in _COLLATERAL_BACKED:
-        return r.median
-    return r.low
+    """The rate a move is costed at: the middle of the bank's published
+    range, for everyone.
+
+    Audit 80+ E1 (14 Oct 2026): this used to return the floor (`r.low`) for
+    salaried users, so Home's "Cheaper rates" offered a three-card revolver
+    with ₹400 a month spare HDFC's 9.99% (the floor of 9.99–24.00%) and a
+    US user Wells Fargo's 6.74% (floor of 6.74–23.99%) as if they were
+    theirs. The floor goes to the strongest applicants; New Debt Check
+    already ranks "at the middle of each range". The range itself is
+    carried in each opportunity's detail (range_low / range_high, and the
+    first-year saving at each end) so the screen shows where the user
+    could land instead of promising the best case. `income_type` and `fit`
+    are kept for callers; neither moves the rate below the middle."""
+    return r.median
 
 
 # The credit score a lender looks for, by the bureaus' own bands (see
@@ -255,6 +259,17 @@ def _best_bt_offer(
             best = (card, cc.bt_promo_rate, cc.bt_promo_months, fee)
             best_eff = eff
     return best
+
+
+def _range_of(bank: Optional[str], loan_type: LoanType, country: Country) -> Optional[RateRange]:
+    """The published range of `bank`'s `loan_type` among the Tier-A cards."""
+    for card in _country_pool(country):
+        if card.name == bank:
+            return {
+                LoanType.HOME: card.home_loan, LoanType.AUTO: card.auto_loan,
+                LoanType.PERSONAL: card.personal_loan, LoanType.EDUCATION: card.education_loan,
+            }.get(loan_type)
+    return None
 
 
 def _best_market_rate(
@@ -539,6 +554,10 @@ def _scan_consolidation_opportunity(
             "tenure_months": "36",
             "nominal_rate": str(market_low),
             "loan_count": str(len(cand.loans)),
+            **_range_detail(
+                _range_of(target_bank, LoanType.PERSONAL, market),
+                lambda r: _first_year_saving((cand.blended_avg_rate - r) * total, consol_cost),
+            ),
         },
         alternative_target_bank=alt_bank,
         alternative_target_rate=alt_rate,
@@ -673,6 +692,10 @@ def _scan_refi_opportunity(
             "market_median": str(median),
             "interest_saved_total": str(interest_saved),
             "refi_costs": str(refi_costs),
+            **_range_detail(
+                _range_of(target_bank, loan.loan_type, country),
+                lambda r: _first_year_saving((loan.nominal_rate - r) * loan.outstanding, refi_costs),
+            ),
         },
         alternative_target_bank=alt_bank,
         alternative_target_rate=alt_rate,
@@ -692,6 +715,20 @@ def _scan_refi_opportunity(
     opp.headline = title(opp)
     opp.rationale = explain(opp)
     return opp
+
+
+def _range_detail(r: Optional[RateRange], first_year: Callable[[Decimal], Decimal]) -> dict[str, str]:
+    """E1: the bank's published range and the first-year saving at each end,
+    for the "₹22k–₹62k depending on your score" line. Empty when the bank
+    has no range on record."""
+    if r is None:
+        return {}
+    return {
+        "range_low": str(r.low),
+        "range_high": str(r.high),
+        "saving_at_range_low": str(first_year(r.low)),
+        "saving_at_range_high": str(first_year(r.high)),
+    }
 
 
 def _latest_verified(country: Country) -> Optional[str]:
@@ -751,7 +788,10 @@ def _score_note(fit: CreditFit, country: Country, secured: bool, transfer: bool 
     """One sentence on what the user's credit score means for the offer."""
     best = _SCORE_BEST[country]
     if fit == "best":
-        return " Your credit score is in the range lenders keep their best rates for."
+        return (
+            " Your credit score is in the range lenders keep their best rates for, so you "
+            "may be quoted below the middle of the bank's range used here."
+        )
     if fit == "higher":
         if transfer:
             return (
@@ -764,8 +804,8 @@ def _score_note(fit: CreditFit, country: Country, secured: bool, transfer: bool 
         )
     if fit == "unknown":
         return (
-            f" Lenders keep their best rates for credit scores of {best} and up; "
-            "add yours in Profile to see whether it fits."
+            f" This uses the middle of the bank's range: lenders keep their best rates for "
+            f"credit scores of {best} and up; add yours in Profile to see whether it fits."
         )
     return ""
 

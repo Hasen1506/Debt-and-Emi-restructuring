@@ -123,12 +123,36 @@ def test_refi_rejected_when_savings_dont_cover_costs_2x():
 
 
 def test_refi_prefers_existing_relationship_bank():
-    """User banks with HDFC; has a home loan at Kotak at 10%. HDFC home-loan
-    low is 7.75%; SBI/ICICI tie at 7.50%. Recommendation should be HDFC
-    (existing relationship), with SBI surfaced as the dismissable alternative.
+    """User banks with Kotak; has a home loan at Axis at 10%. Moves are
+    priced at the middle of each range (audit 80+ E1): Kotak 8.67%, Axis
+    8.725%, HDFC 7.95% the cheapest overall. Recommendation should be a
+    relationship bank, with HDFC surfaced as the dismissable alternative.
     """
     home = Loan(
-        loan_type=LoanType.HOME, bank="Kotak Mahindra",
+        loan_type=LoanType.HOME, bank="Axis Bank",
+        outstanding=D("4000000"), nominal_rate=D("0.10"),
+        rate_type="floating", tenure_months_remaining=240,
+        scheduled_emi=D("38601"),
+    )
+    user = _build_user(primary_bank="Kotak Mahindra", loans=[home])
+    opps = scan_all(user)
+    refi = next((o for o in opps if o.kind == "refinance"), None)
+    assert refi is not None, "Expected a refinance opportunity"
+    # Primary recommendation: a bank the user already has a relationship with.
+    assert refi.target_is_existing_relationship is True
+    assert refi.target_bank in {"Kotak Mahindra", "Axis Bank"}
+    # Alternative: the overall-cheapest bank when it differs and beats the rec.
+    assert refi.alternative_target_bank == "HDFC Bank"
+    assert refi.alternative_target_rate is not None
+    assert refi.alternative_target_rate < refi.target_rate
+
+
+def test_refi_no_alternative_when_relationship_is_already_cheapest():
+    """User banks with HDFC (the cheapest middle of range in Tier-A, 7.95%)
+    and has a home loan elsewhere at 10%. Recommendation should be HDFC;
+    no alternative surfaces because HDFC is already the overall cheapest."""
+    home = Loan(
+        loan_type=LoanType.HOME, bank="Axis Bank",
         outstanding=D("4000000"), nominal_rate=D("0.10"),
         rate_type="floating", tenure_months_remaining=240,
         scheduled_emi=D("38601"),
@@ -136,34 +160,9 @@ def test_refi_prefers_existing_relationship_bank():
     user = _build_user(primary_bank="HDFC Bank", loans=[home])
     opps = scan_all(user)
     refi = next((o for o in opps if o.kind == "refinance"), None)
-    assert refi is not None, "Expected a refinance opportunity"
-    # Primary recommendation: a bank the user already has a relationship with.
-    assert refi.target_is_existing_relationship is True
-    assert refi.target_bank in {"HDFC Bank", "Kotak Mahindra"}
-    # Alternative: the overall-cheapest bank when it differs and beats the rec.
-    assert refi.alternative_target_bank is not None
-    assert refi.alternative_target_bank not in {"HDFC Bank", "Kotak Mahindra"}
-    assert refi.alternative_target_rate is not None
-    assert refi.alternative_target_rate < refi.target_rate
-
-
-def test_refi_no_alternative_when_relationship_is_already_cheapest():
-    """User banks with SBI (which has the cheapest home-loan low in Tier-A)
-    and has a home loan elsewhere at 10%. Recommendation should be SBI;
-    no alternative surfaces because SBI is already the overall cheapest."""
-    home = Loan(
-        loan_type=LoanType.HOME, bank="Axis Bank",
-        outstanding=D("4000000"), nominal_rate=D("0.10"),
-        rate_type="floating", tenure_months_remaining=240,
-        scheduled_emi=D("38601"),
-    )
-    user = _build_user(primary_bank="SBI", loans=[home])
-    opps = scan_all(user)
-    refi = next((o for o in opps if o.kind == "refinance"), None)
     assert refi is not None
     assert refi.target_is_existing_relationship is True
-    # SBI (or Axis, if it ties — but Axis at 0.0765 > SBI at 0.0750) wins.
-    assert refi.target_bank == "SBI"
+    assert refi.target_bank == "HDFC Bank"
     assert refi.alternative_target_bank is None
 
 
@@ -203,7 +202,7 @@ def test_other_banks_field_grants_relationship_preference():
     assert refi is not None
     assert refi.target_is_existing_relationship is True
     assert refi.target_bank == "PNB"
-    assert refi.alternative_target_bank in {"SBI", "ICICI Bank"}
+    assert refi.alternative_target_bank == "HDFC Bank"   # cheapest middle of range
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -212,9 +211,8 @@ def test_other_banks_field_grants_relationship_preference():
 
 
 def test_business_owner_gets_mid_band_on_unsecured_refi():
-    """Self-employed users see mid-of-band rate on unsecured products, since
-    underwriting widens the band for non-salaried income. Compare a personal
-    loan refi for salaried vs business_owner with the same loan."""
+    """Self-employed users see mid-of-band rate on unsecured products. Since
+    audit 80+ E1 everyone does: no one is priced at a bank's floor."""
     pl = Loan(
         loan_type=LoanType.PERSONAL, bank="Some Local NBFC",
         outstanding=D("500000"), nominal_rate=D("0.20"),
@@ -229,8 +227,10 @@ def test_business_owner_gets_mid_band_on_unsecured_refi():
     biz = _best_market_rate(Country.IN, LoanType.PERSONAL, known=None,
                              income_type=IncomeType.BUSINESS_OWNER)
     assert sal is not None and biz is not None
-    # business-owner rate must be strictly higher than salaried rate
-    assert biz[1] > sal[1]
+    # Both at the middle of the band (E1), never the floor.
+    assert biz[1] == sal[1]
+    from engine.rate_cards import lookup_rate
+    assert sal[1] == lookup_rate(sal[0], LoanType.PERSONAL).median
 
 
 def test_business_owner_home_loan_rate_unchanged():
@@ -411,10 +411,13 @@ def test_middling_score_prices_a_loan_at_the_middle_of_the_band():
     no_score = {o.kind: o for o in scan_all(user, D("0.3"))}
     user.credit_score = 720
     mid = {o.kind: o for o in scan_all(user, D("0.3"))}
-    assert mid["consolidation"].target_rate > no_score["consolidation"].target_rate
+    # E1: the middle of the band with or without a score; the score changes
+    # the note, not the rate.
+    assert mid["consolidation"].target_rate == no_score["consolidation"].target_rate
     assert mid["consolidation"].credit_fit == "higher"
     assert no_score["consolidation"].credit_fit == "unknown"
     assert "add yours in Profile" in no_score["consolidation"].rationale
+    assert "middle of the bank's range" in no_score["consolidation"].rationale
 
 
 def test_plan_that_clears_the_card_holds_the_transfer_back():

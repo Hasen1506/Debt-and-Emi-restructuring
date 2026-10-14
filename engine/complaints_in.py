@@ -32,13 +32,14 @@ from decimal import Decimal
 from typing import Optional
 
 from engine.citations import (
-    EBLR_CIRCULAR_2019, EBLR_RESET, EBLR_SPREAD, INTEREST_RATES_DIRECTIONS_2025,
-    IO_DIRECTIONS_2026, IO_ESCALATION, RBIOS_2026, RBIOS_ACCESS, RBIOS_COMPENSATION,
-    Citation,
+    CB_CONDUCT_DIRECTIONS_2025, EBLR_CIRCULAR_2019, EBLR_RESET, EBLR_SPREAD,
+    INTEREST_RATES_DIRECTIONS_2025, IO_DIRECTIONS_2026, IO_ESCALATION, NBFC_CONDUCT_DIRECTIONS_2025,
+    NHB_COMPLAINT, RBIOS_2026, RBIOS_ACCESS, RBIOS_COMPENSATION, Citation,
 )
 from engine.complaint_deadlines import REPLY_DAYS_IN, Reply, Timeline
+from engine.lenders import EBLR_BOUND, LenderType
 from engine.loan_check import (
-    Benchmark, Finding, LoanCheckInput, LoanCheckResult, OverchargeMonth,
+    BankAction, Benchmark, Finding, LoanCheckInput, LoanCheckResult, OverchargeMonth,
     _inr, _pct, find_lender,
 )
 
@@ -116,7 +117,7 @@ class AnnexureRow:
 
 @dataclass
 class Letter:
-    kind: str                # grievance | io_followup
+    kind: str                # grievance | io_followup | reset_choice
     recipient: list[str]
     date_line: str
     subject: str
@@ -544,3 +545,172 @@ def ombudsman_complaint(
         citations=[RBIOS_ACCESS, RBIOS_COMPENSATION, EBLR_RESET, EBLR_SPREAD],
         claim_amount=f.overcharged_so_far,
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EMI raised (or tenure extended) without offering the choice (audit 80+ A11)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class NoResetChoiceIssue(ValueError):
+    """The check found no change made without the borrower's choice."""
+
+
+RESET_PREFERENCES = ("emi", "tenure", "undecided")
+
+_DID = {
+    BankAction.EMI_RAISED: "increased the EMI",
+    BankAction.TENURE_EXTENDED: "extended the tenure (the number of EMIs)",
+    BankAction.BOTH: "increased the EMI and extended the tenure",
+}
+
+
+def reset_choice_letter(
+    inp: LoanCheckInput,
+    result: LoanCheckResult,
+    preference: str = "undecided",
+    borrower: Borrower = Borrower(),
+    sent_on: Optional[date] = None,
+) -> Letter:
+    """A letter asking the lender to offer, in writing, the choice the
+    reset rules require, and to apply the borrower's choice.
+
+    It claims no money: the borrower's complaint is the missing choice. The
+    lender type picks the rule quoted (para 349 for banks, para 31 for NBFCs
+    and, through para 176(3), housing finance companies) and where an
+    unresolved complaint goes next."""
+    found = [f for f in result.findings if f.kind == "choice_not_offered"]
+    if not found:
+        raise NoResetChoiceIssue(
+            "Loan Check did not find a change made without the choice. Answer "
+            "'what did the lender do after the rise' and 'was the choice offered'."
+        )
+    if preference not in RESET_PREFERENCES:
+        raise ValueError(f"preference must be one of {RESET_PREFERENCES}")
+    f = found[0]
+    lender = _lender_name(inp)
+    when = sent_on or inp.as_of
+    kind = result.lender_type
+    rr = result.rate_rise
+    if kind in EBLR_BOUND:
+        rule_src = f"paragraph 349 of the {CB_CONDUCT_DIRECTIONS_2025}"
+        entity = "the Bank"
+    elif kind == LenderType.HFC:
+        rule_src = (
+            f"paragraph 31 of the {NBFC_CONDUCT_DIRECTIONS_2025}, which applies to housing "
+            f"finance companies under paragraph 176(3) of the Housing Finance Companies "
+            f"Directions, 2025"
+        )
+        entity = "the Company"
+    elif kind == LenderType.NBFC:
+        rule_src = f"paragraph 31 of the {NBFC_CONDUCT_DIRECTIONS_2025}"
+        entity = "the Company"
+    else:
+        rule_src = (
+            "the RBI circular RBI/2023-24/55 (DOR.MCS.REC.32/01.01.003/2023-24, 18 August "
+            "2023) on reset of floating interest rate on EMI-based personal loans"
+        )
+        entity = "the Bank"
+    action = _DID[inp.bank_action]
+    move = (
+        f" after the RBI raised the policy repo rate from {_pct(rr.repo_from)} to "
+        f"{_pct(rr.repo_to)} on {_long(rr.decided)}" if rr is not None else
+        " at the last reset of the floating interest rate"
+    )
+    paras = [
+        f"Home loan account {ACCOUNT} is on a floating interest rate. The rate charged "
+        f"today is {_pct(inp.current_rate)} a year, with {inp.tenure_months_remaining} "
+        f"instalments left and an outstanding balance of {_inr(inp.outstanding)}.",
+        f"{entity[0].upper()}{entity[1:]} {action}{move}, without first offering the "
+        f"borrower a choice between a higher EMI, a longer tenure or a combination of "
+        f"both, or the option to prepay.",
+        f"Under {rule_src}, any increase in the EMI or tenor or both must be communicated "
+        f"to the borrower immediately, and the borrower must be given the choice to opt "
+        f"for enhancement in EMI or elongation of tenor or for a combination of both "
+        f"options, and to prepay, either in part or in full. Where rates are reset for a "
+        f"whole class of borrowers because the reference benchmark has increased, the "
+        f"options also include a switch to a fixed rate where the lender offers one, and "
+        f"elongation of tenor must not result in negative amortisation.",
+    ]
+    if rr is not None:
+        im = rr.impact
+        figures = (
+            f"On the present balance, keeping the same end date means an EMI of about "
+            f"{_inr(im.emi_after)} instead of {_inr(im.emi_before)}"
+        )
+        if im.tenure_option_possible:
+            figures += (
+                f"; keeping the EMI means about {im.months_change} more instalments and "
+                f"about {_inr(im.tenure_premium)} more interest than raising the EMI"
+            )
+        figures += ". These are the borrower's own estimates; the lender's figures are requested below."
+        paras.append(figures)
+
+    if preference == "emi":
+        choice = (
+            "Apply the borrower's choice from the next instalment: keep the original end "
+            "date and increase the EMI, and confirm the new EMI in writing."
+        )
+    elif preference == "tenure":
+        choice = (
+            "Apply the borrower's choice from the next instalment: keep the EMI unchanged "
+            "and extend the tenure, provided this does not result in negative amortisation, "
+            "and confirm the new number of instalments in writing."
+        )
+    else:
+        choice = (
+            "Hold the change already made open to the borrower's choice, which will be "
+            "given in writing within 15 days of receiving the options."
+        )
+    requests = [
+        "Set out in writing the options available on this loan at this reset: a higher "
+        "EMI, a longer tenure, a combination of both, a switch to a fixed rate if offered, "
+        "and prepayment in part or in full, with the EMI, the number of instalments and "
+        "the total interest under each, and any charge for each option.",
+        choice,
+        "Confirm the interest rate now applied, the benchmark rate and the spread, the EMI "
+        "and the number of instalments left, and share the quarterly statement of "
+        "principal and interest recovered, EMI amount, instalments left and the "
+        "annualised rate.",
+        "Reverse any charge levied for a change the borrower did not choose.",
+    ]
+    if kind in EBLR_BOUND:
+        escalate = (
+            "Please register this as a complaint and share the reference number. If it is "
+            "not resolved within 30 days, or is rejected, it will be taken to the RBI "
+            f"Ombudsman under the {RBIOS_2026}."
+        )
+        cites = list(f.citations) + [RBIOS_ACCESS]
+    elif kind == LenderType.HFC:
+        escalate = (
+            "Please register this as a complaint and share the reference number. If it is "
+            "not resolved within a month, it will be taken to the National Housing Bank "
+            "through its complaint system (GRIDS)."
+        )
+        cites = list(f.citations) + [NHB_COMPLAINT]
+    else:
+        escalate = (
+            "Please register this as a complaint and share the reference number. If it is "
+            "not resolved within 30 days, it will be taken to the RBI Ombudsman where the "
+            f"{RBIOS_2026} covers the lender."
+        )
+        cites = list(f.citations) + [RBIOS_ACCESS]
+    letter = Letter(
+        kind="reset_choice",
+        recipient=["The Grievance Redressal Officer", lender],
+        date_line=_long(when),
+        subject=(
+            f"Floating-rate reset on home loan account {ACCOUNT}: choice of EMI or "
+            f"tenure not offered"
+        ),
+        paragraphs=paras,
+        requests=requests,
+        closing=[escalate],
+        sign_off=_sign_off(borrower),
+        enclosures=[
+            "Latest loan account statement",
+            "The rate-change message or letter received, if any",
+        ],
+        citations=cites,
+        claim_amount=D("0"),
+    )
+    return _filled(letter, borrower)

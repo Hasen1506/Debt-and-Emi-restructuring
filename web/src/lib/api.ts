@@ -1060,6 +1060,73 @@ export interface LoanCheckRequest {
   lender_type?: LoanLenderType;
   spread_changed?: SpreadChanged;
   spread_change?: string;           // signed fraction, with spread_changed 'yes'
+  // Hike cycle (audit 80+ A11): what the lender did after the last rise,
+  // whether it offered the EMI / tenure choice, the borrower's own rate
+  // history (for rises vs cuts), and an MCLR loan's switch quote.
+  bank_action?: LoanBankAction;
+  choice_offered?: 'yes' | 'no' | 'unsure';
+  rate_history?: { month: string; rate: string }[];
+  switch_rate?: string;
+  switch_cost?: string;
+}
+
+export type LoanBankAction = 'unknown' | 'none_yet' | 'emi_raised' | 'tenure_extended' | 'both';
+
+/** One loan before and after a rate move (engine/rate_reset.py). Money in whole rupees. */
+export interface RateMoveImpact {
+  rate_before: string;
+  rate_after: string;
+  outstanding: string;
+  emi_before: string;
+  months_before: number;
+  interest_before: string;
+  emi_after: string;
+  emi_change: string;
+  interest_emi_option: string;
+  months_after: number | null;
+  months_change: number | null;
+  interest_tenure_option: string | null;
+  tenure_option_possible: boolean;
+  prepay_to_keep_both: string;
+  tenure_premium: string | null;
+}
+
+export interface LoanCheckRateRise {
+  decided: string;
+  repo_from: string;
+  repo_to: string;
+  status: 'applied' | 'pending' | 'if_passed_on';
+  reach_by: string | null;
+  impact: RateMoveImpact;
+}
+
+export interface LoanCheckPassThrough {
+  moves: { decided: string; repo_from: string; repo_to: string; reached: string | null; lag_months: number | null; late_months: number }[];
+  avg_rise_lag: string | null;
+  avg_cut_lag: string | null;
+  late_cuts: number;
+  late_cut_interest: string;
+  asymmetric: boolean;
+  notes: string[];
+}
+
+export interface RbiDecisionRequest {
+  outstanding: string;
+  current_rate: string;             // fraction
+  tenure_months_remaining: number;
+  emi?: string;
+  reached: 'yes' | 'no' | 'unsure';
+}
+
+export interface RbiDecisionResponse {
+  decision: { decided: string; repo_from: string; repo_to: string; move: string; source_url: string; reach_by: string };
+  applied_to: 'rate_after' | 'rate_before';
+  impact: RateMoveImpact;
+  next_meeting: string | null;
+  scenarios: { move: string; impact: RateMoveImpact | null }[];
+  rates_as_of: string;
+  rates_source: string;
+  notes: string[];
 }
 
 export interface LoanCheckCitation {
@@ -1086,7 +1153,9 @@ export interface LoanCheckResetWatch {
 }
 
 export interface LoanCheckFinding {
-  kind: 'missed_rate_cut' | 'pricing_gap' | 'old_benchmark' | 'below_expected' | 'rule_not_binding';
+  kind:
+    | 'missed_rate_cut' | 'pricing_gap' | 'old_benchmark' | 'below_expected' | 'rule_not_binding'
+    | 'rate_rise' | 'choice_not_offered' | 'asymmetric_pass_through';
   headline: string;
   detail: string;
   claimable: boolean;
@@ -1123,6 +1192,12 @@ export interface LoanCheckResponse {
   rule_applies: boolean;
   new_borrower_note: string;
   reset_watch: LoanCheckResetWatch | null;
+  rate_rise?: LoanCheckRateRise | null;
+  switch?: {
+    current_rate: string; switch_rate: string; switch_cost: string; interest_saved_12m: string;
+    interest_saved_rest: string; net_saving_rest: string; months_saved: number; payback_months: number | null;
+  } | null;
+  pass_through?: LoanCheckPassThrough | null;
 }
 
 export type ComplaintReply = 'none' | 'fixed' | 'partly' | 'rejected';
@@ -1139,7 +1214,7 @@ export interface ComplaintRequest extends LoanCheckRequest {
 }
 
 export interface ComplaintLetter {
-  kind: 'grievance' | 'io_followup';
+  kind: 'grievance' | 'io_followup' | 'reset_choice';
   subject: string;
   claim_amount: string;
   citations: LoanCheckCitation[];
@@ -1623,6 +1698,17 @@ export const api = {
 
   complaintIn: (req: ComplaintRequest) =>
     postWithFieldErrors<ComplaintResponse>('/api/complaints/in', req),
+
+  /** A11: letter for "EMI raised (or tenure extended) without offering the choice". */
+  resetChoiceLetter: (req: LoanCheckRequest & { preference: 'emi' | 'tenure' | 'undecided' }) =>
+    postWithFieldErrors<{ letter: ComplaintLetter; draft_notice: string; placeholders: ComplaintResponse['placeholders'] }>(
+      '/api/complaints/in/reset-choice', req,
+    ),
+
+  /** A19: the public "RBI decision: what happens to your EMI" page. */
+  rbiDecision: (req: RbiDecisionRequest) => postWithFieldErrors<RbiDecisionResponse>('/api/rbi-decision', req),
+  rbiDecisionLatest: () =>
+    get<Pick<RbiDecisionResponse, 'decision' | 'next_meeting' | 'rates_as_of' | 'rates_source'>>('/api/rbi-decision/latest'),
 
   compareOffers: (req: OfferCompareRequest) =>
     postWithFieldErrors<OfferCompareResponse>('/api/offers/compare', req),

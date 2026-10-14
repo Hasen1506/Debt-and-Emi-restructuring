@@ -280,6 +280,68 @@ RESET_CHOICES_NBFC = Citation(
     extract="nbfc_responsible_conduct_2025.txt",
 )
 
+# ── At a benchmark rise (the hike cycle, audit 80+ A11) ─────────────────────
+
+RESET_RISE_OPTIONS_BANK = Citation(
+    rule=f"{CB_CONDUCT_DIRECTIONS_2025}, paragraph 349, Note and item (5)",
+    requirement=(
+        "When rates are reset for a whole class of borrowers because the "
+        "reference benchmark rose, the bank must offer a higher EMI, more EMIs "
+        "with the EMI unchanged, or a combination; a switch to a fixed rate "
+        "where it offers one; and prepaying in part or in full. A longer "
+        "tenor must not cause negative amortisation."
+    ),
+    source="rbi.org.in, Master Directions (PDF), 28 Nov 2025, updated 1 Oct 2026",
+    verified_against_text=True,
+    clause=(
+        "Whenever there is a reset of interest rates for an entire class of "
+        "borrowers in a particular loan category, say home loan, due to increase "
+        "in the reference benchmark; the bank shall provide the following options "
+        "to the borrowers: (i) Either enhancement in EMI or elongation of number "
+        "of EMIs, keeping the EMI unchanged or a combination of both options; (ii) "
+        "Switch to fixed interest rate for the remaining portion of the loan, where "
+        "such an option is provided by the bank; and (iii) To prepay, either in "
+        "part or in full, at any point during the residual tenor of the loan. … "
+        "(5) A bank shall ensure that the elongation of tenor in case of floating "
+        "rate loan does not result in negative amortisation."
+    ),
+    paragraph="paragraph 349, Note and item (5)",
+    url=_URL_CB_RBC,
+    checked_on=CHECKED_ON,
+    extract="cb_responsible_conduct_2025.txt",
+)
+
+RESET_RISE_OPTIONS_NBFC = Citation(
+    rule=(
+        f"{NBFC_CONDUCT_DIRECTIONS_2025}, paragraph 31, Note and item (5), which "
+        f"HFCs follow under paragraph 176(3) of the {HFC_DIRECTIONS_2025}"
+    ),
+    requirement=(
+        "When rates are reset for a whole class of borrowers because the "
+        "reference benchmark rose, an NBFC or housing finance company must offer "
+        "a higher EMI, more EMIs with the EMI unchanged, or a combination; a "
+        "switch to a fixed rate where offered; and prepaying in part or in full. "
+        "A longer tenor must not cause negative amortisation."
+    ),
+    source="rbi.org.in, Master Directions (PDF), 28 Nov 2025, updated 1 Jul 2026",
+    verified_against_text=True,
+    clause=(
+        "Whenever there is a reset of interest rates for an entire class of "
+        "borrowers in a particular loan category, say home loan, due to increase "
+        "in the reference benchmark; the NBFC shall provide the following options "
+        "to the borrowers: (i) Either enhancement in EMI or elongation of number "
+        "of EMIs, keeping the EMI unchanged or a combination of both options; … "
+        "(iii) To prepay, either in part or in full, at any point during the "
+        "residual tenor of the loan. … (5) An NBFC shall ensure that the "
+        "elongation of tenor in case of floating rate loan does not result in "
+        "negative amortisation."
+    ),
+    paragraph="paragraph 31, Note and item (5) (NBFC Directions); 176(3) (HFC Directions)",
+    url=_URL_NBFC_RBC,
+    checked_on=CHECKED_ON,
+    extract="nbfc_responsible_conduct_2025.txt",
+)
+
 PROSPECTIVE_BANK = Citation(
     rule=f"{CB_CONDUCT_DIRECTIONS_2025}, paragraph 337",
     requirement=(
@@ -506,7 +568,8 @@ PREPAYMENT_NO_CHARGE = Citation(
 
 ALL = (
     EBLR_SCOPE, EBLR_MANDATE, EBLR_RESET, EBLR_SPREAD, EBLR_SWITCH,
-    RESET_CHOICES_BANK, RESET_CHOICES_NBFC, PROSPECTIVE_BANK, PROSPECTIVE_HFC,
+    RESET_CHOICES_BANK, RESET_CHOICES_NBFC, RESET_RISE_OPTIONS_BANK, RESET_RISE_OPTIONS_NBFC,
+    PROSPECTIVE_BANK, PROSPECTIVE_HFC,
     HFC_RATE_POLICY, HFC_PREPAY_FREE,
     IO_ESCALATION, RBIOS_ACCESS, RBIOS_COMPENSATION, RBIOS_SCOPE, NHB_COMPLAINT,
     PREPAYMENT_NO_CHARGE,
