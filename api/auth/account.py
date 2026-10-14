@@ -209,24 +209,31 @@ def _aware(value: datetime, ref: datetime) -> datetime:
 
 
 async def _notify_records(user_id: str) -> dict[str, Any]:
-    """The payday-email settings and answers kept for this account
+    """The payday-email settings, rate-move watch and answers kept for this account
     (api/notify/store.py tables; read here so the export is complete)."""
     try:
         from sqlalchemy import select as _select
         from api.notify.store import events, store as notify_store
         st = notify_store()
         sub = await st.get(user_id)
+        watch = await st.get_rate_watch(user_id)
         async with st.engine.connect() as conn:
             rows = (await conn.execute(
                 _select(events.c.kind, events.c.month, events.c.day, events.c.applied, events.c.created_at)
                 .where(events.c.user_id == user_id).order_by(events.c.id)
             )).mappings().all()
     except Exception:
-        return {"settings": None, "events": [], "note": "could not be read just now; try again"}
+        return {"settings": None, "events": [], "rate_move_watch": None,
+                "note": "could not be read just now; try again"}
     settings = None
     if sub:
         settings = {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in sub.items() if k != "user_id"}
-    return {"settings": settings, "events": [
+    # Rate-move email watch (A13, notify_rate_watch): which loans, on/off.
+    rate_move_watch = None
+    if watch:
+        rate_move_watch = {k: (v.isoformat() if hasattr(v, "isoformat") else v)
+                           for k, v in watch.items() if k != "user_id"}
+    return {"settings": settings, "rate_move_watch": rate_move_watch, "events": [
         {"kind": r["kind"], "month": r["month"], "day": _iso_any(r["day"]), "applied": r["applied"],
          "at": _iso_any(r["created_at"])} for r in rows
     ]}

@@ -58,7 +58,32 @@ events = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
+# A13: repo-linked loans to watch for an RBI move (name, outstanding, rate,
+# EMI, months left; no account numbers). Its own table so the G7 tables and
+# migration 0003 stay as they are; created on first use like the others.
+rate_watch = Table(
+    "notify_rate_watch",
+    metadata,
+    Column("user_id", String(64), primary_key=True),
+    Column("email", String(320), nullable=False),
+    Column("watch_on", Boolean, nullable=False, default=False),
+    Column("loans", Text),               # JSON list of {name,outstanding,rate,emi,months_left}
+    Column("saved_at", DateTime(timezone=True)),
+    Column("last_decision", String(10)), # "YYYY-MM-DD" of the RBI decision last emailed about
+    Column("opted_in_on", Date),
+)
+# One scheduler run at a time: GitHub Actions and cron-job.org may both call
+# /api/notify/run; the second gets 409 instead of sending twice.
+run_lock = Table(
+    "notify_run_lock",
+    metadata,
+    Column("name", String(32), primary_key=True),
+    Column("locked_until", DateTime(timezone=True), nullable=False),
+)
+
 ANSWER_KINDS = ("ack_all", "ack_some", "ack_cant", "reply_done", "reply_not")
+# Events that are one email each (the daily send budget counts these).
+SENT_KINDS = ("sent", "reminder", "rate_move")
 
 
 def _utcnow() -> datetime:
@@ -154,6 +179,8 @@ class NotifyStore:
             await conn.execute(update(subscriptions).where(subscriptions.c.user_id == user_id).values(
                 payday_on=False, reminders_on=False, snapshot=None, snapshot_at=None,
                 reminder_items=None, updated_at=self.now()))
+            await conn.execute(update(rate_watch).where(rate_watch.c.user_id == user_id).values(
+                watch_on=False, loans=None, saved_at=None))
 
     async def active(self) -> list[dict[str, Any]]:
         await self.init()
@@ -168,6 +195,7 @@ class NotifyStore:
         async with self.engine.begin() as conn:
             await conn.execute(delete(events).where(events.c.user_id == user_id))
             await conn.execute(delete(subscriptions).where(subscriptions.c.user_id == user_id))
+            await conn.execute(delete(rate_watch).where(rate_watch.c.user_id == user_id))
 
     # ── events ──────────────────────────────────────────────────────────
     async def add_event(self, user_id: str, kind: str, month: Optional[str], day: date) -> int:
@@ -202,6 +230,79 @@ class NotifyStore:
         async with self.engine.connect() as conn:
             rows = (await conn.execute(select(events.c.user_id, events.c.kind, events.c.day))).all()
         return [(r[0], r[1], r[2]) for r in rows]
+
+    async def sent_on(self, day: date) -> int:
+        """Emails sent on `day` (one event per email), for the daily budget."""
+        await self.init()
+        from sqlalchemy import func
+        async with self.engine.connect() as conn:
+            return int((await conn.execute(select(func.count()).select_from(events).where(and_(
+                events.c.day == day, events.c.kind.in_(SENT_KINDS))))).scalar_one())
+
+    # ── rate-move watch (A13) ───────────────────────────────────────────
+    async def get_rate_watch(self, user_id: str) -> Optional[dict[str, Any]]:
+        await self.init()
+        async with self.engine.connect() as conn:
+            row = (await conn.execute(select(rate_watch).where(rate_watch.c.user_id == user_id))).mappings().first()
+        if row is None:
+            return None
+        d = dict(row)
+        d["loans"] = json.loads(d["loans"]) if d.get("loans") else []
+        return d
+
+    async def set_rate_watch(self, user_id: str, email: str, *, on: bool, loans: list[dict], today: date) -> None:
+        await self.init()
+        cur = await self.get_rate_watch(user_id)
+        values: dict[str, Any] = {
+            "email": email, "watch_on": on,
+            "loans": json.dumps(loans, separators=(",", ":")) if on else None,
+            "saved_at": self.now() if on else None,
+        }
+        if on and not (cur and cur["watch_on"]):
+            values["opted_in_on"] = today
+        async with self.engine.begin() as conn:
+            if cur:
+                await conn.execute(update(rate_watch).where(rate_watch.c.user_id == user_id).values(**values))
+            else:
+                await conn.execute(rate_watch.insert().values(user_id=user_id, **values))
+
+    async def active_rate_watch(self) -> list[dict[str, Any]]:
+        await self.init()
+        async with self.engine.connect() as conn:
+            ids = (await conn.execute(select(rate_watch.c.user_id).where(rate_watch.c.watch_on.is_(True)))).scalars().all()
+        return [w for w in [await self.get_rate_watch(i) for i in ids] if w]
+
+    async def mark_rate_sent(self, user_id: str, decision: str, today: date) -> None:
+        await self.init()
+        async with self.engine.begin() as conn:
+            await conn.execute(update(rate_watch).where(rate_watch.c.user_id == user_id).values(last_decision=decision))
+        await self.add_event(user_id, "rate_move", decision[:7], today)
+
+    # ── one run at a time ───────────────────────────────────────────────
+    async def try_lock(self, name: str, seconds: int) -> bool:
+        from datetime import timedelta
+        from sqlalchemy.exc import IntegrityError
+        await self.init()
+        now = self.now()
+        until = now + timedelta(seconds=seconds)
+        try:
+            async with self.engine.begin() as conn:
+                res = await conn.execute(update(run_lock).where(and_(
+                    run_lock.c.name == name, run_lock.c.locked_until < now)).values(locked_until=until))
+                if (res.rowcount or 0) == 1:
+                    return True
+                exists = (await conn.execute(select(run_lock.c.name).where(run_lock.c.name == name))).first()
+                if exists:
+                    return False
+                await conn.execute(run_lock.insert().values(name=name, locked_until=until))
+                return True
+        except IntegrityError:          # another run inserted it first
+            return False
+
+    async def unlock(self, name: str) -> None:
+        await self.init()
+        async with self.engine.begin() as conn:
+            await conn.execute(delete(run_lock).where(run_lock.c.name == name))
 
     async def close(self) -> None:
         await self.engine.dispose()

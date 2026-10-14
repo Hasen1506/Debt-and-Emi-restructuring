@@ -68,10 +68,13 @@ def _add_months(d: date, n: int) -> date:
 # (a) EMI or tenure after a rate move
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _run(balance: Decimal, rate: Decimal, payment: Decimal, limit: int = MAX_MONTHS) -> tuple[int, Decimal]:
-    """(months to clear, total interest) paying `payment` a month at `rate`.
-    The last month pays only what is left. (MAX_MONTHS, interest so far)
-    when the payment never clears it."""
+def amortise_until_clear(balance: Decimal, rate: Decimal, payment: Decimal,
+                         limit: int = MAX_MONTHS) -> tuple[Optional[int], Decimal]:
+    """(months to clear, total interest) paying `payment` a month at `rate`;
+    months is None when it does not clear within `limit` months. The last
+    month pays only what is left (a balance of 50 paise or less is cleared).
+    The one amortisation loop behind every rate-move figure (Loan Check A11
+    here and the A13 rate-move email in engine/rate_move.py)."""
     interest_total = D("0")
     b = balance
     for m in range(1, limit + 1):
@@ -80,7 +83,14 @@ def _run(balance: Decimal, rate: Decimal, payment: Decimal, limit: int = MAX_MON
         b = b + i - payment
         if b <= D("0.5"):
             return m, interest_total
-    return limit, interest_total
+    return None, interest_total
+
+
+def _run(balance: Decimal, rate: Decimal, payment: Decimal, limit: int = MAX_MONTHS) -> tuple[int, Decimal]:
+    """As amortise_until_clear, but (limit, interest so far) when the payment
+    never clears it."""
+    n, interest_total = amortise_until_clear(balance, rate, payment, limit)
+    return (limit if n is None else n), interest_total
 
 
 def _pv(payment: Decimal, rate: Decimal, months: int) -> Decimal:
@@ -118,50 +128,80 @@ class RateMoveImpact:
     tenure_premium: Optional[Decimal]
 
 
-def rate_move_impact(
-    outstanding: Decimal, rate_before: Decimal, rate_after: Decimal,
-    months_left: int, emi: Optional[Decimal] = None,
-) -> RateMoveImpact:
-    """EMI-or-tenure arithmetic for a move from `rate_before` to `rate_after`.
+@dataclass(frozen=True)
+class RateMoveExact:
+    """rate_move_impact before rounding: the shared arithmetic. Loan Check
+    rounds it to whole rupees (RateMoveImpact); the A13 email to paise
+    (engine/rate_move.RateMove). Months are exact either way."""
+    emi_before: Decimal
+    months_before: int
+    interest_before: Decimal
+    emi_after: Decimal
+    interest_emi_option: Decimal
+    months_after: Optional[int]           # None: the old EMI can't clear it
+    interest_tenure_option: Optional[Decimal]
+    prepay_to_keep_both: Decimal
 
-    `emi` is the EMI paid before the move (worked out from the balance, rate
-    and months left when not given). With a given EMI the "months before" is
-    what that EMI really takes, so a loan whose EMI and tenure disagree is
-    measured on its own terms."""
-    if outstanding <= 0 or months_left < 1:
-        raise ValueError("outstanding must be > 0 and months_left >= 1")
-    e0 = emi if emi is not None and emi > 0 else emi_formula(outstanding, rate_before, months_left)
+
+def rate_move_exact(
+    outstanding: Decimal, rate_before: Decimal, rate_after: Decimal,
+    months_left: Optional[int], emi: Optional[Decimal] = None,
+) -> RateMoveExact:
+    """EMI-or-tenure arithmetic for a move from `rate_before` to `rate_after`,
+    unrounded. `emi` is the EMI paid before the move (worked out from the
+    balance, rate and months left when not given). With a given EMI the
+    "months before" is what that EMI really takes, so a loan whose EMI and
+    tenure disagree is measured on its own terms."""
+    if outstanding <= 0:
+        raise ValueError("outstanding must be > 0")
+    given = emi is not None and emi > 0
+    if not given and (months_left is None or months_left < 1):
+        raise ValueError("months_left >= 1 is needed when no EMI is given")
+    e0 = emi if given else emi_formula(outstanding, rate_before, months_left)
     n0, int0 = _run(outstanding, rate_before, e0)
-    if emi is None:
+    if not given:
         n0 = months_left  # the formula EMI clears it in months_left by construction
     # Option 1: same end date at the new rate.
     e1 = emi_formula(outstanding, rate_after, n0)
     _, int1 = _run(outstanding, rate_after, e1, n0 + 1)
     # Option 2: same EMI at the new rate.
-    possible = e0 > outstanding * rate_after / D("12")
-    if possible:
-        n2, int2 = _run(outstanding, rate_after, e0)
-        possible = n2 < MAX_MONTHS
-    if possible:
-        months_after: Optional[int] = n2
-        months_change: Optional[int] = n2 - n0
-        int_t: Optional[Decimal] = _money(int2)
-        premium: Optional[Decimal] = _money(int2 - int1)
-    else:
-        months_after = months_change = None
-        int_t = premium = None
+    n2: Optional[int] = None
+    int2: Optional[Decimal] = None
+    if e0 > outstanding * rate_after / D("12"):
+        n2, int2 = amortise_until_clear(outstanding, rate_after, e0)
+        if n2 is None or n2 >= MAX_MONTHS:
+            n2 = int2 = None
     # Option 3: prepay so the old EMI clears the rest in n0 months.
     keep = outstanding - _pv(e0, rate_after, n0)
     # Under ₹1 is rounding in the annuity formula, not a prepayment.
     prepay = keep.quantize(D("1"), rounding=ROUND_CEILING) if rate_after > rate_before and keep > 1 else D("0")
+    return RateMoveExact(
+        emi_before=e0, months_before=n0, interest_before=int0,
+        emi_after=e1, interest_emi_option=int1,
+        months_after=n2, interest_tenure_option=int2, prepay_to_keep_both=prepay,
+    )
+
+
+def rate_move_impact(
+    outstanding: Decimal, rate_before: Decimal, rate_after: Decimal,
+    months_left: int, emi: Optional[Decimal] = None,
+) -> RateMoveImpact:
+    """rate_move_exact in whole rupees (Loan Check, A11)."""
+    if outstanding <= 0 or months_left < 1:
+        raise ValueError("outstanding must be > 0 and months_left >= 1")
+    x = rate_move_exact(outstanding, rate_before, rate_after, months_left, emi)
+    possible = x.months_after is not None
     return RateMoveImpact(
         rate_before=rate_before, rate_after=rate_after, outstanding=outstanding,
-        emi_before=_money(e0), months_before=n0, interest_before=_money(int0),
-        emi_after=_money(e1), emi_change=_money(e1) - _money(e0),
-        interest_emi_option=_money(int1),
-        months_after=months_after, months_change=months_change,
-        interest_tenure_option=int_t, tenure_option_possible=possible,
-        prepay_to_keep_both=prepay, tenure_premium=premium,
+        emi_before=_money(x.emi_before), months_before=x.months_before, interest_before=_money(x.interest_before),
+        emi_after=_money(x.emi_after), emi_change=_money(x.emi_after) - _money(x.emi_before),
+        interest_emi_option=_money(x.interest_emi_option),
+        months_after=x.months_after,
+        months_change=(x.months_after - x.months_before) if possible else None,
+        interest_tenure_option=_money(x.interest_tenure_option) if possible else None,
+        tenure_option_possible=possible,
+        prepay_to_keep_both=x.prepay_to_keep_both,
+        tenure_premium=_money(x.interest_tenure_option - x.interest_emi_option) if possible else None,
     )
 
 

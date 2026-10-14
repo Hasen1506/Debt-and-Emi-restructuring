@@ -282,6 +282,22 @@ def test_export_lists_every_record_kind_and_live_processors(harness, monkeypatch
     assert "123456" not in str(body["access_log"])
 
 
+def test_export_includes_the_rate_move_watch(harness):
+    """W5's notify_rate_watch (A13) is part of 'everything we hold' (D5)."""
+    from datetime import date
+    from api.notify import store as notify_store_mod
+    client, codes = harness
+    sign_in(client, codes)
+    assert client.get("/api/auth/account/export").json()["payday_email"]["rate_move_watch"] is None
+    uid = str(client.query(select(User))[0].id)
+    loans = [{"name": "Home loan", "outstanding": "5000000", "rate": "0.085", "emi": None, "months_left": 240}]
+    client.portal.call(lambda: notify_store_mod.store().set_rate_watch(
+        uid, EMAIL, on=True, loans=loans, today=date(2026, 10, 14)))
+    watch = client.get("/api/auth/account/export").json()["payday_email"]["rate_move_watch"]
+    assert watch["watch_on"] is True and watch["loans"] == loans
+    assert "user_id" not in watch
+
+
 def test_access_log_line_for_every_read_write_and_refusal(harness):
     client, codes = harness
     sign_in(client, codes)

@@ -52,7 +52,7 @@ def test_everything_404s_with_flags_off(monkeypatch):
     for k in ("PAYDAY_EMAIL_ENABLED", "DEADLINE_REMINDERS_ENABLED"):
         monkeypatch.delenv(k, raising=False)
     c = TestClient(app)
-    assert c.get("/api/notify/flags").json() == {"payday_email": False, "deadline_reminders": False, "reply_done": False}
+    assert c.get("/api/notify/flags").json() == {"payday_email": False, "deadline_reminders": False, "reply_done": False, "rate_move": False}
     assert c.post("/api/notify/run", headers={"Authorization": f"Bearer {CRON}"}).status_code == 404
     assert c.get("/api/notify/ack?t=x").status_code == 404
     assert c.post("/api/notify/inbound", content=b"{}").status_code == 404

@@ -141,6 +141,11 @@ app.include_router(closure.router, prefix="/api")
 from api.routes import insights  # noqa: E402  (audit 80+ A1/A2/A4/A5/A6, offer check)
 app.include_router(insights.router, prefix="/api")
 app.include_router(notify_routes.router, prefix="/api")
+# A80 W5: counts-only funnel (404 until FUNNEL_ENABLED) and the advice verifier.
+from api import funnel as funnel_routes  # noqa: E402
+from api.routes import advice_check as advice_check_routes  # noqa: E402
+app.include_router(funnel_routes.router, prefix="/api")
+app.include_router(advice_check_routes.router, prefix="/api")
 
 # DB-bound routers — only mounted when DATABASE_URL is configured.
 # Skipping them on the Render free tier keeps the API up without a
