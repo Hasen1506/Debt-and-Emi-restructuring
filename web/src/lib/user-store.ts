@@ -21,11 +21,12 @@ import {
   profileChunkName,
 } from './profile-cookie';
 import { sessionToken } from './storage-migration';
+import { readableCookieMaxAge } from './readable-cookie-age';
 
 const MARGINAL_COOKIE = 'rightdue_marginal';
 const SCORE_COOKIE = 'rightdue_score';
 const FX_COOKIE = 'rightdue_fx';
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;  // 1 year
+// D16: a year for guests, the sign-in's 30 days for accounts (readable-cookie-age.ts).
 // FX rates from the spot endpoint are refreshed daily — anything older is
 // re-fetched on next read. 24h is a sensible balance: the engine treats FX
 // as a slow-moving variable, and refetching every page load was the bug
@@ -54,7 +55,7 @@ function readClientCookie(name: string): string | null {
 
 function writeClientCookie(name: string, value: string) {
   if (typeof document === 'undefined') return;
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
 }
 
 /** The raw profile cookies, to tell when the saved profile has changed. */
@@ -83,7 +84,7 @@ export function writeProfileCookieClient(json: string): boolean {
     document.cookie =
       v == null
         ? `${profileChunkName(i)}=; path=/; max-age=0`
-        : `${profileChunkName(i)}=${v}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+        : `${profileChunkName(i)}=${v}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
   };
   // The parts are URL-safe as they are; no further encoding.
   parts.forEach((v, i) => put(i, v));

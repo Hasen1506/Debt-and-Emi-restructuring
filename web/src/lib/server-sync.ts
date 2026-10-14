@@ -24,12 +24,13 @@ import { onSignInPage, SESSION_CHANGED_EVENT } from './session-events';
 import { writeProfileCookieClient, profileCookieHolds, clearProfileClient, resumeProfileClient, serializeProfileForServer, type StoredProfile } from './user-store';
 import { writeLifecycleClient, readLifecycleClient, type LifecycleEvent } from './lifecycle-events';
 import { migrateLegacyClientStorage } from './storage-migration';
+import { readableCookieMaxAge } from './readable-cookie-age';
 
 // finoptima_* → rightdue_* (critique #58): move this browser's keys before
 // any store reads them. The root layout loads this module on every page.
 migrateLegacyClientStorage();
 
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+// D16: cookie lifetimes come from readableCookieMaxAge() (readable-cookie-age.ts).
 
 /** Map of slice key (top-level in server blob) → its client storage location. */
 type StorageKind = 'cookie' | 'localStorage';
@@ -338,8 +339,9 @@ export function serializeClientState(profile: StoredProfile): Record<string, unk
 }
 
 function writeCookie(name: string, value: string): void {
+  // D16: account copies live as long as the sign-in, not a year.
   if (typeof document === 'undefined') return;
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
 }
 
 /**
@@ -586,18 +588,18 @@ export async function hydrateLocalStores(data: Record<string, unknown>, isCurren
     if (!isCurrent()) return;
     const write = goalSliceWrite(data.goals);
     localStorage.setItem(write.key, JSON.stringify(write.value));
-    document.cookie = `${write.cookie}=${write.digest}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+    document.cookie = `${write.cookie}=${write.digest}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
   }
   if (Array.isArray(data.goal_contributions)) {
     const { contributionSliceWrite } = await import('./goal-contributions');
     if (!isCurrent()) return;
     const write = contributionSliceWrite(data.goal_contributions);
-    document.cookie = `${write.cookie}=${write.digest}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+    document.cookie = `${write.cookie}=${write.digest}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
   }
   if (Array.isArray(data.monthly_spend)) {
     const { latestByMonth } = await import('./monthly-spend');
     if (!isCurrent()) return;
-    document.cookie = `rightdue_monthly_spend_digest=${btoa(JSON.stringify(latestByMonth(data.monthly_spend)))}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+    document.cookie = `rightdue_monthly_spend_digest=${btoa(JSON.stringify(latestByMonth(data.monthly_spend)))}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
   }
 }
 
