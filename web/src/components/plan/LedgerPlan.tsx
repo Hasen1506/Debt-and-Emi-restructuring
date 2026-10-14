@@ -56,6 +56,7 @@ import { PlanNotes } from './PlanNotes';
 import { PlanAssumptions } from './PlanAssumptions';
 import { PlanGivens } from './PlanGivens';
 import { TenureWhatIf } from './TenureWhatIf';
+import { LIKELY_HOW, WORST_CASE_LABEL, likelySaving, likelySavingText } from '@/lib/savings-baseline';
 import { dueVsAffordable, gapRateWords, shortHeadline } from '@/lib/plan-gap';
 
 export function LedgerPlan({ plan }: { plan: PlanData }) {
@@ -123,6 +124,13 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
   // interest total compounds for 100 years (25-digit figures); there is no
   // honest ₹ difference to print.
   const minimumsNeverClear = !!plan.baselineNeverClears || baselineClear === null;
+  const snow = plan.strategyCompare?.snowball;
+  const likelyS = snow ? likelySaving({ debtFreeMonth: plan.debtFreeMonth, totalInterest: plan.totalInterest }, snow) : null;
+  const worstCase = short
+    ? null
+    : minimumsNeverClear
+      ? 'Paying only the minimums never clears these loans.'
+      : `Paying only the minimums would cost ${interestSaved >= 1 && sane(interestSaved) ? `${fc(interestSaved)} more interest` : 'about the same interest'}${plan.monthsSaved > 0 ? ` and take ${monthsSpan(plan.monthsSaved)} longer` : ''}. That is the most any plan could save, not a typical saving.`;
   // Nothing owed: every loan on file is at 0, or there are none.
   const debtFreeNow = !plan.user.loans.some((l) => dec(l.outstanding).gt(0));
 
@@ -190,25 +198,19 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                   s:
                     plan.gap && plan.gap.totalInterest >= 1
                       ? `INCL. ${fc(Math.round(plan.gap.totalInterest))} ON GAP BORROWING`
-                      : minimumsNeverClear
-                        ? 'MINIMUMS ALONE NEVER CLEAR IT'
-                        : interestSaved >= 1 && sane(interestSaved)
-                          ? `${fc(interestSaved)} LESS THAN MINIMUMS`
-                          : 'SAME AS PAYING MINIMUMS',
+                      : 'OVER THE WHOLE PLAN',
                   // UX50 B-15: interest is a cost; not in the "good" colour.
                   tone: L_T.ink,
                 },
+            // Audit 80 B4/A22/E4: the saving vs what they'd likely do without
+            // RightDue (same total, smallest first), as on the landing page and
+            // in Setup. Neutral ink, not the accent: it is a comparison, not a
+            // prize. Paying only the minimums is in the worst-case expander.
             {
-              l: 'TIME SAVED',
-              v: !short && plan.monthsSaved > 0 ? monthsSpan(plan.monthsSaved).toUpperCase() : '—',
-              // The minimums can run past the plan's horizon (a card whose
-              // minimum barely covers its interest): there's no date to compare.
-              s: short
-                ? 'NEEDS A PAYOFF DATE FIRST'
-                : plan.monthsSaved > 0 || baselineClear
-                  ? 'VS PAYING ONLY MINIMUMS'
-                  : 'MINIMUMS ALONE NEVER CLEAR IT',
-              tone: L_T.accent,
+              l: 'VS LIKELY WITHOUT RIGHTDUE',
+              v: short ? '—' : likelySavingText(likelyS, (v) => fc(v)).toUpperCase(),
+              s: short ? 'NEEDS A PAYOFF DATE FIRST' : likelyS?.same ? 'YOUR ORDER IS THE OBVIOUS ONE' : LIKELY_HOW.toUpperCase(),
+              tone: L_T.ink,
             },
             plan.shortfall > 0
               ? (() => {
@@ -232,6 +234,12 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                 },
           ]}
         />
+        {worstCase && (
+          <details data-testid="plan-worst-case" style={{ fontSize: 12, color: L_T.muted }}>
+            <summary style={{ cursor: 'pointer' }}>{WORST_CASE_LABEL}</summary>
+            <p style={{ margin: '6px 0 0', lineHeight: 1.55 }}>{worstCase}</p>
+          </details>
+        )}
         {/* A four-screen page: one tap to the part you came for */}
         <nav aria-label="On this page" data-print="hide" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 11, alignItems: 'center' }}>
           <span style={{ color: L_T.muted, letterSpacing: '0.1em' }}>JUMP TO</span>
