@@ -115,11 +115,18 @@ export function testEmail(email: string): string {
   return project === 'chromium' ? email : email.replace('@', `+${project}@`);
 }
 
+/** audit80 D7 (W8): "Agree and send code" stays disabled until the 18+ box
+ *  is ticked; every sign-in in the suite goes through here. */
+export async function confirmAgeAndSend(page: Page) {
+  await page.getByTestId('age-confirm').check();
+  await page.getByRole('button', { name: /send code/i }).click();
+}
+
 export async function signIn(page: Page, address: string) {
   const email = testEmail(address);
   await page.goto('/login');
   await page.getByPlaceholder('you@example.com').fill(email);
-  await page.getByRole('button', { name: /send code/i }).click();
+  await confirmAgeAndSend(page);
   await expect(page.getByText(`We sent a 6-digit code to ${email}`)).toBeVisible();
   await page.getByPlaceholder('••••••').fill(OTP);
   await page.getByRole('button', { name: /verify and sign in/i }).click();

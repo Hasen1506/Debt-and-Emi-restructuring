@@ -9,7 +9,7 @@
  * cookies from before the rename.
  */
 import type { BrowserContext, Page } from '@playwright/test';
-import { expect, fillLoan, FROZEN_NOW, OTP, signIn, test, testEmail, makeSetupChoices, openProfileSection } from './fixtures';
+import { confirmAgeAndSend, expect, fillLoan, FROZEN_NOW, OTP, signIn, test, testEmail, makeSetupChoices, openProfileSection } from './fixtures';
 
 const API = `http://127.0.0.1:${process.env.E2E_API_PORT ?? 8100}`;
 const notice = (page: Page) => page.locator('[data-sync-state]');
@@ -78,7 +78,7 @@ test('sign-in ended elsewhere: the save is kept here, the notice says why, and s
   await notice(page).getByRole('link', { name: 'Sign in again' }).click();
   await page.waitForURL(/\/login\?next=%2Fprofile/);
   await page.getByPlaceholder('you@example.com').fill(testEmail(email));
-  await page.getByRole('button', { name: /send code/i }).click();
+  await confirmAgeAndSend(page);
   await page.getByPlaceholder('••••••').fill(OTP);
   await page.getByRole('button', { name: /verify and sign in/i }).click();
   // The login page leaves with window.location.assign. Firefox can report that
