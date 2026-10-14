@@ -25,7 +25,7 @@
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"RightDue","url":"https://rightdue.app/","description":"A payoff plan for every loan, EMI and credit card: what to pay this month, on which loan, and the date you'll be debt-free.","applicationCategory":"FinanceApplication","operatingSystem":"Any (web browser)","inLanguage":"en","areaServed":[{"@type":"Country","name":"India"},{"@type":"Country","name":"United States"}],"offers":{"@type":"Offer","price":"0","priceCurrency":"INR"},"publisher":{"@type":"Organization","name":"RightDue","email":"vijeya@rightdue.app","foundingDate":"2026-06"}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"RightDue","url":"https://rightdue.app/","description":"A payoff plan for every loan, EMI and credit card: what to pay this month, on which loan, and the date you'll be debt-free.","applicationCategory":"FinanceApplication","operatingSystem":"Any (web browser)","inLanguage":"en","areaServed":[{"@type":"Country","name":"India"},{"@type":"Country","name":"United States"}],"offers":{"@type":"Offer","price":"0","priceCurrency":"INR"},"publisher":{"@type":"Organization","name":"RightDue","email":"support@rightdue.app","foundingDate":"2026-06"}}</script>
 <!-- UX50 A-12: IBM Plex Mono 400/700 self-hosted (no third-party CSS). -->
 <link rel="preload" href="/fonts/ibm-plex-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/ibm-plex-mono-700-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -142,7 +142,8 @@
   .row.first{background:var(--hl2);box-shadow:inset 3px 0 0 var(--accent);margin:0 -8px;padding:10px 8px 10px 11px}
   /* A decoration, not a button (A-24): dotted, untappable. */
   .stamp{font-size:10px;font-weight:700;letter-spacing:.1em;padding:4px 8px;border:1px dotted var(--muted);color:var(--muted);min-width:74px;text-align:center;pointer-events:none;user-select:none}
-  .stamp.paid{background:var(--pos);border-color:var(--pos);color:#fff}
+  .stamp.paid{background:transparent;border:2px solid var(--pos);color:var(--pos);transform:rotate(-6deg);border-radius:2px}
+  .neutral{font-weight:700;margin:14px 0 0;font-size:14px}
   .tot{display:flex;justify-content:space-between;padding-top:10px;font-size:11px;letter-spacing:.1em;color:var(--muted)}
   .tot b{color:var(--ink);font-size:13px}
   .why{font-size:11px;color:var(--soft);margin-top:10px;line-height:1.6}
@@ -220,7 +221,7 @@
   .tool .tag.gated{color:var(--muted)}
 
   /* Steps */
-  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;counter-reset:s}
+  .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;counter-reset:s -1}
   /* A-17: one heavy rule under the section header, light ones between steps. */
   .step{border-top:1px dashed var(--rule);padding-top:12px}
   #how .sh,#countries .sh{border-bottom:0;padding-bottom:0}
@@ -334,13 +335,13 @@
   <div class="wrap">
     <div class="hero">
       <div>
-        <div class="kicker" data-c="IN">FOR LOANS, EMIS AND CREDIT CARDS · INDIA</div>
+        <div class="kicker" data-c="IN">FOR SALARIED INDIANS PAYING 2–5 EMIS AND CARDS</div>
         <div class="kicker" data-c="US">FOR MORTGAGES, AUTO LOANS AND CREDIT CARDS · USA</div>
         <h1>What to pay, on which loan, <em>this&nbsp;month.</em></h1>
         <p class="lead lead-l">Add your loans and cards once. RightDue works out what each one really costs, puts your spare cash where it saves the most, and gives you the date you'll be debt-free, month by month. A payoff plan: it doesn't lend, and it doesn't negotiate with your bank.</p>
         <p class="lead lead-s">Add your loans once. See what each really costs, where spare cash saves most, and the month you'll be debt-free.</p>
         <div class="ctas">
-          <a class="btn dark" href="/login">[ START YOUR PLAN → ]</a>
+          <a class="btn dark" href="/login?start=1">[ START YOUR FREE PLAN → ]</a>
           <a class="btn" href="/tools/loan-check" data-c="IN">[ TRY LOAN CHECK ]</a>
           <a class="btn" href="#app" data-c="US">[ SEE WHAT'S INSIDE ]</a>
         </div>
@@ -350,6 +351,9 @@
           <li><a href="/account">Email sign-in, delete any time</a></li>
           <li><a href="/terms">Not a lender</a></li>
         </ul>
+        <p class="neutral" data-neutral>No lender pays us. Sometimes the best advice is don't switch.</p>
+        <p class="fine" data-c="IN">Self-employed, or an NRI with loans in India? It works for you too.</p>
+        <p class="fine" data-cantpay>Behind on a payment, or getting recovery calls? <a href="/cant-pay">Start here, no sign-in →</a></p>
         <p class="fine" data-c="IN">Loan Check needs no sign-in: is your bank passing on RBI rate cuts to your home loan?</p>
         <p class="fine" data-c="US">Federal, state and card rules for the USA. Have loans in India too? The NRI tools are inside.</p>
       </div>
@@ -584,27 +588,27 @@
       <div class="sh rv">WHAT'S INSIDE · SIX TABS</div>
       <p class="intro rv">Each tab does one job. Start at Home; everything else is a tap away.</p>
       <div class="tabs">
-        <div class="tab rv"><div class="t"><span>01</span> HOME</div><p>Your month on one page: what comes in and goes out, what to pay now, and every loan you have.</p><ul><li>Pay this month, one tap to mark paid</li><li>Pay by UPI from the row (India)</li><li>Cheaper rates the plan found</li></ul></div>
-        <div class="tab rv d1"><div class="t"><span>02</span> PLAN</div><p>The debt-free date and how you get there, with changes you can try before you make them.</p><ul><li>Month by month, as CSV or print</li><li>What if: spend less, a bonus, a rate change</li><li>What the next RBI or Fed decision means for you</li></ul></div>
-        <div class="tab rv d2"><div class="t"><span>03</span> ACTIVITY</div><p>What you paid and what changed. Each entry re-runs the plan from what really happened.</p><ul><li>Missed or part-paid EMIs, with their fees</li><li>Balances move on by the EMIs since you entered them</li><li>Your real pace against the plan</li></ul></div>
-        <div class="tab rv d3"><div class="t"><span>04</span> GOALS &amp; TOOLS</div><p>What you're saving for, and a tool for each one-off decision.</p><ul><li>Goals funded around your debts, at the share you choose</li><li>Six tools, one question each (listed below)</li><li>Templates: a home, education, retiring early</li></ul></div>
+        <div class="tab rv"><div class="t"><span>01</span> HOME</div><p>Your month on one page: what comes in and goes out, what to pay now, and every loan you have.</p><ul><li>Pay this month, one tap to mark paid</li><li data-c="IN">Pay by UPI from the row</li><li data-c="US">Each payment and its due date, in order</li><li>Cheaper rates the plan found</li></ul></div>
+        <div class="tab rv d1"><div class="t"><span>02</span> PLAN</div><p>The debt-free date and how you get there, with changes you can try before you make them.</p><ul><li>Month by month, as CSV or print</li><li>What if: spend less, a bonus, a rate change</li><li data-c="IN">What the next RBI decision means for you</li><li data-c="US">What the next Fed decision means for you</li></ul></div>
+        <div class="tab rv d2"><div class="t"><span>03</span> ACTIVITY</div><p>What you paid and what changed. Each entry re-runs the plan from what really happened.</p><ul><li data-c="IN">Missed or part-paid EMIs, with their fees</li><li data-c="US">Missed or partial payments, with their fees</li><li>Balances move on by the EMIs since you entered them</li><li>Your real pace against the plan</li></ul></div>
+        <div class="tab rv d3"><div class="t"><span>04</span> GOALS &amp; TOOLS</div><p>What you're saving for, and a tool for each one-off decision.</p><ul><li>Goals funded around your debts, at the share you choose</li><li>A tool for each one-off question (listed below)</li><li>Templates: a home, education, retiring early</li></ul></div>
         <div class="tab rv d4"><div class="t"><span>05</span> PORTFOLIO</div><p>What you own and what it's worth, next to what you owe.</p><ul><li>Deposits, funds, shares, gold, property, retirement, crypto</li><li>Shares and funds priced by ticker</li><li>What a sale you choose would do to a loan</li></ul></div>
-        <div class="tab rv d4"><div class="t"><span>06</span> PROFILE</div><p>Everything the plan uses, set up in three steps and changed a part at a time.</p><ul><li>Income, spending and tax</li><li>Payoff order: cheapest path, smallest first, or your own</li><li>Loans in two currencies, for NRIs</li></ul></div>
+        <div class="tab rv d4"><div class="t"><span>06</span> PROFILE</div><p>Everything the plan uses, set up in three steps and changed a part at a time.</p><ul><li>Income, spending and tax</li><li>Payoff order: cheapest path, smallest first, or your own</li><li data-c="IN">Loans in two currencies, for NRIs</li><li data-c="US">Loans in India too? Two currencies, for NRIs</li></ul></div>
       </div>
     </div>
   </section>
 
   <section id="tools" style="padding-top:0">
     <div class="wrap">
-      <div class="sh rv">TOOLS · SIX, ONE QUESTION EACH</div>
+      <div class="sh rv">TOOLS · ONE QUESTION EACH</div>
       <p class="intro rv">Each answers one question against your own plan. Nothing changes until you choose to add it. Loan Check is for India; NRI prepay is for someone in the USA with loans in India.</p>
       <div class="tools">
-        <a class="tool rv" href="/login?next=%2Ftools%2Fwindfall"><div class="nm">SPARE CASH</div><div class="q">Got a bonus or spare cash?</div><div class="d">Splits it across your loans, emergency fund and goals, the best way or your way.</div><div class="tag gated">SIGN IN TO USE →</div></a>
-        <a class="tool rv d1" href="/login?next=%2Ftools%2Fnew-debt"><div class="nm">NEW DEBT CHECK</div><div class="q">A new loan, an EMI offer, or a big purchase?</div><div class="d">Checks it against your plan before you sign.</div><div class="tag gated">SIGN IN TO USE →</div></a>
-        <a class="tool rv d2" href="/login?next=%2Ftools%2Fliquidate"><div class="nm">SELL TO REPAY</div><div class="q">What would selling something do to a loan?</div><div class="d">A calculator: the tax and costs on a sale you choose, and what it leaves after the loan. It doesn't pick what to sell, and it isn't investment advice.</div><div class="tag gated">SIGN IN TO USE →</div></a>
-        <a class="tool rv" href="/login?next=%2Ftools%2Finvest-vs-prepay"><div class="nm">INVEST OR PREPAY</div><div class="q">Invest the money, or prepay a loan?</div><div class="d">A calculator: shares or funds in a normal and a bad year, against the loan's rate. An estimate to learn from, not investment advice.</div><div class="tag gated">SIGN IN TO USE →</div></a>
+        <a class="tool rv" href="/login?next=%2Ftools%2Fwindfall"><div class="nm">SPARE CASH</div><div class="q">Got a bonus or spare cash?</div><div class="d">Splits it across your loans, emergency fund and goals, the best way or your way.</div><div class="tag gated">FREE SIGN-IN TO USE →</div></a>
+        <a class="tool rv d1" href="/login?next=%2Ftools%2Fnew-debt"><div class="nm">NEW DEBT CHECK</div><div class="q">A new loan, an EMI offer, or a big purchase?</div><div class="d">Checks it against your plan before you sign.</div><div class="tag gated">FREE SIGN-IN TO USE →</div></a>
+        <a class="tool rv d2" href="/login?next=%2Ftools%2Fliquidate"><div class="nm">SELL TO REPAY</div><div class="q">What would selling something do to a loan?</div><div class="d">A calculator: the tax and costs on a sale you choose, and what it leaves after the loan. It doesn't pick what to sell, and it isn't investment advice.</div><div class="tag gated">FREE SIGN-IN TO USE →</div></a>
+        <a class="tool rv" href="/login?next=%2Ftools%2Finvest-vs-prepay"><div class="nm">INVEST OR PREPAY</div><div class="q">Invest the money, or prepay a loan?</div><div class="d">A calculator: shares or funds in a normal and a bad year, against the loan's rate. An estimate to learn from, not investment advice.</div><div class="tag gated">FREE SIGN-IN TO USE →</div></a>
         <a class="tool rv d1" href="/tools/loan-check" data-c="IN"><div class="nm">LOAN CHECK · NO SIGN-IN</div><div class="q">Is my bank passing on rate cuts?</div><div class="d">Your home-loan rate against every RBI repo move since you borrowed. If it isn't, a complaint letter to the bank, and the RBI Ombudsman after.</div><div class="tag">OPEN · NO SIGN-IN →</div></a>
-        <a class="tool rv d2" href="/login?next=%2Ftools%2Fnri-prepay"><div class="nm">NRI PREPAY</div><div class="q">Loan in India, savings in the USA?</div><div class="d">Prepay the Indian loan or keep the dollars, after the remittance cost, exchange-rate drift and tax on both sides.</div><div class="tag gated">SIGN IN TO USE →</div></a>
+        <a class="tool rv d2" href="/login?next=%2Ftools%2Fnri-prepay"><div class="nm">NRI PREPAY</div><div class="q">Loan in India, savings in the USA?</div><div class="d">Prepay the Indian loan or keep the dollars, after the remittance cost, exchange-rate drift and tax on both sides.</div><div class="tag gated">FREE SIGN-IN TO USE →</div></a>
       </div>
     </div>
   </section>
@@ -613,11 +617,12 @@
     <div class="wrap">
       <div class="sh rv">HOW IT WORKS · A FEW MINUTES</div>
       <div class="steps">
-        <div class="step rv"><h3>Add a loan or card</h3><p>Balance, rate and EMI from your statement. Type 25L or 1.5cr; the app reads it. Not sure of a number? Say so, and it starts from an estimate you can fix later. Your plan shows after the first loan; add the rest from Plan.</p></div>
+        <div class="step rv"><h3>Confirm your email</h3><p>Free account, no password: we email you a 6-digit code. No bank login, no card numbers.</p></div>
         <div class="step rv d1"><h3>Say what comes in and goes out</h3><p>Take-home pay and spending. The plan works out what's left each month for extra payments.</p></div>
-        <div class="step rv d2"><h3>Pay, mark it, repeat</h3><p>Home says what to pay this month. Mark each one paid; the plan moves on from what really happened.</p></div>
+        <div class="step rv d2"><h3>Add a loan or card</h3><p>Balance, rate and EMI from your statement. Type 25L or 1.5cr; the app reads it. Not sure of a number? Say so, and it starts from an estimate you can fix later. Your plan shows after the first loan; add the rest from Plan.</p></div>
+        <div class="step rv d3"><h3>Pay, mark it, repeat</h3><p>Home says what to pay this month. Mark each one paid; the plan moves on from what really happened.</p></div>
       </div>
-      <div class="ctas rv"><a class="btn dark" href="/login">[ START YOUR PLAN → ]</a></div>
+      <div class="ctas rv"><a class="btn dark" href="/login?start=1">[ START YOUR FREE PLAN → ]</a></div>
     </div>
   </section>
 
@@ -661,7 +666,7 @@
       <div class="sh">ABOUT RIGHTDUE</div>
       <div class="about">
         <p>RightDue was founded in June 2026 by Vijeya Hasen K H to make paying off debt simple and transparent for everyday borrowers. RightDue is an independent, self-funded business run by Vijeya Hasen K H (sole proprietor), based in India and serving users in India and the United States. RightDue takes no money from lenders.</p>
-        <p>Questions, problems or feedback: <a href="mailto:vijeya@rightdue.app">vijeya@rightdue.app</a></p>
+        <p>Questions, problems or feedback: <a href="mailto:support@rightdue.app">support@rightdue.app</a></p>
       </div>
       <p class="note" style="margin-top:28px">RightDue provides educational tools and personalised estimates to help you understand your options. Plans are generated automatically by RightDue's engine from the numbers you enter. They are estimates, not financial advice, and no person reviews them. Results depend on the information you provide and your lender's terms. RightDue is not a lender and does not offer loans. It plans your payments; it doesn't change your loan's terms or negotiate with your lender. Sell to repay and Invest or prepay are calculators on choices you make, not investment advice. The figures on this page are an example, worked out by the engine.</p>
     </div>

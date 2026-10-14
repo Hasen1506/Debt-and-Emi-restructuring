@@ -73,14 +73,15 @@ test('A-08 / A-12 / A-19 / A-20 / A-24 / A-25: landing HTML fixes', () => {
   // The stamps run once.
   assert.doesNotMatch(WELCOME, /x\.textContent = 'MARK PAID'/);
   assert.match(WELCOME, /\.stamp\{[^}]*pointer-events:none/);
-  // A trust line under the CTAs (no lender-money promise until the founder decides).
+  // A trust line under the CTAs. Audit 80 A10 adds the neutrality line, which
+  // restates the About paragraph's "takes no money from lenders".
   assert.match(WELCOME, /<ul class="trust"[\s\S]*?Free[\s\S]*?No bank login[\s\S]*?Not a lender/);
   assert.doesNotMatch(WELCOME, /no bank or app pays us/i);
   assert.doesNotMatch(WELCOME, /Six tools: a bonus, a new loan, a sale, invest or prepay/);
   // Every tool card says whether it needs sign-in.
   const cards = WELCOME.match(/<a class="tool[\s\S]*?<\/a>/g);
   assert.equal(cards.length, 6);
-  for (const c of cards) assert.match(c, /class="tag( gated)?">(OPEN · NO SIGN-IN|SIGN IN TO USE) →/);
+  for (const c of cards) assert.match(c, /class="tag( gated)?">(OPEN · NO SIGN-IN|FREE SIGN-IN TO USE) →/);
   // The footer has 24px targets and the email once (it's in About).
   assert.match(WELCOME, /\.foot a\{display:inline-block;padding:6px 0;min-height:24px\}/);
   const foot = WELCOME.match(/<footer>[\s\S]*?<\/footer>/)[0];

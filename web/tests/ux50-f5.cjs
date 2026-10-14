@@ -56,7 +56,7 @@ test('E-06/E-07: every page has a footer with the disclaimer, privacy, terms and
   assert.match(footer, /@media print\{\.rd-site-footer\{display:none/);
   const { reportProblemHref } = require(path.join(root, 'lib/report-problem.ts'));
   const href = reportProblemHref('/tools/loan-check?amount=500000&rate=9.5', 'abcdef1234567');
-  assert.ok(href.startsWith('mailto:vijeya@rightdue.app?subject='));
+  assert.ok(href.startsWith('mailto:support@rightdue.app?subject='));
   const decoded = decodeURIComponent(href);
   assert.match(decoded, /RightDue problem on \/tools\/loan-check/);
   assert.match(decoded, /version: abcdef1/);
