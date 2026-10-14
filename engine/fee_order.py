@@ -27,8 +27,12 @@ simulator, and the cheapest is kept, counting what the plan pays net of tax:
   any position; keep the best; repeat until nothing improves or
   LOCAL_MAX_ROUNDS). Every order of 6-7 loans is 720-5,040 runs (8-60 s per
   plan), too slow for one request.
-* Ties keep the greedy plan, then the rate-only order: the order changes
-  only when another one is cheaper by more than TIE (one rupee / cent).
+* Ties keep the greedy plan, then the rate-only order. The search itself
+  moves on any saving above TIE (one rupee / cent), but the plan only
+  leaves the greedy order when the fixed order saves more than
+  `order_tolerance`: max(₹500 / $10, 0.5% of the plan's interest) (Audit
+  80+ C18, grill #37). Balances people type are often 5% off, so a ₹1 win
+  is noise; a smaller win is reported as "within rounding" instead.
 
 "Why this loan first". When the kept plan puts its extra on the loans in a
 different order than ranking by rate alone (the marginal cost without its fee term),
@@ -54,6 +58,18 @@ D = Decimal
 EXACT_MAX_LOANS = 5
 LOCAL_MAX_ROUNDS = 6
 TIE = D("1")
+# Audit C18: the smallest saving that changes the plan's order. A tolerance
+# (judgement, not a sourced figure): the audit's max(₹500, 0.5% of interest);
+# $10 is the same idea for a US plan.
+ORDER_TOLERANCE_FLOOR = {Country.IN: D("500"), Country.US: D("10")}
+ORDER_TOLERANCE_SHARE = D("0.005")
+
+
+def order_tolerance(user, plan_interest: Decimal) -> Decimal:
+    """Saving a fixed payoff order must beat the greedy plan by before the
+    order changes: max(₹500 / $10, 0.5% of the plan's interest)."""
+    floor = ORDER_TOLERANCE_FLOOR.get(getattr(user, "country", Country.IN), D("500"))
+    return max(floor, ORDER_TOLERANCE_SHARE * max(D("0"), plan_interest))
 
 LOAN_TYPE_NAME = {
     "home_loan": "home loan", "auto_loan": "car loan", "personal_loan": "personal loan",
@@ -217,12 +233,18 @@ def choose_order(
     # Cheapest fixed order; ties go to the rate-only order.
     best_order = min(results, key=lambda o: (results[o][0], o != blind, o))
     best_cost, best_res = results[best_order]
-    if best_cost < greedy_cost - TIE:
+    tol = order_tolerance(user, greedy.total_interest_paid)
+    if best_cost < greedy_cost - tol:
         chosen_order, chosen_cost, chosen_res = list(best_order), best_cost, best_res
     else:
         chosen_order, chosen_cost, chosen_res = None, greedy_cost, greedy
 
-    note = _fee_note(user, chosen_res, results[blind][1], blind_cost - chosen_cost, n)
+    note = _fee_note(user, chosen_res, results[blind][1], blind_cost - chosen_cost, n, tol)
+    if note is None and chosen_order is None and TIE < greedy_cost - best_cost <= tol:
+        from engine.restructuring_scan import _money
+        sym = "₹" if user.country == Country.IN else "$"
+        note = (f"Another payoff order would save about {_money((greedy_cost - best_cost).quantize(D('1')), sym)}, "
+                "which is within rounding of the balances entered, so the plan keeps the order by rate.")
     return FeeOrderChoice(method, chosen_order, chosen_cost, blind_cost, len(results) + 1, note), chosen_res
 
 
@@ -239,9 +261,9 @@ def _pct(v: Decimal) -> str:
     return f"{s}%"
 
 
-def _fee_note(user, chosen_res, blind_res, saving: Decimal, n: int) -> str | None:
+def _fee_note(user, chosen_res, blind_res, saving: Decimal, n: int, tol: Decimal = TIE) -> str | None:
     """Plain words for "why this loan first" when a fee changed the order."""
-    if saving <= TIE:
+    if saving <= max(TIE, tol):
         return None
     chosen = payoff_sequence(chosen_res, n)
     blind = payoff_sequence(blind_res, n)
