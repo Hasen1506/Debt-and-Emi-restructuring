@@ -662,10 +662,20 @@ def _user_short_of_cash() -> User:
 
 
 def test_shortfall_counts_costs_and_card_minimums():
-    """The gap is costs + minimums − income (₹9,000), not costs − income
-    (₹4,000): the old home screen said "find ₹4,000/mo"."""
+    """The gap is costs + minimums − income, not costs − income (₹4,000): the
+    old home screen said "find ₹4,000/mo".
+
+    Integration (W2 C14 × W1 C13): Axis's minimum is now its MITC rule,
+    finance charges + GST in full + 2% of the balance (not a flat 5%), and
+    C13 charges the interest on the average daily balance at the minimum.
+    Hand check: 2% of ₹1,00,000 = ₹2,000; interest + 18% GST ≈ ₹3,475
+    (36%/12 on a balance falling through the month, below ₹3,000 × 1.18 =
+    ₹3,540) → minimum ≈ ₹5,475, gap ≈ ₹9,475."""
     result = simulate_plan(_user_short_of_cash(), Strategy.AVALANCHE, horizon_months=12)
-    assert result.months[0].shortfall == D("9000")
+    m1 = result.months[0]
+    assert m1.shortfall == D("4000") + m1.total_payment_nominal
+    assert abs(m1.total_payment_nominal - (D("2000") + m1.interest_paid_month)) < D("0.05")  # fixed-point rounding
+    assert D("3400") < m1.interest_paid_month < D("3540")
 
 
 def test_no_shortfall_when_income_covers_costs_and_minimums():
