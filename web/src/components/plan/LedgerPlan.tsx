@@ -25,6 +25,7 @@ import {
   monthIndexToCountryLabel,
   monthsSpan,
 } from '@/lib/today';
+import { planHeadline } from '@/lib/plan-headline';
 import {
   LShell,
   LSectionHeader,
@@ -140,7 +141,6 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           display: 'flex',
           flexDirection: 'column',
           gap: 22,
-          fontFamily: L_MONO,
         }}
       >
         {plan.activityImpact && (
@@ -160,7 +160,13 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         </p>
         <PlanAssumptions plan={plan} />
         <PlanGivens plan={plan} />
+        {/* Audit 80+ E13: the answer as a heading, the figures as a term
+            list ("Plan summary"), not one run of capitals. */}
+        <h2 data-rd-useful style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-lead)', fontWeight: 700, lineHeight: 1.35 }}>
+          {planHeadline({ debtFreeMonth: plan.debtFreeMonth, short, country: plan.user.country })}
+        </h2>
         <LKpi
+          label="Plan summary"
           cols={4}
           items={[
             shortStory

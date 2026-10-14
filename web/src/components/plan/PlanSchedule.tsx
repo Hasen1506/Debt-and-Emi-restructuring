@@ -216,6 +216,31 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   const eventRows = rows.filter((r) => r.event || r.mo === stop.lastMonth);
   const visibleRows = expanded ? rows : eventRows;
   const totalCount = rows.length || plan.trajectory.length;
+  // Audit 80+ E13: every column has its own name ("CARD", "CARD" for two
+  // cards with no lender was read twice the same); scope="col" below.
+  const loanHeads = uniqueLabels(
+    loanCols.map(
+      (l) =>
+        // Type first: two loans from one bank used to show as two
+        // identical "HDFC BAN" columns.
+        `${LOAN_SHORT[l.loan_type] ?? 'LOAN'}${l.bank ? ` · ${l.bank.split(' ')[0].slice(0, 6)}` : ''}`.toUpperCase() +
+        // A loan in another currency says so: its column is in it.
+        (loanCurrency(l, plan.user.country) !== ccy ? ` (${loanCurrency(l, plan.user.country)})` : ''),
+    ),
+  );
+  const headers = [
+    'MO',
+    'DATE',
+    // Next to the date: in the collapsed view it's why the row is there.
+    'EVENT',
+    ...loanHeads,
+    ...(mixed ? [`TOTAL (${ccy})`] : []),
+    'EXTRA',
+    'INTEREST',
+    'PRINCIPAL',
+    'BALANCE',
+    ...(showGap ? ['GAP OWED'] : []),
+  ];
 
   return (
     <section id="schedule" style={{ scrollMarginTop: 16 }}>
@@ -269,13 +294,27 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             PRINCIPAL and BALANCE are in {ccy}, converted at the exchange rate saved on your profile.
           </div>
         )}
-        {/* Live re-test NEW-17: on a phone the table is wider than the screen;
-            say so, since the scroll bar is hidden until touched. */}
-        <style>{`.rd-scroll-hint{display:none}@media (max-width: 820px){.rd-scroll-hint{display:block}}`}</style>
-        <div className="rd-scroll-hint" style={{ padding: '4px 0 6px', fontSize: 'var(--fs-small)', color: L_T.muted }}>
-          SWIPE SIDEWAYS FOR EVERY COLUMN →
-        </div>
+        {/* Audit 80+ B18: up to 820px the months are cards, one per month,
+            with each loan's split behind a tap; the full table (and the
+            CSV and print) from there up. No sideways swipe. */}
+        <style>{`.rd-month-cards{display:none}
+@media (max-width: 820px){.rd-month-table{display:none !important}.rd-month-cards{display:block}}
+@media print{.rd-month-table{display:block !important}.rd-month-cards{display:none !important}}`}</style>
+        <MonthCards
+          rows={visibleRows}
+          startLabel={startLabel}
+          owedToday={owedToday}
+          loans={loanCols}
+          loanHeads={loanHeads}
+          country={plan.user.country}
+          fc={fc}
+          cell={cell}
+          totalByMonth={totalByMonth}
+          finalMonth={finalMonth}
+          gapMonths={gapMonths}
+        />
         <div
+          className="rd-month-table"
           role="region"
           aria-label="Month-by-month schedule"
           tabIndex={0}
@@ -286,7 +325,10 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             borderBottom: expanded ? `1px solid ${L_T.faint}` : undefined,
           }}
         >
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-small)', minWidth: 760 + Math.max(0, loanCols.length - 4) * 90 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-table)', minWidth: 760 + Math.max(0, loanCols.length - 4) * 90 }}>
+            <caption className="sr-only">
+              Month by month: what you pay on each loan, the extra, interest, principal and what is left at each month&apos;s end
+            </caption>
             <thead>
               <tr
                 style={{
@@ -298,29 +340,10 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                   zIndex: 1,
                 }}
               >
-                {[
-                  'MO',
-                  'DATE',
-                  // Next to the date: in the collapsed view it's why the row
-                  // is there, and on a phone it's on screen without scrolling.
-                  'EVENT',
-                  // Type first: two loans from one bank used to show as
-                  // two identical "HDFC BAN" columns.
-                  ...loanCols.map(
-                    (l) =>
-                      `${LOAN_SHORT[l.loan_type] ?? 'LOAN'}${l.bank ? ` · ${l.bank.split(' ')[0].slice(0, 6)}` : ''}`.toUpperCase() +
-                      // A loan in another currency says so: its column is in it.
-                      (loanCurrency(l, plan.user.country) !== ccy ? ` (${loanCurrency(l, plan.user.country)})` : ''),
-                  ),
-                  ...(mixed ? [`TOTAL (${ccy})`] : []),
-                  'EXTRA',
-                  'INTEREST',
-                  'PRINCIPAL',
-                  'BALANCE',
-                  ...(showGap ? ['GAP OWED'] : []),
-                ].map((h, i) => (
+                {headers.map((h, i) => (
                   <th
                     key={i}
+                    scope="col"
                     title={help[h]}
                     style={{
                       padding: '6px 10px',
@@ -384,10 +407,12 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                       {fc((totalByMonth.get(r.mo) ?? 0).toFixed(0))}
                     </td>
                   )}
-                  <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.accent, fontWeight: 700 }}>
+                  {/* Audit 80+ B19: planned extra and interest are ink, not
+                      alarm colours; red is kept for short months and gap debt. */}
+                  <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.ink, fontWeight: 700 }}>
                     {r.extra > 0 ? fc(r.extra.toFixed(0)) : '—'}
                   </td>
-                  <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.negative }}>{cell(r.interest)}</td>
+                  <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.ink }}>{cell(r.interest)}</td>
                   <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.positive }}>{cell(r.principal)}</td>
                   <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>{cell(r.balance)}</td>
                   {showGap && (
@@ -416,6 +441,111 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
       )}
       <RateResetAlert plan={plan} />
     </section>
+  );
+}
+
+/** "CARD", "CARD" → "CARD 1", "CARD 2"; unique labels are left alone. */
+export function uniqueLabels(labels: string[]): string[] {
+  const count = new Map<string, number>();
+  for (const l of labels) count.set(l, (count.get(l) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return labels.map((l) => {
+    if ((count.get(l) ?? 0) < 2) return l;
+    const n = (seen.get(l) ?? 0) + 1;
+    seen.set(l, n);
+    return `${l} ${n}`;
+  });
+}
+
+/** Audit 80+ B18: the schedule on a phone, one card per month: the date and
+ *  what happens, then paid, interest and what's left; each loan's share
+ *  behind a tap. Same rows as the table (events only, or every month). */
+function MonthCards({
+  rows,
+  startLabel,
+  owedToday,
+  loans,
+  loanHeads,
+  country,
+  fc,
+  cell,
+  totalByMonth,
+  finalMonth,
+  gapMonths,
+}: {
+  rows: ScheduleCsvRow[];
+  startLabel: string;
+  owedToday: number;
+  loans: LoanPayload[];
+  loanHeads: string[];
+  country: PlanData['user']['country'];
+  fc: (v: string | number) => string;
+  cell: (v: number) => string;
+  totalByMonth: Map<number, number>;
+  finalMonth: Map<number, number>;
+  gapMonths: Record<number, { debt?: number; repaid?: number }>;
+}) {
+  const sentence = (d: string) => d.charAt(0) + d.slice(1).toLowerCase();
+  const term: React.CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-label)', letterSpacing: '0.08em', textTransform: 'uppercase', color: L_T.muted };
+  const fig: React.CSSProperties = { margin: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-table)', fontWeight: 700, color: L_T.ink };
+  return (
+    <ol className="rd-month-cards" aria-label="Month by month" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+      <li style={{ padding: '10px 0', borderTop: `2px solid ${L_T.ink}`, borderBottom: `1px solid ${L_T.ink}` }}>
+        <h3 style={{ margin: 0, fontSize: 'var(--fs-body)', fontWeight: 600 }}>Owed at the start of {sentence(startLabel)}</h3>
+        <p style={{ ...fig, fontSize: 'var(--fs-body)', marginTop: 2 }}>{fc(owedToday.toFixed(0))}</p>
+      </li>
+      {rows.map((r) => {
+        const paid = totalByMonth.get(r.mo) ?? r.interest + r.principal;
+        const shares = loans
+          .map((l, i) => ({ name: loanHeads[i], v: r.perLoan[i], ccy: loanCurrency(l, country), final: finalMonth.get(i) === r.mo }))
+          .filter((x) => x.v && Number(x.v) > 0);
+        const gap = gapMonths[r.mo];
+        return (
+          <li key={r.mo} data-testid="month-card" style={{ padding: '10px 0', borderBottom: `1px dashed ${L_T.faint}` }}>
+            <h3 style={{ margin: 0, fontSize: 'var(--fs-body)', fontWeight: 600 }}>
+              {sentence(r.date)} <span style={{ color: L_T.muted, fontWeight: 400, fontSize: 'var(--fs-small)' }}>· month {r.mo}</span>
+            </h3>
+            {r.event && <p style={{ margin: '2px 0 0', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-small)', fontWeight: 700, lineHeight: 1.45 }}>{r.event}</p>}
+            <dl style={{ margin: '6px 0 0', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+              <div>
+                <dt style={term}>Paid</dt>
+                <dd style={fig}>{fc(paid.toFixed(0))}</dd>
+              </div>
+              <div>
+                <dt style={term}>Interest</dt>
+                <dd style={fig}>{cell(r.interest)}</dd>
+              </div>
+              <div>
+                <dt style={term}>Left</dt>
+                <dd style={fig}>{cell(r.balance)}</dd>
+              </div>
+            </dl>
+            {(shares.length > 0 || r.extra > 0 || gap?.debt) && (
+              <details style={{ marginTop: 6 }}>
+                <summary style={{ cursor: 'pointer', fontSize: 'var(--fs-small)', color: L_T.inkSoft }}>Each loan{r.extra > 0 ? ` · ${fc(r.extra.toFixed(0))} extra` : ''}</summary>
+                <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-table)' }}>
+                  {shares.map((x) => (
+                    <li key={x.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <span>{x.name}</span>
+                      <span>
+                        {formatCurrencyWhole(Number(x.v).toFixed(0), x.ccy)}
+                        {x.final ? <span style={{ color: L_T.positive }}> · final</span> : null}
+                      </span>
+                    </li>
+                  ))}
+                  {gap?.debt ? (
+                    <li style={{ display: 'flex', justifyContent: 'space-between', gap: 12, color: L_T.negative }}>
+                      <span>Gap owed</span>
+                      <span>{cell(gap.debt)}</span>
+                    </li>
+                  ) : null}
+                </ul>
+              </details>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
