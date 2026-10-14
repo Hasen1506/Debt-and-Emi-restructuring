@@ -107,7 +107,7 @@ export function ThemedSegmentedControl<T extends string>({
                   opacity: disabled ? 0.4 : 1,
                 }}
               >
-                [{opt.label.toUpperCase()}]
+                <span aria-hidden="true">[</span>{opt.label.toUpperCase()}<span aria-hidden="true">]</span>
               </button>
             </span>
           );

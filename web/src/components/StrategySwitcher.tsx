@@ -228,7 +228,7 @@ export function StrategySwitcher({
                   textDecorationStyle: 'dotted',
                 }}
               >
-                [{STRATEGY_LABEL[s].toUpperCase()} · {STRATEGY_PLAIN[s].toUpperCase()}]
+                <span aria-hidden="true">[</span>{STRATEGY_LABEL[s].toUpperCase()} · {STRATEGY_PLAIN[s].toUpperCase()}<span aria-hidden="true">]</span>
               </button>
             </span>
           );

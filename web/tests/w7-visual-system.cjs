@@ -158,6 +158,14 @@ test('E13: no link or button text is wrapped in spoken bracket glyphs', () => {
     if (!rel.endsWith('.tsx')) continue;
     // ">[WORDS]<" or ">[ WORDS ]<": the brackets must be aria-hidden spans.
     for (const m of text.matchAll(/>\s*\[\s*[A-Z][^\]<{}]*\]\s*</g)) bad.push(`${rel}:${lineOf(text, m.index)} ${m[0].trim()}`);
+    // "[ {label} ]" and "[{expr} …]" as JSX text, and bracketed string
+    // literals rendered as children. (The progress bar draws its brackets
+    // inside an aria-hidden span.)
+    for (const m of text.matchAll(/(?:^|>)[ \t]*\[ ?\{[^\n]*?\][ \t]*(?=$|<)/gm)) {
+      if (/'█'/.test(m[0])) continue;
+      bad.push(`${rel}:${lineOf(text, m.index)} ${m[0].trim()}`);
+    }
+    for (const m of text.matchAll(/\? '\[ ?[A-Z][^'\]]*\]' : '\[/g)) bad.push(`${rel}:${lineOf(text, m.index)} ${m[0]}`);
   }
   assert.deepEqual(bad, []);
   const p = src('components/ledger/primitives.tsx');

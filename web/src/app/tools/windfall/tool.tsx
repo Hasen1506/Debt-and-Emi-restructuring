@@ -752,7 +752,7 @@ export function WindfallTool({
                 cursor: applied ? 'default' : 'pointer',
               }}
             >
-              {applied ? '[ LOGGED ✓ ]' : '[ I DID THIS · LOG IT ]'}
+              <span aria-hidden="true">[ </span>{applied ? 'LOGGED ✓' : 'I DID THIS · LOG IT'}<span aria-hidden="true"> ]</span>
             </button>
           ) : (
             <LBracket href="/onboarding">SET UP YOUR PROFILE TO LOG IT</LBracket>

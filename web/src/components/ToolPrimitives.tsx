@@ -832,7 +832,7 @@ export function SubmitBar({
   return (
     <div style={{ gridColumn: '1 / -1', marginTop: 4 }}>
       <button type="submit" disabled={busy} style={{ ...ACTION_BUTTON, marginTop: 0, opacity: busy ? 0.6 : 1 }}>
-        [ {busy ? 'Checking…' : label} ]
+        <span aria-hidden="true">[ </span>{busy ? 'Checking…' : label}<span aria-hidden="true"> ]</span>
       </button>
       {error && (
         <span
@@ -858,7 +858,7 @@ export function AddToSetupAction({ label }: { label: string }) {
       href="/profile?step=loans"
       style={{ ...ACTION_BUTTON, display: 'inline-block', textDecoration: 'none' }}
     >
-      [ {label} ]
+      <span aria-hidden="true">[ </span>{label}<span aria-hidden="true"> ]</span>
     </a>
   );
 }
@@ -904,7 +904,7 @@ export function AddLoanAction({
       onClick={onAdd}
       style={ACTION_BUTTON}
     >
-      [ {label} ]
+      <span aria-hidden="true">[ </span>{label}<span aria-hidden="true"> ]</span>
     </button>
   );
 }
@@ -950,7 +950,7 @@ export function ApplyAction({
       onClick={onApply}
       style={ACTION_BUTTON}
     >
-      [ {label} ]
+      <span aria-hidden="true">[ </span>{label}<span aria-hidden="true"> ]</span>
     </button>
   );
 }

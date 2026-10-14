@@ -257,7 +257,7 @@ export default function LoginPage() {
             disabled={submitting || (needsTurnstile && !turnstileToken)}
             style={primaryStyle(submitting || (needsTurnstile && !turnstileToken))}
           >
-            [ {submitting ? 'Sending…' : 'Agree and send code'} ]
+            <span aria-hidden="true">[ </span>{submitting ? 'Sending…' : 'Agree and send code'}<span aria-hidden="true"> ]</span>
           </button>
           {googleOn && (
             <>
@@ -298,7 +298,7 @@ export default function LoginPage() {
             />
           </label>
           <button type="submit" disabled={submitting || code.length !== 6} style={primaryStyle(submitting || code.length !== 6)}>
-            [ {submitting ? 'Verifying…' : 'Verify and sign in'} ]
+            <span aria-hidden="true">[ </span>{submitting ? 'Verifying…' : 'Verify and sign in'}<span aria-hidden="true"> ]</span>
           </button>
           <TurnstileBox onToken={setTurnstileToken} resetKey={turnstileReset} />
           <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 4 }}>

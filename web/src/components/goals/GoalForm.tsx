@@ -358,7 +358,7 @@ export function GoalForm({
             cursor: 'pointer',
           }}
         >
-          [ {editing ? 'SAVE' : 'ADD GOAL'} ]
+          <span aria-hidden="true">[ </span>{editing ? 'SAVE' : 'ADD GOAL'}<span aria-hidden="true"> ]</span>
         </button>
         <LBracket onClick={onCancel}>CANCEL</LBracket>
       </div>

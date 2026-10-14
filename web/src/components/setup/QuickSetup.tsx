@@ -1283,7 +1283,7 @@ function LoanBlock({
           onClick={() => onUi({ more: !ui.more })}
           style={{ fontFamily: L_MONO, fontSize: 'var(--fs-label)', letterSpacing: '0.14em', color: L_T.muted, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
         >
-          [{ui.more ? '−' : '+'} MORE TERMS · OPTIONAL]
+          <span aria-hidden="true">[</span>{ui.more ? '−' : '+'} MORE TERMS · OPTIONAL<span aria-hidden="true">]</span>
         </button>
       </div>
       {!card && ui.estOpen && (
