@@ -133,7 +133,7 @@ test('R6B-9: choosing a strategy offline saves it, says so, and refreshes on rec
   // A probe of a static file decides, since navigator.onLine isn't reliable everywhere.
   assert.match(h, /fetch\(PROBE, \{ method: 'HEAD', cache: 'no-store' \}\)/);
   assert.match(h, /data-testid="strategy-offline-note"/);
-  for (const f of ['components/StrategySwitcher.tsx', 'components/personas/StrategyMedallion.tsx', 'components/personas/StrategyTriptych.tsx']) {
+  for (const f of ['components/StrategySwitcher.tsx', 'components/chrome/PayoffOrderSwitch.tsx', 'components/personas/StrategyTriptych.tsx']) {
     const s = src(f);
     assert.match(s, /useStrategyRefresh\(\)/, f);
     assert.match(s, /<OfflineStrategyNote\s+show=\{offline\}/, f);

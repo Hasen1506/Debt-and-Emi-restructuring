@@ -318,6 +318,11 @@ optgroup {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* Audit 80+ B20: the payoff-order segments sit edge to edge inside one
+   border, so their ring is drawn inside the segment, not under its neighbour. */
+.rd-payoff-seg:focus-visible {
+  outline-offset: -3px;
+}
 
 /* "Skip to content": off screen until a keyboard user tabs to it. */
 .skip-link {
