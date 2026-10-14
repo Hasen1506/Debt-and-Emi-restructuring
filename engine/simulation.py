@@ -375,6 +375,7 @@ GAP_ROUNDING = {"INR": D("100"), "USD": D("1")}
 # assumption, labelled as such; User.gap_credit_limit overrides it.
 GAP_LIMIT_MONTHS_OF_PAY = D("3")
 MAX_RATE_RISE_EVENTS = 24
+PAYOFF_EPSILON = D("1e-9")
 
 
 def _marginal_rate(user: User, marginal_rate_override: Decimal | None) -> Decimal:
@@ -1274,7 +1275,10 @@ def _simulate_plan(
             else:
                 pay = payments[id(l)]
                 principal_this = pay - interest_this
-            if principal_this >= l.outstanding:
+            # A payoff (a maturity or final instalment, C2/C3) is balance +
+            # interest; (a + b) - b can miss a by 1E-25 at Decimal precision,
+            # which left a phantom balance and a month-later "debt-free".
+            if principal_this >= l.outstanding - PAYOFF_EPSILON:
                 # Loan clears; cascade the unused portion (in user ccy so
                 # we can route it to a different-ccy loan cleanly).
                 refund = principal_this - l.outstanding
