@@ -685,6 +685,12 @@ export interface SimulateResponse {
   total_gap_interest?: string;
   /** Live test #16: this plan with this month's gap closed. */
   gap_closed?: { cut: string; debt_free_month: number | null; total_interest_paid: string } | null;
+  /** Audit 80+ C11: the first month a short month could not be borrowed
+   *  within the gap credit limit. From here the plan pays with money that
+   *  can't be found, so its debt_free_month is not a date to show
+   *  (never_clears is true). `unfunded_shortfall` is the total not found. */
+  infeasible_from_month?: number | null;
+  unfunded_shortfall?: string;
 }
 
 export interface CompareResponse {

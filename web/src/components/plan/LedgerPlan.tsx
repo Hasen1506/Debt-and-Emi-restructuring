@@ -89,6 +89,8 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         closedMonth: plan.gap?.closed?.debtFreeMonth,
         label,
         money: (v) => fc(Math.round(v)),
+        infeasibleFrom: plan.infeasibleFrom,
+        laterGap: plan.futureShortfall,
       })
     : null;
   // A gap that is never repaid only grows: its interest total is not a

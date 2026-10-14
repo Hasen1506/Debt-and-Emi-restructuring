@@ -4,7 +4,7 @@
  * the rest of home paints without waiting on the engine.
  */
 import { localTerms } from '@/lib/terms';
-import { dueVsAffordable, dueVsAffordableLine, shortGapLine, shortValue } from '@/lib/plan-gap';
+import { dueVsAffordable, dueVsAffordableLine, notFundable, shortGapLine, shortValue } from '@/lib/plan-gap';
 import { userMarginalCosts } from '@/lib/marginal-cost';
 import { rateLine, whyFirstShort } from '@/lib/card-rate';
 import { cache } from 'react';
@@ -38,6 +38,10 @@ export async function HomeDebtFreeValue() {
   // would take to close it; that date is demoted to the caption (shortGapLine).
   if (plan.gaps.length === 0 && plan.shortfall > 0)
     return <>{shortValue(plan.shortfall, (v) => formatCurrencyWhole(v, userDefaultCurrency(plan.user.country)))}</>;
+  // W1b / audit 80+ C11: a later month the gap credit limit can't carry leads
+  // with that month's gap, not a date.
+  if (plan.gaps.length === 0 && plan.infeasibleFrom != null && plan.futureShortfall)
+    return <>{shortValue(plan.futureShortfall.amount, (v) => formatCurrencyWhole(v, userDefaultCurrency(plan.user.country)))}</>;
   if (plan.gaps.length > 0 || plan.shortfall > 0 || plan.futureShortfall) return <>NO DATE YET</>;
   if (!plan.live) return <Link href="/plan" className="l-hit">SEE PLAN →</Link>;
   // 0 = nothing owed now; null = not cleared within the horizon.
@@ -58,6 +62,7 @@ export async function HomeDebtFreeCaption() {
             shortfall: plan.shortfall,
             asIsMonth: plan.debtFreeMonth,
             closedMonth: plan.gap?.closed?.debtFreeMonth,
+            infeasibleFrom: plan.infeasibleFrom,
             label: (m) => monthIndexToCountryLabel(m, plan.user.country),
             money: (v) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country)),
           }) ?? ''
@@ -66,6 +71,13 @@ export async function HomeDebtFreeCaption() {
       </Link>
     );
   }
+  if (plan.futureShortfall && plan.infeasibleFrom != null)
+    return (
+      <Link href="/plan" className="l-hit">
+        FROM {monthIndexToCountryLabel(plan.futureShortfall.month, plan.user.country).toUpperCase()} ·{' '}
+        {notFundable(plan.infeasibleFrom, (m) => monthIndexToCountryLabel(m, plan.user.country)).toUpperCase()} · PLAN →
+      </Link>
+    );
   if (plan.futureShortfall) return <Link href="/plan" className="l-hit">FUTURE PAYMENTS NEED FUNDING · SEE PLAN →</Link>;
   if (!plan.live) return <>DATE + MONTHLY SCHEDULE</>;
   if (plan.debtFreeMonth === 0) return <>NOTHING OWED</>;

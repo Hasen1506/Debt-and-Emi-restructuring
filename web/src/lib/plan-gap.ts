@@ -109,12 +109,21 @@ export function gapRateWords(rate: number): string {
  * so the headline and the table tell one story.
  */
 export function shortHeadline(args: ShortStoryArgs): { value: string; sub: string } {
-  const { shortfall, asIsMonth, label, money } = args;
+  const { shortfall, asIsMonth, label, money, infeasibleFrom, laterGap } = args;
   const line = shortGapLine(args);
   if (line && shortfall > 0) {
     // Audit 80+ A5: short this month, the big figure is the gap, not the
     // date it would take to close it (that date is demoted to the line).
     return { value: shortValue(shortfall, money), sub: line.toUpperCase() };
+  }
+  // W1b / audit 80+ C11: a later month is short and can't be borrowed within
+  // the gap credit limit, so the engine's date pays with money that can't be
+  // found. Lead with that month's gap, never with the date.
+  if (infeasibleFrom != null && laterGap && laterGap.amount > 0) {
+    return {
+      value: shortValue(laterGap.amount, money),
+      sub: `FROM ${label(laterGap.month)} · ${notFundable(infeasibleFrom, label)}`.toUpperCase(),
+    };
   }
   // Only a later month is short: the engine's date already borrows for it.
   return { value: asIsMonth ? label(asIsMonth) : 'NO DATE YET', sub: 'A LATER MONTH IS SHORT · GAP BORROWED' };
@@ -126,6 +135,16 @@ export interface ShortStoryArgs {
   closedMonth: number | null | undefined;
   label: (m: number) => string;
   money: (v: number) => string;
+  /** Audit 80+ C11 (W1b): the engine's infeasible_from_month. Set, the
+   *  as-is date is not shown: the plan isn't fundable from that month. */
+  infeasibleFrom?: number | null;
+  /** The first later month that is short, and by how much. */
+  laterGap?: { month: number; amount: number };
+}
+
+/** W1b / C11: the words for a plan the gap credit limit can't carry. */
+export function notFundable(month: number, label: (m: number) => string): string {
+  return `not fundable as it stands from ${label(month)}`;
 }
 
 /** Live re-test 7 R7-2: the words for "no date as things stand", one
@@ -149,14 +168,14 @@ export function shortValue(shortfall: number, money: (v: number) => string): str
 }
 
 export function shortGapLine(args: ShortStoryArgs): string | null {
-  const { shortfall, asIsMonth, closedMonth, label, money } = args;
+  const { shortfall, asIsMonth, closedMonth, label, money, infeasibleFrom } = args;
   if (!(shortfall > 0)) return null;
-  const asIs = asIsMonth ? label(asIsMonth) : AS_IS_NEVER;
+  const asIs = infeasibleFrom != null ? notFundable(infeasibleFrom, label) : asIsMonth ? label(asIsMonth) : AS_IS_NEVER;
   // Audit 80+ A5: the gap-closed date lives here now (the headline is the gap).
   if (closedMonth) return `if the ${money(shortfall)}/mo gap closes: ${label(closedMonth)} · as things stand: ${asIs}`;
   // Live re-test L#16: the gap-closed run has no date either (later
   // months fall short again), so say so instead of half a template.
-  return `short ${money(shortfall)}/mo · as things stand: ${asIs}${asIsMonth ? '' : ' · no date even if this month’s gap closes'}`;
+  return `short ${money(shortfall)}/mo · as things stand: ${asIs}${asIsMonth && infeasibleFrom == null ? '' : ' · no date even if this month’s gap closes'}`;
 }
 
 /**

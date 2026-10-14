@@ -1529,6 +1529,7 @@ function PlanPreview({
           shortfall: shortfall.toNumber(),
           asIsMonth: plan.debt_free_month ?? null,
           closedMonth,
+          infeasibleFrom: plan.infeasible_from_month ?? null,
           label: (m) => monthIndexToCountryLabel(m, country),
           money: (v) => money(new Decimal(v)),
         }) ?? '',

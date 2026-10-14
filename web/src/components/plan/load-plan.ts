@@ -681,6 +681,7 @@ export async function loadPlan(
         const row=scenario.trajectory.find(p=>p.month>1 && Number(p.shortfall)>0);
         return row ? {month:row.month,amount:Number(row.shortfall)} : undefined;
       })(),
+      infeasibleFrom: scenario.infeasible_from_month ?? null,
       gap: planGap(scenario),
       gaps: [],
     };

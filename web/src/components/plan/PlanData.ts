@@ -230,6 +230,9 @@ export interface PlanData {
   shortfall: number;
   /** First later month whose projected minimums cannot be funded. */
   futureShortfall?: {month:number;amount:number};
+  /** Audit 80+ C11 (W1b): first month the gap can't be borrowed within the
+   *  credit limit; set, the plan is not fundable as it stands from then. */
+  infeasibleFrom?: number | null;
   /** Grill #38 / live tests #15-#17: how short months are funded (the
    *  emergency fund, then card-rate borrowing repaid first) and the date
    *  if this month's gap closes. Null when nothing was ever short. */
