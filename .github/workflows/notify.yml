@@ -17,6 +17,10 @@ on:
     - cron: "30 3 * * *"     # 09:00 IST
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write        # audit80 D18: the failure-issue step below
+
 concurrency:
   group: notify
   cancel-in-progress: false
@@ -41,3 +45,11 @@ jobs:
             echo "attempt $i: HTTP $code"; sleep 20
           done
           exit 1
+      # audit80 D18: a failed send run opens (or comments on) one issue.
+      # The composite action is added by W8 (.github/actions/failure-issue);
+      # it only runs on failure, so this branch alone is unaffected until merge.
+      - name: Open an issue if this run failed
+        if: failure()
+        uses: ./.github/actions/failure-issue
+        with:
+          title: "Notification job failed"
