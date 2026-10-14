@@ -48,9 +48,11 @@ def test_policy_rates_run_weekly_not_in_the_app():
     assert "threading.Thread" not in src and "REFRESH_EVERY" not in src
 
 
-def test_data_pr_action_falls_back_and_can_wait_for_review():
+def test_data_pr_action_waits_for_ci_and_can_wait_for_review():
     action = yaml.safe_load((ROOT / ".github" / "actions" / "data-pr" / "action.yml").read_text())
     run = action["runs"]["steps"][0]["run"]
     assert "gh pr create" in run and "gh pr merge" in run
-    assert 'HEAD:$BASE' in run, "falls back to a direct push when Actions may not open PRs"
+    # audit80 D17: never a direct push to main; auto-merge after the CI checks.
+    assert 'HEAD:$BASE' not in run, "no direct push to main when a PR can't be opened"
+    assert "--auto" in run and "gh workflow run ci.yml" in run
     assert '"$MODE" = "review"' in run
