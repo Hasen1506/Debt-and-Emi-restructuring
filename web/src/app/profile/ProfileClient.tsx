@@ -1080,7 +1080,7 @@ function ProfileEditor({
               kind="text"
               value={displayName}
               onChange={setDisplayName}
-              hint="Used only as a greeting. Stays in your browser."
+              hint="Used only as a greeting. Saved with your plan; shown only to you."
             />
             <div>
               <div

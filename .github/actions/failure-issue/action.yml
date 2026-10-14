@@ -1,0 +1,27 @@
+name: Failure issue
+description: >-
+  audit80 D18: a scheduled job that fails must tell someone. Opens one issue
+  per workflow (label "job-failed"), or comments on the open one, with a link
+  to the failed run. Call it as the LAST step with `if: failure()`. Needs
+  `issues: write`. The db-backup pattern, shared.
+inputs:
+  title:
+    description: Issue title, e.g. "Market data job failed"
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TITLE: ${{ inputs.title }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+        gh label create job-failed --color B60205 --description "A scheduled job failed" 2>/dev/null || true
+        open=$(gh issue list --label job-failed --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+        if [ -n "$open" ]; then
+          gh issue comment "$open" --body "Failed again on $(date -u +%Y-%m-%d): $run_url"
+        else
+          gh issue create --title "$TITLE" --label job-failed --body "The scheduled job failed on $(date -u +%Y-%m-%d): $run_url. Close this issue once it is fixed."
+        fi

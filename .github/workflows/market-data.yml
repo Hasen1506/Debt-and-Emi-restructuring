@@ -18,6 +18,7 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  actions: write        # data-pr starts CI on the PR branch (audit80 D17)
 
 concurrency:
   group: market-data
@@ -91,3 +92,9 @@ jobs:
           elif [ -n "$issue" ]; then
             gh issue close "$issue" --comment "Nothing left to check in the [run of $(date -u +%Y-%m-%d)]($run_url)."
           fi
+      # audit80 D18: a failed scheduled run opens (or comments on) an issue.
+      - name: Open an issue if this run failed
+        if: failure()
+        uses: ./.github/actions/failure-issue
+        with:
+          title: "Market data job failed"

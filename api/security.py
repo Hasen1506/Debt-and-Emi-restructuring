@@ -172,7 +172,8 @@ class SecurityMiddleware:
                 if (write or private) and b"cache-control" not in names:
                     extra.append((b"cache-control", b"no-store"))
                 if https:
-                    extra.append((b"strict-transport-security", b"max-age=63072000; includeSubDomains"))
+                    # audit80 D23: same value as the pages (web/security-headers.mjs HSTS).
+                    extra.append((b"strict-transport-security", b"max-age=63072000; includeSubDomains; preload"))
                 message = {**message, "headers": h + [x for x in extra if x[0] not in names]}
             await send(message)
 

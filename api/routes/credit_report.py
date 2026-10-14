@@ -78,6 +78,9 @@ def read(req: CreditReportReadRequest) -> dict:
         try:
             text = pdf_text(data, req.password or None)
         except CreditReportReadError as exc:
+            if exc.kind == "busy":  # audit80 D15: one parse at a time
+                raise HTTPException(503, {"field": "pdf_base64", "message": str(exc), "kind": "busy"},
+                                    headers={"Retry-After": "60"})
             field = "password" if exc.kind in ("needs_password", "wrong_password") else "pdf_base64"
             log.info("credit_report_read failed kind=%s source=pdf bytes=%d", exc.kind, len(data))
             raise _fail(field, str(exc), exc.kind)

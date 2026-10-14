@@ -14,7 +14,18 @@ const METHODS: Record<string, string[]> = {
   // "Your data" page (grill #51): download everything, delete the account.
   'auth/account/export': ['GET'],
   'auth/account/delete': ['POST'],
+  // audit80 D2: the consent record (read, and the one-tap re-consent).
+  'auth/consent': ['GET', 'POST'],
+  // audit80 D21: signed-in devices, and signing them out.
+  'auth/sessions': ['GET'],
+  'auth/sessions/revoke-all': ['POST'],
 };
+/** One device by its 16-hex public id (api/auth/devices.py public_session_id). */
+const REVOKE_ONE = /^auth\/sessions\/[0-9a-f]{16}\/revoke$/;
+function methodsFor(path: string): string[] | undefined {
+  if (Object.prototype.hasOwnProperty.call(METHODS, path)) return METHODS[path];
+  return REVOKE_ONE.test(path) ? ['POST'] : undefined;
+}
 const MAX_BODY_BYTES = 256 * 1024;
 
 class BodyTooLarge extends Error {}
@@ -42,7 +53,7 @@ async function readBody(req: NextRequest): Promise<string> {
 /** Fixed upstream and path allowlist: never a general-purpose proxy. */
 async function proxyInner(req: NextRequest, context: { params: Promise<{ path: string[] }> }): Promise<Response> {
   const path = (await context.params).path.join('/');
-  const methods = METHODS[path];
+  const methods = methodsFor(path);
   if (!methods) return new Response(null, { status: 404 });
   if (!methods.includes(req.method)) return new Response(null, { status: 405 });
   // Same-site session cookies alone do not protect a login from CSRF.
@@ -80,6 +91,10 @@ async function proxyInner(req: NextRequest, context: { params: Promise<{ path: s
   // trusts only its last TRUSTED_PROXY_HOPS entries (api/client_ip.py), the
   // ones Cloudflare and Render appended; a forged left part is ignored.
   // Without it every sign-in shared one bucket: this server's address.
+  // audit80 D21: the browser's User-Agent, so the API can store a coarse
+  // device label ("Chrome on Android") for the device list. Nothing finer.
+  const userAgent = req.headers.get('user-agent');
+  if (userAgent && path === 'auth/verify-otp') headers.set('User-Agent', userAgent.slice(0, 512));
   const forwardedFor = req.headers.get('x-forwarded-for');
   if (forwardedFor) headers.set('X-Forwarded-For', forwardedFor);
   // UX50 E-01: on Render the visitor is the CF-Connecting-IP written by
@@ -150,7 +165,8 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
 }
 async function head(req: NextRequest, context: { params: Promise<{ path: string[] }> }): Promise<Response> {
   const path = (await context.params).path.join('/');
-  return noStore(new Response(null, { status: METHODS[path] ? 405 : 404, headers: { Allow: (METHODS[path] ?? []).join(', ') } }));
+  const methods = methodsFor(path);
+  return noStore(new Response(null, { status: methods ? 405 : 404, headers: { Allow: (methods ?? []).join(', ') } }));
 }
 
 export const GET = proxy;

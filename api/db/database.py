@@ -63,12 +63,30 @@ BASELINE_REVISION = "0001_baseline"
 _BASELINE_TABLES = {"users", "otp_codes", "sessions", "user_state"}
 
 
+def schema_drift(connection) -> list[str]:
+    """What the models need that the database lacks (sync): a missing table
+    as "table", a missing column as "table.column". Empty means the schema
+    has everything the code will query (audit80 D26)."""
+    from sqlalchemy import inspect
+
+    insp = inspect(connection)
+    have_tables = set(insp.get_table_names())
+    drift: list[str] = []
+    for name, table in Base.metadata.tables.items():
+        if name not in have_tables:
+            drift.append(name)
+            continue
+        have_cols = {c["name"] for c in insp.get_columns(name)}
+        drift.extend(f"{name}.{c.name}" for c in table.columns if c.name not in have_cols)
+    return sorted(drift)
+
+
 def run_migrations(connection) -> list[str]:
     """Bring the account database to the newest migration (sync, inside
     `conn.run_sync`). A database made by the old `create_all`, with the four
     tables but no alembic_version, is stamped at the baseline first, so the
-    baseline never tries to create tables that exist. Returns the tables a
-    model declares that no migration created (see init_db)."""
+    baseline never tries to create tables that exist. Returns what the
+    models declare that no migration created (see schema_drift, init_db)."""
     from pathlib import Path
 
     from alembic import command
@@ -84,8 +102,31 @@ def run_migrations(connection) -> list[str]:
         log.info("Account database predates Alembic: stamping %s", BASELINE_REVISION)
         command.stamp(cfg, BASELINE_REVISION)
     command.upgrade(cfg, "head")
-    have = set(inspect(connection).get_table_names())
-    return sorted(t for t in Base.metadata.tables if t not in have)
+    return schema_drift(connection)
+
+
+class SchemaDriftError(RuntimeError):
+    """The code needs tables or columns no migration created."""
+
+
+def is_production(env: Optional[dict] = None) -> bool:
+    """Render sets RENDER on every service; RIGHTDUE_ENV=production says so
+    anywhere else."""
+    env = os.environ if env is None else env
+    return bool(env.get("RENDER")) or env.get("RIGHTDUE_ENV", "").lower() == "production"
+
+
+def check_drift(drift: list[str], env: Optional[dict] = None) -> None:
+    """audit80 D26: in production, refuse to start on drift. The container
+    then fails its start, Render keeps the previous deploy serving, and the
+    deploy log names what is missing. ALLOW_SCHEMA_DRIFT=1 is the escape
+    hatch for an emergency, never a default."""
+    env = os.environ if env is None else env
+    if drift and is_production(env) and env.get("ALLOW_SCHEMA_DRIFT") != "1":
+        raise SchemaDriftError(
+            "Schema drift: the code needs " + ", ".join(drift) + " but no Alembic migration created "
+            "them. Add a migration under api/db/migrations/versions; refusing to start in production."
+        )
 
 
 async def init_db() -> None:
@@ -95,10 +136,12 @@ async def init_db() -> None:
     from api.db import models  # noqa: F401
 
     async with engine.begin() as conn:
-        missing = await conn.run_sync(run_migrations)
-        if missing:
-            # A model added without a migration still gets its table, so a
-            # deploy never breaks on it, but say so: the schema test
-            # (api/tests/test_state_versions_and_migrations.py) fails until a migration exists.
-            log.warning("Tables without an Alembic migration, created directly: %s", ", ".join(missing))
+        drift = await conn.run_sync(run_migrations)
+        if drift:
+            check_drift(drift)  # raises in production (D26)
+            # Development and tests only: create missing tables so a local run
+            # works, and say so. The schema test
+            # (api/tests/test_state_versions_and_migrations.py) fails until a
+            # migration exists. create_all never adds columns.
+            log.warning("Schema drift (no Alembic migration): %s", ", ".join(drift))
             await conn.run_sync(Base.metadata.create_all)
