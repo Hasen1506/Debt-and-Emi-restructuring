@@ -48,6 +48,9 @@ jobs:
       # audit80 D18: a failed send run opens (or comments on) one issue.
       # The composite action is added by W8 (.github/actions/failure-issue);
       # it only runs on failure, so this branch alone is unaffected until merge.
+      - name: Check out (only to load the local failure-issue action)
+        if: failure()
+        uses: actions/checkout@v4
       - name: Open an issue if this run failed
         if: failure()
         uses: ./.github/actions/failure-issue
