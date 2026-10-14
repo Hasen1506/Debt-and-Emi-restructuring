@@ -399,9 +399,14 @@ def _plan_kwargs(req: SimulateRequest | CompareRequest) -> dict:
 
 
 def _never_clears(result, user) -> bool:
-    """Not cleared within the horizon while something is owed."""
+    """Not cleared within the horizon while something is owed, or cleared
+    only on paper: from `infeasible_from_month` the plan pays with money
+    that could be neither found nor borrowed (gap limit hit, Audit C11), so
+    its debt-free date and totals aren't a result to show as normal."""
     owed = any(l.outstanding > 0 for l in user.loans)
-    return owed and result.debt_free_month is None
+    if not owed:
+        return False
+    return result.debt_free_month is None or getattr(result, "infeasible_from_month", None) is not None
 
 
 def _bounded_fields(result, user) -> dict:
