@@ -459,6 +459,22 @@ CARD_SPEND_SHARE = D("0.5")
 CARD_PAID_EARLY_SHARE = D("1") / D("3")
 
 
+def card_minimum_at_charged_interest(loan: Loan, country: Country, opening: Decimal, spend: Decimal,
+                                     simple_mode: bool = False) -> Decimal:
+    """Audit C13: a "% + interest" card minimum carries the interest actually
+    charged (average daily balance, paid on the due date), which depends on
+    the payment, so it is evaluated at the minimum (two fixed-point steps;
+    the second moves it by paise). `loan.outstanding` already includes this
+    month's `spend`; `opening` is the balance before it. The simulator and
+    the consolidation card (engine/consolidation.py) share this."""
+    mn = compute_minimum_payment(loan, country, interest_accrued=monthly_interest_charge(loan, country),
+                                 simple_mode=simple_mode)
+    for _ in range(2):
+        charged = card_cycle_interest(loan, country, opening, spend, mn)
+        mn = compute_minimum_payment(loan, country, interest_accrued=charged, simple_mode=simple_mode)
+    return mn
+
+
 def card_cycle_interest(loan: Loan, country: Country, opening: Decimal, spend: Decimal,
                         payment: Decimal) -> Decimal:
     """This cycle's finance charge (GST included for an Indian card) on the
@@ -989,14 +1005,9 @@ def _simulate_plan(
                     # date), not a full month on balance + spend. That interest
                     # depends on the payment, so evaluate it at the minimum
                     # (two fixed-point steps; the second moves it by paise).
-                    opening = card_opening.get(id(l), l.outstanding)
-                    spend = card_spend.get(id(l), D("0"))
-                    mn = minimums[id(l)]
-                    for _ in range(2):
-                        charged = card_cycle_interest(l, user.country, opening, spend, mn)
-                        mn = compute_minimum_payment(l, user.country, interest_accrued=charged,
-                                                     simple_mode=simple_mode)
-                    minimums[id(l)] = mn
+                    minimums[id(l)] = card_minimum_at_charged_interest(
+                        l, user.country, card_opening.get(id(l), l.outstanding),
+                        card_spend.get(id(l), D("0")), simple_mode)
                 continue
             kind = repayment_kind(l)
             fm = final_month(l)

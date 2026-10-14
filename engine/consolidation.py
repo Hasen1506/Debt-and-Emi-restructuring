@@ -192,6 +192,27 @@ def _window_cost(res, months: int) -> Decimal:
     return sum((r.interest_paid_month + r.gap_interest for r in res.months[:months]), D("0"))
 
 
+def _card_minimums_now(user: User, cards: list[Loan]) -> Decimal:
+    """The cards' minimum this month exactly as the plan pays it (C13: the
+    interest charged at the minimum, plus this month's spend), so "frees ₹X"
+    equals the fall in the plan's own gap. compute_total_minimums charges a
+    full month on the balance and overstated it (by ₹149 on P-short)."""
+    from copy import copy
+
+    from engine.simulation import card_minimum_at_charged_interest
+    from engine.surplus import to_user_currency
+    total = D("0")
+    for c in cards:
+        if c.min_payment_override is not None and c.min_payment_override > 0:
+            total += compute_total_minimums(user, [c])
+            continue
+        spend = c.expected_monthly_spend if c.expected_monthly_spend > 0 else D("0")
+        scratch = copy(c)
+        scratch.outstanding = c.outstanding + spend
+        total += to_user_currency(card_minimum_at_charged_interest(scratch, user.country, c.outstanding, spend), c, user)
+    return total
+
+
 def consolidate(
     user: User,
     run,                                 # run(user) -> SimulationResult, the caller's own plan settings
@@ -240,7 +261,7 @@ def consolidate(
     ))
     after = run(after_user)
 
-    card_min = compute_total_minimums(user, cards)
+    card_min = _card_minimums_now(user, cards)
     gap_b = base.months[0].shortfall if base.months else D("0")
     gap_a = after.months[0].shortfall if after.months else D("0")
     # A plan the gap credit limit can't carry (C11, infeasible_from_month)

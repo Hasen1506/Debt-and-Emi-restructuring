@@ -129,15 +129,22 @@ def test_loan_amount_always_clears_the_card(total, fee_pct, fee_flat, india):
 
 
 def test_consolidation_golden_p_short():
-    """P-short: card ₹1.2L at 42% (60.3% a year with GST, compounded), ₹5,500 a month short.
+    """P-short: card ₹1.2L at 42% (60.3% a year with GST, compounded).
     At 12% over 36 months: EMI = 120000 x 0.01 x 1.01^36 / (1.01^36 - 1) = 3,985.72 -> 3,986.
-    The card's minimum is 5% of the balance = ₹6,000, so ₹2,014 a month is freed
-    and the gap falls from ₹5,500 to ₹3,486."""
+    Integration (W2 C14 x W1 C13): the HDFC card's minimum is its MITC rule,
+    finance charge + 18% GST + 5% of the balance (was a flat 5% = ₹6,000).
+    A full month's charge would be 4,200 + 756 + 6,000 = ₹10,956; C13 charges
+    the average daily balance at the minimum, so the plan pays ₹10,807.
+    Gap = 85,000 - 42,000 - 10,500 - 32,000 - 10,807 = -₹10,307; after the
+    move -(85,000 - 42,000 - 10,500 - 32,000 - 3,986) = -₹3,486; freed
+    10,807 - 3,986 = ₹6,821 = the fall in the gap."""
     u = persona("85000", "42000")
     run = runner()
     s = consolidate(u, lambda x: run(x), D("0.2"), [0], D("0.12"), 36)
-    assert s.emi == D("3986") and s.card_minimum_now == D("6000") and s.cash_freed == D("2014")
-    assert s.gap_before == D("5500") and s.gap_after == D("3486")
+    assert s.emi == D("3986") and s.card_minimum_now == D("10807") and s.cash_freed == D("6821")
+    assert D("6000") < s.card_minimum_now < D("10956")
+    assert s.gap_before == D("10307") and s.gap_after == D("3486")
+    assert s.cash_freed == s.gap_before - s.gap_after   # "frees ₹X" is the plan's own gap change
     assert s.cost_window_months == 36            # a plan that never clears is compared over 36 months
     assert s.saving > 0 and s.verdict == "saves"
 
@@ -294,13 +301,14 @@ def test_p_short_gap_ways_golden():
     base = run(u)
     cons = consolidation_card(u, lambda x: run(x), D("0.2"), PUB, base=base)
     g = gap_ways(u, base, lambda x: run(x), money, consolidation=cons)
-    assert g.gap == D("5500")
+    assert g.gap == D("10307")   # HDFC MITC minimum ₹10,807 (see test_consolidation_golden_p_short)
     assert [w.kind for w in g.ways] == ["consolidate", "stretch", "spend"]
-    # Conservative: the card counted at the high rate (24%: EMI ₹4,708 -> frees ₹1,292).
-    assert g.ways[0].monthly == D("1292") and "₹1,292 to ₹2,009" in g.ways[0].headline
+    # Conservative: the card counted at the high rate (24%: EMI ₹4,708 -> frees
+    # 10,807 - 4,708 = ₹6,099; typical 12.09%: EMI ₹3,991 -> ₹6,816).
+    assert g.ways[0].monthly == D("6099") and "₹6,099 to ₹6,816" in g.ways[0].headline
     # 60 more months on ₹35L at 8.6%: EMI(35L, 8.6%, 300) = ₹28,419 -> frees ₹3,581.
     assert g.ways[1].monthly == D("3581")
-    assert g.ways[2].closes_all and "13%" in g.ways[2].headline
+    assert g.ways[2].closes_all and "25%" in g.ways[2].headline   # 10,307 / 42,000 = 24.5%
 
 
 def test_no_gap_no_headline():
