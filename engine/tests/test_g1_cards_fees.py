@@ -74,7 +74,14 @@ def test_new_spend_while_revolving_has_no_interest_free_period():
 
 def test_every_bank_formula_is_marked_unverified_and_the_statement_wins():
     assert set(FORMULA_SOURCE) >= set(INDIA_MIN_PAYMENT_FORMULAS)
-    assert all(v["verified"] is False and v["source_url"] is None for v in FORMULA_SOURCE.values())
+    # C14 (audit 80): the big four issuers are sourced from their MITC with a
+    # date; every other formula stays an unverified estimate.
+    sourced = {"SBI Card", "Axis Bank", "HDFC Bank", "ICICI Bank"}
+    for bank, v in FORMULA_SOURCE.items():
+        if bank in sourced:
+            assert v["verified"] is True and v["source_url"].startswith("https://") and v["as_of"]
+        else:
+            assert v["verified"] is False and v["source_url"] is None
     assert "statement" in STATEMENT_MIN_ADVICE
     card = Loan(loan_type=LoanType.CREDIT_CARD, bank="HDFC Bank", outstanding=D("50000"), nominal_rate=D("0.42"),
                 rate_type="fixed", tenure_months_remaining=0, scheduled_emi=D("0"))

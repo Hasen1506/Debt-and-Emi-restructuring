@@ -112,7 +112,9 @@ def marginal_cost(
     # 1 October 2022). So a 42% card costs (1 + 0.42/12)^12 - 1 = 51.11% of
     # interest + 18% of that = 9.20% GST = 60.31% a year, not the 62.52%
     # that compounding the GST gave. Source:
-    # https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12300 (read 2026-10-12)
+    # https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12300 (read 2026-10-12); C22: since
+    # 28 Nov 2025 the same text is in the consolidated Commercial Banks card
+    # Directions 2025, id=13155 (NBFC: id=12956, checked 14 Oct 2026).
     gst = interest * GST_ON_CARD_INTEREST_IN if card_gst else D("0")
     tax_benefit = interest * shield_fraction
     k = months_left if months_left > 0 else OPEN_ENDED_MONTHS

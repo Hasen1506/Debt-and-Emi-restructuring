@@ -64,7 +64,8 @@ export function marginalCost(
   // GST is 18% of the year's interest and is never itself charged interest:
   // RBI Credit Card Master Direction 2022, para 9(b)(ii) and FAQ 7 ("unpaid
   // charges/levies/taxes shall not be capitalized"). 42% → 51.11% + 9.20% = 60.31%.
-  // https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12300 (read 2026-10-12)
+  // https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12300 (read 2026-10-12); C22: now in the
+  // consolidated card Directions 2025, id=13155 (NBFC id=12956), checked 14 Oct 2026.
   const gst = cardGst ? interest.times(GST_ON_CARD_INTEREST_IN) : D(0);
   const taxBenefit = interest.times(D(shieldFraction));
   const k = monthsLeft > 0 ? monthsLeft : OPEN_ENDED_MONTHS;
