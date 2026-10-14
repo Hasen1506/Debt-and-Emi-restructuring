@@ -37,6 +37,7 @@ import {
 import { streamTransitionsAsLifecycleEvents } from '@/lib/income-streams';
 import {
   buildSchedule,
+  rebaseSchedule,
   accruedPenalty,
   type AdvanceTaxSchedule,
 } from '@/lib/advance-tax';
@@ -188,12 +189,15 @@ export async function loadPlanInputs(
         if (stored && !storedStale && stored.country === adjustedUser.country) {
           // Run the missed-event auto-mint each render so past-due
           // unpaid rows are flagged before the panel renders.
-          advanceTaxSchedule = markMissedInstalments(stored, today);
+          // W2: re-cut the remaining instalments when the year's estimate moved.
+          advanceTaxSchedule = markMissedInstalments(rebaseSchedule(stored, annualTax), today);
         } else {
           advanceTaxSchedule = buildSchedule(
             adjustedUser.country,
             annualTax,
             today,
+            // s.408(2): presumptive income pays once, by 15 March.
+            { presumptive: (adjustedUser.income_streams ?? []).some((st) => st.tax_treatment === 'business_44ada') },
           );
         }
       }

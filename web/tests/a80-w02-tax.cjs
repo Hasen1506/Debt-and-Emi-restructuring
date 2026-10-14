@@ -87,3 +87,23 @@ test('C21: Plan says when the old regime would cost less, and never switches it'
   assert.equal(oldRegimeWouldSave({ ...u, loans: [] }), null);   // no tax-relevant loan: no note
   assert.equal(oldRegimeWouldSave({ ...u, deductions: {} , annual_gross_salary: '1300000'}), null); // new wins
 });
+
+test('Advance tax: presumptive pays once by 15 Mar (s.408(2)); s.425 [234C] fixed periods; mid-year rebase', () => {
+  const { buildSchedule, accruedPenalty, rebaseSchedule } = lib('advance-tax.ts');
+  const apr1 = new Date(2026, 3, 1, 12);
+  const pres = buildSchedule('IN', new Decimal(100000), apr1, { presumptive: true });
+  assert.equal(pres.instalments.length, 1);
+  assert.deepEqual([pres.instalments[0].dueDate, pres.instalments[0].cumulativePct, pres.instalments[0].amountDue], ['2027-03-15', 100, '100000']);
+  const reg = buildSchedule('IN', new Decimal(100000), apr1);
+  assert.deepEqual(reg.instalments.map((i) => i.amountDue), ['15000', '30000', '30000', '25000']);
+  // Nothing paid by 1 Oct: June 15,000 x 1% x 3 + Sept 45,000 x 1% x 3 = 1,800.
+  assert.equal(accruedPenalty(reg, new Date(2026, 9, 1, 12)).sec234C, '1800');
+  // 12,000 paid in June: no June interest (12% rule); Sept (33,000 short, < 36%) x 3% = 990.
+  const paid = { ...reg, instalments: reg.instalments.map((i, k) => (k === 0 ? { ...i, status: 'paid', paidAmount: '12000' } : i)) };
+  assert.equal(accruedPenalty(paid, new Date(2026, 9, 1, 12)).sec234C, '990');
+  // Income rose mid-year: remaining instalments re-cut to the new estimate, paid kept.
+  const q1 = { ...reg, instalments: reg.instalments.map((i, k) => (k === 0 ? { ...i, status: 'paid', paidAmount: '15000' } : i)) };
+  const re = rebaseSchedule(q1, new Decimal(150000));
+  assert.deepEqual(re.instalments.map((i) => i.amountDue), ['15000', '52500', '45000', '37500']);
+  assert.equal(rebaseSchedule(q1, new Decimal(105000)), q1);   // within 10%: left alone
+});
