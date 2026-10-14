@@ -176,6 +176,11 @@ class Scenario:
     cost_window_months: Optional[int] = None
 
 
+def _clears(res) -> bool:
+    """Debt-free within the horizon with every short month fundable."""
+    return res.debt_free_month is not None and getattr(res, "infeasible_from_month", None) is None
+
+
 def _plan_cost(user: User, res, marginal_rate: Decimal) -> Decimal:
     from engine.fee_order import plan_net_cost
     return plan_net_cost(user, res, marginal_rate)
@@ -238,7 +243,11 @@ def consolidate(
     card_min = compute_total_minimums(user, cards)
     gap_b = base.months[0].shortfall if base.months else D("0")
     gap_a = after.months[0].shortfall if after.months else D("0")
-    window = None if (base.debt_free_month is not None and after.debt_free_month is not None) else min(tenure_months, 36)
+    # A plan the gap credit limit can't carry (C11, infeasible_from_month)
+    # "clears" only on paper, paying with money that can't be found; its
+    # whole-plan cost leaves the unfunded part out, so compare it over the
+    # window like a plan that never clears (W1b, integration).
+    window = None if (_clears(base) and _clears(after)) else min(tenure_months, 36)
     if window is None:
         cost_b = _plan_cost(user, base, marginal_rate)
         cost_a = _plan_cost(after_user, after, marginal_rate)

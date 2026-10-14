@@ -330,7 +330,10 @@ def gap_ways(
             if freed > 0:
                 after = run(longer)
                 extra = None
-                if base.debt_free_month is not None and after.debt_free_month is not None:
+                # Capped plans (C11 infeasible_from_month) clear only on paper:
+                # their interest totals leave the unfunded part out.
+                if all(r.debt_free_month is not None and getattr(r, "infeasible_from_month", None) is None
+                       for r in (base, after)):
                     extra = _q(after.total_interest_paid - base.total_interest_paid)
                 ways.append(GapWay(
                     "stretch", freed, min(freed, gap), freed >= gap,
