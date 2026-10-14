@@ -41,7 +41,7 @@ const STORED_AT = 'x-rightdue-landing-stored-at';
 // Mirrors of web/src/lib/site.ts (SITE, PUBLIC_PAGES) and the disallow list in
 // web/src/app/robots.ts. Change all three together (the web test checks).
 export const SITE = 'https://rightdue.app';
-export const PUBLIC_PAGES = ['/', '/tools/loan-check', '/glossary', '/privacy', '/terms'];
+export const PUBLIC_PAGES = ['/', '/tools/loan-check', '/rbi-decision', '/glossary', '/privacy', '/terms'];  // W4 A19 MPC page
 export const ROBOTS_DISALLOW = ['/api/', '/plan', '/profile', '/activity', '/account', '/goals', '/portfolio', '/onboarding', '/cant-pay', '/tax', '/login', '/welcome.html'];
 export const CRAWL_PATHS = new Set(['/robots.txt', '/sitemap.xml']);
 
@@ -60,7 +60,7 @@ export function robotsTxt() {
 export function sitemapXml() {
   const rows = PUBLIC_PAGES.map((p) => {
     const loc = p === '/' ? `${SITE}/` : `${SITE}${p}`;
-    const freq = p === '/' || p === '/tools/loan-check' ? 'weekly' : 'monthly';
+    const freq = p === '/' || p === '/tools/loan-check' || p === '/rbi-decision' ? 'weekly' : 'monthly';
     const priority = p === '/' ? 1 : p === '/tools/loan-check' ? 0.8 : 0.5;
     return `<url>\n<loc>${loc}</loc>\n<changefreq>${freq}</changefreq>\n<priority>${priority}</priority>\n</url>`;
   });
