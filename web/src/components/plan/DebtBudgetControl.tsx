@@ -96,7 +96,7 @@ export function DebtBudgetControl({
           </span>
         </div>
       )}
-      <p style={{ margin: 0, fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
+      <p style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
         {currency === 'USD' ? 'Monthly payments' : 'EMIs'} and card minimums are {fmt(required)} this month; the plan always pays those. Anything you don&apos;t
         put on debts stays with you to save or spend.
         {hasFundTarget

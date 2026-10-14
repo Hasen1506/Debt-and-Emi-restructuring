@@ -60,7 +60,7 @@ export function LRule({
         fontFamily: L_MONO,
         color: color ?? L_T.ink,
         fontWeight: weight,
-        fontSize: 11,
+        fontSize: 'var(--fs-small)',
         lineHeight: 1,
       }}
     >
@@ -99,7 +99,7 @@ export function LBracket({
 }) {
   const base: CSSProperties = {
     fontFamily: L_MONO,
-    fontSize: 10,
+    fontSize: 'var(--fs-label)',
     letterSpacing: '0.14em',
     color: accent ? L_T.accent : active ? L_T.ink : L_T.muted,
     fontWeight: active ? 700 : 500,
@@ -145,7 +145,7 @@ export function LShell({ children }: { children: ReactNode }) {
         background: L_T.bg,
         color: L_T.ink,
         fontFamily: L_MONO,
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
         lineHeight: 1.55,
         fontFeatureSettings: '"tnum"',
         display: 'flex',
@@ -179,7 +179,7 @@ export function LSectionHeader({
         marginBottom: 10,
         paddingBottom: 6,
         borderBottom: `2px solid ${L_T.ink}`,
-        fontSize: 12,
+        fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
         letterSpacing: '0.16em',
         flexWrap: 'wrap',
         gap: 8,
@@ -209,7 +209,7 @@ export function LSectionHeader({
 export function lPayBtn(solid: boolean): CSSProperties {
   return {
     fontFamily: 'inherit',
-    fontSize: 12,
+    fontSize: 'var(--fs-label)',
     fontWeight: 700,
     letterSpacing: '0.08em',
     padding: '8px 14px',
@@ -310,7 +310,7 @@ export function LAllocationBar({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 9,
+                fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
                 fontWeight: 700,
                 letterSpacing: '0.06em',
                 borderRight: i < arr.length - 1 ? `1px solid ${L_T.ink}` : 'none',
@@ -329,7 +329,7 @@ export function LAllocationBar({
   return (
     <div>
       {bar}
-      <ul aria-hidden="true" style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexWrap: 'wrap', gap: '6px 18px', fontSize: 12 }}>
+      <ul aria-hidden="true" style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexWrap: 'wrap', gap: '6px 18px', fontSize: 'var(--fs-dense)' }}>
         {segments
           .filter((s) => s.value > 0)
           .map((s) => (
@@ -364,7 +364,7 @@ export function LProgressBar({
     <span
       role="img"
       aria-label={`${Math.round(p)}%`}
-      style={{ fontFamily: L_MONO, fontSize: 11, letterSpacing: 0, color, whiteSpace: 'pre' }}
+      style={{ fontFamily: L_MONO, fontSize: 'var(--fs-small)', letterSpacing: 0, color, whiteSpace: 'pre' }}
     >
       <span aria-hidden="true">
         [{'█'.repeat(filled)}
@@ -381,7 +381,7 @@ export function LCli({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 11,
+        fontSize: 'var(--fs-label)',
         letterSpacing: '0.18em',
         color: L_T.muted,
         marginBottom: 6,
@@ -433,7 +433,7 @@ export function LKpi({
         <div key={i} style={{ background: L_T.bg, padding: '10px 14px', borderRight: `1px solid ${L_T.ink}`, borderBottom: `1px solid ${L_T.ink}` }}>
           <div
             style={{
-              fontSize: 10,
+              fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
               color: L_T.muted,
               letterSpacing: '0.12em',
               marginBottom: 4,
@@ -453,7 +453,7 @@ export function LKpi({
             {m.v}
           </div>
           {m.s !== undefined && m.s !== null && m.s !== '' && (
-            <div style={{ fontSize: 10, color: L_T.muted, marginTop: 4 }}>{m.s}</div>
+            <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted, marginTop: 4 }}>{m.s}</div>
           )}
         </div>
       ))}
@@ -504,7 +504,7 @@ export function LField({
         htmlFor={editable ? id : undefined}
         style={{
           display: 'block',
-          fontSize: 11,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           letterSpacing: '0.12em',
           color: L_T.muted,
           marginBottom: 4,
@@ -516,7 +516,7 @@ export function LField({
         style={{
           borderBottom: `2px solid ${error ? L_T.negative : L_T.ink}`,
           padding: '6px 2px',
-          fontSize: 13,
+          fontSize: 'var(--fs-body)',
           fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
@@ -555,7 +555,7 @@ export function LField({
         )}
       </div>
       {error && (
-        <div id={errId} role="alert" style={{ fontSize: 11, color: L_T.negative, marginTop: 4 }}>
+        <div id={errId} role="alert" style={{ fontSize: 'var(--fs-small)', color: L_T.negative, marginTop: 4 }}>
           {error}
         </div>
       )}
@@ -563,7 +563,7 @@ export function LField({
         <div
           id={hintId}
           style={{
-            fontSize: 11,
+            fontSize: 'var(--fs-small)',
             color: L_T.muted,
             marginTop: 4,
             letterSpacing: '0.04em',
@@ -676,7 +676,7 @@ export function LSlider({
           justifyContent: 'space-between',
           alignItems: 'baseline',
           marginBottom: 6,
-          fontSize: 11,
+          fontSize: 'var(--fs-small)',
           gap: 8,
         }}
       >
@@ -731,7 +731,7 @@ export function LSlider({
           />
         )}
       </div>
-      <div style={{ display: 'flex', gap: 18, fontSize: 11, color: L_T.muted, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 18, fontSize: 'var(--fs-small)', color: L_T.muted, flexWrap: 'wrap' }}>
         {outcomes.map((o, i) => (
           <span key={i}>
             → {o.label}{' '}
@@ -772,7 +772,7 @@ export function LButton({
     color: L_T.bg,
     border: 'none',
     fontFamily: L_MONO,
-    fontSize: 12,
+    fontSize: 'var(--fs-label)',
     fontWeight: 700,
     letterSpacing: '0.14em',
     cursor: 'pointer',
@@ -839,7 +839,7 @@ export function LFooter({ mobile }: { mobile?: boolean }) {
         padding: mobile ? '8px 18px' : '10px 32px',
         display: 'flex',
         justifyContent: 'flex-start',
-        fontSize: 10,
+        fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
         letterSpacing: '0.14em',
         color: L_T.muted,
         background: L_T.bg,
@@ -864,7 +864,7 @@ export function LMathBlock({
     <LCardPaper>
       <div
         style={{
-          fontSize: 11,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           letterSpacing: '0.18em',
           color: L_T.muted,
           marginBottom: 8,
@@ -872,7 +872,7 @@ export function LMathBlock({
       >
         {title}
       </div>
-      <div style={{ fontSize: 12, color: L_T.ink, lineHeight: 1.8 }}>
+      <div style={{ fontSize: 'var(--fs-dense)', color: L_T.ink, lineHeight: 1.8 }}>
         {rows.map((r, i) => (
           <div key={i} style={{ display: 'flex', flexWrap: 'wrap', columnGap: 8 }}>
             <span style={{ minWidth: 'min(180px, 45%)' }}>{r.k}</span>
@@ -904,7 +904,7 @@ export function LChip({ on, onClick, children }: { on: boolean; onClick: () => v
       onClick={onClick}
       style={{
         fontFamily: L_MONO,
-        fontSize: 11,
+        fontSize: 'var(--fs-label)',
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
         padding: '7px 12px',
@@ -923,7 +923,7 @@ export function LChip({ on, onClick, children }: { on: boolean; onClick: () => v
 export function LChipRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div role="group" aria-label={label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <span style={{ fontSize: 12, color: L_T.muted }}>{label}</span>
+      <span style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>{label}</span>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{children}</div>
     </div>
   );

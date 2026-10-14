@@ -465,7 +465,7 @@ export function WhatIfPanel({
         disabled={lumpTargetCap <= 0}
         extraControls={
           <>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 'var(--fs-dense)' }}>
               <span style={{ color: L_T.muted }}>Into</span>
               <select
                 value={lumpTarget}
@@ -474,7 +474,7 @@ export function WhatIfPanel({
                   setLumpRef({loanIndex:index, loanId:user.loans[index]?.id});
                   setLumpAmount(0);
                 }}
-                style={{ fontFamily: 'inherit', fontSize: 12, padding: '5px 8px', border: `1px solid ${L_T.ink}`, background: L_T.paper, color: L_T.ink, maxWidth: '100%' }}
+                style={{ fontFamily: 'inherit', fontSize: 'var(--fs-dense)', padding: '5px 8px', border: `1px solid ${L_T.ink}`, background: L_T.paper, color: L_T.ink, maxWidth: '100%' }}
               >
                 {lumpTarget < 0 && <option value={-1}>Choose an open loan</option>}
                 {loanOptions.map((o) => (
@@ -484,7 +484,7 @@ export function WhatIfPanel({
                   </option>
                 ))}
               </select>
-              <span style={{ color: L_T.muted, fontSize: 11 }}>★ The dearest, the plan&apos;s own pick</span>
+              <span style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>★ The dearest, the plan&apos;s own pick</span>
             </label>
             <LockItInButton
               disabled={lumpAmount <= 0}
@@ -504,7 +504,7 @@ export function WhatIfPanel({
             padding: '8px 12px',
             borderLeft: `2px solid ${L_T.positive}`,
             background: L_T.paper,
-            fontSize: 12,
+            fontSize: 'var(--fs-dense)',
             display: 'flex',
             justifyContent: 'space-between',
             gap: 12,
@@ -518,7 +518,7 @@ export function WhatIfPanel({
       )}
 
       {commitments.length > 0 && (
-        <div style={{ marginTop: 12, fontSize: 12 }}>
+        <div style={{ marginTop: 12, fontSize: 'var(--fs-dense)' }}>
           <LBracket onClick={() => setShowLog((v) => !v)}>
             {showLog ? 'HIDE' : 'SHOW'} CHANGES MADE HERE · {commitments.length}
           </LBracket>
@@ -590,7 +590,7 @@ function LockItInButton({
       <LBracket accent onClick={onClick} label={label} disabled={disabled}>
         {shortLabel}
       </LBracket>
-      {reason && <span style={{display:'block', fontSize:11, color:L_T.muted}}>{reason}</span>}
+      {reason && <span style={{display:'block', fontSize: 'var(--fs-small)', color:L_T.muted}}>{reason}</span>}
     </span>
   );
 }
@@ -662,8 +662,8 @@ function BeforeAfter({
         );
         return (
           <div key={r.label} role="img" aria-label={`${r.label.toLowerCase()}: ${r.aText} on your plan, ${r.bText} with this change`}>
-            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>{r.label}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr) auto', columnGap: 8, rowGap: 4, alignItems: 'center', fontSize: 11 }}>
+            <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>{r.label}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr) auto', columnGap: 8, rowGap: 4, alignItems: 'center', fontSize: 'var(--fs-small)' }}>
               <span style={{ color: L_T.muted }}>Your plan</span>
               {bar(r.a, L_T.inkSoft, false)}
               <span style={{ color: L_T.inkSoft, whiteSpace: 'nowrap' }}>{r.aText}</span>
@@ -732,7 +732,7 @@ function SliderRow({
     : 0;
   const interest = Number(state.result?.interest_saved ?? '0');
   const tone = (good: boolean | null) => (good == null ? L_T.muted : good ? L_T.positive : L_T.negative);
-  const small = { fontFamily: 'inherit', fontSize: 10, letterSpacing: '0.1em', padding: '3px 8px', border: `1px solid ${L_T.muted}`, background: 'transparent', color: L_T.muted, cursor: 'pointer' } as const;
+  const small = { fontFamily: 'inherit', fontSize: 'var(--fs-label)', letterSpacing: '0.1em', padding: '3px 8px', border: `1px solid ${L_T.muted}`, background: 'transparent', color: L_T.muted, cursor: 'pointer' } as const;
 
   return (
     <div
@@ -749,7 +749,7 @@ function SliderRow({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <strong style={{ fontSize: 13 }}>{title}</strong>
+        <strong style={{ fontSize: 'var(--fs-body)' }}>{title}</strong>
         <TypableAmountInput
           value={value}
           onChange={onChange}
@@ -789,8 +789,8 @@ function SliderRow({
         aria-valuetext={formatValue(value)}
         style={{ width: '100%', accentColor: L_T.accent, opacity: disabled ? 0.6 : 1 }}
       />
-      <div style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.5 }}>{hint}</div>
-      <div aria-live="polite" style={{ fontSize: 12, lineHeight: 1.6 }}>
+      <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.5 }}>{hint}</div>
+      <div aria-live="polite" style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6 }}>
         {state.loading ? (
           <span style={{ color: L_T.muted }}>Working it out…</span>
         ) : state.error ? (
@@ -810,7 +810,7 @@ function SliderRow({
                   : `${formatInterest(Math.abs(interest))} ${interest > 0 ? 'less' : 'more'} interest`}
               </strong>
             </span>
-            {summary && <div style={{ color: L_T.muted, fontSize: 11 }}>{summary}</div>}
+            {summary && <div style={{ color: L_T.muted, fontSize: 'var(--fs-small)' }}>{summary}</div>}
             {value !== 0 && <BeforeAfter result={state.result} country={country} formatInterest={formatInterest} />}
           </>
         ) : (
@@ -860,7 +860,7 @@ function StartMonthPicker({
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
       }}
     >
       <span style={{ color: L_T.muted }}>From</span>
@@ -872,7 +872,7 @@ function StartMonthPicker({
         style={{
           opacity: disabled ? 0.55 : 1,
           padding: '5px 8px',
-          fontSize: 12,
+          fontSize: 'var(--fs-dense)',
           fontFamily: 'inherit',
           border: `1px solid ${L_T.ink}`,
           background: L_T.paper,
@@ -965,7 +965,7 @@ function TypableAmountInput({
       }}
     >
       {mode === 'integer' && (
-        <span style={{ fontSize: 12, color: L_T.muted }}>
+        <span style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>
           {currency === 'USD' ? '$' : '₹'}
         </span>
       )}
@@ -994,7 +994,7 @@ function TypableAmountInput({
         style={{
           width: mode === 'bps' ? 70 : 104,
           padding: '4px 6px',
-          fontSize: 13,
+          fontSize: 'var(--fs-body)',
           fontFamily: 'inherit',
           border: `1px solid ${L_T.ink}`,
           background: L_T.paper,
@@ -1004,16 +1004,16 @@ function TypableAmountInput({
         }}
       />
       {unit && (
-        <span style={{ fontSize: 12, color: L_T.muted }}>
+        <span style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>
           {unit}
         </span>
       )}
       {boxError ? (
-        <span id={errId} role="alert" data-testid="whatif-box-error" style={{ display: 'block', flexBasis: '100%', fontSize: 11, color: L_T.negative }}>
+        <span id={errId} role="alert" data-testid="whatif-box-error" style={{ display: 'block', flexBasis: '100%', fontSize: 'var(--fs-small)', color: L_T.negative }}>
           {boxError}
         </span>
       ) : boxNote ? (
-        <span id={errId} role="status" style={{ display: 'block', flexBasis: '100%', fontSize: 11, color: L_T.muted }}>
+        <span id={errId} role="status" style={{ display: 'block', flexBasis: '100%', fontSize: 'var(--fs-small)', color: L_T.muted }}>
           {boxNote}
         </span>
       ) : null}

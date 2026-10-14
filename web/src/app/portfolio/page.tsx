@@ -26,9 +26,9 @@ export default async function PortfolioPage() {
   return (
     <>
       <header style={{ marginBottom: 22, maxWidth: 820 }}>
-        <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>PORTFOLIO · WHAT YOU OWN</div>
+        <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>PORTFOLIO · WHAT YOU OWN</div>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>Portfolio</h1>
-        <p style={{ color: L_T.inkSoft, fontSize: 13, margin: '8px 0 0', lineHeight: 1.6 }}>
+        <p style={{ color: L_T.inkSoft, fontSize: 'var(--fs-body)', margin: '8px 0 0', lineHeight: 1.6 }}>
           {PORTFOLIO_INTRO}{' '}
           <LBracket href="/profile/assets">+ ADD OR EDIT</LBracket>
         </p>

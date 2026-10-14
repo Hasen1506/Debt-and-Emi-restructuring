@@ -115,9 +115,9 @@ export function StrategyMedallion({
         <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
           {/* Says what the switch is: "Avalanche" alone told no one it
               sets the order debts are paid off in. */}
-          <small style={{ fontSize: 9, letterSpacing: '0.12em', color: L_T.muted }}>PAYOFF ORDER</small>
-          <b style={{ fontSize: 11, letterSpacing: '0.08em' }}>{p.name.toUpperCase()}</b>
-          <small style={{ fontSize: 9, letterSpacing: '0.1em', color: L_T.muted }}>{p.tag}</small>
+          <small style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted }}>PAYOFF ORDER</small>
+          <b style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' }}>{p.name.toUpperCase()}</b>
+          <small style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', color: L_T.muted }}>{p.tag}</small>
         </span>
       </button>
       <span
@@ -159,7 +159,7 @@ export function StrategyMedallion({
               zIndex: 30,
               width: note.width,
               padding: '8px 10px',
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               lineHeight: 1.5,
               color: L_T.ink,
               background: L_T.highlightSoft,
@@ -187,11 +187,11 @@ export function StrategyMedallion({
             boxShadow: `4px 4px 0 ${L_T.ink}`,
           }}
         >
-          <div style={{ padding: '8px 12px', fontSize: 10, letterSpacing: '0.14em', color: L_T.muted, borderBottom: `1px solid ${L_T.ruleSoft}` }}>
+          <div style={{ padding: '8px 12px', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.14em', color: L_T.muted, borderBottom: `1px solid ${L_T.ruleSoft}` }}>
             WHICH DEBT GETS THE EXTRA FIRST
           </div>
           {sameOrder && (
-            <p style={{ margin: 0, padding: '8px 12px', fontSize: 12, lineHeight: 1.5, color: L_T.ink, background: L_T.highlightSoft, borderBottom: `1px solid ${L_T.ruleSoft}` }}>
+            <p style={{ margin: 0, padding: '8px 12px', fontSize: 'var(--fs-dense)', lineHeight: 1.5, color: L_T.ink, background: L_T.highlightSoft, borderBottom: `1px solid ${L_T.ruleSoft}` }}>
               With today&apos;s balances and rates, {orderText(sameOrder)}. Later balances, rate changes and new loans can change the order, date and interest.
             </p>
           )}
@@ -220,16 +220,16 @@ export function StrategyMedallion({
               >
                 <PersonaMedallion strategy={s} size={32} />
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <b style={{ display: 'block', fontSize: 12, letterSpacing: '0.06em' }}>
+                  <b style={{ display: 'block', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em' }}>
                     {PERSONA[s].name.toUpperCase()} · {PERSONA[s].tag}
                     {on && <span style={{ color: L_T.accent }}> · IN USE</span>}
                   </b>
-                  <span style={{ display: 'block', fontSize: 11, lineHeight: 1.45, color: L_T.muted }}>{PERSONA[s].rule}</span>
+                  <span style={{ display: 'block', fontSize: 'var(--fs-small)', lineHeight: 1.45, color: L_T.muted }}>{PERSONA[s].rule}</span>
                 </span>
               </button>
             );
           })}
-          <a href="/profile#strategy" style={{ display: 'block', padding: '8px 12px', fontSize: 10, letterSpacing: '0.14em', color: L_T.accent }}>
+          <a href="/profile#strategy" style={{ display: 'block', padding: '8px 12px', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.14em', color: L_T.accent }}>
             COMPARE THEM WITH YOUR NUMBERS →
           </a>
         </div>

@@ -65,8 +65,8 @@ function RateDecisionMarket({ country, loans, data }: { country: Country; loans:
   const fc = (v: number, l: LoanPayload) => formatCurrencyWhole(String(Math.round(v)), loanCurrency(l, country));
 
   return (
-    <section aria-labelledby={`rate-decisions-${country}-h`} style={{ fontSize: 12, lineHeight: 1.6, scrollMarginTop: 16 }}>
-      <div id={`rate-decisions-${country}-h`} style={{ fontWeight: 700, letterSpacing: '0.1em', fontSize: 11 }}>
+    <section aria-labelledby={`rate-decisions-${country}-h`} style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6, scrollMarginTop: 16 }}>
+      <div id={`rate-decisions-${country}-h`} style={{ fontWeight: 700, letterSpacing: '0.1em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)' }}>
         IF {bank} MOVES RATES
         <span style={{ fontWeight: 400, color: L_T.muted }}>
           {slice && ` · ${rateName} ${(Number(slice.current_rate) * 100).toFixed(2)}% (AS OF ${formatAsOf(slice.as_of).toUpperCase()})`}
@@ -81,7 +81,7 @@ function RateDecisionMarket({ country, loans, data }: { country: Country; loans:
           <li key={m.loan.id ?? loanLabel(m.loan)} style={{ padding: '10px 0', borderBottom: `1px dashed ${L_T.ruleSoft}` }}>
             <div style={{ fontWeight: 700 }}>
               {loanLabel(m.loan)}
-              <span style={{ fontWeight: 400, fontSize: 10, letterSpacing: '0.1em', color: L_T.muted }}>
+              <span style={{ fontWeight: 400, fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', color: L_T.muted }}>
                 {' '}· {m.follows === 'card' ? 'VARIABLE APR' : 'FLOATING'}
                 {m.follows === 'floating' && m.loan.rate_type_assumed === true ? ' (ASSUMED: CHECK YOUR LOAN LETTER)' : ''}
               </span>

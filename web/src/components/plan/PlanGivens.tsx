@@ -34,9 +34,9 @@ export function PlanGivens({ plan }: { plan: PlanData }) {
   const [open, setOpen] = useState(toCheck > 0);
 
   return (
-    <section aria-labelledby="plan-givens-h" style={{ fontSize: 12 }}>
+    <section aria-labelledby="plan-givens-h" style={{ fontSize: 'var(--fs-dense)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'baseline' }}>
-        <span id="plan-givens-h" style={{ fontWeight: 700, letterSpacing: '0.1em', fontSize: 11 }}>
+        <span id="plan-givens-h" style={{ fontWeight: 700, letterSpacing: '0.1em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)' }}>
           WHAT THIS PLAN TAKES AS GIVEN
           <span style={{ fontWeight: 400, color: L_T.muted }}>
             {' '}· {assumed} ASSUMED
@@ -63,7 +63,7 @@ export function PlanGivens({ plan }: { plan: PlanData }) {
               }}
             >
               <span style={{ fontWeight: 700 }}>{g.label}</span>
-              <span style={{ fontSize: 10, letterSpacing: '0.1em', color: TONE[g.source], fontWeight: g.source === 'YOU SAID' ? 400 : 700 }}>
+              <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.1em', color: TONE[g.source], fontWeight: g.source === 'YOU SAID' ? 400 : 700 }}>
                 {g.source}
               </span>
               <div style={{ gridColumn: '1 / -1', color: L_T.inkSoft }}>

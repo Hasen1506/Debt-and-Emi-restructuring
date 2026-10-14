@@ -223,7 +223,7 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
       />
       {pending.length > 1 && (
         <div
-          style={{ marginTop: 10, fontSize: 12 }}
+          style={{ marginTop: 10, fontSize: 'var(--fs-dense)' }}
           className="muted"
         >
           Other pending:{' '}
@@ -243,7 +243,7 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
                   marginRight: 6,
                   color: 'var(--accent)',
                   cursor: 'pointer',
-                  fontSize: 12,
+                  fontSize: 'var(--fs-dense)',
                 }}
               >
                 {monthLabel(m)}
@@ -252,7 +252,7 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
           {pending.length > 7 && <span>+ {pending.length - 7} more</span>}
         </div>
       )}
-      <div className="muted" style={{ marginTop: 8, fontSize: 11 }}>
+      <div className="muted" style={{ marginTop: 8, fontSize: 'var(--fs-small)' }}>
         Defaults come from your stated income / expenses / EMI. Edit any
         field if reality differed. Confirming bumps{' '}
         <strong>{primaryAccount.name}</strong>'s balance by the net.
@@ -264,7 +264,7 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
     <div
       style={{
         fontFamily: 'var(--font-mono)',
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
         lineHeight: 1.55,
         borderLeft: '3px solid var(--accent)',
         paddingLeft: 12,
@@ -281,7 +281,7 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
             padding: 0,
             cursor: 'pointer',
             textAlign: 'left',
-            fontSize: 11,
+            fontSize: 'var(--fs-label)',
             color: 'var(--accent)',
             letterSpacing: '0.18em',
             textTransform: 'uppercase',
@@ -301,7 +301,7 @@ export function MonthlyRecapCard({ user }: { user: UserPayload }) {
               border: 'none',
               padding: '4px 10px',
               fontFamily: 'inherit',
-              fontSize: 10,
+              fontSize: 'var(--fs-label)',
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               cursor: 'pointer',
@@ -432,7 +432,7 @@ function ConfirmForm({
       </>}
       {hasExcess && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 11, color: 'var(--muted-ink, var(--muted))' }}>
+          <span style={{ fontSize: 'var(--fs-small)', color: 'var(--muted-ink, var(--muted))' }}>
             You paid{' '}
             <strong>
               {currencySymbol(currencyLabel)}
@@ -450,7 +450,7 @@ function ConfirmForm({
               borderRadius: 4,
               background: 'var(--canvas)',
               color: 'var(--ink)',
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               fontFamily: 'inherit',
             }}
           >
@@ -459,7 +459,7 @@ function ConfirmForm({
             <option value="ef_drawdown">Emergency fund drawdown</option>
             <option value="one_off">One-off / windfall (bonus, gift)</option>
           </select>
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+          <span style={{ fontSize: 'var(--fs-small)', color: 'var(--muted)' }}>
             {paymentSource === 'surplus' &&
               'Default — primary cash account absorbs the hit.'}
             {paymentSource === 'savings_drawdown' &&
@@ -478,7 +478,7 @@ function ConfirmForm({
           justifyContent: 'space-between',
           alignItems: 'center',
           marginTop: 4,
-          fontSize: 13,
+          fontSize: 'var(--fs-body)',
         }}
       >
         <div>
@@ -521,7 +521,7 @@ function ConfirmForm({
             borderRadius: 4,
             padding: '6px 12px',
             cursor: 'pointer',
-            fontSize: 12,
+            fontSize: 'var(--fs-dense)',
             fontWeight: 600,
           }}
         >
@@ -545,7 +545,7 @@ function SmallField({
 }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted-ink)' }}>{label}</span>
+      <span style={{ fontSize: 'var(--fs-small)', color: 'var(--muted-ink)' }}>{label}</span>
       <input
         type={isText ? 'text' : 'number'}
         inputMode={isText ? undefined : 'decimal'}
@@ -557,7 +557,7 @@ function SmallField({
           borderRadius: 4,
           background: 'var(--canvas)',
           color: 'var(--ink)',
-          fontSize: 12,
+          fontSize: 'var(--fs-dense)',
           fontFamily: 'inherit',
           width: '100%',
         }}

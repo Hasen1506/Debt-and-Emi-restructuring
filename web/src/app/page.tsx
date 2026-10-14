@@ -59,7 +59,7 @@ export default async function HomePage() {
           ),
         }}
         register={
-          <Suspense fallback={<p aria-busy="true" style={{ fontSize: 12 }}>WORKING OUT THIS MONTH&apos;S PAYMENTS…</p>}>
+          <Suspense fallback={<p aria-busy="true" style={{ fontSize: 'var(--fs-dense)' }}>WORKING OUT THIS MONTH&apos;S PAYMENTS…</p>}>
             <HomePayThisMonth />
           </Suspense>
         }
@@ -81,7 +81,7 @@ export default async function HomePage() {
           </Suspense>
         }
       />
-      {showPlannedSummary && <section style={{padding:'16px 0',fontSize:12}}>
+      {showPlannedSummary && <section style={{padding:'16px 0',fontSize: 'var(--fs-dense)'}}>
         <p>PLANNED LOANS · {plannedLoans.map(e=>e.kind==='property_buy' ? `${e.loanDraft.bank || 'New loan'} from ${e.effectiveDate}` : '').join('; ')}</p>
         <p>FORECAST · <Suspense fallback={<span>WORKING OUT YOUR DATE</span>}><HomeDebtFreeValue /></Suspense></p>
         <p><Suspense fallback={<span>WORKING OUT YOUR PLAN</span>}><HomeDebtFreeCaption /></Suspense></p>

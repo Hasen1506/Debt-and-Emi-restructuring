@@ -26,12 +26,12 @@ export function SetupChoices({
 }) {
   const missing = new Set(showErrors ? missingChoices(value, hasLoans) : []);
   const err = (k: 'ef_months' | 'ef_split' | 'strategy') =>
-    missing.has(k) ? <p role="alert" style={{ margin: '4px 0 0', fontSize: 12, color: L_T.negative }}>{CHOICE_ERROR[k]}</p> : null;
+    missing.has(k) ? <p role="alert" style={{ margin: '4px 0 0', fontSize: 'var(--fs-dense)', color: L_T.negative }}>{CHOICE_ERROR[k]}</p> : null;
   return (
     <section aria-labelledby="choices-h" style={{ border: `1px solid ${L_T.ink}`, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 14, background: L_T.paper }}>
       <div>
-        <h3 id="choices-h" style={{ margin: 0, fontSize: 12, letterSpacing: "0.14em" }}>YOUR CALL · CHOICES ONLY YOU CAN MAKE</h3>
-        <p style={{ margin: '4px 0 0', fontSize: 12, color: L_T.muted, lineHeight: 1.55 }}>
+        <h3 id="choices-h" style={{ margin: 0, fontSize: 'var(--fs-dense)', letterSpacing: "0.14em" }}>YOUR CALL · CHOICES ONLY YOU CAN MAKE</h3>
+        <p style={{ margin: '4px 0 0', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.55 }}>
           The plan won&apos;t pick these for you. Change any of them later on Plan or Profile.
         </p>
       </div>
@@ -43,7 +43,7 @@ export function SetupChoices({
             </Chip>
           ))}
         </ChipRow>
-        <p style={{ margin: '4px 0 0', fontSize: 11, color: L_T.muted }}>
+        <p style={{ margin: '4px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>
           <Term id="emergency_fund">What&apos;s an emergency fund?</Term> Many people keep 3 to 6 months; with a steady job and
           dear debt, some start smaller.
         </p>
@@ -69,7 +69,7 @@ export function SetupChoices({
             </Chip>
           ))}
         </ChipRow>
-        <p style={{ margin: '4px 0 0', fontSize: 11, color: L_T.muted }}>
+        <p style={{ margin: '4px 0 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>
           <Term id="avalanche">Cheapest path</Term> · <Term id="snowball">Smallest first</Term> · <Term id="rules">Your own order</Term> (set it on Profile).
         </p>
         {err('strategy')}

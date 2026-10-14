@@ -66,25 +66,25 @@ export function LenderRecord({ lender }: { lender?: string }) {
   if (!s || !s.known) return null;
   return (
     <Card>
-      <h3 style={{ fontSize: 12, margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase' }}>What borrowers report about {s.lender}</h3>
+      <h3 style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase' }}>What borrowers report about {s.lender}</h3>
       {s.shown && s.headline ? (
         <>
           <p style={{ fontSize: 16, margin: '8px 0 4px', fontWeight: 600 }}>
             {s.headline.replace(`${s.lender}: `, '')}
           </p>
-          <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+          <p className="muted" style={{ fontSize: 'var(--fs-dense)', margin: 0 }}>
             From {s.reports} shared reports: {breakdown(s)}.
           </p>
         </>
       ) : (
-        <p style={{ fontSize: 14, margin: '8px 0 0' }}>
+        <p style={{ fontSize: 'var(--fs-body)', margin: '8px 0 0' }}>
           {s.reports === 0
             ? `No reports yet. After your letter, you can share what ${s.lender} did.`
             : `${s.reports} borrower${s.reports === 1 ? ' has' : 's have'} shared what ${s.lender} did. ${s.hidden_reason ?? ''}`}
         </p>
       )}
       {s.reports > 0 && (
-        <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
+        <p className="muted" style={{ fontSize: 'var(--fs-dense)', margin: '8px 0 0' }}>
           <strong>Unverified.</strong> {s.label_detail}
         </p>
       )}
@@ -243,7 +243,7 @@ export function ShareOutcome({
     return (
       <Card>
         <LSectionHeader>Help the next borrower</LSectionHeader>
-        <p className="muted" style={{ fontSize: 14, margin: '6px 0 0' }}>
+        <p className="muted" style={{ fontSize: 'var(--fs-body)', margin: '6px 0 0' }}>
           {draft.waiting}
         </p>
       </Card>
@@ -285,7 +285,7 @@ export function ShareOutcome({
   return (
     <Card>
       <LSectionHeader>Help the next borrower</LSectionHeader>
-      <p style={{ fontSize: 14, margin: '6px 0 12px' }}>
+      <p style={{ fontSize: 'var(--fs-body)', margin: '6px 0 12px' }}>
         Share what the bank did, anonymously. Once 5 borrowers have shared a report about a
         bank, Loan Check shows others how often it fixes the rate and how long it takes.
       </p>
@@ -300,8 +300,8 @@ export function ShareOutcome({
           />
         </div>
       )}
-      <p style={{ fontSize: 13, margin: '0 0 4px', fontWeight: 600 }}>Only this is sent:</p>
-      <ul style={{ fontSize: 14, margin: '0 0 8px', paddingLeft: 18 }}>
+      <p style={{ fontSize: 'var(--fs-body)', margin: '0 0 4px', fontWeight: 600 }}>Only this is sent:</p>
+      <ul style={{ fontSize: 'var(--fs-body)', margin: '0 0 8px', paddingLeft: 18 }}>
         <li>Bank: {bank || '(choose above)'}</li>
         <li>What it did: {OUTCOME_LABEL[draft.outcome]}</li>
         <li>
@@ -313,13 +313,13 @@ export function ShareOutcome({
         </li>
         {draft.rateAfter && reply.trim() && <li>The reply text, to check it (not kept)</li>}
       </ul>
-      <p className="muted" style={{ fontSize: 12, margin: '0 0 12px' }}>
+      <p className="muted" style={{ fontSize: 'var(--fs-dense)', margin: '0 0 12px' }}>
         Not your name, account number, amounts or dates. Reports without the bank&apos;s
         reply are not checked.
       </p>
       {draft.rateAfter && (
         <div style={{ margin: '0 0 12px' }}>
-          <label htmlFor="lc-bank-reply" style={{ fontSize: 13, fontWeight: 600, display: 'block' }}>
+          <label htmlFor="lc-bank-reply" style={{ fontSize: 'var(--fs-body)', fontWeight: 600, display: 'block' }}>
             Bank&apos;s reply (optional): paste its text, or upload it as .txt
           </label>
           <textarea
@@ -327,28 +327,28 @@ export function ShareOutcome({
             value={reply}
             onChange={(e) => setReply(e.target.value.slice(0, 20000))}
             rows={4}
-            style={{ width: '100%', fontSize: 13, marginTop: 4 }}
+            style={{ width: '100%', fontSize: 'var(--fs-body)', marginTop: 4 }}
           />
           <input
             type="file"
             accept=".txt,text/plain"
             aria-label="Upload the bank's reply as a text file"
             onChange={(e) => readReplyFile(e.target.files?.[0])}
-            style={{ fontSize: 12, marginTop: 4 }}
+            style={{ fontSize: 'var(--fs-dense)', marginTop: 4 }}
           />
-          <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>
+          <p className="muted" style={{ fontSize: 'var(--fs-dense)', margin: '4px 0 0' }}>
             If it names the bank and your new rate, the report counts as checked. The text
             is read once and not kept. Remove your account number from it first.
           </p>
           {err?.field === 'bank_reply_text' && (
-            <p role="alert" style={{ margin: '4px 0 0', color: 'var(--negative)', fontSize: 13 }}>
+            <p role="alert" style={{ margin: '4px 0 0', color: 'var(--negative)', fontSize: 'var(--fs-body)' }}>
               {err.message}
             </p>
           )}
         </div>
       )}
       {done ? (
-        <p role="status" style={{ fontSize: 14, margin: 0, color: 'var(--positive)' }}>
+        <p role="status" style={{ fontSize: 'var(--fs-body)', margin: 0, color: 'var(--positive)' }}>
           Shared. {done}
         </p>
       ) : (
@@ -357,7 +357,7 @@ export function ShareOutcome({
             {busy ? 'Sharing…' : 'Share anonymously'}
           </button>
           {err && err.field !== 'lender' && (
-            <p role="alert" style={{ margin: '8px 0 0', color: 'var(--negative)', fontSize: 13 }}>
+            <p role="alert" style={{ margin: '8px 0 0', color: 'var(--negative)', fontSize: 'var(--fs-body)' }}>
               {err.message}
             </p>
           )}

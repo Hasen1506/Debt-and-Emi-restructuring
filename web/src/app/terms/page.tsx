@@ -5,9 +5,9 @@ import { ACCOUNT_PATH, DATA_FIDUCIARY, GRIEVANCE_CONTACT, NOTICE_LAST_UPDATED, P
 export const metadata: Metadata = { title: 'Terms of use · RightDue' };
 
 /** Terms of use (grill #51). Plain words; public without signing in. */
-const H2: React.CSSProperties = { margin: '22px 0 6px', fontSize: 14, letterSpacing: '0.08em' };
-const P: React.CSSProperties = { margin: '6px 0', fontSize: 13, lineHeight: 1.6 };
-const LI: React.CSSProperties = { margin: '4px 0', fontSize: 13, lineHeight: 1.55 };
+const H2: React.CSSProperties = { margin: '22px 0 6px', fontSize: 14, fontFamily: 'var(--font-mono)', letterSpacing: '0.08em' };
+const P: React.CSSProperties = { margin: '6px 0', fontSize: 'var(--fs-body)', lineHeight: 1.6 };
+const LI: React.CSSProperties = { margin: '4px 0', fontSize: 'var(--fs-body)', lineHeight: 1.55 };
 
 export default function TermsPage() {
   const mail = `mailto:${GRIEVANCE_CONTACT.email}`;

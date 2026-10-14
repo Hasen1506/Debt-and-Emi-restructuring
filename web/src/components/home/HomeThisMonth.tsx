@@ -60,8 +60,8 @@ export function HomeThisMonth({ line, progress }: { line: ThisMonthLine; progres
       data-testid="home-this-month"
       style={{ padding: '12px 14px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, ...lStrip(line.tone === 'short' ? 'negative' : 'accent') }}
     >
-      <div style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
-      <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
+      <p style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>
         {text} <LBracket href="#home-pay">{line.link}</LBracket>
       </p>
     </section>

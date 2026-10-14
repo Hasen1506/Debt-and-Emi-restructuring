@@ -16,7 +16,7 @@ import { useState } from 'react';
 
 const TEXT: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 10,
+  fontSize: 'var(--fs-label)',
   letterSpacing: '0.14em',
 };
 

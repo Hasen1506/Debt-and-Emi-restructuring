@@ -461,7 +461,7 @@ export function LiquidateTool() {
                 </LChip>
               </LChipRow>
               {at('mainHome') && (
-                <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: L_T.negative }}>
+                <p role="alert" style={{ margin: '6px 0 0', fontSize: 'var(--fs-dense)', color: L_T.negative }}>
                   {at('mainHome')}
                 </p>
               )}
@@ -576,14 +576,14 @@ export function LiquidateTool() {
           <div>
             <LBracket onClick={() => setMore((m) => !m)}>{more ? '− LESS' : '+ MORE — OPTIONAL'}</LBracket>
             {!more && (
-              <span style={{ fontSize: 11, color: L_T.muted, marginLeft: 8 }}>
+              <span style={{ fontSize: 'var(--fs-small)', color: L_T.muted, marginLeft: 8 }}>
                 {assetReturn.trim() === ''
                   ? 'Enter how much it grows a year if you keep it'
                   : `Your assumptions: it grows ${formatPct(assetReturn, 1)} a year · ${holdYears} years · spare cash earns ${formatPct(leftoverYield, 1)}`}
               </span>
             )}
             {at('assetReturn') && !more && (
-              <p role="alert" style={{ margin: '6px 0 0', fontSize: 12, color: L_T.negative }}>{at('assetReturn')}</p>
+              <p role="alert" style={{ margin: '6px 0 0', fontSize: 'var(--fs-dense)', color: L_T.negative }}>{at('assetReturn')}</p>
             )}
             {more && (
               <div style={{ marginTop: 10 }}>
@@ -685,12 +685,12 @@ export function LiquidateTool() {
               </LNote>
             )}
 
-            <p style={{ margin: '14px 0 0', fontSize: 12, color: L_T.muted }}>
+            <p style={{ margin: '14px 0 0', fontSize: 'var(--fs-dense)', color: L_T.muted }}>
               Terms: <Term id="ltcg" />{!isUS && <> · <Term id="indexation" /> · <Term id="vda" /></>}
             </p>
             <div style={{ marginTop: 18 }}>
               <LStepSub>What these numbers leave out</LStepSub>
-              <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, lineHeight: 1.7, color: L_T.inkSoft }}>
+              <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 'var(--fs-dense)', lineHeight: 1.7, color: L_T.inkSoft }}>
                 <li>What it means to you, and whether you&apos;ll need it later (a home, gold for a wedding, money for retiring).</li>
                 <li>Prices can fall as well as rise: the growth rate is your estimate, not a forecast.</li>
                 <li>Rent or other income it pays you, unless you entered it on Portfolio.</li>
@@ -699,7 +699,7 @@ export function LiquidateTool() {
             </div>
 
             {!!v.tax_notes?.length && (
-              <ul style={{ margin: '14px 0 0', paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: L_T.muted }}>
+              <ul style={{ margin: '14px 0 0', paddingLeft: 18, fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.muted }}>
                 {v.tax_notes.map((n) => (
                   <li key={n}>{n}</li>
                 ))}

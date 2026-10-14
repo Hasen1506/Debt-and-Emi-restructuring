@@ -160,7 +160,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
   return (
     <section>
       <LSectionHeader>TRAJECTORY · TOTAL DEBT OVER TIME</LSectionHeader>
-      {allOrdersSame && <p style={{ fontSize: 12, color: L_T.muted, margin: '0 0 10px' }}>
+      {allOrdersSame && <p style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, margin: '0 0 10px' }}>
         With these debts, all three payoff orders give the same date and interest. The graph therefore stays the same when you switch.
       </p>}
       {view ? (
@@ -175,7 +175,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
           />
           <div
             aria-hidden="true"
-            style={{ display: 'flex', gap: '6px 18px', fontSize: 10, color: L_T.muted, marginTop: 8, letterSpacing: '0.1em', flexWrap: 'wrap' }}
+            style={{ display: 'flex', gap: '6px 18px', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.muted, marginTop: 8, letterSpacing: '0.1em', flexWrap: 'wrap' }}
           >
             {linesCoincide(view.points) ? (
               // Live re-test 2 R2-10: one line on screen, so one legend item.
@@ -206,7 +206,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
           </div>
         </>
       ) : (
-        <div style={{ padding: 18, fontSize: 12, color: L_T.muted }}>
+        <div style={{ padding: 18, fontSize: 'var(--fs-dense)', color: L_T.muted }}>
           NO TRAJECTORY · the plan returned no months to draw.
         </div>
       )}

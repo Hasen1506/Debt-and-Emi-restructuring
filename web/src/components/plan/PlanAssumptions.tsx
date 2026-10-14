@@ -199,7 +199,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
           alignItems: 'baseline',
           flexWrap: 'wrap',
           gap: 8,
-          fontSize: 11,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           letterSpacing: '0.12em',
           color: L_T.muted,
           marginBottom: 8,
@@ -224,7 +224,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
               onClick={() => setOpen(isOpen ? null : c.key)}
               style={{
                 fontFamily: 'inherit',
-                fontSize: 10,
+                fontSize: 'var(--fs-label)',
                 letterSpacing: '0.1em',
                 padding: '6px 10px',
                 minHeight: 30,
@@ -250,7 +250,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
               padding: '10px 12px',
               borderLeft: `2px solid ${L_T.accent}`,
               background: L_T.paper,
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               lineHeight: 1.6,
             }}
           >

@@ -64,7 +64,7 @@ export function LenderPicker({
   const picked = list.find((x) => x.name === value.pick);
   return (
     <div>
-      <label htmlFor={id} style={{ display: 'block', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>
+      <label htmlFor={id} style={{ display: 'block', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>
         Lender
       </label>
       <select
@@ -73,7 +73,7 @@ export function LenderPicker({
         value={value.pick}
         onChange={(e) => onChange({ ...value, pick: e.target.value })}
         aria-invalid={!!error}
-        style={{ width: '100%', padding: '8px 10px', fontSize: 14 }}
+        style={{ width: '100%', padding: '8px 10px', fontSize: 'var(--fs-body)' }}
       >
         <option value="">{failed ? 'List unavailable: choose "Another lender"' : 'Choose your lender'}</option>
         {GROUPS.map((g) => {
@@ -91,7 +91,7 @@ export function LenderPicker({
         <option value={OTHER}>Another lender (not listed)</option>
       </select>
       {error && (
-        <span role="alert" style={{ display: 'block', fontSize: 11, color: 'var(--negative)', marginTop: 4 }}>
+        <span role="alert" style={{ display: 'block', fontSize: 'var(--fs-small)', color: 'var(--negative)', marginTop: 4 }}>
           {error}
         </span>
       )}
@@ -111,7 +111,7 @@ export function LenderPicker({
           />
         </div>
       )}
-      <p style={{ fontSize: 11, margin: '6px 0 0', color: 'var(--muted)' }}>
+      <p style={{ fontSize: 'var(--fs-small)', margin: '6px 0 0', color: 'var(--muted)' }}>
         {picked
           ? picked.rule_applies
             ? `${picked.name} is a ${picked.type === 'small_finance_bank' ? 'small finance bank' : 'bank'}: RBI's repo-rate rule applies.`

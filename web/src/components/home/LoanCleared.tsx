@@ -94,7 +94,7 @@ export function LoanCleared({
         <span className="rd-cut" style={{ position: 'absolute', top: -16, left: 0, fontSize: 22, animation: 'rdCut 1.2s ease-out forwards' }}>✂</span>
       </div>
       <h3 id="loan-cleared" style={{ margin: '0 0 6px', fontSize: 18 }}>{name}: cleared.</h3>
-      <p style={{ margin: '0 0 10px', fontSize: 13, lineHeight: 1.6 }}>
+      <p style={{ margin: '0 0 10px', fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
         {freed > 0
           ? nextName
             ? `The ${fmt(freed)} a month that went here now goes to ${nextName}, on top of its own payment. The plan already counts it.`
@@ -103,12 +103,12 @@ export function LoanCleared({
       </p>
       {!letter ? (
         <>
-          <p style={{ margin: '0 0 8px', fontSize: 12, color: L_T.inkSoft, lineHeight: 1.6 }}>
+          <p style={{ margin: '0 0 8px', fontSize: 'var(--fs-dense)', color: L_T.inkSoft, lineHeight: 1.6 }}>
             One last letter: ask {lender || 'the lender'} for a closure (no-dues) letter
             {loanType === 'credit_card' ? ' and to close the card' : ', your documents back'} and to tell the credit bureaus.
           </p>
           {country === 'IN' && (
-            <label style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+            <label style={{ fontSize: 'var(--fs-dense)', display: 'block', marginBottom: 8 }}>
               Your lender is{' '}
               <select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Lender type">
                 {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
@@ -117,21 +117,21 @@ export function LoanCleared({
           )}
           <button type="button" style={lPayBtn(true)} onClick={draft} disabled={busy}>{busy ? 'DRAFTING…' : 'DRAFT THE CLOSURE LETTER'}</button>{' '}
           <button type="button" style={lPayBtn(false)} onClick={onClose}>LATER</button>
-          {err && <p role="alert" style={{ color: L_T.negative, fontSize: 12 }}>{err}</p>}
+          {err && <p role="alert" style={{ color: L_T.negative, fontSize: 'var(--fs-dense)' }}>{err}</p>}
         </>
       ) : (
         <>
-          <p style={{ margin: '0 0 8px', padding: '6px 10px', fontSize: 12, ...lStrip('accent') }}>
+          <p style={{ margin: '0 0 8px', padding: '6px 10px', fontSize: 'var(--fs-dense)', ...lStrip('accent') }}>
             DRAFT. Read it and fill in the brackets before you send it. This is not legal advice.
           </p>
-          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.55, padding: 12, border: `1px solid ${L_T.ruleSoft}`, maxHeight: 360, overflow: 'auto' }}>{letter.body}</pre>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 'var(--fs-dense)', lineHeight: 1.55, padding: 12, border: `1px solid ${L_T.ruleSoft}`, maxHeight: 360, overflow: 'auto' }}>{letter.body}</pre>
           {letter.key_dates.length > 0 && (
-            <ul style={{ fontSize: 12, lineHeight: 1.6, paddingLeft: 18 }}>
+            <ul style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.6, paddingLeft: 18 }}>
               {letter.key_dates.map((d) => <li key={d.key}><strong>{d.label} {d.day}</strong>. {d.note}</li>)}
             </ul>
           )}
-          {letter.notes.map((n) => <p key={n} style={{ fontSize: 12, color: L_T.muted }}>{n}</p>)}
-          <details style={{ fontSize: 12, margin: '6px 0' }}>
+          {letter.notes.map((n) => <p key={n} style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>{n}</p>)}
+          <details style={{ fontSize: 'var(--fs-dense)', margin: '6px 0' }}>
             <summary>Check before sending</summary>
             <ul style={{ paddingLeft: 18, lineHeight: 1.6 }}>{letter.checklist.map((c) => <li key={c}>{c}</li>)}</ul>
             {letter.citations.map((c) => (

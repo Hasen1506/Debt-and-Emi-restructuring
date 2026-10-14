@@ -104,7 +104,7 @@ export function AccountSyncNotice() {
       role={problem && problem !== 'offline' ? 'alert' : 'status'}
       aria-live="polite"
       data-sync-state={problem ?? state.status}
-      style={{ marginTop: 12, fontSize: 13 }}
+      style={{ marginTop: 12, fontSize: 'var(--fs-body)' }}
     >
       {busy ? 'Trying to reach your account…' : syncMessage(state, pending)}
       {problem === 'signed_out' && (

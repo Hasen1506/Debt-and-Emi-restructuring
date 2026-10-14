@@ -45,7 +45,7 @@ export function LToolHeader({
     <section style={{ fontFamily: L_MONO }}>
       <div
         style={{
-          fontSize: 11,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           letterSpacing: '0.18em',
           color: L_T.muted,
           marginBottom: 14,
@@ -55,7 +55,7 @@ export function LToolHeader({
           flexWrap: 'wrap',
         }}
       >
-        <a href="/goals#tools" className="l-hit" style={{ color: L_T.ink, letterSpacing: '0.1em', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+        <a href="/goals#tools" className="l-hit" style={{ color: L_T.ink, letterSpacing: '0.1em', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', fontWeight: 600, textDecoration: 'none' }}>
           ← ALL TOOLS
         </a>
         <span>{name.toUpperCase()} · {date.toUpperCase()}</span>
@@ -98,7 +98,7 @@ export function LToolInput({
     <LCardSoft style={{ fontFamily: L_MONO, ...style }}>
       <div
         style={{
-          fontSize: 11,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           letterSpacing: '0.18em',
           color: L_T.muted,
           marginBottom: 12,
@@ -113,7 +113,7 @@ export function LToolInput({
             marginTop: 14,
             paddingTop: 10,
             borderTop: `1px dashed ${L_T.faint}`,
-            fontSize: 10,
+            fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
             letterSpacing: '0.18em',
             color: L_T.muted,
           }}
@@ -158,7 +158,7 @@ export function LToolVerdict({
     <LCardHard style={{ fontFamily: L_MONO, ...style }}>
       <div
         style={{
-          fontSize: 10,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           letterSpacing: '0.2em',
           color: L_T.accent,
           fontWeight: 700,
@@ -209,7 +209,7 @@ export function LToolVerdict({
               >
                 <div
                   style={{
-                    fontSize: 9,
+                    fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
                     letterSpacing: '0.18em',
                     color: L_T.muted,
                     marginBottom: 4,
@@ -223,7 +223,7 @@ export function LToolVerdict({
                 {c.s && (
                   <div
                     style={{
-                      fontSize: 10,
+                      fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
                       color: L_T.muted,
                       marginTop: 3,
                       letterSpacing: '0.08em',
@@ -301,7 +301,7 @@ export function LAllocationBar({
                 flexGrow: Math.max(0.0001, seg.pct),
                 background: bg,
                 color,
-                fontSize: 9,
+                fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
                 fontWeight: 700,
                 letterSpacing: '0.08em',
                 display: 'flex',
@@ -323,7 +323,7 @@ export function LAllocationBar({
           display: 'flex',
           gap: 12,
           marginTop: 6,
-          fontSize: 9,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           letterSpacing: '0.1em',
           color: L_T.muted,
           flexWrap: 'wrap',

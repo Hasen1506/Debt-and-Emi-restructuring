@@ -42,7 +42,7 @@ export default async function GoalsPage() {
       <h1 className="sr-only">Goals and tools</h1>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
         {/* What this page is for, in one line (each tab opens with one) */}
-        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <p style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6, color: L_T.inkSoft }}>
           What you&apos;re saving for, and a tool for each one-off decision: a bonus,
           a new loan, selling something, or investing instead of prepaying.
         </p>

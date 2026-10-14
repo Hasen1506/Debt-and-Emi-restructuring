@@ -155,7 +155,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {/* What the plan assumes (editable chips), the data and guesses it
             rests on, then what it comes to */}
         {/* What this page is for, in one line (each tab opens with one) */}
-        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <p style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6, color: L_T.inkSoft }}>
           When you&apos;ll be debt-free and how: the date, each month&apos;s payments, and changes you can try before you make them.
         </p>
         <PlanAssumptions plan={plan} />
@@ -233,7 +233,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           ]}
         />
         {/* A four-screen page: one tap to the part you came for */}
-        <nav aria-label="On this page" data-print="hide" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 11, alignItems: 'center' }}>
+        <nav aria-label="On this page" data-print="hide" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 'var(--fs-small)', alignItems: 'center' }}>
           <span style={{ color: L_T.muted, letterSpacing: '0.1em' }}>JUMP TO</span>
           {/* In page order */}
           <LBracket href="#schedule">MONTH BY MONTH</LBracket>
@@ -253,13 +253,13 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             UX50 B-15: up here only when short; otherwise after the chart and
             the table (a longer tenure costs more for someone who isn't short). */}
         {short && tenureWhatIf}
-        {plan.futureShortfall && <div role="alert" style={{color:L_T.negative,fontSize:12}}>
+        {plan.futureShortfall && <div role="alert" style={{color:L_T.negative,fontSize: 'var(--fs-dense)'}}>
           FUTURE FUNDING GAP · SHORT {fc(plan.futureShortfall.amount)} IN {monthIndexToCountryLabel(plan.futureShortfall.month,plan.user.country).toUpperCase()}.
           {plan.gap
             ? ` The forecast pays that gap from your emergency fund, then borrows the rest on a card at ${gapRateWords(plan.gap.rate)} a year and pays it back first. Revise the planned loan, income or expenses before relying on a payoff date.`
             : ' Revise the planned loan, income or expenses before relying on a payoff date.'}
         </div>}
-        {plan.user.loans.some(l=>l.planned_effective_month) && <div style={{fontSize:12}}>
+        {plan.user.loans.some(l=>l.planned_effective_month) && <div style={{fontSize: 'var(--fs-dense)'}}>
           Forecast includes planned loans: {plan.user.loans.filter(l=>l.planned_effective_month).map(l=>
             `${l.bank} from ${monthIndexToCountryLabel(l.planned_effective_month!,plan.user.country)}`).join('; ')}.
           Confirm, postpone or cancel the event when the date arrives.
@@ -271,7 +271,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
           <div
             role="status"
             data-testid="whatif-toggle"
-            style={{ border: `2px solid ${L_T.accent}`, padding: '8px 12px', fontSize: 11, letterSpacing: '0.08em', display: 'flex', flexWrap: 'wrap', gap: '6px 14px', alignItems: 'center' }}
+            style={{ border: `2px solid ${L_T.accent}`, padding: '8px 12px', fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', display: 'flex', flexWrap: 'wrap', gap: '6px 14px', alignItems: 'center' }}
           >
             <strong style={{ color: showBase ? L_T.ink : L_T.accent }}>
               {showBase
@@ -318,7 +318,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         {/* What if: real engine runs against this plan, nothing saved until asked */}
         <section id="what-if" data-print="hide" style={{ scrollMarginTop: 16 }}>
           <LSectionHeader>What if</LSectionHeader>
-          <p style={{ margin: '0 0 4px', fontSize: 12, color: L_T.muted, lineHeight: 1.6 }}>
+          <p style={{ margin: '0 0 4px', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
             Each change re-runs your plan and shows what it does. Nothing is saved until you press the button under it.
           </p>
           <WhatIfPanel
@@ -356,7 +356,7 @@ function ShortfallBanner({ plan }: { plan: PlanData }) {
   return (
     <section
       role="status"
-      style={{ border: `2px solid ${L_T.negative}`, padding: '14px 18px', fontSize: 12, lineHeight: 1.7 }}
+      style={{ border: `2px solid ${L_T.negative}`, padding: '14px 18px', fontSize: 'var(--fs-dense)', lineHeight: 1.7 }}
     >
       <div style={{ fontWeight: 700, color: L_T.negative, letterSpacing: '0.08em', marginBottom: 6 }}>
         SHORT {fc(plan.shortfall)} A MONTH
@@ -390,7 +390,7 @@ function ShortfallBanner({ plan }: { plan: PlanData }) {
         </div>
       )}
       {gap?.basis === 'default' && gap.source && (
-        <div style={{ marginTop: 6, fontSize: 10, color: L_T.muted }}>Card rate used: {gap.source}.</div>
+        <div style={{ marginTop: 6, fontSize: 'var(--fs-small)', color: L_T.muted }}>Card rate used: {gap.source}.</div>
       )}
     </section>
   );
@@ -410,7 +410,7 @@ function NeverClears({ plan, fc }: { plan: PlanData; fc: (v: number) => string }
       <div role="alert" style={{ padding: '40px 0', fontFamily: L_MONO }}>
         <LCli>PLAN · A LOAN THAT NEVER CLEARS</LCli>
         <LRule length={200} />
-        <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
+        <div style={{ marginTop: 18, fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.7 }}>
           {localTerms('There’s no payoff date: at these figures the EMI doesn’t cover the interest, so the balance never goes down.', plan.user.country)}
           <ul style={{ margin: '10px 0 14px', paddingLeft: 18, color: L_T.ink }}>
             {(plan.nonAmortising ?? []).map((b) => {
@@ -437,7 +437,7 @@ function NeedsLoanDetails({ gaps }: { gaps: ProfileGap[] }) {
       <div style={{ padding: '40px 0', fontFamily: L_MONO }}>
         <LCli>PLAN · NEEDS YOUR LOAN DETAILS</LCli>
         <LRule length={200} />
-        <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
+        <div style={{ marginTop: 18, fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.7 }}>
           There&apos;s no payoff date yet.{' '}
           {gaps.some((g) => g.missing.includes('fx'))
             ? 'Without an exchange rate a loan in another currency would be counted one-for-one, ₹ as $.'
@@ -463,7 +463,7 @@ function DebtFreeNow({ hasLoans }: { hasLoans: boolean }) {
       <div style={{ padding: '40px 0', fontFamily: L_MONO }}>
         <LCli>{hasLoans ? 'PLAN · DEBT-FREE' : 'PLAN · NO DEBTS ON FILE'}</LCli>
         <LRule length={200} />
-        <div style={{ marginTop: 18, fontSize: 12, color: L_T.muted, lineHeight: 1.7 }}>
+        <div style={{ marginTop: 18, fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.7 }}>
           {hasLoans
             ? 'Every loan on file is paid off, so there is nothing to plan here. '
             : 'Add a loan to see your payoff date and monthly plan. '}

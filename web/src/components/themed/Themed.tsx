@@ -96,7 +96,7 @@ export function ThemedHeadline({
   return (
     <div
       style={{
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
         fontWeight: t.fontWeight,
         lineHeight: 1.55,
         marginTop: 4,
@@ -161,7 +161,7 @@ export function ThemedKpi({
     <div>
       <div
         style={{
-          fontSize: 10,
+          fontSize: 'var(--fs-small)',
           color: t.label.color,
           letterSpacing: t.label.letterSpacing,
           textTransform: t.label.textTransform,

@@ -1072,7 +1072,7 @@ function ProfileEditor({
       <Card>
         {step === 0 && (
           <div style={{ display: 'grid', gap: 14 }}>
-            <div className="muted" style={{ fontSize: 13, lineHeight: 1.55 }}>
+            <div className="muted" style={{ fontSize: 'var(--fs-body)', lineHeight: 1.55 }}>
               Both optional. Leave them blank to stay anonymous; the plan is the same.
             </div>
             <Field
@@ -1085,7 +1085,7 @@ function ProfileEditor({
             <div>
               <div
                 style={{
-                  fontSize: 12,
+                  fontSize: 'var(--fs-dense)',
                   color: 'var(--muted)',
                   marginBottom: 6,
                 }}
@@ -1110,7 +1110,7 @@ function ProfileEditor({
                         }`,
                         background: selected ? 'var(--accent)' : 'var(--card)',
                         color: selected ? '#fff' : 'var(--ink)',
-                        fontSize: 13,
+                        fontSize: 'var(--fs-body)',
                         cursor: 'pointer',
                       }}
                     >
@@ -1121,7 +1121,7 @@ function ProfileEditor({
               </div>
               <div
                 className="muted"
-                style={{ fontSize: 11, marginTop: 6, lineHeight: 1.5 }}
+                style={{ fontSize: 'var(--fs-small)', marginTop: 6, lineHeight: 1.5 }}
               >
                 Used for age-based limits in tax deductions and, later, nudges
                 such as emergency-fund-first under 25.
@@ -1175,7 +1175,7 @@ function ProfileEditor({
               />
             )}
             {switchNote && (
-              <p role="status" style={{ margin: 0, fontSize: 13, color: L_T.positive }}>{switchNote}</p>
+              <p role="status" style={{ margin: 0, fontSize: 'var(--fs-body)', color: L_T.positive }}>{switchNote}</p>
             )}
             {country === 'US' && (
               <label
@@ -1187,7 +1187,7 @@ function ProfileEditor({
                   border: '1px dashed var(--dash)',
                   borderRadius: 6,
                   cursor: 'pointer',
-                  fontSize: 13,
+                  fontSize: 'var(--fs-body)',
                   lineHeight: 1.55,
                 }}
               >
@@ -1201,7 +1201,7 @@ function ProfileEditor({
                   <strong>I&apos;m an NRI on a US work visa</strong> with debts back
                   in India (home loan, family obligations).
                   <br />
-                  <span className="muted" style={{ fontSize: 12 }}>
+                  <span className="muted" style={{ fontSize: 'var(--fs-dense)' }}>
                     Turns on per-loan currency tagging (INR / USD) and auto-fills
                     the NRI prepay tool. You stay US-resident for tax purposes.
                   </span>
@@ -1345,7 +1345,7 @@ function ProfileEditor({
                     color: 'var(--accent)',
                     padding: 0,
                     marginTop: 6,
-                    fontSize: 11,
+                    fontSize: 'var(--fs-small)',
                     letterSpacing: '0.04em',
                     textDecoration: 'underline',
                     cursor: 'pointer',
@@ -1411,7 +1411,7 @@ function ProfileEditor({
                       color: 'var(--muted)',
                       padding: 0,
                       marginTop: 6,
-                      fontSize: 11,
+                      fontSize: 'var(--fs-small)',
                       letterSpacing: '0.04em',
                       textDecoration: 'underline',
                       cursor: 'pointer',
@@ -1565,7 +1565,7 @@ function ProfileEditor({
 
         {step === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+            <p className="muted" style={{ margin: 0, fontSize: 'var(--fs-body)' }}>
               For each loan or card: what you owe, the interest rate and the
               monthly EMI. No loans? Remove them and save: goals, portfolio
               and purchase planning work without one.
@@ -1593,7 +1593,7 @@ function ProfileEditor({
               />
             )}
             {unsavedImports > 0 && (
-              <p role="status" data-testid="import-unsaved" style={{ margin: 0, fontSize: 13, position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg, #fff)', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+              <p role="status" data-testid="import-unsaved" style={{ margin: 0, fontSize: 'var(--fs-body)', position: 'sticky', top: 0, zIndex: 2, background: 'var(--bg, #fff)', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
                 {unsavedImports} imported loan{unsavedImports === 1 ? '' : 's'} not saved yet. Check the figures, then save at the bottom.
               </p>
             )}
@@ -1611,7 +1611,7 @@ function ProfileEditor({
                 }}
               >
                 {l.imported_from && (
-                  <p data-testid="import-chip" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12 }}>
+                  <p data-testid="import-chip" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 'var(--fs-dense)' }}>
                     <span style={{ border: '1px solid currentColor', padding: '1px 6px' }}>
                       {l.imported_from === 'credit_report' ? 'From your credit report' : l.imported_from === 'kfs' ? 'From your KFS' : 'From a bank SMS'}
                     </span>
@@ -1627,7 +1627,7 @@ function ProfileEditor({
                   </p>
                 )}
                 {kfsNote(l) && (
-                  <p data-testid="kfs-note" className="muted" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12 }}>
+                  <p data-testid="kfs-note" className="muted" style={{ gridColumn: '1 / -1', margin: 0, fontSize: 'var(--fs-dense)' }}>
                     {kfsNote(l)}
                   </p>
                 )}
@@ -1908,7 +1908,7 @@ function ProfileEditor({
                 )}
                 {asksBusinessPurpose(l, country) && (
                   <div style={{ gridColumn: '1 / -1' }} data-testid="business-purpose">
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{PURPOSE_QUESTION}</div>
+                    <div style={{ fontSize: 'var(--fs-dense)', color: 'var(--muted)', marginBottom: 6 }}>{PURPOSE_QUESTION}</div>
                     <div role="group" aria-label={PURPOSE_QUESTION} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {([
                         [false, 'No, a personal loan'],
@@ -1927,7 +1927,7 @@ function ProfileEditor({
                               border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
                               background: on ? 'var(--accent)' : 'var(--card)',
                               color: on ? '#fff' : 'var(--ink)',
-                              fontSize: 13,
+                              fontSize: 'var(--fs-body)',
                               cursor: 'pointer',
                             }}
                           >
@@ -1936,7 +1936,7 @@ function ProfileEditor({
                         );
                       })}
                     </div>
-                    <div className="muted" style={{ fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
+                    <div className="muted" style={{ fontSize: 'var(--fs-small)', marginTop: 6, lineHeight: 1.5 }}>
                       {l.business_purpose === undefined ? 'Not answered yet, so the app treats it as a personal loan. ' : ''}
                       {PURPOSE_HELP}
                     </div>
@@ -2367,7 +2367,7 @@ function ProfileEditor({
                     style={{
                       gridColumn: '1 / -1',
                       padding: '6px 10px',
-                      fontSize: 12,
+                      fontSize: 'var(--fs-dense)',
                       background: 'transparent',
                       color: 'var(--negative)',
                       border: '1px solid var(--negative)',
@@ -2386,7 +2386,7 @@ function ProfileEditor({
               onClick={addLoan}
               style={{
                 padding: '8px 14px',
-                fontSize: 13,
+                fontSize: 'var(--fs-body)',
                 background: 'transparent',
                 color: 'var(--accent)',
                 border: '1px solid var(--accent)',
@@ -2417,7 +2417,7 @@ function ProfileEditor({
               );
             })}
             {showLoanErrors && !loansComplete && (
-              <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--negative)' }}>
+              <p role="alert" style={{ margin: 0, fontSize: 'var(--fs-body)', color: 'var(--negative)' }}>
                 Fill in the fields marked above so the plan can work out your
                 payments.
                 {loanErrors.some((e) => Object.keys(e).length > 0) &&
@@ -2499,7 +2499,7 @@ function ProfileEditor({
                       background: 'transparent',
                       border: '1px solid var(--border)',
                       color: 'var(--accent)',
-                      fontSize: 12,
+                      fontSize: 'var(--fs-dense)',
                       cursor: 'pointer',
                       padding: '6px 10px',
                       borderRadius: 6,
@@ -2507,7 +2507,7 @@ function ProfileEditor({
                   >
                     + Split by account (recommended)
                   </button>
-                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                  <div className="muted" style={{ fontSize: 'var(--fs-small)', marginTop: 4 }}>
                     Tracking each account with its APY lets the advisor compare
                     idle cash against debt payoff (e.g. 0.01% checking vs 24%
                     card).
@@ -2518,7 +2518,7 @@ function ProfileEditor({
 
             {cashAccounts.length > 0 && (
               <div>
-                <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+                <div className="muted" style={{ fontSize: 'var(--fs-dense)', marginBottom: 8 }}>
                   <strong style={{ color: 'var(--ink)' }}>Cash accounts.</strong>{' '}
                   Each one — checking, savings, HYSA, FD. APY can be 0 if you
                   don't know it; you can update later.
@@ -2629,7 +2629,7 @@ function ProfileEditor({
                     background: 'transparent',
                     border: '1px dashed var(--border)',
                     color: 'var(--accent)',
-                    fontSize: 12,
+                    fontSize: 'var(--fs-dense)',
                     cursor: 'pointer',
                     padding: '6px 10px',
                     borderRadius: 6,
@@ -2637,7 +2637,7 @@ function ProfileEditor({
                 >
                   + Add another account
                 </button>
-                <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+                <div className="muted" style={{ fontSize: 'var(--fs-small)', marginTop: 8 }}>
                   Total optimizable (excluding checking):{' '}
                   <strong style={{ color: 'var(--ink)' }}>
                     {formatCurrency(
@@ -2757,7 +2757,7 @@ function ProfileEditor({
                   )
                 }
               />
-              <div className="muted" style={{ fontSize: 12, alignSelf: 'end' }}>
+              <div className="muted" style={{ fontSize: 'var(--fs-dense)', alignSelf: 'end' }}>
                 Cheaper rates on Home use it to leave out offers lenders seldom give at your score. Skip if you don&apos;t know it.
               </div>
             </div>
@@ -2765,17 +2765,17 @@ function ProfileEditor({
         )}
 
         {pendingCountry && (
-          <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
+          <p role="alert" style={{ margin: '16px 0 0', fontSize: 'var(--fs-body)', color: 'var(--negative)' }}>
             Confirm or cancel the country change above before saving.
           </p>
         )}
         {saveBlocked && (
-          <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
+          <p role="alert" style={{ margin: '16px 0 0', fontSize: 'var(--fs-body)', color: 'var(--negative)' }}>
             {saveBlocked}
           </p>
         )}
         {saveFailed && (
-          <p role="alert" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--negative)' }}>
+          <p role="alert" style={{ margin: '16px 0 0', fontSize: 'var(--fs-body)', color: 'var(--negative)' }}>
             Your profile wasn&apos;t saved: this browser didn&apos;t keep it. Check
             that cookies are allowed for this site and try again. Nothing you
             entered here is lost while this page stays open.
@@ -2811,7 +2811,7 @@ function ProfileEditor({
 function BackLink({ back }: { back: { href: string; name: string } }) {
   return (
     <div>
-      <LBracket href={back.href} style={{ fontSize: 12 }}>{`← BACK TO ${back.name.toUpperCase()}`}</LBracket>
+      <LBracket href={back.href} style={{ fontSize: 'var(--fs-dense)' }}>{`← BACK TO ${back.name.toUpperCase()}`}</LBracket>
     </div>
   );
 }
@@ -2821,7 +2821,7 @@ function BackLink({ back }: { back: { href: string; name: string } }) {
 function SectionTabs({ step, onOpen, onAll }: { step: number; onOpen: (n: number) => void; onAll: () => void }) {
   const tab = (on: boolean): React.CSSProperties => ({
     fontFamily: 'inherit',
-    fontSize: 11,
+    fontSize: 'var(--fs-label)',
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     padding: '8px 12px',
@@ -2856,11 +2856,11 @@ const SECTION_TAB = ['YOU', 'COUNTRY AND TAX', 'INCOME', 'LOANS', 'SAVINGS AND B
 function ProfileHeader({ title, editing, children }: { title: string; editing?: boolean; children: React.ReactNode }) {
   return (
     <header>
-      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
+      <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.18em', color: L_T.muted, marginBottom: 10 }}>
         PROFILE{editing ? ' · EDIT' : ''}
       </div>
       <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, textTransform: 'uppercase', lineHeight: 1.25 }}>{title}</h1>
-      <p style={{ color: L_T.inkSoft, fontSize: 13, margin: '8px 0 0', lineHeight: 1.6 }}>{children}</p>
+      <p style={{ color: L_T.inkSoft, fontSize: 'var(--fs-body)', margin: '8px 0 0', lineHeight: 1.6 }}>{children}</p>
     </header>
   );
 }
@@ -2966,7 +2966,7 @@ function HikeScheduleEditor({
         background: 'var(--canvas)',
         border: '1px dashed var(--border)',
         borderRadius: 6,
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
         lineHeight: 1.5,
       }}
     >
@@ -2989,7 +2989,7 @@ function HikeScheduleEditor({
             border: 'none',
             color: 'var(--accent)',
             padding: 0,
-            fontSize: 11,
+            fontSize: 'var(--fs-small)',
             letterSpacing: '0.04em',
             textDecoration: 'underline',
             cursor: 'pointer',
@@ -3005,7 +3005,7 @@ function HikeScheduleEditor({
         ({fallbackRate || '0'}%).
       </div>
       {phases.length === 0 && (
-        <div style={{ color: 'var(--muted)', fontStyle: 'italic', fontSize: 11 }}>
+        <div style={{ color: 'var(--muted)', fontStyle: 'italic', fontSize: 'var(--fs-small)' }}>
           None added: the plan uses the yearly rise above for every year.
         </div>
       )}
@@ -3030,7 +3030,7 @@ function HikeScheduleEditor({
               padding: '4px 6px',
               border: '1px solid var(--border)',
               borderRadius: 4,
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               fontFamily: 'inherit',
             }}
           />
@@ -3044,7 +3044,7 @@ function HikeScheduleEditor({
               padding: '4px 6px',
               border: '1px solid var(--border)',
               borderRadius: 4,
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               fontFamily: 'inherit',
             }}
           />
@@ -3057,14 +3057,14 @@ function HikeScheduleEditor({
               padding: '4px 6px',
               border: '1px solid var(--border)',
               borderRadius: 4,
-              fontSize: 12,
+              fontSize: 'var(--fs-dense)',
               fontFamily: 'inherit',
             }}
           />
           <span
             style={{
               color: issues[i] ? 'var(--negative)' : 'var(--muted)',
-              fontSize: 11,
+              fontSize: 'var(--fs-small)',
             }}
           >
             {issues[i]
@@ -3083,7 +3083,7 @@ function HikeScheduleEditor({
               color: 'var(--muted)',
               cursor: 'pointer',
               padding: '0 4px',
-              fontSize: 14,
+              fontSize: 'var(--fs-body)',
             }}
           >
             ×
@@ -3097,7 +3097,7 @@ function HikeScheduleEditor({
             padding: '6px 8px',
             background: 'var(--soft-bg, rgba(255,180,0,0.08))',
             borderLeft: '2px solid var(--warning)',
-            fontSize: 11,
+            fontSize: 'var(--fs-small)',
             color: 'var(--ink)',
           }}
         >
@@ -3238,7 +3238,7 @@ function GrossIncomeField({
             background: 'var(--canvas)',
             border: '1px dashed var(--border)',
             borderRadius: 6,
-            fontSize: 12,
+            fontSize: 'var(--fs-dense)',
             lineHeight: 1.5,
             color: 'var(--ink)',
           }}
@@ -3276,7 +3276,7 @@ function GrossIncomeField({
             )}
           </div>
           {country === 'IN' && (
-            <div style={{ color: 'var(--muted)', marginTop: 2, fontSize: 11 }}>
+            <div style={{ color: 'var(--muted)', marginTop: 2, fontSize: 'var(--fs-small)' }}>
               Computed under{' '}
               <strong>{taxRegime === 'old' ? 'old' : 'new'} regime</strong>
               {taxRegime !== 'old' && (
@@ -3291,7 +3291,7 @@ function GrossIncomeField({
                 padding: '6px 8px',
                 background: 'var(--soft-bg, rgba(255,180,0,0.08))',
                 borderLeft: '2px solid var(--warning)',
-                fontSize: 11,
+                fontSize: 'var(--fs-small)',
                 color: 'var(--ink)',
               }}
             >
@@ -3363,7 +3363,7 @@ function AdvancedTaxDetails({
       <summary
         style={{
           cursor: 'pointer',
-          fontSize: 12,
+          fontSize: 'var(--fs-dense)',
           color: 'var(--accent)',
           padding: '6px 0',
           letterSpacing: '0.02em',
@@ -3382,7 +3382,7 @@ function AdvancedTaxDetails({
           borderRadius: 6,
         }}
       >
-        <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--muted)', lineHeight: 1.55 }}>
+        <div style={{ gridColumn: '1 / -1', fontSize: 'var(--fs-dense)', color: 'var(--muted)', lineHeight: 1.55 }}>
           Optional. Leave blank if you just want a plan from your take-home —
           the engine will use the manual marginal-rate field at the bottom of
           this step. Fill these to get the tax-sleeve card, deduction
@@ -3502,7 +3502,7 @@ function EfLiquidityWarning({
         background: 'var(--soft-bg, rgba(220, 130, 0, 0.06))',
         border: '1px solid var(--warning)',
         borderRadius: 6,
-        fontSize: 12,
+        fontSize: 'var(--fs-dense)',
         lineHeight: 1.55,
       }}
     >
@@ -3552,7 +3552,7 @@ function EfTierPicker({
     Number(monthlyExpenses || 0) + Number(variableExpenses || 0);
   if (totalMonthlyExpenses <= 0) {
     return (
-      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+      <div className="muted" style={{ fontSize: 'var(--fs-dense)', marginTop: 4 }}>
         Enter your monthly spending (Income and spending) to see tier recommendations.
       </div>
     );
@@ -3597,7 +3597,7 @@ function EfTierPicker({
     >
       <div
         className="muted"
-        style={{ fontSize: 12, marginBottom: 8, lineHeight: 1.5 }}
+        style={{ fontSize: 'var(--fs-dense)', marginBottom: 8, lineHeight: 1.5 }}
       >
         Tier shortcuts — sets <strong style={{ color: 'var(--ink)' }}>EF target</strong>{' '}
         to N × your stated monthly expenses
@@ -3627,18 +3627,18 @@ function EfTierPicker({
                 borderRadius: 6,
                 cursor: 'pointer',
                 textAlign: 'left',
-                fontSize: 12,
+                fontSize: 'var(--fs-dense)',
                 lineHeight: 1.45,
               }}
             >
-              <div style={{ fontWeight: 600, fontSize: 13 }}>
+              <div style={{ fontWeight: 600, fontSize: 'var(--fs-body)' }}>
                 {t.label} · {t.months} months
               </div>
               <div style={{ opacity: 0.8 }}>{t.descr}</div>
-              <div style={{ marginTop: 4, fontSize: 11 }}>
+              <div style={{ marginTop: 4, fontSize: 'var(--fs-small)' }}>
                 Target: {formatCurrency(String(target), currency)}
               </div>
-              <div style={{ fontSize: 11, opacity: 0.85 }}>
+              <div style={{ fontSize: 'var(--fs-small)', opacity: 0.85 }}>
                 {fill === 0
                   ? 'Already met — no waterfall delay'
                   : fill === Infinity
@@ -3673,7 +3673,7 @@ function TenureField({
         <label
           style={{
             display: 'block',
-            fontSize: 11,
+            fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
             color: 'var(--muted)',
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
@@ -3684,7 +3684,7 @@ function TenureField({
         </label>
         <div
           style={{
-            fontSize: 13,
+            fontSize: 'var(--fs-body)',
             color: 'var(--muted)',
             lineHeight: 1.5,
             padding: '8px 10px',
@@ -3737,7 +3737,7 @@ function TenureField({
             color: 'var(--accent)',
             padding: 0,
             marginTop: 4,
-            fontSize: 11,
+            fontSize: 'var(--fs-small)',
             letterSpacing: '0.04em',
             textDecoration: 'underline',
             cursor: 'pointer',
@@ -3754,7 +3754,7 @@ function TenureField({
       <label
         style={{
           display: 'block',
-          fontSize: 11,
+          fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           color: 'var(--muted)',
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
@@ -3765,7 +3765,7 @@ function TenureField({
       </label>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 'var(--fs-body)',
           color: derived == null ? 'var(--muted)' : 'var(--ink)',
           lineHeight: 1.5,
           padding: '8px 10px',
@@ -3777,7 +3777,7 @@ function TenureField({
         {derived != null ? (
           <>
             ≈ <strong>{derived}</strong> months at this EMI
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+            <div style={{ fontSize: 'var(--fs-small)', color: 'var(--muted)', marginTop: 4 }}>
               Worked out from the balance, rate and EMI above.
             </div>
           </>
@@ -3801,7 +3801,7 @@ function TenureField({
           color: 'var(--accent)',
           padding: 0,
           marginTop: 4,
-          fontSize: 11,
+          fontSize: 'var(--fs-small)',
           letterSpacing: '0.04em',
           textDecoration: 'underline',
           cursor: 'pointer',
@@ -3845,7 +3845,7 @@ function OtherBanksField({
       <div>
         <div
           style={{
-            fontSize: 11,
+            fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
             color: 'var(--muted)',
@@ -3854,7 +3854,7 @@ function OtherBanksField({
         >
           Other banks &amp; cards you already use
         </div>
-        <div className="muted" style={{ fontSize: 12, lineHeight: 1.55 }}>
+        <div className="muted" style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.55 }}>
           Add any bank where you hold a savings, current, NRE/NRO account,
           credit card, or debit card — anything beyond your primary bank,
           loan or no loan. Tools &rsaquo; New-debt and refinance suggestions
@@ -3881,7 +3881,7 @@ function OtherBanksField({
                 background: 'var(--soft-bg)',
                 border: '1px solid var(--border)',
                 borderRadius: 999,
-                fontSize: 12,
+                fontSize: 'var(--fs-dense)',
               }}
             >
               {b}
@@ -3894,7 +3894,7 @@ function OtherBanksField({
                   border: 'none',
                   color: 'var(--muted)',
                   cursor: 'pointer',
-                  fontSize: 14,
+                  fontSize: 'var(--fs-body)',
                   lineHeight: 1,
                   padding: 0,
                 }}
@@ -3927,7 +3927,7 @@ function OtherBanksField({
             border: 'none',
             borderRadius: 6,
             cursor: draft.trim() ? 'pointer' : 'not-allowed',
-            fontSize: 13,
+            fontSize: 'var(--fs-body)',
             opacity:
               !draft.trim() || draft.trim() === primaryBank || value.includes(draft.trim())
                 ? 0.4
@@ -3964,7 +3964,7 @@ function MinPaymentExplainer({
         background: 'var(--card)',
         border: '1px solid var(--border)',
         borderRadius: 'var(--radius-md)',
-        fontSize: 13,
+        fontSize: 'var(--fs-body)',
         lineHeight: 1.55,
         display: 'flex',
         flexDirection: 'column',
@@ -3974,7 +3974,7 @@ function MinPaymentExplainer({
       <div>
         <div
           style={{
-            fontSize: 11,
+            fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
             color: 'var(--muted)',
@@ -4052,7 +4052,7 @@ function CountrySwitchPanel({
     <div
       role="dialog"
       aria-label="Change country"
-      style={{ border: `1px solid ${L_T.negative}`, padding: '12px 14px', display: 'grid', gap: 10, fontSize: 13, lineHeight: 1.55 }}
+      style={{ border: `1px solid ${L_T.negative}`, padding: '12px 14px', display: 'grid', gap: 10, fontSize: 'var(--fs-body)', lineHeight: 1.55 }}
     >
       <strong>Your amounts are in {sFrom}. {name(to) === 'the USA' ? 'The USA' : 'India'} uses {sTo}.</strong>
       <span>

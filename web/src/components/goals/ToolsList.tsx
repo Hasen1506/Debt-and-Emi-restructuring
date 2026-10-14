@@ -22,7 +22,7 @@ export function ToolsList({ user }: { user: ToolUser }) {
       <LSectionHeader>
         <span id="tools-h">Tools · {tools.length}</span>
       </LSectionHeader>
-      <p style={{ margin: '0 0 10px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
+      <p style={{ margin: '0 0 10px', fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.inkSoft }}>
         Each answers one question against your own plan. Nothing changes until you choose to add it.{' '}
         <a href="/glossary" style={{ color: L_T.accent }}>What the terms mean</a>
       </p>
@@ -47,11 +47,11 @@ export function ToolsList({ user }: { user: ToolUser }) {
               }}
             >
               <span style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 10, letterSpacing: '0.14em', color: L_T.muted }}>{t.name.toUpperCase()}</span>
-                <span style={{ fontSize: 13, fontWeight: 700 }}>{t.question}</span>
+                <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.14em', color: L_T.muted }}>{t.name.toUpperCase()}</span>
+                <span style={{ fontSize: 'var(--fs-body)', fontWeight: 700 }}>{t.question}</span>
               </span>
-              <span style={{ flex: '2 1 280px', color: L_T.inkSoft, fontSize: 12, lineHeight: 1.5 }}>{t.sub}</span>
-              <span aria-hidden="true" style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', color: L_T.accent }}>
+              <span style={{ flex: '2 1 280px', color: L_T.inkSoft, fontSize: 'var(--fs-dense)', lineHeight: 1.5 }}>{t.sub}</span>
+              <span aria-hidden="true" style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.08em', color: L_T.accent }}>
                 OPEN →
               </span>
             </a>
@@ -68,7 +68,7 @@ export function ToolStrip({ user, title, except }: { user: ToolUser; title: stri
   if (tools.length === 0) return null;
   return (
     <nav aria-label={title} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <LSectionHeader right={<a href="/goals#tools" style={{ color: L_T.accent, fontSize: 11 }}>[ALL TOOLS →]</a>}>
+      <LSectionHeader right={<a href="/goals#tools" style={{ color: L_T.accent, fontSize: 'var(--fs-small)' }}>[ALL TOOLS →]</a>}>
         {title}
       </LSectionHeader>
       <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -84,7 +84,7 @@ export function ToolStrip({ user, title, except }: { user: ToolUser; title: stri
                 border: `1px solid ${L_T.ink}`,
                 background: L_T.paper,
                 color: L_T.ink,
-                fontSize: 13,
+                fontSize: 'var(--fs-body)',
                 fontWeight: 600,
                 textDecoration: 'none',
               }}

@@ -72,7 +72,7 @@ function StudentLoanFields({ loan, onChange }: { loan: LoanPayload; onChange: (p
           }
         />
       )}
-      <ul className="muted" style={{ fontSize: 11, lineHeight: 1.55, margin: 0, paddingLeft: 16 }}>
+      <ul className="muted" style={{ fontSize: 'var(--fs-small)', lineHeight: 1.55, margin: 0, paddingLeft: 16 }}>
         {studentLoanExplainer(loan).map((t) => (
           <li key={t}>{t}</li>
         ))}
@@ -85,7 +85,7 @@ function StudentLoanFields({ loan, onChange }: { loan: LoanPayload; onChange: (p
         )}
       </ul>
       {blocked && (
-        <p data-testid="forgiveness-hold" style={{ fontSize: 12, margin: 0 }}>
+        <p data-testid="forgiveness-hold" style={{ fontSize: 'var(--fs-dense)', margin: 0 }}>
           This loan {blocked}.
         </p>
       )}
@@ -139,7 +139,7 @@ function MortgageFields({ loan, onChange }: { loan: LoanPayload; onChange: (p: P
         </>
       )}
       {a && (
-        <div data-testid="pmi-analysis" className="muted" style={{ fontSize: 11, lineHeight: 1.55 }}>
+        <div data-testid="pmi-analysis" className="muted" style={{ fontSize: 'var(--fs-small)', lineHeight: 1.55 }}>
           {a.requestBalance && a.extraToRequestNow && a.extraToRequestNow.gt(0) && (
             <p style={{ margin: '0 0 4px', color: 'var(--ink)' }}>
               PMI ({usd(a.annual.toNumber())} a year) can end once you owe {usd(a.requestBalance.toNumber())},
@@ -166,7 +166,7 @@ function MortgageFields({ loan, onChange }: { loan: LoanPayload; onChange: (p: P
           ))}
         </div>
       )}
-      <p className="muted" style={{ fontSize: 11, margin: 0 }}>{ESCROW_NOTE}</p>
+      <p className="muted" style={{ fontSize: 'var(--fs-small)', margin: 0 }}>{ESCROW_NOTE}</p>
     </div>
   );
 }
@@ -182,7 +182,7 @@ export function UsStateField({ value, onChange }: { value: string; onChange: (v:
         onChange={onChange}
         options={[{ value: '', label: 'Choose a state' }, ...US_STATES.map((s) => ({ value: s, label: s }))]}
       />
-      <p className="muted" style={{ fontSize: 11, margin: 0 }}>
+      <p className="muted" style={{ fontSize: 'var(--fs-small)', margin: 0 }}>
         {t.label}
         {t.sourceUrl && (
           <>

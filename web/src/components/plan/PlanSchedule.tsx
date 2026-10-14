@@ -252,19 +252,19 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
         {expanded ? `${totalCount} MO` : `${eventRows.length} EVENT${eventRows.length === 1 ? '' : 'S'}`}
       </LSectionHeader>
       {visibleRows.length === 0 ? (
-        <div style={{ padding: '14px 0', fontSize: 11, color: L_T.muted }}>
+        <div style={{ padding: '14px 0', fontSize: 'var(--fs-small)', color: L_T.muted }}>
           NO EVENTS · the next {totalCount} months hold steady. Show all months to see each one.
         </div>
       ) : (
         <>
-        <p style={{ margin: '0 0 8px', fontSize: 12, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <p style={{ margin: '0 0 8px', fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.inkSoft }}>
           The first row is what you owe on each loan at the start of {startLabel.charAt(0) + startLabel.slice(1, 3).toLowerCase()}, before
           this month&apos;s payments. Every row after it is what you pay that month: each loan&apos;s
           column is its {paymentWords(plan.user.country).one} or minimum plus any extra, not what&apos;s left on it. BALANCE is what&apos;s left on all of them
           at the month&apos;s end.
         </p>
         {mixed && (
-          <div role="note" style={{ padding: '6px 0 8px', fontSize: 10, color: L_T.muted, lineHeight: 1.5 }}>
+          <div role="note" style={{ padding: '6px 0 8px', fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.5 }}>
             Loan columns marked ({foreign.join(', ')}) are in that loan&apos;s own currency. TOTAL, EXTRA, INTEREST,
             PRINCIPAL and BALANCE are in {ccy}, converted at the exchange rate saved on your profile.
           </div>
@@ -272,7 +272,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
         {/* Live re-test NEW-17: on a phone the table is wider than the screen;
             say so, since the scroll bar is hidden until touched. */}
         <style>{`.rd-scroll-hint{display:none}@media (max-width: 820px){.rd-scroll-hint{display:block}}`}</style>
-        <div className="rd-scroll-hint" style={{ padding: '4px 0 6px', fontSize: 10, color: L_T.muted }}>
+        <div className="rd-scroll-hint" style={{ padding: '4px 0 6px', fontSize: 'var(--fs-small)', color: L_T.muted }}>
           SWIPE SIDEWAYS FOR EVERY COLUMN →
         </div>
         <div
@@ -286,7 +286,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             borderBottom: expanded ? `1px solid ${L_T.faint}` : undefined,
           }}
         >
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 760 + Math.max(0, loanCols.length - 4) * 90 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-small)', minWidth: 760 + Math.max(0, loanCols.length - 4) * 90 }}>
             <thead>
               <tr
                 style={{
@@ -326,7 +326,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                       padding: '6px 10px',
                       textAlign: i < 3 ? 'left' : 'right',
                       fontWeight: 700,
-                      fontSize: 9,
+                      fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
                       color: L_T.muted,
                       letterSpacing: '0.06em',
                     }}
@@ -342,7 +342,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
               <tr style={{ borderBottom: `1px solid ${L_T.ink}` }}>
                 <td style={{ padding: '7px 10px', color: L_T.muted }}>—</td>
                 <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>{startLabel}</td>
-                <td style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, lineHeight: 1.5 }}>OWED AT THE START</td>
+                <td style={{ padding: '7px 10px', fontSize: 'var(--fs-small)', fontWeight: 700, lineHeight: 1.5 }}>OWED AT THE START</td>
                 {loanCols.map((l, idx) => {
                   const owed = Number(l.outstanding) || 0;
                   const later = (l.planned_effective_month ?? 1) > 1;
@@ -366,7 +366,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                 >
                   <td style={{ padding: '7px 10px' }}>{String(r.mo).padStart(2, '0')}</td>
                   <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>{r.date}</td>
-                  <td style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, minWidth: 180, maxWidth: 260, lineHeight: 1.5 }}>
+                  <td style={{ padding: '7px 10px', fontSize: 'var(--fs-small)', fontWeight: 700, minWidth: 180, maxWidth: 260, lineHeight: 1.5 }}>
                     {r.event}
                   </td>
                   {loanCols.map((l, idx) => (
@@ -375,7 +375,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                         ? formatCurrencyWhole(Number(r.perLoan[idx]).toFixed(0), loanCurrency(l, plan.user.country))
                         : '—'}
                       {r.perLoan[idx] && finalMonth.get(idx) === r.mo ? (
-                        <div style={{ fontSize: 9, letterSpacing: '0.08em', color: L_T.positive }}>FINAL</div>
+                        <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.08em', color: L_T.positive }}>FINAL</div>
                       ) : null}
                     </td>
                   ))}
@@ -394,7 +394,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
                     <td style={{ padding: '7px 10px', textAlign: 'right', color: L_T.negative, whiteSpace: 'nowrap' }}>
                       {gapMonths[r.mo]?.debt ? cell(gapMonths[r.mo].debt) : '—'}
                       {gapMonths[r.mo]?.repaid ? (
-                        <div style={{ fontSize: 9, letterSpacing: '0.06em', color: L_T.positive }}>
+                        <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', color: L_T.positive }}>
                           {cell(gapMonths[r.mo].repaid)} REPAID
                         </div>
                       ) : null}
@@ -406,7 +406,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
           </table>
         </div>
         {stopRow ? (
-          <div role="note" data-testid="schedule-stop" style={{ padding: '8px 0', fontSize: 11, lineHeight: 1.6, color: L_T.negative, fontWeight: 700 }}>
+          <div role="note" data-testid="schedule-stop" style={{ padding: '8px 0', fontSize: 'var(--fs-small)', lineHeight: 1.6, color: L_T.negative, fontWeight: 700 }}>
             {scheduleStopLine(stop.growsWithoutLimit, stopRow.date)}
           </div>
         ) : (
@@ -422,7 +422,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
 /** Principal + interest = cash paid, and principal against today's balance. */
 function ScheduleFooter({ totals, fc, gstApplies }: { totals: ReturnType<typeof reconcileSchedule>; fc: (v: string | number) => string; gstApplies: boolean }) {
   return (
-    <div role="note" aria-label="How the schedule adds up" style={{ padding: '8px 0', fontSize: 10, color: L_T.muted, lineHeight: 1.6 }}>
+    <div role="note" aria-label="How the schedule adds up" style={{ padding: '8px 0', fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.6 }}>
       <strong style={{ color: L_T.ink, letterSpacing: '0.06em' }}>OVER THE PLAN · </strong>
       PRINCIPAL {fc(totals.principal.toFixed(0))} + INTEREST {fc(totals.interest.toFixed(0))}
       {gstApplies ? ' (GST ON CARD INTEREST INCLUDED)' : ''} = {fc(totals.cash.toFixed(0))} PAID.{' '}
@@ -468,7 +468,7 @@ function RateResetAlert({ plan }: { plan: PlanData }) {
         alignItems: 'baseline',
         gap: 12,
         flexWrap: 'wrap',
-        fontSize: 11,
+        fontSize: 'var(--fs-small)',
         lineHeight: 1.6,
       }}
     >

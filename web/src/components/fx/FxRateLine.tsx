@@ -29,7 +29,7 @@ export function FxRateLine({ user, nowMs }: { user: UserPayload; nowMs: number }
     if (res.refreshed.length > 0) router.refresh();
   };
   return (
-    <div role="note" aria-label="Exchange rates" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', alignItems: 'baseline', fontSize: 11, color: L_T.muted, margin: '0 0 10px' }}>
+    <div role="note" aria-label="Exchange rates" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', alignItems: 'baseline', fontSize: 'var(--fs-small)', color: L_T.muted, margin: '0 0 10px' }}>
       {ccys.map((c) => {
         const rate = user.fx_to_user_currency?.[c];
         const meta = user.fx_meta?.[c];
