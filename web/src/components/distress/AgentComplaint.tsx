@@ -61,7 +61,7 @@ export function AgentComplaintSection({
         <p style={{ fontSize: 12, lineHeight: 1.7 }}>
           A different letter from the one above: it goes to the lender&apos;s grievance officer, says what happened and
           when, and cites RBI&apos;s rules.{' '}
-          <button type="button" className="l-bracket" onClick={() => setOpen(true)} data-testid="cp-agent-open"
+          <button type="button" onClick={() => setOpen(true)} data-testid="cp-agent-open"
             style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 700, cursor: 'pointer', color: 'inherit', textDecoration: 'underline' }}>
             [ WRITE THE COMPLAINT ]
           </button>

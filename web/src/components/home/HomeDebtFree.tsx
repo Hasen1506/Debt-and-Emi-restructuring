@@ -5,7 +5,8 @@
  */
 import { localTerms } from '@/lib/terms';
 import { dueVsAffordable, dueVsAffordableLine, shortGapLine } from '@/lib/plan-gap';
-import { userMarginalCosts, whyFirst } from '@/lib/marginal-cost';
+import { userMarginalCosts } from '@/lib/marginal-cost';
+import { rateLine, whyFirstShort } from '@/lib/card-rate';
 import { cache } from 'react';
 import Link from 'next/link';
 import Decimal from 'decimal.js';
@@ -143,13 +144,9 @@ const WHY: Record<string, string> = {
 
 /** The loan's rate as its statement shows it, then what it costs a year
  *  when that differs: compounding, a card's GST, or a tax break. */
-function rateWords(l: LoanWithEffective, country: string): string {
-  const nominal = `${fmtPct(l.nominal)} a year`;
-  const gap = l.effective.minus(l.nominal);
-  if (gap.abs().lt(0.005)) return nominal;
-  if (gap.lt(0)) return `${nominal}, ${fmtPct(l.effective)} after the tax break`;
-  const extra = country === 'IN' && l.loan.loan_type === 'credit_card' ? 'with GST, compounded monthly' : 'compounded monthly';
-  return `${nominal}, ${fmtPct(l.effective)} ${extra}`;
+// Audit 80 B13/E2: the one rate wording (lib/card-rate).
+function rateWords(l: LoanWithEffective, _country: string): string {
+  return rateLine(l.nominal, l.effective);
 }
 
 /** This month's payments, one row each, to tick off (REDESIGN R2.2). */
@@ -197,7 +194,7 @@ export async function HomePayThisMonth() {
   const several = m.loans.filter((l) => l.outstanding.gt(0)).length > 1;
   const why = target
     ? mc
-      ? `${several ? `The extra goes here because ${WHY[plan.strategy] ?? WHY.avalanche}.` : 'The extra goes on your only loan.'} ${whyFirst(mc)}. `
+      ? `${several ? `The extra goes here because ${WHY[plan.strategy] ?? WHY.avalanche}.` : 'The extra goes on your only loan.'} ${whyFirstShort(mc.total, target.nominal)}. `
       : `${several ? `The extra goes here: ${(REASON[plan.strategy] ?? REASON.avalanche)(rateWords(target, country))}` : `The extra goes on your only loan, at ${rateWords(target, country)}`}. `
     : '';
   const reason =

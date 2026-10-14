@@ -83,10 +83,12 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
               // No fees, GST or tax saving: one rate.
               <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>
             ) : (
+              // Audit 80 B13/E2: the statement's rate first, the one all-in
+              // figure second (lib/card-rate), no arrow implying the user's
+              // number was wrong.
               <>
-                {fmtPct(d.nominal)} →{' '}
-                <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>{' '}
-                A YEAR
+                <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.nominal)} A YEAR</span>{' '}
+                · ABOUT {fmtPct(d.effective)} {d.effective.lt(d.nominal) ? 'AFTER THE TAX BREAK' : 'ALL-IN'}
               </>
             ),
             gaps.includes('emi') ? (
