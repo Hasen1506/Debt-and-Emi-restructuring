@@ -63,7 +63,9 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
     await expect(main.getByText(/borrowed on a card at 45% a year plus 18% GST/)).toBeVisible();
     await expect(page.getByRole('heading', { name: /MONTH BY MONTH · AS THINGS STAND/ })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'GAP OWED' })).toBeVisible();
-    await expect(main.getByText(/BORROWED ON A CARD AT 45%/).first()).toBeVisible();
+    // B18 (W7): the month also has a phone card (hidden at this width) ahead
+    // of the table row in the DOM; read the one the user sees.
+    await expect(main.getByText(/BORROWED ON A CARD AT 45%/).filter({ visible: true }).first()).toBeVisible();
   });
 
   await test.step('#26: a longer tenure on the home loan, through the engine', async () => {
@@ -89,7 +91,7 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
     await expect(main.getByText(/Due this month: ₹74,515 in EMIs and minimums\. After your costs you have ₹40,000 for them, so you're ₹34,515 short\./)).toBeVisible();
     // Live re-test 7 R7-2 (golden updated on purpose): Home now names the
     // as-is date too, in the same words as Plan and Setup (answers L2 #16).
-    await expect(main.getByText(/IF THE ₹34,515\/MO GAP CLOSES: [A-Z]{3} \d{4} · AS THINGS STAND: (?:[A-Z]{3} \d{4}|NOT IN 30 YEARS) · PLAN →/)).toBeVisible();
+    await expect(main.getByText(/IF THE ₹34,515\/MO GAP CLOSES: [A-Z]{3} \d{4} · AS THINGS STAND: (?:[A-Z]{3} \d{4}|NOT IN 30 YEARS|NOT FUNDABLE FROM [A-Z]{3} \d{4}) · PLAN →/)).toBeVisible();
     // Audit 80+ A5: Home's big figure is the gap, not a conditional date.
     await expect(main.getByText('₹34,515/MO SHORT').first()).toBeVisible();
   });
