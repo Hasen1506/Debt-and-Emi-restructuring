@@ -99,10 +99,37 @@ def _num(x):
     return D(x) if x is not None else None
 
 
+def _c6_bound(case) -> Decimal:
+    """DIFFERENCE C6 (Audit 80+ C3/C6): the current engine pays whatever is
+    left of an EMI loan in its last contractual month (banks adjust the final
+    instalment); the old one carried the paisa-rounding residual of the
+    quantised EMI into an extra month. The only change that may cause is one
+    month's interest on that residual, which for a loan of n months at
+    monthly rate i is at most 0.005 x ((1 + i)^n - 1) (half a paisa of EMI
+    rounding, compounded). Summed over the loans, plus a paisa of slack."""
+    total = D("0.01")
+    for l in case["loans"]:
+        i = D(l["nominal_rate"]) / 12
+        total += D("0.005") * ((1 + i) ** int(l["tenure"]) - 1)
+    return total
+
+
 def _assert_identical(case, old, new):
     for mode in case.get("modes", ["plan", "baseline"]):
         o, n = old[mode], new[mode]
         assert "error" not in o and "error" not in n, (case, o, n)
+        if (o["debt_free_month"] != n["debt_free_month"]
+                or abs(D(o["total_interest"]) - D(n["total_interest"])) > EXACT):
+            # Only the C6 final-instalment change may separate them: never
+            # later, at most the residual's extra month sooner, interest never
+            # higher and lower by no more than a month's interest on it.
+            if o["debt_free_month"] is not None:
+                assert n["debt_free_month"] is not None, (case, mode)
+                assert o["debt_free_month"] - 1 <= n["debt_free_month"] <= o["debt_free_month"], (case, mode)
+            assert D(n["total_interest"]) <= D(o["total_interest"]) + EXACT, (case, mode)
+            assert D(o["total_interest"]) - D(n["total_interest"]) <= _c6_bound(case), (
+                case, mode, o["total_interest"], n["total_interest"])
+            continue
         assert o["debt_free_month"] == n["debt_free_month"], (case, mode)
         assert abs(D(o["total_interest"]) - D(n["total_interest"])) <= EXACT, (case, mode, o["total_interest"], n["total_interest"])
         assert len(o["months"]) == len(n["months"])
@@ -171,10 +198,12 @@ def test_multi_loan_plan_differs_only_by_the_cascade_fix(legacy_dir):
                       "strategy": rng.choice(["avalanche", "snowball", "hybrid"]), "modes": ["plan"]})
     for case, old, new in both(legacy_dir, cases):
         o, n = old["plan"], new["plan"]
-        assert D(n["total_interest"]) <= D(o["total_interest"]) + EXACT, case
+        # C6 (final instalment pays the residual) can move a paisa-scale
+        # amount between loans in the contract month, so the bound is C6's.
+        assert D(n["total_interest"]) <= D(o["total_interest"]) + _c6_bound(case), case
         if o["debt_free_month"] is not None:
             assert n["debt_free_month"] is not None and n["debt_free_month"] <= o["debt_free_month"], case
-        identical += abs(D(n["total_interest"]) - D(o["total_interest"])) <= EXACT
+        identical += abs(D(n["total_interest"]) - D(o["total_interest"])) <= _c6_bound(case)
     # The fix bites only when freed money overflows the next loan; most
     # profiles are untouched.
     assert identical >= len(cases) // 2, identical
