@@ -1,0 +1,13 @@
+{
+  "_comment": "Audit 80 E21. Checked by `python scripts/size_report.py --check` in CI. grandfathered files may only shrink (lower the number when they do). Raise prod_lines_baseline only in a PR that says why the product needs the lines.",
+  "max_file_lines": 1500,
+  "prod_growth_pct": 1.0,
+  "prod_lines_baseline": 91678,
+  "grandfathered": {
+    "api/schemas.py": 1558,
+    "engine/asset_liquidation.py": 1617,
+    "web/src/app/profile/ProfileClient.tsx": 2804,
+    "web/src/components/setup/QuickSetup.tsx": 1580,
+    "web/src/lib/api.ts": 2035
+  }
+}
