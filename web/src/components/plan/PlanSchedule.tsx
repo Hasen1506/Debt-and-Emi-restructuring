@@ -13,7 +13,7 @@ import type { PlanData } from './PlanData';
 import { formatCurrencyWhole, type LoanPayload } from '@/lib/api';
 import { getCountryToday, localIsoDate, monthIndexToDate, MONTH_NAMES } from '@/lib/today';
 import { loanCurrency } from '@/lib/currency';
-import { CSV_START_LABEL, scheduleCsvFilename, scheduleCsvHeader } from '@/lib/schedule-csv';
+import { scheduleCsvCells, scheduleCsvFilename, scheduleCsvHeader, type ScheduleCsvRow } from '@/lib/schedule-csv';
 import { loanLabel } from '@/lib/loan-types';
 import { LBracket, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import { loanClears, owedAtStart } from './plan-milestones';
@@ -37,16 +37,6 @@ const LOAN_SHORT: Record<string, string> = {
 /** "HDFC home loan" (not "HDFC Bank home loan"), or "Home loan" without a lender. */
 const loanName = (l: LoanPayload): string => loanLabel(l);
 
-type ScheduleCsvRow = {
-  mo: number;
-  date: string;
-  perLoan: Record<number, string>;
-  extra: number;
-  interest: number;
-  principal: number;
-  balance: number;
-  event: string;
-};
 
 function csvCell(v: string | number): string {
   const t = String(v);
@@ -62,20 +52,9 @@ function downloadRowsCSV(rows: ScheduleCsvRow[], plan: PlanData, start: Schedule
   // UX50 B-33: headers in words, a dated filename, the opening row named.
   const header = scheduleCsvHeader(loans, country, ccy);
   // The first line is what's owed at the start, as on screen.
-  const lines = [start, ...rows].map((r) =>
-    [
-      r === start ? 0 : r.mo,
-      r === start ? CSV_START_LABEL : r.date,
-      ...loans.map((_, i) => Math.round(Number(r.perLoan[i] ?? 0))),
-      Math.round(r.extra),
-      Math.round(r.interest),
-      Math.round(r.principal),
-      Math.round(r.balance),
-      r.event,
-    ]
-      .map(csvCell)
-      .join(','),
-  );
+  // Audit 80+ C19: balances go in their own "owed at start" columns, so a
+  // SUM down a loan's paid column adds payments only.
+  const lines = [start, ...rows].map((r) => scheduleCsvCells(r, r === start, loans.length).map(csvCell).join(','));
   const blob = new Blob([[header.map(csvCell).join(','), ...lines].join('\n') + '\n'], {
     type: 'text/csv;charset=utf-8',
   });
