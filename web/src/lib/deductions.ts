@@ -68,6 +68,7 @@ const US_STD_DEDUCTION: Record<FilingStatusUS, Decimal> = {
   single: D(US_STD_NUM.single),
   mfj: D(US_STD_NUM.mfj),
   hoh: D(US_STD_NUM.hoh),
+  mfs: D(US_STD_NUM.mfs),
 };
 
 // The higher 80D cap is for senior citizens (60+). '50_plus' is 50–59

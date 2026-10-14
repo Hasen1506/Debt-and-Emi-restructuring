@@ -49,7 +49,7 @@ export type IncomeType = 'salaried' | 'business_owner';
 /** Lender types for the prepayment-fee rule (engine/prepayment_fee.py LENDER_TYPES). */
 export type LenderType = 'bank' | 'small_finance_bank' | 'cooperative_bank' | 'nbfc' | 'hfc' | 'other';
 export type TaxRegimeIN = 'new' | 'old';
-export type FilingStatusUS = 'single' | 'mfj' | 'hoh';
+export type FilingStatusUS = 'single' | 'mfj' | 'hoh' | 'mfs';   // C17: married filing separately
 
 export interface LoanPayload {
   /** Stable id, set when the loan is first saved (lib/loan-ids). Activity

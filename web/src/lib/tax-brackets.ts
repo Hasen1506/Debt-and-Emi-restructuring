@@ -74,10 +74,12 @@ export function inSurchargeRate(taxableIncome: number, regime?: TaxRegimeIN): nu
 const US_SINGLE_SLABS: Slab[] = toSlabs(TAX.us.single.slabs as SlabRows);
 const US_MFJ_SLABS: Slab[] = toSlabs(TAX.us.mfj.slabs as SlabRows);
 const US_HOH_SLABS: Slab[] = toSlabs(TAX.us.hoh.slabs as SlabRows);
+const US_MFS_SLABS: Slab[] = toSlabs(TAX.us.mfs.slabs as SlabRows);   // C17
 export const US_STANDARD_DEDUCTION: Record<FilingStatusUS, number> = {
   single: TAX.us.single.standard_deduction,
   mfj: TAX.us.mfj.standard_deduction,
   hoh: TAX.us.hoh.standard_deduction,
+  mfs: TAX.us.mfs.standard_deduction,
 };
 
 export interface BracketInfo {
@@ -113,6 +115,7 @@ function pickSlabs(
     const status = filingStatus ?? 'single';
     const slabs = status === 'mfj' ? US_MFJ_SLABS
       : status === 'hoh' ? US_HOH_SLABS
+      : status === 'mfs' ? US_MFS_SLABS
       : US_SINGLE_SLABS;
     return {
       slabs,
@@ -243,7 +246,7 @@ export function incomeTaxIN(taxable: number, regime: TaxRegimeIN): Decimal {
 
 /** US federal tax on taxable income (no state). */
 export function federalTaxUS(taxable: number, filing: FilingStatusUS): Decimal {
-  const slabs = filing === 'mfj' ? US_MFJ_SLABS : filing === 'hoh' ? US_HOH_SLABS : US_SINGLE_SLABS;
+  const slabs = filing === 'mfj' ? US_MFJ_SLABS : filing === 'hoh' ? US_HOH_SLABS : filing === 'mfs' ? US_MFS_SLABS : US_SINGLE_SLABS;
   return slabTax(taxable, slabs);
 }
 
@@ -260,7 +263,7 @@ export function marginalRateIN(taxable: number, regime: TaxRegimeIN): number {
 
 /** US federal marginal rate. */
 export function marginalRateUS(taxable: number, filing: FilingStatusUS): number {
-  const slabs = filing === 'mfj' ? US_MFJ_SLABS : filing === 'hoh' ? US_HOH_SLABS : US_SINGLE_SLABS;
+  const slabs = filing === 'mfj' ? US_MFJ_SLABS : filing === 'hoh' ? US_HOH_SLABS : filing === 'mfs' ? US_MFS_SLABS : US_SINGLE_SLABS;
   return (slabs.find((s) => taxable <= s.to) ?? slabs[slabs.length - 1]).rate;
 }
 
