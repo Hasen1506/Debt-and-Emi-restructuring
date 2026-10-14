@@ -59,6 +59,7 @@ import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward,
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
 import { disambiguateLoans } from '@/lib/loan-types';
 import { balancePlaceholder, emiPlaceholder } from '@/lib/placeholders';
+import { PRIVACY_PROMISE } from '@/components/PrivacyPromise';
 import { HYDRATED_EVENT, flushPendingState, signedInAccount } from '@/lib/server-sync';
 import { ONBOARDING_DONE_HREF } from '@/lib/onboarding-save';
 import { LAST_SEEN_KEY } from '@/lib/guest-return';
@@ -743,8 +744,8 @@ export function QuickSetup() {
             ) : (
               // UX50 E-11: the notice at the time the figures are asked for (DPDP s.5).
               <>
-                Your numbers stay in this browser. They&apos;re sent to our server only to work out your plan, and
-                aren&apos;t stored there unless you sign in and save. You can change them any time in Profile.{' '}
+                {/* Audit 80 B8: the one in-app wording (components/PrivacyPromise). */}
+                {PRIVACY_PROMISE} You can change them any time in Profile.{' '}
                 <a href="/privacy" style={{ color: L_T.accent }} data-testid="setup-privacy-line">Privacy notice →</a>
               </>
             )}

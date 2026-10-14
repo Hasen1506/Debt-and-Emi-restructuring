@@ -104,5 +104,6 @@ test('E-10/E-11/E-12: notice, landing and terms are accurate', () => {
   assert.match(terms, /courts at Chennai, Tamil Nadu have jurisdiction/);
   assert.match(terms, /We reply to complaints within 30 days/);
   assert.match(terms, /total liability/);
-  assert.match(src('components/setup/QuickSetup.tsx'), /aren&apos;t stored there unless you sign in and save/);
+  // Audit 80 B8: Setup renders the one in-app privacy wording.
+  assert.match(src('components/setup/QuickSetup.tsx'), /\{PRIVACY_PROMISE\} You can change them any time in Profile\./);
 });
