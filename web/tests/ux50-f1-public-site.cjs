@@ -22,10 +22,10 @@ const WELCOME = fs.readFileSync(path.resolve(__dirname, '../public/welcome.html'
 
 test('E-13: every app page folder is gated; public pages and unknown paths are not', () => {
   const { isGatedAppPath, GATED_ROOTS } = require(path.join(root, 'lib/app-routes.ts'));
-  const PUBLIC = new Set(['login', 'glossary', 'privacy', 'terms', 'account', 'api']);
+  const PUBLIC = new Set(['login', 'glossary', 'privacy', 'terms', 'account', 'api', 'cant-pay']);
   const dirs = fs.readdirSync(path.join(root, 'app'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
   for (const d of dirs) if (!PUBLIC.has(d)) assert.ok(GATED_ROOTS.includes(d), `app/${d} is a page folder but isn't in GATED_ROOTS`);
-  for (const p of ['/', '/plan', '/plan/x', '/profile/assets', '/tools/windfall', '/onboarding', '/tax', '/cant-pay']) assert.ok(isGatedAppPath(p), p);
+  for (const p of ['/', '/plan', '/plan/x', '/profile/assets', '/tools/windfall', '/onboarding', '/tax']) assert.ok(isGatedAppPath(p), p);
   for (const p of ['/this-does-not-exist', '/glossarry', '/docs', '/.well-known/security.txt', '/plans', '/toolsx']) assert.ok(!isGatedAppPath(p), p);
   const mw = fs.readFileSync(path.join(root, 'middleware.ts'), 'utf8');
   assert.match(mw, /if \(!isGatedAppPath\(url\.pathname\)\) return next\(\);/);

@@ -1,7 +1,7 @@
 /**
  * The app's own pages: the ones a signed-out visitor is sent to sign in
  * for (UX50 E-13 / A-14). Any other path a signed-out visitor asks for is
- * not a page at all, so the middleware lets it through and Next answers
+ * not a page at all (/cant-pay is public since Audit 80 A17, like Loan Check), so the middleware lets it through and Next answers
  * with the real 404 (app/not-found.tsx) instead of a sign-in wall.
  *
  * web/tests/ux50-f1-public-site.cjs checks this list against the page
@@ -9,7 +9,6 @@
  */
 export const GATED_ROOTS = [
   'activity',
-  'cant-pay',
   'goals',
   'onboarding',
   'plan',

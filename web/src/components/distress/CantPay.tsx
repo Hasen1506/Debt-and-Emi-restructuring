@@ -15,7 +15,7 @@
  * (sprint L2: TenureWhatIf.tsx, engine/tenure_whatif.py, engine/gap_debt.py);
  * this page links there instead of repeating them.
  */
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useStoredProfile } from '@/lib/use-profile';
 import { deriveMetrics } from '@/lib/derived';
 import { formatCurrencyWhole } from '@/lib/api';
@@ -32,6 +32,8 @@ import {
 import {
   HARDSHIP_ASK_TEXT,
   LETTER_SELF_CHECK,
+  US_COLLECTOR_RULE,
+  US_ASK_TEXT,
   TRIAGE_RULES,
   TRIAGE_VERIFIED_ON,
   MAX_MONTHS_UNPAID,
@@ -45,6 +47,8 @@ import {
   type TriageLine,
   type TriageRule,
 } from '@/lib/distress-triage';
+import { CantPayPublic } from './CantPayPublic';
+import { AgentComplaintSection } from './AgentComplaint';
 
 const num = (s: string) => {
   const n = Number(String(s).replace(/[,\s₹$]/g, ''));
@@ -101,24 +105,23 @@ export function CantPay() {
   // Take-home minus costs: what is left for loan payments before any EMI.
   const leftBeforeEmis =
     num(profile.user.monthly_income) - num(profile.user.fixed_expenses) - num(profile.user.variable_expenses ?? '0');
-  const [availableText, setAvailableText] = useState(groupIN(String(Math.max(0, Math.round(leftBeforeEmis)))));
+  // B24: the amount is filled in visibly from the profile once it has loaded
+  // (it used to start blank on first paint and still say COVERED), and the
+  // user's own edit is never overwritten.
+  const [availableText, setAvailableText] = useState('');
+  const [availableTouched, setAvailableTouched] = useState(false);
+  const fromProfile = profile.isLive && leftBeforeEmis > 0 ? groupIN(String(Math.round(leftBeforeEmis))) : '';
+  useEffect(() => {
+    if (!availableTouched) setAvailableText(fromProfile);
+  }, [fromProfile, availableTouched]);
+  const hasAvailable = availableText.trim() !== '';
   const available = num(availableText);
   const order = useMemo(() => protectOrder(lines, available), [lines, available]);
+  const isIN = country === 'IN';
 
-  if (country !== 'IN') {
-    return (
-      <LShell>
-        <div style={{ padding: '32px 0', maxWidth: 640 }}>
-          <LSectionHeader>CAN&apos;T PAY THIS MONTH?</LSectionHeader>
-          <p style={{ fontSize: 12, lineHeight: 1.7 }}>
-            The rules on this page are India&apos;s (RBI). US rules on late payments and debt collectors are different
-            and aren&apos;t covered here yet. Call your lender before the due date and ask what hardship options it has.
-          </p>
-          <LBracket href="/plan">SEE YOUR PLAN →</LBracket>
-        </div>
-      </LShell>
-    );
-  }
+  // A17/B3: signed out (no saved profile) the page is public: the rules and
+  // a blank letter, never the demo profile's loans.
+  if (!profile.isLive) return <CantPayPublic />;
 
   return (
     <LShell>
@@ -147,11 +150,16 @@ export function CantPay() {
                 <LField
                   label="Money you have for loan payments this month"
                   value={availableText}
-                  onChange={setAvailableText}
+                  onChange={(v) => { setAvailableTouched(true); setAvailableText(v); }}
                   onBlur={() => setAvailableText((v) => groupIN(v))}
                   inputMode="decimal"
                   prefix={ccy === 'INR' ? '₹' : '$'}
-                  hint={`Your take-home minus spending is ${fc(leftBeforeEmis)}. Due this month: ${fc(due)}.`}
+                  testId="cp-available"
+                  hint={
+                    availableTouched || !fromProfile
+                      ? `Your take-home minus spending is ${fc(leftBeforeEmis)}. Due this month: ${fc(due)}.`
+                      : `Filled from your profile (take-home minus spending). Change it if this month is different. Due this month: ${fc(due)}.`
+                  }
                 />
               </div>
               <ol style={{ paddingLeft: 18, margin: '14px 0 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -159,18 +167,29 @@ export function CantPay() {
                   <li key={l.key} data-testid="cp-protect-row" style={{ fontSize: 12, lineHeight: 1.6 }}>
                     <strong>{l.label}</strong>: {fc(l.required)}
                     {l.loan_type === 'credit_card' ? ' (minimum due)' : ''} ·{' '}
-                    <span style={{ color: l.covered === 'full' ? L_T.positive : L_T.negative }}>
+                    {!hasAvailable ? (
+                      <span style={{ color: L_T.muted }} data-testid="cp-protect-status">enter what you have above</span>
+                    ) : (
+                    <span data-testid="cp-protect-status" style={{ color: l.covered === 'full' ? L_T.positive : L_T.negative }}>
                       {l.covered === 'full'
                         ? 'COVERED'
                         : l.covered === 'part'
                           ? `PAY ${fc(l.pay)}, ${fc(l.short)} SHORT`
                           : `${fc(l.short)} SHORT`}
                     </span>
+                    )}
                     <div style={{ color: L_T.muted, fontSize: 11 }}>{l.reason}</div>
                   </li>
                 ))}
               </ol>
-              {available < due && (
+              {hasAvailable && available < due && !isIN && (
+                <p style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.7, marginTop: 12 }}>
+                  For anything short: call or write to the lender <em>before</em> the due date (letter below) and ask for its
+                  hardship program. A payment that fails on autopay can add a returned-payment fee, so ask first. A longer term
+                  lowers the payment: try it on <LBracket href="/plan#tenure-what-if">PLAN → LONGER TERM WHAT-IF</LBracket>.
+                </p>
+              )}
+              {hasAvailable && available < due && isIN && (
                 <p style={{ fontSize: 11, color: L_T.muted, lineHeight: 1.7, marginTop: 12 }}>
                   For anything short: tell the lender <em>before</em> the due date (letter below). If the EMI is
                   auto-debited (NACH, a standing bank mandate), a failed debit adds the bank&apos;s return charge on top,
@@ -183,9 +202,19 @@ export function CantPay() {
           )}
         </section>
 
-        <MissCostSection lines={order} fc={fc} />
-        <LetterSection lines={order} name={profile.user.display_name ?? ''} fc={fc} />
+        {isIN && <MissCostSection lines={order} fc={fc} />}
+        <LetterSection lines={order} name={profile.user.display_name ?? ''} fc={fc} country={isIN ? 'IN' : 'US'} step={isIN ? 3 : 2} />
 
+        {!isIN && (
+          <section aria-labelledby="cp-rights" data-testid="cp-rights">
+            <LSectionHeader step={3}>
+              <span id="cp-rights">YOUR RIGHTS WITH DEBT COLLECTORS</span>
+            </LSectionHeader>
+            <Rule r={US_COLLECTOR_RULE} />
+          </section>
+        )}
+        {isIN && (<>
+        <AgentComplaintSection name={profile.user.display_name ?? ''} lines={order} />
         <section aria-labelledby="cp-rights" data-testid="cp-rights">
           <LSectionHeader step={4}>
             <span id="cp-rights">YOUR RIGHTS WITH RECOVERY AGENTS</span>
@@ -211,16 +240,17 @@ export function CantPay() {
             RightDue earns nothing from lenders or settlement firms.
           </p>
         </section>
+        </>)}
 
         <p style={{ fontSize: 10, color: L_T.muted }}>
-          Rules checked against the RBI text on {TRIAGE_VERIFIED_ON}. A calculator and a draft, not legal advice.
+          {isIN ? <>Rules checked against the RBI text on {TRIAGE_VERIFIED_ON}.</> : <>Collector rules from the CFPB&apos;s Regulation F, read 14 Oct 2026.</>} A calculator and a draft, not legal advice.
         </p>
       </div>
     </LShell>
   );
 }
 
-function Rule({ r }: { r: TriageRule }) {
+export function Rule({ r }: { r: TriageRule }) {
   return (
     <LCardPaper>
       <div style={{ fontSize: 12, fontWeight: 700 }}>{r.title}</div>
@@ -236,7 +266,7 @@ function Rule({ r }: { r: TriageRule }) {
   );
 }
 
-type Line = TriageLine & { bank: string; floating: boolean };
+export type Line = TriageLine & { bank: string; floating: boolean };
 
 /** Both loan pickers start on the same loan: the first one this month leaves short, else the first (C-07). */
 function defaultKey(lines: Line[]): string {
@@ -342,7 +372,22 @@ function MissCostSection({ lines, fc }: { lines: Line[]; fc: (v: number) => stri
   );
 }
 
-function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (v: number) => string }) {
+export function LetterSection({
+  lines,
+  name,
+  fc,
+  country = 'IN',
+  step = 3,
+  loanPicker,
+}: {
+  lines: Line[];
+  name: string;
+  fc: (v: number) => string;
+  country?: 'IN' | 'US';
+  step?: number;
+  /** Public page: the user picks the kind of loan instead of a saved one. */
+  loanPicker?: ReactNode;
+}) {
   const [key, setKey] = useState('');
   const [reason, setReason] = useState('');
   const [canPayText, setCanPayText] = useState<string | null>(null);
@@ -371,6 +416,7 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
     asks,
     floating: pick.floating,
     dateText: today,
+    country,
   });
   const letter = edited ?? draft;
   const subject = `Request for hardship relief on my ${pick.label}${accountRef.trim() ? `, account ${accountRef.trim()}` : ''}`;
@@ -406,9 +452,10 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
   const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(letter)}`;
   return (
     <section aria-labelledby="cp-letter" data-testid="cp-letter">
-      <LSectionHeader step={3}>
+      <LSectionHeader step={step}>
         <span id="cp-letter">ASK YOUR LENDER FOR HELP (LETTER)</span>
       </LSectionHeader>
+      {loanPicker ?? (
       <label style={{ display: 'block', marginBottom: 10 }}>
         <span style={captionStyle}>Loan for the letter</span>
         <select value={pick.key} onChange={(e) => { setKey(e.target.value); setLenderText(null); setCanPayText(null); }} style={selectStyle} data-testid="cp-letter-loan">
@@ -419,8 +466,9 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
           ))}
         </select>
       </label>
+      )}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <LField label="Lender" value={lender} onChange={setLenderText} placeholder="e.g. HDFC Bank" />
+        <LField label="Lender" value={lender} onChange={setLenderText} placeholder={country === 'US' ? 'e.g. Chase' : 'e.g. HDFC Bank'} />
         <LField label="Your name" value={nameText} onChange={setNameText} placeholder="as on the loan" />
         <LField label="Reason (short and true)" value={reason} onChange={setReason} />
         <LField
@@ -429,7 +477,8 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
           onChange={setCanPayText}
           onBlur={() => setCanPayText(groupIN(canPay))}
           inputMode="decimal"
-          prefix="₹"
+          prefix={country === 'US' ? '$' : '₹'}
+          placeholder=""
           testId="cp-canpay"
         />
         <LField label="Loan account number" value={accountRef} onChange={setAccountRef} />
@@ -439,7 +488,7 @@ function LetterSection({ lines, name, fc }: { lines: Line[]; name: string; fc: (
         {(Object.keys(HARDSHIP_ASK_TEXT) as HardshipAsk[]).map((a) => (
           <label key={a} className="l-check-row">
             <input type="checkbox" checked={asks.includes(a)} onChange={() => toggle(a)} />
-            <span>{HARDSHIP_ASK_TEXT[a]}</span>
+            <span>{(country === 'US' ? US_ASK_TEXT : HARDSHIP_ASK_TEXT)[a]}</span>
           </label>
         ))}
       </fieldset>

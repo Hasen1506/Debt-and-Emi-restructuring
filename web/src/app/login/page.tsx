@@ -17,6 +17,7 @@ import { RESEND_COOLDOWN_S, wakeProgress } from '@/lib/wake-progress';
 import { TURNSTILE_SITE_KEY, TurnstileBox } from '@/components/auth/Turnstile';
 import { PRIVACY_PATH, TERMS_PATH } from '@/lib/privacy-facts';
 import { GOOGLE_CONFIG_PATH, googleStartHref } from '@/lib/google-signin';
+import { LOGIN_COPY, START_PREVIEW, START_STEPS, loginFrame } from '@/lib/login-frame';
 
 // The free-plan API sleeps when idle and can take over a minute to start.
 const STARTING_RETRIES = 12;
@@ -27,6 +28,9 @@ type Phase = 'email' | 'code';
 export default function LoginPage() {
   const params = useSearchParams();
   const next = params.get('next');
+  // B1: framed as step 1 of a free plan when on the way to Setup.
+  const frame = loginFrame(next, params.get('start'));
+  const copy = LOGIN_COPY[frame];
   const redirectTo = typeof window === 'undefined' ? '/' : safeRedirect(next, window.location.origin);
 
   const [phase, setPhase] = useState<Phase>('email');
@@ -222,12 +226,27 @@ export default function LoginPage() {
 
   return (
     <section style={card}>
-      <h1 style={title}>Sign in</h1>
-      <p style={subtitle}>
-        {phase === 'email'
-          ? <>We&rsquo;ll email you a 6-digit code. No passwords.</>
-          : <>Enter the 6-digit code we emailed you.</>}
+      {frame === 'start' && (
+        <ol aria-label="Steps to your plan" data-testid="login-stepper" style={stepper}>
+          {START_STEPS.map((s, i) => (
+            <li key={s} aria-current={i === 0 ? 'step' : undefined} style={{ ...stepItem, color: i === 0 ? 'var(--ink)' : 'var(--muted)', fontWeight: i === 0 ? 700 : 400 }}>
+              {i + 1} {s}
+            </li>
+          ))}
+        </ol>
+      )}
+      <h1 style={title} data-testid="login-title">{copy.title}</h1>
+      <p style={subtitle} data-testid="login-sub">
+        {phase === 'email' ? copy.sub : copy.code}
       </p>
+      {frame === 'start' && phase === 'email' && (
+        <div data-testid="login-preview" style={{ margin: '0 0 18px', fontSize: 13, lineHeight: 1.55 }}>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>In about two minutes you&rsquo;ll see:</div>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            {START_PREVIEW.map((l) => <li key={l}>{l}</li>)}
+          </ul>
+        </div>
+      )}
 
       {phase === 'email' && (
         <form onSubmit={onRequest} style={form}>
@@ -312,6 +331,10 @@ export default function LoginPage() {
         </form>
       )}
 
+      <p style={{ ...infoText, fontSize: 12 }} data-testid="login-cant-pay">
+        Behind on a payment, or getting recovery calls? <a href="/cant-pay">Your rights and a letter to your lender</a>, no sign-in needed.
+      </p>
+
       {wake?.show && (
         <div role="status" aria-live="polite" style={{ marginTop: 14 }}>
           <p style={{ ...infoText, marginTop: 0 }}>{wake.message}</p>
@@ -344,6 +367,8 @@ const card: React.CSSProperties = {
   borderRadius: 0,
 };
 const title: React.CSSProperties = { margin: 0, fontSize: 22, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' };
+const stepper: React.CSSProperties = { listStyle: 'none', display: 'flex', flexWrap: 'wrap', gap: '4px 12px', padding: 0, margin: '0 0 12px', fontSize: 12, fontFamily: 'var(--font-mono)' };
+const stepItem: React.CSSProperties = { whiteSpace: 'nowrap' };
 const subtitle: React.CSSProperties = { color: 'var(--muted)', marginTop: 4, marginBottom: 20, fontSize: 14 };
 const form: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14 };
 const label: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--muted)' };
