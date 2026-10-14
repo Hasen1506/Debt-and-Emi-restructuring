@@ -69,7 +69,8 @@ test('NEW-3/NEW-4: an EMI at or below the monthly interest is blocked with the n
 
 test('NEW-2/NEW-3: Plan never prints unbounded totals', () => {
   const plan = src('components/plan/LedgerPlan.tsx');
-  assert.match(plan, /MINIMUMS ALONE NEVER CLEAR IT'\n\s+: interestSaved >= 1 && sane\(interestSaved\)/);
+  // Audit 80 B4: the minimums comparison moved into the worst-case expander, still bounded.
+  assert.match(plan, /minimumsNeverClear\n\s+\? 'Paying only the minimums never clears these loans\.'\n\s+: `Paying only the minimums would cost \$\{interestSaved >= 1 && sane\(interestSaved\)/);
   assert.match(plan, /return <NeverClears plan=\{plan\} fc=\{fc\} \/>/);
   assert.match(plan, /never repaid: it grows without limit/);
   const tw = src('components/plan/TenureWhatIf.tsx');

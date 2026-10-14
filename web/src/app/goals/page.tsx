@@ -6,6 +6,7 @@
  * would need a loan to make its date.
  */
 
+import { FirstVisitIntro } from '@/components/FirstVisitIntro';
 import { loadCurrentProfileServer } from '@/lib/user-store';
 import { api } from '@/lib/api';
 import { GoalsPage as GoalLedger } from '@/components/goals/GoalsPage';
@@ -42,10 +43,10 @@ export default async function GoalsPage() {
       <h1 className="sr-only">Goals and tools</h1>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
         {/* What this page is for, in one line (each tab opens with one) */}
-        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <FirstVisitIntro id="goals" style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
           What you&apos;re saving for, and a tool for each one-off decision: a bonus,
           a new loan, selling something, or investing instead of prepaying.
-        </p>
+        </FirstVisitIntro>
         <GoalLedger user={profile.user} lowestRates={rates} />
         <ToolsList user={profile.user} />
       </div>

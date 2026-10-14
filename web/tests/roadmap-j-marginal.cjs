@@ -96,7 +96,8 @@ test('"why this loan first": the breakdown on Home, same words as the engine', (
   assert.match(lines[1].label, /GST/);
   const home = src('components/home/HomeDebtFree.tsx');
   assert.match(home, /userMarginalCosts\(plan\.user, plan\.marginalRate\)/);
-  assert.match(home, /whyFirst\(mc\)/);
+  // Audit 80 B13/E2: Home states the one all-in figure; the breakdown is behind WHY.
+  assert.match(home, /whyFirstShort\(mc\.total, target\.nominal\)/);
   const py = fs.readFileSync(path.resolve(__dirname, '../../engine/marginal_cost.py'), 'utf8');
   for (const w of ['The next payment here saves', 'interest (compounded monthly)', 'GST on it', "tax break you'd give up", 'prepayment fee', 'locked against prepayment for']) {
     assert.ok(py.includes(w) && src('lib/marginal-cost.ts').includes(w), w);

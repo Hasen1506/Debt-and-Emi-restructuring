@@ -6,6 +6,7 @@
  * holds the three orders side by side (R6.3), worked out on the server and
  * passed in; it is left out when there's no debt to order.
  */
+import { PrivacyPromise } from '@/components/PrivacyPromise';
 import { useEffect, type ReactNode } from 'react';
 import { formatTaxRate } from '@/lib/tax-profile';
 import Decimal from 'decimal.js';
@@ -280,10 +281,8 @@ export function ProfileSummary({
         <LSectionHeader step={payoffOrder ? 9 : 8}>
           <span id="pf-privacy">Privacy</span>
         </LSectionHeader>
-        <p style={{ margin: 0, color: L_T.muted, lineHeight: 1.6 }}>
-          Your details stay in this browser, and in your account if you sign in. The engine sees them only to work
-          out your plan.
-        </p>
+        {/* Audit 80 B8: the one in-app wording. */}
+        <PrivacyPromise style={{ color: L_T.muted }} />
       </section>
     </div>
   );

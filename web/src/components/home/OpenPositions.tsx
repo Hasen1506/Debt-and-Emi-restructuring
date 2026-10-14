@@ -7,6 +7,7 @@
  * A row opens to how that cost is worked out. The loan an extra payment
  * goes to first by cost is flagged DEAREST. Replaces the separate Debts page.
  */
+import { Term } from '@/components/Term';
 import { localTerms, paymentWords } from '@/lib/terms';
 import { useState } from 'react';
 import type { StoredProfile } from '@/lib/user-store';
@@ -83,10 +84,12 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
               // No fees, GST or tax saving: one rate.
               <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>
             ) : (
+              // Audit 80 B13/E2: the statement's rate first, the one all-in
+              // figure second (lib/card-rate), no arrow implying the user's
+              // number was wrong.
               <>
-                {fmtPct(d.nominal)} →{' '}
-                <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.effective)}</span>{' '}
-                A YEAR
+                <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.nominal)} A YEAR</span>{' '}
+                · ABOUT {fmtPct(d.effective)} {d.effective.lt(d.nominal) ? 'AFTER THE TAX BREAK' : <Term id="cost_a_year">ALL-IN</Term>}
               </>
             ),
             gaps.includes('emi') ? (
@@ -95,7 +98,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
               `${isCard ? 'MINIMUM' : emiTag} ${fc(d.required.toFixed(0))}`
             ) : null,
             // Once this month's EMI is paid it's no longer one of the months left.
-            isCard ? 'REVOLVING' : months > 0 ? `${now.rows[d.index]?.status === 'paid' ? months - 1 : months} MO LEFT` : null,
+            isCard ? <Term key="rev" id="revolving">REVOLVING</Term> : months > 0 ? `${now.rows[d.index]?.status === 'paid' ? months - 1 : months} MO LEFT` : null,
           ].filter(Boolean);
           return (
             <li
@@ -117,7 +120,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
                   {name.charAt(0).toUpperCase() + name.slice(1)}
                   {isDearest && (
                     <span style={{ marginLeft: 8, fontSize: 10, letterSpacing: '0.12em', color: L_T.negative }}>
-                      · DEAREST
+                      · COSTLIEST
                     </span>
                   )}
                 </div>

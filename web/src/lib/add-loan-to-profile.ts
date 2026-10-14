@@ -12,6 +12,7 @@ import { likelyRateType } from './rate-type';
 import { applyActivityDeltas, parseActivityDeltas } from './activity-cookie';
 import { loanToUser } from './currency';
 import { loadProfileClient, saveProfileClient } from './user-store';
+import { disambiguateLoans } from './loan-types';
 import type { Country, LoanPayload, LoanType } from './api';
 import { userDefaultCurrency, type CurrencyCode } from './currency';
 import { nextMonth, rollBalancesForward } from './roll-forward';
@@ -95,7 +96,8 @@ export function addLoanToProfile(input: AddLoanInput): number | null {
   if (foreign && !(Number(fx[foreign]) > 0)) fx[foreign] = input.fx_to_user!;
   const nextUser = {
     ...profile.user,
-    loans: [...profile.user.loans, newLoan],
+    // Audit 80 E3: a second card with no lender becomes Card 2, not a twin.
+    loans: disambiguateLoans([...profile.user.loans, newLoan]),
     ...(foreign ? { fx_to_user_currency: fx } : {}),
   };
   const ok = saveProfileClient({

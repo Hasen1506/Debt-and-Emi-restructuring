@@ -11,6 +11,7 @@
  * The notes Activity used to carry (the real rate of the dearest loan,
  * the monthly surplus) are on Home now; a generic no-cost-EMI tip went.
  */
+import { ALL_IN } from '@/lib/card-rate';
 import type { ReactNode } from 'react';
 import Decimal from 'decimal.js';
 import type { PlanData } from './PlanData';
@@ -66,10 +67,12 @@ function buildNotes(plan: PlanData): Note[] {
     notes.push({
       eyebrow: 'PREPAY OR SAVE',
       title:
+        // Audit 80 B13/E2: the loan's one all-in rate against the saving
+        // rate, never their difference shown as if it were a rate.
         r.verdict === 'prepay'
-          ? `Paying off the ${loanName(top.loan)} earns ${gap} a year more than ${best.name}`
+          ? `Paying off the ${loanName(top.loan)} (about ${fmtPct(top.mc.annualCost)} ${ALL_IN}) beats ${best.name} (${pct(best.afterTaxEffective)} after tax)`
           : r.verdict === 'invest_safe'
-            ? `${best.name} earns ${gap} a year more than paying off the ${loanName(top.loan)}`
+            ? `${best.name} (${pct(best.afterTaxEffective)} after tax) beats paying off the ${loanName(top.loan)} (about ${fmtPct(top.mc.annualCost)} ${ALL_IN})`
             : `Paying off the ${loanName(top.loan)} and ${best.name} come out about even`,
       body:
         r.verdict === 'prepay'
@@ -78,7 +81,7 @@ function buildNotes(plan: PlanData): Note[] {
             ? 'This loan is cheap enough that a safe saving rate beats it after tax. The plan still pays it down; the tool shows what parking the cash instead would do.'
             : 'Within half a point either way. Paying the loan is certain; saving keeps the cash to hand.',
       math: [
-        { k: `${cap(loanName(top.loan))}, cost a year`, v: fmtPct(top.mc.annualCost), note: 'compounded monthly, after tax' },
+        { k: `${cap(loanName(top.loan))}, cost a year ${ALL_IN}`, v: fmtPct(top.mc.annualCost), note: 'compounded monthly, after tax' },
         {
           k: `${best.name}, after tax`,
           v: pct(best.afterTaxEffective),

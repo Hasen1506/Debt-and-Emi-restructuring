@@ -315,10 +315,9 @@ export function Field({
           kind === 'decimal' || isPercent || isMoney ? 'decimal' : kind === 'integer' ? 'numeric' : 'text'
         }
         autoComplete={kind === 'text' || isMoney ? 'off' : undefined}
-        placeholder={
-          placeholder ??
-          (isMoney ? (currency === 'INR' ? 'e.g. 1,50,000' : 'e.g. 15,000') : undefined)
-        }
+        // Audit 80 B7: no made-up default for money fields (a ₹1.5 lakh
+        // example read as "typical"); callers pass one of the right scale.
+        placeholder={placeholder}
         list={list}
         style={{
           padding: '8px 10px',

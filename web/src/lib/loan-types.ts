@@ -56,3 +56,40 @@ export function loanLabel(l: { bank?: string | null; loan_type: LoanType; nickna
 export function loanName(l: { bank?: string | null; loan_type: LoanType; nickname?: string | null }): string {
   return loanNickname(l) || bankAndType(l);
 }
+
+/** Short names for an automatic label: "Card 1", "Personal loan 2" (E3). */
+const AUTO_LABEL: Record<LoanType, string> = {
+  home_loan: 'Home loan',
+  auto_loan: 'Car loan',
+  personal_loan: 'Personal loan',
+  credit_card: 'Card',
+  education_loan: 'Education loan',
+  gold_loan: 'Gold loan',
+  bnpl: 'BNPL',
+};
+
+/**
+ * Audit 80 E3: three cards with no lender all read "Credit card" on Home,
+ * Activity and Plan, and the plan's "put ₹400 extra on your credit card"
+ * couldn't say which. Any loan whose label would repeat, and that has no
+ * nickname of its own, gets "Card 1 / 2 / 3" (in the order entered) as its
+ * nickname. A lender or nickname the user typed is never replaced, and a
+ * label that is already unique is left alone. Pure; returns new objects only
+ * for the loans it names.
+ */
+export function disambiguateLoans<T extends { bank?: string | null; loan_type: LoanType; nickname?: string | null }>(loans: T[]): T[] {
+  const count = new Map<string, number>();
+  for (const l of loans) count.set(loanLabel(l), (count.get(loanLabel(l)) ?? 0) + 1);
+  const taken = new Set(loans.map((l) => loanNickname(l)).filter(Boolean));
+  const seen = new Map<LoanType, number>();
+  return loans.map((l) => {
+    if ((count.get(loanLabel(l)) ?? 0) < 2 || loanNickname(l)) return l;
+    let n = (seen.get(l.loan_type) ?? 0) + 1;
+    // The lender, if any, still shows beside it: "Card 1 (HDFC credit card)".
+    const name = (k: number) => `${AUTO_LABEL[l.loan_type]} ${k}`;
+    while (taken.has(name(n))) n++;
+    seen.set(l.loan_type, n);
+    taken.add(name(n));
+    return { ...l, nickname: name(n) };
+  });
+}

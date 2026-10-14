@@ -58,7 +58,8 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     const main = page.locator('#main');
     await expect(main.getByText('NOV 2030').first()).toBeVisible();
     await expect(main.getByText('₹8,56,170').first()).toBeVisible();
-    await expect(main.getByText('₹22,39,836 LESS THAN MINIMUMS')).toBeVisible();
+    // Audit 80 B4: the minimums figure moved into the worst-case expander.
+    await expect(main.getByTestId('plan-worst-case')).toContainText('₹22,39,836 more interest');
     expect(await planText(page)).toMatchSnapshot('india-plan-schedule.txt');
   });
 

@@ -12,6 +12,7 @@
  * date and payments are streamed in by the page.
  */
 
+import { FirstVisitIntro } from '@/components/FirstVisitIntro';
 import { localTerms } from '@/lib/terms';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { formatTaxRate } from '@/lib/tax-profile';
@@ -41,7 +42,7 @@ import {
 import { OpenPositions } from './OpenPositions';
 import { useOwedNow } from '@/lib/owed-now';
 import { ToolStrip } from '@/components/goals/ToolsList';
-import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { LOAN_TYPE_NAME, loanLabel } from '@/lib/loan-types';
 
 /** The plan's debt-free date and caption, streamed in by the page. */
 export interface DebtFreeSlot {
@@ -88,6 +89,7 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
 
   // A loan with no rate or EMI on file: no rates until it's added.
   const gaps = projectionGaps(profile.user);
+  const costliest = m.loans.filter((l) => l.outstanding.gt(0)).reduce<(typeof m.loans)[number] | null>((a, l) => (!a || l.effective.gt(a.effective) ? l : a), null);
   const fxMissing = m.fxMissing.length > 0;
   const totalNow = m.loans.reduce((s, d) => s.add(m.toUserCcy(owedRows[d.index]?.owed ?? d.outstanding, d.loan)), m.totalOutstanding.mul(0));
 
@@ -103,9 +105,9 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
         }}
       >
         {/* What this page is for, in one line (each tab opens with one) */}
-        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
+        <FirstVisitIntro id="home" style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: L_T.inkSoft }}>
           Your month on one page: what comes in and goes out, what to pay now, and every loan you have.
-        </p>
+        </FirstVisitIntro>
         {insights}
         {thisMonth}
         <ContextLine profile={profile} />
@@ -135,9 +137,11 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
                       s: "AT TODAY'S BALANCES AND RATES",
                       tone: L_T.negative,
                     },
-              gaps.length > 0
-                ? { l: 'COST OF DEBT', v: '—', s: 'ADD YOUR LOAN DETAILS' }
-                : { l: 'COST OF DEBT', v: `${fmtPct(m.blendedEffective)}/YR`, s: 'AVERAGE · COMPOUNDED, AFTER TAX' },
+              // Audit 80 B13: no average rate across a card and a loan (it
+              // answers no decision); the costliest loan's own rate instead.
+              gaps.length > 0 || !costliest
+                ? { l: 'COSTLIEST', v: '—', s: 'ADD YOUR LOAN DETAILS' }
+                : { l: 'COSTLIEST', v: `${fmtPct(costliest.nominal)}/YR`, s: `${loanLabel(costliest.loan).toUpperCase()} · ABOUT ${fmtPct(costliest.effective)} ALL-IN` },
             ]}
           />
         </section>

@@ -7,6 +7,7 @@
  * card dates, fees, holdings) lives in Profile, and is kept untouched when a
  * saved profile is edited here.
  */
+import { LIKELY_HOW, LIKELY_LABEL, SAME_AS_LIKELY_NOTE, WORST_CASE_LABEL, likelySaving, likelySavingText } from '@/lib/savings-baseline';
 import { engineRequests, isAbortError, PREVIEW_DEBOUNCE_MS } from '@/lib/engine-requests';
 import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { SAFE_RATES } from '@/lib/invest-vs-prepay';
@@ -53,7 +54,7 @@ import { SetupChoices } from '@/components/setup/SetupChoices';
 import { InsightsPanel } from '@/components/insights/InsightsPanel';
 import { orderChoice, type PlanInsights } from '@/lib/insights';
 import { SetupImportCard } from '@/components/setup/SetupImportCard';
-import { applyChoices, choicesFrom, missingChoices, type SetupChoices as Choices } from '@/lib/setup-choices';
+import { applyChoices, choicesFrom, missingChoices, startingChoices, type SetupChoices as Choices } from '@/lib/setup-choices';
 import { emiFromMonths, marginalRateFromTakeHome } from '@/lib/quick-setup';
 import { setupExtraMove } from '@/lib/setup-this-month';
 import { estimateBalance, monthsSince, typicalRate, TYPICAL_RATE_AS_OF, withEstimate } from '@/lib/setup-estimates';
@@ -62,6 +63,9 @@ import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIs
 import { loadProfileClient, type StoredProfile } from '@/lib/user-store';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward, stampBalanceDates, prepareLoanPaymentTiming } from '@/lib/roll-forward';
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
+import { disambiguateLoans } from '@/lib/loan-types';
+import { balancePlaceholder, emiPlaceholder } from '@/lib/placeholders';
+import { PRIVACY_PROMISE } from '@/components/PrivacyPromise';
 import { HYDRATED_EVENT, flushPendingState, signedInAccount } from '@/lib/server-sync';
 import { ONBOARDING_DONE_HREF } from '@/lib/onboarding-save';
 import { LAST_SEEN_KEY } from '@/lib/guest-return';
@@ -117,6 +121,8 @@ type FxQuote = FxRateResponse | 'loading' | 'failed';
 interface Preview {
   plan: SimulateResponse;
   minimums: SimulateResponse;
+  /** B4/A22: the same total, smallest first: what they'd likely do without RightDue. */
+  likely: SimulateResponse | null;
   loans: LoanPayload[];
   /** What the engine ran on (R10-4: Home's whole-rupee split reads it). */
   planUser: UserPayload;
@@ -195,7 +201,7 @@ export function QuickSetup() {
 
   const [preview, setPreview] = useState<Preview | null>(null);
   // Choices only the person can make (lib/setup-choices, grill #22).
-  const [choices, setChoices] = useState<Choices>({ efMonths: null, efSplit: null, strategy: null });
+  const [choices, setChoices] = useState<Choices>(startingChoices({ efMonths: null, efSplit: null, strategy: null }));
   const [choiceErrors, setChoiceErrors] = useState(false);
   // Audit 80+ A2: whether the payoff order changes anything for these loans.
   const [orderInfo, setOrderInfo] = useState<ReturnType<typeof orderChoice> | null>(null);
@@ -227,7 +233,7 @@ export function QuickSetup() {
         setLoans(addOne ? [...loansWithIds, blankLoan()] : loansWithIds.length > 0 ? loansWithIds : [blankLoan()]);
         if (addOne) setStep(1);
         setFxRates(u.fx_to_user_currency ?? {});
-        setChoices(choicesFrom(u, readEfSplitClient(), readStrategyClient()));
+        setChoices(startingChoices(choicesFrom(u, readEfSplitClient(), readStrategyClient())));
       }
       // UX50 B-10: what was typed in this tab before a Back, Forward or
       // reload comes back, on the step the URL names.
@@ -244,7 +250,7 @@ export function QuickSetup() {
         if (Array.isArray(d.loans)) setLoans(d.loans.length > 0 || draft.step === 2 ? d.loans : [blankLoan()]);
         setUi(d.ui ?? {});
         setFxRates(d.fxRates ?? {});
-        if (d.choices) setChoices(d.choices);
+        if (d.choices) setChoices(startingChoices(d.choices));
         setStep(Math.min(urlStep ?? draft.step, draft.step));
       }
       setReady(true);
@@ -574,12 +580,20 @@ export function QuickSetup() {
           : undefined,
     };
     const baselineArgs = { user: planUser, horizon_months: HORIZON_MONTHS };
+    const likelyArgs = { ...simArgs, strategy: 'snowball' as const };
     const timer = setTimeout(() => {
       Promise.all([
         engineRequests.run('simulate', simArgs, (signal) => api.simulate(simArgs, { signal }), controller.signal),
         engineRequests.run('baseline', baselineArgs, (signal) => api.baseline(baselineArgs, { signal }), controller.signal),
+        // A failed likely-baseline run never blocks the preview: the row says "—".
+        engineRequests
+          .run('simulate', likelyArgs, (signal) => api.simulate(likelyArgs, { signal }), controller.signal)
+          .catch((e) => {
+            if (isAbortError(e)) throw e;
+            return null;
+          }),
       ])
-        .then(([plan, minimums]) => live && setPreview({ plan, minimums, loans: user.loans, planUser, simArgs }))
+        .then(([plan, minimums, likely]) => live && setPreview({ plan, minimums, likely, loans: user.loans, planUser, simArgs }))
         .catch((e) => {
           if (!live || isAbortError(e)) return;
           setPreviewError("The plan couldn't be worked out just now. You can still save, and Home will try again.");
@@ -694,7 +708,8 @@ export function QuickSetup() {
     const built = dateProfileRates(buildUser(), current.isLive ? current.user : null, quotes, Date.now());
     // Date changed balances today; preserve the anchor when only other fields changed.
     const asOf = localIsoDate(getCountryToday(built.country));
-    const user = { ...built, loans: stampBalanceDates(built.loans, current.user.loans, asOf) };
+    // Audit 80 E3: identical rows (three cards with no lender) get Card 1/2/3.
+    const user = { ...built, loans: disambiguateLoans(stampBalanceDates(built.loans, current.user.loans, asOf)) };
     const ok = saveProfileWithPaidEmis({ ...current, user, marginalRate: marginal().rate }, asOf);
     if (!ok) {
       setSaving(false);
@@ -757,8 +772,8 @@ export function QuickSetup() {
             ) : (
               // UX50 E-11: the notice at the time the figures are asked for (DPDP s.5).
               <>
-                Your numbers stay in this browser. They&apos;re sent to our server only to work out your plan, and
-                aren&apos;t stored there unless you sign in and save. You can change them any time in Profile.{' '}
+                {/* Audit 80 B8: the one in-app wording (components/PrivacyPromise). */}
+                {PRIVACY_PROMISE} You can change them any time in Profile.{' '}
                 <a href="/privacy" style={{ color: L_T.accent }} data-testid="setup-privacy-line">Privacy notice →</a>
               </>
             )}
@@ -1231,7 +1246,7 @@ function LoanBlock({
           kind="money"
           currency={ccy}
           value={loan.outstanding}
-          placeholder={ccy === 'INR' ? (card ? 'e.g. 1,50,000' : 'e.g. 25,00,000 or 25L') : card ? 'e.g. 5,000' : 'e.g. 250,000'}
+          placeholder={balancePlaceholder(loan.loan_type, ccy)}
           onChange={(v) => onPatch({ outstanding: v, estimated_fields: withEstimate(loan, 'balance', false).estimated_fields })}
           hint={estimated.has('balance') ? 'An estimate from what you borrowed. Replace it with your statement’s figure when you can.' : undefined}
           error={issues.balance}
@@ -1261,6 +1276,7 @@ function LoanBlock({
             kind="money"
             currency={ccy}
             value={loan.scheduled_emi}
+            placeholder={emiPlaceholder(loan.loan_type, ccy)}
             onChange={(v) => onPatch({ scheduled_emi: v })}
             hint={
               emiTooSmall
@@ -1484,7 +1500,7 @@ function PlanPreview({
   }
   if (error) return <p role="alert" style={{ color: L_T.negative, margin: 0 }}>{error}</p>;
   if (!preview) return <PreviewWaiting />;
-  const { plan, minimums, loans, planUser } = preview;
+  const { plan, minimums, likely, loans, planUser } = preview;
   const shortfall = new Decimal(plan.shortfall || 0);
   // Month m of the plan is the m-th payment, as Home and Plan count it.
   const freeIn = (m: number) => (m <= 1 ? 'this month' : `in ${monthsSpan(m)}`);
@@ -1534,23 +1550,27 @@ function PlanPreview({
     : plan.debt_free_month == null && insane
       ? ['Interest you’ll pay', '—', 'doesn’t clear at these figures']
       : ['Interest you’ll pay', money(plan.total_interest_paid), 'over the whole plan'];
-  // UX50 B-04: paying only the minimums is the most a plan can save, not
-  // what it saves most people; said so, under its own name.
+  // Audit 80 B4/A22/E4: the headline saving is against what they'd likely
+  // do without RightDue (lib/savings-baseline), the same baseline as the
+  // landing page. Paying only the minimums is the worst case, in an expander.
+  const likelyS = likely
+    ? likelySaving(
+        { debtFreeMonth: plan.debt_free_month ?? null, totalInterest: plan.total_interest_paid },
+        { debtFreeMonth: likely.debt_free_month ?? null, totalInterest: likely.total_interest_paid },
+      )
+    : null;
   const rows: Array<[string, ReactNode, string?]> = [
     debtFreeRow,
     interestRow,
     short
-      ? ['Vs paying only minimums', '—', 'needs a payoff date first']
-      : [
-          'Vs paying only minimums',
-          interestSaved.gt(0) ? `${money(interestSaved)} less` : 'about the same',
-          minimums.debt_free_month == null
-            ? 'minimums alone never clear it'
-            : monthsSaved && monthsSaved > 0
-              ? `${monthsSpan(monthsSaved)} sooner · the most a plan can save, not a typical saving`
-              : undefined,
-        ],
+      ? [LIKELY_LABEL, '—', 'needs a payoff date first']
+      : [LIKELY_LABEL, likelySavingText(likelyS, (v) => money(String(v))), likelyS?.same ? SAME_AS_LIKELY_NOTE : LIKELY_HOW],
   ];
+  const worstCase = short
+    ? null
+    : minimums.debt_free_month == null
+      ? 'Paying only the minimums never clears these loans.'
+      : `Paying only the minimums would cost ${interestSaved.gt(0) ? `${money(interestSaved)} more interest` : 'about the same interest'}${monthsSaved && monthsSaved > 0 ? ` and take ${monthsSpan(monthsSaved)} longer` : ''}. That is the most any plan could save, not a typical saving.`;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Audit 80+ A1/A5/A6: first on Step 3. The order doesn't change these cards. */}
@@ -1583,17 +1603,23 @@ function PlanPreview({
           ))}
         </tbody>
       </table>
+      {worstCase && (
+        <details data-testid="setup-worst-case" style={{ fontSize: 12, color: L_T.muted }}>
+          <summary style={{ cursor: 'pointer' }}>{WORST_CASE_LABEL}</summary>
+          <p style={{ margin: '6px 0 0', lineHeight: 1.55 }}>{worstCase}</p>
+        </details>
+      )}
       <div style={{ padding: '12px 14px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, ...lStrip('accent') }}>
         <div style={{ fontSize: 11, letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
         {move && moveLoan ? (
           <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-            Pay every {paymentWords(country).one} and card minimum, then put{' '}
+            {country === 'US' ? 'Make every payment' : `Pay every ${paymentWords(country).one}`} and card minimum, then put{' '}
             <strong>{money(String(move.extra), loanCurrency(moveLoan, country))}</strong> extra on your{' '}
             <strong>{moveLoan.bank ? `${moveLoan.bank} ` : ''}{LOAN_TYPE_NAME[moveLoan.loan_type]}</strong>.
           </div>
         ) : (
           <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-            Pay every {paymentWords(country).one} and card minimum. Nothing is left over for extra payments this month.
+            {country === 'US' ? 'Make every payment' : `Pay every ${paymentWords(country).one}`} and card minimum. Nothing is left over for extra payments this month.
           </div>
         )}
       </div>

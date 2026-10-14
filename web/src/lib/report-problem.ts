@@ -2,7 +2,9 @@
  * UX50 E-07: the "Report a problem" link. A mailto with the page and the
  * build, never any figures (the body has only what the user types).
  */
-export const SUPPORT_EMAIL = 'vijeya@rightdue.app';
+// Audit 80 B9: a role mailbox, not the founder's name. FOUNDER: create the
+// support@ alias (forwarding to the same inbox) before this ships.
+export const SUPPORT_EMAIL = 'support@rightdue.app';
 
 export function reportProblemHref(path: string, version?: string | null): string {
   // Only the path: a query string can carry figures (e.g. ?amount=).
