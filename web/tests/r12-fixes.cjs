@@ -20,6 +20,10 @@ const fresh = (name) => {
   return require(path.join(root, 'lib', name));
 };
 const src = (p) => fs.readFileSync(path.join(root, p), 'utf8');
+
+/** A back/forward-cache restore: pageshow with persisted true (R12-1 fix 2:
+ *  the first load's pageshow, persisted false, no longer ends a leave). */
+const bfcacheShow = () => Object.defineProperty(new Event('pageshow'), 'persisted', { value: true });
 const walk = (dir, ext) =>
   fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => {
     const p = path.join(dir, d.name);
@@ -45,10 +49,35 @@ test('R12-1: after an unprevented beforeunload, a new page-scoped request does n
     const p = pageScoped(async (signal) => { signals.push(signal); return 'me'; }, undefined, 10);
     await tick(150);
     assert.equal(signals.length, 0, 'not started while the page is leaving (WebKit would cut it off and log it)');
-    win.dispatchEvent(new Event('pageshow')); // back from the back/forward cache
+    win.dispatchEvent(bfcacheShow()); // back from the back/forward cache
     assert.equal(await p, 'me');
     assert.equal(signals.length, 1);
     assert.equal(signals[0].aborted, false, 'runs with a live signal');
+  } finally {
+    delete global.window;
+  }
+});
+
+test('R12-1 (main CI 38517942574): the first load\'s own pageshow, fired after the leave began, does not let requests out', async () => {
+  const win = new EventTarget();
+  global.window = win;
+  try {
+    const { pageScoped, isLeaving } = fresh('page-abort.ts');
+    // goto('/plan', commit) → leave 0–99 ms later → /plan's load + pageshow
+    // (persisted false) still fire while the next page loads.
+    win.dispatchEvent(new Event('beforeunload', { cancelable: true }));
+    await tick();
+    win.dispatchEvent(new Event('pageshow')); // persisted: undefined/false
+    const loadShow = Object.defineProperty(new Event('pageshow'), 'persisted', { value: false });
+    win.dispatchEvent(loadShow);
+    assert.equal(isLeaving(), true, 'still leaving');
+    let n = 0;
+    const p = pageScoped(async () => { n++; return 'me'; }, undefined, 10);
+    await tick(150);
+    assert.equal(n, 0, 'the masthead auth/me is held, not cut off');
+    win.dispatchEvent(bfcacheShow()); // a real restore does end it
+    assert.equal(await p, 'me');
+    assert.match(src('lib/page-abort.ts'), /addEventListener\('pageshow', \(e\) => \{\s*if \(\(e as PageTransitionEvent\)\.persisted\) leavingSince = 0;/);
   } finally {
     delete global.window;
   }
@@ -132,7 +161,7 @@ test('R12-1: with no leave under way the request runs at once; a cut-off retry s
     win.dispatchEvent(new Event('beforeunload', { cancelable: true }));
     await tick(120);
     assert.equal(n, 1);
-    win.dispatchEvent(new Event('pageshow'));
+    win.dispatchEvent(bfcacheShow());
     assert.equal(await q, 'again');
     // The source holds the first try too, not only the retry.
     const s = src('lib/page-abort.ts');

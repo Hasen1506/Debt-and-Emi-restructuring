@@ -17,6 +17,10 @@ for (const ext of ['.ts', '.tsx'])
   };
 const lib = (name) => require(path.join(root, 'lib', name));
 const src = (p) => fs.readFileSync(path.join(root, p), 'utf8');
+
+/** A back/forward-cache restore: pageshow with persisted true (R12-1 fix 2:
+ *  the first load's pageshow, persisted false, no longer ends a leave). */
+const bfcacheShow = () => Object.defineProperty(new Event('pageshow'), 'persisted', { value: true });
 const { scanApp, scanSource } = require('./lib/label-in-name.cjs');
 
 // Live re-test 10 fix round (R10-1..R10-4, Home interest vs Plan).
@@ -73,7 +77,7 @@ test('R10-3: one page signal, aborted on beforeunload/pagehide, renewed for late
     assert.equal(a2.aborted, true);
     // Let the leave settle (a plain Event's returnValue isn't a string):
     // a pageshow says the page is in use again.
-    win.dispatchEvent(new Event('pageshow'));
+    win.dispatchEvent(bfcacheShow());
     const b = pageSignal();
     assert.notEqual(b, a);
     assert.equal(b.aborted, false);

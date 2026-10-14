@@ -48,9 +48,13 @@ function install(): void {
     }, 0);
   });
   window.addEventListener('pagehide', abortNow);
-  // Back from the back/forward cache: this page is in use again.
-  window.addEventListener('pageshow', () => {
-    leavingSince = 0;
+  // Back from the back/forward cache: this page is in use again. Only a
+  // restore (persisted) counts: the first load's own pageshow also fires
+  // when /plan finishes loading *after* the person already left it (main
+  // CI 38517942574, WebKit: 4 auth/me cut off in 20 leaves), and clearing
+  // the leave then let its hydration requests out to be cut off and logged.
+  window.addEventListener('pageshow', (e) => {
+    if ((e as PageTransitionEvent).persisted) leavingSince = 0;
   });
 }
 

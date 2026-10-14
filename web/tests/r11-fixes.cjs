@@ -21,6 +21,10 @@ const fresh = (name) => {
 };
 const src = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
+/** A back/forward-cache restore: pageshow with persisted true (R12-1 fix 2:
+ *  the first load's pageshow, persisted false, no longer ends a leave). */
+const bfcacheShow = () => Object.defineProperty(new Event('pageshow'), 'persisted', { value: true });
+
 // Live re-test 11 fix round (R11-1, R11-2).
 
 const abortError = () => Object.assign(new Error('aborted'), { name: 'AbortError' });
@@ -124,7 +128,7 @@ test('R11-1: while an uncancelled leave is under way the re-ask waits (no new cu
     win.dispatchEvent(new Event('beforeunload', { cancelable: true }));
     await tick(40);
     assert.equal(m, 1);
-    win.dispatchEvent(new Event('pageshow'));
+    win.dispatchEvent(bfcacheShow());
     assert.equal(await q, 'back');
     assert.equal(m, 2);
     // The caller's own cancel during the wait ends it with an error.
