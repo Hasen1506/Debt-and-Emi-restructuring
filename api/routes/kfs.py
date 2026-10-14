@@ -70,6 +70,9 @@ def read(req: KfsReadRequest) -> dict:
             text = pdf_text(data, req.password or None)
         except KfsReadError as exc:
             kind = getattr(exc, "kind", "")
+            if kind == "busy":  # audit80 D15: one parse at a time
+                raise HTTPException(503, {"field": "pdf_base64", "message": str(exc), "kind": "busy"},
+                                    headers={"Retry-After": "60"})
             raise _fail("password" if kind in ("needs_password", "wrong_password") else "pdf_base64", str(exc))
         field = "pdf_base64"
     elif req.text and req.text.strip():

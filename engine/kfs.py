@@ -105,6 +105,9 @@ _PDF_MESSAGES = {
         "or type the figures in yourself."
     ),
     "timeout": "This PDF took too long to read. Paste the KFS text instead.",
+    # audit80 D15: refused before parsing, or another upload is being read.
+    "too_complex": "This PDF is too complex to read safely. Paste its text instead.",
+    "busy": "We're reading another file right now. Try again in a minute.",
 }
 
 

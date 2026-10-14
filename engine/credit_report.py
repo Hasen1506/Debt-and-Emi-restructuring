@@ -85,6 +85,9 @@ _PDF_MESSAGES = {
     "unreadable": "The PDF could not be read. Paste the report's text instead, or type your loans in.",
     "scan": "This PDF has no text to read; it looks like a scan or a photo. Download the PDF from the bureau again.",
     "timeout": "This report took too long to read. Paste its text instead.",
+    # audit80 D15: refused before parsing, or another upload is being read.
+    "too_complex": "This PDF is too complex to read safely. Paste its text instead.",
+    "busy": "We're reading another file right now. Try again in a minute.",
 }
 
 
