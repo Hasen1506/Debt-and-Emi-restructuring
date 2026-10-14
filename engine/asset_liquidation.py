@@ -135,8 +135,15 @@ def india_ltcg_tax(
     brokerage_rate: Decimal = D("0.015"),
     marginal_rate: Decimal | None = None,
     today: date | None = None,
+    resident: bool = True,
 ) -> tuple[Decimal, Decimal]:
     """Returns (net_proceeds, capital_gains_tax) for India real-estate sale.
+
+    `resident=False` (an NRI seller): the pre-23-Jul-2024 choice of 20% with
+    indexation is for resident individuals and HUFs only (second proviso to
+    1961 Act s.112(1)(a), carried into the 2025 Act), so a non-resident pays
+    12.5% without indexation. Source, read 2026-10-14:
+    https://www.incometaxindia.gov.in/w/tax-on-long-term-capital-gains%E2%80%8B
 
     Held 24 months or less: short-term, the gain is taxed at the slab rate
     (`marginal_rate`, which already includes surcharge and cess; derived
@@ -165,7 +172,7 @@ def india_ltcg_tax(
     purchase_fy = purchase_fy or _to_fy(asset.purchase_date)
     current_fy = current_fy or _to_fy(today)
 
-    if asset.purchase_date >= FINANCE_ACT_2024_CUTOFF:
+    if asset.purchase_date >= FINANCE_ACT_2024_CUTOFF or not resident:
         gain = max(D("0"), gross_proceeds - asset.purchase_price)
         ltcg_base = gain * LTCG_FLAT_RATE_POST_2024
     else:
@@ -764,6 +771,7 @@ def _proceeds_real_estate(
     taxable_income: Decimal,
     marginal_rate: Decimal,
     state: Optional[str],
+    resident: bool = True,
 ) -> ProceedsResult:
     """Real estate — defers to india_ltcg_tax (short-term at slab when held
     24 months or less; else the Finance Act 2024 pre/post split). The seller
@@ -783,6 +791,7 @@ def _proceeds_real_estate(
             current_fy=current_fy,
             marginal_rate=marginal_rate,
             today=today,
+            resident=resident,
         )
     except (KeyError, ValueError) as e:
         return ProceedsResult(
@@ -817,8 +826,15 @@ def _proceeds_real_estate(
     # Pre-23-Jul-2024 acquisitions index via CII. If the relevant FY is
     # provisional (CBDT notification not yet released), make that visible —
     # the LTCG estimate moves up to ~5% either way once CBDT lands.
+    if not resident:
+        caveats.append(
+            "As a non-resident you pay 12.5% without indexation (the 20%-with-indexation "
+            "choice is for residents), and the buyer deducts tax at source from the price; "
+            "a lower-deduction certificate from the Income Tax Department can reduce it."
+        )
     if (
-        is_lt
+        resident
+        and is_lt
         and asset.purchase_date < FINANCE_ACT_2024_CUTOFF
         and (cii_is_provisional(purchase_fy) or cii_is_provisional(current_fy))
     ):
@@ -1312,8 +1328,12 @@ def compute_liquidation_proceeds(
     state: Optional[str] = None,
     filing_status: FilingStatusUS = FilingStatusUS.SINGLE,
     state_marginal_rate: Decimal = D("0"),
+    resident: bool = True,
 ) -> ProceedsResult:
     """Dispatch to per-asset-type proceeds math. Always returns ProceedsResult.
+
+    `resident=False`: an NRI selling an Indian asset (Indian rules apply;
+    only the property's indexation choice differs today).
 
     Blocked assets (PPF, EPF, NPS, US retirement, US unsupported) return
     is_blocked=True; the ranker surfaces them under "considered but didn't
@@ -1346,7 +1366,7 @@ def compute_liquidation_proceeds(
         return _proceeds_sgb(asset, today, taxable_income, marginal_rate)
     if at == "real_estate":
         return _proceeds_real_estate(
-            asset, today, taxable_income, marginal_rate, state or asset.state,
+            asset, today, taxable_income, marginal_rate, state or asset.state, resident,
         )
     if at == "ppf":
         return _proceeds_ppf(asset, today)
@@ -1615,3 +1635,95 @@ def rank_liquidations(
         "recommendations": recommendations,
         "considered_but_skipped": skipped,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Sell to repay as a neutral calculator (audit 80 W10; founder's cut-list
+# answer 4): what selling costs and leaves, in figures only. Never "sell",
+# never "keep", never a ranking of the user's holdings — naming what to sell
+# is where SEBI's adviser rules start (Investment Advisers Regulations 2013).
+# ═══════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class TaxOption:
+    label: str            # "12.5% without indexation" | "20% with indexation"
+    tax: Decimal
+
+
+@dataclass
+class SaleCostBreakdown:
+    sale_price: Decimal
+    selling_costs: Decimal
+    tax: Decimal
+    net_proceeds: Decimal
+    holding: str                          # "short-term" | "long-term" | "n/a"
+    tax_options: list[TaxOption]          # both property computations, when they apply
+    debt_cleared: Decimal                 # min(net proceeds, debt)
+    left_after_debt: Decimal
+    yearly_interest_on_cleared_debt: Decimal
+    notes: list[str]
+
+
+def sale_cost_breakdown(
+    asset: Asset,
+    *,
+    sale_price: Decimal,
+    today: date,
+    debt_balance: Decimal = D("0"),
+    debt_effective_rate: Decimal = D("0"),
+    taxable_income: Decimal = D("1200000"),
+    marginal_rate: Optional[Decimal] = None,
+    resident: bool = True,
+    country: Country = Country.IN,
+    filing_status: FilingStatusUS = FilingStatusUS.SINGLE,
+    state_marginal_rate: Decimal = D("0"),
+    purchase_fy: Optional[str] = None,
+    current_fy: Optional[str] = None,
+    brokerage_rate: Decimal = D("0.015"),
+) -> SaleCostBreakdown:
+    """The cost of selling one asset the user picked, and what it would clear.
+
+    Figures only: selling costs, capital-gains tax (India 2026-27 rules: STCG
+    at slab or the special rate, LTCG at 12.5%; for land/buildings bought
+    before 23 Jul 2024 by a resident individual, both the 12.5% and the
+    20%-with-indexation figures and the lower one), net proceeds, how much
+    of the debt that clears, and the yearly interest that debt costs. The
+    caller shows them side by side; this function never chooses."""
+    a = dc_replace(asset, current_market_value=sale_price)
+    mr = marginal_rate if marginal_rate is not None else india_marginal_rate(taxable_income, TaxRegimeIN.NEW)
+    res = compute_liquidation_proceeds(
+        a, today=today, country=country, taxable_income=taxable_income, marginal_rate=mr,
+        state=a.state, filing_status=filing_status, state_marginal_rate=state_marginal_rate,
+        resident=resident,
+    )
+    if res.is_blocked:
+        raise ValueError(res.block_reason or res.explanation)
+    options: list[TaxOption] = []
+    holding = "n/a"
+    if country == Country.IN and a.asset_type == "real_estate" and a.purchase_date is not None:
+        lt = _held_long_term(a.purchase_date, today, PROPERTY_LT_HOLD_MONTHS)
+        holding = "long-term" if lt else "short-term"
+        if lt and resident and a.purchase_date < FINANCE_ACT_2024_CUTOFF:
+            gross = sale_price * (D("1") - india_selling_cost_pct(a.state or "", brokerage_rate))  # as india_ltcg_tax
+            pfy, cfy = purchase_fy or _to_fy(a.purchase_date), current_fy or _to_fy(today)
+            indexed = a.purchase_price * D(lookup_cii(cfy)) / D(lookup_cii(pfy))
+            sur = min(surcharge_rate(taxable_income, is_ltcg=True), LTCG_SURCHARGE_CAP)
+            k = (D("1") + sur) * (D("1") + CESS_RATE)
+            flat = max(D("0"), gross - a.purchase_price) * LTCG_FLAT_RATE_POST_2024 * k
+            idx = max(D("0"), gross - indexed) * LTCG_INDEXED_RATE_PRE_2024 * k
+            options = [TaxOption("12.5% without indexation", flat.quantize(D("0.01"))),
+                       TaxOption("20% with indexation", idx.quantize(D("0.01")))]
+    net = res.net_proceeds
+    cleared = min(max(net, D("0")), debt_balance)
+    return SaleCostBreakdown(
+        sale_price=sale_price,
+        selling_costs=res.transaction_costs + res.penalty,
+        tax=res.tax_owed,
+        net_proceeds=net,
+        holding=holding,
+        tax_options=options,
+        debt_cleared=cleared,
+        left_after_debt=net - cleared,
+        yearly_interest_on_cleared_debt=(cleared * debt_effective_rate).quantize(D("0.01")),
+        notes=[res.explanation, *res.caveats],
+    )

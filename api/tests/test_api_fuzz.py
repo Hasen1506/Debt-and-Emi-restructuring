@@ -224,7 +224,8 @@ def _bodies(user: dict) -> dict:
         "/api/windfall": {"amount": "100000", "user": user},
         "/api/quick-recompute": {"user": user, "extra_payment": "10000", "horizon_months": 60},
         "/api/restructuring": {"user": user, "plan_balances": {"0": ["100000", "90000"], "1": ["50000", "0"]}},
-        "/api/portfolio/liquidation-rankings": {"user": user, "debt_effective_rates": {"0": "0.085", "1": "0.42"}},
+        # /api/portfolio/liquidation-rankings is off by default (audit 80 W10,
+        # LIQUIDATION_RANKER): test_a80_w10_api.py fuzzes it with the flag on.
         "/api/new-debt": {"list_price": "50000", "cash_price_elsewhere": "45000",
                           "emi_offer_months": 12, "emi_offer_monthly_payment": "4500"},
         "/api/cash-yield": {"idle_balance": "500000", "current_yield": "0.025", "country": "IN"},

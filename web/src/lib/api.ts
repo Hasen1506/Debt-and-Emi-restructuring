@@ -815,21 +815,19 @@ export interface AssetLiquidationResponse {
   ltcg_tax: string;
   net_benefit: string;
   asset_real_return_net: string;
-  gate_1_net_benefit: boolean;
-  gate_2_high_rate: boolean;
-  gate_3_spread: boolean;
-  gate_0_wealth_edge: boolean | null;
   surplus: string | null;
   wealth_hold: string | null;
   wealth_sell: string | null;
   wealth_edge: string | null;
-  /** The edge selling must reach to pass (10% of the asset). */
-  wealth_edge_needed?: string | null;
   /** 'amortising': the loan is paid on schedule on both paths;
    *  'debt_compounds': no payment given, the debt grows unpaid. */
   wealth_basis?: 'amortising' | 'debt_compounds' | null;
   horizon_years: string | null;
-  recommend_liquidation: boolean;
+  /** Audit 80 W10: figures only, no sell/keep verdict. */
+  debt_cleared?: string;
+  yearly_interest_on_cleared_debt?: string;
+  /** Pre-23-Jul-2024 property, resident seller: both tax computations. */
+  tax_options?: { label: string; tax: string }[];
   rationale: string;
   /** How the tax was worked out (US: the rules, any §121 exclusion, what to
    *  check). Empty for India, whose rules the form itself describes. */

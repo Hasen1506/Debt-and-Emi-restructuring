@@ -100,10 +100,11 @@ def test_asset_liquidation_recommends_sell_for_high_rate_debt(client):
     })
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["recommend_liquidation"] is True
-    assert body["gate_1_net_benefit"] is True
-    assert body["gate_2_high_rate"] is True
-    assert body["gate_3_spread"] is True
+    # Audit 80 W10: figures, never a verdict.
+    assert "recommend_liquidation" not in body and "gate_1_net_benefit" not in body
+    assert Decimal(body["debt_cleared"]) == Decimal("1500000")
+    assert Decimal(body["yearly_interest_on_cleared_debt"]) == Decimal("540000")
+    assert "doesn't advise whether to sell" in body["rationale"]
 
 
 def test_asset_liquidation_pre_2024_indexed(client):
@@ -126,8 +127,10 @@ def test_asset_liquidation_pre_2024_indexed(client):
     })
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["recommend_liquidation"] is True
-    assert body["gate_2_high_rate"] is True
+    assert "recommend_liquidation" not in body
+    # Resident, bought before 23 Jul 2024: both computations are shown.
+    assert [o["label"] for o in body["tax_options"]] == ["12.5% without indexation", "20% with indexation"]
+    assert Decimal(body["ltcg_tax"]).quantize(Decimal("0.01")) == min(Decimal(o["tax"]) for o in body["tax_options"])
 
 
 def _us_sale(main_home: bool, **extra):
@@ -202,8 +205,8 @@ def test_asset_liquidation_post_2024_flat(client):
     })
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["gate_2_high_rate"] is False
-    assert body["recommend_liquidation"] is False
+    assert "gate_2_high_rate" not in body and "recommend_liquidation" not in body
+    assert body["tax_options"] == []         # bought after 23 Jul 2024: 12.5% only
 
 
 def test_asset_liquidation_india_shares_taxed_as_shares(client):
@@ -282,15 +285,16 @@ def test_asset_liquidation_positive_edge_is_not_called_worse_off(client):
     assert r.status_code == 200, r.text
     out = r.json()
     assert Decimal(out["wealth_edge"]) > 0
-    assert Decimal(out["wealth_edge_needed"]) == Decimal("35000")
+    # Audit 80 W10: no "a sale should gain 10%" threshold; both outcomes as figures.
+    assert "wealth_edge_needed" not in out
     assert out["wealth_basis"] == "debt_compounds"
-    assert "only ₹25,404 better off" in out["rationale"]
-    assert "worse off" not in out["rationale"]
+    assert f"₹2,70,464 if kept, ₹2,95,868 if sold" in out["rationale"]
+    assert "worse off" not in out["rationale"] and "better off" not in out["rationale"]
 
     body["debt_monthly_payment"] = "2225"
     out = client.post("/api/asset-liquidation", json=body).json()
     assert out["wealth_basis"] == "amortising"
-    assert "only ₹7,597 better off" in out["rationale"]
+    assert Decimal(out["wealth_sell"]) - Decimal(out["wealth_hold"]) == Decimal(out["wealth_edge"])
 
 
 def test_assets_with_a_year_or_month_only_are_accepted(client):
