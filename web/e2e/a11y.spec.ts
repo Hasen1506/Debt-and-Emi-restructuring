@@ -110,7 +110,7 @@ test('signed in, fixed-rate loans only: /plan with WHAT IF open passes axe', asy
   await page.waitForTimeout(2500);
   const whatIf = page.getByRole('button', { name: /WHAT IF/i }).first();
   if (await whatIf.isVisible().catch(() => false)) await whatIf.click();
-  const reason = page.getByText('None of your loans has a floating rate, so a rate change doesn’t move the plan.');
+  const reason = page.locator('#main').getByText('None of your loans has a floating rate, so a rate change doesn’t move the plan.');
   await reason.scrollIntoViewIfNeeded();
   await expect(reason).toBeVisible();
   // The reason line is drawn at full strength: nothing above it is faded.

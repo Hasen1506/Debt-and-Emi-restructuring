@@ -62,7 +62,7 @@ test('Short month: gap borrowed at card rates, both dates named, due vs affordab
   });
 
   await test.step('#26: a longer tenure on the home loan, through the engine', async () => {
-    const box = page.locator('section[aria-labelledby="tenure-whatif"]');
+    const box = page.locator('#main section[aria-labelledby="tenure-whatif"]');
     const select = box.getByLabel('Loan to stretch');
     const opts = await select.locator('option').allInnerTexts();
     await select.selectOption({ index: opts.findIndex((o) => /home loan/i.test(o)) });

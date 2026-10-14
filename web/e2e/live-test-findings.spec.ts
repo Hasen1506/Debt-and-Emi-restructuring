@@ -141,7 +141,7 @@ test.describe('owner fixes (signed in)', () => {
   test('L#1 [L3] a returning guest is offered "Start fresh" or "Continue"', async ({ page }) => {
     test.skip(!GUEST, 'guest-only: needs a NEXT_PUBLIC_DISABLE_AUTH build (E2E_GUEST_MODE=1); owner spec l3-ux-flows covers it');
     await page.goto('/');
-    await expect(page.getByTestId('guest-welcome-back')).toBeVisible();
+    await expect(page.locator('#main').getByTestId('guest-welcome-back')).toBeVisible();
   });
   test('L#4 [L3] a loan takes a nickname', async ({ page }) => {
     await page.goto('/profile');
@@ -301,14 +301,14 @@ test.describe('L2 short month (signed in)', () => {
   // web/tests/l2-plan-logic.cjs "#17".
   test.fixme('L#17 [L2] the chart axis ends at the actual payoff month', async ({ page }) => {
     await page.goto('/plan');
-    await expect(page.getByTestId('trajectory-last-tick')).toBeVisible();
+    await expect(page.locator('#main').getByTestId('trajectory-last-tick')).toBeVisible();
   });
   test('L#24 [L2] Home shows "due" beside what the month can cover', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText(/Due this month: .* you have .* for them/)).toBeVisible();
+    await expect(page.locator('#main').getByText(/Due this month: .* you have .* for them/)).toBeVisible();
   });
   test('L#26 [L2] a longer-tenure what-if runs the engine', async ({ page }) => {
     await page.goto('/plan');
-    await expect(page.locator('section[aria-labelledby="tenure-whatif"]')).toBeVisible();
+    await expect(page.locator('#main section[aria-labelledby="tenure-whatif"]')).toBeVisible();
   });
 });
