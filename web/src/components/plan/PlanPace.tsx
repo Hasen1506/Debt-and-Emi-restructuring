@@ -99,7 +99,7 @@ export function PlanPace({ plan }: { plan: PlanData }) {
     actions = (
       <>
         {avg >= required - 1 && (
-          <LBracket active onClick={() => adoptTotal(avg)} label={`Make ${fc(avg)} a month the plan's total to debts`}>
+          <LBracket active onClick={() => adoptTotal(avg)} label={pending ? 'Working it out' : `Use ${fc(avg)} a month as the plan's total to debts`}>
             {pending ? 'WORKING IT OUT…' : `USE ${fc(avg)} A MONTH`}
           </LBracket>
         )}
@@ -121,7 +121,7 @@ export function PlanPace({ plan }: { plan: PlanData }) {
     );
     actions =
       budget > 0 && avg > budget ? (
-        <LBracket active onClick={() => adoptTotal(avg)} label={`Raise the plan's total to debts to ${fc(avg)} a month`}>
+        <LBracket active onClick={() => adoptTotal(avg)} label={pending ? 'Working it out' : `Raise my total to ${fc(avg)} a month: the plan's total to debts`}>
           {pending ? 'WORKING IT OUT…' : `RAISE MY TOTAL TO ${fc(avg)}`}
         </LBracket>
       ) : (

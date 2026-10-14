@@ -41,7 +41,7 @@ export function FxRateLine({ user, nowMs }: { user: UserPayload; nowMs: number }
           </span>
         );
       })}
-      <LBracket onClick={refresh} disabled={busy} label="Refresh exchange rates">{busy ? 'REFRESHING…' : 'REFRESH RATE'}</LBracket>
+      <LBracket onClick={refresh} disabled={busy} label={busy ? 'Refreshing exchange rates' : 'Refresh rate: update the exchange rates'}>{busy ? 'REFRESHING…' : 'REFRESH RATE'}</LBracket>
       {failed.length > 0 && <LBracket href="/profile?step=loans">ENTER A RATE →</LBracket>}
     </div>
   );

@@ -85,6 +85,14 @@ test('R9-2: a button’s spoken name starts with the words on it (WCAG 2.5.3)', 
   }
   assert.ok(checked >= 20, `checked ${checked}`);
   assert.deepEqual(bad, []);
+  // R10-2: the regex above only sees plain-text children; it missed names
+  // whose visible words sit in {cond ? 'A' : 'B'}, before a dynamic part
+  // ("WHY {pct}? ↓"), next to symbols, or in nested elements (the payoff
+  // medallion). The full scanner (tests/lib/label-in-name.cjs) checks those.
+  const { scanApp } = require('./lib/label-in-name.cjs');
+  const all = scanApp(root);
+  assert.ok(all.length >= 50, `scanned ${all.length}`);
+  assert.deepEqual(all.filter((r) => !r.ok).map((r) => `${r.file}:${r.line} [${r.visible}]`), []);
   // The Activity row buttons named in the re-test.
   const a = src('components/activity/ActivityPage.tsx');
   for (const l of ['label={`Edit ${what}`}', 'label={`Undo ${what}`}', 'label={`Undo spending for ${what}`}', 'label={`It held: ${r.target}`}', 'label={`It happened: ${r.target}`}'])
@@ -246,5 +254,6 @@ test('O-1: an aborted /plan rates request is dropped quietly', () => {
   assert.match(s, /\.centralRates\(ctrl\.signal\)/);
   assert.match(s, /if \(ctrl\.signal\.aborted \|\| isAbortError\(e\)\) return;/);
   assert.match(s, /window\.addEventListener\('pagehide', stop\)/);
-  assert.match(src('lib/api.ts'), /centralRates: \(signal\?: AbortSignal\) =>\n\s+get<CentralRatesResponse>\('\/api\/rates\/central', signal\)/);
+  // R10-3: the caller's signal and the page-wide one (lib/page-abort).
+  assert.match(src('lib/api.ts'), /centralRates: \(signal\?: AbortSignal\) =>\n\s+pageScoped\(\(s\) => get<CentralRatesResponse>\('\/api\/rates\/central', s\), signal\)/);
 });

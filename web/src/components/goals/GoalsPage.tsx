@@ -466,7 +466,7 @@ function GoalRow({
       <LBracket onClick={onEdit} label={`Edit ${goal.label}`}>
         EDIT
       </LBracket>
-      <LBracket onClick={onClose} label={`${funded ? 'Archive' : 'Cancel'} ${goal.label}`}>
+      <LBracket onClick={onClose} label={`${funded ? 'Archive' : 'Cancel goal'}: ${goal.label}`}>
         {funded ? 'ARCHIVE' : 'CANCEL GOAL'}
       </LBracket>
     </span>

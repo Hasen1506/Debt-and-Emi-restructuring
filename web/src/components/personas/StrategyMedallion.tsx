@@ -94,7 +94,7 @@ export function StrategyMedallion({
         type="button"
         aria-expanded={open != null}
         aria-haspopup="true"
-        aria-label={`Payoff strategy: ${p.name}, ${p.tag.toLowerCase()}. Change it`}
+        aria-label={`Payoff order: ${p.name}, ${p.tag.toLowerCase()}. Change it`}
         onClick={toggle}
         style={{
           display: 'inline-flex',

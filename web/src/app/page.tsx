@@ -9,6 +9,8 @@ import {
   HomeCheaperRates,
   HomeDebtFreeCaption,
   HomeDebtFreeValue,
+  HomeInterestCaption,
+  HomeInterestValue,
   HomeMoveOneStep,
   HomePayThisMonth,
   HomeThisMonthStrip,
@@ -41,6 +43,18 @@ export default async function HomePage() {
           s: (
             <Suspense fallback={<span>WORKING OUT YOUR DATE</span>}>
               <HomeDebtFreeCaption />
+            </Suspense>
+          ),
+        }}
+        interest={{
+          v: (
+            <Suspense fallback={<span aria-busy="true">……</span>}>
+              <HomeInterestValue />
+            </Suspense>
+          ),
+          s: (
+            <Suspense fallback={<span>WORKING OUT THIS MONTH</span>}>
+              <HomeInterestCaption />
             </Suspense>
           ),
         }}
