@@ -7,6 +7,7 @@
  * A row opens to how that cost is worked out. The loan an extra payment
  * goes to first by cost is flagged DEAREST. Replaces the separate Debts page.
  */
+import { Term } from '@/components/Term';
 import { localTerms, paymentWords } from '@/lib/terms';
 import { useState } from 'react';
 import type { StoredProfile } from '@/lib/user-store';
@@ -88,7 +89,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
               // number was wrong.
               <>
                 <span style={{ color: isDearest ? L_T.negative : L_T.ink, fontWeight: 700 }}>{fmtPct(d.nominal)} A YEAR</span>{' '}
-                · ABOUT {fmtPct(d.effective)} {d.effective.lt(d.nominal) ? 'AFTER THE TAX BREAK' : 'ALL-IN'}
+                · ABOUT {fmtPct(d.effective)} {d.effective.lt(d.nominal) ? 'AFTER THE TAX BREAK' : <Term id="cost_a_year">ALL-IN</Term>}
               </>
             ),
             gaps.includes('emi') ? (
@@ -97,7 +98,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
               `${isCard ? 'MINIMUM' : emiTag} ${fc(d.required.toFixed(0))}`
             ) : null,
             // Once this month's EMI is paid it's no longer one of the months left.
-            isCard ? 'REVOLVING' : months > 0 ? `${now.rows[d.index]?.status === 'paid' ? months - 1 : months} MO LEFT` : null,
+            isCard ? <Term key="rev" id="revolving">REVOLVING</Term> : months > 0 ? `${now.rows[d.index]?.status === 'paid' ? months - 1 : months} MO LEFT` : null,
           ].filter(Boolean);
           return (
             <li

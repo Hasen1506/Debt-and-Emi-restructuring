@@ -211,3 +211,14 @@ test('A3/A10/B9/B10/B11/B23: landing copy', () => {
   assert.doesNotMatch(WELCOME, /\.stamp\.paid\{background:var\(--pos\)/);
   assert.match(src('lib/report-problem.ts'), /SUPPORT_EMAIL = 'support@rightdue\.app'/);
 });
+
+test('B16: jargon on Home goes through <Term>; the rate what-if speaks % points, not bps', () => {
+  const op = src('components/home/OpenPositions.tsx');
+  assert.match(op, /<Term key="rev" id="revolving">REVOLVING<\/Term>/);
+  assert.match(op, /<Term id="cost_a_year">ALL-IN<\/Term>/);
+  const { GLOSSARY } = lib('glossary.ts');
+  for (const id of ['revolving', 'cost_a_year', 'avalanche', 'snowball', 'emergency_fund']) assert.ok(GLOSSARY[id], id);
+  const wi = src('components/WhatIfPanel.tsx');
+  assert.doesNotMatch(wi, /\$\{v\} bps \(/);
+  assert.match(wi, /% points`/);
+});

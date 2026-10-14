@@ -422,7 +422,7 @@ export function WhatIfPanel({
         title={'If floating rates change'}
         hint={
           hasFloating
-            ? 'Floating-rate loans (most home loans) move with it; fixed-rate loans and cards don’t. 100 bps = 1 percentage point.'
+            ? 'Floating-rate loans (most home loans) move with it; fixed-rate loans and cards don’t. The box counts basis points: 25 = 0.25%, 100 = 1%.'
             : 'None of your loans has a floating rate, so a rate change doesn’t move the plan.'
         }
         disabled={!hasFloating}
@@ -436,7 +436,8 @@ export function WhatIfPanel({
         formatValue={(v) =>
           v === 0
             ? 'no change'
-            : `${v > 0 ? '+' : ''}${v} bps (${(v / 100).toFixed(2)}pp)`
+            : // Audit 80 B16: % points first; bps only as the box's unit.
+              `${v > 0 ? '+' : ''}${(v / 100).toFixed(2)}% points`
         }
         formatInterest={fmtUser}
         state={rate}
