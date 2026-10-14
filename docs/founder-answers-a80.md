@@ -350,7 +350,14 @@ off-cycle meeting, which the weekly check catches).
   on top of past hikes). It also fixed a defect: a salary reset in the same
   month as the annual hike got the hike applied on top of the new figure. The
   plan uses the month-by-month income, so the shortfall months show up as
-  gaps instead of being averaged away. Expense swings: the engine has
+  gaps instead of being averaged away. Two gaps found and logged as strict
+  expected-failures for the integrator: (a) a seasonal earner who holds the
+  right buffer still borrows on a card in lean months, because the plan sends
+  festive-season cash to a 16% loan instead of keeping a reserve; (b) the
+  Profile's income streams (a second job or business starting later) reach
+  the plan as a salary reset of *today's* gross ÷ 12, which drops the hikes
+  earned until then and uses gross pay as take-home
+  (`web/src/lib/income-streams.ts`). Expense swings: the engine has
   inflation and one-off events; a monthly expense pattern uses the same
   mechanism later.
 
