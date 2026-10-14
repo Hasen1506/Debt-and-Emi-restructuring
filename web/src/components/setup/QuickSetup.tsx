@@ -57,6 +57,7 @@ import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIs
 import { loadProfileClient, type StoredProfile } from '@/lib/user-store';
 import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward, stampBalanceDates, prepareLoanPaymentTiming } from '@/lib/roll-forward';
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
+import { disambiguateLoans } from '@/lib/loan-types';
 import { HYDRATED_EVENT, flushPendingState, signedInAccount } from '@/lib/server-sync';
 import { ONBOARDING_DONE_HREF } from '@/lib/onboarding-save';
 import { LAST_SEEN_KEY } from '@/lib/guest-return';
@@ -677,7 +678,8 @@ export function QuickSetup() {
     const built = dateProfileRates(buildUser(), current.isLive ? current.user : null, quotes, Date.now());
     // Date changed balances today; preserve the anchor when only other fields changed.
     const asOf = localIsoDate(getCountryToday(built.country));
-    const user = { ...built, loans: stampBalanceDates(built.loans, current.user.loans, asOf) };
+    // Audit 80 E3: identical rows (three cards with no lender) get Card 1/2/3.
+    const user = { ...built, loans: disambiguateLoans(stampBalanceDates(built.loans, current.user.loans, asOf)) };
     const ok = saveProfileWithPaidEmis({ ...current, user, marginalRate: marginal().rate }, asOf);
     if (!ok) {
       setSaving(false);
