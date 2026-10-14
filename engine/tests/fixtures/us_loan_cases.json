@@ -9,7 +9,7 @@
    "block": null,
    "explainer": [
     "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
-    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+    "Not yet answered: is it on PSLF or an income-driven plan? Until you say, extra payments are held off this loan (on a loan that will be forgiven they're money lost). PSLF needs a government or not-for-profit employer; payments on the Tiered Standard plan don't count toward it."
    ]
   },
   {
@@ -18,10 +18,10 @@
     "outstanding": "40000",
     "currency": "USD"
    },
-   "block": null,
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes",
    "explainer": [
     "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
-    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+    "Not yet answered: is it on PSLF or an income-driven plan? Until you say, extra payments are held off this loan (on a loan that will be forgiven they're money lost). PSLF needs a government or not-for-profit employer; payments on the Tiered Standard plan don't count toward it."
    ]
   },
   {
@@ -110,6 +110,82 @@
    "explainer": [
     "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
     "Income-driven forgiveness: what's left is forgiven after 20, 25 or 30 years (RAP is 30). Since 1 January 2026 that forgiven amount is generally taxable income, so set some money aside for it. Extra payments are held off this loan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "forgiveness_track": "none"
+   },
+   "block": null,
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "forgiveness_track": "none",
+    "currency": "USD"
+   },
+   "block": null,
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "forgiveness_track": "none",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "forgiveness_track": "unsure"
+   },
+   "block": null,
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "Not yet answered: is it on PSLF or an income-driven plan? Until you say, extra payments are held off this loan (on a loan that will be forgiven they're money lost). PSLF needs a government or not-for-profit employer; payments on the Tiered Standard plan don't count toward it."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "forgiveness_track": "unsure",
+    "currency": "USD"
+   },
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes",
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "Not yet answered: is it on PSLF or an income-driven plan? Until you say, extra payments are held off this loan (on a loan that will be forgiven they're money lost). PSLF needs a government or not-for-profit employer; payments on the Tiered Standard plan don't count toward it."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "forgiveness_track": "unsure",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Not marked federal or private yet. We treat it as federal (most US student debt is), so we never suggest refinancing it with a private lender. Your loans are listed on studentaid.gov if you're not sure.",
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
    ]
   },
   {
@@ -120,7 +196,7 @@
    },
    "block": null,
    "explainer": [
-    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+    "Not yet answered: is it on PSLF or an income-driven plan? Until you say, extra payments are held off this loan (on a loan that will be forgiven they're money lost). PSLF needs a government or not-for-profit employer; payments on the Tiered Standard plan don't count toward it."
    ]
   },
   {
@@ -130,9 +206,9 @@
     "student_loan_kind": "federal",
     "currency": "USD"
    },
-   "block": null,
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes",
    "explainer": [
-    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+    "Not yet answered: is it on PSLF or an income-driven plan? Until you say, extra payments are held off this loan (on a loan that will be forgiven they're money lost). PSLF needs a government or not-for-profit employer; payments on the Tiered Standard plan don't count toward it."
    ]
   },
   {
@@ -221,6 +297,82 @@
    "block": null,
    "explainer": [
     "Income-driven forgiveness: what's left is forgiven after 20, 25 or 30 years (RAP is 30). Since 1 January 2026 that forgiven amount is generally taxable income, so set some money aside for it. Extra payments are held off this loan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "none"
+   },
+   "block": null,
+   "explainer": [
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "none",
+    "currency": "USD"
+   },
+   "block": null,
+   "explainer": [
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "none",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "unsure"
+   },
+   "block": null,
+   "explainer": [
+    "Not yet answered: is it on PSLF or an income-driven plan? Until you say, extra payments are held off this loan (on a loan that will be forgiven they're money lost). PSLF needs a government or not-for-profit employer; payments on the Tiered Standard plan don't count toward it."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "unsure",
+    "currency": "USD"
+   },
+   "block": "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra payments are held off it until you say: on a loan heading for forgiveness they're money lost. Its required payment still goes",
+   "explainer": [
+    "Not yet answered: is it on PSLF or an income-driven plan? Until you say, extra payments are held off this loan (on a loan that will be forgiven they're money lost). PSLF needs a government or not-for-profit employer; payments on the Tiered Standard plan don't count toward it."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "federal",
+    "forgiveness_track": "unsure",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Federal loan, not on a forgiveness track: it's treated like any other loan in the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR (ICR and PAYE close by July 2028); loans taken from 1 July 2026 can use only RAP or the Tiered Standard plan."
    ]
   },
   {
@@ -327,6 +479,82 @@
     "outstanding": "40000",
     "student_loan_kind": "private",
     "forgiveness_track": "idr",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "none"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "none",
+    "currency": "USD"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "none",
+    "currency": "INR"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "unsure"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "unsure",
+    "currency": "USD"
+   },
+   "block": null,
+   "explainer": [
+    "Private student loan: no federal repayment plans or forgiveness, so it is paid off like any other loan, and refinancing it can make sense."
+   ]
+  },
+  {
+   "loan": {
+    "loan_type": "education_loan",
+    "outstanding": "40000",
+    "student_loan_kind": "private",
+    "forgiveness_track": "unsure",
     "currency": "INR"
    },
    "block": null,

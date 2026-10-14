@@ -25,6 +25,7 @@ import { InflationToggle } from '@/components/InflationToggle';
 import { InflationRateControl } from './InflationRateControl';
 import { EfSplitSlider } from '@/components/EfSplitSlider';
 import { FxDriftToggle } from '@/components/FxDriftToggle';
+import { INR_SLIDE_LABEL } from '@/lib/fx-drift';
 import { loanToUser } from '@/lib/currency';
 import { DebtBudgetControl } from './DebtBudgetControl';
 
@@ -174,9 +175,9 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
     chips.push({
       key: 'fx',
       label: 'RUPEE',
-      value: plan.fxDrift === 'on' ? 'WEAKENS 2.5% A YEAR' : 'HELD AT TODAY’S RATE',
-      about: 'Your rupee loans counted in dollars: at today’s rate throughout, or with the rupee losing 2.5% a year.',
-      control: <FxDriftToggle active={plan.fxDrift} driftLabel="INR +2.5%/yr (CPI differential)" variant="ledger" />,
+      value: plan.fxDrift === 'on' ? 'WEAKENS 3.5% A YEAR' : 'HELD AT TODAY’S RATE',
+      about: 'Your rupee loans counted in dollars: at today’s rate throughout, or with the rupee losing 3.5% a year (its 20-year average against the dollar).',
+      control: <FxDriftToggle active={plan.fxDrift} driftLabel={INR_SLIDE_LABEL} variant="ledger" />,
     });
   }
 

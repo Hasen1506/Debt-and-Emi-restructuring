@@ -228,8 +228,10 @@ export interface LoanPayload {
    *  blank is treated as federal, so it is never refinanced privately. */
   student_loan_kind?: 'federal' | 'private';
   /** US federal student loans: 'pslf' | 'idr' holds extra payments off the
-   *  loan (they'd only shrink what's forgiven). */
-  forgiveness_track?: 'pslf' | 'idr';
+   *  loan (they'd only shrink what's forgiven). E7 (audit 80): 'none' = the
+   *  user said it isn't heading for forgiveness (extra allowed); 'unsure' or
+   *  no answer holds extra until they say. */
+  forgiveness_track?: 'pslf' | 'idr' | 'none' | 'unsure';
   /** US mortgages (grill #34): monthly PMI / FHA MIP paid with the payment. */
   pmi_monthly?: string;
   /** The home's original value: the lower of price and appraisal at purchase. */
@@ -828,21 +830,19 @@ export interface AssetLiquidationResponse {
   ltcg_tax: string;
   net_benefit: string;
   asset_real_return_net: string;
-  gate_1_net_benefit: boolean;
-  gate_2_high_rate: boolean;
-  gate_3_spread: boolean;
-  gate_0_wealth_edge: boolean | null;
   surplus: string | null;
   wealth_hold: string | null;
   wealth_sell: string | null;
   wealth_edge: string | null;
-  /** The edge selling must reach to pass (10% of the asset). */
-  wealth_edge_needed?: string | null;
   /** 'amortising': the loan is paid on schedule on both paths;
    *  'debt_compounds': no payment given, the debt grows unpaid. */
   wealth_basis?: 'amortising' | 'debt_compounds' | null;
   horizon_years: string | null;
-  recommend_liquidation: boolean;
+  /** Audit 80 W10: figures only, no sell/keep verdict. */
+  debt_cleared?: string;
+  yearly_interest_on_cleared_debt?: string;
+  /** Pre-23-Jul-2024 property, resident seller: both tax computations. */
+  tax_options?: { label: string; tax: string }[];
   rationale: string;
   /** How the tax was worked out (US: the rules, any §121 exclusion, what to
    *  check). Empty for India, whose rules the form itself describes. */
@@ -1021,6 +1021,11 @@ export interface CrossBorderResponse {
   rationale: string;
   loan_emi_user_currency: string;
   loan_emi_user_currency_y5: string;
+  /** E5 (audit 80): the transfer cost used and what a prepayment returns. */
+  remittance_cost_used?: string;
+  prepay_return_after_remittance?: string;
+  comparison_line?: string;
+  comparison_caveats?: string[];
 }
 
 // ─── Loan Check ─────────────────────────────────────────────────────────────
@@ -1753,6 +1758,10 @@ export const api = {
     manual_fx_rate?: string;
     manual_fx_drift_annual?: string;
     inflation_user_country?: string;
+    /** E5: share of the amount sent; omitted = the World Bank corridor average. */
+    remittance_cost_pct?: string;
+    funds_in_india?: boolean;
+    use_published_savings_rate?: boolean;
   }) => postWithFieldErrors<CrossBorderResponse>('/api/cross-border-decision', req),
 
   restructuring: (req: {

@@ -66,6 +66,12 @@ AS_OF = "2026-10-12"
 # ── Student loans ────────────────────────────────────────────────────────────
 STUDENT_LOAN_KINDS = ("federal", "private")
 FORGIVENESS_TRACKS = ("pslf", "idr")
+# E7 (audit 80): the user's answer to "on PSLF or an income-driven plan?".
+# "none" = no, paying it off; "unsure" (or no answer at all) = not known
+# yet, so extra is held off until they say: prepaying a loan that will be
+# forgiven is money lost, while waiting a month on a loan that won't be
+# costs a month of interest at a (usually low) federal rate.
+FORGIVENESS_ANSWERS = FORGIVENESS_TRACKS + ("none", "unsure")
 
 PSLF_QUALIFYING_PAYMENTS = 120
 RAP_REPAYMENT_YEARS = 30
@@ -117,10 +123,36 @@ def on_forgiveness_track(loan: Loan) -> bool:
     )
 
 
+def forgiveness_answer_pending(loan: Loan, country=None) -> bool:
+    """A US federal (or unmarked) student loan whose forgiveness answer
+    isn't in yet (E7): never asked, or "not sure". Private loans and loans
+    the user said are not on PSLF/IDR ("none") are not pending. Without
+    `country`, only an explicitly dollar loan counts as US."""
+    if loan.loan_type != LoanType.EDUCATION or (loan.student_loan_kind or "") == "private":
+        return False
+    if (loan.forgiveness_track or "") not in ("", "unsure"):
+        return False
+    if country is None:
+        return (loan.currency or "").upper() == "USD"
+    return is_us_market(loan, country)
+
+
+PENDING_HOLD_REASON = (
+    "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra "
+    "payments are held off it until you say: on a loan heading for forgiveness they're money "
+    "lost. Its required payment still goes"
+)
+
+
 def forgiveness_prepay_block(loan: Loan, country=None) -> Optional[str]:
     """Why extra payments are held off this loan, or None. Same gate in the
     plan simulator and the one-off windfall split. With `country` (the
-    user's), a loan outside the US market is never held."""
+    user's), a loan outside the US market is never held.
+
+    E7 (audit 80): a US federal or unmarked student loan with no answer yet
+    on PSLF / income-driven repayment is held too, until the user answers."""
+    if forgiveness_answer_pending(loan, country):
+        return PENDING_HOLD_REASON
     if not on_forgiveness_track(loan):
         return None
     if country is not None and not is_us_market(loan, country):
@@ -165,6 +197,11 @@ def student_loan_explainer(loan: Loan) -> list[str]:
         out.append("Income-driven forgiveness: what's left is forgiven after 20, 25 or 30 years "
                    "(RAP is 30). Since 1 January 2026 that forgiven amount is generally taxable "
                    "income, so set some money aside for it. Extra payments are held off this loan.")
+    elif track in ("", "unsure") and (loan.currency or "").upper() != "INR":
+        out.append("Not yet answered: is it on PSLF or an income-driven plan? Until you say, extra "
+                   "payments are held off this loan (on a loan that will be forgiven they're money "
+                   "lost). PSLF needs a government or not-for-profit employer; payments on the "
+                   "Tiered Standard plan don't count toward it.")
     else:
         out.append("Federal loan, not on a forgiveness track: it's treated like any other loan in "
                    "the payoff order. Since 1 July 2026 the income-driven plans are RAP and IBR "

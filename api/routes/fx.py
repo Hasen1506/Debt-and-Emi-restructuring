@@ -15,7 +15,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import ConfigDict, Field
 
 from engine.cross_border import (
-    CrossBorderInputs, evaluate_cross_border, historical_drift_default,
+    CrossBorderInputs, default_remittance_cost, evaluate_cross_border,
+    historical_drift_default, india_tax_residency, nri_prepay_comparison,
+    residency_transition_notes,
 )
 from api.schemas import MAX_MONTHS, Amount, Rate, SignedRate, _Base, _In
 
@@ -52,6 +54,15 @@ class CrossBorderRequest(_In):
     # overrides historical default; ±50%/yr is already a currency crisis.
     manual_fx_drift_annual: Optional[Decimal] = Field(None, ge=D("-0.5"), le=D("0.5"))
     inflation_user_country: Decimal = Field(D("0.025"), ge=D("-0.1"), le=1)
+    # E5: the cost of sending the money (fee + FX margin, share of the
+    # amount). None = the World Bank corridor average for the user's
+    # currency; 0 = the money is already in rupees (NRE/NRO).
+    remittance_cost_pct: Optional[Decimal] = Field(None, ge=0, lt=D("0.2"))
+    funds_in_india: bool = False
+    # E5: compare against the published US savings rate (market-data.json
+    # "hysa_us") instead of `user_savings_yield`, so the plan's line has no
+    # number of its own.
+    use_published_savings_rate: bool = False
 
 
 class CrossBorderResponse(_Base):
@@ -64,6 +75,36 @@ class CrossBorderResponse(_Base):
     rationale: str
     loan_emi_user_currency: Decimal
     loan_emi_user_currency_y5: Decimal
+    # E5: the transfer cost used and what a prepayment really returns.
+    remittance_cost_used: Decimal = D("0")
+    prepay_return_after_remittance: Decimal = D("0")
+    comparison_line: str = ""
+    comparison_caveats: list[str] = []
+
+
+class ResidencyRequest(_In):
+    days_in_india: int = Field(..., ge=0, le=366)
+    days_in_prev_4_years: int = Field(0, ge=0, le=1461)
+    citizen_or_pio: bool = True
+    lives_abroad_and_visiting: bool = False
+    left_for_job_abroad_this_year: bool = False
+    indian_income: Amount = D("0")
+    liable_to_tax_elsewhere: bool = True
+    nr_years_in_prev_10: Optional[int] = Field(None, ge=0, le=10)
+    days_in_prev_7_years: Optional[int] = Field(None, ge=0, le=2557)
+    direction: Optional[str] = Field(None, pattern="^(india_to_nri|nri_to_india)$")
+
+
+class TransitionNoteOut(_Base):
+    text: str
+    source: str
+
+
+class ResidencyResponse(_Base):
+    status: str
+    rule: str
+    deemed: bool
+    notes: list[TransitionNoteOut]
 
 
 # (base, quote) → (fetched at, rate, source, as_of)
@@ -156,16 +197,44 @@ async def cross_border_decision(req: CrossBorderRequest) -> CrossBorderResponse:
         else historical_drift_default(req.loan_currency, req.user_currency)
     )
 
+    savings_yield = req.user_savings_yield
+    alt_name = "your savings"
+    if req.use_published_savings_rate and req.user_currency.upper() == "USD":
+        from engine.market_data import safe_rate
+        savings_yield = safe_rate("hysa_us")
+        alt_name = "a US high-yield savings account"
+    if req.funds_in_india:
+        remit = D("0")
+    elif req.remittance_cost_pct is not None:
+        remit = req.remittance_cost_pct
+    else:
+        remit = default_remittance_cost(req.user_currency) or D("0")
+
     verdict = evaluate_cross_border(CrossBorderInputs(
         loan_balance=req.loan_balance,
         loan_nominal_rate=req.loan_nominal_rate,
         loan_tenure_months=req.loan_tenure_months,
         fx_rate=fx_rate_used,
-        user_savings_yield=req.user_savings_yield,
+        user_savings_yield=savings_yield,
         user_marginal_tax=req.user_marginal_tax,
         expected_fx_drift_annual=drift,
         inflation_user_country=req.inflation_user_country,
+        remittance_cost_pct=remit,
     ))
+    comparison = None
+    if req.loan_currency.upper() == "INR" and req.user_currency.upper() != "INR":
+        comparison = nri_prepay_comparison(
+            loan_rate=req.loan_nominal_rate,
+            remaining_months=req.loan_tenure_months,
+            user_currency=req.user_currency,
+            drift=drift,
+            remittance_cost=remit,
+            alternative_rate=savings_yield,
+            alternative_name=alt_name,
+            marginal_tax=req.user_marginal_tax,
+            funds_in_india=req.funds_in_india,
+            nre_fd_rate=savings_yield if req.funds_in_india else None,
+        )
 
     return CrossBorderResponse(
         fx_rate_used=fx_rate_used,
@@ -177,4 +246,30 @@ async def cross_border_decision(req: CrossBorderRequest) -> CrossBorderResponse:
         rationale=verdict.rationale,
         loan_emi_user_currency=verdict.loan_emi_user_currency,
         loan_emi_user_currency_y5=verdict.loan_emi_user_currency_y5,
+        remittance_cost_used=remit,
+        prepay_return_after_remittance=verdict.prepay_return_after_remittance,
+        comparison_line=comparison.line if comparison else "",
+        comparison_caveats=comparison.caveats if comparison else [],
+    )
+
+
+@router.post("/nri/residency", response_model=ResidencyResponse)
+async def nri_residency(req: ResidencyRequest) -> ResidencyResponse:
+    """India tax residency for one year (Income-tax Act 2025 s.6) and, for a
+    move, what changes for the user's loans and accounts (FEMA, RBI)."""
+    r = india_tax_residency(
+        days_in_india=req.days_in_india,
+        days_in_prev_4_years=req.days_in_prev_4_years,
+        citizen_or_pio=req.citizen_or_pio,
+        lives_abroad_and_visiting=req.lives_abroad_and_visiting,
+        left_for_job_abroad_this_year=req.left_for_job_abroad_this_year,
+        indian_income=req.indian_income,
+        liable_to_tax_elsewhere=req.liable_to_tax_elsewhere,
+        nr_years_in_prev_10=req.nr_years_in_prev_10,
+        days_in_prev_7_years=req.days_in_prev_7_years,
+    )
+    notes = residency_transition_notes(req.direction) if req.direction else []
+    return ResidencyResponse(
+        status=r.status, rule=r.rule, deemed=r.deemed,
+        notes=[TransitionNoteOut(text=n.text, source=n.source) for n in notes],
     )

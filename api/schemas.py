@@ -364,12 +364,14 @@ class LoanIn(_In):
         t = v.strip().lower().replace("-", "_")
         allowed = {
             "student_loan_kind": ("federal", "private"),
-            "forgiveness_track": ("pslf", "idr", "none"),
+            # E7: "none" (not on PSLF/IDR) and "unsure" are answers too;
+            # no value at all means never asked (extra held until answered).
+            "forgiveness_track": ("pslf", "idr", "none", "unsure"),
             "mortgage_insurance_kind": ("pmi", "fha_mip"),
         }[info.field_name]
         if t not in allowed:
             raise ValueError(f"{info.field_name} must be one of {', '.join(allowed)}")
-        return None if t == "none" else t
+        return t
 
     @field_validator("statement_day", "due_day", mode="before")
     @classmethod
@@ -1512,6 +1514,9 @@ class AssetLiquidationRequest(_In):
     country: Country = Country.IN
     filing_status: Optional[FilingStatusUS] = None
     state_marginal_rate: Optional[TaxRate] = None
+    # An NRI selling an Indian asset: Indian rules, but no 20%-with-
+    # indexation choice on pre-23-Jul-2024 property (residents only).
+    seller_resident: bool = True
 
     @model_validator(mode="after")
     def _needs_purchase_date(self):
@@ -1530,22 +1535,21 @@ class AssetLiquidationResponse(_Base):
     tax_notes: list[str] = []
     net_benefit: Decimal
     asset_real_return_net: Decimal
-    gate_1_net_benefit: bool
-    gate_2_high_rate: bool
-    gate_3_spread: bool
-    gate_0_wealth_edge: Optional[bool] = None
     surplus: Optional[Decimal] = None              # net_proceeds − debt_balance
     wealth_hold: Optional[Decimal] = None
     wealth_sell: Optional[Decimal] = None
     wealth_edge: Optional[Decimal] = None
-    # The edge selling must reach to pass Gate 0 (10% of the asset).
-    wealth_edge_needed: Optional[Decimal] = None
     # "amortising": the loan is paid on schedule on both paths;
     # "debt_compounds": no payment given, so the hold path lets it grow.
     wealth_basis: Optional[str] = None
     horizon_years: Optional[Decimal] = None
-    recommend_liquidation: bool
+    # Audit 80 W10: figures only. The sell/keep verdict and its pass/fail
+    # tests are gone (a calculator, not advice); the summary never chooses.
     rationale: str
+    debt_cleared: Decimal = D("0")
+    yearly_interest_on_cleared_debt: Decimal = D("0")
+    # Property bought before 23 Jul 2024 by a resident: both computations.
+    tax_options: list[dict] = []
 
 
 # ─────────────────────────────────────────────────────────────────────────────

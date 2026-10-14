@@ -485,7 +485,11 @@ export function PayThisMonth({
                         OTHER AMOUNT
                       </button>
                     )}
-                    {row.loanIndex !== null && (
+                    {row.loanIndex !== null &&
+                      // E5 (audit 80): a rupee row for someone living abroad pays by
+                      // UPI only from an NRE/NRO-linked UPI ID; show it once they've
+                      // saved one, not as the default way to pay.
+                      !(country === 'US' && row.currency === 'INR' && !(vpas[row.loanIndex] || loans[row.loanIndex]?.upi_vpa)) && (
                       <UpiPay
                         loan={loans[row.loanIndex] && (vpas[row.loanIndex] ? { ...loans[row.loanIndex], upi_vpa: vpas[row.loanIndex] } : loans[row.loanIndex])}
                         name={row.name}

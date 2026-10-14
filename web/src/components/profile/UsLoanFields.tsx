@@ -32,8 +32,8 @@ export function UsLoanFields({
 
 function StudentLoanFields({ loan, onChange }: { loan: LoanPayload; onChange: (p: Partial<LoanPayload>) => void }) {
   const kind = (loan.student_loan_kind ?? '') as '' | 'federal' | 'private';
-  const track = (loan.forgiveness_track ?? '') as '' | 'pslf' | 'idr';
-  const blocked = forgivenessPrepayBlock(loan);
+  const track = (loan.forgiveness_track ?? '') as '' | 'pslf' | 'idr' | 'none' | 'unsure';
+  const blocked = forgivenessPrepayBlock(loan, 'US');
   return (
     <div data-testid="us-student-loan" style={{ gridColumn: '1 / -1', display: 'grid', gap: 8 }}>
       <Select<'' | 'federal' | 'private'>
@@ -52,12 +52,14 @@ function StudentLoanFields({ loan, onChange }: { loan: LoanPayload; onChange: (p
         hint="Federal loans are listed in your studentaid.gov account."
       />
       {kind !== 'private' && (
-        <Select<'' | 'pslf' | 'idr'>
+        <Select<'' | 'pslf' | 'idr' | 'none' | 'unsure'>
           label="Heading for forgiveness?"
-          value={track}
+          value={track === 'unsure' ? '' : track}
           onChange={(v) => onChange({ forgiveness_track: v || undefined })}
           options={[
-            { value: '', label: 'No, paying it off' },
+            // E7 (audit 80): no answer holds extra off the loan until the user says.
+            { value: '', label: 'Not sure yet (extra held off until you say)' },
+            { value: 'none', label: 'No, paying it off' },
             { value: 'pslf', label: 'Public Service Loan Forgiveness (PSLF)' },
             { value: 'idr', label: 'Income-driven plan forgiveness (RAP, IBR, ...)' },
           ]}

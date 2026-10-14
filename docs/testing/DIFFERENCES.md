@@ -35,6 +35,13 @@ flat→reducing) or a ten-thousandth (month-by-month schedules).
 | Prepayment fee gate (this PR) | A loan whose prepayment fee costs more than the interest the extra payment saves is not prepaid | Prepaid anyway, so the "optimised" plan could cost more than paying minimums | Prepays only when (1 − fee) × (1 + r)^k > 1, k = months the extra would otherwise have grown | The new plan never costs more than its own minimums-only baseline; the old engine did in some seeded profiles | `test_prepayment_fee_gate_never_prepays_at_a_loss` |
 | C6 (Audit 80+ C3/C6) | An EMI loan's last contractual month pays whatever is left (banks adjust the final instalment) | The paisa-rounding residual of a quantised EMI ran into an extra month (a 241st payment) | Paid in the contract month | In the two IDENTICAL domains a profile may differ only this way: debt-free never later and at most one month sooner, total interest never higher and lower by at most one month's interest on the residual, Σ 0.005 × ((1 + r/12)^n − 1) + ₹0.01. H2's bound gains the same allowance. The reference differential gives the final month the same top-up and compares schedules with `gap_as_debt=False` (pay = EMI exactly, so the top-up would otherwise be borrowed and repaid a month later) | `test_single_loan_untouched_inputs_are_identical`, `test_multi_loan_baseline_is_identical`, `test_multi_loan_plan_differs_only_by_the_cascade_fix`, `test_differential_reference.py` |
 
+- **E7 (audit 80, 14 Oct 2026): US student loans with no PSLF/IDR answer.**
+  A US education loan whose `forgiveness_track` is unset or `"unsure"` gets its
+  required payment only; extra is held until the user says it isn't heading
+  for forgiveness (`"none"`). The minimums baseline is unchanged; the plan can
+  only keep such a loan longer. `test_differential_pre_pr29.py` checks these
+  cases on the baseline only (`_us_student_loan_held`).
+
 ### Also changed in this PR, covered by the property suite rather than the differential one
 
 * **Shortfall leftover.** In a month short of cash, the unused part of a

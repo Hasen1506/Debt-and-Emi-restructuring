@@ -48,6 +48,8 @@ export const US_SOURCES = {
 
 export type StudentLoanKind = 'federal' | 'private';
 export type ForgivenessTrack = 'pslf' | 'idr';
+/** E7 (audit 80): the user's answer, including "no" and "not sure". */
+export type ForgivenessAnswer = ForgivenessTrack | 'none' | 'unsure';
 
 type LoanLike = Pick<LoanPayload, 'loan_type' | 'currency' | 'student_loan_kind' | 'forgiveness_track'>;
 
@@ -60,9 +62,31 @@ export function onForgivenessTrack(l: LoanLike): boolean {
   );
 }
 
+/** E7: a US federal or unmarked student loan with no PSLF/IDR answer yet
+ *  (engine: forgiveness_answer_pending). Without `country`, only an
+ *  explicitly dollar loan counts as US. */
+export function forgivenessAnswerPending(l: LoanLike, country?: 'IN' | 'US'): boolean {
+  if (l.loan_type !== 'education_loan' || (l.student_loan_kind || '') === 'private') return false;
+  const t = l.forgiveness_track || '';
+  if (t !== '' && t !== 'unsure') return false;
+  const ccy = (l.currency || '').toUpperCase();
+  if (country === undefined) return ccy === 'USD';
+  return ccy ? ccy === 'USD' : country === 'US';
+}
+
+export const PENDING_HOLD_REASON =
+  "isn't marked yet as federal or private, or as on PSLF or an income-driven plan, so extra " +
+  "payments are held off it until you say: on a loan heading for forgiveness they're money " +
+  'lost. Its required payment still goes';
+
 /** Why extra payments are held off the loan, or null (engine: forgiveness_prepay_block). */
-export function forgivenessPrepayBlock(l: LoanLike): string | null {
+export function forgivenessPrepayBlock(l: LoanLike, country?: 'IN' | 'US'): string | null {
+  if (forgivenessAnswerPending(l, country)) return PENDING_HOLD_REASON;
   if (!onForgivenessTrack(l)) return null;
+  if (country !== undefined) {
+    const ccy = (l.currency || '').toUpperCase();
+    if (!(ccy ? ccy === 'USD' : country === 'US')) return null;
+  }
   if (l.forgiveness_track === 'pslf')
     return (
       'is on track for Public Service Loan Forgiveness, so extra payments only shrink ' +
@@ -103,6 +127,13 @@ export function studentLoanExplainer(l: LoanLike): string[] {
       "Income-driven forgiveness: what's left is forgiven after 20, 25 or 30 years " +
         '(RAP is 30). Since 1 January 2026 that forgiven amount is generally taxable ' +
         'income, so set some money aside for it. Extra payments are held off this loan.',
+    );
+  else if ((track === '' || track === 'unsure') && (l.currency || '').toUpperCase() !== 'INR')
+    out.push(
+      'Not yet answered: is it on PSLF or an income-driven plan? Until you say, extra ' +
+        "payments are held off this loan (on a loan that will be forgiven they're money " +
+        'lost). PSLF needs a government or not-for-profit employer; payments on the ' +
+        "Tiered Standard plan don't count toward it.",
     );
   else
     out.push(
