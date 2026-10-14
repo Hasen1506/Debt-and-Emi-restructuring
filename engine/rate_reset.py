@@ -152,7 +152,8 @@ def rate_move_impact(
         int_t = premium = None
     # Option 3: prepay so the old EMI clears the rest in n0 months.
     keep = outstanding - _pv(e0, rate_after, n0)
-    prepay = max(D("0"), keep).quantize(D("1"), rounding=ROUND_CEILING)
+    # Under ₹1 is rounding in the annuity formula, not a prepayment.
+    prepay = keep.quantize(D("1"), rounding=ROUND_CEILING) if rate_after > rate_before and keep > 1 else D("0")
     return RateMoveImpact(
         rate_before=rate_before, rate_after=rate_after, outstanding=outstanding,
         emi_before=_money(e0), months_before=n0, interest_before=_money(int0),
