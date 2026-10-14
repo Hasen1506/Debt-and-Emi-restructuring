@@ -503,6 +503,20 @@ export async function flushPendingState(): Promise<boolean> {
  * changes queued for that account: say so after a reload too, instead of
  * showing nothing until the next save fails.
  */
+/**
+ * audit80 D21: the session ended without a sign-out (it expired, or another
+ * device signed this one out). The readable profile copies must not outlive
+ * it on a shared phone, so clear them, unless changes are still waiting to
+ * reach the account (then they stay, and the notice asks to sign in again).
+ * Returns true when it cleared. Guests (no account cached) are untouched.
+ */
+export function forgetExpiredAccount(): boolean {
+  const account = activeAccount();
+  if (!account || Object.keys(pendingState(account)).length) return false;
+  clearAccountCache();
+  return true;
+}
+
 export function noteSignedOut(): void {
   const account = activeAccount();
   if (account && Object.keys(pendingState(account)).length) {
@@ -667,10 +681,14 @@ export function SessionHydrator(): null {
         // (Plan's simulation too), and in WebKit the refresh cancelled a
         // link followed in the meantime.
         if (cookieSnapshot() !== before && !onSignInPage()) router.refresh();
-      } catch {
+      } catch (err) {
         // 401 (signed out): nothing to hydrate, but changes still queued for
         // the account that was signed in here are shown as such.
-        if (!cancelled) noteSignedOut();
+        if (cancelled) return;
+        noteSignedOut();
+        // D21: a definite "signed out" (not a network error) for a browser
+        // that was caching an account: drop that account's copies.
+        if ((err as { status?: number } | null)?.status === 401 && forgetExpiredAccount() && !onSignInPage()) router.refresh();
       }
     }
     void hydrate();

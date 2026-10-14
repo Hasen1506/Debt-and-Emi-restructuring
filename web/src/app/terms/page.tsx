@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { LBracket, LShell, L_T } from '@/components/ledger/primitives';
-import { ACCOUNT_PATH, DATA_FIDUCIARY, GRIEVANCE_CONTACT, NOTICE_LAST_UPDATED, PRIVACY_PATH } from '@/lib/privacy-facts';
+import {
+  ACCOUNT_PATH, DATA_FIDUCIARY, GRIEVANCE_CONTACT, NOTICE_LAST_UPDATED, PRIVACY_PATH, TERMS_VERSION,
+} from '@/lib/privacy-facts';
 
 export const metadata: Metadata = { title: 'Terms of use · RightDue' };
 
@@ -15,7 +17,11 @@ export default function TermsPage() {
     <LShell>
       <article style={{ maxWidth: 760 }}>
         <h1 style={{ margin: 0, fontSize: 20, letterSpacing: '0.08em' }}>TERMS OF USE</h1>
-        <p style={{ ...P, color: L_T.muted }}>Last updated {NOTICE_LAST_UPDATED}. By using {DATA_FIDUCIARY.name} you agree to these terms.</p>
+        <p style={{ ...P, color: L_T.muted }}>
+          Last updated {NOTICE_LAST_UPDATED} (version {TERMS_VERSION}). You agree to these terms and the privacy notice
+          when you press &ldquo;Agree and send code&rdquo; (or Continue with Google) on the sign-in page; we record which
+          version you agreed to and when. Loan Check, which needs no account, is covered by them too.
+        </p>
 
         <h2 style={H2}>WHAT RIGHTDUE IS</h2>
         <ul style={{ paddingLeft: 18, margin: 0 }}>
@@ -62,13 +68,16 @@ export default function TermsPage() {
             you make using its estimates. Nothing in these terms takes away rights you have under Indian consumer or data
             protection law.
           </li>
-          <li style={LI}>If we change these terms, the date above changes; for a change that matters, we will tell you before it applies.</li>
+          <li style={LI}>
+            If we change these terms, the date and version above change and we ask you to agree again the next time you
+            sign in. For a change that matters, we email everyone who agreed to an older version before it applies.
+          </li>
           <li style={LI}>
             RightDue is free, so to the extent the law allows, our total liability to you for anything arising from the
             service is limited to ₹1,000 (or US$15 for users in the USA). This does not limit liability that the law
             does not allow us to limit.
           </li>
-          <li style={LI}>We reply to complaints within 30 days. Data-protection grievances follow the timeline in the privacy notice.</li>
+          <li style={LI}>We reply to complaints within 30 days, data-protection grievances included (the privacy notice says the same).</li>
           <li style={LI}>These terms are governed by the laws of India, and courts at Chennai, Tamil Nadu have jurisdiction.</li>
         </ul>
 

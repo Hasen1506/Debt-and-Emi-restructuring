@@ -15,7 +15,7 @@ import { SIGN_IN_STARTING_MESSAGE } from '@/lib/auth-error';
 import { safeRedirect } from '@/lib/safe-redirect';
 import { RESEND_COOLDOWN_S, wakeProgress } from '@/lib/wake-progress';
 import { TURNSTILE_SITE_KEY, TurnstileBox } from '@/components/auth/Turnstile';
-import { PRIVACY_PATH, TERMS_PATH } from '@/lib/privacy-facts';
+import { NOTICE_VERSION, PRIVACY_PATH, TERMS_PATH, TERMS_VERSION } from '@/lib/privacy-facts';
 import { GOOGLE_CONFIG_PATH, googleStartHref } from '@/lib/google-signin';
 
 // The free-plan API sleeps when idle and can take over a minute to start.
@@ -47,6 +47,9 @@ export default function LoginPage() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileReset, setTurnstileReset] = useState(0);
   const needsTurnstile = Boolean(TURNSTILE_SITE_KEY);
+  // audit80 D7: an explicit 18+ declaration, stored with the consent (D2).
+  const [adult, setAdult] = useState(false);
+  const agreement = { notice_version: NOTICE_VERSION, terms_version: TERMS_VERSION, age_confirmed: adult };
 
   // Tick once a second while a request is pending or the resend cooldown runs.
   useEffect(() => {
@@ -165,7 +168,7 @@ export default function LoginPage() {
     setError(null);
     startBusy('verify');
     try {
-      const user = await api.verifyOtp(email.trim().toLowerCase(), code.trim());
+      const user = await api.verifyOtp(email.trim().toLowerCase(), code.trim(), agreement);
       await finishSignIn(user.id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Verification failed.';
@@ -246,16 +249,28 @@ export default function LoginPage() {
           </label>
           <TurnstileBox onToken={setTurnstileToken} resetKey={turnstileReset} />
           {/* DPDP Act 2023 s.5-6: the notice comes before consent, and consent
-              is a clear action (the button says so). Grill #51. */}
+              is a clear action (the button says so). Grill #51. audit80 D2:
+              the versions agreed to and the 18+ tick are stored at sign-in. */}
           <p style={noticeText}>
             We keep your email, your sign-in records and the plan you save, only to run your account on any device.
             You can download or delete them any time. Read the <a href={PRIVACY_PATH}>privacy notice</a> and{' '}
             <a href={TERMS_PATH}>terms</a>.
           </p>
+          <label style={{ ...noticeText, display: 'flex', gap: 8, alignItems: 'flex-start', color: 'var(--ink)' }}>
+            <input
+              type="checkbox"
+              required
+              checked={adult}
+              onChange={(e) => setAdult(e.target.checked)}
+              data-testid="age-confirm"
+              style={{ marginTop: 2 }}
+            />
+            I am 18 or older.
+          </label>
           <button
             type="submit"
-            disabled={submitting || (needsTurnstile && !turnstileToken)}
-            style={primaryStyle(submitting || (needsTurnstile && !turnstileToken))}
+            disabled={submitting || !adult || (needsTurnstile && !turnstileToken)}
+            style={primaryStyle(submitting || !adult || (needsTurnstile && !turnstileToken))}
           >
             [ {submitting ? 'Sending…' : 'Agree and send code'} ]
           </button>
@@ -263,7 +278,9 @@ export default function LoginPage() {
             <>
               <div aria-hidden="true" style={{ textAlign: 'center', fontSize: 11, color: 'var(--muted)', letterSpacing: '0.14em' }}>OR</div>
               <a
-                href={googleStartHref(next)}
+                href={googleStartHref(next, undefined, agreement)}
+                aria-disabled={!adult}
+                onClick={(e) => { if (!adult) { e.preventDefault(); setError('Tick \u201cI am 18 or older\u201d first.'); } }}
                 data-testid="google-signin"
                 style={{ ...primary, background: 'transparent', color: 'var(--ink)', border: '1px solid var(--ink)', textAlign: 'center', textDecoration: 'none' }}
               >

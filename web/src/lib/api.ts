@@ -1725,8 +1725,10 @@ export const api = {
    *  when the check is on (NEXT_PUBLIC_TURNSTILE_SITE_KEY, grill #59). */
   requestOtp: (email: string, turnstileToken?: string) =>
     post<void>('/api/auth/request-otp', turnstileToken ? { email, turnstile_token: turnstileToken } : { email }),
-  verifyOtp: (email: string, code: string) =>
-    post<AuthUser>('/api/auth/verify-otp', { email, code }),
+  /** audit80 D2/D7: `consent` is what the sign-in page showed and the user
+   *  agreed to (notice + terms versions, the 18+ tick); the API records it. */
+  verifyOtp: (email: string, code: string, consent?: SignInConsent) =>
+    post<AuthUser>('/api/auth/verify-otp', consent ? { email, code, ...consent } : { email, code }),
   logout: () => post<void>('/api/auth/logout', {}),
   // UX50 E-22: the session proxy answers 200 null when there is no session
   // cookie; that is "signed out", the same as a 401. Concurrent callers
@@ -1822,6 +1824,14 @@ export interface AuthUser {
   id: string;
   email: string;
   display_name?: string | null;
+  /** audit80 D2: true until this account agrees to the current notice/terms. */
+  consent_required?: boolean;
+}
+
+export interface SignInConsent {
+  notice_version: string;
+  terms_version: string;
+  age_confirmed: boolean;
 }
 
 export interface LifecycleEventInput {

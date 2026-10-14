@@ -11,6 +11,7 @@ import { SecureCookies } from '@/components/SecureCookies';
 import { ProfileProvider } from '@/lib/use-profile';
 import { SaveFailedNotice } from '@/components/SaveFailedNotice';
 import { AccountSyncNotice } from '@/components/AccountSyncNotice';
+import { ConsentNotice } from '@/components/auth/ConsentNotice';
 import { FxAutoRefresh } from '@/components/fx/FxAutoRefresh';
 import { SiteFooter } from '@/components/site/SiteFooter';
 import { BrowserErrorReporter } from '@/components/site/BrowserErrorReporter';
@@ -55,6 +56,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <LMasthead country={profile.user.country} strategy={hasDebt ? strategy : null} sameOrder={sameOrder} />
         <SaveFailedNotice />
         <AccountSyncNotice />
+        {/* audit80 D2: one-tap agreement when the notice or terms changed. */}
+        <ConsentNotice />
         <main id="main" tabIndex={-1} className="app-shell" style={{ paddingTop: 18, paddingBottom: 32 }}>
           <ProfileProvider profile={profile}>{children}</ProfileProvider>
         </main>
