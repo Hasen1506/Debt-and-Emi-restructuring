@@ -75,3 +75,19 @@ test('C4 class guard: months left never rise as the calendar moves', () => {
       assert.equal(prev, 0);
     }
 });
+
+test('C4: the payoff order reads lock-in months still to run, not the months as typed', () => {
+  const mc = lib('marginal-cost.ts');
+  const base = { loan_type: 'personal_loan', bank: 'HDFC Bank', outstanding: '300000', nominal_rate: '0.14', rate_type: 'fixed', tenure_months_remaining: 36, scheduled_emi: '10250' };
+  // Typed 6 months of lock-in, stamped to end two years ago: it has run out.
+  const ended = mc.loanMarginalCost({ ...base, prepay_lock_in_months: 6, prepay_lock_in_until: '2024-01' }, 'IN', '0');
+  assert.equal(ended.locked, false);
+  assert.equal(ended.lockInMonths, 0);
+  // Stamped far ahead: still locked, ranked after open loans.
+  const live = mc.loanMarginalCost({ ...base, prepay_lock_in_months: 6, prepay_lock_in_until: '2999-01' }, 'IN', '0');
+  assert.equal(live.locked, true);
+  assert.ok(live.lockInMonths > 6);
+  // No stamp (an old profile): the typed months stand.
+  const unstamped = mc.loanMarginalCost({ ...base, prepay_lock_in_months: 6 }, 'IN', '0');
+  assert.equal(unstamped.lockInMonths, 6);
+});
