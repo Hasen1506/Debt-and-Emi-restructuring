@@ -49,17 +49,20 @@ def test_total_minimums_sums_across_loans():
                 outstanding=D("4000000"), nominal_rate=D("0.085"),
                 rate_type="floating", tenure_months_remaining=240,
                 scheduled_emi=D("34713"))
-    # Card min (HDFC compound base) = 2500; home = 34713
+    # Card min, HDFC's MITC rule (W2 C14; since Jun 2025): finance charge
+    # 36%/12 × 50,000 = 1,500 + 18% GST 270 + 5% × 50,000 = 2,500 → 4,270
+    # (was a flat 5% = 2,500 before C14 + C13). Home = 34,713.
     total = compute_total_minimums(user, [card, home])
-    assert total == D("2500") + D("34713")
+    assert total == D("4270") + D("34713")
 
 
 def test_available_surplus_basic():
-    """Income 125k − expenses 60k − card_min 2500 − efund_monthly ~16667 = ~45833."""
+    """Income 125k − expenses 60k − card_min 4270 (HDFC MITC: 1,500 interest
+    + 270 GST + 5% of 50k) − efund_monthly ~16667 = ~44063."""
     user = _user(efund_balance=D("100000"), efund_target=D("300000"))
     card = _loan(LoanType.CREDIT_CARD, D("50000"))
     surplus = compute_available_surplus(user, [card])
-    expected = D("125000") - D("60000") - D("2500") - (D("200000") / D("12"))
+    expected = D("125000") - D("60000") - D("4270") - (D("200000") / D("12"))
     assert surplus == expected
 
 
