@@ -695,14 +695,14 @@ export interface SimulateResponse {
 }
 
 export interface CompareResponse {
-  /** Live re-test NEW-2: either side never clears, so interest_saved
-   *  compares unbounded totals and must not be shown. */
+  /** Live re-test NEW-2: a side never clears; interest_saved is unbounded, never shown. */
   baseline_never_clears?: boolean;
   scenario_never_clears?: boolean;
   /** Live test L#26 (include_trajectory): the what-if's own trajectory. */
   scenario_trajectory?: TrajectoryPointRaw[] | null;
   scenario_trajectory_cut_month?: number | null;
   scenario_grows_without_limit?: boolean;
+  scenario_infeasible_from_month?: number | null; // C11: first unfundable month; the date is then on paper only
   baseline_debt_free_month: number | null;
   scenario_debt_free_month: number | null;
   months_pulled_forward: string;

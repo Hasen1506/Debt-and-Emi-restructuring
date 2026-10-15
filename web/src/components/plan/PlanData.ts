@@ -63,8 +63,10 @@ export interface PlanData {
    *  its interest total is unbounded and is not compared. */
   baselineNeverClears?: boolean;
   /** Live re-test 2 NEW-2: the plan never clears, so the schedule stops at
-   *  `month` (30 years, or where what's owed would pass 100x the start). */
-  scheduleCut?: { month: number | null; growsWithoutLimit: boolean } | null;
+   *  `month` (30 years, or where what's owed would pass 100x the start).
+   *  Integration phase 5 (C11): a capped plan stops at its first unfundable
+   *  month (`notFundableFrom`), and `debtFreeMonth` is null. */
+  scheduleCut?: { month: number | null; growsWithoutLimit: boolean; notFundableFrom?: number | null } | null;
   trajectory: TrajectoryPoint[];
   debtFreeMonth: number | null;
   totalInterest: string;

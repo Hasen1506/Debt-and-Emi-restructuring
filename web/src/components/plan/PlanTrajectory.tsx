@@ -74,7 +74,12 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
       minClear,
       lastMonth: lastAll,
       growingGapFrom: !clears ? plan.gap?.firstBorrowMonth ?? null : null,
+      notFundableFrom: plan.infeasibleFrom ?? null,
     });
+    // Integration phase 5 (C11): a capped plan has no debt-free milestone
+    // (plan.debtFreeMonth is null, load-plan's shownDebtFreeMonth); the line
+    // stops at the first unfundable month and the note says so.
+    const notFundableFrom = plan.infeasibleFrom ?? null;
     const shown = series.filter((p) => p.month <= end);
     const span = Math.max(1, end - first);
     const tOf = (m: number) => (m - first) / span;
@@ -88,7 +93,7 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
     const typeCount = new Map<string, number>();
     for (const l of loans) typeCount.set(l.loan_type, (typeCount.get(l.loan_type) ?? 0) + 1);
     const byMonth = new Map<number, string[]>();
-    if (clears) {
+    if (clears || notFundableFrom != null) {
       for (const c of loanClears(plan)) {
         if (c.month > end) continue;
         const loan = loans[c.index];
@@ -117,7 +122,9 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
 
     const lastShown = shown[shown.length - 1];
     const minimumsNote =
-      !clears && plan.gap?.firstBorrowMonth
+      notFundableFrom != null
+        ? `NOT FUNDABLE FROM ${shortDate(notFundableFrom)} →`
+        : !clears && plan.gap?.firstBorrowMonth
         ? 'GAP BORROWING KEEPS GROWING →'
         : lastShown && lastShown.minimums > 0.5
           ? minClear
@@ -143,7 +150,11 @@ export function PlanTrajectory({ plan, short }: { plan: PlanData; short: boolean
     const title =
       `Total debt over time. ${strategy} plan: ${start > 0 ? `${formatCurrencyWhole(start, ccy)} now, ` : ''}${formatCurrencyWhole(traj[0].avalanche, ccy)} after this month` +
       (paidOff.length ? `; ${paidOff.join('; ')}` : '') +
-      (clears ? `; debt-free in ${label(clears)}. ` : '; not cleared within the plan. ') +
+      (clears
+        ? `; debt-free in ${label(clears)}. `
+        : notFundableFrom != null
+          ? `; not fundable from ${label(notFundableFrom)} as things stand, so no debt-free date. `
+          : '; not cleared within the plan. ') +
       (minClear
         ? `Paying only the minimums clears it in ${label(minClear)}.`
         : 'Paying only the minimums never clears it.');

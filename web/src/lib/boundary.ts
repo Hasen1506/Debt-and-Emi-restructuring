@@ -84,7 +84,7 @@ const simulate: Check = shape(
     trajectory: listOf(trajectoryPoint), months_in_horizon: int,
   },
   {
-    never_clears: bool, grows_without_limit: bool, trajectory_cut_month: nullable(int), shortfall: decimal,
+    never_clears: bool, grows_without_limit: bool, trajectory_cut_month: nullable(int), shortfall: decimal, infeasible_from_month: nullable(int),
     total_gap_interest: decimal, gap_rate: nullable(decimal), gap_rate_basis: nullable(str),
     non_amortising: listOf(shape({ loan_index: int, monthly_interest: decimal, scheduled_emi: decimal })),
     gap_closed: nullable(shape({ cut: decimal, debt_free_month: nullable(int), total_interest_paid: decimal })),
@@ -100,7 +100,7 @@ const compare: Check = shape(
   },
   {
     baseline_never_clears: bool, scenario_never_clears: bool, scenario_grows_without_limit: bool,
-    scenario_trajectory: nullable(listOf(trajectoryPoint)), scenario_trajectory_cut_month: nullable(int),
+    scenario_trajectory: nullable(listOf(trajectoryPoint)), scenario_trajectory_cut_month: nullable(int), scenario_infeasible_from_month: nullable(int),
     baseline_total_interest: nullable(decimal), scenario_total_interest: nullable(decimal),
     baseline_shortfall: nullable(decimal), scenario_shortfall: nullable(decimal),
     tenure_old_emi: nullable(decimal), tenure_new_emi: nullable(decimal),

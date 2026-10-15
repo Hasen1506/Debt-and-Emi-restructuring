@@ -71,7 +71,7 @@ import { HYDRATED_EVENT, flushPendingState, signedInAccount } from '@/lib/server
 import { ONBOARDING_DONE_HREF } from '@/lib/onboarding-save';
 import { LAST_SEEN_KEY } from '@/lib/guest-return';
 import { formatAsOfDate } from '@/lib/loan-gaps';
-import { saneCap, shortGapLine } from '@/lib/plan-gap';
+import { cappedRow, saneCap, shortGapLine, shownDebtFreeMonth } from '@/lib/plan-gap';
 import { loanKindsFor, paymentWords } from '@/lib/r7-inputs';
 import { formatTaxRate } from '@/lib/tax-profile';
 import { checkSpend, parseDraft, serializeDraft, SETUP_DRAFT_KEY, SPEND_COPY, stepFromParam, urlWithStep } from '@/lib/setup-draft';
@@ -1508,20 +1508,20 @@ function PlanPreview({
   const freeIn = (m: number) => (m <= 1 ? 'this month' : `in ${monthsSpan(m)}`);
   const interestSaved = new Decimal(minimums.total_interest_paid || 0).sub(plan.total_interest_paid || 0);
   const monthsSaved =
-    plan.debt_free_month != null && minimums.debt_free_month != null
-      ? minimums.debt_free_month - plan.debt_free_month
+    shownDebtFreeMonth(plan) != null && minimums.debt_free_month != null
+      ? minimums.debt_free_month - plan.debt_free_month!
       : null;
   // R10-4: Home's own whole-rupee split, so Setup's last sentence and
   // Home's "This month" name the same extra to the rupee.
   const move = setupExtraMove(plan, minimums, planUser);
   const moveLoan = move ? loans[move.index] : null;
-  // UX50 B-13: short this month, the same headline as Plan and Home: the
-  // date if the gap closes, with the date as things stand beside it; and no
-  // "years sooner" while there's no date to measure from (Plan says the same).
-  const short = shortfall.gt(0);
+  // UX50 B-13: short, Plan's and Home's headline (date if the gap closes, date as things stand) and no
+  // "years sooner" with no date to measure from. Phase 5 (C11): capped has no date either (reads as short).
+  const capped = cappedRow(plan, (m) => monthIndexToCountryLabel(m, country), (v) => money(new Decimal(v)));
+  const short = shortfall.gt(0) || plan.infeasible_from_month != null;
   const closedMonth = plan.gap_closed?.debt_free_month ?? null;
   // Live re-test 7 R7-2: the words come from the one helper Plan and Home use.
-  const debtFreeRow: [string, ReactNode, string?] = short
+  const debtFreeRow: [string, ReactNode, string?] = capped ? ['Debt-free', ...capped] : short
     ? [
         'Debt-free',
         // Audit 80+ A5: the gap is the headline (and the card above); the date
@@ -1546,7 +1546,7 @@ function PlanPreview({
   // (crore-scale totals on a ₹-lakh debt), and with no date at all a total
   // above 100x what's owed today means nothing: say so instead of a figure.
   const owedToday = loans.reduce((t, l) => t + Math.max(0, Number(l.outstanding) || 0), 0);
-  const gapRunsAway = short && plan.debt_free_month == null;
+  const gapRunsAway = short && shownDebtFreeMonth(plan) == null;
   const insane = !Number.isFinite(Number(plan.total_interest_paid)) || Number(plan.total_interest_paid) > saneCap(owedToday);
   const interestRow: [string, ReactNode, string?] = gapRunsAway
     ? ['Interest you’ll pay', '—', 'the gap borrowing keeps growing']

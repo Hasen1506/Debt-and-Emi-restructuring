@@ -67,7 +67,8 @@ test('C11: fundable plans keep their words (no regression)', () => {
 
 test('C11: Plan, Home and Setup pass infeasible_from_month to the gap words', () => {
   const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
-  assert.match(read('components/plan/load-plan.ts'), /infeasibleFrom: scenario\.infeasible_from_month/);
+  assert.match(read('components/plan/load-plan.ts'), /\.\.\.planEnd\(scenario\)/); // infeasibleFrom via lib/plan-gap planEnd (phase 5)
+  assert.match(read('lib/plan-gap.ts'), /infeasibleFrom: r\.infeasible_from_month \?\? null/);
   assert.match(read('components/plan/LedgerPlan.tsx'), /infeasibleFrom: plan\.infeasibleFrom/);
   assert.match(read('components/home/HomeDebtFree.tsx'), /infeasibleFrom: plan\.infeasibleFrom/);
   assert.match(read('components/setup/QuickSetup.tsx'), /infeasibleFrom: plan\.infeasible_from_month/);
@@ -148,4 +149,116 @@ test('E10: page intros never render late, and Home streams insights below the fi
   assert.equal(style.id, 'rd-intro-seen');
   assert.equal(style.textContent, '[data-intro="home"]{display:none}[data-intro="plan"]{display:none}');
   assert.equal(m.exports.introHideRule('a"b'), '[data-intro="ab"]{display:none}');
+});
+
+// Integration phase 5 (C11 capped plans): the headline said "not fundable
+// from <month>" but the chart and schedule still drew "DEBT-FREE AS THINGS
+// STAND · <paper date>" and lost the never-clears stop. Class guard: any
+// capped /simulate response (infeasible_from_month set, never_clears true,
+// debt_free_month a date on paper), mapped the way load-plan maps it
+// (planEnd), renders no debt-free date in the chart, the schedule, the CSV
+// events or the headline, and stops the schedule at "NOT FUNDABLE FROM".
+test('C11: a capped plan renders no debt-free date on Plan (chart, schedule, headline)', () => {
+  const prevLoad = Module._load;
+  Module._load = function (request, ...rest) {
+    if (request === 'next/navigation') return { useRouter: () => ({ refresh() {}, push() {} }), usePathname: () => '/plan', useSearchParams: () => new URLSearchParams() };
+    if (request === 'server-only') return {};
+    return prevLoad.call(this, request, ...rest);
+  };
+  try {
+    const React = require('react');
+    const { renderToStaticMarkup } = require('react-dom/server');
+    const { mergeTrajectories, extractMonthlyPayments, planWithWhatIf } = require(path.join(root, 'lib/trajectory.ts'));
+    const { PlanTrajectory } = require(path.join(root, 'components/plan/PlanTrajectory.tsx'));
+    const { PlanSchedule } = require(path.join(root, 'components/plan/PlanSchedule.tsx'));
+    const { planHeadline } = require(path.join(root, 'lib/plan-headline.ts'));
+    const today = require(path.join(root, 'lib/today.ts'));
+    const now = today.getCountryToday('IN');
+    const longLabel = (m) => today.monthIndexToCountryLabel(m, 'IN');
+    const shortCap = (m) => { const d = today.monthIndexToDate(m, now); return `${today.MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${d.getFullYear()}`; };
+    const chartCap = (m) => { const d = today.monthIndexToDate(m, now); return `${today.MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ’${String(d.getFullYear()).slice(-2)}`; };
+    const loans = [
+      { id: 'p', bank: 'SBI', loan_type: 'personal_loan', outstanding: '200000', nominal_rate: '0.14', scheduled_emi: '10000', tenure_months_remaining: 24 },
+      { id: 'c', bank: 'HDFC', loan_type: 'credit_card', outstanding: '100000', nominal_rate: '0.42', scheduled_emi: '0' },
+    ];
+    // A run that "clears" in month `dfm` only by paying with money that can't
+    // be found from `infeasible` on (C11).
+    const response = ({ dfm, infeasible, shortNow }) => {
+      const trajectory = [];
+      for (let m = 1; m <= dfm; m++) {
+        const p = Math.max(0, 200000 * (1 - m / 20));
+        const c = Math.max(0, 100000 * (1 - m / dfm));
+        const short = (shortNow && m === 1) || m >= 3 ? 4200 : 0;
+        trajectory.push({
+          month: m, balance: String(p + c), interest_paid: '900', invested: '0',
+          balances_by_loan_index: { 0: String(p), 1: String(c) },
+          payments_by_loan_index: { 0: p > 0 || m === 20 ? '10000' : '0', 1: c > 0 || m === dfm ? '3000' : '0' },
+          total_paid: '13000', extra_paid: '0', shortfall: String(short),
+          gap_borrowed: String(short), gap_debt: String(Math.min(150000, 4200 * Math.max(0, m - 2))), gap_interest: '50',
+        });
+      }
+      return {
+        debt_free_month: dfm, total_interest_paid: '90000', total_invested: '0', trajectory, months_in_horizon: dfm,
+        never_clears: true, trajectory_cut_month: null, grows_without_limit: false, shortfall: shortNow ? '4200' : '0',
+        gap_rate: '0.45', total_gap_interest: '5000', infeasible_from_month: infeasible,
+        gap_closed: shortNow ? { cut: '4200', debt_free_month: dfm - 2, total_interest_paid: '80000' } : null,
+      };
+    };
+    let combos = 0;
+    for (const dfm of [40, 70])
+      for (const infeasible of [1, 6, 30])
+        for (const shortNow of [false, true]) {
+          const r = response({ dfm, infeasible, shortNow });
+          const end = gap.planEnd(r);
+          assert.equal(end.debtFreeMonth, null, 'a capped run has no debt-free month');
+          assert.deepEqual(end.scheduleCut, { month: infeasible, growsWithoutLimit: false, notFundableFrom: infeasible });
+          const futureRow = r.trajectory.find((p) => p.month > 1 && Number(p.shortfall) > 0);
+          const plan = {
+            live: true, user: { country: 'IN', loans, monthly_income: '50000', efund_balance: '0' }, displayCurrency: 'INR',
+            strategy: 'avalanche', trajectory: mergeTrajectories(r, r), monthlyPayments: extractMonthlyPayments(r),
+            ...end, baselineNeverClears: true, shortfall: Number(r.shortfall), gap: gap.planGap(r), gaps: [],
+            futureShortfall: futureRow ? { month: futureRow.month, amount: Number(futureRow.shortfall) } : undefined,
+            totalInterest: r.total_interest_paid, baselineInterest: '0', runArgs: null, strategyCompare: null,
+          };
+          const short = true;
+          const html = [
+            renderToStaticMarkup(React.createElement(PlanTrajectory, { plan, short })),
+            renderToStaticMarkup(React.createElement(PlanSchedule, { plan })),
+          ].join('\n');
+          const words = (s) => s.replace(/<[^>]+>/g, ' ');
+          const text = words(html);
+          for (const bad of [shortCap(dfm), chartCap(dfm), longLabel(dfm)]) assert.ok(!text.includes(bad), `paper date ${bad} shown (dfm ${dfm}, infeasible ${infeasible})`);
+          assert.ok(!/DEBT-FREE AS THINGS STAND|★ DEBT-FREE|debt-free in /.test(text), 'debt-free milestone/row shown');
+          assert.ok(text.includes(`NOT FUNDABLE FROM ${shortCap(infeasible)}`), 'schedule heading/stop says not fundable');
+          assert.ok(!text.includes('NEVER CLEARS ·') && !/DOESN’T CLEAR IN 30 YEARS/.test(text), 'the capped stop, not the 30-year one');
+          assert.match(html, /data-testid="schedule-stop"/);
+          assert.ok(text.includes(`NOT FUNDABLE FROM ${chartCap(infeasible)}`), 'chart note says not fundable');
+          // Headline: the words Plan, Home and Setup use.
+          const label = (m) => longLabel(m).toUpperCase();
+          const h = gap.shortHeadline({ shortfall: plan.shortfall, asIsMonth: plan.debtFreeMonth, closedMonth: plan.gap?.closed?.debtFreeMonth, label, money: (v) => `₹${v}`, infeasibleFrom: plan.infeasibleFrom, laterGap: plan.futureShortfall });
+          assert.ok(!`${h.value} ${h.sub}`.includes(label(dfm)));
+          assert.doesNotMatch(planHeadline({ debtFreeMonth: plan.debtFreeMonth, short, country: 'IN' }), /^Debt-free:/);
+          // The tenure what-if (compare) maps through the same planEnd.
+          const wi = planWithWhatIf(plan, { scenario_trajectory: r.trajectory, scenario_debt_free_month: dfm, scenario_never_clears: true, scenario_infeasible_from_month: infeasible }, 0);
+          assert.equal(wi.debtFreeMonth, null);
+          assert.equal(wi.scheduleCut.notFundableFrom, infeasible);
+          // Setup's Debt-free row for a capped plan: the later gap, never the paper date.
+          const row = gap.cappedRow(r, longLabel, (v) => `₹${v}`);
+          if (!shortNow) assert.ok(row && !row.join(' ').includes(longLabel(dfm)) && row[1].includes(`not fundable as it stands from ${longLabel(infeasible)}`), String(row));
+          else assert.equal(row, null); // month-1 short: Setup's short row (shortGapLine, guarded above)
+          combos++;
+        }
+    assert.equal(combos, 12);
+    // Fundable plans keep their date and their stop rules (no regression).
+    assert.deepEqual(gap.planEnd({ debt_free_month: 40 }), { debtFreeMonth: 40, infeasibleFrom: null, scheduleCut: null });
+    assert.deepEqual(gap.planEnd({ debt_free_month: null, never_clears: true, trajectory_cut_month: 360 }), { debtFreeMonth: null, infeasibleFrom: null, scheduleCut: { month: 360, growsWithoutLimit: false } });
+    // Every page reads the run's end through planEnd / shownDebtFreeMonth.
+    const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
+    assert.match(read('components/plan/load-plan.ts'), /\.\.\.planEnd\(scenario\)/);
+    assert.doesNotMatch(read('components/plan/load-plan.ts'), /debtFreeMonth: (scenario|altSims\[\d\]|sims\[i\]|paceSim)\.debt_free_month/);
+    assert.match(read('lib/trajectory.ts'), /\.\.\.planEnd\(\{/);
+    assert.match(read('components/setup/QuickSetup.tsx'), /shownDebtFreeMonth\(plan\)/);
+  } finally {
+    Module._load = prevLoad;
+  }
 });

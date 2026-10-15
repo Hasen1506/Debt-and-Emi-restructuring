@@ -107,6 +107,8 @@ export function TenureWhatIf({
   const r = state.result;
   const label = (m: number | null | undefined) =>
     m ? monthIndexToCountryLabel(m, user.country) : 'not within 30 years';
+  const when = (m: number | null | undefined, infeasibleFrom: number | null | undefined) =>
+    infeasibleFrom != null ? `none, not fundable from ${monthIndexToCountryLabel(infeasibleFrom, user.country)}` : label(m);
   const extraInterest = r ? Number(r.scenario_total_interest ?? 0) - Number(r.baseline_total_interest ?? 0) : 0;
   const gapAfter = r ? Number(r.scenario_shortfall ?? 0) : 0;
   // Live re-test NEW-2: a side that never clears has an unbounded interest
@@ -184,7 +186,8 @@ export function TenureWhatIf({
           {copy?.gap ? (
             copy.gapCloses ? <strong style={{ color: L_T.positive }}>{copy.gap}</strong> : <>{copy.gap}</>
           ) : null}{' '}
-          Debt-free: {label(r.scenario_debt_free_month)} (as things stand: {label(r.baseline_debt_free_month)}).{' '}
+          {/* Integration phase 5 (C11): a capped side has no date, only the month it stops being fundable. */}
+          Debt-free: {when(r.scenario_debt_free_month, r.scenario_infeasible_from_month)} (as things stand: {when(r.baseline_debt_free_month, plan.infeasibleFrom)}).{' '}
           {copy?.interest}
         </div>
       )}

@@ -55,7 +55,7 @@ import {
 } from '@/lib/activity-cookie';
 import { PACE_MONTHS, monthsBefore, paceDiffers, paceProjectionGap, paceSummary } from '@/lib/pace';
 import { extractMonthlyPayments, mergeTrajectories } from '@/lib/trajectory';
-import { planGap } from '@/lib/plan-gap';
+import { planEnd, planGap, shownDebtFreeMonth } from '@/lib/plan-gap';
 import { mockTrajectory } from '@/lib/mock-data';
 import { deriveMetrics } from '@/lib/derived';
 import { projectionGaps } from '@/lib/loan-gaps';
@@ -521,21 +521,21 @@ export async function loadPlan(
     ]);
     const strategyCompare = {
       [strategy]: {
-        debtFreeMonth: scenario.debt_free_month,
+        debtFreeMonth: shownDebtFreeMonth(scenario),
         totalInterest: scenario.total_interest_paid,
       },
       [otherStrategies[0]]: {
-        debtFreeMonth: altSims[0].debt_free_month,
+        debtFreeMonth: shownDebtFreeMonth(altSims[0]),
         totalInterest: altSims[0].total_interest_paid,
       },
       [otherStrategies[1]]: {
-        debtFreeMonth: altSims[1].debt_free_month,
+        debtFreeMonth: shownDebtFreeMonth(altSims[1]),
         totalInterest: altSims[1].total_interest_paid,
       },
     } as PlanData['strategyCompare'];
     const monthsSaved =
-      scenario.debt_free_month && baseline.debt_free_month
-        ? baseline.debt_free_month - scenario.debt_free_month
+      shownDebtFreeMonth(scenario) && baseline.debt_free_month
+        ? baseline.debt_free_month - scenario.debt_free_month!
         : 0;
     const scenarioPayments = extractMonthlyPayments(scenario);
     const baselinePayments = extractMonthlyPayments(baseline);
@@ -581,13 +581,12 @@ export async function loadPlan(
         monthlyInterest: Number(b.monthly_interest),
         scheduledEmi: Number(b.scheduled_emi),
       })),
-      scheduleCut:
-        scenario.debt_free_month == null && (scenario.trajectory_cut_month != null || scenario.never_clears)
-          ? { month: scenario.trajectory_cut_month ?? null, growsWithoutLimit: !!scenario.grows_without_limit }
-          : null,
+      // Integration phase 5 (C11): debtFreeMonth / infeasibleFrom /
+      // scheduleCut from one mapping (lib/plan-gap planEnd): a capped plan
+      // has no debt-free month and stops at its first unfundable month.
+      ...planEnd(scenario),
       baselineNeverClears: !!baseline.never_clears || (baseline.debt_free_month == null && Number(baseline.total_interest_paid) > 0),
       trajectory: mergeTrajectories(scenario, baseline),
-      debtFreeMonth: scenario.debt_free_month,
       totalInterest: scenario.total_interest_paid,
       baselineInterest: baseline.total_interest_paid,
       monthsSaved,
@@ -631,7 +630,7 @@ export async function loadPlan(
             planTotal,
             differs: paceOff,
             projectionUnavailable,
-            debtFreeMonth: paceOff && paceSim && !projectionUnavailable ? paceSim.debt_free_month : null,
+            debtFreeMonth: paceOff && paceSim && !projectionUnavailable ? shownDebtFreeMonth(paceSim) : null,
           }
         : null,
       currenciesInPlay: ccyList,
@@ -685,7 +684,6 @@ export async function loadPlan(
         const row=scenario.trajectory.find(p=>p.month>1 && Number(p.shortfall)>0);
         return row ? {month:row.month,amount:Number(row.shortfall)} : undefined;
       })(),
-      infeasibleFrom: scenario.infeasible_from_month ?? null,
       gap: planGap(scenario),
       gaps: [],
     };
@@ -748,7 +746,7 @@ export async function loadStrategyOutcomesFromCookies(): Promise<{
     STRATEGIES.map((s, i) => [
       s,
       {
-        debtFreeMonth: sims[i].debt_free_month,
+        debtFreeMonth: shownDebtFreeMonth(sims[i]),
         totalInterest: sims[i].total_interest_paid,
         short:
           Number(sims[i].shortfall ?? 0) > 0 ||

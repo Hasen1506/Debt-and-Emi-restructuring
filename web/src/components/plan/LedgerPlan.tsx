@@ -202,7 +202,7 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
               ? {
                   l: 'TOTAL INTEREST',
                   v: '—',
-                  s: gapRunsAway ? 'THE GAP BORROWING KEEPS GROWING' : "DOESN'T CLEAR AT THESE FIGURES",
+                  s: plan.infeasibleFrom != null ? 'NOT FUNDABLE AS IT STANDS' : gapRunsAway ? 'THE GAP BORROWING KEEPS GROWING' : "DOESN'T CLEAR AT THESE FIGURES",
                   tone: L_T.negative,
                 }
               : {
@@ -412,7 +412,9 @@ function ShortfallBanner({ plan }: { plan: PlanData }) {
       each short month is {Number(plan.user.efund_balance ?? 0) > 0 ? 'paid from your emergency fund while it lasts, then ' : ''}
       borrowed on {card}, and any money freed later pays that borrowing back
       first, before any loan gets extra.
-      {gap && gap.peak > 0 && gap.peakMonth && !gap.repaidMonth
+      {plan.infeasibleFrom != null
+        ? ` The borrowing reaches the card limit: from ${monthIndexToCountryLabel(plan.infeasibleFrom, plan.user.country)} a short month can't be borrowed, so the plan isn't fundable as it stands and has no debt-free date.`
+        : gap && gap.peak > 0 && gap.peakMonth && !gap.repaidMonth
         ? ' At this income the borrowing is never repaid: it grows without limit.'
         : gap && gap.peak > 0 && gap.peakMonth
         ? ` The borrowing peaks at ${fc(gap.peak)} in ${monthIndexToCountryLabel(gap.peakMonth, plan.user.country)}${gap.repaidMonth ? ` and is repaid by ${monthIndexToCountryLabel(gap.repaidMonth, plan.user.country)}` : ' and is never repaid at this income'}.`

@@ -25,7 +25,7 @@ const src = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
 test('R6B-1: Setup step 3 shows no crore-scale interest when the gap borrowing runs away', () => {
   const qs = src('components/setup/QuickSetup.tsx');
-  assert.match(qs, /gapRunsAway = short && plan\.debt_free_month == null/);
+  assert.match(qs, /gapRunsAway = short && (plan\.debt_free_month|shownDebtFreeMonth\(plan\)) == null/);
   assert.match(qs, /\['Interest you’ll pay', '—', 'the gap borrowing keeps growing'\]/);
   assert.match(qs, /'doesn’t clear at these figures'/);
   assert.match(qs, /saneCap\(owedToday\)/);

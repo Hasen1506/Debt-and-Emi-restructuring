@@ -101,6 +101,8 @@ function scheduleEvents(plan: PlanData, short: boolean): Map<number, string[]> {
     const money = (v: number) => formatCurrencyWhole(Math.round(v), plan.displayCurrency);
     for (const [m, e] of gapEvents(plan.gap, money, gapRateWords(plan.gap.rate))) add(m, e);
   }
+  const nf = plan.scheduleCut?.notFundableFrom;
+  if (nf != null) add(nf, '✕ NOT FUNDABLE FROM HERE · THE GAP CAN’T BE BORROWED');
   const last = plan.monthlyPayments.at(-1)?.month ?? 0;
   for (let m = 12; m < last; m += 12) {
     if (!events.has(m)) add(m, `⊙ END OF YEAR ${m / 12}`);
@@ -190,6 +192,15 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
   });
   const rows = stop.lastMonth == null ? allRows : allRows.filter((r) => r.mo <= stop.lastMonth!);
   const stopRow = stop.lastMonth != null ? rows.find((r) => r.mo === stop.lastMonth) : undefined;
+  // Integration phase 5 (C11): a capped plan stops at its first unfundable
+  // month, and the heading and stop line say "not fundable from <month>"
+  // (there is no debt-free date: plan.debtFreeMonth is null).
+  const notFundableFrom = plan.scheduleCut?.notFundableFrom ?? null;
+  const nfLabel = (() => {
+    if (notFundableFrom == null) return null;
+    const d = monthIndexToDate(notFundableFrom, today);
+    return `${MONTH_NAMES[d.getMonth()].slice(0, 3).toUpperCase()} ${d.getFullYear()}`;
+  })();
   const money = (v: number) => fc(v.toFixed(0));
   const cell = (v: number) => boundedMoney(v, cap, money);
   const eventRows = rows.filter((r) => r.event || r.mo === stop.lastMonth);
@@ -252,7 +263,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
           </span>
         }
       >
-        MONTH BY MONTH{short ? ' · AS THINGS STAND' : ''}{stopRow ? ' · NEVER CLEARS' : ''} ·{' '}
+        MONTH BY MONTH{short ? ' · AS THINGS STAND' : ''}{stopRow ? (nfLabel ? ` · NOT FUNDABLE FROM ${nfLabel}` : ' · NEVER CLEARS') : ''} ·{' '}
         {expanded ? `${totalCount} MO` : `${eventRows.length} EVENT${eventRows.length === 1 ? '' : 'S'}`}
       </LSectionHeader>
       {visibleRows.length === 0 ? (
@@ -411,7 +422,7 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
         </div>
         {stopRow ? (
           <div role="note" data-testid="schedule-stop" style={{ padding: '8px 0', fontSize: 'var(--fs-small)', lineHeight: 1.6, color: L_T.negative, fontWeight: 700 }}>
-            {scheduleStopLine(stop.growsWithoutLimit, stopRow.date)}
+            {nfLabel ? scheduleStopLine(false, nfLabel, true) : scheduleStopLine(stop.growsWithoutLimit, stopRow.date)}
           </div>
         ) : (
           <ScheduleFooter totals={totals} fc={fc} gstApplies={gstApplies} />
