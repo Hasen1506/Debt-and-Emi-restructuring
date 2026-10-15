@@ -155,3 +155,26 @@ def test_c11_a_plan_that_only_clears_with_unfundable_money_is_never_clears(
     assert body["never_clears"] is infeasible
     if not infeasible:
         assert body["debt_free_month"] is not None
+
+
+def test_c11_capped_what_if_and_gap_closed_carry_no_paper_date(client, india_user_payload):
+    """Integration phase 5: the what-if (compare) names the scenario's first
+    unfundable month, and a gap-closed run that is itself capped has no
+    debt-free month (it clears only on paper)."""
+    user = {**india_user_payload, "monthly_income": "50000", "annual_income": "600000",
+            "fixed_expenses": "45000", "variable_expenses": "0", "efund_balance": "0", "efund_target": "0",
+            "loans": [_loan(outstanding="500000", nominal_rate="0.12", tenure_months_remaining=60,
+                            scheduled_emi="10253")]}
+    sim = client.post("/api/simulate", json={"user": user, "horizon_months": 120}).json()
+    assert sim["infeasible_from_month"] is not None
+    gc = sim.get("gap_closed")
+    if gc is not None and gc["debt_free_month"] is not None:
+        # closing month 1's gap must leave a genuinely fundable plan
+        closed = client.post("/api/simulate", json={"user": {**user, "fixed_expenses": str(45000 - int(float(gc["cut"])))}, "horizon_months": 120}).json()
+        assert closed["infeasible_from_month"] is None
+    body = client.post("/api/sensitivity/compare", json={
+        "user": user, "horizon_months": 120, "tenure_extension_loan_index": 0,
+        "tenure_extension_months": 12, "include_trajectory": True}).json()
+    assert "scenario_infeasible_from_month" in body
+    if body["scenario_never_clears"] and body["scenario_debt_free_month"] is not None:
+        assert body["scenario_infeasible_from_month"] is not None

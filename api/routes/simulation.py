@@ -372,7 +372,9 @@ def _gap_closed(user, req, kwargs, result) -> GapClosedOut | None:
     )
     return GapClosedOut(
         cut=cut.quantize(_CENT, rounding=ROUND_HALF_UP),
-        debt_free_month=closed.debt_free_month,
+        # Integration phase 5 (C11): a gap-closed run that is itself capped
+        # (a later month can't be borrowed) clears only on paper: no date.
+        debt_free_month=None if getattr(closed, "infeasible_from_month", None) is not None else closed.debt_free_month,
         total_interest_paid=closed.total_interest_paid.quantize(_CENT, rounding=ROUND_HALF_UP),
     )
 
@@ -662,6 +664,7 @@ def _sensitivity_compare_uncached(req: CompareRequest) -> CompareResponse:
             baseline_total_interest=D("0"), scenario_total_interest=D("0"),
             baseline_never_clears=True,
             scenario_never_clears=_never_clears(scenario_result, user),
+            scenario_infeasible_from_month=getattr(scenario_result, "infeasible_from_month", None),
         )
     diff = compare(base, scenario_result)
     t = tenure
@@ -681,6 +684,7 @@ def _sensitivity_compare_uncached(req: CompareRequest) -> CompareResponse:
         scenario_total_interest=scenario_result.total_interest_paid,
         baseline_never_clears=_never_clears(base, user),
         scenario_never_clears=_never_clears(scenario_result, user),
+        scenario_infeasible_from_month=getattr(scenario_result, "infeasible_from_month", None),
         **_scenario_trajectory(req, scenario_result, scenario_user if tenure is None else stretched, user),
     )
 

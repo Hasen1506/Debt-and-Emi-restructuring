@@ -1369,11 +1369,11 @@ class CompareResponse(_Base):
     # interest_saved compares two unbounded totals and must not be shown.
     baseline_never_clears: bool = False
     scenario_never_clears: bool = False
-    # Live test L#26: the scenario's trajectory (include_trajectory only),
-    # bounded the same way as /simulate's (NEW-2).
+    # L#26 scenario trajectory (include_trajectory), bounded like /simulate's (NEW-2); C11 first unfundable month.
     scenario_trajectory: Optional[list[TrajectoryPoint]] = None
     scenario_trajectory_cut_month: Optional[int] = None
     scenario_grows_without_limit: bool = False
+    scenario_infeasible_from_month: Optional[int] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
