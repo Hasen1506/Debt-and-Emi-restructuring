@@ -19,6 +19,7 @@
   "payoff_order_note": null,
   "pmi_events": [],
   "rate_rise_events": [],
+  "seasonal": null,
   "shortfall": "0",
   "surplus_allocation": null,
   "total_gap_interest": "0.00",
@@ -244,6 +245,7 @@
   "payoff_order_note": null,
   "pmi_events": [],
   "rate_rise_events": [],
+  "seasonal": null,
   "shortfall": "0",
   "surplus_allocation": {
    "any_goal_short": false,
@@ -369,6 +371,7 @@
   "payoff_order_note": null,
   "pmi_events": [],
   "rate_rise_events": [],
+  "seasonal": null,
   "shortfall": "0",
   "surplus_allocation": null,
   "total_gap_interest": "0.00",
@@ -583,6 +586,7 @@
   "payoff_order_note": null,
   "pmi_events": [],
   "rate_rise_events": [],
+  "seasonal": null,
   "shortfall": "0",
   "surplus_allocation": {
    "any_goal_short": false,
