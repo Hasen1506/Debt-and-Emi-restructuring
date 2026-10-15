@@ -109,6 +109,7 @@ export const KIND_LABELS: Record<IncomeStreamPayload['kind'], string> = {
   freelance: 'Freelance / consulting',
   rental: 'Rental income',
   capital_gains: 'Capital gains',
+  interest: 'Interest (bank, FD)',
   other: 'Other',
 };
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { carryPlanInputs } from '@/lib/plan-inputs';
 import { assumptionError, wholeMonthsError, wholeMonthsValue, LOCK_IN_RANGE, PART_PAY_FREQ_RANGE } from '@/lib/r8-inputs';
 import { creditScoreError, usableCreditScore } from '@/lib/r7-inputs';
 import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
@@ -841,8 +842,10 @@ function ProfileEditor({
     const fetchedQuotes = Object.fromEntries(
       Object.entries(fxQuotes).flatMap(([c, q]) => (typeof q === 'object' ? [[c, q]] : [])),
     );
+    // Round 2: what only Plan edits (borrowing limit, date of birth, own
+    // return, each loan's rate-rise choice) goes back unchanged.
     const userWithFx = dateProfileRates(
-      { ...(stored.isLive ? stored.user : {}), ...buildUser() } as UserPayload,
+      carryPlanInputs({ ...(stored.isLive ? stored.user : {}), ...buildUser() } as UserPayload, stored.isLive ? stored.user : null),
       stored.isLive ? stored.user : null,
       fetchedQuotes,
       Date.now(),

@@ -569,12 +569,16 @@ class IncomeStreamIn(_In):
     uses them to derive monthly_income and dynamic tax-sleeve targets.
     """
     id: str
-    kind: str = Field(..., pattern=r"^(salaried|business_owner|freelance|rental|capital_gains|other)$")
+    kind: str = Field(..., pattern=r"^(salaried|business_owner|freelance|rental|capital_gains|interest|other)$")
     label: str
     gross_annual: Decimal
     start_date: str
     end_date: Optional[str] = None
     tds_pct: Optional[Decimal] = None
+    # Round 2: "business_44ada" | "business_normal" | ... (UI-only) and the
+    # kind of capital gain for the salaried advance-tax panel.
+    tax_treatment: Optional[str] = None
+    cg_kind: Optional[str] = Field(None, pattern=r"^(equity_stcg|equity_ltcg|other)$")
 
 
 class DeductionsIn(_In):

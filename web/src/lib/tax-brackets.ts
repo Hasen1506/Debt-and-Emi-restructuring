@@ -270,11 +270,10 @@ export function marginalRateUS(taxable: number, filing: FilingStatusUS): number 
 /**
  * Does Sec 208 (India) / Form 1040-ES (US) advance-tax obligation apply?
  *
- * India: liability > ₹10,000 after TDS. For salaried users TDS usually
- * covers most/all of it, so we conservatively trigger only when annual
- * tax > ₹50,000 AND they're SE (the typical advance-tax-relevant case).
- * For salaried users with extra non-salary income (which we don't model
- * yet), the threshold is lower — we'll re-evaluate when that data lands.
+ * India: liability of ₹10,000 or more after TDS (business income here).
+ * Salaried users with non-TDS income (interest, gains, rent, freelance)
+ * are worked out by the engine instead (lib/salaried-advance-tax,
+ * POST /api/tax/advance-tax/salaried).
  *
  * US: > $1,000 owed after withholding. Same conservative trigger for SE;
  * salaried with W-2 withholding generally doesn't owe 1040-ES.
@@ -285,7 +284,8 @@ export function isAdvanceTaxApplicable(
   annualTax: Decimal,
 ): boolean {
   if (incomeType !== 'business_owner') return false;
-  if (country === 'IN') return annualTax.gt(10_000);
+  // s.404 [208]: "Rs. 10,000 or more" (Income Tax Dept FAQ); was > 10,000.
+  if (country === 'IN') return annualTax.gte(10_000);
   return annualTax.gt(1_000);
 }
 

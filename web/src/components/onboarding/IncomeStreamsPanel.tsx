@@ -208,6 +208,19 @@ export function IncomeStreamsPanel({ country, value, onChange }: Props) {
                     </>
                   }
                 />
+                {s.kind === 'capital_gains' && country === 'IN' && (
+                  <Select
+                    label="Kind of gain"
+                    value={s.cg_kind ?? 'other'}
+                    onChange={(v) => updateStream(i, { cg_kind: v as IncomeStreamPayload['cg_kind'] })}
+                    options={[
+                      { value: 'equity_stcg', label: 'Shares / equity funds, held 1 year or less (20%)' },
+                      { value: 'equity_ltcg', label: 'Shares / equity funds, held over 1 year (12.5% above ₹1.25 lakh)' },
+                      { value: 'other', label: 'Other (taxed at your slab rate here)' },
+                    ]}
+                    info={<>Used for advance tax on income your employer doesn&apos;t deduct tax from.</>}
+                  />
+                )}
                 <Select
                   label="Tax treatment"
                   value={s.tax_treatment ?? defaultTaxTreatment(s.kind)}
