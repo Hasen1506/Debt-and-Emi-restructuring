@@ -45,6 +45,14 @@ def _flag(name: str) -> Callable[[Mapping[str, str]], bool]:
     return on
 
 
+def _any_flag(*names: str) -> Callable[[Mapping[str, str]], bool]:
+    checks = [_flag(n) for n in names]
+
+    def on(env: Mapping[str, str]) -> bool:
+        return any(c(env) for c in checks)
+    return on
+
+
 def _always(env: Mapping[str, str]) -> bool:
     return True
 
@@ -62,7 +70,7 @@ class Processor:
 PROCESSORS: tuple[Processor, ...] = (
     Processor("Neon", "database host (AWS Asia Pacific, Singapore)",
               "everything in this file: account, saved plan, sign-in records, consent records, access log, "
-              "payday-email settings"),
+              "email settings (payday list, reminder dates, watched loans), counts-only funnel totals"),
     Processor("Render", "app server (Oregon, USA)",
               "requests while they are processed, including a credit report or KFS PDF you upload, "
               "which is read once and not stored"),
@@ -70,9 +78,10 @@ PROCESSORS: tuple[Processor, ...] = (
     Processor("Resend", "email delivery (USA)", "your email address and sign-in codes"),
     Processor("Google Fonts", "page font, loaded by your browser", "your IP address when the font loads"),
     Processor("Yahoo Finance", "share prices for the portfolio tool", "ticker symbols only, never who asked"),
-    Processor("Resend (payday emails)", "email delivery (USA)",
-              "the payday reminder you switched on: lender names and payment amounts",
-              _flag("PAYDAY_EMAIL_ENABLED")),
+    Processor("Resend (emails you switch on)", "email delivery (USA)",
+              "the payday email, deadline reminders or rate-move email you switched on: lender names, "
+              "payment amounts, dates, and for a rate-move email the loan balance, rate, EMI and months left",
+              _any_flag("PAYDAY_EMAIL_ENABLED", "DEADLINE_REMINDERS_ENABLED", "RATE_MOVE_EMAIL_ENABLED")),
     Processor("Sentry", "error reports (USA)",
               "error details with digits masked; none of your figures, email or address", _flag("SENTRY_DSN")),
     Processor("Cloudflare Turnstile", "check on the sign-in page that you are a person",

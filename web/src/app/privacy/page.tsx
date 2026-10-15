@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { LBracket, LShell, L_T } from '@/components/ledger/primitives';
+import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 import {
-  ACCOUNT_PATH, BOARD, DATA_FIDUCIARY, GRIEVANCE_CONTACT, GRIEVANCE_REPLY_DAYS_LEGAL_MAX, GRIEVANCE_REPLY_DAYS_MAX,
+  ACCOUNT_PATH, BOARD, CONTACT_EMAILS, DATA_FIDUCIARY, GRIEVANCE_CONTACT, GRIEVANCE_REPLY_DAYS_LEGAL_MAX, GRIEVANCE_REPLY_DAYS_MAX,
   NOTICE_LAST_UPDATED, NOTICE_VERSION, PROCESSORS, RETENTION, SOURCES, TERMS_PATH,
 } from '@/lib/privacy-facts';
 
@@ -46,6 +47,15 @@ export default function PrivacyPage() {
           Questions about your data, or a complaint: <strong>{GRIEVANCE_CONTACT.name}</strong> ({GRIEVANCE_CONTACT.role}),{' '}
           <a href={mail}>{GRIEVANCE_CONTACT.email}</a>.
         </p>
+        <div data-testid="privacy-contacts">
+          <DraftLegalMarker id="privacy-notice-2026-10-15" note="new contact addresses" />
+          <ul style={{ paddingLeft: 18, margin: 0 }}>
+            <Row what={<a href={`mailto:${CONTACT_EMAILS.privacy}`}>{CONTACT_EMAILS.privacy}</a>} why="your data, your rights under the DPDP Act, and complaints about how we handle your data (our grievance contact)." />
+            <Row what={<a href={`mailto:${CONTACT_EMAILS.support}`}>{CONTACT_EMAILS.support}</a>} why="help with the app, and the Report a problem button." />
+            <Row what={<a href={`mailto:${CONTACT_EMAILS.security}`}>{CONTACT_EMAILS.security}</a>} why="a security problem you found (see /.well-known/security.txt)." />
+          </ul>
+          <p style={NOTE}>All three reach the founder. We never ask for your password, a sign-in code or your bank details by email.</p>
+        </div>
 
         <h2 style={H2}>WHAT WE KEEP, AND WHY</h2>
         <p style={P}>
@@ -79,6 +89,38 @@ export default function PrivacyPage() {
             why="to limit how often one connection can request codes or send reports. We store only a keyed hash (a scrambled stand-in) of the address, never the address itself."
           />
         </ul>
+        <section aria-label="Emails you switch on, and usage counts" data-testid="privacy-r2-additions">
+          <DraftLegalMarker id="privacy-notice-2026-10-15" note="emails, usage counts and consent records" />
+          <p style={P}>Only if you switch them on (each is off until you do, and each email has a one-tap &ldquo;turn these emails off&rdquo; link):</p>
+          <ul style={{ paddingLeft: 18, margin: 0 }}>
+            <Row
+              what="Payday email"
+              why="the day your salary is paid and this month's payment list (each lender or nickname, the amount and whether it is an EMI, a card minimum or an extra payment), so we can email the list on payday. We also keep when we emailed you and your answer from the email (&ldquo;All paid&rdquo;, &ldquo;Paid some&rdquo;, &ldquo;I can't pay this month&rdquo;, or a &ldquo;done&rdquo; reply) until the app has applied it."
+            />
+            <Row
+              what="Deadline reminders"
+              why="the dates from a complaint or loan-closure letter you are tracking (for example the last day to go to the RBI Ombudsman) and their labels, so we can email a week before, the day before and on the day. No letter text, account number or name."
+            />
+            <Row
+              what="Rate-move email"
+              why="for each repo-linked loan you tick: its name, balance, interest rate, EMI or months left, and which RBI decision we last emailed you about, so we can email what an RBI repo change does to that loan."
+            />
+          </ul>
+          <p style={P}>
+            When you turn an email off (in the app or from the email), its payment list, reminder dates or watched loans
+            are deleted at once. The record of what was sent and your answers stays until you delete your account, and is
+            used only to count, without names, how many people come back after an email. Emails can arrive a day or two
+            late on busy days: we use a free email plan with a daily limit, and sign-in codes always go first.
+          </p>
+          <Row
+            what="Usage counts (only when we switch them on)"
+            why="daily totals such as &ldquo;one more person reached step 2 of Setup&rdquo; or &ldquo;one more plan was saved&rdquo;. The page sends only the name of the step or field (never what you typed, an amount, a lender, your email or an id) without cookies, and the server adds one to that day's total and keeps nothing else: no IP address, no user id. To avoid counting you twice, this browser remembers which counts it already sent; that note never leaves your device and stays after you sign out."
+          />
+          <Row
+            what="The record of your agreement, in detail"
+            why="each time you agree (when you sign up, or again after a change), and when you withdraw by deleting your account: your email, the versions of this notice and the terms, the purpose you agreed to in these words, whether you confirmed you are 18 or older, how you signed in (code or Google) and when. It holds none of your figures, and is kept for one year after you delete your account so we can show what you agreed to."
+          />
+        </section>
         <p style={P}>Things we use but do not keep:</p>
         <ul style={{ paddingLeft: 18, margin: 0 }}>
           <Row what="Numbers sent to calculate a page" why="the server works out your plan from the figures sent with the request and does not store them unless you save your plan." />

@@ -273,7 +273,7 @@ def test_export_lists_every_record_kind_and_live_processors(harness, monkeypatch
     assert body["format_version"] == 2
     who = [p["who"] for p in body["shared_with"]]
     assert {"Neon", "Render", "Cloudflare", "Resend", "Google Fonts", "Yahoo Finance", "Sentry"} <= set(who)
-    assert "Resend (payday emails)" not in who and "Cloudflare Turnstile" not in who
+    assert "Resend (emails you switch on)" not in who and "Cloudflare Turnstile" not in who
     assert body["consent"]["history"][0]["action"] == "given"
     assert body["sign_in_sessions"][0]["device"] == "Chrome on Android"
     actions = [(a["action"], a["route"]) for a in body["access_log"]]
@@ -647,7 +647,9 @@ def test_versions_and_processors_match_the_web_notice():
 
 
 @pytest.mark.parametrize("flag,name", [("SENTRY_DSN", "Sentry"), ("TURNSTILE_SECRET_KEY", "Cloudflare Turnstile"),
-                                       ("PAYDAY_EMAIL_ENABLED", "Resend (payday emails)"), ("GOOGLE_SIGNIN", "Google sign-in")])
+                                       ("PAYDAY_EMAIL_ENABLED", "Resend (emails you switch on)"), ("GOOGLE_SIGNIN", "Google sign-in"),
+                                       ("DEADLINE_REMINDERS_ENABLED", "Resend (emails you switch on)"),
+                                       ("RATE_MOVE_EMAIL_ENABLED", "Resend (emails you switch on)")])
 def test_switchable_processors_appear_only_when_switched_on(flag, name):
     assert name not in [p["who"] for p in privacy_facts.shared_with({})]
     assert name not in [p["who"] for p in privacy_facts.shared_with({flag: "false"})]
