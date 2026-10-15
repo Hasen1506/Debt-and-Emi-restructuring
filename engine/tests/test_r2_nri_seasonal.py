@@ -134,3 +134,17 @@ def test_reserve_class_never_more_gap_borrowing(scale, rot):
     # plan can "borrow less" only by running out of limit.
     need = lambda r: sum((m.gap_borrowed + m.unfunded_shortfall for m in r.months), D("0"))  # noqa: E731
     assert need(on) <= need(off) + D("0.01")
+
+
+# ── item 6: ICICI ₹100 floor kept, tagged verify ────────────────────────────
+
+def test_icici_floor_kept_and_tagged_verify():
+    from pathlib import Path
+    from engine.minimum_payments import FORMULA_SOURCE, INDIA_MIN_PAYMENT_FORMULAS
+    f = INDIA_MIN_PAYMENT_FORMULAS["ICICI Bank"]
+    assert f["floor"] == D("100") and f["verify"] is True and "statement" in f["verify_note"]
+    assert FORMULA_SOURCE["ICICI Bank"]["verify"] is True
+    root = Path(__file__).resolve().parents[2]
+    rec = (root / "docs" / "VERIFY-RECORDS.md").read_text(encoding="utf-8")
+    assert "ICICI" in rec and "₹100" in rec
+    assert "verify: true" in (root / "web/src/lib/min-payment.ts").read_text(encoding="utf-8")
