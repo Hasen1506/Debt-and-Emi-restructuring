@@ -18,6 +18,7 @@ import type { LoanType } from '@/lib/api';
 import { TIER_REASON, TRIAGE_RULES, TRIAGE_VERIFIED_ON, US_COLLECTOR_RULE } from '@/lib/distress-triage';
 import { LetterSection, Rule, type Line } from './CantPay';
 import { AgentComplaintSection } from './AgentComplaint';
+import { UsLettersLink } from './UsLettersLink';
 
 type C = 'IN' | 'US';
 
@@ -178,6 +179,7 @@ export function CantPayPublic() {
               <span id="cp-rights">YOUR RIGHTS WITH DEBT COLLECTORS</span>
             </LSectionHeader>
             <Rule r={US_COLLECTOR_RULE} />
+            <UsLettersLink />
           </section>
         )}
 

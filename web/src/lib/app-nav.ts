@@ -15,6 +15,7 @@
 import type { Country } from './api';
 import { isToolPage } from './nav-trail';
 import { toolsFor } from './tools';
+import { US_LETTERS_PATH } from './us-letters';
 
 export type LedgerSection = 'home' | 'plan' | 'activity' | 'profile' | 'more';
 
@@ -72,6 +73,8 @@ export function moreGroups(user: NavUser): MoreGroup[] {
       title: 'Help',
       links: [
         { label: 'Can’t pay this month', href: '/cant-pay', sub: india ? 'Your rights and a letter to the bank' : 'What to ask your lender' },
+        // Round 2 (15 Oct 2026): the page behind welcome.html's "Federal, state and card rules for the USA".
+        ...(india ? [] : [{ label: 'US letters', href: US_LETTERS_PATH, sub: 'Hardship, card billing dispute, mortgage error' }]),
         { label: 'Glossary', href: '/glossary', sub: 'Plain words for loan terms' },
         { label: 'Your data', href: '/account', sub: 'Download or delete it' },
       ],

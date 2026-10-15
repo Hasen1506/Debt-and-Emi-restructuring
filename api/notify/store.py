@@ -239,6 +239,14 @@ class NotifyStore:
             return int((await conn.execute(select(func.count()).select_from(events).where(and_(
                 events.c.day == day, events.c.kind.in_(SENT_KINDS))))).scalar_one())
 
+    async def sent_between(self, first: date, last: date) -> int:
+        """Emails sent from `first` to `last`, both included (the monthly guard)."""
+        await self.init()
+        from sqlalchemy import func
+        async with self.engine.connect() as conn:
+            return int((await conn.execute(select(func.count()).select_from(events).where(and_(
+                events.c.day >= first, events.c.day <= last, events.c.kind.in_(SENT_KINDS))))).scalar_one())
+
     # ── rate-move watch (A13) ───────────────────────────────────────────
     async def get_rate_watch(self, user_id: str) -> Optional[dict[str, Any]]:
         await self.init()

@@ -46,7 +46,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from api.notify import budget as budget_mod
-from api.notify import flags, inbound, sender, tokens
+from api.notify import flags, inbound, queue, sender, tokens
 from api.notify.store import store
 from engine import payday, policy_rates, rate_move, reminders, retention
 from engine.models import Country
@@ -390,7 +390,7 @@ async def _send_payday(sub: dict, today: date, budget: budget_mod.Budget) -> str
     pd = payday.due_payday(today, int(sub["payday_day"]), sub.get("last_sent_month"))
     if pd is None:
         return "not_due"
-    if not budget.take():
+    if not budget.take("payday"):
         return "deferred"           # over today's email budget: a later run sends it
     snap = payday.parse_snapshot(snap_json)
     month = f"{today:%Y-%m}"
@@ -411,16 +411,15 @@ async def _send_payday(sub: dict, today: date, budget: budget_mod.Budget) -> str
     return "sent"
 
 
-async def _send_reminders(sub: dict, today: date, budget: budget_mod.Budget) -> int:
-    items = [reminders.Item(i["key"], i["label"], date.fromisoformat(i["day"]), i.get("source", "complaint"),
-                            done=i.get("state") in ("done", "missed")) for i in sub["reminder_items"]]
-    due = [r for r in reminders.due_on(reminders.schedule(items, today=today), today)
-           if f"{r.key}|{r.send_on.isoformat()}" not in sub["reminders_sent"]]
-    if not due or not budget.take():
+async def _send_reminders(sub: dict, today: date, budget: budget_mod.Budget,
+                          due: Optional[list[queue.DueReminder]] = None) -> int:
+    if due is None:
+        due = _due_reminders(sub, today)
+    if not due or not budget.take("reminders"):
         return 0
     unsub = f"{flags.app_url()}/api/notify/unsubscribe?t={tokens.sign(sub['user_id'], '-', 'unsub')}"
-    lines = [r.text for r in due]
-    subject = due[0].text if len(due) == 1 else f"{len(due)} dates to know about today"
+    lines = [d.reminder.text for d in due]
+    subject = lines[0] if len(lines) == 1 else f"{len(lines)} dates to know about today"
     text = "\n\n".join([*lines, f"Open RightDue: {flags.app_url()}/tools/loan-check",
                         f"Turn these emails off: {unsub}"])
     body = "".join(f"<p>{html.escape(x)}</p>" for x in lines) + (
@@ -429,9 +428,15 @@ async def _send_reminders(sub: dict, today: date, budget: budget_mod.Budget) -> 
     if not sender.send(sender.Message(sub["email"], subject[:120], body, text, _unsub_headers(unsub))):
         budget.give_back()
         return 0
-    await store().mark_reminders_sent(sub["user_id"], [f"{r.key}|{r.send_on.isoformat()}" for r in due])
+    await store().mark_reminders_sent(sub["user_id"], [k for d in due for k in d.sent_keys])
     await store().add_event(sub["user_id"], "reminder", None, today)
     return len(due)
+
+
+def _due_reminders(sub: dict, today: date) -> list[queue.DueReminder]:
+    items = [reminders.Item(i["key"], i["label"], date.fromisoformat(i["day"]), i.get("source", "complaint"),
+                            done=i.get("state") in ("done", "missed")) for i in sub["reminder_items"]]
+    return queue.due_reminders(items, today, sub["reminders_sent"])
 
 
 # How long after an RBI decision the rate-move email is still worth sending.
@@ -492,7 +497,7 @@ async def _send_rate_move(w: dict, today: date, budget: budget_mod.Budget) -> st
     msg = rate_move_email(w, move)
     if msg is None:
         return "no_loans"
-    if not budget.take():
+    if not budget.take("rate_move"):
         return "deferred"
     subject, body, text = msg
     unsub = f"{flags.app_url()}/api/notify/unsubscribe?t={tokens.sign(w['user_id'], '-', 'unsub')}"
@@ -516,34 +521,82 @@ async def run(authorization: Annotated[Optional[str], Header()] = None) -> Any:
         await store().unlock("run")
 
 
+def _rate_move_due(w: dict, today: date) -> tuple[Optional[date], str]:
+    """(RBI decision day this watcher is still owed an email for, or None; why not)."""
+    move = latest_repo_move(today)
+    if move is None:
+        return None, "no_move"
+    if (today - move[0]).days > RATE_MOVE_SEND_WINDOW_DAYS:
+        return None, "no_recent_move"
+    if w.get("last_decision") == move[0].isoformat():
+        return None, "already_sent"
+    return move[0], ""
+
+
 async def _run_once() -> dict[str, Any]:
+    """Collect everything due, put it in the fair order (api/notify/queue.py),
+    then send while the shared budget (api/notify/budget.py) lasts."""
     day_in = today_fn("IN")
-    budget = budget_mod.Budget(budget_mod.daily_allowance(), await store().sent_on(day_in))
+    counts_in = await budget_mod.gather(day_in, store())
+    plan = budget_mod.plan(counts_in)
+    budget = budget_mod.Budget(plan.room, used=counts_in.notify_today)
     counts: dict[str, int] = {}
+    rate_counts: dict[str, int] = {}
     reminders_sent = 0
+
+    def bump(d: dict[str, int], k: str) -> None:
+        d[k] = d.get(k, 0) + 1
+
+    cands: list[queue.Candidate] = []
     for sub in await store().active():
         country = (sub.get("snapshot") or {}).get("country", "IN")
         today = today_fn(country)
         try:
             if flags.payday_enabled() and sub["payday_on"]:
-                r = await _send_payday(sub, today, budget)
-                counts[r] = counts.get(r, 0) + 1
+                pd = (payday.due_payday(today, int(sub["payday_day"]), sub.get("last_sent_month"))
+                      if sub.get("snapshot") else None)
+                if not sub.get("snapshot"):
+                    bump(counts, "no_list")
+                elif pd is None:
+                    bump(counts, "not_due")
+                else:
+                    cands.append(queue.Candidate(queue.CLASS_OTHER, pd, sub["user_id"], "payday", (sub, today)))
             if flags.reminders_enabled() and sub["reminders_on"]:
-                reminders_sent += await _send_reminders(sub, today, budget)
+                due = _due_reminders(sub, today)
+                if due:
+                    cands.append(queue.Candidate(queue.CLASS_DEADLINE, min(d.due_since for d in due),
+                                                 sub["user_id"], "reminders", (sub, today, due)))
         except Exception:                       # one bad row must not stop the rest
             log.exception("notify run failed for one subscriber")
-            counts["error"] = counts.get("error", 0) + 1
-    rate_counts: dict[str, int] = {}
+            bump(counts, "error")
     if flags.rate_move_enabled():
         for w in await store().active_rate_watch():
             try:
-                r = await _send_rate_move(w, day_in, budget)
+                day, why = _rate_move_due(w, day_in)
             except Exception:
-                log.exception("rate-move email failed for one subscriber")
-                r = "error"
-            rate_counts[r] = rate_counts.get(r, 0) + 1
+                log.exception("rate-move check failed for one subscriber")
+                bump(rate_counts, "error")
+                continue
+            if day is None:
+                bump(rate_counts, why)
+            else:
+                cands.append(queue.Candidate(queue.CLASS_OTHER, day, w["user_id"], "rate_move", (w, day_in)))
+
+    for c in queue.order(cands):
+        try:
+            if c.kind == "payday":
+                bump(counts, await _send_payday(c.payload[0], c.payload[1], budget))
+            elif c.kind == "reminders":
+                sub, today, due = c.payload
+                reminders_sent += await _send_reminders(sub, today, budget, due)
+            else:
+                bump(rate_counts, await _send_rate_move(c.payload[0], c.payload[1], budget))
+        except Exception:
+            log.exception("notify send failed for one subscriber")
+            bump(rate_counts if c.kind == "rate_move" else counts, "error")
     return {"payday": counts, "reminders_sent": reminders_sent, "rate_move": rate_counts,
-            "budget": {"allowance": budget.allowance, "used_today": budget.used, "deferred": budget.deferred}}
+            "budget": {"allowance": budget.allowance, "used_today": budget.used, "deferred": budget.deferred,
+                       "deferred_by": budget.deferred_by, "plan": plan.explain()}}
 
 
 @router.get("/status")
@@ -551,10 +604,15 @@ async def status(authorization: Annotated[Optional[str], Header()] = None) -> di
     """For the founder: why emails are (not) going out. Needs the scheduler secret;
     answers even with every flag off, so it can say what's missing."""
     _cron(authorization)
-    allowance = budget_mod.daily_allowance()
-    used = await store().sent_on(today_fn("IN")) if flags.any_enabled() else 0
+    day = today_fn("IN")
+    if flags.any_enabled():
+        counts = await budget_mod.gather(day, store())
+    else:
+        codes = await budget_mod.code_counts_fn(day)
+        counts = budget_mod.Counts(today=day, codes_today=codes[0], codes_yesterday=codes[1], codes_month=codes[2])
+    plan = budget_mod.plan(counts)
     return {"flags": get_flags(), "missing": flags.missing_config(),
-            "budget": {"allowance_today": allowance, "sent_today": used}}
+            "budget": {"allowance_today": plan.room, "sent_today": counts.notify_today, **plan.explain()}}
 
 
 @router.get("/metrics")

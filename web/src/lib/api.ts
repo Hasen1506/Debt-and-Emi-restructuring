@@ -1455,7 +1455,7 @@ function serverHeaders(): Record<string, string> {
   return token ? { 'X-Internal-Token': token } : {};
 }
 
-async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
+export async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
   const res = await apiFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...serverHeaders() },

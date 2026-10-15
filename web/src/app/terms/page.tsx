@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { LBracket, LShell, L_T } from '@/components/ledger/primitives';
+import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 import {
-  ACCOUNT_PATH, DATA_FIDUCIARY, GRIEVANCE_CONTACT, NOTICE_LAST_UPDATED, PRIVACY_PATH, TERMS_VERSION,
+  ACCOUNT_PATH, CONTACT_EMAILS, DATA_FIDUCIARY, GRIEVANCE_CONTACT, NOTICE_LAST_UPDATED, PRIVACY_PATH, TERMS_VERSION,
 } from '@/lib/privacy-facts';
 
 export const metadata: Metadata = { title: 'Terms of use · RightDue' };
@@ -72,7 +73,15 @@ export default function TermsPage() {
             If we change these terms, the date and version above change and we ask you to agree again the next time you
             sign in. For a change that matters, we email everyone who agreed to an older version before it applies.
           </li>
-          <li style={LI}>
+          <li style={LI} data-testid="terms-emails">
+            <DraftLegalMarker id="terms-2026-10-15" note="emails" />{' '}
+            Emails you switch on (payday email, deadline reminders, rate-move email) are reminders, not advice, and can
+            arrive late: they go out once a day on a free email plan with a daily limit, sign-in codes first. A reminder
+            is based on the dates and figures you entered; check them against your lender&apos;s letters. You can turn
+            every email off from any email or in the app.
+          </li>
+          <li style={LI} data-testid="terms-liability">
+            <DraftLegalMarker id="terms-2026-10-15" note="liability cap and courts for users in the USA" />{' '}
             RightDue is free, so to the extent the law allows, our total liability to you for anything arising from the
             service is limited to ₹1,000 (or US$15 for users in the USA). This does not limit liability that the law
             does not allow us to limit.
@@ -83,7 +92,10 @@ export default function TermsPage() {
 
         <h2 style={H2}>CONTACT</h2>
         <p style={P}>
-          {GRIEVANCE_CONTACT.name}: <a href={mail}>{GRIEVANCE_CONTACT.email}</a>. These terms have not been checked by a lawyer.
+          {GRIEVANCE_CONTACT.name}: <a href={mail}>{GRIEVANCE_CONTACT.email}</a> for privacy and complaints,{' '}
+          <a href={`mailto:${CONTACT_EMAILS.support}`}>{CONTACT_EMAILS.support}</a> for help with the app, and{' '}
+          <a href={`mailto:${CONTACT_EMAILS.security}`}>{CONTACT_EMAILS.security}</a> for a security problem.
+          These terms have not been checked by a lawyer.
         </p>
 
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 18 }}>

@@ -10,6 +10,7 @@
 import { useState, type CSSProperties } from 'react';
 import { LSectionHeader, LField, L_T, LBracket } from '@/components/ledger/primitives';
 import { agentComplaintLetter } from '@/lib/distress-triage';
+import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 
 const captionStyle: CSSProperties = { fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, display: 'block', marginBottom: 4 };
 
@@ -57,6 +58,7 @@ export function AgentComplaintSection({
       <LSectionHeader step={step}>
         <span id="cp-agent">BEING HARASSED BY A RECOVERY AGENT? (COMPLAINT)</span>
       </LSectionHeader>
+      <DraftLegalMarker id="letter-recovery-agent" />
       {!open ? (
         <p style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.7 }}>
           A different letter from the one above: it goes to the lender&apos;s grievance officer, says what happened and

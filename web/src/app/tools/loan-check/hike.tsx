@@ -34,6 +34,7 @@ import {
   whatsappHref,
   type HistoryRow,
 } from '@/lib/loan-check-hike';
+import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 
 const inr = (v: string) => formatCurrency(v, 'INR');
 const day = (iso: string) =>
@@ -242,6 +243,7 @@ export function ResetChoicePanel({ request }: { request: LoanCheckRequest }) {
   return (
     <LStep no="04" id="lc-reset-letter" title="Letter: EMI or tenure changed without your choice">
       <div data-testid="lc-reset-choice">
+        <DraftLegalMarker id="letter-rate-reset" />
         <LNote>
           Asks your lender to set out the options in writing and apply the one you choose. It claims no money, so
           it is quick for the lender to fix.
