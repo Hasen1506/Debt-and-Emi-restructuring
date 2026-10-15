@@ -680,6 +680,7 @@ def _simulate_plan(
     # EF state — running balance that grows by whichever top-up applies
     # (fixed gap / 12, or the caller's split) until ef_target is hit.
     ef_balance = user.efund_balance
+    reserve_held = D("0")         # round 2: seasonal reserve inside ef_balance
     ef_target = user.efund_target
     efund_monthly_plan = (
         compute_efund_monthly(user) if ef_top_up_rate is None else D("0")
@@ -1095,31 +1096,52 @@ def _simulate_plan(
         # the post-allocation `surplus` variable below.
         # Round 2 (item 4, W10 finding 7): a seasonal reserve. With a known
         # month-by-month income (`income_lookahead`, the user's own seasonal
-        # pattern; simulate_with_income passes it), spare cash first tops up
-        # the emergency fund to what the next 12 months' lean stretch needs:
-        # the deepest the running balance (income − this month's spending,
-        # EMIs and minimums) goes from next month on. Shortfalls are paid
-        # from that fund (below), so a festive-season surplus isn't poured
-        # into a 16% loan only to borrow on a 42% card in the lean months.
-        # Never while a loan as dear as gap borrowing (the dearest card) is
-        # open: prepaying it saves at least what borrowing later would cost.
-        if (income_lookahead and surplus > 0
-                and (gap_rate is None or all(l.nominal_rate < gap_rate.annual_rate for l in active))):
-            outgo = (scratch_user.fixed_expenses + scratch_user.variable_expenses
-                     + sum((to_user_currency(minimums[id(l)], l, user) for l in active if id(l) in minimums), D("0")))
+        # pattern; simulate_with_income passes it), the fund is kept at what
+        # the next 12 months' lean stretch needs: the deepest the running
+        # balance goes from next month on (income − spending − the EMIs and
+        # minimums still due that month). Shortfalls are paid from the fund
+        # (below), so a festive-season surplus isn't poured into a 16% loan
+        # only to borrow on a 42% card in the lean months. Reserve money no
+        # longer needed (the lean stretch passed, a loan ended) is released
+        # back to the debts the same month.
+        if income_lookahead:
+            spend = scratch_user.fixed_expenses + scratch_user.variable_expenses
+            due = [(to_user_currency(minimums[id(l)], l, user),
+                    months_left_at(l, m) if l.tenure_months_remaining > 0 else None)
+                   for l in active if id(l) in minimums]
+            # A loan's EMI stops at its contract end, or sooner once this
+            # month's spare cash and the EMIs ahead have covered the balances
+            # (interest ignored). Future spare cash isn't counted as paydown:
+            # the reserve may hold it, so counting it under-reserved (the
+            # persona below borrowed ₹35,160 in its year-2 lean months).
+            left_to_pay = sum((to_user_currency(l.outstanding, l, user) for l in active), D("0")) - surplus
             running = low = D("0")
             for k in range(m + 1, min(len(income_lookahead), m + 12) + 1):
-                running += D(income_lookahead[k - 1]) - outgo
+                owed = (sum((amt for amt, left in due if left is None or left > k - m), D("0"))
+                        if left_to_pay > 0 else D("0"))
+                net = D(income_lookahead[k - 1]) - spend - owed
+                left_to_pay -= owed
+                running += net
                 low = min(low, running)
-            # Only when the coming year pays for itself (its months net to
-            # ≥ 0 against today's outgo): a structurally short year borrows
-            # whatever happens, and then paying the dearest debt now costs
-            # less than holding cash (Hypothesis counterexample: the festive
-            # season at 80%).
-            hold = min(surplus, max(D("0"), -low - ef_balance)) if running >= 0 else D("0")
-            if hold > 0:
+            # Only when the coming year pays for itself (a structurally short
+            # year borrows whatever happens, and then paying the dearest debt
+            # costs less than holding cash), and never while a loan as dear
+            # as gap borrowing (the dearest card) is open.
+            worth = running >= 0 and (gap_rate is None or all(l.nominal_rate < gap_rate.annual_rate for l in active))
+            need = -low
+            # Held money is only released down to what the lean stretch still
+            # needs, and never in a month that is short itself.
+            keep_at = max(ef_target, need)
+            if worth and surplus > 0 and ef_balance < need:
+                hold = min(surplus, need - ef_balance)
                 ef_balance += hold
+                reserve_held += hold
                 surplus -= hold
+            elif reserve_held > 0 and ef_balance > keep_at and shortfall <= 0:
+                back = min(reserve_held, ef_balance - keep_at)
+                ef_balance -= back
+                reserve_held -= back
+                surplus += back
         pre_allocation_surplus = surplus
         for ev in pending_rises:
             # Audit C1: redo the recommendation now the month's spare cash
@@ -1513,6 +1535,7 @@ def _simulate_plan(
             else:
                 gap_from_savings = min(shortfall, max(D("0"), ef_balance))
                 ef_balance -= gap_from_savings
+                reserve_held = min(reserve_held, max(D("0"), ef_balance))
                 need = shortfall - gap_from_savings
                 gap_borrowed = min(need, max(D("0"), gap_limit - gap_debt))
                 gap_debt += gap_borrowed
