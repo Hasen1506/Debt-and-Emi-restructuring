@@ -45,7 +45,7 @@ def test_age_in_months_by_calendar_month():
 
 def _home_user(**extra):
     u = {"country": "IN", "income_type": "salaried", "annual_income": "2400000", "monthly_income": "200000",
-         "fixed_expenses": "50000", "savings_balance": "0", "primary_bank": "SBI",
+         "fixed_expenses": extra.pop("fixed_expenses", "50000"), "savings_balance": "0", "primary_bank": "SBI",
          "loans": [{"loan_type": "home_loan", "bank": "SBI", "outstanding": "5000000", "nominal_rate": "0.085",
                     "rate_type": "floating", "tenure_months_remaining": 240, "scheduled_emi": "43391.16"}]}
     u.update(extra)
@@ -67,16 +67,20 @@ def test_bad_new_fields_are_422(client, bad):
 
 
 def test_simulate_with_dob_raises_emi_when_the_age_limit_binds(client, monkeypatch):
+    # Spending leaves ~₹600 a month after the EMI, so nothing is prepaid
+    # before the rise (the API has no minimums-only switch).
     """Aged 40 at plan start, salaried (limit 60): at the month-13 rise the
     loan has 228 months left, exactly the age limit, so the EMI rises to the
     re-amortised ₹46,497.78 instead of holding at ₹43,391.16."""
     monkeypatch.setattr(schemas, "current_month", lambda: "2026-10")
     ev = [{"kind": "floating_rate_reset", "effective_month": 13, "loan_index": 0, "new_rate": "0.095"}]
-    for dob, want in ((None, D("43391.16")), ("1986-10", D("46497.78"))):
-        user = _home_user(**({"date_of_birth": dob} if dob else {}))
-        r = client.post("/api/simulate", json={"user": user, "horizon_months": 30, "lifecycle_events": ev,
-                                                "minimums_only": True})
+    # ~₹600 a month of prepayment moves the re-amortised EMI a little below
+    # the zero-prepayment golden ₹46,497.78 (engine test pins it exactly).
+    for dob, want in ((None, D("43391.16")), ("1986-10", D("46425.69"))):
+        user = _home_user(fixed_expenses="156000", **({"date_of_birth": dob} if dob else {}))
+        r = client.post("/api/simulate", json={"user": user, "horizon_months": 30, "lifecycle_events": ev})
         assert r.status_code == 200, r.text
         ev0 = r.json()["rate_rise_events"][0]
         applied = next(o for o in ev0["options"] if o["mode"] == ev0["applied"])
         assert abs(D(applied["emi"]) - want) < D("1")
+        assert applied["months_left"] == 228 if dob else applied["months_left"] > 228
