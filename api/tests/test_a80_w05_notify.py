@@ -26,8 +26,13 @@ def env(tmp_path, monkeypatch):
                  "RATE_MOVE_EMAIL_ENABLED": "true", "NOTIFY_SIGNING_KEY": KEY, "NOTIFY_CRON_SECRET": CRON,
                  "PUBLIC_APP_URL": "https://rightdue.test"}.items():
         monkeypatch.setenv(k, v)
-    for k in ("NOTIFY_DAILY_CAP", "RESEND_DAILY_LIMIT", "OTP_GLOBAL_DAILY_CAP"):
+    for k in ("NOTIFY_DAILY_CAP", "RESEND_DAILY_LIMIT", "OTP_GLOBAL_DAILY_CAP", "RESEND_MONTHLY_LIMIT",
+              "RESEND_CODE_RESERVE"):
         monkeypatch.delenv(k, raising=False)
+
+    async def no_codes(day):
+        return (0, 0, 0)
+    monkeypatch.setattr(budget, "code_counts_fn", no_codes)
     s = nstore.NotifyStore(nstore.sqlite_engine(tmp_path / "n.sqlite3"))
     nstore.set_store(s)
     sent: list[sender.Message] = []
@@ -49,21 +54,13 @@ def opt_in(env, uid, day=1):
 
 # ── the shared daily budget ─────────────────────────────────────────────────
 
-@pytest.mark.parametrize("envs,want", [
-    ({}, 10),                                                   # Resend Free 100 − sign-in cap 90
-    ({"OTP_GLOBAL_DAILY_CAP": "60"}, 40),
-    ({"NOTIFY_DAILY_CAP": "5"}, 5),
-    ({"OTP_GLOBAL_DAILY_CAP": "60", "NOTIFY_DAILY_CAP": "80"}, 40),   # never past the provider's room
-    ({"RESEND_DAILY_LIMIT": "0"}, None),                        # Pro: no daily limit
-    ({"RESEND_DAILY_LIMIT": "0", "NOTIFY_DAILY_CAP": "500"}, 500),
-    ({"OTP_GLOBAL_DAILY_CAP": "150"}, 0),
-])
-def test_allowance_never_eats_sign_in_codes(monkeypatch, envs, want):
-    for k in ("NOTIFY_DAILY_CAP", "RESEND_DAILY_LIMIT", "OTP_GLOBAL_DAILY_CAP"):
+def test_allowance_never_eats_sign_in_codes(monkeypatch):
+    """Round 2: one shared budget (95/day default); the 20 held for codes
+    are never given to notifications. Detailed cases: test_r2_email_budget.py."""
+    for k in ("NOTIFY_DAILY_CAP", "RESEND_DAILY_LIMIT", "RESEND_MONTHLY_LIMIT", "RESEND_CODE_RESERVE"):
         monkeypatch.delenv(k, raising=False)
-    for k, v in envs.items():
-        monkeypatch.setenv(k, v)
-    assert budget.daily_allowance() == want
+    p = budget.plan(budget.Counts(today=date(2026, 11, 30)))
+    assert p.daily_room == 95 - 20 and p.room == 75
 
 
 def test_budget_defers_the_rest_and_a_later_run_sends_them(env, monkeypatch):
@@ -221,16 +218,22 @@ def test_payday_email_links_to_the_ritual(env):
 
 def test_status_says_what_is_missing_even_with_flags_off(monkeypatch, tmp_path):
     for k in ("PAYDAY_EMAIL_ENABLED", "DEADLINE_REMINDERS_ENABLED", "RATE_MOVE_EMAIL_ENABLED", "NOTIFY_SIGNING_KEY",
-              "PUBLIC_APP_URL", "RESEND_API_KEY", "RESEND_FROM", "DATABASE_URL"):
+              "PUBLIC_APP_URL", "RESEND_API_KEY", "RESEND_FROM", "DATABASE_URL", "RESEND_DAILY_LIMIT",
+              "RESEND_MONTHLY_LIMIT", "RESEND_CODE_RESERVE", "NOTIFY_DAILY_CAP"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("NOTIFY_CRON_SECRET", CRON)
+
+    async def no_codes(day):
+        return (0, 0, 0)
+    monkeypatch.setattr(budget, "code_counts_fn", no_codes)
     c = TestClient(app)
     assert c.get("/api/notify/status").status_code == 401
     j = c.get("/api/notify/status", headers=AUTH).json()
     text = " ".join(j["missing"])
     for name in ("PAYDAY_EMAIL_ENABLED", "NOTIFY_SIGNING_KEY", "PUBLIC_APP_URL", "RESEND_API_KEY", "RESEND_FROM"):
         assert name in text
-    assert j["budget"]["allowance_today"] == 10
+    # 95 a day − 20 held for sign-in codes (the monthly guard may hold more late in a month).
+    assert j["budget"]["daily_room"] == 75 and 0 < j["budget"]["allowance_today"] <= 75
 
 
 def test_missing_config_names_never_values(monkeypatch):

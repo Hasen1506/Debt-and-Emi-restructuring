@@ -15,8 +15,10 @@ RESEND_API_KEY / RESEND_FROM (already used for sign-in codes)
 RESEND_WEBHOOK_SECRET  (only with PAYDAY_REPLY_INBOUND) the whsec_... secret
 NOTIFY_REPLY_TO        (only with PAYDAY_REPLY_INBOUND) e.g. reply@in.rightdue.app
 
-Daily email budget (api/notify/budget.py): RESEND_DAILY_LIMIT (default 100,
-Resend Free; 0 = no daily limit, Pro), NOTIFY_DAILY_CAP (optional override).
+Shared email budget (api/notify/budget.py): RESEND_DAILY_LIMIT (default 95,
+under Resend Free's 100; 0 = no daily limit), RESEND_MONTHLY_LIMIT (default
+3000 on Free), RESEND_CODE_RESERVE (default 20 held for sign-in codes),
+NOTIFY_DAILY_CAP (optional extra ceiling on notifications).
 """
 from __future__ import annotations
 
