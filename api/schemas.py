@@ -160,6 +160,19 @@ TaxRate = Annotated[Decimal, Field(ge=0, le=D("0.6"))]
 FeeRate = Annotated[Decimal, Field(ge=0, le=D("0.1"))]
 
 
+def age_in_months(dob: Optional[str], month: Optional[str] = None) -> Optional[int]:
+    """Age in whole calendar months at plan month 1 (this month, `month` =
+    "YYYY-MM", default current_month()), from a YYYY-MM or YYYY-MM-DD date
+    of birth; the day is ignored (the plan runs by month). None when not
+    given or in the future."""
+    if not dob:
+        return None
+    ty, tm = (int(x) for x in (month or current_month()).split("-")[:2])
+    y, m = (int(x) for x in dob.split("-")[:2])
+    months = (ty - y) * 12 + (tm - m)
+    return months if months >= 0 else None
+
+
 class _In(_Base):
     """Request bodies: every number finite and bounded, text and lists short."""
 
@@ -675,6 +688,18 @@ class UserIn(_In):
     # Audit C11: most the user could borrow to cover short months (spare
     # card limit), their currency. Blank = 3 months of take-home pay.
     gap_credit_limit: Optional[Amount] = None
+    # Round 2 (founder, item 1): date of birth (YYYY-MM or YYYY-MM-DD) and
+    # the age loans should end by. With a date of birth, a tenure-first rate
+    # rise never runs a loan past that age; blank retirement age = 60
+    # salaried / 70 otherwise (engine/contract.default_retirement_age).
+    date_of_birth: Optional[str] = Field(None, pattern=r"^(19|20)\d\d-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?$")
+    retirement_age: Optional[int] = Field(None, ge=40, le=85)
+    # Round 2 (item 3): the user's own assumed yearly return after tax on
+    # money kept back. Blank = 6.5% India / 4% US (labelled assumption).
+    assumed_post_tax_return: Optional[Annotated[Decimal, Field(ge=D("0"), le=D("0.3"))]] = None
+    # Round 2 (item 4): cost of sending money home, share of the amount
+    # sent. Blank = the published corridor average.
+    remittance_cost: Optional[Annotated[Decimal, Field(ge=D("0"), lt=D("0.2"))]] = None
     other_banks: list[str] = Field(default_factory=list)
     tax_regime: Optional[TaxRegimeIN] = None
     # Old regime: this tax year's s.123 [80C] items other than home-loan
@@ -826,6 +851,10 @@ class UserIn(_In):
             asset_returns=dict(self.asset_returns),
             liquidation_costs=dict(self.liquidation_costs),
             gap_credit_limit=self.gap_credit_limit,
+            age_months=age_in_months(self.date_of_birth),
+            retirement_age=self.retirement_age,
+            assumed_post_tax_return=self.assumed_post_tax_return,
+            remittance_cost=self.remittance_cost,
         )
 
 

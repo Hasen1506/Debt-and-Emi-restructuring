@@ -36,7 +36,8 @@ from engine.formulas import (
 )
 from engine.minimum_payments import compute_minimum_payment
 from engine.contract import (
-    RateRiseOptions, extension_cap, has_contract_end, rate_rise_mode, rate_rise_options,
+    RateRiseOptions, extension_cap, has_contract_end, months_until_age_limit, rate_rise_mode,
+    rate_rise_options,
     reprice_on_rise, repayment_kind,
 )
 from engine.gap_debt import GapRate, gap_interest, gap_rate_for
@@ -171,7 +172,8 @@ class RateRiseEvent:
 
 
 def _reset_rate(loan: Loan, new_rate: Decimal, months_left: int,
-                country: Country = Country.IN) -> RateRiseOptions | None:
+                country: Country = Country.IN,
+                age_months_left: int | None = None) -> RateRiseOptions | None:
     """Move a floating loan to `new_rate`. Returns both outcomes of a rise
     (None for a cut, a card, or a loan with no EMI to reprice).
 
@@ -222,7 +224,7 @@ def _reset_rate(loan: Loan, new_rate: Decimal, months_left: int,
     else:
         n = n_now or 12
     mode = rate_rise_mode(loan, country)
-    cap = extension_cap(loan, n, country)
+    cap = extension_cap(loan, n, country, age_months_left)
     old_emi = loan.scheduled_emi
     options = rate_rise_options(loan.outstanding, old_rate, new_rate, old_emi, n, cap, mode)
     rp = reprice_on_rise(loan.outstanding, new_rate, old_emi, n, mode, cap if mode != "raise_emi" else n)
@@ -858,7 +860,8 @@ def _simulate_plan(
                     and ev.new_rate is not None
                 ):
                     ln = loans[ev.loan_index]
-                    note_rise(_reset_rate(ln, ev.new_rate, months_left_at(ln, m), user.country), ln, m)
+                    note_rise(_reset_rate(ln, ev.new_rate, months_left_at(ln, m), user.country,
+                                           months_until_age_limit(user, m)), ln, m)
                     # A deliberate reset (or a rate-shock what-if) is the new
                     # anchor for the ±MAX_RATE_DRIFT clamp; otherwise the next
                     # auto reset pulled a +4% shock back to +3% (P2-08).
@@ -881,7 +884,8 @@ def _simulate_plan(
                 step = ln.rate_drift_annualized * D(str(freq)) / D("12")
                 base = start_rate[id(ln)]
                 new_rate = min(max(ln.nominal_rate + step, base - MAX_RATE_DRIFT), base + MAX_RATE_DRIFT)
-                note_rise(_reset_rate(ln, new_rate, months_left_at(ln, m), user.country), ln, m)
+                note_rise(_reset_rate(ln, new_rate, months_left_at(ln, m), user.country,
+                                       months_until_age_limit(user, m)), ln, m)
                 ln.next_reset_month = m + freq
 
         # FX drift — update user.fx_to_user_currency at month m to reflect

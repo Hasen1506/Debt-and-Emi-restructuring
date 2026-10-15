@@ -22,6 +22,17 @@ Sources (read 14 Oct 2026):
   years" (https://sbi.co.in/web/yono/home-loan, last updated 19 Jul 2025).
   Used as the default ceiling on how far a home loan's tenure is extended
   when the user hasn't given their lender's own limit.
+* Aavas Financiers, "Reset of Floating Interest Rate" (public notice under
+  the 18 Aug 2023 circular, PDF dated 27 Nov 2025, read 15 Oct 2026):
+  "effect of any change in AFL Prime Lending Rate shall be given on Tenor as
+  default and if tenor exceeds 360 months, then EMI/PEMI shall increase".
+  https://www.aavas.in/img/pdf/reset_of_floating_interest_rate_Aavas1.pdf
+  An example of the Indian default the founder chose (round 2, 15 Oct 2026):
+  tenure first, up to min(360 months, the lender's maximum, the months until
+  the borrower reaches their retirement / age limit); past that the EMI
+  rises. NOTE: Aavas counts the 360 months as the loan's whole tenor; the
+  engine doesn't know when a loan started, so it counts from today (a
+  VERIFY item in work/reports/r2-engine.md).
 * RBI (Lending Against Gold and Silver Collateral) Directions, 2025,
   DOR.CRE.REC.26/21.01.023/2025-26, 6 Jun 2025 (updated 29 Sep 2025),
   para 6(i): "'Bullet Repayment Loans' means loans where both principal and
@@ -48,6 +59,7 @@ D = Decimal
 RBI_RESET_CIRCULAR_URL = "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12529"
 RBI_GOLD_DIRECTIONS_URL = "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12859"
 SBI_HOME_LOAN_URL = "https://sbi.co.in/web/yono/home-loan"
+AAVAS_RESET_URL = "https://www.aavas.in/img/pdf/reset_of_floating_interest_rate_Aavas1.pdf"
 
 RATE_RISE_MODES = ("extend", "raise_emi", "mix")
 REPAYMENT_KINDS = ("emi", "interest_only", "bullet")
@@ -57,6 +69,15 @@ REPAYMENT_KINDS = ("emi", "interest_only", "bullet")
 # engine doesn't know when the loan started or the borrower's age. A user who
 # knows their lender's limit (or their age limit) sets Loan.max_tenure_months.
 IN_HOME_MAX_TENURE_MONTHS = 360
+# Round 2 (founder, 15 Oct 2026): no extension ever runs past 360 months,
+# whatever a lender's own limit says.
+ABSOLUTE_MAX_TENURE_MONTHS = 360
+# Age by which a tenure-first extension must end when the user gave a date of
+# birth but no retirement age: 60 for a salaried borrower (a common
+# retirement age), 70 for anyone else (SBI's "Max. Age: 70 years" above).
+# Founder defaults, editable per user (User.retirement_age). VERIFY.
+DEFAULT_RETIREMENT_AGE = {"salaried": 60, "business_owner": 70}
+DEFAULT_RETIREMENT_AGE_OTHER = 70
 
 # A loan whose EMI, balance and months left imply a payoff more than this many
 # months away from the months left the user typed gets a warning (Audit C3).
@@ -77,19 +98,51 @@ def rate_rise_mode(loan: Loan, country: Country) -> str:
     return "extend" if loan_market(loan, country) == Country.IN else "raise_emi"
 
 
-def extension_cap(loan: Loan, months_left: int, country: Country) -> int:
+def default_retirement_age(income_type) -> int:
+    """60 for a salaried borrower, 70 for anyone else (founder default)."""
+    key = getattr(income_type, "value", income_type)
+    return DEFAULT_RETIREMENT_AGE.get(str(key or ""), DEFAULT_RETIREMENT_AGE_OTHER)
+
+
+def months_until_age_limit(user, month: int = 1) -> Optional[int]:
+    """Months from plan month `month` until the borrower reaches their
+    retirement / age limit (the month they turn that age is the last one a
+    loan may run). None when the date of birth isn't known."""
+    if user is None or getattr(user, "age_months", None) is None:
+        return None
+    limit = user.retirement_age or default_retirement_age(user.income_type)
+    return limit * 12 - user.age_months - max(0, month - 1)
+
+
+def extension_cap(loan: Loan, months_left: int, country: Country,
+                  age_months_left: Optional[int] = None) -> int:
     """Most months the loan may have left after a tenure extension.
 
-    The user's `max_tenure_months` (their lender's maximum tenure or their
-    age limit, as months from now) wins. An Indian home loan otherwise gets
-    SBI's 30-year maximum. Any other loan isn't extended past its contract
-    unless the user says how far its lender allows: without that the EMI
-    rises instead (founder decision recorded in work/reports/w01.md)."""
+    Founder rule (round 2, 15 Oct 2026): min(360 months, the lender's
+    maximum, the months until the borrower reaches their retirement / age
+    limit), each counted from the reset month; once the ceiling binds the
+    EMI rises (reprice_on_rise). Which of the three are known:
+
+    * the lender's limit (`Loan.max_tenure_months`, months from now) when
+      the user typed it, capped at 360;
+    * otherwise 360 for an Indian home loan (SBI's and Aavas's 30 years);
+      any other loan isn't stretched past its contract unless the user says
+      how far its lender allows (a floating personal loan or LAP rarely runs
+      30 years; founder decision recorded in work/reports/w01.md);
+    * `age_months_left` (months_until_age_limit) when the date of birth is
+      known.
+
+    Never below `months_left`: a ceiling that has already passed means no
+    extension at all (the EMI rises to keep the end date)."""
     if loan.max_tenure_months is not None and loan.max_tenure_months > 0:
-        return max(months_left, loan.max_tenure_months)
-    if loan.loan_type == LoanType.HOME and loan_market(loan, country) == Country.IN:
-        return max(months_left, IN_HOME_MAX_TENURE_MONTHS)
-    return months_left
+        cap = min(loan.max_tenure_months, ABSOLUTE_MAX_TENURE_MONTHS)
+    elif loan.loan_type == LoanType.HOME and loan_market(loan, country) == Country.IN:
+        cap = IN_HOME_MAX_TENURE_MONTHS
+    else:
+        cap = months_left
+    if age_months_left is not None:
+        cap = min(cap, age_months_left)
+    return max(months_left, cap)
 
 
 def months_to_clear(balance: Decimal, rate: Decimal, payment: Decimal) -> Optional[int]:
