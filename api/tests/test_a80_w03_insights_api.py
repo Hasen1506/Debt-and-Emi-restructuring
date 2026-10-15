@@ -13,6 +13,8 @@ def body(take=140000, spend=45000, regime="new", **extra):
         "user": {
             "country": "IN", "income_type": "salaried", "annual_income": str(take * 12), "monthly_income": str(take),
             "fixed_expenses": str(spend), "savings_balance": "0", "primary_bank": "SBI", "tax_regime": regime,
+            # Round 2 (item 3): own assumed return 9% → the old 10% trigger.
+            "assumed_post_tax_return": "0.09",
             "loans": [
                 {"loan_type": "credit_card", "bank": "HDFC Bank", "outstanding": "120000", "nominal_rate": "0.42",
                  "rate_type": "fixed", "tenure_months_remaining": 0, "scheduled_emi": "0"},

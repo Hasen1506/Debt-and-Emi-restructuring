@@ -309,6 +309,9 @@ class MonthRow:
     # Gap borrowing past its limit (Audit C11): what this month was short
     # that couldn't be borrowed (user currency). Not compounded.
     unfunded_shortfall: Decimal = D("0")
+    # Emergency fund (and seasonal reserve) at the end of the month, user
+    # currency (round 2: the prepay / keep split waits until it is full).
+    efund_balance: Decimal = D("0")
     # The month's minimum on gap borrowing (its interest, GST included: RBI's
     # card rule that the minimum causes no negative amortisation) and
     # whether the month's spare cash failed to cover it.
@@ -1204,7 +1207,11 @@ def _simulate_plan(
             invested_this_month = surplus
             extra_for_debt = D("0")
 
+        # Round 2 (item 3): only once the emergency fund target is met, and
+        # only while every open loan costs less (after tax) than the user's
+        # own assumed return + 1 point (prepay_invest.split_threshold).
         if (low_rate_invest is not None and extra_for_debt > 0 and active
+                and ef_balance >= ef_target
                 and all(costs[id(l)].annual_cost < low_rate_invest[0] for l in active if id(l) in costs)):
             kept = (extra_for_debt * max(D("0"), min(D("1"), low_rate_invest[1])))
             invested_this_month += kept
@@ -1570,6 +1577,7 @@ def _simulate_plan(
             unfunded_shortfall=unfunded_this,
             gap_minimum_due=gap_int_month,
             gap_minimum_missed=gap_min_missed,
+            efund_balance=ef_balance,
         ))
 
         total_interest += interest_paid

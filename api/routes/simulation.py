@@ -409,8 +409,14 @@ def _low_rate_kwargs(req) -> dict:
     share = getattr(req, "low_rate_invest_share", None)
     if share is None:
         return {}
-    from engine.prepay_invest import LOW_RATE_THRESHOLD
-    return {"low_rate_invest": (LOW_RATE_THRESHOLD, share)}
+    # Round 2 (item 3): the trigger is the user's own assumed return after
+    # tax (default 6.5% IN / 4% US) + 1 point, not a fixed 10%.
+    from engine.prepay_invest import DEFAULT_ASSUMED_RETURN, SPLIT_MARGIN
+    u = getattr(req, "user", None)
+    own = getattr(u, "assumed_post_tax_return", None)
+    country = getattr(getattr(u, "country", None), "value", "IN")
+    base = own if own is not None else DEFAULT_ASSUMED_RETURN.get(country, DEFAULT_ASSUMED_RETURN["US"])
+    return {"low_rate_invest": (base + SPLIT_MARGIN, share)}
 
 
 def _never_clears(result, user) -> bool:

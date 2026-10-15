@@ -69,7 +69,11 @@ def persona(take: str, spend: str, regime=TaxRegimeIN.NEW, loans=None, gross=Non
         loan(LoanType.HOME, "SBI", "3500000", "0.086", 240, "32000", rt="floating"),
     ]
     return User(Country.IN, IncomeType.SALARIED, D(take) * 12, D(take), D(spend), D("0"), "SBI",
-                tax_regime=regime, annual_gross_salary=D(gross) if gross else None, loans=loans)
+                tax_regime=regime, annual_gross_salary=D(gross) if gross else None, loans=loans,
+                # Round 2 (item 3): the split question now follows the user's
+                # own assumed return + 1 point. 9% here keeps the A4 tests on
+                # the old 10% line (test_r2_prepay_split.py covers the default).
+                assumed_post_tax_return=D("0.09"))
 
 
 def runner(mr=D("0.2")):
