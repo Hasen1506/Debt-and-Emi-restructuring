@@ -4,6 +4,12 @@ Written for UX50 critique E (launch readiness, 13 Oct 2026); updated 14 Oct
 2026 for audit 80+ Section D (D13-D26). Short on purpose:
 what to do when something breaks, and the settings only the founder can change.
 
+**Every scheduled job, workflow, external cron and env flag the app relies on,
+and what happens if each one stops, is listed in
+[docs/FOUNDER-RECORDS.md](FOUNDER-RECORDS.md) section (c) "Always running"**
+(CI fails if a workflow has no entry). Sign-offs and approved defaults are in
+sections (a) and (b) of the same file.
+
 ## 1. Deploys and rollback
 
 - Every merge to `main` deploys `rightdue` on Render (Docker, `render.yaml`).
@@ -112,7 +118,7 @@ deploy that ran a migration:
 - **Scheduled-job failures (D18):** `market-data`, `policy-rates` and
   `rate-disclosures` open or update an issue when they fail
   (`.github/actions/failure-issue`); `db-backup` has its own failure-issue step.
-  `notify.yml` (W5's area) does not yet. Watch the repo's issues.
+  `notify.yml` opens a "Notification job failed" issue too. Watch the repo's issues.
 - **Security gate (D22):** `.github/workflows/security.yml` runs `npm audit
   --omit=dev --audit-level=high`, `pip-audit -r requirements.txt` and gitleaks.
   Founder: GitHub → Settings → Code security → turn on secret scanning and

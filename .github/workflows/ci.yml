@@ -72,10 +72,11 @@ jobs:
           files=$(git diff --name-only "$BASE" HEAD)
           echo "$files"
           # Docs-only: Markdown anywhere, docs/, LICENSE. Anything else is code.
-          # Docs that a test reads count as code (web/tests read DEPLOY.md and
-          # docs/RUNBOOK.md); add a path here when a test starts reading one.
+          # Docs that a test reads count as code (web/tests read DEPLOY.md,
+          # docs/RUNBOOK.md and docs/FOUNDER-RECORDS.md); add a path here when
+          # a test starts reading one.
           code=$(echo "$files" | grep -vE '(\.md$|^docs/|^LICENSE$)' | grep -c . || true)
-          read_by_tests=$(echo "$files" | grep -cE '^(DEPLOY\.md|docs/RUNBOOK\.md)$' || true)
+          read_by_tests=$(echo "$files" | grep -cE '^(DEPLOY\.md|docs/RUNBOOK\.md|docs/FOUNDER-RECORDS\.md)$' || true)
           code=$((code + read_by_tests))
           # Python jobs: anything outside web/ that is code (engine, api,
           # requirements, scripts, CI, fixtures the web mirrors read too).
@@ -97,6 +98,9 @@ jobs:
       # only shrink, production lines may grow 1% before someone says why.
       - run: python3 scripts/size_report.py --check
       - run: python3 scripts/size_report.py
+      # Round 2: every workflow the app relies on has an entry in
+      # docs/FOUNDER-RECORDS.md section (c) "Always running".
+      - run: python3 scripts/check_founder_records.py
 
   python:
     name: Engine + API unit tests

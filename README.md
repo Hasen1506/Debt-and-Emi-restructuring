@@ -19,6 +19,7 @@ estimates, not financial advice. Live at https://rightdue.app.
 | `docs/CODE-HEALTH.md` | Size budgets, what the repo's lines are, where app state lives, and how CI is kept cheap. |
 | `ROADMAP.md` | What is done and what is next. |
 | `DEPLOY.md` | How the single Render service is deployed, and every setting it reads. |
+| [`docs/FOUNDER-RECORDS.md`](docs/FOUNDER-RECORDS.md) | What needs the founder's sign-off (legal reviews, facts to verify), the defaults he approved, and every scheduled job / workflow / env flag the app relies on ("Always running"; CI fails if a workflow is missing). |
 
 ## Run the checks
 
