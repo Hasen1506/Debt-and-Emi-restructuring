@@ -26,7 +26,7 @@ import { localIsoDate } from '@/lib/today';
 import {
   DEFAULT_ASSUMED_RETURN, GAP_LIMIT_MONTHS, SPLIT_MARGIN, assumedReturnFor, ceilingLine, gapLimitFor,
   monthsToAgeLimit, parseAmount, parseDob, parseMaxTenure, parseRetirementAge, parseReturnPct, rateRiseModeFor,
-  retirementAgeFor, RATE_RISE_LABEL, type RateRiseMode,
+  retirementAgeFor, RATE_RISE_LABEL, pctInput, type RateRiseMode,
 } from '@/lib/plan-inputs';
 import { Field } from '@/components/ToolPrimitives';
 import { LBracket, LChip, L_T } from '@/components/ledger/primitives';
@@ -119,9 +119,9 @@ export function AssumedReturnControl({ user }: { user: UserPayload }) {
   const { save, pending, failed } = useSaveUser();
   const a = assumedReturnFor(user);
   const country = user.country === 'US' ? 'US' : 'IN';
-  const defPct = (Number(DEFAULT_ASSUMED_RETURN[country]) * 100).toFixed(1);
+  const defPct = pctInput(DEFAULT_ASSUMED_RETURN[country]);
   const [mode, setMode] = useState<'assumed' | 'own'>(a.assumed ? 'assumed' : 'own');
-  const [value, setValue] = useState(a.assumed ? '' : (a.value * 100).toFixed(1));
+  const [value, setValue] = useState(a.assumed ? '' : pctInput(a.value));
   const [error, setError] = useState<string | null>(null);
 
   function saveOwn() {
@@ -162,7 +162,7 @@ export function AssumedReturnControl({ user }: { user: UserPayload }) {
       )}
       <p style={note}>
         What money you keep back might earn a year, after tax: your own assumption, not a forecast. Once your
-        emergency fund is full, a loan costing less than this plus {(SPLIT_MARGIN * 100).toFixed(0)} point after tax gets the
+        emergency fund is full, a loan costing less than this plus {SPLIT_MARGIN * 100} point after tax gets the
         question &quot;prepay, keep, or split?&quot;. Above it the plan keeps paying the loan.
       </p>
       {failed && <p role="alert" style={{ ...note, color: L_T.negative }}>That wasn&apos;t saved: this browser didn&apos;t keep it.</p>}

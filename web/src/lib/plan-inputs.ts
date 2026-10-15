@@ -176,3 +176,8 @@ export function thresholdWords(threshold: string | number, assumedReturn: string
   const whose = isDefault === false ? 'your own' : 'the assumed';
   return `${pctTxt(threshold)} a year after tax (${whose} ${pctTxt(ret)} return after tax plus ${SPLIT_MARGIN * 100} point; change it on Plan under “Your return after tax”)`;
 }
+
+/** A fraction as a % number for an input box ("0.065" → "6.5"), 1 decimal. */
+export function pctInput(v: string | number): string {
+  return (Number(v) * 100).toFixed(1);
+}

@@ -3,7 +3,7 @@
  * the same debt-free date. Runs the engine (plan, pay-minimums comparison,
  * restructure scan, the other two strategies) and shapes PlanData.
  */
-import { api, type SimulateResponse, type UserPayload, type LifecycleEventInput } from '@/lib/api';
+import { api, formatCurrencyWhole, type SimulateResponse, type UserPayload, type LifecycleEventInput } from '@/lib/api';
 import { cachedEngineCall } from '@/lib/server-engine-cache';
 import { loadProfileServer } from '@/lib/user-store';
 import { efTopUpShare } from '@/lib/assumptions';
@@ -224,7 +224,7 @@ export async function loadPlanInputs(
       advanceTaxSchedule = storedOk
         ? markMissedInstalments(rebaseSchedule(stored, new Decimal(res.liability)), new Date())
         : fresh;
-      advanceTaxNote = salariedAdvanceTaxNote(res, (v) => `₹${Math.round(Number(v)).toLocaleString('en-IN')}`);
+      advanceTaxNote = salariedAdvanceTaxNote(res, (v) => formatCurrencyWhole(String(Math.round(Number(v))), 'INR'));
     }
   }
 
