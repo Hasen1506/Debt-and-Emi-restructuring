@@ -49,6 +49,8 @@ import {
 } from '@/lib/distress-triage';
 import { CantPayPublic } from './CantPayPublic';
 import { AgentComplaintSection } from './AgentComplaint';
+import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
+import { UsLettersLink } from './UsLettersLink';
 
 const num = (s: string) => {
   const n = Number(String(s).replace(/[,\s₹$]/g, ''));
@@ -211,6 +213,7 @@ export function CantPay() {
               <span id="cp-rights">YOUR RIGHTS WITH DEBT COLLECTORS</span>
             </LSectionHeader>
             <Rule r={US_COLLECTOR_RULE} />
+            <UsLettersLink />
           </section>
         )}
         {isIN && (<>
@@ -455,6 +458,7 @@ export function LetterSection({
       <LSectionHeader step={step}>
         <span id="cp-letter">ASK YOUR LENDER FOR HELP (LETTER)</span>
       </LSectionHeader>
+      <DraftLegalMarker id="letter-hardship" />
       {loanPicker ?? (
       <label style={{ display: 'block', marginBottom: 10 }}>
         <span style={captionStyle}>Loan for the letter</span>
