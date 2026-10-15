@@ -1,8 +1,9 @@
 /**
  * Live re-test 2, 13 Oct 2026 (LIVE-RETEST-2-2026-10-13.md):
  *  - R2-1: "8.5x" in a rate field is not 0%: inline error, no months left.
- *  - NEW-2: a short month that never clears: the schedule stops at the
- *    horizon with the never-clears line; no 18+ digit ₹ figure anywhere.
+ *  - NEW-2: a short month that never clears: the schedule stops (for this
+ *    capped persona, at "not fundable from <month>", C11) with no debt-free
+ *    date anywhere; no 18+ digit ₹ figure anywhere.
  *  - L#26: the tenure what-if redraws the chart and table, with a toggle.
  *  - R2-3: a plan with no shortfall: the what-if doesn't mention a gap.
  *  - NEW-17: at 390 px the header is one row with a MENU button.
@@ -46,9 +47,22 @@ test('short month: schedule stops, what-if redraws the chart and table', async (
   await setup(page, 'golden-retest2-short@rightdue.app', '70000', '8.5x');
   const main = page.locator('#main');
 
-  await test.step('NEW-2: the schedule stops at the horizon and says why', async () => {
-    await expect(page.getByRole('heading', { name: /MONTH BY MONTH · AS THINGS STAND · NEVER CLEARS/ })).toBeVisible();
-    await expect(main.getByTestId('schedule-stop')).toContainText(/GROWS WITHOUT LIMIT|DOESN’T CLEAR IN 30 YEARS/);
+  await test.step('NEW-2: the schedule stops where the plan stops being fundable and says why', async () => {
+    // Audit 80+ C11 (integration phase 5): this persona's gap borrowing hits
+    // the card limit (a capped plan, infeasible_from_month), so the schedule
+    // stops at that month: "not fundable from <month>", never a debt-free
+    // date on paper ("DEBT-FREE AS THINGS STAND · Mar 2047").
+    const heading = page.getByRole('heading', { name: /MONTH BY MONTH · AS THINGS STAND · NOT FUNDABLE FROM [A-Z]{3} \d{4}/ });
+    await expect(heading).toBeVisible();
+    const from = (await heading.textContent())!.match(/NOT FUNDABLE FROM ([A-Z]{3} \d{4})/)![1];
+    await expect(main.getByTestId('schedule-stop')).toContainText(`NOT FUNDABLE FROM ${from} AS THINGS STAND`);
+    // The headline, chart and schedule tell one story: no debt-free date.
+    const chartSection = main.locator('section', { has: page.getByText('TRAJECTORY · TOTAL DEBT OVER TIME') });
+    await expect(chartSection.locator('svg[role=img]')).toContainText(/NOT FUNDABLE FROM [A-Z]{3} ’\d{2}/);
+    await expect(chartSection).not.toContainText(/DEBT-FREE/);
+    await expect(main.locator('#schedule')).not.toContainText(/DEBT-FREE/);
+    await expect(main.getByRole('heading', { level: 2 }).first()).not.toContainText(/^Debt-free:/);
+    await expect(main).toContainText(/NOT FUNDABLE( AS IT STANDS)? FROM [A-Z]{3} \d{4}/);
     const all = main.getByRole('button', { name: /ALL \d+ MONTHS/ });
     const n = Number((await all.textContent())!.match(/ALL (\d+) MONTHS/)![1]);
     expect(n).toBeLessThanOrEqual(360);
