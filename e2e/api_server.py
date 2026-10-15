@@ -83,6 +83,10 @@ def install_stubs() -> None:
     # Audit 80+ D8 (W8): an existing account gets 5 codes a day; the visual
     # and guard suites sign one persona in once per test (7+ a day).
     auth_routes.OTP_ACCOUNT_DAILY_CAP = 10_000
+    # D13 (W8): at most 5 new sign-ups a day per network, and every persona
+    # here signs up from 127.0.0.1, so the 6th new persona of a run got 429
+    # ("Sign-in is temporarily busy"). Lift it like the caps above (r2-web).
+    auth_routes.OTP_NEW_PER_NETWORK_DAILY = 10_000
 
     async def fixed_fetch(base: str, quote: str):
         if base == quote:
