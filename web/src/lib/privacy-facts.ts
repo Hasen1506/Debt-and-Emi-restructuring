@@ -60,8 +60,9 @@ export const RETENTION = {
   accessLogDays: 365,
   /** Neon Free's point-in-time restore window (docs/RUNBOOK.md §2). */
   databaseRestoreHours: 6,
-  /** Encrypted nightly backups' lifecycle rule (db-backup.yml). */
-  backupDays: 14,
+  /** Encrypted nightly backups, longest kept: 14 daily + 8 weekly copies,
+   *  the oldest at most 55 days old (docs/BACKUPS.md §2, db-backup.yml). */
+  backupDays: 56,
   sessionDays: 30,
   signInCodeMinutes: 10,
   rateCounterHours: 24,

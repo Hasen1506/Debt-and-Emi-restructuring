@@ -12,7 +12,7 @@ Each test guards a CLASS of defect, not one repro:
   D24  the request log never carries a query string or a token
   D26  schema drift stops a production start
   D15  PDF parses are bounded (one at a time, memory, structure)
-  D14  the backup preflight fails without its secrets
+  D14  the backup preflight fails without its secrets (round 2: docs/BACKUPS.md)
 Same SQLite harness as test_g8_security_privacy.py.
 """
 from __future__ import annotations
@@ -564,20 +564,24 @@ def test_the_child_runs_under_memory_and_cpu_limits():
     assert "RLIMIT_AS" in src and "RLIMIT_CPU" in src and "preexec_fn=_limit_child" in src
 
 
-# ── D14: backups fail loudly ──────────────────────────────────────────────
+# ── D14: backups fail loudly (round 2: private GitHub repo, R2 optional; docs/BACKUPS.md) ──
 
-SECRETS = {"DATABASE_URL": "postgresql://backup:x@ep-x.ap-southeast-1.aws.neon.tech/neondb",
+SECRETS = {"DATABASE_URL": "postgresql://rightdue_backup:x@ep-x.ap-southeast-1.aws.neon.tech/rightdue",
            "AGE_RECIPIENT": "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
-           "S3_BUCKET": "rightdue-backups", "S3_ENDPOINT": "https://acct.r2.cloudflarestorage.com",
-           "AWS_ACCESS_KEY_ID": "id", "AWS_SECRET_ACCESS_KEY": "secret"}
+           "BACKUP_REPO": "Hasen1506/rightdue-backups", "BACKUP_REPO_TOKEN": "github_pat_x"}
+R2 = {"S3_BUCKET": "rightdue-backups", "S3_ENDPOINT": "https://acct.r2.cloudflarestorage.com",
+      "AWS_ACCESS_KEY_ID": "id", "AWS_SECRET_ACCESS_KEY": "secret"}
+DRILL = {"BACKUP_REPO": "Hasen1506/rightdue-backups", "BACKUP_REPO_TOKEN": "github_pat_x",
+         "AGE_IDENTITY": "# created: 2026-10-15\nAGE-SECRET-KEY-1QQQQ"}
 
 
-def _preflight(tmp_path, env):
+def _preflight(tmp_path, env, mode=None):
     out = tmp_path / "out.txt"
     out.write_text("")
-    clean = {k: v for k, v in os.environ.items() if k not in SECRETS and k != "BACKUP_DISABLED"}
-    p = subprocess.run(["bash", str(ROOT / "scripts" / "backup_preflight.sh")], env={**clean, **env, "GITHUB_OUTPUT": str(out)},
-                       capture_output=True, text=True, timeout=30)
+    drop = {*SECRETS, *R2, *DRILL, "BACKUP_DISABLED", "BACKUP_DRILL_DISABLED", "GITHUB_REPOSITORY"}
+    clean = {k: v for k, v in os.environ.items() if k not in drop}
+    p = subprocess.run(["bash", str(ROOT / "scripts" / "backup_preflight.sh"), *([mode] if mode else [])],
+                       env={**clean, **env, "GITHUB_OUTPUT": str(out)}, capture_output=True, text=True, timeout=30)
     return p.returncode, p.stdout + p.stderr, out.read_text()
 
 
@@ -586,14 +590,21 @@ def test_backup_preflight_fails_red_when_any_secret_is_missing(tmp_path, drop):
     env = {k: v for k, v in SECRETS.items() if k != drop}
     code, log, out = _preflight(tmp_path, env)
     if drop is None:
-        assert code == 0 and "run=true" in out
+        assert code == 0 and "run=true" in out and "r2=false" in out
     else:
         assert code == 1 and "run=false" in out and "missing" in log
 
 
 def test_backup_preflight_with_nothing_set_is_red_not_green(tmp_path):
     code, log, out = _preflight(tmp_path, {})
-    assert code == 1 and log.count("missing:") == 6
+    assert code == 1 and log.count("missing:") == 4
+
+
+def test_r2_is_an_optional_second_copy_all_four_or_none(tmp_path):
+    code, _, out = _preflight(tmp_path, {**SECRETS, **R2})
+    assert code == 0 and "r2=true" in out
+    code, log, out = _preflight(tmp_path, {**SECRETS, "S3_BUCKET": "b", "S3_ENDPOINT": "https://e"})
+    assert code == 1 and "2 of the 4" in log and "run=false" in out
 
 
 def test_backup_disabled_on_purpose_is_the_only_quiet_skip(tmp_path):
@@ -606,12 +617,31 @@ def test_backup_preflight_refuses_a_private_age_key(tmp_path):
     assert code == 1 and "public key" in log
 
 
+def test_backups_never_go_to_this_public_repo(tmp_path):
+    code, log, _ = _preflight(tmp_path, {**SECRETS, "GITHUB_REPOSITORY": "Hasen1506/rightdue-backups"})
+    assert code == 1 and "PRIVATE repo" in log
+
+
+def test_drill_preflight_needs_the_private_key_or_an_explicit_opt_out(tmp_path):
+    assert _preflight(tmp_path, DRILL, "drill")[0] == 0
+    code, log, out = _preflight(tmp_path, {k: v for k, v in DRILL.items() if k != "AGE_IDENTITY"}, "drill")
+    assert code == 1 and "BACKUP_AGE_IDENTITY" in log and "run=false" in out
+    code, log, out = _preflight(tmp_path, {**DRILL, "AGE_IDENTITY": "age1notaprivatekey"}, "drill")
+    assert code == 1 and "private key" in log
+    code, log, out = _preflight(tmp_path, {"BACKUP_DRILL_DISABLED": "1"}, "drill")
+    assert code == 0 and "run=false" in out and "OFF on purpose" in log
+
+
 def test_backup_workflow_uses_the_preflight_restores_and_has_no_silent_exit():
     wf = (ROOT / ".github" / "workflows" / "db-backup.yml").read_text()
     assert "bash scripts/backup_preflight.sh" in wf
-    assert "Restore test" in wf and "pg_restore --no-owner" in wf and "head-object" in wf
-    cfg = wf.split("- name: Check configuration", 1)[1].split("- name:", 1)[0]
-    assert "exit 0" not in cfg
+    assert "Dump, restore test, encrypt" in wf and "Restore drill" in wf
+    dump = (ROOT / "scripts" / "backup_dump.sh").read_text()
+    assert "restore_into" in dump and "check_key_tables" in dump
+    assert "pg_restore --no-owner" in (ROOT / "scripts" / "backup_common.sh").read_text()
+    for step in ("- name: Check configuration",):
+        for cfg in wf.split(step)[1:]:
+            assert "exit 0" not in cfg.split("- name:", 1)[0]
     assert "if: failure()" in wf
 
 

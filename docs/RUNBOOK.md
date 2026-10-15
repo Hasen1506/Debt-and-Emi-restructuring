@@ -44,51 +44,28 @@ deploy that ran a migration:
 
 ## 2. Backups and restore (E-02)
 
-- Neon Free: instant restore of about the last **6 hours** (or 1 GB of changes),
-  no scheduled backups. Neon Launch (~$15/month) gives up to 7 days.
-- **Status 14 Oct 2026: no backup has ever been taken.** The old job went
-  green with every step skipped because the secrets were never added (audit
-  80+ D14; run 38486711137: Dump skipped, Upload skipped, conclusion
-  success). Why, in detail: the header of `scripts/backup_preflight.sh`.
-- `.github/workflows/db-backup.yml` runs nightly at 02:10 IST: preflight
-  (`scripts/backup_preflight.sh`), `pg_dump --format=custom` (Postgres 17
-  client), `pg_restore --list`, then a **restore test** into a throwaway
-  Postgres 17 container (checks the core tables came back), then `age`
-  encryption and upload to a **private** bucket. It never uploads to this
-  public repo's artifacts.
-- **It fails red** (and opens or updates a "Database backup failed" issue)
-  when any of the six secrets is missing, unless the repo **variable**
-  `BACKUP_DISABLED=1` says backups are off on purpose. Until the founder adds
-  the secrets, expect a red nightly run: that is the alarm working.
-- **To switch it on (founder):**
-  1. Neon: create a read-only role (`CREATE ROLE backup LOGIN PASSWORD '…'; GRANT
-     pg_read_all_data TO backup;`) on the `production` branch.
-  2. `age-keygen -o rightdue-backup.key` on your own machine. Keep the key file
-     offline (password manager); the public key (`age1…`) is the recipient.
-  3. A private Cloudflare R2 (free tier: 10 GB) or S3 bucket with a 14-day
-     lifecycle rule, and an access key that can only write to it.
-  4. GitHub → Settings → Secrets → Actions: `DATABASE_URL` (the read-only role's
-     URL), `BACKUP_AGE_RECIPIENT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT` (R2:
-     `https://<account>.r2.cloudflarestorage.com`), `BACKUP_S3_ACCESS_KEY_ID`,
-     `BACKUP_S3_SECRET_ACCESS_KEY`. Run the workflow once by hand (Actions →
-     Database backup → Run workflow) and check it is green with every step
-     run, not skipped.
-- **Restore (test once on the `dev-neon-setup` branch first):**
-  ```
-  aws s3 cp s3://<bucket>/nightly/rightdue-<stamp>.dump.age . [--endpoint-url …]
-  age -d -i rightdue-backup.key -o rightdue.dump rightdue-<stamp>.dump.age
-  pg_restore --clean --if-exists --no-owner --dbname "$TARGET_DATABASE_URL" rightdue.dump
-  ```
-  Restore into a new Neon branch, check it, then point `DATABASE_URL` at it (or
-  restore over production during a quiet hour). Delete the plaintext dump after.
-- **Restore drill (D14 step 4, founder, after the first good nightly):** on
-  your own machine, `bash scripts/restore_drill.sh` with the variables in its
-  header (a READ key for the bucket, the age private key file, and
-  `TARGET_DATABASE_URL` = the `dev-neon-setup` branch; set
-  `PRODUCTION_DATABASE_HOST` so it refuses production). It downloads the
-  newest nightly, decrypts, restores, prints row counts, and asks you to type
-  the database name first. Then record the date here.
-- **Last restore drill:** never (as of 14 Oct 2026). Repeat every 3 months.
+Everything about backups (why none was ever kept, setup, restore, drill) is
+in **docs/BACKUPS.md**. In short:
+
+- Neon Free: instant restore of about the last **6 hours** (or 1 GB of
+  changes), no scheduled backups. For a loss inside that window, use Neon's
+  restore first.
+- `.github/workflows/db-backup.yml`, nightly 02:10 IST: `pg_dump` (PostgreSQL
+  18 client, as Neon) through a read-only role, a restore test into a
+  throwaway Postgres, age encryption, then one fresh commit in the **private**
+  repo `Hasen1506/rightdue-backups` keeping 14 daily + 8 weekly copies. No
+  card, no paid service. Cloudflare R2 is an optional second copy.
+- Weekly restore drill (Monday 04:40 IST): decrypts the newest stored copy,
+  restores it into a throwaway Postgres and checks every table's row count
+  against the manifest. Red + an issue on any problem.
+- **Status 15 Oct 2026: no backup has ever been taken.** The job is red until
+  the founder does the one-time setup in docs/BACKUPS.md §3 (four secrets:
+  `DATABASE_URL`, `BACKUP_AGE_RECIPIENT`, `BACKUP_REPO_TOKEN`,
+  `BACKUP_AGE_IDENTITY`). Red is the alarm working; `BACKUP_DISABLED=1` (repo
+  variable) only if backups are off on purpose.
+- Restore: docs/BACKUPS.md §4 (`scripts/restore_drill.sh`).
+- **Last restore drill:** never (as of 15 Oct 2026). The weekly job does it
+  once set up; by hand every 3 months if `BACKUP_DRILL_DISABLED=1`.
 - The old Render `rightdue-db` recovery copy expires on 1 Nov 2026.
 
 ## 3. Staging (E-18b, recommendation)
