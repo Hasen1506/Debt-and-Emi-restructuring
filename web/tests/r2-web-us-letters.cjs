@@ -72,8 +72,8 @@ test('reachable: More → Help for US users only, and from Can’t pay (USA); pu
 test('the page offers all three letters, calls /api/complaints/us for FCBA + RESPA, and welcome.html keeps the US line', () => {
   const page = fs.readFileSync(path.join(src, 'components/distress/UsLetters.tsx'), 'utf8');
   for (const k of ['hardship', 'fcba_billing_error', 'respa_notice_of_error']) assert.match(page, new RegExp(`'${k}'`));
-  assert.match(page, /api\.complaintUs\(/);
-  assert.match(fs.readFileSync(path.join(src, 'lib/api.ts'), 'utf8'), /'\/api\/complaints\/us'/);
+  assert.match(page, /complaintUs\(req\)/);
+  assert.match(fs.readFileSync(path.join(src, 'lib/us-complaints-api.ts'), 'utf8'), /'\/api\/complaints\/us'/);
   assert.match(page, /US_COLLECTOR_RULE/);
   assert.match(read('web/public/welcome.html'), /Federal, state and card rules for the USA/);
 });

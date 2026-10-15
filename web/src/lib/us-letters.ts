@@ -9,7 +9,7 @@
  * constants exactly; web/tests/r2-web-us-letters.cjs reads
  * engine/complaints_us.py and fails if one drifts.
  */
-import type { UsComplaintKind } from './api';
+import type { UsComplaintKind } from './us-complaints-api';
 
 /** Engine placeholder → which field fills it. */
 export const US_TOKENS = {

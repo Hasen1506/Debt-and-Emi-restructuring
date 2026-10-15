@@ -19,7 +19,8 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { LShell, LSectionHeader, LBracket, LField, L_T } from '@/components/ledger/primitives';
 import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
-import { api, formatCurrencyWhole, type LoanType, type UsComplaintKind, type UsComplaintResponse } from '@/lib/api';
+import { formatCurrencyWhole, type LoanType } from '@/lib/api';
+import { complaintUs, type UsComplaintKind, type UsComplaintResponse } from '@/lib/us-complaints-api';
 import { US_COLLECTOR_RULE } from '@/lib/distress-triage';
 import { US_FIELDS, US_LETTER_TITLES, fillUsLetter, usMissing, type UsLetterValues } from '@/lib/us-letters';
 import { LetterSection, Rule, type Line } from './CantPay';
@@ -150,7 +151,7 @@ function ApiLetter({ kind }: { kind: UsComplaintKind }) {
       ...(track ? { sent_on: sentOn } : {}),
       ...(track && kind === 'fcba_billing_error' ? { statement_on: statementOn } : {}),
     };
-    api.complaintUs(req)
+    complaintUs(req)
       .then((r) => { if (live) setRes(r); })
       .catch((e: unknown) => { if (live) setErr(e instanceof Error ? e.message : 'Could not load the letter.'); });
     return () => { live = false; };

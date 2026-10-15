@@ -2,7 +2,8 @@
   "_comment": "Audit 80 E21. Checked by `python scripts/size_report.py --check` in CI. grandfathered files may only shrink (lower the number when they do). Raise prod_lines_baseline only in a PR that says why the product needs the lines.",
   "max_file_lines": 1500,
   "prod_growth_pct": 1.0,
-  "prod_lines_baseline": 104789,
+  "prod_lines_baseline": 105685,
+  "_prod_lines_baseline_why": "r2-web (15 Oct 2026): +896 for founder decisions of 15 Oct: the US letters page (UsLetters.tsx, us-letters.ts, us-complaints-api.ts), the shared Resend Free email budget and fair rollover (api/notify/budget.py, queue.py), draft-legal markers (legal-review.ts, DraftLegalMarker.tsx), the privacy/terms updates and scripts/check_founder_records.py. Raised by exactly what this round added (104789 -> 105685), so the headroom left before it is unchanged.",
   "grandfathered": {
     "api/schemas.py": 1807,
     "engine/asset_liquidation.py": 1729,

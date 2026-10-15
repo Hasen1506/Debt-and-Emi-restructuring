@@ -1295,50 +1295,6 @@ export interface ComplaintResponse {
   self_check: string[];
 }
 
-// ─── US letters (audit 80+ D11, round 2 page /cant-pay/us-letters) ─────────
-
-export type UsComplaintKind = 'fcba_billing_error' | 'respa_notice_of_error';
-
-export interface UsComplaintRequest {
-  kind: UsComplaintKind;
-  /** FCBA only: the first statement that showed the error. */
-  statement_on?: string;
-  sent_on?: string;
-  received_on?: string;
-  acknowledged_on?: string;
-  resolved_on?: string;
-  extended?: boolean;
-  as_of?: string;
-}
-
-export interface UsComplaintLetter {
-  kind: UsComplaintKind;
-  send_to: string;
-  subject: string;
-  paragraphs: string[];
-  how_to_send: string[];
-  if_no_answer: string[];
-  sources: string[];
-  draft_notice: string;
-  text: string;
-}
-
-export interface UsComplaintTimeline {
-  market: string;
-  stage: string;
-  milestones: ComplaintMilestone[];
-  next_action: string;
-  days_left: number | null;
-  escalation_opens: string | null;
-  escalation_deadline: string | null;
-  notes: string[];
-}
-
-export interface UsComplaintResponse {
-  letter: UsComplaintLetter;
-  timeline: UsComplaintTimeline | null;
-}
-
 // ─── Offer comparison (the lender's reply) ─────────────────────────────────
 
 export interface ResetOfferIn {
@@ -1499,7 +1455,7 @@ function serverHeaders(): Record<string, string> {
   return token ? { 'X-Internal-Token': token } : {};
 }
 
-async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
+export async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
   const res = await apiFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...serverHeaders() },
@@ -1753,10 +1709,6 @@ export const api = {
 
   complaintIn: (req: ComplaintRequest) =>
     postWithFieldErrors<ComplaintResponse>('/api/complaints/in', req),
-
-  /** D11: US card billing error (FCBA) or mortgage notice of error (RESPA). Placeholders only. */
-  complaintUs: (req: UsComplaintRequest) =>
-    postWithFieldErrors<UsComplaintResponse>('/api/complaints/us', req),
 
   /** A11: letter for "EMI raised (or tenure extended) without offering the choice". */
   resetChoiceLetter: (req: LoanCheckRequest & { preference: 'emi' | 'tenure' | 'undecided' }) =>
