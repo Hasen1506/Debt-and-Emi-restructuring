@@ -54,8 +54,11 @@ test('NEW-19: rapid Setup choices settle into one plan request pair', async ({ p
   expect(n).toBeGreaterThan(1);
   const before = sent.length;
   await page.getByRole('button', { name: /^Not now$/ }).click();
-  for (let i = n - 1; i >= 1; i--) await order.nth(i).click({ delay: 0 });
-  const last = order.nth(1);
+  // End on an order not worked out yet: smallest-first (snowball) is already
+  // known from the first preview's "what you'd likely do" run (W6 B4), so
+  // ending on it answered from memory with no request at all.
+  for (let i = 1; i < n; i++) await order.nth(i).click({ delay: 0 });
+  const last = order.nth(n - 1);
   await expect(last).toHaveAttribute('aria-pressed', 'true');
   await planPreviewSettled(page);
   await page.waitForTimeout(800);
@@ -79,6 +82,8 @@ test('NEW-19: rapid Setup choices settle into one plan request pair', async ({ p
   await page.getByRole('button', { name: /SAVE · OPEN MY PLAN/ }).click();
   await page.waitForURL('**/plan');
   // Plan's tenure what-if: three quick clicks, one compare for the last.
+  // Audit 80 B15: this healthy plan folds the longer-tenure card; open it.
+  await page.locator('#main').getByTestId('tenure-fold').locator('summary').click();
   const plus5 = page.getByRole('button', { name: '+5 YRS' });
   await expect(plus5).toBeVisible();
   await page.waitForLoadState('networkidle');

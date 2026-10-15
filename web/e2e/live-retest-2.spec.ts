@@ -59,8 +59,10 @@ test('short month: schedule stops, what-if redraws the chart and table', async (
     // The headline, chart and schedule tell one story: no debt-free date.
     const chartSection = main.locator('section', { has: page.getByText('TRAJECTORY · TOTAL DEBT OVER TIME') });
     await expect(chartSection.locator('svg[role=img]')).toContainText(/NOT FUNDABLE FROM [A-Z]{3} ’\d{2}/);
-    await expect(chartSection).not.toContainText(/DEBT-FREE/);
-    await expect(main.locator('#schedule')).not.toContainText(/DEBT-FREE/);
+    // (The stop line itself says "THERE IS NO DEBT-FREE DATE".)
+    const dated = /DEBT-FREE( AS THINGS STAND)? ·|★ DEBT-FREE/;
+    await expect(chartSection).not.toContainText(dated);
+    await expect(main.locator('#schedule')).not.toContainText(dated);
     await expect(main.getByRole('heading', { level: 2 }).first()).not.toContainText(/^Debt-free:/);
     await expect(main).toContainText(/NOT FUNDABLE( AS IT STANDS)? FROM [A-Z]{3} \d{4}/);
     const all = main.getByRole('button', { name: /ALL \d+ MONTHS/ });
