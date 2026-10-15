@@ -84,3 +84,35 @@ def test_simulate_with_dob_raises_emi_when_the_age_limit_binds(client, monkeypat
         applied = next(o for o in ev0["options"] if o["mode"] == ev0["applied"])
         assert abs(D(applied["emi"]) - want) < D("1")
         assert applied["months_left"] == 228 if dob else applied["months_left"] > 228
+
+
+# ── item 5: advance tax for salaried users with non-TDS income ─────────────
+
+def _adv(**kw):
+    body = {"annual_gross_salary": "1800000", "tax_regime": "new", "today": "2026-10-15",
+            "streams": [{"kind": "interest", "gross_annual": "200000", "tds_pct": "0.10"},
+                        {"kind": "rent", "gross_annual": "360000"}]}
+    body.update(kw)
+    return body
+
+
+def test_advance_tax_route_golden(client):
+    """Same golden as engine/tests/test_r2_advance_tax_salaried.py."""
+    r = client.post("/api/tax/advance-tax/salaried", json=_adv())
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["applies"] and D(j["liability"]) == D("83220") and j["fiscal_year_label"] == "FY 2026-27"
+    assert [(i["due"], D(i["amount"])) for i in j["instalments"]] == [
+        ("2026-06-15", D("12483")), ("2026-09-15", D("24966")), ("2026-12-15", D("24966")), ("2027-03-15", D("20805"))]
+    assert D(j["interest_234c_if_unpaid"]) == D("4198") and D(j["interest_234b_if_unpaid"]) == D("3328")
+    assert all(u.startswith("https://www.incometaxindia.gov.in") for u in j["sources"].values())
+
+
+def test_advance_tax_route_not_due_and_422(client):
+    j = client.post("/api/tax/advance-tax/salaried",
+                    json=_adv(streams=[{"kind": "interest", "gross_annual": "20000"}])).json()
+    assert j["applies"] is False and j["instalments"] == []
+    for bad in ({"streams": [{"kind": "lottery", "gross_annual": "1"}]},
+                {"streams": [{"kind": "interest", "gross_annual": "1", "tds_pct": "2"}]},
+                {"age": 5}, {"today": "15-10-2026"}):
+        assert client.post("/api/tax/advance-tax/salaried", json=_adv(**bad)).status_code == 422
