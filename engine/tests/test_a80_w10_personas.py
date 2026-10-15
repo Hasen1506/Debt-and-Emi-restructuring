@@ -130,10 +130,8 @@ def test_nri_prepay_line_is_in_dollars_after_slide_and_cost():
     assert c.prepay_return == D("0.0453")         # hand check in test_a80_w10_nri.py
 
 
-@pytest.mark.xfail(strict=True,
-                   reason="W10 follow-up in engine/marginal_cost.py / ordering.py (W1-owned files): "
-                          "the payoff order ranks a rupee loan at its rupee rate, ignoring the slide "
-                          "and transfer cost that E5 now shows (≈4.5% in USD vs the 7.5% car)")
+# Built in round 2 (item 4): marginal_cost._fx_adjust (hand check in
+# test_r2_nri_seasonal.py).
 def test_nri_order_uses_the_dollar_cost_of_a_rupee_loan():
     r = simulate_plan(nri("-0.035"), Strategy.AVALANCHE, horizon_months=240, marginal_rate=D("0.22"))
     assert r.months[0].extra_to_loan_index == 1
@@ -241,17 +239,24 @@ def test_business_owner_seasonal_plan_shows_the_lean_month_gaps():
     assert sum(m.shortfall for m in lumpy.months) > sum(m.shortfall for m in flat.months)
 
 
-@pytest.mark.xfail(strict=True,
-                   reason="W10 follow-up in engine/simulation.py (W1-owned): with savings equal to the "
-                          "lean-season buffer, the plan still pours festive-season cash into a 16% loan "
-                          "and then borrows on a 42% card in Jan–Feb; a seasonal earner needs a held reserve")
+# Built in round 2 (item 4): the seasonal reserve (simulation income_lookahead).
 def test_business_owner_with_buffer_never_borrows_on_a_card():
+    # Round 2: the buffer is sized on the plan's real month-1 outgo. The card's
+    # C13/C14 minimum (Axis MITC, interest + GST on the average daily balance)
+    # is ~₹4,840, not the ~₹4,000 the docstring above estimates, so a buffer
+    # on ₹76,580 fell ₹3,239 short in August of year 1 whatever the plan did.
+    first = simulate_plan(business(), Strategy.AVALANCHE, horizon_months=1, simulation_start_month=4,
+                          minimums_only=True).months[0]
+    outgo = D("55000") + first.total_payment_nominal
     s = income_shape(build_income_path(business(), 12, IncomeScenario(seasonal=FESTIVE),
-                                       simulation_start_month=4), D("76580"))
+                                       simulation_start_month=4), outgo)
     u = business(efund_balance=s.buffer_needed, efund_target=s.buffer_needed)
     p = build_income_path(u, 36, IncomeScenario(seasonal=FESTIVE), simulation_start_month=4)
     r = simulate_with_income(u, p, Strategy.AVALANCHE, simulation_start_month=4)
     assert sum(m.gap_borrowed for m in r.months) == 0
+    # Without the reserve the same plan borrows in the year-2 lean months.
+    off = simulate_with_income(u, p, Strategy.AVALANCHE, simulation_start_month=4, seasonal_reserve=False)
+    assert sum(m.gap_borrowed for m in off.months) > 0
 
 
 # Presumptive scheme (s.58, s.408(2)): one instalment by 15 March. Fixed by W2 (advance-tax.ts).

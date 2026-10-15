@@ -561,6 +561,7 @@ def _simulate_plan(
     gap_as_debt: bool = True,
     stop_owed_multiple: Decimal | None = None,
     low_rate_invest: tuple[Decimal, Decimal] | None = None,
+    income_lookahead: "list[Decimal] | None" = None,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`.
 
@@ -1092,6 +1093,33 @@ def _simulate_plan(
         # routing so the API can expose an engine-truth surplus series
         # for client-side achievability without back-deriving it from
         # the post-allocation `surplus` variable below.
+        # Round 2 (item 4, W10 finding 7): a seasonal reserve. With a known
+        # month-by-month income (`income_lookahead`, the user's own seasonal
+        # pattern; simulate_with_income passes it), spare cash first tops up
+        # the emergency fund to what the next 12 months' lean stretch needs:
+        # the deepest the running balance (income − this month's spending,
+        # EMIs and minimums) goes from next month on. Shortfalls are paid
+        # from that fund (below), so a festive-season surplus isn't poured
+        # into a 16% loan only to borrow on a 42% card in the lean months.
+        # Never while a loan as dear as gap borrowing (the dearest card) is
+        # open: prepaying it saves at least what borrowing later would cost.
+        if (income_lookahead and surplus > 0
+                and (gap_rate is None or all(l.nominal_rate < gap_rate.annual_rate for l in active))):
+            outgo = (scratch_user.fixed_expenses + scratch_user.variable_expenses
+                     + sum((to_user_currency(minimums[id(l)], l, user) for l in active if id(l) in minimums), D("0")))
+            running = low = D("0")
+            for k in range(m + 1, min(len(income_lookahead), m + 12) + 1):
+                running += D(income_lookahead[k - 1]) - outgo
+                low = min(low, running)
+            # Only when the coming year pays for itself (its months net to
+            # ≥ 0 against today's outgo): a structurally short year borrows
+            # whatever happens, and then paying the dearest debt now costs
+            # less than holding cash (Hypothesis counterexample: the festive
+            # season at 80%).
+            hold = min(surplus, max(D("0"), -low - ef_balance)) if running >= 0 else D("0")
+            if hold > 0:
+                ef_balance += hold
+                surplus -= hold
         pre_allocation_surplus = surplus
         for ev in pending_rises:
             # Audit C1: redo the recommendation now the month's spare cash

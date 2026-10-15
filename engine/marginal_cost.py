@@ -58,6 +58,13 @@ class MarginalCost:
     # saves this tax year under s.123 [80C] while its ₹1.5L room is unused
     # (added to `total`; a one-off saving, counted as a year's rate).
     principal_80c: Decimal = D("0")
+    # Round 2 (item 4, W10 finding 6): a loan in another currency than the
+    # user's pay, seen in the user's currency: the currency's expected yearly
+    # move (User.fx_drift_annualized, the same drift the plan's FX path uses)
+    # and the one-time cost of sending money (User.remittance_cost), spread
+    # over the years left (engine/cross_border.prepay_return_in_user_currency).
+    # Added to the cost (negative when the loan's currency slides).
+    fx_adjust: Decimal = D("0")
 
     @property
     def locked(self) -> bool:
@@ -68,7 +75,7 @@ class MarginalCost:
         """What the debt costs a year from here: compounded interest plus GST,
         less the tax break. The prepayment fee is left out: it is a cost of
         prepaying, checked on its own (prepayment_beats_fee), not of owing."""
-        return self.interest + self.gst - self.tax_benefit
+        return self.interest + self.gst - self.tax_benefit + self.fx_adjust
 
     @property
     def order_key(self) -> Decimal:
@@ -360,8 +367,41 @@ def user_marginal_costs(loans: list[Loan], user, marginal_rate: Decimal, month: 
             credit = marginal_rate * max(D("0"), min(D("1"), l.tax_share))
             mc = MarginalCost(mc.interest, mc.gst, mc.tax_benefit, mc.fee, mc.lock_in_months,
                               mc.total + credit, credit)
+        fx = _fx_adjust(l, user, mc, months_left)
+        if fx != 0:
+            mc = MarginalCost(mc.interest, mc.gst, mc.tax_benefit, mc.fee, mc.lock_in_months,
+                              mc.total + fx, mc.principal_80c, fx)
         out[id(l)] = mc
     return out
+
+
+def _fx_adjust(l: Loan, user, mc: MarginalCost, months_left: int) -> Decimal:
+    """What the earner's currency adds to (or takes off) a foreign-currency
+    loan's yearly cost (round 2, item 4). One unit of pay sent home arrives
+    as (1 − c); prepaid it saves the loan's cost k in the loan's currency,
+    worth (1 + drift) a year later in the earner's:
+
+        ((1 − c)^(1/years) · (1 + k) · (1 + drift)) − 1   −   k
+
+    years = the years the loan has left (at least 1; a card counts 1). 0 for
+    a loan in the user's own currency, so every single-currency plan is
+    unchanged."""
+    from engine.surplus import _user_residence_currency
+    home = _user_residence_currency(user).upper()
+    ccy = (l.currency or home).upper()
+    if ccy == home:
+        return D("0")
+    drift = D(str((getattr(user, "fx_drift_annualized", None) or {}).get(ccy, D("0"))))
+    c = getattr(user, "remittance_cost", None)
+    if c is None:
+        from engine.cross_border import default_remittance_cost
+        c = (default_remittance_cost(home) or D("0")) if ccy == "INR" else D("0")
+    if drift == 0 and c == 0:
+        return D("0")
+    years = max(1, -(-max(0, months_left) // 12))
+    kept = D(str(float(D("1") - D(c)) ** (1 / years)))
+    k = mc.annual_cost
+    return (kept * (D("1") + k) * (D("1") + drift) - D("1")) - k
 
 
 def user_forward_rates(loans: list[Loan], user, marginal_rate: Decimal) -> dict[int, Decimal]:
