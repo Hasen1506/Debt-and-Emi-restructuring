@@ -34,7 +34,7 @@ after one year; ss.3–5, 6(1)–(8) and (10), 7–17, 27 (rest), 28–34, 36, 3
 | Withdrawal as easy as giving consent | Act s.6(4); Rules r.3(c)(i) | One form on `/account`: type the email, confirm |
 | Reasonable security safeguards | Act s.8(5); Rules r.6 | HttpOnly session cookie, keyed HMAC of sign-in codes (`OTP_HASH_KEY`, fallback `INTERNAL_API_TOKEN`, D25) and hashed session keys, HTTPS + HSTS preload, CSP and frame-ancestors (grill #58, D23), rate limits (grill #59, D13), PDF parse limits (D15), no query strings in request logs (D24) |
 | Visibility of access through logs, kept a year | Rules r.6(1)(c), (e) | `access_log`: one row per saved-plan read/write, export, delete, device sign-out, consent change; account id, action, route, outcome, time, never figures or IPs (D8) |
-| Backups for continued processing | Rules r.6(1)(d) | Nightly encrypted `pg_dump` with a restore test; the job goes red when not configured (D14, RUNBOOK §2). **Not yet running**: the founder has to add the secrets |
+| Backups for continued processing | Rules r.6(1)(d) | Nightly encrypted `pg_dump` with a restore test; weekly restore drill; stored in a private GitHub repo, 14 daily + 8 weekly copies (D14, docs/BACKUPS.md). **Not yet running**: the founder has to add four secrets |
 | Device control | Rules r.6(1)(a)-(b) | `/account` lists signed-in devices (coarse "Chrome on Android" label, no IP) with sign-out one / sign-out everywhere (D21) |
 | Breach intimation to each user and to the Board (72 h detailed report) | Act s.8(6); Rules r.7 | Process in "Breach" below; nothing automated |
 | Erase on withdrawal / when purpose ends | Act s.8(7), s.12(3) | `POST /api/auth/account/delete` |

@@ -134,7 +134,8 @@ export default function PrivacyPage() {
           </li>
           <li style={LI}>
             Copies: our database host keeps about {RETENTION.databaseRestoreHours} hours of history for recovery, and our
-            encrypted nightly backups are kept {RETENTION.backupDays} days. A deleted account disappears from them when
+            encrypted nightly backups (in a private store only we can open) are kept for up to {RETENTION.backupDays} days:
+            one for each of the last 14 days, then one a week. A deleted account disappears from them when
             they expire.
           </li>
           <li style={LI}>A sign-in code: usable for {RETENTION.signInCodeMinutes} minutes, then its hash is wiped.</li>

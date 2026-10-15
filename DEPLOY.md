@@ -85,9 +85,10 @@ origin must be added there.
 **Regions**: docs/region-colocation.md (no change made). Region is fixed per
 service; co-locating with Neon in Singapore works on the Free plan too (D9).
 
-**Backups** (D14): `.github/workflows/db-backup.yml` needs six GitHub Actions
-secrets and is red until they exist (RUNBOOK §2). Set the repo variable
-`BACKUP_DISABLED=1` only if you decide on purpose to run without backups.
+**Backups** (D14): `.github/workflows/db-backup.yml` stores encrypted nightly
+dumps in a private GitHub repo (no card needed) and runs a weekly restore
+drill. It is red until four secrets exist (docs/BACKUPS.md §3). Set the repo
+variable `BACKUP_DISABLED=1` only if you decide on purpose to run without backups.
 
 **Rollback on Free** reaches only the two most recent previous deploys
 (https://render.com/docs/free); `git revert` + merge is the main path
