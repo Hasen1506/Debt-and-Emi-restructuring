@@ -19,7 +19,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { LoanPayload, SeasonalOutRaw, UserPayload } from '@/lib/api';
-import { MONTH_SHORT, hasSeasonalPattern, parsePattern, patternFrom, reserveLine } from '@/lib/seasonal-income';
+import { MONTH_SHORT, hasSeasonalPattern, monthList, parsePattern, patternFrom, reserveLine } from '@/lib/seasonal-income';
 import { formatCurrencyWhole } from '@/lib/api';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { localIsoDate } from '@/lib/today';
@@ -336,6 +336,9 @@ export function SeasonalIncomeControl({ user, seasonal, currency, dateLabel }: {
             <LChip on={!!own && !!own.reserve} onClick={() => saveSeason(true)}>Save · hold a seasonal reserve</LChip>
             {pending && <span style={note}>WORKING IT OUT…</span>}
           </div>
+          {seasonal?.applied && (seasonal.lean_months ?? []).length > 0 && (
+            <p style={note}>Lean months in this pattern (below your yearly average): {monthList(seasonal.lean_months ?? [])}.</p>
+          )}
           {line && <p data-testid="seasonal-reserve-line" style={{ ...note, color: L_T.ink }}>{line}</p>}
           {seasonal && !seasonal.applied && seasonal.skipped_reason === 'salary_change_planned' && (
             <p style={note}>Not used yet: a salary change is planned. Put the change into these months instead.</p>
