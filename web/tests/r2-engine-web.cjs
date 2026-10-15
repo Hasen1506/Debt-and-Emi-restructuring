@@ -337,3 +337,126 @@ test('both forms route their save through carryPlanInputs; buildUser never names
     assert.doesNotMatch(body(setup), new RegExp(`\\b${k}\\b`), `Setup buildUser names ${k}`);
   }
 });
+
+// ── item 3: Setup's rate-rise choice; the threshold copy ─────────────────
+
+test('Setup offers the rate-rise choice on floating loans only, default first', () => {
+  const o = P.rateRiseOptions({}, 'IN');
+  assert.deepEqual(o.map((x) => x.value), ['', 'extend', 'raise_emi', 'mix']);
+  assert.match(o[0].label, /Usual for this loan: keep the emi, extend the tenure/);
+  assert.match(P.rateRiseOptions({}, 'US')[0].label, /raise the emi/);
+  assert.match(P.rateRiseOptions({ currency: 'INR' }, 'US')[0].label, /extend the tenure/);
+  const setup = src('components/setup/QuickSetup.tsx');
+  assert.match(setup, /\{!card && loan\.rate_type === 'floating' && \(\s*<Select<'' \| RateRiseMode>\s*label="If the rate rises"/);
+  assert.match(setup, /onPatch\(\{ on_rate_rise: v === '' \? undefined : v \}\)/);
+});
+
+test('prepay / keep / split copy: threshold is the assumed return (editable), not a fixed 10%', () => {
+  assert.equal(
+    P.thresholdWords('0.075', '0.065', true),
+    '7.5% a year after tax (the assumed 6.5% return after tax plus 1 point; change it on Plan under “Your return after tax”)',
+  );
+  assert.match(P.thresholdWords('0.09', '0.08', false), /^9% a year after tax \(your own 8% return/);
+  assert.match(P.thresholdWords('0.05', null, undefined), /the assumed 4% return/);
+  for (const f of ['components/insights/PrepayKeepSplit.tsx', 'components/insights/InsightsPanel.tsx']) {
+    const s = src(f);
+    assert.match(s, /thresholdWords\(/, f);
+    assert.doesNotMatch(s, /under 10% a year/, f);
+    assert.doesNotMatch(s, /threshold\) \* 100\)\.toFixed\(0\)\}% a year/, f);
+  }
+});
+
+// ── item 4: seasonal income ────────────────────────────────────────────────
+
+const SI = lib('seasonal-income');
+
+test('pattern from lean / high months; high wins a clash; bad amounts refused', () => {
+  assert.deepEqual(
+    SI.patternFrom({ typical: '60,000', lean: { months: [6, 7], amount: '40000' }, high: { months: [10, 11, 7], amount: '2,00,000' } }),
+    ['60000', '60000', '60000', '60000', '60000', '40000', '200000', '60000', '60000', '200000', '200000', '60000'],
+  );
+  assert.deepEqual(SI.patternFrom({ typical: 1000 }), Array(12).fill('1000'));
+  assert.equal(SI.patternFrom({ typical: '1000', lean: { months: [1], amount: '' } }), null);
+  assert.equal(SI.patternFrom({ typical: 'x' }), null);
+});
+
+test('parsePattern needs 12 amounts and some income', () => {
+  assert.deepEqual(SI.parsePattern(Array(12).fill('1,000')), { pattern: Array(12).fill('1000') });
+  assert.match(SI.parsePattern(Array(11).fill('1')).error, /12 months/);
+  assert.match(SI.parsePattern(['1', '', ...Array(10).fill('1')]).error, /^Feb:/);
+  assert.match(SI.parsePattern(Array(12).fill('0')).error, /some income/);
+  assert.equal(SI.hasSeasonalPattern({ pattern: Array(12).fill('0') }), false);
+  assert.equal(SI.hasSeasonalPattern({ pattern: Array(12).fill('5') }), true);
+  assert.equal(SI.hasSeasonalPattern(undefined), false);
+  assert.deepEqual(SI.leanMonths(['60000', '60000', '90000', '60000', '50000', '40000', '40000', '50000', '80000', '200000', '240000', '130000']), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+});
+
+const fmtIn = (v) => `₹${Math.round(Number(v)).toLocaleString('en-IN')}`;
+const season = (diff, extra = {}) => ({
+  applied: true, reserve_on: true, lean_months: [6, 7],
+  with_reserve: { debt_free_month: 20, total_interest_paid: String(150000 + diff), total_gap_interest: '0' },
+  without_reserve: { debt_free_month: 20, total_interest_paid: '150000', total_gap_interest: '20000' },
+  reserve_interest_difference: String(diff), peak_reserve: '57420', ...extra,
+});
+
+test('reserve line shows both versions and says honestly when the reserve costs more', () => {
+  const label = (m) => `month ${m}`;
+  const more = SI.reserveLine(season(1200), fmtIn, label);
+  assert.match(more, /^With a reserve: ₹1,51,200 interest, debt-free month 20\. Without: ₹1,50,000 interest, debt-free month 20\./);
+  assert.match(more, /The reserve costs ₹1,200 more in interest/);
+  assert.match(more, /holds back up to ₹57,420/);
+  assert.match(SI.reserveLine(season(-8247), fmtIn, label), /The reserve saves ₹8,247 in interest/);
+  assert.match(SI.reserveLine(season(0), fmtIn, label), /Same interest either way/);
+  const capped = season(10, { without_reserve: { debt_free_month: null, total_interest_paid: '150000', total_gap_interest: '1', infeasible_from_month: 9 } });
+  assert.match(SI.reserveLine(capped, fmtIn, label), /Without: ₹1,50,000 interest, no debt-free date/);
+  assert.equal(SI.reserveLine({ applied: false, reserve_on: true }, fmtIn, label), null);
+  assert.equal(SI.reserveLine(null, fmtIn, label), null);
+});
+
+test('seasonal pattern reaches the engine and the reserve is opt-in on Plan', () => {
+  assert.match(src('lib/api.ts'), /seasonal_income\?: SeasonalIncomePayload/);
+  assert.match(src('components/plan/load-plan.ts'), /seasonal: scenario\.seasonal \?\? null/);
+  const pa = src('components/plan/PlanAssumptions.tsx');
+  assert.match(pa, /label: 'INCOME BY SEASON'/);
+  const pc = src('components/plan/PlanInputsControls.tsx');
+  assert.match(pc, /seasonal_income: \{ pattern: r\.pattern, reserve \}/);
+  assert.match(pc, /data-testid="seasonal-reserve-line"/);
+  assert.ok(P.PLAN_INPUT_USER_KEYS.includes('seasonal_income'), 'Profile / Setup keep the pattern');
+  const parse = lib('boundary').parseSimulateResponse;
+  const ok = parse('/api/simulate', { debt_free_month: 3, total_interest_paid: '1', total_invested: '0', trajectory: [], months_in_horizon: 3, seasonal: season(5) }, { strict: true });
+  assert.equal(ok.seasonal.reserve_on, true);
+});
+
+// ── item 5: tools read their date through planEnd() ───────────────────────
+
+test('windfall: a capped response shows no debt-free date; an uncapped one does', () => {
+  const W = require(path.join(root, 'app/tools/windfall/tool.tsx'));
+  assert.deepEqual(W.runFromResponse({ debt_free_month: 40, infeasible_from_month: 7, never_clears: true, total_interest_paid: '100' }), { month: null, infeasibleFrom: 7, interest: 100 });
+  assert.deepEqual(W.runFromResponse({ debt_free_month: 40, infeasible_from_month: null, total_interest_paid: '100' }), { month: 40, infeasibleFrom: null, interest: 100 });
+  assert.deepEqual(W.runFromResponse({ debt_free_month: null, never_clears: true, total_interest_paid: '5' }), { month: null, infeasibleFrom: null, interest: 5 });
+});
+
+test('guard: no /tools page reads an engine debt-free month except through planEnd()', () => {
+  const files = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p); else if (/\.(ts|tsx)$/.test(e.name)) files.push(p);
+    }
+  };
+  walk(path.join(root, 'app/tools'));
+  assert.ok(files.length > 10);
+  const offenders = [];
+  for (const f of files) {
+    const lines = fs.readFileSync(f, 'utf8').split('\n');
+    lines.forEach((l, i) => {
+      if (/^\s*(\/\/|\*)/.test(l)) return;
+      if (/\b(scenario_|baseline_)?debt_free_month\b/.test(l) && !/planEnd\(/.test(l)) offenders.push(`${path.relative(root, f)}:${i + 1}`);
+    });
+  }
+  assert.deepEqual(offenders, []);
+  // The tool pages that show the plan's date take it from load-plan (planEnd inside).
+  assert.match(src('components/plan/load-plan.ts'), /\.\.\.planEnd\(scenario\)/);
+  assert.match(src('app/tools/windfall/tool.tsx'), /return runFromResponse\(await api\.simulate/);
+  assert.match(src('components/activity/LogDialog.tsx'), /month: planEnd\(r\)\.debtFreeMonth/);
+});

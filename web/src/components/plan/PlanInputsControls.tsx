@@ -13,17 +13,20 @@
  *  - RATE RISE (item 1): per floating loan, extend / raise EMI / mix, the
  *    lender's maximum tenure; the date of birth and retirement age that cap
  *    a tenure-first extension.
+ *  - INCOME BY SEASON (item 4): a monthly take-home pattern and the opt-in
+ *    seasonal reserve, with its interest cost against no reserve.
  */
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import type { LoanPayload, UserPayload } from '@/lib/api';
+import type { LoanPayload, SeasonalOutRaw, UserPayload } from '@/lib/api';
+import { MONTH_SHORT, hasSeasonalPattern, parsePattern, patternFrom, reserveLine } from '@/lib/seasonal-income';
 import { formatCurrencyWhole } from '@/lib/api';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { localIsoDate } from '@/lib/today';
 import {
   DEFAULT_ASSUMED_RETURN, GAP_LIMIT_MONTHS, SPLIT_MARGIN, assumedReturnFor, ceilingLine, gapLimitFor,
   monthsToAgeLimit, parseAmount, parseDob, parseMaxTenure, parseRetirementAge, parseReturnPct, rateRiseModeFor,
-  retirementAgeFor, type RateRiseMode,
+  retirementAgeFor, RATE_RISE_LABEL, type RateRiseMode,
 } from '@/lib/plan-inputs';
 import { Field } from '@/components/ToolPrimitives';
 import { LBracket, LChip, L_T } from '@/components/ledger/primitives';
@@ -169,11 +172,7 @@ export function AssumedReturnControl({ user }: { user: UserPayload }) {
 
 // ── item 1: rate rises ────────────────────────────────────────────────────
 
-const MODE_LABEL: Record<RateRiseMode, string> = {
-  extend: 'Keep the EMI, extend the tenure',
-  raise_emi: 'Raise the EMI, keep the end date',
-  mix: 'Half and half',
-};
+const MODE_LABEL = RATE_RISE_LABEL;
 
 function loanName(l: LoanPayload, i: number): string {
   return `${l.bank || 'Loan'} ${String(l.loan_type || '').replace('_loan', '').replace('_', ' ')} · #${i + 1}`;
@@ -260,6 +259,95 @@ export function RateRiseControl({ user, floating }: { user: UserPayload; floatin
         lenders usually extend the tenure first. With your date of birth the plan never stretches a loan past the age
         you pay loans off by ({r.assumed ? `assumed ${r.value}` : r.value}). Fixed-rate loans don&apos;t reset.
       </p>
+      {failed && <p role="alert" style={{ ...note, color: L_T.negative }}>That wasn&apos;t saved: this browser didn&apos;t keep it.</p>}
+    </div>
+  );
+}
+
+// ── item 4: income that varies by season, and the opt-in reserve ──────────
+
+export function SeasonalIncomeControl({ user, seasonal, currency, dateLabel }: {
+  user: UserPayload;
+  seasonal: SeasonalOutRaw | null | undefined;
+  currency: 'INR' | 'USD';
+  dateLabel: (m: number | null) => string;
+}) {
+  const { save, pending, failed } = useSaveUser();
+  const own = hasSeasonalPattern(user.seasonal_income) ? user.seasonal_income : null;
+  const typical = String(Math.round(Number(user.monthly_income || 0)));
+  const [mode, setMode] = useState<'flat' | 'season'>(own ? 'season' : 'flat');
+  const [values, setValues] = useState<string[]>(own ? [...own.pattern] : Array.from({ length: 12 }, () => typical));
+  const [lean, setLean] = useState<number[]>([]);
+  const [leanAmt, setLeanAmt] = useState('');
+  const [high, setHigh] = useState<number[]>([]);
+  const [highAmt, setHighAmt] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const money = (v: string | number) => formatCurrencyWhole(String(Math.round(Number(v))), currency);
+  const line = reserveLine(seasonal, money, dateLabel);
+  const toggle = (list: number[], m: number) => (list.includes(m) ? list.filter((x) => x !== m) : [...list, m].sort((a, b) => a - b));
+
+  function fill() {
+    const p = patternFrom({ typical, lean: { months: lean, amount: leanAmt }, high: { months: high, amount: highAmt } });
+    if (!p) return setError('Type an amount for the lean months and the high months you picked.');
+    setError(null);
+    setValues(p);
+  }
+
+  function saveSeason(reserve: boolean) {
+    const r = parsePattern(values);
+    if ('error' in r) return setError(r.error);
+    setError(null);
+    save((u) => ({ ...u, seasonal_income: { pattern: r.pattern, reserve } }));
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }} data-testid="seasonal-income-control">
+      <div role="group" aria-label="Income by season" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <LChip on={mode === 'flat'} onClick={() => { setMode('flat'); setError(null); if (own) save((u) => without(u, 'seasonal_income')); }}>
+          About the same every month
+        </LChip>
+        <LChip on={mode === 'season'} onClick={() => setMode('season')}>My income varies by season</LChip>
+      </div>
+      {mode === 'season' && (
+        <>
+          <p style={note}>Pick your lean and high months, or type each month&apos;s take-home below.</p>
+          {([['Lean months', lean, setLean, leanAmt, setLeanAmt], ['High months', high, setHigh, highAmt, setHighAmt]] as const).map(([label, list, setList, amt, setAmt]) => (
+            <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div role="group" aria-label={label} style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: 'var(--fs-dense)', minWidth: 96 }}>{label}</span>
+                {MONTH_SHORT.map((m, i) => (
+                  <LChip key={m} on={list.includes(i + 1)} onClick={() => setList(toggle(list, i + 1))}>{m}</LChip>
+                ))}
+              </div>
+              <div style={{ maxWidth: 220 }}>
+                <Field label={`${label}: take-home a month`} kind="text" value={amt} onChange={(v) => setAmt(v)} placeholder={typical} />
+              </div>
+            </div>
+          ))}
+          <span><LBracket active onClick={fill}>FILL THE MONTHS</LBracket></span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 6 }}>
+            {MONTH_SHORT.map((m, i) => (
+              <Field key={m} label={m} kind="text" value={values[i] ?? ''}
+                onChange={(v) => { setValues((cur) => cur.map((x, k) => (k === i ? v : x))); setError(null); }} />
+            ))}
+          </div>
+          <div role="group" aria-label="Seasonal reserve" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <LChip on={!!own && !own.reserve} onClick={() => saveSeason(false)}>Save · no reserve</LChip>
+            <LChip on={!!own && !!own.reserve} onClick={() => saveSeason(true)}>Save · hold a seasonal reserve</LChip>
+            {pending && <span style={note}>WORKING IT OUT…</span>}
+          </div>
+          {line && <p data-testid="seasonal-reserve-line" style={{ ...note, color: L_T.ink }}>{line}</p>}
+          {seasonal && !seasonal.applied && seasonal.skipped_reason === 'salary_change_planned' && (
+            <p style={note}>Not used yet: a salary change is planned. Put the change into these months instead.</p>
+          )}
+          <p style={note}>
+            The plan runs month by month on these amounts (each year&apos;s raise scales them). A reserve is your
+            choice: in good months it keeps back what the next lean months need, instead of prepaying, so a lean month
+            isn&apos;t borrowed on a card. It can cost a little more interest; the line above shows both.
+          </p>
+        </>
+      )}
+      {error && <p role="alert" style={{ ...note, color: L_T.negative }}>{error}</p>}
       {failed && <p role="alert" style={{ ...note, color: L_T.negative }}>That wasn&apos;t saved: this browser didn&apos;t keep it.</p>}
     </div>
   );

@@ -116,3 +116,65 @@ def test_advance_tax_route_not_due_and_422(client):
                 {"streams": [{"kind": "interest", "gross_annual": "1", "tds_pct": "2"}]},
                 {"age": 5}, {"today": "15-10-2026"}):
         assert client.post("/api/tax/advance-tax/salaried", json=_adv(**bad)).status_code == 422
+
+
+# ── item 4: seasonal income on /simulate, reserve opt-in ───────────────────
+
+FESTIVE_PATTERN = ["60000", "60000", "90000", "60000", "50000", "40000",
+                   "40000", "50000", "80000", "200000", "240000", "130000"]
+
+
+def _seasonal_body(**seasonal):
+    user = {"country": "IN", "income_type": "business_owner", "annual_income": "1100000",
+            "monthly_income": "91666.67", "fixed_expenses": "55000", "savings_balance": "0",
+            "primary_bank": "x",
+            "loans": [{"loan_type": "personal_loan", "bank": "Bajaj Finance", "outstanding": "500000",
+                       "nominal_rate": "0.16", "rate_type": "fixed", "tenure_months_remaining": 36,
+                       "scheduled_emi": "17580"},
+                      {"loan_type": "credit_card", "bank": "Axis Bank", "outstanding": "80000",
+                       "nominal_rate": "0.42", "rate_type": "fixed", "tenure_months_remaining": 0,
+                       "scheduled_emi": "0"}]}
+    if seasonal:
+        user["seasonal_income"] = seasonal
+    return {"user": user, "strategy": "avalanche", "horizon_months": 120, "simulation_start_month": 4,
+            "marginal_rate": "0.2"}
+
+
+def test_no_pattern_no_seasonal_block(client):
+    j = client.post("/api/simulate", json=_seasonal_body()).json()
+    assert j["seasonal"] is None
+
+
+def test_pattern_runs_month_by_month_and_reports_both_versions(client):
+    off = client.post("/api/simulate", json=_seasonal_body(pattern=FESTIVE_PATTERN)).json()
+    on = client.post("/api/simulate", json=_seasonal_body(pattern=FESTIVE_PATTERN, reserve=True)).json()
+    flat = client.post("/api/simulate", json=_seasonal_body()).json()
+    so, sn = off["seasonal"], on["seasonal"]
+    assert so["applied"] and sn["applied"] and so["reserve_on"] is False and sn["reserve_on"] is True
+    # Reserve is opt-in: off by default, and the headline follows the choice.
+    assert D(off["total_interest_paid"]).quantize(D("0.01")) == D(so["without_reserve"]["total_interest_paid"])
+    assert D(on["total_interest_paid"]).quantize(D("0.01")) == D(sn["with_reserve"]["total_interest_paid"])
+    # Both requests describe the same two runs.
+    assert so["with_reserve"] == sn["with_reserve"] and so["without_reserve"] == sn["without_reserve"]
+    assert D(sn["reserve_interest_difference"]) == (
+        D(sn["with_reserve"]["total_interest_paid"]) - D(sn["without_reserve"]["total_interest_paid"]))
+    # Lean months = below the year's average (₹91,667): all but Oct, Nov, Dec.
+    assert sn["lean_months"] == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    assert D(sn["peak_reserve"]) >= 0
+    # The month-by-month run differs from the flat average.
+    assert off["trajectory"] != flat["trajectory"]
+    # The reserve never makes card borrowing interest higher (engine class guard).
+    assert D(sn["with_reserve"]["total_gap_interest"]) <= D(sn["without_reserve"]["total_gap_interest"])
+
+
+def test_planned_salary_change_skips_the_pattern_and_says_so(client):
+    body = _seasonal_body(pattern=FESTIVE_PATTERN, reserve=True)
+    body["lifecycle_events"] = [{"kind": "salary_reset", "effective_month": 6, "new_monthly_take_home": "100000"}]
+    j = client.post("/api/simulate", json=body).json()
+    assert j["seasonal"] == {**j["seasonal"], "applied": False, "skipped_reason": "salary_change_planned"}
+
+
+@pytest.mark.parametrize("pattern", [["1000"] * 11, ["1000"] * 13, ["0"] * 12, ["-5"] + ["1000"] * 11])
+def test_bad_patterns_are_422(client, pattern):
+    r = client.post("/api/simulate", json=_seasonal_body(pattern=pattern))
+    assert r.status_code == 422

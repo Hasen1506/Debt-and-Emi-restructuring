@@ -102,6 +102,10 @@ export interface PlanInsights {
   consolidation: ConsolidationData | null;
   low_rate_phase_month: number | null;
   low_rate_threshold: string;
+  /** Round 2: threshold = this return (the user's, or the default) + margin. */
+  low_rate_assumed_return?: string | null;
+  low_rate_assumption_is_default?: boolean;
+  low_rate_margin?: string;
 }
 export interface PrepayOption {
   share_kept: string;
@@ -117,6 +121,9 @@ export interface PrepayInvestData {
   extra_then: string | null;
   loan_costs: Record<string, string>;
   threshold: string;
+  /** Round 2: the return behind the threshold, and whether it is the default. */
+  assumed_return_for_trigger?: string | null;
+  assumption_is_default?: boolean;
   common_month: number | null;
   assumed_return: string | null;
   options: PrepayOption[];

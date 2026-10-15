@@ -7,6 +7,7 @@
  * last found on this device. If the engine can't answer, nothing is shown
  * and the page works as before.
  */
+import { thresholdWords } from '@/lib/plan-inputs';
 import { useEffect, useState } from 'react';
 import type { Country, LoanPayload, SimulateArgs } from '@/lib/api';
 import { formatCurrencyWhole } from '@/lib/api';
@@ -93,8 +94,8 @@ export function InsightsPanel({
       )}
       {variant === 'home' && data.low_rate_phase_month != null && !choseLowRate && (
         <p data-testid="low-rate-nudge" style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6, color: L_T.inkSoft }}>
-          From {label(data.low_rate_phase_month)} only loans under {(Number(data.low_rate_threshold) * 100).toFixed(0)}% a year are
-          left. Prepay them, keep the spare cash, or split? <LBracket href="/plan#prepay-keep-split">DECIDE ON PLAN →</LBracket>
+          From {label(data.low_rate_phase_month)} only loans costing under{' '}
+          {thresholdWords(data.low_rate_threshold, data.low_rate_assumed_return, data.low_rate_assumption_is_default)} are left. Prepay them, keep the spare cash, or split? <LBracket href="/plan#prepay-keep-split">DECIDE ON PLAN →</LBracket>
         </p>
       )}
       {variant === 'home' && open.length > 0 && (

@@ -28,13 +28,14 @@ import { FxDriftToggle } from '@/components/FxDriftToggle';
 import { INR_SLIDE_LABEL } from '@/lib/fx-drift';
 import { loanToUser } from '@/lib/currency';
 import { DebtBudgetControl } from './DebtBudgetControl';
-import { AssumedReturnControl, GapLimitControl, RateRiseControl } from './PlanInputsControls';
+import { AssumedReturnControl, GapLimitControl, RateRiseControl, SeasonalIncomeControl } from './PlanInputsControls';
+import { hasSeasonalPattern } from '@/lib/seasonal-income';
 import { assumedReturnFor, floatingLoanIndices, gapLimitFor } from '@/lib/plan-inputs';
 
 // FilingStatusUS: 'single' | 'mfj' | 'hoh' (same as Home's context line).
 const FILING: Record<string, string> = { single: 'SINGLE', mfj: 'JOINTLY', hoh: 'HEAD OF HOUSEHOLD' };
 
-type ChipKey = 'order' | 'budget' | 'hike' | 'inflation' | 'tax' | 'ef' | 'fx' | 'borrow' | 'return' | 'rise';
+type ChipKey = 'order' | 'budget' | 'hike' | 'inflation' | 'tax' | 'ef' | 'fx' | 'borrow' | 'return' | 'rise' | 'season';
 
 interface Chip {
   key: ChipKey;
@@ -179,6 +180,22 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
       control: <RateRiseControl user={configured} floating={floating} />,
     });
   }
+  // Round 2 (item 4): income that varies by season, and the opt-in reserve.
+  const season = hasSeasonalPattern(configured.seasonal_income) ? configured.seasonal_income : null;
+  chips.push({
+    key: 'season',
+    label: 'INCOME BY SEASON',
+    value: !season ? 'SAME EVERY MONTH' : season.reserve ? 'VARIES · RESERVE ON' : 'VARIES · NO RESERVE',
+    about: 'Whether your take-home changes through the year (a festive quarter, harvest, exam months), and whether the plan keeps a reserve for the lean months.',
+    control: (
+      <SeasonalIncomeControl
+        user={configured}
+        seasonal={plan.seasonal}
+        currency={configured.country === 'US' ? 'USD' : 'INR'}
+        dateLabel={(m) => (m == null ? 'not within the plan' : monthIndexToCountryLabel(m, configured.country))}
+      />
+    ),
+  });
   if (taxSaving > 0) {
     chips.push({
       key: 'tax',

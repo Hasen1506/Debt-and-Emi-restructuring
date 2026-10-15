@@ -149,3 +149,30 @@ export function carryPlanInputs<U extends UserPayload>(built: U, prev: UserPaylo
   });
   return out;
 }
+
+/** The three answers RBI's reset rule allows (circular of 18 Aug 2023). */
+export const RATE_RISE_LABEL: Record<RateRiseMode, string> = {
+  extend: 'Keep the EMI, extend the tenure',
+  raise_emi: 'Raise the EMI, keep the end date',
+  mix: 'Half and half',
+};
+
+/** Setup's compact choice for one floating loan: the market default first
+ *  (labelled), then the three answers. '' = the default. */
+export function rateRiseOptions(loan: Pick<LoanPayload, 'currency'>, country: string): { value: '' | RateRiseMode; label: string }[] {
+  const def = rateRiseModeFor({ currency: loan.currency }, country).mode;
+  return [
+    { value: '', label: `Usual for this loan: ${RATE_RISE_LABEL[def].toLowerCase()}` },
+    ...(['extend', 'raise_emi', 'mix'] as RateRiseMode[]).map((m) => ({ value: m, label: RATE_RISE_LABEL[m] })),
+  ];
+}
+
+/** Plain words for the prepay / keep / split line: the threshold is the
+ *  user's own assumed return after tax (or the labelled default) + 1 point,
+ *  and it can be changed. Fractions as text ("0.075"). */
+export function thresholdWords(threshold: string | number, assumedReturn: string | number | null | undefined, isDefault: boolean | undefined): string {
+  const pctTxt = (v: string | number) => `${+(Number(v) * 100).toFixed(1)}%`;
+  const ret = assumedReturn != null && assumedReturn !== '' ? Number(assumedReturn) : Number(threshold) - SPLIT_MARGIN;
+  const whose = isDefault === false ? 'your own' : 'the assumed';
+  return `${pctTxt(threshold)} a year after tax (${whose} ${pctTxt(ret)} return after tax plus ${SPLIT_MARGIN * 100} point; change it on Plan under “Your return after tax”)`;
+}

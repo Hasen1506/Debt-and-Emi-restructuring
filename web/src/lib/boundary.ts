@@ -90,6 +90,14 @@ const simulate: Check = shape(
     gap_closed: nullable(shape({ cut: decimal, debt_free_month: nullable(int), total_interest_paid: decimal })),
     surplus_allocation: nullable(shape({ surplus: decimal, goal_slice: decimal, ef_slice: decimal, debt_slice: decimal, ef_preempted: bool, ef_split: decimal })),
     goal_finals: listOf(shape({ goal_id: str, required: decimal, saved_at_target: decimal, fill_rate: decimal, target_reached: bool, funded: bool })),
+    seasonal: nullable(shape(
+      { applied: bool, reserve_on: bool },
+      {
+        with_reserve: nullable(shape({ debt_free_month: nullable(int), total_interest_paid: decimal, total_gap_interest: decimal })),
+        without_reserve: nullable(shape({ debt_free_month: nullable(int), total_interest_paid: decimal, total_gap_interest: decimal })),
+        reserve_interest_difference: nullable(decimal), peak_reserve: nullable(decimal), lean_months: listOf(int),
+      },
+    )),
   },
 );
 

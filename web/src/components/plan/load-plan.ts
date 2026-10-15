@@ -612,6 +612,7 @@ export async function loadPlan(
       // scheduleCut from one mapping (lib/plan-gap planEnd): a capped plan
       // has no debt-free month and stops at its first unfundable month.
       ...planEnd(scenario),
+      seasonal: scenario.seasonal ?? null,
       baselineNeverClears: !!baseline.never_clears || (baseline.debt_free_month == null && Number(baseline.total_interest_paid) > 0),
       trajectory: mergeTrajectories(scenario, baseline),
       totalInterest: scenario.total_interest_paid,

@@ -432,6 +432,9 @@ export interface UserPayload {
   /** Round 2 (item 4): one-time cost of sending money home, share of the
    *  amount (blank = the published corridor average). */
   remittance_cost?: string;
+  /** Round 2 (item 4): take-home for each calendar month, January first,
+   *  when income varies by season; `reserve` opts into the seasonal reserve. */
+  seasonal_income?: SeasonalIncomePayload;
   income_streams?: IncomeStreamPayload[];
   /** Old-regime / itemized deductions. Captured at onboarding step 2
    *  conditionally — IN only renders these when tax_regime === 'old';
@@ -711,6 +714,32 @@ export interface SimulateResponse {
    *  (never_clears is true). `unfunded_shortfall` is the total not found. */
   infeasible_from_month?: number | null;
   unfunded_shortfall?: string;
+  /** Round 2 (item 4): set when the profile has a seasonal pattern. */
+  seasonal?: SeasonalOutRaw | null;
+}
+
+export interface SeasonalIncomePayload {
+  /** 12 take-home amounts, January to December. */
+  pattern: string[];
+  reserve?: boolean;
+}
+
+export interface SeasonalRunRaw {
+  debt_free_month: number | null;
+  total_interest_paid: string;
+  total_gap_interest: string;
+  infeasible_from_month?: number | null;
+}
+
+export interface SeasonalOutRaw {
+  applied: boolean;
+  reserve_on: boolean;
+  skipped_reason?: string | null;
+  lean_months?: number[];
+  with_reserve?: SeasonalRunRaw | null;
+  without_reserve?: SeasonalRunRaw | null;
+  reserve_interest_difference?: string | null;
+  peak_reserve?: string | null;
 }
 
 export interface CompareResponse {

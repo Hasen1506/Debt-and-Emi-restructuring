@@ -1,7 +1,9 @@
 'use client';
 
 /**
- * Audit 80+ A4 + D1: once every loan left costs under 10% a year, the plan
+ * Audit 80+ A4 + D1: once every loan left costs less after tax than the
+ * user's own assumed return + 1 point (round 2; default 6.5% IN / 4% US,
+ * editable on Plan) and the emergency fund is full, the plan
  * stops and asks: prepay, keep the money, or split. No default. Each option
  * is shown with its debt-free date and the money in hand on ONE common date
  * (the day the slowest option clears), at a yearly return the user types
@@ -13,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { LButton, L_T, LSectionHeader, lStrip } from '@/components/ledger/primitives';
 import { fetchPrepayInvest, type InsightsArgs, type PrepayInvestData } from '@/lib/insights';
 import { formatCurrencyWhole, type Country } from '@/lib/api';
+import { thresholdWords } from '@/lib/plan-inputs';
 import { userDefaultCurrency } from '@/lib/currency';
 import { getCountryToday, monthIndexToCountryLabel } from '@/lib/today';
 import {
@@ -88,7 +91,8 @@ export function PrepayKeepSplit({ runArgs: plain }: { runArgs: InsightsArgs }) {
       </LSectionHeader>
       <p style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
         By {dateLabel(data.phase_month)} only {loans === 1 ? 'one loan' : `${loans} loans`} costing under{' '}
-        {(Number(data.threshold) * 100).toFixed(0)}% a year {loans === 1 ? 'is' : 'are'} left, and about{' '}
+        <span data-testid="pks-threshold">{thresholdWords(data.threshold, data.assumed_return_for_trigger, data.assumption_is_default)}</span>{' '}
+        {loans === 1 ? 'is' : 'are'} left, and about{' '}
         {money(data.extra_then ?? 0)} a month spare. Whether that goes to the loan is your call: the plan doesn’t pick.
       </p>
       <p data-testid="pks-statement" style={{ margin: 0, padding: '10px 12px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, fontSize: 'var(--fs-body)', lineHeight: 1.55, ...lStrip('ink') }}>

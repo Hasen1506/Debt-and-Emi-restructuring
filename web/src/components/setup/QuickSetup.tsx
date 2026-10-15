@@ -7,7 +7,7 @@
  * card dates, fees, holdings) lives in Profile, and is kept untouched when a
  * saved profile is edited here.
  */
-import { carryPlanInputs } from '@/lib/plan-inputs';
+import { carryPlanInputs, rateRiseOptions, type RateRiseMode } from '@/lib/plan-inputs';
 import { LIKELY_HOW, LIKELY_LABEL, SAME_AS_LIKELY_NOTE, WORST_CASE_LABEL, likelySaving, likelySavingText } from '@/lib/savings-baseline';
 import { track } from '@/lib/funnel';
 import { engineRequests, isAbortError, PREVIEW_DEBOUNCE_MS } from '@/lib/engine-requests';
@@ -1413,6 +1413,15 @@ function LoanBlock({
                   ? `${assumedRateTypeNote(loan.loan_type, country, loan.currency)} ${HOW_TO_TELL}`
                   : HOW_TO_TELL
               }
+            />
+          )}
+          {!card && loan.rate_type === 'floating' && (
+            <Select<'' | RateRiseMode>
+              label="If the rate rises"
+              value={loan.on_rate_rise ?? ''}
+              onChange={(v) => onPatch({ on_rate_rise: v === '' ? undefined : v })}
+              options={rateRiseOptions(loan, country)}
+              hint="Your choice at each reset (RBI, 18 Aug 2023). Change it any time on Plan, with your lender's maximum tenure."
             />
           )}
           {!card && (

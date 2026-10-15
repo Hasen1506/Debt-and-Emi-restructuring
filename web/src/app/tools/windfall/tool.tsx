@@ -63,6 +63,7 @@ import {
 import { LStepHead, LStepSub } from '@/components/ledger/LToolSteps';
 import { useWidth } from '@/lib/use-width';
 import { announce } from '@/lib/announce';
+import { planEnd } from '@/lib/plan-gap';
 
 const LOAN_WORDS: Record<string, string> = {
   credit_card: 'credit card',
@@ -104,7 +105,11 @@ interface Pick {
 }
 
 interface Run {
+  /** Shown debt-free month (lib/plan-gap planEnd): null when the plan never
+   *  clears or is capped (a short month past the borrowing limit). */
   month: number | null;
+  /** First month the plan can't be funded (Audit C11), else null. */
+  infeasibleFrom: number | null;
   interest: number;
 }
 
@@ -114,9 +119,15 @@ const keyOf = (l: LoanPayload, i: number) => `loan:${l.id ?? `#${i}`}`;
 const loanName = (l: LoanPayload) => (LOAN_WORDS[l.loan_type] ? loanLabel(l) : l.loan_type);
 const sum = (a: Alloc) => Object.values(a).reduce((s, v) => s + v, 0);
 
+/** Round 2: every tool reads its date through planEnd(), so a capped run
+ *  never shows a debt-free date here when Plan shows none. */
+export function runFromResponse(r: Parameters<typeof planEnd>[0] & { total_interest_paid: string }): Run {
+  const end = planEnd(r);
+  return { month: end.debtFreeMonth, infeasibleFrom: end.infeasibleFrom, interest: Number(r.total_interest_paid) };
+}
+
 async function runPlan(args: PlanRunArgs, strategy: StrategyName): Promise<Run> {
-  const r = await api.simulate({ ...args, strategy });
-  return { month: r.debt_free_month, interest: Number(r.total_interest_paid) };
+  return runFromResponse(await api.simulate({ ...args, strategy }));
 }
 
 function block(l: LoanPayload): string | undefined {
@@ -649,8 +660,11 @@ export function WindfallTool({
                   let tone: string = L_T.faint;
                   if (t.kind === 'loan') {
                     if (t.blocked) badge = `CAN'T TAKE IT: ${t.blocked.toUpperCase()}`;
-                    else if (v > 0 && base && run) {
-                      const m = base.month != null && run.month != null ? base.month - run.month : null;
+                    else if (v > 0 && base && run && (base.month == null || run.month == null)) {
+                      // A capped or never-clearing plan has no date to compare.
+                      badge = run.infeasibleFrom != null || base.infeasibleFrom != null ? 'PLAN NOT FUNDABLE AS IT STANDS' : 'NO DEBT-FREE DATE';
+                    } else if (v > 0 && base && run) {
+                      const m = (base.month as number) - (run.month as number);
                       badge = `DEBT-FREE ${m ? `−${m} MO` : 'SAME MONTH'} · INTEREST −${fmt(Math.max(0, base.interest - run.interest))}`;
                       tone = L_T.positive;
                     } else if (v > 0) badge = running ? 'WORKING…' : '';
@@ -710,8 +724,14 @@ export function WindfallTool({
               items={[
                 {
                   l: `${kpiPrefix(logged)}DEBT-FREE`,
-                  v: after?.month != null ? monthIndexToCountryLabel(after.month, country).toUpperCase() : runArgs ? '—' : 'NO LOANS',
-                  s: dm != null ? (dm < 0 ? `${-dm} MO SOONER` : dm === 0 ? 'SAME MONTH' : `${dm} MO LATER`) : running ? 'WORKING…' : '',
+                  v: after?.month != null
+                    ? monthIndexToCountryLabel(after.month, country).toUpperCase()
+                    : after?.infeasibleFrom != null ? 'NOT FUNDABLE' : runArgs ? '—' : 'NO LOANS',
+                  s: dm != null
+                    ? (dm < 0 ? `${-dm} MO SOONER` : dm === 0 ? 'SAME MONTH' : `${dm} MO LATER`)
+                    : after?.infeasibleFrom != null && !running
+                      ? `SHORT FROM ${monthIndexToCountryLabel(after.infeasibleFrom, country).toUpperCase()}`
+                      : running ? 'WORKING…' : '',
                   tone: dm != null && dm < 0 ? L_T.positive : L_T.ink,
                 },
                 {
