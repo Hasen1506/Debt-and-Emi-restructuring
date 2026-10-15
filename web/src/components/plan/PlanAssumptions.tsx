@@ -28,11 +28,14 @@ import { FxDriftToggle } from '@/components/FxDriftToggle';
 import { INR_SLIDE_LABEL } from '@/lib/fx-drift';
 import { loanToUser } from '@/lib/currency';
 import { DebtBudgetControl } from './DebtBudgetControl';
+import { AssumedReturnControl, GapLimitControl, RateRiseControl, SeasonalIncomeControl } from './PlanInputsControls';
+import { hasSeasonalPattern } from '@/lib/seasonal-income';
+import { assumedReturnFor, floatingLoanIndices, gapLimitFor } from '@/lib/plan-inputs';
 
 // FilingStatusUS: 'single' | 'mfj' | 'hoh' (same as Home's context line).
 const FILING: Record<string, string> = { single: 'SINGLE', mfj: 'JOINTLY', hoh: 'HEAD OF HOUSEHOLD' };
 
-type ChipKey = 'order' | 'budget' | 'hike' | 'inflation' | 'tax' | 'ef' | 'fx';
+type ChipKey = 'order' | 'budget' | 'hike' | 'inflation' | 'tax' | 'ef' | 'fx' | 'borrow' | 'return' | 'rise' | 'season';
 
 interface Chip {
   key: ChipKey;
@@ -147,6 +150,52 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
       ),
     },
   ];
+  // Round 2 (founder, items 1–3): assumptions the engine used without saying.
+  const gap = gapLimitFor(configured);
+  chips.push({
+    key: 'borrow',
+    label: 'BORROWING LIMIT',
+    value: `${formatCurrencyWhole(String(gap.value), ccy)}${gap.assumed ? ' (ASSUMED)' : ''}`,
+    about: gap.assumed
+      ? 'How much the plan may borrow to cover a short month. You haven’t said, so it assumes 3 months of take-home.'
+      : 'How much the plan may borrow to cover a short month: your own limit.',
+    control: <GapLimitControl user={configured} currency={ccy} />,
+  });
+  const ret = assumedReturnFor(configured);
+  chips.push({
+    key: 'return',
+    label: 'YOUR RETURN AFTER TAX',
+    value: `${pct(ret.value, 1)}${ret.assumed ? ' (ASSUMED)' : ''}`,
+    about: 'Decides when the plan asks whether to prepay a cheap loan, keep the money, or split it.',
+    control: <AssumedReturnControl user={configured} />,
+  });
+  const floating = floatingLoanIndices(configured.loans);
+  if (floating.length > 0) {
+    const own = floating.filter((i) => configured.loans[i]?.on_rate_rise).length;
+    chips.push({
+      key: 'rise',
+      label: 'IF A RATE RISES',
+      value: own === 0 ? (u.country === 'IN' ? 'EXTEND TENURE (DEFAULT)' : 'RAISE PAYMENT (DEFAULT)') : `${own} OF ${floating.length} SET BY YOU`,
+      about: 'What each floating-rate loan does when its rate goes up: a longer tenure, a higher EMI, or both.',
+      control: <RateRiseControl user={configured} floating={floating} />,
+    });
+  }
+  // Round 2 (item 4): income that varies by season, and the opt-in reserve.
+  const season = hasSeasonalPattern(configured.seasonal_income) ? configured.seasonal_income : null;
+  chips.push({
+    key: 'season',
+    label: 'INCOME BY SEASON',
+    value: !season ? 'SAME EVERY MONTH' : season.reserve ? 'VARIES · RESERVE ON' : 'VARIES · NO RESERVE',
+    about: 'Whether your take-home changes through the year (a festive quarter, harvest, exam months), and whether the plan keeps a reserve for the lean months.',
+    control: (
+      <SeasonalIncomeControl
+        user={configured}
+        seasonal={plan.seasonal}
+        currency={configured.country === 'US' ? 'USD' : 'INR'}
+        dateLabel={(m) => (m == null ? 'not within the plan' : monthIndexToCountryLabel(m, configured.country))}
+      />
+    ),
+  });
   if (taxSaving > 0) {
     chips.push({
       key: 'tax',

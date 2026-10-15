@@ -53,6 +53,9 @@ export interface MarginalCost {
    *  prepaying, not of owing, so it comes off only in `total`. */
   annualCost: Decimal;
   total: Decimal;
+  /** Round 2 (item 4): the earner's-currency adjustment for a loan in
+   *  another currency (drift + transfer cost); 0 for a same-currency loan. */
+  fxAdjust?: Decimal;
   locked: boolean;
   /** Sort key, highest first: the total, with locked loans last. */
   orderKey: Decimal;
@@ -208,9 +211,37 @@ export function userMarginalCosts(user: UserPayload, marginalRate: string, indic
       total, homeDebt, 1, india,
     );
     const cardGst = l.loan_type === 'credit_card' && marketOf(l, own) === 'IN';
-    out.set(i, marginalCost(l.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(l.prepayment_penalty_pct || 0, marketOf(l, own) === 'IN'), Number(l.tenure_months_remaining || 0), lockLeft(l, own)));
+    const mc = marginalCost(l.nominal_rate || 0, cardGst, shield, prepaymentFeeWithGst(l.prepayment_penalty_pct || 0, marketOf(l, own) === 'IN'), Number(l.tenure_months_remaining || 0), lockLeft(l, own));
+    out.set(i, withFx(mc, fxAdjust(l, user, mc.annualCost, Number(l.tenure_months_remaining || 0))));
   }
   return out;
+}
+
+/** World Bank average US → India cost of sending money ($500, Q3 2025);
+ *  engine/cross_border.REMITTANCE_COST_DEFAULT. */
+export const REMITTANCE_COST_DEFAULT: Record<string, string> = { USD: '0.0245' };
+
+/** Round 2 (item 4, engine marginal_cost._fx_adjust): a loan in another
+ *  currency than the user's pay, valued in the user's currency:
+ *  ((1 − c)^(1/years) · (1 + k) · (1 + drift)) − 1 − k. */
+export function fxAdjust(l: LoanPayload, user: Pick<UserPayload, 'country' | 'fx_drift_annualized'> & { remittance_cost?: string }, annualCost: Decimal, monthsLeft: number): Decimal {
+  const home = user.country === 'US' ? 'USD' : 'INR';
+  const ccy = (l.currency || home).toUpperCase();
+  if (ccy === home) return D(0);
+  const drift = D(user.fx_drift_annualized?.[ccy] ?? 0);
+  const c = user.remittance_cost != null && user.remittance_cost !== ''
+    ? D(user.remittance_cost)
+    : ccy === 'INR' ? D(REMITTANCE_COST_DEFAULT[home] ?? 0) : D(0);
+  if (drift.isZero() && c.isZero()) return D(0);
+  const years = Math.max(1, Math.ceil(Math.max(0, monthsLeft) / 12));
+  const kept = D(String(Math.pow(1 - c.toNumber(), 1 / years)));
+  return kept.times(D(1).plus(annualCost)).times(D(1).plus(drift)).minus(1).minus(annualCost);
+}
+
+function withFx(mc: MarginalCost, fx: Decimal): MarginalCost {
+  if (fx.isZero()) return mc;
+  const total = mc.total.plus(fx);
+  return { ...mc, fxAdjust: fx, annualCost: mc.annualCost.plus(fx), total, orderKey: mc.locked ? total.minus(LOCKED_OFFSET) : total };
 }
 
 /** One loan on its own (Profile's preview while a loan is typed in): its

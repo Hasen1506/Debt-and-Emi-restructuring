@@ -7,6 +7,7 @@
  * shows what the entry does to the plan — the debt-free month and the
  * interest — from the same engine run Plan uses.
  */
+import { planEnd } from '@/lib/plan-gap';
 import { localTerms, paymentWords } from '@/lib/terms';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Decimal from 'decimal.js';
@@ -90,7 +91,8 @@ const SOURCES: { v: string; label: string }[] = [
 async function run(args: PlanRunArgs, strategy: StrategyName) {
   const r = await api.simulate({ ...args, strategy });
   return {
-    month: r.debt_free_month,
+    // Round 2: planEnd() — no date for a capped run (as Plan and the tools).
+    month: planEnd(r).debtFreeMonth,
     interest: Number(r.total_interest_paid),
     /** What the plan pays above the minimums this month, in the user's currency. */
     extraThisMonth: Number(r.trajectory.find((p) => p.month === 1)?.extra_paid ?? 0),

@@ -36,7 +36,8 @@ from engine.formulas import (
 )
 from engine.minimum_payments import compute_minimum_payment
 from engine.contract import (
-    RateRiseOptions, extension_cap, has_contract_end, rate_rise_mode, rate_rise_options,
+    RateRiseOptions, extension_cap, has_contract_end, months_until_age_limit, rate_rise_mode,
+    rate_rise_options,
     reprice_on_rise, repayment_kind,
 )
 from engine.gap_debt import GapRate, gap_interest, gap_rate_for
@@ -171,7 +172,8 @@ class RateRiseEvent:
 
 
 def _reset_rate(loan: Loan, new_rate: Decimal, months_left: int,
-                country: Country = Country.IN) -> RateRiseOptions | None:
+                country: Country = Country.IN,
+                age_months_left: int | None = None) -> RateRiseOptions | None:
     """Move a floating loan to `new_rate`. Returns both outcomes of a rise
     (None for a cut, a card, or a loan with no EMI to reprice).
 
@@ -222,7 +224,7 @@ def _reset_rate(loan: Loan, new_rate: Decimal, months_left: int,
     else:
         n = n_now or 12
     mode = rate_rise_mode(loan, country)
-    cap = extension_cap(loan, n, country)
+    cap = extension_cap(loan, n, country, age_months_left)
     old_emi = loan.scheduled_emi
     options = rate_rise_options(loan.outstanding, old_rate, new_rate, old_emi, n, cap, mode)
     rp = reprice_on_rise(loan.outstanding, new_rate, old_emi, n, mode, cap if mode != "raise_emi" else n)
@@ -307,6 +309,9 @@ class MonthRow:
     # Gap borrowing past its limit (Audit C11): what this month was short
     # that couldn't be borrowed (user currency). Not compounded.
     unfunded_shortfall: Decimal = D("0")
+    # Emergency fund (and seasonal reserve) at the end of the month, user
+    # currency (round 2: the prepay / keep split waits until it is full).
+    efund_balance: Decimal = D("0")
     # The month's minimum on gap borrowing (its interest, GST included: RBI's
     # card rule that the minimum causes no negative amortisation) and
     # whether the month's spare cash failed to cover it.
@@ -556,6 +561,7 @@ def _simulate_plan(
     gap_as_debt: bool = True,
     stop_owed_multiple: Decimal | None = None,
     low_rate_invest: tuple[Decimal, Decimal] | None = None,
+    income_lookahead: "list[Decimal] | None" = None,
 ) -> SimulationResult:
     """Run the plan forward `horizon_months`.
 
@@ -674,6 +680,7 @@ def _simulate_plan(
     # EF state — running balance that grows by whichever top-up applies
     # (fixed gap / 12, or the caller's split) until ef_target is hit.
     ef_balance = user.efund_balance
+    reserve_held = D("0")         # round 2: seasonal reserve inside ef_balance
     ef_target = user.efund_target
     efund_monthly_plan = (
         compute_efund_monthly(user) if ef_top_up_rate is None else D("0")
@@ -858,7 +865,8 @@ def _simulate_plan(
                     and ev.new_rate is not None
                 ):
                     ln = loans[ev.loan_index]
-                    note_rise(_reset_rate(ln, ev.new_rate, months_left_at(ln, m), user.country), ln, m)
+                    note_rise(_reset_rate(ln, ev.new_rate, months_left_at(ln, m), user.country,
+                                           months_until_age_limit(user, m)), ln, m)
                     # A deliberate reset (or a rate-shock what-if) is the new
                     # anchor for the ±MAX_RATE_DRIFT clamp; otherwise the next
                     # auto reset pulled a +4% shock back to +3% (P2-08).
@@ -881,7 +889,8 @@ def _simulate_plan(
                 step = ln.rate_drift_annualized * D(str(freq)) / D("12")
                 base = start_rate[id(ln)]
                 new_rate = min(max(ln.nominal_rate + step, base - MAX_RATE_DRIFT), base + MAX_RATE_DRIFT)
-                note_rise(_reset_rate(ln, new_rate, months_left_at(ln, m), user.country), ln, m)
+                note_rise(_reset_rate(ln, new_rate, months_left_at(ln, m), user.country,
+                                       months_until_age_limit(user, m)), ln, m)
                 ln.next_reset_month = m + freq
 
         # FX drift — update user.fx_to_user_currency at month m to reflect
@@ -1085,6 +1094,54 @@ def _simulate_plan(
         # routing so the API can expose an engine-truth surplus series
         # for client-side achievability without back-deriving it from
         # the post-allocation `surplus` variable below.
+        # Round 2 (item 4, W10 finding 7): a seasonal reserve. With a known
+        # month-by-month income (`income_lookahead`, the user's own seasonal
+        # pattern; simulate_with_income passes it), the fund is kept at what
+        # the next 12 months' lean stretch needs: the deepest the running
+        # balance goes from next month on (income − spending − the EMIs and
+        # minimums still due that month). Shortfalls are paid from the fund
+        # (below), so a festive-season surplus isn't poured into a 16% loan
+        # only to borrow on a 42% card in the lean months. Reserve money no
+        # longer needed (the lean stretch passed, a loan ended) is released
+        # back to the debts the same month.
+        if income_lookahead:
+            spend = scratch_user.fixed_expenses + scratch_user.variable_expenses
+            due = [(to_user_currency(minimums[id(l)], l, user),
+                    months_left_at(l, m) if l.tenure_months_remaining > 0 else None)
+                   for l in active if id(l) in minimums]
+            # A loan's EMI stops at its contract end, or sooner once this
+            # month's spare cash and the EMIs ahead have covered the balances
+            # (interest ignored). Future spare cash isn't counted as paydown:
+            # the reserve may hold it, so counting it under-reserved (the
+            # persona below borrowed ₹35,160 in its year-2 lean months).
+            left_to_pay = sum((to_user_currency(l.outstanding, l, user) for l in active), D("0")) - surplus
+            running = low = D("0")
+            for k in range(m + 1, min(len(income_lookahead), m + 12) + 1):
+                owed = (sum((amt for amt, left in due if left is None or left > k - m), D("0"))
+                        if left_to_pay > 0 else D("0"))
+                net = D(income_lookahead[k - 1]) - spend - owed
+                left_to_pay -= owed
+                running += net
+                low = min(low, running)
+            # Only when the coming year pays for itself (a structurally short
+            # year borrows whatever happens, and then paying the dearest debt
+            # costs less than holding cash), and never while a loan as dear
+            # as gap borrowing (the dearest card) is open.
+            worth = running >= 0 and (gap_rate is None or all(l.nominal_rate < gap_rate.annual_rate for l in active))
+            need = -low
+            # Held money is only released down to what the lean stretch still
+            # needs, and never in a month that is short itself.
+            keep_at = max(ef_target, need)
+            if worth and surplus > 0 and ef_balance < need:
+                hold = min(surplus, need - ef_balance)
+                ef_balance += hold
+                reserve_held += hold
+                surplus -= hold
+            elif reserve_held > 0 and ef_balance > keep_at and shortfall <= 0:
+                back = min(reserve_held, ef_balance - keep_at)
+                ef_balance -= back
+                reserve_held -= back
+                surplus += back
         pre_allocation_surplus = surplus
         for ev in pending_rises:
             # Audit C1: redo the recommendation now the month's spare cash
@@ -1200,7 +1257,11 @@ def _simulate_plan(
             invested_this_month = surplus
             extra_for_debt = D("0")
 
+        # Round 2 (item 3): only once the emergency fund target is met, and
+        # only while every open loan costs less (after tax) than the user's
+        # own assumed return + 1 point (prepay_invest.split_threshold).
         if (low_rate_invest is not None and extra_for_debt > 0 and active
+                and ef_balance >= ef_target
                 and all(costs[id(l)].annual_cost < low_rate_invest[0] for l in active if id(l) in costs)):
             kept = (extra_for_debt * max(D("0"), min(D("1"), low_rate_invest[1])))
             invested_this_month += kept
@@ -1474,6 +1535,7 @@ def _simulate_plan(
             else:
                 gap_from_savings = min(shortfall, max(D("0"), ef_balance))
                 ef_balance -= gap_from_savings
+                reserve_held = min(reserve_held, max(D("0"), ef_balance))
                 need = shortfall - gap_from_savings
                 gap_borrowed = min(need, max(D("0"), gap_limit - gap_debt))
                 gap_debt += gap_borrowed
@@ -1566,6 +1628,7 @@ def _simulate_plan(
             unfunded_shortfall=unfunded_this,
             gap_minimum_due=gap_int_month,
             gap_minimum_missed=gap_min_missed,
+            efund_balance=ef_balance,
         ))
 
         total_interest += interest_paid

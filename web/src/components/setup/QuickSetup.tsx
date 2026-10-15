@@ -7,6 +7,7 @@
  * card dates, fees, holdings) lives in Profile, and is kept untouched when a
  * saved profile is edited here.
  */
+import { carryPlanInputs, rateRiseOptions, type RateRiseMode } from '@/lib/plan-inputs';
 import { LIKELY_HOW, LIKELY_LABEL, SAME_AS_LIKELY_NOTE, WORST_CASE_LABEL, likelySaving, likelySavingText } from '@/lib/savings-baseline';
 import { track } from '@/lib/funnel';
 import { engineRequests, isAbortError, PREVIEW_DEBOUNCE_MS } from '@/lib/engine-requests';
@@ -706,7 +707,8 @@ export function QuickSetup() {
     // Each exchange rate keeps the date of the quote it came from, so the
     // plan doesn't fetch it again the moment it opens.
     const quotes = Object.fromEntries(Object.entries(fxQuotes).filter((e): e is [string, FxRateResponse] => typeof e[1] === 'object'));
-    const built = dateProfileRates(buildUser(), current.isLive ? current.user : null, quotes, Date.now());
+    // Round 2: what only Plan edits goes back unchanged (lib/plan-inputs).
+    const built = dateProfileRates(carryPlanInputs(buildUser(), current.isLive ? current.user : null), current.isLive ? current.user : null, quotes, Date.now());
     // Date changed balances today; preserve the anchor when only other fields changed.
     const asOf = localIsoDate(getCountryToday(built.country));
     // Audit 80 E3: identical rows (three cards with no lender) get Card 1/2/3.
@@ -1411,6 +1413,15 @@ function LoanBlock({
                   ? `${assumedRateTypeNote(loan.loan_type, country, loan.currency)} ${HOW_TO_TELL}`
                   : HOW_TO_TELL
               }
+            />
+          )}
+          {!card && loan.rate_type === 'floating' && (
+            <Select<'' | RateRiseMode>
+              label="If the rate rises"
+              value={loan.on_rate_rise ?? ''}
+              onChange={(v) => onPatch({ on_rate_rise: v === '' ? undefined : v })}
+              options={rateRiseOptions(loan, country)}
+              hint="Your choice at each reset (RBI, 18 Aug 2023). Change it any time on Plan, with your lender's maximum tenure."
             />
           )}
           {!card && (

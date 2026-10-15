@@ -20,7 +20,7 @@ from api.schemas import (
     GoalTradeoffResponse, SimulateRequest,
     SimulateResponse, SurplusAllocationOut, TrajectoryPoint,
     BaselineRequest, CompareRequest, CompareResponse, LifecycleEventIn,
-    GapClosedOut, NonAmortisingOut,
+    GapClosedOut, NonAmortisingOut, SeasonalOut, SeasonalRunOut,
 )
 
 
@@ -409,8 +409,14 @@ def _low_rate_kwargs(req) -> dict:
     share = getattr(req, "low_rate_invest_share", None)
     if share is None:
         return {}
-    from engine.prepay_invest import LOW_RATE_THRESHOLD
-    return {"low_rate_invest": (LOW_RATE_THRESHOLD, share)}
+    # Round 2 (item 3): the trigger is the user's own assumed return after
+    # tax (default 6.5% IN / 4% US) + 1 point, not a fixed 10%.
+    from engine.prepay_invest import DEFAULT_ASSUMED_RETURN, SPLIT_MARGIN
+    u = getattr(req, "user", None)
+    own = getattr(u, "assumed_post_tax_return", None)
+    country = getattr(getattr(u, "country", None), "value", "IN")
+    base = own if own is not None else DEFAULT_ASSUMED_RETURN.get(country, DEFAULT_ASSUMED_RETURN["US"])
+    return {"low_rate_invest": (base + SPLIT_MARGIN, share)}
 
 
 def _never_clears(result, user) -> bool:
@@ -468,12 +474,79 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
     return engine_cache.get_or_run("simulate", req, lambda: _simulate_uncached(req))
 
 
+def _seasonal_setup(req: SimulateRequest, user, kwargs: dict):
+    """Round 2 (item 4): with a seasonal pattern on the profile, run the plan
+    month by month on it (engine/income_scenarios: the pattern, scaled by
+    each year's hike, as salary resets with the flat hike off). Returns the
+    user and kwargs to run, the income path (None when not applied) and why
+    it was skipped. A planned salary change can't be combined with a
+    pattern (income_scenarios rule), so the pattern is then skipped and the
+    response says so."""
+    si = getattr(req.user, "seasonal_income", None)
+    if si is None:
+        return user, kwargs, None, None
+    from engine.income_scenarios import (
+        IncomeScenario, SeasonalIncome, build_income_path, plan_user, to_lifecycle_events,
+    )
+    events = list(kwargs.get("lifecycle_events") or [])
+    if any(e.kind == LifecycleEventKind.SALARY_RESET for e in events):
+        return user, kwargs, None, "salary_change_planned"
+    path = build_income_path(
+        user, req.horizon_months, IncomeScenario(seasonal=SeasonalIncome(tuple(si.pattern))),
+        simulation_start_month=req.simulation_start_month,
+    )
+    kw = dict(kwargs)
+    kw["lifecycle_events"] = events + to_lifecycle_events(path)
+    if si.reserve:
+        kw["income_lookahead"] = list(path)
+    return plan_user(user, path), kw, path, None
+
+
+def _seasonal_out(req, user, kwargs, path, skipped, result) -> Optional[SeasonalOut]:
+    """Both versions (reserve on / off) for an honest interest line."""
+    si = getattr(req.user, "seasonal_income", None)
+    if si is None:
+        return None
+    if path is None:
+        return SeasonalOut(applied=False, reserve_on=si.reserve, skipped_reason=skipped)
+    avg = sum(si.pattern, D("0")) / 12
+    lean = [i + 1 for i, v in enumerate(si.pattern) if v < avg]
+    kw = {k: v for k, v in kwargs.items() if k != "income_lookahead"}
+    if kw.get("goals") is not None:
+        kw["goals"] = deepcopy(kw["goals"])
+    if not si.reserve:
+        kw["income_lookahead"] = list(path)
+    other = simulate_plan(
+        user, strategy=req.strategy, horizon_months=req.horizon_months,
+        marginal_rate=req.marginal_rate, stop_owed_multiple=ENGINE_STOP_MULTIPLE, **kw,
+    )
+    on, off = (result, other) if si.reserve else (other, result)
+
+    def run(r) -> SeasonalRunOut:
+        return SeasonalRunOut(
+            debt_free_month=None if r.infeasible_from_month is not None else r.debt_free_month,
+            total_interest_paid=_cents(r.total_interest_paid),
+            total_gap_interest=_cents(r.total_gap_interest),
+            infeasible_from_month=r.infeasible_from_month,
+        )
+
+    peak = max((a.efund_balance - b.efund_balance for a, b in zip(on.months, off.months)), default=D("0"))
+    return SeasonalOut(
+        applied=True, reserve_on=si.reserve, lean_months=lean,
+        with_reserve=run(on), without_reserve=run(off),
+        reserve_interest_difference=_cents(on.total_interest_paid) - _cents(off.total_interest_paid),
+        peak_reserve=_cents(max(D("0"), peak)),
+    )
+
+
 def _simulate_uncached(req: SimulateRequest) -> SimulateResponse:
     user = req.user.to_engine()
     # simulate_plan mutates these goal states (saved_so_far, saved_at_target);
     # afterwards they carry the end-of-trajectory state for the fill rates.
     # The snapshot builder below gets its own fresh copy.
     kwargs = _plan_kwargs(req)
+    user, kwargs, season_path, season_skipped = _seasonal_setup(req, user, kwargs)
+    season_kwargs = {**kwargs, "goals": deepcopy(kwargs["goals"])}
     goal_states = kwargs["goals"]
     # A fresh copy for the gap-closed run (simulate_plan fills goal states).
     closed_kwargs = {**kwargs, "goals": deepcopy(goal_states)}
@@ -515,6 +588,7 @@ def _simulate_uncached(req: SimulateRequest) -> SimulateResponse:
         payoff_order_note=result.payoff_order_note,
         pmi_events=_pmi_events(result, user),
         never_clears=_never_clears(result, user),
+        seasonal=_seasonal_out(req, user, season_kwargs, season_path, season_skipped, result),
     )
 
 

@@ -41,8 +41,12 @@ INDIA_MIN_PAYMENT_FORMULAS = {
                        "pct": D("0.05"), "floor": D("200")},
     # ICICI (from 1 Mar 2026): the same rule as HDFC's. The ₹100 floor is the
     # old registry's and is NOT in the MITC text read (source note below).
+    # Founder (round 2, 15 Oct 2026): keep the floor, tagged verify=True until
+    # it is confirmed from a statement (docs/VERIFY-RECORDS.md).
     "ICICI Bank":    {"type": "pct_of_balance_and_interest",
-                      "pct": D("0.05"), "floor": D("100")},
+                      "pct": D("0.05"), "floor": D("100"), "verify": True,
+                      "verify_note": "₹100 floor kept from the old registry; not in the ICICI MITC "
+                                     "(w.e.f. 1 Mar 2026) read 14 Oct 2026. Confirm from a statement."},
 }
 
 USA_MIN_PAYMENT_FORMULAS = {
@@ -81,7 +85,8 @@ FORMULA_SOURCE.update({
                   "as_of": "2026-10-14", "verified": True},
     "ICICI Bank": {"source_url": "https://www.icici.bank.in/content/dam/icicibank/india/managed-assets/revamp-page-images/docs/pdf/mitc-cc-gk-t.pdf",
                    "as_of": "2026-10-14", "verified": True,
-                   "note": "formula from the MITC (w.e.f. 1 Mar 2026); the ₹100 floor is not in the text read"},
+                   "note": "formula from the MITC (w.e.f. 1 Mar 2026); the ₹100 floor is not in the text read",
+                   "verify": True},
 })
 STATEMENT_MIN_ADVICE = (
     "Estimated. Use the minimum amount due on your card statement: type it in once and the plan uses it."

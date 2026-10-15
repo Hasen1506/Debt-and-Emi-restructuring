@@ -37,7 +37,10 @@ from engine.models import Country
 from engine.offer_check import Offer, OfferCheckInputError, check_offer
 from engine.ordering import Strategy
 from engine.plan_insights import LoanCheckFindingIn, disagreements, gap_ways, order_spread
-from engine.prepay_invest import LOW_RATE_THRESHOLD, PrepayInvestInputError, compare
+from engine.prepay_invest import (
+    SPLIT_MARGIN, PrepayInvestInputError, assumed_return as user_assumed_return, compare, split_eligible,
+    split_threshold,
+)
 from engine.simulation import _marginal_rate, simulate_plan
 
 router = APIRouter()
@@ -202,6 +205,12 @@ class PlanInsightsResponse(_Base):
     # A4: the month only cheap debt is left (prompt for prepay/keep/split), or None.
     low_rate_phase_month: Optional[int]
     low_rate_threshold: Decimal
+    # Round 2 (item 3): threshold = assumed return after tax + margin; the
+    # assumption is labelled when it is the default.
+    low_rate_assumed_return: Optional[Decimal] = None
+    low_rate_assumption_is_default: bool = True
+    low_rate_margin: Decimal = SPLIT_MARGIN
+    low_rate_eligible: dict[int, bool] = Field(default_factory=dict)
 
 
 class OptionOut(_Base):
@@ -219,6 +228,9 @@ class PrepayInvestResponse(_Base):
     extra_then: Optional[Decimal] = None
     loan_costs: dict[int, Decimal] = Field(default_factory=dict)
     threshold: Decimal
+    assumption_is_default: bool = True
+    assumed_return_for_trigger: Optional[Decimal] = None
+    eligible: dict[int, bool] = Field(default_factory=dict)
     common_month: Optional[int] = None
     assumed_return: Optional[Decimal] = None
     options: list[OptionOut] = Field(default_factory=list)
@@ -350,7 +362,10 @@ def plan_insights(req: InsightsRequest) -> PlanInsightsResponse:
                            closed_debt_free_month=gap.closed_debt_free_month) if gap else None,
         consolidation=_cons_out(cons),
         low_rate_phase_month=phase,
-        low_rate_threshold=LOW_RATE_THRESHOLD,
+        low_rate_threshold=split_threshold(user),
+        low_rate_assumed_return=user_assumed_return(user)[0],
+        low_rate_assumption_is_default=user_assumed_return(user)[1],
+        low_rate_eligible=split_eligible(user, marg),
     )
 
 
@@ -361,17 +376,27 @@ def prepay_invest(req: PrepayInvestRequest) -> PrepayInvestResponse:
     run = _runner(req, user)
     money, month = _labels(req, user.country)
     try:
-        r = compare(user, lambda u, lri: run(u, None, lri), marg, req.assumed_return, money=money, month_label=month)
+        # Money in hand uses the return the user chose here, else their own
+        # saved assumption; never the default (that one only decides when
+        # the question is asked).
+        chosen = req.assumed_return if req.assumed_return is not None else user.assumed_post_tax_return
+        r = compare(user, lambda u, lri: run(u, None, lri), marg, chosen, money=money, month_label=month)
     except PrepayInvestInputError as e:
         raise HTTPException(status_code=422, detail={"field": e.field, "message": str(e)})
+    trig, is_default = user_assumed_return(user)
+    common = dict(threshold=split_threshold(user), assumption_is_default=is_default,
+                  assumed_return_for_trigger=trig, eligible=split_eligible(user, marg))
     if r is None:
+        label = "assumed" if is_default else "your"
         return PrepayInvestResponse(
-            available=False, threshold=LOW_RATE_THRESHOLD,
-            statement="Not yet: a loan costing more than 10% a year is still open, or there's nothing left over. "
-                      "The plan clears the dear debt first.",
+            available=False, **common,
+            statement=(f"Not yet: the question comes once every loan left costs less after tax than the "
+                       f"{label} {trig * 100:.1f}% return plus {SPLIT_MARGIN * 100:.0f} point, and the emergency "
+                       f"fund is full. Until then the plan pays the loans."),
         )
+    common.pop("threshold")
     return PrepayInvestResponse(
-        available=True, phase_month=r.phase.month, phase_loans=r.phase.loans, extra_then=r.phase.extra_then,
+        available=True, **common, phase_month=r.phase.month, phase_loans=r.phase.loans, extra_then=r.phase.extra_then,
         loan_costs={k: v.quantize(D("0.0001")) for k, v in r.phase.loan_costs.items()},
         threshold=r.threshold, common_month=r.common_month, assumed_return=r.assumed_return,
         options=[OptionOut(share_kept=o.share_kept, debt_free_month=o.debt_free_month, interest_paid=o.interest_paid,

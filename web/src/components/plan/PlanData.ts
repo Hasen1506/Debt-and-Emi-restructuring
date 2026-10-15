@@ -113,6 +113,12 @@ export interface PlanData {
    *  reduce available surplus → debt-free month pushes out. Surfaced in
    *  the panel as "penalty is costing you ~₹X/mo" for visibility. */
   advanceTaxPenaltyMonthly: number;
+  /** Round 2: why the panel shows for a salaried user (non-TDS income) and
+   *  what skipping it costs; null/absent for business income. */
+  advanceTaxNote?: string | null;
+  /** Round 2 (item 4): the plan ran on the user's seasonal pattern; both
+   *  versions (reserve on / off) for the honest interest line. */
+  seasonal?: import('@/lib/api').SeasonalOutRaw | null;
   /** Auto-reinvest tax-savings toggle. When 'on', the simulation includes
    *  per-year reinvest events routed to the highest-effective-APR loan.
    *  See [[lib/tax-reinvest]] and `taxReinvestProjection` below. */

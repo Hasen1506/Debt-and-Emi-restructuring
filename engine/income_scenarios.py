@@ -173,9 +173,16 @@ def plan_user(user: User, path: Sequence[Decimal]) -> User:
     return u
 
 
-def simulate_with_income(user: User, path: Sequence[Decimal], *args, **kwargs):
+def simulate_with_income(user: User, path: Sequence[Decimal], *args, seasonal_reserve: bool = True, **kwargs):
     """simulate_plan on a month-by-month income path. Other life events
-    still apply; salary resets must be expressed in the path instead."""
+    still apply; salary resets must be expressed in the path instead.
+
+    `seasonal_reserve` (round 2, default on): the plan knows the path, so
+    in good months it holds back what the next lean stretch will need
+    (engine/simulation.py `income_lookahead`) instead of prepaying debt and
+    borrowing later. A flat path never dips, so it changes nothing there."""
+    if seasonal_reserve:
+        kwargs.setdefault("income_lookahead", list(path))
     events = list(kwargs.pop("lifecycle_events", None) or [])
     if any(e.kind == LifecycleEventKind.SALARY_RESET for e in events):
         raise ValueError("put salary changes in the income path, not as separate resets")

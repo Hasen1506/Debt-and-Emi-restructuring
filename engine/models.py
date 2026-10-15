@@ -461,3 +461,23 @@ class User:
     # limit), user currency (Audit C11). None = 3 months of take-home pay,
     # an assumption the plan labels. Past it the plan is marked infeasible.
     gap_credit_limit: Optional[Decimal] = None
+    # Round 2 (founder, 15 Oct 2026): the borrower's age in whole months at
+    # plan month 1 (the API works it out from the date of birth the user
+    # gave) and the age by which loans should be paid off (retirement / the
+    # lender's age limit). None = not known. With both known, a tenure-first
+    # rate rise never stretches a loan past that age (engine/contract.py
+    # extension_cap). retirement_age None = 60 for salaried, 70 otherwise
+    # (contract.DEFAULT_RETIREMENT_AGE), only used when age_months is known.
+    age_months: Optional[int] = None
+    retirement_age: Optional[int] = None
+    # Round 2 (founder, item 3): the user's own assumed yearly return on money
+    # kept back, after tax. None = the labelled default (prepay_invest.
+    # DEFAULT_ASSUMED_RETURN: 6.5% India, 4% US, an FD-like / savings-like
+    # rate after tax). Used only to decide when to show the prepay / keep /
+    # split question, never to recommend a product.
+    assumed_post_tax_return: Optional[Decimal] = None
+    # Round 2 (item 4, NRI): one-time cost of sending money home, as a share
+    # of the amount sent (fees + FX margin). None = the published corridor
+    # average (engine/cross_border.default_remittance_cost) for the user's
+    # currency, 0 where none is on file.
+    remittance_cost: Optional[Decimal] = None

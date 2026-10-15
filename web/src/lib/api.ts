@@ -418,6 +418,23 @@ export interface UserPayload {
    *
    *  Empty / omitted → legacy single-source behaviour. Engine drops the
    *  field — it consumes the derived monthly_income + marginal_rate. */
+  /** Audit C11 / round 2 (item 2): most the user could borrow to cover short
+   *  months (spare card limit), their currency. Blank = 3 months of
+   *  take-home (labelled on Plan as an assumption). */
+  gap_credit_limit?: string;
+  /** Round 2 (item 1): YYYY-MM or YYYY-MM-DD; with it, a tenure-first rate
+   *  rise never runs a loan past `retirement_age` (blank = 60 salaried / 70). */
+  date_of_birth?: string;
+  retirement_age?: number;
+  /** Round 2 (item 3): the user's own assumed yearly return after tax on
+   *  money kept back (blank = 6.5% IN / 4% US, labelled). */
+  assumed_post_tax_return?: string;
+  /** Round 2 (item 4): one-time cost of sending money home, share of the
+   *  amount (blank = the published corridor average). */
+  remittance_cost?: string;
+  /** Round 2 (item 4): take-home for each calendar month, January first,
+   *  when income varies by season; `reserve` opts into the seasonal reserve. */
+  seasonal_income?: SeasonalIncomePayload;
   income_streams?: IncomeStreamPayload[];
   /** Old-regime / itemized deductions. Captured at onboarding step 2
    *  conditionally — IN only renders these when tax_regime === 'old';
@@ -437,6 +454,8 @@ export type IncomeStreamKind =
   | 'freelance'
   | 'rental'
   | 'capital_gains'
+  /** Round 2: bank / FD interest (often no TDS, or 10% only). */
+  | 'interest'
   | 'other';
 
 /**
@@ -497,6 +516,9 @@ export interface IncomeStreamPayload {
    *  `defaultTaxTreatment(kind)`. See [[IncomeStreamTaxTreatment]] for the
    *  routing rules. */
   tax_treatment?: IncomeStreamTaxTreatment;
+  /** Round 2 (advance tax): capital_gains streams only. Blank = taxed at
+   *  the slab rate (an assumption the panel labels). */
+  cg_kind?: 'equity_stcg' | 'equity_ltcg' | 'other';
 }
 
 /**
@@ -692,6 +714,32 @@ export interface SimulateResponse {
    *  (never_clears is true). `unfunded_shortfall` is the total not found. */
   infeasible_from_month?: number | null;
   unfunded_shortfall?: string;
+  /** Round 2 (item 4): set when the profile has a seasonal pattern. */
+  seasonal?: SeasonalOutRaw | null;
+}
+
+export interface SeasonalIncomePayload {
+  /** 12 take-home amounts, January to December. */
+  pattern: string[];
+  reserve?: boolean;
+}
+
+export interface SeasonalRunRaw {
+  debt_free_month: number | null;
+  total_interest_paid: string;
+  total_gap_interest: string;
+  infeasible_from_month?: number | null;
+}
+
+export interface SeasonalOutRaw {
+  applied: boolean;
+  reserve_on: boolean;
+  skipped_reason?: string | null;
+  lean_months?: number[];
+  with_reserve?: SeasonalRunRaw | null;
+  without_reserve?: SeasonalRunRaw | null;
+  reserve_interest_difference?: string | null;
+  peak_reserve?: string | null;
 }
 
 export interface CompareResponse {
@@ -1605,6 +1653,10 @@ export const api = {
   health: () => get<{ status: string }>('/api/health'),
 
   /** `opts.signal` cancels the request (NEW-19: a newer choice replaced it). */
+  /** Round 2 (item 5): advance tax on a salaried user's non-TDS income. */
+  salariedAdvanceTax: (req: import('./salaried-advance-tax').SalariedAdvanceTaxRequest) =>
+    post<import('./salaried-advance-tax').SalariedAdvanceTaxResponse>('/api/tax/advance-tax/salaried', req),
+
   simulate: (req: SimulateArgs, opts?: RequestOptions) => post<unknown>('/api/simulate', req, opts?.signal).then((v) => parseSimulateResponse('/api/simulate', v)),
 
   /** Grill #24 (sprint G4): exact debt-free month + range with reasons. */

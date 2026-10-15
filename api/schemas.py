@@ -160,6 +160,19 @@ TaxRate = Annotated[Decimal, Field(ge=0, le=D("0.6"))]
 FeeRate = Annotated[Decimal, Field(ge=0, le=D("0.1"))]
 
 
+def age_in_months(dob: Optional[str], month: Optional[str] = None) -> Optional[int]:
+    """Age in whole calendar months at plan month 1 (this month, `month` =
+    "YYYY-MM", default current_month()), from a YYYY-MM or YYYY-MM-DD date
+    of birth; the day is ignored (the plan runs by month). None when not
+    given or in the future."""
+    if not dob:
+        return None
+    ty, tm = (int(x) for x in (month or current_month()).split("-")[:2])
+    y, m = (int(x) for x in dob.split("-")[:2])
+    months = (ty - y) * 12 + (tm - m)
+    return months if months >= 0 else None
+
+
 class _In(_Base):
     """Request bodies: every number finite and bounded, text and lists short."""
 
@@ -556,12 +569,16 @@ class IncomeStreamIn(_In):
     uses them to derive monthly_income and dynamic tax-sleeve targets.
     """
     id: str
-    kind: str = Field(..., pattern=r"^(salaried|business_owner|freelance|rental|capital_gains|other)$")
+    kind: str = Field(..., pattern=r"^(salaried|business_owner|freelance|rental|capital_gains|interest|other)$")
     label: str
     gross_annual: Decimal
     start_date: str
     end_date: Optional[str] = None
     tds_pct: Optional[Decimal] = None
+    # Round 2: "business_44ada" | "business_normal" | ... (UI-only) and the
+    # kind of capital gain for the salaried advance-tax panel.
+    tax_treatment: Optional[str] = None
+    cg_kind: Optional[str] = Field(None, pattern=r"^(equity_stcg|equity_ltcg|other)$")
 
 
 class DeductionsIn(_In):
@@ -631,6 +648,25 @@ class PayoffRulesIn(_In):
         )
 
 
+class SeasonalIncomeIn(_In):
+    """Round 2 (item 4): take-home for each calendar month, January first,
+    for income that varies by season (a shop's festive quarter, a farmer's
+    harvest, a tutor's exam months). With it the plan runs month by month
+    on this pattern (each year's hike scales it) instead of one flat
+    figure. `reserve` (opt-in, default off): in good months hold back what
+    the next lean stretch needs instead of prepaying, so a lean month isn't
+    borrowed on a card (engine/simulation.py income_lookahead)."""
+    pattern: list[Amount] = Field(..., min_length=12, max_length=12)
+    reserve: bool = False
+
+    @field_validator("pattern")
+    @classmethod
+    def _some_income(cls, v):
+        if sum(v, D("0")) <= 0:
+            raise ValueError("a seasonal pattern needs some income in the year")
+        return v
+
+
 class UserIn(_In):
     country: Country
     income_type: IncomeType
@@ -675,6 +711,21 @@ class UserIn(_In):
     # Audit C11: most the user could borrow to cover short months (spare
     # card limit), their currency. Blank = 3 months of take-home pay.
     gap_credit_limit: Optional[Amount] = None
+    # Round 2 (founder, item 1): date of birth (YYYY-MM or YYYY-MM-DD) and
+    # the age loans should end by. With a date of birth, a tenure-first rate
+    # rise never runs a loan past that age; blank retirement age = 60
+    # salaried / 70 otherwise (engine/contract.default_retirement_age).
+    date_of_birth: Optional[str] = Field(None, pattern=r"^(19|20)\d\d-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?$")
+    retirement_age: Optional[int] = Field(None, ge=40, le=85)
+    # Round 2 (item 3): the user's own assumed yearly return after tax on
+    # money kept back. Blank = 6.5% India / 4% US (labelled assumption).
+    assumed_post_tax_return: Optional[Annotated[Decimal, Field(ge=D("0"), le=D("0.3"))]] = None
+    # Round 2 (item 4): cost of sending money home, share of the amount
+    # sent. Blank = the published corridor average.
+    remittance_cost: Optional[Annotated[Decimal, Field(ge=D("0"), lt=D("0.2"))]] = None
+    # Round 2 (item 4): a monthly income pattern (see SeasonalIncomeIn).
+    # Read by /simulate only; to_engine() doesn't pass it on.
+    seasonal_income: Optional[SeasonalIncomeIn] = None
     other_banks: list[str] = Field(default_factory=list)
     tax_regime: Optional[TaxRegimeIN] = None
     # Old regime: this tax year's s.123 [80C] items other than home-loan
@@ -826,6 +877,10 @@ class UserIn(_In):
             asset_returns=dict(self.asset_returns),
             liquidation_costs=dict(self.liquidation_costs),
             gap_credit_limit=self.gap_credit_limit,
+            age_months=age_in_months(self.date_of_birth),
+            retirement_age=self.retirement_age,
+            assumed_post_tax_return=self.assumed_post_tax_return,
+            remittance_cost=self.remittance_cost,
         )
 
 
@@ -1217,6 +1272,33 @@ class PmiEventOut(_Base):
     note: str
 
 
+class SeasonalRunOut(_Base):
+    debt_free_month: Optional[int]
+    total_interest_paid: Decimal
+    total_gap_interest: Decimal
+    infeasible_from_month: Optional[int] = None
+
+
+class SeasonalOut(_Base):
+    """Round 2 (item 4): the plan ran on the user's monthly pattern. Both
+    versions are returned so the page can say honestly what holding a
+    reserve costs (or saves) in interest against not holding one."""
+    applied: bool
+    reserve_on: bool
+    # Why the pattern wasn't used (e.g. a salary change is planned), when not applied.
+    skipped_reason: Optional[str] = None
+    # Calendar months (1-12) whose take-home is below the year's average.
+    lean_months: list[int] = Field(default_factory=list)
+    with_reserve: Optional[SeasonalRunOut] = None
+    without_reserve: Optional[SeasonalRunOut] = None
+    # with_reserve − without_reserve total interest (can be above 0: the
+    # reserve can cost a little more interest in exchange for not
+    # borrowing in lean months).
+    reserve_interest_difference: Optional[Decimal] = None
+    # The most the reserve held back at once (user currency).
+    peak_reserve: Optional[Decimal] = None
+
+
 class SimulateResponse(_Base):
     # 1 = this month. 0 = nothing is owed now (no loans, or all at 0);
     # None = not cleared within the horizon.
@@ -1265,6 +1347,8 @@ class SimulateResponse(_Base):
     # Loans whose EMI doesn't cover their interest. When non-empty the plan
     # was NOT run (no 1,200-month schedule): trajectory is empty.
     non_amortising: list[NonAmortisingOut] = Field(default_factory=list)
+    # Round 2 (item 4): set when the user gave a seasonal income pattern.
+    seasonal: Optional[SeasonalOut] = None
     # Live re-test 2 NEW-2: when the plan never clears, the trajectory stops
     # at the 30-year horizon, or earlier at the first month what's owed
     # (loans + gap borrowing) passes 100x what's owed at the start. This is

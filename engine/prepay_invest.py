@@ -55,6 +55,17 @@ from engine.models import Country, LoanType, User
 
 D = Decimal
 
+# Round 2 (founder, 15 Oct 2026, item 3): the old fixed rule ("every loan
+# left under 10% a year after tax") is replaced by a per-loan comparison
+# with the user's OWN assumed return after tax plus a 1-point margin, and
+# the question waits until the emergency fund target is met. Default
+# assumption when the user hasn't typed one (shown as an assumption,
+# editable on Plan): 6.5% India / 4% US after tax, an FD-like / savings-
+# account-like figure. No product, issuer or kind of security is named.
+# VERIFY: the two defaults are founder figures, not read from a source.
+DEFAULT_ASSUMED_RETURN = {"IN": D("0.065"), "US": D("0.04")}
+SPLIT_MARGIN = D("0.01")
+# Kept for callers that still pass an explicit threshold (old behaviour).
 LOW_RATE_THRESHOLD = D("0.10")
 SHARES = (D("0"), D("0.25"), D("0.5"), D("0.75"), D("1"))
 MAX_RETURN = D("0.30")
@@ -78,16 +89,52 @@ class Phase:
     loan_costs: dict[int, Decimal]   # position -> yearly cost (compounded, GST, tax)
 
 
-def low_rate_phase(user: User, base_res, marginal_rate: Decimal, threshold: Decimal = LOW_RATE_THRESHOLD) -> Optional[Phase]:
+def assumed_return(user: User) -> tuple[Decimal, bool]:
+    """(the user's assumed yearly return after tax, True when it is the
+    default rather than their own figure)."""
+    if user.assumed_post_tax_return is not None:
+        return user.assumed_post_tax_return, False
+    return DEFAULT_ASSUMED_RETURN.get(user.country.value, DEFAULT_ASSUMED_RETURN["US"]), True
+
+
+def split_threshold(user: User) -> Decimal:
+    """A loan gets the prepay / keep / split question when its yearly cost
+    after tax is below this: the user's assumed return + SPLIT_MARGIN."""
+    return assumed_return(user)[0] + SPLIT_MARGIN
+
+
+def split_eligible(user: User, marginal_rate: Decimal, threshold: Optional[Decimal] = None) -> dict[int, bool]:
+    """{loan position: True when that loan, on its own, costs less after tax
+    than the threshold}. Per-loan, so the page can say which loans the
+    question is about; the plan only asks once every open loan qualifies
+    (money is never kept back while a dearer loan is still open)."""
+    t = split_threshold(user) if threshold is None else threshold
+    costs = user_marginal_costs(user.loans, user, marginal_rate)
+    return {i: costs[id(l)].annual_cost < t for i, l in enumerate(user.loans) if id(l) in costs}
+
+
+def efund_met(user: User, row) -> bool:
+    """The emergency fund target is met at the end of this plan month (a
+    user with no target has nothing to wait for)."""
+    target = user.efund_target or D("0")
+    return target <= 0 or getattr(row, "efund_balance", D("0")) >= target
+
+
+def low_rate_phase(user: User, base_res, marginal_rate: Decimal, threshold: Optional[Decimal] = None) -> Optional[Phase]:
     """When the plan reaches the point where every open loan costs under
-    `threshold` a year and there is spare cash to place; None if it never
-    does (a dear loan lasts the whole plan, or nothing is left over)."""
+    `threshold` a year (default: split_threshold(user)), the emergency fund
+    target is met, and there is spare cash to place; None if it never does
+    (a dear loan lasts the whole plan, the fund never fills, or nothing is
+    left over)."""
+    if threshold is None:
+        threshold = split_threshold(user)
     costs = user_marginal_costs(user.loans, user, marginal_rate)
     yearly = {i: costs[id(l)].annual_cost for i, l in enumerate(user.loans) if id(l) in costs}
     prev = {i: l.outstanding for i, l in enumerate(user.loans)}
     for row in base_res.months:
         open_ = [i for i, b in prev.items() if b > 0]
-        if open_ and all(yearly.get(i, D("1")) < threshold for i in open_) and row.available_surplus > 0:
+        if (open_ and all(yearly.get(i, D("1")) < threshold for i in open_) and row.available_surplus > 0
+                and efund_met(user, row)):
             return Phase(row.month_index, open_, _q(row.available_surplus), {i: yearly[i] for i in open_})
         prev = {i: row.balances_by_loan_index.get(i, D("0")) for i in prev}
     return None
@@ -180,7 +227,7 @@ def compare(
     marginal_rate: Decimal,
     assumed_return: Optional[Decimal] = None,
     shares: tuple[Decimal, ...] = SHARES,
-    threshold: Decimal = LOW_RATE_THRESHOLD,
+    threshold: Optional[Decimal] = None,
     money: Callable[[Decimal], str] = lambda x: f"{_q(x):,}",
     month_label: Callable[[int], str] = lambda m: f"month {m}",
 ) -> Optional[PrepayInvest]:
@@ -189,6 +236,8 @@ def compare(
     the plan as it stands."""
     if assumed_return is not None and not (D("0") <= assumed_return <= MAX_RETURN):
         raise PrepayInvestInputError("assumed_return", "Enter a yearly return between 0% and 30%.")
+    if threshold is None:
+        threshold = split_threshold(user)
     base = run(user, None)
     if base.months and base.months[0].shortfall > 0:
         return None                   # short: closing the gap comes first

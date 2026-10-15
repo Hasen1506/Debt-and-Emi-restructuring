@@ -87,6 +87,9 @@ const INDIA: Record<string, BankFormula> = {
   'ICICI Bank': {
     description:
       'GST, EMIs and fees in full, plus the larger of 5% of (interest + balance) and interest + 5% of the balance (ICICI, from 1 Mar 2026)',
+    // verify: true — the ₹100 floor is kept (founder, round 2, 15 Oct 2026)
+    // but is not in the ICICI MITC read 14 Oct 2026; confirm from a statement
+    // (docs/VERIFY-RECORDS.md, engine INDIA_MIN_PAYMENT_FORMULAS["ICICI Bank"]).
     compute: (o, i) => pctOfBalanceAndInterest(o, i, '100'),
   },
 };

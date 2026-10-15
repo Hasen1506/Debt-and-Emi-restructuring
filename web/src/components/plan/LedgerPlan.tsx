@@ -366,6 +366,11 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
             variant="ledger"
           />
         )}
+        {plan.advanceTaxSchedule && plan.advanceTaxNote && (
+          <p data-testid="advance-tax-salaried-note" style={{ margin: '8px 0 0', fontSize: 'var(--fs-dense)', color: L_T.muted, lineHeight: 1.6 }}>
+            {plan.advanceTaxNote}
+          </p>
+        )}
 
       </div>
     </LShell>

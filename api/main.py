@@ -140,6 +140,8 @@ app.include_router(outcomes.router, prefix="/api")
 app.include_router(closure.router, prefix="/api")
 from api.routes import insights  # noqa: E402  (audit 80+ A1/A2/A4/A5/A6, offer check)
 app.include_router(insights.router, prefix="/api")
+from api.routes import advance_tax as advance_tax_routes  # noqa: E402  (round 2, item 5)
+app.include_router(advance_tax_routes.router, prefix="/api")
 app.include_router(notify_routes.router, prefix="/api")
 # A80 W5: counts-only funnel (404 until FUNNEL_ENABLED) and the advice verifier.
 from api import funnel as funnel_routes  # noqa: E402

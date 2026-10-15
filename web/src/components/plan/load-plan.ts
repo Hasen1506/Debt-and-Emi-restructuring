@@ -3,7 +3,7 @@
  * the same debt-free date. Runs the engine (plan, pay-minimums comparison,
  * restructure scan, the other two strategies) and shapes PlanData.
  */
-import { api, type SimulateResponse, type UserPayload, type LifecycleEventInput } from '@/lib/api';
+import { api, formatCurrencyWhole, type SimulateResponse, type UserPayload, type LifecycleEventInput } from '@/lib/api';
 import { cachedEngineCall } from '@/lib/server-engine-cache';
 import { loadProfileServer } from '@/lib/user-store';
 import { efTopUpShare } from '@/lib/assumptions';
@@ -30,6 +30,7 @@ import {
 } from '@/lib/fx-drift';
 import { computeAnnualTax, isAdvanceTaxApplicable } from '@/lib/tax-brackets';
 import { readScheduleServer } from '@/lib/advance-tax-cookie';
+import { salariedAdvanceTaxNote, salariedAdvanceTaxRequest, scheduleFromResponse } from '@/lib/salaried-advance-tax';
 import {
   readLifecycleServer,
   plannedEventsForEngine,
@@ -201,6 +202,29 @@ export async function loadPlanInputs(
           );
         }
       }
+    }
+  }
+
+  // Round 2 (founder, item 5): a SALARIED Indian user whose other income
+  // has no TDS (interest, gains, rent, freelance) gets the panel too, once
+  // the tax it adds after TDS is ₹10,000 or more (engine/tax/advance_tax.py).
+  let advanceTaxNote: string | null = null;
+  if (!advanceTaxSchedule) {
+    const todayIso = localIsoDate(new Date());
+    const req = salariedAdvanceTaxRequest(adjustedUser, todayIso);
+    const res = req ? await api.salariedAdvanceTax(req).catch(() => null) : null;
+    const fresh = res ? scheduleFromResponse(res, todayIso) : null;
+    if (res && fresh) {
+      const stored = await readScheduleServer();
+      const storedOk =
+        stored
+          && stored.country === 'IN'
+          && stored.instalments.length > 0
+          && stored.instalments[stored.instalments.length - 1].dueDate >= todayIso;
+      advanceTaxSchedule = storedOk
+        ? markMissedInstalments(rebaseSchedule(stored, new Decimal(res.liability)), new Date())
+        : fresh;
+      advanceTaxNote = salariedAdvanceTaxNote(res, (v) => formatCurrencyWhole(String(Math.round(Number(v))), 'INR'));
     }
   }
 
@@ -386,6 +410,7 @@ export async function loadPlanInputs(
     bracketTransitions,
     advanceTaxSchedule,
     advanceTaxPenaltyMonthly,
+    advanceTaxNote,
     projectedTaxSavings,
     lifecycle_events,
     displayUser,
@@ -415,6 +440,7 @@ export async function loadPlan(
     bracketTransitions,
     advanceTaxSchedule,
     advanceTaxPenaltyMonthly,
+    advanceTaxNote,
     projectedTaxSavings,
     lifecycle_events,
     displayUser,
@@ -456,6 +482,7 @@ export async function loadPlan(
       bracketTransitions,
       advanceTaxSchedule,
       advanceTaxPenaltyMonthly,
+      advanceTaxNote,
       taxReinvest,
       taxReinvestProjection: [],
       monthlyPayments: [],
@@ -585,6 +612,7 @@ export async function loadPlan(
       // scheduleCut from one mapping (lib/plan-gap planEnd): a capped plan
       // has no debt-free month and stops at its first unfundable month.
       ...planEnd(scenario),
+      seasonal: scenario.seasonal ?? null,
       baselineNeverClears: !!baseline.never_clears || (baseline.debt_free_month == null && Number(baseline.total_interest_paid) > 0),
       trajectory: mergeTrajectories(scenario, baseline),
       totalInterest: scenario.total_interest_paid,
@@ -607,6 +635,7 @@ export async function loadPlan(
       bracketTransitions,
       advanceTaxSchedule,
       advanceTaxPenaltyMonthly,
+      advanceTaxNote,
       taxReinvest,
       taxReinvestProjection: projectedTaxSavings,
       monthlyPayments: scenarioPayments,
