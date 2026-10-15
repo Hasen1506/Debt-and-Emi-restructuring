@@ -44,7 +44,7 @@ test('section (a) records the two approvals of 15 Oct 2026 and each sign-off ite
     /Privacy notice changes/, /Terms changes/]) assert.match(sectionA, want);
   for (const row of sectionA.split('\n').filter((l) => /^\| A\d+ \|/.test(l))) {
     assert.match(row, /\| Vijay \|/, `owner missing: ${row.slice(0, 60)}`);
-    assert.match(row, /\| (Pending counsel|Verify|\*\*Approved\*\*|Signed off) \|/, `status missing: ${row.slice(0, 60)}`);
+    assert.match(row, /\| (Pending counsel|To verify|To do|\*\*Approved\*\*|Signed off) \|/, `status missing: ${row.slice(0, 60)}`);
     assert.match(row, /\d{1,2} \w{3} 20\d\d/, `date missing: ${row.slice(0, 60)}`);
   }
 });

@@ -32,7 +32,7 @@ Sources (read 14 Oct 2026):
   the borrower reaches their retirement / age limit); past that the EMI
   rises. NOTE: Aavas counts the 360 months as the loan's whole tenor; the
   engine doesn't know when a loan started, so it counts from today (a
-  VERIFY item in work/reports/r2-engine.md).
+  VERIFY item: docs/FOUNDER-RECORDS.md row A13).
 * RBI (Lending Against Gold and Silver Collateral) Directions, 2025,
   DOR.CRE.REC.26/21.01.023/2025-26, 6 Jun 2025 (updated 29 Sep 2025),
   para 6(i): "'Bullet Repayment Loans' means loans where both principal and

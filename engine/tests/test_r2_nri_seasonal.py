@@ -166,6 +166,6 @@ def test_icici_floor_kept_and_tagged_verify():
     assert f["floor"] == D("100") and f["verify"] is True and "statement" in f["verify_note"]
     assert FORMULA_SOURCE["ICICI Bank"]["verify"] is True
     root = Path(__file__).resolve().parents[2]
-    rec = (root / "docs" / "VERIFY-RECORDS.md").read_text(encoding="utf-8")
+    rec = (root / "docs" / "FOUNDER-RECORDS.md").read_text(encoding="utf-8")
     assert "ICICI" in rec and "₹100" in rec
     assert "verify: true" in (root / "web/src/lib/min-payment.ts").read_text(encoding="utf-8")

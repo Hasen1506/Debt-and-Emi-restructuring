@@ -42,7 +42,7 @@ INDIA_MIN_PAYMENT_FORMULAS = {
     # ICICI (from 1 Mar 2026): the same rule as HDFC's. The ₹100 floor is the
     # old registry's and is NOT in the MITC text read (source note below).
     # Founder (round 2, 15 Oct 2026): keep the floor, tagged verify=True until
-    # it is confirmed from a statement (docs/VERIFY-RECORDS.md).
+    # it is confirmed from a statement (docs/FOUNDER-RECORDS.md, row A10).
     "ICICI Bank":    {"type": "pct_of_balance_and_interest",
                       "pct": D("0.05"), "floor": D("100"), "verify": True,
                       "verify_note": "₹100 floor kept from the old registry; not in the ICICI MITC "
