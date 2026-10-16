@@ -894,17 +894,13 @@ function ProfileEditor({
             country === 'US' ? filingStatus : undefined,
           )
         : null;
-    // Combined marginal rate = federal (derived from bracket) + state.
-    // State only applies to US users; India users have a single national
-    // slab. The combined rate flows into tax-aware effective APR + tax
-    // savings calculations downstream.
+    // Combined marginal rate = federal/national (from gross) + state (US only); it feeds tax-aware APRs and savings.
     const stateRate =
       country === 'US' && stateMarginalRate.trim()
         ? Number(num(stateMarginalRate, '0'))
         : 0;
-    // Gross pay first, then a rate typed now, then the saved rate while the
-    // inputs behind it are unchanged, else a fresh estimate from take-home
-    // (lib/marginal-rate: a stale 0% survived a switch from IN to US).
+    // Gross pay first, then a rate typed now, then the saved rate while its inputs are unchanged,
+    // else a fresh estimate from take-home (lib/marginal-rate: a stale 0% survived an IN→US switch).
     const { rate: composedRate } = profileMarginalRate({
       // UX fix 23: India with surcharge + cess (30% slab = 31.2%), as the engine.
       bracketRate: derivedBracket ? grossMarginalRate(country, taxRegime, incomeType, grossForBracket, country === 'US' ? filingStatus : undefined) : null,
