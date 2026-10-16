@@ -431,9 +431,9 @@ test('seasonal pattern reaches the engine and the reserve is opt-in on Plan', ()
 
 test('windfall: a capped response shows no debt-free date; an uncapped one does', () => {
   const W = require(path.join(root, 'app/tools/windfall/tool.tsx'));
-  assert.deepEqual(W.runFromResponse({ debt_free_month: 40, infeasible_from_month: 7, never_clears: true, total_interest_paid: '100' }), { month: null, infeasibleFrom: 7, interest: 100 });
-  assert.deepEqual(W.runFromResponse({ debt_free_month: 40, infeasible_from_month: null, total_interest_paid: '100' }), { month: 40, infeasibleFrom: null, interest: 100 });
-  assert.deepEqual(W.runFromResponse({ debt_free_month: null, never_clears: true, total_interest_paid: '5' }), { month: null, infeasibleFrom: null, interest: 5 });
+  assert.deepEqual(W.runFromResponse({ debt_free_month: 40, infeasible_from_month: 7, never_clears: true, total_interest_paid: '100' }), { month: null, infeasibleFrom: 7, interest: 100, gap: 0, shortFrom: null });
+  assert.deepEqual(W.runFromResponse({ debt_free_month: 40, infeasible_from_month: null, total_interest_paid: '100' }), { month: 40, infeasibleFrom: null, interest: 100, gap: 0, shortFrom: null });
+  assert.deepEqual(W.runFromResponse({ debt_free_month: null, never_clears: true, total_interest_paid: '5' }), { month: null, infeasibleFrom: null, interest: 5, gap: 0, shortFrom: null });
 });
 
 test('guard: no /tools page reads an engine debt-free month except through planEnd()', () => {

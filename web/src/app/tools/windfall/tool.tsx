@@ -24,6 +24,7 @@ import {
   type LoanPayload,
   type PlanRunArgs,
   type UserPayload,
+  type SimulateResponse,
 } from '@/lib/api';
 import type { StrategyName } from '@/lib/strategy';
 import { readRulesClient, rulesForLoans, rulesOrDefault } from '@/lib/payoff-rules';
@@ -63,7 +64,7 @@ import {
 import { LStepHead, LStepSub } from '@/components/ledger/LToolSteps';
 import { useWidth } from '@/lib/use-width';
 import { announce } from '@/lib/announce';
-import { planEnd } from '@/lib/plan-gap';
+import { planEnd, planGap } from '@/lib/plan-gap';
 
 const LOAN_WORDS: Record<string, string> = {
   credit_card: 'credit card',
@@ -111,6 +112,10 @@ interface Run {
   /** First month the plan can't be funded (Audit C11), else null. */
   infeasibleFrom: number | null;
   interest: number;
+  /** UX walkthrough fix 3: the plan's monthly gap (this month's, else the
+   *  first month it has to borrow) and that month (null: this month). */
+  gap: number;
+  shortFrom: number | null;
 }
 
 const keyOf = (l: LoanPayload, i: number) => `loan:${l.id ?? `#${i}`}`;
@@ -121,9 +126,15 @@ const sum = (a: Alloc) => Object.values(a).reduce((s, v) => s + v, 0);
 
 /** Round 2: every tool reads its date through planEnd(), so a capped run
  *  never shows a debt-free date here when Plan shows none. */
-export function runFromResponse(r: Parameters<typeof planEnd>[0] & { total_interest_paid: string }): Run {
+export function runFromResponse(r: Parameters<typeof planEnd>[0] & { total_interest_paid: string; shortfall?: string; trajectory?: SimulateResponse['trajectory'] }): Run {
   const end = planEnd(r);
-  return { month: end.debtFreeMonth, infeasibleFrom: end.infeasibleFrom, interest: Number(r.total_interest_paid) };
+  const now = Number(r.shortfall ?? 0);
+  const g = now > 0.5 || end.infeasibleFrom == null || !r.trajectory ? null : planGap({ ...r, trajectory: r.trajectory });
+  const later = g?.firstBorrowMonth != null ? g.months[g.firstBorrowMonth]?.borrowed ?? 0 : 0;
+  return {
+    month: end.debtFreeMonth, infeasibleFrom: end.infeasibleFrom, interest: Number(r.total_interest_paid),
+    gap: now > 0.5 ? now : later, shortFrom: now > 0.5 ? null : g?.firstBorrowMonth ?? null,
+  };
 }
 
 async function runPlan(args: PlanRunArgs, strategy: StrategyName): Promise<Run> {
@@ -205,6 +216,18 @@ export function WindfallTool({
     return out;
   }, [planUser, efGap, goals, saved, country]);
 
+  // The plan as it stands (its date, and its gap when short or capped).
+  const [base, setBase] = useState<Run | null>(null);
+  // UX walkthrough fix 3: short now or not fundable from a later month, the
+  // cash covers the gap first; nothing is prepaid and no interest is "saved".
+  const shortPlan = !!base && (base.gap > 0.5 || base.infeasibleFrom != null);
+  const gapHint = shortPlan && base
+    ? { monthly_gap: Math.max(1, base.gap).toFixed(2), short_from_label: base.shortFrom ? monthIndexToCountryLabel(base.shortFrom, country) : undefined }
+    : {};
+  const gapKey = JSON.stringify(gapHint);
+  // The pick waits for the plan, so a short plan never flashes a prepayment.
+  const baseReady = !runArgs || base !== null;
+
   // ── Engine pick: re-run once typing stops ─────────────────────────────
   const pickSeq = useRef(0);
   useEffect(() => {
@@ -214,7 +237,7 @@ export function WindfallTool({
     setPicking(false);
     // Live re-test NEW-8: no figures while the date is refused (a future
     // date showed "₹66 crore interest saved" before logging was refused).
-    if (!(total > 0) || received > todayIso) {
+    if (!(total > 0) || received > todayIso || !baseReady) {
       setPick(null);
       return;
     }
@@ -239,7 +262,7 @@ export function WindfallTool({
         };
         for (let n = 0; n <= u.loans.length && rest >= 1; n++) {
           if (!u.loans.some((l) => Number(l.outstanding) > 0)) break;
-          const w = await api.windfall({ amount: rest.toFixed(2), user: u, marginal_rate: profile.marginalRate, strategy });
+          const w = await api.windfall({ amount: rest.toFixed(2), user: u, marginal_rate: profile.marginalRate, strategy, ...gapHint });
           if (w.blocked?.length) blocked = w.blocked;
           if (w.invest_instead) {
             investName = w.investment_name;
@@ -274,7 +297,7 @@ export function WindfallTool({
       }
     }, 450);
     return () => { live = false; clearTimeout(t); };
-  }, [total, planUser, efGap, efSplit, profile.marginalRate, strategy, received, todayIso]);
+  }, [total, planUser, efGap, efSplit, profile.marginalRate, strategy, received, todayIso, gapKey, baseReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const engineAlloc = pick?.alloc ?? {};
   const alloc: Alloc = mode === 'engine' ? engineAlloc : manual;
@@ -325,7 +348,6 @@ export function WindfallTool({
     // feeOf reads mode and pick, both listed.
     [runArgs, planUser, targets, mode, pick], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const [base, setBase] = useState<Run | null>(null);
   const [after, setAfter] = useState<Run | null>(null);
   const [perLoan, setPerLoan] = useState<Record<string, Run>>({});
   const [running, setRunning] = useState(false);
@@ -734,12 +756,19 @@ export function WindfallTool({
                       : running ? 'WORKING…' : '',
                   tone: dm != null && dm < 0 ? L_T.positive : L_T.ink,
                 },
-                {
-                  l: `${kpiPrefix(logged)}INTEREST SAVED`,
-                  v: saving != null ? fmt(Math.max(0, saving)) : '—',
-                  s: 'OVER THE PLAN',
-                  tone: saving && saving > 0 ? L_T.positive : L_T.ink,
-                },
+                shortPlan && base
+                  ? {
+                      l: 'COVERS',
+                      v: base.gap > 0 ? `${Math.floor(total / base.gap)} MO` : '—',
+                      s: `OF THE ${fmt(base.gap)}/MO GAP`,
+                      tone: L_T.ink,
+                    }
+                  : {
+                      l: `${kpiPrefix(logged)}INTEREST SAVED`,
+                      v: saving != null ? fmt(Math.max(0, saving)) : '—',
+                      s: 'OVER THE PLAN',
+                      tone: saving && saving > 0 ? L_T.positive : L_T.ink,
+                    },
                 { l: 'TO GOALS', v: fmt(toGoals), s: toGoals > 0 ? 'ADDED TO SAVED' : 'NONE', tone: toGoals > 0 ? L_T.accent : L_T.ink },
                 {
                   l: 'KEPT',
@@ -822,7 +851,7 @@ export function WindfallTool({
             ...(toGoals > 0 ? [{ k: '→ goals', v: fmt(toGoals) }] : []),
             ...((alloc.invest ?? 0) > 0 ? [{ k: `→ ${pick?.investName ?? 'investment'}`, v: fmt(alloc.invest) }] : []),
             { k: 'kept', v: fmt(left), note: left >= 1 && mode === 'engine' && pick?.hold ? pick.hold : undefined },
-            ...(saving != null ? [{ k: 'interest saved', v: fmt(Math.max(0, saving)), tone: 'pos' as const, note: 'the whole plan, this split against none' }] : []),
+            ...(saving != null && !shortPlan ? [{ k: 'interest saved', v: fmt(Math.max(0, saving)), tone: 'pos' as const, note: 'the whole plan, this split against none' }] : []),
             ...(mode === 'engine' ? (pick?.reasons ?? []).map((r) => ({ k: 'why this one', v: r.what, note: r.why })) : []),
             ...(pick?.blocked.length ? [{ k: 'passed over', v: '—', note: pick.blocked.join('; ') }] : []),
           ]}
