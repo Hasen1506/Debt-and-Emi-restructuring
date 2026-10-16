@@ -13,6 +13,8 @@ import { dec } from './safe-decimal';
 import { loanToUser } from './currency';
 import { paymentWords } from './r7-inputs';
 import { amountInWords, formatAmount } from './amount';
+import { deriveTenureMonths } from './derived';
+import Decimal from 'decimal.js';
 
 /** 'fx': a loan in another currency with no exchange rate on file. Without
  *  one, ₹20 lakh read as $20 lakh (a $14,000 monthly shortfall). */
@@ -129,7 +131,9 @@ export function emiBelowInterest(
   const E = dec(loan.scheduled_emi);
   if (P.lte(0) || rate.lte(0) || E.lte(0)) return null;
   const interest = P.mul(rate).div(12);
-  if (E.gt(interest)) return null;
+  // UX2-1: just above the interest but past the plan's 100 years is the same problem.
+  const tooSlow = E.gt(interest) && deriveTenureMonths(P, rate, E) == null;
+  if (E.gt(interest) && !tooSlow) return null;
   const ccy = loan.currency === 'USD' ? 'USD' : 'INR';
   const sym = ccy === 'INR' ? '₹' : '$';
   const money = (d: typeof P) => `${sym}${formatAmount(d.toDecimalPlaces(0).toFixed(), ccy)}`;
@@ -143,9 +147,27 @@ export function emiBelowInterest(
   const guess = E.gt(tenth.mul(rate).div(12)) ? ` (did you mean ${words(tenth)}?)` : '';
   return (
     `At ${pct}%, ${words(P)} earns ${money(interest)} interest a month, ` +
-    `${E.eq(interest.toDecimalPlaces(0)) || E.eq(interest) ? 'the same as' : 'more than'} the ${money(E)} ${pw.one}, so this loan would never be paid off. ` +
+    (tooSlow ? `so the ${money(E)} ${pw.one} would take over 100 years to pay it off. `
+      : `${E.eq(interest.toDecimalPlaces(0)) || E.eq(interest) ? 'the same as' : 'more than'} the ${money(E)} ${pw.one}, so this loan would never be paid off. `) +
     `Check the balance${guess}, the rate and the ${pw.one}.`
   );
+}
+
+/** UX2-1: a payment that only just beats the interest (₹3 L at 14%, ₹3,501;
+ *  $45k at 8.9%, $334) clears, but over decades. Setup says so beside the
+ *  months left, so a typo or an interest-only payment is caught. '' when
+ *  most of the payment goes to the balance or the loan clears within 30 years. */
+export function slowPayoffNote(
+  loan: Pick<LoanPayload, 'nominal_rate' | 'scheduled_emi' | 'outstanding'>, ccy: 'INR' | 'USD', country: string, months: number | null,
+): string {
+  const P = dec(loan.outstanding), E = dec(loan.scheduled_emi);
+  if (months == null || months <= 360 || E.lte(0)) return '';
+  const toBalance = E.sub(P.mul(dec(loan.nominal_rate)).div(12));
+  const sym = ccy === 'INR' ? '₹' : '$';
+  const m = (d: typeof P) => `${sym}${formatAmount(Decimal.max(d, 0).toDecimalPlaces(0).toFixed(), ccy)}`;
+  const pw = paymentWords(country);
+  return `. Only about ${m(toBalance)} of the ${m(E)} ${pw.one} goes to the balance; the rest is interest, so this takes over ${Math.floor(months / 12)} years. ` +
+    `Check the ${pw.one} and the rate. If they’re right, paying even a little more each month cuts years off.`;
 }
 
 export interface ProfileGap {

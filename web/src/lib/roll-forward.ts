@@ -113,7 +113,9 @@ export function rollBalancesForward(
       return {
         ...loan,
         outstanding: start.add(emi).div(r.add(1)).toFixed(2),
-        tenure_months_remaining: (loan.tenure_months_remaining || 0) + 1,
+        // UX2-1: an unknown tenure (0) stays unknown; 0 + 1 made it a
+        // 1-month loan and the plan asked for the whole balance at once.
+        tenure_months_remaining: loan.tenure_months_remaining > 0 ? loan.tenure_months_remaining + 1 : 0,
       };
     }
     // A new loan: EMIs from its first EMI month to last month.

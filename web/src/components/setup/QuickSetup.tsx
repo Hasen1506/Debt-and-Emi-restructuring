@@ -47,7 +47,7 @@ import { fxPerDollar, loanCurrency, userDefaultCurrency, type CurrencyCode } fro
 import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { deriveTenureMonths } from '@/lib/derived';
 import { HORIZON_MONTHS } from '@/lib/horizon';
-import { emiBelowInterest, loanDraftErrors, needsEmi, rateOutOfRange, setupLoanName, setupSummaryLine } from '@/lib/loan-gaps';
+import { emiBelowInterest, formatAsOfDate, loanDraftErrors, needsEmi, rateOutOfRange, setupLoanName, setupSummaryLine, slowPayoffNote } from '@/lib/loan-gaps';
 import { newLoanId } from '@/lib/loan-ids';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { feeShown } from '@/lib/prepayment-fee';
@@ -71,7 +71,6 @@ import { PRIVACY_PROMISE } from '@/components/PrivacyPromise';
 import { HYDRATED_EVENT, flushPendingState, signedInAccount } from '@/lib/server-sync';
 import { ONBOARDING_DONE_HREF } from '@/lib/onboarding-save';
 import { LAST_SEEN_KEY } from '@/lib/guest-return';
-import { formatAsOfDate } from '@/lib/loan-gaps';
 import { cappedRow, saneCap, shortGapLine, shownDebtFreeMonth } from '@/lib/plan-gap';
 import { loanKindsFor, paymentWords } from '@/lib/r7-inputs';
 import { formatTaxRate } from '@/lib/tax-profile';
@@ -1288,7 +1287,7 @@ function LoanBlock({
                   ? undefined
                   : (emiBelowInterest({ ...loan, currency: ccy }, country) ?? `At this ${paymentWords(country).one} the balance doesn't go down. Check the ${paymentWords(country).one} and the rate.`)
                 : tenure
-                  ? `About ${tenure} months left, to ${monthIndexToCountryLabel(tenure, country)}`
+                  ? `About ${tenure} months left, to ${monthIndexToCountryLabel(tenure, country)}${slowPayoffNote(loan, ccy, country, tenure)}`
                   : undefined
             }
             error={issues.emi}
