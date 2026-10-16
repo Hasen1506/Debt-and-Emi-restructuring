@@ -11,6 +11,13 @@ export const SIGN_IN_PAUSED_MESSAGE = 'New sign-in codes are paused for today be
 /** Public sign-in errors, without raw JSON, HTML or API paths. */
 export function authErrorMessage(status: number, body: string, retryAfter: string | null): string {
   if (status === 429) {
+    // UX2-7: the server's own "Too many attempts. Request a new code." / "Too many
+    // wrong codes for this email today" says what happened; "busy" didn't.
+    try {
+      const detail = JSON.parse(body)?.detail;
+      const own = typeof detail === 'string' ? detail : detail?.message;
+      if (typeof own === 'string' && /^Too many (attempts|wrong codes)\b/.test(own)) return own.slice(0, 300);
+    } catch { /* not our JSON */ }
     const seconds = Number(retryAfter);
     return retryAfter && Number.isFinite(seconds) && seconds > 0 && seconds <= 3600
       ? `Too many sign-in attempts. Wait ${Math.ceil(seconds)} seconds and try again.`

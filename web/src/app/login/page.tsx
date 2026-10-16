@@ -332,7 +332,8 @@ export default function LoginPage() {
               required
               autoFocus
               pattern="\d{6}"
-              maxLength={6}
+              // UX2-7: no maxLength: a pasted "123 456" or "123-456" was cut to
+              // "123 45" before the spaces were stripped. onChange keeps 6 digits.
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
               style={{ ...input, letterSpacing: '0.4em', fontFamily: 'var(--font-mono)', fontSize: 20, textAlign: 'center' }}

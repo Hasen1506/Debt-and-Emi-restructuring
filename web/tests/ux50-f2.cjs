@@ -42,8 +42,8 @@ test('B-10: Setup steps have their own URL and the draft survives a reload', () 
   const qs = src('components/setup/QuickSetup.tsx');
   assert.match(qs, /history\.pushState/);
   assert.match(qs, /addEventListener\('popstate'/);
-  assert.match(qs, /sessionStorage\.setItem\(SETUP_DRAFT_KEY/);
-  assert.match(qs, /sessionStorage\.removeItem\(SETUP_DRAFT_KEY\)/);
+  assert.match(qs, /localStorage\.setItem\(SETUP_DRAFT_KEY/);
+  assert.match(qs, /dropDraft\(\);/);
 });
 
 test('B-35: blank spending is not a silent zero; a typed zero needs a yes', () => {

@@ -68,6 +68,11 @@ interface HomeProps {
   interest?: { v: ReactNode; s: ReactNode };
   /** Audit 80+ A1/A5/A6: the plan-insight cards, first on the page. */
   insights?: ReactNode;
+  /** UX2B-8: the cash flow and the loans' EMIs + minimums total with this
+   *  month's dues from the plan (the figure "This month" and the offers
+   *  use), streamed in by the page; until then, the profile's estimate. */
+  cashFlow?: ReactNode;
+  dues?: ReactNode;
 }
 
 export function LedgerHome(props: HomeProps) {
@@ -79,7 +84,7 @@ export function LedgerHome(props: HomeProps) {
   return <LedgerHomeFull {...props} />;
 }
 
-function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, interest, insights }: HomeProps) {
+function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, interest, insights, cashFlow, dues }: HomeProps) {
   const m = useMemo(() => deriveMetrics(profile), [profile]);
   const ccy = userDefaultCurrency(profile.user.country);
   const fc = (v: number | string) => formatCurrencyWhole(v, ccy);
@@ -155,7 +160,7 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
 
         {/* UX walkthrough fix 6: an unmarked US student loan gets no extra. */}
         <StudentLoanHold user={profile.user} money={(v) => fc(Math.round(v))} />
-        <CashFlow profile={profile} m={m} />
+        {cashFlow ?? <CashFlow profile={profile} />}
         <ContextLine profile={profile} />
 
         {/* Audit 80+ A1 (W3) insight cards. They stream in after the plan
@@ -166,7 +171,7 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
 
         {cheaper}
 
-        <OpenPositions profile={profile} m={m} />
+        <OpenPositions profile={profile} m={m} dues={dues} />
 
         <ToolStrip user={profile.user} title="Something came up?" />
       </div>
@@ -216,16 +221,20 @@ function ContextLine({ profile }: { profile: StoredProfile }) {
   );
 }
 
-/** Take-home − costs = left: the three numbers the month's plan comes from. */
-function CashFlow({ profile, m }: { profile: StoredProfile; m: DerivedMetrics }) {
+/** Take-home − costs = left: the three numbers the month's plan comes from.
+ *  UX2B-8: `dues` is the plan's month-1 EMIs and minimums (the card
+ *  minimum on the average daily balance, the plan's exchange rate), so
+ *  COSTS and LEFT match "This month" above them. */
+export function CashFlow({ profile, dues }: { profile: StoredProfile; dues?: number }) {
+  const m = deriveMetrics(profile);
   const u = profile.user;
   const fc = (v: number) => formatCurrencyWhole(Math.round(Math.abs(v)), userDefaultCurrency(u.country));
   const today = getCountryToday(u.country);
   const income = Number(u.monthly_income || 0);
   const spend = Number(u.fixed_expenses || 0) + Number(u.variable_expenses || 0);
   const current = cashFlowForMonth(profile, m);
-  const debts = Number(current.emiBurden.toFixed(0));
-  const left = Number(current.surplus.toFixed(0));
+  const debts = dues ?? Number(current.emiBurden.toFixed(0));
+  const left = dues != null ? Math.round(income - spend - dues) : Number(current.surplus.toFixed(0));
   const streams = u.income_streams?.length ?? 0;
   // ₹ and $ minimums can't be added without the rate.
   const noFx = m.fxMissing.length > 0;

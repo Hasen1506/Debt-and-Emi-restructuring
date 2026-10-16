@@ -40,7 +40,7 @@ import { addActivityEntry, readActivityClient } from '@/lib/activity';
 import { loanToUser, userDefaultCurrency } from '@/lib/currency';
 import { getCountryToday, localIsoDate, monthIndexToCountryLabel } from '@/lib/today';
 import { loanLabel } from '@/lib/loan-types';
-import { checkReceivedDate, kpiPrefix, nextRoundNote, whereItGoesHeading, type LoggedRound } from '@/lib/windfall-log';
+import { cashCushion, checkReceivedDate, kpiPrefix, nextRoundNote, whereItGoesHeading, type LoggedRound } from '@/lib/windfall-log';
 import { loadProfileClient } from '@/lib/user-store';
 import { fundedAmount, isOpenGoal, readGoalsClient, type Goal } from '@/lib/goals';
 import {
@@ -190,13 +190,15 @@ export function WindfallTool({
 
   const total = Number(amount) > 0 ? Number(amount) : 0;
   const accounts = (profile.user.cash_accounts ?? []).filter((a) => a.kind !== 'fd' && (!a.currency || a.currency === ccy));
-  const efGap = Math.max(0, Number(planUser.efund_target || 0) - Number(planUser.efund_balance || 0));
+  // UX2B-22: no fund set: a one-month cash cushion, taken first (lib/windfall-log).
+  const cushion = cashCushion(planUser);
+  const efGap = cushion > 0 ? cushion : Math.max(0, Number(planUser.efund_target || 0) - Number(planUser.efund_balance || 0));
   const efSplit = Number(readEfSplitClient());
 
   // ── Targets: the fund, each open loan (dearest first), each goal ──────
   const targets = useMemo<Target[]>(() => {
     const out: Target[] = [];
-    if (efGap > 0) out.push({ key: 'ef', kind: 'ef', label: 'Emergency fund', cap: efGap });
+    if (efGap > 0) out.push({ key: 'ef', kind: 'ef', label: cushion > 0 ? 'Cash cushion (1 month’s spending)' : 'Emergency fund', cap: efGap });
     const loans = planUser.loans
       .map((l, i) => ({ l, i }))
       .filter(({ l }) => Number(l.outstanding) > 0)
@@ -214,7 +216,7 @@ export function WindfallTool({
       if (required - s > 0) out.push({ key: `goal:${g.id}`, kind: 'goal', label: g.label, cap: required - s, goal: g, saved: s, required });
     }
     return out;
-  }, [planUser, efGap, goals, saved, country]);
+  }, [planUser, efGap, cushion, goals, saved, country]);
 
   // The plan as it stands (its date, and its gap when short or capped).
   const [base, setBase] = useState<Run | null>(null);
@@ -251,7 +253,7 @@ export function WindfallTool({
         let blocked: string[] = [];
         let investName: string | null = null;
         let hold: string | null = null;
-        const ef = efGap > 0 ? Math.min(efGap, total * efSplit) : 0;
+        const ef = efGap > 0 ? Math.min(efGap, cushion > 0 ? total : total * efSplit) : 0;
         if (ef > 0) alloc.ef = Math.round(ef);
         let rest = total - (alloc.ef ?? 0);
         // The strategy's own order: 'rules' carries the user's rules (roadmap PR E).
@@ -829,8 +831,9 @@ export function WindfallTool({
                   {
                     k: '→ emergency fund',
                     v: fmt(alloc.ef ?? 0),
-                    note:
-                      mode === 'engine' && (alloc.ef ?? 0) > Math.ceil(total * efSplit)
+                    note: cushion > 0
+                      ? 'no emergency fund is set, so one month’s spending is kept first in case of a bad month; move it in MY SPLIT'
+                      : mode === 'engine' && (alloc.ef ?? 0) > Math.ceil(total * efSplit)
                         ? `the plan's ${Math.round(efSplit * 100)}% share, plus what no loan takes; ${fmt(efGap)} was missing`
                         : `the plan sends ${Math.round(efSplit * 100)}% here until it's full; ${fmt(efGap)} to go`,
                   },

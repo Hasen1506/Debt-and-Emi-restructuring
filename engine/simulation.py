@@ -872,13 +872,13 @@ def _simulate_plan(
                     # auto reset pulled a +4% shock back to +3% (P2-08).
                     start_rate[id(ln)] = ln.nominal_rate
 
-        # Auto floating-rate resets — for any floating loan with a
-        # next_reset_month + rate_reset_frequency_months pair, fire a
-        # rate adjustment whenever m hits the schedule. The new rate is
-        # current_rate + (rate_drift_annualized × frequency/12) so a
-        # +50bps/yr drift with a 12mo reset bumps the loan by 50bps each
-        # reset, while a 1-month-reset loan bumps by ~4bps per reset.
-        # Defensive: skip when fields are missing OR rate_type != floating.
+        # UX2B-5: a promo rate ends; the card's own rate applies from here.
+        for ln in loans:
+            if ln.promo_months > 0 and ln.rate_after_promo is not None and m == ln.promo_months + 1:
+                ln.nominal_rate = ln.rate_after_promo
+        # Auto floating-rate resets: when m hits next_reset_month the rate moves
+        # by rate_drift_annualized × frequency/12 (+50bps/yr with a 12mo reset
+        # adds 50bps a reset). Skipped when the fields are missing or fixed-rate.
         for li, ln in enumerate(loans):
             if ln.rate_type != "floating" or m < loan_start_month[id(ln)]:
                 continue

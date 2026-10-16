@@ -18,6 +18,7 @@ import { loanCurrency, userDefaultCurrency, type CurrencyCode } from './currency
 import { requiredMonthly } from './min-payment';
 import { prepareLoanPaymentTiming } from './roll-forward';
 import { countryMonthKey } from './today';
+import { HORIZON_MONTHS } from './horizon';
 
 export interface LoanWithEffective {
   loan: LoanPayload;
@@ -183,7 +184,9 @@ export function cashFlowForMonth(
  * Returns null when:
  *   - inputs are non-positive,
  *   - the EMI doesn't even cover monthly interest (never amortises),
- *   - the inputs imply tenure > 600 months (50 yrs — almost certainly a typo).
+ *   - the inputs imply more months than the plan runs (HORIZON_MONTHS, 100
+ *     yrs). UX2-1: this was 600, so an EMI just above the interest (₹3 L at
+ *     14%, ₹3,501: 703 months) saved with no tenure and read as due at once.
  */
 export function deriveTenureMonths(
   outstanding: number | string | Decimal,
@@ -214,7 +217,7 @@ export function deriveTenureMonths(
   // no log.
   const ratio = new Decimal(1).sub(r.mul(P).div(E));
   const n = -Math.log(ratio.toNumber()) / Math.log(1 + r.toNumber());
-  if (!Number.isFinite(n) || n <= 0 || n > 600) return null;
+  if (!Number.isFinite(n) || n <= 0 || n > HORIZON_MONTHS) return null;
   return Math.ceil(n);
 }
 

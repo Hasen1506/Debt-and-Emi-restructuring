@@ -66,3 +66,14 @@ export function checkReceivedDate(date: string, today: string, balanceDates: (st
   }
   return { ok: true };
 }
+
+/** UX2B-22: with no emergency fund set ("Not now", Setup's default) a
+ *  ₹3 lakh bonus went 100% to the car loan, leaving nothing for a bad
+ *  month. The engine pick now keeps one month's spending (less any fund
+ *  already held) as a cash cushion first; MY SPLIT can move it. 0 when a
+ *  fund target is set (the plan's own share applies) or the cushion is met. */
+export function cashCushion(u: { efund_target?: string; efund_balance?: string; fixed_expenses?: string; variable_expenses?: string }): number {
+  if (Number(u.efund_target || 0) > 0) return 0;
+  const month = Number(u.fixed_expenses || 0) + Number(u.variable_expenses || 0);
+  return Math.max(0, Math.round(month - Number(u.efund_balance || 0)));
+}

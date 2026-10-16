@@ -78,6 +78,7 @@ function rolls(loan: LoanPayload): boolean {
   return (
     loan.loan_type !== 'credit_card' &&
     loan.rate_basis !== 'flat' &&
+    loan.repayment !== 'bullet' &&
     (loan.pre_emi_months_remaining ?? 0) <= 0 &&
     (loan.planned_effective_month ?? 0) <= 1 &&
     Number(loan.scheduled_emi) > 0 &&
@@ -113,7 +114,9 @@ export function rollBalancesForward(
       return {
         ...loan,
         outstanding: start.add(emi).div(r.add(1)).toFixed(2),
-        tenure_months_remaining: (loan.tenure_months_remaining || 0) + 1,
+        // UX2-1: an unknown tenure (0) stays unknown; 0 + 1 made it a
+        // 1-month loan and the plan asked for the whole balance at once.
+        tenure_months_remaining: loan.tenure_months_remaining > 0 ? loan.tenure_months_remaining + 1 : 0,
       };
     }
     // A new loan: EMIs from its first EMI month to last month.
@@ -224,6 +227,17 @@ export function lockInMonthsLeft(loan: Pick<LoanPayload, 'prepay_lock_in_months'
 export function asksEmiPaid(loan: LoanPayload, saved: LoanPayload | undefined): boolean {
   if (loan.loan_type === 'credit_card' || loan.rate_basis === 'flat') return false;
   if ((loan.pre_emi_months_remaining ?? 0) > 0) return false;
+  // UX2-3: paid or not, interest only leaves the balance as it is; a bullet has no EMI.
+  if (loan.repayment === 'interest_only' || loan.repayment === 'bullet') return false;
   if (!(Number(loan.outstanding) > 0)) return false;
   return !saved || Number(saved.outstanding) !== Number(loan.outstanding);
+}
+
+/** UX2-17: the plan-month index of a loan's last EMI when `months` EMIs are
+ *  left, for Setup's "About N months left, to <month>". This month's EMI
+ *  already paid, or a first EMI in a later month, moves the end on (it read
+ *  Sept 2031 for a loan ending Oct 2031). `thisMonth` is 'YYYY-MM'. */
+export function lastEmiMonthIndex(loan: Pick<LoanPayload, 'balance_after_emi' | 'first_emi_month'>, months: number, thisMonth: string): number {
+  const first = loan.first_emi_month && loan.first_emi_month > thisMonth ? monthsBetween(thisMonth, loan.first_emi_month) : 0;
+  return months + (first > 0 ? first : loan.balance_after_emi === true ? 1 : 0);
 }

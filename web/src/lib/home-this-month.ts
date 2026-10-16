@@ -7,6 +7,7 @@ import { localTerms } from './terms';
 import type { PayThisMonth } from './pay-this-month';
 import type { LoanPayload } from './api';
 import { shortPriority } from './short-priority';
+import { lowerName } from './loan-types';
 
 export interface ThisMonthLine {
   tone: 'ok' | 'short';
@@ -16,10 +17,7 @@ export interface ThisMonthLine {
   link: string;
 }
 
-/** "Credit card" → "credit card"; "HDFC Bank credit card" stays. */
-export function lowerName(name: string): string {
-  return /^[A-Z][a-z]/.test(name) ? name.charAt(0).toLowerCase() + name.slice(1) : name;
-}
+export { lowerName } from './loan-types';
 
 export function homeThisMonthLine(
   data: PayThisMonth | null,

@@ -3,6 +3,8 @@
  * the same debt-free date. Runs the engine (plan, pay-minimums comparison,
  * restructure scan, the other two strategies) and shapes PlanData.
  */
+import { promoForEngine } from '@/lib/promo-rate';
+import { jointForEngine } from '@/lib/joint-share';
 import { api, formatCurrencyWhole, type SimulateResponse, type UserPayload, type LifecycleEventInput } from '@/lib/api';
 import { cachedEngineCall } from '@/lib/server-engine-cache';
 import { loadProfileServer } from '@/lib/user-store';
@@ -307,7 +309,7 @@ export async function loadPlanInputs(
   // A loan taken this month: the engine starts its EMIs at the first EMI
   // month (lib/roll-forward).
   const planMonth = countryMonthKey(adjustedUser.country);
-  adjustedUser.loans = prepareLoanPaymentTiming(adjustedUser.loans, planMonth);
+  adjustedUser.loans = prepareLoanPaymentTiming(adjustedUser.loans, planMonth).map((l) => jointForEngine(promoForEngine(l, planMonth)));
   adjustedUser.loans = adjustedUser.loans.map((l) => {
     if (l.rate_type !== 'floating') return l;
     const computed = nextResetSimMonth(l.next_reset_date);

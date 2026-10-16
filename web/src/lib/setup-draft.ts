@@ -4,15 +4,35 @@
  * Android's back gesture on step 2 or 3 used to leave Setup for the page
  * before it, and reopening /onboarding showed an empty step 1: two minutes
  * of KFS numbers gone. Now each step has its own history entry
- * (`?step=you|loans|plan`), and what has been typed is kept in this tab's
- * sessionStorage until the plan is saved.
+ * (`?step=you|loans|plan`), and what has been typed is kept in this
+ * browser's localStorage until the plan is saved or the user signs out
+ * (UX2-6: it was this tab's sessionStorage, so a new tab days later started
+ * empty under "Saved in this browser").
  *
  * Pure helpers here; QuickSetup wires them to state and history.
  */
 
 export const SETUP_DRAFT_KEY = 'rightdue_setup_draft';
-/** A draft older than this is dropped rather than restored: 6 hours. */
-export const SETUP_DRAFT_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+/** A draft older than this is dropped rather than restored: 30 days. */
+export const SETUP_DRAFT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+/** Editing a saved profile: a draft older than 6 hours may predate changes made in Profile since. */
+export const SETUP_EDIT_DRAFT_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+type DraftStores = { localStorage: Storage; sessionStorage: Storage };
+
+/** The saved draft text: this browser's, else one an older build left in this tab. */
+export function readDraftText(w: DraftStores = window): string | null {
+  return w.localStorage.getItem(SETUP_DRAFT_KEY) ?? w.sessionStorage.getItem(SETUP_DRAFT_KEY);
+}
+
+/** Forget the draft (plan saved, draft expired, or signed out). */
+export function dropDraft(w: DraftStores = window): void {
+  try {
+    w.localStorage.removeItem(SETUP_DRAFT_KEY);
+    w.sessionStorage.removeItem(SETUP_DRAFT_KEY);
+  } catch {
+    /* private mode */
+  }
+}
 export const STEP_PARAMS = ['you', 'loans', 'plan'] as const;
 
 export function stepToParam(step: number): string {
@@ -46,12 +66,12 @@ export function serializeDraft<T>(state: T, step: number, nowMs: number): string
 }
 
 /** The draft, if it parses, is version 1 and is recent enough; else null. */
-export function parseDraft<T = Record<string, unknown>>(raw: string | null, nowMs: number): SetupDraft<T> | null {
+export function parseDraft<T = Record<string, unknown>>(raw: string | null, nowMs: number, maxAgeMs = SETUP_DRAFT_MAX_AGE_MS): SetupDraft<T> | null {
   if (!raw) return null;
   try {
     const d = JSON.parse(raw) as SetupDraft<T>;
     if (!d || d.v !== 1 || typeof d.savedAt !== 'number' || typeof d.state !== 'object' || d.state == null) return null;
-    if (nowMs - d.savedAt > SETUP_DRAFT_MAX_AGE_MS || d.savedAt > nowMs + 60_000) return null;
+    if (nowMs - d.savedAt > maxAgeMs || d.savedAt > nowMs + 60_000) return null;
     const step = stepFromParam(stepToParam(Number(d.step) || 0)) ?? 0;
     return { ...d, step };
   } catch {

@@ -196,7 +196,7 @@ class ConsolidationOut(_Base):
     published: Optional[PublishedOut]
     neutrality: str
     # UX walkthrough fix 1: when the plan clears the cards (month), and why
-    # the move isn't advice here ("plan_clears" | "costs_more" | None).
+    # the move isn't advice here ("plan_clears" | "not_approvable" | "costs_more" | None).
     plan_clears_month: Optional[int] = None
     not_worth_it: Optional[str] = None
 
@@ -338,7 +338,11 @@ def plan_insights(req: InsightsRequest) -> PlanInsightsResponse:
     if len(open_loans) >= 2:
         sp = order_spread(user, lambda u, s: avalanche if s == Strategy.AVALANCHE and u is user else run(u, s), marg)
         line = (
-            f"All orders give the same result for your loans." if not sp.material else
+            # UX2B-14: under the threshold but not zero, the smallest-first row
+            # above showed "₹523 less" under "all orders give the same result".
+            ("All orders give the same result for your loans." if sp.spread < 1 else
+             f"Other orders cost only a little more for your loans (under {money(sp.threshold)})."
+             ) if not sp.material else
             f"The orders differ by {money(sp.spread)}" + (f" and {sp.months_apart} months" if sp.months_apart > 0 else "")
             + ": your call."
         )

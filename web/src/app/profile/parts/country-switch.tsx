@@ -3,6 +3,7 @@
 // Split out of app/profile/ProfileClient.tsx by scripts/split-profile-client.cjs
 // (Audit 80 E15). Moved verbatim; edit here, not in ProfileClient.
 
+import { useState } from 'react';
 import { LBracket, LButton, L_T } from '@/components/ledger/primitives';
 import type { Country } from '@/lib/api';
 import { currencySymbol, userDefaultCurrency } from '@/lib/currency';
@@ -21,7 +22,8 @@ export function CountrySwitchPanel({
   loanCount: number;
   keepLoans: boolean;
   onKeepLoans: (v: boolean) => void;
-  onConfirm: () => void;
+  /** UX2B-19: with the new take-home typed (blank: convert the old one). */
+  onConfirm: (newPay?: string) => void;
   onCancel: () => void;
 }) {
   const fromCcy = userDefaultCurrency(from), toCcy = userDefaultCurrency(to);
@@ -29,6 +31,8 @@ export function CountrySwitchPanel({
   const name = (c: Country) => (c === 'IN' ? 'India' : 'the USA');
   const r = Number(rate);
   const rateOk = validSwitchRate(r);
+  const [pay, setPay] = useState('');
+  const inverse = rateOk ? (1 / r >= 1 ? (1 / r).toFixed(2) : (1 / r).toPrecision(4)) : '';
   return (
     <div
       role="dialog"
@@ -53,6 +57,12 @@ export function CountrySwitchPanel({
         />
         {rateState === 'failed' && <span style={{ color: L_T.negative }}>Today&apos;s rate couldn&apos;t be fetched. Enter it from your bank&apos;s app.</span>}
         {rate.trim() !== '' && !rateOk && <span style={{ color: L_T.negative }}>Enter a rate above 0.</span>}
+        {rateOk && <span style={{ color: L_T.muted }}>That is {sTo}1 = {sFrom}{inverse}.</span>}
+      </label>
+      <label style={{ display: 'grid', gap: 4 }}>
+        <span>Your take-home pay in {name(to)}, {sTo} a month</span>
+        <input className="num" inputMode="decimal" value={pay} onChange={(e) => setPay(e.target.value.replace(/[^0-9.]/g, ''))} placeholder={to === 'US' ? 'e.g. 4800' : 'e.g. 150000'} style={{ padding: '8px 10px', border: '1px solid var(--border)', maxWidth: 220 }} />
+        <span style={{ color: L_T.muted }}>Pay in a new country is rarely your old pay converted. Leave it blank to convert it at the rate above.</span>
       </label>
       {loanCount > 0 && (
         <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
@@ -65,7 +75,7 @@ export function CountrySwitchPanel({
       )}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ opacity: rateOk ? 1 : 0.4 }}>
-          <LButton onClick={rateOk ? onConfirm : undefined} disabled={!rateOk}>{`CONVERT AND SWITCH TO ${to === 'US' ? 'USA' : 'INDIA'}`}</LButton>
+          <LButton onClick={rateOk ? () => onConfirm(pay.trim() || undefined) : undefined} disabled={!rateOk}>{`CONVERT AND SWITCH TO ${to === 'US' ? 'USA' : 'INDIA'}`}</LButton>
         </span>
         <LBracket onClick={onCancel}>{`CANCEL · STAY IN ${from === 'US' ? 'USA' : 'INDIA'}`}</LBracket>
       </div>

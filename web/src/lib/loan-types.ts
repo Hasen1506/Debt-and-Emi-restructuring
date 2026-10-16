@@ -14,7 +14,7 @@ export const LOAN_TYPE_SHORT: Record<LoanType, string> = {
   credit_card: 'card',
   education_loan: 'education',
   gold_loan: 'gold',
-  bnpl: 'BNPL',
+  bnpl: 'pay later',
 };
 
 /** Full name for sentences: "HDFC credit card", "SBI home loan". */
@@ -25,7 +25,8 @@ export const LOAN_TYPE_NAME: Record<LoanType, string> = {
   credit_card: 'credit card',
   education_loan: 'education loan',
   gold_loan: 'gold loan',
-  bnpl: 'BNPL',
+  // UX2B-15: Setup's chip says "Pay later"; Home and Plan said "Simpl BNPL".
+  bnpl: 'pay later',
 };
 
 /** The user's own name for a loan (live test #4: "Dad's car loan"), trimmed
@@ -65,7 +66,7 @@ const AUTO_LABEL: Record<LoanType, string> = {
   credit_card: 'Card',
   education_loan: 'Education loan',
   gold_loan: 'Gold loan',
-  bnpl: 'BNPL',
+  bnpl: 'Pay later',
 };
 
 /**
@@ -107,4 +108,14 @@ export function uniqueLoanNames<T extends { bank?: string | null; loan_type: Loa
   sentence = false,
 ): string[] {
   return disambiguateLoans(loans).map((l) => (sentence ? loanName(l) : loanLabel(l)));
+}
+
+/** "Credit card" → "credit card"; "HDFC Bank credit card" stays, and so
+ *  does a lender or nickname that only looks like a word (UX2-16: "Bajaj
+ *  Auto Finance car loan" read "bajaj Auto…"). Only a generic type name
+ *  ("Car loan", "Loan 2") is lowered. */
+export function lowerName(name: string): string {
+  const low = name.charAt(0).toLowerCase() + name.slice(1);
+  const generic = [...Object.values(LOAN_TYPE_NAME), 'loan', 'card', 'pay later'].some((t) => low.startsWith(t));
+  return /^[A-Z][a-z]/.test(name) && generic ? low : name;
 }

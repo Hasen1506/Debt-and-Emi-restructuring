@@ -215,6 +215,10 @@ class Loan:
     # monthly and the principal in its last month. Every loan with a tenure
     # pays what is left in its last contractual month (C3, C6).
     repayment: Optional[str] = None
+    # UX2B-5: an intro/promo rate (a 0% balance-transfer card) that lasts
+    # `promo_months` plan months, then `rate_after_promo` applies.
+    promo_months: int = 0
+    rate_after_promo: Optional[Decimal] = None
     # US mortgage taken on or before 15 Dec 2017: keeps the $1M ($500k MFS)
     # acquisition-debt limit of IRC §163(h)(3)(B)(ii) instead of $750k (C17).
     mortgage_before_2017_12_16: bool = False
