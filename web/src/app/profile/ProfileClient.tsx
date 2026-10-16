@@ -67,7 +67,7 @@ import { suggestedGraceDays } from '@/lib/min-payment';
 import { api, formatCurrency, type FxRateResponse } from '@/lib/api';
 import { deriveTenureMonths } from '@/lib/derived';
 import { loanDraftErrors, needsEmi } from '@/lib/loan-gaps';
-import { classifyBracket, IN_TAX_YEAR_LABEL, inNewRegimeSlabLines } from '@/lib/tax-brackets';
+import { classifyBracket, grossMarginalRate, IN_TAX_YEAR_LABEL, inNewRegimeSlabLines } from '@/lib/tax-brackets';
 import type { LoanTermsResponse } from '@/lib/api';
 import { RBI_PREPAYMENT_RULE } from '@/lib/prepayment-fee';
 import { asksBusinessPurpose, feeShownWithPurpose as feeShown, PURPOSE_HELP, PURPOSE_QUESTION } from '@/lib/loan-purpose';
@@ -906,7 +906,8 @@ function ProfileEditor({
     // inputs behind it are unchanged, else a fresh estimate from take-home
     // (lib/marginal-rate: a stale 0% survived a switch from IN to US).
     const { rate: composedRate } = profileMarginalRate({
-      bracketRate: derivedBracket ? derivedBracket.marginalRate : null,
+      // UX fix 23: India with surcharge + cess (30% slab = 31.2%), as the engine.
+      bracketRate: derivedBracket ? grossMarginalRate(country, taxRegime, incomeType, grossForBracket, country === 'US' ? filingStatus : undefined) : null,
       stateRate,
       manualRate: marginalRate,
       loadedRate: loadedMarginalRate.current,

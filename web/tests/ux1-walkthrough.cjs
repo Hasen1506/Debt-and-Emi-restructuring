@@ -313,3 +313,15 @@ test('fix 14: exchange rates read per dollar everywhere; a rupee loan gets the K
   const rt = g.find((x) => x.key === 'rate-type');
   assert.ok(rt.lines.some((l) => /KFS/.test(l)) && !rt.lines.some((l) => /Closing Disclosure/.test(l)), rt.lines.join(' | '));
 });
+
+test('fix 23: a gross-pay rate keeps the 4% cess (30% slab = 31.2%), the 87A zero and surcharge, as the engine', () => {
+  const t = lib('tax-brackets.ts');
+  const tp = lib('tax-profile.ts');
+  const r = t.grossMarginalRate('IN', 'new', 'salaried', 2600000);
+  assert.ok(Math.abs(r - 0.312) < 1e-9, String(r));
+  assert.equal(tp.taxRateLabel(String(r), 'IN', { regime: 'new' }), '30% slab + 4% cess = 31.2% on your next rupee');
+  assert.equal(t.grossMarginalRate('IN', 'new', 'salaried', 1000000), 0);
+  assert.ok(Math.abs(t.grossMarginalRate('IN', 'new', 'salaried', 6000000) - 0.3 * 1.1 * 1.04) < 1e-9);
+  assert.equal(t.grossMarginalRate('US', null, 'salaried', 90000, 'single'), t.classifyBracket('US', null, 'salaried', 90000, 'single').marginalRate);
+  assert.match(src('app/profile/ProfileClient.tsx'), /bracketRate: derivedBracket \? grossMarginalRate\(/);
+});

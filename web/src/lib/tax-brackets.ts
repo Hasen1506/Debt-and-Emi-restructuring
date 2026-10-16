@@ -329,3 +329,17 @@ export function inNewRegimeSlabLines(): string[] {
 
 /** The tax year the tables are for, as /tax names it ("2026-27"). */
 export const IN_TAX_YEAR_LABEL = 'tax year 2026-27';
+
+/** UX walkthrough fix 23: the rate a saved profile carries from gross pay.
+ *  India: the slab with surcharge and 4% cess, 0 inside the 87A rebate
+ *  (marginalRateIN, as the engine), so a 30% slab saves 0.312, not 0.30;
+ *  US: the federal bracket. Null without gross pay. */
+export function grossMarginalRate(
+  country: Country, regime: TaxRegimeIN | null | undefined, incomeType: IncomeType, grossIncome: number, filingStatus?: FilingStatusUS,
+): number | null {
+  const b = classifyBracket(country, regime, incomeType, grossIncome, filingStatus);
+  if (!b) return null;
+  if (country !== 'IN') return b.marginalRate;
+  const { standardDeduction } = pickSlabs(country, regime, incomeType, filingStatus);
+  return marginalRateIN(Math.max(0, grossIncome - standardDeduction), regime === 'old' ? 'old' : 'new');
+}
