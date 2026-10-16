@@ -63,6 +63,8 @@ import { typicalRate, TYPICAL_RATE_AS_OF, withEstimate } from '@/lib/setup-estim
 import { EstimateBalance } from './EstimateBalance';
 import { RepaymentChips } from './RepaymentChips';
 import { PromoFields } from './PromoFields';
+import { JointShare } from './JointShare';
+import { jointForEngine } from '@/lib/joint-share';
 import { promoError } from '@/lib/promo-rate';
 import { emiOptional, finishShape, moratoriumMonths, payingNow, savedEndMonth, shapeError, shapeNeedsEmi, typeSwitch } from '@/lib/repayment-shape';
 import { readStrategyClient, strategyName, STRATEGY_SHORT, writeStrategyClient, type StrategyName } from '@/lib/strategy';
@@ -550,7 +552,7 @@ export function QuickSetup() {
     // where it has already gone out (lib/roll-forward).
     const asOf = localIsoDate(getCountryToday(built.country));
     const stamped = stampBalanceDates(built.loans, prev?.loans ?? [], asOf);
-    const user: UserPayload = { ...built, loans: prepareLoanPaymentTiming(rollBalancesForward(stamped, asOf.slice(0, 7)).loans, asOf.slice(0, 7)) };
+    const user: UserPayload = { ...built, loans: prepareLoanPaymentTiming(rollBalancesForward(stamped, asOf.slice(0, 7)).loans, asOf.slice(0, 7)).map(jointForEngine) };
     // NEW-19: the API doesn't read the setup's own record of what was
     // confirmed; left in, it would make every choice click look like a new
     // baseline request.
@@ -1321,6 +1323,7 @@ function LoanBlock({
         )}
       </div>
       <PromoFields loan={loan} onPatch={onPatch} error={issues.end} />
+      <JointShare loan={loan} onPatch={onPatch} />
       {askPaid && (
         <EmiPaidQuestion
           monthName={monthName}

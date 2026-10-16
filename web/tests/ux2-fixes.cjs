@@ -352,3 +352,23 @@ test('B8 (#24): glossary buttons on a loan row say which loan; /tools/loan-check
   assert.match(lc, /href="\/cant-pay\/us-letters"/);
   assert.doesNotMatch(lc, /covers Indian floating-rate home loans for now/);
 });
+
+test('B9 (#9): a joint home loan takes "your share"; the plan runs on that share, and the Tax page agrees', () => {
+  const j = lib('joint-share.ts');
+  const home = { loan_type: 'home_loan', outstanding: '5000000', nominal_rate: '0.085', scheduled_emi: '43391', tenure_months_remaining: 240 };
+  assert.deepEqual(j.sharePatch('50'), { tax_share: '0.5', joint_split: true });
+  assert.deepEqual(j.sharePatch(''), { tax_share: undefined, joint_split: undefined });
+  assert.deepEqual(j.sharePatch('100'), { tax_share: undefined, joint_split: undefined });
+  const mine = { ...home, ...j.sharePatch('50') };
+  assert.equal(j.shareText(mine), '50');
+  const e = j.jointForEngine(mine);
+  assert.equal(e.outstanding, '2500000');
+  assert.equal(e.scheduled_emi, '21695.5');
+  assert.equal(e.tax_share, '1');                                  // the tax break is on the share already
+  assert.equal(j.jointForEngine({ ...home, tax_share: '0.5' }).outstanding, '5000000');   // saved before: untouched
+  assert.match(src('components/plan/load-plan.ts'), /jointForEngine\(promoForEngine\(l, planMonth\)\)/);
+  const tax = src('components/tax/TaxPage.tsx');
+  assert.match(tax, /joint_split: draft\.tax_share === '1' \? undefined : true/);
+  assert.doesNotMatch(tax, /enter only your part of the EMI/);
+  assert.match(src('components/setup/QuickSetup.tsx'), /<JointShare loan=\{loan\} onPatch=\{onPatch\} \/>/);
+});

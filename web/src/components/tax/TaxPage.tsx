@@ -287,6 +287,7 @@ function LoanTaxCard({ loan, regime, month, onSave }: { loan: LoanPayload; regim
   function submit() {
     const patch: Partial<LoanPayload> = {
       tax_share: draft.tax_share === '1' ? undefined : draft.tax_share,
+      joint_split: draft.tax_share === '1' ? undefined : true,
       edu_interest_start: draft.edu_interest_start,
     };
     if (isHome) Object.assign(patch, {
@@ -315,7 +316,7 @@ function LoanTaxCard({ loan, regime, month, onSave }: { loan: LoanPayload; regim
           value={share}
           onChange={setShare}
           hint={isHome
-            ? 'Co-borrower who co-owns the home: your part of the interest and principal. Each co-owner claims their own share, each with their own ₹2 lakh and ₹1.5 lakh limits. If they pay part of the EMI, enter only your part of the EMI on the loan.'
+            ? 'Co-borrower who co-owns the home: your part of the interest and principal. Each co-owner claims their own share, each with their own ₹2 lakh and ₹1.5 lakh limits. Keep the whole loan’s balance and EMI on the loan: the plan counts your share of them.'
             : 'The part of the interest you pay. 80E goes to whoever took the loan and pays it from their taxable income.'}
         />
         {isHome && (

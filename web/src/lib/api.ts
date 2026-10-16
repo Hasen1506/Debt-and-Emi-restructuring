@@ -215,7 +215,7 @@ export interface LoanPayload {
   max_tenure_months?: number;
   /** Audit 80+ C2: 'emi' | 'interest_only' | 'bullet' (a gold loan with no EMI is a bullet). */
   repayment?: 'emi' | 'interest_only' | 'bullet';
-  promo_until?: string; rate_after_promo?: string; promo_months?: number; // UX2B-5: lib/promo-rate
+  promo_until?: string; rate_after_promo?: string; promo_months?: number; joint_split?: boolean; // UX2B-5/9: lib/promo-rate, lib/joint-share
   /** Audit 80+ C15: a flat-rate loan's original tenure, for its true rate. */
   original_tenure_months?: number;
   part_payment_freq_months?: number;
