@@ -43,7 +43,7 @@ import { currencySymbol, fxPerDollar, loanCurrency, loanMarket, userDefaultCurre
 import { dateProfileRates } from '@/lib/fx-refresh';
 import { efMonths } from '@/lib/assumptions';
 import { salaryDeductionsPhrase, takeHomeLabel } from '@/lib/payroll-labels';
-import { convertForCountrySwitch, hasAmountsInCurrency, loansInHomeCurrency, validSwitchRate, type SwitchableAmounts } from '@/lib/country-switch';
+import { convertForCountrySwitch, formatSwitchRate, hasAmountsInCurrency, loansInHomeCurrency, validSwitchRate, type SwitchableAmounts } from '@/lib/country-switch';
 import {
   FY_ANCHOR_MONTH,
   getCountryToday,
@@ -752,19 +752,19 @@ function ProfileEditor({
     api
       .fxRate(from, to)
       .then((r) => {
-        setSwitchRate((cur) => (cur.trim() ? cur : String(r.rate)));
+        setSwitchRate((cur) => (cur.trim() ? cur : formatSwitchRate(r.rate)));
         setSwitchRateState('idle');
       })
       .catch(() => setSwitchRateState('failed'));
   }
 
-  function confirmCountrySwitch() {
+  function confirmCountrySwitch(newPay?: string) {
     if (!pendingCountry) return;
     const rate = Number(switchRate);
     if (!validSwitchRate(rate)) return;
     const from = country, to = pendingCountry;
     const keep = keepLoansInOld && loansInHomeCurrency(loans, from) > 0;
-    const next = convertForCountrySwitch(switchableAmounts(), from, to, rate, keep);
+    const next = convertForCountrySwitch(switchableAmounts(), from, to, rate, keep, newPay);
     setMonthlyIncome(next.monthlyIncome);
     setFixedExpenses(next.fixedExpenses);
     setVariableExpenses(next.variableExpenses);
@@ -787,7 +787,7 @@ function ProfileEditor({
     setSwitchNote(
       `Converted at ${sFrom}1 = ${sTo}${rate}. ` +
       (keep ? `Your existing loans stay in ${sFrom}. ` : 'Your loans were converted too. ') +
-      'Check your income and spending before you save: they are now read in ' + sTo + '.',
+      (Number(newPay) > 0 ? 'Take-home is the new pay you typed. Check your spending before you save: it is now read in ' : 'Check your income and spending before you save: they are now read in ') + sTo + '.',
     );
   }
 

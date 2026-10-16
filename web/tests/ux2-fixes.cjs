@@ -323,3 +323,17 @@ test('B6 (#22): with no emergency fund set, spare cash keeps one month’s spend
   assert.match(w, /Math\.min\(efGap, cushion > 0 \? total : total \* efSplit\)/);
   assert.match(w, /Cash cushion \(1 month’s spending\)/);
 });
+
+test('B7 (#19): a country switch takes the new take-home as typed, and the rate reads sensibly', () => {
+  const cs = lib('country-switch.ts');
+  assert.equal(cs.formatSwitchRate(1 / 83.25), '0.01201');
+  assert.equal(cs.formatSwitchRate('83.2512'), '83.25');
+  const a = { monthlyIncome: '150000', fixedExpenses: '40000', variableExpenses: '0', annualGrossSalary: '2400000', annualBusinessIncome: '', extraIncomeAnnualTax: '', savingsBalance: '', efundBalance: '', efundTarget: '', cashAccounts: [], incomeStreams: [], loans: [], fxRates: {} };
+  assert.equal(cs.convertForCountrySwitch(a, 'IN', 'US', 0.012, true, '5200').monthlyIncome, '5200');
+  assert.equal(cs.convertForCountrySwitch(a, 'IN', 'US', 0.012, true).monthlyIncome, '1800');           // blank: converted, as before
+  assert.equal(cs.convertForCountrySwitch(a, 'IN', 'US', 0.012, true, '5200').fixedExpenses, '480');
+  const panel = src('app/profile/parts/country-switch.tsx');
+  assert.match(panel, /Your take-home pay in \{name\(to\)\}/);
+  assert.match(panel, /onConfirm\(pay\.trim\(\) \|\| undefined\)/);
+  assert.match(src('app/profile/ProfileClient.tsx'), /formatSwitchRate\(r\.rate\)/);
+});
