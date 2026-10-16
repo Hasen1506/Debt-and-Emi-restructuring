@@ -9,7 +9,7 @@
  */
 import { Term } from '@/components/Term';
 import { localTerms, paymentWords } from '@/lib/terms';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { StoredProfile } from '@/lib/user-store';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
@@ -26,7 +26,7 @@ import { useOwedNow } from '@/lib/owed-now';
 import { convertedBalanceLine, emiStatusLine } from '@/lib/position-status';
 import { getCountryToday, localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
 
-export function OpenPositions({ profile, m }: { profile: StoredProfile; m: DerivedMetrics }) {
+export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m: DerivedMetrics; dues?: ReactNode }) {
   const [open, setOpen] = useState<number | null>(null);
   const { user } = profile;
   const country = user.country;
@@ -220,7 +220,7 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
             <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
               {formatCurrencyWhole(totalNow.toFixed(0), userCcy)}
               <span style={{ color: L_T.muted, fontWeight: 400 }}>
-                {' '}· {localTerms('EMIS', country)} + MINIMUMS {formatCurrencyWhole(m.emiBurden.toFixed(0), userCcy)}/MO
+                {' '}· {localTerms('EMIS', country)} + MINIMUMS {dues ?? formatCurrencyWhole(m.emiBurden.toFixed(0), userCcy)}/MO
               </span>
             </span>
           )}

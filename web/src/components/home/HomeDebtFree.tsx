@@ -28,6 +28,7 @@ import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
 import { homeInterestLine, homeThisMonthLine } from '@/lib/home-this-month';
 import { HomeThisMonth } from './HomeThisMonth';
+import { CashFlow } from './LedgerHome';
 import { InsightsPanel } from '@/components/insights/InsightsPanel';
 import { shortPriority, shortPriorityOrder } from '@/lib/short-priority';
 
@@ -307,6 +308,28 @@ export async function HomeThisMonthStrip() {
     total: data.total,
   };
   return <HomeThisMonth line={line} progress={progress} />;
+}
+
+/** UX2B-8: this month's EMIs and minimums from the same run as "This month"
+ *  (6 cards read ₹26,590 there and ₹26,887 in the cash flow below, from the
+ *  profile's own minimum estimate). Null when the plan has no month 1. */
+async function planDues(): Promise<number | undefined> {
+  const plan = await loadPlanOnce();
+  if (!plan.live || plan.gaps.length > 0) return undefined;
+  return payThisMonth(plan)?.duesUser;
+}
+
+export async function HomeCashFlow() {
+  const plan = await loadPlanOnce();
+  const profile = { user: plan.user, marginalRate: plan.marginalRate, creditScore: null, isLive: plan.profileIsLive };
+  return <CashFlow profile={profile} dues={await planDues()} />;
+}
+
+export async function HomeDuesTotal() {
+  const plan = await loadPlanOnce();
+  const dues = await planDues();
+  const ccy = userDefaultCurrency(plan.user.country);
+  return <>{formatCurrencyWhole(dues ?? deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate, creditScore: null, isLive: plan.profileIsLive }).emiBurden.toFixed(0), ccy)}</>;
 }
 
 /** Cheaper rates the engine found for these loans (REDESIGN R2.4). */

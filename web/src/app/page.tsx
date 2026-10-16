@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { loadCurrentProfileServer } from '@/lib/user-store';
 import { readLifecycleServer } from '@/lib/lifecycle-events';
 import { loadStrategyServer } from '@/lib/strategy';
-import { LedgerHome } from '@/components/home/LedgerHome';
+import { CashFlow, LedgerHome } from '@/components/home/LedgerHome';
 import { GuestWelcomeBack } from '@/components/home/GuestWelcomeBack';
 import { HomeThisMonthPlaceholder } from '@/components/home/HomeThisMonth';
 import {
@@ -16,6 +16,8 @@ import {
   HomeMoveOneStep,
   HomePayThisMonth,
   HomeThisMonthStrip,
+  HomeCashFlow,
+  HomeDuesTotal,
 } from '@/components/home/HomeDebtFree';
 
 // Live re-test 6B R6B-6: Home had the generic site title.
@@ -77,6 +79,16 @@ export default async function HomePage() {
         cheaper={
           <Suspense fallback={null}>
             <HomeCheaperRates />
+          </Suspense>
+        }
+        cashFlow={
+          <Suspense fallback={<CashFlow profile={profile} />}>
+            <HomeCashFlow />
+          </Suspense>
+        }
+        dues={
+          <Suspense fallback={<span aria-busy="true">……</span>}>
+            <HomeDuesTotal />
           </Suspense>
         }
         insights={

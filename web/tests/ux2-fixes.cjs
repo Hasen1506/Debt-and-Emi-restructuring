@@ -255,3 +255,19 @@ test('B1 (#3 gaps): moratorium months move the end month on, count interest now,
   assert.match(qs, /onPatch\(typeSwitch\(loan, t, country\)\)/);
   assert.match(qs, /\+ moratoriumMonths\(loan, end, thisMonth\)/);
 });
+
+test('B2 (#8): Home cash flow and the loans total use the plan’s month-1 dues, the figure “This month” uses', () => {
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const { CashFlow } = require(path.join(root, 'components/home/LedgerHome.tsx'));
+  const card = (bank) => ({ id: bank, loan_type: 'credit_card', bank, outstanding: '60000', nominal_rate: '0.45', scheduled_emi: '0', tenure_months_remaining: 0 });
+  const profile = { user: { country: 'IN', monthly_income: '65000', fixed_expenses: '30000', variable_expenses: '0', loans: [card('Axis Bank'), card('HDFC Bank')] }, marginalRate: '0', creditScore: null, isLive: true };
+  const html = renderToStaticMarkup(React.createElement(CashFlow, { profile, dues: 26590 }));
+  assert.match(html, /EMIs and card minimums ₹26,590/);
+  assert.match(html, /₹8,410/);                                            // 65,000 − 30,000 − 26,590
+  const page = src('app/page.tsx');
+  assert.match(page, /<HomeCashFlow \/>/);
+  assert.match(page, /<HomeDuesTotal \/>/);
+  assert.match(src('components/home/HomeDebtFree.tsx'), /payThisMonth\(plan\)\?\.duesUser/);
+  assert.match(src('components/home/OpenPositions.tsx'), /MINIMUMS \{dues \?\? /);
+});
