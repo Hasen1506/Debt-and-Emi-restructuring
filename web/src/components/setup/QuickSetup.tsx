@@ -1031,7 +1031,7 @@ export function QuickSetup() {
                 money={(v) => money(v)}
               />
               <PlanFootnotes
-                country={country}
+                country={country} incomeType={incomeType}
                 estimated={marginal().estimated}
                 rate={marginal().rate}
                 noLoans={activeLoans.length === 0}
@@ -1627,13 +1627,13 @@ function PlanPreview({
 }
 
 function PlanFootnotes({
-  country,
+  country, incomeType = 'salaried',
   estimated,
   rate,
   noLoans,
   picked,
 }: {
-  country: Country;
+  country: Country; incomeType?: string;
   estimated: boolean;
   rate: string;
   noLoans: boolean;
@@ -1653,7 +1653,7 @@ function PlanFootnotes({
         {/* R6B-5: one decimal, as Profile, Tax and Invest-or-prepay show it (31.2%, not 31%). */}
         Tax bracket {formatTaxRate(rate)}
         {estimated
-          ? `, estimated from take-home. Add your gross ${country === 'IN' ? 'salary (Form 16)' : 'pay (W-2)'} in Profile to make it exact.`
+          ? `, estimated from take-home. Add your gross ${incomeType !== 'salaried' ? (country === 'IN' ? 'yearly business income (from your ITR)' : 'yearly business income (Schedule C)') : country === 'IN' ? 'salary (Form 16)' : 'pay (W-2)'} in Profile to make it exact.`
           : ', from your profile.'}
       </li>
     </ul>

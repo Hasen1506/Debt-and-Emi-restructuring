@@ -1232,19 +1232,21 @@ function ProfileEditor({
               }
             />
             <Field
-              label={takeHomeLabel(country)}
+              label={takeHomeLabel(country, incomeType)}
               findIt={incomeType === 'salaried' ? whereToFind('takeHome', { country }) : null}
               kind="money"
               currency={userCcy}
               value={monthlyIncome}
               onChange={setMonthlyIncome}
               hint={
-                country === 'IN'
+                incomeType !== 'salaried'
+                  ? 'A typical month after business costs and the tax you set aside. If it varies, use a lean month.'
+                  : country === 'IN'
                   ? "What reaches your account each month, not your CTC. Leave out bonuses; add them in Tools › Spare cash when they come."
                   : 'Take-home, post-tax, post-401(k). Add bonuses via Tools › Spare cash.'
               }
               info={
-                country === 'IN' ? (
+                country === 'IN' && incomeType === 'salaried' ? (
                   <>
                     The amount your bank account receives each month — <em>NOT</em>{' '}
                     your CTC.

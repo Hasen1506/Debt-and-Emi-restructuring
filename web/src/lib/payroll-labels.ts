@@ -5,7 +5,10 @@
  */
 import type { Country } from './api';
 
-export function takeHomeLabel(country: Country): string {
+export function takeHomeLabel(country: Country, incomeType?: string): string {
+  // UX fix 15: a self-employed person has no salary, TDS or PF to name.
+  if (incomeType && incomeType !== 'salaried')
+    return country === 'IN' ? 'What you take home (₹/month, after business costs and tax)' : 'What you take home ($/month, after business costs and tax)';
   return country === 'IN'
     ? 'In-hand salary (₹/month, after TDS + PF)'
     : 'Take-home pay ($/month, after tax withholding + 401(k))';

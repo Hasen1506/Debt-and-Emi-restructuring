@@ -325,3 +325,12 @@ test('fix 23: a gross-pay rate keeps the 4% cess (30% slab = 31.2%), the 87A zer
   assert.equal(t.grossMarginalRate('US', null, 'salaried', 90000, 'single'), t.classifyBracket('US', null, 'salaried', 90000, 'single').marginalRate);
   assert.match(src('app/profile/ProfileClient.tsx'), /bracketRate: derivedBracket \? grossMarginalRate\(/);
 });
+
+test('fix 15: self-employed users get no salary, TDS, PF, CTC or Form 16 copy', () => {
+  const p = lib('payroll-labels.ts');
+  assert.doesNotMatch(p.takeHomeLabel('IN', 'self_employed'), /salary|TDS|PF/);
+  assert.match(p.takeHomeLabel('IN', 'salaried'), /In-hand salary/);
+  assert.match(src('components/setup/QuickSetup.tsx'), /yearly business income \(from your ITR\)/);
+  assert.match(src('app/profile/ProfileClient.tsx'), /takeHomeLabel\(country, incomeType\)/);
+  assert.match(src('app/profile/ProfileClient.tsx'), /country === 'IN' && incomeType === 'salaried' \? \(/);
+});
