@@ -196,7 +196,7 @@ class ConsolidationOut(_Base):
     published: Optional[PublishedOut]
     neutrality: str
     # UX walkthrough fix 1: when the plan clears the cards (month), and why
-    # the move isn't advice here ("plan_clears" | "costs_more" | None).
+    # the move isn't advice here ("plan_clears" | "not_approvable" | "costs_more" | None).
     plan_clears_month: Optional[int] = None
     not_worth_it: Optional[str] = None
 

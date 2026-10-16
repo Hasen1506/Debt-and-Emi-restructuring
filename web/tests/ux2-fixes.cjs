@@ -271,3 +271,14 @@ test('B2 (#8): Home cash flow and the loans total use the plan’s month-1 dues,
   assert.match(src('components/home/HomeDebtFree.tsx'), /payThisMonth\(plan\)\?\.duesUser/);
   assert.match(src('components/home/OpenPositions.tsx'), /MINIMUMS \{dues \?\? /);
 });
+
+test('B3 (#12): a pitch banks would likely refuse gets one quiet line; the extra’s saving runs only until the loan clears', () => {
+  const { extraSaving, loanClearsMonth } = lib('this-month.ts');
+  assert.deepEqual(extraSaving(1774, 0.6031, null), { amount: 1070, months: 12 });
+  assert.deepEqual(extraSaving(1774, 0.6031, 2), { amount: 178, months: 2 });   // not ₹1,070 beside ₹261 of interest
+  assert.equal(loanClearsMonth({ trajectory: [{ month: 1, balancesByLoanIndex: { 0: '900' } }, { month: 2, balancesByLoanIndex: { 0: '0' } }] }, 0), 2);
+  assert.equal(loanClearsMonth({ trajectory: [{ month: 1, balancesByLoanIndex: { 0: '900' } }] }, 0), null);
+  assert.match(src('components/home/HomeDebtFree.tsx'), /before the loan is cleared in/);
+  const { notWorthLine } = require(path.join(root, 'components/insights/CheaperWay.tsx'));
+  assert.match(notWorthLine({ cards: [0], not_worth_it: 'not_approvable' }, 'card', () => ''), /unlikely to be approved/);
+});

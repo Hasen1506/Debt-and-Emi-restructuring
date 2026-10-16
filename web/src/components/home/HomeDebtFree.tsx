@@ -9,7 +9,6 @@ import { userMarginalCosts } from '@/lib/marginal-cost';
 import { rateLine, whyFirstShort } from '@/lib/card-rate';
 import { cache } from 'react';
 import Link from 'next/link';
-import Decimal from 'decimal.js';
 import { loadPlanFromCookies } from '@/components/plan/load-plan';
 import { MONTH_NAMES, getCountryToday, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { payThisMonth } from '@/lib/pay-this-month';
@@ -19,7 +18,7 @@ import { retentionInputs } from '@/lib/retention-inputs';
 import { localIsoDate } from '@/lib/today';
 import { HomeRestructure } from './HomeRestructure';
 import { LBracket } from '@/components/ledger/primitives';
-import { thisMonthMove } from '@/lib/this-month';
+import { extraSaving, loanClearsMonth, thisMonthMove } from '@/lib/this-month';
 import { deriveMetrics, type LoanWithEffective } from '@/lib/derived';
 import { describeGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
@@ -228,10 +227,7 @@ export async function HomePayThisMonth() {
     top && target
       ? {
           key: top.key,
-          text: `${why}${plan.payoffOrderNote ? `${plan.payoffOrderNote} ` : ''}It saves about ${formatCurrencyWhole(
-            Math.round(new Decimal(top.extra).times(mc ? Decimal.max(0, mc.total) : target.effective).toNumber()),
-            top.currency,
-          )} of interest a year.`,
+          text: `${why}${plan.payoffOrderNote ? `${plan.payoffOrderNote} ` : ''}${savesLine(top.extra, mc ? mc.total.toNumber() : target.effective.toNumber(), loanClearsMonth(plan, target.index), (v) => formatCurrencyWhole(v, top.currency), plan.user.country)}`,
         }
       : undefined;
   // Live test #24: what's due beside what the month can cover.
@@ -308,6 +304,15 @@ export async function HomeThisMonthStrip() {
     total: data.total,
   };
   return <HomeThisMonth line={line} progress={progress} />;
+}
+
+/** UX2B-12: "It saves about ₹X of interest a year", or, when the plan
+ *  clears the loan sooner, "… before it's cleared in <month>". */
+function savesLine(extra: number, cost: number, clears: number | null, money: (v: number) => string, country: 'IN' | 'US'): string {
+  const s = extraSaving(extra, cost, clears);
+  return s.months < 12 && clears != null
+    ? `It saves about ${money(s.amount)} of interest before the loan is cleared in ${monthIndexToCountryLabel(clears, country)}.`
+    : `It saves about ${money(s.amount)} of interest a year.`;
 }
 
 /** UX2B-8: this month's EMIs and minimums from the same run as "This month"

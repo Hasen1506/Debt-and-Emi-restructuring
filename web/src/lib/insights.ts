@@ -97,7 +97,7 @@ export interface ConsolidationData {
   /** UX walkthrough fix 1: the plan month the cards clear in, and why the
    *  move isn't advice on this plan (null: it is). */
   plan_clears_month?: number | null;
-  not_worth_it?: 'plan_clears' | 'costs_more' | null;
+  not_worth_it?: 'plan_clears' | 'costs_more' | 'not_approvable' | null;
 }
 export interface PlanInsights {
   order: OrderSpread | null;

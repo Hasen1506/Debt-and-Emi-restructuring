@@ -53,6 +53,9 @@ export function notWorthLine(data: ConsolidationData, cards: string, dateLabel: 
   const them = data.cards.length > 1 ? 'them' : 'it';
   if (data.not_worth_it === 'plan_clears')
     return `Moving your ${cards} to a personal loan isn't worth it: your plan clears ${them} by ${dateLabel(data.plan_clears_month ?? null)}, before a new loan would go through.`;
+  // UX2B-12: a pay or loan size banks usually turn down, or payments already near their limit.
+  if (data.not_worth_it === 'not_approvable')
+    return `A personal loan to clear your ${cards} is unlikely to be approved on this income and these payments, so your plan keeps paying ${them} down. If a lender offers you one, enter its rate to compare.`;
   if (data.not_worth_it === 'costs_more')
     return `Moving your ${cards} to a personal loan wouldn't save money at these rates, so your plan keeps paying ${them} down.`;
   return null;

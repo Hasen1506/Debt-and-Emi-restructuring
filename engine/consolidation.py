@@ -355,10 +355,37 @@ def cards_cleared_month(res, card_indices: list[int]) -> Optional[int]:
     return None
 
 
-def not_worth_it(clears: Optional[int], scenarios: list[Scenario], capped: bool) -> Optional[str]:
+# UX2B-12: below these a bank is unlikely to give the personal loan at all
+# (Indian lenders' usual floor is ₹15,000-25,000 a month of pay and a loan of
+# ₹25,000-50,000; US personal loans start around $1,000), and above
+# APPROVAL_SHARE_LIMIT of take-home in loan payments (India's FOIR caps run
+# 50-60%) the application is usually declined. Conservative: the lower ends.
+MIN_INCOME = {Country.IN: D("15000"), Country.US: D("1500")}
+MIN_LOAN = {Country.IN: D("25000"), Country.US: D("1000")}
+APPROVAL_SHARE_LIMIT = D("0.60")
+
+
+def unlikely_approved(user: User, scenarios: list[Scenario]) -> bool:
+    """A typical/high-rate pitch a bank would likely turn down (a student on
+    a ₹9,000 stipend, a ₹4,500 card, payments already at 60% of pay). A
+    rate the user was quoted is a lender's own offer, so it isn't gated."""
+    priced = [s for s in scenarios if s.rate_basis != "yours"]
+    if not priced:
+        return False
+    if user.monthly_income < MIN_INCOME.get(user.country, D("0")):
+        return True
+    if all(s.card_total < MIN_LOAN.get(user.country, D("0")) for s in priced):
+        return True
+    return all(s.payments_share_after is not None and s.payments_share_after > APPROVAL_SHARE_LIMIT for s in priced)
+
+
+def not_worth_it(clears: Optional[int], scenarios: list[Scenario], capped: bool,
+                 user: Optional[User] = None) -> Optional[str]:
     """Why the move is not advice on this plan, or None when it is."""
     if clears is not None and clears <= PLAN_CLEARS_SOON_MONTHS and not capped:
         return "plan_clears"
+    if user is not None and unlikely_approved(user, scenarios):
+        return "not_approvable"
     if scenarios and all(s.saving <= 0 and s.cash_freed <= 0 for s in scenarios):
         return "costs_more"
     return None
@@ -400,5 +427,5 @@ def consolidation_card(
     return ConsolidationCard(
         cards=idx, card_cost={i: card_yearly_cost(user, i, marginal_rate) for i in idx},
         scenarios=scenarios, published=published, plan_clears_month=clears,
-        not_worth_it=not_worth_it(clears, scenarios, not _clears(base)),
+        not_worth_it=not_worth_it(clears, scenarios, not _clears(base), user),
     )
