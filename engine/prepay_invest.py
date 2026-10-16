@@ -46,6 +46,8 @@ order uses.
 """
 from __future__ import annotations
 
+from engine.plan_end import shown_debt_free_month
+
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Callable, Optional
@@ -275,7 +277,7 @@ def compare(
         res = runs[s]
         own = res.debt_free_month or len(res.months)
         options.append(Option(
-            share_kept=s, debt_free_month=res.debt_free_month, interest_paid=_q(res.total_interest_paid),
+            share_kept=s, debt_free_month=shown_debt_free_month(res), interest_paid=_q(res.total_interest_paid),
             kept_by_debt_free=_q(_grow([c for c in streams[s] if c[0] <= own], own, assumed_return)) if assumed_return is not None else D("0"),
             money_on_common_date=_q(_grow(streams[s], common, assumed_return)) if assumed_return is not None else None,
             contributions=streams[s],

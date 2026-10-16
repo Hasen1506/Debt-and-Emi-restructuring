@@ -656,3 +656,37 @@ def cash_yield_check(
         best_alt_yield=best_alt_yield, alt_name=alt_name or "",
         annual_uplift=uplift, beats_top_loan=beats_loan, rationale=rationale,
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UX walkthrough fix 3: spare cash on a short or capped plan
+# ─────────────────────────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class GapHold:
+    months_covered: int
+    rationale: str
+
+
+def short_plan_hold(
+    amount: Decimal,
+    monthly_gap: Decimal,
+    country: Country = Country.IN,
+    short_from_label: Optional[str] = None,
+) -> Optional[GapHold]:
+    """On a plan that is short now (`monthly_gap` > 0) or not fundable from a
+    later month, a lump sum covers the shortfall before it prepays anything:
+    a prepaid loan can't be drawn back when the month comes up short, and the
+    gap would otherwise be borrowed at card rates. None when the plan isn't
+    short. Months covered are whole months of the gap."""
+    if monthly_gap is None or monthly_gap <= 0 or amount <= 0:
+        return None
+    months = int(amount // monthly_gap)
+    when = f"from {short_from_label} " if short_from_label else ""
+    cover = (f"It covers about {months} short month{'s' if months != 1 else ''}"
+             if months >= 1 else "It covers part of one short month")
+    return GapHold(months, (
+        f"Your plan is {money(monthly_gap, country)} a month short {when}as it stands. Keep this to cover that gap "
+        f"first: a prepaid loan can't be drawn back when a month comes up short. {cover}. "
+        f"Prepay once the gap is closed."
+    ))

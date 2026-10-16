@@ -68,6 +68,12 @@ DEFAULT_TENURE_MONTHS = 36
 TENURE_CHOICES = (12, 24, 36, 48, 60)
 MIN_RATE, MAX_RATE = D("0.05"), D("0.40")
 MAX_FEE_PCT = D("0.05")
+# UX walkthrough fix 1: a plan that clears the cards within this many months
+# leaves nothing for a new loan to save (it takes a week or more to go
+# through, plus a hard enquiry and a fee). The same line as the "Cheaper
+# rates" scan (engine/restructuring_scan.py: held back when the plan clears
+# the debt within two months), so the two cards can never disagree.
+PLAN_CLEARS_SOON_MONTHS = 2
 NEUTRALITY = "We don't arrange loans and no lender pays us."
 
 
@@ -293,7 +299,9 @@ def consolidate(
         card_total=card_total, principal=principal, fee=fee, fee_gst=fee_gst, emi=new_emi,
         card_minimum_now=card_min.quantize(D("1"), rounding=ROUND_HALF_UP), cash_freed=freed,
         gap_before=gap_b.quantize(D("1"), rounding=ROUND_HALF_UP), gap_after=gap_a.quantize(D("1"), rounding=ROUND_HALF_UP),
-        debt_free_before=base.debt_free_month, debt_free_after=after.debt_free_month,
+        # C11 (UX walkthrough fix 2): a capped plan's date is on paper only.
+        debt_free_before=base.debt_free_month if _clears(base) else None,
+        debt_free_after=after.debt_free_month if _clears(after) else None,
         cost_before=cost_b.quantize(D("1"), rounding=ROUND_HALF_UP), cost_after=cost_a.quantize(D("1"), rounding=ROUND_HALF_UP),
         saving=saving, payments_share_after=share, verdict=verdict, cost_window_months=window,
     )
@@ -330,6 +338,30 @@ class ConsolidationCard:
     scenarios: list[Scenario]
     published: Optional[PublishedRange]
     neutrality: str = NEUTRALITY
+    # UX walkthrough fix 1: the plan month the cards are cleared in (None:
+    # not within the horizon), and why the move isn't worth showing as advice
+    # ("plan_clears": cleared within PLAN_CLEARS_SOON_MONTHS; "costs_more":
+    # no scenario saves money or frees cash). None = worth showing.
+    plan_clears_month: Optional[int] = None
+    not_worth_it: Optional[str] = None
+
+
+def cards_cleared_month(res, card_indices: list[int]) -> Optional[int]:
+    """The first plan month whose closing balances on these cards add up to
+    under one rupee (dollar); None if the plan never clears them."""
+    for row in res.months:
+        if sum((row.balances_by_loan_index.get(i, D("0")) for i in card_indices), D("0")) <= D("1"):
+            return row.month_index
+    return None
+
+
+def not_worth_it(clears: Optional[int], scenarios: list[Scenario], capped: bool) -> Optional[str]:
+    """Why the move is not advice on this plan, or None when it is."""
+    if clears is not None and clears <= PLAN_CLEARS_SOON_MONTHS and not capped:
+        return "plan_clears"
+    if scenarios and all(s.saving <= 0 and s.cash_freed <= 0 for s in scenarios):
+        return "costs_more"
+    return None
 
 
 def consolidation_card(
@@ -364,7 +396,9 @@ def consolidation_card(
                     rate_basis=basis, base=base)
         for r, basis in rates
     ]
+    clears = cards_cleared_month(base, idx)
     return ConsolidationCard(
         cards=idx, card_cost={i: card_yearly_cost(user, i, marginal_rate) for i in idx},
-        scenarios=scenarios, published=published,
+        scenarios=scenarios, published=published, plan_clears_month=clears,
+        not_worth_it=not_worth_it(clears, scenarios, not _clears(base)),
     )

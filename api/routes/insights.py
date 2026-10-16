@@ -195,6 +195,10 @@ class ConsolidationOut(_Base):
     scenarios: list[ScenarioOut]
     published: Optional[PublishedOut]
     neutrality: str
+    # UX walkthrough fix 1: when the plan clears the cards (month), and why
+    # the move isn't advice here ("plan_clears" | "costs_more" | None).
+    plan_clears_month: Optional[int] = None
+    not_worth_it: Optional[str] = None
 
 
 class PlanInsightsResponse(_Base):
@@ -314,6 +318,7 @@ def _cons_out(c) -> Optional[ConsolidationOut]:
         cards=c.cards, card_cost={k: v.quantize(D("0.0001")) for k, v in c.card_cost.items()},
         scenarios=[ScenarioOut(**s.__dict__) for s in c.scenarios],
         published=PublishedOut(**p.__dict__) if p else None, neutrality=c.neutrality,
+        plan_clears_month=c.plan_clears_month, not_worth_it=c.not_worth_it,
     )
 
 

@@ -37,6 +37,8 @@ input here. No tax benefit is counted on a top-up.
 """
 from __future__ import annotations
 
+from engine.plan_end import shown_debt_free_month
+
 from copy import deepcopy
 from dataclasses import dataclass, field
 from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
@@ -206,7 +208,7 @@ def check_offer(
 
     window = None
     if offer.purpose == "repay":
-        window = None if (base.debt_free_month and after.debt_free_month) else min(offer.tenure_months, SHORT_WINDOW_MONTHS)
+        window = None if (shown_debt_free_month(base) and shown_debt_free_month(after)) else min(offer.tenure_months, SHORT_WINDOW_MONTHS)
         cost_b = _plan_cost(user, base, marginal_rate) if window is None else _window_cost(base, window)
         cost_a = (_plan_cost(after_user, after, marginal_rate) if window is None else _window_cost(after, window))
         cost_a += principal - sum((user.loans[i].outstanding for i in offer.repay_indices), D("0"))
@@ -258,12 +260,13 @@ def check_offer(
     else:
         verdict = "costs_more" if total_cost > 0 else "checks_out"
         delay = ""
-        if base.debt_free_month and after.debt_free_month and after.debt_free_month > base.debt_free_month:
-            delay = f" and moves your debt-free date from {month_label(base.debt_free_month)} to {month_label(after.debt_free_month)}"
+        b_dfm, a_dfm = shown_debt_free_month(base), shown_debt_free_month(after)
+        if b_dfm and a_dfm and a_dfm > b_dfm:
+            delay = f" and moves your debt-free date from {month_label(b_dfm)} to {month_label(a_dfm)}"
         head = (f"Before you sign: it really costs {apr * 100:.1f}% a year, {money(total_cost)} in all{delay}."
                 if total_cost > 0 else f"It costs no more than paying cash{delay}.")
     return OfferCheck(
         apr=apr.quantize(D("0.0001")), monthly_emi=_q(new_emi), fee_total=fee_total, total_cost=_q(total_cost),
-        comparisons=comparisons, debt_free_before=base.debt_free_month, debt_free_after=after.debt_free_month,
+        comparisons=comparisons, debt_free_before=shown_debt_free_month(base), debt_free_after=shown_debt_free_month(after),
         gap_before=_q(gap_b), gap_after=_q(gap_a), payments_share=share, verdict=verdict, headline=head, notes=notes,
     )

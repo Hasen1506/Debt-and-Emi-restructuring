@@ -31,8 +31,18 @@ from api.schemas import (
     AssetLiquidationRequest, AssetLiquidationResponse,
 )
 
+from engine.plan_end import shown_debt_free_month
+from engine.decisions import short_plan_hold
+
 D = Decimal
 router = APIRouter(tags=["decisions"])
+
+
+def _month_one_gap(user) -> Decimal:
+    """Costs plus this month's minimum payments, less take-home (0 if covered)."""
+    from engine.surplus import compute_total_minimums
+    spend = user.fixed_expenses + (user.variable_expenses or D("0"))
+    return max(D("0"), spend + compute_total_minimums(user, user.loans) - user.monthly_income)
 
 
 def _bad(e: DecisionInputError) -> HTTPException:
@@ -44,6 +54,15 @@ def _bad(e: DecisionInputError) -> HTTPException:
 def windfall(req: WindfallRequest) -> WindfallResponse:
     user = req.user.to_engine()
     marg = req.marginal_rate if req.marginal_rate is not None else D("0")
+    # UX walkthrough fix 3: a short or capped plan keeps the cash for its gap
+    # first. The client sends the plan's own gap; without it, this month's.
+    gap = req.monthly_gap if req.monthly_gap is not None else _month_one_gap(user)
+    hold = short_plan_hold(req.amount, gap, user.country, req.short_from_label)
+    if hold is not None:
+        return WindfallResponse(
+            loan_label="Keep it for the monthly gap", loan_index=None, amount=req.amount, rationale=hold.rationale,
+            interest_avoided=D("0"), invest_instead=False, investment_name=None, leftover=req.amount,
+        )
     # C8: forward decision, so the forward rate (marginal shield, no sunk
     # processing fee / insurance), not formulas.effective_rate (total cost).
     rates = user_forward_rates(user.loans, user, marg)
@@ -175,7 +194,7 @@ def recompute(req: QuickRecomputeRequest) -> QuickRecomputeResponse:
     )
     diff = quick_recompute(
         old.total_interest_paid, new.total_interest_paid,
-        old.debt_free_month, new.debt_free_month,
+        shown_debt_free_month(old), shown_debt_free_month(new),
     )
     return QuickRecomputeResponse(
         old_debt_free_month=diff.old_debt_free_month,

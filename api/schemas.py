@@ -1469,6 +1469,9 @@ class WindfallRequest(_In):
     user: UserIn
     marginal_rate: Optional[TaxRate] = None
     strategy: Strategy = Strategy.AVALANCHE
+    # UX fix 3: the plan's own gap (month 1, else the capped month's) and its first month.
+    monthly_gap: Optional[Amount] = None
+    short_from_label: Optional[str] = Field(default=None, max_length=20)
 
 
 class WindfallResponse(_Base):

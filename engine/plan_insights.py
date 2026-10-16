@@ -203,7 +203,9 @@ def disagreements(
     order, plain, rd_seq = order_disagreement(user, run_rules, rightdue_res, marginal_rate, money)
     if order:
         items.append(order)
-    if consolidation is not None and consolidation.scenarios:
+    # UX walkthrough fix 1: no "worth ₹X" for a move the plan makes pointless
+    # (cards cleared within two months) or that saves nothing.
+    if consolidation is not None and consolidation.scenarios and not getattr(consolidation, "not_worth_it", None):
         sc = consolidation.scenarios               # the user's quote, or the typical and high rates
         best = max(sc, key=lambda x: x.saving)
         if best.saving > 0:
@@ -297,7 +299,7 @@ def gap_ways(
         return None
     gap = _q(gap)
     ways: list[GapWay] = []
-    if consolidation is not None and consolidation.scenarios:
+    if consolidation is not None and consolidation.scenarios and getattr(consolidation, "not_worth_it", None) != "plan_clears":
         sc = consolidation.scenarios
         # The conservative figure (the highest rate shown) is what is counted
         # against the gap; the range is in the words.

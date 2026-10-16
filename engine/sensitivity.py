@@ -17,6 +17,7 @@ their "before" date could differ from /plan's.
 """
 from decimal import Decimal
 from copy import deepcopy
+from engine.plan_end import shown_debt_free_month
 from engine.models import LifecycleEvent, LifecycleEventKind, User
 from engine.simulation import simulate_plan, SimulationResult
 from engine.ordering import Strategy
@@ -180,17 +181,19 @@ def compare(
     baseline: SimulationResult,
     scenario: SimulationResult,
 ) -> dict:
-    """Diff two simulation runs into a small dict the UI can render directly."""
+    """Diff two simulation runs into a small dict the UI can render directly.
+    A capped run (C11) has no date to diff (UX walkthrough fix 2)."""
+    b_dfm, s_dfm = shown_debt_free_month(baseline), shown_debt_free_month(scenario)
     months_delta = D("0")
-    if baseline.debt_free_month and scenario.debt_free_month:
-        months_delta = D(baseline.debt_free_month - scenario.debt_free_month)
-    elif baseline.debt_free_month is None and scenario.debt_free_month:
+    if b_dfm and s_dfm:
+        months_delta = D(b_dfm - s_dfm)
+    elif baseline.debt_free_month is None and s_dfm:
         # The baseline never finishes inside its horizon: the what-if pulls
         # the date forward by at least horizon - scenario (was reported as 0).
-        months_delta = D(max(0, len(baseline.months) - scenario.debt_free_month))
+        months_delta = D(max(0, len(baseline.months) - s_dfm))
     return {
-        "debt_free_month_baseline": baseline.debt_free_month,
-        "debt_free_month_scenario": scenario.debt_free_month,
+        "debt_free_month_baseline": b_dfm,
+        "debt_free_month_scenario": s_dfm,
         "months_pulled_forward": months_delta,
         "interest_saved": baseline.total_interest_paid - scenario.total_interest_paid,
         "extra_invested": scenario.total_invested - baseline.total_invested,
@@ -240,7 +243,7 @@ def debt_free_range(
     """
     base = baseline or _run(user, strategy, horizon_months, marginal_rate,
                             simulation_start_month, plan)
-    exact = base.debt_free_month
+    exact = shown_debt_free_month(base)
     has_floating = any(l.rate_type == "floating" and l.outstanding > 0 for l in user.loans)
     scenarios: list[tuple[str, str, str, SimulationResult]] = []
 
@@ -279,8 +282,8 @@ def debt_free_range(
         return m - exact
 
     rows = [
-        {"id": sid, "label": label, "why": why, "debt_free_month": r.debt_free_month,
-         "shift_months": shift(r.debt_free_month)}
+        {"id": sid, "label": label, "why": why, "debt_free_month": shown_debt_free_month(r),
+         "shift_months": shift(shown_debt_free_month(r))}
         for sid, label, why, r in scenarios
     ]
     months = [exact] + [r["debt_free_month"] for r in rows]
