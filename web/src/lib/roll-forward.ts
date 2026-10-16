@@ -78,6 +78,7 @@ function rolls(loan: LoanPayload): boolean {
   return (
     loan.loan_type !== 'credit_card' &&
     loan.rate_basis !== 'flat' &&
+    loan.repayment !== 'bullet' &&
     (loan.pre_emi_months_remaining ?? 0) <= 0 &&
     (loan.planned_effective_month ?? 0) <= 1 &&
     Number(loan.scheduled_emi) > 0 &&
@@ -226,6 +227,8 @@ export function lockInMonthsLeft(loan: Pick<LoanPayload, 'prepay_lock_in_months'
 export function asksEmiPaid(loan: LoanPayload, saved: LoanPayload | undefined): boolean {
   if (loan.loan_type === 'credit_card' || loan.rate_basis === 'flat') return false;
   if ((loan.pre_emi_months_remaining ?? 0) > 0) return false;
+  // UX2-3: paid or not, interest only leaves the balance as it is; a bullet has no EMI.
+  if (loan.repayment === 'interest_only' || loan.repayment === 'bullet') return false;
   if (!(Number(loan.outstanding) > 0)) return false;
   return !saved || Number(saved.outstanding) !== Number(loan.outstanding);
 }

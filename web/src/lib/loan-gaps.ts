@@ -101,7 +101,7 @@ export function loanGaps(loan: LoanPayload, ctx?: GapContext): LoanGapField[] {
   ) {
     gaps.push('rate');
   }
-  if (needsEmi(loan.loan_type) && dec(loan.scheduled_emi).lte(0)) gaps.push('emi');
+  if (needsEmi(loan.loan_type) && loan.repayment !== 'bullet' && dec(loan.scheduled_emi).lte(0)) gaps.push('emi');
   if (ctx && loanToUser(1, loan, ctx.country, ctx.fx) == null) gaps.push('fx');
   return gaps;
 }
@@ -109,7 +109,7 @@ export function loanGaps(loan: LoanPayload, ctx?: GapContext): LoanGapField[] {
 /** Setup's check on a loan being typed in: a blank field is missing even
  *  where 0 would be allowed. Returns a message per missing field. */
 export function loanDraftErrors(
-  loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'> & { currency?: 'INR' | 'USD' },
+  loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'> & Partial<Pick<LoanPayload, 'repayment' | 'forgiveness_track'>> & { currency?: 'INR' | 'USD' },
   country?: string,
 ): Partial<Record<LoanGapField, string>> {
   const pw = paymentWords(country ?? (loan.currency === 'USD' ? 'US' : 'IN'));
@@ -127,6 +127,7 @@ export function loanDraftErrors(
   } else if (NEVER_ZERO_RATE.has(loan.loan_type) && dec(loan.nominal_rate).lte(0)) {
     out.rate = 'This kind of loan always charges interest. Enter the rate from your statement.';
   }
+  if (loan.repayment === 'interest_only' || loan.repayment === 'bullet') return out;
   if (needsEmi(loan.loan_type) && dec(loan.scheduled_emi).lte(0)) {
     out.emi = pw.one === 'EMI'
       ? 'Enter the monthly EMI the bank takes (on your statement or banking app).'
@@ -146,10 +147,13 @@ export function loanDraftErrors(
  * clear at this EMI (an extra 0 typed, NEW-4). Null when it amortises.
  */
 export function emiBelowInterest(
-  loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'> & { currency?: 'INR' | 'USD' },
+  loan: Pick<LoanPayload, 'loan_type' | 'nominal_rate' | 'scheduled_emi' | 'outstanding'> & Partial<Pick<LoanPayload, 'repayment' | 'forgiveness_track'>> & { currency?: 'INR' | 'USD' },
   country?: string,
 ): string | null {
   if (!needsEmi(loan.loan_type)) return null;
+  // UX2-3: an interest-only or bullet loan isn't meant to amortise, and a US
+  // income-driven plan's payment may be below the interest (it's forgiven later).
+  if (loan.repayment === 'interest_only' || loan.repayment === 'bullet' || loan.forgiveness_track === 'idr') return null;
   const P = dec(loan.outstanding);
   const rate = dec(loan.nominal_rate);
   const E = dec(loan.scheduled_emi);

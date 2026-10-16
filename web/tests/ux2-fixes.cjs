@@ -162,3 +162,78 @@ test('#17: the months-left hint ends a month later when this month’s EMI is al
   assert.equal(lastEmiMonthIndex({ first_emi_month: '2027-01' }, 60, '2026-10'), 63);
   assert.match(src('components/setup/QuickSetup.tsx'), /monthIndexToCountryLabel\(lastEmiMonthIndex\(loan, tenure, thisMonth\), country\)/);
 });
+
+// ── #3 ──────────────────────────────────────────────────────────────────────
+test('#3: Setup offers how a loan is repaid; cards and pay later have no choice; US says payment', () => {
+  const r = lib('repayment-shape.ts');
+  assert.equal(r.shapeChoices('credit_card', 'IN'), null);
+  assert.equal(r.shapeChoices('bnpl', 'IN'), null);
+  assert.deepEqual(r.shapeChoices('gold_loan', 'IN').map(([s]) => s), ['emi', 'interest_only', 'bullet']);
+  assert.match(r.shapeChoices('education_loan', 'IN')[1][1], /Moratorium/);
+  assert.equal(r.shapeChoices('education_loan', 'US')[0][1], 'Monthly payments');
+  assert.match(r.shapeChoices('personal_loan', 'IN')[1][1], /overdraft, credit line/);
+});
+
+test('#3: an education moratorium saves as a pre-EMI window, then EMIs (typed, or 10 years estimated)', () => {
+  const r = lib('repayment-shape.ts');
+  const edu = { id: 'e', loan_type: 'education_loan', outstanding: '1200000', nominal_rate: '0.1', scheduled_emi: '0', tenure_months_remaining: 0, repayment: 'interest_only' };
+  const f = r.finishShape(edu, '2027-06', '2026-10', 'INR');
+  assert.equal(f.repayment, 'emi');
+  assert.equal(f.pre_emi_months_remaining, 8);
+  assert.equal(f.tenure_months_remaining, 120);
+  assert.ok(Number(f.scheduled_emi) > 15000 && Number(f.scheduled_emi) < 16500);   // ₹12 L, 10%, 120 months ≈ ₹15,858
+  assert.ok(f.estimated_fields.includes('emi'));
+  const typed = r.finishShape({ ...edu, scheduled_emi: '20000', tenure_months_remaining: 80 }, '2027-06', '2026-10', 'INR');
+  assert.equal(typed.scheduled_emi, '20000');
+  assert.equal(typed.tenure_months_remaining, 80);
+  assert.equal(r.shapeOf({ ...edu, repayment: 'emi', pre_emi_months_remaining: 8 }), 'interest_only');
+  assert.equal(r.savedEndMonth({ ...edu, repayment: 'emi', pre_emi_months_remaining: 8 }, '2026-10'), '2027-06');
+  assert.ok(r.emiOptional(edu, '2027-06'));
+  assert.match(r.shapeNote(edu, '2027-06', (v) => `₹${Math.round(v)}`, 'IN'), /Interest of about ₹10000 a month until 2027-06, then the EMI below/);
+});
+
+test('#3: an overdraft is interest only with no end; a gold loan is a bullet with a due month; errors are plain', () => {
+  const r = lib('repayment-shape.ts');
+  const od = { loan_type: 'personal_loan', outstanding: '200000', nominal_rate: '0.12', scheduled_emi: '', tenure_months_remaining: 0, repayment: 'interest_only' };
+  assert.deepEqual(r.finishShape(od, '', '2026-10', 'INR'), { repayment: 'interest_only', scheduled_emi: '2000', tenure_months_remaining: 0, pre_emi_months_remaining: 0 });
+  assert.equal(r.finishShape(od, '2027-10', '2026-10', 'INR').tenure_months_remaining, 12);
+  assert.equal(r.shapeError(od, '', '2026-10'), null);
+  const gold = { loan_type: 'gold_loan', outstanding: '100000', nominal_rate: '0.09', scheduled_emi: '', tenure_months_remaining: 0, repayment: 'bullet' };
+  assert.match(r.shapeError(gold, '', '2026-10'), /month it is due/);
+  assert.match(r.shapeError(gold, '2026-09', '2026-10'), /after this one/);
+  assert.match(r.shapeError(gold, 'June', '2026-10'), /year-month/);
+  assert.deepEqual(r.finishShape(gold, '2027-04', '2026-10', 'INR'), { repayment: 'bullet', scheduled_emi: '0', tenure_months_remaining: 6, pre_emi_months_remaining: 0 });
+  assert.deepEqual(r.finishShape({ ...od, repayment: undefined }, '', '2026-10', 'INR'), { repayment: undefined, pre_emi_months_remaining: 0 });
+});
+
+test('#3: interest-only, bullet and US income-driven loans are not "never paid off"', () => {
+  const g = lib('loan-gaps.ts');
+  const base = { loan_type: 'education_loan', outstanding: '1200000', nominal_rate: '0.1', scheduled_emi: '10000' };
+  assert.ok(g.loanDraftErrors(base, 'IN').emi);                                   // an EMI loan: still blocked
+  assert.deepEqual(g.loanDraftErrors({ ...base, repayment: 'interest_only' }, 'IN'), {});
+  assert.deepEqual(g.loanDraftErrors({ ...base, repayment: 'bullet', scheduled_emi: '0' }, 'IN'), {});
+  const idr = { loan_type: 'education_loan', outstanding: '60000', nominal_rate: '0.065', scheduled_emi: '150', currency: 'USD', forgiveness_track: 'idr' };
+  assert.equal(g.emiBelowInterest(idr, 'US'), null);
+  assert.deepEqual(g.loanDraftErrors(idr, 'US'), {});
+  assert.deepEqual(g.loanGaps({ ...base, repayment: 'bullet', scheduled_emi: '0', tenure_months_remaining: 6 }), []);
+  const rf = lib('roll-forward.ts');
+  assert.equal(rf.asksEmiPaid({ ...base, repayment: 'interest_only' }, undefined), false);
+  assert.equal(rf.asksEmiPaid({ ...base, repayment: 'bullet' }, undefined), false);
+  assert.equal(rf.asksEmiPaid(base, undefined), true);
+});
+
+test('#3: the chips render on Setup loans, and QuickSetup saves through finishShape', () => {
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const { RepaymentChips } = require(path.join(root, 'components/setup/RepaymentChips.tsx'));
+  const html = (loan, end = '') => renderToStaticMarkup(React.createElement(RepaymentChips, { loan, country: 'IN', endMonth: end, onPatch() {}, onEnd() {}, money: (v) => `₹${v}` }));
+  const gold = { id: 'g', loan_type: 'gold_loan', outstanding: '100000', nominal_rate: '0.09', scheduled_emi: '', tenure_months_remaining: 0, repayment: 'bullet' };
+  assert.match(html(gold), /All at the end/);
+  assert.match(html(gold), /Due month \(year-month\)/);
+  assert.equal(html({ ...gold, loan_type: 'credit_card' }), '');
+  assert.doesNotMatch(html({ ...gold, repayment: undefined }), /year-month/);       // EMI: no end month box
+  const qs = src('components/setup/QuickSetup.tsx');
+  assert.match(qs, /<RepaymentChips loan=\{loan\}/);
+  assert.match(qs, /Object\.assign\(out, finishShape\(out, endOf\(l\), thisMonth, loanCurrency\(l, country\)\)\)/);
+  assert.match(qs, /\{!card && !ui\.byMonths && shapeNeedsEmi\(loan, end\) && \(/);
+});
