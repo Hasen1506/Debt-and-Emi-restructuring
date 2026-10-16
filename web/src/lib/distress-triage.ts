@@ -362,15 +362,23 @@ export const LETTER_SELF_CHECK = [
   'You don\u2019t sign any new agreement until you have read the changed terms in writing.',
 ];
 
-export const DRAFT_MARK = 'DRAFT \u2014 CHECK BEFORE SENDING. Not legal advice; RightDue drafts it from what you typed.';
+/** UX fix 12: the caution sits beside the letter, never in it: a copied or
+ *  emailed letter would carry it to the bank. */
+export const DRAFT_MARK = 'Check it before sending. Not legal advice; RightDue drafts it from what you typed.';
+
+/** The letter as it goes out (copy, email, share, download): any leading
+ *  draft line (an older draft, or one typed back in) taken off. */
+export function forSending(letter: string): string {
+  const lines = letter.split('\n');
+  while (lines.length && (/^\s*DRAFT\b/i.test(lines[0]) || /CHECK BEFORE SENDING/i.test(lines[0]) || (lines[0].trim() === '' && lines.length > 1))) lines.shift();
+  return lines.join('\n');
+}
 
 /** A plain hardship / restructuring request. Marked as a draft. */
 export function hardshipLetter(i: HardshipLetterIn): string {
   if (i.country === 'US') return usHardshipLetter(i);
   const asks = i.asks.length ? i.asks : (['pause', 'longer_tenure'] as HardshipAsk[]);
   const lines = [
-    DRAFT_MARK,
-    '',
     i.dateText,
     '',
     `To: ${i.lender || '[lender]'}, loan servicing / grievance redressal officer`,
@@ -416,8 +424,6 @@ export const US_ASK_TEXT: Record<HardshipAsk, string> = {
 function usHardshipLetter(i: HardshipLetterIn): string {
   const asks = i.asks.length ? i.asks : (['pause', 'longer_tenure'] as HardshipAsk[]);
   return [
-    DRAFT_MARK,
-    '',
     i.dateText,
     '',
     `To: ${i.lender || '[lender]'}, hardship / customer assistance department`,
@@ -453,8 +459,6 @@ export interface AgentComplaintIn {
 
 export function agentComplaintLetter(i: AgentComplaintIn): string {
   return [
-    DRAFT_MARK,
-    '',
     i.dateText,
     '',
     `To: The Grievance Redressal Officer, ${i.lender || '[lender]'}`,

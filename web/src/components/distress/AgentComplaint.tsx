@@ -9,7 +9,7 @@
  */
 import { useState, type CSSProperties } from 'react';
 import { LSectionHeader, LField, L_T, LBracket } from '@/components/ledger/primitives';
-import { agentComplaintLetter } from '@/lib/distress-triage';
+import { agentComplaintLetter, DRAFT_MARK, forSending } from '@/lib/distress-triage';
 import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 
 const captionStyle: CSSProperties = { fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, display: 'block', marginBottom: 4 };
@@ -47,7 +47,7 @@ export function AgentComplaintSection({
   });
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(letter);
+      await navigator.clipboard.writeText(forSending(letter));
       setSaid('Complaint copied. Send it to the grievance officer named on the lender\u2019s website, and keep a copy.');
     } catch {
       setSaid('Couldn\u2019t copy here. Select the text and copy it by hand.');
@@ -59,6 +59,7 @@ export function AgentComplaintSection({
         <span id="cp-agent">BEING HARASSED BY A RECOVERY AGENT? (COMPLAINT)</span>
       </LSectionHeader>
       <DraftLegalMarker id="letter-recovery-agent" />
+      <p style={{ ...captionStyle, letterSpacing: 0, fontFamily: 'inherit' }} data-testid="letter-caution">{DRAFT_MARK}</p>
       {!open ? (
         <p style={{ fontSize: 'var(--fs-dense)', lineHeight: 1.7 }}>
           A different letter from the one above: it goes to the lender&apos;s grievance officer, says what happened and
@@ -91,7 +92,7 @@ export function AgentComplaintSection({
             style={{ width: '100%', fontFamily: 'inherit', fontSize: 'var(--fs-body)', lineHeight: 1.6, padding: 10, border: `1px solid ${L_T.ink}`, background: 'transparent', color: L_T.ink }} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 10 }}>
             <button type="button" onClick={copy} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 700, cursor: 'pointer', color: L_T.ink }}><span aria-hidden="true">[ </span>COPY<span aria-hidden="true"> ]</span></button>
-            <LBracket href={`mailto:?subject=${encodeURIComponent('Complaint about recovery agent conduct')}&body=${encodeURIComponent(letter)}`}>EMAIL IT</LBracket>
+            <LBracket href={`mailto:?subject=${encodeURIComponent('Complaint about recovery agent conduct')}&body=${encodeURIComponent(forSending(letter))}`}>EMAIL IT</LBracket>
           </div>
           <p role="status" aria-live="polite" style={{ fontSize: 'var(--fs-small)', color: L_T.positive, minHeight: 16, margin: '6px 0 0' }}>{said}</p>
           <p style={{ fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.7 }}>

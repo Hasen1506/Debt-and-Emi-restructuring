@@ -21,7 +21,7 @@ import { LShell, LSectionHeader, LBracket, LField, L_T } from '@/components/ledg
 import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 import { formatCurrencyWhole, type LoanType } from '@/lib/api';
 import { complaintUs, type UsComplaintKind, type UsComplaintResponse } from '@/lib/us-complaints-api';
-import { US_COLLECTOR_RULE } from '@/lib/distress-triage';
+import { forSending, US_COLLECTOR_RULE } from '@/lib/distress-triage';
 import { US_FIELDS, US_LETTER_TITLES, fillUsLetter, usMissing, type UsLetterValues } from '@/lib/us-letters';
 import { LetterSection, Rule, type Line } from './CantPay';
 import { PUBLIC_LETTER_KINDS } from './CantPayPublic';
@@ -162,14 +162,14 @@ function ApiLetter({ kind }: { kind: UsComplaintKind }) {
   const subject = res ? fillUsLetter(res.letter.subject, values) : '';
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(letter);
+      await navigator.clipboard.writeText(forSending(letter));
       setSaid('Letter copied. Print it, sign it and send it by certified mail (or as the statement says).');
     } catch {
       setSaid('Couldn’t copy here. Select the letter and copy it by hand.');
     }
   };
   const download = () => {
-    const blob = new Blob([letter], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([forSending(letter)], { type: 'text/plain;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = kind === 'fcba_billing_error' ? 'billing-error-notice.txt' : 'notice-of-error.txt';
@@ -207,7 +207,7 @@ function ApiLetter({ kind }: { kind: UsComplaintKind }) {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 6 }}>
               <LBracket onClick={copy} accent>COPY THE LETTER</LBracket>
               <LBracket onClick={download}>DOWNLOAD (.TXT)</LBracket>
-              <LBracket href={`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(letter)}`}>OPEN IN EMAIL</LBracket>
+              <LBracket href={`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(forSending(letter))}`}>OPEN IN EMAIL</LBracket>
             </div>
             <p role="status" aria-live="polite" style={{ fontSize: 'var(--fs-small)', color: L_T.positive, minHeight: 16, margin: '6px 0 0' }} data-testid="usl-said">{said}</p>
           </>

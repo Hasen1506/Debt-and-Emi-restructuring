@@ -38,6 +38,8 @@ import {
   TRIAGE_VERIFIED_ON,
   MAX_MONTHS_UNPAID,
   hardshipLetter,
+  DRAFT_MARK,
+  forSending,
   missedCostClosing,
   missedPaymentCost,
   protectOrder,
@@ -427,7 +429,7 @@ export function LetterSection({
   const canShare = typeof navigator !== 'undefined' && typeof (navigator as Navigator).share === 'function';
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(letter);
+      await navigator.clipboard.writeText(forSending(letter));
       setSaid('Letter copied. Paste it into an email or the lender\u2019s service form.');
     } catch {
       setSaid('Couldn\u2019t copy here. Select the letter and copy it by hand.');
@@ -435,13 +437,13 @@ export function LetterSection({
   };
   const share = async () => {
     try {
-      await navigator.share({ title: subject, text: letter });
+      await navigator.share({ title: subject, text: forSending(letter) });
     } catch {
       /* cancelled */
     }
   };
   const download = () => {
-    const blob = new Blob([letter], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([forSending(letter)], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -452,13 +454,14 @@ export function LetterSection({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setSaid('Saved as hardship-letter.txt.');
   };
-  const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(letter)}`;
+  const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(forSending(letter))}`;
   return (
     <section aria-labelledby="cp-letter" data-testid="cp-letter">
       <LSectionHeader step={step}>
         <span id="cp-letter">ASK YOUR LENDER FOR HELP (LETTER)</span>
       </LSectionHeader>
       <DraftLegalMarker id="letter-hardship" />
+      <p style={{ ...captionStyle, letterSpacing: 0, fontFamily: 'inherit' }} data-testid="letter-caution">{DRAFT_MARK}</p>
       {loanPicker ?? (
       <label style={{ display: 'block', marginBottom: 10 }}>
         <span style={captionStyle}>Loan for the letter</span>

@@ -253,3 +253,22 @@ test('fix 14: an NRI plan explains the principal gap by the rupee slide, not "a 
   assert.match(scheduleGapReason({ INR: '0.035' }), /rupee loan’?'?s balance falls as the plan assumes the rupee weakens 3\.5% a year/);
   assert.match(scheduleGapReason(undefined), /loans that start later/);
 });
+
+test('fix 12: no letter carries the draft line; Copy, Email, Share and Download send it stripped', () => {
+  const t = lib('distress-triage.ts');
+  const base = { name: 'Asha', lender: 'HDFC Bank', loanLabel: 'HDFC home loan', accountRef: 'HL1', reason: 'job loss', canPay: '₹20,000', asks: [], dateText: '12 October 2026', floating: false };
+  for (const letter of [t.hardshipLetter({ ...base, country: 'IN' }), t.hardshipLetter({ ...base, country: 'US' }),
+    t.agentComplaintLetter({ name: 'Asha', lender: 'HDFC Bank', accountRef: 'HL1', what: 'calls at night', when: '1 Oct', agent: 'X', dateText: '12 October 2026' })]) {
+    assert.ok(!/DRAFT|CHECK BEFORE SENDING|Not legal advice/i.test(letter), letter.slice(0, 80));
+    assert.ok(letter.startsWith('12 October 2026'));
+  }
+  // A letter edited from an older draft still goes out without the line.
+  const old = 'DRAFT — CHECK BEFORE SENDING. Not legal advice; RightDue drafts it from what you typed.\n\n12 October 2026\n\nTo: HDFC';
+  assert.equal(t.forSending(old), '12 October 2026\n\nTo: HDFC');
+  assert.equal(t.forSending('12 October 2026\nDRAFT later lines stay'), '12 October 2026\nDRAFT later lines stay');
+  for (const f of ['components/distress/CantPay.tsx', 'components/distress/AgentComplaint.tsx', 'components/distress/UsLetters.tsx']) {
+    const s = src(f);
+    assert.ok(!/writeText\(letter\)|encodeURIComponent\(letter\)|Blob\(\[letter\]|text: letter\b/.test(s), `${f} sends the letter unstripped`);
+    assert.match(s, /forSending\(letter\)/);
+  }
+});

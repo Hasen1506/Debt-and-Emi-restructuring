@@ -136,7 +136,8 @@ test('every cited rule is an rbi.org.in link with a source and date; card rule s
 test('hardship letter: marked draft, names the loan, asks, floating-rate reset choice only when floating', () => {
   const base = { name: 'Asha', lender: 'HDFC Bank', loanLabel: 'HDFC home loan', accountRef: 'HL123', reason: 'I lost my job on 1 Oct', canPay: '₹20,000', asks: ['longer_tenure', 'waive_penal'], dateText: '12 October 2026' };
   const fl = t.hardshipLetter({ ...base, floating: true });
-  assert.ok(fl.startsWith(t.DRAFT_MARK));
+  // UX fix 12: the caution is shown beside the letter, never inside it.
+  assert.ok(!fl.includes(t.DRAFT_MARK) && !/DRAFT/.test(fl) && fl.startsWith('12 October 2026'));
   assert.match(fl, /HDFC home loan, account HL123/);
   assert.match(fl, /1\. a longer tenure/);
   assert.match(fl, /2\. a waiver of any penal charges/);
