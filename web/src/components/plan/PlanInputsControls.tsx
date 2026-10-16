@@ -190,8 +190,11 @@ export function RateRiseControl({ user, floating }: { user: UserPayload; floatin
   const [error, setError] = useState<string | null>(null);
   const ageMonths = monthsToAgeLimit(user, todayIso);
 
+  // UX fix 21: say what the choice means, since no rise is planned and nothing else on Plan moves.
+  const [saved, setSaved] = useState<string | null>(null);
   function setMode(i: number, mode: RateRiseMode) {
-    save((u) => ({ ...u, loans: u.loans.map((l, k) => (k === i ? { ...l, on_rate_rise: mode } : l)) }));
+    if (save((u) => ({ ...u, loans: u.loans.map((l, k) => (k === i ? { ...l, on_rate_rise: mode } : l)) })))
+      setSaved(rateRiseEcho(user.loans[i], mode, loanName(user.loans[i], i, user.loans), user.country));
   }
 
   function saveDetails() {
@@ -254,6 +257,7 @@ export function RateRiseControl({ user, floating }: { user: UserPayload; floatin
         </span>
       </div>
       {error && <p role="alert" style={{ ...note, color: L_T.negative }}>{error}</p>}
+      {saved && <p role="status" data-testid="rate-rise-saved" style={{ ...note, color: L_T.ink }}>{saved}</p>}
       <p style={note}>
         RBI lets you choose at each reset: a higher EMI, a longer tenure, or both (circular of 18 Aug 2023). Indian
         lenders usually extend the tenure first. With your date of birth the plan never stretches a loan past the age
@@ -354,4 +358,17 @@ export function SeasonalIncomeControl({ user, seasonal, currency, dateLabel }: {
       {failed && <p role="alert" style={{ ...note, color: L_T.negative }}>That wasn&apos;t saved: this browser didn&apos;t keep it.</p>}
     </div>
   );
+}
+
+/** UX fix 21: "Saved: if the rate on HDFC home loan rises 0.25%, the EMI goes up about ₹778 a month (your choice)". */
+export function rateRiseEcho(l: LoanPayload, mode: RateRiseMode, name: string, country: 'IN' | 'US'): string {
+  const P = Number(l.outstanding) || 0, r = (Number(l.nominal_rate) || 0) / 12, n = l.tenure_months_remaining || 0, emi = Number(l.scheduled_emi) || 0;
+  const r2 = r + 0.0025 / 12;
+  const newEmi = n > 0 && P > 0 ? (P * r2) / (1 - Math.pow(1 + r2, -n)) : 0;
+  const up = Math.max(0, Math.round(newEmi - emi));
+  const ccy = (l.currency as 'INR' | 'USD' | undefined) ?? (country === 'US' ? 'USD' : 'INR');
+  const what = mode === 'extend' ? 'the EMI stays and the tenure gets longer'
+    : mode === 'raise_emi' ? (up > 0 ? `the EMI goes up about ${formatCurrencyWhole(String(up), ccy)} a month and the end date stays` : 'the EMI goes up and the end date stays')
+    : (up > 0 ? `the EMI goes up about ${formatCurrencyWhole(String(Math.round(up / 2)), ccy)} a month and the tenure gets a little longer` : 'the EMI goes up a little and the tenure gets a little longer');
+  return `Saved. If the rate on ${name} rises 0.25%, ${what} (your choice). No rise is planned today, so the plan's figures stay as they are.`;
 }

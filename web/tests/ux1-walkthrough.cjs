@@ -358,3 +358,14 @@ test('fix 25: "To debts" says minimums only when nothing is spare, and never sug
   assert.match(s, /setDefault = Math\.round\(Math\.max\(required,/);
   assert.match(s, /placeholder=\{String\(setDefault\)\}/);
 });
+
+test('fix 21: choosing what happens on a rate rise is confirmed with what it means', () => {
+  const { rateRiseEcho } = comp('plan/PlanInputsControls.tsx');
+  const l = { loan_type: 'home_loan', bank: 'HDFC', outstanding: '5000000', nominal_rate: '0.085', scheduled_emi: '45000', tenure_months_remaining: 220 };
+  const raise = rateRiseEcho(l, 'raise_emi', 'HDFC home loan', 'IN');
+  const up = Number(raise.match(/about ₹([\d,]+) a month/)[1].replace(/,/g, ''));
+  assert.ok(up > 600 && up < 900, raise);   // the walkthrough's RBI section said about ₹778
+  assert.match(raise, /^Saved\. If the rate on HDFC home loan rises 0\.25%, the EMI goes up about ₹[\d,]+ a month and the end date stays \(your choice\)\. No rise is planned today/);
+  assert.match(rateRiseEcho(l, 'extend', 'HDFC home loan', 'IN'), /the EMI stays and the tenure gets longer/);
+  assert.match(src('components/plan/PlanInputsControls.tsx'), /data-testid="rate-rise-saved"/);
+});
