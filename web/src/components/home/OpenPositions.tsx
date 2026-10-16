@@ -95,7 +95,7 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
                 <span style={{ color: isDearest ? L_T.accent : L_T.ink, fontWeight: 700 }}>{fmtPct(d.nominal)} A YEAR</span>{' '}
                 {/* UX fix 19: a rate filled by "I don't know" says so until the real one is typed. */}
                 {d.loan.estimated_fields?.includes('rate') ? <span data-testid="rate-estimated" style={{ color: L_T.muted }}>(ESTIMATE · CHECK YOUR STATEMENT) </span> : null}
-                · ABOUT {fmtPct(d.effective)} {d.effective.lt(d.nominal) ? 'AFTER THE TAX BREAK' : <Term id="cost_a_year">ALL-IN</Term>}
+                · ABOUT {fmtPct(d.effective)} {d.effective.lt(d.nominal) ? 'AFTER THE TAX BREAK' : <Term id="cost_a_year" about={name}>ALL-IN</Term>}
               </>
             ),
             gaps.includes('emi') ? (
@@ -104,7 +104,7 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
               `${isCard ? 'MINIMUM' : payTag} ${fc(d.required.toFixed(0))}`
             ) : null,
             // Once this month's EMI is paid it's no longer one of the months left.
-            isCard ? <Term key="rev" id="revolving">REVOLVING</Term> : months > 0 ? leftTag(now.rows[d.index]?.status === 'paid' ? months - 1 : months) : null,
+            isCard ? <Term key="rev" id="revolving" about={name}>REVOLVING</Term> : months > 0 ? leftTag(now.rows[d.index]?.status === 'paid' ? months - 1 : months) : null,
           ].filter(Boolean);
           return (
             <li

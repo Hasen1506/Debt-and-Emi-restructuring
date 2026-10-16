@@ -337,3 +337,18 @@ test('B7 (#19): a country switch takes the new take-home as typed, and the rate 
   assert.match(panel, /onConfirm\(pay\.trim\(\) \|\| undefined\)/);
   assert.match(src('app/profile/ProfileClient.tsx'), /formatSwitchRate\(r\.rate\)/);
 });
+
+test('B8 (#24): glossary buttons on a loan row say which loan; /tools/loan-check points US users to the US letters', () => {
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const { Term } = require(path.join(root, 'components/Term.tsx'));
+  const html = renderToStaticMarkup(React.createElement(Term, { id: 'revolving', about: 'Axis Bank credit card' }, 'REVOLVING'));
+  assert.match(html, /aria-label="REVOLVING, Axis Bank credit card: what it means"/);
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(Term, { id: 'revolving' }, 'REVOLVING')), /aria-label/);
+  const op = src('components/home/OpenPositions.tsx');
+  assert.match(op, /<Term id="cost_a_year" about=\{name\}>ALL-IN<\/Term>/);
+  assert.match(op, /<Term key="rev" id="revolving" about=\{name\}>REVOLVING<\/Term>/);
+  const lc = src('app/tools/loan-check/tool.tsx');
+  assert.match(lc, /href="\/cant-pay\/us-letters"/);
+  assert.doesNotMatch(lc, /covers Indian floating-rate home loans for now/);
+});
