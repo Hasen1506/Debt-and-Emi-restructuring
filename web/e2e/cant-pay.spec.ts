@@ -58,7 +58,9 @@ test('India: Feeling overwhelmed → can\u2019t pay this month → protect order
 
   await expect(page.getByTestId('cp-cost')).toContainText('not entered: check');
   const letter = page.getByLabel(/The letter \(you can edit it here\)/);
-  await expect(letter).toHaveValue(/^DRAFT/);
+  // UX fix 12: the caution sits beside the letter, not in it.
+  await expect(letter).not.toHaveValue(/DRAFT|CHECK BEFORE SENDING/);
+  await expect(page.getByTestId('letter-caution').first()).toContainText('Check it before sending');
   await expect(page.getByTestId('cp-rights')).toContainText('before 8:00 a.m. or after 7:00 p.m.');
   await expect(page.getByTestId('cp-settle')).toContainText('at least 12 months');
   await expect(page.getByRole('link', { name: /LONGER TENURE WHAT-IF/ })).toHaveAttribute('href', '/plan#tenure-what-if');
@@ -115,11 +117,17 @@ test('UX50 F3: Can\u2019t pay fields are named, months are bounded, the letter i
   await letter.fill('My own words.');
   await expect(page.getByRole('button', { name: /RESET TO DRAFT/ })).toBeVisible();
   await page.getByRole('button', { name: /RESET TO DRAFT/ }).click();
-  await expect(letter).toHaveValue(/^DRAFT/);
+  await expect(letter).toHaveValue(/To: Axis Bank/);
+  await expect(letter).not.toHaveValue(/DRAFT|CHECK BEFORE SENDING/);
   await expect(page.getByRole('link', { name: /EMAIL IT/ })).toHaveAttribute('href', /^mailto:\?subject=Request%20for%20hardship%20relief/);
   if (browserName === 'chromium') await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.getByRole('button', { name: /COPY LETTER/ }).click();
   await expect(page.getByTestId('cp-letter-said')).toContainText(/copied|copy it by hand/);
+  if (browserName === 'chromium') {
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copied).toMatch(/To: Axis Bank/);
+    expect(copied).not.toMatch(/DRAFT|CHECK BEFORE SENDING/);
+  }
   const dl = page.waitForEvent('download');
   await page.getByRole('button', { name: /DOWNLOAD .TXT/ }).click();
   expect((await dl).suggestedFilename()).toBe('hardship-letter.txt');
