@@ -63,7 +63,7 @@ import { estimateBalance, monthsSince, typicalRate, TYPICAL_RATE_AS_OF, withEsti
 import { readStrategyClient, strategyName, STRATEGY_SHORT, writeStrategyClient, type StrategyName } from '@/lib/strategy';
 import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { loadProfileClient, type StoredProfile } from '@/lib/user-store';
-import { asksEmiPaid, emiAnswer, emiAnswerPatch, nextMonth, rollBalancesForward, stampBalanceDates, prepareLoanPaymentTiming } from '@/lib/roll-forward';
+import { asksEmiPaid, emiAnswer, emiAnswerPatch, lastEmiMonthIndex, nextMonth, rollBalancesForward, stampBalanceDates, prepareLoanPaymentTiming } from '@/lib/roll-forward';
 import { saveProfileWithPaidEmis } from '@/lib/paid-at-entry';
 import { disambiguateLoans } from '@/lib/loan-types';
 import { balancePlaceholder, emiPlaceholder } from '@/lib/placeholders';
@@ -1287,7 +1287,7 @@ function LoanBlock({
                   ? undefined
                   : (emiBelowInterest({ ...loan, currency: ccy }, country) ?? `At this ${paymentWords(country).one} the balance doesn't go down. Check the ${paymentWords(country).one} and the rate.`)
                 : tenure
-                  ? `About ${tenure} months left, to ${monthIndexToCountryLabel(tenure, country)}${slowPayoffNote(loan, ccy, country, tenure)}`
+                  ? `About ${tenure} months left, to ${monthIndexToCountryLabel(lastEmiMonthIndex(loan, tenure, thisMonth), country)}${slowPayoffNote(loan, ccy, country, tenure)}`
                   : undefined
             }
             error={issues.emi}

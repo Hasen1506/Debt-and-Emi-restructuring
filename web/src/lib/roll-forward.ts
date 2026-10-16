@@ -229,3 +229,12 @@ export function asksEmiPaid(loan: LoanPayload, saved: LoanPayload | undefined): 
   if (!(Number(loan.outstanding) > 0)) return false;
   return !saved || Number(saved.outstanding) !== Number(loan.outstanding);
 }
+
+/** UX2-17: the plan-month index of a loan's last EMI when `months` EMIs are
+ *  left, for Setup's "About N months left, to <month>". This month's EMI
+ *  already paid, or a first EMI in a later month, moves the end on (it read
+ *  Sept 2031 for a loan ending Oct 2031). `thisMonth` is 'YYYY-MM'. */
+export function lastEmiMonthIndex(loan: Pick<LoanPayload, 'balance_after_emi' | 'first_emi_month'>, months: number, thisMonth: string): number {
+  const first = loan.first_emi_month && loan.first_emi_month > thisMonth ? monthsBetween(thisMonth, loan.first_emi_month) : 0;
+  return months + (first > 0 ? first : loan.balance_after_emi === true ? 1 : 0);
+}

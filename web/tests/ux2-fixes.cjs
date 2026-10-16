@@ -151,3 +151,14 @@ test('#16: a lender name keeps its capitals mid-sentence; only generic names are
 test('#16: the short-month sentence uses the same rule', () => {
   assert.match(src('lib/short-priority.ts'), /the \$\{lowerName\(l\.name\)\} \$\{money\(l\.short\)\} short/);
 });
+
+// ── #17 ─────────────────────────────────────────────────────────────────────
+test('#17: the months-left hint ends a month later when this month’s EMI is already paid or the first EMI is next month', () => {
+  const { lastEmiMonthIndex } = lib('roll-forward.ts');
+  assert.equal(lastEmiMonthIndex({ balance_after_emi: false }, 60, '2026-10'), 60);
+  assert.equal(lastEmiMonthIndex({}, 60, '2026-10'), 60);
+  assert.equal(lastEmiMonthIndex({ balance_after_emi: true }, 60, '2026-10'), 61);
+  assert.equal(lastEmiMonthIndex({ first_emi_month: '2026-11' }, 60, '2026-10'), 61);
+  assert.equal(lastEmiMonthIndex({ first_emi_month: '2027-01' }, 60, '2026-10'), 63);
+  assert.match(src('components/setup/QuickSetup.tsx'), /monthIndexToCountryLabel\(lastEmiMonthIndex\(loan, tenure, thisMonth\), country\)/);
+});
