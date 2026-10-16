@@ -63,7 +63,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <FxAutoRefresh />
         <LMasthead
           country={profile.user.country}
-          strategy={hasDebt ? strategy : null}
+          // UX fix 22: no payoff switch on the demo profile (signed out, or Setup before any loan is saved).
+          strategy={hasDebt && profile.isLive ? strategy : null}
+          signedIn={profile.isLive}
           sameOrder={sameOrder}
           navUser={{ country: profile.user.country, is_nri_us: profile.user.is_nri_us === true }}
         />

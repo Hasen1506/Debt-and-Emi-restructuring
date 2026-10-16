@@ -37,6 +37,12 @@ export function isSignedOutPage(path: string): boolean {
   return path === '/login' || path.startsWith('/login/') || path === '/welcome.html';
 }
 
+/** Public pages a visitor without an account reaches: Can't pay, the US
+ *  letters, and /account after a delete. Each app tab there is a login wall. */
+export function isPublicHelpPage(path: string): boolean {
+  return path === '/cant-pay' || path.startsWith('/cant-pay/') || path === '/account';
+}
+
 function stamp(country: Country): string {
   const d = getCountryToday(country);
   return d
@@ -72,8 +78,11 @@ export function LMasthead({
   strategy,
   sameOrder,
   navUser,
+  signedIn,
 }: {
   country: Country;
+  /** False with no saved profile: the public pages then show no app menu (UX fix 22). */
+  signedIn?: boolean;
   strategy?: StrategyName | null;
   /** The one order all three strategies pay the debts in, when they agree. */
   sameOrder?: string[] | null;
@@ -82,7 +91,7 @@ export function LMasthead({
 }) {
   const path = usePathname() || '/';
   const section = sectionFromPath(path);
-  const signedOutPage = isSignedOutPage(path);
+  const signedOutPage = isSignedOutPage(path) || (signedIn === false && isPublicHelpPage(path));
   const [time, setTime] = useState<string>('');
   // Live re-test 2 NEW-17: on a phone the nav, strategy, country and
   // sign-in sit behind one MENU button, so the header is one row (it was

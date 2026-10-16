@@ -369,3 +369,13 @@ test('fix 21: choosing what happens on a rate rise is confirmed with what it mea
   assert.match(rateRiseEcho(l, 'extend', 'HDFC home loan', 'IN'), /the EMI stays and the tenure gets longer/);
   assert.match(src('components/plan/PlanInputsControls.tsx'), /data-testid="rate-rise-saved"/);
 });
+
+test('fix 22: signed out, Can’t pay and /account show no app tabs, and the payoff switch needs a saved profile', () => {
+  const m = comp('ledger/LMasthead.tsx');
+  for (const p of ['/cant-pay', '/cant-pay/us-letters', '/account']) assert.ok(m.isPublicHelpPage(p), p);
+  for (const p of ['/', '/plan', '/onboarding', '/cant-payx']) assert.ok(!m.isPublicHelpPage(p), p);
+  assert.match(src('components/ledger/LMasthead.tsx'), /isSignedOutPage\(path\) \|\| \(signedIn === false && isPublicHelpPage\(path\)\)/);
+  const layout = src('app/layout.tsx');
+  assert.match(layout, /strategy=\{hasDebt && profile\.isLive \? strategy : null\}/);
+  assert.match(layout, /signedIn=\{profile\.isLive\}/);
+});
