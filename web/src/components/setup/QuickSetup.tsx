@@ -62,7 +62,7 @@ import { SetupThisMonth } from './SetupThisMonth';
 import { typicalRate, TYPICAL_RATE_AS_OF, withEstimate } from '@/lib/setup-estimates';
 import { EstimateBalance } from './EstimateBalance';
 import { RepaymentChips } from './RepaymentChips';
-import { emiOptional, finishShape, savedEndMonth, shapeError, shapeNeedsEmi } from '@/lib/repayment-shape';
+import { emiOptional, finishShape, moratoriumMonths, payingNow, savedEndMonth, shapeError, shapeNeedsEmi, typeSwitch } from '@/lib/repayment-shape';
 import { readStrategyClient, strategyName, STRATEGY_SHORT, writeStrategyClient, type StrategyName } from '@/lib/strategy';
 import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
 import { loadProfileClient, type StoredProfile } from '@/lib/user-store';
@@ -424,9 +424,9 @@ export function QuickSetup() {
   // plan works out their minimums).
   const emisInUserCcy = activeLoans.reduce<Decimal | null>((sum, l) => {
     if (sum === null || !needsEmi(l.loan_type)) return sum;
-    const emi = emiOf(l);
-    if (!isAmount(emi) || emi.trim() === '') return sum;
     const ccy = loanCurrency(l, country);
+    const emi = payingNow(l, endOf(l), ccy) ?? emiOf(l);
+    if (!isAmount(emi) || emi.trim() === '') return sum;
     const rate = ccy === userCcy ? '1' : fxRates[ccy];
     if (!(Number(rate) > 0)) return null;
     return sum.add(new Decimal(emi).mul(rate));
@@ -1234,7 +1234,7 @@ function LoanBlock({
       <ChipRow label="Kind of loan">
         {/* R7-7: no gold loans on a US borrower's dollar loan (an Indian product). */}
         {loanKindsFor(TYPE_CHIPS, ccy === 'INR' ? 'IN' : country, loan.loan_type).map(([t, label]) => (
-          <Chip key={t} on={loan.loan_type === t} onClick={() => onPatch({ loan_type: t })}>
+          <Chip key={t} on={loan.loan_type === t} onClick={() => onPatch(typeSwitch(loan, t, country))}>
             {label}
           </Chip>
         ))}
@@ -1299,7 +1299,7 @@ function LoanBlock({
                   ? undefined
                   : (emiBelowInterest({ ...loan, currency: ccy }, country) ?? `At this ${paymentWords(country).one} the balance doesn't go down. Check the ${paymentWords(country).one} and the rate.`)
                 : tenure
-                  ? `About ${tenure} months left, to ${monthIndexToCountryLabel(lastEmiMonthIndex(loan, tenure, thisMonth), country)}${slowPayoffNote(loan, ccy, country, tenure)}`
+                  ? `About ${tenure} months left, to ${monthIndexToCountryLabel(lastEmiMonthIndex(loan, tenure, thisMonth) + moratoriumMonths(loan, end, thisMonth), country)}${slowPayoffNote(loan, ccy, country, tenure)}`
                   : undefined
             }
             error={issues.emi}

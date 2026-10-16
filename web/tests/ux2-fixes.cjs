@@ -160,7 +160,7 @@ test('#17: the months-left hint ends a month later when this month’s EMI is al
   assert.equal(lastEmiMonthIndex({ balance_after_emi: true }, 60, '2026-10'), 61);
   assert.equal(lastEmiMonthIndex({ first_emi_month: '2026-11' }, 60, '2026-10'), 61);
   assert.equal(lastEmiMonthIndex({ first_emi_month: '2027-01' }, 60, '2026-10'), 63);
-  assert.match(src('components/setup/QuickSetup.tsx'), /monthIndexToCountryLabel\(lastEmiMonthIndex\(loan, tenure, thisMonth\), country\)/);
+  assert.match(src('components/setup/QuickSetup.tsx'), /monthIndexToCountryLabel\(lastEmiMonthIndex\(loan, tenure, thisMonth\)( \+ moratoriumMonths\(loan, end, thisMonth\))?, country\)/);
 });
 
 // ── #3 ──────────────────────────────────────────────────────────────────────
@@ -236,4 +236,22 @@ test('#3: the chips render on Setup loans, and QuickSetup saves through finishSh
   assert.match(qs, /<RepaymentChips loan=\{loan\}/);
   assert.match(qs, /Object\.assign\(out, finishShape\(out, endOf\(l\), thisMonth, loanCurrency\(l, country\)\)\)/);
   assert.match(qs, /\{!card && !ui\.byMonths && shapeNeedsEmi\(loan, end\) && \(/);
+});
+
+// ── Part B (work/reports/ux-fix-2b.md) ──────────────────────────────────────
+test('B1 (#3 gaps): moratorium months move the end month on, count interest now, and a type switch drops a stale shape', () => {
+  const r = lib('repayment-shape.ts');
+  const edu = { loan_type: 'education_loan', outstanding: '1000000', nominal_rate: '0.12', scheduled_emi: '14347', repayment: 'interest_only', pre_emi_months_remaining: 0 };
+  assert.equal(r.moratoriumMonths(edu, '2027-10', '2026-10'), 12);
+  assert.equal(r.moratoriumMonths({ ...edu, repayment: undefined }, '2027-10', '2026-10'), 0);
+  assert.equal(r.payingNow(edu, '2027-10', 'INR'), '10000');            // interest, not the ₹14,347 EMI after
+  assert.equal(r.payingNow({ ...edu, repayment: undefined }, '', 'INR'), null);
+  const gold = { loan_type: 'gold_loan', outstanding: '100000', nominal_rate: '0.1', scheduled_emi: '0', repayment: 'bullet' };
+  assert.deepEqual(r.typeSwitch(gold, 'personal_loan', 'IN'), { loan_type: 'personal_loan', repayment: undefined, pre_emi_months_remaining: 0 });
+  assert.deepEqual(r.typeSwitch({ ...gold, repayment: 'interest_only' }, 'personal_loan', 'IN'), { loan_type: 'personal_loan' });
+  assert.equal(r.typeSwitch({ ...gold, repayment: 'interest_only' }, 'credit_card', 'IN').repayment, undefined);
+  const qs = src('components/setup/QuickSetup.tsx');
+  assert.match(qs, /payingNow\(l, endOf\(l\), ccy\) \?\? emiOf\(l\)/);
+  assert.match(qs, /onPatch\(typeSwitch\(loan, t, country\)\)/);
+  assert.match(qs, /\+ moratoriumMonths\(loan, end, thisMonth\)/);
 });

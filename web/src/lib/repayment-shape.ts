@@ -123,3 +123,26 @@ export function shapeNote(loan: LoanPayload, endMonth: string | undefined, money
     ? `Interest of about ${money(interest)} a month; the amount borrowed is due in ${end}.`
     : `Interest of about ${money(interest)} a month, with no end date. Paying more brings the balance down; the plan shows when it’s worth it.`;
 }
+
+/** UX2B-1: months of interest only before a moratorium's first EMI (0 for any
+ *  other loan), so "About N months left, to <month>" ends after them. */
+export function moratoriumMonths(loan: LoanPayload, endMonth: string | undefined, thisMonth: string): number {
+  const end = (endMonth ?? '').trim();
+  return isMoratorium(loan, end) && MONTH.test(end) && end > thisMonth ? monthsBetween(thisMonth, end) : 0;
+}
+
+/** UX2B-1: what a moratorium loan costs a month now (its interest), for
+ *  "Left each month"; null for any other loan (its EMI counts). */
+export function payingNow(loan: LoanPayload, endMonth: string | undefined, ccy: 'INR' | 'USD'): string | null {
+  if (!isMoratorium(loan, endMonth)) return null;
+  const v = (Number(loan.outstanding) * Number(loan.nominal_rate)) / 12;
+  return String(ccy === 'INR' ? Math.ceil(v) : Math.ceil(v * 100) / 100);
+}
+
+/** UX2B-1: a loan-type switch drops an answer the new type has no chip for
+ *  (gold's "All at the end" on a personal loan; anything on a card). */
+export function typeSwitch(loan: LoanPayload, loanType: LoanType, country: string): Partial<LoanPayload> {
+  if (loanType === loan.loan_type) return { loan_type: loanType };
+  const keep = (shapeChoices(loanType, country) ?? []).some(([s]) => s === shapeOf(loan));
+  return keep ? { loan_type: loanType } : { loan_type: loanType, repayment: undefined, pre_emi_months_remaining: 0 };
+}
