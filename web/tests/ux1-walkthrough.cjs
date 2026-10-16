@@ -334,3 +334,27 @@ test('fix 15: self-employed users get no salary, TDS, PF, CTC or Form 16 copy', 
   assert.match(src('app/profile/ProfileClient.tsx'), /takeHomeLabel\(country, incomeType\)/);
   assert.match(src('app/profile/ProfileClient.tsx'), /country === 'IN' && incomeType === 'salaried' \? \(/);
 });
+
+test('fixes 17-19: no engineering words, card digits optional and capped at 4, an estimated rate marked on Home', () => {
+  const pic = src('components/plan/PlanInputsControls.tsx');
+  assert.doesNotMatch(pic, /· #\$\{i \+ 1\}/);
+  assert.match(pic, /setupLoanName\(all, i\)/);
+  const inc = src('app/profile/parts/income-fields.tsx');
+  assert.doesNotMatch(inc, /the engine will use|tax-sleeve card/);
+  const pc = src('app/profile/ProfileClient.tsx');
+  for (const w of ['label="Your marginal tax rate (%)"', 'label="Rate basis"', 'label="Part-payment frequency (months)"', 'label="Cardholder name (optional)"']) assert.ok(!pc.includes(w), w);
+  assert.match(pc, /slice\(0, 4\)/);
+  assert.doesNotMatch(src('components/debts/TaxSleeveCard.tsx'), /title="Tax sleeve|'Tax sleeve'/);
+  assert.doesNotMatch(src('components/plan/PlanAssumptions.tsx'), /\(ASSUMED\)/);
+  assert.match(src('components/home/OpenPositions.tsx'), /estimated_fields\?\.includes\('rate'\)[\s\S]{0,120}ESTIMATE · CHECK YOUR STATEMENT/);
+});
+
+test('fix 25: "To debts" says minimums only when nothing is spare, and never suggests less than the minimums', () => {
+  const { DebtBudgetControl } = comp('plan/DebtBudgetControl.tsx');
+  const html = (p) => text(renderToStaticMarkup(React.createElement(DebtBudgetControl, { budget: '', currency: 'INR', hasFundTarget: true, ...p })));
+  assert.match(html({ required: 7500, allSpare: 7500 }), /Minimums only · ₹7,500 \(nothing spare\)/);
+  assert.match(html({ required: 7500, allSpare: 14500 }), /All spare cash · ₹14,500/);
+  const s = src('components/plan/DebtBudgetControl.tsx');
+  assert.match(s, /setDefault = Math\.round\(Math\.max\(required,/);
+  assert.match(s, /placeholder=\{String\(setDefault\)\}/);
+});

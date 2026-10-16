@@ -89,6 +89,8 @@ export function OpenPositions({ profile, m }: { profile: StoredProfile; m: Deriv
               // number was wrong.
               <>
                 <span style={{ color: isDearest ? L_T.accent : L_T.ink, fontWeight: 700 }}>{fmtPct(d.nominal)} A YEAR</span>{' '}
+                {/* UX fix 19: a rate filled by "I don't know" says so until the real one is typed. */}
+                {d.loan.estimated_fields?.includes('rate') ? <span data-testid="rate-estimated" style={{ color: L_T.muted }}>(ESTIMATE · CHECK YOUR STATEMENT) </span> : null}
                 · ABOUT {fmtPct(d.effective)} {d.effective.lt(d.nominal) ? 'AFTER THE TAX BREAK' : <Term id="cost_a_year">ALL-IN</Term>}
               </>
             ),

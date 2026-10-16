@@ -107,7 +107,7 @@ export function TaxSleeveCard({
 
   if (!next) {
     return (
-      <Shell tone="accent" title="Tax sleeve · all clear">
+      <Shell tone="accent" title="Advance tax set-aside · all clear">
         <ThemedHeadline>
           Annual target {formatCurrency(String(annualTarget), currency)} — all 4
           installments paid.
@@ -133,10 +133,10 @@ export function TaxSleeveCard({
 
   const nextIdx = fullSchedule.findIndex((i) => cycleKey(i) === cycleKey(next));
   const title = overdue
-    ? `Tax sleeve · OVERDUE by ${-daysLeft}d`
+    ? `Advance tax set-aside · OVERDUE by ${-daysLeft}d`
     : urgent
-      ? `Tax sleeve · ${daysLeft}d to next installment`
-      : 'Tax sleeve';
+      ? `Advance tax set-aside · ${daysLeft}d to next instalment`
+      : 'Advance tax set-aside';
 
   return (
     <Shell tone={tone} title={title}>

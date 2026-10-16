@@ -238,10 +238,12 @@ test('R10-4: the 16-loan persona: Setup’s “₹X extra on your personal loan�
   assert.equal(move.index, 2);
   assert.ok(d.total <= M.income - M.spend);
   // Setup renders it.
-  const q = src('components/setup/QuickSetup.tsx');
+  // UX fix 1/11 moved Setup's This month into SetupThisMonth.tsx.
+  const q = src('components/setup/SetupThisMonth.tsx');
   assert.match(q, /const move = setupExtraMove\(plan, minimums, planUser\);/);
   assert.match(q, /money\(String\(move\.extra\), loanCurrency\(moveLoan, country\)\)/);
   assert.doesNotMatch(q, /firstExtraPayment\(/);
+  assert.doesNotMatch(src('components/setup/QuickSetup.tsx'), /firstExtraPayment\(/);
 });
 
 test('R10-4 property: over random splits of the 16 loans, Setup and Home name the same loan and extra', () => {

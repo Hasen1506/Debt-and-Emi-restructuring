@@ -34,6 +34,8 @@ export function DebtBudgetControl({
   const [amount, setAmount] = useState(budget);
   const [error, setError] = useState<string | null>(null);
   const fmt = (v: number) => formatCurrencyWhole(String(Math.round(v)), currency);
+  // Never suggest less than the EMIs and minimums the plan pays anyway (fix 25).
+  const setDefault = Math.round(Math.max(required, (required + allSpare) / 2));
 
   function save(next: string) {
     try {
@@ -48,7 +50,7 @@ export function DebtBudgetControl({
   function saveSet() {
     const v = normalizeDebtBudget(amount);
     if (!v) {
-      setError(`Type a monthly total, for example ${fmt(Math.max(required, Math.round(allSpare / 2)))}.`);
+      setError(`Type a monthly total, for example ${fmt(setDefault)}.`);
       return;
     }
     setError(null);
@@ -66,7 +68,8 @@ export function DebtBudgetControl({
             if (budget) save('');
           }}
         >
-          All spare cash · {fmt(allSpare)}
+          {/* UX fix 25: with nothing spare, say "minimums only", not "all spare cash". */}
+          {allSpare - required < 1 ? `Minimums only · ${fmt(required)} (nothing spare)` : `All spare cash · ${fmt(allSpare)}`}
         </LChip>
         <LChip on={mode === 'set'} onClick={() => setMode('set')}>
           A set total a month
@@ -85,7 +88,7 @@ export function DebtBudgetControl({
                 setAmount(v);
                 setError(null);
               }}
-              placeholder={String(Math.round(allSpare / 2))}
+              placeholder={String(setDefault)}
               error={error}
             />
           </div>

@@ -16,6 +16,7 @@
  *  - INCOME BY SEASON (item 4): a monthly take-home pattern and the opt-in
  *    seasonal reserve, with its interest cost against no reserve.
  */
+import { setupLoanName } from '@/lib/loan-gaps';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { LoanPayload, SeasonalOutRaw, UserPayload } from '@/lib/api';
@@ -174,9 +175,8 @@ export function AssumedReturnControl({ user }: { user: UserPayload }) {
 
 const MODE_LABEL = RATE_RISE_LABEL;
 
-function loanName(l: LoanPayload, i: number): string {
-  return `${l.bank || 'Loan'} ${String(l.loan_type || '').replace('_loan', '').replace('_', ' ')} · #${i + 1}`;
-}
+// UX fix 17: the loan's own name ("HDFC home loan", "Card 1"), not "Loan home · #1".
+function loanName(l: LoanPayload, i: number, all: LoanPayload[]): string { return setupLoanName(all, i); }
 
 export function RateRiseControl({ user, floating }: { user: UserPayload; floating: number[] }) {
   const { save, pending, failed } = useSaveUser();
@@ -225,8 +225,8 @@ export function RateRiseControl({ user, floating }: { user: UserPayload; floatin
         const m = rateRiseModeFor(l, user.country);
         return (
           <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <strong style={{ fontSize: 'var(--fs-dense)' }}>{loanName(l, i)}</strong>
-            <div role="group" aria-label={`When the rate on ${loanName(l, i)} rises`} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <strong style={{ fontSize: 'var(--fs-dense)' }}>{loanName(l, i, user.loans)}</strong>
+            <div role="group" aria-label={`When the rate on ${loanName(l, i, user.loans)} rises`} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {(['extend', 'raise_emi', 'mix'] as RateRiseMode[]).map((mode) => (
                 <LChip key={mode} on={m.mode === mode} onClick={() => setMode(i, mode)}>
                   {MODE_LABEL[mode]}{m.assumed && m.mode === mode ? ' (default)' : ''}

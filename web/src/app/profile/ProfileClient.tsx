@@ -1479,7 +1479,7 @@ function ProfileEditor({
               />
             </div>
             <Field
-              label="Your marginal tax rate (%)"
+              label="Tax on your next rupee or dollar earned (%)"
               findIt={whereToFind('taxRate', { country })}
               kind="percent"
               value={marginalRate}
@@ -1783,7 +1783,7 @@ function ProfileEditor({
                   l.loan_type === 'gold_loan' ||
                   l.loan_type === 'bnpl') && (
                   <Select
-                    label="Rate basis"
+                    label="How the interest is worked out"
                     findIt={findFor(l, country, 'rateBasis')}
                     value={l.rate_basis ?? 'reducing'}
                     onChange={(v) =>
@@ -2018,7 +2018,7 @@ function ProfileEditor({
                   }
                 />
                 <Field
-                  label="Part-payment frequency (months)"
+                  label="How often you can prepay (every N months)"
                   value={monthsText[`${l.id ?? i}:freq`] ?? String(l.part_payment_freq_months ?? '')}
                   onChange={(v) => {
                     setMonthsText((m) => ({ ...m, [`${l.id ?? i}:freq`]: v }));
@@ -2231,14 +2231,14 @@ function ProfileEditor({
                 )}
                 {l.loan_type === 'credit_card' && (
                   <Field
-                    label="Last digits of the card (optional)"
+                    label="Last 4 digits, only to tell two cards apart (optional)"
                     value={l.card_last_6 ?? ''}
                     onChange={(v) => {
-                      const digits = v.replace(/\D/g, '').slice(0, 6);
+                      const digits = v.replace(/\D/g, '').slice(0, 4); // UX fix 18: never more than 4
                       updateLoan(i, { card_last_6: digits || undefined });
                     }}
                     placeholder="e.g. 4657"
-                    hint="Tells two cards apart in your lists"
+                    hint="Never needed for the plan, and never the card number"
                     info={
                       <>
                         Optional — purely a UI label. We mask the rest of the
@@ -2251,13 +2251,13 @@ function ProfileEditor({
                 )}
                 {l.loan_type === 'credit_card' && (
                   <Field
-                    label="Cardholder name (optional)"
+                    label="Whose card, only to tell a joint card apart (optional)"
                     value={l.cardholder_name ?? ''}
                     onChange={(v) =>
                       updateLoan(i, { cardholder_name: v || undefined })
                     }
-                    placeholder="As printed on card"
-                    hint="Tells a joint card from your own"
+                    placeholder="e.g. Mine, or Asha’s add-on"
+                    hint="Never needed for the plan"
                   />
                 )}
                 {l.loan_type === 'credit_card' && l.statement_day != null && (

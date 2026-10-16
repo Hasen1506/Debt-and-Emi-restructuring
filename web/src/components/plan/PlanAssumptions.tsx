@@ -88,7 +88,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
     {
       key: 'budget',
       label: 'TO DEBTS',
-      value: budget > 0 ? `${formatCurrencyWhole(String(budget), ccy)} A MONTH` : 'ALL SPARE CASH',
+      value: budget > 0 ? `${formatCurrencyWhole(String(budget), ccy)} A MONTH` : allSpare - required < 1 ? 'MINIMUMS ONLY' : 'ALL SPARE CASH',
       about:
         localTerms('How much you put toward debts each month, EMIs and minimums included. All your spare cash makes you debt-free soonest; a smaller total keeps the rest with you. Your call.', u.country),
       control: (
@@ -155,7 +155,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
   chips.push({
     key: 'borrow',
     label: 'BORROWING LIMIT',
-    value: `${formatCurrencyWhole(String(gap.value), ccy)}${gap.assumed ? ' (ASSUMED)' : ''}`,
+    value: `${formatCurrencyWhole(String(gap.value), ccy)}${gap.assumed ? ' (OUR GUESS)' : ''}`,
     about: gap.assumed
       ? 'How much the plan may borrow to cover a short month. You haven’t said, so it assumes 3 months of take-home.'
       : 'How much the plan may borrow to cover a short month: your own limit.',
@@ -165,7 +165,7 @@ export function PlanAssumptions({ plan }: { plan: PlanData }) {
   chips.push({
     key: 'return',
     label: 'YOUR RETURN AFTER TAX',
-    value: `${pct(ret.value, 1)}${ret.assumed ? ' (ASSUMED)' : ''}`,
+    value: `${pct(ret.value, 1)}${ret.assumed ? ' (OUR GUESS)' : ''}`,
     about: 'Decides when the plan asks whether to prepay a cheap loan, keep the money, or split it.',
     control: <AssumedReturnControl user={configured} />,
   });

@@ -283,10 +283,10 @@ export function AdvancedTaxDetails({
         }}
       >
         <div style={{ gridColumn: '1 / -1', fontSize: 'var(--fs-dense)', color: 'var(--muted)', lineHeight: 1.55 }}>
-          Optional. Leave blank if you just want a plan from your take-home —
-          the engine will use the manual marginal-rate field at the bottom of
-          this step. Fill these to get the tax-sleeve card, deduction
-          projections, and a derived marginal rate based on your actual slab.
+          Optional. Add these and we&apos;ll work out your exact tax rate from
+          your slab, project your deductions and remind you of advance-tax
+          dates. Leave them blank and the plan uses the tax rate further down
+          this page, estimated from your take-home.
         </div>
         {country === 'US' && (
           <>
