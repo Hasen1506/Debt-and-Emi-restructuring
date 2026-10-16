@@ -9,6 +9,7 @@ import type { LoanPayload } from './api';
 import { protectOrder } from './distress-triage';
 import type { PayThisMonth } from './pay-this-month';
 import { localTerms } from './terms';
+import { lowerName } from './loan-types';
 
 export interface PriorityLine {
   name: string;
@@ -49,7 +50,7 @@ export function shortPriorityOrder(lines: PriorityLine[], money: (v: number) => 
   const order = lines.map((l, i) => `${i + 1}. ${l.name} ${money(l.required)}`).join(', ');
   const left = lines.filter((l) => l.short > 0);
   const tail = left.length
-    ? ` That leaves ${left.map((l) => `the ${l.name.replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase())} ${money(l.short)} short`).join(' and ')}: call that ${who} before the due date and ask for time.`
+    ? ` That leaves ${left.map((l) => `the ${lowerName(l.name)} ${money(l.short)} short`).join(' and ')}: call that ${who} before the due date and ask for time.`
     : '';
   return localTerms(`Pay them in this order: ${order}.${tail}`, country);
 }

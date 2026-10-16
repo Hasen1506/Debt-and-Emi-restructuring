@@ -137,3 +137,17 @@ test('#7: the per-connection limit keeps its "wait N seconds"', () => {
   const { authErrorMessage } = lib('auth-error.ts');
   assert.match(authErrorMessage(429, JSON.stringify({ detail: 'Too many requests from this connection. Wait a minute and try again.' }), '20'), /Wait 20 seconds/);
 });
+
+// ── #16 ─────────────────────────────────────────────────────────────────────
+test('#16: a lender name keeps its capitals mid-sentence; only generic names are lowered', () => {
+  const { lowerName } = lib('home-this-month.ts');
+  assert.equal(lowerName('Bajaj Auto Finance car loan'), 'Bajaj Auto Finance car loan');
+  assert.equal(lowerName('Kotak Mahindra personal loan'), 'Kotak Mahindra personal loan');
+  assert.equal(lowerName('Car loan'), 'car loan');
+  assert.equal(lowerName('Credit card 2'), 'credit card 2');
+  assert.equal(lowerName('HDFC Bank credit card'), 'HDFC Bank credit card');
+});
+
+test('#16: the short-month sentence uses the same rule', () => {
+  assert.match(src('lib/short-priority.ts'), /the \$\{lowerName\(l\.name\)\} \$\{money\(l\.short\)\} short/);
+});

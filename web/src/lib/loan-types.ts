@@ -108,3 +108,13 @@ export function uniqueLoanNames<T extends { bank?: string | null; loan_type: Loa
 ): string[] {
   return disambiguateLoans(loans).map((l) => (sentence ? loanName(l) : loanLabel(l)));
 }
+
+/** "Credit card" → "credit card"; "HDFC Bank credit card" stays, and so
+ *  does a lender or nickname that only looks like a word (UX2-16: "Bajaj
+ *  Auto Finance car loan" read "bajaj Auto…"). Only a generic type name
+ *  ("Car loan", "Loan 2") is lowered. */
+export function lowerName(name: string): string {
+  const low = name.charAt(0).toLowerCase() + name.slice(1);
+  const generic = [...Object.values(LOAN_TYPE_NAME), 'loan', 'card', 'pay later'].some((t) => low.startsWith(t));
+  return /^[A-Z][a-z]/.test(name) && generic ? low : name;
+}
