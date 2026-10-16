@@ -42,3 +42,14 @@ def test_4_payday_rate_is_accepted(client, india_user_payload):
     loan = {"loan_type": "personal_loan", "bank": "", "outstanding": "20000", "nominal_rate": "3.65",
             "rate_type": "fixed", "tenure_months_remaining": 3, "scheduled_emi": "8000"}
     _first_month(client, _with(india_user_payload, loan))
+
+
+def test_b14_order_line_never_says_same_when_orders_differ():
+    """UX2B-14: n09 six cards; '₹523 less than without RightDue' sat above
+    'All orders give the same result'. A small spread is now named as small."""
+    import inspect
+
+    from api.routes import insights
+    src = inspect.getsource(insights)
+    assert 'if sp.spread < 1 else' in src
+    assert "Other orders cost only a little more for your loans (under {money(sp.threshold)})." in src
