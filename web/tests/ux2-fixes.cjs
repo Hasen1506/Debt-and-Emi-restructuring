@@ -115,3 +115,25 @@ test('#6: the Setup draft lives in this browser (new tab, days later) and goes o
   assert.match(src('lib/auth.ts'), /clearPendingSync\(\);\n\s*\(await import\('\.\/setup-draft'\)\)\.dropDraft\(\)/);
   assert.ok(lib('account.ts').LOCAL_PREFIXES.some((p) => d.SETUP_DRAFT_KEY.startsWith(p)));        // "Clear this browser" too
 });
+
+// ── #7 ──────────────────────────────────────────────────────────────────────
+test('#7: a pasted "123 456" code is not cut short, and too many tries says so', () => {
+  const page = src('app/login/page.tsx');
+  const input = page.slice(page.indexOf('autoComplete="one-time-code"'), page.indexOf('placeholder="••••••"'));
+  assert.doesNotMatch(input, /maxLength=/);
+  assert.match(input, /setCode\(e\.target\.value\.replace\(\/\\D\/g, ''\)\.slice\(0, 6\)\)/);
+  const keep = (raw) => raw.replace(/\D/g, '').slice(0, 6);           // the onChange above
+  assert.equal(keep('123 456'), '123456');
+  assert.equal(keep('123-456'), '123456');
+  const { authErrorMessage } = lib('auth-error.ts');
+  assert.equal(authErrorMessage(429, JSON.stringify({ detail: 'Too many attempts. Request a new code.' }), null), 'Too many attempts. Request a new code.');
+  assert.match(authErrorMessage(429, JSON.stringify({ detail: 'Too many wrong codes for this email today. Try again tomorrow.' }), '86400'), /Try again tomorrow/);
+  assert.doesNotMatch(authErrorMessage(429, JSON.stringify({ detail: 'Too many attempts. Request a new code.' }), null), /busy/);
+  assert.match(authErrorMessage(429, JSON.stringify({ detail: 'Rate limit exceeded: 5 per 1 minute' }), null), /Wait a minute/);   // not ours: as before
+  assert.match(authErrorMessage(429, 'unknown', '30'), /Wait 30 seconds/);
+});
+
+test('#7: the per-connection limit keeps its "wait N seconds"', () => {
+  const { authErrorMessage } = lib('auth-error.ts');
+  assert.match(authErrorMessage(429, JSON.stringify({ detail: 'Too many requests from this connection. Wait a minute and try again.' }), '20'), /Wait 20 seconds/);
+});
