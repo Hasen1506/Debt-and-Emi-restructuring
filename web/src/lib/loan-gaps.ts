@@ -30,8 +30,8 @@ export interface GapContext {
 /** Loan types that are never interest-free, so a 0% rate means it's
  *  missing. Personal loans, BNPL and car loans can be 0% ("no-cost EMI",
  *  dealer offers), so an entered 0 stands for those. */
+// UX2B-5: a card can be 0% (balance transfer, intro offer); Setup asks when it ends.
 const NEVER_ZERO_RATE: ReadonlySet<LoanType> = new Set([
-  'credit_card',
   'home_loan',
   'education_loan',
   'gold_loan',
@@ -69,6 +69,7 @@ export const loanRateOutOfRange = (rate: string | null | undefined) => rateOutOf
 export function rateSanityNote(loanType: LoanType, rate: string | null | undefined, country: string): string | null {
   const t = (rate ?? '').trim();
   const n = Number(t);
+  if (loanType === 'credit_card' && t !== '' && n === 0) return 'A 0% intro or balance-transfer offer? Add when it ends and the rate after, so the plan charges it from then.';
   if (t === '' || !Number.isFinite(n) || n <= 0 || n > MAX_LOAN_RATE) return null;
   const pct = Number((n * 100).toFixed(2));
   const shown = pct.toLocaleString('en-US');
@@ -120,7 +121,7 @@ export function loanDraftErrors(
   if (dec(loan.outstanding).lte(0)) return {};
   const out: Partial<Record<LoanGapField, string>> = {};
   const rateBlank = (loan.nominal_rate ?? '').trim() === '';
-  if (loan.loan_type === 'credit_card' && (rateBlank || dec(loan.nominal_rate).lte(0))) {
+  if (loan.loan_type === 'credit_card' && rateBlank) {
     out.rate = 'Enter the card’s interest rate, e.g. 42 (a 3.5% monthly rate is 42% a year).';
   } else if (rateBlank) {
     out.rate = 'Enter the interest rate from your statement (0 only if it’s really interest-free).';

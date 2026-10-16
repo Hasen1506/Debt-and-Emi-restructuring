@@ -293,3 +293,22 @@ test('B4 (#15): pay later keeps its name and reads as payments, not EMIs', () =>
   assert.match(op, /PAYMENT\$\{n === 1 \? '' : 'S'\} LEFT/);
   assert.match(op, /isCard \? 'MINIMUM' : payTag/);
 });
+
+test('B5 (#5): a 0% card is taken, with an optional end month and the rate after it', () => {
+  const g = lib('loan-gaps.ts');
+  const bt = { loan_type: 'credit_card', outstanding: '300000', nominal_rate: '0', scheduled_emi: '0' };
+  assert.equal(g.loanDraftErrors(bt, 'US').rate, undefined);
+  assert.deepEqual(g.loanGaps(bt), []);
+  assert.ok(g.loanDraftErrors({ ...bt, nominal_rate: '' }, 'US').rate);              // blank is still missing
+  assert.match(g.rateSanityNote('credit_card', '0', 'US'), /Add when it ends and the rate after/);
+  const p = lib('promo-rate.ts');
+  assert.equal(p.promoError({}, '2026-10'), null);
+  assert.match(p.promoError({ promo_until: '2027-04' }, '2026-10'), /rate after the offer ends/);
+  assert.equal(p.promoError({ promo_until: '2027-04', rate_after_promo: '0.2499' }, '2026-10'), null);
+  assert.match(p.promoError({ promo_until: '2026-05', rate_after_promo: '0.2499' }, '2026-10'), /passed/);
+  assert.equal(p.promoForEngine({ ...bt, promo_until: '2027-04', rate_after_promo: '0.2499' }, '2026-10').promo_months, 7);
+  assert.equal(p.promoForEngine({ ...bt, promo_until: '2026-09', rate_after_promo: '0.2499' }, '2026-10').nominal_rate, '0.2499');
+  assert.equal(p.promoForEngine(bt, '2026-10'), bt);
+  assert.match(src('components/plan/load-plan.ts'), /promoForEngine\(l, planMonth\)/);
+  assert.match(src('components/setup/QuickSetup.tsx'), /<PromoFields loan=\{loan\}/);
+});

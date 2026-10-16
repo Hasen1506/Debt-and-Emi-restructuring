@@ -62,6 +62,8 @@ import { SetupThisMonth } from './SetupThisMonth';
 import { typicalRate, TYPICAL_RATE_AS_OF, withEstimate } from '@/lib/setup-estimates';
 import { EstimateBalance } from './EstimateBalance';
 import { RepaymentChips } from './RepaymentChips';
+import { PromoFields } from './PromoFields';
+import { promoError } from '@/lib/promo-rate';
 import { emiOptional, finishShape, moratoriumMonths, payingNow, savedEndMonth, shapeError, shapeNeedsEmi, typeSwitch } from '@/lib/repayment-shape';
 import { readStrategyClient, strategyName, STRATEGY_SHORT, writeStrategyClient, type StrategyName } from '@/lib/strategy';
 import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
@@ -349,7 +351,7 @@ export function QuickSetup() {
     if (draft.rate) out.rate = draft.rate;
     // Live re-test 3 R3-4: unreadable rate text is not a blank rate.
     if (u.rateUnreadable && (l.nominal_rate ?? '').trim() === '') out.rate = 'unreadable';
-    const shapeErr = shapeError(l, endOf(l), thisMonth);
+    const shapeErr = shapeError(l, endOf(l), thisMonth) ?? promoError(l, thisMonth);
     if (shapeErr) out.end = shapeErr;
     if (needsEmi(l.loan_type) && shapeNeedsEmi(l, endOf(l))) {
       if (u.byMonths) {
@@ -468,6 +470,7 @@ export function QuickSetup() {
     if (out.currency === userCcy) delete out.currency;
     if (!(out.min_payment_override ?? '').trim()) delete out.min_payment_override;
     if (!(out.prepayment_penalty_pct ?? '').trim()) delete out.prepayment_penalty_pct;
+    if (Number(out.nominal_rate) !== 0 || !(out.promo_until ?? '').trim()) { delete out.promo_until; delete out.rate_after_promo; }
     return out;
   }
 
@@ -1317,6 +1320,7 @@ function LoanBlock({
           />
         )}
       </div>
+      <PromoFields loan={loan} onPatch={onPatch} error={issues.end} />
       {askPaid && (
         <EmiPaidQuestion
           monthName={monthName}

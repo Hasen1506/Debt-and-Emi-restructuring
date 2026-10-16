@@ -879,6 +879,10 @@ def _simulate_plan(
         # +50bps/yr drift with a 12mo reset bumps the loan by 50bps each
         # reset, while a 1-month-reset loan bumps by ~4bps per reset.
         # Defensive: skip when fields are missing OR rate_type != floating.
+        # UX2B-5: a promo rate ends; the card's own rate applies from here.
+        for ln in loans:
+            if ln.promo_months > 0 and ln.rate_after_promo is not None and m == ln.promo_months + 1:
+                ln.nominal_rate = ln.rate_after_promo
         for li, ln in enumerate(loans):
             if ln.rate_type != "floating" or m < loan_start_month[id(ln)]:
                 continue

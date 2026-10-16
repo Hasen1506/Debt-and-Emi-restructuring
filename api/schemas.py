@@ -278,6 +278,9 @@ class LoanIn(_In):
     # C2: "emi" | "interest_only" | "bullet" (blank: a gold loan with no EMI
     # is a bullet, anything else an EMI loan).
     repayment: Optional[str] = None
+    # UX2B-5: a promo rate's length in plan months, and the rate after it.
+    promo_months: Months = 0
+    rate_after_promo: Optional[Rate] = None
     # C4: the calendar month extra payments are first allowed ('YYYY-MM').
     # The lock-in then runs down as months pass. Without it, a typed
     # `prepay_lock_in_months` is counted from the loan's start month
@@ -464,6 +467,8 @@ class LoanIn(_In):
             on_rate_rise=self.on_rate_rise,
             max_tenure_months=self.max_tenure_months,
             repayment=self.repayment,
+            promo_months=self.promo_months,
+            rate_after_promo=self.rate_after_promo,
         )
 
 

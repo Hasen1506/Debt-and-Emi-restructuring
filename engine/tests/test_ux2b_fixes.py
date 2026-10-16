@@ -34,3 +34,25 @@ def test_b12_tiny_balance_and_high_foir_are_held_back():
 def test_b12_ux1_short_month_still_pitched():
     c = consolidation_card(s2(), run, MR, PUB)
     assert c.not_worth_it is None
+
+
+def test_b5_zero_percent_promo_then_the_rate_jumps():
+    """u06: a 0% balance-transfer card; the plan charged nothing for ever.
+    With an end month the card's own rate applies after it."""
+    from engine.ordering import Strategy
+    from engine.simulation import simulate_plan
+    c = card("300000", "0")
+    c.promo_months, c.rate_after_promo = 6, D("0.42")
+    u = user("80000", "40000", [c])
+    res = simulate_plan(u, Strategy.AVALANCHE, horizon_months=120, marginal_rate=MR)
+    assert all(r.interest_paid_month == 0 for r in res.months[:6])
+    assert res.months[6].interest_paid_month > 0
+    flat = simulate_plan(user("80000", "40000", [card("300000", "0")]), Strategy.AVALANCHE, horizon_months=120, marginal_rate=MR)
+    assert flat.total_interest_paid == 0 and res.total_interest_paid > 0
+
+
+def test_b5_api_takes_the_promo(client=None):
+    from api.schemas import LoanIn
+    l = LoanIn(loan_type="credit_card", bank="", outstanding="300000", nominal_rate="0", rate_type="fixed",
+               tenure_months_remaining=0, scheduled_emi="0", promo_months=6, rate_after_promo="0.42").to_engine()
+    assert l.promo_months == 6 and l.rate_after_promo == D("0.42")
