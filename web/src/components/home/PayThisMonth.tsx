@@ -445,7 +445,9 @@ export function PayThisMonth({
                 </div>
                 {foreign && <div style={{ fontSize: 'var(--fs-small)', color: L_T.muted }}>≈ {fmt(row.amountUser)}</div>}
               </div>
-              <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* The buttons arrive once the browser has read Activity; their row is
+                  held so the page under the list does not jump (E10). */}
+              <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', minHeight: 36 }}>
                 {!ready ? null : st && st.tag !== 'EMI PAID' ? (
                   st.undoable ? (
                     <LBracket onClick={() => attempt(() => undo(row))} label={`Undo: ${row.name} not paid`}>

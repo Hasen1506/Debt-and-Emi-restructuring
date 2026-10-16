@@ -26,7 +26,8 @@ export const metadata: Metadata = { title: 'Home · RightDue' };
 export default async function HomePage() {
   const [profile, strategy] = await Promise.all([loadCurrentProfileServer(), loadStrategyServer()]);
   const plannedLoans=(await readLifecycleServer()).filter(e=>e.status==='planned' && e.kind==='property_buy');
-  const hasOpenLoans = profile.user.loans.some((l) => Number(l.outstanding) > 0);
+  const openLoans = profile.user.loans.filter((l) => Number(l.outstanding) > 0).length;
+  const hasOpenLoans = openLoans > 0;
   const showPlannedSummary=plannedLoans.length>0 && !profile.user.loans.some(l=>Number(l.outstanding)>0);
   // The ledger layout shows no page title; screen readers still need one.
   return (
@@ -62,7 +63,10 @@ export default async function HomePage() {
           ),
         }}
         register={
-          <Suspense fallback={<p aria-busy="true" style={{ fontSize: 'var(--fs-dense)' }}>WORKING OUT THIS MONTH&apos;S PAYMENTS…</p>}>
+          // UX fix 11 moved the pay list above the figures; its place is held
+          // (about a row per loan, at most a screen) so the page below does
+          // not jump when it streams in (E10 layout shift under 0.1).
+          <Suspense fallback={<p aria-busy="true" style={{ fontSize: 'var(--fs-dense)', margin: 0, minHeight: hasOpenLoans ? `min(100svh, ${180 + 130 * (openLoans + 1)}px)` : undefined }}>WORKING OUT THIS MONTH&apos;S PAYMENTS…</p>}>
             <HomePayThisMonth />
           </Suspense>
         }
