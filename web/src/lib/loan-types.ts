@@ -14,7 +14,7 @@ export const LOAN_TYPE_SHORT: Record<LoanType, string> = {
   credit_card: 'card',
   education_loan: 'education',
   gold_loan: 'gold',
-  bnpl: 'BNPL',
+  bnpl: 'pay later',
 };
 
 /** Full name for sentences: "HDFC credit card", "SBI home loan". */
@@ -25,7 +25,8 @@ export const LOAN_TYPE_NAME: Record<LoanType, string> = {
   credit_card: 'credit card',
   education_loan: 'education loan',
   gold_loan: 'gold loan',
-  bnpl: 'BNPL',
+  // UX2B-15: Setup's chip says "Pay later"; Home and Plan said "Simpl BNPL".
+  bnpl: 'pay later',
 };
 
 /** The user's own name for a loan (live test #4: "Dad's car loan"), trimmed
@@ -65,7 +66,7 @@ const AUTO_LABEL: Record<LoanType, string> = {
   credit_card: 'Card',
   education_loan: 'Education loan',
   gold_loan: 'Gold loan',
-  bnpl: 'BNPL',
+  bnpl: 'Pay later',
 };
 
 /**

@@ -69,6 +69,10 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
           const gaps = loanGaps(loan, gapCtx);
           const isCard = loan.loan_type === 'credit_card';
           const months = Number(loan.tenure_months_remaining || 0);
+          // UX2B-15: a pay-later bill is a payment, not an EMI ("EMI ₹6,500 · 1 MO LEFT" after it was paid).
+          const later = loan.loan_type === 'bnpl';
+          const payTag = later ? 'PAYMENT' : emiTag;
+          const leftTag = (n: number) => (later ? (n > 0 ? `${n} PAYMENT${n === 1 ? '' : 'S'} LEFT` : 'NOTHING MORE DUE') : `${n} MO LEFT`);
           const isDearest = d === dearest;
           const isOpen = open === i;
           const owed = now.rows[d.index]?.owed ?? d.outstanding;
@@ -97,10 +101,10 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
             gaps.includes('emi') ? (
               missing(emiTag)
             ) : d.required.gt(0) && !(status && status !== 'paid') ? (
-              `${isCard ? 'MINIMUM' : emiTag} ${fc(d.required.toFixed(0))}`
+              `${isCard ? 'MINIMUM' : payTag} ${fc(d.required.toFixed(0))}`
             ) : null,
             // Once this month's EMI is paid it's no longer one of the months left.
-            isCard ? <Term key="rev" id="revolving">REVOLVING</Term> : months > 0 ? `${now.rows[d.index]?.status === 'paid' ? months - 1 : months} MO LEFT` : null,
+            isCard ? <Term key="rev" id="revolving">REVOLVING</Term> : months > 0 ? leftTag(now.rows[d.index]?.status === 'paid' ? months - 1 : months) : null,
           ].filter(Boolean);
           return (
             <li
@@ -167,7 +171,7 @@ export function OpenPositions({ profile, m, dues }: { profile: StoredProfile; m:
                     color: status === 'paid' ? L_T.positive : status === 'due' ? L_T.muted : L_T.negative,
                   }}
                 >
-                  {emiStatusLine(status, mon, nextMon, isCard ? 'MINIMUM' : emiTag, !gaps.includes('emi') && d.required.gt(0) ? fc(d.required.toFixed(0)) : null)}
+                  {emiStatusLine(status, mon, nextMon, isCard ? 'MINIMUM' : payTag, !gaps.includes('emi') && d.required.gt(0) ? fc(d.required.toFixed(0)) : null)}
                 </div>
               )}
               <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 12, flexWrap: 'wrap' }}>

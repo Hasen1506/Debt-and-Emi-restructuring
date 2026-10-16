@@ -282,3 +282,14 @@ test('B3 (#12): a pitch banks would likely refuse gets one quiet line; the extra
   const { notWorthLine } = require(path.join(root, 'components/insights/CheaperWay.tsx'));
   assert.match(notWorthLine({ cards: [0], not_worth_it: 'not_approvable' }, 'card', () => ''), /unlikely to be approved/);
 });
+
+test('B4 (#15): pay later keeps its name and reads as payments, not EMIs', () => {
+  const t = lib('loan-types.ts');
+  assert.equal(t.loanLabel({ bank: 'Simpl', loan_type: 'bnpl' }), 'Simpl pay later');
+  assert.equal(t.loanLabel({ loan_type: 'bnpl' }), 'Pay later');
+  assert.doesNotMatch(JSON.stringify([t.LOAN_TYPE_NAME, t.LOAN_TYPE_SHORT]), /BNPL/);
+  const op = src('components/home/OpenPositions.tsx');
+  assert.match(op, /const payTag = later \? 'PAYMENT' : emiTag;/);
+  assert.match(op, /PAYMENT\$\{n === 1 \? '' : 'S'\} LEFT/);
+  assert.match(op, /isCard \? 'MINIMUM' : payTag/);
+});
