@@ -74,7 +74,7 @@ import { LAST_SEEN_KEY } from '@/lib/guest-return';
 import { cappedRow, saneCap, shortGapLine, shownDebtFreeMonth } from '@/lib/plan-gap';
 import { loanKindsFor, paymentWords } from '@/lib/r7-inputs';
 import { formatTaxRate } from '@/lib/tax-profile';
-import { checkSpend, parseDraft, serializeDraft, SETUP_DRAFT_KEY, SPEND_COPY, stepFromParam, urlWithStep } from '@/lib/setup-draft';
+import { checkSpend, dropDraft, parseDraft, readDraftText, serializeDraft, SETUP_DRAFT_KEY, SETUP_EDIT_DRAFT_MAX_AGE_MS, SPEND_COPY, stepFromParam, urlWithStep } from '@/lib/setup-draft';
 import { dateProfileRates } from '@/lib/fx-refresh';
 import { EmiPaidQuestion, emiPaidError } from '@/components/EmiPaidQuestion';
 import {
@@ -131,7 +131,7 @@ interface Preview {
   simArgs: SimulateArgs;
 }
 
-/** What Setup keeps in sessionStorage between Back, Forward and reload (B-10). */
+/** What Setup keeps in localStorage between Back, Forward, reload and visits (B-10, UX2-6). */
 interface DraftState {
   country?: Country;
   isNriUs?: boolean;
@@ -145,10 +145,10 @@ interface DraftState {
   choices?: Choices;
 }
 
-function readDraft() {
+function readDraft(editing: boolean) {
   try {
-    const d = parseDraft<DraftState>(window.sessionStorage.getItem(SETUP_DRAFT_KEY), Date.now());
-    if (!d) window.sessionStorage.removeItem(SETUP_DRAFT_KEY);
+    const d = parseDraft<DraftState>(readDraftText(), Date.now(), editing ? SETUP_EDIT_DRAFT_MAX_AGE_MS : undefined);
+    if (!d) dropDraft();
     return d;
   } catch {
     return null;
@@ -239,7 +239,7 @@ export function QuickSetup() {
       }
       // UX50 B-10: what was typed in this tab before a Back, Forward or
       // reload comes back, on the step the URL names.
-      const draft = readDraft();
+      const draft = readDraft(stored.isLive);
       const urlStep = stepFromParam(new URLSearchParams(window.location.search).get('step'));
       if (draft) {
         const d = draft.state;
@@ -262,13 +262,13 @@ export function QuickSetup() {
     return () => window.removeEventListener(HYDRATED_EVENT, restore);
   }, []);
 
-  // UX50 B-10: keep the draft in this tab while it is being typed.
+  // UX50 B-10 / UX2-6: keep the draft in this browser while it is being typed.
   const draftOn = useRef(true);
   useEffect(() => {
     if (!ready || !edited.current || !draftOn.current) return;
     try {
       const state: DraftState = { country, isNriUs, incomeType, takeHome, spend, zeroSpendOk, loans, ui, fxRates, choices };
-      window.sessionStorage.setItem(SETUP_DRAFT_KEY, serializeDraft(state, step, Date.now()));
+      window.localStorage.setItem(SETUP_DRAFT_KEY, serializeDraft(state, step, Date.now()));
     } catch {
       /* private mode or full: Back still works within the page */
     }
@@ -726,7 +726,7 @@ export function QuickSetup() {
     draftOn.current = false;
     try {
       if (!signedInAccount()) window.localStorage.setItem(LAST_SEEN_KEY, String(Date.now()));
-      window.sessionStorage.removeItem(SETUP_DRAFT_KEY);
+      dropDraft();
     } catch {
       /* private mode */
     }

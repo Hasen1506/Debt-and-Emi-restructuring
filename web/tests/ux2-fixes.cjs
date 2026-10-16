@@ -89,3 +89,29 @@ test('#18: a card at 3.5% gets "monthly rate? enter 42"; 120% on a loan points a
   assert.match(msg, /Check the rate \(did you mean 12%\?\)/);
   assert.doesNotMatch(msg, /did you mean ₹50,000/);
 });
+
+// ── #6 ──────────────────────────────────────────────────────────────────────
+test('#6: the Setup draft lives in this browser (new tab, days later) and goes on finish or sign-out', () => {
+  const d = lib('setup-draft.ts');
+  const store = () => { const m = new Map(); return { m, getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+  const w = { localStorage: store(), sessionStorage: store() };
+  const now = 1_760_000_000_000;
+  w.localStorage.setItem(d.SETUP_DRAFT_KEY, d.serializeDraft({ takeHome: '80000' }, 1, now));
+  const threeDays = now + 3 * 24 * 3600 * 1000;
+  assert.equal(d.parseDraft(d.readDraftText(w), threeDays).state.takeHome, '80000');      // a first Setup, days later
+  assert.equal(d.parseDraft(d.readDraftText(w), threeDays, d.SETUP_EDIT_DRAFT_MAX_AGE_MS), null); // editing a saved profile: 6 h
+  assert.equal(d.parseDraft(d.readDraftText(w), now + d.SETUP_DRAFT_MAX_AGE_MS + 1), null);
+  // A draft an older build left in this tab still comes back once.
+  const old = { localStorage: store(), sessionStorage: store() };
+  old.sessionStorage.setItem(d.SETUP_DRAFT_KEY, 'x');
+  assert.equal(d.readDraftText(old), 'x');
+  d.dropDraft(w); d.dropDraft(old);
+  assert.equal(d.readDraftText(w), null);
+  assert.equal(d.readDraftText(old), null);
+  const qs = src('components/setup/QuickSetup.tsx');
+  assert.match(qs, /window\.localStorage\.setItem\(SETUP_DRAFT_KEY/);
+  assert.doesNotMatch(qs, /sessionStorage\.(get|set)Item\(SETUP_DRAFT_KEY/);
+  assert.match(qs, /readDraft\(stored\.isLive\)/);
+  assert.match(src('lib/auth.ts'), /clearPendingSync\(\);\n\s*\(await import\('\.\/setup-draft'\)\)\.dropDraft\(\)/);
+  assert.ok(lib('account.ts').LOCAL_PREFIXES.some((p) => d.SETUP_DRAFT_KEY.startsWith(p)));        // "Clear this browser" too
+});
