@@ -61,7 +61,9 @@ test('A1 A2 A6 A4 + offer check at 390: the persona', async ({ page }) => {
     await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();
     await fillLoan(page, 0, { kind: /^card$/i, balance: '150000', rate: '42' });
     await fillLoan(page, 1, { kind: /^personal$/i, balance: '400000', rate: '14', emi: '10931' });
-    await fillLoan(page, 2, { kind: /^home$/i, balance: '2500000', rate: '8.6', emi: '21855' });
+    // R2-3 moved the prepay/keep/split trigger to the assumed 6.5% return + 1 point
+    // (7.5%), so the home loan left at the end is a 7.2% one (8.6% never asks).
+    await fillLoan(page, 2, { kind: /^home$/i, balance: '2500000', rate: '7.2', emi: '21855' });
     await page.getByRole('button', { name: /CONTINUE · SEE YOUR PLAN/ }).click();
     await fitsThePhone(page, 'disagree-card');
     await expect(page.getByTestId('disagree-total').first()).toHaveText(/^₹[\d,]+$/);
@@ -75,7 +77,7 @@ test('A1 A2 A6 A4 + offer check at 390: the persona', async ({ page }) => {
     await page.waitForURL('**/plan');
   });
 
-  await test.step('Plan: prepay, keep or split once only the 8.6% home loan is left', async () => {
+  await test.step('Plan: prepay, keep or split once only the 7.2% home loan is left', async () => {
     await fitsThePhone(page, 'prepay-keep-split');
     await expect(page.getByTestId('pks-statement')).not.toContainText(/fund|equity|stock|Nifty|S&P/i);
     await expect(page.getByTestId('pks-row-0')).toBeVisible();
