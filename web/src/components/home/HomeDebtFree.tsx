@@ -29,26 +29,37 @@ import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
 import { homeInterestLine, homeThisMonthLine } from '@/lib/home-this-month';
 import { HomeThisMonth } from './HomeThisMonth';
 import { InsightsPanel } from '@/components/insights/InsightsPanel';
+import { shortPriority, shortPriorityOrder } from '@/lib/short-priority';
 
 // One engine run per request, shared by the value and its caption.
 const loadPlanOnce = cache(loadPlanFromCookies);
 
+/** UX walkthrough fix 9: a shortfall reads red, a date green, and the rest
+ *  (no date yet, see plan) in ink; never a gap in green. */
+const SHORT_TONE = { color: 'var(--negative)' } as const;
+const DATE_TONE = { color: 'var(--positive)' } as const;
+const CAPTION_TONE = { color: 'inherit' } as const;
+
 export async function HomeDebtFreeValue() {
+  return <span data-testid="home-debt-free-value">{await debtFreeValue()}</span>;
+}
+
+async function debtFreeValue() {
   const plan = await loadPlanOnce();
   // Audit 80+ A5: short this month, the headline is the gap, not the date it
   // would take to close it; that date is demoted to the caption (shortGapLine).
   if (plan.gaps.length === 0 && plan.shortfall > 0)
-    return <>{shortValue(plan.shortfall, (v) => formatCurrencyWhole(v, userDefaultCurrency(plan.user.country)))}</>;
+    return <span style={SHORT_TONE}>{shortValue(plan.shortfall, (v) => formatCurrencyWhole(v, userDefaultCurrency(plan.user.country)))}</span>;
   // W1b / audit 80+ C11: a later month the gap credit limit can't carry leads
   // with that month's gap, not a date.
   if (plan.gaps.length === 0 && plan.infeasibleFrom != null && plan.futureShortfall)
-    return <>{shortValue(plan.futureShortfall.amount, (v) => formatCurrencyWhole(v, userDefaultCurrency(plan.user.country)))}</>;
+    return <span style={SHORT_TONE}>{shortValue(plan.futureShortfall.amount, (v) => formatCurrencyWhole(v, userDefaultCurrency(plan.user.country)))}</span>;
   if (plan.gaps.length > 0 || plan.shortfall > 0 || plan.futureShortfall) return <>NO DATE YET</>;
   if (!plan.live) return <Link href="/plan" className="l-hit">SEE PLAN →</Link>;
   // 0 = nothing owed now; null = not cleared within the horizon.
-  if (plan.debtFreeMonth === 0) return <>NOW</>;
+  if (plan.debtFreeMonth === 0) return <span style={DATE_TONE}>NOW</span>;
   if (!plan.debtFreeMonth) return <>NOT ON THIS PLAN</>;
-  return <>{monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()}</>;
+  return <span style={DATE_TONE}>{monthIndexToCountryLabel(plan.debtFreeMonth, plan.user.country).toUpperCase()}</span>;
 }
 
 export async function HomeDebtFreeCaption() {
@@ -56,7 +67,7 @@ export async function HomeDebtFreeCaption() {
   if (plan.gaps.length > 0) return <Link href="/profile?step=loans" className="l-hit">ADD LOAN DETAILS →</Link>;
   if (plan.shortfall > 0) {
     return (
-      <Link href="/plan" className="l-hit">
+      <Link href="/plan" className="l-hit" style={SHORT_TONE}>
         {/* Live re-test 7 R7-2: Plan's and Setup's words, as-is date included. */}
         {(
           shortGapLine({
@@ -97,7 +108,7 @@ export async function HomeDebtFreeCaption() {
       ? ` · AT THE ${fc(pace.average)}/MO YOU'VE PAID: ${monthIndexToCountryLabel(pace.debtFreeMonth, plan.user.country).toUpperCase()}`
       : '';
   return (
-    <Link href="/plan" className="l-hit">
+    <Link href="/plan" className="l-hit" style={CAPTION_TONE}>
       IN {monthsSpan(plan.debtFreeMonth).toUpperCase()}
       {toDebts ? ` · AT ${fc(toDebts)}/MO TO DEBTS, ${rateWords}` : ''}
       {atPace} · PLAN →
@@ -232,7 +243,7 @@ export async function HomePayThisMonth() {
             shortfall: plan.shortfall,
           }),
           (v) => fc(Math.round(v)),
-        )} ${localTerms('Pay every EMI and card minimum', plan.user.country)} in full first: a missed one is reported to the credit bureaus and brings late fees. Find the gap from spending, or call the bank before the due date.`
+        )} ${shortPriorityOrder(shortPriority(data, plan.user.loans, plan.shortfall), fc, country)} A missed payment is reported to the credit bureaus and brings late fees.`
       : plan.futureShortfall
         ? `From ${monthIndexToCountryLabel(plan.futureShortfall.month, country)}, the payments need more than you earn. See the plan.`
         : undefined;
@@ -270,6 +281,7 @@ export async function HomePayThisMonth() {
             : undefined
         }
         pay={data}
+        firstBalanceYm={plan.user.loans.map((l) => l.balance_as_of?.slice(0, 7)).filter((x): x is string => !!x).sort()[0] ?? null}
         strategy={plan.strategy}
         monthLabel={monthLabel}
         {...retentionInputs(plan.user.loans, data, country)}
@@ -285,7 +297,7 @@ export async function HomeThisMonthStrip() {
   if (plan.gaps.length > 0 || !plan.live) return null;
   const fc = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(plan.user.country));
   const data = payThisMonth(plan);
-  const line = homeThisMonthLine(data, plan.shortfall, fc, plan.user.country);
+  const line = homeThisMonthLine(data, plan.shortfall, fc, plan.user.country, plan.user.loans);
   if (!line || !data) return null;
   // Re-test 9 O-3: the strip notices payments logged this month.
   const progress = {
@@ -344,6 +356,6 @@ export async function HomeInsights() {
   const plan = await loadPlanOnce();
   if (!plan.live || !plan.runArgs || plan.gaps.length > 0) return null;
   return (
-    <InsightsPanel runArgs={{ ...plan.runArgs, strategy: plan.strategy }} variant="home" closedDebtFreeMonth={plan.gap?.closed?.debtFreeMonth ?? null} />
+    <InsightsPanel runArgs={{ ...plan.runArgs, strategy: plan.strategy }} variant="home" closedDebtFreeMonth={plan.gap?.closed?.debtFreeMonth ?? null} capped={plan.infeasibleFrom != null} />
   );
 }

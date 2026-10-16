@@ -58,7 +58,7 @@ import { orderChoice, type PlanInsights } from '@/lib/insights';
 import { SetupImportCard } from '@/components/setup/SetupImportCard';
 import { applyChoices, choicesFrom, missingChoices, startingChoices, type SetupChoices as Choices } from '@/lib/setup-choices';
 import { emiFromMonths, marginalRateFromTakeHome } from '@/lib/quick-setup';
-import { setupExtraMove } from '@/lib/setup-this-month';
+import { SetupThisMonth } from './SetupThisMonth';
 import { estimateBalance, monthsSince, typicalRate, TYPICAL_RATE_AS_OF, withEstimate } from '@/lib/setup-estimates';
 import { readStrategyClient, strategyName, STRATEGY_SHORT, writeStrategyClient, type StrategyName } from '@/lib/strategy';
 import { FY_ANCHOR_MONTH, MONTH_NAMES, getCountryMonth, getCountryToday, localIsoDate, monthIndexToCountryLabel, monthsSpan } from '@/lib/today';
@@ -595,7 +595,7 @@ export function QuickSetup() {
             return null;
           }),
       ])
-        .then(([plan, minimums, likely]) => live && setPreview({ plan, minimums, likely, loans: user.loans, planUser, simArgs }))
+        .then(([plan, minimums, likely]) => live && setPreview({ plan, minimums, likely, loans: disambiguateLoans(user.loans), planUser, simArgs }))
         .catch((e) => {
           if (!live || isAbortError(e)) return;
           setPreviewError("The plan couldn't be worked out just now. You can still save, and Home will try again.");
@@ -1522,10 +1522,6 @@ function PlanPreview({
     shownDebtFreeMonth(plan) != null && minimums.debt_free_month != null
       ? minimums.debt_free_month - plan.debt_free_month!
       : null;
-  // R10-4: Home's own whole-rupee split, so Setup's last sentence and
-  // Home's "This month" name the same extra to the rupee.
-  const move = setupExtraMove(plan, minimums, planUser);
-  const moveLoan = move ? loans[move.index] : null;
   // UX50 B-13: short, Plan's and Home's headline (date if the gap closes, date as things stand) and no
   // "years sooner" with no date to measure from. Phase 5 (C11): capped has no date either (reads as short).
   const capped = cappedRow(plan, (m) => monthIndexToCountryLabel(m, country), (v) => money(new Decimal(v)));
@@ -1587,13 +1583,9 @@ function PlanPreview({
       : `Paying only the minimums would cost ${interestSaved.gt(0) ? `${money(interestSaved)} more interest` : 'about the same interest'}${monthsSaved && monthsSaved > 0 ? ` and take ${monthsSpan(monthsSaved)} longer` : ''}. That is the most any plan could save, not a typical saving.`;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Audit 80+ A1/A5/A6: first on Step 3. The order doesn't change these cards. */}
-      <InsightsPanel
-        runArgs={{ ...preview.simArgs, strategy: undefined }}
-        variant="setup"
-        closedDebtFreeMonth={closedMonth}
-        onInsights={onInsights}
-      />
+      {/* UX walkthrough fix 1/11: what to do this month first, then the date;
+          the insight cards (the A6 card-to-loan move among them) come after. */}
+      <SetupThisMonth plan={plan} minimums={minimums} planUser={planUser} loans={loans} country={country} money={money} />
       {shortfall.gt(0) && (
         <p role="alert" style={{ margin: 0, padding: '10px 12px', border: `1px solid ${L_T.negative}`, color: L_T.negative, lineHeight: 1.55 }}>
           Your take-home is {money(shortfall)} a month short of spending plus minimum payments. The date below is
@@ -1623,20 +1615,13 @@ function PlanPreview({
           <p style={{ margin: '6px 0 0', lineHeight: 1.55 }}>{worstCase}</p>
         </details>
       )}
-      <div style={{ padding: '12px 14px', background: L_T.paper, border: `1px solid ${L_T.ruleSoft}`, ...lStrip('accent') }}>
-        <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
-        {move && moveLoan ? (
-          <div style={{ fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>
-            {country === 'US' ? 'Make every payment' : `Pay every ${paymentWords(country).one}`} and card minimum, then put{' '}
-            <strong>{money(String(move.extra), loanCurrency(moveLoan, country))}</strong> extra on your{' '}
-            <strong>{moveLoan.bank ? `${moveLoan.bank} ` : ''}{LOAN_TYPE_NAME[moveLoan.loan_type]}</strong>.
-          </div>
-        ) : (
-          <div style={{ fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>
-            {country === 'US' ? 'Make every payment' : `Pay every ${paymentWords(country).one}`} and card minimum. Nothing is left over for extra payments this month.
-          </div>
-        )}
-      </div>
+      <InsightsPanel
+        runArgs={{ ...preview.simArgs, strategy: undefined }}
+        variant="setup"
+        closedDebtFreeMonth={closedMonth}
+        capped={plan.infeasible_from_month != null}
+        onInsights={onInsights}
+      />
     </div>
   );
 }

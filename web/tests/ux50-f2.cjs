@@ -111,13 +111,16 @@ test('B-11: Home says what to do this month in one line', () => {
   const ok = homeThisMonthLine(data, 0, money);
   assert.equal(ok.tone, 'ok');
   assert.equal(ok.text, 'This month: pay ₹57,000. Every EMI and card minimum (₹48,750), plus ₹8,250 extra on your credit card.');
-  const short = homeThisMonthLine({ ...data, extraUser: 0, total: 48750 }, 500, money);
+  // UX walkthrough fix 8: the order to protect (secured first), not "pay every EMI".
+  const loans = [{ loan_type: 'home_loan', nominal_rate: '0.09' }, { loan_type: 'auto_loan', nominal_rate: '0.1' }, { loan_type: 'credit_card', nominal_rate: '0.42' }];
+  const short = homeThisMonthLine({ ...data, extraUser: 0, total: 48750 }, 500, money, 'IN', loans);
   assert.equal(short.tone, 'short');
-  assert.match(short.text, /^This month you’re ₹500 short\. Pay every EMI and card minimum first \(Credit card, Home loan and Car loan\)/);
+  assert.match(short.text, /^This month you’re ₹500 short\. Pay Home loan and Car loan first, then call the bank for the credit card minimum before the due date\./);
   assert.equal(homeThisMonthLine(null, 0, money), null);
   assert.equal(lowerName('HDFC Bank credit card'), 'HDFC Bank credit card');
   assert.equal(lowerName('Car loan'), 'car loan');
-  assert.match(src('components/home/LedgerHome.tsx'), /\{thisMonth\}\s*<ContextLine/);
+  // UX walkthrough fix 10: the one line, then the pay list, at the top.
+  assert.match(src("components/home/LedgerHome.tsx"), /\{thisMonth\}[\s\S]{0,400}?\{register\}/);
 });
 
 test('B-01: the extra row is tagged in words, stays after paid, and both Home lists share one order', () => {

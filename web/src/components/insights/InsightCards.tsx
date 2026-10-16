@@ -27,7 +27,7 @@ export function DisagreementCard({ data, money, compact = false }: { data: Disag
           {total > 0 && (
             <p style={{ margin: '0 0 8px', display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '4px 10px' }}>
               <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted }}>WORTH</span>
-              <strong data-testid="disagree-total" style={{ fontSize: 'clamp(22px, 6vw, 28px)', color: L_T.positive, fontVariantNumeric: 'tabular-nums' }}>
+              <strong data-testid="disagree-total" style={{ fontSize: 'clamp(22px, 6vw, 28px)', color: L_T.ink, fontVariantNumeric: 'tabular-nums' }}>
                 {money(total)}
               </strong>
               <span style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>to you, on your own numbers</span>

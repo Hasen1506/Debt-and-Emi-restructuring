@@ -109,8 +109,10 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
           Your month on one page: what comes in and goes out, what to pay now, and every loan you have.
         </FirstVisitIntro>
         {thisMonth}
-        <ContextLine profile={profile} />
-        <CashFlow profile={profile} m={m} />
+        {/* UX walkthrough fix 10/11: what to pay comes right after the
+            month's one line (on a phone it was ~3 screens down, under the
+            cash flow, the figures and the offers). */}
+        {register}
 
         <section aria-labelledby="home-status">
           <LSectionHeader>
@@ -125,7 +127,9 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
                 ? { l: 'OUTSTANDING', v: '—', s: 'ADD THE EXCHANGE RATE' }
                 : { l: 'OUTSTANDING', v: fc(totalNow.toFixed(0)), s: `${m.loans.length} OPEN` },
               debtFree
-                ? { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.positive }
+                ? // UX walkthrough fix 9: the value colours itself (short or
+                  // capped in red, a date in green); the caption stays muted.
+                  { l: 'DEBT-FREE', v: debtFree.v, s: debtFree.s, tone: L_T.ink }
                 : { l: 'DEBT-FREE', v: 'SEE PLAN →', s: 'DATE + MONTHLY SCHEDULE', tone: L_T.muted },
               fxMissing
                 ? { l: 'INTEREST', v: '—', s: 'NEEDS THE EXCHANGE RATE' }
@@ -148,13 +152,15 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
           />
         </section>
 
+        <CashFlow profile={profile} m={m} />
+        <ContextLine profile={profile} />
+
         {/* Audit 80+ A1 (W3) insight cards. They stream in after the plan
             and can be ~1,500 px tall on a phone; above "This month" they
             pushed the whole page down (Home CLS 0.81 at 390 px, budget 0.1,
             E10). Here they land below the first screen. */}
         {insights}
 
-        {register}
         {cheaper}
 
         <OpenPositions profile={profile} m={m} />

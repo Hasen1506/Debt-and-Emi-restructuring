@@ -28,6 +28,9 @@ export interface PromptInput {
   snoozed: string[];
   /** True once the debt-free date has moved since the last visit. */
   debtFreeMoved?: boolean;
+  /** "YYYY-MM" of the earliest balance on file (UX walkthrough fix 13): a
+   *  plan started this month has no last month to log. */
+  firstBalanceYm?: string | null;
 }
 
 export const PROMPTS_SNOOZE_KEY = 'rightdue_prompts_snoozed';
@@ -54,8 +57,11 @@ export function monthlyPrompts(i: PromptInput): Prompt[] {
   }
   // Early in the month: last month's payments, if none were logged.
   const last = lastMonthYm(i.today);
-  if (i.today.getDate() <= 10 && i.loansWithPayments > 0 && !i.activityDates.some((d) => d.startsWith(last))) {
-    add({ key: 'log_last_month', text: 'Nothing is logged for last month yet. Log what you paid so the plan starts from the right balances.', href: '/activity#activity-ledger' });
+  // Not in the plan's first month: there is no "last month" yet (fix 13).
+  const newPlan = !!i.firstBalanceYm && i.firstBalanceYm >= thisYm;
+  if (!newPlan && i.today.getDate() <= 10 && i.loansWithPayments > 0 && !i.activityDates.some((d) => d.startsWith(last))) {
+    const lastName = new Date(i.today.getFullYear(), i.today.getMonth() - 1, 1).toLocaleString('en-GB', { month: 'long' });
+    add({ key: 'log_last_month', text: `Did ${lastName}’s payments go out as planned? Tick them in Activity so this month starts from the right balances.`, href: '/activity#activity-ledger' });
   }
   if (i.debtFreeMoved) {
     add({ key: 'debt_free_moved', text: 'Your debt-free date moved since your last visit. See why on Plan.', href: '/plan' });
@@ -68,7 +74,14 @@ export function monthlyPrompts(i: PromptInput): Prompt[] {
   }
   // A8: RightDue is the checker, not the exit door. Copy my plan stays (with a
   // link back); the paste box checks the answer against your loans and RBI rules.
-  add({ key: 'ask_assistant', action: 'check_advice', text: 'Got advice from an assistant or a bank RM? Paste it and we’ll check it against your loans and RBI rules.' });
+  // UX walkthrough fix 5: RBI and a bank RM are India's.
+  add({
+    key: 'ask_assistant',
+    action: 'check_advice',
+    text: i.country === 'US'
+      ? 'Got advice from an assistant or a lender? Paste it and we’ll check it against your loans.'
+      : 'Got advice from an assistant or a bank RM? Paste it and we’ll check it against your loans and RBI rules.',
+  });
   return out.slice(0, 3);
 }
 

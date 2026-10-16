@@ -49,6 +49,7 @@ export function HomeProgress({
   adviceLoans = [],
   extraTarget = null,
   rateLoans = [],
+  firstBalanceYm = null,
 }: {
   country: 'IN' | 'US';
   todayIso: string;
@@ -67,6 +68,8 @@ export function HomeProgress({
   extraTarget?: number | null;
   /** A13: floating-rate loans the rate-move email can watch. */
   rateLoans?: RateWatchLoan[];
+  /** UX walkthrough fix 13: the earliest balance date on file ("YYYY-MM"). */
+  firstBalanceYm?: string | null;
 }) {
   const [marks, setMarks] = useState<DebtFreeMark[]>([]);
   const [moved, setMoved] = useState(false);
@@ -105,8 +108,9 @@ export function HomeProgress({
       pendingUpi: dueChecks(readPending(), new Date()),
       snoozed: Array.isArray(snoozed) ? snoozed : [],
       debtFreeMoved: changed,
+      firstBalanceYm,
     }));
-  }, [ym, todayIso, today, country, pay]);
+  }, [ym, todayIso, today, country, pay, firstBalanceYm]);
 
   const s = ym ? shaved(marks, todayIso.slice(0, 7)) : null;
   const shareInput = {

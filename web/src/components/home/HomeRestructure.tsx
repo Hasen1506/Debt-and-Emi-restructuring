@@ -10,7 +10,7 @@ import { useState, type ReactNode } from 'react';
 import { formatCurrencyWhole, formatPct } from '@/lib/api';
 import type { RestructuringHeldBack, RestructuringOpportunity, UserPayload } from '@/lib/api';
 import { loanCurrency, userDefaultCurrency } from '@/lib/currency';
-import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { LOAN_TYPE_NAME, disambiguateLoans, loanNickname } from '@/lib/loan-types';
 import { formatAsOf } from '@/lib/as-of';
 import { LBracket, LSectionHeader, L_T, lStrip } from '@/components/ledger/primitives';
 import { EligibilityCaveat, OpportunityAlternative, UpdateTermsButton } from '@/components/plan/OpportunityAlternative';
@@ -107,10 +107,12 @@ export function HomeRestructure({
   const score = Number(user.credit_score) || null;
   const onPlan = opportunities.length > 0 && opportunities.every((o) => o.saving_basis === 'plan');
   const loanNames = (o: { affected_loan_indices?: number[]; affected_loan_banks?: string[] }) => {
+    // UX walkthrough fix 7: "Card 1" / "Card 2", the names the loan list uses.
+    const named = disambiguateLoans(user.loans);
     const names = (o.affected_loan_indices ?? [])
-      .map((i) => user.loans[i])
+      .map((i) => named[i])
       .filter(Boolean)
-      .map((l) => (l.bank ? `${l.bank} ${LOAN_TYPE_NAME[l.loan_type]}` : LOAN_TYPE_NAME[l.loan_type]));
+      .map((l) => loanNickname(l) || (l.bank ? `${l.bank} ${LOAN_TYPE_NAME[l.loan_type]}` : LOAN_TYPE_NAME[l.loan_type]));
     const text = names.length > 0 ? names.join(' + ') : (o.affected_loan_banks ?? []).join(' + ') || 'Your loan';
     return text.charAt(0).toUpperCase() + text.slice(1);
   };

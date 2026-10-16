@@ -19,6 +19,11 @@ const KIND_LABEL: Record<OfferBody['kind'], string> = {
   personal_loan: 'Personal loan offer',
   no_cost_emi: '“No-cost” / card EMI',
 };
+/** UX walkthrough fix 5: a US borrower gets US words (no top-up, no EMI). */
+const KIND_LABEL_US: Partial<Record<OfferBody['kind'], string>> = {
+  personal_loan: 'Personal loan offer',
+  no_cost_emi: 'Pay-over-time offer (0% at checkout)',
+};
 
 function field(label: string, value: string, set: (v: string) => void, hint?: string) {
   return (
@@ -40,7 +45,9 @@ export function OfferCheck({
   money,
   loanNames,
   dateLabel,
+  country = 'IN',
 }: {
+  country?: 'IN' | 'US';
   runArgs: InsightsArgs;
   money: Money;
   /** Open loans by position, for "pay off which?". */
@@ -65,7 +72,7 @@ export function OfferCheck({
     setErr(null);
     setRes(null);
     if (!kind || !purpose) return setErr('Pick the kind of offer and what the money is for.');
-    if (kind !== 'no_cost_emi' && floating === null) return setErr('Say whether the rate is floating or fixed (it’s on the offer or the KFS).');
+    if (kind !== 'no_cost_emi' && floating === null) return setErr(`Say whether the rate is floating or fixed (it’s on the offer${country === 'US' ? '' : ' or the KFS'}).`);
     const offer: OfferBody = {
       kind, purpose, amount: amount || '0', tenure_months: Number(months) || 0,
       rate: kind === 'no_cost_emi' ? undefined : rate ? (Number(rate) / 100).toFixed(4) : undefined,
@@ -86,6 +93,10 @@ export function OfferCheck({
     }
   }
 
+  const us = country === 'US';
+  const kinds = us ? KIND_LABEL_US : KIND_LABEL;
+  const sym = us ? '$' : '₹';
+  const pay = us ? 'Payment' : 'EMI';
   const tone = res?.verdict === 'checks_out' ? 'positive' : 'negative';
   return (
     <section id="offer-check" aria-labelledby="offer-h" data-testid="offer-check" style={{ display: 'flex', flexDirection: 'column', gap: 10, scrollMarginTop: 16 }}>
@@ -93,8 +104,8 @@ export function OfferCheck({
         <span id="offer-h">Got a loan offer? Check it before you sign</span>
       </LSectionHeader>
       <LChipRow label="What is it?">
-        {(Object.keys(KIND_LABEL) as OfferBody['kind'][]).map((k) => (
-          <LChip key={k} on={kind === k} onClick={() => setKind(k)}>{KIND_LABEL[k]}</LChip>
+        {(Object.keys(kinds) as OfferBody['kind'][]).map((k) => (
+          <LChip key={k} on={kind === k} onClick={() => setKind(k)}>{kinds[k]}</LChip>
         ))}
       </LChipRow>
       <LChipRow label="What’s the money for?">
@@ -118,18 +129,18 @@ export function OfferCheck({
       )}
       {kind && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-          {field(kind === 'no_cost_emi' ? 'Price financed (₹)' : 'Loan amount (₹)', amount, setAmount)}
+          {field(kind === 'no_cost_emi' ? `Price financed (${sym})` : `Loan amount (${sym})`, amount, setAmount)}
           {field('Months', months, setMonths)}
           {kind === 'no_cost_emi' ? (
             <>
-              {field('EMI shown at checkout (₹)', emi, setEmi)}
-              {field('Price if you pay in full (₹)', cash, setCash, 'often lower')}
-              {field('Processing fee (₹)', fee, setFee)}
+              {field(`${pay} shown at checkout (${sym})`, emi, setEmi)}
+              {field(`Price if you pay in full (${sym})`, cash, setCash, 'often lower')}
+              {field(`Processing fee (${sym})`, fee, setFee)}
             </>
           ) : (
             <>
               {field('Rate a year (%)', rate, setRate)}
-              {field('Processing fee (% of loan)', fee, setFee, 'from the KFS')}
+              {field('Processing fee (% of loan)', fee, setFee, us ? 'on the offer' : 'from the KFS')}
             </>
           )}
         </div>
@@ -149,7 +160,7 @@ export function OfferCheck({
           <p data-testid="offer-headline" style={{ margin: 0, fontSize: 'var(--fs-body)', fontWeight: 700, lineHeight: 1.5 }}>{res.headline}</p>
           <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 'var(--fs-dense)', lineHeight: 1.6 }}>
             <li>
-              True cost {(Number(res.apr) * 100).toFixed(1)}% a year (APR, fee and GST in): EMI {money(res.monthly_emi)}, {money(res.total_cost)} paid
+              True cost {(Number(res.apr) * 100).toFixed(1)}% a year (APR, {us ? 'fee' : 'fee and GST'} in): {pay} {money(res.monthly_emi)}, {money(res.total_cost)} paid
               beyond what you get.
             </li>
             {res.comparisons.map((c) => (

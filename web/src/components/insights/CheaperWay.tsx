@@ -46,12 +46,25 @@ function pct(v: string | number, dp = 1): string {
   return `${(Number(v) * 100).toFixed(dp)}%`;
 }
 
+/** UX walkthrough fix 1: when the plan makes the move pointless (it clears
+ *  the cards within two months) or it saves nothing, one quiet line instead
+ *  of a pitch, so it can't contradict the plan or "Cheaper rates". */
+export function notWorthLine(data: ConsolidationData, cards: string, dateLabel: (m: number | null) => string): string | null {
+  const them = data.cards.length > 1 ? 'them' : 'it';
+  if (data.not_worth_it === 'plan_clears')
+    return `Moving your ${cards} to a personal loan isn't worth it: your plan clears ${them} by ${dateLabel(data.plan_clears_month ?? null)}, before a new loan would go through.`;
+  if (data.not_worth_it === 'costs_more')
+    return `Moving your ${cards} to a personal loan wouldn't save money at these rates, so your plan keeps paying ${them} down.`;
+  return null;
+}
+
 export function CheaperWay({
   data: initial,
   money,
   runArgs,
   cardNames,
   dateLabel,
+  country = 'IN',
 }: {
   data: ConsolidationData;
   money: Money;
@@ -59,6 +72,8 @@ export function CheaperWay({
   runArgs?: InsightsArgs | null;
   cardNames: Record<number, string>;
   dateLabel: (m: number | null) => string;
+  /** UX walkthrough fix 5: GST, RBI and Indian loan words only in India. */
+  country?: 'IN' | 'US';
 }) {
   const [data, setData] = useState(initial);
   const [rate, setRate] = useState('');
@@ -68,6 +83,7 @@ export function CheaperWay({
   const [err, setErr] = useState<string | null>(null);
   const cards = data.cards.map((i) => cardNames[i] ?? 'your card').join(' and ');
   const cost = data.cards.map((i) => Number(data.card_cost[String(i)] ?? 0));
+  const india = country === 'IN';
 
   async function requote(nextTenure = tenure) {
     if (!runArgs) return;
@@ -98,6 +114,13 @@ export function CheaperWay({
     }
   }
 
+  const quiet = notWorthLine(data, cards, dateLabel);
+  if (quiet)
+    return (
+      <p data-testid="cheaper-way-not-worth" style={{ margin: 0, fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.muted }}>
+        {quiet}
+      </p>
+    );
   return (
     <section aria-labelledby="cheaper-h" data-testid="cheaper-way" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <LSectionHeader>
@@ -105,8 +128,8 @@ export function CheaperWay({
       </LSectionHeader>
       <p style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6 }}>
         Your {cards} {data.cards.length > 1 ? 'cost' : 'costs'}{' '}
-        <strong>{cost.map((c) => pct(c)).join(' and ')} a year</strong> (interest compounded monthly, plus 18% GST). Here is
-        the same balance as a fixed-EMI personal loan, on your own plan:
+        <strong>{cost.map((c) => pct(c)).join(' and ')} a year</strong> (interest compounded monthly{india ? ', plus 18% GST' : ''}). Here is
+        the same balance as a {india ? 'fixed-EMI' : 'fixed-payment'} personal loan, on your own plan:
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {data.scenarios.map((s) => (
@@ -120,7 +143,7 @@ export function CheaperWay({
             </div>
             <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 'var(--fs-body)', lineHeight: 1.55 }}>
               <li>
-                EMI <strong>{money(s.emi)}</strong> a month, against a card minimum of {money(s.card_minimum_now)}:{' '}
+                {india ? 'EMI' : 'Payment'} <strong>{money(s.emi)}</strong> a month, against a card minimum of {money(s.card_minimum_now)}:{' '}
                 {Number(s.cash_freed) >= 0 ? (
                   <strong style={{ color: L_T.positive }}>{money(s.cash_freed)} a month freed</strong>
                 ) : (
@@ -137,7 +160,10 @@ export function CheaperWay({
                 {Number(s.saving) > 0 ? 'Saves ' : 'Costs '}
                 <strong>{money(Math.abs(Number(s.saving)))}</strong>
                 {s.cost_window_months ? ` over the next ${s.cost_window_months} months` : ' over your plan'}, with the{' '}
-                {Number(s.fee) > 0 ? `${money(Number(s.fee) + Number(s.fee_gst))} fee and GST` : 'fee and GST (none entered)'} counted.
+                {india
+                  ? Number(s.fee) > 0 ? `${money(Number(s.fee) + Number(s.fee_gst))} fee and GST` : 'fee and GST (none entered)'
+                  : Number(s.fee) > 0 ? `${money(Number(s.fee))} fee` : 'fee (none entered)'}{' '}
+                counted.
               </li>
               {s.debt_free_before != null && s.debt_free_after != null && s.debt_free_after !== s.debt_free_before && (
                 <li>
@@ -184,7 +210,7 @@ export function CheaperWay({
               aria-label="Processing fee, % of the loan"
               value={fee}
               onChange={(e) => setFee(e.target.value.replace(/[^\d.]/g, ''))}
-              placeholder="from the KFS"
+              placeholder={india ? 'KFS' : 'offer'}
               style={{ width: 90, padding: '6px 8px', border: `1px solid ${L_T.ink}`, fontFamily: 'inherit', fontSize: 'var(--fs-body)' }}
             />
           </label>
@@ -201,7 +227,7 @@ export function CheaperWay({
           {err && <p role="alert" style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.negative }}>{err}</p>}
         </div>
       )}
-      <details>
+      {india && <details>
         <summary style={{ cursor: 'pointer', fontSize: 'var(--fs-dense)', minHeight: 24 }}>How moving a card to a loan works in India</summary>
         <ul data-testid="cheaper-explainer" style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 'var(--fs-dense)', lineHeight: 1.6 }}>
           {CONSOLIDATION_EXPLAINER.map((e) => (
@@ -218,7 +244,7 @@ export function CheaperWay({
             </li>
           ))}
         </ul>
-      </details>
+      </details>}
       <p data-testid="cheaper-neutral" style={{ margin: 0, fontSize: 'var(--fs-dense)', fontWeight: 600 }}>{data.neutrality}</p>
       <LBracket href="#offer-check">GOT AN OFFER ALREADY? CHECK IT ↓</LBracket>
     </section>

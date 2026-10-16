@@ -93,3 +93,18 @@ export function disambiguateLoans<T extends { bank?: string | null; loan_type: L
     return { ...l, nickname: name(n) };
   });
 }
+
+/**
+ * UX walkthrough fix 7: one name per loan on every screen. "Your credit card
+ * and credit card cost 60.3% and 50.2%", "put ₹58,652 extra on your credit
+ * card" (which one?). The label each loan gets after disambiguateLoans: the
+ * user's nickname, else the lender's, else "Card 1 / Card 2" when two would
+ * read the same. `sentence` gives the mid-sentence form ("Card 1", "HDFC
+ * credit card", "home loan").
+ */
+export function uniqueLoanNames<T extends { bank?: string | null; loan_type: LoanType; nickname?: string | null }>(
+  loans: T[],
+  sentence = false,
+): string[] {
+  return disambiguateLoans(loans).map((l) => (sentence ? loanName(l) : loanLabel(l)));
+}

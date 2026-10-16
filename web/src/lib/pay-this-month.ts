@@ -6,7 +6,7 @@
  */
 import type { PlanData } from '@/components/plan/PlanData';
 import { loanCurrency, loanToUser, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
-import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { LOAN_TYPE_NAME, disambiguateLoans, loanNickname } from '@/lib/loan-types';
 import { GST_RATE_IN } from '@/lib/gst';
 
 /** emi / minimum: only what the bank requires. extra: more on top.
@@ -70,6 +70,7 @@ export function payThisMonth(plan: PlanData): PayThisMonth | null {
   // What each loan still owes once this month's interest and payment are in.
   const after = plan.trajectory.find((p) => p.month === 1)?.balancesByLoanIndex;
   const { loans, country } = plan.user;
+  const named = disambiguateLoans(loans);
   const userCcy = userDefaultCurrency(country);
   const loanRows: PayRow[] = [];
   for (const [k, v] of Object.entries(first.perLoan)) {
@@ -98,7 +99,8 @@ export function payThisMonth(plan: PlanData): PayThisMonth | null {
     loanRows.push({
       key: loan.id ?? `loan-${index}`,
       loanIndex: index,
-      name: loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : cap(LOAN_TYPE_NAME[loan.loan_type]),
+      // UX walkthrough fix 7: "Card 1" / "Card 2", the names the loan list uses.
+      name: loanNickname(named[index]) || (loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : cap(LOAN_TYPE_NAME[loan.loan_type])),
       kind: clears ? 'clears' : extra >= 1 ? 'extra' : isCard ? 'minimum' : 'emi',
       card: isCard,
       amount,
