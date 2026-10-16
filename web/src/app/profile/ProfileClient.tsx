@@ -752,7 +752,7 @@ function ProfileEditor({
     api
       .fxRate(from, to)
       .then((r) => {
-        setSwitchRate((cur) => (cur.trim() ? cur : formatSwitchRate(r.rate)));
+        setSwitchRate((cur) => (cur.trim() ? cur : String(r.rate)));
         setSwitchRateState('idle');
       })
       .catch(() => setSwitchRateState('failed'));
@@ -785,7 +785,7 @@ function ProfileEditor({
     setPendingCountry(null);
     const sFrom = currencySymbol(userDefaultCurrency(from)), sTo = currencySymbol(userDefaultCurrency(to));
     setSwitchNote(
-      `Converted at ${sFrom}1 = ${sTo}${rate}. ` +
+      `Converted at ${sFrom}1 = ${sTo}${formatSwitchRate(rate)}. ` +
       (keep ? `Your existing loans stay in ${sFrom}. ` : 'Your loans were converted too. ') +
       (Number(newPay) > 0 ? 'Take-home is the new pay you typed. Check your spending before you save: it is now read in ' : 'Check your income and spending before you save: they are now read in ') + sTo + '.',
     );

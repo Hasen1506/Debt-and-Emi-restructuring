@@ -32,6 +32,8 @@ export function CountrySwitchPanel({
   const r = Number(rate);
   const rateOk = validSwitchRate(r);
   const [pay, setPay] = useState('');
+  // Today's rate reads rounded (UX2B-19) but converts at full precision until it's edited.
+  const [edited, setEdited] = useState(false);
   const inverse = rateOk ? formatSwitchRate(1 / r) : '';
   return (
     <div
@@ -49,8 +51,8 @@ export function CountrySwitchPanel({
         <input
           className="num"
           inputMode="decimal"
-          value={rate}
-          onChange={(e) => onRate(e.target.value.replace(/[^0-9.]/g, ''))}
+          value={edited ? rate : formatSwitchRate(rate) || rate}
+          onChange={(e) => { setEdited(true); onRate(e.target.value.replace(/[^0-9.]/g, '')); }}
           placeholder={rateState === 'loading' ? 'Fetching today’s rate…' : fromCcy === 'INR' ? 'e.g. 0.012' : 'e.g. 83'}
           aria-invalid={rate.trim() !== '' && !rateOk}
           style={{ padding: '8px 10px', border: `1px solid ${rate.trim() !== '' && !rateOk ? L_T.negative : 'var(--border)'}`, maxWidth: 220 }}

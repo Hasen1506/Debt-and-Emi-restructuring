@@ -335,7 +335,10 @@ test('B7 (#19): a country switch takes the new take-home as typed, and the rate 
   const panel = src('app/profile/parts/country-switch.tsx');
   assert.match(panel, /Your take-home pay in \{name\(to\)\}/);
   assert.match(panel, /onConfirm\(pay\.trim\(\) \|\| undefined\)/);
-  assert.match(src('app/profile/ProfileClient.tsx'), /formatSwitchRate\(r\.rate\)/);
+  // Shown rounded, converted at the fetched rate's full precision until edited (integration round 2).
+  assert.match(panel, /edited \? rate : formatSwitchRate\(rate\)/);
+  assert.match(src('app/profile/ProfileClient.tsx'), /String\(r\.rate\)/);
+  assert.match(src('app/profile/ProfileClient.tsx'), /Converted at \$\{sFrom\}1 = \$\{sTo\}\$\{formatSwitchRate\(rate\)\}/);
 });
 
 test('B8 (#24): glossary buttons on a loan row say which loan; /tools/loan-check points US users to the US letters', () => {

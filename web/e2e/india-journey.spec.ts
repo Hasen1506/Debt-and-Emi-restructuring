@@ -83,10 +83,11 @@ test('India: sign in, set up three loans, plan, what-if, switch to USA, tax, sig
     await page.getByLabel('Country', { exact: true }).selectOption('US');
     const dialog = page.getByRole('dialog', { name: 'Change country' });
     await expect(dialog.getByText('Your amounts are in ₹. The USA uses $.')).toBeVisible();
-    await expect(dialog.getByRole('textbox')).toHaveValue(/^0\.0120120/);
+    // UX2B-19: the rate is shown to 4 significant figures and the dialog also asks the new take-home.
+    await expect(dialog.getByRole('textbox', { name: /Exchange rate/ })).toHaveValue('0.01201');
     await dialog.getByRole('checkbox').uncheck();
     await dialog.getByRole('button', { name: 'CONVERT AND SWITCH TO USA' }).click();
-    await expect(page.getByText(/Converted at ₹1 = \$0\.0120120\d*\. Your loans were converted too\./)).toBeVisible();
+    await expect(page.getByText(/Converted at ₹1 = \$0\.01201\. Your loans were converted too\./)).toBeVisible();
     await page.getByRole('button', { name: /SAVE CHANGES/ }).click();
     await expect(page.getByText('Saved. Home and Plan use the new numbers.')).toBeVisible();
     await expect(page.getByText('$1,801.80 a month')).toBeVisible();
