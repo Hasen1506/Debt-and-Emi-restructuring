@@ -272,3 +272,31 @@ test('fix 12: no letter carries the draft line; Copy, Email, Share and Download 
     assert.match(s, /forSending\(letter\)/);
   }
 });
+
+test('fix 6: an unmarked US student loan says why spare cash sits unused, with a one-tap answer', () => {
+  const h = comp('plan/StudentLoanHold.tsx');
+  const edu = { id: 'e', loan_type: 'education_loan', outstanding: '28000', nominal_rate: '0.065', scheduled_emi: '320', tenure_months_remaining: 120 };
+  const card = { id: 'k', loan_type: 'credit_card', outstanding: '6500', nominal_rate: '0.2499', scheduled_emi: '0', tenure_months_remaining: 0 };
+  const us = { country: 'US', loans: [card, edu] };
+  assert.equal(h.heldStudentLoan(us).index, 1);
+  const html = text(renderToStaticMarkup(React.createElement(h.StudentLoanHold, { user: us, money: usd })));
+  assert.match(html, /isn’t marked federal or private yet, so no spare cash goes on it/);
+  assert.match(html, /pays only its required \$320 a month/);
+  for (const a of ['PRIVATE', 'FEDERAL, NO FORGIVENESS PLAN', 'FEDERAL, ON PSLF OR AN INCOME-DRIVEN PLAN']) assert.ok(html.includes(a), a);
+  // Each answer clears the hold (private / federal with no plan: extra goes to it; PSLF/IDR: answered).
+  const us2 = lib('us-loans.ts');
+  for (const a of h.HOLD_ANSWERS) assert.equal(us2.forgivenessAnswerPending({ ...edu, ...a.patch }, 'US'), false, a.label);
+  // Marked, India, or no student loan: nothing.
+  assert.equal(renderToStaticMarkup(React.createElement(h.StudentLoanHold, { user: { country: 'US', loans: [card, { ...edu, student_loan_kind: 'private' }] }, money: usd })), '');
+  assert.equal(renderToStaticMarkup(React.createElement(h.StudentLoanHold, { user: { country: 'IN', loans: [{ ...edu, currency: 'INR' }] }, money: inr })), '');
+  assert.match(src('components/home/LedgerHome.tsx'), /<StudentLoanHold /);
+  assert.match(src('components/plan/LedgerPlan.tsx'), /<StudentLoanHold /);
+});
+
+test('fix 11: Plan shows the date and figures before the assumption chips', () => {
+  const s = src('components/plan/LedgerPlan.tsx');
+  const h2 = s.indexOf('planHeadline({ debtFreeMonth');
+  const kpi = s.indexOf('label="Plan summary"');
+  const chips = s.indexOf('<PlanAssumptions plan={plan} />');
+  assert.ok(h2 > 0 && kpi > h2 && chips > kpi, 'headline, then KPIs, then the assumption chips');
+});

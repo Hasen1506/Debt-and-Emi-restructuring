@@ -60,6 +60,7 @@ import { PlanNotes } from './PlanNotes';
 import { PlanAssumptions } from './PlanAssumptions';
 import { PlanGivens } from './PlanGivens';
 import { TenureWhatIf } from './TenureWhatIf';
+import { StudentLoanHold } from './StudentLoanHold';
 import { LIKELY_HOW, WORST_CASE_LABEL, likelySaving, likelySavingText } from '@/lib/savings-baseline';
 import { dueVsAffordable, gapRateWords, shortHeadline } from '@/lib/plan-gap';
 
@@ -173,8 +174,6 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
         <FirstVisitIntro id="plan" style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.6, color: L_T.inkSoft }}>
           When you&apos;ll be debt-free and how: the date, each month&apos;s payments, and changes you can try before you make them.
         </FirstVisitIntro>
-        <PlanAssumptions plan={plan} />
-        <PlanGivens plan={plan} />
         {/* Audit 80+ E13: the answer as a heading, the figures as a term
             list ("Plan summary"), not one run of capitals. */}
         <h2 data-rd-useful style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-lead)', fontWeight: 700, lineHeight: 1.35 }}>
@@ -247,6 +246,12 @@ export function LedgerPlan({ plan }: { plan: PlanData }) {
                 },
           ]}
         />
+        {/* UX walkthrough fix 6: an unmarked US student loan gets no extra. */}
+        <StudentLoanHold user={plan.user} money={(v) => fc(v)} testId="plan-student-loan-hold" />
+        {/* UX walkthrough fix 11: the date and figures first (on a phone the
+            eight assumption chips came before them), then what they rest on. */}
+        <PlanAssumptions plan={plan} />
+        <PlanGivens plan={plan} />
         {worstCase && (
           <details data-testid="plan-worst-case" style={{ fontSize: 'var(--fs-dense)', color: L_T.muted }}>
             <summary style={{ cursor: 'pointer' }}>{WORST_CASE_LABEL}</summary>

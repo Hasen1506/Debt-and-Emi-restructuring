@@ -64,7 +64,7 @@ test('A17/B12: letters, every ask combination: India cites RBI + the Ombudsman r
       const us = hardshipLetter({ ...base, country: 'US' });
       assert.doesNotMatch(us, /RBI|Ombudsman|EMI|₹|moratorium|Board-approved/, `mask ${mask}`);
       assert.match(us, /8 a\.m\. or after 9 p\.m\./);
-      for (const l of [inL, us]) assert.match(l, /^DRAFT/);
+      for (const l of [inL, us]) assert.doesNotMatch(l, /DRAFT/); // UX fix 12: the caution sits beside the letter
     }
   }
   const c = agentComplaintLetter({ name: 'A', lender: 'HDFC Bank', loanLabel: 'Personal loan', accountRef: '123', when: '12 Oct, 9:40 p.m.', what: 'called my brother', agent: '', dateText: '14 October 2026' });
@@ -187,7 +187,7 @@ test('B17/B8/B6/B22/B25: copy class guards', () => {
   assert.equal(startingChoices({ efMonths: 6, efSplit: '0.30', strategy: 'rules' }).strategy, 'rules');
   for (const f of ['components/home/LedgerHome.tsx', 'components/plan/LedgerPlan.tsx', 'components/activity/ActivityPage.tsx', 'app/goals/page.tsx']) assert.match(src(f), /<FirstVisitIntro id="/, f);
   assert.match(src('components/activity/ActivityPage.tsx'), /count === 0 \? 'nothing logged yet'/);
-  assert.match(src('components/setup/QuickSetup.tsx'), /country === 'US' \? 'Make every payment'/);
+  assert.match(src('components/setup/SetupThisMonth.tsx'), /country === 'US' \? 'Make every payment'/); // UX fix 1/11 moved This month out of QuickSetup
 });
 
 test('A3/A10/B9/B10/B11/B23: landing copy', () => {

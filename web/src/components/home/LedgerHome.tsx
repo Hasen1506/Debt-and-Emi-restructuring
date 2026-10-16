@@ -41,6 +41,7 @@ import {
 } from '@/components/ledger/primitives';
 import { OpenPositions } from './OpenPositions';
 import { useOwedNow } from '@/lib/owed-now';
+import { StudentLoanHold } from '@/components/plan/StudentLoanHold';
 import { ToolStrip } from '@/components/goals/ToolsList';
 import { LOAN_TYPE_NAME, loanLabel } from '@/lib/loan-types';
 
@@ -152,6 +153,8 @@ function LedgerHomeFull({ profile, debtFree, register, cheaper, thisMonth, inter
           />
         </section>
 
+        {/* UX walkthrough fix 6: an unmarked US student loan gets no extra. */}
+        <StudentLoanHold user={profile.user} money={(v) => fc(Math.round(v))} />
         <CashFlow profile={profile} m={m} />
         <ContextLine profile={profile} />
 
