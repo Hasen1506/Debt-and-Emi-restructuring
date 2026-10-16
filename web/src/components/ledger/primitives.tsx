@@ -37,7 +37,7 @@ export const L_T = {
   highlightSoft: '#fff8d3',
 } as const;
 
-export const L_MONO = "'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace";
+export const L_MONO = "'IBM Plex Mono', 'IBM Plex Mono Fallback', 'JetBrains Mono', ui-monospace, monospace";
 
 // ─── LRule ──────────────────────────────────────────────────────────────
 export function LRule({
@@ -172,6 +172,18 @@ export function LShell({ children }: { children: ReactNode }) {
 // Bold ink title over a 2px rule (design rev 3), so sections stand apart
 // from the muted labels inside them. `step` adds a numbered "01 /" lead
 // for screens that read as a sequence (input → result → the math).
+/** E10: holds the place of text that changes once the browser has read
+ *  Activity, as big as the longest of `ghosts` (drawn by CSS, so it is never
+ *  read out or matched as page text; styles/globals.css .rd-ghost). */
+export function Reserve({ ghosts, children, block }: { ghosts: string[]; children: ReactNode; block?: boolean }) {
+  return (
+    <span style={{ display: block ? 'grid' : 'inline-grid' }}>
+      <span style={{ gridArea: '1 / 1' }}>{children}</span>
+      {ghosts.map((g) => <span key={g} aria-hidden="true" className="rd-ghost" data-ghost={g} />)}
+    </span>
+  );
+}
+
 export function LSectionHeader({
   children,
   right,

@@ -34,7 +34,7 @@ import { UpiPay } from './UpiPay';
 import { LoanCleared } from './LoanCleared';
 import { PaydayEmail } from './PaydayEmail';
 import { EmailAnswers } from './EmailAnswers';
-import { LBracket, LSectionHeader, L_T, lPayBtn, lStrip } from '@/components/ledger/primitives';
+import { LBracket, LSectionHeader, L_T, Reserve, lPayBtn, lStrip } from '@/components/ledger/primitives';
 import { payoffBreakdown } from '@/lib/schedule-reconcile';
 // Fund and goal ticks, per month: they aren't loan payments, so they
 // aren't Activity entries.
@@ -345,7 +345,10 @@ export function PayThisMonth({
       <LSectionHeader
         right={
           <span style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', color: L_T.muted, letterSpacing: '0.08em' }}>
-            {ready ? `${fmt(paidUser)} OF ${fmt(data.total)} PAID · ${toGo === 0 ? 'ALL DONE' : `${toGo} TO GO`}` : ' '}
+            {/* E10: held at its widest so the header doesn't wrap once Activity is read. */}
+            <Reserve ghosts={[`${fmt(data.total)} OF ${fmt(data.total)} PAID · ALL DONE`]}>
+              {ready ? `${fmt(paidUser)} OF ${fmt(data.total)} PAID · ${toGo === 0 ? 'ALL DONE' : `${toGo} TO GO`}` : '\u00a0'}
+            </Reserve>
           </span>
         }
       >

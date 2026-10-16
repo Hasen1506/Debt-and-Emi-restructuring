@@ -5,7 +5,7 @@
  *  payments are logged this month, it says what's paid and what's left
  *  (lib/this-month-progress), read the same way as the list below. */
 import { useEffect, useState } from 'react';
-import { LBracket, L_T, lStrip } from '@/components/ledger/primitives';
+import { LBracket, L_T, Reserve, lStrip } from '@/components/ledger/primitives';
 import type { ThisMonthLine } from '@/lib/home-this-month';
 import type { Country, LoanPayload } from '@/lib/api';
 import { formatCurrencyWhole } from '@/lib/api';
@@ -54,6 +54,13 @@ export function HomeThisMonth({ line, progress }: { line: ThisMonthLine; progres
       window.removeEventListener(SET_ASIDE_EVENT, read);
     };
   }, [line, progress]);
+  // E10: the progress line is read from Activity after the page paints; the
+  // strip holds room for its longest form (both sums at the month's total)
+  // so the pay list under it doesn't jump down.
+  const m = (v: number) => formatCurrencyWhole(Math.round(v), userDefaultCurrency(progress?.country ?? 'IN'));
+  const ghosts = progress && line.tone !== 'short'
+    ? [progressLine({ allPaid: false, touched: 1, paidUser: progress.total }, progress.total * 2, m, line.text), progressLine({ allPaid: true, touched: 1, paidUser: progress.total }, progress.total, m, line.text)].map((g) => `${g} [ ${line.link} ]`)
+    : [];
   return (
     <section
       aria-label="This month"
@@ -63,7 +70,9 @@ export function HomeThisMonth({ line, progress }: { line: ThisMonthLine; progres
     >
       <div style={{ fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)', letterSpacing: '0.12em', color: L_T.muted, marginBottom: 4 }}>THIS MONTH</div>
       <p style={{ margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.5 }}>
-        {text} <LBracket href="#home-pay">{line.link}</LBracket>
+        <Reserve block ghosts={ghosts}>
+          {text} <LBracket href="#home-pay">{line.link}</LBracket>
+        </Reserve>
       </p>
     </section>
   );
