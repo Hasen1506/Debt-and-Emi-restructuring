@@ -312,3 +312,14 @@ test('B5 (#5): a 0% card is taken, with an optional end month and the rate after
   assert.match(src('components/plan/load-plan.ts'), /promoForEngine\(l, planMonth\)/);
   assert.match(src('components/setup/QuickSetup.tsx'), /<PromoFields loan=\{loan\}/);
 });
+
+test('B6 (#22): with no emergency fund set, spare cash keeps one month’s spending first', () => {
+  const { cashCushion } = lib('windfall-log.ts');
+  assert.equal(cashCushion({ efund_target: '0', fixed_expenses: '30000', variable_expenses: '10000' }), 40000);
+  assert.equal(cashCushion({ efund_target: '', efund_balance: '25000', fixed_expenses: '30000', variable_expenses: '10000' }), 15000);
+  assert.equal(cashCushion({ efund_target: '120000', fixed_expenses: '30000' }), 0);       // the plan's own share applies
+  assert.equal(cashCushion({ efund_balance: '90000', fixed_expenses: '30000' }), 0);
+  const w = src('app/tools/windfall/tool.tsx');
+  assert.match(w, /Math\.min\(efGap, cushion > 0 \? total : total \* efSplit\)/);
+  assert.match(w, /Cash cushion \(1 month’s spending\)/);
+});
