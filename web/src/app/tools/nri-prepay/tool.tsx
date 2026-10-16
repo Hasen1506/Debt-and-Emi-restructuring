@@ -23,7 +23,8 @@ import {
   type CrossBorderResponse,
   type LoanType,
 } from '@/lib/api';
-import { useCurrentProfile as useStoredProfile } from '@/lib/use-profile';
+// UX fix 4: balances as owed today (after EMIs already paid), as Home shows.
+import { useOwedTodayProfile as useStoredProfile } from '@/lib/use-profile';
 import { deriveTenureMonths } from '@/lib/derived';
 import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';

@@ -15,9 +15,9 @@
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from 'react';
 import { DEMO_MARGINAL_RATE, DEMO_USER } from '@/lib/demo-user';
 import { loadProfileClient, profileCookieKey, type StoredProfile } from '@/lib/user-store';
-import { applyActivityDeltas, parseActivityDeltas } from './activity-cookie';
+import { applyActivityDeltas, parseActivityDeltas, parsePaidNow } from './activity-cookie';
 import { migrateLoanIdsClient } from '@/lib/loan-id-migration';
-import { rollBalancesForward } from './roll-forward';
+import { owedTodayLoans, paidAtEntryThisMonth, rollBalancesForward } from './roll-forward';
 import { countryMonthKey } from './today';
 
 // Before the first client render reads the profile: give a profile saved
@@ -67,4 +67,25 @@ function currentSnapshot(): StoredProfile {
 export function useCurrentProfile(): StoredProfile {
   const fromServer = useContext(ProfileContext);
   return useSyncExternalStore(subscribe, currentSnapshot, () => fromServer ?? DEMO);
+}
+
+/** UX fix 4: what's owed today, after this month's EMIs already paid (at
+ *  entry or marked in Activity): the balances Home shows. For tools that
+ *  show or cap a balance (NRI prepay). */
+let owedCache: {key: string; profile: StoredProfile} | null = null;
+function owedSnapshot(): StoredProfile {
+  const current = currentSnapshot();
+  const raw = document.cookie.match(/(?:^|; )rightdue_activity_deltas=([^;]*)/)?.[1] ?? '';
+  const stored = clientSnapshot();
+  const month = countryMonthKey(stored.user.country);
+  const key = profileCookieKey() + raw + month;
+  if (!owedCache || owedCache.key !== key || owedCache.profile.user.loans.length !== current.user.loans.length) {
+    const paid = [...paidAtEntryThisMonth(stored.user.loans, month), ...parsePaidNow(raw, stored.user.loans, month)];
+    owedCache = {key, profile: {...current, user: {...current.user, loans: owedTodayLoans(current.user.loans, paid)}}};
+  }
+  return owedCache.profile;
+}
+export function useOwedTodayProfile(): StoredProfile {
+  const fromServer = useContext(ProfileContext);
+  return useSyncExternalStore(subscribe, owedSnapshot, () => fromServer ?? DEMO);
 }

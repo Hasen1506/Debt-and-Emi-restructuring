@@ -26,15 +26,9 @@ class _Base(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Input bounds
-#
-# Anything outside these is a typing slip or an attack, and they keep the
-# engines' month-by-month loops short. Before them, numbers like 1E+999999
-# crashed ten endpoints and 500 loans in one request were accepted
-# (api/tests/test_api_fuzz.py). Request bodies subclass _In; responses
-# don't, so a large projected figure can never fail on the way out.
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Input bounds: anything outside is a typing slip or an attack, and they keep the engines' loops
+# short (1E+999999 crashed ten endpoints; 500 loans were accepted: api/tests/test_api_fuzz.py).
+# Request bodies subclass _In; responses don't, so a large projected figure never fails on the way out.
 
 MAX_AMOUNT = D("1e12")          # ₹1 lakh crore / $1 trillion
 MAX_INT = 100_000
@@ -152,10 +146,8 @@ Horizon = Annotated[int, Field(ge=1, le=MAX_MONTHS)]
 LoanIndex = Annotated[int, Field(ge=0, lt=MAX_LOANS)]
 # An effective APR (fees included) can pass 100% on a short BNPL plan.
 EffectiveRate = Annotated[Decimal, Field(ge=0, le=10)]
-# Live re-test 8 R8-6: a person's own assumptions, bounded so an absurd
-# typed value (a 99,999,999,999,999% pay rise) never reaches the engine.
-# Fractions of 1, like every rate here. The web form uses the same bounds
-# (web/src/lib/r8-inputs.ts ASSUMPTION_BOUNDS).
+# Live re-test 8 R8-6: a person's own assumptions, bounded (fractions of 1) so an absurd typed
+# value never reaches the engine; the web form uses the same bounds (r8-inputs ASSUMPTION_BOUNDS).
 TaxRate = Annotated[Decimal, Field(ge=0, le=D("0.6"))]
 FeeRate = Annotated[Decimal, Field(ge=0, le=D("0.1"))]
 
@@ -926,6 +918,8 @@ class LifecycleEventIn(_In):
 class SimulateRequest(_In):
     user: UserIn
     strategy: Strategy = Strategy.AVALANCHE
+    # UX fix 4: loans whose EMI for this month is already paid (owed_today).
+    paid_emi_this_month: list[Annotated[int, Field(ge=0, le=200)]] = Field(default_factory=list, max_length=200)
     horizon_months: Horizon = 360
     matched_contribution: Amount = D("0")
     marginal_rate: Optional[TaxRate] = None
@@ -1303,6 +1297,10 @@ class SimulateResponse(_Base):
     # 1 = this month. 0 = nothing is owed now (no loans, or all at 0);
     # None = not cleared within the horizon.
     debt_free_month: Optional[int]
+    # UX fix 4: what you owe today (engine/owed_today), and the plan's opening balance.
+    owed_today: Optional[Decimal] = None
+    owed_start_of_month: Optional[Decimal] = None
+    owed_today_interest_in_paid: Optional[Decimal] = None
     total_interest_paid: Decimal
     total_invested: Decimal
     trajectory: list[TrajectoryPoint]
@@ -1460,9 +1458,7 @@ class CompareResponse(_Base):
     scenario_infeasible_from_month: Optional[int] = None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Decision modules
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Decision modules ─────────────────────────────────────────────────────────────
 
 class WindfallRequest(_In):
     amount: Amount
@@ -1650,9 +1646,7 @@ class AssetLiquidationResponse(_Base):
     tax_options: list[dict] = []
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Layer 0 — employer match
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Layer 0 — employer match ─────────────────────────────────────────────────────────────
 
 class EmployerMatchIn(_In):
     name: str

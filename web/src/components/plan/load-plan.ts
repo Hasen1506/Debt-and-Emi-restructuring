@@ -47,12 +47,14 @@ import { projectAnnualTaxSavings } from '@/lib/tax-projection';
 import { projectBracketTransitions } from '@/lib/bracket-transitions';
 import Decimal from 'decimal.js';
 import { countryMonthKey, getCountryMonth, getCountryToday, localIsoDate } from '@/lib/today';
-import { prepareLoanPaymentTiming, rollBalancesForward } from '@/lib/roll-forward';
+import { paidAtEntryThisMonth, prepareLoanPaymentTiming, rollBalancesForward } from '@/lib/roll-forward';
+import { owedTodayOf } from '@/lib/owed-today';
 import { HORIZON_MONTHS } from '@/lib/horizon';
 import {
   applyActivityDeltas,
   loadActivityDeltasServer,
   loadActivityPaceServer,
+  loadPaidNowServer,
 } from '@/lib/activity-cookie';
 import { PACE_MONTHS, monthsBefore, paceDiffers, paceProjectionGap, paceSummary } from '@/lib/pace';
 import { extractMonthlyPayments, mergeTrajectories } from '@/lib/trajectory';
@@ -383,11 +385,20 @@ export async function loadPlanInputs(
   // comparison table reflects "what if you flipped only the strategy".
   // The active strategy still pulls scenario+baseline+restructuring; the
   // other two run as bare simulates (we only need their headline metrics).
+  // Paid at entry, or marked paid in Activity this month (as Home reads it).
+  const nowKey = countryMonthKey(profile.user.country);
+  const paidEmis = [...new Set([
+    ...paidAtEntryThisMonth(profile.user.loans, nowKey),
+    ...(await loadPaidNowServer(profile.user.loans, nowKey)),
+  ])].sort((a, b) => a - b);
   const simBaseArgs = {
     user: adjustedUser,
     horizon_months: HORIZON_MONTHS,
     marginal_rate: profile.marginalRate,
     simulation_start_month,
+    // UX walkthrough fix 4: the EMIs already paid this month, so the engine's
+    // owed_today is the balance Home shows (engine/owed_today.py).
+    paid_emi_this_month: paidEmis.length > 0 ? paidEmis : undefined,
     reinvest_events: reinvestEvents.length > 0 ? reinvestEvents : undefined,
     inflate_expenses: inflationModeling === 'on' ? true : undefined,
     lifecycle_events: lifecycle_events.length > 0 ? lifecycle_events : undefined,
@@ -613,6 +624,7 @@ export async function loadPlan(
       // has no debt-free month and stops at its first unfundable month.
       ...planEnd(scenario),
       seasonal: scenario.seasonal ?? null,
+      owedToday: owedTodayOf(scenario),
       baselineNeverClears: !!baseline.never_clears || (baseline.debt_free_month == null && Number(baseline.total_interest_paid) > 0),
       trajectory: mergeTrajectories(scenario, baseline),
       totalInterest: scenario.total_interest_paid,

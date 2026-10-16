@@ -33,7 +33,7 @@ import { commitSpendingCut, undoSpendingCut } from '@/lib/commit-spending-cut';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { readActivityClient } from '@/lib/activity';
 import { activityDeltas, applyActivityDeltas } from '@/lib/activity-cookie';
-import { rollBalancesForward } from '@/lib/roll-forward';
+import { owedTodayLoans, rollBalancesForward } from '@/lib/roll-forward';
 import { countryMonthKey, monthIndexToCountryLabel } from '@/lib/today';
 import {
   addCommitment,
@@ -100,6 +100,9 @@ export function WhatIfPanel({
   // Derive realistic slider ceilings + the default "Applied to" loan from
   // the live profile. The user complained about a hardcoded 50k cap and a
   // random lump-sum default; both come from these.
+  // UX fix 4: the box shows and caps what's owed today (after the EMIs
+  // already paid this month), the balance Home and Loan Check show.
+  const owedLoans = useMemo(() => owedTodayLoans(user.loans, runArgs?.paid_emi_this_month ?? []), [user.loans, runArgs]);
   const { fixedExpensesCap, loanOptions, defaultLoanIdx } =
     useMemo(() => {
       // Slider ceiling = variable (discretionary) expenses when present,
@@ -124,7 +127,7 @@ export function WhatIfPanel({
           const bank = (l.bank ?? '').replace(/\s+bank$/i, '').trim();
           const t = LOAN_TYPE_NAME[l.loan_type];
           return bank ? `${bank} ${t}` : t.charAt(0).toUpperCase() + t.slice(1);
-        })()} · ${formatCurrency(l.outstanding, loanCurrency(l, user.country))}`,
+        })()} · ${formatCurrency(owedLoans[i].outstanding, loanCurrency(l, user.country))}`,
         isTop: i === top,
       })).filter(o => isOpenCurrentLoan(user.loans[o.value]));
       return {
@@ -132,7 +135,7 @@ export function WhatIfPanel({
         loanOptions: opts,
         defaultLoanIdx: top,
       };
-    }, [user, configuredUser, marginalRate]);
+    }, [user, configuredUser, marginalRate, owedLoans]);
 
   // Surplus delta: ₹/month extra (positive = more cash to debts).
   const [surplusDelta, setSurplusDelta] = useState(0);
@@ -147,7 +150,7 @@ export function WhatIfPanel({
   const resolvedLumpTarget = resolveLoanIndex(lumpRef, user.loans);
   const lumpTarget = isOpenCurrentLoan(user.loans[resolvedLumpTarget]) ? resolvedLumpTarget : -1;
   // A lump sum is denominated in its selected loan's native currency.
-  const lumpTargetCap = lumpTarget >= 0 ? Number(user.loans[lumpTarget].outstanding) : 0;
+  const lumpTargetCap = lumpTarget >= 0 ? Number(owedLoans[lumpTarget].outstanding) : 0;
   useEffect(() => {
     setLumpAmount(value => Math.min(value, lumpTargetCap));
   }, [lumpTargetCap]);
@@ -208,12 +211,13 @@ export function WhatIfPanel({
         loanCurrency(target, stored.user.country) !== loanCurrency(expected, user.country) ||
         Number(target.outstanding) !== Number(expected.outstanding) ||
         target.nominal_rate !== expected.nominal_rate || target.scheduled_emi !== expected.scheduled_emi ||
-        (!lumpRef.loanId && target.bank !== expected.bank) || lumpAmount > Number(target.outstanding)) {
+        (!lumpRef.loanId && target.bank !== expected.bank) || lumpAmount > lumpTargetCap) {
       setToast('This loan changed. Refresh the plan and check the payment again.');
       return;
     }
     const sched = target.scheduled_emi || '0';
-    const outstandingD = new Decimal(target.outstanding || '0');
+    // What's owed today (after this month's EMI if paid), as the box shows.
+    const outstandingD = new Decimal(owedLoans[lumpTarget]?.outstanding || target.outstanding || '0');
     const paymentD = new Decimal(String(lumpAmount));
     const fullyClears = paymentD.gte(outstandingD);
     applyToolResult({

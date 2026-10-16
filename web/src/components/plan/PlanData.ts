@@ -2,6 +2,7 @@
  * Shared shape produced by the Plan page's data loader (load-plan.ts) and
  * consumed by LedgerPlan and the home page.
  */
+import type { OwedTodayFigures } from '@/lib/owed-today';
 import type {
   PlanRunArgs,
   RestructuringHeldBack,
@@ -241,6 +242,9 @@ export interface PlanData {
   /** Audit 80+ C11 (W1b): first month the gap can't be borrowed within the
    *  credit limit; set, the plan is not fundable as it stands from then. */
   infeasibleFrom?: number | null;
+  /** UX walkthrough fix 4: what you owe today (engine/owed_today) against the
+   *  plan's opening balance, with the interest inside the EMIs already paid. */
+  owedToday?: OwedTodayFigures | null;
   /** Grill #38 / live tests #15-#17: how short months are funded (the
    *  emergency fund, then card-rate borrowing repaid first) and the date
    *  if this month's gap closes. Null when nothing was ever short. */

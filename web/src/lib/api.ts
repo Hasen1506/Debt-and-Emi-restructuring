@@ -486,12 +486,8 @@ export type IncomeStreamTaxTreatment =
   | 'rental'
   | 'capital_gains';
 
-/**
- * One income stream. Multiple streams capture concurrent sources
- * (salary + side consulting) or transitions over time (salaried from
- * Jan-Jun, freelance from Jul onwards — end the salaried entry and
- * start the freelance one).
- */
+/** One income stream: concurrent sources (salary + consulting) or transitions
+ *  over time (salaried Jan-Jun, then freelance: end one entry, start the next). */
 export interface IncomeStreamPayload {
   /** Client-generated stable id, used for React keys and ledger linking. */
   id: string;
@@ -708,12 +704,14 @@ export interface SimulateResponse {
   total_gap_interest?: string;
   /** Live test #16: this plan with this month's gap closed. */
   gap_closed?: { cut: string; debt_free_month: number | null; total_interest_paid: string } | null;
-  /** Audit 80+ C11: the first month a short month could not be borrowed
-   *  within the gap credit limit. From here the plan pays with money that
-   *  can't be found, so its debt_free_month is not a date to show
-   *  (never_clears is true). `unfunded_shortfall` is the total not found. */
+  /** Audit 80+ C11: the first month a short month can't be borrowed within the gap
+   *  credit limit: debt_free_month is not a date to show. `unfunded_shortfall`: total not found. */
   infeasible_from_month?: number | null;
   unfunded_shortfall?: string;
+  /** UX fix 4: what you owe today (engine/owed_today) vs the plan's opening balance. */
+  owed_today?: string | null;
+  owed_start_of_month?: string | null;
+  owed_today_interest_in_paid?: string | null;
   /** Round 2 (item 4): set when the profile has a seasonal pattern. */
   seasonal?: SeasonalOutRaw | null;
 }
@@ -2125,9 +2123,10 @@ export interface SimulateArgs {
   matched_contribution?: string;
   marginal_rate?: string;
   simple_mode?: boolean;
-  /** Calendar month (1-12) corresponding to sim month 1. Anchors hike
-   *  firing to the user's actual today. Defaults to 1 (Jan) server-side. */
+  /** Calendar month (1-12) of sim month 1 (anchors hikes); 1 server-side. */
   simulation_start_month?: number;
+  /** UX fix 4: loans whose EMI this month is already paid (owed_today). */
+  paid_emi_this_month?: number[];
   /** Auto-reinvest events — month-indexed lump-sum injections in user
    *  residence currency, routed to the highest-effective-APR active loan
    *  at the matching month. Frontend pre-computes from projected annual

@@ -560,6 +560,7 @@ def _simulate_uncached(req: SimulateRequest) -> SimulateResponse:
     return SimulateResponse(
         **_gap_fields(result, req.user),
         **_contract_fields(result, req.user),
+        **_owed_today_fields(user, req),
         gap_closed=_gap_closed(user, req, closed_kwargs, result),
         debt_free_month=result.debt_free_month,
         total_interest_paid=result.total_interest_paid,
@@ -590,6 +591,13 @@ def _simulate_uncached(req: SimulateRequest) -> SimulateResponse:
         never_clears=_never_clears(result, user),
         seasonal=_seasonal_out(req, user, season_kwargs, season_path, season_skipped, result),
     )
+
+
+def _owed_today_fields(user, req) -> dict:
+    """UX walkthrough fix 4: the one "what you owe today" figure."""
+    from engine.owed_today import owed_today
+    o = owed_today(user, req.paid_emi_this_month)
+    return dict(owed_today=o.total, owed_start_of_month=o.start_of_month, owed_today_interest_in_paid=o.interest_in_paid)
 
 
 def _pmi_events(result, user) -> list:

@@ -211,3 +211,45 @@ test('fix 13: no "nothing logged for last month" in the plan’s first month', (
   assert.match(later.text, /^Did September’s payments go out as planned\?/);
   assert.match(src('components/home/HomeDebtFree.tsx'), /firstBalanceYm=\{plan\.user\.loans\.map\(\(l\) => l\.balance_as_of/);
 });
+
+test('fix 4: one "owed today": the add-back and the paid EMI cancel, tools and the engine read the same set', () => {
+  const rf = lib('roll-forward.ts');
+  const home = { id: 'h', loan_type: 'home_loan', outstanding: '4500000', nominal_rate: '0.086', scheduled_emi: '42000', tenure_months_remaining: 200, balance_after_emi: true, balance_as_of: '2026-10-07' };
+  const car = { id: 'c', loan_type: 'car_loan', outstanding: '600000', nominal_rate: '0.09', scheduled_emi: '12500', tenure_months_remaining: 60, balance_after_emi: false, balance_as_of: '2026-09-02' };
+  const card = { id: 'k', loan_type: 'credit_card', outstanding: '60000', nominal_rate: '0.42', scheduled_emi: '0', tenure_months_remaining: 0 };
+  const loans = [home, car, card];
+  assert.deepEqual(rf.paidAtEntryThisMonth(loans, '2026-10'), [0]);
+  const start = rf.rollBalancesForward(loans, '2026-10').loans;
+  assert.ok(Number(start[0].outstanding) > 4500000, 'the plan opens before October’s EMI');
+  // Home loan paid at entry, car marked paid in Activity: both after one EMI; the card as entered.
+  const owed = rf.owedTodayLoans(start, [0, 1, 2]);
+  assert.ok(Math.abs(Number(owed[0].outstanding) - 4500000) < 0.01, owed[0].outstanding);
+  assert.equal(owed[1].outstanding, rf.afterOneEmi(start[1]).toFixed(2));
+  assert.equal(owed[2].outstanding, '60000');
+  // The cookie carries Activity's paid marks by loan id; the server maps them back to positions.
+  const ac = lib('activity-cookie.ts');
+  const entries = [{ id: '1', loanIndex: 1, loanId: 'c', kind: 'paid_full', date: '2026-10-05', amount: '12500', scheduledEmi: '12500', loggedAt: '2026-10-05T10:00:00Z' }];
+  assert.deepEqual(ac.paidEmisMarked(entries, loans, '2026-10'), ['c']);
+  assert.deepEqual(ac.paidEmisMarked(entries, loans, '2026-11'), []);
+  const { compressToEncodedURIComponent } = require('lz-string');
+  const raw = 'z3.' + compressToEncodedURIComponent(JSON.stringify({ v: 4, deltas: [], paidNow: { month: '2026-10', loans: ['c'] } }));
+  assert.deepEqual(ac.parsePaidNow(raw, [card, car, home], '2026-10'), [1], 'by id, not position');
+  assert.deepEqual(ac.parsePaidNow(raw, loans, '2026-11'), [], 'last month’s marks are not this month’s');
+  // The Plan line names both figures and the reason; silent when they agree.
+  const o = lib('owed-today.ts');
+  const f = o.owedTodayOf({ owed_today: '4885000', owed_start_of_month: '4901430', owed_today_interest_in_paid: '25570' });
+  const line = o.owedTodayLine(f, 'October', inr);
+  assert.match(line, /₹49,01,430 at the start of October, before the EMIs you’ve already paid; ₹48,85,000 after them, which is what you owe today/);
+  assert.match(line, /repaid ₹16,430 of principal \(the other ₹25,570 was interest\)/);
+  assert.equal(o.owedTodayLine(o.owedTodayOf({ owed_today: '100', owed_start_of_month: '100' }), 'October', inr), null);
+  // Tools that show a balance read what's owed today, and load-plan sends the paid set to the engine.
+  assert.match(src('app/tools/nri-prepay/tool.tsx'), /useOwedTodayProfile as useStoredProfile/);
+  assert.match(src('components/WhatIfPanel.tsx'), /owedTodayLoans\(user\.loans, runArgs\?\.paid_emi_this_month/);
+  assert.match(src('components/plan/load-plan.ts'), /loadPaidNowServer\(profile\.user\.loans/);
+});
+
+test('fix 14: an NRI plan explains the principal gap by the rupee slide, not "a balance the plan doesn’t clear"', () => {
+  const { scheduleGapReason } = comp('plan/PlanSchedule.tsx');
+  assert.match(scheduleGapReason({ INR: '0.035' }), /rupee loan’?'?s balance falls as the plan assumes the rupee weakens 3\.5% a year/);
+  assert.match(scheduleGapReason(undefined), /loans that start later/);
+});

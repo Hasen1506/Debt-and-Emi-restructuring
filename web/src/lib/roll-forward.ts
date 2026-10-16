@@ -139,6 +139,30 @@ export function rollBalancesForward(
   return { loans: out, rolled };
 }
 
+/**
+ * UX walkthrough fix 4: the loans whose EMI for this month went out before
+ * their balance was entered (this month, "Paid already"). The plan's
+ * opening balance adds that EMI back so its first month can pay it; what
+ * the person owes today does not (engine/owed_today.py takes these
+ * positions as `paid_emi_this_month`).
+ */
+export function paidAtEntryThisMonth(loans: LoanPayload[], currentMonth: string): number[] {
+  return loans.flatMap((loan, i) =>
+    rolls(loan) && loan.balance_after_emi === true && loan.balance_as_of?.slice(0, 7) === currentMonth ? [i] : []);
+}
+
+/** What's owed today on each loan (fix 4): the plan's start-of-month
+ *  balances (`current`, rolled forward) less this month's EMI on each loan
+ *  in `paid` (paid at entry, or marked paid in Activity), as Home shows
+ *  (lib/owed-now) and the engine's owed_today. Tools that show a balance
+ *  (NRI prepay, the lump-sum box) start here. */
+export function owedTodayLoans(current: LoanPayload[], paid: Iterable<number>): LoanPayload[] {
+  const set = new Set(paid);
+  return current.map((l, i) => (set.has(i) && rolls(l)
+    ? { ...l, outstanding: afterOneEmi(l).toFixed(2), tenure_months_remaining: Math.max(0, (l.tenure_months_remaining || 0) - 1) }
+    : l));
+}
+
 /** Date each loan's balance: today for a new loan or a changed balance,
  *  else the date it already had. `prev` is the saved list (matched by id,
  *  else position). Whether the month's EMI had gone out goes with the

@@ -154,3 +154,33 @@ def test_fix2_what_if_compare_and_payoff_range_drop_capped_dates():
     assert d["months_pulled_forward"] == 0
     r = debt_free_range(u, Strategy.AVALANCHE, 600, MR, baseline=base)
     assert r["exact"] is None
+
+
+# ── Fix 4: one "what you owe today" ─────────────────────────────────────────
+
+def test_fix4_owed_today_is_the_start_of_month_balance_less_the_paid_emis_principal():
+    """S1: the home loan's balance was entered after October's EMI (₹45,00,000).
+    The plan opens with the EMI added back; owed today is the balance as typed."""
+    from engine.owed_today import owed_today
+    r = D("0.086") / 12
+    typed, e = D("4500000"), D("42000")
+    opening = (typed + e) / (1 + r)                          # web roll-forward add-back
+    home = emi_loan(LoanType.HOME, str(opening), "0.086", 200, "42000")
+    cc = card("60000", "0.42")
+    u = user("180000", "60000", [home, cc])
+    o = owed_today(u, [0])
+    assert abs(o.total - (typed + D("60000"))) <= 1          # Home's ₹45,60,000
+    assert o.start_of_month == (opening + D("60000")).quantize(D("1"))
+    assert o.emi_paid == e and abs(o.interest_in_paid - opening * r) <= 1
+    assert abs((o.start_of_month - o.total) - (e - o.interest_in_paid)) <= 1   # principal repaid
+    # Nothing marked paid: the two agree. A card is never paid down by an EMI.
+    assert owed_today(u).total == owed_today(u).start_of_month
+    assert owed_today(u, [1]).total == owed_today(u).total
+
+
+def test_fix4_owed_today_ignores_flat_and_pre_emi_loans_and_out_of_range_positions():
+    from engine.owed_today import owed_today
+    flat = emi_loan(LoanType.PERSONAL, "300000", "0.12", 36, "11000")
+    flat.rate_basis = "flat"
+    u = user("100000", "40000", [flat])
+    assert owed_today(u, [0, 7]).total == D("300000")

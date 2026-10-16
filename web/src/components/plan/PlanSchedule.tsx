@@ -12,6 +12,8 @@ import { useState } from 'react';
 import type { PlanData } from './PlanData';
 import { formatCurrencyWhole, type LoanPayload } from '@/lib/api';
 import { getCountryToday, localIsoDate, monthIndexToDate, MONTH_NAMES } from '@/lib/today';
+import { owedTodayLine } from '@/lib/owed-today';
+import { localTerms } from '@/lib/terms';
 import { loanCurrency } from '@/lib/currency';
 import { scheduleCsvCells, scheduleCsvFilename, scheduleCsvHeader, type ScheduleCsvRow } from '@/lib/schedule-csv';
 import { loanLabel } from '@/lib/loan-types';
@@ -425,7 +427,16 @@ export function PlanSchedule({ plan }: { plan: PlanData }) {
             {nfLabel ? scheduleStopLine(false, nfLabel, true) : scheduleStopLine(stop.growsWithoutLimit, stopRow.date)}
           </div>
         ) : (
-          <ScheduleFooter totals={totals} fc={fc} gstApplies={gstApplies} />
+          <ScheduleFooter
+            totals={totals}
+            fc={fc}
+            gstApplies={gstApplies}
+            gapReason={scheduleGapReason(plan.runArgs?.user.fx_drift_annualized)}
+            owedLine={(() => {
+              const line = owedTodayLine(plan.owedToday, MONTH_NAMES[getCountryToday(plan.user.country).getMonth()], (v) => fc(Math.round(v)));
+              return line ? localTerms(line, plan.user.country) : null;
+            })()}
+          />
         )}
         </>
       )}
@@ -540,15 +551,30 @@ function MonthCards({
 }
 
 /** Principal + interest = cash paid, and principal against today's balance. */
-function ScheduleFooter({ totals, fc, gstApplies }: { totals: ReturnType<typeof reconcileSchedule>; fc: (v: string | number) => string; gstApplies: boolean }) {
+/** UX walkthrough fix 14: why principal repaid differs from what's owed. An
+ *  NRI's rupee loan shrinks in dollars as the plan assumes the rupee slides;
+ *  that is the gap, not "a balance the plan doesn't clear". */
+export function scheduleGapReason(drift: Record<string, string> | undefined | null): string {
+  const slide = Object.entries(drift ?? {}).filter(([, r]) => Number(r) > 0);
+  if (slide.length === 0) return "loans that start later, or a balance the plan doesn't clear";
+  const [ccy, r] = slide[0];
+  const name = ccy === 'INR' ? 'rupee' : ccy;
+  return `in your currency, the ${name} loan's balance falls as the plan assumes the ${name} weakens ${(Number(r) * 100).toFixed(1).replace(/\.0$/, '')}% a year`;
+}
+
+function ScheduleFooter({ totals, fc, gstApplies, owedLine, gapReason = "loans that start later, or a balance the plan doesn't clear" }: { totals: ReturnType<typeof reconcileSchedule>; fc: (v: string | number) => string; gstApplies: boolean; owedLine?: string | null; gapReason?: string }) {
+  // UX walkthrough fix 4: with EMIs already paid this month, the schedule
+  // starts before them; say so beside what you owe today (engine/owed_today).
+  const owed = owedLine ? 'owed at the start of the plan' : 'you owe today';
   return (
     <div role="note" aria-label="How the schedule adds up" style={{ padding: '8px 0', fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.6 }}>
       <strong style={{ color: L_T.ink, letterSpacing: '0.06em' }}>OVER THE PLAN · </strong>
       PRINCIPAL {fc(totals.principal.toFixed(0))} + INTEREST {fc(totals.interest.toFixed(0))}
       {gstApplies ? ' (GST ON CARD INTEREST INCLUDED)' : ''} = {fc(totals.cash.toFixed(0))} PAID.{' '}
       {totals.tiesOut
-        ? `Principal repaid matches the ${fc(totals.outstanding.toFixed(0))} you owe today.`
-        : `Principal repaid differs from the ${fc(totals.outstanding.toFixed(0))} you owe today by ${fc(Math.abs(totals.gap).toFixed(0))}: loans that start later, or a balance the plan doesn't clear.`}{' '}
+        ? `Principal repaid matches the ${fc(totals.outstanding.toFixed(0))} ${owed}.`
+        : `Principal repaid differs from the ${fc(totals.outstanding.toFixed(0))} ${owed} by ${fc(Math.abs(totals.gap).toFixed(0))}: ${gapReason}.`}{' '}
+      {owedLine ? <span data-testid="owed-today-line">{owedLine} </span> : null}
       A payoff month is more than the balance because that month&apos;s interest is added first.
     </div>
   );
