@@ -324,17 +324,16 @@ async function planDues(): Promise<number | undefined> {
   return payThisMonth(plan)?.duesUser;
 }
 
+const planProfile = (plan: Awaited<ReturnType<typeof loadPlanOnce>>) => ({ user: plan.user, marginalRate: plan.marginalRate, creditScore: null, isLive: plan.profileIsLive });
+
 export async function HomeCashFlow() {
-  const plan = await loadPlanOnce();
-  const profile = { user: plan.user, marginalRate: plan.marginalRate, creditScore: null, isLive: plan.profileIsLive };
-  return <CashFlow profile={profile} dues={await planDues()} />;
+  return <CashFlow profile={planProfile(await loadPlanOnce())} dues={await planDues()} />;
 }
 
 export async function HomeDuesTotal() {
   const plan = await loadPlanOnce();
   const dues = await planDues();
-  const ccy = userDefaultCurrency(plan.user.country);
-  return <>{formatCurrencyWhole(dues ?? deriveMetrics({ user: plan.user, marginalRate: plan.marginalRate, creditScore: null, isLive: plan.profileIsLive }).emiBurden.toFixed(0), ccy)}</>;
+  return <>{formatCurrencyWhole(dues ?? deriveMetrics(planProfile(plan)).emiBurden.toFixed(0), userDefaultCurrency(plan.user.country))}</>;
 }
 
 /** Cheaper rates the engine found for these loans (REDESIGN R2.4). */

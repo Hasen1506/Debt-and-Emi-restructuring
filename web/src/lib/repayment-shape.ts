@@ -53,6 +53,8 @@ export function shapeNeedsEmi(loan: Pick<LoanPayload, 'loan_type' | 'repayment' 
 }
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+const interestOf = (loan: LoanPayload) => (Number(loan.outstanding) * Number(loan.nominal_rate)) / 12;
+const roundUp = (v: number, ccy: 'INR' | 'USD') => String(ccy === 'INR' ? Math.ceil(v) : Math.ceil(v * 100) / 100);
 
 /** The end month a saved loan implies, for Setup to show again. */
 export function savedEndMonth(loan: LoanPayload, thisMonth: string): string {
@@ -86,8 +88,6 @@ export function finishShape(loan: LoanPayload, endMonth: string | undefined, thi
   const end = (endMonth ?? '').trim();
   const months = end && MONTH.test(end) && end > thisMonth ? monthsBetween(thisMonth, end) : 0;
   if (shape === 'emi') return { repayment: undefined, pre_emi_months_remaining: 0 };
-  const interest = (Number(loan.outstanding) * Number(loan.nominal_rate)) / 12;
-  const roundUp = (v: number) => String(ccy === 'INR' ? Math.ceil(v) : Math.ceil(v * 100) / 100);
   if (shape === 'bullet') return { repayment: 'bullet', scheduled_emi: '0', tenure_months_remaining: months, pre_emi_months_remaining: 0 };
   if (isMoratorium(loan, end) && months > 0) {
     const typed = Number(loan.scheduled_emi) > 0;
@@ -100,13 +100,13 @@ export function finishShape(loan: LoanPayload, endMonth: string | undefined, thi
       estimated_fields: Array.from(estimated),
     };
   }
-  return { repayment: 'interest_only', scheduled_emi: roundUp(interest), tenure_months_remaining: months, pre_emi_months_remaining: 0 };
+  return { repayment: 'interest_only', scheduled_emi: roundUp(interestOf(loan), ccy), tenure_months_remaining: months, pre_emi_months_remaining: 0 };
 }
 
 /** One line under the chips saying what the plan will do. */
 export function shapeNote(loan: LoanPayload, endMonth: string | undefined, money: (v: number) => string, country: string): string | null {
   const shape = shapeOf(loan);
-  const interest = (Number(loan.outstanding) * Number(loan.nominal_rate)) / 12;
+  const interest = interestOf(loan);
   const pay = country === 'US' ? 'payment' : 'EMI';
   const end = (endMonth ?? '').trim();
   if (shape === 'emi') {
@@ -134,9 +134,7 @@ export function moratoriumMonths(loan: LoanPayload, endMonth: string | undefined
 /** UX2B-1: what a moratorium loan costs a month now (its interest), for
  *  "Left each month"; null for any other loan (its EMI counts). */
 export function payingNow(loan: LoanPayload, endMonth: string | undefined, ccy: 'INR' | 'USD'): string | null {
-  if (!isMoratorium(loan, endMonth)) return null;
-  const v = (Number(loan.outstanding) * Number(loan.nominal_rate)) / 12;
-  return String(ccy === 'INR' ? Math.ceil(v) : Math.ceil(v * 100) / 100);
+  return isMoratorium(loan, endMonth) ? roundUp(interestOf(loan), ccy) : null;
 }
 
 /** UX2B-1: a loan-type switch drops an answer the new type has no chip for
