@@ -54,3 +54,13 @@ test('#1: rolling a loan with unknown months left forward keeps it unknown (no 1
   assert.equal(rollBalancesForward([loan], '2026-10').loans[0].tenure_months_remaining, 0);
   assert.equal(rollBalancesForward([{ ...loan, tenure_months_remaining: 703 }], '2026-10').loans[0].tenure_months_remaining, 704);
 });
+
+// ── #2 ──────────────────────────────────────────────────────────────────────
+test('#2: Setup takes 0 take-home pay (blank is still an error) and says what the plan does', () => {
+  const qs = src('components/setup/QuickSetup.tsx');
+  assert.match(qs, /const incomeOk = income\.trim\(\) !== '' && isAmount\(income\);/);
+  assert.doesNotMatch(qs, /Number\(income\) > 0/);
+  assert.match(qs, /NO_PAY_HINT = 'No pay coming in right now\? 0 is fine/);
+  // The short-of-cash preview on step 3 keeps its priority order and /cant-pay link.
+  assert.match(src('components/setup/SetupThisMonth.tsx'), /shortPriorityText[\s\S]*href="\/cant-pay"/);
+});

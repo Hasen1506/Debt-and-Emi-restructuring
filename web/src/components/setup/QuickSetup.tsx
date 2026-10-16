@@ -172,6 +172,7 @@ function blankLoan(): LoanPayload {
 
 const num = (v: string | undefined, fallback = '0') => ((v ?? '').trim() === '' ? fallback : v!.trim());
 const isAmount = (v: string) => v.trim() === '' || /^\d*\.?\d+$/.test(v.trim());
+const NO_PAY_HINT = 'No pay coming in right now? 0 is fine: the plan shows which payments to protect first, and what to say to lenders.';
 
 export function QuickSetup() {
   const [ready, setReady] = useState(false);
@@ -305,7 +306,7 @@ export function QuickSetup() {
     setLoans((cur) => cur.map((l, j) => (j === i ? patchLoanKeepingRateType(l, patch, country) : l)));
 
   // ── Step 1 checks ──
-  const incomeOk = Number(income) > 0 && isAmount(income);
+  const incomeOk = income.trim() !== '' && isAmount(income); // UX2-2: 0 is a real answer (job loss, student)
   const spendCheck = checkSpend(spend, zeroSpendOk);
   const spendOk = spendCheck === 'ok';
   const step1Ok = incomeOk && spendOk;
@@ -826,7 +827,7 @@ export function QuickSetup() {
                     value={takeHome}
                     onChange={setTakeHome}
                     placeholder={userCcy === 'INR' ? 'e.g. 65,000 or 65k' : 'e.g. 6,500'}
-                    hint={incomeType === 'salaried' ? 'After tax, what reaches your bank' : 'After business costs and tax'}
+                    hint={takeHome.trim() !== '' && Number(takeHome) === 0 ? NO_PAY_HINT : incomeType === 'salaried' ? 'After tax, what reaches your bank' : 'After business costs and tax'}
                     error={showErrors && !incomeOk ? 'Enter what reaches your bank each month.' : null}
                   />
                 )}
