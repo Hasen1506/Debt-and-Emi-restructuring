@@ -10,7 +10,7 @@
 import { paymentWords } from '@/lib/terms';
 import { useState } from 'react';
 import type { PlanData } from './PlanData';
-import { formatCurrencyWhole, type LoanPayload } from '@/lib/api';
+import { formatCurrencyWhole, formatPct, type LoanPayload } from '@/lib/api';
 import { getCountryToday, localIsoDate, monthIndexToDate, MONTH_NAMES } from '@/lib/today';
 import { owedTodayLine } from '@/lib/owed-today';
 import { localTerms } from '@/lib/terms';
@@ -559,7 +559,7 @@ export function scheduleGapReason(drift: Record<string, string> | undefined | nu
   if (slide.length === 0) return "loans that start later, or a balance the plan doesn't clear";
   const [ccy, r] = slide[0];
   const name = ccy === 'INR' ? 'rupee' : ccy;
-  return `in your currency, the ${name} loan's balance falls as the plan assumes the ${name} weakens ${(Number(r) * 100).toFixed(1).replace(/\.0$/, '')}% a year`;
+  return `in your currency, the ${name} loan's balance falls as the plan assumes the ${name} weakens ${formatPct(r, 1).replace(/\.0%$/, '%')} a year`;
 }
 
 function ScheduleFooter({ totals, fc, gstApplies, owedLine, gapReason = "loans that start later, or a balance the plan doesn't clear" }: { totals: ReturnType<typeof reconcileSchedule>; fc: (v: string | number) => string; gstApplies: boolean; owedLine?: string | null; gapReason?: string }) {

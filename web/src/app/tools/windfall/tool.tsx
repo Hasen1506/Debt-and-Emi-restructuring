@@ -222,7 +222,7 @@ export function WindfallTool({
   // cash covers the gap first; nothing is prepaid and no interest is "saved".
   const shortPlan = !!base && (base.gap > 0.5 || base.infeasibleFrom != null);
   const gapHint = shortPlan && base
-    ? { monthly_gap: Math.max(1, base.gap).toFixed(2), short_from_label: base.shortFrom ? monthIndexToCountryLabel(base.shortFrom, country) : undefined }
+    ? { monthly_gap: new Decimal(Math.max(1, base.gap)).toDecimalPlaces(2).toString(), short_from_label: base.shortFrom ? monthIndexToCountryLabel(base.shortFrom, country) : undefined }
     : {};
   const gapKey = JSON.stringify(gapHint);
   // The pick waits for the plan, so a short plan never flashes a prepayment.
