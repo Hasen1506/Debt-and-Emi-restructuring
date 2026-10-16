@@ -333,7 +333,7 @@ export async function HomeCashFlow() {
 export async function HomeDuesTotal() {
   const plan = await loadPlanOnce();
   const dues = await planDues();
-  return <>{formatCurrencyWhole(dues ?? deriveMetrics(planProfile(plan)).emiBurden.toFixed(0), userDefaultCurrency(plan.user.country))}</>;
+  return <>{formatCurrencyWhole(dues ?? deriveMetrics(planProfile(plan)).emiBurden.toNumber(), userDefaultCurrency(plan.user.country))}</>;
 }
 
 /** Cheaper rates the engine found for these loans (REDESIGN R2.4). */

@@ -37,7 +37,7 @@ export const L_T = {
   highlightSoft: '#fff8d3',
 } as const;
 
-export const L_MONO = "'IBM Plex Mono', 'IBM Plex Mono Fallback', 'JetBrains Mono', ui-monospace, monospace";
+export const L_MONO = "'IBM Plex Mono', 'RD Mono Fallback', 'JetBrains Mono', ui-monospace, monospace";
 
 // ─── LRule ──────────────────────────────────────────────────────────────
 export function LRule({

@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { LBracket, LButton, L_T } from '@/components/ledger/primitives';
 import type { Country } from '@/lib/api';
 import { currencySymbol, userDefaultCurrency } from '@/lib/currency';
-import { validSwitchRate } from '@/lib/country-switch';
+import { formatSwitchRate, validSwitchRate } from '@/lib/country-switch';
 
 /** Asks how existing amounts move to the new country's currency. Nothing
  *  changes until the user confirms; Cancel keeps the old country. */
@@ -32,7 +32,7 @@ export function CountrySwitchPanel({
   const r = Number(rate);
   const rateOk = validSwitchRate(r);
   const [pay, setPay] = useState('');
-  const inverse = rateOk ? (1 / r >= 1 ? (1 / r).toFixed(2) : (1 / r).toPrecision(4)) : '';
+  const inverse = rateOk ? formatSwitchRate(1 / r) : '';
   return (
     <div
       role="dialog"

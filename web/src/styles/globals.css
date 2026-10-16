@@ -53,8 +53,8 @@
 /* E10: metric-matched stand-ins while Plex loads (size-adjust etc. as next/font
    computes them from public/fonts; Liberation has Arial's / Courier New's
    metrics), so the swap doesn't reflow the page on a slow connection. */
-@font-face { font-family: 'IBM Plex Sans Fallback'; src: local('Arial'), local('ArialMT'), local('Liberation Sans'), local('LiberationSans'); size-adjust: 101.13%; ascent-override: 101.35%; descent-override: 27.19%; line-gap-override: 0%; }
-@font-face { font-family: 'IBM Plex Mono Fallback'; src: local('Courier New'), local('CourierNewPSMT'), local('Liberation Mono'), local('LiberationMono'); size-adjust: 99.98%; ascent-override: 102.52%; descent-override: 27.5%; line-gap-override: 0%; }
+@font-face { font-family: 'RD Sans Fallback'; src: local('Arial'), local('ArialMT'), local('Liberation Sans'), local('LiberationSans'); size-adjust: 101.13%; ascent-override: 101.35%; descent-override: 27.19%; line-gap-override: 0%; }
+@font-face { font-family: 'RD Mono Fallback'; src: local('Courier New'), local('CourierNewPSMT'), local('Liberation Mono'), local('LiberationMono'); size-adjust: 99.98%; ascent-override: 102.52%; descent-override: 27.5%; line-gap-override: 0%; }
 
 /* Audit 80+ B5: IBM Plex Sans for body text (same family as the mono, so
    the Ledger look holds); mono stays for figures, labels and tables. */
@@ -117,9 +117,9 @@
   --highlight-soft: #fff8d3;
   --rule-soft: #d8d6cd;          /* slider track */
 
-  --font-sans: 'IBM Plex Sans', 'IBM Plex Sans Fallback', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'IBM Plex Mono', 'IBM Plex Mono Fallback', ui-monospace, monospace;
-  --font-display: 'IBM Plex Mono', 'IBM Plex Mono Fallback', ui-monospace, monospace;
+  --font-sans: 'IBM Plex Sans', 'RD Sans Fallback', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'RD Mono Fallback', ui-monospace, monospace;
+  --font-display: 'IBM Plex Mono', 'RD Mono Fallback', ui-monospace, monospace;
 
   /* Audit 80+ B5 type scale. Components use these (inline styles read
      them as 'var(--fs-…)'); nothing visible is set under 12px, and
