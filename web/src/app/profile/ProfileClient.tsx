@@ -39,7 +39,7 @@ import { newLoanId, withLoanIds } from '@/lib/loan-ids';
 import {
   loadProfileClient,
 } from '@/lib/user-store';
-import { currencySymbol, loanCurrency, loanMarket, userDefaultCurrency } from '@/lib/currency';
+import { currencySymbol, fxPerDollar, loanCurrency, loanMarket, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
 import { dateProfileRates } from '@/lib/fx-refresh';
 import { efMonths } from '@/lib/assumptions';
 import { salaryDeductionsPhrase, takeHomeLabel } from '@/lib/payroll-labels';
@@ -2407,9 +2407,9 @@ function ProfileEditor({
                   onChange={(v) => setFxRates((cur) => ({ ...cur, [c]: v }))}
                   placeholder={q === 'loading' ? 'Fetching today’s rate…' : c === 'INR' ? 'e.g. 0.012' : 'e.g. 83'}
                   hint={
-                    quoted
+                    `${fxPerDollar(c as CurrencyCode, userCcy as CurrencyCode, Number(fxRates[c])) ? `That is ${fxPerDollar(c as CurrencyCode, userCcy as CurrencyCode, Number(fxRates[c]))}. ` : ''}${quoted
                       ? `Today's rate${quoted.as_of ? ` (${quoted.as_of})` : ''}. Change it if your bank uses a different one.`
-                      : `Your ${c} loans are added to your ${userCcy} budget at this rate.`
+                      : `Your ${c} loans are added to your ${userCcy} budget at this rate.`}`
                   }
                   error={showLoanErrors || q === 'failed' ? fxErrors[c] : null}
                 />

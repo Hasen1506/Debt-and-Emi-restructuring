@@ -191,3 +191,12 @@ export function derivePerCurrencyMetrics(
 
 // ensureFxRates moved to lib/fx-refresh.ts, where it is wired to app open
 // (FxAutoRefresh) and never leaves a foreign loan at parity.
+
+/** UX walkthrough fix 14: one direction for every exchange rate shown,
+ *  per dollar ("1 USD = ₹83.25"), as people and banks quote it. `rate` is
+ *  1 `from` in `to` (how fx_to_user_currency is stored). */
+export function fxPerDollar(from: CurrencyCode, to: CurrencyCode, rate: number): string | null {
+  if (!(rate > 0) || from === to) return null;
+  const inrPerUsd = from === 'USD' ? rate : 1 / rate;
+  return `1 USD = ₹${inrPerUsd.toFixed(2)}`;
+}

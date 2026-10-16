@@ -75,7 +75,7 @@ test('wired: app open refreshes, Home shows the dated rate with a Refresh button
   assert.doesNotMatch(src('lib/currency.ts'), /export async function ensureFxRates/);
   const { FxRateLine } = require(path.join(root, 'components/fx/FxRateLine.tsx'));
   const html = renderToStaticMarkup(React.createElement(FxRateLine, { user: user({ fx_meta: { INR: { as_of: '2026-10-06', fetched_at: new Date(NOW - H).toISOString(), source: 'frankfurter' } } }), nowMs: NOW }));
-  assert.match(html, /1 INR = 0\.01040 USD · as of 6 Oct 2026 · ECB via Frankfurter/);
+  assert.match(html, /1 USD = ₹96\.15 · as of 6 Oct 2026 · ECB via Frankfurter/);
   assert.match(html, /REFRESH RATE/);
   assert.match(renderToStaticMarkup(React.createElement(FxRateLine, { user: user(), nowMs: NOW })), /may be out of date/);
 });

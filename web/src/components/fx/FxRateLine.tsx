@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { UserPayload } from '@/lib/api';
-import { userDefaultCurrency } from '@/lib/currency';
+import { fxPerDollar, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
 import { foreignCurrencies, fxAsOfLabel, fxIsStale } from '@/lib/fx-refresh';
 import { LBracket, L_T } from '@/components/ledger/primitives';
 import { refreshProfileFx } from './FxAutoRefresh';
@@ -36,7 +36,7 @@ export function FxRateLine({ user, nowMs }: { user: UserPayload; nowMs: number }
         const warn = failed.includes(c) || fxIsStale(meta, nowMs);
         return (
           <span key={c} style={{ color: warn ? L_T.negative : L_T.muted }}>
-            {Number(rate) > 0 ? `1 ${c} = ${Number(rate).toPrecision(4)} ${own} · ${fxAsOfLabel(meta)}` : `No ${c} rate yet`}
+            {Number(rate) > 0 ? `${fxPerDollar(c as CurrencyCode, own as CurrencyCode, Number(rate)) ?? `1 ${c} = ${Number(rate).toPrecision(4)} ${own}`} · ${fxAsOfLabel(meta)}` : `No ${c} rate yet`}
             {failed.includes(c) ? ' · couldn’t refresh, using this rate until you enter one in Profile' : warn ? ' · may be out of date' : ''}
           </span>
         );

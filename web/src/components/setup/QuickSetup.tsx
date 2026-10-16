@@ -43,7 +43,7 @@ import type {
 } from '@/lib/api';
 import { BALANCES_ENTERED_KEY } from '@/lib/activity';
 import { parseAmountText, sameAmount } from '@/lib/amount';
-import { loanCurrency, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
+import { fxPerDollar, loanCurrency, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
 import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { deriveTenureMonths } from '@/lib/derived';
 import { HORIZON_MONTHS } from '@/lib/horizon';
@@ -964,9 +964,9 @@ export function QuickSetup() {
                       hint={
                         q === 'loading'
                           ? "Fetching today's rate…"
-                          : quote
+                          : `${fxPerDollar(c, userCcy, Number(fxRates[c])) ? `That is ${fxPerDollar(c, userCcy, Number(fxRates[c]))}. ` : ''}${quote
                             ? `Today's rate${quote.as_of ? `, ${quote.as_of}` : ''}. Change it to your bank's if you like.`
-                            : 'The rate your bank converts at'
+                            : 'The rate your bank converts at'}`
                       }
                       error={showErrors ? fxErrors[c] : null}
                     />

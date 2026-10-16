@@ -300,3 +300,16 @@ test('fix 11: Plan shows the date and figures before the assumption chips', () =
   const chips = s.indexOf('<PlanAssumptions plan={plan} />');
   assert.ok(h2 > 0 && kpi > h2 && chips > kpi, 'headline, then KPIs, then the assumption chips');
 });
+
+test('fix 14: exchange rates read per dollar everywhere; a rupee loan gets the KFS hint, not a Closing Disclosure', () => {
+  const c = lib('currency.ts');
+  assert.equal(c.fxPerDollar('INR', 'USD', 0.012012), '1 USD = ₹83.25');
+  assert.equal(c.fxPerDollar('USD', 'INR', 83.25), '1 USD = ₹83.25');
+  assert.equal(c.fxPerDollar('INR', 'INR', 1), null);
+  for (const f of ['components/fx/FxRateLine.tsx', 'components/setup/QuickSetup.tsx', 'app/profile/ProfileClient.tsx']) assert.match(src(f), /fxPerDollar\(/, f);
+  const { planGivens } = lib('plan-givens.ts');
+  const user = { country: 'US', monthly_income: '7000', fixed_expenses: '3500', loans: [{ loan_type: 'home_loan', currency: 'INR', outstanding: '4000000', nominal_rate: '0.0875', scheduled_emi: '38000', rate_type: 'floating', rate_type_assumed: false, tenure_months_remaining: 200 }] };
+  const g = planGivens(user, { today: '2026-10-07', inflation: { on: false, rate: 0 }, hike: { on: false, rate: 0, month: 4 } });
+  const rt = g.find((x) => x.key === 'rate-type');
+  assert.ok(rt.lines.some((l) => /KFS/.test(l)) && !rt.lines.some((l) => /Closing Disclosure/.test(l)), rt.lines.join(' | '));
+});

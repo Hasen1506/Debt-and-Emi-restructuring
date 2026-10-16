@@ -6,6 +6,7 @@
  * The chips above hold the choices (payoff order, total to debts, pay
  * rises, rising costs); this list holds the data and the guesses.
  */
+import { loanMarket } from './currency';
 import type { Country, LoanPayload, PlanRunArgs, UserPayload } from './api';
 import { formatCurrencyWhole } from './api';
 import { loanCurrency } from './currency';
@@ -108,9 +109,10 @@ export function planGivens(
       label: 'Fixed or floating',
       lines: [
         ...lines,
-        country === 'US'
+        // UX fix 14: by each loan's own market (a rupee loan has a KFS, not a Closing Disclosure).
+        ...[...new Set(emiLoans.map((l) => loanMarket(l, country)))].map((m) => m === 'US'
           ? 'Page 1 of your Closing Disclosure or loan agreement says which.'
-          : 'The line "Rate of interest and type" on your KFS says which.',
+          : 'The line "Rate of interest and type" on your KFS says which.'),
       ],
       source: worst(src),
       fix: { href: '/profile?step=loans', text: 'SET IT IN PROFILE' },
