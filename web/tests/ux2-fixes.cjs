@@ -64,3 +64,28 @@ test('#2: Setup takes 0 take-home pay (blank is still an error) and says what th
   // The short-of-cash preview on step 3 keeps its priority order and /cant-pay link.
   assert.match(src('components/setup/SetupThisMonth.tsx'), /shortPriorityText[\s\S]*href="\/cant-pay"/);
 });
+
+// ── #4, #18 ─────────────────────────────────────────────────────────────────
+test('#4: a loan rate up to 1,000% a year is accepted with a high-cost note; other rates stay 0-100%', () => {
+  const g = lib('loan-gaps.ts');
+  const payday = { loan_type: 'personal_loan', outstanding: '500', nominal_rate: '3.91', scheduled_emi: '250' };
+  assert.deepEqual(g.loanDraftErrors(payday, 'US'), {});
+  assert.deepEqual(g.loanGaps({ ...payday, tenure_months_remaining: 3 }), []);
+  assert.match(g.rateSanityNote('personal_loan', '3.91', 'US'), /391% a year is a very high-cost loan/);
+  assert.equal(g.rateSanityNote('personal_loan', '0.14', 'IN'), null);
+  assert.match(g.loanDraftErrors({ ...payday, nominal_rate: '10.5' }, 'US').rate, /above 1,000% a year/);
+  assert.match(g.rateOutOfRange('1.2'), /above 100% a year/);                      // a rate-reset / tool rate
+  assert.match(g.setupSummaryLine({ invalid: true, outOfRange: true }), /0 to 1,000% a year/);
+  assert.match(src('components/setup/QuickSetup.tsx'), /hint=\{rateSanityNote\(loan\.loan_type, loan\.nominal_rate, country\)/);
+});
+
+test('#18: a card at 3.5% gets "monthly rate? enter 42"; 120% on a loan points at the rate, not the balance', () => {
+  const g = lib('loan-gaps.ts');
+  assert.match(g.rateSanityNote('credit_card', '0.035', 'IN'), /If 3\.5% is the monthly rate, enter 42 \(3\.5% × 12 months\)/);
+  assert.match(g.rateSanityNote('credit_card', '1.2', 'IN'), /far above card rates/);
+  assert.equal(g.rateSanityNote('credit_card', '0.42', 'IN'), null);
+  const typo = { loan_type: 'personal_loan', outstanding: '500000', nominal_rate: '1.2', scheduled_emi: '12000' };
+  const msg = g.loanDraftErrors(typo, 'IN').emi;
+  assert.match(msg, /Check the rate \(did you mean 12%\?\)/);
+  assert.doesNotMatch(msg, /did you mean ₹50,000/);
+});

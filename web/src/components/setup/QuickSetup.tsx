@@ -47,7 +47,7 @@ import { fxPerDollar, loanCurrency, userDefaultCurrency, type CurrencyCode } fro
 import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { deriveTenureMonths } from '@/lib/derived';
 import { HORIZON_MONTHS } from '@/lib/horizon';
-import { emiBelowInterest, formatAsOfDate, loanDraftErrors, needsEmi, rateOutOfRange, setupLoanName, setupSummaryLine, slowPayoffNote } from '@/lib/loan-gaps';
+import { emiBelowInterest, formatAsOfDate, loanDraftErrors, loanRateOutOfRange, needsEmi, rateSanityNote, setupLoanName, setupSummaryLine, slowPayoffNote } from '@/lib/loan-gaps';
 import { newLoanId } from '@/lib/loan-ids';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { feeShown } from '@/lib/prepayment-fee';
@@ -357,7 +357,7 @@ export function QuickSetup() {
   // Live re-test 6B R6B-7: a rate out of range (−42, 4200) is marked as
   // soon as it's typed and left, not only after Continue.
   function rateRangeOnly(l: LoanPayload): Issues {
-    const bad = rateOutOfRange(l.nominal_rate);
+    const bad = loanRateOutOfRange(l.nominal_rate);
     return bad ? { rate: bad } : {};
   }
   const activeLoans = loans.filter((l) => Number(l.outstanding) > 0);
@@ -376,12 +376,12 @@ export function QuickSetup() {
     const issues = issuesOf(l);
     if (Object.keys(issues).length === 0) return { emiTooSmall: false, invalid: false, outOfRange: false, missing: false };
     const emiTooSmall = !!emiBelowInterest({ ...l, currency: loanCurrency(l, country) as 'INR' | 'USD' }, country);
-    const invalid = (!!uiOf(l.id).rateUnreadable && (l.nominal_rate ?? '').trim() === '') || !!rateOutOfRange(l.nominal_rate);
+    const invalid = (!!uiOf(l.id).rateUnreadable && (l.nominal_rate ?? '').trim() === '') || !!loanRateOutOfRange(l.nominal_rate);
     const others = Object.keys(issues).filter((k) => !(invalid && k === 'rate') && !(emiTooSmall && k === 'emi'));
     // UX50 B-36: an unanswered "has this month's EMI gone out?" is a
     // question, not a missing number.
     const numbers = others.filter((k) => k !== 'paid');
-    const outOfRange = !!rateOutOfRange(l.nominal_rate) && Number.isFinite(Number(l.nominal_rate));
+    const outOfRange = !!loanRateOutOfRange(l.nominal_rate) && Number.isFinite(Number(l.nominal_rate));
     return { emiTooSmall, invalid, outOfRange, missing: !emiTooSmall && numbers.length > 0, unanswered: others.includes('paid') };
   });
   const step2Summary = setupSummaryLine({
@@ -1264,13 +1264,12 @@ function LoanBlock({
           onUnreadable={(bad) => {
             if (bad !== !!ui.rateUnreadable) onUi({ rateUnreadable: bad });
           }}
-          hint={
+          hint={rateSanityNote(loan.loan_type, loan.nominal_rate, country) ?? (
             estimated.has('rate')
               ? `Typical for this kind of loan: the middle of the published rates of the banks RightDue tracks, as of ${formatAsOfDate(TYPICAL_RATE_AS_OF)}. Yours may differ; your statement or loan app shows it.`
               : card
                 ? 'A 3.5% monthly rate is 42% a year'
-                : undefined
-          }
+                : undefined)}
           error={issues.rate}
         />
         {!card && !ui.byMonths && (
