@@ -275,18 +275,13 @@ class LoanIn(_In):
     # tenure or the borrower's age limit, from today).
     on_rate_rise: Optional[str] = None
     max_tenure_months: Optional[int] = Field(None, ge=1, le=MAX_TENURE_MONTHS)
-    # C2: "emi" | "interest_only" | "bullet" (blank: a gold loan with no EMI
-    # is a bullet, anything else an EMI loan).
+    # C2: "emi" | "interest_only" | "bullet" (blank: gold with no EMI = bullet, else EMI).
     repayment: Optional[str] = None
-    # UX2B-5: a promo rate's length in plan months, and the rate after it.
-    promo_months: Months = 0
-    rate_after_promo: Optional[Rate] = None
-    # C4: the calendar month extra payments are first allowed ('YYYY-MM').
-    # The lock-in then runs down as months pass. Without it, a typed
-    # `prepay_lock_in_months` is counted from the loan's start month
-    # (`loan_start_month`) when given, else from the month the balance was
-    # entered (`balance_as_of`, which the web stamps on every loan), else
-    # from today (old payloads).
+    promo_months: Months = 0                        # UX2B-5: plan months at the promo rate,
+    rate_after_promo: Optional[Rate] = None         # then this rate
+    # C4: the calendar month extra payments are first allowed ('YYYY-MM'); the lock-in
+    # runs down from it. Without it a typed `prepay_lock_in_months` counts from
+    # `loan_start_month`, else `balance_as_of` (the web stamps it), else today.
     prepay_lock_in_until: Optional[str] = None
     loan_start_month: Optional[str] = None
     balance_as_of: Optional[str] = None
@@ -467,8 +462,7 @@ class LoanIn(_In):
             on_rate_rise=self.on_rate_rise,
             max_tenure_months=self.max_tenure_months,
             repayment=self.repayment,
-            promo_months=self.promo_months,
-            rate_after_promo=self.rate_after_promo,
+            promo_months=self.promo_months, rate_after_promo=self.rate_after_promo,
         )
 
 
