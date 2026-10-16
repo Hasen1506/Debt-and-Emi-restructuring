@@ -64,7 +64,7 @@ test('Plan schedule: principal + interest = cash, and principal ties out to toda
   assert.ok(!reconcileSchedule([{ principal: 1000, interest: 0 }], 5000).tiesOut);
   assert.match(scheduleColumnHelp(true, '18').INTEREST, /18% GST/);
   const s = src('components/plan/PlanSchedule.tsx');
-  assert.match(s, /<ScheduleFooter /); assert.match(s, /title=\{help\[h\]\}/);
+  assert.match(s, /<ScheduleFooter\s/); assert.match(s, /title=\{help\[h\]\}/);
 });
 
 test('Profile: the emergency-fund time-to-fill follows the Plan slider, not a fixed 30%', () => {
