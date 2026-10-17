@@ -19,16 +19,19 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import Decimal from 'decimal.js';
 import type { LoanPayload, UserPayload } from '@/lib/api';
-import { formatINR } from '@/lib/api';
+import { formatCurrencyWhole, formatINR } from '@/lib/api';
 import { useStoredProfile } from '@/lib/use-profile';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { countryMonthKey } from '@/lib/today';
 import { compareRegimes, firstYearSplit, switchRuleText, type RegimeComparison } from '@/lib/regime-compare';
-import { MIX_LABEL, formatTaxRate, readIncome, regimeInputsFromUser, taxRateStatus } from '@/lib/tax-profile';
+import { earnLabel, formatTaxRate, readIncome, regimeInputsFromUser, taxRateStatus } from '@/lib/tax-profile';
+import { FILING_LABEL, abroadLabel, abroadNote, livesAbroad } from '@/lib/tax-setup';
+import { SE_TAX_NOTE } from '@/lib/us-self-employment';
 import { loanTaxLine, nextYearSplit, preConstructionInstalment, sec80cRoom, sectionLabel, taxShare } from '@/lib/india-tax-loans';
 import { LBracket, LChip, LChipRow, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import TAX from '@/lib/tax-tables.json';
 import { principal80c, taxType } from '@/lib/loan-types';
+import { US_STANDARD_DEDUCTION } from '@/lib/tax-brackets';
 
 const rupees = (v: Decimal.Value) => formatINR(new Decimal(v).toDecimalPlaces(0).toString());
 const pct = (v: Decimal.Value) => `${new Decimal(v).mul(100).toFixed(1)}%`;
@@ -68,6 +71,8 @@ export function TaxPage() {
 
       <RateSection user={user} marginalRate={profile.marginalRate} onConfirm={() => save((u) => ({ ...u, tax_rate_confirmed: true }), 'Saved: your tax rate is confirmed.')} />
 
+      {!isIN && <UsFiling user={user} onSave={(p, msg) => save((u) => ({ ...u, ...p }), msg)} />}
+
       {isIN && <RegimeSection user={user} month={month} onUse={(r) => save((u) => ({ ...u, tax_regime: r }), `Saved: the plan now uses the ${r} regime.`)} />}
 
       {isIN && <LoansSection user={user} month={month} onSave={(next, msg) => save((u) => ({ ...u, loans: next(u.loans) }), msg)} />}
@@ -87,6 +92,7 @@ function RateSection({ user, marginalRate, onConfirm }: { user: UserPayload; mar
   const status = taxRateStatus(user);
   const income = readIncome(user);
   const rate = Number(marginalRate || 0);
+  const abroad = livesAbroad(user);
   return (
     <section aria-labelledby="tx-rate">
       <LSectionHeader step={1}>
@@ -94,22 +100,24 @@ function RateSection({ user, marginalRate, onConfirm }: { user: UserPayload; mar
       </LSectionHeader>
       <Rows
         rows={[
-          ['Country', user.country === 'IN' ? 'India' : 'USA'],
+          ['Country', `${user.country === 'IN' ? 'India' : 'USA'}${abroad ? ` (${abroadLabel(user.nri_residence)})` : ''}`],
           ...(user.country === 'US'
-            ? [['Filing as', ({ single: 'Single', mfj: 'Married, filing jointly', hoh: 'Head of household' } as Record<string, string>)[user.filing_status ?? 'single']] as [string, ReactNode]]
+            ? [['Filing as', user.filing_status ? FILING_LABEL[user.filing_status] : <Muted key="f">Not chosen: Single assumed</Muted>] as [string, ReactNode]]
             : []),
           [`Tax on your next ${user.country === 'IN' ? 'rupee' : 'dollar'}`, <>{formatTaxRate(rate)}{status === 'estimated' && <Muted> · estimate</Muted>}</>],
-          ['How you earn', MIX_LABEL[income.mix]],
+          ['How you earn', earnLabel(user, income)],
           ...(user.country === 'IN' ? [['Regime the plan uses', user.tax_regime === 'old' ? 'Old regime' : 'New regime (the default)'] as [string, ReactNode]] : []),
         ]}
       />
       <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-dense)', lineHeight: 1.6, color: L_T.inkSoft }}>
         This rate decides how much a loan’s tax break is worth, and so which loan the plan pays first and whether paying early beats investing.{' '}
-        {income.mix === 'salary_plus_business' &&
+        {abroad && `${abroadNote(user.nri_residence!)} `}
+        {user.country === 'US' && income.mix === 'business' && `${SE_TAX_NOTE} `}
+        {user.country === 'IN' && income.mix === 'salary_plus_business' &&
           'With salary and a side business, the standard deduction comes off the salary only, and the business income means switching regime is a once-only choice (below). '}
-        {income.mix === 'business' && 'With business income only, there is no standard deduction, and switching regime is a once-only choice (below). '}
+        {user.country === 'IN' && income.mix === 'business' && 'With business income only, there is no standard deduction, and switching regime is a once-only choice (below). '}
       </p>
-      {status === 'estimated' && (
+      {status === 'estimated' && !abroad && (
         <div style={{ marginTop: 10, padding: '10px 12px', border: `1px solid ${L_T.ink}`, background: L_T.highlightSoft }}>
           <p style={{ margin: '0 0 8px', fontSize: 'var(--fs-dense)', lineHeight: 1.6 }}>
             {formatTaxRate(rate)} is worked out from your take-home pay, so it’s a guess: it doesn’t know your PF, insurance or other income. Is {formatTaxRate(rate)} right?
@@ -121,6 +129,27 @@ function RateSection({ user, marginalRate, onConfirm }: { user: UserPayload; mar
         </div>
       )}
       {status === 'confirmed' && <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-dense)', color: L_T.muted }}>You confirmed this rate. Entering gross pay in Profile would make it exact.</p>}
+    </section>
+  );
+}
+
+// ─── US: filing status and itemizing (round 3, u07couple) ───────────────────
+
+function UsFiling({ user, onSave }: { user: UserPayload; onSave: (p: Partial<UserPayload>, msg: string) => void }) {
+  return (
+    <section aria-label="How you file" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <LChipRow label="How you file your tax return">
+        {(Object.keys(FILING_LABEL) as Array<keyof typeof FILING_LABEL>).map((f) => (
+          <LChip key={f} on={user.filing_status === f} onClick={() => onSave({ filing_status: f }, `Saved: filing as ${FILING_LABEL[f].toLowerCase()}.`)}>{FILING_LABEL[f]}</LChip>
+        ))}
+      </LChipRow>
+      <LChipRow label="Do you itemize deductions?">
+        <LChip on={user.itemises !== true} onClick={() => onSave({ itemises: false }, 'Saved: standard deduction, so mortgage interest gets no tax break.')}>No, standard deduction</LChip>
+        <LChip on={user.itemises === true} onClick={() => onSave({ itemises: true }, 'Saved: you itemize, so mortgage interest lowers your tax.')}>Yes, I itemize</LChip>
+      </LChipRow>
+      <p style={{ margin: 0, fontSize: 'var(--fs-dense)', color: L_T.inkSoft, lineHeight: 1.6 }}>
+        Mortgage interest lowers your tax only if you itemize, and then only the part above the standard deduction ({user.filing_status ? FILING_LABEL[user.filing_status].toLowerCase() : 'single'}: {formatCurrencyWhole(US_STANDARD_DEDUCTION[user.filing_status ?? 'single'], 'USD')} for 2026, IRS Rev. Proc. 2025-32).
+      </p>
     </section>
   );
 }

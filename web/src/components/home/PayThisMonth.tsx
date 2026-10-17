@@ -632,6 +632,8 @@ function kindLine(row: PayRow, fmt: (v: number, ccy?: PayRow['currency']) => str
       return 'SET ASIDE · UNTIL THE FUND REACHES ITS TARGET';
     case 'goals':
       return 'SET ASIDE · FOR YOUR GOALS';
+    case 'tax':
+      return `SET ASIDE · TAX ON INCOME WITH NO ${country === 'US' ? 'WITHHOLDING' : 'TDS'}`;
   }
 }
 

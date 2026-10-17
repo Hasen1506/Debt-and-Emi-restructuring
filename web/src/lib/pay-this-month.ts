@@ -8,10 +8,12 @@ import type { PlanData } from '@/components/plan/PlanData';
 import { loanCurrency, loanToUser, userDefaultCurrency, type CurrencyCode } from '@/lib/currency';
 import { LOAN_TYPE_NAME, disambiguateLoans, loanNickname } from '@/lib/loan-types';
 import { GST_RATE_IN } from '@/lib/gst';
+import { homeTaxReserve } from '@/lib/salaried-advance-tax';
+import { getCountryToday, localIsoDate } from '@/lib/today';
 
 /** emi / minimum: only what the bank requires. extra: more on top.
  *  clears: the payment pays the loan off. ef / goals: money set aside. */
-export type PayKind = 'emi' | 'minimum' | 'extra' | 'clears' | 'ef' | 'goals';
+export type PayKind = 'emi' | 'minimum' | 'extra' | 'clears' | 'ef' | 'goals' | 'tax';
 
 export interface PayRow {
   /** The loan's id (its position when it has none), or 'ef' / 'goals'. */
@@ -63,7 +65,7 @@ export interface PayThisMonth {
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Null when the plan didn't come from the engine (offline sample). */
-export function payThisMonth(plan: PlanData): PayThisMonth | null {
+export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(getCountryToday(plan.user.country))): PayThisMonth | null {
   if (!plan.live) return null;
   const first = plan.monthlyPayments.find((p) => p.month === 1);
   if (!first) return null;
@@ -128,11 +130,18 @@ export function payThisMonth(plan: PlanData): PayThisMonth | null {
   if (goals >= 1) {
     setAside.push({ key: 'goals', loanIndex: null, name: 'Goals', kind: 'goals', card: false, amount: goals, currency: userCcy, amountUser: goals, minimum: 0, extra: goals });
   }
-  const rows = [...loanRows, ...setAside];
-  const { duesUser, extraUser } = reconcileMonth(plan, first.perLoan, loanRows, ef + goals);
-  const total = duesUser + extraUser + ef + goals;
   const surplus = Math.round(a?.surplus ?? plan.surplus);
-  const unplaced = surplus - extraUser - ef - goals;
+  // Round 3 (ux-walkthrough fix 10): a salaried user's next advance-tax
+  // instalment is set aside before any extra goes to a loan.
+  const reserve = plan.user.income_type === 'salaried' && !(plan.shortfall > 0) ? homeTaxReserve(plan.advanceTaxSchedule, todayIso) : null;
+  const tax = reserve ? Math.min(reserve.amount, Math.max(0, surplus - ef - goals)) : 0;
+  if (reserve && tax >= 1) {
+    setAside.push({ key: 'tax', loanIndex: null, name: `Advance tax due ${reserve.due}`, kind: 'tax', card: false, amount: tax, currency: userCcy, amountUser: tax, minimum: 0, extra: tax });
+  }
+  const rows = [...loanRows, ...setAside];
+  const { duesUser, extraUser } = reconcileMonth(plan, first.perLoan, loanRows, ef + goals + tax);
+  const total = duesUser + extraUser + ef + goals + tax;
+  const unplaced = surplus - extraUser - ef - goals - tax;
   // Rounding leaves a few rupees either way; only a real remainder is shown.
   const leftOver = unplaced >= Math.max(1, surplus * 0.01) ? unplaced : 0;
   return { rows, total, leftOver, extraUser, duesUser, budget: Number(plan.debtBudget || 0) };

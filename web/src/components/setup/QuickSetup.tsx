@@ -57,7 +57,9 @@ import { InsightsPanel } from '@/components/insights/InsightsPanel';
 import { orderChoice, type PlanInsights } from '@/lib/insights';
 import { SetupImportCard } from '@/components/setup/SetupImportCard';
 import { applyChoices, choicesFrom, missingChoices, startingChoices, type SetupChoices as Choices } from '@/lib/setup-choices';
-import { emiFromMonths, marginalRateFromTakeHome } from '@/lib/quick-setup';
+import { emiFromMonths, setupMarginalRate } from '@/lib/quick-setup';
+import { TaxBasicsRows } from './TaxBasics';
+import { applyTaxBasics, takeHomeWords, taxBasicsGap, taxBasicsOf, type TaxBasics } from '@/lib/tax-setup';
 import { SetupThisMonth } from './SetupThisMonth';
 import { typicalRate, TYPICAL_RATE_AS_OF, withEstimate } from '@/lib/setup-estimates';
 import { EstimateBalance } from './EstimateBalance';
@@ -149,6 +151,7 @@ interface DraftState {
   ui?: Record<string, LoanUi>;
   fxRates?: Record<string, string>;
   choices?: Choices;
+  tb?: TaxBasics;
 }
 
 function readDraft(editing: boolean) {
@@ -193,6 +196,7 @@ export function QuickSetup() {
   const [isNriUs, setIsNriUs] = useState(false);
   const [countryNote, setCountryNote] = useState<string | null>(null);
   const [incomeType, setIncomeType] = useState<IncomeType>('salaried');
+  const [tb, setTb] = useState<TaxBasics>({}); // round 3: tax questions (lib/tax-setup)
   const [takeHome, setTakeHome] = useState('');
   const [spend, setSpend] = useState('');
   const [spendAtStart, setSpendAtStart] = useState('');
@@ -231,6 +235,7 @@ export function QuickSetup() {
         setCountry(u.country);
         setIsNriUs(!!u.is_nri_us);
         setIncomeType(u.income_type);
+        setTb(taxBasicsOf(u));
         setTakeHome(u.monthly_income ?? '');
         const s = new Decimal(num(u.fixed_expenses)).add(num(u.variable_expenses)).toString();
         setSpend(s);
@@ -252,6 +257,7 @@ export function QuickSetup() {
         if (d.country) setCountry(d.country);
         setIsNriUs(!!d.isNriUs);
         if (d.incomeType) setIncomeType(d.incomeType);
+        if (d.tb) setTb(d.tb);
         setTakeHome(d.takeHome ?? '');
         setSpend(d.spend ?? '');
         setZeroSpendOk(!!d.zeroSpendOk);
@@ -273,12 +279,12 @@ export function QuickSetup() {
   useEffect(() => {
     if (!ready || !edited.current || !draftOn.current) return;
     try {
-      const state: DraftState = { country, isNriUs, incomeType, takeHome, spend, zeroSpendOk, loans, ui, fxRates, choices };
+      const state: DraftState = { country, isNriUs, incomeType, tb, takeHome, spend, zeroSpendOk, loans, ui, fxRates, choices };
       window.localStorage.setItem(SETUP_DRAFT_KEY, serializeDraft(state, step, Date.now()));
     } catch {
       /* private mode or full: Back still works within the page */
     }
-  }, [ready, country, isNriUs, incomeType, takeHome, spend, zeroSpendOk, loans, ui, fxRates, choices, step]);
+  }, [ready, country, isNriUs, incomeType, tb, takeHome, spend, zeroSpendOk, loans, ui, fxRates, choices, step]);
   // Back and Forward move between the steps instead of leaving Setup.
   const goToRef = useRef<(n: number, fromHistory?: boolean) => void>(() => {});
   useEffect(() => {
@@ -315,7 +321,7 @@ export function QuickSetup() {
   const incomeOk = income.trim() !== '' && isAmount(income); // UX2-2: 0 is a real answer (job loss, student)
   const spendCheck = checkSpend(spend, zeroSpendOk);
   const spendOk = spendCheck === 'ok';
-  const step1Ok = incomeOk && spendOk;
+  const step1Ok = incomeOk && spendOk && !taxBasicsGap(country, tb);
   const leftBeforeEmis =
     incomeOk && spendOk ? new Decimal(income).sub(num(spend)) : null;
 
@@ -494,7 +500,7 @@ export function QuickSetup() {
     };
     const base = prev ?? ({} as Partial<UserPayload>);
     const monthlySpend = Number(num(spend));
-    return applyChoices({
+    return applyTaxBasics(applyChoices({
       ...defaults,
       ...base,
       ...(sameCountry
@@ -512,13 +518,13 @@ export function QuickSetup() {
       fixed_expenses: keepSpend ? num(prev!.fixed_expenses) : num(spend),
       variable_expenses: keepSpend ? num(prev!.variable_expenses) : '0',
       tax_regime: country === 'IN' ? (base.tax_regime ?? 'new') : undefined,
-      filing_status: country === 'US' ? (base.filing_status ?? 'single') : undefined,
+      filing_status: country === 'US' ? base.filing_status : undefined,
       primary_bank: base.primary_bank || finished.find((l) => l.bank)?.bank || '',
       loans: finished,
       fx_to_user_currency: Object.fromEntries(
         foreignCcys.filter((c) => Number(fxRates[c]) > 0).map((c) => [c, String(fxRates[c]).trim()]),
       ),
-    } as UserPayload, choices, monthlySpend, localIsoDate(getCountryToday(country)));
+    } as UserPayload, choices, monthlySpend, localIsoDate(getCountryToday(country))), tb);
   }
 
   /** The saved rate when gross pay (or the same take-home) backs it; else an estimate. */
@@ -527,17 +533,10 @@ export function QuickSetup() {
       !!prev &&
       (Number(prev.annual_gross_salary) > 0 || Number(prev.annual_business_income) > 0 || fromStreams);
     const unchanged =
-      !!prev && prev.country === country && prev.income_type === incomeType &&
+      !!prev && prev.country === country && prev.income_type === incomeType && JSON.stringify(taxBasicsOf(prev)) === JSON.stringify(taxBasicsOf(applyTaxBasics({ ...prev, country, income_type: incomeType }, tb))) &&
       (hasGross || sameAmount(num(prev.monthly_income), num(income)));
     if (saved && unchanged) return { rate: saved.marginalRate, estimated: false };
-    const est = marginalRateFromTakeHome(
-      income,
-      country,
-      incomeType,
-      country === 'IN' ? (prev?.tax_regime ?? 'new') : undefined,
-      country === 'US' ? (prev?.filing_status ?? 'single') : undefined,
-    );
-    return { rate: (est?.rate ?? 0.3).toFixed(4), estimated: true };
+    return { rate: setupMarginalRate(income, country, incomeType, tb, prev ?? undefined).toFixed(4), estimated: true };
   }
 
   // ── Step 3: run the plan and the minimums-only plan ──
@@ -803,24 +802,8 @@ export function QuickSetup() {
 
           {step === 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <ChipRow label="Where you live">
-                <Chip on={country === 'IN'} onClick={() => pickCountry('IN')}>India · ₹</Chip>
-                <Chip on={country === 'US'} onClick={() => pickCountry('US')}>USA · $</Chip>
-                {country === 'US' && (
-                  <Chip on={isNriUs} onClick={() => setIsNriUs(!isNriUs)}>
-                    {isNriUs ? '✓ ' : '+ '}I also have loans in India
-                  </Chip>
-                )}
-              </ChipRow>
-              {countryNote && (
-                <p role="status" style={{ margin: 0, fontSize: 'var(--fs-body)', color: L_T.negative }}>{countryNote}</p>
-              )}
-              <ChipRow label="How you earn">
-                <Chip on={incomeType === 'salaried'} onClick={() => setIncomeType('salaried')}>Salaried</Chip>
-                <Chip on={incomeType === 'business_owner'} onClick={() => setIncomeType('business_owner')}>
-                  Self-employed
-                </Chip>
-              </ChipRow>
+              <TaxBasicsRows country={country} pickCountry={pickCountry} isNriUs={isNriUs} setIsNriUs={setIsNriUs} countryNote={countryNote}
+                incomeType={incomeType} setIncomeType={setIncomeType} tb={tb} setTb={setTb} showErrors={showErrors} />
               <div style={grid2}>
                 {fromStreams ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -832,14 +815,14 @@ export function QuickSetup() {
                   </div>
                 ) : (
                   <Field
-                    label={incomeType === 'salaried' ? 'Take-home pay a month' : 'What you take home a month'}
+                    label={takeHomeWords(incomeType, tb).label}
                     findIt={incomeType === 'salaried' ? whereToFind('takeHome', { country }) : null}
                     kind="money"
                     currency={userCcy}
                     value={takeHome}
                     onChange={setTakeHome}
                     placeholder={userCcy === 'INR' ? 'e.g. 65,000 or 65k' : 'e.g. 6,500'}
-                    hint={takeHome.trim() !== '' && Number(takeHome) === 0 ? NO_PAY_HINT : incomeType === 'salaried' ? 'After tax, what reaches your bank' : 'After business costs and tax'}
+                    hint={takeHome.trim() !== '' && Number(takeHome) === 0 ? NO_PAY_HINT : takeHomeWords(incomeType, tb).hint}
                     error={showErrors && !incomeOk ? 'Enter what reaches your bank each month.' : null}
                   />
                 )}

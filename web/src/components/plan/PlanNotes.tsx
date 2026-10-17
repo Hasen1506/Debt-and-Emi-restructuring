@@ -164,7 +164,9 @@ function buildNotes(plan: PlanData): Note[] {
       notes.push({
         eyebrow: 'TAX',
         title: `The ${name}'s interest doesn't lower your tax`,
-        body: 'Your itemised deductions come to less than the standard deduction, so the plan counts the mortgage at its full rate.',
+        body: user.itemises === true
+          ? 'Your itemised deductions come to less than the standard deduction, so the plan counts the mortgage at its full rate.'
+          : 'You take the standard deduction, so mortgage interest saves no tax and the plan counts the mortgage at its full rate. Itemize? Say so on the Tax page.',
       });
     }
   }

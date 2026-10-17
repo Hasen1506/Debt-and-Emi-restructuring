@@ -22,8 +22,9 @@
  * `2L × marginal_rate` in tax, not `2L × effective_rate`.
  */
 import Decimal from 'decimal.js';
-import type { Country, FilingStatusUS, IncomeType, TaxRegimeIN } from './api';
+import type { AgeBracket, Country, FilingStatusUS, IncomeType, TaxRegimeIN } from './api';
 import TAX from './tax-tables.json';
+import { usSelfEmploymentTax } from './us-self-employment';
 
 export const TAX_SLABS_AS_OF = TAX.as_of;
 
@@ -59,6 +60,12 @@ const IN_NEW_STANDARD_DEDUCTION = TAX.in.new.standard_deduction;
 const IN_NEW_REBATE_87A_CAP = TAX.in.new.rebate_87a.threshold; // income below which liability = 0
 
 const IN_OLD_SLABS: Slab[] = toSlabs(TAX.in.old.slabs as SlabRows);
+// Round 3 (n13pension): the old regime's senior tables (60-79, 80+), from the
+// engine (Finance Act 2026 First Schedule Part I-B; incometax.gov.in "Salaried
+// Individuals for AY 2026-27", read 17 Oct 2026). The new regime has one table.
+const IN_OLD_60_79: Slab[] = toSlabs(TAX.in.old_60_79.slabs as SlabRows);
+const IN_OLD_80_PLUS: Slab[] = toSlabs(TAX.in.old_80_plus.slabs as SlabRows);
+const oldSlabs = (age?: AgeBracket) => (age === '80_plus' ? IN_OLD_80_PLUS : age === '60_plus' ? IN_OLD_60_79 : IN_OLD_SLABS);
 const IN_OLD_STANDARD_DEDUCTION = TAX.in.old.standard_deduction;
 const IN_OLD_REBATE_87A_CAP = TAX.in.old.rebate_87a.threshold; // income below which liability = 0
 
@@ -110,6 +117,7 @@ function pickSlabs(
   regime: TaxRegimeIN | null | undefined,
   incomeType: IncomeType,
   filingStatus?: FilingStatusUS,
+  age?: AgeBracket,
 ): { slabs: Slab[]; standardDeduction: number; rebate87ACap: number } {
   if (country === 'US') {
     const status = filingStatus ?? 'single';
@@ -137,7 +145,7 @@ function pickSlabs(
         rebate87ACap: IN_NEW_REBATE_87A_CAP,
       }
     : {
-        slabs: IN_OLD_SLABS,
+        slabs: oldSlabs(age),
         standardDeduction: incomeType === 'salaried' ? IN_OLD_STANDARD_DEDUCTION : 0,
         rebate87ACap: IN_OLD_REBATE_87A_CAP,
       };
@@ -191,13 +199,16 @@ export function computeAnnualTax(
   incomeType: IncomeType,
   grossIncome: number,
   filingStatus?: FilingStatusUS,
+  age?: AgeBracket,
 ): Decimal {
   if (!Number.isFinite(grossIncome) || grossIncome <= 0) return new Decimal(0);
-  const { standardDeduction } = pickSlabs(country, regime, incomeType, filingStatus);
+  const { standardDeduction } = pickSlabs(country, regime, incomeType, filingStatus, age);
   const taxable = Math.max(0, grossIncome - standardDeduction);
-  return country === 'IN'
-    ? incomeTaxIN(taxable, regime === 'old' ? 'old' : 'new')
-    : federalTaxUS(taxable, filingStatus ?? 'single');
+  if (country === 'IN') return incomeTaxIN(taxable, regime === 'old' ? 'old' : 'new', age);
+  if (incomeType !== 'business_owner') return federalTaxUS(taxable, filingStatus ?? 'single');
+  // Round 3 (u08gig): self-employed, income tax after half the SE tax, plus the SE tax.
+  const [se, half] = usSelfEmploymentTax(grossIncome, filingStatus);
+  return federalTaxUS(Math.max(0, taxable - half), filingStatus ?? 'single').add(se);
 }
 
 function slabTax(taxable: number, slabs: Slab[]): Decimal {
@@ -212,9 +223,9 @@ function slabTax(taxable: number, slabs: Slab[]): Decimal {
 
 /** India tax on taxable income, as engine/tax/india.py `income_tax`:
  *  slab tax, less the 87A rebate, plus surcharge, plus 4% cess. */
-function taxBeforeSurchargeIN(taxable: number, regime: TaxRegimeIN): Decimal {
+function taxBeforeSurchargeIN(taxable: number, regime: TaxRegimeIN, age?: AgeBracket): Decimal {
   const t = regime === 'old' ? TAX.in.old : TAX.in.new;
-  let tax = slabTax(taxable, regime === 'old' ? IN_OLD_SLABS : IN_NEW_SLABS);
+  let tax = slabTax(taxable, regime === 'old' ? oldSlabs(age) : IN_NEW_SLABS);
   if (taxable <= t.rebate_87a.threshold) {
     tax = Decimal.max(0, tax.minus(t.rebate_87a.max));
   } else if (regime !== 'old') {
@@ -228,8 +239,8 @@ function taxBeforeSurchargeIN(taxable: number, regime: TaxRegimeIN): Decimal {
 /** Surcharge band floors (₹50L / ₹1Cr / ₹2Cr / ₹5Cr). */
 const IN_SURCHARGE_THRESHOLDS = IN_SURCHARGE.slice(0, -1).map((b) => b.to);
 
-export function incomeTaxIN(taxable: number, regime: TaxRegimeIN): Decimal {
-  const tax = taxBeforeSurchargeIN(taxable, regime);
+export function incomeTaxIN(taxable: number, regime: TaxRegimeIN, age?: AgeBracket): Decimal {
+  const tax = taxBeforeSurchargeIN(taxable, regime, age);
   if (tax.lte(0)) return new Decimal(0);
   const rate = inSurchargeRate(taxable, regime);
   let withSurcharge = tax.mul(1 + rate);
@@ -238,7 +249,7 @@ export function incomeTaxIN(taxable: number, regime: TaxRegimeIN): Decimal {
   const below = IN_SURCHARGE_THRESHOLDS.filter((t) => t < taxable);
   if (below.length && rate > 0) {
     const t = below[below.length - 1];
-    const atT = taxBeforeSurchargeIN(t, regime).mul(1 + inSurchargeRate(t, regime));
+    const atT = taxBeforeSurchargeIN(t, regime, age).mul(1 + inSurchargeRate(t, regime));
     withSurcharge = Decimal.min(withSurcharge, atT.add(taxable - t));
   }
   return withSurcharge.mul(1 + IN_HEALTH_EDU_CESS);
@@ -253,10 +264,10 @@ export function federalTaxUS(taxable: number, filing: FilingStatusUS): Decimal {
 /** India marginal rate as engine/tax/india.py `marginal_rate`:
  *  slab rate × (1 + surcharge) × (1 + cess), and 0 at or below the 87A
  *  line, where the rebate cancels the tax. */
-export function marginalRateIN(taxable: number, regime: TaxRegimeIN): number {
+export function marginalRateIN(taxable: number, regime: TaxRegimeIN, age?: AgeBracket): number {
   const t = regime === 'old' ? TAX.in.old : TAX.in.new;
   if (taxable <= t.rebate_87a.threshold) return 0;
-  const slabs = regime === 'old' ? IN_OLD_SLABS : IN_NEW_SLABS;
+  const slabs = regime === 'old' ? oldSlabs(age) : IN_NEW_SLABS;
   const slab = slabs.find((s) => taxable <= s.to) ?? slabs[slabs.length - 1];
   return slab.rate * (1 + inSurchargeRate(taxable, regime)) * (1 + IN_HEALTH_EDU_CESS);
 }

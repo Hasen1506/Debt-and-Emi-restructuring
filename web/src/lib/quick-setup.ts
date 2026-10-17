@@ -4,9 +4,10 @@
  * first extra payment the plan makes.
  */
 import Decimal from 'decimal.js';
-import type { Country, FilingStatusUS, IncomeType, TaxRegimeIN } from '@/lib/api';
+import type { AgeBracket, Country, FilingStatusUS, IncomeType, TaxRegimeIN, UserPayload } from '@/lib/api';
 import { computeAnnualTax } from '@/lib/tax-brackets';
 import { deriveMarginalRate } from '@/lib/deductions';
+import { abroadIndiaRate, type TaxBasics } from '@/lib/tax-setup';
 
 /**
  * The monthly payment that clears `outstanding` in `months` at `annualRate`
@@ -42,11 +43,13 @@ export function marginalRateFromTakeHome(
   incomeType: IncomeType,
   regime: TaxRegimeIN | undefined,
   filing: FilingStatusUS | undefined,
+  /** Round 3: a pensioner's age (old regime's senior tables). */
+  age?: AgeBracket,
 ): { gross: number; rate: number } | null {
   const net = Number(monthlyTakeHome) * 12;
   if (!Number.isFinite(net) || net <= 0) return null;
   const left = (gross: number) =>
-    gross - Number(computeAnnualTax(country, regime, incomeType, gross, filing).toString());
+    gross - Number(computeAnnualTax(country, regime, incomeType, gross, filing, age).toString());
   // Tax never takes more than two thirds, so the gross sits in [net, 3·net].
   let lo = net;
   let hi = net * 3;
@@ -59,7 +62,7 @@ export function marginalRateFromTakeHome(
   // The same rate Profile works out from gross pay: in India the slab with
   // surcharge and 4% cess, and 0 within the 87A rebate (the bare slab read
   // 20% where Profile said 20.8%).
-  const rate = deriveMarginalRate({ grossAnnual: gross, country, taxRegime: regime, filingStatus: filing, incomeType });
+  const rate = deriveMarginalRate({ grossAnnual: gross, country, taxRegime: regime, filingStatus: filing, incomeType, ageBracket: age });
   return { gross, rate: rate ? rate.toNumber() : 0 };
 }
 
@@ -79,4 +82,26 @@ export function firstExtraPayment(
     if (extra.gt(0.5) && (!best || extra.gt(best.extra))) best = { index: Number(k), extra };
   }
   return best ? { index: best.index, extra: best.extra.toDecimalPlaces(0).toString() } : null;
+}
+
+/** The tax rate Setup saves from take-home pay and the answers above. */
+export function setupMarginalRate(
+  takeHome: string,
+  country: Country,
+  incomeType: IncomeType,
+  tb: TaxBasics,
+  prev?: Partial<UserPayload>,
+): number {
+  if (country === 'IN' && tb.residence && tb.residence !== 'GULF') {
+    return abroadIndiaRate({ income_streams: prev?.income_streams, tax_regime: prev?.tax_regime });
+  }
+  const est = marginalRateFromTakeHome(
+    takeHome,
+    country,
+    incomeType,
+    country === 'IN' ? (prev?.tax_regime ?? 'new') : undefined,
+    country === 'US' ? (tb.filing ?? prev?.filing_status ?? 'single') : undefined,
+    tb.earns === 'pension' ? tb.age : undefined,
+  );
+  return est?.rate ?? 0.3;
 }

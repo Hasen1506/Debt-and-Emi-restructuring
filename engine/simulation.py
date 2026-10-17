@@ -63,7 +63,6 @@ D = Decimal
 # run one way for decades.
 MAX_RATE_DRIFT = D("0.03")
 
-
 # Payroll deductions besides income tax (P2-24).
 US_SS_RATE = D("0.062")
 US_SS_WAGE_BASE_2026 = D("184500")       # SSA 2026 contribution and benefit base
@@ -75,12 +74,14 @@ IN_EPF_WAGE_CEILING_ANNUAL = D("180000")  # ₹15,000/month statutory wage ceili
 
 
 def payroll_deductions(user: User, gross: Decimal) -> Decimal:
-    """Yearly payroll deductions other than income tax: FICA in the US;
-    employee EPF in India at the statutory floor (12% of the ₹15,000/month
-    wage ceiling). Many employers deduct EPF on the full basic, so the
-    take-home this produces is an upper bound, not an exact figure."""
-    if user.income_type != IncomeType.SALARIED or gross <= 0:
+    """Yearly payroll deductions other than income tax: FICA in the US (SE tax
+    when self-employed, engine/tax/usa.py); employee EPF in India at the
+    statutory floor (12% of the ₹15,000/month wage ceiling), an upper bound."""
+    from engine.tax.usa import self_employment_tax
+    if gross <= 0 or (user.income_type != IncomeType.SALARIED and user.country == Country.IN):
         return D("0")
+    if user.income_type != IncomeType.SALARIED:
+        return self_employment_tax(gross, user.filing_status)[0]
     if user.country == Country.IN:
         return IN_EPF_RATE * min(gross, IN_EPF_WAGE_CEILING_ANNUAL)
     fica = US_SS_RATE * min(gross, US_SS_WAGE_BASE_2026) + US_MEDICARE_RATE * gross
@@ -90,19 +91,18 @@ def payroll_deductions(user: User, gross: Decimal) -> Decimal:
 
 
 def estimated_take_home(user: User, gross: Decimal) -> Decimal:
-    """Monthly take-home from a gross salary: income tax plus payroll
-    deductions (FICA / EPF). It used to subtract income tax only, which
-    overstated a planned salary's take-home by 7.65% in the US (P2-24).
-    Callers with an exact figure should send `new_monthly_take_home`."""
+    """Monthly take-home from gross pay: income tax plus payroll deductions
+    (FICA / SE tax / EPF; P2-24). Exact figures: send `new_monthly_take_home`."""
     if user.country == Country.IN:
         from engine.tax.india import income_tax, STANDARD_DEDUCTION_NEW_SALARIED, STANDARD_DEDUCTION_OLD_SALARIED
         regime = user.tax_regime or TaxRegimeIN.NEW
         deduction = (STANDARD_DEDUCTION_NEW_SALARIED if regime == TaxRegimeIN.NEW else STANDARD_DEDUCTION_OLD_SALARIED) if user.income_type == IncomeType.SALARIED else D("0")
         tax = income_tax(max(D("0"), gross - deduction), regime)
     else:
-        from engine.tax.usa import federal_tax, STANDARD_DEDUCTION_2026
+        from engine.tax.usa import federal_tax, STANDARD_DEDUCTION_2026, self_employment_tax
         filing = user.filing_status or FilingStatusUS.SINGLE
-        tax = federal_tax(max(D("0"), gross - STANDARD_DEDUCTION_2026[filing]), filing) + gross * user.state_marginal_rate
+        half_se = self_employment_tax(gross, filing)[1] if user.income_type != IncomeType.SALARIED else D("0")
+        tax = federal_tax(max(D("0"), gross - half_se - STANDARD_DEDUCTION_2026[filing]), filing) + gross * user.state_marginal_rate
     tax += payroll_deductions(user, gross)
     return (max(D("0"), gross - tax) / D("12")).quantize(D("0.01"), rounding=ROUND_HALF_UP)
 

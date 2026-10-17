@@ -30,8 +30,9 @@ import { useFormErrors } from '@/lib/form-errors';
 import { applyToolResult } from '@/lib/apply-tool-result';
 import { addLoanBlocker, addLoanToProfile } from '@/lib/add-loan-to-profile';
 import { userDefaultCurrency } from '@/lib/currency';
+import { residenceCurrency } from '@/lib/tax-setup';
 
-type Currency = 'INR' | 'USD' | 'GBP' | 'EUR' | 'AUD' | 'CAD' | 'SGD' | 'AED';
+type Currency = 'INR' | 'USD' | 'GBP' | 'EUR' | 'AUD' | 'CAD' | 'SGD' | 'AED' | 'SAR' | 'QAR' | 'OMR' | 'KWD' | 'BHD';
 
 const CURRENCIES: { value: Currency; label: string }[] = [
   { value: 'INR', label: 'INR (₹)' },
@@ -42,6 +43,8 @@ const CURRENCIES: { value: Currency; label: string }[] = [
   { value: 'CAD', label: 'CAD' },
   { value: 'SGD', label: 'SGD' },
   { value: 'AED', label: 'AED' },
+  // Round 3: the other Gulf currencies (lib/tax-setup GULF).
+  ...(['SAR', 'QAR', 'OMR', 'KWD', 'BHD'] as const).map((c) => ({ value: c, label: c })),
 ];
 
 const VERDICT_LABEL: Record<CrossBorderResponse['verdict'], string> = {
@@ -77,7 +80,7 @@ export function NriPrepayTool() {
   const profileUserCurrency: Currency =
     profileIsNriUs ? 'USD'
       : profile.user.country === 'US' ? 'USD'
-        : 'INR';
+        : ((residenceCurrency(profile.user.nri_residence) ?? 'INR') as Currency);
   // The profile's own loan, not a sample: this used to open on a ₹35 lakh
   // loan whatever the user had entered. The first open instalment loan,
   // preferring one in a currency other than the user's (the NRI case).

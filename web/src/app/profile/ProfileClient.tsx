@@ -7,7 +7,7 @@ import { INFLATION_FORECAST } from '@/lib/inflation-modeling';
 import { SAFE_RATES } from '@/lib/invest-vs-prepay';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { HYDRATED_EVENT, REMOTE_APPLIED_EVENT } from '@/lib/server-sync';
-import { profileMarginalRate } from '@/lib/marginal-rate';
+import { profileMarginalRate } from '@/lib/marginal-rate'; import { abroadIndiaRate, livesAbroad } from '@/lib/tax-setup';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/Card';
 import { BankCombobox, Field, Select } from '@/components/ToolPrimitives';
@@ -166,7 +166,7 @@ const AGE_BRACKETS: { value: AgeBracket; label: string }[] = [
   { value: '25_35', label: '25 to 35' },
   { value: '35_50', label: '35 to 50' },
   { value: '50_plus', label: '50–59' },
-  { value: '60_plus', label: '60+' },
+  { value: '60_plus', label: '60–79' }, { value: '80_plus', label: '80+' },
 ];
 
 function parseStepParam(raw: string | null): number {
@@ -906,7 +906,7 @@ function ProfileEditor({
     const { rate: composedRate } = profileMarginalRate({
       // UX fix 23: India with surcharge + cess (30% slab = 31.2%), as the engine.
       bracketRate: derivedBracket ? grossMarginalRate(country, taxRegime, incomeType, grossForBracket, country === 'US' ? filingStatus : undefined) : null,
-      stateRate,
+      stateRate, abroadRate: livesAbroad(stored.user) ? abroadIndiaRate({ ...stored.user, income_streams: userWithFx.income_streams, tax_regime: taxRegime }) : null,
       manualRate: marginalRate,
       loadedRate: loadedMarginalRate.current,
       prev: stored.isLive ? stored.user : undefined,

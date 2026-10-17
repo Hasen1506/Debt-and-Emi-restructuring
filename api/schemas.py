@@ -722,7 +722,7 @@ class UserIn(_In):
     filing_status: Optional[FilingStatusUS] = None
     state: Optional[str] = None
     state_marginal_rate: TaxRate = D("0")
-    itemises: bool = False
+    itemises: Optional[bool] = None
     efund_balance: Amount = D("0")
     efund_target: Amount = D("0")
     loans: list[LoanIn] = Field(default_factory=list, max_length=MAX_LOANS)
@@ -795,17 +795,14 @@ class UserIn(_In):
 
     def _itemised(self) -> tuple[bool, Decimal]:
         """US only: does this person itemise, and what share of their
-        mortgage interest lowers their tax? Only itemised deductions above
-        the standard deduction save anything, so a $350k mortgage at 6.75%
-        ($23,625 of interest, $16,100 standard) saves tax on $7,525 of it:
-        a share of 0.32. The shield used to switch fully on the moment the
-        interest passed the standard deduction (6.75% effective at $230k,
-        4.73% at $240k). The web app never sends `itemises`, so it is
-        worked out from the deductions entered at onboarding; with none
-        entered, mortgage interest is estimated from the US home loans."""
-        if self.itemises:
-            return True, D("1")
-        if self.country != Country.US:
+        mortgage interest lowers their tax? Round 3 (UX walkthrough 2 #25):
+        only someone who said they itemise gets a break (Setup and /tax ask;
+        not answered = the standard deduction, no break). For them only the
+        part above the standard deduction saves anything: a $350k mortgage at
+        6.75% ($23,625 of interest, $16,100 standard) saves tax on $7,525, a
+        share of 0.32, from the deductions entered, else the US home loans.
+        With nothing showing above the standard deduction, their word stands."""
+        if self.country != Country.US or self.itemises is not True:
             return False, D("0")
         from engine.tax.usa import STANDARD_DEDUCTION_2026
 
@@ -821,9 +818,9 @@ class UserIn(_In):
         other = (ded.itemized_deductions_other if ded is not None else None) or D("0")
         std = STANDARD_DEDUCTION_2026[self.filing_status or FilingStatusUS.SINGLE]
         above = mortgage + other - std
-        if above <= 0 or mortgage <= 0:
-            return False, D("0")
-        return True, min(mortgage, above) / mortgage
+        if mortgage <= 0:
+            return True, D("0")
+        return True, (min(mortgage, above) / mortgage) if above > 0 else D("1")
 
     def salary_deducted_emis(self) -> Decimal:
         """#21: take-home is already net of EMIs cut from pay; the plan takes every EMI off it, so add them back."""

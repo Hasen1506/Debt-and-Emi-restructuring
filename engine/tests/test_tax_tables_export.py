@@ -30,4 +30,4 @@ def test_export_has_current_figures():
     assert data["in"]["new"]["slabs"][-1] == [None, 0.3]
     assert data["in"]["new"]["rebate_87a"] == {"threshold": 1200000, "max": 60000}
     assert data["us"]["single"]["standard_deduction"] == 16100
-    assert set(data["us"]) == {"single", "mfj", "hoh", "mfs"}   # C17: MFS added
+    assert set(data["us"]) == {"single", "mfj", "hoh", "mfs", "se"}   # C17: MFS added; round 3: SE tax

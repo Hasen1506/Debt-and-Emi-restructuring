@@ -67,7 +67,7 @@ test('balance aging preserves unchanged anchors and skips non-amortizing loans',
 test('mortgage note converts native shield amount and applies threshold in display currency', () => {
     const { loanToUserDecimal } = lib('currency.ts');
     const { PlanNotes } = require(path.join(root, 'components/plan/PlanNotes.tsx'));
-    const u = user({ deductions: { mortgage_interest_annual: '30000', itemized_deductions_other: '30000' }, fx_to_user_currency: { INR: '.0125' }, loans: [loan('in', { currency: 'INR' })] });
+    const u = user({ itemises: true, deductions: { mortgage_interest_annual: '30000', itemized_deductions_other: '30000' }, fx_to_user_currency: { INR: '.0125' }, loans: [loan('in', { currency: 'INR' })] });
     assert.equal(loanToUserDecimal('10800', u.loans[0], 'US', u.fx_to_user_currency).toString(), '135');
     const plan = { user: u, displayCurrency: 'USD', marginalRate: '.24', bracketTransitions: [] };
     const html = renderToStaticMarkup(React.createElement(PlanNotes, { plan }));

@@ -97,7 +97,7 @@ export function salariedAdvanceTaxRequest(user: UserPayload, todayIso: string): 
   return {
     annual_gross_salary: String(gross),
     tax_regime: user.tax_regime === 'old' ? 'old' : 'new',
-    ...(user.age_bracket === '60_plus' ? { age: 60 } : {}),
+    ...(user.age_bracket === '60_plus' ? { age: 60 } : user.age_bracket === '80_plus' ? { age: 80 } : {}),
     streams,
     today: todayIso,
   };
@@ -132,4 +132,23 @@ export function salariedAdvanceTaxNote(r: SalariedAdvanceTaxResponse, fmt: (v: s
     `Paying none of it until July would add about ${fmt(r.interest_if_unpaid)} in interest ` +
     `(s.425 [234C] ${c} + s.424 [234B] ${b}).`
   );
+}
+
+/** Round 3 (ux-walkthrough fix 10): what Home sets aside this month for a
+ *  salaried user's next unpaid advance-tax instalment: its amount spread over
+ *  the months up to and including the one it falls due in. Null with nothing
+ *  due. `due` is "15 Dec". */
+export function homeTaxReserve(
+  schedule: AdvanceTaxSchedule | null | undefined,
+  todayIso: string,
+): { amount: number; due: string } | null {
+  const next = schedule?.instalments.find((i) => i.status !== 'paid' && i.dueDate >= todayIso);
+  if (!next) return null;
+  const owed = Number(next.amountDue) - Number(next.paidAmount || 0);
+  if (!(owed >= 1)) return null;
+  const [y, m] = todayIso.split('-').map(Number);
+  const [dy, dm, dd] = next.dueDate.split('-').map(Number);
+  const months = Math.max(1, (dy - y) * 12 + (dm - m) + 1);
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return { amount: Math.ceil(owed / months), due: `${dd} ${MON[dm - 1]}` };
 }

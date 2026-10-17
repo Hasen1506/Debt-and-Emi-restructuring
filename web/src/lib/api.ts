@@ -288,7 +288,7 @@ export interface CashAccountPayload {
 /** Coarse age band — used for downstream nudges (retirement check at 50+,
  *  emergency-fund-first at <25). Never use exact age; the band is enough. */
 /** '50_plus' is 50–59 (it was "50+" before 60+ had its own bracket). */
-export type AgeBracket = 'under_25' | '25_35' | '35_50' | '50_plus' | '60_plus';
+export type AgeBracket = 'under_25' | '25_35' | '35_50' | '50_plus' | '60_plus' | '80_plus';
 
 export interface UserPayload {
   country: Country;
@@ -348,12 +348,12 @@ export interface UserPayload {
    *  banking relationships over new account opens. */
   other_banks?: string[];
   tax_regime?: TaxRegimeIN;
-  /** US filing status — drives which slab table applies. Defaults to
-   *  'single' if omitted. */
+  /** US filing status (slab table); Setup asks it (round 3), Single only for old profiles. */
   filing_status?: FilingStatusUS;
-  /** Optional US state marginal rate as decimal — e.g. '0.0682' for
-   *  California top bracket. Added to federal marginal_rate when present
-   *  so combined effective-rate math reflects state burden. */
+  /** Round 3: US, the user itemizes (only then does mortgage interest lower tax). India: pension. */
+  itemises?: boolean;
+  income_kind?: 'pension';
+  /** US state marginal rate, decimal ('0.0682'), added to the federal rate. */
   state_marginal_rate?: string;
   efund_balance?: string;
   efund_target?: string;
@@ -374,10 +374,10 @@ export interface UserPayload {
    *  engine uses annual_hike_rate uniformly. */
   hike_schedule?: [number, number, string][];
   inflation_rate?: string;
-  /** NRI on a US work visa (tax-resident in US, may hold INR debts). When
-   *  true, the UI threads dual-currency context through debt views and the
-   *  NRI-prepay tool autofills FX/currency fields from the profile. */
+  /** NRI on a US work visa (tax-resident in US, may hold INR debts); dual-currency views. */
   is_nri_us?: boolean;
+  /** Round 3: an NRI on a rupee plan living in a Gulf state or elsewhere (lib/tax-setup). */
+  nri_residence?: 'AE' | 'SA' | 'QA' | 'OM' | 'KW' | 'BH' | 'OTHER';
   /** FX rate per loan currency, expressed as "units of residence currency
    *  per 1 unit of loan currency" — same direction as /api/fx-rate. Used
    *  by the engine to convert non-residence-currency EMIs into residence
