@@ -28,6 +28,7 @@ import { MIX_LABEL, formatTaxRate, readIncome, regimeInputsFromUser, taxRateStat
 import { loanTaxLine, nextYearSplit, preConstructionInstalment, sec80cRoom, sectionLabel, taxShare } from '@/lib/india-tax-loans';
 import { LBracket, LChip, LChipRow, LSectionHeader, L_T } from '@/components/ledger/primitives';
 import TAX from '@/lib/tax-tables.json';
+import { principal80c, taxType } from '@/lib/loan-types';
 
 const rupees = (v: Decimal.Value) => formatINR(new Decimal(v).toDecimalPlaces(0).toString());
 const pct = (v: Decimal.Value) => `${new Decimal(v).mul(100).toFixed(1)}%`;
@@ -236,7 +237,7 @@ function Pair({ a, b, suffix = '' }: { a: Decimal; b: Decimal; suffix?: string }
 function LoansSection({ user, month, onSave }: { user: UserPayload; month: string; onSave: (next: (loans: LoanPayload[]) => LoanPayload[], msg: string) => void }) {
   const rows = user.loans
     .map((l, i) => ({ l, i }))
-    .filter(({ l }) => (l.loan_type === 'home_loan' || l.loan_type === 'education_loan') && (l.currency ?? 'INR') === 'INR');
+    .filter(({ l }) => (taxType(l) === 'home_loan' || l.loan_type === 'education_loan') && (l.currency ?? 'INR') === 'INR');
   const regime = user.tax_regime === 'old' ? 'old' : 'new';
   return (
     <section aria-labelledby="tx-loans">
@@ -259,7 +260,7 @@ function LoansSection({ user, month, onSave }: { user: UserPayload; month: strin
 }
 
 function LoanTaxCard({ loan, regime, month, onSave }: { loan: LoanPayload; regime: 'old' | 'new'; month: string; onSave: (patch: Partial<LoanPayload>, msg: string) => void }) {
-  const isHome = loan.loan_type === 'home_loan';
+  const isHome = taxType(loan) === 'home_loan';
   const [share, setShare] = useState(taxShare(loan).mul(100).toDecimalPlaces(0).toString());
   const [use, setUse] = useState<'self_occupied' | 'let_out'>(loan.property_use === 'let_out' ? 'let_out' : 'self_occupied');
   const [rent, setRent] = useState(loan.annual_rent ?? '');
@@ -359,7 +360,7 @@ function LoanTaxCard({ loan, regime, month, onSave }: { loan: LoanPayload; regim
 
 function EightyCSection({ user, month, marginalRate }: { user: UserPayload; month: string; marginalRate?: string }) {
   if (user.tax_regime !== 'old') return null;
-  const homes = user.loans.filter((l) => l.loan_type === 'home_loan' && (l.currency ?? 'INR') === 'INR' && l.principal_80c_eligible !== false);
+  const homes = user.loans.filter((l) => taxType(l) === 'home_loan' && (l.currency ?? 'INR') === 'INR' && principal80c(l));
   if (homes.length === 0) return null;
   const principal = homes.reduce((s, l) => s.add(nextYearSplit(l).principal.mul(taxShare(l))), new Decimal(0));
   const room = sec80cRoom(user.deductions?.sec_80c_annual ?? 0, principal);

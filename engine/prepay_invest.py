@@ -53,7 +53,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Callable, Optional
 
 from engine.marginal_cost import IN_HOME_INTEREST_CAP, US_STUDENT_INTEREST_CAP, uncapped_shields, user_marginal_costs
-from engine.models import Country, LoanType, User
+from engine.models import Country, LoanType, User, tax_type
 
 D = Decimal
 
@@ -156,7 +156,7 @@ def yearly_tax_saved(user: User, res, marginal_rate: Decimal) -> list[tuple[int,
     def cap_of(l):
         if loan_market(l, own) != own:
             return None
-        if own == Country.IN and l.loan_type == LoanType.HOME:
+        if own == Country.IN and tax_type(l) == LoanType.HOME:
             return ("home", IN_HOME_INTEREST_CAP)
         if own == Country.US and l.loan_type == LoanType.EDUCATION:
             return ("edu", US_STUDENT_INTEREST_CAP)

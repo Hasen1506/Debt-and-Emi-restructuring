@@ -28,7 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
-from engine.models import Country, Loan, LoanType
+from engine.models import Country, Loan, LoanType, tax_type
 from engine.tax.gst import GST_RATE_IN
 
 D = Decimal
@@ -228,7 +228,7 @@ def _shield_context(loans: list[Loan], user):
     from engine.models import FilingStatusUS
     own = user.country
     market = lambda l: loan_market(l, own)  # noqa: E731
-    homes = [l for l in loans if l.loan_type == LoanType.HOME and l.outstanding > 0 and market(l) == own]
+    homes = [l for l in loans if tax_type(l) == LoanType.HOME and l.outstanding > 0 and market(l) == own]
     edu = [l for l in loans if l.loan_type == LoanType.EDUCATION and l.outstanding > 0 and market(l) == own]
     if own == Country.IN:
         # The user's share of interest + pre-construction instalments on
@@ -282,7 +282,7 @@ def _sec80c_room_left(loans: list[Loan], user, regime: str, prepaid_this_year: D
     from engine.tax import india
     sched = D("0")
     for l in loans:
-        if l.loan_type == LoanType.HOME and l.outstanding > 0 and l.principal_80c_eligible \
+        if tax_type(l) == LoanType.HOME and l.outstanding > 0 and l.principal_80c_eligible \
                 and (l.currency or "INR").upper() == "INR" and l.pre_emi_months_remaining <= 0:
             sched += max(D("0"), l.scheduled_emi * 12 - l.outstanding * l.nominal_rate) * l.tax_share
     return max(D("0"), india.sec80c_room(user.sec80c_other, sched) - max(D("0"), prepaid_this_year))
@@ -291,7 +291,7 @@ def _sec80c_room_left(loans: list[Loan], user, regime: str, prepaid_this_year: D
 def _india_shield_args(l: Loan, own: Country, regime: str, interest_total: Decimal, month: int) -> tuple:
     """`interest_total` for marginal_shield: a let-out Indian home is checked
     against its own room, so it passes its own share of interest."""
-    if own == Country.IN and l.loan_type == LoanType.HOME and (l.property_use or "") == "let_out":
+    if own == Country.IN and tax_type(l) == LoanType.HOME and (l.property_use or "") == "let_out":
         return ((l.outstanding * l.nominal_rate + l.pre_construction_interest_annual) * l.tax_share,)
     return (interest_total,)
 
@@ -305,7 +305,7 @@ def _india_shield_kwargs(l: Loan, own: Country, regime: str, home_interest: Deci
     from engine.tax import india
     r = TaxRegimeIN.OLD if regime == "old" else TaxRegimeIN.NEW
     kw: dict = {"share": l.tax_share}
-    if l.loan_type == LoanType.HOME:
+    if tax_type(l) == LoanType.HOME:
         if (l.property_use or "") == "let_out":
             used = min(home_interest, india.SEC24B_SELF_OCCUPIED_CAP) if r == TaxRegimeIN.OLD else D("0")
             kw["let_out"] = True
@@ -320,7 +320,7 @@ def _india_shield_kwargs(l: Loan, own: Country, regime: str, home_interest: Deci
 def _home_rate(l: Loan, user, marginal_rate: Decimal) -> Decimal:
     """US mortgage interest saves no state tax in a state with no income tax
     or one that disallows it (engine/us_loans.py, grill #79)."""
-    if user.country == Country.US and l.loan_type == LoanType.HOME:
+    if user.country == Country.US and tax_type(l) == LoanType.HOME:
         from engine.us_loans import us_mortgage_marginal_rate
         return us_mortgage_marginal_rate(marginal_rate, user.state, user.state_marginal_rate)
     return marginal_rate
@@ -343,7 +343,7 @@ def user_marginal_costs(loans: list[Loan], user, marginal_rate: Decimal, month: 
     for l in loans:
         if l.outstanding <= 0:
             continue
-        is_home = l.loan_type == LoanType.HOME
+        is_home = tax_type(l) == LoanType.HOME
         if own == Country.US and l.loan_type == LoanType.AUTO:
             shield = marginal_shield(l.loan_type, own.value, marginal_rate, regime, interest_total=auto_interest,
                                      phaseout_factor=auto_phaseout, us_auto_qualified=l.us_auto_interest_qualified)
@@ -351,7 +351,7 @@ def user_marginal_costs(loans: list[Loan], user, marginal_rate: Decimal, month: 
             us_kw = ({"cap": mortgage_debt_limit(user.filing_status, l.mortgage_before_2017_12_16)}
                      if own == Country.US and is_home else {})
             shield = marginal_shield(
-                l.loan_type, own.value, _home_rate(l, user, marginal_rate), regime, bool(user.itemises), user.itemised_share,
+                tax_type(l), own.value, _home_rate(l, user, marginal_rate), regime, bool(user.itemises), user.itemised_share,
                 *_india_shield_args(l, own, regime, home_interest if is_home else edu_interest, month),
                 home_debt, phaseout, **_india_shield_kwargs(l, own, regime, home_interest, month), **us_kw,
             )

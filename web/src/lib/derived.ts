@@ -19,6 +19,7 @@ import { requiredMonthly } from './min-payment';
 import { prepareLoanPaymentTiming } from './roll-forward';
 import { countryMonthKey } from './today';
 import { HORIZON_MONTHS } from './horizon';
+import { emiOffTakeHome } from './loan-status';
 
 export interface LoanWithEffective {
   loan: LoanPayload;
@@ -41,7 +42,7 @@ export interface DerivedMetrics {
   loans: LoanWithEffective[];
   totalOutstanding: Decimal;
   blendedEffective: Decimal;
-  /** EMIs plus card minimums, in the user's currency. */
+  /** EMIs plus card minimums, in the user's currency; not an EMI taken from salary before take-home. */
   emiBurden: Decimal;
   /** monthly_income − fixed_expenses − variable_expenses − emiBurden. May be
    *  negative: then −surplus is how far income falls short of costs plus
@@ -118,7 +119,8 @@ export function deriveMetrics(profile: StoredProfile): DerivedMetrics {
     // Σ(balance × what each loan costs a year), not the statement rates:
     // compounding, GST and the tax break are in, as on each loan's row.
     weightedEffSum = weightedEffSum.add(outUser.mul(l.effective));
-    emi = emi.add(emiUser);
+    // #21: an EMI cut from salary is already out of take-home; not again.
+    if (emiOffTakeHome(l.loan)) emi = emi.add(emiUser);
     if (l.outstanding.gt(0) && (loudest == null || l.cost.orderKey.gt(loudest.cost.orderKey))) {
       loudest = l;
     }
@@ -157,7 +159,7 @@ export function cashFlowForMonth(
 ): { emiBurden: Decimal; surplus: Decimal } {
   const loans = prepareLoanPaymentTiming(profile.user.loans ?? [], month);
   const emiBurden = metrics.loans.reduce((sum, row) => {
-    if ((loans[row.index]?.first_payment_month ?? 1) > 1) return sum;
+    if ((loans[row.index]?.first_payment_month ?? 1) > 1 || !emiOffTakeHome(row.loan)) return sum;
     return sum.add(metrics.toUserCcy(row.required, row.loan));
   }, new Decimal(0));
   return {

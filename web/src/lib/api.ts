@@ -43,8 +43,8 @@ export type LoanType =
   | 'personal_loan'
   | 'credit_card'
   | 'education_loan'
-  | 'gold_loan'
-  | 'bnpl';
+  | 'gold_loan' | 'bnpl'
+  | 'loan_against_property' | 'home_topup' | 'two_wheeler_loan' | 'medical_loan';
 export type LiquidityClass = 'liquid' | 'locked' | 'age_gated';
 export type IncomeType = 'salaried' | 'business_owner';
 /** Lender types for the prepayment-fee rule (engine/prepayment_fee.py LENDER_TYPES). */

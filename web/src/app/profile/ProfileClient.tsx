@@ -80,6 +80,7 @@ import { SmsImport } from '@/components/profile/SmsImport';
 import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { MarketRateLine } from '@/components/profile/MarketRateLine';
 import { UsLoanFields, UsStateField } from '@/components/profile/UsLoanFields';
+import { LoanExtras } from '@/components/setup/LoanExtras';
 import { usLoanFieldsFor } from '@/lib/us-loans';
 import { BackLink, ProfileHeader, SectionTabs } from './parts/chrome';
 import { CountrySwitchPanel } from './parts/country-switch';
@@ -183,8 +184,9 @@ const LOAN_TYPES: { value: LoanType; label: string }[] = [
   { value: 'personal_loan', label: 'Personal loan' },
   { value: 'credit_card', label: 'Credit card' },
   { value: 'education_loan', label: 'Education loan' },
-  { value: 'gold_loan', label: 'Gold loan' },
-  { value: 'bnpl', label: 'BNPL / pay-later' },
+  { value: 'gold_loan', label: 'Gold loan' }, { value: 'bnpl', label: 'BNPL / pay-later' },
+  { value: 'home_topup', label: 'Home loan top-up' }, { value: 'loan_against_property', label: 'Loan against property' },
+  { value: 'two_wheeler_loan', label: 'Two-wheeler loan' }, { value: 'medical_loan', label: 'Medical loan or bill' },
 ];
 
 function blankLoan(): LoanPayload {
@@ -1778,10 +1780,7 @@ function ProfileEditor({
                   }
                 />
                 )}
-                {(l.loan_type === 'personal_loan' ||
-                  l.loan_type === 'auto_loan' ||
-                  l.loan_type === 'gold_loan' ||
-                  l.loan_type === 'bnpl') && (
+                {['personal_loan', 'auto_loan', 'two_wheeler_loan', 'medical_loan', 'gold_loan', 'bnpl'].includes(l.loan_type) && (
                   <Select
                     label="How the interest is worked out"
                     findIt={findFor(l, country, 'rateBasis')}
@@ -2141,9 +2140,8 @@ function ProfileEditor({
                     />
                   </div>
                 )}
-                {loanMarket(l, country) === 'US' && (
-                  <UsLoanFields loan={l} onChange={(p) => updateLoan(i, p)} />
-                )}
+                {loanMarket(l, country) === 'US' && <UsLoanFields loan={l} onChange={(p) => updateLoan(i, p)} />}
+                <LoanExtras loan={l} country={country} onPatch={(p) => updateLoan(i, p)} />
                 {l.loan_type === 'credit_card' && (
                   <Field
                     label="New spending you won't clear each month"

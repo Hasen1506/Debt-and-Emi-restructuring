@@ -28,7 +28,7 @@ test('US letters, signed out: three letters, FCBA from the API filled in the bro
   await expect(page).toHaveTitle(/US letters · RightDue/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('US LETTERS');
   const kinds = page.getByRole('radiogroup', { name: 'Which letter' }).getByRole('radio');
-  await expect(kinds).toHaveCount(3);
+  await expect(kinds).toHaveCount(6);   // round 3: + validation, stop contact, medical bill
 
   // Hardship (default): the shared letter, US words, with its draft marker and the collector rules.
   await expect(page.getByTestId('usl-hardship')).toBeVisible();

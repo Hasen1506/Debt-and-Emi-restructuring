@@ -27,6 +27,7 @@ import type { CurrencyCode } from './currency';
 import { preConstructionInstalment, sec80eMonthsLeft, taxShare } from './india-tax-loans';
 import { letOutRoom } from './marginal-cost';
 import TAX from './tax-tables.json';
+import { fullCap24, taxType } from '@/lib/loan-types';
 
 export interface LoanYear1Interest {
   loanIndex: number;
@@ -156,7 +157,7 @@ export function indiaDeductibleForYear(
   loans.forEach((loan, i) => {
     const interest = yearInterest[i] ?? new Decimal(0);
     const share = taxShare(loan);
-    if (loan.loan_type === 'home_loan') {
+    if (taxType(loan) === 'home_loan') {
       // The instalment runs for the five tax years from completion; year 1
       // is this tax year (approximately: plan years start this month).
       const month = currentMonth ? addYears(currentMonth, year - 1) : undefined;
@@ -168,7 +169,7 @@ export function indiaDeductibleForYear(
       } else {
         anySo = true;
         soClaim = soClaim.add(claim);
-        const full = loan.sec24_full_cap !== false;
+        const full = fullCap24(loan);
         allFull = allFull && full;
         soCapSum = soCapSum.add(full ? TAX.in.deductions.sec24b_self_occupied_cap : TAX.in.deductions.sec24b_other_cap);
       }
@@ -204,7 +205,7 @@ function addYears(month: string, years: number): string {
 }
 
 function deductibleAmountUS(loan: LoanPayload, rawInterest: Decimal): Decimal {
-  if (loan.loan_type === 'home_loan') return rawInterest;
+  if (taxType(loan) === 'home_loan') return rawInterest;
   if (loan.loan_type === 'education_loan') {
     return Decimal.min(rawInterest, 2_500);
   }
@@ -283,7 +284,7 @@ export function projectAnnualTaxSavings(
       if (deductibleLoanCcy.lte(0)) continue;
       const loanCcy = row.loan.currency ?? (user.country === 'US' ? 'USD' : 'INR');
       const inUserCcy = args.fxToUserCcy(deductibleLoanCcy, loanCcy);
-      if (user.country === 'US' && row.loan.loan_type === 'home_loan') {
+      if (user.country === 'US' && taxType(row.loan) === 'home_loan') {
         usMortgageUserCcy = usMortgageUserCcy.add(inUserCcy);
       } else {
         yearTotalDeductibleUserCcy = yearTotalDeductibleUserCcy.add(inUserCcy);

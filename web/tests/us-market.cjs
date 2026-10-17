@@ -95,7 +95,7 @@ test('a PA mortgage saves only federal tax in the on-screen payoff order too', (
 
 test('the Profile loan card shows the US fields for US-market loans', () => {
   const p = profileSource();
-  assert.match(p, /loanMarket\(l, country\) === 'US' && \(\s*<UsLoanFields/);
+  assert.match(p, /loanMarket\(l, country\) === 'US' && \(?\s*<UsLoanFields/);
   assert.match(p, /<UsStateField value=\{usState\}/);
   assert.match(p, /\.\.\.usLoanFieldsFor\(l, country\)/);
   const f = src('components/profile/UsLoanFields.tsx');

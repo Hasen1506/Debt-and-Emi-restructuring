@@ -20,6 +20,10 @@ export const LEGAL_REVIEW = {
   'letter-rate-reset': 'pending',
   /** US letters page: hardship (12 CFR 1006.6 note), FCBA billing error, RESPA notice of error. */
   'letter-us': 'pending',
+  /** Round 3: the rights notes beside a loan marked behind / with collectors (Home): RBI recovery-agent rules, FDCPA. */
+  'debt-rights': 'pending',
+  /** Round 3: US debt validation request, cease-contact request, medical-bill letter (US letters page). */
+  'letter-us-collections': 'pending',
   /** Privacy notice changes of 15 Oct 2026 (emails, funnel, consent records, contact addresses). */
   'privacy-notice-2026-10-15': 'pending',
   /** Terms changes of 15 Oct 2026 (emails, Chennai forum + US$15 cap for US users). */

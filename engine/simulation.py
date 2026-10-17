@@ -27,7 +27,7 @@ from engine.models import (
     TaxRegimeIN,
     InvestmentOption,
     LiquidityClass,
-    LifecycleEvent,
+    LifecycleEvent, tax_type,
     LifecycleEventKind,
     PayoffRules,
 )
@@ -142,7 +142,7 @@ def tax_caps_context(loans: list[Loan], user: User) -> dict:
     def market(l: Loan) -> Country:
         c = (l.currency or "").upper()
         return Country.IN if c == "INR" else Country.US if c == "USD" else own_market
-    homes = [l for l in loans if l.loan_type == LoanType.HOME and l.outstanding > 0 and market(l) == own_market]
+    homes = [l for l in loans if tax_type(l) == LoanType.HOME and l.outstanding > 0 and market(l) == own_market]
     edu = [l for l in loans if l.loan_type == LoanType.EDUCATION and l.outstanding > 0 and market(l) == own_market]
     # MAGI for the US phase-outs: gross on file, else solved from take-home
     # (C20; it used to be None, which skipped the §221 phase-out).
@@ -1351,7 +1351,7 @@ def _simulate_plan(
                     penalised = (target, effective_prepay, penalty_in_loan_ccy / extra_in_loan_ccy)
                 last_part_payment_month[id(target)] = m
                 extra_target_index = loan_position[id(target)]
-                if target.loan_type == LoanType.HOME:
+                if tax_type(target) == LoanType.HOME:
                     home_prepaid_fy += to_user_currency(effective_prepay, target, user)
 
         # Amortise each loan; track cascade

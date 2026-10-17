@@ -63,6 +63,12 @@ _US_DEFAULTS: dict[LoanType, _DefaultPenalty] = {
     LoanType.BNPL: _DefaultPenalty(flat_fee=D("15"), penal_rate_annual=D("0.30")),
 }
 
+# Round 3 (#10): the newer kinds take the defaults of the nearest older one.
+_LIKE: dict[LoanType, LoanType] = {
+    LoanType.LAP: LoanType.HOME, LoanType.HOME_TOPUP: LoanType.HOME,
+    LoanType.TWO_WHEELER: LoanType.AUTO, LoanType.MEDICAL: LoanType.PERSONAL,
+}
+
 # GST at 18% on consumer-finance penalties in India.
 # Home loans are exempt by the GST schedule.
 from engine.tax.gst import GST_RATE_IN as _GST_RATE_IN  # noqa: E402
@@ -102,7 +108,7 @@ def estimate_late_fee(
         source = "bank_specific"
     else:
         defaults = _IN_DEFAULTS if country == Country.IN else _US_DEFAULTS
-        flat = defaults[loan_type].flat_fee
+        flat = defaults[_LIKE.get(loan_type, loan_type)].flat_fee
         source = "country_default"
 
     if bank_card is not None and bank_card.late_payment_penal_rate is not None:
@@ -111,7 +117,7 @@ def estimate_late_fee(
         source = "bank_specific"
     else:
         defaults = _IN_DEFAULTS if country == Country.IN else _US_DEFAULTS
-        penal_rate = defaults[loan_type].penal_rate_annual
+        penal_rate = defaults[_LIKE.get(loan_type, loan_type)].penal_rate_annual
 
     # Penal interest accrues over `days_late` on the overdue amount at the
     # extra annualised rate. Simple interest is fine — penal-rate periods

@@ -62,6 +62,7 @@ import { SetupThisMonth } from './SetupThisMonth';
 import { typicalRate, TYPICAL_RATE_AS_OF, withEstimate } from '@/lib/setup-estimates';
 import { EstimateBalance } from './EstimateBalance';
 import { RepaymentChips } from './RepaymentChips';
+import { LoanExtras } from './LoanExtras';
 import { PromoFields } from './PromoFields';
 import { JointShare } from './JointShare';
 import { jointForEngine } from '@/lib/joint-share';
@@ -97,13 +98,9 @@ import {
 const STEPS = ['You and your money', 'What you owe', 'Your plan'] as const;
 
 const TYPE_CHIPS: Array<[LoanType, string]> = [
-  ['credit_card', 'Card'],
-  ['personal_loan', 'Personal'],
-  ['home_loan', 'Home'],
-  ['auto_loan', 'Car'],
-  ['education_loan', 'Education'],
-  ['gold_loan', 'Gold'],
-  ['bnpl', 'Pay later'],
+  ['credit_card', 'Card'], ['personal_loan', 'Personal'], ['home_loan', 'Home'], ['home_topup', 'Home top-up'],
+  ['loan_against_property', 'Against property'], ['auto_loan', 'Car'], ['two_wheeler_loan', 'Two-wheeler'],
+  ['education_loan', 'Education'], ['gold_loan', 'Gold'], ['medical_loan', 'Medical'], ['bnpl', 'Pay later'],
 ];
 
 type Issues = Partial<Record<'balance' | 'rate' | 'emi' | 'months' | 'fee' | 'paid' | 'end', string>>;
@@ -1324,6 +1321,7 @@ function LoanBlock({
       </div>
       <PromoFields loan={loan} onPatch={onPatch} error={issues.end} />
       <JointShare loan={loan} onPatch={onPatch} />
+      <LoanExtras loan={loan} country={country === 'US' ? 'US' : 'IN'} onPatch={onPatch} />
       {askPaid && (
         <EmiPaidQuestion
           monthName={monthName}

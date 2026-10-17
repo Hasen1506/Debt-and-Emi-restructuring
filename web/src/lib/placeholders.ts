@@ -20,6 +20,10 @@ const BALANCE: Record<Ccy, Record<LoanType, string>> = {
     education_loan: 'e.g. 8,00,000 or 8L',
     gold_loan: 'e.g. 1,00,000 or 1L',
     bnpl: 'e.g. 12,000',
+    loan_against_property: 'e.g. 30,00,000 or 30L',
+    home_topup: 'e.g. 5,00,000 or 5L',
+    two_wheeler_loan: 'e.g. 80,000',
+    medical_loan: 'e.g. 1,50,000',
   },
   USD: {
     credit_card: 'e.g. 5,000',
@@ -29,6 +33,10 @@ const BALANCE: Record<Ccy, Record<LoanType, string>> = {
     education_loan: 'e.g. 25,000',
     gold_loan: 'e.g. 5,000',
     bnpl: 'e.g. 600',
+    loan_against_property: 'e.g. 200,000',
+    home_topup: 'e.g. 40,000',
+    two_wheeler_loan: 'e.g. 3,000',
+    medical_loan: 'e.g. 4,000',
   },
 };
 
@@ -41,6 +49,10 @@ const EMI: Record<Ccy, Record<LoanType, string>> = {
     education_loan: 'e.g. 12,000',
     gold_loan: 'e.g. 5,000',
     bnpl: 'e.g. 3,000',
+    loan_against_property: 'e.g. 32,000',
+    home_topup: 'e.g. 6,000',
+    two_wheeler_loan: 'e.g. 3,500',
+    medical_loan: 'e.g. 7,000',
   },
   USD: {
     credit_card: '',
@@ -50,6 +62,10 @@ const EMI: Record<Ccy, Record<LoanType, string>> = {
     education_loan: 'e.g. 280',
     gold_loan: 'e.g. 200',
     bnpl: 'e.g. 100',
+    loan_against_property: 'e.g. 1,800',
+    home_topup: 'e.g. 400',
+    two_wheeler_loan: 'e.g. 120',
+    medical_loan: 'e.g. 150',
   },
 };
 
