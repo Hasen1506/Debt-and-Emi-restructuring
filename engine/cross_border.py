@@ -329,36 +329,6 @@ def nri_prepay_comparison(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# NRI tax on Indian interest: TDS on NRO interest and the treaty rate.
-# ─────────────────────────────────────────────────────────────────────────────
-# Interest paid to a non-resident on rupee deposits: TDS at 30% plus
-# surcharge and cess (Income-tax Act 2025 s.393(2), formerly s.195), or the
-# treaty rate if lower with a Tax Residency Certificate and Form 10F:
-#   https://www.incometaxindia.gov.in/w/what-is-the-applicable-tds-rate-for-nris-on-interest-income-earned-from-fixed-deposits-made-in-indian-banks-
-# India–US DTAA Article 11: 15% on interest (10% when a bank lends):
-#   https://www.indianembassyusa.gov.in/taxdata?id=9  (read 2026-10-14)
-# Other treaties are not on file here; the UI says "check your treaty".
-NRO_TDS_BASE = D("0.30")
-DTAA_INTEREST_RATE: dict[str, Decimal] = {"US": D("0.15")}
-
-
-def nro_interest_tds_rate(residence_country: str, treaty_papers_filed: bool) -> tuple[Decimal, str]:
-    """(rate before surcharge and cess, plain note) for NRO interest."""
-    treaty = DTAA_INTEREST_RATE.get(residence_country.upper())
-    if treaty is not None and treaty_papers_filed:
-        return treaty, (
-            f"Treaty rate {treaty * 100:.0f}% (India–{residence_country.upper()} DTAA, Article 11), "
-            "with a Tax Residency Certificate and Form 10F given to the bank."
-        )
-    note = "30% plus surcharge and cess is deducted from NRO interest"
-    if treaty is not None:
-        note += f"; the treaty caps it at {treaty * 100:.0f}% once you give the bank a TRC and Form 10F"
-    else:
-        note += "; check your country's treaty with India for a lower rate"
-    return NRO_TDS_BASE, note + "."
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Residency transitions (India → NRI and back) as profile life events.
 # ─────────────────────────────────────────────────────────────────────────────
 # Income-tax Act 2025 s.6 (in force 1 Apr 2026), read 2026-10-14:

@@ -152,7 +152,6 @@ def test_p2_03_salt_cap_2026():
 
 
 def test_p2_04_and_p2_23_2026_tables():
-    assert usa.ltcg_bracket_rate(D("49460"), FilingStatusUS.SINGLE) == D("0.15")
     assert usa.BRACKETS_2026[FilingStatusUS.HOH][3][0] == D("201750")
     assert usa.BRACKETS_2026[FilingStatusUS.HOH][4][0] == D("256200")
 

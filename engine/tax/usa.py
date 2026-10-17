@@ -220,17 +220,6 @@ SECTION_121_EXCLUSION_SINGLE = D("250000")
 SECTION_121_EXCLUSION_MFJ    = D("500000")
 
 
-def ltcg_bracket_rate(taxable_income: Decimal, filing_status: FilingStatusUS) -> Decimal:
-    """Marginal LTCG rate that applies at the given taxable income."""
-    brackets = LTCG_BRACKETS_2026[filing_status]
-    prev = D("0")
-    for limit, rate in brackets:
-        if taxable_income > prev and taxable_income <= limit:
-            return rate
-        prev = limit
-    return brackets[-1][1]
-
-
 def us_capital_gains_tax(
     gain: Decimal,
     holding_days: int,
@@ -304,15 +293,6 @@ def federal_marginal_rate(taxable_income: Decimal, filing_status: FilingStatusUS
             return rate
         prev = limit
     return brackets[-1][1]
-
-
-def effective_marginal_rate(
-    taxable_income: Decimal,
-    filing_status: FilingStatusUS,
-    state_rate: Decimal = D("0"),
-) -> Decimal:
-    """Federal + state combined marginal rate."""
-    return federal_marginal_rate(taxable_income, filing_status) + state_rate
 
 
 def itemisation_benefit(

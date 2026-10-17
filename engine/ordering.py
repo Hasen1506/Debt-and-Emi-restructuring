@@ -99,31 +99,3 @@ def apply_rules(
     return front + by_rate(rest)
 
 
-def allocate_extra(
-    ranked_loans: list[Loan],
-    minimum_payments: dict[int, Decimal],
-    available_surplus: Decimal,
-) -> dict[int, Decimal]:
-    """All extra surplus routes to the highest-priority loan. §4.21 cascade
-    happens at the simulation step (when a loan reaches zero balance).
-
-    Returns dict {id(loan): total_payment_this_month}.
-    """
-    payments = {id(l): minimum_payments[id(l)] for l in ranked_loans}
-    if available_surplus <= 0 or not ranked_loans:
-        return payments
-    payments[id(ranked_loans[0])] += available_surplus
-    return payments
-
-
-def cascade_on_payoff(
-    cleared_loan: Loan,
-    extra_allocated_to_cleared: Decimal,
-    minimum_of_cleared: Decimal,
-) -> Decimal:
-    """§4.21 — when `cleared_loan` reaches zero, the freed amount (its minimum +
-    extra previously allocated to it) cascades to the next-priority debt.
-
-    Returns the amount of newly-available surplus for the next loan.
-    """
-    return minimum_of_cleared + extra_allocated_to_cleared

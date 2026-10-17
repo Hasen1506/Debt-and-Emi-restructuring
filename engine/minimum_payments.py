@@ -105,14 +105,6 @@ RBI_MIN_DUE_URL = "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=1
 RBI_MIN_DUE_URL_NBFC = "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=12956"
 
 
-def minimum_basis(loan: Loan) -> str:
-    """"statement" when the user typed the statement's minimum, else
-    "estimated" (a formula with no verified source)."""
-    if loan.min_payment_override is not None and loan.min_payment_override > D("0"):
-        return "statement"
-    return "estimated"
-
-
 DEFAULT_FORMULA = {
     Country.IN: {"type": "greater_of_pct_floor", "pct": D("0.05"), "floor": D("200")},
     Country.US: {"type": "interest_plus_pct_plus_fees_floor", "pct": D("0.01"), "floor": D("35")},

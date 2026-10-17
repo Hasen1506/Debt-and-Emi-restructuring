@@ -1,7 +1,7 @@
 """Layer 2 ordering — avalanche/hybrid/snowball + cascade."""
 from decimal import Decimal
 from engine.ordering import (
-    Strategy, rank_loans, allocate_extra, cascade_on_payoff,
+    Strategy, rank_loans,
     hybrid_small_balance_threshold,
 )
 from engine.models import Country, Loan, LoanType
@@ -74,26 +74,3 @@ def test_hybrid_threshold_helper_per_country():
     assert hybrid_small_balance_threshold(Country.US) == D("1000")
 
 
-def test_allocate_extra_routes_all_to_top_priority():
-    home, card, personal = _loans()
-    mins = {id(home): D("34713"), id(card): D("4000"), id(personal): D("10110")}
-    ranked = [card, personal, home]
-    payments = allocate_extra(ranked, mins, D("15000"))
-    assert payments[id(card)] == D("4000") + D("15000")
-    assert payments[id(personal)] == D("10110")
-    assert payments[id(home)] == D("34713")
-
-
-def test_allocate_extra_zero_surplus_keeps_minimums():
-    home, card, personal = _loans()
-    mins = {id(home): D("34713"), id(card): D("4000"), id(personal): D("10110")}
-    payments = allocate_extra([card, personal, home], mins, D("0"))
-    assert payments[id(card)] == D("4000")
-    assert payments[id(home)] == D("34713")
-
-
-def test_cascade_returns_freed_amount():
-    home, card, personal = _loans()
-    freed = cascade_on_payoff(cleared_loan=card, extra_allocated_to_cleared=D("15000"),
-                              minimum_of_cleared=D("4000"))
-    assert freed == D("19000")

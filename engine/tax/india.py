@@ -161,13 +161,6 @@ def marginal_rate(taxable_income: Decimal, regime: TaxRegimeIN) -> Decimal:
     return base * (D("1") + surcharge) * (D("1") + CESS_RATE)
 
 
-def is_at_87a_cliff(taxable_income: Decimal, regime: TaxRegimeIN, window: Decimal = D("10000")) -> bool:
-    """True if income is within `window` rupees above the 87A threshold."""
-    if regime == TaxRegimeIN.NEW:
-        return REBATE_87A_NEW_THRESHOLD < taxable_income <= REBATE_87A_NEW_THRESHOLD + window
-    return REBATE_87A_OLD_THRESHOLD < taxable_income <= REBATE_87A_OLD_THRESHOLD + window
-
-
 # ═════════════════════════════════════════════════════════════════════════════
 # Loan-related deductions and the old-vs-new regime comparison (sprint G2).
 #
@@ -205,12 +198,6 @@ SECTION_MAP: dict[str, str] = {
     "16(ia)": "19(1) Table Sl. 2",              # standard deduction ₹75k new / ₹50k old
     "139(1)": "263(1)",                         # return due date
 }
-
-
-def section_label(old: str) -> str:
-    """'s.24(b) (now s.22)' style label: both numbers, the new one second."""
-    new = SECTION_MAP.get(old)
-    return f"s.{old} (Income-tax Act 2025: s.{new})" if new else f"s.{old}"
 
 
 # s.22(2)(a) [1961: s.24(b) 2nd proviso]: interest on a self-occupied home,
@@ -324,17 +311,6 @@ def pre_construction_instalment(total_pre_construction_interest: Decimal) -> Dec
     if total_pre_construction_interest <= 0:
         return D("0")
     return total_pre_construction_interest / PRE_CONSTRUCTION_INSTALMENTS
-
-
-def sec80e_months_left(first_interest_year: int, first_interest_month: int, today_year: int, today_month: int) -> int:
-    """Months (from this month, counting it) the 80E / s.129 deduction can
-    still be claimed. The initial tax year is the April–March year in which
-    interest was first paid; the window is that year and the next seven.
-    0 once it has ended."""
-    fy_start = first_interest_year if first_interest_month >= 4 else first_interest_year - 1
-    end_year, end_month = fy_start + SEC80E_TAX_YEARS, 3        # 31 March, 8 tax years on
-    left = (end_year - today_year) * 12 + (end_month - today_month) + 1
-    return max(0, left)
 
 
 def sec80c_room(other_80c: Decimal, home_principal_this_year: Decimal) -> Decimal:

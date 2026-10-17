@@ -142,10 +142,6 @@ def history(country: Country) -> list[tuple[date, Decimal]]:
     return _TABLE[country] + _live.get(country, [])
 
 
-def earliest_date(country: Country) -> date:
-    return _TABLE[country][0][0]
-
-
 def rate_on(country: Country, day: date) -> Optional[Decimal]:
     """Policy rate in force on `day`, or None before the table starts."""
     series = history(country)

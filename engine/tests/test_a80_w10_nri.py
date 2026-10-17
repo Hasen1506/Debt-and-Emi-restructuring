@@ -93,14 +93,6 @@ def test_fixture_is_current():
 
 # ── NRO interest TDS and the treaty rate ────────────────────────────────────
 
-def test_nro_tds_and_us_treaty_rate():
-    rate, note = cb.nro_interest_tds_rate("US", treaty_papers_filed=False)
-    assert rate == D("0.30") and "15%" in note
-    rate, note = cb.nro_interest_tds_rate("us", treaty_papers_filed=True)
-    assert rate == D("0.15") and "Form 10F" in note
-    rate, note = cb.nro_interest_tds_rate("AE", treaty_papers_filed=True)
-    assert rate == D("0.30") and "check your country's treaty" in note
-
 
 # ── Residency (Income-tax Act 2025 s.6) ─────────────────────────────────────
 
