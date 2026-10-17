@@ -79,6 +79,8 @@ test('R7-7: US Setup says monthly payment, not EMI, and has no gold loan', async
   await signIn(page, 'golden-r7-us@rightdue.app');
   await expect(page).toHaveURL(/\/onboarding$/);
   await page.getByRole('group', { name: 'Where you live' }).getByRole('button', { name: /USA/ }).click();
+  // R3C-1: Setup asks how a US filer files (no silent Single).
+  await page.getByRole('group', { name: 'How you file your tax return' }).getByRole('button', { name: /^Single$/ }).click();
   await expect(page.getByLabel('Spending a month, without monthly payments')).toBeVisible();
   await page.getByLabel(/Take-home pay a month/).fill('6500');
   await page.getByLabel(/Spending a month/).fill('3800');

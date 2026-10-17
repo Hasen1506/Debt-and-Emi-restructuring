@@ -116,6 +116,8 @@ test('signed in, USA: More → Help offers US letters and opens the page', async
   await signIn(page, 'r2-us-letters@rightdue.app');
   await expect(page).toHaveURL(/\/onboarding$/);
   await page.getByRole('group', { name: 'Where you live' }).getByRole('button', { name: /USA/ }).click();
+  // R3C-1: Setup asks how a US filer files (no silent Single).
+  await page.getByRole('group', { name: 'How you file your tax return' }).getByRole('button', { name: /^Single$/ }).click();
   await page.getByLabel(/Take-home pay a month/).fill('6000');
   await page.getByLabel(/Spending a month/).fill('2500');
   await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();

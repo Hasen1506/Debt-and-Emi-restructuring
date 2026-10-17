@@ -13,6 +13,8 @@ test('USA: set up a mortgage, a card, a student loan and an INR loan; plan; tax;
     await signIn(page, EMAIL);
     await expect(page).toHaveURL(/\/onboarding$/);
     await page.getByRole('group', { name: 'Where you live' }).getByRole('button', { name: /USA/ }).click();
+    // R3C-1: Setup asks how a US filer files (no silent Single).
+    await page.getByRole('group', { name: 'How you file your tax return' }).getByRole('button', { name: /^Single$/ }).click();
     await page.getByLabel(/Take-home pay a month/).fill('7800');
     await page.getByLabel(/Spending a month/).fill('2500');
     await page.getByRole('button', { name: /CONTINUE · WHAT YOU OWE/ }).click();
