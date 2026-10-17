@@ -29,6 +29,7 @@
  */
 import Decimal from 'decimal.js';
 import { dec } from './safe-decimal';
+import { abroadIndiaRate, livesAbroad } from './tax-setup';
 import type { AgeBracket, Country, DeductionsPayload, FilingStatusUS, IncomeType, TaxRegimeIN, UserPayload } from './api';
 import { activeSlabGrossAnnual } from './income-streams';
 import { computeAnnualTax } from './tax-brackets';
@@ -74,7 +75,7 @@ const US_STD_DEDUCTION: Record<FilingStatusUS, Decimal> = {
 // The higher 80D cap is for senior citizens (60+). '50_plus' is 50–59
 // (it read "50+" before the 60+ bracket existed), so it gets the standard cap.
 function get80DCap(ageBracket?: AgeBracket): Decimal {
-  return ageBracket === '60_plus' ? CAP_80D_SENIOR : CAP_80D_DEFAULT;
+  return ageBracket === '60_plus' || ageBracket === '80_plus' ? CAP_80D_SENIOR : CAP_80D_DEFAULT;
 }
 
 export interface DeductionLine {
@@ -237,7 +238,8 @@ export function summariseDeductions(
  * passed the standard deduction. Mirrors `UserIn._itemised` on the API.
  */
 export function usMortgageShieldShare(user: UserPayload): Decimal {
-  if (user.country !== 'US') return D(0);
+  // Round 3 (#25): only for someone who said they itemize; else the standard deduction.
+  if (user.country !== 'US' || user.itemises !== true) return D(0);
   const ded = user.deductions;
   const mortgage =
     ded?.mortgage_interest_annual != null && ded.mortgage_interest_annual !== ''
@@ -250,8 +252,8 @@ export function usMortgageShieldShare(user: UserPayload): Decimal {
     user.filing_status,
   );
   const above = itemized.minus(standard);
-  if (above.lte(0) || mortgage.lte(0)) return D(0);
-  return Decimal.min(mortgage, above).div(mortgage);
+  if (mortgage.lte(0)) return D(0);
+  return above.lte(0) ? D(1) : Decimal.min(mortgage, above).div(mortgage);
 }
 
 /**
@@ -308,7 +310,7 @@ export function deriveMarginalRate(args: {
       args.incomeType,
     );
     taxable = Decimal.max(gross.minus(summary.totalAllowed), D(0));
-    return marginalIN(taxable, args.taxRegime ?? 'new');
+    return marginalIN(taxable, args.taxRegime ?? 'new', args.ageBracket);
   }
 
   const { effective } = pickUSDeduction(args.deductions, args.filingStatus);
@@ -340,7 +342,7 @@ export function grossFromTakeHome(user: UserPayload): Decimal {
   const net = monthly.mul(12).toNumber();
   if (!Number.isFinite(net) || net <= 0) return D(0);
   const left = (gross: number) =>
-    gross - Number(computeAnnualTax(user.country, user.tax_regime, user.income_type, gross, user.filing_status).toString());
+    gross - Number(computeAnnualTax(user.country, user.tax_regime, user.income_type, gross, user.filing_status, user.age_bracket).toString());
   let lo = net;
   let hi = net * 3;
   for (let i = 0; i < 60; i++) {
@@ -352,6 +354,8 @@ export function grossFromTakeHome(user: UserPayload): Decimal {
 }
 
 export function deriveMarginalRateForUser(user: UserPayload, fallback = '0'): string {
+  // Round 3: an NRI on a rupee plan pays Indian tax only on Indian income (lib/tax-setup).
+  if (livesAbroad(user)) return abroadIndiaRate(user).toFixed(4);
   const slabFromStreams = user.income_streams && user.income_streams.length > 0
     ? activeSlabGrossAnnual(user.income_streams)
     : D(0);
@@ -392,8 +396,8 @@ export function deriveMarginalRateForUser(user: UserPayload, fallback = '0'): st
 // (scripts/export_tax_tables.py). This file used to keep its own copy:
 // India's 2024 slabs (30% from ₹15L) and 2024 US brackets.
 
-function marginalIN(taxable: Decimal, regime: TaxRegimeIN): Decimal {
-  return D(marginalRateIN(taxable.toNumber(), regime).toFixed(4));
+function marginalIN(taxable: Decimal, regime: TaxRegimeIN, age?: AgeBracket): Decimal {
+  return D(marginalRateIN(taxable.toNumber(), regime, age).toFixed(4));
 }
 
 function marginalUS(taxable: Decimal, filing: FilingStatusUS): Decimal {

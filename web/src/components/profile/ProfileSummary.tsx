@@ -17,6 +17,7 @@ import { formatLoanAmount, loanToUser, userDefaultCurrency } from '@/lib/currenc
 import { loanLabel } from '@/lib/loan-types';
 import { requiredMonthly } from '@/lib/min-payment';
 import { placeLabel } from '@/lib/locations';
+import { abroadLabel, livesAbroad } from '@/lib/tax-setup';
 
 const AGE_LABEL: Record<AgeBracket, string> = {
   under_25: 'Under 25',
@@ -24,6 +25,7 @@ const AGE_LABEL: Record<AgeBracket, string> = {
   '35_50': '35 to 50',
   '50_plus': '50 to 59',
   '60_plus': '60 or over',
+  '80_plus': '80 or over',
 };
 
 /** Form sections, by the index the form uses for them. */
@@ -97,7 +99,7 @@ export function ProfileSummary({
         </LSectionHeader>
         <Rows
           rows={[
-            ['Country', `${user.country === 'IN' ? 'India' : 'USA'}${user.is_nri_us ? ', with loans in India' : ''}`],
+            ['Country', `${user.country === 'IN' ? 'India' : 'USA'}${user.is_nri_us ? ', with loans in India' : ''}${livesAbroad(user) ? ` (${abroadLabel(user.nri_residence)})` : ''}`],
             ['Lives in', placeLabel(user) || <Muted key="p">Not set</Muted>],
             user.country === 'IN'
               ? ['Tax regime', user.tax_regime === 'old' ? 'Old regime' : 'New regime']

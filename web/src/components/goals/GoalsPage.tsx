@@ -208,7 +208,7 @@ export function GoalsPage({
   }
 
   function applyTemplate(kind: TemplateKind) {
-    const ages: Record<string, number> = { under_25: 22, '25_35': 30, '35_50': 42, '50_plus': 55, '60_plus': 63 };
+    const ages: Record<string, number> = { under_25: 22, '25_35': 30, '35_50': 42, '50_plus': 55, '60_plus': 63, '80_plus': 82 };
     const spend = Number(user.fixed_expenses || '0') + Number(user.variable_expenses || '0');
     const t = expandTemplate({ kind, currentAge: user.age_bracket ? ages[user.age_bracket] : 30, monthlyExpenses: spend || undefined });
     if (!updateGoals([...goals, ...t.goals])) return;
