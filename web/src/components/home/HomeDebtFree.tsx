@@ -116,16 +116,6 @@ export async function HomeDebtFreeCaption() {
   );
 }
 
-const PRODUCT: Record<string, string> = {
-  credit_card: 'CREDIT CARD',
-  personal_loan: 'PERSONAL LOAN',
-  home_loan: 'HOME LOAN',
-  auto_loan: 'CAR LOAN',
-  education_loan: 'EDUCATION LOAN',
-  gold_loan: 'GOLD LOAN',
-  bnpl: 'BNPL',
-};
-
 /** The calm view's one step, from the plan's first month. */
 const oneStepWords = cache(async (): Promise<string> => {
   const plan = await loadPlanOnce();
@@ -144,7 +134,7 @@ const oneStepWords = cache(async (): Promise<string> => {
   if (first && loan) {
     // In the loan's own currency (₹ for an NRI's Indian loan).
     const amount = formatLoanAmount(first.amount, loan, profile.user.country, plan.fxRatesUsed);
-    return `PAY ${amount} EXTRA TO YOUR ${loan.bank ? `${loan.bank.toUpperCase()} ` : ''}${PRODUCT[loan.loan_type] ?? 'LOAN'}.`;
+    return `PAY ${amount} EXTRA TO YOUR ${loan.bank ? `${loan.bank.toUpperCase()} ` : ''}${(LOAN_TYPE_NAME[loan.loan_type] ?? 'loan').toUpperCase()}.`;
   }
   if (move.ef > 0) return `PUT ${fc(move.ef)} IN YOUR EMERGENCY FUND.`;
   return localTerms('KEEP CURRENT EMIS RUNNING.', profile.user.country);

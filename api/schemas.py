@@ -217,10 +217,7 @@ class LoanIn(_In):
     min_payment_override: Optional[Amount] = None
     currency: Optional[str] = None
     expected_monthly_spend: Amount = D("0")
-    # Optional statement / due day-of-month for credit cards (1-28).
-    # UI-only — the engine's monthly-accrual model doesn't consume them.
-    # Documented here so the schema surfaces the fields instead of
-    # silently dropping them.
+    # Card statement / due day (1-28): UI-only, the engine ignores them.
     statement_day: Optional[int] = Field(None, ge=1, le=28)
     due_day: Optional[int] = Field(None, ge=1, le=28)
     # Floating-rate scheduling — only meaningful when rate_type == "floating".
@@ -288,6 +285,11 @@ class LoanIn(_In):
     # C15: a flat-rate loan's original tenure. Its true reducing rate is
     # solved from the original terms, not the months left.
     original_tenure_months: Optional[int] = Field(None, ge=1, le=MAX_TENURE_MONTHS)
+    # Round 3: what a LAP / top-up paid for (engine tax_type); "settled" leaves the
+    # plan, behind/collections change Home only; a salary-deducted EMI is added back.
+    house_use: Optional[Literal["buy_build", "repair", "other"]] = None
+    debt_status: Literal["normal", "behind", "collections", "settled"] = "normal"
+    salary_deducted: bool = False
 
     @field_validator("prepay_lock_in_until", "loan_start_month", "balance_as_of", mode="before")
     @classmethod
@@ -425,10 +427,9 @@ class LoanIn(_In):
         effective_rate, _ = self.reducing_rate()
         return Loan(
             loan_type=self.loan_type, bank=self.bank,
-            outstanding=self.outstanding, nominal_rate=effective_rate,
-            rate_type=self.rate_type,
-            tenure_months_remaining=self.tenure_months_remaining,
-            scheduled_emi=self.scheduled_emi,
+            nominal_rate=effective_rate, rate_type=self.rate_type,
+            **({"outstanding": D("0"), "scheduled_emi": D("0"), "tenure_months_remaining": 0} if self.debt_status == "settled" else
+               {"outstanding": self.outstanding, "scheduled_emi": self.scheduled_emi, "tenure_months_remaining": self.tenure_months_remaining}),
             processing_fee_amortised=self.processing_fee_amortised,
             insurance_premium_pct=self.insurance_premium_pct,
             property_use=self.property_use,
@@ -463,6 +464,7 @@ class LoanIn(_In):
             max_tenure_months=self.max_tenure_months,
             repayment=self.repayment,
             promo_months=self.promo_months, rate_after_promo=self.rate_after_promo,
+            house_use=self.house_use,
         )
 
 
@@ -685,17 +687,11 @@ class UserIn(_In):
     # so frontend rate-prediction chip can use the entered value across sessions.
     credit_score: Optional[int] = Field(None, ge=300, le=900)
     savings_balance: Amount
-    # Optional rich per-account cash breakdown (checking / savings / HYSA /
-    # FD / other). Engine drops it — used by /debts display and (Phase 2+)
-    # the cash-vs-debt advisor. `savings_balance` above stays authoritative
-    # for engine math; frontend keeps it in sync as the sum of optimizable
-    # balances when cash_accounts is set.
+    # Per-account cash breakdown (display + cash advisor; engine drops it).
+    # `savings_balance` stays authoritative; the web keeps it as their sum.
     cash_accounts: list[CashAccountIn] = Field(default_factory=list)
-    # Optional — annual tax owed on income NOT covered by employer TDS
-    # (rental, FD interest > ₹40k, cap gains, freelance side-income).
-    # Drives the tax-sleeve card on /debts for salaried users with non-
-    # TDS income. Business owners ignore — their sleeve comes from
-    # annual_business_income. Engine drops it.
+    # Yearly tax on income outside TDS (rent, FD interest, gains, freelance):
+    # the /debts tax-sleeve card for salaried users. Engine drops it.
     extra_income_annual_tax: Optional[Amount] = None
     primary_bank: str
     location_tier: str = "urban"
@@ -734,11 +730,8 @@ class UserIn(_In):
     investment_options: list[InvestmentOptionIn] = Field(default_factory=list)
     annual_hike_rate: Decimal = Field(D("0"), ge=D("-0.5"), le=D("0.5"))
     hike_effective_month: int = Field(default=1, ge=1, le=12)
-    # Optional list of hike phases. Each entry: [year_from, year_to, rate].
-    # year_from is 1-based inclusive, year_to is 1-based exclusive, rate
-    # is annual decimal (0.08 = 8%). Empty list → engine uses annual_hike_rate
-    # uniformly. Validated for non-overlap on the frontend; engine picks
-    # the first matching phase regardless.
+    # Hike phases [year_from (incl, 1-based), year_to (excl), annual rate]; empty =
+    # annual_hike_rate throughout. The engine takes the first matching phase.
     hike_schedule: list[tuple[int, int, Decimal]] = Field(default_factory=list)
 
     @field_validator("hike_schedule")
@@ -832,10 +825,16 @@ class UserIn(_In):
             return False, D("0")
         return True, min(mortgage, above) / mortgage
 
+    def salary_deducted_emis(self) -> Decimal:
+        """#21: take-home is already net of EMIs cut from pay; the plan takes every EMI off it, so add them back."""
+        ccy = "INR" if self.country == Country.IN else "USD"
+        return sum((l.scheduled_emi for l in self.loans if l.salary_deducted and l.debt_status != "settled"
+                    and (l.currency or ccy).upper() == ccy), D("0"))
+
     def to_engine(self) -> User:
         return User(
             country=self.country, income_type=self.income_type,
-            annual_income=self.annual_income, monthly_income=self.monthly_income,
+            annual_income=self.annual_income, monthly_income=self.monthly_income + self.salary_deducted_emis(),
             fixed_expenses=self.fixed_expenses,
             variable_expenses=self.variable_expenses,
             annual_gross_salary=self.annual_gross_salary,

@@ -26,6 +26,7 @@ import { compareToLoan, formatAsOf, pct, safeBenchmarks } from '@/lib/invest-vs-
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
 import { loanToUserDecimal } from '@/lib/currency';
 import { LBracket, LMathBlock, LSectionHeader, L_T } from '@/components/ledger/primitives';
+import { taxType } from '@/lib/loan-types';
 
 interface Note {
   eyebrow: string;
@@ -50,7 +51,7 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
  *  from Profile, else is estimated from take-home (labelled). */
 export function oldRegimeWouldSave(user: PlanData['user']): Note | null {
   if (user.country !== 'IN' || (user.tax_regime ?? 'new') !== 'new') return null;
-  if (!user.loans.some((l) => l.loan_type === 'home_loan' || l.loan_type === 'education_loan')) return null;
+  if (!user.loans.some((l) => taxType(l) === 'home_loan' || l.loan_type === 'education_loan')) return null;
   const { inputs, hasBusiness } = regimeInputsFromUser(user, countryMonthKey('IN'));
   const typed = readIncome(user).source !== 'none';
   if (!typed) {
@@ -128,7 +129,7 @@ function buildNotes(plan: PlanData): Note[] {
   }
 
   // 2. The tax a home loan's interest saves.
-  const home = ranked.find(({ loan }) => loan.loan_type === 'home_loan');
+  const home = ranked.find(({ loan }) => taxType(loan) === 'home_loan');
   if (home) {
     const shield = home.b.lines.find((l) => l.label === 'Tax shield')?.value ?? new Decimal(0);
     const yearly = loanToUserDecimal(

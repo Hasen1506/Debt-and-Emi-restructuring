@@ -1,0 +1,77 @@
+// Round 3 part B (17 Oct 2026, work/reports/ux-walkthrough-2.md #10, #13, #21, US letters).
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const Module = require('node:module');
+const ts = require('typescript');
+const test = require('node:test');
+const root = path.resolve(__dirname, '../src');
+const resolve = Module._resolveFilename;
+Module._resolveFilename = function (request, parent, ...rest) {
+  return resolve.call(this, request.startsWith('@/') ? path.join(root, request.slice(2)) : request, parent, ...rest);
+};
+for (const ext of ['.ts', '.tsx'])
+  require.extensions[ext] = (m, f) =>
+    m._compile(ts.transpileModule(fs.readFileSync(f, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, resolveJsonModule: true } }).outputText, f);
+const lib = (n) => require(path.join(root, 'lib', n));
+const src = (p) => fs.readFileSync(path.join(root, p), 'utf8');
+
+// ── #10 new loan kinds ───────────────────────────────────────────────────────
+test('#10: own labels; a two-wheeler is not a car loan, medical is not personal', () => {
+  const { LOAN_TYPE_NAME, loanLabel } = lib('loan-types.ts');
+  assert.equal(LOAN_TYPE_NAME.two_wheeler_loan, 'two-wheeler loan');
+  assert.equal(LOAN_TYPE_NAME.medical_loan, 'medical loan');
+  assert.equal(LOAN_TYPE_NAME.loan_against_property, 'loan against property');
+  assert.equal(LOAN_TYPE_NAME.home_topup, 'home loan top-up');
+  assert.equal(loanLabel({ bank: 'Bajaj Auto Finance', loan_type: 'two_wheeler_loan' }), 'Bajaj Auto Finance two-wheeler loan');
+});
+
+test('#10: LAP / top-up are home loans for tax only when used for a house', () => {
+  const { taxType, fullCap24, principal80c } = lib('loan-types.ts');
+  assert.equal(taxType({ loan_type: 'loan_against_property' }), 'loan_against_property');
+  assert.equal(taxType({ loan_type: 'loan_against_property', house_use: 'other' }), 'loan_against_property');
+  assert.equal(taxType({ loan_type: 'loan_against_property', house_use: 'buy_build' }), 'home_loan');
+  assert.equal(taxType({ loan_type: 'home_topup', house_use: 'repair' }), 'home_loan');
+  assert.equal(taxType({ loan_type: 'personal_loan', house_use: 'buy_build' }), 'personal_loan');
+  // top-up: never 80C; repair: ₹30k cap, no 80C; LAP buy/build keeps both
+  assert.equal(principal80c({ loan_type: 'home_topup', house_use: 'buy_build' }), false);
+  assert.equal(principal80c({ loan_type: 'loan_against_property', house_use: 'buy_build' }), true);
+  assert.equal(principal80c({ loan_type: 'loan_against_property', house_use: 'repair' }), false);
+  assert.equal(fullCap24({ loan_type: 'home_topup', house_use: 'repair' }), false);
+  assert.equal(fullCap24({ loan_type: 'home_loan', house_use: 'repair' }), true);
+});
+
+test('#10: Tax page lines: LAP with no house use says no tax break; top-up for a house says no 80C', () => {
+  const { loanTaxLine } = lib('india-tax-loans.ts');
+  assert.match(loanTaxLine({ loan_type: 'loan_against_property', outstanding: '3000000' }, 'old', '2026-10'), /No tax break unless the money bought, built or repaired a house/);
+  const up = loanTaxLine({ loan_type: 'home_topup', house_use: 'buy_build', outstanding: '500000' }, 'old', '2026-10');
+  assert.match(up, /up to ₹2L/);
+  assert.match(up, /doesn’t count in/);
+  assert.match(loanTaxLine({ loan_type: 'home_topup', house_use: 'repair' }, 'old', '2026-10'), /₹30,000 \(repair or renovation\)/);
+  assert.equal(loanTaxLine({ loan_type: 'two_wheeler_loan' }, 'old', '2026-10'), null);
+});
+
+test('#10: the regime comparison counts a LAP only when it bought a house', () => {
+  const { homeLoanYears } = lib('tax-profile.ts');
+  const base = { outstanding: '3000000', nominal_rate: '0.095', scheduled_emi: '32000', tenure_months_remaining: 180, rate_type: 'floating', bank: '' };
+  assert.equal(homeLoanYears([{ ...base, loan_type: 'loan_against_property' }], '2026-10').length, 0);
+  const [h] = homeLoanYears([{ ...base, loan_type: 'home_topup', house_use: 'buy_build' }], '2026-10');
+  assert.equal(h.principal80cEligible, false);
+});
+
+test('#10: Setup offers the new kinds; LAP, top-up and two-wheeler are India-only', () => {
+  const { loanKindsFor } = lib('r7-inputs.ts');
+  const chips = [['home_topup', 'Home top-up'], ['loan_against_property', 'Against property'], ['two_wheeler_loan', 'Two-wheeler'], ['medical_loan', 'Medical']];
+  assert.deepEqual(loanKindsFor(chips, 'IN').map(([t]) => t), chips.map(([t]) => t));
+  assert.deepEqual(loanKindsFor(chips, 'US').map(([t]) => t), ['medical_loan']);
+  const qs = src('components/setup/QuickSetup.tsx');
+  for (const t of ['home_topup', 'loan_against_property', 'two_wheeler_loan', 'medical_loan']) assert.ok(qs.includes(`['${t}',`), t);
+  assert.match(src('components/setup/LoanExtras.tsx'), /Was the money used for a house\?/);
+});
+
+test('#10: US medical debt has its own guidance, the credit-report line marked verify', () => {
+  const { US_MEDICAL_NOTES } = lib('loan-status.ts');
+  assert.ok(US_MEDICAL_NOTES.some((t) => /itemized bill/.test(t) && /financial assistance/.test(t)));
+  assert.ok(US_MEDICAL_NOTES.some((t) => /no interest/.test(t)));
+  assert.ok(US_MEDICAL_NOTES.some((t) => /credit report/i.test(t) && /verify/.test(t)));
+});

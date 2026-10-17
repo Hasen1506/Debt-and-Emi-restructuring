@@ -51,7 +51,7 @@ from engine.marginal_cost import (
     IN_HOME_INTEREST_CAP, US_STUDENT_INTEREST_CAP, LOCKED_OFFSET, marginal_cost, uncapped_shields,
     user_marginal_costs,
 )
-from engine.models import Country, Loan, LoanType
+from engine.models import Country, Loan, LoanType, tax_type
 
 D = Decimal
 
@@ -74,6 +74,8 @@ def order_tolerance(user, plan_interest: Decimal) -> Decimal:
 LOAN_TYPE_NAME = {
     "home_loan": "home loan", "auto_loan": "car loan", "personal_loan": "personal loan",
     "credit_card": "credit card", "education_loan": "education loan", "gold_loan": "gold loan", "bnpl": "BNPL",
+    "loan_against_property": "loan against property", "home_topup": "home loan top-up",
+    "two_wheeler_loan": "two-wheeler loan", "medical_loan": "medical loan",
 }
 
 
@@ -98,7 +100,7 @@ def plan_net_cost(user, res, marginal_rate: Decimal) -> Decimal:
     def cap_group(l: Loan):
         if loan_market(l, own) != own:
             return None
-        if own == Country.IN and l.loan_type == LoanType.HOME:
+        if own == Country.IN and tax_type(l) == LoanType.HOME:
             return ("home", IN_HOME_INTEREST_CAP)
         if own == Country.US and l.loan_type == LoanType.EDUCATION:
             return ("edu", US_STUDENT_INTEREST_CAP)

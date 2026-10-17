@@ -15,6 +15,7 @@ import type { LoanPayload, UserPayload } from './api';
 import { activeStreams, streamSlabContribution } from './income-streams';
 import { nextYearSplit, sec80eMonthsLeft, taxShare } from './india-tax-loans';
 import type { HomeLoanYear, OldAge, RegimeInputs } from './regime-compare';
+import { fullCap24, principal80c, taxType } from '@/lib/loan-types';
 
 const D = (v: Decimal.Value | null | undefined) => new Decimal(v == null || v === '' ? 0 : v);
 
@@ -87,7 +88,7 @@ export function oldRegimeAge(user: UserPayload): OldAge {
  *  regime comparison takes. */
 export function homeLoanYears(loans: LoanPayload[], currentMonth: string): HomeLoanYear[] {
   return loans
-    .filter((l) => l.loan_type === 'home_loan' && (l.currency ?? 'INR') === 'INR' && D(l.outstanding).gt(0))
+    .filter((l) => taxType(l) === 'home_loan' && (l.currency ?? 'INR') === 'INR' && D(l.outstanding).gt(0))
     .map((l) => {
       const { interest, principal } = nextYearSplit(l);
       return {
@@ -97,8 +98,8 @@ export function homeLoanYears(loans: LoanPayload[], currentMonth: string): HomeL
         letOut: l.property_use === 'let_out',
         annualRent: l.annual_rent ? D(l.annual_rent) : null,
         preConstructionInstalment: D(l.pre_construction_interest_annual),
-        fullCap: l.sec24_full_cap !== false,
-        principal80cEligible: l.principal_80c_eligible !== false,
+        fullCap: fullCap24(l),
+        principal80cEligible: principal80c(l),
       };
     });
 }
@@ -127,7 +128,7 @@ export function regimeInputsFromUser(user: UserPayload, currentMonth: string): {
   const assumptions: string[] = [];
   if (income.source === 'none') assumptions.push('No gross income in Profile yet, so there is nothing to compare. Add your gross salary or business income.');
   if (user.age_bracket === '60_plus') assumptions.push('Aged 60+: the old regime’s 60-79 table is used (80+ pays less).');
-  if (user.loans.some((l) => l.loan_type === 'home_loan' && l.property_use === 'let_out' && !l.annual_rent)) {
+  if (user.loans.some((l) => taxType(l) === 'home_loan' && l.property_use === 'let_out' && !l.annual_rent)) {
     assumptions.push('A let-out home has no rent entered: its rent and interest are left out except for the old regime’s ₹2L loss set-off (simplified).');
   }
   if (!edu.anyLoan && D(ded.sec_80e_annual).gt(0)) assumptions.push('Education-loan interest is taken from your 80E entry.');

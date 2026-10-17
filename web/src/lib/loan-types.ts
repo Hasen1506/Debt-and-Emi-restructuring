@@ -15,6 +15,10 @@ export const LOAN_TYPE_SHORT: Record<LoanType, string> = {
   education_loan: 'education',
   gold_loan: 'gold',
   bnpl: 'pay later',
+  loan_against_property: 'property',
+  home_topup: 'top-up',
+  two_wheeler_loan: 'two-wheeler',
+  medical_loan: 'medical',
 };
 
 /** Full name for sentences: "HDFC credit card", "SBI home loan". */
@@ -27,7 +31,34 @@ export const LOAN_TYPE_NAME: Record<LoanType, string> = {
   gold_loan: 'gold loan',
   // UX2B-15: Setup's chip says "Pay later"; Home and Plan said "Simpl BNPL".
   bnpl: 'pay later',
+  loan_against_property: 'loan against property',
+  home_topup: 'home loan top-up',
+  two_wheeler_loan: 'two-wheeler loan',
+  medical_loan: 'medical loan',
 };
+
+/** Round 3 (#10): the type the tax rules see. A loan against property or a
+ *  home-loan top-up counts as a home loan only when the money bought, built
+ *  or repaired a house (s.22 [24(b)] follows the money); otherwise no relief.
+ *  As engine/models.tax_type. */
+export function taxType(l: { loan_type: LoanType; house_use?: string | null }): LoanType {
+  const house = l.house_use === 'buy_build' || l.house_use === 'repair';
+  return HOUSE_USE_KINDS.includes(l.loan_type) && house ? 'home_loan' : l.loan_type;
+}
+
+/** The kinds that ask "used for a house?". */
+export const HOUSE_USE_KINDS: readonly LoanType[] = ['loan_against_property', 'home_topup'];
+
+/** Interest cap: ₹30,000 instead of ₹2L when the house wasn't finished in
+ *  5 years or the money repaired it (s.22(2)(b)). As engine Loan.__post_init__. */
+export function fullCap24(l: { loan_type: LoanType; house_use?: string | null; sec24_full_cap?: boolean }): boolean {
+  return l.sec24_full_cap !== false && !(HOUSE_USE_KINDS.includes(l.loan_type) && l.house_use === 'repair');
+}
+
+/** Principal in 80C: only buying or building, and never a top-up (conservative). */
+export function principal80c(l: { loan_type: LoanType; house_use?: string | null; principal_80c_eligible?: boolean }): boolean {
+  return l.principal_80c_eligible !== false && l.loan_type !== 'home_topup' && !(l.loan_type === 'loan_against_property' && l.house_use === 'repair');
+}
 
 /** The user's own name for a loan (live test #4: "Dad's car loan"), trimmed
  *  and kept short; '' when there is none. Profile → Loans sets it. */
@@ -67,6 +98,10 @@ const AUTO_LABEL: Record<LoanType, string> = {
   education_loan: 'Education loan',
   gold_loan: 'Gold loan',
   bnpl: 'Pay later',
+  loan_against_property: 'Property loan',
+  home_topup: 'Top-up',
+  two_wheeler_loan: 'Two-wheeler loan',
+  medical_loan: 'Medical loan',
 };
 
 /**

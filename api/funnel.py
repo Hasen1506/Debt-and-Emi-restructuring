@@ -31,6 +31,7 @@ from typing import Annotated, Any, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
+from engine.models import LoanType
 from fastapi.responses import Response
 from sqlalchemy import Column, Date, Integer, MetaData, PrimaryKeyConstraint, String, Table, and_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -43,7 +44,7 @@ FIELD_EVENTS = {"field_focus", "field_filled", "field_left_empty", "field_dont_k
 PRODUCT_EVENTS = {"plan_saved", "return_month2", "loan_check_finding_5k", "loan_check_result"}
 DOOR_EVENTS = {"door_letter_shown", "door_letter_notify", "door_plus_shown", "door_plus_notify"}
 EVENTS = FIELD_EVENTS | PRODUCT_EVENTS | DOOR_EVENTS
-LOAN_KINDS = {"", "home_loan", "auto_loan", "personal_loan", "credit_card", "education_loan", "gold_loan", "bnpl"}
+LOAN_KINDS = {""} | {t.value for t in LoanType}
 COUNTRIES = {"", "IN", "US"}
 FIELD_RE = re.compile(r"^[a-z0-9_.]{1,40}$")
 # A18: kill a fake door when fewer than this share of people who saw it tap "notify me".

@@ -49,6 +49,8 @@ ORDER_SHARE_MIN = D("0.005")
 LOAN_NAME = {
     LoanType.HOME: "home loan", LoanType.AUTO: "car loan", LoanType.PERSONAL: "personal loan",
     LoanType.CREDIT_CARD: "credit card", LoanType.EDUCATION: "education loan",
+    LoanType.LAP: "loan against property", LoanType.HOME_TOPUP: "home loan top-up",
+    LoanType.TWO_WHEELER: "two-wheeler loan", LoanType.MEDICAL: "medical loan",
 }
 
 

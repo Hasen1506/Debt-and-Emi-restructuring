@@ -38,6 +38,26 @@ class LoanType(str, Enum):
     EDUCATION = "education_loan"
     GOLD = "gold_loan"
     BNPL = "bnpl"
+    # Round 3 (#10). Their own labels, and their own tax rule: see tax_type().
+    LAP = "loan_against_property"
+    HOME_TOPUP = "home_topup"
+    TWO_WHEELER = "two_wheeler_loan"
+    MEDICAL = "medical_loan"
+
+
+# A loan against property or a home-loan top-up is taxed as a home loan only
+# when the money bought, built or repaired a house (s.22 [24(b)] follows the
+# use of the money, not the loan's name). None / "other" = no tax benefit.
+HOUSE_USES = ("buy_build", "repair")
+
+
+def tax_type(loan: "Loan") -> "LoanType":
+    """The loan type the tax rules see (round 3, #10): HOME for a loan
+    against property or a top-up whose money went into a house, else the
+    loan's own type (so a LAP or top-up with no house use gets no relief)."""
+    if loan.loan_type in (LoanType.LAP, LoanType.HOME_TOPUP) and loan.house_use in HOUSE_USES:
+        return LoanType.HOME
+    return loan.loan_type
 
 
 class LiquidityClass(str, Enum):
@@ -228,6 +248,20 @@ class Loan:
     # US, secured by a first lien. Only the user can tell (VIN plant); False
     # = not claimed. Tax years 2025-2028 only.
     us_auto_interest_qualified: bool = False
+    # Round 3 (#10): what a loan against property / home-loan top-up paid
+    # for: "buy_build" | "repair" | None (not for a house). See tax_type().
+    house_use: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        # Principal counts in s.123 [80C] only for buying or building a house,
+        # and not for a top-up (conservative; founder note r3b). Repair
+        # interest is capped at ₹30,000 for a self-occupied house (s.22(2)(b)).
+        if self.loan_type not in (LoanType.LAP, LoanType.HOME_TOPUP):
+            return
+        if self.loan_type == LoanType.HOME_TOPUP or self.house_use == "repair":
+            self.principal_80c_eligible = False
+        if self.house_use == "repair":
+            self.sec24_full_cap = False
 
 
 class LifecycleEventKind(str, Enum):

@@ -155,17 +155,17 @@ def tax_shield_fraction(
     (0 – marginal rate): §4.1's shield, used by `effective_rate` and by the
     marginal cost of prepaying (engine/marginal_cost.py, roadmap PR J).
     See `effective_rate` for the rules."""
-    from engine.models import FilingStatusUS
+    from engine.models import FilingStatusUS, tax_type
     nominal = loan.nominal_rate
     annual_interest = loan.outstanding * nominal
     regime = tax_regime or TaxRegimeIN.NEW
 
     deductible_set = DEDUCTIBLE_LOAN_TYPES_IN if country == Country.IN else DEDUCTIBLE_LOAN_TYPES_US
-    if loan.loan_type not in deductible_set or annual_interest <= 0:
+    if tax_type(loan) not in deductible_set or annual_interest <= 0:
         shield_pct = D("0")
-    elif country == Country.IN and loan.loan_type == LoanType.EDUCATION and regime == TaxRegimeIN.NEW:
+    elif country == Country.IN and tax_type(loan) == LoanType.EDUCATION and regime == TaxRegimeIN.NEW:
         shield_pct = D("0")
-    elif country == Country.US and loan.loan_type == LoanType.AUTO:
+    elif country == Country.US and tax_type(loan) == LoanType.AUTO:
         # IRC §163(h)(4) (OBBBA, 2025-2028; C16): only a loan the user marked
         # qualified; $10,000 a year across such loans, MAGI phase-out.
         if not loan.us_auto_interest_qualified:
@@ -175,9 +175,9 @@ def tax_shield_fraction(
             total = max(annual_interest, us_auto_interest_total or D("0"))
             allowed = auto_loan_interest_deduction(total, magi, filing_status)
             shield_pct = (allowed / total) * marginal_tax_rate if total > 0 else D("0")
-    elif country == Country.US and loan.loan_type == LoanType.EDUCATION and filing_status == FilingStatusUS.MFS:
+    elif country == Country.US and tax_type(loan) == LoanType.EDUCATION and filing_status == FilingStatusUS.MFS:
         shield_pct = D("0")    # §221(e)(2): no deduction on a separate return (C17)
-    elif country == Country.US and loan.loan_type == LoanType.EDUCATION:
+    elif country == Country.US and tax_type(loan) == LoanType.EDUCATION:
         total = max(annual_interest, us_student_interest_total or D("0"))
         allowed = min(total, US_STUDENT_LOAN_INTEREST_MAX)
         if magi is not None:
@@ -187,10 +187,10 @@ def tax_shield_fraction(
         shield_pct = (allowed / total) * marginal_tax_rate if total > 0 else D("0")
     elif country == Country.US and not itemises:
         shield_pct = D("0")
-    elif country == Country.IN and loan.loan_type == LoanType.EDUCATION and loan.tax_deduction_months_left == 0:
+    elif country == Country.IN and tax_type(loan) == LoanType.EDUCATION and loan.tax_deduction_months_left == 0:
         # s.129(2) [80E]: the 8-tax-year window has ended.
         shield_pct = D("0")
-    elif country == Country.IN and loan.loan_type == LoanType.HOME:
+    elif country == Country.IN and tax_type(loan) == LoanType.HOME:
         # The user's share of the interest (co-borrower), within the year's
         # cap. Self-occupied homes share one cap pro rata
         # (`home_interest_total`: the user's share of interest plus
@@ -217,7 +217,7 @@ def tax_shield_fraction(
         # no cap): the user's share of the loan's interest.
         share = itemised_share if country == Country.US else loan.tax_share
         shield_pct = marginal_tax_rate * max(D("0"), min(D("1"), share))
-        if country == Country.US and loan.loan_type == LoanType.HOME:
+        if country == Country.US and tax_type(loan) == LoanType.HOME:
             from engine.tax.usa import mortgage_debt_limit
             limit = mortgage_debt_limit(filing_status, loan.mortgage_before_2017_12_16)
             debt = max(loan.outstanding, mortgage_debt_total or D("0"))

@@ -560,6 +560,10 @@ const RATE_FIELD_BY_LOAN_TYPE: Record<LoanType, keyof InstitutionPayload | null>
   credit_card: null,
   gold_loan: null,
   bnpl: null,
+  loan_against_property: null,
+  home_topup: null,
+  two_wheeler_loan: null,
+  medical_loan: null,
 };
 
 function rankBanksForLoanType(

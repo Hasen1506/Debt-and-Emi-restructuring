@@ -123,10 +123,14 @@ const TIER_OF: Record<LoanType, ProtectTier> = {
   personal_loan: 'unsecured',
   education_loan: 'unsecured',
   bnpl: 'unsecured',
+  loan_against_property: 'secured',
+  home_topup: 'secured',
+  two_wheeler_loan: 'secured',
+  medical_loan: 'unsecured',
 };
 const TIER_RANK: Record<ProtectTier, number> = { secured: 0, card_minimum: 1, unsecured: 2 };
 /** Inside the secured group: the home before the car before the gold. */
-const SECURED_RANK: Partial<Record<LoanType, number>> = { home_loan: 0, auto_loan: 1, gold_loan: 2 };
+const SECURED_RANK: Partial<Record<LoanType, number>> = { home_loan: 0, home_topup: 0, loan_against_property: 0, auto_loan: 1, two_wheeler_loan: 1, gold_loan: 2 };
 
 export const TIER_REASON: Record<ProtectTier, string> = {
   secured:
