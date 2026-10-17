@@ -37,7 +37,11 @@ STALE_AFTER_DAYS = 40
 # than email a "payday" list a week late.
 LATE_SEND_GRACE_DAYS = 3
 
-KINDS = {"emi", "minimum", "extra", "clears", "ef", "goals"}
+# Founder 17 Oct 2026 (engine/debt_status.py): a loan behind on payments is
+# listed as a catch-up, one with a collection agency as "don't pay yet" (left
+# out of the total), and the share kept back for a settlement as "pot".
+KINDS = {"emi", "minimum", "extra", "clears", "ef", "goals", "tax", "catch_up", "collections", "pot"}
+NOT_IN_TOTAL = {"collections"}
 KIND_LABEL = {
     "emi": "EMI",
     "minimum": "minimum due",
@@ -45,6 +49,10 @@ KIND_LABEL = {
     "clears": "pays it off",
     "ef": "to your emergency fund",
     "goals": "to your goals",
+    "tax": "set aside for tax",
+    "catch_up": "behind: EMI + what's overdue, to catch up",
+    "collections": "with a collection agency: don't pay until the debt is confirmed in writing (not in the total)",
+    "pot": "to your settlement pot, kept by you, not paid to the collector",
 }
 CURRENCIES = {"INR": "₹", "USD": "$"}
 
@@ -146,7 +154,7 @@ def parse_snapshot(data: dict) -> Snapshot:
             if not 1 <= due_day <= 31:
                 raise SnapshotError("A due day should be 1 to 31.")
         rows.append(PayRow(_clean_name(r.get("name")), _amount(r.get("amount")), ccy, kind, due_day))
-    total = sum((r.amount for r in rows if r.currency == currency), D("0"))
+    total = sum((r.amount for r in rows if r.currency == currency and r.kind not in NOT_IN_TOTAL), D("0"))
     return Snapshot(month, made_on, country, currency, tuple(rows), total)
 
 
@@ -232,7 +240,7 @@ def build_digest(
         if not links.get(k):
             raise ValueError(f"missing link: {k}")
     stale = (today - snap.made_on).days > STALE_AFTER_DAYS
-    loans = [r for r in snap.rows if r.kind not in ("ef", "goals")]
+    loans = [r for r in snap.rows if r.kind not in ("ef", "goals", "tax", "pot", "collections")]
     n = len(snap.rows)
     subject = f"Payday: {money(snap.total, snap.currency)} across {n} payment{'s' if n != 1 else ''}, in this order"
 
@@ -248,6 +256,13 @@ def build_digest(
             f"This is the list from your plan on {_long(snap.made_on)}. Open RightDue to see "
             "this month's: a loan that cleared or an amount that changed shows there first."
         )
+    for r in snap.rows:
+        if r.kind == "catch_up":
+            notes.append(f"{r.name} is behind: the plan pays what's overdue first, then the normal plan "
+                         "resumes. If you can't, ask the lender for a hardship plan before the next due date.")
+        elif r.kind == "collections":
+            notes.append(f"{r.name} is with a collection agency: ask for the debt in writing before paying. "
+                         "The plan keeps its share in a settlement pot instead of paying it in bits.")
     other_ccy = {r.currency for r in snap.rows} - {snap.currency}
     if other_ccy:
         notes.append("The total counts only the payments in your own currency.")
