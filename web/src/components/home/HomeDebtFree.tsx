@@ -22,6 +22,7 @@ import { extraSaving, loanClearsMonth, thisMonthMove } from '@/lib/this-month';
 import { deriveMetrics, type LoanWithEffective } from '@/lib/derived';
 import { describeGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
+import { needsHelp } from '@/lib/loan-status';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';
@@ -123,6 +124,8 @@ const oneStepWords = cache(async (): Promise<string> => {
   const m = deriveMetrics(profile);
   const fc = (v: number) => formatCurrencyWhole(v, userDefaultCurrency(profile.user.country));
   if (plan.gaps.length > 0) return 'ADD YOUR LOAN DETAILS IN PROFILE.';
+  // R3B-2 (#13): no "pay the minimum" for a loan that is behind or with collectors.
+  if (profile.user.loans.some(needsHelp)) return 'A LOAN IS BEHIND OR WITH COLLECTORS: START WITH THE STEPS ABOVE, THEN THE REST.';
   // Short of cash: the engine's gap (costs + minimums − income) when it
   // ran, else the same sum from the profile.
   const short = plan.live ? plan.shortfall : Math.max(0, -Number(m.surplus));

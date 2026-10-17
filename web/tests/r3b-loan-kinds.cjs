@@ -75,3 +75,55 @@ test('#10: US medical debt has its own guidance, the credit-report line marked v
   assert.ok(US_MEDICAL_NOTES.some((t) => /no interest/.test(t)));
   assert.ok(US_MEDICAL_NOTES.some((t) => /credit report/i.test(t) && /verify/.test(t)));
 });
+
+// ── #13 debt status ──────────────────────────────────────────────────────────
+test('#13: four statuses, one plain line each', () => {
+  const { DEBT_STATUS_CHOICES } = lib('loan-status.ts');
+  assert.deepEqual(DEBT_STATUS_CHOICES.map(([k]) => k), ['normal', 'behind', 'collections', 'settled']);
+  for (const [, label, line] of DEBT_STATUS_CHOICES) {
+    assert.ok(label.length < 30, label);
+    assert.ok(line.length < 90 && !line.includes('\n'), line);
+  }
+});
+
+test('#13: behind / collections get steps, not "pay the minimum"; rights per country', () => {
+  const { helpLines, needsHelp, rightsNote, isSettled } = lib('loan-status.ts');
+  assert.equal(needsHelp({}), false);
+  assert.equal(needsHelp({ debt_status: 'collections' }), true);
+  assert.equal(isSettled({ debt_status: 'settled' }), true);
+  const behind = helpLines({ debt_status: 'behind', loan_type: 'personal_loan' }, 'IN').join(' ');
+  assert.match(behind, /hardship plan/);
+  assert.doesNotMatch(behind, /minimum/i);
+  const coll = helpLines({ debt_status: 'collections', loan_type: 'medical_loan' }, 'US').join(' ');
+  assert.match(coll, /in writing/);
+  assert.match(coll, /itemized bill/);
+  assert.match(rightsNote('IN'), /RBI/);
+  assert.match(rightsNote('IN'), /8 am and 7 pm/);
+  assert.match(rightsNote('US'), /FDCPA/);
+  assert.match(rightsNote('US'), /30 days/);
+  assert.deepEqual(helpLines({ debt_status: 'normal', loan_type: 'personal_loan' }, 'IN'), []);
+});
+
+test('#13: Home shows the steps with the draft marker and links /cant-pay; the one step drops the minimums line', () => {
+  const card = src('components/home/HomeDebtHelp.tsx');
+  assert.match(card, /<DraftLegalMarker id="debt-rights"/);
+  assert.match(card, /href="\/cant-pay"/);
+  assert.match(card, /kind=debt_validation/);
+  assert.match(card, /kind=cease_contact/);
+  assert.match(card, /SETTLED_NOTE/);
+  assert.match(src('app/page.tsx'), /<HomeDebtHelp loans=\{profile\.user\.loans\}/);
+  const home = src('components/home/HomeDebtFree.tsx');
+  assert.ok(home.indexOf('some(needsHelp)') > 0 && home.indexOf('some(needsHelp)') < home.indexOf('PAY AT LEAST THE MINIMUMS'));
+  const { LEGAL_REVIEW } = lib('legal-review.ts');
+  assert.equal(LEGAL_REVIEW['debt-rights'], 'pending');
+});
+
+test('#13: settled leaves the plan (nothing owed) and says what it does to the credit report', () => {
+  const ex = src('components/setup/LoanExtras.tsx');
+  assert.match(ex, /debt_status: k, outstanding: '0', scheduled_emi: '0'/);
+  const { SETTLED_NOTE } = lib('loan-status.ts');
+  assert.match(SETTLED_NOTE.IN, /CIBIL/);
+  assert.match(SETTLED_NOTE.US, /7 years/);
+  // conservative: no settlement-offer calculator
+  assert.doesNotMatch(src('lib/loan-status.ts'), /settlementOffer|offerPct|settle_pct/);
+});

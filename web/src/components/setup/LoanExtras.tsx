@@ -65,7 +65,10 @@ export function LoanExtras({ loan, country, onPatch }: {
           {DEBT_STATUS_CHOICES.map(([k, label, line]) => (
             <label key={k} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 'var(--fs-small)' }}>
               <input type="radio" name={`status-${loan.id ?? ''}`} checked={status === k} data-testid={`setup-status-${k}`}
-                onChange={() => onPatch({ debt_status: k === 'normal' ? undefined : k })} />
+                onChange={() => onPatch(k === 'settled'
+                  // Settled: nothing more is owed, so it leaves the plan like a cleared loan.
+                  ? { debt_status: k, outstanding: '0', scheduled_emi: '0', salary_deducted: undefined }
+                  : { debt_status: k === 'normal' ? undefined : k })} />
               <span><strong>{label}</strong> <span style={note}>{line}</span></span>
             </label>
           ))}

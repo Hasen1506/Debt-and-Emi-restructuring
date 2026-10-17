@@ -5,6 +5,7 @@ import { readLifecycleServer } from '@/lib/lifecycle-events';
 import { loadStrategyServer } from '@/lib/strategy';
 import { CashFlow, LedgerHome } from '@/components/home/LedgerHome';
 import { GuestWelcomeBack } from '@/components/home/GuestWelcomeBack';
+import { HomeDebtHelp } from '@/components/home/HomeDebtHelp';
 import { HomeThisMonthPlaceholder } from '@/components/home/HomeThisMonth';
 import {
   HomeCheaperRates,
@@ -37,6 +38,7 @@ export default async function HomePage() {
       <h1 className="sr-only">Home</h1>
       {/* A guest coming back to a plan saved in this browser: continue or start fresh (live test #1). */}
       <GuestWelcomeBack />
+      <HomeDebtHelp loans={profile.user.loans} country={profile.user.country} />
       <LedgerHome
         profile={profile}
         strategy={strategy}
