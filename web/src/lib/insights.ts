@@ -9,7 +9,7 @@
 import { postEngineWithFieldErrors, type SimulateArgs } from './api';
 import { pageScoped } from './page-abort';
 // R12-1 (WebKit): Plan's insight cards can start while the page is leaving; held like auth/me and the rates.
-const post = <T>(path: string, body: unknown) => pageScoped((signal) => postEngineWithFieldErrors<T>(path, body, signal));
+function post<T>(path: string, body: unknown): Promise<T> { return pageScoped((signal) => postEngineWithFieldErrors<T>(path, body, signal)); }
 import type { StrategyName } from './strategy';
 
 export interface LoanCheckFindingBody {
