@@ -89,7 +89,7 @@ export function OtherTabSavedNotice() {
     };
   }, []);
   if (!at) return null;
-  const when = new Date(at);
+  const when = new Date(at.split('#')[0]);
   const time = Number.isNaN(when.getTime()) ? '' : ` at ${when.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
   return (
     <div role="status" data-testid="other-tab-saved" className="app-shell" style={{ ...box, margin: '8px auto 0', fontSize: 'var(--fs-dense)' }}>

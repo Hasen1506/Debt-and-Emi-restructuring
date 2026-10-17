@@ -203,7 +203,9 @@ export function saveProfileClient(profile: {
   }, additionalSlices);
   if (typeof window !== 'undefined') {
     // UX2 #23: other open tabs see the stamp change and say they may be out of date.
-    try { window.localStorage.setItem(PROFILE_SAVED_KEY, new Date().toISOString()); } catch { /* private mode */ }
+    // The time plus a per-save tag: two saves in the same millisecond (or under a stopped
+    // clock) would write the same value, which fires no storage event in the other tab.
+    try { window.localStorage.setItem(PROFILE_SAVED_KEY, `${new Date().toISOString()}#${Math.random().toString(36).slice(2, 8)}`); } catch { /* private mode */ }
     window.dispatchEvent(new Event('rightdue:profile-changed'));
   }
   return true;
