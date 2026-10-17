@@ -729,11 +729,10 @@ export function SessionHydrator(): null {
         // page sent the person to Setup with an empty profile: the middleware
         // saw a session and no profile. Ask them to sign in again instead,
         // back to this page (account-persistence e2e, Chromium).
-        if ((err as { status?: number } | null)?.status === 401 && forgetExpiredAccount() && !onSignInPage()) {
-          const { pathname, search } = window.location;
-          if (isGatedAppPath(pathname)) router.replace(`/login?next=${encodeURIComponent(pathname + search)}`);
-          else router.refresh();
-        }
+        const expired = (err as { status?: number } | null)?.status === 401 && forgetExpiredAccount();
+        const { pathname, search } = window.location;
+        if (expired && isGatedAppPath(pathname)) router.replace(`/login?next=${encodeURIComponent(pathname + search)}`);
+        else if (expired && !onSignInPage()) router.refresh();
       }
     }
     void hydrate();
