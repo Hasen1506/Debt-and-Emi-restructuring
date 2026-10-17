@@ -318,21 +318,23 @@ def _us_home_payload(outstanding, deductions=None, filing="single"):
     return payload
 
 
-def test_us_itemise_is_worked_out_from_deductions():
+def test_us_itemise_only_when_the_user_says_so():
+    """Round 3 (UX walkthrough 2 #25): a $600k mortgage used to get the
+    "after the tax break" rate on its size alone. Not answered or "No" is
+    the standard deduction: no break, whatever the loan."""
     from api.schemas import UserIn
 
-    # $100k at 6.5% = $6.5k of interest: below the standard deduction.
-    assert UserIn(**_us_home_payload("100000")).to_engine().itemises is False
-    # $600k at 6.5% = $39k: above it.
-    assert UserIn(**_us_home_payload("600000")).to_engine().itemises is True
-    # Entered deductions win over the estimate.
-    small = _us_home_payload("600000", {"mortgage_interest_annual": "2000"})
-    assert UserIn(**small).to_engine().itemises is False
-    extra = _us_home_payload("100000", {"itemized_deductions_other": "20000"})
-    assert UserIn(**extra).to_engine().itemises is True
-    # Stated explicitly: kept.
-    stated = {**_us_home_payload("100000"), "itemises": True}
-    assert UserIn(**stated).to_engine().itemises is True
+    for size in ("100000", "600000", "2000000"):
+        for said in ({}, {"itemises": False}):
+            u = UserIn(**{**_us_home_payload(size), **said}).to_engine()
+            assert (u.itemises, u.itemised_share) == (False, D("0")), (size, said)
+    # Said yes: the share above the standard deduction, from the loans or the
+    # deductions entered; with nothing above it, their word stands (all of it).
+    assert UserIn(**{**_us_home_payload("600000"), "itemises": True}).to_engine().itemised_share == (D("39000") - D("16100")) / D("39000")
+    extra = {**_us_home_payload("100000", {"itemized_deductions_other": "20000"}), "itemises": True}
+    assert UserIn(**extra).to_engine().itemised_share == D("1")
+    small = {**_us_home_payload("100000"), "itemises": True}
+    assert UserIn(**small).to_engine().itemised_share == D("1")
 
 
 def test_us_mortgage_shield_counts_only_interest_above_the_standard_deduction():
@@ -343,13 +345,14 @@ def test_us_mortgage_shield_counts_only_interest_above_the_standard_deduction():
     from api.schemas import UserIn
     from engine.formulas import effective_rate
 
-    def eff(outstanding):
-        p = _us_home_payload(outstanding)
+    def eff(outstanding, itemises=True):
+        p = {**_us_home_payload(outstanding), "itemises": itemises}
         p["loans"][0]["nominal_rate"] = "0.0675"
         u = UserIn(**p).to_engine()
         return effective_rate(u.loans[0], D("0.30"), u.country, None, u.itemises, u.itemised_share)
 
-    assert eff("230000") == D("0.0675")
+    # Round 3: no break unless they itemise, at any size.
+    assert eff("230000", None) == eff("350000", None) == D("0.0675")
     assert D("0.0670") < eff("240000") < D("0.0675")
     assert abs(eff("350000") - D("0.06105")) < D("0.00005")
 
