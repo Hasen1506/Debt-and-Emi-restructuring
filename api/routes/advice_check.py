@@ -14,12 +14,13 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from engine import advice_check as ac
+from engine.models import LoanType
 
 router = APIRouter(tags=["advice-check"])
 
 
 class LoanIn(BaseModel):
-    loan_type: Literal["home_loan", "auto_loan", "personal_loan", "credit_card", "education_loan", "gold_loan", "bnpl"]
+    loan_type: LoanType
     outstanding: Decimal = Field(ge=0, le=Decimal("1e10"))
     rate: Optional[Decimal] = Field(default=None, ge=0, lt=1)      # annual decimal, 0.085
     emi: Optional[Decimal] = Field(default=None, ge=0, le=Decimal("1e9"))
@@ -39,7 +40,7 @@ class AdviceIn(BaseModel):
 
 @router.post("/advice-check")
 def advice_check(body: AdviceIn) -> dict[str, Any]:
-    loans = [ac.AdviceLoan(l.loan_type, l.outstanding, l.rate, l.emi or None, l.months_left, l.rate_type,
+    loans = [ac.AdviceLoan(l.loan_type.value, l.outstanding, l.rate, l.emi or None, l.months_left, l.rate_type,
                            " ".join(l.bank.split())) for l in body.loans]
     target = body.extra_target if body.extra_target is not None and body.extra_target < len(loans) else None
     rep = ac.check(body.text, loans, ac.PlanFacts(target, body.strategy, body.country, body.regime, date.today()))

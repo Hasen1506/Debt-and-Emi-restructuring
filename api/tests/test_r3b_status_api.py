@@ -86,3 +86,10 @@ def test_house_use_reaches_the_engine(india_user_payload):
     loan = UserIn.model_validate(u).to_engine().loans[-1]
     assert loan.loan_type == LoanType.HOME_TOPUP and loan.house_use == "repair"
     assert loan.sec24_full_cap is False and loan.principal_80c_eligible is False
+
+
+def test_advice_check_takes_the_new_kinds(client):
+    r = client.post("/api/advice-check", json={"text": "Prepay your loan against property first.", "country": "IN", "strategy": "avalanche",
+                                               "loans": [{"loan_type": "loan_against_property", "outstanding": "3000000", "rate": "0.1",
+                                                          "emi": "32000", "months_left": 150}]})
+    assert r.status_code == 200, r.text

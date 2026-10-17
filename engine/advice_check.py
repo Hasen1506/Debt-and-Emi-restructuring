@@ -124,7 +124,8 @@ KIND_WORDS: dict[str, re.Pattern[str]] = {
 TYPE_LABEL = {
     "home_loan": "home loan", "auto_loan": "car loan", "personal_loan": "personal loan",
     "credit_card": "credit card", "education_loan": "education loan", "gold_loan": "gold loan",
-    "bnpl": "pay-later loan",
+    "bnpl": "pay-later loan", "loan_against_property": "loan against property", "home_topup": "home loan top-up",
+    "two_wheeler_loan": "two-wheeler loan", "medical_loan": "medical loan",
 }
 
 
