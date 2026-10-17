@@ -10,7 +10,8 @@ import { LOAN_TYPE_NAME, disambiguateLoans, loanNickname } from '@/lib/loan-type
 import { GST_RATE_IN } from '@/lib/gst';
 import { homeTaxReserve } from '@/lib/salaried-advance-tax';
 import { getCountryToday, localIsoDate } from '@/lib/today';
-import { debtStatus, isSettled, overdueOf } from '@/lib/loan-status-core';
+import { debtStatus, isSettled } from '@/lib/loan-status-core';
+import { overdueOf } from '@/lib/catch-up';
 
 /** emi / minimum: only what the bank requires. extra: more on top.
  *  clears: the payment pays the loan off. ef / goals: money set aside. */

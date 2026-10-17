@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import type { LoanPayload } from '@/lib/api';
 import { formatCurrencyWhole } from '@/lib/api';
 import { readActivityClient } from '@/lib/activity';
-import { catchUpProgress } from '@/lib/loan-status-core';
+import { catchUpProgress } from '@/lib/catch-up';
 import { loadProfileClient, saveProfileClient } from '@/lib/user-store';
 import { getCountryToday, localIsoDate } from '@/lib/today';
 import { loanCurrency } from '@/lib/currency';

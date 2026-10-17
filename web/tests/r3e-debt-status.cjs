@@ -17,7 +17,7 @@ for (const ext of ['.ts', '.tsx'])
     m._compile(ts.transpileModule(fs.readFileSync(f, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, resolveJsonModule: true } }).outputText, f);
 const { payThisMonth } = require(path.join(root, 'lib', 'pay-this-month.ts'));
 const { paydaySnapshot } = require(path.join(root, 'lib', 'payday-snapshot.ts'));
-const { overdueOf, catchUpProgress } = require(path.join(root, 'lib', 'loan-status-core.ts'));
+const { overdueOf, catchUpProgress } = require(path.join(root, 'lib', 'catch-up.ts'));
 const { LEGAL_REVIEW } = require(path.join(root, 'lib', 'legal-review.ts'));
 const status = require(path.join(root, 'lib', 'loan-status.ts'));
 const src = (p) => fs.readFileSync(path.join(root, p), 'utf8');

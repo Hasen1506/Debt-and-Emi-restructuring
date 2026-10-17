@@ -82,7 +82,7 @@ import { SmsImport } from '@/components/profile/SmsImport';
 import { whereToFind, type FindKey } from '@/lib/where-to-find';
 import { MarketRateLine } from '@/components/profile/MarketRateLine';
 import { UsLoanFields, UsStateField } from '@/components/profile/UsLoanFields';
-import { LoanExtras } from '@/components/setup/LoanExtras';
+import dynamic from 'next/dynamic';
 import { usLoanFieldsFor } from '@/lib/us-loans';
 import { BackLink, ProfileHeader, SectionTabs } from './parts/chrome';
 import { CountrySwitchPanel } from './parts/country-switch';
@@ -90,7 +90,7 @@ import { AdvancedTaxDetails } from './parts/income-fields';
 import { HikeScheduleEditor, MinPaymentExplainer, TenureField } from './parts/loan-fields';
 import { EfLiquidityWarning, EfTierPicker, OtherBanksField } from './parts/savings-fields';
 import { useProfileEditGuard } from '@/lib/tab-guard';
-
+const LoanExtras = dynamic(() => import('@/components/setup/LoanExtras').then((m) => m.LoanExtras)); // r3e: route budget
 /**
  * True when any field on the deductions payload is set to a meaningful
  * (truthy + > 0) value. Used to decide whether to persist the slice.

@@ -58,7 +58,8 @@ export const SALARY_DEDUCTED_HINT =
 
 // The predicates live in loan-status-core (no copy), so lib/derived and
 // Home's pay list don't pull these strings into every route's bundle.
-export { canBeSalaryDeducted, catchUpProgress, debtStatus, emiOffTakeHome, isSettled, needsHelp, overdueOf } from './loan-status-core';
+export { canBeSalaryDeducted, debtStatus, emiOffTakeHome, isSettled, needsHelp } from './loan-status-core';
+export { overdueOf } from './catch-up';
 import { debtStatus } from './loan-status-core';
 
 /**
