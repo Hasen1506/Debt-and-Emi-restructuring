@@ -53,7 +53,7 @@ import { CantPayPublic } from './CantPayPublic';
 import { AgentComplaintSection } from './AgentComplaint';
 import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 import { UsLettersLink } from './UsLettersLink';
-import { emiOffTakeHome } from '@/lib/loan-status';
+import { emiOffTakeHome } from '@/lib/loan-status-core';
 
 const num = (s: string) => {
   const n = Number(String(s).replace(/[,\s₹$]/g, ''));

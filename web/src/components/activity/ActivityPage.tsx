@@ -54,7 +54,10 @@ import { getCountryToday, localIsoDate, MONTH_NAMES_SHORT } from '@/lib/today';
 import { useWidth } from '@/lib/use-width';
 import { LBracket, LSectionHeader, L_T, lPayBtn } from '@/components/ledger/primitives';
 import { buildHistory, loanLabel, monthLabel, type HistoryRow, type MonthGroup, type Tone } from './history';
-import { LogDialog, type LogInitial, type LogSave } from './LogDialog';
+import dynamic from 'next/dynamic';
+import type { LogInitial, LogSave } from './LogDialog';
+// Opened on demand: kept out of /activity's first-load JS (route budget, round 3).
+const LogDialog = dynamic(() => import('./LogDialog').then((m) => m.LogDialog));
 import { saveLowerEmi } from '@/lib/prepay-choice';
 
 type Act = 'paid' | 'other' | 'edit' | 'undo' | 'happened' | 'held';

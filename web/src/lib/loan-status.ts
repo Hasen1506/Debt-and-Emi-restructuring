@@ -46,29 +46,10 @@ export const SALARY_DEDUCTED_LABEL = 'Taken from my salary before it reaches the
 export const SALARY_DEDUCTED_HINT =
   'Your take-home is already after this EMI, so the plan won’t take it off again. It still tracks the loan.';
 
-export function debtStatus(l: { debt_status?: DebtStatus }): DebtStatus {
-  return l.debt_status ?? 'normal';
-}
-
-/** Behind or with collectors: no "pay the minimum" advice for this loan. */
-export function needsHelp(l: { debt_status?: DebtStatus }): boolean {
-  const s = debtStatus(l);
-  return s === 'behind' || s === 'collections';
-}
-
-export function isSettled(l: { debt_status?: DebtStatus }): boolean {
-  return debtStatus(l) === 'settled';
-}
-
-/** Salary deduction makes sense for EMI loans, not cards or pay-later. */
-export function canBeSalaryDeducted(t: LoanType): boolean {
-  return t !== 'credit_card' && t !== 'bnpl';
-}
-
-/** The EMIs not already taken out of take-home (#21). */
-export function emiOffTakeHome(l: { salary_deducted?: boolean; debt_status?: DebtStatus }): boolean {
-  return !l.salary_deducted && !isSettled(l);
-}
+// The predicates live in loan-status-core (no copy), so lib/derived and
+// Home's pay list don't pull these strings into every route's bundle.
+export { canBeSalaryDeducted, debtStatus, emiOffTakeHome, isSettled, needsHelp } from './loan-status-core';
+import { debtStatus } from './loan-status-core';
 
 /**
  * What Home says for a loan that is behind or with collectors, instead of

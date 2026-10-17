@@ -19,7 +19,7 @@ import { requiredMonthly } from './min-payment';
 import { prepareLoanPaymentTiming } from './roll-forward';
 import { countryMonthKey } from './today';
 import { HORIZON_MONTHS } from './horizon';
-import { emiOffTakeHome } from './loan-status';
+import { emiOffTakeHome } from './loan-status-core';
 
 export interface LoanWithEffective {
   loan: LoanPayload;

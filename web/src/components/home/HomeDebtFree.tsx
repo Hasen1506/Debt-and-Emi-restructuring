@@ -22,7 +22,7 @@ import { extraSaving, loanClearsMonth, thisMonthMove } from '@/lib/this-month';
 import { deriveMetrics, type LoanWithEffective } from '@/lib/derived';
 import { describeGap } from '@/lib/loan-gaps';
 import { LOAN_TYPE_NAME } from '@/lib/loan-types';
-import { needsHelp } from '@/lib/loan-status';
+import { needsHelp } from '@/lib/loan-status-core';
 import { formatCurrencyWhole } from '@/lib/api';
 import { fmt as fmtPct } from '@/lib/effective-apr';
 import { formatLoanAmount, userDefaultCurrency } from '@/lib/currency';

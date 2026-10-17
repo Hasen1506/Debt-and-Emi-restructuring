@@ -64,7 +64,9 @@ import { SetupThisMonth } from './SetupThisMonth';
 import { typicalRate, TYPICAL_RATE_AS_OF, withEstimate } from '@/lib/setup-estimates';
 import { EstimateBalance } from './EstimateBalance';
 import { RepaymentChips } from './RepaymentChips';
-import { LoanExtras } from './LoanExtras';
+import dynamic from 'next/dynamic';
+// Status / salary / house-use extras load after the form (route budget, round 3).
+const LoanExtras = dynamic(() => import('./LoanExtras').then((m) => m.LoanExtras));
 import { PromoFields } from './PromoFields';
 import { JointShare } from './JointShare';
 import { jointForEngine } from '@/lib/joint-share';
