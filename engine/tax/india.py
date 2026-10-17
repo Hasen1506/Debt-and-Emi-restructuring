@@ -143,7 +143,7 @@ def marginal_rate(taxable_income: Decimal, regime: TaxRegimeIN) -> Decimal:
     Just above the new-regime line, marginal relief taxes each extra rupee
     at ~104% until about ₹12.71L. That is not returned here (a rate above
     100% would make a loan's tax shield worth more than its interest); the
-    slab rate stands in, and callers warn with is_at_87a_cliff.
+    slab rate stands in. (Nothing warns the user about the cliff yet.)
     """
     if regime == TaxRegimeIN.NEW and taxable_income <= REBATE_87A_NEW_THRESHOLD:
         return D("0")

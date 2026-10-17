@@ -1,6 +1,6 @@
 /**
  * Per-asset projected appreciation — frontend mirror of engine's
- * `lookup_asset_return` + `project_future_value`. Used by the goal
+ * `lookup_asset_return`, compounded forward here. Used by the goal
  * achievability tier-3 computation so the liquidatable corpus reflects
  * what assets will be worth at the goal's target month, not just today.
  *
