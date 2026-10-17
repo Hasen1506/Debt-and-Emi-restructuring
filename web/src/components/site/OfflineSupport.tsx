@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { snapshotMain } from '@/lib/offline-snapshot';
+import { ACCOUNT_KEY } from '@/lib/readable-cookie-age';
 
 export function OfflineSupport({ register }: { register: boolean }) {
   const path = usePathname();
@@ -33,7 +34,10 @@ export function OfflineSupport({ register }: { register: boolean }) {
 
   useEffect(() => {
     if (path !== '/' && path !== '/plan') return;
-    const take = () => { if (navigator.onLine) snapshotMain(path, document, localStorage); };
+    // Only for the person this page loaded for: after a sign-out (or a switch) has cleared
+    // this browser, a late timer or the page hiding must not write their plan back.
+    const owner = localStorage.getItem(ACCOUNT_KEY);
+    const take = () => { if (navigator.onLine && localStorage.getItem(ACCOUNT_KEY) === owner) snapshotMain(path, document, localStorage); };
     const t = window.setTimeout(take, 4000);
     const hide = () => { if (document.visibilityState === 'hidden') take(); };
     document.addEventListener('visibilitychange', hide);

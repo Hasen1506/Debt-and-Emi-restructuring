@@ -255,7 +255,9 @@ test('#23 offline: the service worker never serves an app page from cache, only 
 test('#23 offline: the notice and snapshots only run on Home and Plan, once the page has settled and only while online', () => {
   const s = src('components/site/OfflineSupport.tsx');
   assert.match(s, /if \(path !== '\/' && path !== '\/plan'\) return;/);
-  assert.match(s, /if \(navigator\.onLine\) snapshotMain\(path, document, localStorage\)/);
+  assert.match(s, /if \(navigator\.onLine && .*\) snapshotMain\(path, document, localStorage\)/);
+  // Not written back after a sign-out cleared the browser (usa-journey: localStorage empty after SIGN OUT).
+  assert.match(s, /localStorage\.getItem\(ACCOUNT_KEY\) === owner\) snapshotMain/);
   assert.match(src('app/layout.tsx'), /<OfflineSupport register=\{process\.env\.NODE_ENV === 'production'\} \/>/);
 });
 
@@ -284,6 +286,9 @@ test('#23 two tabs: every kept save stamps localStorage, other tabs show a banne
   const stamp = fn.indexOf('localStorage.setItem(PROFILE_SAVED_KEY');
   assert.ok(stamp > 0 && stamp > fn.indexOf('return false;'), 'stamped only after the save was kept');
   assert.match(us, /export const PROFILE_SAVED_KEY = 'rightdue_profile_saved_at';/);
+  // A per-save tag, so two saves in one millisecond (or a stopped clock) still change the value.
+  assert.match(fn, /toISOString\(\)\}#\$\{Math\.random\(\)/);
+  assert.match(src('lib/tab-guard.tsx'), /new Date\(at\.split\('#'\)\[0\]\)/);
   const g = src('lib/tab-guard.tsx');
   assert.match(g, /e\.key === PROFILE_SAVED_KEY && e\.newValue/);
   // Fallback for a background tab that missed the event, never for this tab's own save.
