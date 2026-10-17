@@ -231,6 +231,17 @@ export async function loadPlanInputs(
       advanceTaxNote = salariedAdvanceTaxNote(res, (v) => formatCurrencyWhole(String(Math.round(Number(v))), 'INR'));
     }
   }
+  // Round 3 (ux-walkthrough fix 10): a salaried user who gave the tax on other
+  // income directly (Profile → Income, "tax on non-TDS income") gets the same
+  // schedule, at s.404 [208]'s ₹10,000 (US: over $1,000, Form 1040-ES).
+  const extraTax = Number(adjustedUser.income_type === 'salaried' ? adjustedUser.extra_income_annual_tax || 0 : 0);
+  if (!advanceTaxSchedule && (adjustedUser.country === 'IN' ? extraTax >= 10_000 : extraTax > 1_000)) {
+    const stored = await readScheduleServer();
+    const fresh = buildSchedule(adjustedUser.country, new Decimal(extraTax), new Date());
+    advanceTaxSchedule = stored && stored.country === adjustedUser.country && fresh && stored.instalments.at(-1)?.dueDate === fresh.instalments.at(-1)?.dueDate
+      ? markMissedInstalments(rebaseSchedule(stored, new Decimal(extraTax)), new Date())
+      : fresh;
+  }
 
   // Fold the advance-tax penalty into surplus math so the trajectory
   // actually shifts when a user has missed instalments. Approach: spread
