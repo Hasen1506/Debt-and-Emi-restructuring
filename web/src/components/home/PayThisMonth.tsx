@@ -39,6 +39,8 @@ import { payoffBreakdown } from '@/lib/schedule-reconcile';
 // Fund and goal ticks, per month: they aren't loan payments, so they
 // aren't Activity entries.
 import { SET_ASIDE_EVENT, SET_ASIDE_KEY } from '@/lib/this-month-progress';
+import { POT_WHY } from '@/lib/loan-status';
+import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 
 
 // EMI PAID: the EMI or minimum has gone out, the plan's extra on it hasn't.
@@ -440,6 +442,17 @@ export function PayThisMonth({
                   {kindLine(row, fmt, owedNowFor(row), country)}
                   {row.dueDay ? ` · DUE ${row.dueDay} ${MONTH_NAMES_SHORT[Number(month.slice(5)) - 1].toUpperCase()}` : ''}
                 </div>
+                {row.catchUp ? (
+                  <div data-testid="pay-catch-up" style={{ fontSize: 'var(--fs-dense)', color: L_T.negative, marginTop: 4, lineHeight: 1.5 }}>
+                    {fmt(row.catchUp, row.currency)} to catch up on {row.name}{row.estimated ? ' (estimate: one EMI)' : ''}: the plan pays what’s overdue first, then the normal plan resumes. Can’t pay it?{' '}
+                    <LBracket href="/cant-pay">SEE THE STEPS →</LBracket>
+                  </div>
+                ) : null}
+                {row.kind === 'pot' && (
+                  <div data-testid="pay-pot-why" style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, marginTop: 4, lineHeight: 1.5 }}>
+                    {POT_WHY} <DraftLegalMarker id="settlement-pot" />
+                  </div>
+                )}
                 {reason && reason.key === row.key && !st && (
                   <div style={{ fontSize: 'var(--fs-dense)', color: L_T.muted, marginTop: 4, lineHeight: 1.5 }}>{reason.text}</div>
                 )}
@@ -455,9 +468,7 @@ export function PayThisMonth({
               <div style={{ gridColumn: '2 / -1', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', minHeight: 36 }}>
                 {!ready ? null : row.held && !st ? (
                   <span data-testid="pay-held" style={{ color: L_T.negative, lineHeight: 1.5 }}>
-                    {row.held === 'collections'
-                      ? 'With collectors: don’t pay until the debt is confirmed in writing.'
-                      : 'Behind: ask the lender for a hardship plan before paying.'}{' '}
+                    With collectors: don’t pay until the debt is confirmed in writing.{' '}
                     <LBracket href="/cant-pay">SEE THE STEPS →</LBracket>
                   </span>
                 ) : st && st.tag !== 'EMI PAID' ? (
@@ -648,6 +659,8 @@ function kindLine(row: PayRow, fmt: (v: number, ccy?: PayRow['currency']) => str
       return 'SET ASIDE · FOR YOUR GOALS';
     case 'tax':
       return `SET ASIDE · TAX ON INCOME WITH NO ${country === 'US' ? 'WITHHOLDING' : 'TDS'}`;
+    case 'pot':
+      return 'SET ASIDE · FOR A SETTLEMENT, NOT PAID TO THE COLLECTOR';
   }
 }
 

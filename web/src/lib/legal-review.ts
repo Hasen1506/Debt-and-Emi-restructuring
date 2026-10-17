@@ -22,6 +22,8 @@ export const LEGAL_REVIEW = {
   'letter-us': 'pending',
   /** Round 3: the rights notes beside a loan marked behind / with collectors (Home): RBI recovery-agent rules, FDCPA. */
   'debt-rights': 'pending',
+  /** Founder 17 Oct 2026: Home's settlement-pot line beside a loan with collectors ("paying in bits weakens your hand"). */
+  'settlement-pot': 'pending',
   /** Round 3: US debt validation request, cease-contact request, medical-bill letter (US letters page). */
   'letter-us-collections': 'pending',
   /** Privacy notice changes of 15 Oct 2026 (emails, funnel, consent records, contact addresses). */

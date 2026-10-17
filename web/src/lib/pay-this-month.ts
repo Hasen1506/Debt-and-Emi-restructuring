@@ -10,11 +10,11 @@ import { LOAN_TYPE_NAME, disambiguateLoans, loanNickname } from '@/lib/loan-type
 import { GST_RATE_IN } from '@/lib/gst';
 import { homeTaxReserve } from '@/lib/salaried-advance-tax';
 import { getCountryToday, localIsoDate } from '@/lib/today';
-import { debtStatus, isSettled } from '@/lib/loan-status-core';
+import { debtStatus, isSettled, overdueOf } from '@/lib/loan-status-core';
 
 /** emi / minimum: only what the bank requires. extra: more on top.
  *  clears: the payment pays the loan off. ef / goals: money set aside. */
-export type PayKind = 'emi' | 'minimum' | 'extra' | 'clears' | 'ef' | 'goals' | 'tax';
+export type PayKind = 'emi' | 'minimum' | 'extra' | 'clears' | 'ef' | 'goals' | 'tax' | 'pot';
 
 export interface PayRow {
   /** The loan's id (its position when it has none), or 'ef' / 'goals'. */
@@ -46,9 +46,19 @@ export interface PayRow {
   /** Round 3 (#21): the EMI comes out of pay before it reaches the bank, so
    *  only the plan's extra on top is listed (minimum 0). */
   fromSalary?: boolean;
-  /** Round 3 (#13): behind or with collectors. Shown, never ticked: Home
-   *  points to the steps on /cant-pay instead of "mark paid". */
-  held?: 'behind' | 'collections';
+  /** Round 3 (#13): with collectors. Shown, never ticked: Home points to the
+   *  steps on /cant-pay instead of "mark paid". (Behind loans were held too
+   *  until the founder's 17 Oct 2026 catch-up decision.) */
+  held?: 'collections';
+  /** Behind on payments: ticked as usual, with the catch-up line. */
+  behind?: true;
+  /** Founder 17 Oct 2026 (engine/debt_status.py): a behind loan's overdue the
+   *  plan pays this month, inside `amount` (its currency), and whether that
+   *  overdue figure is the one-EMI estimate. */
+  catchUp?: number;
+  estimated?: boolean;
+  /** A 'pot' row: the collections loan's position its settlement pot is for. */
+  potFor?: number;
 }
 
 export interface PayThisMonth {
@@ -112,7 +122,10 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
     const gstShare = isCard && country === 'IN' ? GST_RATE_IN.toNumber() : 0;
     const gst = Math.round((charge * gstShare) / (1 + gstShare));
     const status = debtStatus(loan);
-    const held = status === 'behind' || status === 'collections' ? status : undefined;
+    // Founder 17 Oct 2026: a behind loan is paid (the plan clears its overdue
+    // first), so it is ticked like any other; only a collections loan is held.
+    const held = status === 'collections' ? status : undefined;
+    const catchUp = status === 'behind' ? Math.round(Number(plan.debtStatusMonth1?.catchUp[k] ?? 0)) : 0;
     const label = loanNickname(named[index]) || (loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : cap(LOAN_TYPE_NAME[loan.loan_type]));
     if (fromSalary && !(extra >= 1)) {
       salaryOnly.push(label);
@@ -136,6 +149,7 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
       ...(payoff ? { payoff } : {}),
       ...(fromSalary ? { fromSalary } : {}),
       ...(held ? { held } : {}),
+      ...(status === 'behind' ? { behind: true, ...(catchUp >= 1 ? { catchUp, estimated: overdueOf(loan).estimated } : {}) } : {}),
     });
   }
   // Extra payments first (largest first, in one currency: ₹4.8 lakh is not
@@ -153,18 +167,27 @@ export function payThisMonth(plan: PlanData, todayIso: string = localIsoDate(get
   if (goals >= 1) {
     setAside.push({ key: 'goals', loanIndex: null, name: 'Goals', kind: 'goals', card: false, amount: goals, currency: userCcy, amountUser: goals, minimum: 0, extra: goals });
   }
+  // A collections loan's share is kept back for a settlement, not paid to it.
+  for (const [k, v] of Object.entries(plan.debtStatusMonth1?.pot ?? {})) {
+    const add = Math.round(Number(v));     // month 1: the pot starts empty, so all of it is this month's
+    const loan = loans[Number(k)];
+    if (!loan || !(add >= 1)) continue;
+    const name = loanNickname(named[Number(k)]) || (loan.bank ? `${loan.bank} ${LOAN_TYPE_NAME[loan.loan_type]}` : cap(LOAN_TYPE_NAME[loan.loan_type]));
+    setAside.push({ key: `pot-${loan.id ?? k}`, loanIndex: null, name: `Settlement pot · ${name}`, kind: 'pot', card: false, amount: add, currency: userCcy, amountUser: add, minimum: 0, extra: add, potFor: Number(k) });
+  }
+  const pots = setAside.reduce((s, r) => s + (r.kind === 'pot' ? r.amount : 0), 0);
   const surplus = Math.round(a?.surplus ?? plan.surplus);
   // Round 3 (ux-walkthrough fix 10): a salaried user's next advance-tax
   // instalment is set aside before any extra goes to a loan.
   const reserve = plan.user.income_type === 'salaried' && !(plan.shortfall > 0) ? homeTaxReserve(plan.advanceTaxSchedule, todayIso) : null;
-  const tax = reserve ? Math.min(reserve.amount, Math.max(0, surplus - ef - goals)) : 0;
+  const tax = reserve ? Math.min(reserve.amount, Math.max(0, surplus - ef - goals - pots)) : 0;
   if (reserve && tax >= 1) {
     setAside.push({ key: 'tax', loanIndex: null, name: `Advance tax due ${reserve.due}`, kind: 'tax', card: false, amount: tax, currency: userCcy, amountUser: tax, minimum: 0, extra: tax });
   }
   const rows = [...loanRows, ...setAside];
-  const { duesUser, extraUser } = reconcileMonth(plan, first.perLoan, loanRows, ef + goals + tax);
-  const total = duesUser + extraUser + ef + goals + tax;
-  const unplaced = surplus - extraUser - ef - goals - tax;
+  const { duesUser, extraUser } = reconcileMonth(plan, first.perLoan, loanRows, ef + goals + tax + pots);
+  const total = duesUser + extraUser + ef + goals + tax + pots;
+  const unplaced = surplus - extraUser - ef - goals - tax - pots;
   // Rounding leaves a few rupees either way; only a real remainder is shown.
   const leftOver = unplaced >= Math.max(1, surplus * 0.01) ? unplaced : 0;
   return { rows, total, leftOver, extraUser, duesUser, budget: Number(plan.debtBudget || 0), fromSalary: salaryOnly };
