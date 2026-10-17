@@ -1112,7 +1112,7 @@ function ProfileEditor({
                           selected ? 'var(--accent)' : 'var(--border)'
                         }`,
                         background: selected ? 'var(--accent)' : 'var(--card)',
-                        color: selected ? '#fff' : 'var(--ink)',
+                        color: selected ? 'var(--card)' : 'var(--ink)',
                         fontSize: 'var(--fs-body)',
                         cursor: 'pointer',
                       }}
@@ -1933,7 +1933,7 @@ function ProfileEditor({
                               borderRadius: 999,
                               border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
                               background: on ? 'var(--accent)' : 'var(--card)',
-                              color: on ? '#fff' : 'var(--ink)',
+                              color: on ? 'var(--card)' : 'var(--ink)',
                               fontSize: 'var(--fs-body)',
                               cursor: 'pointer',
                             }}

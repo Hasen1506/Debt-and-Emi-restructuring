@@ -7,6 +7,7 @@
  * passed in; it is left out when there's no debt to order.
  */
 import { PrivacyPromise } from '@/components/PrivacyPromise';
+import { ThemeToggle } from '@/components/site/ThemeToggle';
 import { useEffect, type ReactNode } from 'react';
 import { formatTaxRate } from '@/lib/tax-profile';
 import Decimal from 'decimal.js';
@@ -283,6 +284,8 @@ export function ProfileSummary({
         </LSectionHeader>
         {/* Audit 80 B8: the one in-app wording. */}
         <PrivacyPromise style={{ color: L_T.muted }} />
+        {/* UX2 #23: light, dark, or as the device is set. */}
+        <div style={{ marginTop: 14 }}><ThemeToggle /></div>
       </section>
     </div>
   );

@@ -22,7 +22,7 @@ export function LStepHead({ no, id, accent, children }: { no: string; id: string
           fontSize: 'var(--fs-label)', fontFamily: 'var(--font-mono)',
           fontWeight: 700,
           letterSpacing: '0.08em',
-          color: accent ? '#fff' : L_T.ink,
+          color: accent ? L_T.paper : L_T.ink,
           background: accent ? L_T.accent : 'transparent',
           border: `1.5px solid ${accent ? L_T.accent : L_T.ink}`,
           padding: '2px 7px',

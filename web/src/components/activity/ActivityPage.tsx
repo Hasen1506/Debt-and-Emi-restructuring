@@ -544,7 +544,7 @@ function Row({ r, wide, onAct }: { r: HistoryRow; wide: boolean; onAct: (row: Hi
   const rowStyle: CSSProperties = {
     padding: '9px 0',
     borderBottom: `1px dashed ${L_T.faint}`,
-    background: r.pending ? 'rgba(255, 248, 211, 0.6)' : 'transparent',
+    background: r.pending ? 'var(--highlight-soft)' : 'transparent',
   };
   const what = (
     <span style={{ minWidth: 0 }}>

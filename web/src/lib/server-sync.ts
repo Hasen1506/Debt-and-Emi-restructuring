@@ -338,7 +338,8 @@ export const LOCAL_PER_USER_PREFIXES = ['rd_intro_seen_'] as const;
 /** Device-level keys kept on sign-out on purpose: counts-only funnel
  *  dedupe (A15; no user data, clearing would double-count this browser)
  *  and the page trail used for back links. */
-export const LOCAL_DEVICE_KEYS = ['rightdue_funnel_once', 'rightdue_trail'] as const;
+// UX2 #23: rightdue_theme (light/dark choice, lib/theme.ts) is the screen's, not the person's.
+export const LOCAL_DEVICE_KEYS = ['rightdue_funnel_once', 'rightdue_trail', 'rightdue_theme'] as const;
 /** sessionStorage keys with one person's navigation or prompts. */
 export const SESSION_PER_USER_KEYS = ['rightdue_trail', 'rightdue_debtfree_prompt_dismissed'] as const;
 

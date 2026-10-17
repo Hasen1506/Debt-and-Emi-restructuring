@@ -93,3 +93,67 @@ test('#20: Profile asks why an EMI loan balance went down and will not save with
   // The entries are logged before the new balance's stamp (same recordedAt).
   assert.match(p, /stampBalanceDates\(userWithFx\.loans, savedBefore, localIsoDate\(getCountryToday\(country\)\), recordedAt\)/);
 });
+
+// ── #23 dark mode ─────────────────────────────────────────────────────────────
+function palette(css, selector) {
+  const at = css.indexOf(selector);
+  assert.ok(at >= 0, selector);
+  const body = css.slice(css.indexOf('{', at) + 1, css.indexOf('}', at));
+  return Object.fromEntries([...body.matchAll(/--([a-z-]+):\s*(#[0-9a-f]{6})/gi)].map((m) => [m[1], m[2]]));
+}
+function contrast(a, b) {
+  const lum = (h) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+
+test('#23: every text colour on every surface is WCAG AA (4.5:1) in light and dark', () => {
+  const css = src('styles/globals.css');
+  const light = palette(css, ':root {');
+  const darkA = palette(css, ":root[data-theme='dark'] {");
+  const darkB = palette(css, ":root:not([data-theme='light']) {");
+  assert.deepEqual(darkA, darkB, 'the chosen-dark and system-dark palettes are the same');
+  const texts = ['ink', 'muted', 'accent', 'negative', 'positive', 'warning', 'accent-ink'];
+  const surfaces = ['canvas', 'card', 'soft-bg', 'highlight', 'highlight-soft'];
+  for (const [name, p] of [['light', light], ['dark', darkA]]) {
+    for (const t of texts) for (const s of surfaces) {
+      if (t === 'warning' && s.startsWith('highlight')) continue; // never drawn there
+      const r = contrast(p[t], p[s]);
+      assert.ok(r >= 4.5, `${name}: --${t} on --${s} is ${r.toFixed(2)}:1`);
+    }
+    // Solid buttons: card-coloured text on accent and ink, page colour on ink.
+    assert.ok(contrast(p.card, p.accent) >= 3, `${name}: text on an accent button`);
+    assert.ok(contrast(p.canvas, p.ink) >= 4.5, `${name}: text on an ink button`);
+  }
+});
+
+test('#23: components read the tokens, so dark mode reaches them; no raw white text on colour', () => {
+  const prim = src('components/ledger/primitives.tsx');
+  const block = prim.slice(prim.indexOf('export const L_T = {'), prim.indexOf('} as const;'));
+  for (const [, v] of block.matchAll(/^\s+\w+: '([^']+)'/gm)) assert.match(v, /^var\(--[a-z-]+\)$/);
+  const files = ['app/profile/ProfileClient.tsx', 'components/ledger/LToolSteps.tsx', 'components/lifecycle/LifecycleArrivalPrompts.tsx',
+    'components/legal/DraftLegalMarker.tsx', 'components/ledger/primitives.tsx', 'app/profile/parts/savings-fields.tsx'];
+  for (const f of files) assert.doesNotMatch(src(f), /color: [^,\n]*'(#fff|white|#8b3a1f)'/, f);
+});
+
+test('#23: the theme is set before the first paint (no flash) and the Profile toggle exists', () => {
+  const layout = src('app/layout.tsx');
+  assert.ok(layout.indexOf('THEME_SCRIPT') < layout.indexOf('<body>'), 'the script is in <head>');
+  assert.match(layout, /<html lang="en" suppressHydrationWarning>/);
+  const { THEME_SCRIPT, THEME_KEY } = lib('theme.ts');
+  // Run the script against a fake document: a stored choice wins; none leaves the system's.
+  for (const [stored, want] of [['dark', 'dark'], ['light', 'light'], [null, undefined], ['blue', undefined]]) {
+    const attrs = {};
+    const ctx = { localStorage: { getItem: (k) => (k === THEME_KEY ? stored : null) }, document: { documentElement: { setAttribute: (k, v) => { attrs[k] = v; } } } };
+    new Function('localStorage', 'document', THEME_SCRIPT)(ctx.localStorage, ctx.document);
+    assert.equal(attrs['data-theme'], want, String(stored));
+  }
+  assert.match(src('components/profile/ProfileSummary.tsx'), /<ThemeToggle \/>/);
+  // Print stays light: the dark tokens are screen-only.
+  const css = src('styles/globals.css');
+  assert.match(css, /@media screen \{\s*:root\[data-theme='dark'\]/);
+  assert.match(css, /@media screen and \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme='light'\]\)/);
+});

@@ -283,7 +283,7 @@ function btn(
   return {
     padding: '5px 10px',
     background: kind === 'primary' ? 'var(--accent)' : 'transparent',
-    color: kind === 'primary' ? '#fff' : 'var(--muted)',
+    color: kind === 'primary' ? 'var(--card)' : 'var(--muted)',
     border: kind === 'primary' ? 'none' : '1px solid var(--border)',
     borderRadius: 4,
     fontSize: 'var(--fs-dense)',
