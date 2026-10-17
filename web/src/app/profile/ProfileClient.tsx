@@ -88,6 +88,7 @@ import { CountrySwitchPanel } from './parts/country-switch';
 import { AdvancedTaxDetails } from './parts/income-fields';
 import { HikeScheduleEditor, MinPaymentExplainer, TenureField } from './parts/loan-fields';
 import { EfLiquidityWarning, EfTierPicker, OtherBanksField } from './parts/savings-fields';
+import { useProfileEditGuard } from '@/lib/tab-guard';
 
 /**
  * True when any field on the deductions payload is set to a meaningful
@@ -368,6 +369,7 @@ function ProfileEditor({
   // Why SAVE CHANGES did not save (live-test #2/#27): it used to do nothing,
   // or jump to Loans, with no word, so a blocked save looked like a lost one.
   const [saveBlocked, setSaveBlocked] = useState<string | null>(null);
+  const tabGuard = useProfileEditGuard(() => save()); // UX2 #23 two tabs
   // R8-7: the text typed in whole-month loan fields, by `${loan id}:lock|freq`.
   const [monthsText, setMonthsText] = useState<Record<string, string>>({});
   // Exchange rate per foreign loan currency ("0.012" = $ per ₹1), filled
@@ -816,8 +818,8 @@ function ProfileEditor({
   }
 
   async function save() {
-    // A country change waits for its currency decision.
-    if (pendingCountry) return;
+    // A country change waits for its currency decision; another tab's save waits for reload-or-overwrite (UX2 #23).
+    if (pendingCountry || tabGuard.blocks()) return;
     // A deep link can reach Review without passing the Loans check.
     if (!loansComplete) {
       onOpen(3);
@@ -853,10 +855,7 @@ function ProfileEditor({
       fetchedQuotes,
       Date.now(),
     );
-    // When the user provided gross income, derive marginal_rate from the
-    // bracket they fall into — that's a sharper signal than the manual
-    // marginal_rate field on Step 4. Fall back to the manual value only
-    // when no gross is provided.
+    // Gross income given: marginal_rate comes from its bracket (sharper than Step 4's manual field).
     // Streams (when present) override the single annual_gross_salary /
     // annual_business_income input. Each stream contributes per its
     // tax_treatment: salary/business_normal at 100%, 44ADA at 50%,
@@ -2767,6 +2766,7 @@ function ProfileEditor({
             Confirm or cancel the country change above before saving.
           </p>
         )}
+        {tabGuard.ui}
         {saveBlocked && (
           <p role="alert" style={{ margin: '16px 0 0', fontSize: 'var(--fs-body)', color: 'var(--negative)' }}>
             {saveBlocked}

@@ -331,6 +331,8 @@ export const LOCAL_PER_USER_KEYS = [
   // UX2 #23: the text of this person's last Home and Plan, kept for the
   // offline page (lib/offline-snapshot.ts); the next person must not see it.
   'rightdue_offline_snapshot',
+  // UX2 #23: when this browser last saved the profile (lib/tab-guard).
+  'rightdue_profile_saved_at',
 ] as const;
 
 /** Prefixes of per-user keys cleared on sign-out: B22's "seen this page's

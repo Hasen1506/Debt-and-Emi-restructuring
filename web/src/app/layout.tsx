@@ -20,6 +20,7 @@ import { EARLY_LEAVE_SCRIPT } from '@/lib/page-abort';
 import { INTRO_HIDE_SCRIPT } from '@/lib/intro-seen';
 import { THEME_SCRIPT } from '@/lib/theme';
 import { OfflineSupport } from '@/components/site/OfflineSupport';
+import { OtherTabSavedNotice } from '@/lib/tab-guard';
 
 export const metadata: Metadata = {
   title: 'RightDue — Debt & EMI Optimiser',
@@ -86,6 +87,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <AccountSyncNotice />
         {/* UX2 #23: offline page, last-seen plan "as of", offline notice. */}
         <OfflineSupport register={process.env.NODE_ENV === 'production'} />
+        {/* UX2 #23: the profile was saved in another tab after this one loaded. */}
+        <OtherTabSavedNotice />
         {/* audit80 D2: one-tap agreement when the notice or terms changed. */}
         <ConsentNotice />
         <main id="main" tabIndex={-1} className="app-shell" style={{ paddingTop: 18, paddingBottom: 32 }}>

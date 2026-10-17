@@ -258,3 +258,40 @@ test('#23 offline: the notice and snapshots only run on Home and Plan, once the 
   assert.match(s, /if \(navigator\.onLine\) snapshotMain\(path, document, localStorage\)/);
   assert.match(src('app/layout.tsx'), /<OfflineSupport register=\{process\.env\.NODE_ENV === 'production'\} \/>/);
 });
+
+// ── #23 two tabs ──────────────────────────────────────────────────────────────
+test('#23 two tabs: the Profile form compares the saved profile with what it opened with, and asks', () => {
+  const { changedSince, CHANGED_ELSEWHERE } = lib('tab-guard.tsx');
+  assert.equal(changedSince('a\u0000b', 'a\u0000b'), false);
+  assert.equal(changedSince('a\u0000b', 'a2\u0000b'), true);
+  assert.equal(CHANGED_ELSEWHERE, 'Changed in another tab — reload or overwrite?');
+  const g = src('lib/tab-guard.tsx');
+  // Snapshot once, when the form opens; overwrite only on the person's choice.
+  assert.match(g, /useEffect\(\(\) => \{\s*openedWith\.current = profileCookieKey\(\);\s*\}, \[\]\);/);
+  assert.match(g, /overwrite\.current = true; setConflict\(false\); void latestSave\.current\(\);/);
+  assert.match(g, /window\.location\.reload\(\)/);
+  const p = src('app/profile/ProfileClient.tsx');
+  const save = p.slice(p.indexOf('async function save() {'));
+  // The check is the first thing save() does, before anything is written.
+  assert.match(save.slice(0, 300), /if \(pendingCountry \|\| tabGuard\.blocks\(\)\) return;/);
+  assert.ok(save.indexOf('tabGuard.blocks()') < save.indexOf('saveProfileWithPaidEmis('));
+  assert.match(p, /\{tabGuard\.ui\}\n\s*\{saveBlocked && \(/);
+});
+
+test('#23 two tabs: every kept save stamps localStorage, other tabs show a banner, sign-out clears the stamp', () => {
+  const us = src('lib/user-store.ts');
+  const fn = us.slice(us.indexOf('export function saveProfileClient('), us.indexOf('async function syncProfileToServer('));
+  const stamp = fn.indexOf('localStorage.setItem(PROFILE_SAVED_KEY');
+  assert.ok(stamp > 0 && stamp > fn.indexOf('return false;'), 'stamped only after the save was kept');
+  assert.match(us, /export const PROFILE_SAVED_KEY = 'rightdue_profile_saved_at';/);
+  const g = src('lib/tab-guard.tsx');
+  assert.match(g, /e\.key === PROFILE_SAVED_KEY && e\.newValue/);
+  // Fallback for a background tab that missed the event, never for this tab's own save.
+  assert.match(g, /addEventListener\('visibilitychange', back\)/);
+  assert.match(g, /addEventListener\('rightdue:profile-changed', own\)/);
+  assert.match(g, /Your profile was changed in another tab/);
+  assert.match(src('app/layout.tsx'), /<OtherTabSavedNotice \/>/);
+  const sync = src('lib/server-sync.ts');
+  const per = sync.slice(sync.indexOf('LOCAL_PER_USER_KEYS = ['), sync.indexOf('] as const;', sync.indexOf('LOCAL_PER_USER_KEYS = [')));
+  assert.ok(per.includes("'rightdue_profile_saved_at'"));
+});

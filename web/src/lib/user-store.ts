@@ -58,6 +58,9 @@ function writeClientCookie(name: string, value: string) {
   document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
 }
 
+/** UX2 #23: when this browser last saved the profile (any tab); lib/tab-guard. */
+export const PROFILE_SAVED_KEY = 'rightdue_profile_saved_at';
+
 /** The raw profile cookies, to tell when the saved profile has changed. */
 export function profileCookieKey(): string {
   const parts: string[] = [];
@@ -207,7 +210,11 @@ export function saveProfileClient(profile: {
           })(),
     isLive: true,
   }, additionalSlices);
-  if (typeof window !== 'undefined') window.dispatchEvent(new Event('rightdue:profile-changed'));
+  if (typeof window !== 'undefined') {
+    // UX2 #23: other open tabs see the stamp change and say they may be out of date.
+    try { window.localStorage.setItem(PROFILE_SAVED_KEY, new Date().toISOString()); } catch { /* private mode */ }
+    window.dispatchEvent(new Event('rightdue:profile-changed'));
+  }
   return true;
 }
 
