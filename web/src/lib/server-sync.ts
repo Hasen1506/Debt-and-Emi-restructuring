@@ -328,6 +328,9 @@ export const LOCAL_PER_USER_KEYS = [
   // written even with the funnel off). return_month2 stays counted once per
   // device by rightdue_funnel_once.
   'rightdue_first_plan_ym',
+  // UX2 #23: the text of this person's last Home and Plan, kept for the
+  // offline page (lib/offline-snapshot.ts); the next person must not see it.
+  'rightdue_offline_snapshot',
 ] as const;
 
 /** Prefixes of per-user keys cleared on sign-out: B22's "seen this page's

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Offline · RightDue</title>
+<style>
+  :root { --canvas:#fbfaf3; --card:#fff; --ink:#0a0a0a; --muted:#5e5e58; --rule:#d8d6cd; --accent:#ab4f30; --hl:#fff8d3; color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --canvas:#141412; --card:#1d1d1a; --ink:#ecebe3; --muted:#a8a79e; --rule:#3a3934; --accent:#e8906e; --hl:#2d2a16; color-scheme: dark; } }
+  :root[data-theme='dark'] { --canvas:#141412; --card:#1d1d1a; --ink:#ecebe3; --muted:#a8a79e; --rule:#3a3934; --accent:#e8906e; --hl:#2d2a16; color-scheme: dark; }
+  body { margin:0; background:var(--canvas); color:var(--ink); font:16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font:700 12px ui-monospace, monospace; letter-spacing:.18em; color:var(--accent); margin:0 0 8px; }
+  h2 { font:700 14px ui-monospace, monospace; letter-spacing:.08em; margin:24px 0 4px; }
+  .note { background:var(--hl); border-left:3px solid var(--accent); padding:10px 12px; margin:12px 0; }
+  .asof { color:var(--muted); font-size:14px; margin:0 0 8px; }
+  pre { white-space:pre-wrap; word-break:break-word; background:var(--card); border:1px solid var(--rule); padding:12px; font:14px/1.5 ui-monospace, monospace; margin:0; max-height:60vh; overflow:auto; }
+  button { font:700 12px ui-monospace, monospace; letter-spacing:.14em; padding:10px 14px; background:var(--ink); color:var(--canvas); border:0; cursor:pointer; }
+</style>
+<script>try{var t=localStorage.getItem('rightdue_theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body>
+<main>
+  <h1>RIGHTDUE · OFFLINE</h1>
+  <p><strong>You're offline.</strong> This page needs the internet to work out your plan.</p>
+  <p class="note">Anything you saved here is kept in this browser and sent to your account when you're back online.</p>
+  <p><button type="button" id="retry">TRY AGAIN</button></p>
+  <div id="snaps"></div>
+</main>
+<script>
+(function () {
+  document.getElementById('retry').addEventListener('click', function () { location.reload(); });
+  window.addEventListener('online', function () { location.reload(); });
+  var box = document.getElementById('snaps');
+  var data = null;
+  try { data = JSON.parse(localStorage.getItem('rightdue_offline_snapshot') || 'null'); } catch (e) {}
+  var names = { '/': 'Home', '/plan': 'Plan' };
+  var keys = data && typeof data === 'object' ? Object.keys(data).filter(function (k) { return names[k] && data[k] && typeof data[k].text === 'string'; }) : [];
+  if (!keys.length) { box.innerHTML = '<p class="asof">No plan has been seen in this browser yet, so there is nothing to show offline.</p>'; return; }
+  var head = document.createElement('p');
+  head.className = 'note';
+  head.textContent = 'Below is what this browser last showed, read-only. These figures are not live: a payment, a rate change or a new month since then is not in them.';
+  box.appendChild(head);
+  keys.forEach(function (k) {
+    var s = data[k];
+    var h = document.createElement('h2'); h.textContent = names[k].toUpperCase();
+    var when = new Date(s.at);
+    var p = document.createElement('p'); p.className = 'asof';
+    p.textContent = 'As of ' + (isNaN(when) ? 'an unknown time' : when.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }));
+    var pre = document.createElement('pre'); pre.textContent = s.text;
+    box.appendChild(h); box.appendChild(p); box.appendChild(pre);
+  });
+})();
+</script>
+</body>
+</html>

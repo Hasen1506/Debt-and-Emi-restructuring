@@ -157,3 +157,104 @@ test('#23: the theme is set before the first paint (no flash) and the Profile to
   assert.match(css, /@media screen \{\s*:root\[data-theme='dark'\]/);
   assert.match(css, /@media screen and \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme='light'\]\)/);
 });
+
+// ── #23 offline ───────────────────────────────────────────────────────────────
+// A tiny DOM: enough of Element for snapshotMain (querySelector by tag or
+// attribute, clone, remove, innerText as the text of what is left).
+function el(tag, attrs = {}, kids = []) {
+  const node = { tag, attrs: { ...attrs }, kids: [], parent: null, style: {},
+    removeAttribute(k) { delete this.attrs[k]; },
+    appendChild(c) { c.parent = this; this.kids.push(c); return c; },
+    remove() { if (this.parent) this.parent.kids = this.parent.kids.filter((k) => k !== this); this.parent = null; },
+    cloneNode() { const c = el(tag, this.attrs, this.kids.map((k) => (typeof k === 'string' ? k : k.cloneNode()))); return c; },
+    all() { return this.kids.filter((k) => typeof k !== 'string').flatMap((k) => [k, ...k.all()]); },
+    matches(sel) { return sel.split(',').map((s) => s.trim()).some((s) => {
+      const a = s.match(/^\[([\w-]+)="([^"]+)"\]$/); if (a) return this.attrs[a[1]] === a[2];
+      if (s.startsWith('.')) return (this.attrs.class || '').split(' ').includes(s.slice(1));
+      return this.tag === s; }); },
+    querySelector(sel) { return this.all().find((n) => n.matches(sel)) || null; },
+    querySelectorAll(sel) { return this.all().filter((n) => n.matches(sel)); },
+    get textContent() { return this.kids.map((k) => (typeof k === 'string' ? k : k.textContent)).join(''); },
+    get innerText() { return this.kids.map((k) => (typeof k === 'string' ? k : (k.tag === 'p' || k.tag === 'h2' ? k.innerText + '\n' : k.innerText))).join(''); },
+  };
+  for (const k of kids) if (typeof k === 'string') node.kids.push(k); else node.appendChild(k);
+  return node;
+}
+function fakeDoc(main) { const body = el('body', {}, main ? [main] : []); return { body, querySelector: (s) => body.querySelector(s) }; }
+function memStore() { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), m }; }
+
+test('#23 offline-snapshot: keeps the finished page text with its time, without controls', () => {
+  const { snapshotMain, SNAPSHOT_KEY } = lib('offline-snapshot.ts');
+  const main = el('main', { id: 'main' }, [
+    el('h2', {}, ['DEBT-FREE BY']), el('p', {}, ['March 2031']),
+    el('button', {}, ['LOG A PAYMENT']), el('input', { value: '5000' }), el('nav', {}, ['Home Plan']),
+    el('span', { class: 'sr-only' }, ['opens a dialog']), el('span', { 'aria-hidden': 'true' }, ['→']),
+    el('p', {}, ['Next due ₹34,713 on 5 Nov']),
+  ]);
+  const doc = fakeDoc(main); const store = memStore();
+  const now = new Date('2026-10-07T04:30:00Z');
+  assert.equal(snapshotMain('/', doc, store, now), true);
+  const saved = JSON.parse(store.getItem(SNAPSHOT_KEY));
+  assert.equal(saved['/'].at, '2026-10-07T04:30:00.000Z');
+  assert.match(saved['/'].text, /DEBT-FREE BY\nMarch 2031/);
+  assert.match(saved['/'].text, /Next due ₹34,713 on 5 Nov/);
+  for (const gone of ['LOG A PAYMENT', 'Home Plan', 'opens a dialog', '→']) assert.ok(!saved['/'].text.includes(gone), gone);
+  // The live page is untouched and the off-screen copy is gone.
+  assert.ok(main.querySelector('button'));
+  assert.equal(doc.body.kids.length, 1);
+  // A second page is kept beside the first, not over it.
+  assert.equal(snapshotMain('/plan', fakeDoc(el('main', {}, [el('p', {}, ['Avalanche order'])])), store, now), true);
+  assert.deepEqual(Object.keys(JSON.parse(store.getItem(SNAPSHOT_KEY))).sort(), ['/', '/plan']);
+});
+
+test('#23 offline-snapshot: a page still loading, empty, or missing is never kept', () => {
+  const { snapshotMain, SNAPSHOT_KEY } = lib('offline-snapshot.ts');
+  const store = memStore();
+  assert.equal(snapshotMain('/', fakeDoc(el('main', {}, [el('div', { 'aria-busy': 'true' }, ['Working out your plan…'])])), store), false);
+  assert.equal(snapshotMain('/', fakeDoc(el('main', {}, [el('button', {}, ['ONLY A BUTTON'])])), store), false);
+  assert.equal(snapshotMain('/', fakeDoc(null), store), false);
+  assert.equal(store.getItem(SNAPSHOT_KEY), null);
+  // Corrupt storage or a full quota is not an error: just not kept.
+  const bad = { getItem: () => '{', setItem() {} };
+  assert.equal(snapshotMain('/', fakeDoc(el('main', {}, [el('p', {}, ['x'])])), bad), false);
+  const full = { getItem: () => null, setItem() { throw new Error('QuotaExceededError'); } };
+  assert.equal(snapshotMain('/', fakeDoc(el('main', {}, [el('p', {}, ['x'])])), full), false);
+  // Very long pages are capped.
+  const big = memStore();
+  snapshotMain('/plan', fakeDoc(el('main', {}, [el('p', {}, ['9'.repeat(20000)])])), big);
+  assert.equal(JSON.parse(big.getItem(SNAPSHOT_KEY))['/plan'].text.length, 12000);
+});
+
+test('#23 offline: the service worker never serves an app page from cache, only offline.html when the network fails', async () => {
+  const code = fs.readFileSync(path.join(__dirname, '../public/sw.js'), 'utf8');
+  const handlers = {}; const cached = new Map([['/offline.html', 'OFFLINE PAGE']]);
+  const self = { addEventListener: (t, f) => { handlers[t] = f; }, skipWaiting() {}, clients: { claim() {} } };
+  const caches = { match: async (u) => cached.get(u), open: async () => ({ add: async () => {} }), keys: async () => [], delete: async () => true };
+  let net = 'up';
+  const fetch = async (req) => { if (net === 'down') throw new TypeError('Failed to fetch'); return `LIVE ${req.url}`; };
+  new Function('self', 'caches', 'fetch', 'Request', 'Response', code)(self, caches, fetch, class { constructor(u) { this.url = u; } }, { error: () => 'ERR' });
+  const run = async (req) => { let r = null; handlers.fetch({ request: req, respondWith: (p) => { r = p; } }); return r && (await r); };
+  const nav = { method: 'GET', mode: 'navigate', url: '/plan' };
+  assert.equal(await run(nav), 'LIVE /plan', 'online: always the network');
+  net = 'down';
+  assert.equal(await run(nav), 'OFFLINE PAGE', 'offline: the offline page, never a cached /plan');
+  assert.equal(await run({ method: 'GET', mode: 'cors', url: '/api/plan' }), null, 'data requests are left to the browser');
+  assert.equal(await run({ method: 'POST', mode: 'navigate', url: '/login' }), null, 'posts are left alone');
+  // offline.html says its figures are not live and shows their time.
+  const off = fs.readFileSync(path.join(__dirname, '../public/offline.html'), 'utf8');
+  assert.match(off, /These figures are not live/);
+  assert.match(off, /'As of '/);
+  // The pages are reachable without a session (middleware skips them).
+  // The kept text is this person's: sign-out clears it; the theme is the device's.
+  const sync = src('lib/server-sync.ts');
+  assert.ok(sync.slice(sync.indexOf('LOCAL_PER_USER_KEYS = ['), sync.indexOf('] as const;', sync.indexOf('LOCAL_PER_USER_KEYS = ['))).includes("'rightdue_offline_snapshot'"));
+  assert.match(sync, /LOCAL_DEVICE_KEYS = \[[^\]]*'rightdue_theme'/);
+  assert.match(src('middleware.ts'), /offline\\\\\.html\$\|sw\\\\\.js\$/);
+});
+
+test('#23 offline: the notice and snapshots only run on Home and Plan, once the page has settled and only while online', () => {
+  const s = src('components/site/OfflineSupport.tsx');
+  assert.match(s, /if \(path !== '\/' && path !== '\/plan'\) return;/);
+  assert.match(s, /if \(navigator\.onLine\) snapshotMain\(path, document, localStorage\)/);
+  assert.match(src('app/layout.tsx'), /<OfflineSupport register=\{process\.env\.NODE_ENV === 'production'\} \/>/);
+});
