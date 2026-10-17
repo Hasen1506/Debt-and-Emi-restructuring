@@ -67,13 +67,31 @@ export function checkReceivedDate(date: string, today: string, balanceDates: (st
   return { ok: true };
 }
 
-/** UX2B-22: with no emergency fund set ("Not now", Setup's default) a
- *  ₹3 lakh bonus went 100% to the car loan, leaving nothing for a bad
- *  month. The engine pick now keeps one month's spending (less any fund
- *  already held) as a cash cushion first; MY SPLIT can move it. 0 when a
- *  fund target is set (the plan's own share applies) or the cushion is met. */
+/** One month of fixed + variable spending, less any fund already held:
+ *  the cushion the user may choose to keep first when no emergency fund is
+ *  set. 0 when a fund target is set (the plan's own share applies) or the
+ *  cushion is already met. Founder decision 17 Oct 2026: never kept
+ *  unasked; "Not now" means the split goes as the user's plan says. */
 export function cashCushion(u: { efund_target?: string; efund_balance?: string; fixed_expenses?: string; variable_expenses?: string }): number {
   if (Number(u.efund_target || 0) > 0) return 0;
   const month = Number(u.fixed_expenses || 0) + Number(u.variable_expenses || 0);
   return Math.max(0, Math.round(month - Number(u.efund_balance || 0)));
+}
+
+/** The fund slider's cap and how much of the spare cash the engine pick
+ *  sends to it first. With a fund target: the gap, at the plan's share.
+ *  With none ("Not now"): nothing, unless the user ticked "keep a cushion",
+ *  then the one-month cushion, taken first. */
+export function fundFirst(
+  u: Parameters<typeof cashCushion>[0],
+  keepCushion: boolean,
+  total: number,
+  efSplit: number,
+): { gap: number; cushion: boolean; first: number } {
+  if (Number(u.efund_target || 0) > 0) {
+    const gap = Math.max(0, Number(u.efund_target || 0) - Number(u.efund_balance || 0));
+    return { gap, cushion: false, first: gap > 0 ? Math.min(gap, total * efSplit) : 0 };
+  }
+  const gap = keepCushion ? cashCushion(u) : 0;
+  return { gap, cushion: gap > 0, first: Math.min(gap, total) };
 }

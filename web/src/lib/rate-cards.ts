@@ -81,7 +81,6 @@ export function tierAMedian(country: 'IN' | 'US', loanType: 'home_loan' | 'auto_
   const n = mids.length;
   return n % 2 ? mids[(n - 1) / 2] : (mids[n / 2 - 1] + mids[n / 2]) / 2;
 }
-export const RATE_CARDS_SOURCE = data.source;
 
 export function getInstitution(bank: string): InstitutionRateCard | null {
   if (!bank) return null;

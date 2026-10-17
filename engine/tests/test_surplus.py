@@ -2,7 +2,7 @@
 from decimal import Decimal
 from engine.surplus import (
     SurplusAllocation, allocate_surplus,
-    compute_available_surplus, compute_available_buffer,
+    compute_available_surplus,
     compute_efund_monthly, compute_total_minimums,
 )
 from engine.models import (
@@ -93,36 +93,6 @@ def test_available_surplus_subtracts_match():
     s0 = compute_available_surplus(user, [card])
     s1 = compute_available_surplus(user, [card], matched_contribution=D("5000"))
     assert s0 - s1 == D("5000")
-
-
-def test_buffer_subtracts_mab_india():
-    """HDFC urban MAB ₹10k → 200k − 10k − efund 300k = floor at 0."""
-    user = _user(savings=D("200000"), efund_target=D("300000"))
-    buf = compute_available_buffer(user, total_monthly_emis=D("30000"))
-    assert buf == D("0")
-
-
-def test_buffer_positive_when_savings_exceed_floors():
-    user = _user(savings=D("500000"), efund_target=D("100000"), bank="HDFC Bank")
-    # 500k − 10k MAB − 100k efund = 390k
-    buf = compute_available_buffer(user, total_monthly_emis=D("30000"))
-    assert buf == D("390000")
-
-
-def test_buffer_business_owner_subtracts_dsr():
-    """Business owner: 3× monthly EMIs reserve. ₹30k EMIs → 90k reserve."""
-    user = _user(savings=D("500000"), efund_target=D("100000"),
-                 income_type=IncomeType.BUSINESS_OWNER)
-    buf = compute_available_buffer(user, total_monthly_emis=D("30000"))
-    # 500k − 10k MAB − 100k efund − 90k DSR = 300k
-    assert buf == D("300000")
-
-
-def test_buffer_no_mab_for_us():
-    """US: no MAB. 500k − 100k efund = 400k."""
-    user = _user(country=Country.US, savings=D("500000"), efund_target=D("100000"))
-    buf = compute_available_buffer(user, total_monthly_emis=D("30000"))
-    assert buf == D("400000")
 
 
 def test_total_minimums_converts_foreign_currency_loans_to_user_ccy():

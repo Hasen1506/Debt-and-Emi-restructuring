@@ -25,18 +25,8 @@ import { readableCookieMaxAge } from './readable-cookie-age';
 
 const MARGINAL_COOKIE = 'rightdue_marginal';
 const SCORE_COOKIE = 'rightdue_score';
+// No longer written (its reader went long ago); still cleared on sign-out.
 const FX_COOKIE = 'rightdue_fx';
-// D16: a year for guests, the sign-in's 30 days for accounts (readable-cookie-age.ts).
-// FX rates from the spot endpoint are refreshed daily — anything older is
-// re-fetched on next read. 24h is a sensible balance: the engine treats FX
-// as a slow-moving variable, and refetching every page load was the bug
-// this cache fixes.
-export const FX_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-
-export interface FxCacheEntry {
-  rates: Record<string, string>;  // loan_ccy → user_ccy_per_loan_ccy
-  ts: number;                     // ms since epoch when last refreshed
-}
 
 export interface StoredProfile {
   user: UserPayload;
@@ -53,6 +43,7 @@ function readClientCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+// D16: a year for guests, the sign-in's 30 days for accounts (readable-cookie-age.ts).
 function writeClientCookie(name: string, value: string) {
   if (typeof document === 'undefined') return;
   document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${readableCookieMaxAge()}; SameSite=Lax`;
@@ -235,12 +226,6 @@ export function clearProfileClient() {
 /** A signed-in account owns the cache again (see `profileCleared`). */
 export function resumeProfileClient() {
   profileCleared = false;
-}
-
-export function saveFxCacheClient(rates: Record<string, string>) {
-  if (profileCleared) return;
-  const entry: FxCacheEntry = { rates, ts: Date.now() };
-  writeClientCookie(FX_COOKIE, JSON.stringify(entry));
 }
 
 // ─── Server-side ────────────────────────────────────────────────────────────

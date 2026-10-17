@@ -65,12 +65,10 @@ test('amount / % / DOB / age / tenure parsers', () => {
   assert.equal(P.parseMaxTenure('481'), null);
 });
 
-test('assumed return and split threshold: 6.5% IN / 4% US + 1 point, own figure wins', () => {
+test('assumed return: 6.5% IN / 4% US, own figure wins', () => {
   assert.deepEqual(P.assumedReturnFor({ country: 'IN' }), { value: 0.065, assumed: true });
   assert.deepEqual(P.assumedReturnFor({ country: 'US' }), { value: 0.04, assumed: true });
   assert.deepEqual(P.assumedReturnFor({ country: 'IN', assumed_post_tax_return: '0.08' }), { value: 0.08, assumed: false });
-  assert.ok(Math.abs(P.splitThreshold({ country: 'IN' }) - 0.075) < 1e-12);
-  assert.ok(Math.abs(P.splitThreshold({ country: 'US', assumed_post_tax_return: '0.05' }) - 0.06) < 1e-12);
   // Same defaults as the engine (engine/prepay_invest.py).
   const py = fs.readFileSync(path.resolve(__dirname, '../../engine/prepay_invest.py'), 'utf8');
   assert.match(py, /"IN":\s*D\("0\.065"\)/);

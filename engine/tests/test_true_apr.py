@@ -10,7 +10,7 @@ from hypothesis import given, strategies as st
 
 from engine.formulas import effective_rate
 from engine.models import Country, Loan, LoanType
-from engine.true_apr import TrueAprInputs, true_apr, true_apr_for_loan
+from engine.true_apr import TrueAprInputs, true_apr
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -31,7 +31,7 @@ def test_differential_fixture_is_current():
 
 def test_indian_card_includes_compounding_and_gst():
     loan = Loan(LoanType.CREDIT_CARD, "HDFC", D("50000"), D("0.42"), "fixed", 0, D("0"), currency="INR")
-    t = true_apr_for_loan(loan, D("0.3"), Country.IN)
+    t = true_apr(TrueAprInputs(0.42, None, gst_on_interest=0.18))
     # The old effective rate: 42% × 1.18 = 49.56%, no compounding.
     assert effective_rate(loan, D("0.3"), Country.IN) == D("0.4956")
     assert abs(t.compounding - ((1 + 0.42 / 12) ** 12 - 1 - 0.42)) < 1e-12
@@ -51,12 +51,6 @@ def test_fee_with_gst_and_tax_benefit_move_it_the_right_way():
     assert fee.fees > 0 and fee.gst > 0 and fee.apr > plain.apr
     home = true_apr(TrueAprInputs(0.085, 240, shield=0.3))
     assert home.tax < 0 and home.apr < true_apr(TrueAprInputs(0.085, 240)).apr
-
-
-def test_engine_loan_adapter_reads_the_same_shield_as_effective_rate():
-    loan = Loan(LoanType.HOME, "SBI", D("500000"), D("0.085"), "floating", 240, D("4339"), property_use="let_out", currency="USD")
-    t = true_apr_for_loan(loan, D("0.3"), Country.US, itemises=True)
-    assert abs(t.tax - (true_apr(TrueAprInputs(0.085, 240, shield=0.3)).tax)) < 1e-12
 
 
 @given(

@@ -65,7 +65,7 @@ export async function loadFxDriftServer(): Promise<FxDriftSetting> {
  *   put it at 2.7 points next year; 2.5 is kept as the longer-run gap.
  *   Refresh with `INFLATION_FORECAST`.
  */
-export const FX_DRIFT_DEFAULTS_AS_OF = '2026-10-12';
+// Defaults as of 2026-10-12.
 /** Twin of engine/cross_border.py INR_SLIDE_A_YEAR["USD"], as the engine's sign. */
 export const INR_SLIDE_VS_USD = '-0.035';
 export const INR_SLIDE_LABEL = 'INR −3.5%/yr (20-yr average)';

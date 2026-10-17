@@ -21,7 +21,7 @@ export type RepayShape = 'emi' | 'interest_only' | 'bullet';
 
 /** Years of EMIs assumed after a moratorium when the EMI isn't typed: Indian
  *  education loans run 5-15 years after it; 10 is SBI's and most banks' usual
- *  term (founder decision pending, marked as an estimate on the loan). */
+ *  term (founder-approved 17 Oct 2026, FOUNDER-RECORDS B15; marked as an estimate on the loan). */
 export const MORATORIUM_REPAY_MONTHS = 120;
 
 /** The chips for a loan type, or null when it has none (cards, pay later). */

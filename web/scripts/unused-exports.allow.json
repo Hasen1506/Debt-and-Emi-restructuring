@@ -1,15 +1,7 @@
 {
   "dead": [
-    "src/lib/cost-lines.ts#GST_FEE_SOURCE",
-    "src/lib/fx-drift.ts#FX_DRIFT_DEFAULTS_AS_OF",
-    "src/lib/income-benchmarks.ts#INCOME_BENCHMARKS_AS_OF",
-    "src/lib/rate-cards.ts#RATE_CARDS_SOURCE",
     "src/lib/tax-brackets.ts#TAX_SLABS_AS_OF",
-    "src/lib/tax-projection.ts#LoanYear1Interest",
-    "src/lib/us-loans.ts#ForgivenessAnswer",
-    "src/lib/us-loans.ts#StudentLoanKind",
-    "src/lib/us-loans.ts#US_RULES_AS_OF",
-    "src/lib/user-store.ts#FX_CACHE_TTL_MS"
+    "src/lib/tax-projection.ts#LoanYear1Interest"
   ],
   "orphans": [
     "src/components/home/HomeDebtFreeRange.tsx"

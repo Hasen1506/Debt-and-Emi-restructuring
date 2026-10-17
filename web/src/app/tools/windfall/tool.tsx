@@ -40,7 +40,7 @@ import { addActivityEntry, readActivityClient } from '@/lib/activity';
 import { loanToUser, userDefaultCurrency } from '@/lib/currency';
 import { getCountryToday, localIsoDate, monthIndexToCountryLabel } from '@/lib/today';
 import { loanLabel } from '@/lib/loan-types';
-import { cashCushion, checkReceivedDate, kpiPrefix, nextRoundNote, whereItGoesHeading, type LoggedRound } from '@/lib/windfall-log';
+import { cashCushion, checkReceivedDate, fundFirst, kpiPrefix, nextRoundNote, whereItGoesHeading, type LoggedRound } from '@/lib/windfall-log';
 import { loadProfileClient } from '@/lib/user-store';
 import { fundedAmount, isOpenGoal, readGoalsClient, type Goal } from '@/lib/goals';
 import {
@@ -190,10 +190,14 @@ export function WindfallTool({
 
   const total = Number(amount) > 0 ? Number(amount) : 0;
   const accounts = (profile.user.cash_accounts ?? []).filter((a) => a.kind !== 'fd' && (!a.currency || a.currency === ccy));
-  // UX2B-22: no fund set: a one-month cash cushion, taken first (lib/windfall-log).
-  const cushion = cashCushion(planUser);
-  const efGap = cushion > 0 ? cushion : Math.max(0, Number(planUser.efund_target || 0) - Number(planUser.efund_balance || 0));
   const efSplit = Number(readEfSplitClient());
+  // No fund set ("Not now"): nothing is kept back unless the user asks for a
+  // one-month cushion (off by default; founder decision 17 Oct 2026).
+  const [keepCushion, setKeepCushion] = useState(false);
+  const cushionOffer = cashCushion(planUser);
+  const fund = fundFirst(planUser, keepCushion, total, efSplit);
+  const efGap = fund.gap;
+  const cushion = fund.cushion ? efGap : 0;
 
   // ── Targets: the fund, each open loan (dearest first), each goal ──────
   const targets = useMemo<Target[]>(() => {
@@ -253,7 +257,7 @@ export function WindfallTool({
         let blocked: string[] = [];
         let investName: string | null = null;
         let hold: string | null = null;
-        const ef = efGap > 0 ? Math.min(efGap, cushion > 0 ? total : total * efSplit) : 0;
+        const ef = fund.first;
         if (ef > 0) alloc.ef = Math.round(ef);
         let rest = total - (alloc.ef ?? 0);
         // The strategy's own order: 'rules' carries the user's rules (roadmap PR E).
@@ -299,7 +303,7 @@ export function WindfallTool({
       }
     }, 450);
     return () => { live = false; clearTimeout(t); };
-  }, [total, planUser, efGap, efSplit, profile.marginalRate, strategy, received, todayIso, gapKey, baseReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [total, planUser, efGap, efSplit, keepCushion, profile.marginalRate, strategy, received, todayIso, gapKey, baseReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const engineAlloc = pick?.alloc ?? {};
   const alloc: Alloc = mode === 'engine' ? engineAlloc : manual;
@@ -536,7 +540,7 @@ export function WindfallTool({
   }, [spoken]);
   const toGoals = targets.filter((t) => t.kind === 'goal').reduce((s, t) => s + (alloc[t.key] ?? 0), 0);
   const groups: { title: string; right?: string; kinds: Kind[] }[] = [
-    { title: 'Emergency fund', right: `THE PLAN SENDS ${Math.round(efSplit * 100)}% HERE UNTIL IT'S FULL`, kinds: ['ef'] },
+    { title: cushion > 0 ? 'Cash cushion' : 'Emergency fund', right: cushion > 0 ? 'YOU CHOSE TO KEEP IT FIRST' : `THE PLAN SENDS ${Math.round(efSplit * 100)}% HERE UNTIL IT'S FULL`, kinds: ['ef'] },
     { title: 'Debts · highest rate first', right: mode === 'engine' ? `ENGINE: ${strategy.toUpperCase()} ORDER` : undefined, kinds: ['loan'] },
     { title: 'Goals', right: '★ = SAVED FOR FIRST', kinds: ['goal'] },
   ];
@@ -654,6 +658,12 @@ export function WindfallTool({
               ? 'The engine sets each slider: the emergency fund its share, the loans in your payoff order, then the rest of the fund. Choose MY SPLIT to move any of them.'
               : `Move any slider. Together they stop at ${fmt(total)}. ENGINE PICK puts the best split back.`}
           </p>
+          {Number(planUser.efund_target || 0) <= 0 && cushionOffer > 0 && (
+            <label data-testid="wf-cushion" style={{ display: 'flex', gap: 8, alignItems: 'baseline', margin: '-6px 0 14px', fontSize: 'var(--fs-small)', color: L_T.muted, lineHeight: 1.6 }}>
+              <input type="checkbox" checked={keepCushion} onChange={(e) => setKeepCushion(e.target.checked)} />
+              <span>Optional: keep {fmt(cushionOffer)} (one month’s spending) as a cushion before the loans.</span>
+            </label>
+          )}
 
           <div style={{ marginBottom: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, fontSize: 'var(--fs-small)', marginBottom: 6 }}>
@@ -699,8 +709,8 @@ export function WindfallTool({
                     tone = v > 0 ? L_T.accent : L_T.muted;
                   } else if (t.kind === 'ef') {
                     const bal = Number(planUser.efund_balance || 0) + v;
-                    const target = Number(planUser.efund_target || 0);
-                    badge = `FUND ${Math.round(Math.min(100, (bal / target) * 100))}% FULL`;
+                    const target = cushion > 0 ? Number(planUser.efund_balance || 0) + cushion : Number(planUser.efund_target || 0);
+                    badge = `${cushion > 0 ? 'CUSHION' : 'FUND'} ${Math.round(Math.min(100, (bal / target) * 100))}% FULL`;
                     tone = v > 0 ? L_T.positive : L_T.muted;
                   }
                   return (
@@ -832,7 +842,7 @@ export function WindfallTool({
                     k: '→ emergency fund',
                     v: fmt(alloc.ef ?? 0),
                     note: cushion > 0
-                      ? 'no emergency fund is set, so one month’s spending is kept first in case of a bad month; move it in MY SPLIT'
+                      ? 'the one month’s spending you chose to keep first; untick it above or move it in MY SPLIT'
                       : mode === 'engine' && (alloc.ef ?? 0) > Math.ceil(total * efSplit)
                         ? `the plan's ${Math.round(efSplit * 100)}% share, plus what no loan takes; ${fmt(efGap)} was missing`
                         : `the plan sends ${Math.round(efSplit * 100)}% here until it's full; ${fmt(efGap)} to go`,
@@ -853,7 +863,7 @@ export function WindfallTool({
               })),
             ...(toGoals > 0 ? [{ k: '→ goals', v: fmt(toGoals) }] : []),
             ...((alloc.invest ?? 0) > 0 ? [{ k: `→ ${pick?.investName ?? 'investment'}`, v: fmt(alloc.invest) }] : []),
-            { k: 'kept', v: fmt(left), note: left >= 1 && mode === 'engine' && pick?.hold ? pick.hold : undefined },
+            { k: 'kept', v: fmt(left), note: left >= 1 && mode === 'engine' && pick?.hold ? `${pick.hold} To prepay anyway, choose MY SPLIT.` : undefined },
             ...(saving != null && !shortPlan ? [{ k: 'interest saved', v: fmt(Math.max(0, saving)), tone: 'pos' as const, note: 'the whole plan, this split against none' }] : []),
             ...(mode === 'engine' ? (pick?.reasons ?? []).map((r) => ({ k: 'why this one', v: r.what, note: r.why })) : []),
             ...(pick?.blocked.length ? [{ k: 'passed over', v: '—', note: pick.blocked.join('; ') }] : []),

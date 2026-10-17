@@ -30,7 +30,6 @@ from engine.tax.india import surcharge_rate, CESS_RATE
 from engine.tax.india import marginal_rate as india_marginal_rate
 from engine.tax.usa import (
     us_capital_gains_tax,
-    federal_marginal_rate as us_federal_marginal_rate,
     SECTION_121_EXCLUSION_SINGLE,
     SECTION_121_EXCLUSION_MFJ,
 )
@@ -416,10 +415,6 @@ def held_more_than_months(purchase: date, sale: date, months: int) -> bool:
     Day counts (>= 365 / 730) called a sale on the anniversary, or after a
     leap-year 365 days, long-term."""
     return _held_long_term(purchase, sale, months)
-
-
-def _years_held(asset: Asset, today: date) -> int:
-    return _holding_days(asset, today) // 365
 
 
 def _proceeds_savings(asset: Asset) -> ProceedsResult:

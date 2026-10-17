@@ -213,10 +213,7 @@ test('A3/A10/B9/B10/B11/B23: landing copy', () => {
 });
 
 test('B16: jargon on Home goes through <Term>; the rate what-if speaks % points, not bps', () => {
-  const op = src('components/home/OpenPositions.tsx');
-  // UX2B-24: each carries the loan's name for screen readers (about={name}).
-  assert.match(op, /<Term key="rev" id="revolving" about=\{name\}>REVOLVING<\/Term>/);
-  assert.match(op, /<Term id="cost_a_year" about=\{name\}>ALL-IN<\/Term>/);
+  // The <Term> markup on OpenPositions is checked in ux2-fixes B8 (UX2B-24).
   const { GLOSSARY } = lib('glossary.ts');
   for (const id of ['revolving', 'cost_a_year', 'avalanche', 'snowball', 'emergency_fund']) assert.ok(GLOSSARY[id], id);
   const wi = src('components/WhatIfPanel.tsx');

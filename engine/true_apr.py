@@ -102,28 +102,3 @@ def true_apr(x: TrueAprInputs) -> TrueApr:
     )
 
 
-def true_apr_for_loan(loan, marginal_tax_rate, country, **effective_rate_kwargs) -> TrueApr:
-    """The true annual cost of an engine `Loan`, using the same GST and tax
-    shield as `formulas.effective_rate` (so the two can't disagree on them)."""
-    from decimal import Decimal
-
-    from engine.formulas import effective_rate, gst_component, loan_market
-    from engine.models import Country, LoanType
-
-    nominal = loan.nominal_rate
-    fee = loan.processing_fee_amortised
-    ins = loan.insurance_premium_pct
-    in_market = loan_market(loan, country) == Country.IN
-    gst = gst_component(loan.loan_type, nominal, fee) if in_market else Decimal("0")
-    eff = effective_rate(loan, marginal_tax_rate, country, **effective_rate_kwargs)
-    shield_amount = nominal + fee + ins + gst - eff
-    is_card = loan.loan_type == LoanType.CREDIT_CARD
-    return true_apr(TrueAprInputs(
-        nominal=float(nominal),
-        months=None if is_card else (loan.tenure_months_remaining or None),
-        fee_rate=float(fee),
-        insurance_rate=float(ins),
-        gst_on_interest=float(gst / nominal) if is_card and nominal > 0 else 0.0,
-        gst_on_fee=float(gst / fee) if (not is_card) and fee > 0 else 0.0,
-        shield=float(min(Decimal("1"), shield_amount / nominal)) if nominal > 0 else 0.0,
-    ))

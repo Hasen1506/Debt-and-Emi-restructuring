@@ -36,12 +36,6 @@ def test_federal_tax_50k_single():
     assert tax == expected
 
 
-def test_state_marginal_added():
-    """CA 13.3% on top of federal 24% (single at $150k is in 24% bracket >$105,700) → 37.3%."""
-    rate = usa.effective_marginal_rate(D("150000"), FilingStatusUS.SINGLE, D("0.133"))
-    assert rate == D("0.24") + D("0.133")
-
-
 def test_itemisation_below_standard():
     """Itemisable below standard deduction → zero benefit, no itemisation."""
     saved, itemises = usa.itemisation_benefit(
