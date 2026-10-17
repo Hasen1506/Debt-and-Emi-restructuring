@@ -251,6 +251,13 @@ class Loan:
     # Round 3 (#10): what a loan against property / home-loan top-up paid
     # for: "buy_build" | "repair" | None (not for a house). See tax_type().
     house_use: Optional[str] = None
+    # Founder decision 17 Oct 2026 (engine/debt_status.py): "normal" | "behind" |
+    # "collections" ("settled" never reaches the engine; the API zeroes it).
+    # overdue_amount: what a behind loan is behind by (loan currency; None =
+    # estimate one EMI). extra_ok: the user pinned / ordered a collections loan.
+    debt_status: str = "normal"
+    overdue_amount: Optional[Decimal] = None
+    extra_ok: bool = False
 
     def __post_init__(self) -> None:
         # Principal counts in s.123 [80C] only for buying or building a house,

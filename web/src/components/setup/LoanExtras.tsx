@@ -14,9 +14,10 @@ import { L_T, LBracket, LChip as Chip, LChipRow as ChipRow } from '@/components/
 import { HOUSE_USE_KINDS } from '@/lib/loan-types';
 import { US_LETTERS_PATH } from '@/lib/us-letters';
 import {
-  DEBT_STATUS_CHOICES, HOUSE_USE_CHOICES, SALARY_DEDUCTED_HINT, SALARY_DEDUCTED_LABEL, US_MEDICAL_NOTES,
-  canBeSalaryDeducted, debtStatus,
+  DEBT_STATUS_CHOICES, HOUSE_USE_CHOICES, OVERDUE_HINT, OVERDUE_LABEL, SALARY_DEDUCTED_HINT, SALARY_DEDUCTED_LABEL,
+  US_MEDICAL_NOTES, canBeSalaryDeducted, debtStatus, overdueOf,
 } from '@/lib/loan-status';
+import { getCountryToday, localIsoDate } from '@/lib/today';
 
 const note = { margin: 0, fontSize: 'var(--fs-dense)', color: L_T.muted } as const;
 
@@ -69,10 +70,28 @@ export function LoanExtras({ loan, country, onPatch }: {
                 onChange={() => onPatch(k === 'settled'
                   // Settled: nothing more is owed, so it leaves the plan like a cleared loan.
                   ? { debt_status: k, outstanding: '0', scheduled_emi: '0', salary_deducted: undefined }
-                  : { debt_status: k === 'normal' ? undefined : k })} />
+                  : k === 'behind'
+                    // Founder 17 Oct 2026: stamped so Home can tell when the logged payments catch it up.
+                    ? { debt_status: k, overdue_as_of: localIsoDate(getCountryToday(country)) }
+                    : { debt_status: k === 'normal' ? undefined : k, overdue_amount: undefined, overdue_as_of: undefined })} />
               <span><strong>{label}</strong> <span style={note}>{line}</span></span>
             </label>
           ))}
+          {status === 'behind' && (
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--fs-small)' }}>
+              <span>{OVERDUE_LABEL} <span style={note}>(optional)</span></span>
+              <input type="text" inputMode="decimal" data-testid="setup-overdue-amount" aria-describedby={`overdue-hint-${loan.id ?? ''}`}
+                value={loan.overdue_amount ?? ''} placeholder={String(Math.round(overdueOf(loan).amount) || '')}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/[^0-9.]/g, '');
+                  onPatch({ overdue_amount: v === '' || !Number.isFinite(Number(v)) ? undefined : v });
+                }}
+                style={{ maxWidth: 200, padding: '6px 8px', font: 'inherit' }} />
+              <span id={`overdue-hint-${loan.id ?? ''}`} style={note}>
+                {loan.overdue_amount ? OVERDUE_HINT.split('.')[0] + '.' : OVERDUE_HINT}
+              </span>
+            </label>
+          )}
           {(status === 'behind' || status === 'collections') && (
             <p style={note} data-testid="setup-status-help">
               Home will show what to do instead of “pay the minimum”.{' '}

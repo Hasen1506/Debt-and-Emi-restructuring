@@ -286,10 +286,11 @@ class LoanIn(_In):
     # C15: a flat-rate loan's original tenure. Its true reducing rate is
     # solved from the original terms, not the months left.
     original_tenure_months: Optional[int] = Field(None, ge=1, le=MAX_TENURE_MONTHS)
-    # Round 3: what a LAP / top-up paid for (engine tax_type); "settled" leaves the
-    # plan, behind/collections change Home only; a salary-deducted EMI is added back.
+    # Round 3: what a LAP / top-up paid for (engine tax_type); "settled" leaves the plan;
+    # behind / collections: engine/debt_status.py (overdue_amount blank = one EMI, estimated).
     house_use: Optional[Literal["buy_build", "repair", "other"]] = None
     debt_status: Literal["normal", "behind", "collections", "settled"] = "normal"
+    overdue_amount: Optional[Amount] = None
     salary_deducted: bool = False
 
     @field_validator("prepay_lock_in_until", "loan_start_month", "balance_as_of", mode="before")
@@ -465,7 +466,8 @@ class LoanIn(_In):
             max_tenure_months=self.max_tenure_months,
             repayment=self.repayment,
             promo_months=self.promo_months, rate_after_promo=self.rate_after_promo,
-            house_use=self.house_use,
+            house_use=self.house_use, overdue_amount=self.overdue_amount,
+            debt_status=self.debt_status if self.debt_status != "settled" else "normal",
         )
 
 
@@ -829,6 +831,14 @@ class UserIn(_In):
         return sum((l.scheduled_emi for l in self.loans if l.salary_deducted and l.debt_status != "settled"
                     and (l.currency or ccy).upper() == ccy), D("0"))
 
+    def _engine_loans(self) -> list[Loan]:
+        """A collections loan the user pinned or ordered is paid like any other (their choice wins)."""
+        mine = set(self.payoff_rules.pinned) | set(self.payoff_rules.custom_order) if self.payoff_rules else set()
+        loans = [l.to_engine() for l in self.loans]
+        for i in mine & set(range(len(loans))):
+            loans[i].extra_ok = True
+        return loans
+
     def to_engine(self) -> User:
         return User(
             country=self.country, income_type=self.income_type,
@@ -849,7 +859,7 @@ class UserIn(_In):
             itemises=self._itemised()[0],
             itemised_share=self._itemised()[1],
             efund_balance=self.efund_balance, efund_target=self.efund_target,
-            loans=[l.to_engine() for l in self.loans],
+            loans=self._engine_loans(),
             assets=[a.to_engine() for a in self.assets if a.purchase_date is not None],
             investment_options=[o.to_engine() for o in self.investment_options],
             annual_hike_rate=self.annual_hike_rate,
@@ -940,17 +950,11 @@ class SimulateRequest(_In):
     # The most the user wants to put toward debts each month (EMIs,
     # minimums and extra, in their own currency). Omitted: all spare cash.
     debt_budget: Optional[Amount] = None
-    # True when the user has an active preempting goal open (e.g. medical
-    # bill, planned wedding) that takes priority over EF + debt for the
-    # goal's funding window. Drives the surplus_allocation routing in the
-    # response: ef_preempted=True → 100% to goal_slice. Default False
-    # preserves baseline behaviour for callers that omit it.
+    # An open preempting goal (a medical bill, a wedding) takes the whole
+    # surplus_allocation (100% to goal_slice) for its window. Default False.
     ef_preempted: bool = False
-    # Per-goal input — engine runs serial-fill allocation per month
-    # with goal-expiry awareness, returning per-goal contributions in
-    # `surplus_allocation.goal_contributions` so the SurplusWaterfall
-    # can render slices without re-computing client-side. Empty list
-    # means "no active goals" (cascade gets full surplus).
+    # Per-goal input: serial-fill each month, returned in
+    # surplus_allocation.goal_contributions. Empty: no active goals.
     goals: list[GoalIn] = Field(default_factory=list)
     # Grill #38: a short month is paid from the emergency fund, then
     # borrowed at a card rate and repaid first (engine/gap_debt.py). False
@@ -971,23 +975,14 @@ class TrajectoryPoint(_Base):
     # the request's `user.loans`. Drives the period-aware "pay ₹X to {bank}"
     # rows in the Plan schedule. Empty after all loans clear.
     payments_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
-    # Per-currency balance bucket. Keys are loan-currency codes ("INR", "USD").
-    # For single-currency users this is a 1-element dict that matches
-    # `balance` exactly. NRI-US hybrid users get one entry per loan currency
-    # so the trajectory chart can render separate lines instead of summing
-    # ₹ + $ into a misleading single number.
+    # Balance per loan currency ("INR", "USD"): one line each on the chart,
+    # never ₹ + $ summed. Single-currency users get one entry (= `balance`).
     balances_by_currency: dict[str, Decimal] = Field(default_factory=dict)
-    # Per-loan outstanding this month, keyed by 0-based index in user.loans.
-    # Drives the per-loan trajectory chart on /plan — each loan's curve
-    # shrinks until it clears. Stays populated past the loan's clear date
-    # with value 0 so chart consumers don't see disappearing series.
+    # Per-loan outstanding by 0-based index (cleared loans stay at 0): the
+    # per-loan chart on /plan.
     balances_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
-    # Pre-allocation surplus for this month — what the engine had to
-    # route before goals / EF / debt took their slices. Lets client-side
-    # achievability sum the actual series (which accounts for inflation,
-    # hike, lifecycle events) instead of multiplying a single static
-    # surplus by a month count. Defaults to 0 for clients that don't
-    # populate it (mirrors MonthRow.available_surplus default).
+    # Surplus before goals / EF / debt took their slices: achievability sums
+    # this series (inflation, hikes, events) rather than a static figure.
     available_surplus: Decimal = Field(default=D("0"))
     # All payments this month and the part above each loan's minimum, both
     # in the user's currency (per-loan payments are in each loan's own).
@@ -1009,6 +1004,10 @@ class TrajectoryPoint(_Base):
     # that couldn't be borrowed (past the gap limit).
     held_for_lock_in: Decimal = Field(default=D("0"))
     unfunded_shortfall: Decimal = Field(default=D("0"))
+    # Founder 17 Oct 2026 (engine/debt_status.py), by loan position: overdue paid on a
+    # behind loan (loan currency), and each collections loan's settlement pot (user currency).
+    catch_up_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
+    settlement_pot_by_loan_index: dict[int, Decimal] = Field(default_factory=dict)
     # Per-goal contribution this month, keyed by goal id. Populated only
     # when `goals` was passed to /simulate. Lets achievability subtract
     # higher-priority goals' actual draws (which expire after their
