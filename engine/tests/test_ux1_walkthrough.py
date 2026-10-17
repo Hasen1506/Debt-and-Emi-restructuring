@@ -132,6 +132,8 @@ def test_fix3_short_plan_hold_covers_the_gap_and_names_no_saving():
     h = short_plan_hold(D("100000"), D("17500"))
     assert h is not None and h.months_covered == 5
     assert "₹17,500 a month short" in h.rationale and "interest" not in h.rationale.lower()
+    # Founder 17 Oct 2026: worded as the reason it is kept (no missed payment).
+    assert h.rationale.startswith("Kept for the shortfall so no payment is missed")
     later = short_plan_hold(D("10000"), D("17500"), short_from_label="Apr 2027")
     assert later.months_covered == 0 and "from Apr 2027" in later.rationale and "part of one" in later.rationale
     assert short_plan_hold(D("100000"), D("0")) is None

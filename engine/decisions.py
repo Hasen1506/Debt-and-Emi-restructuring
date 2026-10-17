@@ -686,7 +686,7 @@ def short_plan_hold(
     cover = (f"It covers about {months} short month{'s' if months != 1 else ''}"
              if months >= 1 else "It covers part of one short month")
     return GapHold(months, (
-        f"Your plan is {money(monthly_gap, country)} a month short {when}as it stands. Keep this to cover that gap "
-        f"first: a prepaid loan can't be drawn back when a month comes up short. {cover}. "
-        f"Prepay once the gap is closed."
+        f"Kept for the shortfall so no payment is missed: your plan is {money(monthly_gap, country)} a month "
+        f"short {when}as it stands, and a prepaid loan can't be drawn back when a month comes up short. "
+        f"{cover}. Prepay once the gap is closed."
     ))

@@ -313,15 +313,23 @@ test('B5 (#5): a 0% card is taken, with an optional end month and the rate after
   assert.match(src('components/setup/QuickSetup.tsx'), /<PromoFields loan=\{loan\}/);
 });
 
-test('B6 (#22): with no emergency fund set, spare cash keeps one month’s spending first', () => {
-  const { cashCushion } = lib('windfall-log.ts');
-  assert.equal(cashCushion({ efund_target: '0', fixed_expenses: '30000', variable_expenses: '10000' }), 40000);
-  assert.equal(cashCushion({ efund_target: '', efund_balance: '25000', fixed_expenses: '30000', variable_expenses: '10000' }), 15000);
-  assert.equal(cashCushion({ efund_target: '120000', fixed_expenses: '30000' }), 0);       // the plan's own share applies
+test('B6 (#22, founder 17 Oct 2026): "Not now" keeps nothing back unless the user ticks the cushion', () => {
+  const { cashCushion, fundFirst } = lib('windfall-log.ts');
+  const notNow = { efund_target: '0', fixed_expenses: '30000', variable_expenses: '10000' };
+  // The offer: one month's spending, less any fund already held.
+  assert.equal(cashCushion(notNow), 40000);
+  assert.equal(cashCushion({ ...notNow, efund_target: '', efund_balance: '25000' }), 15000);
+  assert.equal(cashCushion({ efund_target: '120000', fixed_expenses: '30000' }), 0);
   assert.equal(cashCushion({ efund_balance: '90000', fixed_expenses: '30000' }), 0);
-  const w = src('app/tools/windfall/tool.tsx');
-  assert.match(w, /Math\.min\(efGap, cushion > 0 \? total : total \* efSplit\)/);
-  assert.match(w, /Cash cushion \(1 month’s spending\)/);
+  // Off by default: the whole ₹3 lakh goes as the split says.
+  assert.deepEqual(fundFirst(notNow, false, 300000, 0.2), { gap: 0, cushion: false, first: 0 });
+  // Ticked: the cushion is taken first, capped at the amount.
+  assert.deepEqual(fundFirst(notNow, true, 300000, 0.2), { gap: 40000, cushion: true, first: 40000 });
+  assert.deepEqual(fundFirst(notNow, true, 25000, 0.2), { gap: 40000, cushion: true, first: 25000 });
+  // A set fund target keeps the plan's own share; the tick changes nothing.
+  const target = { efund_target: '120000', efund_balance: '20000', fixed_expenses: '30000' };
+  assert.deepEqual(fundFirst(target, false, 300000, 0.2), { gap: 100000, cushion: false, first: 60000 });
+  assert.deepEqual(fundFirst(target, true, 300000, 0.2), fundFirst(target, false, 300000, 0.2));
 });
 
 test('B7 (#19): a country switch takes the new take-home as typed, and the rate reads sensibly', () => {
