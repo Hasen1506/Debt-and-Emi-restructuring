@@ -667,6 +667,8 @@ export async function loadPlan(
       // What the pay-minimums run pays in month 1: the plan's month-1
       // payment minus this is the extra it puts on each loan.
       firstMonthMinimums: baselinePayments.find((p) => p.month === 1)?.perLoan ?? {},
+      debtStatusMonth1: ((p) => ({ catchUp: p?.catch_up_by_loan_index ?? {}, pot: p?.settlement_pot_by_loan_index ?? {} }))(
+        scenario.trajectory.find((p) => p.month === 1)),
       runArgs: simBaseArgs,
       // Only when the log changed a balance: an extra the plan already
       // pays this month changes nothing until the month is over.

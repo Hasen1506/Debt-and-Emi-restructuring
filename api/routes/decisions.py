@@ -13,6 +13,7 @@ from engine.asset_liquidation import (
     compute_liquidation_proceeds,
 )
 from engine.country_data import india_selling_cost_pct
+from engine.debt_status import is_held
 from engine.decisions import (
     DecisionInputError, allocate_windfall, evaluate_new_debt, quick_recompute,
     cash_yield_check, money, prepay_block,
@@ -87,6 +88,8 @@ def windfall(req: WindfallRequest) -> WindfallResponse:
             copy.min_payment_override = to_user_currency(loan.min_payment_override, loan, user)
         copy.expected_monthly_spend = to_user_currency(loan.expected_monthly_spend, loan, user)
         copy.currency = own
+        if is_held(loan):   # with a collection agency: no automatic lump sum (founder, 17 Oct 2026)
+            copy.outstanding = D("0")
         normalized.append(copy)
         normalized_rates[id(copy)] = rates[id(loan)]
         if id(loan) in mcs:

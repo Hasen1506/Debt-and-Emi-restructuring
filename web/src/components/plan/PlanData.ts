@@ -135,6 +135,10 @@ export interface PlanData {
   /** The settings this plan ran with (user as adjusted for activity,
    *  goals, EF split, planned events...), for the what-if panel. */
   runArgs: PlanRunArgs | null;
+  /** Month 1, by loan index (engine/debt_status.py): the overdue the plan pays
+   *  on a behind loan (loan currency) and each collections loan's settlement
+   *  pot (user currency). Absent on the offline sample. */
+  debtStatusMonth1?: { catchUp: Record<string, string>; pot: Record<string, string> };
   /** Month-1 payment per loan on the pay-minimums run (loan index → amount). */
   firstMonthMinimums: Record<number, string>;
   /** Summary of activity-ledger deltas applied to the projection. Null

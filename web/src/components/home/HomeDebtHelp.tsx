@@ -11,6 +11,7 @@ import { DraftLegalMarker } from '@/components/legal/DraftLegalMarker';
 import { loanLabel } from '@/lib/loan-types';
 import { SETTLED_NOTE, debtStatus, helpLines, isSettled, needsHelp, rightsNote } from '@/lib/loan-status';
 import { US_LETTERS_PATH } from '@/lib/us-letters';
+import { CatchUpCheck } from './CatchUpCheck';
 
 const STATUS_WORDS = { behind: 'BEHIND ON PAYMENTS', collections: 'WITH A COLLECTION AGENCY' } as const;
 const body = { fontSize: 'var(--fs-dense)', lineHeight: 1.55, margin: '4px 0' } as const;
@@ -36,6 +37,9 @@ export function HomeDebtHelp({ loans, country }: { loans: LoanPayload[]; country
               <ul style={{ ...body, paddingLeft: 18 }}>
                 {helpLines(l, country).map((t) => <li key={t}>{t}</li>)}
               </ul>
+              {debtStatus(l) === 'behind' && (
+                <CatchUpCheck loan={l} index={loans.indexOf(l)} name={loanLabel(l)} country={country} />
+              )}
               {country === 'US' && debtStatus(l) === 'collections' && (
                 <p style={body}>
                   <LBracket href={`${US_LETTERS_PATH}?kind=debt_validation`}>ASK THEM TO PROVE THE DEBT</LBracket>{' '}

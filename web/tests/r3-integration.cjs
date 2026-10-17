@@ -52,11 +52,12 @@ test('#21: an extra on a salary-deducted loan is listed, without its EMI', () =>
   assert.deepEqual(d.fromSalary, []);
 });
 
-test('#13: behind / collections rows are held (shown, not ticked); settled leaves nothing', () => {
+test('#13: collections rows are held (shown, not ticked); behind rows are paid (founder, 17 Oct 2026: r3e)', () => {
   const behind = { ...car, debt_status: 'behind' };
   const coll = { loan_type: 'credit_card', bank: 'SBI', outstanding: '50000', nominal_rate: '0.42', debt_status: 'collections' };
   const d = payThisMonth(plan([behind, coll], { 0: '10000', 1: '2500' }, { 0: '10000', 1: '2500' }), '2026-10-17');
-  assert.equal(d.rows.find((r) => r.loanIndex === 0).held, 'behind');
+  assert.equal(d.rows.find((r) => r.loanIndex === 0).held, undefined);
+  assert.equal(d.rows.find((r) => r.loanIndex === 0).behind, true);
   assert.equal(d.rows.find((r) => r.loanIndex === 1).held, 'collections');
   const ui = src('components/home/PayThisMonth.tsx');
   assert.match(ui, /row\.held && !st \?/);

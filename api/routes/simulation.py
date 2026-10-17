@@ -278,6 +278,8 @@ def _to_trajectory(result, loans, user) -> list[TrajectoryPoint]:
             gap_repaid=q(row.gap_repaid),
             gap_from_savings=q(row.gap_from_savings),
             held_for_lock_in=q(row.held_for_lock_in),
+            catch_up_by_loan_index=qd(row.catch_up_by_loan_index),
+            settlement_pot_by_loan_index=qd(row.settlement_pot_by_loan_index),
             unfunded_shortfall=q(row.unfunded_shortfall),
         ))
     return points

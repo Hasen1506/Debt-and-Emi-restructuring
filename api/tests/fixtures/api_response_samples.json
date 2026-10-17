@@ -39,6 +39,7 @@
      "0": "293247.00",
      "1": "56999.99"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "0.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -54,6 +55,7 @@
      "0": "10253.00",
      "1": "5403.62"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "15656.62",
     "unfunded_shortfall": "0.00"
@@ -68,6 +70,7 @@
      "0": "286415.22",
      "1": "54149.97"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "0.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -83,6 +86,7 @@
      "0": "10253.00",
      "1": "5133.44"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "15386.44",
     "unfunded_shortfall": "0.00"
@@ -97,6 +101,7 @@
      "0": "279503.73",
      "1": "51442.46"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "0.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -112,6 +117,7 @@
      "0": "10253.00",
      "1": "4876.77"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "15129.77",
     "unfunded_shortfall": "0.00"
@@ -164,6 +170,7 @@
      "0": "292235.33",
      "1": "22183.82"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "34343.38",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -179,6 +186,7 @@
      "0": "10253.00",
      "1": "39747.00"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "50000.00",
     "unfunded_shortfall": "0.00"
@@ -193,6 +201,7 @@
      "0": "268439.36",
      "1": "0.00"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "37749.12",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -208,6 +217,7 @@
      "0": "27205.39",
      "1": "22794.61"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "50000.00",
     "unfunded_shortfall": "0.00"
@@ -222,6 +232,7 @@
      "0": "221571.15",
      "1": "0.00"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "39747.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -236,6 +247,7 @@
     "payments_by_loan_index": {
      "0": "50000.00"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "50000.00",
     "unfunded_shortfall": "0.00"
@@ -296,6 +308,7 @@
      "0": "293247.00",
      "1": "22183.82"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "34343.38",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -311,6 +324,7 @@
      "0": "10253.00",
      "1": "39747.00"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "50000.00",
     "unfunded_shortfall": "0.00"
@@ -325,6 +339,7 @@
      "0": "269462.83",
      "1": "0.00"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "37749.12",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -340,6 +355,7 @@
      "0": "27205.39",
      "1": "22794.61"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "50000.00",
     "unfunded_shortfall": "0.00"
@@ -354,6 +370,7 @@
      "0": "222606.56",
      "1": "0.00"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "39747.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -368,6 +385,7 @@
     "payments_by_loan_index": {
      "0": "50000.00"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "50000.00",
     "unfunded_shortfall": "0.00"
@@ -415,6 +433,7 @@
     "balances_by_loan_index": {
      "0": "17674.00"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "0.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -429,6 +448,7 @@
     "payments_by_loan_index": {
      "0": "431.00"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "431.00",
     "unfunded_shortfall": "0.00"
@@ -442,6 +462,7 @@
     "balances_by_loan_index": {
      "0": "17346.10"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "0.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -456,6 +477,7 @@
     "payments_by_loan_index": {
      "0": "431.00"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "431.00",
     "unfunded_shortfall": "0.00"
@@ -469,6 +491,7 @@
     "balances_by_loan_index": {
      "0": "17016.28"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "0.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -483,6 +506,7 @@
     "payments_by_loan_index": {
      "0": "431.00"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "431.00",
     "unfunded_shortfall": "0.00"
@@ -534,6 +558,7 @@
     "balances_by_loan_index": {
      "0": "13599.17"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "3069.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -548,6 +573,7 @@
     "payments_by_loan_index": {
      "0": "3500.00"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "3500.00",
     "unfunded_shortfall": "0.00"
@@ -561,6 +587,7 @@
     "balances_by_loan_index": {
      "0": "10178.50"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "3069.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -575,6 +602,7 @@
     "payments_by_loan_index": {
      "0": "3500.00"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "3500.00",
     "unfunded_shortfall": "0.00"
@@ -588,6 +616,7 @@
     "balances_by_loan_index": {
      "0": "6737.87"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "3069.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -602,6 +631,7 @@
     "payments_by_loan_index": {
      "0": "3500.00"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "3500.00",
     "unfunded_shortfall": "0.00"
@@ -661,6 +691,7 @@
     "balances_by_loan_index": {
      "0": "14605.00"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "3069.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -675,6 +706,7 @@
     "payments_by_loan_index": {
      "0": "3500.00"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "3500.00",
     "unfunded_shortfall": "0.00"
@@ -688,6 +720,7 @@
     "balances_by_loan_index": {
      "0": "11190.20"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "3069.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -702,6 +735,7 @@
     "payments_by_loan_index": {
      "0": "3500.00"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "3500.00",
     "unfunded_shortfall": "0.00"
@@ -715,6 +749,7 @@
     "balances_by_loan_index": {
      "0": "7755.47"
     },
+    "catch_up_by_loan_index": {},
     "extra_paid": "3069.00",
     "gap_borrowed": "0.00",
     "gap_debt": "0.00",
@@ -729,6 +764,7 @@
     "payments_by_loan_index": {
      "0": "3500.00"
     },
+    "settlement_pot_by_loan_index": {},
     "shortfall": "0.00",
     "total_paid": "3500.00",
     "unfunded_shortfall": "0.00"

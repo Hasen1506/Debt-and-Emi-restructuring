@@ -5,9 +5,9 @@
   "prod_lines_baseline": 111178,
   "_prod_lines_baseline_why": "Round 2 merged on hark/a80-integration (15 Oct 2026): prod 104,789 -> 108,140, re-measured with scripts/size_report.py after merging r2-backup, r2-web and r2-engine. r2-web +896 (US letters page, shared Resend Free email budget + rollover, draft-legal markers, privacy/terms updates, check_founder_records.py); r2-engine +~1,688 (rate-rise ceiling, own-return trigger, NRI FX cost, seasonal income + opt-in reserve, salaried advance tax, Plan input chips, Setup rate-rise choice); r2-backup ships scripts/shell + tests only. The branches' own figures (105,685 and 107,239) are superseded by this merged one. Grandfathered caps set to the merged file lengths. NEEDS FOUNDER OK (docs/FOUNDER-RECORDS.md).",
   "grandfathered": {
-    "api/schemas.py": 1883,
+    "api/schemas.py": 1882,
     "engine/asset_liquidation.py": 1724,
-    "engine/simulation.py": 1788,
+    "engine/simulation.py": 1786,
     "web/src/app/profile/ProfileClient.tsx": 2804,
     "web/src/components/setup/QuickSetup.tsx": 1632,
     "web/src/lib/api.ts": 2222

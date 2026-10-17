@@ -23,7 +23,17 @@ declare module './api' {
   interface LoanPayload {
     house_use?: HouseUse | null;
     debt_status?: DebtStatus;
+    /** Founder 17 Oct 2026: how much a behind loan is behind by (blank =
+     *  one EMI, estimated), and the day it was marked behind. */
+    overdue_amount?: string | null;
+    overdue_as_of?: string;
     salary_deducted?: boolean;
+  }
+  interface TrajectoryPointRaw {
+    /** engine/debt_status.py, by loan position: the overdue paid on a behind
+     *  loan (loan currency) and each collections loan's settlement pot (user currency). */
+    catch_up_by_loan_index?: Record<string, string>;
+    settlement_pot_by_loan_index?: Record<string, string>;
   }
 }
 
@@ -49,6 +59,7 @@ export const SALARY_DEDUCTED_HINT =
 // The predicates live in loan-status-core (no copy), so lib/derived and
 // Home's pay list don't pull these strings into every route's bundle.
 export { canBeSalaryDeducted, debtStatus, emiOffTakeHome, isSettled, needsHelp } from './loan-status-core';
+export { overdueOf } from './catch-up';
 import { debtStatus } from './loan-status-core';
 
 /**
@@ -60,12 +71,14 @@ export function helpLines(l: { debt_status?: DebtStatus; loan_type: LoanType }, 
   if (s !== 'behind' && s !== 'collections') return [];
   const lines = s === 'behind'
     ? [
-        'Call or write to the lender before the next due date and ask for a hardship plan: a pause, lower payments or a longer term.',
+        'Your plan now puts spare cash on what’s overdue first, before the emergency fund or other loans; then the normal plan resumes.',
+        'Can’t catch up? Call or write to the lender before the next due date and ask for a hardship plan: a pause, lower payments or a longer term.',
         'Pay what you can on this loan first if it’s secured (a house, a vehicle, gold); don’t borrow at a higher rate to catch up.',
       ]
     : [
         'Don’t pay a collector until you know the debt is yours and the amount is right: ask for it in writing.',
         'Keep every letter and a note of each call (date, time, name).',
+        'The plan puts no extra on it: its share goes to a settlement pot you keep (see this month’s payments). To pay it anyway, pin it on Plan or use MY SPLIT.',
       ];
   if (l.loan_type === 'medical_loan' && country === 'US') {
     lines.push('A medical bill: ask the hospital for an itemized bill and its financial-assistance (charity care) policy.');
@@ -93,3 +106,15 @@ export const US_MEDICAL_NOTES = [
   'You can ask the provider to hold the bill from collections while you sort out insurance or assistance.',
   'Credit reports: paid medical debt and medical debt under $500 are not shown by the three big bureaus (as of 2023; verify).',
 ];
+
+/** Setup / Profile, under "Behind on payments" (founder 17 Oct 2026). */
+export const OVERDUE_LABEL = 'How much are you behind?';
+export const OVERDUE_HINT = 'The missed payments plus any late fees. Leave it blank and we’ll use one EMI as an estimate.';
+
+/** Home, beside a collections loan's settlement pot (marked DRAFT: legal review). */
+export const POT_WHY =
+  'Kept by you, not paid to the collector: paying a collector in bits weakens your hand when you negotiate a settlement. The plan doesn’t count it as paid.';
+
+/** Windfall MY SPLIT: shown when money goes to a collections loan (never blocked). */
+export const COLLECTIONS_SPLIT_NOTE =
+  'With a collection agency: ask for the debt in writing before paying, and pay a settlement in one go rather than in bits. Your choice stands.';

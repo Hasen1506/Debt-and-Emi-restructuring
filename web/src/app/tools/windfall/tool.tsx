@@ -64,6 +64,7 @@ import {
 import { LStepHead, LStepSub } from '@/components/ledger/LToolSteps';
 import { useWidth } from '@/lib/use-width';
 import { announce } from '@/lib/announce';
+import { COLLECTIONS_SPLIT_NOTE } from '@/lib/loan-status';
 import { planEnd, planGap } from '@/lib/plan-gap';
 
 const LOAN_WORDS: Record<string, string> = {
@@ -90,6 +91,8 @@ interface Target {
   fx?: number;
   feePct?: number;
   blocked?: string;
+  /** With a collection agency: the engine pick skips it; MY SPLIT may still pay it (one note). */
+  collections?: boolean;
   goal?: Goal;
   saved?: number;
   required?: number;
@@ -212,7 +215,7 @@ export function WindfallTool({
       if (fx == null) continue;
       const feePct = Number(l.prepayment_penalty_pct || 0);
       const cap = (Number(l.outstanding) * fx) / (feePct < 1 ? 1 - feePct : 1);
-      out.push({ key: keyOf(l, i), kind: 'loan', label: loanName(l), cap, rate: Number(l.nominal_rate), index: i, fx, feePct, blocked: block(l) });
+      out.push({ key: keyOf(l, i), kind: 'loan', label: loanName(l), cap, rate: Number(l.nominal_rate), index: i, fx, feePct, blocked: block(l), ...(l.debt_status === 'collections' ? { collections: true } : {}) });
     }
     for (const g of goals) {
       const required = fundedAmount(g);
@@ -714,8 +717,8 @@ export function WindfallTool({
                     tone = v > 0 ? L_T.positive : L_T.muted;
                   }
                   return (
+                    <div key={t.key}>
                     <AllocRow
-                      key={t.key}
                       first={i === 0}
                       target={t}
                       value={v}
@@ -727,6 +730,10 @@ export function WindfallTool({
                       badgeTone={tone}
                       fmt={fmt}
                     />
+                    {t.collections && v > 0 && (
+                      <p data-testid="split-collections-note" style={{ fontSize: 'var(--fs-small)', color: L_T.muted, margin: '2px 0 8px' }}>{COLLECTIONS_SPLIT_NOTE}</p>
+                    )}
+                    </div>
                   );
                 })}
               </div>
