@@ -6,7 +6,10 @@
  * This file holds the request/response shapes, the calls, and the few pure
  * decisions the screens make from them (A2: ask about the order or not).
  */
-import { postEngineWithFieldErrors as post, type SimulateArgs } from './api';
+import { postEngineWithFieldErrors, type SimulateArgs } from './api';
+import { pageScoped } from './page-abort';
+// R12-1 (WebKit): Plan's insight cards can start while the page is leaving; held like auth/me and the rates.
+const post = <T>(path: string, body: unknown) => pageScoped((signal) => postEngineWithFieldErrors<T>(path, body, signal));
 import type { StrategyName } from './strategy';
 
 export interface LoanCheckFindingBody {

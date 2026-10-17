@@ -22,7 +22,14 @@ async function stubNotify(page: Page) {
   await page.route('**/api/notify/**', async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname.replace(/^.*\/api\/notify/, '');
-    const json = (body: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    // The API is another origin (credentials: include): a stubbed answer needs
+    // the CORS headers the real one sends, or WebKit refuses it ("access
+    // control checks") and the opt-ins stay hidden. Chromium and Firefox let
+    // a fulfilled response through without them.
+    const headers = { 'access-control-allow-origin': req.headers()['origin'] ?? 'http://localhost:3141', 'access-control-allow-credentials': 'true',
+      'access-control-allow-headers': 'content-type', 'access-control-allow-methods': 'GET, PUT, OPTIONS' };
+    if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    const json = (body: unknown) => route.fulfill({ status: 200, contentType: 'application/json', headers, body: JSON.stringify(body) });
     if (path === '/flags') return json({ payday_email: true, deadline_reminders: true, reply_done: false, rate_move: true });
     if (path === '/settings') {
       return json({ payday: { on: false, day: null, list_month: null }, reminders: { on: false, count: 0 },

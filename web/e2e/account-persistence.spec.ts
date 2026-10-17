@@ -100,6 +100,10 @@ test('sign-in ended elsewhere: the save is kept here, the notice says why, and s
 
 test('sign-in ended with nothing waiting to send: opening a page asks to sign in again, not Setup', async ({ page, context, playwright }) => {
   await setUp(page, 'l1-ended-idle@rightdue.app');
+  // Nothing left to send: Setup's saves have all reached the account (WebKit
+  // can still be sending one when /plan opens, and a queued change is kept).
+  await expect.poll(() => page.evaluate(() => Object.keys(localStorage)
+    .filter((k) => k.startsWith('rightdue_pending_sync_') && !['', '{}'].includes(localStorage.getItem(k) ?? '')).length)).toBe(0);
   const session = (await context.cookies()).find((c) => c.name === 'rightdue_session')!;
   const outside = await playwright.request.newContext();
   expect((await outside.post(`${API}/api/auth/logout`, { headers: { Cookie: `rightdue_session=${session.value}` } })).status()).toBe(204);

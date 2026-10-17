@@ -1500,13 +1500,13 @@ function serverHeaders(): Record<string, string> {
   return token ? { 'X-Internal-Token': token } : {};
 }
 
-export async function postWithFieldErrors<T>(path: string, body: unknown): Promise<T> {
+export async function postWithFieldErrors<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await apiFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...serverHeaders() },
     body: JSON.stringify(body),
     cache: 'no-store',
-    credentials: requestCredentials(path),
+    credentials: requestCredentials(path), ...(signal ? { signal } : {}),
   });
   if (res.status === 422) {
     const data = await res.json().catch(() => null);
